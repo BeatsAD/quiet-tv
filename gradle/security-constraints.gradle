@@ -1,6 +1,9 @@
-// Minimum patched versions for AGP, lint and Unified Test Platform dependencies.
+// Minimum patched versions for build tools and application cryptography dependencies.
 // Constraints upgrade existing modules without adding them to the APK or downgrading newer versions.
 def minimumVersions = [
+    'org.bouncycastle:bcprov-jdk15to18': '1.86',
+    'org.bouncycastle:bcpkix-jdk15to18': '1.86',
+    'org.bouncycastle:bcutil-jdk15to18': '1.86',
     'org.bouncycastle:bcprov-jdk18on': '1.85',
     'org.bouncycastle:bcpkix-jdk18on': '1.85',
     'org.bouncycastle:bcutil-jdk18on': '1.85',
@@ -24,7 +27,7 @@ def addSecurityConstraints = { configurations, dependencies ->
     }
     minimumVersions.each { module, version ->
         dependencies.constraints.add(security.name, "${module}:${version}") {
-            because 'Patched build-tool dependencies; see docs/DEPENDENCY_SECURITY.md'
+            because 'Patched dependencies; see docs/DEPENDENCY_SECURITY.md'
         }
     }
     configurations.configureEach { configuration ->

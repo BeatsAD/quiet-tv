@@ -78,15 +78,15 @@ Dock 最左／最右卡片选中时向内补偿放大与边框占用的空间，
 
 ## 重新编译并安装
 
-双击 `build-and-install.command`，或执行：
+在终端执行并填写本次交付摘要（`--summary` 必填，不能直接双击运行）：
 
 ```sh
-./build-and-install.command
+./build-and-install.command --summary "说明本次更新内容"
 ```
 
-脚本使用 Gradle Wrapper 8.13 构建 debug APK，安装更新，打开桌面，发送一次右键并截图至 `evidence/build-installed.png`。它不会再次禁用系统包，也不会重设 HOME。
+脚本使用 Gradle Wrapper 8.13 构建 debug APK，归档至 `dist/apk/`，安装后比较本地与电视 APK 的 SHA-256，再打开桌面，发送一次右键并截图至 `evidence/build-installed.png`。它不会再次禁用系统包，也不会重设 HOME。新内容交付前须递增构建号；版本、归档和核对规则见 [VERSIONING.md](VERSIONING.md)。
 
-当前 Mac 已具备 JDK 21 和 Android SDK；`local.properties` 指向本机 SDK。依赖为 AGP 8.12.2 与 RecyclerView 1.4.0，compileSdk 36，minSdk/targetSdk 31，与本机 Android 12 相匹配。APK 位于 `app/build/outputs/apk/debug/app-debug.apk`。
+当前 Mac 已具备 JDK 21 和 Android SDK；`local.properties` 指向本机 SDK。依赖为 AGP 8.12.2 与 RecyclerView 1.4.0，compileSdk 36，minSdk/targetSdk 31，与本机 Android 12 相匹配。交付使用 `dist/apk/quiet-tv_<版本号>_b<构建号>_debug.apk`，`app/build/outputs/apk/debug/app-debug.apk` 仅为可覆盖的构建中间输出。
 
 在另一台 Mac 上需要 JDK 17 或 21、Android SDK platform 36 / build-tools 36，以及 Python 3。改好 `local.properties` 和 `device.json`，然后创建客户端环境：
 
@@ -135,7 +135,7 @@ python3 -m venv .venv
 
 ```sh
 TV_ADB_BACKEND=python .venv/bin/python scripts/tv.py shell 'getprop ro.product.model'
-TV_ADB_BACKEND=python ./build-and-install.command
+TV_ADB_BACKEND=python ./build-and-install.command --summary "说明本次更新内容"
 TV_ADB_BACKEND=python ./restore.command
 ```
 

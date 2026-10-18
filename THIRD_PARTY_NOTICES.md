@@ -35,5 +35,5 @@ Quiet TV 基于该项目开发，面向国内电视机的适配与应用升级�
 ## 电视端 ADB 与证书依赖
 
 - [libadb-android 3.1.1](https://github.com/MuntashirAkon/libadb-android/tree/3.1.1)：采用其 Apache-2.0 许可选项，保留继承代码的 BSD-3-Clause 和 MIT 声明。许可文本随 APK 保存在 `assets/licenses/libadb-*.txt`。
-- [Bouncy Castle 1.81](https://github.com/bcgit/bc-java/tree/r1rv81)：bcprov、bcpkix 及 bcutil，用于独立密钥的自签证书和库内部 RSA 公钥编码，许可见 `assets/licenses/bouncycastle-LICENSE.md`。
+- [Bouncy Castle 1.86](https://github.com/bcgit/bc-java/tree/r1rv86)：bcprov、bcpkix 及 bcutil 的 jdk15to18 版本，用于独立密钥的自签证书和库内部 RSA 公钥编码，许可见 `assets/licenses/bouncycastle-LICENSE.md`。此版本为当前源码依赖；历史发布包的依赖不会随源码维护改变。
 - 首版仅使用传统 TCP，显式排除未使用的 `spake2-android` 原生无线配对依赖。

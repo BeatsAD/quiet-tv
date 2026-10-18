@@ -9,7 +9,7 @@
 | MIT 与上游署名 / License and attribution | 已保留 / Present |
 | Topics | android-tv, google-tv, adb, launcher, chinese, sony, tv-customization |
 | Dependabot alerts | 已启用 / Enabled |
-| 依赖版本检查 / Dependency update checks | Gradle、pip 和 Actions 每月检查，人工合入 / Monthly Gradle, pip, and Actions checks; manual merge |
+| 依赖版本检查 / Dependency update checks | Gradle、pip、Actions 及两个 npm 子项目配置为每月检查，人工合入；本次新增 npm 配置尚待推送生效 / Monthly Gradle, pip, Actions, and both npm projects; manual merge; new npm configuration pending push |
 | 主分支保护 / Main protection | 未启用：API 返回 403，当前私密仓库需升级 Pro 或公开才能使用 / Unavailable: API 403, requires Pro or public visibility |
 | 私密漏洞报告 / Private vulnerability reporting | 未启用：仅公开仓库支持，当前私密仓库 API 返回 404 / Public repositories only; private repository API returns 404 |
 
