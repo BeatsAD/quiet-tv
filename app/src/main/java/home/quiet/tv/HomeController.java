@@ -17,7 +17,8 @@ final class HomeController {
     private final Context context;
     private final PackageManager pm;
     final SetupPresets presets;
-    HomeController(Context context){this.context=context;pm=context.getPackageManager();presets=SetupPresets.load(context);}
+    HomeController(Context context){this(context,SetupPresets.load(context));}
+    HomeController(Context context,SetupPresets presets){this.context=context;pm=context.getPackageManager();this.presets=presets;}
     static Intent homeIntent(){return new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME);}
     boolean component(String flattened,boolean requireEnabled){
         ComponentName name=ComponentName.unflattenFromString(flattened);if(name==null)return false;
@@ -44,7 +45,10 @@ final class HomeController {
             ComponentName name=null;ResolveInfo resolved=pm.resolveActivity(homeIntent(),PackageManager.MATCH_DEFAULT_ONLY);if(resolved!=null && resolved.activityInfo!=null)name=new ComponentName(resolved.activityInfo.packageName,resolved.activityInfo.name);
             if(name!=null && component(name.flattenToString(),true)){state.actual=name.flattenToString();state.known=true;}
         }
-        if(state.known)state.reason=state.isOwn(context)?"Quiet TV 已是默认桌面":"当前默认桌面："+state.actual;
+        if(state.known){
+            String label="其他桌面";try{label=pm.getActivityInfo(ComponentName.unflattenFromString(state.actual),0).loadLabel(pm).toString();}catch(PackageManager.NameNotFoundException ignored){}
+            state.reason=state.isOwn(context)?"Quiet TV 已是默认桌面":"当前默认桌面："+label;
+        }
         if(!state.ownUsable)state.reason="Quiet TV HOME 组件不可用";
         return state;
     }

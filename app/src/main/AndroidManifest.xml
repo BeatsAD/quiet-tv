@@ -1,12 +1,16 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
     <uses-feature android:name="android.software.leanback" android:required="true" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <uses-feature android:name="android.hardware.wifi" android:required="false" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.READ_TV_LISTINGS" />
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <!-- A HOME and application manager must enumerate installed apps, including those without launcher entries. -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
     <queries>
         <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LEANBACK_LAUNCHER" /></intent>
         <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent>
@@ -15,6 +19,7 @@
     <application android:label="Quiet TV" android:theme="@style/AppTheme" android:icon="@drawable/launcher_icon" android:banner="@drawable/launcher_banner" android:allowBackup="false" android:supportsRtl="true">
         <activity android:name=".DockEditorActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".AppManagementActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".SetupActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".HomeActivity" android:exported="true" android:launchMode="singleTask" android:excludeFromRecents="true" android:screenOrientation="landscape">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

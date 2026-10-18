@@ -10,6 +10,10 @@ public final class ManagementInstrumentation extends Instrumentation {
     @Override public void onCreate(Bundle args){super.onCreate(args);scenario=args.getString("scenario","adb");start();}
     @Override public void onStart(){
         Bundle result=new Bundle();
+        if("setup".equals(scenario)){
+            try{new SetupChecks(this).run();result.putString("stream","PASS: emulator native setup / temporary use / HOME readback / cancellation / unverified uninstall denied / fixture disable and exact enable-state restore / skip; original HOME restored\n");finish(-1,result);}
+            catch(Throwable e){android.util.Log.e("QuietTVChecks","Setup check failed",e);result.putString("stream","FAIL: "+e+"\n");finish(0,result);}return;
+        }
         if("visual".equals(scenario)){
             try{new ManagementChecks(this).visual();result.putString("stream","PASS: native search empty/clear, refresh, history, real app metadata, Dock tab; configuration unchanged\n");finish(-1,result);}
             catch(Throwable e){android.util.Log.e("QuietTVChecks","Visual check failed",e);result.putString("stream","FAIL: "+e+"\n");finish(0,result);}return;

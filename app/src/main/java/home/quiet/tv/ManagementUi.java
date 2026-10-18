@@ -35,8 +35,8 @@ abstract class ManagementUi extends Activity {
         Button back=iconButton("返回",R.drawable.ic_manage_back,this::finish);header.addView(back,new LinearLayout.LayoutParams(px(34),px(34)));
         TextView title=label("应用管理",27);title.setPadding(px(14),0,0,0);header.addView(title,new LinearLayout.LayoutParams(0,-1,1));
     }
-    LinearLayout row(){LinearLayout view=new LinearLayout(this);view.setOrientation(0);view.setGravity(Gravity.CENTER_VERTICAL);return view;}
-    LinearLayout column(){LinearLayout view=new LinearLayout(this);view.setOrientation(1);return view;}
+    LinearLayout row(){LinearLayout view=new LinearLayout(this);view.setOrientation(LinearLayout.HORIZONTAL);view.setGravity(Gravity.CENTER_VERTICAL);return view;}
+    LinearLayout column(){LinearLayout view=new LinearLayout(this);view.setOrientation(LinearLayout.VERTICAL);return view;}
     TextView label(String text,int size){TextView view=new TextView(this);view.setText(text);view.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(size));view.setTextColor(TEXT);view.setGravity(Gravity.CENTER_VERTICAL);view.setIncludeFontPadding(false);return view;}
     TextView muted(String text,int size){TextView view=label(text,size);view.setTextColor(MUTED);return view;}
     TextView center(String text,int size){TextView view=label(text,size);view.setGravity(Gravity.CENTER);return view;}

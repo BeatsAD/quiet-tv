@@ -5,9 +5,11 @@ android {
     defaultConfig {
         applicationId 'home.quiet.tv'
         minSdk 31
+        // This local debug candidate retains the existing runtime behavior; Play publication is a separate migration.
+        //noinspection ExpiredTargetSdkVersion
         targetSdk 31
-        versionCode 3
-        versionName '1.0.1'
+        versionCode 4
+        versionName '1.1.0'
     }
     buildTypes { debug { debuggable true } }
     compileOptions { sourceCompatibility JavaVersion.VERSION_11; targetCompatibility JavaVersion.VERSION_11 }

@@ -23,11 +23,11 @@ final class SetupStore {
     }
     void baseline(String previousHome,String originalHome) throws Exception {synchronized(LOCK){JSONObject record=get();if(!record.has("baseline"))put("baseline",new JSONObject().put("previousHome",previousHome).put("originalHome",originalHome).put("time",System.currentTimeMillis()));}}
     String originalHome() throws Exception {JSONObject baseline=get().optJSONObject("baseline");return baseline==null?"":baseline.optString("originalHome");}
-    boolean shouldOffer(Context context,boolean alreadyHome) throws Exception {
+    boolean shouldOffer(Context context) throws Exception {
         synchronized(LOCK){JSONObject record=get();if(record.has("status"))return false;
             android.content.pm.PackageInfo info=context.getPackageManager().getPackageInfo(context.getPackageName(),0);
             boolean upgraded=info.lastUpdateTime>info.firstInstallTime || context.getSharedPreferences("HomeActivity",0).contains("row");
-            if(alreadyHome || upgraded){put("status","legacy");return false;}
+            if(upgraded){put("status","legacy");return false;}
             put("status","pending");return true;
         }
     }

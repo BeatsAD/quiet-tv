@@ -26,6 +26,7 @@ final class AdbController implements Closeable {
     private volatile AdbConnection connection;
     private final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor();
     private volatile boolean closed;
+    private final java.util.concurrent.atomic.AtomicInteger generation=new java.util.concurrent.atomic.AtomicInteger();
     int user = -1;
     String host = "";
     AdbController(Context context, Status status) { this.context=context.getApplicationContext(); this.status=status; }
@@ -38,13 +39,14 @@ final class AdbController implements Closeable {
     void connect(int port) throws Exception {
         if(port<1 || port>65535)throw new IOException("端口必须在 1～65535 之间");
         disconnect();
+        int attempt=generation.get();
         List<String> hosts=new ArrayList<>();hosts.add("127.0.0.1");
         for(NetworkInterface nic:Collections.list(NetworkInterface.getNetworkInterfaces()))
             if(nic.isUp() && !nic.isLoopback())for(InetAddress address:Collections.list(nic.getInetAddresses()))
                 if(address instanceof Inet4Address)hosts.add(address.getHostAddress());
         Exception failure=null;
         for(String candidate:hosts){
-            if(closed)throw new IOException("连接已取消");
+            if(closed || generation.get()!=attempt)throw new IOException("连接已取消");
             status.changed("连接中 · "+candidate+":"+port);
             // Bound the TCP reachability check; the library's constructor uses a blocking Socket.
             try(Socket probe=new Socket()){probe.connect(new InetSocketAddress(candidate,port),2000);}
@@ -54,7 +56,7 @@ final class AdbController implements Closeable {
                     .setDeviceName("QuietTV").setPrivateKey((PrivateKey)keys.getKey("adb",new char[0]))
                     .setCertificate(keys.getCertificate("adb")).build();
             connection=c;
-            if(closed){disconnect();throw new IOException("连接已取消");}
+            if(closed || generation.get()!=attempt){disconnect();throw new IOException("连接已取消");}
             status.changed("等待授权 · 请在电视弹窗中允许 QuietTV 的调试连接");
             try{
                 if(!c.connect(60,TimeUnit.SECONDS,false))throw new IOException("授权超时，请确认电视调试已开启并允许连接");
@@ -66,6 +68,7 @@ final class AdbController implements Closeable {
                 user=Integer.parseInt(shell("am get-current-user").trim());
                 if(!android.os.UserHandle.getUserHandleForUid(user*100000).equals(android.os.Process.myUserHandle()))throw new IOException("前台用户已切换，请重新打开应用管理");
                 host=candidate;
+                if(closed || generation.get()!=attempt){disconnect();throw new IOException("连接已取消");}
                 status.changed("已连接 · 本机 · 用户 "+user);
                 return;
             }catch(Exception e){failure=e;disconnect();break;}
@@ -116,6 +119,6 @@ final class AdbController implements Closeable {
         }
         return store;
     }
-    void disconnect(){user=-1;AdbConnection c=connection;connection=null;if(c!=null)try{c.close();}catch(IOException ignored){} }
+    void disconnect(){generation.incrementAndGet();user=-1;AdbConnection c=connection;connection=null;if(c!=null)try{c.close();}catch(IOException ignored){}status.changed("未连接");}
     @Override public void close(){closed=true;disconnect();timer.shutdownNow();}
 }

@@ -87,6 +87,9 @@ public final class HomeActivity extends Activity {
         activePackage = getPreferences(0).getString("package", "");
         makeScene();
         loadApps();
+        loader.execute(()->{try{
+            if(new SetupStore(this).shouldOffer(this))main.post(()->{if(!isFinishing() && !isDestroyed())startActivity(new Intent(this,SetupActivity.class));});
+        }catch(Exception e){Log.w(TAG,"Setup state unavailable; retaining home",e);}});
     }
 
     private String readAsset(String name) throws IOException {

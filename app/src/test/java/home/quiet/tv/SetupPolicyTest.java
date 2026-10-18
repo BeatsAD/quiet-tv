@@ -27,4 +27,10 @@ public class SetupPolicyTest {
         assertEquals("",HomeController.parseComponent("No activity found\nError: permission denied"));
         assertEquals("example.home/.Main",HomeController.parseComponent("priority=0\nexample.home/.Main\n"));
     }
+    @Test public void cancelledSelectionCannotResumeAfterLateConnection() throws Exception {
+        SetupOperations.Ticket confirmed=new SetupOperations.Ticket();confirmed.check();confirmed.cancel();
+        assertFalse(confirmed.active());
+        try{confirmed.check();fail("A late connection must not revive a cancelled selection");}catch(java.io.IOException expected){}
+        SetupOperations.Ticket fresh=new SetupOperations.Ticket();assertTrue(fresh.active());assertFalse(confirmed.active());
+    }
 }
