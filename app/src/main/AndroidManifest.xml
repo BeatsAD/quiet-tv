@@ -13,6 +13,7 @@
         <intent><action android:name="android.intent.action.VIEW" /><data android:scheme="content" /></intent>
     </queries>
     <application android:label="Quiet TV" android:theme="@style/AppTheme" android:icon="@drawable/launcher_icon" android:banner="@drawable/launcher_banner" android:allowBackup="false" android:supportsRtl="true">
+        <activity android:name=".DockEditorActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".HomeActivity" android:exported="true" android:launchMode="singleTask" android:excludeFromRecents="true" android:screenOrientation="landscape">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

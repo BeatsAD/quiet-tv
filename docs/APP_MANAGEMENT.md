@@ -23,3 +23,17 @@ adb install -r management-fixture/build/outputs/apk/debug/management-fixture-deb
 adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 adb shell am instrument -w home.quiet.tv.test/home.quiet.tv.ManagementInstrumentation
 ```
+
+## B 阶段：四位置 Dock
+
+- 本地偏好首次从 `launcher.json` 导入，明确保存的空数组不会再次导入默认值。
+- 添加、移除、满位替换与左右排序均用原生遥控控件；排序按确定保存、返回取消。
+- 首页保持卡片尺寸与四位置布局；没有可见常用应用时提供“添加常用应用”。禁用不清除配置，明确卸载后移除配置；更新替换广播不按卸载处理。
+- 电视原生界面验收通过：空 Dock 添加、移除、1～4 个持久化、满位替换、左右排序保存及取消。已恢复原四个常用应用。
+- 本地证据：`evidence/app-management/phase-b-dock.txt`、`dock-empty.png`、`dock-one.png`、`dock-four-sorted.png`。
+
+单独运行 Dock 验收（专用测试 APK 须已安装）：
+
+```sh
+adb shell am instrument -w -e scenario dock home.quiet.tv.test/home.quiet.tv.ManagementInstrumentation
+```

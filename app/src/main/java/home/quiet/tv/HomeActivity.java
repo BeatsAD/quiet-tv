@@ -56,7 +56,10 @@ public final class HomeActivity extends Activity {
         @Override public void onReceive(Context c, Intent i) { updateClock(); }
     };
     private final BroadcastReceiver packageReceiver = new BroadcastReceiver() {
-        @Override public void onReceive(Context c, Intent i) { loadApps(); }
+        @Override public void onReceive(Context c, Intent i) {
+            if(Intent.ACTION_PACKAGE_REMOVED.equals(i.getAction()) && !i.getBooleanExtra(Intent.EXTRA_REPLACING,false) && i.getData()!=null)new DockStore(c).remove(i.getData().getSchemeSpecificPart());
+            loadApps();
+        }
     };
     private ConnectivityManager.NetworkCallback networkCallback;
 
@@ -73,8 +76,7 @@ public final class HomeActivity extends Activity {
             config = new JSONObject(readAsset("launcher.json"));
             chinese = !"en".equals(config.optString("language", "zh"));
             fixedGreeting = "home".equals(config.optString("greeting"));
-            JSONArray pinned = config.getJSONArray("dock");
-            for (int n = 0; n < pinned.length(); n++) dockPackages.add(pinned.getString(n));
+            dockPackages.addAll(new DockStore(this).load());
             JSONArray omitted = config.optJSONArray("hidden");
             if (omitted != null) for (int n = 0; n < omitted.length(); n++) hidden.add(omitted.getString(n));
             outfit = Typeface.createFromAsset(getAssets(), "fonts/outfit.ttf");
@@ -233,7 +235,7 @@ public final class HomeActivity extends Activity {
         ((ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE)).registerDefaultNetworkCallback(networkCallback);
         updateClock();updateNetwork();
         wallpapers.resume();
-        if(ready) main.post(()->focusCurrent(false));
+        if(ready) loadApps();
     }
 
     @Override protected void onPause() {
@@ -252,12 +254,14 @@ public final class HomeActivity extends Activity {
     }
 
     private void loadApps() {
+        dockPackages.clear();dockPackages.addAll(new DockStore(this).load());
+        final ArrayList<String> pinned=new ArrayList<>(dockPackages);
         loader.execute(()->{
             PackageManager pm=getPackageManager(); LinkedHashMap<String,ResolveInfo> candidates=new LinkedHashMap<>();
             for(String category:new String[]{Intent.CATEGORY_LEANBACK_LAUNCHER,Intent.CATEGORY_LAUNCHER}) {
                 for(ResolveInfo info:pm.queryIntentActivities(new Intent(Intent.ACTION_MAIN).addCategory(category),0)) {
                     String pkg=info.activityInfo.packageName;
-                    if(!hidden.contains(pkg) && !pkg.equals(getPackageName()) && info.activityInfo.applicationInfo.enabled) candidates.putIfAbsent(pkg,info);
+                    if((!hidden.contains(pkg) || pinned.contains(pkg)) && !pkg.equals(getPackageName()) && info.activityInfo.applicationInfo.enabled) candidates.putIfAbsent(pkg,info);
                 }
             }
             ArrayList<App> found=new ArrayList<>();
@@ -276,8 +280,9 @@ public final class HomeActivity extends Activity {
             main.post(()->{
                 if(isDestroyed())return;
                 dock.clear();apps.clear();visibleTiles.clear();dockTiles.clear();
-                for(String pkg:dockPackages)for(App app:found)if(pkg.equals(app.pkg))dock.add(app);
-                for(App app:found)if(!dockPackages.contains(app.pkg))apps.add(app);
+                for(String pkg:pinned)for(App app:found)if(pkg.equals(app.pkg))dock.add(app);
+                for(App app:found)if(!pinned.contains(app.pkg))apps.add(app);
+                if(dock.isEmpty()){App empty=new App();empty.pkg="quiet:add-dock";empty.label=tr("添加常用应用","Add favorite apps");empty.banner=managementBanner(tr("添加常用应用","Add favorite apps"));empty.color=0xff557eac;dock.add(empty);}
                 if(!activePackage.isEmpty()) {
                     for(int n=0;n<dock.size();n++)if(activePackage.equals(dock.get(n).pkg)){row=0;column=n;}
                     for(int n=0;n<apps.size();n++)if(activePackage.equals(apps.get(n).pkg)){row=1+n/4;column=n%4;}
@@ -297,6 +302,12 @@ public final class HomeActivity extends Activity {
             drawable.draw(c);
         }
         return bitmap;
+    }
+
+    private Bitmap managementBanner(String title) {
+        Bitmap bitmap=renderBanner(getDrawable(R.drawable.ic_settings),false);
+        Canvas canvas=new Canvas(bitmap);Paint paint=new Paint(3);paint.setColor(Color.WHITE);paint.setTextSize(27);paint.setTextAlign(Paint.Align.CENTER);
+        canvas.drawText(title,180,184,paint);return bitmap;
     }
 
     private int sampleColor(Bitmap bitmap) {
@@ -369,7 +380,7 @@ public final class HomeActivity extends Activity {
 
     private App currentApp(){if(row==0)return dock.isEmpty()?null:dock.get(Math.min(column,dock.size()-1));int n=(row-1)*4+column;return n>=0&&n<apps.size()?apps.get(n):null;}
 
-    private void launchSelected(){App app=currentApp();if(app==null)return;saveFocus();if(WALLPAPER_ENTRY.equals(app.pkg)){wallpapers.showPicker();return;}try{startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER).setComponent(app.component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));}catch(ActivityNotFoundException e){Toast.makeText(this,tr("应用暂不可用","App unavailable"),Toast.LENGTH_SHORT).show();}}
+    private void launchSelected(){App app=currentApp();if(app==null)return;saveFocus();if("quiet:add-dock".equals(app.pkg)){startActivity(new Intent(this,DockEditorActivity.class));return;}if(WALLPAPER_ENTRY.equals(app.pkg)){wallpapers.showPicker();return;}try{startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER).setComponent(app.component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));}catch(ActivityNotFoundException e){Toast.makeText(this,tr("应用暂不可用","App unavailable"),Toast.LENGTH_SHORT).show();}}
 
     private int focusOutset(View view) {
         return px(dockTiles.contains(view)?2:FOCUS_OUTSET);

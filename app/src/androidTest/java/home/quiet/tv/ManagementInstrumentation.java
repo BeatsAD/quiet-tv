@@ -6,9 +6,14 @@ import android.content.Context;
 
 /** Runs inside the launcher process, with its own app key and app permissions. */
 public final class ManagementInstrumentation extends Instrumentation {
-    @Override public void onCreate(Bundle args){super.onCreate(args);start();}
+    private String scenario="adb";
+    @Override public void onCreate(Bundle args){super.onCreate(args);scenario=args.getString("scenario","adb");start();}
     @Override public void onStart(){
         Bundle result=new Bundle();
+        if("dock".equals(scenario)){
+            try{new DockChecks(this).run();result.putString("stream","PASS: Dock empty/add/remove/1-4 slots/replace/reorder save/cancel; original configuration restored\n");finish(-1,result);}
+            catch(Throwable e){android.util.Log.e("QuietTVChecks","Dock failed",e);result.putString("stream","FAIL: "+e+"\n");finish(0,result);}return;
+        }
         try(AdbController adb=new AdbController(getTargetContext(),value->{Bundle status=new Bundle();status.putString("stream",value+"\n");sendStatus(0,status);})){
             adb.connect(5555);
             String packages=adb.shell("pm list packages --user "+adb.user);
