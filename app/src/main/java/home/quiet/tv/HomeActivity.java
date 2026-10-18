@@ -395,7 +395,7 @@ public final class HomeActivity extends Activity {
     private void launchSelected(){App app=currentApp();if(app==null)return;saveFocus();if("quiet:add-dock".equals(app.pkg)){startActivity(new Intent(this,DockEditorActivity.class));return;}if(MANAGEMENT_ENTRY.equals(app.pkg)){startActivity(new Intent(this,AppManagementActivity.class));return;}if(WALLPAPER_ENTRY.equals(app.pkg)){wallpapers.showPicker();return;}try{startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER).setComponent(app.component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));}catch(ActivityNotFoundException e){Toast.makeText(this,tr("应用暂不可用","App unavailable"),Toast.LENGTH_SHORT).show();}}
 
     private int focusOutset(View view) {
-        return px(dockTiles.contains(view)?2:FOCUS_OUTSET);
+        return px(view instanceof Tile?2:FOCUS_OUTSET);
     }
 
     private float focusTranslationX(Tile tile) {
@@ -432,7 +432,7 @@ public final class HomeActivity extends Activity {
                 FrameLayout header=new FrameLayout(HomeActivity.this);header.setClipChildren(false);header.setLayoutParams(new RecyclerView.LayoutParams(-1,px(348)));
                 heroTitle=text("",40,400,0xfff1f2f6);place(header,heroTitle,820,56,2,90);
                 TextView hint=text(tr("按下 ↓ 浏览全部应用","Press ↓ for all apps"),12,300,0xff64656e);hint.setGravity(Gravity.CENTER);place(header,hint,-1,20,0,312);
-                FrameLayout band=new FrameLayout(HomeActivity.this);band.setBackground(surface(0xe6191a1e,22));band.setClipChildren(false);place(header,band,-1,dockHeight+2*dockPadding,0,162);
+                FrameLayout band=new FrameLayout(HomeActivity.this);band.setBackground(pillSurface());band.setClipChildren(false);place(header,band,-1,dockHeight+2*dockPadding,0,162);
                 header.setTag(band);view=header;
             }else if(type==1){TextView title=text(tr("全部应用","All apps"),18,400,0xffbbbbc3);title.setPadding(px(3),px(4),0,0);title.setLayoutParams(new RecyclerView.LayoutParams(-1,px(38)));view=title;}
             else{Tile tile=new Tile();RecyclerView.LayoutParams p=new RecyclerView.LayoutParams(-1,px(145));p.leftMargin=px(8);p.rightMargin=px(8);p.bottomMargin=px(12);tile.setLayoutParams(p);view=tile;}
@@ -471,7 +471,6 @@ public final class HomeActivity extends Activity {
             paint.setShader(new LinearGradient(current.left,current.top,current.right,current.bottom,new int[]{0x30ffffff,0x09ffffff},null,Shader.TileMode.CLAMP));
             paint.setStyle(Paint.Style.FILL);c.drawRoundRect(current,radius,radius,paint);paint.setShader(null);
             paint.setStyle(Paint.Style.STROKE);
-            paint.setColor(0xb3000000);paint.setStrokeWidth(px(5));c.drawRoundRect(current,radius,radius,paint);
             paint.setColor(Color.WHITE);paint.setStrokeWidth(px(FOCUS_STROKE));c.drawRoundRect(current,radius,radius,paint);
             paint.setStyle(Paint.Style.FILL);
         }
