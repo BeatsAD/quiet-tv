@@ -6,9 +6,9 @@
 
 统一安装包名：`quiet-tv_<版本号>_b<构建号>_<构建类型>.apk`。
 
-例如：`quiet-tv_1.0.1_b2_debug.apk`。文件名中的版本号、构建号取自 Gradle 输出元数据，与 APK 内的 `versionName`、`versionCode` 一致，不通过单独重命名冒充新版本。
+例如：`quiet-tv_1.0.1_b3_debug.apk`。文件名中的版本号、构建号取自 Gradle 输出元数据，与 APK 内的 `versionName`、`versionCode` 一致，不通过单独重命名冒充新版本。
 
-唯一版本配置在 `app/build.gradle` 的 `defaultConfig` 中。目前为 `versionName '1.0.1'`、`versionCode 2`。
+唯一版本配置在 `app/build.gradle` 的 `defaultConfig` 中。目前为 `versionName '1.0.1'`、`versionCode 3`；本次保留当前版本号，递增构建号以归档合并后的新包。
 
 | 字段 | 规则 |
 | --- | --- |
@@ -31,8 +31,8 @@ python3 scripts/build_apk.py --summary "规范安装包版本、命名和归档�
 脚本执行 `:app:assembleDebug` 后，将 APK 归档到 `dist/apk/`，例如：
 
 ```text
-dist/apk/quiet-tv_1.0.1_b2_debug.apk
-dist/apk/quiet-tv_1.0.1_b2_debug.json
+dist/apk/quiet-tv_1.0.1_b3_debug.apk
+dist/apk/quiet-tv_1.0.1_b3_debug.json
 ```
 
 `--summary` 为必填的本次交付变更摘要。JSON 保存版本、构建类型、构建完成时间 `built_at`、APK 文件修改时间、归档时间、字节数、SHA-256、变更摘要，以及归档时的工作区提交和脏状态。
@@ -61,7 +61,7 @@ dist/apk/quiet-tv_1.0.1_b2_debug.json
 
 ```sh
 TV_ADB_BACKEND=python .venv/bin/python scripts/verify_apk.py \
-  dist/apk/quiet-tv_1.0.1_b2_debug.apk
+  dist/apk/quiet-tv_1.0.1_b3_debug.apk
 ```
 
 核对使用 `pm path home.quiet.tv` 返回的实际已安装 APK，比较本地与电视文件的 SHA-256。每次另存带时间戳的 `*.installed-<时间>.json`，包含核对时间、设备、路径、两端哈希和 `matches`；不把安装状态写入不可变的构建归档记录。哈希不一致则返回失败并保留核对记录。
@@ -75,7 +75,7 @@ TV_ADB_BACKEND=python .venv/bin/python scripts/verify_apk.py \
 
 ## English summary
 
-Use `quiet-tv_<versionName>_b<versionCode>_<buildType>.apk`. Versions follow major/minor/patch; increment the global integer `versionCode` for each different delivered build, including test revisions of the same version. `app/build.gradle` is the version source. The historical `1.0/b1` APK retains its actual version; the new configuration starts at `1.0.1/b2`.
+Use `quiet-tv_<versionName>_b<versionCode>_<buildType>.apk`. Versions follow major/minor/patch; increment the global integer `versionCode` for each different delivered build, including test revisions of the same version. `app/build.gradle` is the version source. The historical `1.0/b1` APK retains its actual version; the naming rules started at `1.0.1/b2`. The current build is `1.0.1/b3`.
 
 Run `python3 scripts/build_apk.py --summary "Describe the changes"` to build and archive without contacting a TV. Immutable APKs and JSON receipts live in Git-ignored `dist/apk/`. Identical APKs reuse the original receipt; different bytes under an occupied name require a new build number. Receipts include timestamps, SHA-256 and the change summary. Workspace commit/dirty fields describe the archive environment, not proof of an exact source revision. Direct Gradle builds still produce the replaceable `app-debug.apk` intermediate.
 

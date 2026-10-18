@@ -39,9 +39,9 @@ See [image provenance](docs/assets/README.md). Third-party application artwork a
 3. Read the [usage guide](docs/USAGE.en.md) for remote navigation and configuration.
 4. Before changing system packages, back up the actual target and verify its recovery journal. Do not reuse the included Sony package journal on another device.
 
-There is no published stable APK release yet. The current build produces a debug APK. Successful compilation or a screenshot does not establish compatibility with another TV.
+Download the Debug test APK from [Releases v1.0.1](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.0.1); see the [Chinese release notes](docs/releases/v1.0.1.md). There is no stable APK release yet. Successful compilation or a screenshot does not establish compatibility with another TV.
 
-APKs use `quiet-tv_<version>_b<build>_<type>.apk` and are archived locally in `dist/apk/`. The current configuration is `1.0.1 / b2 / debug`; see [version and APK rules](docs/VERSIONING.md).
+APKs use `quiet-tv_<version>_b<build>_<type>.apk` and are archived locally in `dist/apk/`. The current configuration is `1.0.1 / b3 / debug`; see [version and APK rules](docs/VERSIONING.md).
 
 ## Compatibility at a glance
 

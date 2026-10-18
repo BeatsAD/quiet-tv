@@ -31,7 +31,7 @@ sdk.dir=/absolute/path/to/your/android-sdk
 python3 scripts/build_apk.py --summary "说明本次交付的变更"
 ```
 
-归档输出：`dist/apk/quiet-tv_1.0.1_b2_debug.apk`，同目录 JSON 保存版本、时间、SHA-256 和变更摘要。这一步只构建和归档，不连接或修改电视。包名为 `home.quiet.tv`，当前配置为版本 1.0.1、构建号 2、类型 debug；尚无已发布的稳定版 APK。版本递增、历史包和安装核对约定见[版本与安装包规则](VERSIONING.md)。
+归档输出：`dist/apk/quiet-tv_1.0.1_b3_debug.apk`，同目录 JSON 保存版本、时间、SHA-256 和变更摘要。这一步只构建和归档，不连接或修改电视。包名为 `home.quiet.tv`，当前配置为版本 1.0.1、构建号 3、类型 debug；也可从 [Releases v1.0.1](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.0.1) 下载同版本测试包和 SHA-256 校验文件。尚无已发布的稳定版 APK；已知问题见[中文发布说明](releases/v1.0.1.md)。版本递增、历史包和安装核对约定见[版本与安装包规则](VERSIONING.md)。
 
 ## 3. 连接并试用桌面
 
@@ -49,7 +49,7 @@ adb -s "$TV_SERIAL" shell cmd package resolve-activity --brief -a android.intent
 确认目标身份，保存最后一条命令返回的原 HOME 组件，并保留原桌面。安装并启动：
 
 ```sh
-adb -s "$TV_SERIAL" install -r dist/apk/quiet-tv_1.0.1_b2_debug.apk
+adb -s "$TV_SERIAL" install -r dist/apk/quiet-tv_1.0.1_b3_debug.apk
 adb -s "$TV_SERIAL" shell am start -n home.quiet.tv/.HomeActivity
 ```
 

@@ -41,9 +41,9 @@
 3. 按[使用指南](docs/USAGE.zh-CN.md)配置 Dock、壁纸与遥控器操作。
 4. 涉及系统包禁用前，单独备份目标设备并核对恢复记录。仓库里的索尼设备清单不可直接套用到其他电视。
 
-当前交付为源码工程，没有已发布的稳定版 APK。构建脚本产出 debug APK，安装与适配记录不能替代其他设备的实机验收。
+可从 [Releases v1.0.1](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.0.1) 下载 Debug 测试安装包，中文更新内容见[发布说明](docs/releases/v1.0.1.md)。当前尚无稳定版 APK；安装与适配记录不能替代其他设备的实机验收。
 
-安装包按 `quiet-tv_<版本号>_b<构建号>_<类型>.apk` 命名，统一归档至本地 `dist/apk/`。当前配置为 `1.0.1 / b2 / debug`；完整约定见[版本与安装包规则](docs/VERSIONING.md)。
+安装包按 `quiet-tv_<版本号>_b<构建号>_<类型>.apk` 命名，统一归档至本地 `dist/apk/`。当前配置为 `1.0.1 / b3 / debug`；完整约定见[版本与安装包规则](docs/VERSIONING.md)。
 
 ## 兼容性摘要
 

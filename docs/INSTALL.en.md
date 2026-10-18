@@ -31,7 +31,7 @@ Then build without connecting to a TV:
 python3 scripts/build_apk.py --summary "Describe this build's changes"
 ```
 
-Archived output: `dist/apk/quiet-tv_1.0.1_b2_debug.apk`, with a JSON receipt containing version, timestamps, SHA-256 and the change summary. This does not contact a TV. Package: `home.quiet.tv`; current configuration: version 1.0.1, build 2, debug. No stable APK release has been published. See [version and APK rules](VERSIONING.md) for numbering, immutable archives and installation checks.
+Archived output: `dist/apk/quiet-tv_1.0.1_b3_debug.apk`, with a JSON receipt containing version, timestamps, SHA-256 and the change summary. This does not contact a TV. Package: `home.quiet.tv`; current configuration: version 1.0.1, build 3, debug. The test APK and SHA-256 checksum are also available from [Releases v1.0.1](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.0.1). No stable APK release has been published; see [known issues in the Chinese release notes](releases/v1.0.1.md). See [version and APK rules](VERSIONING.md) for numbering, immutable archives and installation checks.
 
 ## Install and try
 
@@ -49,7 +49,7 @@ adb -s "$TV_SERIAL" shell cmd package resolve-activity --brief -a android.intent
 Confirm the target identity and record the original HOME component before changing the default launcher. Keep the original launcher installed and enabled.
 
 ```sh
-adb -s "$TV_SERIAL" install -r dist/apk/quiet-tv_1.0.1_b2_debug.apk
+adb -s "$TV_SERIAL" install -r dist/apk/quiet-tv_1.0.1_b3_debug.apk
 adb -s "$TV_SERIAL" shell am start -n home.quiet.tv/.HomeActivity
 ```
 
