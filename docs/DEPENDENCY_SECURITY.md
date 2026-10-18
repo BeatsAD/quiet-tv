@@ -1,5 +1,7 @@
 # 依赖安全版本 / Dependency security floors
 
+2026-10-19 首次设置候选补充：为实验无线配对恢复 `spake2-android:2.2.1`，新增 `org.conscrypt:conscrypt-android:2.7.0`，并保留下列 Bouncy Castle 安全下限。此前段落中的“排除无线依赖”为当时 TCP 版本的历史状态。已核对四种 ABI 的打包内容，ARM64 库加载与实际 TLS 握手取消通过；六位码配对及真实电视验收仍未通过。许可与上游源码见 [第三方声明](../THIRD_PARTY_NOTICES.md)，功能证据见 [首次设置验证](SETUP_VERIFICATION.md)。
+
 ## 范围 / Scope
 
 `gradle/security-constraints.gradle` 通过 `settings.gradle` 在各项目配置前注册最低版本约束，同时覆盖插件 buildscript classpath 和 Android 工具的独立配置。2026-10-18 的基线中，旧版 Netty 还来自 Unified Test Platform（UTP），旧版 Protobuf 来自多个 UTP 配置，仅修补根插件 classpath 会遗漏这些路径。

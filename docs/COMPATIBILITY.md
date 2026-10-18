@@ -21,6 +21,8 @@ The same brand, resolution, or a newer Android version does not establish compat
 
 ## 已验证与待验收 / Evidence boundaries
 
+`1.1.0 / b4` 首次设置候选已加入按功能检测与无法切换默认桌面时的退出路径。不同品牌扫描及操作能力分别核对；未知固件的系统包仍只读。本次新增流程的证据与保留项见 [首次设置验证](SETUP_VERIFICATION.md)，不将下表的历史真机结果沿用为新流程通过。
+
 | 功能 / Function | 当前证据 / Current evidence |
 | --- | --- |
 | 编译、debug APK 更新安装 / Build and update | 已有构建、实机安装和 APK MD5 核对记录 / Historical build, install, and APK consistency records |
