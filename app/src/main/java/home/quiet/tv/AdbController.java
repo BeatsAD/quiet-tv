@@ -30,6 +30,10 @@ final class AdbController implements Closeable {
     String host = "";
     AdbController(Context context, Status status) { this.context=context.getApplicationContext(); this.status=status; }
     boolean connected() { AdbConnection c=connection;return c!=null && c.isConnectionEstablished() && user>=0; }
+    void validateUser() throws Exception {
+        if(!connected())throw new IOException("需要连接 ADB");
+        if(!shell("am get-current-user").trim().equals(String.valueOf(user)) || user!=android.os.Process.myUid()/100000){disconnect();throw new IOException("当前用户已改变，请重新连接");}
+    }
 
     void connect(int port) throws Exception {
         if(port<1 || port>65535)throw new IOException("端口必须在 1～65535 之间");

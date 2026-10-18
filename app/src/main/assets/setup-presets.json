@@ -1,0 +1,237 @@
+{
+  "schema": 1,
+  "devices": [
+    {
+      "brand": "Sony",
+      "fingerprint": "Sony/BRAVIA_VH1_CN/BRAVIA_VH1:12/STT2.230505.001.S137/626241:user/release-keys",
+      "apps": [
+        {
+          "package": "com.sonyericsson.idd.agent",
+          "purpose": "诊断数据代理",
+          "recommendDisable": true,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.sony.dtv.sonybugreportsys",
+          "purpose": "错误报告",
+          "recommendDisable": true,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.sony.dtv.sonyloglevelsettingsys",
+          "purpose": "已调查的可管理应用",
+          "recommendDisable": false,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.sony.dtv.da.service",
+          "purpose": "已调查的可管理应用",
+          "recommendDisable": false,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.qterics.da.product",
+          "purpose": "已调查的可管理应用",
+          "recommendDisable": false,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.sony.dtv.braviashow",
+          "purpose": "零售演示",
+          "recommendDisable": true,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.sony.dtv.demosupport",
+          "purpose": "零售演示支持",
+          "recommendDisable": true,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.sony.dtv.demosystemsupport",
+          "purpose": "系统演示支持",
+          "recommendDisable": true,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.sony.dtv.multiscreendemo",
+          "purpose": "多屏演示",
+          "recommendDisable": true,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.sony.dtv.voicesearch",
+          "purpose": "已调查的可管理应用",
+          "recommendDisable": false,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.jd.smartservicetwo",
+          "purpose": "已调查的可管理应用",
+          "recommendDisable": false,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.ktcp.tvvideo",
+          "purpose": "已调查的可管理应用",
+          "recommendDisable": false,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.newtv.sport",
+          "purpose": "已调查的可管理应用",
+          "recommendDisable": false,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.sony.dtv.osat.music",
+          "purpose": "已调查的可管理应用",
+          "recommendDisable": false,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.sony.dtv.smartmediaapp",
+          "purpose": "已调查的可管理应用",
+          "recommendDisable": false,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.sony.dtv.timers",
+          "purpose": "已调查的可管理应用",
+          "recommendDisable": false,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.sony.dtv.mysony",
+          "purpose": "已调查的可管理应用",
+          "recommendDisable": false,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.sony.dtv.livingfit",
+          "purpose": "已调查的可管理应用",
+          "recommendDisable": false,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.sony.dtv.smarthelp",
+          "purpose": "已调查的可管理应用",
+          "recommendDisable": false,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.sony.dtv.helpguidecontents",
+          "purpose": "已调查的可管理应用",
+          "recommendDisable": false,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        }
+      ],
+      "home": {
+        "component": "com.dangbei.TVHomeLauncher/com.dangbei.leard.leradlauncher.ui.sony.main.MainActivity",
+        "disableVerified": true,
+        "uninstallVerified": false,
+        "restoreInstallVerified": false
+      }
+    }
+  ]
+}

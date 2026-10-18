@@ -13,6 +13,8 @@ android {
     compileOptions { sourceCompatibility JavaVersion.VERSION_11; targetCompatibility JavaVersion.VERSION_11 }
 }
 dependencies {
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20240303'
     implementation 'androidx.recyclerview:recyclerview:1.4.0'
     implementation('com.github.MuntashirAkon:libadb-android:3.1.1') {
         // TCP only: do not ship the optional native wireless-pairing implementation.
