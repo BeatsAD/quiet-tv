@@ -6,6 +6,8 @@
 | [wallpaper-settings.png](wallpaper-settings.png) | 本地 `evidence/wallpaper-button-compact-picker.png` | 同机型与日期，原始 ADB 截图，逐字节复制 / Same device and date, copied unchanged |
 | [cover.png](cover.png) | 内置 imagegen 工具 / Built-in imagegen | AI 生成的项目品牌插画；不作为设备验证证据 / AI brand illustration, not hardware evidence |
 | [cover-prompt.txt](cover-prompt.txt) | 本次生成提示词 / Generation prompt | 保留完整提示词 / Full prompt retained |
+| [contact-16x9.png](contact-16x9.png) | 作者提供的联系方式图，经内置 imagegen 横版重排 / Author-provided contact card, recomposed with built-in imagegen | 1920×1080；微信、公众号、小红书二维码解析结果与原图一致，抖音码待平台内扫码确认 / Matching decoded links for WeChat, Official Account, and Xiaohongshu; Douyin code requires an in-app scan |
+| [contact-prompt.txt](contact-prompt.txt) | 联系方式图编辑提示词 / Contact card edit prompt | 保留完整提示词 / Full prompt retained |
 
 截图是开发过程的历史状态，不证明其他机型兼容。没有对实际界面、文字、应用卡片做合成或重绘。第三方应用图标及风景壁纸属于各自权利人，见[资源说明](../../THIRD_PARTY_NOTICES.md)。完整本地备份和证据目录没有上传。
 

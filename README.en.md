@@ -72,3 +72,7 @@ Quiet TV is based on [Gathin23/tv-vibehack](https://github.com/Gathin23/tv-vibeh
 Code is licensed under [MIT](LICENSE), retaining `Copyright (c) 2026 Gathin` and the complete upstream notice. Outfit uses SIL OFL 1.1. Bundled wallpaper is outside the project's MIT code license; see [third-party notices](THIRD_PARTY_NOTICES.md).
 
 See [app management and Dock usage](docs/USAGE.en.md) and [hardware evidence](docs/APP_MANAGEMENT.md).
+
+## Let's connect
+
+![WenBin AI LAB: X, GitHub, website, email, and QR codes for WeChat, WeChat Official Account, Xiaohongshu, and Douyin](docs/assets/contact-16x9.png)

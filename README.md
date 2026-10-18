@@ -77,3 +77,7 @@ Quiet TV 基于 [Gathin23/tv-vibehack](https://github.com/Gathin23/tv-vibehack) 
 代码使用 [MIT](LICENSE)，保留 `Copyright (c) 2026 Gathin` 和完整上游许可。Outfit 字体按 SIL OFL 1.1 授权；内置壁纸不适用 MIT 代码许可。详见[第三方项目与资源说明](THIRD_PARTY_NOTICES.md)。
 
 应用管理与 Dock 编辑见[使用指南](docs/USAGE.zh-CN.md)和[管理验收记录](docs/APP_MANAGEMENT.md)。
+
+## 保持联系
+
+![WenBin AI LAB 联系方式：X、GitHub、网站、邮箱及微信、公众号、小红书、抖音二维码](docs/assets/contact-16x9.png)
