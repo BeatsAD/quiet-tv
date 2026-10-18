@@ -2,73 +2,85 @@
 
 # Quiet TV
 
-**TV adaptation and application upgrades for televisions used in China.**
+**A simple, customizable home screen for Android TVs.**
 
-[简体中文](README.md) · [English](README.en.md) · [Install](docs/INSTALL.en.md) · [Usage](docs/USAGE.en.md) · [Compatibility](docs/COMPATIBILITY.md) · [Contribute](CONTRIBUTING.md)
+[简体中文](README.md) · [English](README.en.md)
 
-A lightweight native Android TV launcher with application configuration, launcher updates, and reversible package debloating. The repository currently remains **private**. The adapted device is **Sony KD-65X9000H running Android 12**; other models require individual validation.
+Quiet TV is built for everyday TV use in China. Keep your favorite apps on the home screen, open them with your remote, switch inputs, choose a wallpaper, and manage installed applications.
 
-## Features
+The launcher has no ads or recommendation feed and requires no account. It uses native Android views and needs no root access or firmware changes.
 
-- Chinese and English interfaces, an editable dock for up to four apps, application grid, and D-pad focus navigation.
-- Actual TV Input sources, network settings, and system settings shortcuts.
-- Ambient default wallpaper, a fixed landscape, or a five-minute landscape slideshow.
-- Source-based launcher updates and device-specific backup and recovery records.
-- No advertising, accounts, or recommendation feeds. INTERNET permission is used only for on-demand local ADB connections; no cloud service.
-
-Application upgrades currently mean updating Quiet TV and adjusting application configuration. Third-party media applications use their own update channels.
+[Download the test APK](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.0.1) · [Install](docs/INSTALL.en.md) · [Usage](docs/USAGE.en.md) · [Supported devices](docs/COMPATIBILITY.md)
 
 ## Screenshots
 
-Original ADB captures from the Sony device during development on October 18, 2026. The cover is an AI-generated brand illustration; the images below are actual device captures.
+**Your favorite apps, right on the home screen.**
 
-**Default theme and application dock**
+A clock, date, favorite apps, and three system shortcuts keep the main screen simple. A white focus outline follows the remote selection; press down to browse all apps.
 
-![Real device: default theme, shortcuts, and application dock](docs/assets/home.png)
+![Quiet TV home screen: clock, system shortcuts, and four favorite apps](docs/assets/home.png)
 
-**Wallpaper settings**
+**Choose a wallpaper, or keep the default theme.**
 
-![Real device: default wallpaper, three landscapes, and slideshow toggle](docs/assets/wallpaper-settings.png)
+Use the ambient theme that changes color with the selected app, pick a fixed landscape, or enable a five-minute wallpaper slideshow.
 
-See [image provenance](docs/assets/README.md). Third-party application artwork and wallpaper remain the property of their respective rights holders.
+![Quiet TV wallpaper settings: default theme, landscapes, and slideshow toggle](docs/assets/wallpaper-settings.png)
 
-## Getting started
+These are original Sony KD-65X9000H captures from development on October 18, 2026, showing the interface at that stage. The cover is an AI illustration. See [image provenance](docs/assets/README.md).
 
-1. Check the [compatibility matrix](docs/COMPATIBILITY.md).
-2. Follow the [installation guide](docs/INSTALL.en.md) to prepare the toolchain, build, install, and try the launcher.
-3. Read the [usage guide](docs/USAGE.en.md) for remote navigation and configuration.
-4. Before changing system packages, back up the actual target and verify its recovery journal. Do not reuse the included Sony package journal on another device.
+## Features
 
-Download the Debug test APK from [Releases v1.0.1](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.0.1); see the [Chinese release notes](docs/releases/v1.0.1.md). There is no stable APK release yet. Successful compilation or a screenshot does not establish compatibility with another TV.
-
-APKs use `quiet-tv_<version>_b<build>_<type>.apk` and are archived locally in `dist/apk/`. The current configuration is `1.0.1 / b3 / debug`; see [version and APK rules](docs/VERSIONING.md).
-
-## Compatibility at a glance
-
-| Item | Current status |
+| Feature | What it does |
 | --- | --- |
-| Adapted device | Sony KD-65X9000H / BRAVIA VH1 |
-| Validated system | Android 12 / API 31 |
-| Minimum APK version | Android 12 / API 31; newer systems are unverified |
-| UI / physical panel | 1920×1080 / 3840×2160 |
-| Other Android TVs | Require model, firmware, permission, and HOME validation |
-| Non-Android TV systems | Unsupported by this APK and ADB workflow |
+| Favorite apps | Keep up to four apps on the home screen. Add, replace, remove, and reorder them; launcher updates preserve your selection. |
+| App management | Inspect app names, package names, versions, and status. Search, filter, and enable, disable, or uninstall apps individually. Protected system components stay read-only. |
+| Inputs and settings | Choose from the TV's actual inputs, including HDMI, AV, or live TV where available. Open network and system settings directly. |
+| Wallpaper | Preview and choose the default ambient theme, a fixed landscape, or an automatic slideshow. Cancel to restore your previous choice. |
+| Remote navigation | Use direction keys to move, OK to open, and Back to return. The home screen remembers your last focus. |
+| Local use | Settings stay on the TV. No cloud account is needed; app management connects to the TV's own ADB service on demand. |
 
-Read the [compatibility details](docs/COMPATIBILITY.md) and [original Chinese verification record](VERIFICATION.md) for functional limits.
+The home screen supports Chinese and English; app management currently uses Chinese. Open “应用管理” from the all-apps screen to manage apps and edit favorites. Wallpaper settings are also available on the TV.
 
-## Documentation and feedback
+System package operations require local ADB authorization. Disabling keeps app data; uninstalling deletes data for the current user. Eligible preinstalled apps can be reinstalled, but deleted data cannot be restored. Preinstalled uninstall/reinstall remains unverified on hardware; see [app management details](docs/APP_MANAGEMENT.md).
 
-- [Install](docs/INSTALL.en.md) · [Usage](docs/USAGE.en.md)
-- [Contributing](CONTRIBUTING.md) · [Security policy](SECURITY.md)
-- [Bug report](https://github.com/BeatsAD/quiet-tv/issues/new?template=bug_report.yml) · [Feature request](https://github.com/BeatsAD/quiet-tv/issues/new?template=feature_request.yml) · [Device adaptation](https://github.com/BeatsAD/quiet-tv/issues/new?template=device_adaptation.yml)
-- [Sony implementation notes, Chinese](docs/DEVICE_NOTES.zh-CN.md) · [Repository settings and limitations](docs/REPOSITORY.md)
+## Install and try it
 
-Private repository links are available only to authorized accounts.
+1. **Check your TV.** Android 12 is the minimum. Read the supported-device table below and the [compatibility details](docs/COMPATIBILITY.md).
+2. **Get an APK.** Download the APK and SHA-256 file from [Releases](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.0.1), or build from source using the [installation guide](docs/INSTALL.en.md).
+3. **Install and try the launcher.** Follow the guide to connect ADB and install Quiet TV. Check your remote, app launches, and system shortcuts first.
+4. **Set it as your home screen.** Once it works on your TV, select Quiet TV in the TV's default-home settings. Follow the [usage guide](docs/USAGE.en.md) to arrange favorites and choose a wallpaper.
 
-## Attribution and license
+The available download is **v1.0.1 / b3, a Debug test build**. There is no stable release yet. Read its [release notes](docs/releases/v1.0.1.md) for known dependency issues and validation scope. Subsequent [dependency fixes in source](docs/DEPENDENCY_SECURITY.md) have not been published in a new APK.
 
-Quiet TV is based on [Gathin23/tv-vibehack](https://github.com/Gathin23/tv-vibehack). Thank you to **Gathin** for the original work. This independently maintained project adapts it for use in China and is not officially affiliated with the upstream project or TV and application brands.
+You can keep the original launcher installed while trying Quiet TV. System debloating is a separate step and requires a backup and recovery record for the actual target TV. The included Sony package list is specific to that device.
 
-Code is licensed under [MIT](LICENSE), retaining `Copyright (c) 2026 Gathin` and the complete upstream notice. Outfit uses SIL OFL 1.1. Bundled wallpaper is outside the project's MIT code license; see [third-party notices](THIRD_PARTY_NOTICES.md).
+## Supported devices
 
-See [app management and Dock usage](docs/USAGE.en.md) and [hardware evidence](docs/APP_MANAGEMENT.md).
+| Device / system | Status |
+| --- | --- |
+| Sony KD-65X9000H / BRAVIA VH1 · Android 12 | Installed and checked for the home screen, app management, wallpaper, selected system shortcuts, and one full reboot. See the [verification record](VERIFICATION.md) for the exact scope. |
+| Other TVs running Android 12 or newer | Require device-specific adaptation, including firmware, default-home selection, and ADB permissions. |
+| Android 11 or earlier; non-Android systems such as Tizen or webOS | Not supported by the current version. |
+
+Long-running operation, casting, and full media playback remain unverified. Third-party media apps use their own update channels; Quiet TV does not currently update them automatically.
+
+## Documentation and contributing
+
+| I want to… | Read |
+| --- | --- |
+| Install, update, or switch back to my original launcher | [Installation guide](docs/INSTALL.en.md) |
+| Configure favorites, wallpaper, or remote navigation | [Usage guide](docs/USAGE.en.md) |
+| Check device support and validated behavior | [Compatibility](docs/COMPATIBILITY.md) · [Verification record](VERIFICATION.md) |
+| Build or contribute | [Contributing](CONTRIBUTING.md) · [Version and APK rules](docs/VERSIONING.md) |
+| Read about the Sony device setup | [Device notes, Chinese](docs/DEVICE_NOTES.zh-CN.md) |
+| Review security and repository settings | [Security policy](SECURITY.md) · [Dependency security](docs/DEPENDENCY_SECURITY.md) · [Repository notes](docs/REPOSITORY.md) |
+
+Feedback: [Bug report](https://github.com/BeatsAD/quiet-tv/issues/new?template=bug_report.yml) · [Feature request](https://github.com/BeatsAD/quiet-tv/issues/new?template=feature_request.yml) · [Device adaptation](https://github.com/BeatsAD/quiet-tv/issues/new?template=device_adaptation.yml)
+
+This repository is currently private. Downloads, documentation, and feedback links require repository access.
+
+## Credits and license
+
+Quiet TV is based on [Gathin23/tv-vibehack](https://github.com/Gathin23/tv-vibehack). Thank you to **Gathin** for the original work. This project is independently maintained and is not officially affiliated with the upstream project or TV and application brands.
+
+Code is licensed under [MIT](LICENSE), preserving the original copyright and complete license. Fonts, wallpaper, and third-party application artwork have their own terms; see [third-party notices](THIRD_PARTY_NOTICES.md).
