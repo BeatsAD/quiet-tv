@@ -104,7 +104,7 @@ python3 -m venv .venv
 
 ## 修改 Dock 顺序和壁纸
 
-编辑 `app/src/main/assets/launcher.json`，`dock` 数组中四个包名的顺序就是从左到右的顺序，然后运行构建安装脚本。四个包应保持启用状态。当前配置：
+当前请在“全部应用 → 应用管理 → Dock 管理”直接编辑，最多四个，设置保存在电视本地。以下 `launcher.json` 仅用作首次导入，后续更新不覆盖用户配置。原始默认配置：
 
 ```json
 "dock": [

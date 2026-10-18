@@ -27,6 +27,7 @@ import java.util.concurrent.*;
 public final class HomeActivity extends Activity {
     private static final String TAG = "QuietTV";
     private static final String WALLPAPER_ENTRY = "quiet:wallpapers";
+    private static final String MANAGEMENT_ENTRY = "quiet:management";
     private static final float CONTENT_MARGIN = 48;
     private static final float FOCUS_SCALE = 1.035f, FOCUS_OUTSET = 5, FOCUS_STROKE = 3;
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -277,17 +278,21 @@ public final class HomeActivity extends Activity {
             found.sort((a,b)->java.text.Collator.getInstance(Locale.SIMPLIFIED_CHINESE).compare(a.label,b.label));
             App wallpaperApp=new App();wallpaperApp.pkg=WALLPAPER_ENTRY;wallpaperApp.label=tr("壁纸设置","Wallpaper Settings");
             wallpaperApp.banner=wallpapers.entryBanner();wallpaperApp.color=0xff557eac;found.add(0,wallpaperApp);
+            App managementApp=new App();managementApp.pkg=MANAGEMENT_ENTRY;managementApp.label=tr("应用管理","App Management");
+            managementApp.banner=managementBanner(tr("应用管理","App Management"));managementApp.color=0xff557eac;found.add(1,managementApp);
             main.post(()->{
                 if(isDestroyed())return;
                 dock.clear();apps.clear();visibleTiles.clear();dockTiles.clear();
                 for(String pkg:pinned)for(App app:found)if(pkg.equals(app.pkg))dock.add(app);
                 for(App app:found)if(!pinned.contains(app.pkg))apps.add(app);
                 if(dock.isEmpty()){App empty=new App();empty.pkg="quiet:add-dock";empty.label=tr("添加常用应用","Add favorite apps");empty.banner=managementBanner(tr("添加常用应用","Add favorite apps"));empty.color=0xff557eac;dock.add(empty);}
-                if(!activePackage.isEmpty()) {
-                    for(int n=0;n<dock.size();n++)if(activePackage.equals(dock.get(n).pkg)){row=0;column=n;}
-                    for(int n=0;n<apps.size();n++)if(activePackage.equals(apps.get(n).pkg)){row=1+n/4;column=n%4;}
+                if(row>=0){
+                    if(!activePackage.isEmpty()) {
+                        for(int n=0;n<dock.size();n++)if(activePackage.equals(dock.get(n).pkg)){row=0;column=n;}
+                        for(int n=0;n<apps.size();n++)if(activePackage.equals(apps.get(n).pkg)){row=1+n/4;column=n%4;}
+                    }
+                    row=Math.max(0,Math.min(row,gridRows()));column=Math.min(column,maxColumn(row));
                 }
-                row=Math.max(0,Math.min(row,gridRows()));column=Math.min(column,maxColumn(row));
                 list.setAdapter(new AppAdapter());ready=true;
                 main.post(()->focusCurrent(false));
                 Log.i(TAG,"Loaded dock="+dock.size()+" apps="+apps.size());
@@ -380,7 +385,7 @@ public final class HomeActivity extends Activity {
 
     private App currentApp(){if(row==0)return dock.isEmpty()?null:dock.get(Math.min(column,dock.size()-1));int n=(row-1)*4+column;return n>=0&&n<apps.size()?apps.get(n):null;}
 
-    private void launchSelected(){App app=currentApp();if(app==null)return;saveFocus();if("quiet:add-dock".equals(app.pkg)){startActivity(new Intent(this,DockEditorActivity.class));return;}if(WALLPAPER_ENTRY.equals(app.pkg)){wallpapers.showPicker();return;}try{startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER).setComponent(app.component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));}catch(ActivityNotFoundException e){Toast.makeText(this,tr("应用暂不可用","App unavailable"),Toast.LENGTH_SHORT).show();}}
+    private void launchSelected(){App app=currentApp();if(app==null)return;saveFocus();if("quiet:add-dock".equals(app.pkg)){startActivity(new Intent(this,DockEditorActivity.class));return;}if(MANAGEMENT_ENTRY.equals(app.pkg)){startActivity(new Intent(this,AppManagementActivity.class));return;}if(WALLPAPER_ENTRY.equals(app.pkg)){wallpapers.showPicker();return;}try{startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER).setComponent(app.component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));}catch(ActivityNotFoundException e){Toast.makeText(this,tr("应用暂不可用","App unavailable"),Toast.LENGTH_SHORT).show();}}
 
     private int focusOutset(View view) {
         return px(dockTiles.contains(view)?2:FOCUS_OUTSET);

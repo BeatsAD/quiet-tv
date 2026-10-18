@@ -59,6 +59,6 @@ final class DockChecks {
             click("1\n");click("左右排序");key(KeyEvent.KEYCODE_DPAD_RIGHT);key(KeyEvent.KEYCODE_BACK);
             require(store.load().equals(replaced),"Reorder cancel changed saved Dock");
             try{store.save(Arrays.asList("a","b","c","d","e"));throw new AssertionError("More than four allowed");}catch(IllegalArgumentException expected){}
-        }finally{store.save(original);if(editor!=null)test.runOnMainSync(()->editor.finish());}
+        }finally{store.save(original);require(test.getTargetContext().getSharedPreferences("dock",0).edit().putString("packages",new org.json.JSONArray(original).toString()).commit(),"Restore did not reach disk");if(editor!=null)test.runOnMainSync(()->editor.finish());}
     }
 }

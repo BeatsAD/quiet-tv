@@ -10,6 +10,10 @@ public final class ManagementInstrumentation extends Instrumentation {
     @Override public void onCreate(Bundle args){super.onCreate(args);scenario=args.getString("scenario","adb");start();}
     @Override public void onStart(){
         Bundle result=new Bundle();
+        if("apps".equals(scenario) || "uninstall".equals(scenario)){
+            try{new ManagementChecks(this).run("uninstall".equals(scenario));result.putString("stream","PASS: "+scenario+" native UI / package readback / Dock linkage / confirmations / journal; original Dock restored\n");finish(-1,result);}
+            catch(Throwable e){android.util.Log.e("QuietTVChecks","Management failed",e);result.putString("stream","FAIL: "+e+"\n");finish(0,result);}return;
+        }
         if("dock".equals(scenario)){
             try{new DockChecks(this).run();result.putString("stream","PASS: Dock empty/add/remove/1-4 slots/replace/reorder save/cancel; original configuration restored\n");finish(-1,result);}
             catch(Throwable e){android.util.Log.e("QuietTVChecks","Dock failed",e);result.putString("stream","FAIL: "+e+"\n");finish(0,result);}return;
@@ -18,6 +22,9 @@ public final class ManagementInstrumentation extends Instrumentation {
             adb.connect(5555);
             String packages=adb.shell("pm list packages --user "+adb.user);
             if(!packages.contains("package:home.quiet.tv"))throw new AssertionError("Own package missing");
+            if("connect".equals(scenario)){
+                result.putString("stream","PASS: post-reboot in-app ADB; host="+adb.host+"; user="+adb.user+"; packages="+packages.split("\\n").length+"\n");finish(-1,result);return;
+            }
             String fixture="home.quiet.tv.fixture";
             try{
                 adb.shell("pm disable-user --user "+adb.user+" "+fixture);

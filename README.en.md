@@ -10,7 +10,7 @@ A lightweight native Android TV launcher with application configuration, launche
 
 ## Features
 
-- Chinese and English interfaces, a four-app dock, application grid, and D-pad focus navigation.
+- Chinese and English interfaces, an editable dock for up to four apps, application grid, and D-pad focus navigation.
 - Actual TV Input sources, network settings, and system settings shortcuts.
 - Ambient default wallpaper, a fixed landscape, or a five-minute landscape slideshow.
 - Source-based launcher updates and device-specific backup and recovery records.
@@ -68,3 +68,5 @@ Private repository links are available only to authorized accounts.
 Quiet TV is based on [Gathin23/tv-vibehack](https://github.com/Gathin23/tv-vibehack). Thank you to **Gathin** for the original work. This independently maintained project adapts it for use in China and is not officially affiliated with the upstream project or TV and application brands.
 
 Code is licensed under [MIT](LICENSE), retaining `Copyright (c) 2026 Gathin` and the complete upstream notice. Outfit uses SIL OFL 1.1. Bundled wallpaper is outside the project's MIT code license; see [third-party notices](THIRD_PARTY_NOTICES.md).
+
+See [app management and Dock usage](docs/USAGE.en.md) and [hardware evidence](docs/APP_MANAGEMENT.md).

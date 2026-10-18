@@ -12,7 +12,7 @@
 
 ## 可以做什么
 
-- **简洁首页**：中文／英文、四应用 Dock、应用网格和明确的遥控器焦点。
+- **简洁首页**：中文／英文、最多四个应用的可编辑 Dock、应用网格和明确的遥控器焦点。
 - **系统入口**：从实际 TV Input 列表选择信号源，进入网络与系统设置。
 - **壁纸设置**：默认主题光晕、固定风景图或每 5 分钟自动轮播。
 - **更新与恢复**：构建并更新 Quiet TV；按实际设备备份和记录系统包变更，保留恢复路径。
@@ -73,3 +73,5 @@
 Quiet TV 基于 [Gathin23/tv-vibehack](https://github.com/Gathin23/tv-vibehack) 开发，感谢原作者 **Gathin**。本项目独立维护，面向国内使用场景继续适配，与上游及电视、应用品牌方无官方关联。
 
 代码使用 [MIT](LICENSE)，保留 `Copyright (c) 2026 Gathin` 和完整上游许可。Outfit 字体按 SIL OFL 1.1 授权；内置壁纸不适用 MIT 代码许可。详见[第三方项目与资源说明](THIRD_PARTY_NOTICES.md)。
+
+应用管理与 Dock 编辑见[使用指南](docs/USAGE.zh-CN.md)和[管理验收记录](docs/APP_MANAGEMENT.md)。

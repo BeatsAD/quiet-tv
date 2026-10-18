@@ -18,10 +18,14 @@ public final class DockEditorActivity extends ManagementUi {
     @Override public void onCreate(Bundle state){
         super.onCreate(state);store=new DockStore(this);packages=store.load();
         header.addView(label("Dock 管理",26),new LinearLayout.LayoutParams(0,-1,1));
-        header.addView(button("应用列表",()->finish()));
+        header.addView(button("应用列表",()->{startActivity(new Intent(this,AppManagementActivity.class).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));finish();}));
         content=column();root.addView(content);render(-1);
     }
-    private String name(String pkg){try{return getPackageManager().getApplicationLabel(getPackageManager().getApplicationInfo(pkg,PackageManager.MATCH_DISABLED_COMPONENTS)).toString();}catch(PackageManager.NameNotFoundException e){return pkg;}}
+    private String name(String pkg){
+        try{ApplicationInfo info=getPackageManager().getApplicationInfo(pkg,PackageManager.MATCH_DISABLED_COMPONENTS|PackageManager.MATCH_UNINSTALLED_PACKAGES);
+            return getPackageManager().getApplicationLabel(info).toString()+((info.flags&ApplicationInfo.FLAG_INSTALLED)==0?"\n未安装":info.enabled?"":"\n已禁用（保留位置）");
+        }catch(PackageManager.NameNotFoundException e){return pkg+"\n不可用";}
+    }
     private void render(int focus){
         content.removeAllViews();slots.clear();
         content.addView(label(moving==null?"最多 4 个常用应用 · 确定编辑位置 · 无需 ADB":"移动模式：左右调整 · 确定保存 · 返回取消",15));
