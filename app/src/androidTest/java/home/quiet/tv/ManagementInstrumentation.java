@@ -10,6 +10,18 @@ public final class ManagementInstrumentation extends Instrumentation {
     @Override public void onCreate(Bundle args){super.onCreate(args);scenario=args.getString("scenario","adb");start();}
     @Override public void onStart(){
         Bundle result=new Bundle();
+        if("connection-ui".equals(scenario)){
+            try{new SetupChecks(this).connectionUi();result.putString("stream","PASS: native TCP/wireless mode switching and cancel; HOME and packages unchanged\n");finish(-1,result);}
+            catch(Throwable e){android.util.Log.e("QuietTVChecks","Connection UI failed",e);result.putString("stream","FAIL: "+e+"\n");finish(0,result);}return;
+        }
+        if("setup-fresh".equals(scenario) || "setup-upgrade".equals(scenario)){
+            try{new SetupChecks(this).onboarding("setup-upgrade".equals(scenario));result.putString("stream","PASS: "+scenario+" onboarding classification and state\n");finish(-1,result);}
+            catch(Throwable e){android.util.Log.e("QuietTVChecks","Onboarding check failed",e);result.putString("stream","FAIL: "+e+"\n");finish(0,result);}return;
+        }
+        if("pairing-cancel".equals(scenario)){
+            try{new SetupChecks(this).pairingCancellation();result.putString("stream","PASS: native TLS/SPAKE2 capability; actual upstream TLS handshake interrupted by cancellation; no ADB continuation\n");finish(-1,result);}
+            catch(Throwable e){android.util.Log.e("QuietTVChecks","Pairing cancellation failed",e);result.putString("stream","FAIL: "+e+"\n");finish(0,result);}return;
+        }
         if("setup".equals(scenario)){
             try{new SetupChecks(this).run();result.putString("stream","PASS: emulator native setup / temporary use / HOME readback / cancellation / unverified uninstall denied / fixture disable and exact enable-state restore / skip; original HOME restored\n");finish(-1,result);}
             catch(Throwable e){android.util.Log.e("QuietTVChecks","Setup check failed",e);result.putString("stream","FAIL: "+e+"\n");finish(0,result);}return;

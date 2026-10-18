@@ -36,4 +36,5 @@ Quiet TV 基于该项目开发，面向国内电视机的适配与应用升级�
 
 - [libadb-android 3.1.1](https://github.com/MuntashirAkon/libadb-android/tree/3.1.1)：采用其 Apache-2.0 许可选项，保留继承代码的 BSD-3-Clause 和 MIT 声明。许可文本随 APK 保存在 `assets/licenses/libadb-*.txt`。
 - [Bouncy Castle 1.86](https://github.com/bcgit/bc-java/tree/r1rv86)：bcprov、bcpkix 及 bcutil 的 jdk15to18 版本，用于独立密钥的自签证书和库内部 RSA 公钥编码，许可见 `assets/licenses/bouncycastle-LICENSE.md`。此版本为当前源码依赖；历史发布包的依赖不会随源码维护改变。
-- 首版仅使用传统 TCP，显式排除未使用的 `spake2-android` 原生无线配对依赖。
+- `1.1.0 / b4` 候选接入无线配对，包含 [spake2-android 2.2.1](https://github.com/MuntashirAkon/spake2-java/tree/2.2.1) 的未修改原生库，采用 LGPL-3.0；版权归 Muntashir Al-Islam 等上游作者。LGPL 与 GPL 文本见 `assets/licenses/spake2-*.txt`。相同版本的完整库源码及构建脚本可从该标签取得；本项目通过 Gradle 引用，保留独立共享库及源码重建／替换路径。上游 Ed25519 实现来源与 CC0 说明见其 README。
+- [Conscrypt 2.7.0](https://github.com/google/conscrypt/tree/2.7.0) 提供 TLS 1.3 与公开密钥导出接口，采用 Apache-2.0；其及内含原生代码的声明随 APK 保存为 `assets/licenses/conscrypt-LICENSE.txt`、`conscrypt-NOTICE.txt`。历史 TCP 版本未包含以上无线依赖。

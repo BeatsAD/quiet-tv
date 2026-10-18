@@ -84,7 +84,7 @@ public final class SetupActivity extends ManagementUi {
         action(body,adb.connected()?"通过 ADB 设置默认桌面":"连接 ADB 并设置默认桌面",homeState!=null && homeState.roleAvailable?"adb":"primary",()->withConnection(this::setDefault),usable);
         action(body,"重新检测","refresh",()->{roleCancelled=false;refresh();},true);
         body.addView(new View(this),new LinearLayout.LayoutParams(1,0,1));
-        action(body,"暂不设置，临时使用","temporary",()->exit(true),true);action(body,"退出设置","exit",()->exit(false),true);
+        action(body,"暂不设置，临时使用","temporary",()->exit(true),home.component(new ComponentName(this,HomeActivity.class).flattenToString(),true));action(body,"退出设置","exit",()->exit(false),true);
     }
     private void renderApps(LinearLayout body){
         LinearLayout panels=row();panels.setGravity(Gravity.TOP);body.addView(panels,new LinearLayout.LayoutParams(-1,0,1));
@@ -144,5 +144,5 @@ public final class SetupActivity extends ManagementUi {
         cancel();try{store.put("status",homeState==null || !homeState.known?"unknown":"deferred");}catch(Exception e){Toast.makeText(this,"设置记录未保存",Toast.LENGTH_LONG).show();}
         if(temporary)openHome("已进入 Quiet TV；默认桌面以系统实际状态为准");else{if(isTaskRoot())try{startActivity(HomeController.homeIntent());}catch(ActivityNotFoundException ignored){}finish();}
     }
-    private void openHome(String text){cancel();Toast.makeText(this,text,Toast.LENGTH_LONG).show();startActivity(new Intent(this,HomeActivity.class).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP));finish();}
+    private void openHome(String text){cancel();try{startActivity(new Intent(this,HomeActivity.class).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP));Toast.makeText(this,text,Toast.LENGTH_LONG).show();finish();}catch(ActivityNotFoundException|SecurityException e){notice="Quiet TV 桌面组件不可用，请重新检测或退出设置。";render();}}
 }

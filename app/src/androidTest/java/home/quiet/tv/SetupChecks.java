@@ -76,4 +76,43 @@ final class SetupChecks {
             require(AppRepository.parsePackages(disabledBefore).equals(AppRepository.parsePackages(shell("pm list packages -d --user "+user))),"Disabled package baseline was not restored");
         }
     }
+    void pairingCancellation() throws Exception {
+        require("ranchu".equals(Build.HARDWARE)||"goldfish".equals(Build.HARDWARE),"Dedicated emulator only");
+        require(AdbController.pairingAvailable(),"TLS/SPAKE2 provider or native ABI unavailable");
+        java.util.concurrent.ExecutorService worker=java.util.concurrent.Executors.newSingleThreadExecutor();
+        try(java.net.ServerSocket daemon=new java.net.ServerSocket(0,1,java.net.InetAddress.getByName("127.0.0.1"));AdbController adb=new AdbController(context,v->{})){
+            daemon.setSoTimeout(7000);
+            java.util.concurrent.Future<Boolean> pairing=worker.submit(()->{try{adb.pair(daemon.getLocalPort(),"000000");return false;}catch(IOException expected){return true;}});
+            try(java.net.Socket probe=daemon.accept()){} // Read-only reachability probe.
+            try(java.net.Socket handshake=daemon.accept()){
+                handshake.setSoTimeout(7000);require(handshake.getInputStream().read()==22,"Actual TLS handshake did not start");
+                require(!pairing.isDone(),"Pairing terminated before cancellation");adb.disconnect();
+                require(pairing.get(3,java.util.concurrent.TimeUnit.SECONDS),"Cancelled pairing was reported as successful");require(!adb.connected(),"Cancelled pairing created an ADB session");
+            }
+        }finally{worker.shutdownNow();}
+    }
+    void onboarding(boolean upgrade) throws Exception {
+        require("ranchu".equals(Build.HARDWARE)||"goldfish".equals(Build.HARDWARE),"Dedicated emulator only");
+        android.content.pm.PackageInfo info=context.getPackageManager().getPackageInfo(context.getPackageName(),0);
+        if(upgrade){
+            require(info.lastUpdateTime>info.firstInstallTime,"Reinstall the candidate to exercise upgrade classification");
+            File files=new File(context.getCacheDir(),"setup-upgrade-"+UUID.randomUUID());require(files.mkdirs(),"Cannot create isolated upgrade state");
+            Context isolated=new ContextWrapper(context){@Override public File getFilesDir(){return files;}};
+            SetupStore store=new SetupStore(isolated);require(!store.shouldOffer(isolated),"Upgrade without new setup preferences forced onboarding");require("legacy".equals(store.get().getString("status")),"Upgrade was not recorded");
+        }else{
+            require(info.lastUpdateTime==info.firstInstallTime,"This check requires a fresh candidate install");
+            String user=shell("am get-current-user"),previous=actualHome(user);
+            require(context.getSharedPreferences("HomeActivity",0).edit().putInt("row",0).commit(),"Cannot simulate preferences written during a fresh launch");
+            test.runOnMainSync(()->context.startActivity(new Intent(context,HomeActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)));
+            await("暂不设置，临时使用");require("pending".equals(new SetupStore(context).get().getString("status")),"Fresh install did not offer setup");capture("setup-fresh-install.png");click("退出设置");
+            require(actualHome(user).equals(previous),"Exiting onboarding changed default HOME");require("deferred".equals(new SetupStore(context).get().getString("status")),"Exit was not recorded");
+        }
+    }
+    void connectionUi() throws Exception {
+        require("ranchu".equals(Build.HARDWARE)||"goldfish".equals(Build.HARDWARE),"Dedicated emulator only");
+        String user=shell("am get-current-user"),previous=actualHome(user),disabled=shell("pm list packages -d --user "+user);
+        open();click("连接 ADB 并设置默认桌面");await("本机 ADB 连接");click("无线配对（实验）");await("配对端口");await("配对码");capture("setup-wireless-panel.png");
+        click("传统 TCP");await("传统 TCP ✓");click("取消");await("暂不设置，临时使用");
+        require(previous.equals(actualHome(user)),"Closing the connection panel changed HOME");require(disabled.equals(shell("pm list packages -d --user "+user)),"Connection panel changed packages");
+    }
 }

@@ -26,7 +26,8 @@ final class SetupStore {
     boolean shouldOffer(Context context) throws Exception {
         synchronized(LOCK){JSONObject record=get();if(record.has("status"))return false;
             android.content.pm.PackageInfo info=context.getPackageManager().getPackageInfo(context.getPackageName(),0);
-            boolean upgraded=info.lastUpdateTime>info.firstInstallTime || context.getSharedPreferences("HomeActivity",0).contains("row");
+            // A fresh launch can write HomeActivity preferences while showing a system permission dialog.
+            boolean upgraded=info.lastUpdateTime>info.firstInstallTime;
             if(upgraded){put("status","legacy");return false;}
             put("status","pending");return true;
         }
