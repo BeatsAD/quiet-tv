@@ -9,6 +9,7 @@
   },
   "private": true,
   "dependencies": {
+    "@remotion/captions": "4.0.536",
     "@remotion/cli": "4.0.536",
     "@remotion/media": "4.0.536",
     "react": "19.2.3",
