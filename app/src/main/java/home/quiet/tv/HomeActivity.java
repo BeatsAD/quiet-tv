@@ -27,6 +27,7 @@ import java.util.concurrent.*;
 public final class HomeActivity extends Activity {
     private static final String TAG = "QuietTV";
     private static final String WALLPAPER_ENTRY = "quiet:wallpapers";
+    private static final String MANAGEMENT_ENTRY = "quiet:management";
     private static final float CONTENT_MARGIN = 48;
     private static final float FOCUS_SCALE = 1.035f, FOCUS_OUTSET = 5, FOCUS_STROKE = 3;
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -56,7 +57,10 @@ public final class HomeActivity extends Activity {
         @Override public void onReceive(Context c, Intent i) { updateClock(); }
     };
     private final BroadcastReceiver packageReceiver = new BroadcastReceiver() {
-        @Override public void onReceive(Context c, Intent i) { loadApps(); }
+        @Override public void onReceive(Context c, Intent i) {
+            if(Intent.ACTION_PACKAGE_REMOVED.equals(i.getAction()) && !i.getBooleanExtra(Intent.EXTRA_REPLACING,false) && i.getData()!=null)new DockStore(c).remove(i.getData().getSchemeSpecificPart());
+            loadApps();
+        }
     };
     private ConnectivityManager.NetworkCallback networkCallback;
 
@@ -73,8 +77,7 @@ public final class HomeActivity extends Activity {
             config = new JSONObject(readAsset("launcher.json"));
             chinese = !"en".equals(config.optString("language", "zh"));
             fixedGreeting = "home".equals(config.optString("greeting"));
-            JSONArray pinned = config.getJSONArray("dock");
-            for (int n = 0; n < pinned.length(); n++) dockPackages.add(pinned.getString(n));
+            dockPackages.addAll(new DockStore(this).load());
             JSONArray omitted = config.optJSONArray("hidden");
             if (omitted != null) for (int n = 0; n < omitted.length(); n++) hidden.add(omitted.getString(n));
             outfit = Typeface.createFromAsset(getAssets(), "fonts/outfit.ttf");
@@ -233,7 +236,7 @@ public final class HomeActivity extends Activity {
         ((ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE)).registerDefaultNetworkCallback(networkCallback);
         updateClock();updateNetwork();
         wallpapers.resume();
-        if(ready) main.post(()->focusCurrent(false));
+        if(ready) loadApps();
     }
 
     @Override protected void onPause() {
@@ -252,12 +255,14 @@ public final class HomeActivity extends Activity {
     }
 
     private void loadApps() {
+        dockPackages.clear();dockPackages.addAll(new DockStore(this).load());
+        final ArrayList<String> pinned=new ArrayList<>(dockPackages);
         loader.execute(()->{
             PackageManager pm=getPackageManager(); LinkedHashMap<String,ResolveInfo> candidates=new LinkedHashMap<>();
             for(String category:new String[]{Intent.CATEGORY_LEANBACK_LAUNCHER,Intent.CATEGORY_LAUNCHER}) {
                 for(ResolveInfo info:pm.queryIntentActivities(new Intent(Intent.ACTION_MAIN).addCategory(category),0)) {
                     String pkg=info.activityInfo.packageName;
-                    if(!hidden.contains(pkg) && !pkg.equals(getPackageName()) && info.activityInfo.applicationInfo.enabled) candidates.putIfAbsent(pkg,info);
+                    if((!hidden.contains(pkg) || pinned.contains(pkg)) && !pkg.equals(getPackageName()) && info.activityInfo.applicationInfo.enabled) candidates.putIfAbsent(pkg,info);
                 }
             }
             ArrayList<App> found=new ArrayList<>();
@@ -273,16 +278,21 @@ public final class HomeActivity extends Activity {
             found.sort((a,b)->java.text.Collator.getInstance(Locale.SIMPLIFIED_CHINESE).compare(a.label,b.label));
             App wallpaperApp=new App();wallpaperApp.pkg=WALLPAPER_ENTRY;wallpaperApp.label=tr("壁纸设置","Wallpaper Settings");
             wallpaperApp.banner=wallpapers.entryBanner();wallpaperApp.color=0xff557eac;found.add(0,wallpaperApp);
+            App managementApp=new App();managementApp.pkg=MANAGEMENT_ENTRY;managementApp.label=tr("应用管理","App Management");
+            managementApp.banner=managementBanner(tr("应用管理","App Management"));managementApp.color=0xff666972;found.add(1,managementApp);
             main.post(()->{
                 if(isDestroyed())return;
                 dock.clear();apps.clear();visibleTiles.clear();dockTiles.clear();
-                for(String pkg:dockPackages)for(App app:found)if(pkg.equals(app.pkg))dock.add(app);
-                for(App app:found)if(!dockPackages.contains(app.pkg))apps.add(app);
-                if(!activePackage.isEmpty()) {
-                    for(int n=0;n<dock.size();n++)if(activePackage.equals(dock.get(n).pkg)){row=0;column=n;}
-                    for(int n=0;n<apps.size();n++)if(activePackage.equals(apps.get(n).pkg)){row=1+n/4;column=n%4;}
+                for(String pkg:pinned)for(App app:found)if(pkg.equals(app.pkg))dock.add(app);
+                for(App app:found)if(!pinned.contains(app.pkg))apps.add(app);
+                if(dock.isEmpty()){App empty=new App();empty.pkg="quiet:add-dock";empty.label=tr("添加常用应用","Add favorite apps");empty.banner=managementBanner(tr("添加常用应用","Add favorite apps"));empty.color=0xff666972;dock.add(empty);}
+                if(row>=0){
+                    if(!activePackage.isEmpty()) {
+                        for(int n=0;n<dock.size();n++)if(activePackage.equals(dock.get(n).pkg)){row=0;column=n;}
+                        for(int n=0;n<apps.size();n++)if(activePackage.equals(apps.get(n).pkg)){row=1+n/4;column=n%4;}
+                    }
+                    row=Math.max(0,Math.min(row,gridRows()));column=Math.min(column,maxColumn(row));
                 }
-                row=Math.max(0,Math.min(row,gridRows()));column=Math.min(column,maxColumn(row));
                 list.setAdapter(new AppAdapter());ready=true;
                 main.post(()->focusCurrent(false));
                 Log.i(TAG,"Loaded dock="+dock.size()+" apps="+apps.size());
@@ -297,6 +307,19 @@ public final class HomeActivity extends Activity {
             drawable.draw(c);
         }
         return bitmap;
+    }
+
+    private Bitmap managementBanner(String title) {
+        Bitmap bitmap=Bitmap.createBitmap(360,203,Bitmap.Config.ARGB_8888);
+        Canvas canvas=new Canvas(bitmap);Paint paint=new Paint(3);
+        paint.setShader(new LinearGradient(0,0,360,203,new int[]{0xff2b2d33,0xff1b1d22},null,Shader.TileMode.CLAMP));canvas.drawRect(0,0,360,203,paint);paint.setShader(null);
+        // Center the icon + gap + actual font metrics as one group inside the banner.
+        paint.setColor(0xffe7e8ec);paint.setTextSize(28);paint.setTextAlign(Paint.Align.CENTER);
+        Paint.FontMetrics metrics=paint.getFontMetrics();float textHeight=metrics.descent-metrics.ascent;
+        float top=(203-76-12-textHeight)/2f;
+        Drawable icon=getDrawable(title.equals(tr("应用管理","App Management"))?R.drawable.ic_manage_apps:R.drawable.ic_manage_plus);
+        icon.setBounds(142,Math.round(top),218,Math.round(top+76));icon.draw(canvas);
+        canvas.drawText(title,180,top+76+12-metrics.ascent,paint);return bitmap;
     }
 
     private int sampleColor(Bitmap bitmap) {
@@ -369,10 +392,10 @@ public final class HomeActivity extends Activity {
 
     private App currentApp(){if(row==0)return dock.isEmpty()?null:dock.get(Math.min(column,dock.size()-1));int n=(row-1)*4+column;return n>=0&&n<apps.size()?apps.get(n):null;}
 
-    private void launchSelected(){App app=currentApp();if(app==null)return;saveFocus();if(WALLPAPER_ENTRY.equals(app.pkg)){wallpapers.showPicker();return;}try{startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER).setComponent(app.component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));}catch(ActivityNotFoundException e){Toast.makeText(this,tr("应用暂不可用","App unavailable"),Toast.LENGTH_SHORT).show();}}
+    private void launchSelected(){App app=currentApp();if(app==null)return;saveFocus();if("quiet:add-dock".equals(app.pkg)){startActivity(new Intent(this,DockEditorActivity.class));return;}if(MANAGEMENT_ENTRY.equals(app.pkg)){startActivity(new Intent(this,AppManagementActivity.class));return;}if(WALLPAPER_ENTRY.equals(app.pkg)){wallpapers.showPicker();return;}try{startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER).setComponent(app.component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));}catch(ActivityNotFoundException e){Toast.makeText(this,tr("应用暂不可用","App unavailable"),Toast.LENGTH_SHORT).show();}}
 
     private int focusOutset(View view) {
-        return px(dockTiles.contains(view)?2:FOCUS_OUTSET);
+        return px(view instanceof Tile?2:FOCUS_OUTSET);
     }
 
     private float focusTranslationX(Tile tile) {
@@ -409,7 +432,7 @@ public final class HomeActivity extends Activity {
                 FrameLayout header=new FrameLayout(HomeActivity.this);header.setClipChildren(false);header.setLayoutParams(new RecyclerView.LayoutParams(-1,px(348)));
                 heroTitle=text("",40,400,0xfff1f2f6);place(header,heroTitle,820,56,2,90);
                 TextView hint=text(tr("按下 ↓ 浏览全部应用","Press ↓ for all apps"),12,300,0xff64656e);hint.setGravity(Gravity.CENTER);place(header,hint,-1,20,0,312);
-                FrameLayout band=new FrameLayout(HomeActivity.this);band.setBackground(surface(0xe6191a1e,22));band.setClipChildren(false);place(header,band,-1,dockHeight+2*dockPadding,0,162);
+                FrameLayout band=new FrameLayout(HomeActivity.this);band.setBackground(pillSurface());band.setClipChildren(false);place(header,band,-1,dockHeight+2*dockPadding,0,162);
                 header.setTag(band);view=header;
             }else if(type==1){TextView title=text(tr("全部应用","All apps"),18,400,0xffbbbbc3);title.setPadding(px(3),px(4),0,0);title.setLayoutParams(new RecyclerView.LayoutParams(-1,px(38)));view=title;}
             else{Tile tile=new Tile();RecyclerView.LayoutParams p=new RecyclerView.LayoutParams(-1,px(145));p.leftMargin=px(8);p.rightMargin=px(8);p.bottomMargin=px(12);tile.setLayoutParams(p);view=tile;}
@@ -448,7 +471,6 @@ public final class HomeActivity extends Activity {
             paint.setShader(new LinearGradient(current.left,current.top,current.right,current.bottom,new int[]{0x30ffffff,0x09ffffff},null,Shader.TileMode.CLAMP));
             paint.setStyle(Paint.Style.FILL);c.drawRoundRect(current,radius,radius,paint);paint.setShader(null);
             paint.setStyle(Paint.Style.STROKE);
-            paint.setColor(0xb3000000);paint.setStrokeWidth(px(5));c.drawRoundRect(current,radius,radius,paint);
             paint.setColor(Color.WHITE);paint.setStrokeWidth(px(FOCUS_STROKE));c.drawRoundRect(current,radius,radius,paint);
             paint.setStyle(Paint.Style.FILL);
         }

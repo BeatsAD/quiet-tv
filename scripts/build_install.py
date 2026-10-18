@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Build and install an update. Does not change HOME or disable any packages."""
+"""Build, archive, install and verify an update. Does not change HOME or disable packages."""
 import os
 import subprocess
 import time
+from build_apk import build_apk, parse_summary
+from verify_apk import verify_installed
 from tv import ROOT, CONFIG, ADB, shell, screenshot, push_chunks
 
 os.chdir(ROOT)
-subprocess.run([str(ROOT/'gradlew'), ':app:assembleDebug', '--console=plain'],check=True)
-apk = ROOT/'app/build/outputs/apk/debug/app-debug.apk'
+apk = build_apk(parse_summary(__doc__))
 if os.environ.get('TV_ADB_BACKEND') == 'python':
     push_chunks(apk,'/data/local/tmp/quiet-tv.apk')
     result=shell('pm install -r /data/local/tmp/quiet-tv.apk',timeout=90)
@@ -29,6 +30,7 @@ else:
         result=shell('pm install -r /data/local/tmp/quiet-tv.apk',timeout=90)
         if 'Success' not in result: raise RuntimeError(result)
         print(result)
+verify_installed(apk)
 print(shell('am start -n home.quiet.tv/.HomeActivity'))
 time.sleep(2)
 shell('input keyevent KEYCODE_DPAD_RIGHT')

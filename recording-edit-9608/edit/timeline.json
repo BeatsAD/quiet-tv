@@ -1,0 +1,88 @@
+{
+  "source": "/Users/changwenbin/Downloads/IMG_9608.MOV",
+  "sourceDurationSeconds": 74.293333,
+  "fps": 60,
+  "width": 1080,
+  "height": 1920,
+  "clips": [
+    {
+      "name": "桌面替换",
+      "sourceStartFrame": 87,
+      "durationInFrames": 224,
+      "outputStartFrame": 0,
+      "reason": "保留完整开场，删除下一句重复介绍"
+    },
+    {
+      "name": "底层修改与效果",
+      "sourceStartFrame": 639,
+      "durationInFrames": 225,
+      "outputStartFrame": 224,
+      "reason": "保留核心说明和演示引导"
+    },
+    {
+      "name": "原生设置",
+      "sourceStartFrame": 1056,
+      "durationInFrames": 79,
+      "outputStartFrame": 449,
+      "reason": "保留设置入口与主语"
+    },
+    {
+      "name": "精简口头修正",
+      "sourceStartFrame": 1170,
+      "durationInFrames": 56,
+      "outputStartFrame": 528,
+      "reason": "删除口头反复，接回原声说明"
+    },
+    {
+      "name": "电视原生系统",
+      "sourceStartFrame": 1308,
+      "durationInFrames": 150,
+      "outputStartFrame": 584,
+      "reason": "缩短句中的长停顿，删除随后重复补充"
+    },
+    {
+      "name": "壁纸来源",
+      "sourceStartFrame": 2051,
+      "durationInFrames": 211,
+      "outputStartFrame": 734,
+      "reason": "删除前面重复起句及不顺的补充说明，保留完整功能解释"
+    },
+    {
+      "name": "功能保持简单",
+      "sourceStartFrame": 2289,
+      "durationInFrames": 154,
+      "outputStartFrame": 945,
+      "reason": "保留功能定位，缩短段间停顿"
+    },
+    {
+      "name": "应用隐藏和删除",
+      "sourceStartFrame": 2519,
+      "durationInFrames": 307,
+      "outputStartFrame": 1099,
+      "reason": "保留两项功能，删除随后重复的底层修改说明"
+    },
+    {
+      "name": "飞牛应用演示",
+      "sourceStartFrame": 3030,
+      "durationInFrames": 168,
+      "outputStartFrame": 1406,
+      "reason": "保留举例和应用展示时间"
+    },
+    {
+      "name": "老人孩子易操作",
+      "sourceStartFrame": 3342,
+      "durationInFrames": 270,
+      "outputStartFrame": 1574,
+      "reason": "保留完整使用人群说明"
+    },
+    {
+      "name": "邀请建议",
+      "sourceStartFrame": 4155,
+      "durationInFrames": 248,
+      "outputStartFrame": 1844,
+      "reason": "删除结尾前长空档，保留完整收尾和自然余量"
+    }
+  ],
+  "durationInFrames": 2092,
+  "editedDurationSeconds": 34.86666666666667
+}

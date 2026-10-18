@@ -1,0 +1,42 @@
+package home.quiet.tv;
+
+import android.app.Instrumentation;
+import android.os.Bundle;
+import android.content.Context;
+
+/** Runs inside the launcher process, with its own app key and app permissions. */
+public final class ManagementInstrumentation extends Instrumentation {
+    private String scenario="adb";
+    @Override public void onCreate(Bundle args){super.onCreate(args);scenario=args.getString("scenario","adb");start();}
+    @Override public void onStart(){
+        Bundle result=new Bundle();
+        if("visual".equals(scenario)){
+            try{new ManagementChecks(this).visual();result.putString("stream","PASS: native search empty/clear, refresh, history, real app metadata, Dock tab; configuration unchanged\n");finish(-1,result);}
+            catch(Throwable e){android.util.Log.e("QuietTVChecks","Visual check failed",e);result.putString("stream","FAIL: "+e+"\n");finish(0,result);}return;
+        }
+        if("apps".equals(scenario) || "uninstall".equals(scenario)){
+            try{new ManagementChecks(this).run("uninstall".equals(scenario));result.putString("stream","PASS: "+scenario+" native UI / package readback / Dock linkage / confirmations / journal; original Dock restored\n");finish(-1,result);}
+            catch(Throwable e){android.util.Log.e("QuietTVChecks","Management failed",e);result.putString("stream","FAIL: "+e+"\n");finish(0,result);}return;
+        }
+        if("dock".equals(scenario)){
+            try{new DockChecks(this).run();result.putString("stream","PASS: Dock empty/add/remove/1-4 slots/replace/reorder save/cancel; original configuration restored\n");finish(-1,result);}
+            catch(Throwable e){android.util.Log.e("QuietTVChecks","Dock failed",e);result.putString("stream","FAIL: "+e+"\n");finish(0,result);}return;
+        }
+        try(AdbController adb=new AdbController(getTargetContext(),value->{Bundle status=new Bundle();status.putString("stream",value+"\n");sendStatus(0,status);})){
+            adb.connect(5555);
+            String packages=adb.shell("pm list packages --user "+adb.user);
+            if(!packages.contains("package:home.quiet.tv"))throw new AssertionError("Own package missing");
+            if("connect".equals(scenario)){
+                result.putString("stream","PASS: post-reboot in-app ADB; host="+adb.host+"; user="+adb.user+"; packages="+packages.split("\\n").length+"\n");finish(-1,result);return;
+            }
+            String fixture="home.quiet.tv.fixture";
+            try{
+                adb.shell("pm disable-user --user "+adb.user+" "+fixture);
+                if(!adb.shell("pm list packages -d --user "+adb.user).contains("package:"+fixture))throw new AssertionError("Disable did not take effect");
+            }finally{adb.shell("pm enable --user "+adb.user+" "+fixture);}
+            if(!adb.shell("pm list packages -e --user "+adb.user).contains("package:"+fixture))throw new AssertionError("Enable did not take effect");
+            result.putString("stream","PASS: fixture disable/enable; in-app ADB; host="+adb.host+"; user="+adb.user+"; packages="+packages.split("\\n").length+"\n");
+            finish(-1,result);
+        }catch(Throwable e){result.putString("stream","FAIL: "+e+"\n");finish(0,result);}
+    }
+}

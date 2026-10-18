@@ -30,3 +30,10 @@ Quiet TV 基于该项目开发，面向国内电视机的适配与应用升级�
 | `app/src/main/assets/wallpapers/big-sur-road.jpg` | Big Sur Road | [Apple CDN](https://updates.cdn-apple.com/2025/mobileassets/072-29818/74AF556A-DC02-429B-894B-23AB61E2A5F9/com_apple_MobileAsset_DesktopPicture/643aa03a1828fb2170170ef999b18900bd6b26f6.zip) |
 
 这些图片的权利归各自权利人所有，不属于本项目 MIT 许可的代码。上述来源记录不是再分发授权；尚未记录可供公开再分发的授权依据，公开发布源码或 APK 前需核实相应权利，或替换为获准再分发的图片。
+
+
+## 电视端 ADB 与证书依赖
+
+- [libadb-android 3.1.1](https://github.com/MuntashirAkon/libadb-android/tree/3.1.1)：采用其 Apache-2.0 许可选项，保留继承代码的 BSD-3-Clause 和 MIT 声明。许可文本随 APK 保存在 `assets/licenses/libadb-*.txt`。
+- [Bouncy Castle 1.81](https://github.com/bcgit/bc-java/tree/r1rv81)：bcprov、bcpkix 及 bcutil，用于独立密钥的自签证书和库内部 RSA 公钥编码，许可见 `assets/licenses/bouncycastle-LICENSE.md`。
+- 首版仅使用传统 TCP，显式排除未使用的 `spake2-android` 原生无线配对依赖。

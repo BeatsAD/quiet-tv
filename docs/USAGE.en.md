@@ -12,11 +12,23 @@
 | Back in the grid | Return to the dock |
 | HOME from an application | Return to Quiet TV and restore focus |
 
-An incomplete last row uses the nearest valid column. Focus survives launcher process restarts. Full TV reboot behavior remains unverified.
+An incomplete last row uses the nearest valid column. Focus survives launcher process restarts. One actual Sony TV reboot has been verified: Quiet TV opened automatically and Dock/wallpaper settings persisted. Long-running behavior remains unverified.
 
-## Applications and language
+## App management and Dock
 
-Edit `app/src/main/assets/launcher.json`, then rebuild and update the APK. `dock` contains four installed application package names in left-to-right order. `hidden` hides entries without disabling packages. Choose `zh` or `en` for `language`, and `time` or `home` for `greeting`. The current implementation does not implement the prompt's planned automatic `system` language mode.
+Open 应用管理 (App Management) beside Wallpaper Settings in All Apps. Management controls in this first Sony-targeted version are in Chinese.
+
+- Dock 管理 supports up to four shortcuts: add, replace, remove, or move left/right. OK saves reordering; Back cancels. Editing works without ADB.
+- Search by application name or package, and filter all, user, preinstalled, disabled, or restorable packages.
+- The top-right ADB status opens local TCP connection settings (default port 5555). Enable network debugging on the TV and approve QuietTV's independent key. Pairing-code wireless debugging is not implemented.
+- Operations affect one package for the current Android user. Disabling retains data; uninstalling removes that user's app data. Preinstalled uninstall leaves the system APK; install-existing is offered only when a system APK is retained and never restores deleted data.
+- Quiet TV, critical components, and unverified system packages are read-only. Operation history records configuration states, not user-data backups. Reconnect and refresh after uncertain results; do not repeat uninstall.
+
+Disabled Dock entries retain their order and reappear when enabled. Confirmed uninstalls remove the shortcut. An explicitly empty Dock stays empty across APK updates. See [implementation and hardware evidence](APP_MANAGEMENT.md).
+
+## Language and initial configuration
+
+Edit `app/src/main/assets/launcher.json`, then rebuild and update the APK. `dock` supplies up to four initial package names in left-to-right order. Once migrated, edit Dock in the TV interface; bundled changes do not overwrite saved preferences. `hidden` hides entries without disabling packages. Choose `zh` or `en` for `language`, and `time` or `home` for `greeting`. The current implementation does not implement the prompt's planned automatic `system` language mode.
 
 The included application package list belongs to the Sony adaptation. Use actual packages installed on your target device; see the [Chinese configuration example](USAGE.zh-CN.md).
 

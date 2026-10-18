@@ -1,6 +1,8 @@
 pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
-dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
+dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral(); maven { url 'https://jitpack.io'; content { includeGroup 'com.github.MuntashirAkon'; includeGroup 'com.github.MuntashirAkon.spake2-java' } } } }
 rootProject.name = 'QuietTV'
 include ':app'
+
+include ':management-fixture'
 
 apply from: 'gradle/security-constraints.gradle'

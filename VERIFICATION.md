@@ -9,7 +9,7 @@
 - 用户要求保留的 6 个应用包全部启用；更新、DLNA、镜像宿主、手机遥控仍保留。
 - 默认 HOME 为 `home.quiet.tv/.HomeActivity`；原桌面 `com.dangbei.TVHomeLauncher` 为 disabled-user。
 - 上一版风景壁纸桌面瞬时快照 TOTAL PSS 为 75023 KB，约 73.3 MiB；TOTAL RSS 为 171116 KB。两者口径不同，不表示整台电视节省的 RAM；原先黑底光晕版 PSS 约 34.1 MiB，图片解码与预览会增加内存使用。
-- 当前壁纸设置版 APK：8219048 字节，MD5 `f41903fe0ff947da56049244b6c640a8`，本地与电视已安装 APK 一致，核对见 `evidence/wallpaper-button-compact-install.json`。
+- 当前焦点间距统一版 APK：SHA-256 `78600a7b0ee843a65a4b8f77c6563d61a1a58311e305e30a8fa55b4bde9346b9`，本地与电视已安装 APK 一致，核对见 `evidence/focus-gap-install.json`。
 - 当前桌面进程日志未发现 FATAL EXCEPTION。Java 构建成功，Python 与两个 command 脚本通过语法检查。
 
 ## 验证证据
@@ -18,6 +18,9 @@
 
 | 项目 | 结果与证据 |
 | --- | --- |
+| Dock 与网格选中框间距统一 | 原因是 Dock 外扩为 2 布局单位、网格外扩为 5；现所有 `Tile` 统一外扩 2，保留白框粗细、放大比例与顶部按钮参数。Debug 构建、Sony BRAVIA VH1 更新安装及 APK SHA-256 核对通过。网格修复前后见 `evidence/focus-gap-grid-before.png`、`evidence/focus-gap-grid-after.png`，Dock 见 `evidence/focus-gap-dock-after.png`；网格截图 y=850 的左侧白框由 x=92–97 收紧为 x=98–103，卡片位置未变。本次启动附近 AndroidRuntime 错误日志为空。 |
+| Dock 背景统一玻璃材质 | 将黑色托盘背景替换为右上角按钮共用的 `pillSurface()`：白色半透明纵向渐变、细白描边与原有 22 布局单位圆角，布局和卡片未改动。Debug 构建、Sony BRAVIA VH1 更新安装及本地／已安装 APK SHA-256 核对通过；`evidence/dock-glass-final.png` 确认山景壁纸透出、玻璃外框与白色焦点框正常。本次启动附近 AndroidRuntime 错误日志为空。本轮只验证当前山景壁纸下的静态显示。 |
+| 移除选中框黑色衬边 | 移除共享焦点框绘制中的 5 布局单位黑色衬边，保留 3 布局单位白框、玻璃填充与放大动画。Debug 构建、Sony BRAVIA VH1 更新安装及本地／已安装 APK SHA-256 核对通过；实机飞牛TV选中截图见 `evidence/focus-no-black-outline-feiniu.png`，白色封面选中截图见 `evidence/focus-no-black-outline.png`。本次启动附近 AndroidRuntime 错误日志为空；顶部按钮与应用网格使用同一绘制实现，本轮未逐项截图。 |
 | Dock 选中态左右留白一致 | 两端卡片聚焦时向内补偿，保留 1.035 倍放大，并修正焦点框混用缩放前后坐标的问题；Dock 框外扩改为 2 个布局单位以避免碰到邻卡。`evidence/dock-focus-spacing-left.png`、`evidence/dock-focus-spacing-right.png`、`evidence/dock-focus-spacing-unfocused.png` 为三个实机状态。PNG 在 y=850 直边处量测：背景 x=96–1824，可见外缘 x=132–1788，三种状态左右均为 36 px；选中侧以白色框外缘为准，结果见 `evidence/dock-focus-spacing-measurements.json`，XML 为另时刻的结构参考。构建与真机更新安装通过，APK MD5 一致，当前进程未见 FATAL EXCEPTION，见 `evidence/dock-focus-spacing-install.json` 和 `evidence/dock-focus-spacing-process.log`。 |
 | 壁纸轮播按钮尺寸收紧 | 按钮由 240×48 缩至 144×40 布局单位（当前输出 288×80 px），字号由 16 改为 14，右边界仍为 x=912 布局单位，与页面右边距对齐；垂直中心保持一致。`evidence/wallpaper-button-compact-picker.png` 和 `evidence/wallpaper-button-compact-picker-focused.png` 确认普通及聚焦状态文字完整、焦点框贴合。构建更新安装通过，本地与已安装 APK MD5 一致，见 `evidence/wallpaper-button-compact-install.json`。 |
 | 删除提示后的间距收拢 | 状态行从 top=106 上移至原提示所在的 top=73 布局单位，接在标题下方，不再保留空白提示行。构建与更新安装通过，本地和已安装 APK MD5 一致；实机截图见 `evidence/wallpaper-settings-spacing-updated.png`，安装核对见 `evidence/wallpaper-settings-spacing-install.json`。 |

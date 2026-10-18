@@ -15,6 +15,7 @@
 - 文档和模板变更检查链接、格式、事实及 `git diff --check`；不需要为文档构建和操作电视。
 - Java、资源或构建配置变更运行 `./gradlew :app:assembleDebug --console=plain`。Python 改动检查语法及实际受影响路径；不要仅为检查而执行有设备副作用的脚本。
 - 行为变化需记录相关机型、系统、安装类型和实际验证步骤。构建、截图、安装、真实播放、恢复与长时间运行分别报告；未执行的项目明确标记。
+- 交付新 APK 前按[版本与安装包规则](docs/VERSIONING.md)递增版本／构建号，用带版本的文件名归档并记录变更摘要；不要交付固定名称的中间输出或覆盖历史归档。
 - 调整系统包前必须备份实际目标并记录原状态。保留既有系统数据与必要电视能力，不套用其他机型的禁用名单。
 
 提交 PR 时使用仓库模板。新机型补充兼容性记录及必要的脱敏证据；上游代码与字体许可须继续保留。
@@ -30,3 +31,5 @@ Keep the launcher native, lightweight, and remote-friendly. Preserve unrelated e
 For docs and templates, verify links, formatting, factual claims, and `git diff --check`. For Android code or resource changes, run `./gradlew :app:assembleDebug --console=plain`. Check affected Python syntax without running device-mutating scripts just to validate them. Match further checks to the behavior changed.
 
 Report build, installation, screenshots, playback, recovery, and long-run results separately, including the device, firmware, and build type. Mark unperformed checks. Back up the actual target before changing packages, preserve original state, and never reuse another model's disable list. Retain upstream and font licenses. Use the PR template and update compatibility records for new devices.
+
+Before delivering a new APK, follow the [version and APK rules](docs/VERSIONING.md): increment the version/build number, archive a versioned filename with a change summary, and preserve existing archives. Deliver the archived file rather than the replaceable Gradle intermediate.

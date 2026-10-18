@@ -10,11 +10,11 @@ A lightweight native Android TV launcher with application configuration, launche
 
 ## Features
 
-- Chinese and English interfaces, a four-app dock, application grid, and D-pad focus navigation.
+- Chinese and English interfaces, an editable dock for up to four apps, application grid, and D-pad focus navigation.
 - Actual TV Input sources, network settings, and system settings shortcuts.
 - Ambient default wallpaper, a fixed landscape, or a five-minute landscape slideshow.
 - Source-based launcher updates and device-specific backup and recovery records.
-- A launcher without INTERNET permission, advertising, accounts, or recommendation feeds.
+- No advertising, accounts, or recommendation feeds. INTERNET permission is used only for on-demand local ADB connections; no cloud service.
 
 Application upgrades currently mean updating Quiet TV and adjusting application configuration. Third-party media applications use their own update channels.
 
@@ -40,6 +40,8 @@ See [image provenance](docs/assets/README.md). Third-party application artwork a
 4. Before changing system packages, back up the actual target and verify its recovery journal. Do not reuse the included Sony package journal on another device.
 
 There is no published stable APK release yet. The current build produces a debug APK. Successful compilation or a screenshot does not establish compatibility with another TV.
+
+APKs use `quiet-tv_<version>_b<build>_<type>.apk` and are archived locally in `dist/apk/`. The current configuration is `1.0.1 / b2 / debug`; see [version and APK rules](docs/VERSIONING.md).
 
 ## Compatibility at a glance
 
@@ -68,3 +70,5 @@ Private repository links are available only to authorized accounts.
 Quiet TV is based on [Gathin23/tv-vibehack](https://github.com/Gathin23/tv-vibehack). Thank you to **Gathin** for the original work. This independently maintained project adapts it for use in China and is not officially affiliated with the upstream project or TV and application brands.
 
 Code is licensed under [MIT](LICENSE), retaining `Copyright (c) 2026 Gathin` and the complete upstream notice. Outfit uses SIL OFL 1.1. Bundled wallpaper is outside the project's MIT code license; see [third-party notices](THIRD_PARTY_NOTICES.md).
+
+See [app management and Dock usage](docs/USAGE.en.md) and [hardware evidence](docs/APP_MANAGEMENT.md).
