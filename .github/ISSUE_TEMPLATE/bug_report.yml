@@ -1,0 +1,40 @@
+name: Bug 反馈 / Bug report
+description: 报告可复现的故障 / Report a reproducible problem
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "请脱敏截图和日志。安全漏洞请先阅读 SECURITY.md。 / Redact screenshots and logs. Follow SECURITY.md for vulnerabilities."
+  - type: input
+    id: device
+    attributes:
+      label: 设备与系统 / Device and system
+      description: 品牌、完整型号、Android/API 和固件版本 / Brand, exact model, Android/API, firmware
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Quiet TV 版本或提交 / Version or commit
+      description: 包括构建类型、首次安装或更新 / Include build type and fresh install vs update
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 复现步骤 / Steps to reproduce
+      description: 从哪个页面、按了哪些按键、发生频率 / Starting screen, keys, frequency
+    validations:
+      required: true
+  - type: textarea
+    id: expected_actual
+    attributes:
+      label: 预期与实际 / Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 脱敏证据与已做检查 / Redacted evidence and checks
+      description: 截图、最小日志、是否只影响 ADB 截图、电视实际画面是否正常 / Captures, minimal logs, capture-only vs actual display problem

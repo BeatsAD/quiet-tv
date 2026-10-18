@@ -1,0 +1,9 @@
+{
+  "ip": "192.0.2.10",
+  "port": 5555,
+  "modelReported": "replace-with-detected-model",
+  "modelProvided": "replace-with-your-tv-model",
+  "sdk": 31,
+  "adb": "adb",
+  "sdkPath": "/absolute/path/to/your/android-sdk"
+}

@@ -1,0 +1,27 @@
+name: 功能建议 / Feature request
+description: 说明使用场景与期望结果 / Describe a use case and desired outcome
+title: "[Feature] "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 使用场景与问题 / Use case and problem
+      description: 谁在什么场景遇到了什么问题？ / Who encounters the problem and when?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: 希望的行为 / Desired behavior
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: 相关机型与系统 / Relevant device and system
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 现有替代方式与参考 / Alternatives and references
+      description: 可附脱敏截图，说明遥控器交互 / Redacted screenshots and remote interactions are welcome

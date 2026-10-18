@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全政策 / Security policy
+    url: https://github.com/BeatsAD/quiet-tv/blob/main/SECURITY.md
+    about: 安全问题请先阅读报告方式，不在普通反馈中披露利用细节 / Read reporting instructions before sharing security details.

@@ -1,0 +1,39 @@
+name: Dependency graph
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**/*.gradle'
+      - gradle.properties
+      - settings.gradle
+      - 'gradle/**'
+      - .github/workflows/dependencies.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gradle-dependencies:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install Android SDK platform
+        run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0"'
+      - name: Submit Gradle dependency graph
+        uses: gradle/actions/dependency-submission@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+        with:
+          dependency-graph: generate-and-submit
+          cache-cleanup: never
+          validate-wrappers: true

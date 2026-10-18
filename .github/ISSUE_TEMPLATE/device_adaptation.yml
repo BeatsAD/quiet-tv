@@ -1,0 +1,34 @@
+name: 新机型适配 / Device adaptation
+description: 提供目标电视信息和验证结果 / Share device information and validation
+title: "[Device] "
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: "不要上传完整备份、ADB 密钥或未脱敏日志，不要套用其他机型禁用清单。 / Do not upload full backups, ADB keys, or raw private logs; do not reuse another device's disable list."
+  - type: input
+    id: model
+    attributes:
+      label: 品牌与完整型号 / Brand and exact model
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: Android、API 和固件 / Android, API, and firmware
+    validations:
+      required: true
+  - type: textarea
+    id: capabilities
+    attributes:
+      label: ADB、用户 ID、HOME 与遥控器 / ADB, user ID, HOME, and remote
+      description: 描述调试方式、桌面切换限制、输入设备；不要填网络地址或密钥 / Describe debugging, launcher restrictions, and input devices without addresses or keys
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: 已验证与待验收 / Verified and pending
+      description: 分别列出安装、导航、应用启动、信号源、网络、壁纸、重启和恢复情况 / Separate install, navigation, apps, inputs, network, wallpaper, reboot, and recovery
+    validations:
+      required: true

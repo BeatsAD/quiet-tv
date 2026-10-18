@@ -1,0 +1,5 @@
+Use case: ads-marketing
+Asset type: landscape GitHub README project cover for Quiet TV, wide 2:1 aspect ratio, ideally 1280 x 640 pixels.
+Primary request: premium, calm editorial cover for a native Android television adaptation project for Chinese households.
+Composition: charcoal black background with deep navy and restrained cobalt/cyan ambient light, generous negative space; very large beautifully typeset white "Quiet TV" in the left half; below it a smaller single line of precise Simplified Chinese: "国内电视适配与应用升级改造". On the right, an elegant thin dark television at a subtle three-quarter angle with a soft edge reflection, its screen displaying only an abstract dark blue ambient glow and a row of four translucent rounded rectangles, without app logos or tiny text. Refined lighting, matte materials, restrained depth, crisp readable typography, quiet and sophisticated.
+Constraints: This is a conceptual brand illustration, not a device screenshot. Only the two specified text lines. No real company logos, no Sony or Apple marks, no product claims, no badges, no watermarks, no extra copy. Keep all text away from edges. Fill the canvas without a white border.
