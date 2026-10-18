@@ -279,13 +279,13 @@ public final class HomeActivity extends Activity {
             App wallpaperApp=new App();wallpaperApp.pkg=WALLPAPER_ENTRY;wallpaperApp.label=tr("壁纸设置","Wallpaper Settings");
             wallpaperApp.banner=wallpapers.entryBanner();wallpaperApp.color=0xff557eac;found.add(0,wallpaperApp);
             App managementApp=new App();managementApp.pkg=MANAGEMENT_ENTRY;managementApp.label=tr("应用管理","App Management");
-            managementApp.banner=managementBanner(tr("应用管理","App Management"));managementApp.color=0xff557eac;found.add(1,managementApp);
+            managementApp.banner=managementBanner(tr("应用管理","App Management"));managementApp.color=0xff666972;found.add(1,managementApp);
             main.post(()->{
                 if(isDestroyed())return;
                 dock.clear();apps.clear();visibleTiles.clear();dockTiles.clear();
                 for(String pkg:pinned)for(App app:found)if(pkg.equals(app.pkg))dock.add(app);
                 for(App app:found)if(!pinned.contains(app.pkg))apps.add(app);
-                if(dock.isEmpty()){App empty=new App();empty.pkg="quiet:add-dock";empty.label=tr("添加常用应用","Add favorite apps");empty.banner=managementBanner(tr("添加常用应用","Add favorite apps"));empty.color=0xff557eac;dock.add(empty);}
+                if(dock.isEmpty()){App empty=new App();empty.pkg="quiet:add-dock";empty.label=tr("添加常用应用","Add favorite apps");empty.banner=managementBanner(tr("添加常用应用","Add favorite apps"));empty.color=0xff666972;dock.add(empty);}
                 if(row>=0){
                     if(!activePackage.isEmpty()) {
                         for(int n=0;n<dock.size();n++)if(activePackage.equals(dock.get(n).pkg)){row=0;column=n;}
@@ -310,9 +310,16 @@ public final class HomeActivity extends Activity {
     }
 
     private Bitmap managementBanner(String title) {
-        Bitmap bitmap=renderBanner(getDrawable(R.drawable.ic_settings),false);
-        Canvas canvas=new Canvas(bitmap);Paint paint=new Paint(3);paint.setColor(Color.WHITE);paint.setTextSize(27);paint.setTextAlign(Paint.Align.CENTER);
-        canvas.drawText(title,180,184,paint);return bitmap;
+        Bitmap bitmap=Bitmap.createBitmap(360,203,Bitmap.Config.ARGB_8888);
+        Canvas canvas=new Canvas(bitmap);Paint paint=new Paint(3);
+        paint.setShader(new LinearGradient(0,0,360,203,new int[]{0xff2b2d33,0xff1b1d22},null,Shader.TileMode.CLAMP));canvas.drawRect(0,0,360,203,paint);paint.setShader(null);
+        // Center the icon + gap + actual font metrics as one group inside the banner.
+        paint.setColor(0xffe7e8ec);paint.setTextSize(28);paint.setTextAlign(Paint.Align.CENTER);
+        Paint.FontMetrics metrics=paint.getFontMetrics();float textHeight=metrics.descent-metrics.ascent;
+        float top=(203-76-12-textHeight)/2f;
+        Drawable icon=getDrawable(title.equals(tr("应用管理","App Management"))?R.drawable.ic_manage_apps:R.drawable.ic_manage_plus);
+        icon.setBounds(142,Math.round(top),218,Math.round(top+76));icon.draw(canvas);
+        canvas.drawText(title,180,top+76+12-metrics.ascent,paint);return bitmap;
     }
 
     private int sampleColor(Bitmap bitmap) {

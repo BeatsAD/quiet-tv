@@ -18,7 +18,7 @@ final class DockChecks {
             test.waitForIdleSync();AccessibilityNodeInfo root=test.getUiAutomation().getRootInActiveWindow();
             if(root!=null){
                 for(AccessibilityNodeInfo node:root.findAccessibilityNodeInfosByText(text)){
-                    if(node.getText()!=null && node.getText().toString().contains(text)){
+                    if((node.getText()!=null && node.getText().toString().contains(text)) || (node.getContentDescription()!=null && node.getContentDescription().toString().contains(text))){
                         while(node!=null && !node.isClickable())node=node.getParent();
                         if(node!=null && node.performAction(AccessibilityNodeInfo.ACTION_CLICK)){test.waitForIdleSync();return;}
                     }
@@ -50,13 +50,13 @@ final class DockChecks {
             store.save(Collections.emptyList());require(new DockStore(test.getTargetContext()).load().isEmpty(),"Empty Dock re-imported defaults");
             open();capture("dock-empty.png");key(KeyEvent.KEYCODE_DPAD_CENTER);click("home.quiet.tv.fixture");
             require(store.load().equals(Arrays.asList("home.quiet.tv.fixture")),"Add to empty Dock failed");capture("dock-one.png");
-            click("1\n");click("移除快捷入口");require(store.load().isEmpty(),"Remove shortcut failed");
+            click("位置 1 ·");click("移除快捷入口");require(store.load().isEmpty(),"Remove shortcut failed");
             for(int count=1;count<=4;count++){store.save(original.subList(0,count));require(new DockStore(test.getTargetContext()).load().equals(original.subList(0,count)),"Dock size "+count+" did not persist");}
             open();key(KeyEvent.KEYCODE_DPAD_CENTER);click("替换应用");click("home.quiet.tv.fixture");
             ArrayList<String> replaced=new ArrayList<>(original);replaced.set(0,"home.quiet.tv.fixture");require(store.load().equals(replaced),"Four-slot replacement failed");
-            click("1\n");click("左右排序");key(KeyEvent.KEYCODE_DPAD_RIGHT);key(KeyEvent.KEYCODE_DPAD_CENTER);
+            click("位置 1 ·");click("左右排序");key(KeyEvent.KEYCODE_DPAD_RIGHT);key(KeyEvent.KEYCODE_DPAD_CENTER);
             Collections.swap(replaced,0,1);require(store.load().equals(replaced),"Reorder save failed");capture("dock-four-sorted.png");
-            click("1\n");click("左右排序");key(KeyEvent.KEYCODE_DPAD_RIGHT);key(KeyEvent.KEYCODE_BACK);
+            click("位置 1 ·");click("左右排序");key(KeyEvent.KEYCODE_DPAD_RIGHT);key(KeyEvent.KEYCODE_BACK);
             require(store.load().equals(replaced),"Reorder cancel changed saved Dock");
             try{store.save(Arrays.asList("a","b","c","d","e"));throw new AssertionError("More than four allowed");}catch(IllegalArgumentException expected){}
         }finally{store.save(original);require(test.getTargetContext().getSharedPreferences("dock",0).edit().putString("packages",new org.json.JSONArray(original).toString()).commit(),"Restore did not reach disk");if(editor!=null)test.runOnMainSync(()->editor.finish());}
