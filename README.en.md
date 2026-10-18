@@ -14,7 +14,7 @@ A lightweight native Android TV launcher with application configuration, launche
 - Actual TV Input sources, network settings, and system settings shortcuts.
 - Ambient default wallpaper, a fixed landscape, or a five-minute landscape slideshow.
 - Source-based launcher updates and device-specific backup and recovery records.
-- A launcher without INTERNET permission, advertising, accounts, or recommendation feeds.
+- No advertising, accounts, or recommendation feeds. INTERNET permission is used only for on-demand local ADB connections; no cloud service.
 
 Application upgrades currently mean updating Quiet TV and adjusting application configuration. Third-party media applications use their own update channels.
 

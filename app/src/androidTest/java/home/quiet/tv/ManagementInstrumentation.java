@@ -1,0 +1,26 @@
+package home.quiet.tv;
+
+import android.app.Instrumentation;
+import android.os.Bundle;
+import android.content.Context;
+
+/** Runs inside the launcher process, with its own app key and app permissions. */
+public final class ManagementInstrumentation extends Instrumentation {
+    @Override public void onCreate(Bundle args){super.onCreate(args);start();}
+    @Override public void onStart(){
+        Bundle result=new Bundle();
+        try(AdbController adb=new AdbController(getTargetContext(),value->{Bundle status=new Bundle();status.putString("stream",value+"\n");sendStatus(0,status);})){
+            adb.connect(5555);
+            String packages=adb.shell("pm list packages --user "+adb.user);
+            if(!packages.contains("package:home.quiet.tv"))throw new AssertionError("Own package missing");
+            String fixture="home.quiet.tv.fixture";
+            try{
+                adb.shell("pm disable-user --user "+adb.user+" "+fixture);
+                if(!adb.shell("pm list packages -d --user "+adb.user).contains("package:"+fixture))throw new AssertionError("Disable did not take effect");
+            }finally{adb.shell("pm enable --user "+adb.user+" "+fixture);}
+            if(!adb.shell("pm list packages -e --user "+adb.user).contains("package:"+fixture))throw new AssertionError("Enable did not take effect");
+            result.putString("stream","PASS: fixture disable/enable; in-app ADB; host="+adb.host+"; user="+adb.user+"; packages="+packages.split("\\n").length+"\n");
+            finish(-1,result);
+        }catch(Throwable e){result.putString("stream","FAIL: "+e+"\n");finish(0,result);}
+    }
+}
