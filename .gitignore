@@ -1,6 +1,7 @@
 .venv/
 .gradle/
 **/build/
+dist/apk/
 local.properties
 inspection/
 backups/

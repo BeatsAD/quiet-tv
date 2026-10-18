@@ -28,10 +28,10 @@ sdk.dir=/absolute/path/to/your/android-sdk
 在根目录运行：
 
 ```sh
-./gradlew :app:assembleDebug --console=plain
+python3 scripts/build_apk.py --summary "说明本次交付的变更"
 ```
 
-输出：`app/build/outputs/apk/debug/app-debug.apk`。这一步只构建，不连接或修改电视。包名为 `home.quiet.tv`，当前版本号为 1.0，构建类型为 debug；尚无已发布的稳定版 APK。
+归档输出：`dist/apk/quiet-tv_1.0.1_b2_debug.apk`，同目录 JSON 保存版本、时间、SHA-256 和变更摘要。这一步只构建和归档，不连接或修改电视。包名为 `home.quiet.tv`，当前配置为版本 1.0.1、构建号 2、类型 debug；尚无已发布的稳定版 APK。版本递增、历史包和安装核对约定见[版本与安装包规则](VERSIONING.md)。
 
 ## 3. 连接并试用桌面
 
@@ -49,7 +49,7 @@ adb -s "$TV_SERIAL" shell cmd package resolve-activity --brief -a android.intent
 确认目标身份，保存最后一条命令返回的原 HOME 组件，并保留原桌面。安装并启动：
 
 ```sh
-adb -s "$TV_SERIAL" install -r app/build/outputs/apk/debug/app-debug.apk
+adb -s "$TV_SERIAL" install -r dist/apk/quiet-tv_1.0.1_b2_debug.apk
 adb -s "$TV_SERIAL" shell am start -n home.quiet.tv/.HomeActivity
 ```
 
@@ -74,13 +74,13 @@ python3 -m venv .venv
 .venv/bin/python scripts/tv.py shell 'getprop ro.product.model'
 ```
 
-`./build-and-install.command` 会构建、安装更新、启动桌面、发送一次右键并截图。它会操作 `device.json` 指向的设备，运行前必须核对目标。
+`./build-and-install.command --summary "说明本次更新内容"` 会构建和归档带版本号的包、安装更新、核对两端 SHA-256、启动桌面、发送一次右键并截图。它会操作 `device.json` 指向的设备，运行前必须核对目标。安装核对结果单独保存在带时间戳的 JSON 中，命名见[版本规则](VERSIONING.md)。
 
 macOS 原生 ADB 出现 `No route to host` 且已确认网络和端口可达时，可使用 Python 后端：
 
 ```sh
 TV_ADB_BACKEND=python .venv/bin/python scripts/tv.py shell 'getprop ro.product.model'
-TV_ADB_BACKEND=python ./build-and-install.command
+TV_ADB_BACKEND=python ./build-and-install.command --summary "说明本次更新内容"
 ```
 
 该后端复用本机 `~/.android/adbkey` 和公钥；不要上传私钥。

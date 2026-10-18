@@ -41,6 +41,8 @@ See [image provenance](docs/assets/README.md). Third-party application artwork a
 
 There is no published stable APK release yet. The current build produces a debug APK. Successful compilation or a screenshot does not establish compatibility with another TV.
 
+APKs use `quiet-tv_<version>_b<build>_<type>.apk` and are archived locally in `dist/apk/`. The current configuration is `1.0.1 / b2 / debug`; see [version and APK rules](docs/VERSIONING.md).
+
 ## Compatibility at a glance
 
 | Item | Current status |

@@ -6,8 +6,8 @@ android {
         applicationId 'home.quiet.tv'
         minSdk 31
         targetSdk 31
-        versionCode 1
-        versionName '1.0'
+        versionCode 2
+        versionName '1.0.1'
     }
     buildTypes { debug { debuggable true } }
     compileOptions { sourceCompatibility JavaVersion.VERSION_11; targetCompatibility JavaVersion.VERSION_11 }

@@ -28,10 +28,10 @@ sdk.dir=/absolute/path/to/your/android-sdk
 Then build without connecting to a TV:
 
 ```sh
-./gradlew :app:assembleDebug --console=plain
+python3 scripts/build_apk.py --summary "Describe this build's changes"
 ```
 
-Output: `app/build/outputs/apk/debug/app-debug.apk`. Package: `home.quiet.tv`; current version: 1.0. This is a debug build, and no stable APK release has been published.
+Archived output: `dist/apk/quiet-tv_1.0.1_b2_debug.apk`, with a JSON receipt containing version, timestamps, SHA-256 and the change summary. This does not contact a TV. Package: `home.quiet.tv`; current configuration: version 1.0.1, build 2, debug. No stable APK release has been published. See [version and APK rules](VERSIONING.md) for numbering, immutable archives and installation checks.
 
 ## Install and try
 
@@ -49,7 +49,7 @@ adb -s "$TV_SERIAL" shell cmd package resolve-activity --brief -a android.intent
 Confirm the target identity and record the original HOME component before changing the default launcher. Keep the original launcher installed and enabled.
 
 ```sh
-adb -s "$TV_SERIAL" install -r app/build/outputs/apk/debug/app-debug.apk
+adb -s "$TV_SERIAL" install -r dist/apk/quiet-tv_1.0.1_b2_debug.apk
 adb -s "$TV_SERIAL" shell am start -n home.quiet.tv/.HomeActivity
 ```
 
@@ -72,13 +72,13 @@ python3 -m venv .venv
 .venv/bin/python scripts/tv.py shell 'getprop ro.product.model'
 ```
 
-`./build-and-install.command` builds, updates, opens the launcher, sends one Right key, and captures a screenshot on the configured device. Confirm the target before running it.
+`./build-and-install.command --summary "Describe this update"` builds and archives a versioned APK, installs it, compares local/installed SHA-256, opens the launcher, sends one Right key, and captures a screenshot on the configured device. Installation checks receive separate timestamped JSON receipts. Confirm the target before running it.
 
 If native ADB on macOS reports `No route to host` after network reachability has been checked:
 
 ```sh
 TV_ADB_BACKEND=python .venv/bin/python scripts/tv.py shell 'getprop ro.product.model'
-TV_ADB_BACKEND=python ./build-and-install.command
+TV_ADB_BACKEND=python ./build-and-install.command --summary "Describe this update"
 ```
 
 The Python backend uses your local `~/.android/adbkey` and its public key. Never upload the private key.
