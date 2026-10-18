@@ -1,0 +1,10 @@
+.venv/
+.gradle/
+**/build/
+local.properties
+inspection/
+backups/
+evidence/
+.DS_Store
+__pycache__/
+*.py[cod]

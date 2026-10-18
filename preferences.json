@@ -1,0 +1,26 @@
+{
+  "keepApps": [
+    "com.trim.tv",
+    "com.xiaodianshi.tv.yst",
+    "top.yogiczy.slcs.tv",
+    "com.xunlei.downloadprovider.hd",
+    "com.dangbeimarket",
+    "com.sony.dangbeimarket"
+  ],
+  "services": {
+    "firmwareUpdates": true,
+    "casting": true,
+    "phoneRemote": true,
+    "voiceSearch": false,
+    "jdSmartHome": false
+  },
+  "dock": [
+    "com.trim.tv",
+    "com.xiaodianshi.tv.yst",
+    "top.yogiczy.slcs.tv",
+    "com.xunlei.downloadprovider.hd"
+  ],
+  "language": "zh",
+  "greeting": "time",
+  "wallpaper": "black"
+}

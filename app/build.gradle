@@ -1,0 +1,15 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'home.quiet.tv'
+    compileSdk 36
+    defaultConfig {
+        applicationId 'home.quiet.tv'
+        minSdk 31
+        targetSdk 31
+        versionCode 1
+        versionName '1.0'
+    }
+    buildTypes { debug { debuggable true } }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_11; targetCompatibility JavaVersion.VERSION_11 }
+}
+dependencies { implementation 'androidx.recyclerview:recyclerview:1.4.0' }
