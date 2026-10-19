@@ -6,7 +6,7 @@
 
 [简体中文](README.md) · [English](README.en.md) · [Install](docs/INSTALL.en.md) · [Usage](docs/USAGE.en.md) · [Compatibility](docs/COMPATIBILITY.md) · [Contribute](CONTRIBUTING.md)
 
-A lightweight native Android TV launcher with application configuration, launcher updates, and reversible package debloating. The repository currently remains **private**. The adapted device is **Sony KD-65X9000H running Android 12**; other models require individual validation.
+A lightweight native Android TV launcher with application configuration, launcher updates, and reversible package debloating. The repository is **public**. The adapted device is **Sony KD-65X9000H running Android 12**; other models require individual validation.
 
 ## Features
 
@@ -20,11 +20,11 @@ Application upgrades currently mean updating Quiet TV and adjusting application 
 
 ## Screenshots
 
-Original ADB captures from the Sony device during development on October 18, 2026. The cover is an AI-generated brand illustration; the images below are actual device captures.
+Original ADB captures from the Sony device on October 19, 2026, running development build 1.1.0 / b15 rather than the 1.0.1 test APK in Releases. The cover is an AI-generated brand illustration; the images below are actual device captures.
 
-**Default theme and application dock**
+**Landscape wallpaper and application dock**
 
-![Real device: default theme, shortcuts, and application dock](docs/assets/home.png)
+![Real device: coastal wallpaper, shortcuts, and application dock](docs/assets/home.png)
 
 **Wallpaper settings**
 
@@ -63,7 +63,7 @@ Read the [compatibility details](docs/COMPATIBILITY.md) and [original Chinese ve
 - [Bug report](https://github.com/BeatsAD/quiet-tv/issues/new?template=bug_report.yml) · [Feature request](https://github.com/BeatsAD/quiet-tv/issues/new?template=feature_request.yml) · [Device adaptation](https://github.com/BeatsAD/quiet-tv/issues/new?template=device_adaptation.yml)
 - [Sony implementation notes, Chinese](docs/DEVICE_NOTES.zh-CN.md) · [Repository settings and limitations](docs/REPOSITORY.md)
 
-Private repository links are available only to authorized accounts.
+The repository, documentation, and test APK downloads are public. Sign in to GitHub to submit feedback.
 
 ## Attribution and license
 

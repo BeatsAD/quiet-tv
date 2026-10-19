@@ -8,17 +8,13 @@ The latest `main` is maintained. No stable release or long-term support for hist
 
 ## 如何报告 / Reporting
 
-当前仓库为私密仓库。GitHub 的 Private vulnerability reporting 仅支持公开仓库，此处尚无可用的“Report a vulnerability”入口。普通私密仓库 Issue 可被所有有相应访问权限的协作者阅读，不是仅报告人与维护者可见的漏洞通道。
+仓库已公开，GitHub 私密漏洞报告已启用。请通过 [Report a vulnerability](https://github.com/BeatsAD/quiet-tv/security/advisories/new) 向维护者提交安全问题，报告不会作为公开 Issue 发布。
 
-已授权协作者可以在当前私密仓库中提交不含敏感复现细节的“安全联络请求”，由维护者 @BeatsAD 与报告人确认受限的沟通方式后再传递细节。已有可信私密联系方式时可直接联系维护者。本项目尚未指定公开安全邮箱，不应把猜测的邮箱作为报告渠道。
+不要将漏洞利用细节放到公开 Issue 或普通 PR 中。本项目尚未指定公开安全邮箱，不应把猜测的邮箱作为报告渠道。
 
-仓库以后公开前，需要启用 GitHub 私密漏洞报告，或明确公布维护者认可的私密安全联系方式。若页面出现有效的“Report a vulnerability”入口，优先使用该入口。不要将漏洞利用细节放到公开 Issue 或普通 PR 中。
+The repository is public and GitHub Private vulnerability reporting is enabled. Submit security issues through [Report a vulnerability](https://github.com/BeatsAD/quiet-tv/security/advisories/new); reports are not published as public issues.
 
-This repository is private. GitHub Private vulnerability reporting is available for public repositories, so there is currently no active reporting form here. Issues in this private repository are visible to authorized collaborators, not only the reporter and maintainer.
-
-Authorized collaborators may open a minimal security-contact request without exploit details. Maintainer @BeatsAD will agree a restricted communication channel with the reporter before details are shared. An existing trusted private contact may also be used. No public security email has been designated; do not assume an email address.
-
-Before making the repository public, enable GitHub's private reporting form or publish an approved confidential contact. Prefer an active “Report a vulnerability” form when available. Never put exploit details in a public issue or ordinary PR.
+Never put exploit details in a public issue or ordinary PR. No public security email has been designated; do not assume an email address.
 
 ## 报告内容 / Report contents
 
