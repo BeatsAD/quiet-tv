@@ -27,8 +27,8 @@ dependencies {
 def aboutAssets = layout.buildDirectory.dir('generated/aboutAssets')
 android.sourceSets.main.assets.srcDir(aboutAssets)
 tasks.register('bundleAbout', Exec) {
-    inputs.files('../prototypes/about/index.html', '../prototypes/about/styles.css', '../prototypes/about/app.js', '../prototypes/about/assets/source.svg')
-    inputs.files('../scripts/bundle_about.py', '../docs/assets/contact-16x9.png', '../LICENSE', '../THIRD_PARTY_NOTICES.md')
+    inputs.files('../prototypes/about/index.html', '../prototypes/about/styles.css', '../prototypes/about/app.js', '../prototypes/about/assets/source.svg', '../prototypes/about/assets/wechat.png', '../prototypes/about/assets/official.png')
+    inputs.files('../scripts/bundle_about.py', '../LICENSE', '../THIRD_PARTY_NOTICES.md')
     inputs.files(fileTree('src/main/assets/fonts'), fileTree('src/main/assets/licenses'))
     outputs.dir(aboutAssets)
     commandLine 'python3', file('../scripts/bundle_about.py'), aboutAssets.get().dir('about').asFile

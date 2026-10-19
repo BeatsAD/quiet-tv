@@ -56,7 +56,7 @@ public final class AboutActivity extends Activity {
                 Uri uri=request.getUrl();String path=uri.getPath();
                 if(!"GET".equals(request.getMethod()) || !"https".equals(uri.getScheme()) || !"quiet-tv.invalid".equals(uri.getHost()) || path==null || !path.startsWith("/about/"))return blocked();
                 String file=path.substring("/about/".length());
-                if(!Arrays.asList("index.html","styles.css","app.js","contact.png","fonts/outfit.ttf","assets/source.svg","license.html").contains(file))return blocked();
+                if(!Arrays.asList("index.html","styles.css","app.js","assets/wechat.png","assets/official.png","fonts/outfit.ttf","assets/source.svg","license.html").contains(file))return blocked();
                 try {
                     String type=MimeTypeMap.getSingleton().getMimeTypeFromExtension(MimeTypeMap.getFileExtensionFromUrl(path));
                     if(file.endsWith(".js"))type="text/javascript";

@@ -19,3 +19,5 @@
 只读交互修改：移除关于画布右下角操作提示；仓库地址和邮箱改为普通文本，仓库跳转箭头移除。应用内浏览器确认点击两项无操作，方向导航只经过返回、MIT、上游链接；返回首页恢复关于焦点，再按 Enter 进入后焦点落在返回按钮。二维码和信息布局保持不变。截图见 `output/about-readonly-validation/browser.png`；Android 检查见上述验证记录。
 
 版本标签简化：仅去掉构建号及后面的“·”分隔点，保留“版本 1.1.0”和“测试版”标签、名称末尾品牌圆点。浏览器已目视确认；截图见 `output/about-version-label-validation/browser.png`。Android 随包资源与代码编译检查通过，本轮未安装设备。
+
+二维码替换：采用用户提供的 wechat.png 和 official.png，按原比例完整显示，保留尺寸、位置、标签和只读交互。两张源图软件解码内容与旧联系图对应二维码一致；浏览器目视核对通过，截图在 `output/about-qr-replacement-validation/browser.png`。随包图片逐字节核对、旧联系图生成副本移除及 Android 编译检查通过。本轮未安装设备或进行手机实屏扫码。

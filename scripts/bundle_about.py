@@ -54,13 +54,16 @@ def bundle(output):
     (output / 'index.html').write_text(document)
     css = (prototype / 'styles.css').read_text()
     css = css.replace('../../app/src/main/assets/fonts/outfit.ttf', 'fonts/outfit.ttf')
-    css = css.replace('../../docs/assets/contact-16x9.png', 'contact.png')
     css += '\n.embedded{overflow:hidden}.embedded #viewport{width:100vw!important;height:100vh!important;margin:0;border:0;border-radius:0;box-shadow:none}\n'
     (output / 'styles.css').write_text(css)
     shutil.copyfile(prototype / 'app.js', output / 'app.js')
     (output / 'assets').mkdir(exist_ok=True)
     shutil.copyfile(prototype / 'assets/source.svg', output / 'assets/source.svg')
-    shutil.copyfile(ROOT / 'docs/assets/contact-16x9.png', output / 'contact.png')
+    shutil.copyfile(prototype / 'assets/wechat.png', output / 'assets/wechat.png')
+    shutil.copyfile(prototype / 'assets/official.png', output / 'assets/official.png')
+    # Remove only the obsolete generated contact sheet from earlier builds.
+    if (output / 'contact.png').is_file():
+        (output / 'contact.png').unlink()
     (output / 'fonts').mkdir(exist_ok=True)
     shutil.copyfile(ROOT / 'app/src/main/assets/fonts/outfit.ttf', output / 'fonts/outfit.ttf')
     notices = [ROOT / 'LICENSE', ROOT / 'THIRD_PARTY_NOTICES.md', ROOT / 'app/src/main/assets/fonts/OFL.txt']
