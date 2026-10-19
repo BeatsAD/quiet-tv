@@ -8,7 +8,7 @@ android {
         // This local debug candidate retains the existing runtime behavior; Play publication is a separate migration.
         //noinspection ExpiredTargetSdkVersion
         targetSdk 31
-        versionCode 5
+        versionCode 7
         versionName '1.1.0'
     }
     buildTypes { debug { debuggable true } }
@@ -22,3 +22,15 @@ dependencies {
     implementation 'org.conscrypt:conscrypt-android:2.7.0'
     implementation 'org.bouncycastle:bcpkix-jdk15to18:1.86'
 }
+
+// Compile the same reviewed prototype into offline assets. No generated bundle is checked in.
+def setupDemoAssets = layout.buildDirectory.dir('generated/setupDemoAssets')
+android.sourceSets.main.assets.srcDir(setupDemoAssets)
+tasks.register('bundleSetupDemo', Exec) {
+    inputs.files(fileTree('../prototypes/app-management/src'), fileTree('../prototypes/app-management/public/assets'))
+    inputs.files('../prototypes/app-management/tv.html', '../prototypes/app-management/scripts/build-tv-demo.mjs', '../prototypes/app-management/package-lock.json')
+    inputs.files('../prototypes/app-management/node_modules/react/LICENSE', '../prototypes/app-management/node_modules/react-dom/LICENSE', '../prototypes/app-management/node_modules/scheduler/LICENSE', '../prototypes/app-management/node_modules/@phosphor-icons/react/LICENSE')
+    outputs.dir(setupDemoAssets)
+    commandLine 'node', file('../prototypes/app-management/scripts/build-tv-demo.mjs'), setupDemoAssets.get().dir('setup-demo').asFile
+}
+tasks.named('preBuild').configure { dependsOn 'bundleSetupDemo' }

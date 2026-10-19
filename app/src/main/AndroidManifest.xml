@@ -19,7 +19,9 @@
     <application android:label="Quiet TV" android:theme="@style/AppTheme" android:icon="@drawable/launcher_icon" android:banner="@drawable/launcher_banner" android:allowBackup="false" android:supportsRtl="true">
         <activity android:name=".DockEditorActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".AppManagementActivity" android:exported="false" android:screenOrientation="landscape" />
-        <activity android:name=".SetupActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".SetupDemoActivity" android:exported="false" android:screenOrientation="landscape" />
+        <!-- Existing setup intents and restored tasks also stay inside the simulation. -->
+        <activity-alias android:name=".SetupActivity" android:targetActivity=".SetupDemoActivity" android:exported="false" />
         <activity android:name=".HomeActivity" android:exported="true" android:launchMode="singleTask" android:excludeFromRecents="true" android:screenOrientation="landscape">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
