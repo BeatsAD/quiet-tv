@@ -11,7 +11,11 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-CONFIG = json.loads((ROOT / 'device.json').read_text())
+CONFIG_PATH = ROOT / 'device.json'
+if not CONFIG_PATH.is_file():
+    raise SystemExit('Missing local device.json. Copy docs/examples/device.example.json to device.json, '
+                     'fill in your own TV and SDK settings, and verify the target before running device commands.')
+CONFIG = json.loads(CONFIG_PATH.read_text(encoding='utf-8'))
 ADB = os.environ.get('ADB', CONFIG['adb'])
 
 def shell(command, binary=False, timeout=45):

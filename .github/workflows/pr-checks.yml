@@ -79,9 +79,9 @@ jobs:
           npm run test:sites
       - name: Install video project dependencies
         if: steps.scope.outputs.video == 'true'
-        working-directory: recording-edit-9608
+        working-directory: tools/video-preview
         run: npm ci
       - name: Check video project source
         if: steps.scope.outputs.video == 'true'
-        working-directory: recording-edit-9608
+        working-directory: tools/video-preview
         run: npm run lint

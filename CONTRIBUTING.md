@@ -27,6 +27,8 @@ git commit -m "说明具体修改及目的"
 git push -u origin feat/short-name
 ```
 
+[文档索引](docs/README.md)说明各目录职责；设备配置与恢复记录只保留本地，格式见[脱敏样例](docs/examples/README.md)。
+
 ## 开发环境与本地检查
 
 Android 开发使用 JDK 17、Android SDK platform 36 和 build-tools 36.0.0。按[安装指南](docs/INSTALL.zh-CN.md)设置 `local.properties` 中的 `sdk.dir`，或配置 `ANDROID_HOME`。构建和检查无需连接电视。GitHub CI 使用 Ubuntu；macOS 已有开发记录，Windows 本地流程仍待验证。
@@ -51,7 +53,7 @@ npm run build
 npm run test:sites
 ```
 
-修改视频项目源码时，在 `recording-edit-9608` 下运行 `npm ci` 和 `npm run lint`。CI 不渲染视频，也不需要私有录制素材；本地播放要求见[视频项目说明](recording-edit-9608/README.md)。
+修改视频项目源码时，在 `tools/video-preview` 下运行 `npm ci` 和 `npm run lint`。CI 不渲染视频，也不需要私有录制素材；本地播放要求见[视频项目说明](tools/video-preview/README.md)。
 
 ## 修改与验证
 
@@ -78,7 +80,7 @@ This repository is public. Fork it, clone your fork, add `https://github.com/Bea
 
 Use JDK 17 and Android SDK platform 36 / build-tools 36.0.0. Configure `sdk.dir` in `local.properties` or set `ANDROID_HOME`. Run `python3 scripts/check_contribution.py --base upstream/main` for changed-document links, whitespace, and Python syntax. For Android changes, also run `./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :management-fixture:assembleDebug :home-fixture:assembleDebug :app:testDebugUnitTest --console=plain`. JVM tests cover setup policy and pairing failures. Run offline Python tests with `python3 -m unittest discover -s scripts/tests -p 'test_*.py'`. CI compiles instrumentation APKs and both fixture modules without running device tests. Documentation-only changes do not require an Android build.
 
-For the app-management prototype, run `npm ci`, `npm run build`, and `npm run test:sites` in `prototypes/app-management`. For video source changes, run `npm ci` and `npm run lint` in `recording-edit-9608`; CI does not render video or require private media.
+For the app-management prototype, run `npm ci`, `npm run build`, and `npm run test:sites` in `prototypes/app-management`. For video source changes, run `npm ci` and `npm run lint` in `tools/video-preview`; CI does not render video or require private media.
 
 Keep changes scoped, stage explicit paths, and preserve unrelated work and device data. Never use bulk or recursive file deletion or upload keys, accounts, private logs, or backups. Distinguish build, installation, screenshots, playback, recovery, and long-run evidence; mark unperformed checks. Follow [version and APK rules](docs/VERSIONING.md) before delivering an APK, preserve existing archives, and retain upstream and third-party licenses.
 

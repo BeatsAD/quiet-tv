@@ -68,6 +68,7 @@ Long-running operation, casting, and full media playback remain unverified. Thir
 
 | I want to… | Read |
 | --- | --- |
+| Browse documentation and repository layout | [Documentation index](docs/README.md) |
 | Install, update, or switch back to my original launcher | [Installation guide](docs/INSTALL.en.md) |
 | Configure favorites, wallpaper, or remote navigation | [Usage guide](docs/USAGE.en.md) |
 | Check device support and validated behavior | [Compatibility](docs/COMPATIBILITY.md) · [Verification record](VERIFICATION.md) |

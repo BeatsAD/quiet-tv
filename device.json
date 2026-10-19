@@ -1,9 +1,0 @@
-{
-  "ip": "192.168.124.10",
-  "port": 5555,
-  "modelReported": "BRAVIA VH1",
-  "modelProvided": "Sony KD-65X9000H",
-  "sdk": 31,
-  "adb": "/Users/changwenbin/.local/share/magicbox-android-sdk/platform-tools/adb",
-  "sdkPath": "/Users/changwenbin/.local/share/magicbox-android-sdk"
-}
