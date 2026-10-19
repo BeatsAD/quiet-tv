@@ -4,7 +4,6 @@ import android.content.*;
 import android.os.*;
 import android.graphics.*;
 import android.graphics.drawable.*;
-import android.content.pm.*;
 import android.view.*;
 import android.widget.*;
 import org.json.*;
@@ -28,7 +27,7 @@ public final class SetupActivity extends ManagementUi {
     private String originalChoice="KEEP",notice="",progress="正在检查设备能力…";
     private boolean originalTouched,busy,active,recovery,roleCancelled,recordAvailable=true;
     private int screen;
-    private Bitmap wallpaper;
+    private Bitmap previewWallpaper;
     private LinearLayout page,steps;
 
     @Override public void onCreate(Bundle state){
@@ -77,7 +76,7 @@ public final class SetupActivity extends ManagementUi {
         if(!prefs.getBoolean("default",!prefs.contains("index"))){
             String[] names={"big-sur-coastline","big-sur-mountains","big-sur-road"};int index=prefs.getInt("index",0);
             if(index>=0 && index<names.length)try(java.io.InputStream in=getAssets().open("wallpapers/"+names[index]+".jpg")){
-                BitmapFactory.Options options=new BitmapFactory.Options();options.inSampleSize=2;wallpaper=BitmapFactory.decodeStream(in,null,options);
+                BitmapFactory.Options options=new BitmapFactory.Options();options.inSampleSize=2;Bitmap wallpaper=BitmapFactory.decodeStream(in,null,options);
                 ImageView image=new ImageView(this);image.setImageBitmap(wallpaper);image.setScaleType(ImageView.ScaleType.CENTER_CROP);stage.addView(image,new FrameLayout.LayoutParams(-1,-1));
             }catch(java.io.IOException ignored){}
         }
@@ -148,11 +147,17 @@ public final class SetupActivity extends ManagementUi {
     private void showInventory(){Sheet sheet=new Sheet("已识别的预装应用");for(AppRepository.App app:apps)if(app.system || home.presets.app(app.pkg)!=null){LinearLayout line=column();line.setPadding(px(8),px(7),px(8),px(7));focusable(line,8);line.addView(label(app.label,12));line.addView(muted(app.state()+" · "+app.pkg,9));sheet.body.addView(line,new LinearLayout.LayoutParams(-1,-2));}Button close=sheet.action("关闭",sheet.dialog::dismiss);sheet.show(close);}
     private final class HomePreview extends FrameLayout {
         HomePreview(){super(SetupActivity.this);setTag("home-preview");setBackground(surface(0xff151c29,0xff0c111b,0x65ffffff,13));setClipToOutline(true);
-            if(wallpaper!=null){ImageView image=new ImageView(SetupActivity.this);image.setImageBitmap(wallpaper);image.setScaleType(ImageView.ScaleType.CENTER_CROP);addView(image,new FrameLayout.LayoutParams(-1,-1));}
-            LinearLayout content=column();content.setPadding(px(20),px(19),px(20),px(20));addView(content,new FrameLayout.LayoutParams(-1,-1));TextView clock=label(new java.text.SimpleDateFormat("HH:mm",Locale.getDefault()).format(new Date()),26);content.addView(clock);content.addView(new View(SetupActivity.this),new LinearLayout.LayoutParams(1,0,1));LinearLayout dock=row();content.addView(dock,new LinearLayout.LayoutParams(-1,px(58)));
-            LinkedHashMap<String,ResolveInfo> available=new LinkedHashMap<>();for(ResolveInfo value:getPackageManager().queryIntentActivities(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER),0))if(value.activityInfo!=null && !value.activityInfo.packageName.equals(getPackageName()))available.put(value.activityInfo.packageName,value);
-            ArrayList<ResolveInfo> tiles=new ArrayList<>();for(String pkg:new DockStore(SetupActivity.this).load()){ResolveInfo app=available.remove(pkg);if(app!=null)tiles.add(app);}for(ResolveInfo app:available.values())if(tiles.size()<4)tiles.add(app);
-            for(int i=0;i<Math.min(4,tiles.size());i++){ResolveInfo app=tiles.get(i);ImageView tile=new ImageView(SetupActivity.this);Drawable art=app.activityInfo.loadBanner(getPackageManager());tile.setImageDrawable(art==null?app.loadIcon(getPackageManager()):art);tile.setScaleType(art==null?ImageView.ScaleType.FIT_CENTER:ImageView.ScaleType.CENTER_CROP);tile.setBackground(surface(0x90131b29,0x90131b29,i==0?0xfff3f4f7:0x40ffffff,7));tile.setPadding(px(3),px(3),px(3),px(3));tile.setClipToOutline(true);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-1,1);if(i>0)p.leftMargin=px(7);dock.addView(tile,p);}
+            setContentDescription("Quiet TV 桌面示意图");
+            // Fixed bundled illustration: never read the user's wallpaper, Dock or installed apps.
+            if(previewWallpaper==null)try(java.io.InputStream in=getAssets().open("wallpapers/big-sur-coastline.jpg")){
+                BitmapFactory.Options options=new BitmapFactory.Options();options.inSampleSize=2;previewWallpaper=BitmapFactory.decodeStream(in,null,options);
+            }catch(java.io.IOException ignored){}
+            if(previewWallpaper!=null){ImageView image=new ImageView(SetupActivity.this);image.setImageBitmap(previewWallpaper);image.setScaleType(ImageView.ScaleType.CENTER_CROP);addView(image,new FrameLayout.LayoutParams(-1,-1));}
+            LinearLayout content=column();content.setPadding(px(20),px(19),px(20),px(20));addView(content,new FrameLayout.LayoutParams(-1,-1));
+            LinearLayout top=row();top.addView(label("10:08",26),new LinearLayout.LayoutParams(0,-2,1));TextView hint=label("桌面示意",9);hint.setShadowLayer(px(3),0,px(1),0xff000000);top.addView(hint);content.addView(top);
+            content.addView(new View(SetupActivity.this),new LinearLayout.LayoutParams(1,0,1));LinearLayout dock=row();dock.setTag("preview-tiles");content.addView(dock,new LinearLayout.LayoutParams(-1,px(58)));
+            String[] names={"影视","音乐","应用","设置"};int[] colors={0xff427aa5,0xff965b87,0xff567f79,0xff66768e};
+            for(int i=0;i<names.length;i++){TextView tile=center(names[i],13);tile.setBackground(surface(colors[i],colors[i],i==0?0xfff3f4f7:0x40ffffff,7));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-1,1);if(i>0)p.leftMargin=px(7);dock.addView(tile,p);}
         }
     }
     private ArrayList<AppRepository.App> selected(){ArrayList<AppRepository.App> result=new ArrayList<>();for(AppRepository.App app:apps)if(Boolean.TRUE.equals(choices.get(app.pkg)) && canRecommend(app))result.add(app);return result;}
