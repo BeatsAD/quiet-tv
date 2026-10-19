@@ -43,7 +43,14 @@ final class AboutChecks {
     private void key(int code){test.sendKeyDownUpSync(code);test.waitForIdleSync();}
     private void focus(String id) throws Exception {await("document.activeElement.id==='"+id+"'");}
     private void capture(String name) throws Exception {
-        test.waitForIdleSync();SystemClock.sleep(200);Bitmap bitmap=test.getUiAutomation().takeScreenshot();require(bitmap!=null,"No screenshot");
+        test.waitForIdleSync();
+        if(web!=null && about!=null && !about.isFinishing() && !about.isDestroyed()){CountDownLatch drawn=new CountDownLatch(1);test.runOnMainSync(()->web.postVisualStateCallback(0,new WebView.VisualStateCallback(){@Override public void onComplete(long request){drawn.countDown();}}));require(drawn.await(10,TimeUnit.SECONDS),"WebView visual frame not ready");}
+        SystemClock.sleep(800);Bitmap bitmap=test.getUiAutomation().takeScreenshot();require(bitmap!=null,"No screenshot");
+        if("about-native.png".equals(name)){
+            int bright=0;
+            for(int y=bitmap.getHeight()*48/100;y<bitmap.getHeight()*60/100;y+=2)for(int x=bitmap.getWidth()*7/100;x<bitmap.getWidth()*36/100;x+=2){int c=bitmap.getPixel(x,y);if(android.graphics.Color.red(c)>180 && android.graphics.Color.green(c)>180 && android.graphics.Color.blue(c)>180)bright++;}
+            require(bright>100,"About title text was not painted");
+        }
         try(FileOutputStream out=test.getTargetContext().openFileOutput(name,0)){bitmap.compress(Bitmap.CompressFormat.PNG,100,out);}
     }
     private void checkpoint(String text){Bundle result=new Bundle();result.putString("stream",text+"\n");test.sendStatus(0,result);}
@@ -64,22 +71,22 @@ final class AboutChecks {
         about=(AboutActivity)monitor.waitForActivityWithTimeout(10000);test.removeMonitor(monitor);
         require(about!=null,"About entry did not launch");
         test.runOnMainSync(()->web=about.getWindow().getDecorView().findViewWithTag("about"));
-        await("window.quietTVAbout?.ready===true && document.fonts.status==='loaded' && document.querySelector('.source-qr img').complete");
+        await("window.quietTVAbout && window.quietTVAbout.ready===true && (!document.fonts || document.fonts.status==='loaded') && document.querySelector('.source-qr img').complete");
         focus("back-home");
         PackageInfo installed=test.getTargetContext().getPackageManager().getPackageInfo(test.getTargetContext().getPackageName(),0);
         require(("版本 "+installed.versionName).equals(js("document.querySelector('#version-name').textContent")),"Version is hardcoded");
-        require(((String)js("document.querySelector('#version-build').textContent")).startsWith("构建 "+installed.getLongVersionCode()+" · "),"Build is hardcoded");
+        require(((String)js("document.querySelector('#version-build').textContent")).startsWith("构建 "+(Build.VERSION.SDK_INT>=28?installed.getLongVersionCode():installed.versionCode)+" · "),"Build is hardcoded");
         require(test.getTargetContext().getApplicationInfo().loadLabel(test.getTargetContext().getPackageManager()).toString().equals(js("document.querySelector('#app-name').textContent")),"App name mismatch");
         require(Boolean.TRUE.equals(js("!document.querySelector('.workbench,#home,.prototype-controls,#website-link,#overlay,.tv-footer') && document.querySelectorAll('.source-qr img,.code-window').length===3")),"Prototype tools or removed content shipped");
-        require(Boolean.TRUE.equals(js("[...document.querySelectorAll('#about .brand,#about .information')].every(e=>e.scrollHeight<=e.clientHeight+1&&e.scrollWidth<=e.clientWidth+1)")),"Single screen overflow");
+        require(Boolean.TRUE.equals(js("Array.prototype.slice.call(document.querySelectorAll('#about .brand,#about .information')).every(function(e){return e.scrollHeight<=e.clientHeight+1&&e.scrollWidth<=e.clientWidth+1;})")),"Single screen overflow");
         test.runOnMainSync(()->{require(web.getSettings().getBlockNetworkLoads(),"Network loads enabled");require(!web.getSettings().getAllowFileAccess()&&!web.getSettings().getAllowContentAccess(),"File/content access enabled");});
         capture("about-native.png");checkpoint("PASS: installed app name/version/build, no preview tools, three offline QR codes, single-screen geometry");
-        require(Boolean.TRUE.equals(js("[...document.querySelectorAll('#source-address,#developer-email')].length===2 && [...document.querySelectorAll('#source-address,#developer-email')].every(e=>!e.matches('a,button,[tabindex],[role=button],[role=link]') && !e.onclick) && !document.querySelector('#source-address').textContent.includes('↗') && document.querySelectorAll('#about button,#about a[href]').length===3")),"Contact text remains interactive");
+        require(Boolean.TRUE.equals(js("Array.prototype.slice.call(document.querySelectorAll('#source-address,#developer-email')).length===2 && Array.prototype.slice.call(document.querySelectorAll('#source-address,#developer-email')).every(function(e){return !e.matches('a,button,[tabindex],[role=button],[role=link]') && !e.onclick;}) && document.querySelector('#source-address').textContent.indexOf('↗')<0 && document.querySelectorAll('#about button,#about a[href]').length===3")),"Contact text remains interactive");
         key(KeyEvent.KEYCODE_DPAD_DOWN);focus("license-link");
         key(KeyEvent.KEYCODE_DPAD_RIGHT);focus("upstream-link");key(KeyEvent.KEYCODE_DPAD_LEFT);focus("license-link");
-        key(KeyEvent.KEYCODE_DPAD_CENTER);await("document.title==='开源许可' && document.body.innerText.includes('Copyright (c) 2026 Gathin') && document.body.innerText.includes('SIL OPEN FONT LICENSE')");
+        key(KeyEvent.KEYCODE_DPAD_CENTER);await("document.title==='开源许可' && document.body.innerText.indexOf('Copyright (c) 2026 Gathin')>=0 && document.body.innerText.indexOf('SIL OPEN FONT LICENSE')>=0");
         key(KeyEvent.KEYCODE_DPAD_DOWN);await("scrollY>0 && document.documentElement.scrollWidth<=innerWidth");capture("about-license.png");
-        key(KeyEvent.KEYCODE_BACK);await("window.quietTVAbout?.ready===true");focus("license-link");
+        key(KeyEvent.KEYCODE_BACK);await("window.quietTVAbout && window.quietTVAbout.ready===true");focus("license-link");
         key(KeyEvent.KEYCODE_DPAD_UP);focus("back-home");
         key(KeyEvent.KEYCODE_DPAD_RIGHT);focus("license-link");
         key(KeyEvent.KEYCODE_DPAD_LEFT);focus("back-home");
@@ -87,7 +94,8 @@ final class AboutChecks {
         key(KeyEvent.KEYCODE_DPAD_RIGHT);focus("upstream-link");
         checkpoint("PASS: read-only repository/email skipped by remote / footer removed / complete offline licenses / exact return focus");
         checkExternal("https://github.com/Gathin23/tv-vibehack",Intent.ACTION_VIEW);
-        checkUnavailable("https://github.com/Gathin23/tv-vibehack");
+        if(Build.VERSION.SDK_INT>=26)checkUnavailable("https://github.com/Gathin23/tv-vibehack");
+        else checkpoint("SKIP: unavailable-app injection needs API 26 ActivityMonitor; external-link dispatch checked above");
         key(KeyEvent.KEYCODE_BACK);test.waitForIdleSync();Thread.sleep(400);
         require(about.isFinishing(),"Back did not exit About");
         require(value(home,"row")==-1 && value(home,"topColumn")==3,"About entry focus lost on return");
@@ -106,6 +114,7 @@ final class AboutChecks {
             checkpoint("PASS: external "+action+(handler?" dispatched outside WebView (intercepted by test)":" unavailable-app fallback"));
         } finally {if(monitor!=null)test.removeMonitor(monitor);}
     }
+    @android.annotation.TargetApi(26)
     private void checkUnavailable(String uri) throws Exception {
         int[] attempts={0};
         CountDownLatch attempted=new CountDownLatch(1);

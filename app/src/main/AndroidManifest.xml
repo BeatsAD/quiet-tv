@@ -16,7 +16,7 @@
         <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent>
         <intent><action android:name="android.intent.action.VIEW" /><data android:scheme="content" /></intent>
     </queries>
-    <application android:label="Quiet TV" android:theme="@style/AppTheme" android:icon="@drawable/launcher_icon" android:banner="@drawable/launcher_banner" android:allowBackup="false" android:supportsRtl="true">
+    <application android:label="Quiet TV" android:theme="@style/AppTheme" android:icon="@drawable/launcher_icon" android:banner="@drawable/launcher_banner" android:allowBackup="false" android:enableOnBackInvokedCallback="true" android:supportsRtl="true">
         <activity android:name=".AboutActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".DockEditorActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".AppManagementActivity" android:exported="false" android:screenOrientation="landscape" />

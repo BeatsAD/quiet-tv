@@ -45,7 +45,7 @@ System package operations require local ADB authorization. Disabling keeps app d
 
 ## Install and try it
 
-1. **Check your TV.** Android 12 is the minimum. Read the supported-device table below and the [compatibility details](docs/COMPATIBILITY.md).
+1. **Check your TV.** The compatibility candidate requires Android 6.0 or newer. Read the supported-device table below and the [compatibility details](docs/COMPATIBILITY.md).
 2. **Get an APK.** Download the APK and SHA-256 file from [Releases](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.0.1), or build from source using the [installation guide](docs/INSTALL.en.md).
 3. **Install and try the launcher.** Follow the guide to connect ADB and install Quiet TV. Check your remote, app launches, and system shortcuts first.
 4. **Set it as your home screen.** Once it works on your TV, select Quiet TV in the TV's default-home settings. Follow the [usage guide](docs/USAGE.en.md) to arrange favorites and choose a wallpaper.
@@ -59,8 +59,8 @@ You can keep the original launcher installed while trying Quiet TV. System deblo
 | Device / system | Status |
 | --- | --- |
 | Sony KD-65X9000H / BRAVIA VH1 · Android 12 | Installed and checked for the home screen, app management, wallpaper, selected system shortcuts, and one full reboot. See the [verification record](VERIFICATION.md) for the exact scope. |
-| Other TVs running Android 12 or newer | Require device-specific adaptation, including firmware, default-home selection, and ADB permissions. |
-| Android 11 or earlier; non-Android systems such as Tizen or webOS | Not supported by the current version. |
+| Other TVs running Android 6.0 or newer | Version compatibility code is included. See the [version validation record](docs/android-compatibility.md); vendor firmware, HOME selection and ADB capabilities still require hardware checks. |
+| Android 5.1 or earlier; non-Android systems such as Tizen or webOS | Not supported by the current version. |
 
 Long-running operation, casting, and full media playback remain unverified. Third-party media apps use their own update channels; Quiet TV does not currently update them automatically.
 

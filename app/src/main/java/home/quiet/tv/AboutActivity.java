@@ -24,7 +24,7 @@ import java.util.Arrays;
 import java.util.Collections;
 
 /** The reviewed single-screen About UI, packaged offline with installed-app metadata. */
-public final class AboutActivity extends Activity {
+public final class AboutActivity extends androidx.activity.ComponentActivity {
     private static final String ORIGIN="https://quiet-tv.invalid/about/";
     private static final String UPSTREAM="https://github.com/Gathin23/tv-vibehack";
     private WebView web;
@@ -33,7 +33,7 @@ public final class AboutActivity extends Activity {
 
     @SuppressLint("SetJavaScriptEnabled") // Only bundled scripts, no JavaScript-to-native bridge or network loads.
     @Override public void onCreate(Bundle state) {
-        super.onCreate(state);
+        super.onCreate(state);BackNavigation.install(this,this::handleBack);
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN
                 | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         try {
@@ -41,7 +41,7 @@ public final class AboutActivity extends Activity {
             pageUrl=Uri.parse(ORIGIN+"index.html").buildUpon()
                     .appendQueryParameter("name",getApplicationInfo().loadLabel(getPackageManager()).toString())
                     .appendQueryParameter("version",info.versionName)
-                    .appendQueryParameter("build",Long.toString(info.getLongVersionCode()))
+                    .appendQueryParameter("build",Long.toString((android.os.Build.VERSION.SDK_INT>=28?info.getLongVersionCode():info.versionCode)))
                     .appendQueryParameter("debug",Boolean.toString((getApplicationInfo().flags&ApplicationInfo.FLAG_DEBUGGABLE)!=0))
                     .build().toString();
         } catch (android.content.pm.PackageManager.NameNotFoundException e) { throw new IllegalStateException("Own package unavailable",e); }
@@ -65,17 +65,19 @@ public final class AboutActivity extends Activity {
                 } catch (IOException e) { return blocked(); }
             }
             @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request) {
-                String url=request.getUrl().toString();
+                return shouldOverrideUrlLoading(view,request.getUrl().toString());
+            }
+            @Override public boolean shouldOverrideUrlLoading(WebView view,String url) {
                 if((ORIGIN+"exit").equals(url)){finish();return true;}
                 if((ORIGIN+"license.html").equals(url)){license=true;return false;}
                 if(url.startsWith(ORIGIN+"index.html")){returnToAbout();return true;}
-                openLink(request.getUrl());return true;
+                openLink(Uri.parse(url));return true;
             }
             @Override public void onPageFinished(WebView view,String url) {
                 view.requestFocus();
                 if(!license){
                     String focus=restoreLicense?"restoreLicense":"focusInitial";restoreLicense=false;
-                    view.evaluateJavascript("window.quietTVAbout?."+focus+"()",value->{
+                    view.evaluateJavascript("window.quietTVAbout && window.quietTVAbout."+focus+"()",value->{
                         pageReady=true;
                         view.evaluateJavascript("window.quietTVAbout.ready=true",null);
                     });
@@ -101,8 +103,10 @@ public final class AboutActivity extends Activity {
 
     private void returnToAbout() { pageReady=false;license=false;restoreLicense=true;web.loadUrl(pageUrl); }
 
+    // Public Activity override; AndroidX core marks its inherited bridge class library-only.
+    @android.annotation.SuppressLint("RestrictedApi")
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
-        if(event.getKeyCode()==KeyEvent.KEYCODE_ESCAPE){if(event.getAction()==KeyEvent.ACTION_DOWN && event.getRepeatCount()==0)onBackPressed();return true;}
+        if(event.getKeyCode()==KeyEvent.KEYCODE_ESCAPE){if(event.getAction()==KeyEvent.ACTION_DOWN && event.getRepeatCount()==0)handleBack();return true;}
         if(license)return super.dispatchKeyEvent(event);
         String key=null;
         switch(event.getKeyCode()) {
@@ -118,7 +122,7 @@ public final class AboutActivity extends Activity {
         }
         return super.dispatchKeyEvent(event);
     }
-    @Override public void onBackPressed() { if(license)returnToAbout();else finish(); }
+    public void handleBack() { if(license)returnToAbout();else finish(); }
     @Override protected void onSaveInstanceState(Bundle state) { state.putBoolean("license",license);super.onSaveInstanceState(state); }
     @Override protected void onPause(){web.onPause();super.onPause();}
     @Override protected void onResume(){super.onResume();if(web!=null)web.onResume();}

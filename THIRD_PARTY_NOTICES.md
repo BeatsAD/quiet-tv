@@ -38,3 +38,7 @@ Quiet TV 基于该项目开发，面向国内电视机的适配与应用升级�
 - [Bouncy Castle 1.86](https://github.com/bcgit/bc-java/tree/r1rv86)：bcprov、bcpkix 及 bcutil 的 jdk15to18 版本，用于独立密钥的自签证书和库内部 RSA 公钥编码，许可见 `assets/licenses/bouncycastle-LICENSE.md`。此版本为当前源码依赖；历史发布包的依赖不会随源码维护改变。
 - `1.1.0 / b4` 候选接入无线配对，包含 [spake2-android 2.2.1](https://github.com/MuntashirAkon/spake2-java/tree/2.2.1) 的未修改原生库，采用 LGPL-3.0；版权归 Muntashir Al-Islam 等上游作者。LGPL 与 GPL 文本见 `assets/licenses/spake2-*.txt`。相同版本的完整库源码及构建脚本可从该标签取得；本项目通过 Gradle 引用，保留独立共享库及源码重建／替换路径。上游 Ed25519 实现来源与 CC0 说明见其 README。
 - [Conscrypt 2.7.0](https://github.com/google/conscrypt/tree/2.7.0) 提供 TLS 1.3 与公开密钥导出接口，采用 Apache-2.0；其及内含原生代码的声明随 APK 保存为 `assets/licenses/conscrypt-LICENSE.txt`、`conscrypt-NOTICE.txt`。历史 TCP 版本未包含以上无线依赖。
+
+## AndroidX 返回导航
+
+- [AndroidX Activity 1.10.1](https://developer.android.com/jetpack/androidx/releases/activity#1.10.1) 及其 AndroidX 生命周期依赖用于统一 Android 6 与新版系统的返回操作，采用 Apache-2.0。完整 Apache-2.0 文本随 APK 保存于 `assets/licenses/libadb-Apache-2.0.txt`；该文本同时适用于这些 AndroidX 组件。版权归 The Android Open Source Project 等贡献者。

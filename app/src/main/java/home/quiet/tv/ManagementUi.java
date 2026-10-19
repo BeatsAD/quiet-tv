@@ -10,14 +10,14 @@ import android.view.*;
 import android.widget.*;
 
 /** Native management surfaces share the launcher's quiet glass and white focus outline. */
-abstract class ManagementUi extends Activity {
+abstract class ManagementUi extends androidx.activity.ComponentActivity {
     static final int TEXT=0xffeff0f4,MUTED=0xff9298a4;
     LinearLayout root,header;
     FrameLayout stage;
     float unit;
     int px(float value){return Math.round(value*unit);}
     @Override public void onCreate(Bundle state){
-        super.onCreate(state);unit=getResources().getDisplayMetrics().widthPixels/960f;
+        super.onCreate(state);BackNavigation.install(this,this::handleBack);unit=getResources().getDisplayMetrics().widthPixels/960f;
         getWindow().getDecorView().setSystemUiVisibility(5894);
         stage=new FrameLayout(this);stage.setBackgroundColor(0xff0e0f13);setContentView(stage);
         android.content.SharedPreferences prefs=getSharedPreferences("wallpapers",0);
@@ -35,6 +35,7 @@ abstract class ManagementUi extends Activity {
         Button back=iconButton("返回",R.drawable.ic_manage_back,this::finish);header.addView(back,new LinearLayout.LayoutParams(px(34),px(34)));
         TextView title=label("应用管理",27);title.setPadding(px(14),0,0,0);header.addView(title,new LinearLayout.LayoutParams(0,-1,1));
     }
+    public void handleBack(){finish();}
     LinearLayout row(){LinearLayout view=new LinearLayout(this);view.setOrientation(LinearLayout.HORIZONTAL);view.setGravity(Gravity.CENTER_VERTICAL);return view;}
     LinearLayout column(){LinearLayout view=new LinearLayout(this);view.setOrientation(LinearLayout.VERTICAL);return view;}
     TextView label(String text,int size){TextView view=new TextView(this);view.setText(text);view.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(size));view.setTextColor(TEXT);view.setGravity(Gravity.CENTER_VERTICAL);view.setIncludeFontPadding(false);return view;}

@@ -24,7 +24,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 /** Local-only TV home. Directional movement is owned here, never by focus search. */
-public final class HomeActivity extends Activity {
+public final class HomeActivity extends androidx.activity.ComponentActivity {
     private static final String TAG = "QuietTV";
     private static final String WALLPAPER_ENTRY = "quiet:wallpapers";
     private static final String MANAGEMENT_ENTRY = "quiet:management";
@@ -63,12 +63,13 @@ public final class HomeActivity extends Activity {
         }
     };
     private ConnectivityManager.NetworkCallback networkCallback;
+    private final BroadcastReceiver legacyNetworkReceiver=new BroadcastReceiver(){@Override public void onReceive(Context context,Intent intent){updateNetwork();}};
 
     private int px(float value) { return Math.round(value * unit); }
     private String tr(String zh, String en) { return chinese ? zh : en; }
 
     @Override public void onCreate(Bundle state) {
-        super.onCreate(state);
+        super.onCreate(state);BackNavigation.install(this,this::handleBack);
         unit = getResources().getDisplayMetrics().widthPixels / 960f;
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN
                 | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
@@ -80,7 +81,7 @@ public final class HomeActivity extends Activity {
             dockPackages.addAll(new DockStore(this).load());
             JSONArray omitted = config.optJSONArray("hidden");
             if (omitted != null) for (int n = 0; n < omitted.length(); n++) hidden.add(omitted.getString(n));
-            outfit = Typeface.createFromAsset(getAssets(), "fonts/outfit.ttf");
+            outfit = Build.VERSION.SDK_INT>=26 ? Typeface.createFromAsset(getAssets(), "fonts/outfit.ttf") : Typeface.create("sans-serif",Typeface.NORMAL);
         } catch (Exception e) { throw new IllegalStateException("Invalid bundled launcher configuration", e); }
         row = getPreferences(0).getInt("row", 0);
         column = getPreferences(0).getInt("column", 0);
@@ -104,7 +105,8 @@ public final class HomeActivity extends Activity {
         TextView view = new TextView(this);
         view.setText(value); view.setTextColor(color);
         view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, px(size));
-        view.setTypeface(Typeface.create(chinese ? Typeface.create("sans-serif", Typeface.NORMAL) : outfit, weight, false));
+        Typeface family=chinese ? Typeface.create("sans-serif", Typeface.NORMAL) : outfit;
+        view.setTypeface(Build.VERSION.SDK_INT>=28 ? Typeface.create(family,weight,false) : Typeface.create(family,weight>=600?Typeface.BOLD:Typeface.NORMAL));
         view.setIncludeFontPadding(false);
         return view;
     }
@@ -240,7 +242,8 @@ public final class HomeActivity extends Activity {
             @Override public void onCapabilitiesChanged(Network n,NetworkCapabilities c){main.post(()->updateNetwork());}
             @Override public void onLost(Network n){main.post(()->updateNetwork());}
         };
-        ((ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE)).registerDefaultNetworkCallback(networkCallback);
+        if(Build.VERSION.SDK_INT>=24)((ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE)).registerDefaultNetworkCallback(networkCallback);
+        else registerReceiver(legacyNetworkReceiver,new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
         updateClock();updateNetwork();
         wallpapers.resume();
         if(ready) loadApps();
@@ -249,7 +252,8 @@ public final class HomeActivity extends Activity {
     @Override protected void onPause() {
         resumed=false;saveFocus();wallpapers.pause();
         unregisterReceiver(timeReceiver);unregisterReceiver(packageReceiver);
-        ((ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE)).unregisterNetworkCallback(networkCallback);
+        if(Build.VERSION.SDK_INT>=24)((ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE)).unregisterNetworkCallback(networkCallback);
+        else unregisterReceiver(legacyNetworkReceiver);
         if(inputPopup!=null) inputPopup.dismiss();
         super.onPause();
     }
@@ -269,7 +273,7 @@ public final class HomeActivity extends Activity {
             for(String category:new String[]{Intent.CATEGORY_LEANBACK_LAUNCHER,Intent.CATEGORY_LAUNCHER}) {
                 for(ResolveInfo info:pm.queryIntentActivities(new Intent(Intent.ACTION_MAIN).addCategory(category),0)) {
                     String pkg=info.activityInfo.packageName;
-                    if((!hidden.contains(pkg) || pinned.contains(pkg)) && !pkg.equals(getPackageName()) && info.activityInfo.applicationInfo.enabled) candidates.putIfAbsent(pkg,info);
+                    if((!hidden.contains(pkg) || pinned.contains(pkg)) && !pkg.equals(getPackageName()) && info.activityInfo.applicationInfo.enabled) {if(!candidates.containsKey(pkg))candidates.put(pkg,info);}
                 }
             }
             ArrayList<App> found=new ArrayList<>();
@@ -282,7 +286,7 @@ public final class HomeActivity extends Activity {
                 if(banner==null)banner=info.loadIcon(pm);
                 app.banner=renderBanner(banner,hasBanner);app.color=sampleColor(app.banner);found.add(app);
             }
-            found.sort((a,b)->java.text.Collator.getInstance(Locale.SIMPLIFIED_CHINESE).compare(a.label,b.label));
+            Collections.sort(found,(a,b)->java.text.Collator.getInstance(Locale.SIMPLIFIED_CHINESE).compare(a.label,b.label));
             App wallpaperApp=new App();wallpaperApp.pkg=WALLPAPER_ENTRY;wallpaperApp.label=tr("壁纸设置","Wallpaper Settings");
             wallpaperApp.banner=wallpapers.entryBanner();wallpaperApp.color=0xff557eac;found.add(0,wallpaperApp);
             App managementApp=new App();managementApp.pkg=MANAGEMENT_ENTRY;managementApp.label=tr("应用管理","App Management");
@@ -345,10 +349,13 @@ public final class HomeActivity extends Activity {
 
     private void saveFocus(){if(row>=0)getPreferences(0).edit().putInt("row",row).putInt("column",column).putString("package",activePackage).apply();}
 
+    public void handleBack(){if(inputPopup!=null && inputPopup.isShowing())inputPopup.dismiss();else if(row>0){row=0;column=Math.min(restoreColumn,maxColumn(0));focusCurrent(true);}}
+
+    // Public Activity override; AndroidX core marks its inherited bridge class library-only.
+    @android.annotation.SuppressLint("RestrictedApi")
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
         int key=event.getKeyCode();
         if(inputPopup!=null && inputPopup.isShowing())return super.dispatchKeyEvent(event);
-        if(key==KeyEvent.KEYCODE_BACK){if(event.getAction()==KeyEvent.ACTION_DOWN && row>0){row=0;column=Math.min(restoreColumn,maxColumn(0));focusCurrent(true);}return true;}
         if(!ready)return super.dispatchKeyEvent(event);
         if(key==KeyEvent.KEYCODE_DPAD_LEFT || key==KeyEvent.KEYCODE_DPAD_RIGHT || key==KeyEvent.KEYCODE_DPAD_UP || key==KeyEvent.KEYCODE_DPAD_DOWN){
             if(event.getAction()==KeyEvent.ACTION_UP)return true;
@@ -488,7 +495,7 @@ public final class HomeActivity extends Activity {
     private void showInputs(){
         TvInputManager manager=(TvInputManager)getSystemService(TV_INPUT_SERVICE);
         ArrayList<TvInputInfo> inputs=new ArrayList<>(manager.getTvInputList());
-        inputs.sort((a,b)->{
+        Collections.sort(inputs,(a,b)->{
             int ar=a.getType()==TvInputInfo.TYPE_HDMI?0:a.isPassthroughInput()?1:2;
             int br=b.getType()==TvInputInfo.TYPE_HDMI?0:b.isPassthroughInput()?1:2;
             return ar==br?inputName(a).compareTo(inputName(b)):Integer.compare(ar,br);

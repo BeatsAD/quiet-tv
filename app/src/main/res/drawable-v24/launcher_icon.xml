@@ -1,0 +1,19 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="96dp" android:height="96dp"
+    android:viewportWidth="96" android:viewportHeight="96">
+    <!-- Scheme 1: the screen is a Q, with a pale-blue tail. Matches quiet-tv-icon.svg. -->
+    <path android:pathData="M24,0.5H72A23.5,23.5 0,0 1,95.5 24V72A23.5,23.5 0,0 1,72 95.5H24A23.5,23.5 0,0 1,0.5 72V24A23.5,23.5 0,0 1,24 0.5Z"
+        android:strokeColor="#2D476B" android:strokeWidth="0.7">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="0" android:startY="0" android:endX="96" android:endY="96"
+                android:startColor="#142B4B" android:endColor="#060E1D" />
+        </aapt:attr>
+    </path>
+    <path android:fillColor="#F3F4F7" android:fillType="evenOdd"
+        android:pathData="M29,23H67A14,14 0,0 1,81 37V53A14,14 0,0 1,67 67H29A14,14 0,0 1,15 53V37A14,14 0,0 1,29 23ZM29,30H67A7,7 0,0 1,74 37V53A7,7 0,0 1,67 60H29A7,7 0,0 1,22 53V37A7,7 0,0 1,29 30Z" />
+    <path android:fillColor="#00000000" android:strokeColor="#081222" android:strokeWidth="12" android:strokeLineCap="round"
+        android:pathData="M66,67L74,77" />
+    <path android:fillColor="#00000000" android:strokeColor="#89C9F4" android:strokeWidth="8" android:strokeLineCap="round"
+        android:pathData="M66,67L74,77" />
+</vector>

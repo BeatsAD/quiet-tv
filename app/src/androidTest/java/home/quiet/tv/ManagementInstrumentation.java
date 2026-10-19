@@ -10,6 +10,14 @@ public final class ManagementInstrumentation extends Instrumentation {
     @Override public void onCreate(Bundle args){super.onCreate(args);scenario=args.getString("scenario","adb");start();}
     @Override public void onStart(){
         Bundle result=new Bundle();
+        if("commands-compatibility".equals(scenario)){
+            try{new CommandCompatibilityChecks(this).run();result.putString("stream","PASS: production ADB capability detection / fixture disable-enable / journal / exact state restore / connected HOME inspection\n");finish(-1,result);}
+            catch(Throwable e){android.util.Log.e("QuietTVCompatChecks","Commands failed",e);result.putString("stream","FAIL: "+e+"\n");finish(0,result);}return;
+        }
+        if("compatibility".equals(scenario)){
+            try{new CompatibilityChecks(this).run();result.putString("stream","PASS: offline package metadata / system HOME entry / vector holes / HOME, setup and management Back on API "+android.os.Build.VERSION.SDK_INT+"\n");finish(-1,result);}
+            catch(Throwable e){android.util.Log.e("QuietTVCompatChecks","Compatibility failed",e);result.putString("stream","FAIL: "+e+"\n");finish(0,result);}return;
+        }
         if("about".equals(scenario)){
             try{new AboutChecks(this).run();result.putString("stream","PASS: About installed metadata / remote entry / offline QR and licenses / external-link fallback / HOME focus restoration\n");finish(-1,result);}
             catch(Throwable e){android.util.Log.e("QuietTVAboutChecks","About failed",e);result.putString("stream","FAIL: "+e+"\n");finish(0,result);}return;
@@ -45,6 +53,10 @@ public final class ManagementInstrumentation extends Instrumentation {
         if("dock".equals(scenario)){
             try{new DockChecks(this).run();result.putString("stream","PASS: Dock empty/add/remove/1-4 slots/replace/reorder save/cancel; original configuration restored\n");finish(-1,result);}
             catch(Throwable e){android.util.Log.e("QuietTVChecks","Dock failed",e);result.putString("stream","FAIL: "+e+"\n");finish(0,result);}return;
+        }
+        if("connect".equals(scenario)){
+            try{new SetupStore(getTargetContext()).shouldOffer(getTargetContext());startActivitySync(new android.content.Intent(getTargetContext(),HomeActivity.class).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK|android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK));}
+            catch(Exception e){result.putString("stream","FAIL: foreground setup "+e+"\n");finish(0,result);return;}
         }
         try(AdbController adb=new AdbController(getTargetContext(),value->{Bundle status=new Bundle();status.putString("stream",value+"\n");sendStatus(0,status);})){
             adb.connect(5555);

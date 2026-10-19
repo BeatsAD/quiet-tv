@@ -45,7 +45,7 @@ Quiet TV 面向国内 Android 电视的日常使用场景：把常用应用放�
 
 ## 安装与试用
 
-1. **确认电视是否适用**：当前最低为 Android 12，先查看下方支持范围和[兼容性说明](docs/COMPATIBILITY.md)。
+1. **确认电视是否适用**：兼容候选最低为 Android 6.0，先查看下方支持范围和[兼容性说明](docs/COMPATIBILITY.md)。
 2. **获取安装包**：从 [Releases](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.0.1) 下载 APK 与 SHA-256 校验文件，或按[安装指南](docs/INSTALL.zh-CN.md)从源码构建。
 3. **安装并试用**：按安装指南连接 ADB，安装后先打开 Quiet TV，检查遥控器、应用启动和系统入口。
 4. **设置为默认桌面**：确认可用后，在电视设置中选择 Quiet TV，再按[使用指南](docs/USAGE.zh-CN.md)整理常用应用和壁纸。
@@ -59,8 +59,8 @@ Quiet TV 面向国内 Android 电视的日常使用场景：把常用应用放�
 | 设备／系统 | 状态 |
 | --- | --- |
 | Sony KD-65X9000H / BRAVIA VH1 · Android 12 | 已安装并验证首页、应用管理、壁纸、部分系统入口及一次整机重启；完整范围见[验收记录](VERIFICATION.md)。 |
-| 其他 Android 12 及以上电视 | 待逐机适配，需确认厂商固件、默认桌面切换和 ADB 权限。 |
-| Android 11 及以下，或 Tizen、webOS 等非 Android 系统 | 当前版本不支持。 |
+| Android 6.0 及以上其他电视 | 已增加版本兼容代码；模拟器与真机验证范围分别见[版本兼容记录](docs/android-compatibility.md)，仍需逐机确认固件、HOME 和 ADB 能力。 |
+| Android 5.1 及以下，或 Tizen、webOS 等非 Android 系统 | 当前版本不支持。 |
 
 长期运行、投屏和完整影音播放仍待验收。第三方影音应用通过各自渠道更新，Quiet TV 当前不提供第三方应用自动更新服务。
 
