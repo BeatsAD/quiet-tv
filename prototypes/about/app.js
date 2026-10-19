@@ -22,7 +22,7 @@ if (embedded) {
   $('#version-build').textContent = `构建 ${installed.get('build')} · ${installed.get('debug') === 'true' ? '测试版' : '正式版'}`;
 }
 let currentPage = 'about';
-let lastFocus = $('#source-link');
+let lastFocus = $('#back-home');
 let toastTimer;
 function resize() {
   const full = embedded || document.fullscreenElement === $('#viewport');
@@ -45,7 +45,7 @@ function showPage(page) {
   $('#home').hidden = page !== 'home';
   $('#about').hidden = page !== 'about';
   document.querySelectorAll('[data-preview]').forEach(el => el.classList.toggle('selected', el.dataset.preview === page));
-  (page === 'home' ? $('#entry-about') : $('#source-link')).focus();
+  (page === 'home' ? $('#entry-about') : $('#back-home')).focus();
 }
 document.querySelectorAll('[data-preview]').forEach(el => el.onclick = () => showPage(el.dataset.preview));
 $('#back-home').onclick = () => showPage('home');
@@ -82,11 +82,9 @@ function navigate(key) {
   if (key === 'Enter') { active.click(); return; }
   if (currentPage === 'about') {
     const routes = {
-      'back-home': {ArrowRight: 'source-link', ArrowDown: 'source-link'},
-      'source-link': {ArrowUp: 'back-home', ArrowLeft: 'back-home', ArrowDown: 'email-link'},
-      'email-link': {ArrowUp: 'source-link', ArrowLeft: 'back-home', ArrowDown: 'license-link'},
-      'license-link': {ArrowUp: 'email-link', ArrowLeft: 'back-home', ArrowRight: 'upstream-link'},
-      'upstream-link': {ArrowUp: 'email-link', ArrowLeft: 'license-link'}
+      'back-home': {ArrowRight: 'license-link', ArrowDown: 'license-link'},
+      'license-link': {ArrowUp: 'back-home', ArrowLeft: 'back-home', ArrowRight: 'upstream-link'},
+      'upstream-link': {ArrowUp: 'back-home', ArrowLeft: 'license-link'}
     };
     const next = routes[active.id]?.[key];
     if (next) $(`#${next}`).focus();
@@ -114,11 +112,11 @@ document.querySelectorAll('[data-key]').forEach(el => {
   el.onmousedown = event => event.preventDefault();
   el.onclick = () => navigate(el.dataset.key);
 });
-$('#source-link').focus();
+$('#back-home').focus();
 if (embedded) window.quietTVAbout = {
   ready: false,
   move: navigate,
   activate: () => navigate('Enter'),
-  focusInitial: () => $('#source-link').focus(),
+  focusInitial: () => $('#back-home').focus(),
   restoreLicense: () => $('#license-link').focus()
 };

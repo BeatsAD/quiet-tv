@@ -26,9 +26,7 @@ import java.util.Collections;
 /** The reviewed single-screen About UI, packaged offline with installed-app metadata. */
 public final class AboutActivity extends Activity {
     private static final String ORIGIN="https://quiet-tv.invalid/about/";
-    private static final String PROJECT="https://github.com/BeatsAD/quiet-tv";
     private static final String UPSTREAM="https://github.com/Gathin23/tv-vibehack";
-    private static final String EMAIL="mailto:wenbinailab@gmail.com";
     private WebView web;
     private String pageUrl;
     private boolean license, restoreLicense, pageReady;
@@ -94,10 +92,10 @@ public final class AboutActivity extends Activity {
 
     private void openLink(Uri uri) {
         String url=uri.toString();
-        if(!PROJECT.equals(url) && !UPSTREAM.equals(url) && !EMAIL.equals(url))return;
-        try { startActivity(new Intent(EMAIL.equals(url)?Intent.ACTION_SENDTO:Intent.ACTION_VIEW,uri)); }
+        if(!UPSTREAM.equals(url))return;
+        try { startActivity(new Intent(Intent.ACTION_VIEW,uri)); }
         catch (ActivityNotFoundException e) {
-            Toast.makeText(this,EMAIL.equals(url)?"当前电视没有可用的邮件应用，可在手机上发送邮件":"当前电视没有可用的浏览器，请用手机扫描项目二维码",Toast.LENGTH_LONG).show();
+            Toast.makeText(this,"当前电视没有可用的浏览器",Toast.LENGTH_LONG).show();
         }
     }
 
