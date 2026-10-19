@@ -21,3 +21,5 @@
 版本标签简化：仅去掉构建号及后面的“·”分隔点，保留“版本 1.1.0”和“测试版”标签、名称末尾品牌圆点。浏览器已目视确认；截图见 `output/about-version-label-validation/browser.png`。Android 随包资源与代码编译检查通过，本轮未安装设备。
 
 二维码替换：采用用户提供的 wechat.png 和 official.png，按原比例完整显示，保留尺寸、位置、标签和只读交互。两张源图软件解码内容与旧联系图对应二维码一致；浏览器目视核对通过，截图在 `output/about-qr-replacement-validation/browser.png`。随包图片逐字节核对、旧联系图生成副本移除及 Android 编译检查通过。本轮未安装设备或进行手机实屏扫码。
+
+Android 首屏修复：AboutView 按本原型改为原生布局；首次与重复进入不创建 WebView，仅 MIT 许可使用按需加载、视觉回调后显示的离线 WebView。1080p／720p 的原生交互与二维码解码检查通过，布局截图和安装哈希见 `output/about-startup-validation/`。浏览器原型外观与操作未改动；真实电视仍需验收。
