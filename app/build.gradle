@@ -8,7 +8,7 @@ android {
         // This local debug candidate retains the existing runtime behavior; Play publication is a separate migration.
         //noinspection ExpiredTargetSdkVersion
         targetSdk 31
-        versionCode 7
+        versionCode 8
         versionName '1.1.0'
     }
     buildTypes { debug { debuggable true } }

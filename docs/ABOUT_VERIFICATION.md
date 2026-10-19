@@ -7,7 +7,7 @@
 | 项目 | 证据与结果 |
 | --- | --- |
 | 视觉与布局 | 关于区直接从确认原型提取；HTML 主区、运行脚本、二维码原图与原型一致。目视核对单屏、Q 字电视图标、间距、分隔线和白色焦点框。操作系统的中文字形回退可能存在差异，不宣称跨系统逐像素一致。 |
-| 版本信息 | 实际安装包为 1.1.0／构建 7／Debug；名称、版本名、构建号与 PackageManager 读值一致。原型预览的构建 5 仍只是设计样例。 |
+| 版本信息 | 实际安装包为 1.1.0／构建 8／Debug；名称、版本名、构建号与 PackageManager 读值一致。原型预览的构建 5 仍只是设计样例。 |
 | 首页入口 | 第四个胶囊入口及 ⓘ 图标正常；确定进入关于；退出后恢复第四个入口，而非常用应用。 |
 | 遥控器 | 初始仓库焦点、仓库→邮箱→MIT、MIT↔上游、左侧返回按钮及对应上方向均通过。 |
 | 离线许可 | 完整 MIT、第三方声明、字体及依赖许可随 APK 打包；方向键滚动、无横向溢出、返回恢复 MIT 焦点通过。 |
@@ -31,4 +31,6 @@ adb -s emulator-5564 shell am instrument -w -e scenario about \
 
 本地证据在 `output/about-validation/`：`build-final.txt`、`checks-1080.txt`、`checks-720.txt`、`checks-final.txt`、`about-native.png`、`about-native-720.png`、`about-home.png`、`about-home-return.png`、`about-license.png`、`qr-1080.json`、`qr-720.json`、`installed-hash.json`。证据目录被 Git 忽略。
 
-最终 APK 归档为 `dist/apk/quiet-tv_1.1.0_b7_debug.apk`，其不可变 JSON 收据记录 SHA-256。已对模拟器的实际安装 APK 逐字节核对；真实电视尚未安装此包。未推送或发布。
+最终 APK 归档为 `dist/apk/quiet-tv_1.1.0_b8_debug.apk`，其不可变 JSON 收据记录 SHA-256。已对模拟器的实际安装 APK 逐字节核对；真实电视尚未安装此包。未推送或发布。
+
+归档时发现构建 7 已被并行任务先行使用，因此本次递增为构建 8，既有安装包与收据均保留。
