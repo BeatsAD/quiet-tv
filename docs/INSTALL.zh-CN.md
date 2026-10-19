@@ -31,7 +31,9 @@ sdk.dir=/absolute/path/to/your/android-sdk
 python3 scripts/build_apk.py --summary "说明本次交付的变更"
 ```
 
-归档输出：`dist/apk/quiet-tv_1.0.1_b3_debug.apk`，同目录 JSON 保存版本、时间、SHA-256 和变更摘要。这一步只构建和归档，不连接或修改电视。包名为 `home.quiet.tv`，当前配置为版本 1.0.1、构建号 3、类型 debug；也可从 [Releases v1.0.1](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.0.1) 下载同版本测试包和 SHA-256 校验文件。尚无已发布的稳定版 APK；已知问题见[中文发布说明](releases/v1.0.1.md)。版本递增、历史包和安装核对约定见[版本与安装包规则](VERSIONING.md)。
+默认源码构建归档至 `dist/apk/quiet-tv_1.1.0_b23_debug.apk`，同目录 JSON 保存版本、时间、SHA-256 和变更摘要。这一步不连接或修改电视。包名为 `home.quiet.tv`，当前源码配置为版本 1.1.0、构建号 23，默认 Debug 构建为通用架构。
+
+[Releases v1.1.0](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0) 提供独立的 `quiet-tv_1.1.0_b23_benchmark_armeabi-v7a.apk` 优化测试包及 SHA-256 校验文件，仅适用于支持 ARM32 应用的 Android 12 及以上电视。它与上面的通用 Debug 构建文件名不同；下载后安装时使用下载文件的实际路径。尚无稳定版，更新与验证范围见[发布说明](releases/v1.1.0.md)。归档和安装核对约定见[版本规则](VERSIONING.md)。
 
 ## 3. 连接并试用桌面
 
@@ -42,6 +44,7 @@ TV_SERIAL=192.0.2.10:5555
 adb connect "$TV_SERIAL"
 adb -s "$TV_SERIAL" shell getprop ro.product.model
 adb -s "$TV_SERIAL" shell getprop ro.build.version.sdk
+adb -s "$TV_SERIAL" shell getprop ro.product.cpu.abilist
 adb -s "$TV_SERIAL" shell pm list users
 adb -s "$TV_SERIAL" shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME
 ```
@@ -49,7 +52,7 @@ adb -s "$TV_SERIAL" shell cmd package resolve-activity --brief -a android.intent
 确认目标身份，保存最后一条命令返回的原 HOME 组件，并保留原桌面。安装并启动：
 
 ```sh
-adb -s "$TV_SERIAL" install -r dist/apk/quiet-tv_1.0.1_b3_debug.apk
+adb -s "$TV_SERIAL" install -r dist/apk/quiet-tv_1.1.0_b23_debug.apk
 adb -s "$TV_SERIAL" shell am start -n home.quiet.tv/.HomeActivity
 ```
 

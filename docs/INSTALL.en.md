@@ -31,7 +31,9 @@ Then build without connecting to a TV:
 python3 scripts/build_apk.py --summary "Describe this build's changes"
 ```
 
-Archived output: `dist/apk/quiet-tv_1.0.1_b3_debug.apk`, with a JSON receipt containing version, timestamps, SHA-256 and the change summary. This does not contact a TV. Package: `home.quiet.tv`; current configuration: version 1.0.1, build 3, debug. The test APK and SHA-256 checksum are also available from [Releases v1.0.1](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.0.1). No stable APK release has been published; see [known issues in the Chinese release notes](releases/v1.0.1.md). See [version and APK rules](VERSIONING.md) for numbering, immutable archives and installation checks.
+Default source builds are archived as `dist/apk/quiet-tv_1.1.0_b23_debug.apk`, with a JSON receipt containing version, timestamps, SHA-256, and the summary. This does not contact a TV. Package: `home.quiet.tv`; source configuration: version 1.1.0, build 23, universal Debug by default.
+
+[Releases v1.1.0](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0) provides the separate optimized test APK `quiet-tv_1.1.0_b23_benchmark_armeabi-v7a.apk` and SHA-256 checksum. It requires Android 12 or newer and support for ARM32 apps. Its filename differs from the universal source Debug build; install a downloaded APK using its actual path. No stable APK has been published. See [release notes](releases/v1.1.0.md) for validation limits and [version rules](VERSIONING.md) for immutable archives and installation checks.
 
 ## Install and try
 
@@ -42,6 +44,7 @@ TV_SERIAL=192.0.2.10:5555
 adb connect "$TV_SERIAL"
 adb -s "$TV_SERIAL" shell getprop ro.product.model
 adb -s "$TV_SERIAL" shell getprop ro.build.version.sdk
+adb -s "$TV_SERIAL" shell getprop ro.product.cpu.abilist
 adb -s "$TV_SERIAL" shell pm list users
 adb -s "$TV_SERIAL" shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME
 ```
@@ -49,7 +52,7 @@ adb -s "$TV_SERIAL" shell cmd package resolve-activity --brief -a android.intent
 Confirm the target identity and record the original HOME component before changing the default launcher. Keep the original launcher installed and enabled.
 
 ```sh
-adb -s "$TV_SERIAL" install -r dist/apk/quiet-tv_1.0.1_b3_debug.apk
+adb -s "$TV_SERIAL" install -r dist/apk/quiet-tv_1.1.0_b23_debug.apk
 adb -s "$TV_SERIAL" shell am start -n home.quiet.tv/.HomeActivity
 ```
 
