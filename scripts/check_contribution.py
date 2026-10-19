@@ -52,12 +52,13 @@ def main():
 
     tooling = any(name.startswith('.github/workflows/') or name == 'scripts/check_contribution.py'
                   for name in changed)
+    project_changes = {name for name in changed if not name.endswith('.md')}
     flags = {
         'android': tooling or any(name.startswith(('app/', 'management-fixture/', 'gradle/'))
                                  or name in ('build.gradle', 'settings.gradle', 'gradle.properties',
-                                             'gradlew', 'gradlew.bat') for name in changed),
-        'prototype': tooling or any(name.startswith('prototypes/app-management/') for name in changed),
-        'video': tooling or any(name.startswith('recording-edit-9608/') for name in changed),
+                                             'gradlew', 'gradlew.bat') for name in project_changes),
+        'prototype': tooling or any(name.startswith('prototypes/app-management/') for name in project_changes),
+        'video': tooling or any(name.startswith('recording-edit-9608/') for name in project_changes),
     }
     print('Selected checks:', ', '.join(key for key, enabled in flags.items() if enabled) or 'documentation / Python syntax')
     if os.environ.get('GITHUB_OUTPUT'):
