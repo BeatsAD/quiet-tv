@@ -19,7 +19,7 @@ if (embedded) {
   const installed = new URLSearchParams(location.search);
   $('#app-name').textContent = installed.get('name');
   $('#version-name').textContent = `版本 ${installed.get('version')}`;
-  $('#version-build').textContent = `构建 ${installed.get('build')} · ${installed.get('debug') === 'true' ? '测试版' : '正式版'}`;
+  $('#version-channel').textContent = installed.get('debug') === 'true' ? '测试版' : '正式版';
 }
 let currentPage = 'about';
 let lastFocus = $('#back-home');

@@ -41,7 +41,6 @@ public final class AboutActivity extends Activity {
             pageUrl=Uri.parse(ORIGIN+"index.html").buildUpon()
                     .appendQueryParameter("name",getApplicationInfo().loadLabel(getPackageManager()).toString())
                     .appendQueryParameter("version",info.versionName)
-                    .appendQueryParameter("build",Long.toString(info.getLongVersionCode()))
                     .appendQueryParameter("debug",Boolean.toString((getApplicationInfo().flags&ApplicationInfo.FLAG_DEBUGGABLE)!=0))
                     .build().toString();
         } catch (android.content.pm.PackageManager.NameNotFoundException e) { throw new IllegalStateException("Own package unavailable",e); }

@@ -68,12 +68,13 @@ final class AboutChecks {
         focus("back-home");
         PackageInfo installed=test.getTargetContext().getPackageManager().getPackageInfo(test.getTargetContext().getPackageName(),0);
         require(("版本 "+installed.versionName).equals(js("document.querySelector('#version-name').textContent")),"Version is hardcoded");
-        require(((String)js("document.querySelector('#version-build').textContent")).startsWith("构建 "+installed.getLongVersionCode()+" · "),"Build is hardcoded");
+        String channel=(installed.applicationInfo.flags&android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE)!=0?"测试版":"正式版";
+        require(channel.equals(js("document.querySelector('#version-channel').textContent")),"Channel mismatch or build number still visible");
         require(test.getTargetContext().getApplicationInfo().loadLabel(test.getTargetContext().getPackageManager()).toString().equals(js("document.querySelector('#app-name').textContent")),"App name mismatch");
         require(Boolean.TRUE.equals(js("!document.querySelector('.workbench,#home,.prototype-controls,#website-link,#overlay,.tv-footer') && document.querySelectorAll('.source-qr img,.code-window').length===3")),"Prototype tools or removed content shipped");
         require(Boolean.TRUE.equals(js("[...document.querySelectorAll('#about .brand,#about .information')].every(e=>e.scrollHeight<=e.clientHeight+1&&e.scrollWidth<=e.clientWidth+1)")),"Single screen overflow");
         test.runOnMainSync(()->{require(web.getSettings().getBlockNetworkLoads(),"Network loads enabled");require(!web.getSettings().getAllowFileAccess()&&!web.getSettings().getAllowContentAccess(),"File/content access enabled");});
-        capture("about-native.png");checkpoint("PASS: installed app name/version/build, no preview tools, three offline QR codes, single-screen geometry");
+        capture("about-native.png");checkpoint("PASS: installed app name/version/channel, no preview tools, three offline QR codes, single-screen geometry");
         require(Boolean.TRUE.equals(js("[...document.querySelectorAll('#source-address,#developer-email')].length===2 && [...document.querySelectorAll('#source-address,#developer-email')].every(e=>!e.matches('a,button,[tabindex],[role=button],[role=link]') && !e.onclick) && !document.querySelector('#source-address').textContent.includes('↗') && document.querySelectorAll('#about button,#about a[href]').length===3")),"Contact text remains interactive");
         key(KeyEvent.KEYCODE_DPAD_DOWN);focus("license-link");
         key(KeyEvent.KEYCODE_DPAD_RIGHT);focus("upstream-link");key(KeyEvent.KEYCODE_DPAD_LEFT);focus("license-link");
