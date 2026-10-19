@@ -1,6 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const paths = {
   back: '<path d="m14 6-6 6 6 6M8 12h13"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/>',
   close: '<path d="m6 6 12 12M6 18 18 6"/>',
   settings: '<path d="m9 3 1-2h4l1 2 3 2 3 1v4l-2 2v3l2 2-2 4-3-1-3 1-2 2-4-2v-3l-2-2-3-1v-4l3-1 2-2z" transform="translate(1 0) scale(.9)"/><circle cx="12" cy="12" r="3"/>',
   network: '<rect x="9" y="2" width="6" height="6"/><path d="M12 8v5M5 13h14M5 13v3M19 13v3"/><rect x="2" y="16" width="6" height="6"/><rect x="16" y="16" width="6" height="6"/>',
