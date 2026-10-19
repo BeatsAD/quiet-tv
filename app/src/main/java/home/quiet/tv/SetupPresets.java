@@ -12,6 +12,8 @@ final class SetupPresets {
     SetupPresets(String source,String brand,String model,String firmware) throws JSONException {
         JSONObject root=new JSONObject(source);JSONObject match=null;
         if(root.getInt("schema")!=1)throw new JSONException("不支持的设备规则版本");
+        JSONArray references=root.optJSONArray("references");
+        if(references!=null)for(int i=0;i<references.length();i++)validateReference(references.getJSONObject(i));
         JSONArray devices=root.getJSONArray("devices");
         for(int i=0;i<devices.length();i++){
             JSONObject candidate=devices.getJSONObject(i);
@@ -39,4 +41,9 @@ final class SetupPresets {
     String purpose(String pkg){JSONObject value=app(pkg);return value==null?"用途待确认":value.optString("purpose","用途待确认");}
     String home(){JSONObject value=device==null?null:device.optJSONObject("home");return value==null?"":value.optString("component");}
     boolean homeAllows(String capability){JSONObject value=device==null?null:device.optJSONObject("home");return value!=null && value.optBoolean(capability);}
+    // References are documentation only. They can never participate in permission matching.
+    static void validateReference(JSONObject reference) throws JSONException {
+        if(!reference.has("model") || !reference.has("source") || !reference.has("limitations"))throw new JSONException("机型参考缺少来源或限制");
+        if(reference.has("fingerprint") || reference.has("apps") || reference.has("home"))throw new JSONException("未验收参考不能携带执行规则");
+    }
 }

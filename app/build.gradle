@@ -4,14 +4,36 @@ android {
     compileSdk 36
     defaultConfig {
         applicationId 'home.quiet.tv'
-        minSdk 31
+        // API 26 is an opt-in compatibility candidate until old physical TVs are verified.
+        minSdk providers.gradleProperty('quietMinSdk').getOrElse('31').toInteger()
         // This local debug candidate retains the existing runtime behavior; Play publication is a separate migration.
         //noinspection ExpiredTargetSdkVersion
         targetSdk 31
-        versionCode 15
+        versionCode 23
         versionName '1.1.0'
     }
-    buildTypes { debug { debuggable true } }
+    buildTypes {
+        debug { debuggable true }
+        benchmark {
+            debuggable false
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.debug
+            matchingFallbacks = ['release']
+        }
+        // Formal releases require an explicitly configured persistent signing key.
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    def selectedAbi = providers.gradleProperty('quietAbi').getOrElse('universal')
+    if (selectedAbi != 'universal') {
+        if (!(selectedAbi in ['arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64'])) throw new GradleException('Unsupported quietAbi')
+        defaultConfig.ndk.abiFilters.add(selectedAbi)
+    }
     compileOptions { sourceCompatibility JavaVersion.VERSION_11; targetCompatibility JavaVersion.VERSION_11 }
 }
 dependencies {

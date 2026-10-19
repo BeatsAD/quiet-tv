@@ -30,7 +30,7 @@ def main():
               'device': args.serial, 'sdk': shell('getprop', 'ro.build.version.sdk').strip(),
               'abis': shell('getprop', 'ro.product.cpu.abilist').strip(),
               'installed': shell('dumpsys', 'package', 'home.quiet.tv'),
-              'exercise': args.exercise, 'timing_metric': 'am start -W TotalTime, not first usable frame'}
+              'exercise': args.exercise, 'timing_metric': 'am start -W WaitTime, not first usable frame'}
     if args.exercise:
         for mode, count in [('cold', args.cold), ('warm', args.warm)]:
             samples = []
@@ -40,7 +40,7 @@ def main():
                 else:
                     shell('am', 'start', '-W', '-a', 'android.settings.SETTINGS')
                 result = shell('am', 'start', '-W', '-n', 'home.quiet.tv/.HomeActivity')
-                found = re.search(r'^TotalTime:\s*(\d+)', result, re.M)
+                found = re.search(r'^WaitTime:\s*(\d+)', result, re.M)
                 if not found:
                     raise RuntimeError('Launch timing unavailable: ' + result)
                 samples.append(int(found[1]))

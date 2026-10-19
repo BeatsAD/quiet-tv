@@ -88,7 +88,7 @@ final class AboutView extends FrameLayout {
     }
     private TextView label(CharSequence value,float size,int weight,int color,int x,int y,int w,int h,String tag) {
         TextView view=new TextView(getContext());view.setText(value);view.setTag(tag);view.setTextColor(color);
-        view.setTextSize(TypedValue.COMPLEX_UNIT_PX,size);view.setTypeface(Typeface.create(font,weight,false));view.setFontVariationSettings("'wght' "+weight);
+        view.setTextSize(TypedValue.COMPLEX_UNIT_PX,size);view.setTypeface(android.os.Build.VERSION.SDK_INT>=28?Typeface.create(font,weight,false):Typeface.create(font,weight>=600?Typeface.BOLD:Typeface.NORMAL));view.setFontVariationSettings("'wght' "+weight);
         view.setIncludeFontPadding(false);view.setSingleLine(true);view.setGravity(Gravity.CENTER_VERTICAL);put(view,x,y,w,h);return view;
     }
     private View action(View view,String tag,int x,int y,int w,int h,Runnable run) {

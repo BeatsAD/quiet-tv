@@ -35,4 +35,8 @@ final class SetupStore {
     void begin(String id,JSONObject baseline) throws Exception {put("run",new JSONObject().put("id",id).put("state","running").put("baseline",baseline).put("results",new JSONArray()));}
     void result(String id,String pkg,String action,String result) throws Exception {synchronized(LOCK){JSONObject run=get().optJSONObject("run");if(run==null || !id.equals(run.optString("id")))throw new IOException("设置任务已改变");run.getJSONArray("results").put(new JSONObject().put("package",pkg).put("action",action).put("result",result));put("run",run);}}
     void end(String id,String state) throws Exception {synchronized(LOCK){JSONObject run=get().optJSONObject("run");if(run!=null && id.equals(run.optString("id"))){run.put("state",state);put("run",run);}}}
+    void homeSwitch(String previous,String desired,int user,String state,String observed) throws Exception {
+        put("homeSwitch",new JSONObject().put("previousHome",previous).put("desiredHome",desired)
+                .put("user",user).put("state",state).put("observedHome",observed).put("time",System.currentTimeMillis()));
+    }
 }

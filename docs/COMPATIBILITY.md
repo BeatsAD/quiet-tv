@@ -52,3 +52,14 @@ The project uses Java, native View/Canvas, RecyclerView 1.4.0, compileSdk 36, mi
 应用内管理实时识别当前用户，TCP 端口可编辑；只在当前索尼固件验证。现有电脑脚本仍固定用户 0 和 ADB 端口 5555，并依赖本地原始备份。已有索尼禁用／恢复记录不能复用到其他设备。新机型请提交[适配信息](https://github.com/BeatsAD/quiet-tv/issues/new?template=device_adaptation.yml)。
 
 In-app management discovers the current user and allows editing the TCP port; it is verified only on the current Sony firmware. Existing host scripts still assume user 0 and ADB TCP port 5555, with a local original backup. Do not reuse Sony disable/recovery records elsewhere. Use the [device adaptation form](https://github.com/BeatsAD/quiet-tv/issues/new?template=device_adaptation.yml) for another model.
+
+
+## 优化候选与旧系统实验（2026-10-19）
+
+默认构建继续为 API31；另提供明确带 `_api26` 后缀的实验候选。当前源码已隔离 API29 HOME 角色入口、兼容旧字体与版本号 API，并在 boot_id 读取受限时执行一次性本机文件挑战。未知固件的预装包仍只读，不按社区参考清单自动开放权限。
+
+Android 8/API26、Android 9/API28、Android 11/API30 通用 ARM64 AOSP 镜像已验证原生首页、关于页、Dock、JNI、本机 ADB 往返和首次设置入口。旧镜像的 ADB 通过专用测试转发连接同一模拟器，不能计作该固件直接开放本机 TCP 端口。API26 的不可读挑战负向测试拒绝连接，不执行包写入。通用镜像没有电视硬件能力，不代表电视信号源或默认 HOME 接管已适配。
+
+Android TV 12/API31 新环境已验证优化包首次密钥生成与实际本机 ADB、原生入口；Android TV 13/API33 验证已有密钥连接、HOME 冲突及失败恢复、原生设置与遥控焦点回归。相关结果分别记录，详见[优化验证说明](OPTIMIZATION.md)。
+
+旧 ARM32 电视、其他真实固件、低于 1GB 设备以及六位码成功配对仍待实测；正常 APK 暂不下调最低系统，不扩大生产设备操作规则。

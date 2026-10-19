@@ -10,7 +10,7 @@ import zipfile
 
 def analyze(apk):
     apk = Path(apk).resolve()
-    groups = defaultdict(lambda: {'packaged_bytes': 0, 'decoded_bytes': 0, 'files': 0})
+    groups = defaultdict(lambda: {'packaged_bytes': 0, 'uncompressed_bytes': 0, 'files': 0})
     with zipfile.ZipFile(apk) as archive:
         entries = archive.infolist()
         for entry in entries:
@@ -29,7 +29,7 @@ def analyze(apk):
                 group = name.split('/')[0] if '/' in name else 'other'
             item = groups[group]
             item['packaged_bytes'] += entry.compress_size
-            item['decoded_bytes'] += entry.file_size
+            item['uncompressed_bytes'] += entry.file_size
             item['files'] += 1
     size = apk.stat().st_size
     return {'apk': str(apk), 'bytes': size, 'mib': round(size / 1024**2, 3),

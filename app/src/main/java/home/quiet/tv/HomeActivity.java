@@ -38,6 +38,8 @@ public final class HomeActivity extends Activity {
     private final ArrayList<TextView> pills = new ArrayList<>();
     private final ArrayList<String> dockPackages = new ArrayList<>();
     private final HashSet<String> hidden = new HashSet<>();
+    private final HashMap<String,App> artworkCache = new HashMap<>();
+    private boolean appsDirty = true, loadingApps;
     private FrameLayout root;
     private RecyclerView list;
     private GridLayoutManager layout;
@@ -59,7 +61,8 @@ public final class HomeActivity extends Activity {
     private final BroadcastReceiver packageReceiver = new BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) {
             if(Intent.ACTION_PACKAGE_REMOVED.equals(i.getAction()) && !i.getBooleanExtra(Intent.EXTRA_REPLACING,false) && i.getData()!=null)new DockStore(c).remove(i.getData().getSchemeSpecificPart());
-            loadApps();
+            appsDirty = true;
+            if (resumed) loadApps();
         }
     };
     private ConnectivityManager.NetworkCallback networkCallback;
@@ -86,6 +89,8 @@ public final class HomeActivity extends Activity {
         column = getPreferences(0).getInt("column", 0);
         activePackage = getPreferences(0).getString("package", "");
         makeScene();
+        IntentFilter packages=new IntentFilter(Intent.ACTION_PACKAGE_ADDED);packages.addAction(Intent.ACTION_PACKAGE_REMOVED);packages.addAction(Intent.ACTION_PACKAGE_CHANGED);packages.addDataScheme("package");
+        registerReceiver(packageReceiver,packages);
         loadApps();
         loader.execute(()->{try{
             if(new SetupStore(this).shouldOffer(this))main.post(()->{if(!isFinishing() && !isDestroyed())startActivity(new Intent(this,SetupActivity.class));});
@@ -104,7 +109,8 @@ public final class HomeActivity extends Activity {
         TextView view = new TextView(this);
         view.setText(value); view.setTextColor(color);
         view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, px(size));
-        view.setTypeface(Typeface.create(chinese ? Typeface.create("sans-serif", Typeface.NORMAL) : outfit, weight, false));
+        Typeface base=chinese ? Typeface.create("sans-serif", Typeface.NORMAL) : outfit;
+        view.setTypeface(Build.VERSION.SDK_INT>=28?Typeface.create(base,weight,false):Typeface.create(base,weight>=600?Typeface.BOLD:Typeface.NORMAL));
         view.setIncludeFontPadding(false);
         return view;
     }
@@ -234,8 +240,6 @@ public final class HomeActivity extends Activity {
         super.onResume(); resumed=true;
         IntentFilter time=new IntentFilter(Intent.ACTION_TIME_TICK);time.addAction(Intent.ACTION_TIME_CHANGED);time.addAction(Intent.ACTION_TIMEZONE_CHANGED);
         registerReceiver(timeReceiver,time);
-        IntentFilter packages=new IntentFilter(Intent.ACTION_PACKAGE_ADDED);packages.addAction(Intent.ACTION_PACKAGE_REMOVED);packages.addAction(Intent.ACTION_PACKAGE_CHANGED);packages.addDataScheme("package");
-        registerReceiver(packageReceiver,packages);
         networkCallback=new ConnectivityManager.NetworkCallback() {
             @Override public void onCapabilitiesChanged(Network n,NetworkCapabilities c){main.post(()->updateNetwork());}
             @Override public void onLost(Network n){main.post(()->updateNetwork());}
@@ -243,18 +247,18 @@ public final class HomeActivity extends Activity {
         ((ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE)).registerDefaultNetworkCallback(networkCallback);
         updateClock();updateNetwork();
         wallpapers.resume();
-        if(ready) loadApps();
+        loadApps();
     }
 
     @Override protected void onPause() {
         resumed=false;saveFocus();wallpapers.pause();
-        unregisterReceiver(timeReceiver);unregisterReceiver(packageReceiver);
+        unregisterReceiver(timeReceiver);
         ((ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE)).unregisterNetworkCallback(networkCallback);
         if(inputPopup!=null) inputPopup.dismiss();
         super.onPause();
     }
 
-    @Override protected void onDestroy(){loader.shutdownNow();wallpapers.destroy();super.onDestroy();}
+    @Override protected void onDestroy(){unregisterReceiver(packageReceiver);loader.shutdownNow();wallpapers.destroy();super.onDestroy();}
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);if(ready)focusCurrent(false);}
 
     private static class App {
@@ -262,9 +266,14 @@ public final class HomeActivity extends Activity {
     }
 
     private void loadApps() {
+        ArrayList<String> currentDock = new DockStore(this).load();
+        if (!currentDock.equals(dockPackages)) appsDirty = true;
+        if (loadingApps || (ready && !appsDirty)) return;
+        loadingApps = true; appsDirty = false;
         dockPackages.clear();dockPackages.addAll(new DockStore(this).load());
         final ArrayList<String> pinned=new ArrayList<>(dockPackages);
         loader.execute(()->{
+            try {
             PackageManager pm=getPackageManager(); LinkedHashMap<String,ResolveInfo> candidates=new LinkedHashMap<>();
             for(String category:new String[]{Intent.CATEGORY_LEANBACK_LAUNCHER,Intent.CATEGORY_LAUNCHER}) {
                 for(ResolveInfo info:pm.queryIntentActivities(new Intent(Intent.ACTION_MAIN).addCategory(category),0)) {
@@ -273,15 +282,22 @@ public final class HomeActivity extends Activity {
                 }
             }
             ArrayList<App> found=new ArrayList<>();
+            HashMap<String,App> freshCache=new HashMap<>();
             for(ResolveInfo info:candidates.values()) {
+                String key=new ComponentName(info.activityInfo.packageName,info.activityInfo.name).flattenToString();
+                try { key += ":" + pm.getPackageInfo(info.activityInfo.packageName,0).lastUpdateTime; }
+                catch (PackageManager.NameNotFoundException e) { continue; }
+                App cached=artworkCache.get(key);
+                if(cached!=null){found.add(cached);freshCache.put(key,cached);continue;}
                 App app=new App();app.pkg=info.activityInfo.packageName;app.label=info.loadLabel(pm).toString();
                 app.component=new ComponentName(app.pkg,info.activityInfo.name);
                 Drawable banner=info.activityInfo.loadBanner(pm);
                 if(banner==null)banner=info.activityInfo.applicationInfo.loadBanner(pm);
                 boolean hasBanner=banner!=null;
                 if(banner==null)banner=info.loadIcon(pm);
-                app.banner=renderBanner(banner,hasBanner);app.color=sampleColor(app.banner);found.add(app);
+                app.banner=renderBanner(banner,hasBanner);app.color=sampleColor(app.banner);found.add(app);freshCache.put(key,app);
             }
+            artworkCache.clear();artworkCache.putAll(freshCache);
             found.sort((a,b)->java.text.Collator.getInstance(Locale.SIMPLIFIED_CHINESE).compare(a.label,b.label));
             App wallpaperApp=new App();wallpaperApp.pkg=WALLPAPER_ENTRY;wallpaperApp.label=tr("壁纸设置","Wallpaper Settings");
             wallpaperApp.banner=wallpapers.entryBanner();wallpaperApp.color=0xff557eac;found.add(0,wallpaperApp);
@@ -301,9 +317,14 @@ public final class HomeActivity extends Activity {
                     row=Math.max(0,Math.min(row,gridRows()));column=Math.min(column,maxColumn(row));
                 }
                 list.setAdapter(new AppAdapter());ready=true;
+                loadingApps=false;
                 main.post(()->focusCurrent(false));
+                if(appsDirty && resumed)loadApps();
                 Log.i(TAG,"Loaded dock="+dock.size()+" apps="+apps.size());
             });
+            } catch (RuntimeException e) {
+                main.post(()->{loadingApps=false;appsDirty=true;Log.w(TAG,"App refresh failed; retaining current tiles",e);});
+            }
         });
     }
 

@@ -27,6 +27,20 @@ public class SetupPolicyTest {
         assertEquals("",HomeController.parseComponent("No activity found\nError: permission denied"));
         assertEquals("example.home/.Main",HomeController.parseComponent("priority=0\nexample.home/.Main\n"));
     }
+    @Test public void chooserAndSetupWizardAreDiagnosedWithoutDisablePermissions() throws Exception {
+        assertEquals("android/com.android.internal.app.ResolverActivity",HomeController.parseComponent("android/com.android.internal.app.ResolverActivity\n"));
+        assertTrue(HomeController.homeProblem("android/com.android.internal.app.ResolverActivity").contains("不会自动禁用"));
+        assertTrue(HomeController.homeProblem("com.google.android.tungsten.setupwraith/.RecoveryActivity").contains("单独适配"));
+        assertEquals("",HomeController.homeProblem("example.home/.Main"));
+    }
+    @Test public void communityReferenceDoesNotGrantDevicePermissions() throws Exception {
+        String reference="{\"model\":\"Other TV\",\"source\":\"https://example.org/report\",\"limitations\":\"unverified\"}";
+        SetupPresets rules=new SetupPresets(RULES.replace("\"devices\":", "\"references\":["+reference+"],\"devices\":"),"Other","TV","other-build");
+        assertFalse(rules.recommended("example.demo"));assertFalse(rules.homeAllows("disableVerified"));
+    }
+    @Test(expected=org.json.JSONException.class) public void referencesCannotSmuggleExecutableRules() throws Exception {
+        new SetupPresets("{\"schema\":1,\"devices\":[],\"references\":[{\"model\":\"TV\",\"source\":\"report\",\"limitations\":\"none\",\"apps\":[]}]}","Other","TV","other");
+    }
     @Test public void cancelledSelectionCannotResumeAfterLateConnection() throws Exception {
         SetupOperations.Ticket confirmed=new SetupOperations.Ticket();confirmed.check();confirmed.cancel();
         assertFalse(confirmed.active());

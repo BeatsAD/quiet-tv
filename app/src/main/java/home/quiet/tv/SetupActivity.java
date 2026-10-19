@@ -43,6 +43,8 @@ public final class SetupActivity extends ManagementUi {
         try{JSONObject record=store.get(),saved=record.optJSONObject("choices");if(saved!=null)for(Iterator<String> it=saved.keys();it.hasNext();){String pkg=it.next();choices.put(pkg,saved.getBoolean(pkg));}
             originalTouched=record.optBoolean("originalTouched");originalChoice=record.optString("originalChoice","KEEP");
             JSONObject run=record.optJSONObject("run");if(run!=null && !"complete".equals(run.optString("state")))notice="上次设置未完成；已重新查询状态，不会自动重放操作。";
+            JSONObject switching=record.optJSONObject("homeSwitch");
+            if(switching!=null && !"complete".equals(switching.optString("state")) && !"rolled-back".equals(switching.optString("state")))notice="上次默认桌面切换未确认；请刷新实际状态，不会自动重试或禁用应用。";
         }catch(Exception e){recordAvailable=false;notice="设置记录无法读取；请先退出并检查记录，未执行任何操作。";}
     }
     @Override protected void onResume(){super.onResume();active=true;refresh();}

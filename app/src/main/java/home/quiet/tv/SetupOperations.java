@@ -25,7 +25,7 @@ final class SetupOperations {
     SetupOperations(Context context,SetupPresets presets){this.context=context;home=new HomeController(context,presets);store=new SetupStore(context);repository=new AppRepository(context);operations=new AppOperations(context,presets);}
     void execute(AdbController adb,List<AppRepository.App> selected,AppRepository.App original,String choice,Ticket ticket,Progress progress) throws Exception {
         if(!RUNNING.compareAndSet(false,true))throw new IOException("已有设置操作正在执行");
-        String id=UUID.randomUUID().toString();boolean begun=false;
+        String id=UUID.randomUUID().toString();boolean begun=false,originalAttempted=false;
         try{
             if(!Arrays.asList("KEEP","DISABLE","UNINSTALL").contains(choice))throw new IOException("原桌面操作选择无效");
             ticket.check();HomeController.State current=home.inspect(adb);
@@ -55,13 +55,34 @@ final class SetupOperations {
                 if(original==null)throw new IOException("原桌面身份未确认");
                 AppOperations.Action action="DISABLE".equals(choice)?AppOperations.Action.DISABLE:AppOperations.Action.UNINSTALL;
                 progress.changed("正在"+action.label+"原桌面");
+                originalAttempted=true;
                 try{String result=operations.perform(adb,original,action,id,ticket,true);store.result(id,original.pkg,action.name(),result);}
                 catch(Exception e){store.result(id,original.pkg,action.name(),"未完成或结果未确认");throw e;}
             }
+            progress.changed("正在核对默认桌面…");
             ticket.check();if(!home.inspect(adb).isOwn(context))throw new IOException("默认桌面状态未确认");
             store.end(id,"complete");store.put("status","complete");
-        }catch(Exception e){if(begun)store.end(id,ticket.active()?"incomplete":"cancelled");throw e;}
+        }catch(Exception e){
+            if(originalAttempted && "DISABLE".equals(choice) && ticket.active() && adb.connected()){
+                try{rollbackOriginal(adb,original,id);}
+                catch(Exception rollback){e.addSuppressed(rollback);store.result(id,original.pkg,"ROLLBACK","恢复未确认，请重新连接查询");}
+            }
+            if(begun)store.end(id,ticket.active()?"incomplete":"cancelled");throw e;
+        }
         finally{RUNNING.set(false);}
+    }
+    private void rollbackOriginal(AdbController adb,AppRepository.App before,String id) throws Exception {
+        adb.validateUser();
+        if(before==null || !before.installed || !before.enabled || !home.presets.home().startsWith(before.pkg+"/")
+                || !home.presets.homeAllows("disableVerified"))throw new IOException("缺少可核验的原桌面恢复基线");
+        AppRepository.App now=repository.find(adb,before.pkg);
+        if(now==null || !now.installed || !now.version.equals(before.version) || now.enabledSetting!=3)return;
+        if(before.enabledSetting!=0 && before.enabledSetting!=1)throw new IOException("原桌面启用基线不明确");
+        adb.shell("pm "+(before.enabledSetting==0?"default-state":"enable")+" --user "+adb.user+" "+before.pkg);
+        AppRepository.App restored=repository.find(adb,before.pkg);
+        if(restored==null || !restored.enabled || restored.enabledSetting!=before.enabledSetting)throw new IOException("原桌面启用状态未恢复");
+        if(!home.inspect(adb).isOwn(context))home.switchToOriginal(adb,home.presets.home());
+        store.result(id,before.pkg,"ROLLBACK","已恢复本次操作前的原桌面启用状态并核对 HOME");
     }
     void restore(AdbController adb,Ticket ticket,Progress progress) throws Exception {
         if(!RUNNING.compareAndSet(false,true))throw new IOException("已有设置操作正在执行");

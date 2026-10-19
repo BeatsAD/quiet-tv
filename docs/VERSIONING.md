@@ -6,9 +6,9 @@
 
 统一安装包名：`quiet-tv_<版本号>_b<构建号>_<构建类型>.apk`。
 
-例如：`quiet-tv_1.1.0_b15_debug.apk`。文件名中的版本号、构建号取自 Gradle 输出元数据，与 APK 内的 `versionName`、`versionCode` 一致，不通过单独重命名冒充新版本。
+例如：`quiet-tv_1.1.0_b23_debug.apk`。文件名中的版本号、构建号取自 Gradle 输出元数据，与 APK 内的 `versionName`、`versionCode` 一致，不通过单独重命名冒充新版本。
 
-唯一版本配置在 `app/build.gradle` 的 `defaultConfig` 中。目前候选为 `versionName '1.1.0'`、`versionCode 15`；关于页改为原生首屏以避免网页引擎首次初始化，许可正文等待视觉状态就绪后整体显示。内部构建号继续用于安装包归档，不在关于页显示。构建、模拟器和真实设备验收分别记录。
+唯一版本配置在 `app/build.gradle` 的 `defaultConfig` 中。当前优化候选为 `versionName '1.1.0'`、`versionCode 23`；关于页改为原生首屏以避免网页引擎首次初始化，许可正文等待视觉状态就绪后整体显示。内部构建号继续用于安装包归档，不在关于页显示。构建、模拟器和真实设备验收分别记录。
 
 | 字段 | 规则 |
 | --- | --- |
@@ -17,8 +17,8 @@
 | 功能版本 | 增加完整功能，例如 `1.0.2 → 1.1.0`。 |
 | 主版本 | 重大改版或不兼容变化，例如 `1.x.x → 2.0.0`。 |
 | 构建号 | 使用正整数，每次交付不同内容的新包必须递增，不回退、不重用；跨版本也继续递增。 |
-| 同版本测试包 | 可保留版本号、递增构建号，例如 `1.1.0_b12 → 1.1.0_b15`。 |
-| 构建类型 | 当前脚本仅构建 `debug`；`release` 保留给配置正式签名后的正式构建，不能把 debug 包改名当作正式包。 |
+| 同版本测试包 | 可保留版本号、递增构建号，例如 `1.1.0_b12 → 1.1.0_b23`。 |
+| 构建类型 | 脚本支持 `debug`、同签名优化验证用 `benchmark` 和需正式签名的 `release`；架构包追加 ABI，API26 实验候选追加 `_api26`。不能将优化测试包称为正式签名稳定版。 |
 
 ## 构建与归档
 
@@ -31,8 +31,8 @@ python3 scripts/build_apk.py --summary "规范安装包版本、命名和归档�
 脚本执行 `:app:assembleDebug` 后，将 APK 归档到 `dist/apk/`，例如：
 
 ```text
-dist/apk/quiet-tv_1.1.0_b15_debug.apk
-dist/apk/quiet-tv_1.1.0_b15_debug.json
+dist/apk/quiet-tv_1.1.0_b23_debug.apk
+dist/apk/quiet-tv_1.1.0_b23_debug.json
 ```
 
 `--summary` 为必填的本次交付变更摘要。JSON 保存版本、构建类型、构建完成时间 `built_at`、APK 文件修改时间、归档时间、字节数、SHA-256、变更摘要，以及归档时的工作区提交和脏状态。
@@ -61,7 +61,7 @@ dist/apk/quiet-tv_1.1.0_b15_debug.json
 
 ```sh
 TV_ADB_BACKEND=python .venv/bin/python scripts/verify_apk.py \
-  dist/apk/quiet-tv_1.1.0_b15_debug.apk
+  dist/apk/quiet-tv_1.1.0_b23_debug.apk
 ```
 
 核对使用 `pm path home.quiet.tv` 返回的实际已安装 APK，比较本地与电视文件的 SHA-256。每次另存带时间戳的 `*.installed-<时间>.json`，包含核对时间、设备、路径、两端哈希和 `matches`；不把安装状态写入不可变的构建归档记录。哈希不一致则返回失败并保留核对记录。
@@ -75,8 +75,12 @@ TV_ADB_BACKEND=python .venv/bin/python scripts/verify_apk.py \
 
 ## English summary
 
-Use `quiet-tv_<versionName>_b<versionCode>_<buildType>.apk`. Versions follow major/minor/patch; increment the global integer `versionCode` for each different delivered build, including test revisions of the same version. `app/build.gradle` is the version source. The historical `1.0/b1` APK retains its actual version; the naming rules started at `1.0.1/b2`. The current candidate build is `1.1.0/b15`, using a native About screen with no WebView startup on entry; the offline license document is shown only after its visual-state callback, and installed package metadata remains authoritative, and physical-device acceptance remains separate.
+Use `quiet-tv_<versionName>_b<versionCode>_<buildType>.apk`. Versions follow major/minor/patch; increment the global integer `versionCode` for each different delivered build, including test revisions of the same version. `app/build.gradle` is the version source. The historical `1.0/b1` APK retains its actual version; the naming rules started at `1.0.1/b2`. The current candidate build is `1.1.0/b23`, using a native About screen with no WebView startup on entry; the offline license document is shown only after its visual-state callback, and installed package metadata remains authoritative, and physical-device acceptance remains separate.
 
 Run `python3 scripts/build_apk.py --summary "Describe the changes"` to build and archive without contacting a TV. Immutable APKs and JSON receipts live in Git-ignored `dist/apk/`. Identical APKs reuse the original receipt; different bytes under an occupied name require a new build number. Receipts include timestamps, SHA-256 and the change summary. Workspace commit/dirty fields describe the archive environment, not proof of an exact source revision. Direct Gradle builds still produce the replaceable `app-debug.apk` intermediate.
 
-`./build-and-install.command --summary "Describe the update"` builds, archives, installs, compares SHA-256, then starts the launcher and captures a screenshot. `scripts/verify_apk.py <archived-apk>` only reads the installed package and creates a separate timestamped installation receipt. A historical match proves only the state at that check. Debug and release builds must remain clearly distinguished; the current scripts only build debug APKs.
+`./build-and-install.command --summary "Describe the update"` builds, archives, installs, compares SHA-256, then starts the launcher and captures a screenshot. `scripts/verify_apk.py <archived-apk>` only reads the installed package and creates a separate timestamped installation receipt. A historical match proves only the state at that check. Debug, benchmark and formally signed release builds remain distinct. ABI and experimental API26 candidates have explicit suffixes; see [optimization notes](OPTIMIZATION.md).
+
+## 优化验证候选
+
+当前代码构建号为 b23。`benchmark` 与 Debug 使用相同测试签名，便于验证保留数据更新；默认最低 API31。优化构建、按架构归档、签名和 API26 实验候选规则见[优化说明](OPTIMIZATION.md)。该候选包含本轮包体、壁纸与首页刷新优化及 HOME 异常保护；未推送或发布，不以旧安装回执表示已安装。

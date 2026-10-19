@@ -87,10 +87,7 @@ final class AdbController implements Closeable {
             status.changed("等待授权 · 请在电视弹窗中允许 QuietTV 的调试连接");
             try{
                 if(!c.connect(60,TimeUnit.SECONDS,false))throw new IOException("授权超时，请确认电视调试已开启并允许连接");
-                // The per-boot id proves this shell belongs to the running TV, even with multiple NICs.
-                String localBoot=new String(java.nio.file.Files.readAllBytes(new File("/proc/sys/kernel/random/boot_id").toPath()),StandardCharsets.UTF_8).trim();
-                String remoteBoot=shell("cat /proc/sys/kernel/random/boot_id").trim();
-                if(!localBoot.equals(remoteBoot))throw new IOException("连接目标不是当前电视，已停止");
+                verifyLocalDevice();
                 if(!shell("id -u").trim().equals("2000"))throw new IOException("连接未获得 shell 身份");
                 user=Integer.parseInt(shell("am get-current-user").trim());
                 if(!android.os.UserHandle.getUserHandleForUid(user*100000).equals(android.os.Process.myUserHandle()))throw new IOException("前台用户已切换，请重新打开应用管理");
@@ -101,6 +98,30 @@ final class AdbController implements Closeable {
             }catch(Exception e){failure=e;disconnect();break;}
         }
         throw new IOException("连接失败："+(failure==null?"本机未开放 TCP ADB":failure.getMessage())+"。请开启电视网络调试，核对端口后重试。",failure);
+    }
+
+    private void verifyLocalDevice() throws Exception {
+        String localBoot;
+        try{localBoot=new String(java.nio.file.Files.readAllBytes(new File("/proc/sys/kernel/random/boot_id").toPath()),StandardCharsets.UTF_8).trim();}
+        catch(IOException unavailable){
+            // Older SELinux policies hide boot_id from apps. A fresh local-file challenge still
+            // rejects accidentally forwarded connections to another device; no model-name fallback.
+            File directory=context.getExternalFilesDir(null);
+            if(directory==null)throw new IOException("无法读取本机标识，且本机校验目录不可用");
+            File marker=File.createTempFile("quiet-adb-probe-",".txt",directory);
+            try{
+                String challenge=UUID.randomUUID().toString()+UUID.randomUUID().toString();
+                try(FileOutputStream out=new FileOutputStream(marker)){out.write(challenge.getBytes(StandardCharsets.UTF_8));out.getFD().sync();}
+                String path="'"+marker.getAbsolutePath().replace("'","'\\''")+"'";
+                if(!challenge.equals(shell("cat "+path).trim()))throw new IOException("连接目标不是当前电视，已停止");
+            }finally{
+                // Exactly the one ephemeral marker created by this attempt; never scan or bulk-clean.
+                if(!marker.delete())android.util.Log.w("QuietTVAdb","Temporary local identity marker retained");
+            }
+            return;
+        }
+        String remoteBoot=shell("cat /proc/sys/kernel/random/boot_id").trim();
+        if(localBoot.isEmpty() || !localBoot.equals(remoteBoot))throw new IOException("连接目标不是当前电视，已停止");
     }
 
     String shell(String command) throws Exception {
