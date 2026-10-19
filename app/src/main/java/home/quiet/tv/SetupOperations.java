@@ -30,6 +30,15 @@ final class SetupOperations {
             if(!Arrays.asList("KEEP","DISABLE","UNINSTALL").contains(choice))throw new IOException("原桌面操作选择无效");
             ticket.check();HomeController.State current=home.inspect(adb);
             if(!current.isOwn(context) || !current.ownUsable)throw new IOException("默认桌面已改变或未确认，请返回第一屏");
+            // Choices may be made before authorization. Validate the entire frozen selection before the first write.
+            if(!selected.isEmpty() || !"KEEP".equals(choice)){
+                adb.validateUser();Map<String,AppRepository.App> actual=new HashMap<>();for(AppRepository.App app:repository.load(adb))actual.put(app.pkg,app);
+                for(AppRepository.App app:selected){AppRepository.App now=actual.get(app.pkg);if(!unchanged(app,now) || !home.presets.recommended(app.pkg) || !operations.actions(now).contains(AppOperations.Action.DISABLE))throw new IOException("应用状态或推荐资格已变化，请重新选择");}
+                if(!"KEEP".equals(choice)){
+                    AppRepository.App now=original==null?null:actual.get(original.pkg);
+                    if(!unchanged(original,now) || !now.installed || !now.enabled || !current.original.startsWith(now.pkg+"/") || !home.presets.homeAllows("DISABLE".equals(choice)?"disableVerified":"uninstallVerified") || ("UNINSTALL".equals(choice) && !home.presets.homeAllows("restoreInstallVerified")))throw new IOException("原桌面状态或操作资格已变化，请重新选择");
+                }
+            }
             home.remember(current);
             JSONArray baseline=new JSONArray();for(AppRepository.App app:selected)baseline.put(state(app));
             store.begin(id,new JSONObject().put("user",adb.connected()?adb.user:android.os.Process.myUid()/100000).put("home",current.actual).put("apps",baseline).put("original",original==null?JSONObject.NULL:state(original)).put("choice",choice));begun=true;
@@ -70,5 +79,6 @@ final class SetupOperations {
         }catch(Exception e){if(begun)store.end(id,"incomplete");throw e;}
         finally{RUNNING.set(false);}
     }
+    private boolean unchanged(AppRepository.App selected,AppRepository.App actual){return selected!=null && actual!=null && actual.metadataKnown && actual.verified && selected.pkg.equals(actual.pkg) && selected.version.equals(actual.version) && selected.system==actual.system && selected.installed==actual.installed && selected.enabled==actual.enabled && selected.enabledSetting==actual.enabledSetting;}
     private JSONObject state(AppRepository.App app) throws JSONException {return new JSONObject().put("package",app.pkg).put("version",app.version).put("installed",app.installed).put("enabled",app.enabled).put("enabledSetting",app.enabledSetting);}
 }

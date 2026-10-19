@@ -68,10 +68,11 @@ abstract class ManagementUi extends Activity {
     EditText input(String text,String hint){EditText edit=new EditText(this);edit.setText(text);edit.setHint(hint);edit.setSingleLine(true);edit.setTextColor(TEXT);edit.setHintTextColor(MUTED);edit.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(14));edit.setPadding(px(14),px(10),px(14),px(10));edit.setBackground(focusSurface(10));return edit;}
     final class Sheet {
         final Dialog dialog=new Dialog(ManagementUi.this);
-        final LinearLayout body=column(),actions=row();
+        final LinearLayout body=column(),actions=row(),box=column();
+        final TextView heading;
         Sheet(String title){
-            dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);LinearLayout box=column();box.setPadding(px(30),px(27),px(30),px(25));box.setBackground(surface(0xff292c33,0xff1b1e24,0x38ffffff,21));
-            TextView heading=center(title,23);box.addView(heading,new LinearLayout.LayoutParams(-1,-2));gap(box,18);
+            dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);box.setPadding(px(30),px(27),px(30),px(25));box.setBackground(surface(0xff292c33,0xff1b1e24,0x38ffffff,21));
+            heading=center(title,23);box.addView(heading,new LinearLayout.LayoutParams(-1,-2));gap(box,18);
             ScrollView scroll=new ScrollView(ManagementUi.this){@Override protected void onMeasure(int w,int h){super.onMeasure(w,View.MeasureSpec.makeMeasureSpec(View.MeasureSpec.getMode(h)==View.MeasureSpec.UNSPECIFIED?px(240):Math.min(px(240),View.MeasureSpec.getSize(h)),View.MeasureSpec.AT_MOST));}};scroll.setFillViewport(false);scroll.addView(body);box.addView(scroll,new LinearLayout.LayoutParams(-1,-2));
             actions.setGravity(Gravity.CENTER);LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,px(42));ap.topMargin=px(24);box.addView(actions,ap);
             dialog.setContentView(box);Window window=dialog.getWindow();window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);window.setDimAmount(.65f);

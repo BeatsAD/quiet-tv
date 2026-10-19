@@ -111,7 +111,7 @@ final class SetupChecks {
     void connectionUi() throws Exception {
         require("ranchu".equals(Build.HARDWARE)||"goldfish".equals(Build.HARDWARE),"Dedicated emulator only");
         String user=shell("am get-current-user"),previous=actualHome(user),disabled=shell("pm list packages -d --user "+user);
-        open();click("连接 ADB 并设置默认桌面");await("本机 ADB 连接");click("无线配对（实验）");await("配对端口");await("配对码");capture("setup-wireless-panel.png");
+        open();click("通过 ADB 设置");await("连接电视");click("连接设置  ›");click("无线配对（实验）");await("配对端口");await("配对码");capture("setup-wireless-panel.png");
         click("传统 TCP");await("传统 TCP ✓");click("取消");await("暂不设置，临时使用");
         require(previous.equals(actualHome(user)),"Closing the connection panel changed HOME");require(disabled.equals(shell("pm list packages -d --user "+user)),"Connection panel changed packages");
     }
