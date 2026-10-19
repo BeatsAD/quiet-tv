@@ -34,4 +34,4 @@
 
 源图标来自 Phosphor Icons 2.1.10（regular），转换为原生 VectorDrawable，无新增依赖。许可见 [PHOSPHOR-LICENSE.txt](PHOSPHOR-LICENSE.txt)。
 
-本轮安装包包含工作区原先已有的首页样式修改；本次 Git 提交只收录改版产生的差异。原 `VERIFICATION.md`、首页三处样式改动及未提交的原型／输出文件保留在工作区。
+当次安装包包含工作区原先已有的首页样式修改，当次 Git 提交只收录改版产生的差异。随后验收记录、首页样式和原型源码已纳入主线；本地输出仍保留并忽略入库。上述 APK 哈希属于该次安装，后续构建与发布状态见 [验收摘要](../VERIFICATION.md#当前记录摘要2026-10-18)。

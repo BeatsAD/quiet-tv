@@ -36,10 +36,10 @@ Android 开发使用 JDK 17、Android SDK platform 36 和 build-tools 36.0.0。�
 python3 scripts/check_contribution.py --base upstream/main
 
 # 修改 Android 代码、资源或 Gradle 配置时：
-./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :management-fixture:assembleDebug :app:testDebugUnitTest --console=plain
+./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :management-fixture:assembleDebug :home-fixture:assembleDebug :app:testDebugUnitTest --console=plain
 ```
 
-当前主分支尚无 Android JVM 单元测试用例，`testDebugUnitTest` 可能显示 `NO-SOURCE`，不能表述为测试用例通过。欢迎补充有实际行为断言的测试；构建成功也不能替代真机验收。
+JVM 测试覆盖设置策略和配对失败处理；Python 离线测试命令为 `python3 -m unittest discover -s scripts/tests -p 'test_*.py'`。CI 编译 instrumentation 测试 APK 与两个辅助模块，不执行设备上的测试；构建成功不能替代真机验收。
 
 仅修改文档时，无需完整构建 Android。Python 语法检查不会执行脚本或联系电视；若修改脚本行为，还需验证实际受影响路径，使用不连接真实设备的测试或样例。
 
@@ -76,7 +76,7 @@ npm run test:sites
 
 This repository is public. Fork it, clone your fork, add `https://github.com/BeatsAD/quiet-tv.git` as `upstream`, and create a descriptive branch from `upstream/main`. Find an issue, comment before starting, and send a PR with its issue link, changes, and reproducible validation. Discuss larger work in [Discussions](https://github.com/BeatsAD/quiet-tv/discussions). Follow the [code of conduct](CODE_OF_CONDUCT.md) and report vulnerabilities privately through [SECURITY.md](SECURITY.md).
 
-Use JDK 17 and Android SDK platform 36 / build-tools 36.0.0. Configure `sdk.dir` in `local.properties` or set `ANDROID_HOME`. Run `python3 scripts/check_contribution.py --base upstream/main` for changed-document links, whitespace, and Python syntax. For Android changes, also run `./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :management-fixture:assembleDebug :app:testDebugUnitTest --console=plain`. There are currently no Android JVM test cases: `NO-SOURCE` is not a passing test suite. Documentation-only changes do not require an Android build.
+Use JDK 17 and Android SDK platform 36 / build-tools 36.0.0. Configure `sdk.dir` in `local.properties` or set `ANDROID_HOME`. Run `python3 scripts/check_contribution.py --base upstream/main` for changed-document links, whitespace, and Python syntax. For Android changes, also run `./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :management-fixture:assembleDebug :home-fixture:assembleDebug :app:testDebugUnitTest --console=plain`. JVM tests cover setup policy and pairing failures. Run offline Python tests with `python3 -m unittest discover -s scripts/tests -p 'test_*.py'`. CI compiles instrumentation APKs and both fixture modules without running device tests. Documentation-only changes do not require an Android build.
 
 For the app-management prototype, run `npm ci`, `npm run build`, and `npm run test:sites` in `prototypes/app-management`. For video source changes, run `npm ci` and `npm run lint` in `recording-edit-9608`; CI does not render video or require private media.
 

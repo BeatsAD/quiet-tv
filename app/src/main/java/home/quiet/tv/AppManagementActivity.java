@@ -14,6 +14,7 @@ public final class AppManagementActivity extends ManagementUi {
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private final ArrayList<AppRepository.App> all=new ArrayList<>(),filtered=new ArrayList<>();
     private AdbController adb;
+    private AdbConnectionPanel connection;
     private AppRepository repository;
     private AppOperations operations;
     private Button status,filterButton,searchButton,queryChip;
@@ -34,6 +35,7 @@ public final class AppManagementActivity extends ManagementUi {
     @Override public void onCreate(Bundle state){
         super.onCreate(state);repository=new AppRepository(this);operations=new AppOperations(this);
         adb=new AdbController(this,value->ui(()->updateConnection(value)));
+        connection=new AdbConnectionPanel(this,adb,worker);
         status=button("●  ADB 未连接",this::connectionPanel);status.setText(dotted("ADB 未连接"));status.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(12));header.addView(status,new LinearLayout.LayoutParams(px(150),px(36)));
         LinearLayout tools=toolbar(false);
         searchButton=iconText("搜索",R.drawable.ic_manage_search,this::searchPanel);tools.addView(searchButton,new LinearLayout.LayoutParams(-2,px(33)));
@@ -52,8 +54,8 @@ public final class AppManagementActivity extends ManagementUi {
     }
     private void ui(Runnable action){runOnUiThread(()->{if(!isDestroyed() && !isFinishing())action.run();});}
     private void updateConnection(String value){connectionState=value;String shortState=adb.connected()?"已连接":value.startsWith("等待授权")?"等待授权":value.startsWith("连接中")?"连接中":value.contains("失败")?"连接失败":"未连接";status.setText(dotted("ADB "+shortState));status.setTextColor(adb.connected()?0xffbacabd:TEXT);status.setContentDescription("ADB "+value);}
-    @Override protected void onResume(){super.onResume();active=true;refresh();}
-    @Override protected void onStop(){active=false;if(!connecting)worker.execute(()->{adb.disconnect();ui(()->updateConnection("未连接"));});super.onStop();}
+    @Override protected void onResume(){super.onResume();active=true;updateConnection(adb.connected()?"已连接":"未连接");refresh();}
+    @Override protected void onStop(){active=false;connection.close();if(!connecting)worker.execute(()->{adb.disconnect();ui(()->updateConnection("未连接"));});super.onStop();}
     @Override protected void onDestroy(){unregisterReceiver(packagesChanged);adb.close();worker.shutdownNow();super.onDestroy();}
     @Override protected void onSaveInstanceState(Bundle state){state.putString("selected",selected);state.putString("query",query);state.putInt("filter",filter);super.onSaveInstanceState(state);}
     private void refresh(){
@@ -68,7 +70,7 @@ public final class AppManagementActivity extends ManagementUi {
         input.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);input.setOnEditorActionListener((v,action,event)->{if(action==android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH){query=input.getText().toString().trim();sheet.dialog.dismiss();applyFilter();focusList();return true;}return false;});sheet.show(input);
     }
     private void chooseFilter(){Sheet sheet=new Sheet("筛选应用");View focus=null;for(int i=0;i<FILTERS.length;i++){final int which=i;Button option=sheet.option(FILTERS[i]+(i==filter?"  ✓":""),()->{filter=which;sheet.dialog.dismiss();applyFilter();focusList();});if(i==filter)focus=option;}sheet.action("取消",sheet.dialog::dismiss);sheet.show(focus);}
-    private void morePanel(){Sheet sheet=new Sheet("更多");Button refresh=sheet.option("刷新应用列表",R.drawable.ic_manage_refresh,()->{sheet.dialog.dismiss();refresh();});sheet.option("操作记录",R.drawable.ic_manage_history,()->{sheet.dialog.dismiss();showHistory();});sheet.action("关闭",sheet.dialog::dismiss);sheet.show(refresh);}
+    private void morePanel(){Sheet sheet=new Sheet("更多");Button refresh=sheet.option("刷新应用列表",R.drawable.ic_manage_refresh,()->{sheet.dialog.dismiss();refresh();});sheet.option("首次设置",()->{sheet.dialog.dismiss();startActivity(new Intent(this,SetupActivity.class));});sheet.option("恢复原桌面",()->{sheet.dialog.dismiss();startActivity(new Intent(this,SetupActivity.class).putExtra("restore",true));});sheet.option("操作记录",R.drawable.ic_manage_history,()->{sheet.dialog.dismiss();showHistory();});sheet.action("关闭",sheet.dialog::dismiss);sheet.show(refresh);}
     private void applyFilter(){
         boolean listFocused=initialFocus || list.hasFocus();filtered.clear();String matchQuery=query.toLowerCase(Locale.ROOT);
         for(AppRepository.App app:all){boolean match=filter==0 || filter==1 && !app.system && app.installed || filter==2 && app.system || filter==3 && app.installed && !app.enabled || filter==4 && app.recoverable;if(match && (app.label.toLowerCase(Locale.ROOT).contains(matchQuery)||app.pkg.toLowerCase(Locale.ROOT).contains(matchQuery)))filtered.add(app);}
@@ -107,14 +109,10 @@ public final class AppManagementActivity extends ManagementUi {
     }
     private void showHistory(){worker.execute(()->{try{String history=operations.history();ui(()->{Sheet sheet=new Sheet("操作记录");TextView text=muted(history,12);text.setLineSpacing(px(5),1);sheet.body.addView(text);Button close=sheet.action("关闭",sheet.dialog::dismiss);sheet.show(close);});}catch(Exception e){ui(()->message(e.getMessage()));}});}
     private void connectionPanel(){
-        if(busy){message(connecting?connectionState:"正在读取或执行操作，请稍候");return;}
-        Sheet sheet=new Sheet("本机 ADB 连接");sheet.text(adb.connected()?"已连接本机 · 当前用户 "+adb.user+"\n"+adb.host:"开启电视开发者选项中的网络／ADB 调试，连接时在电视弹窗允许 Quiet TV。\n仅支持传统 TCP 调试，暂不支持配对码。");gap(sheet.body,16);sheet.body.addView(muted("调试端口",12));gap(sheet.body,8);
-        EditText port=input(String.valueOf(getSharedPreferences("adb",0).getInt("port",5555)),"5555");port.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);sheet.body.addView(port,new LinearLayout.LayoutParams(-1,px(42)));
-        Button cancel=sheet.action("取消",sheet.dialog::dismiss);
-        sheet.action(adb.connected()?"断开连接":"开发者设置",()->{if(adb.connected()){sheet.dialog.dismiss();worker.execute(()->{adb.disconnect();ui(()->{updateConnection("未连接");refresh();});});}else try{startActivity(new Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS));}catch(ActivityNotFoundException e){message("请进入电视设置 → 关于 → 开发者选项，开启调试。");}});
-        sheet.action("连接",()->{int value;try{value=Integer.parseInt(port.getText().toString());if(value<1||value>65535)throw new NumberFormatException();}catch(NumberFormatException e){port.setError("端口必须在 1～65535 之间");return;}getSharedPreferences("adb",0).edit().putInt("port",value).apply();sheet.dialog.dismiss();connect(value);});sheet.show(cancel);
+        if(busy){message("正在读取或执行操作，请稍候");return;}
+        if(adb.connected()){Sheet sheet=new Sheet("本机 ADB 连接");sheet.text("已连接本机 · 当前用户 "+adb.user);Button cancel=sheet.action("取消",sheet.dialog::dismiss);sheet.action("断开连接",()->{sheet.dialog.dismiss();adb.disconnect();updateConnection("未连接");refresh();});sheet.show(cancel);}
+        else connection.show(()->{updateConnection("已连接");refresh();});
     }
-    private void connect(int port){busy=true;connecting=true;renderDetails();worker.execute(()->{try{adb.connect(port);ui(()->{busy=false;connecting=false;if(active)refresh();else worker.execute(adb::disconnect);});}catch(Exception e){ui(()->{busy=false;connecting=false;adbFailure(e);});}});}
     @Override public boolean dispatchKeyEvent(KeyEvent event){
         int key=event.getKeyCode();
         if(event.getAction()==KeyEvent.ACTION_DOWN && list.hasFocus() && key==KeyEvent.KEYCODE_DPAD_RIGHT && firstAction!=null){firstAction.requestFocus();return true;}

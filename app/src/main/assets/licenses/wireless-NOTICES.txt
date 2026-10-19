@@ -1,0 +1,20 @@
+Quiet TV wireless pairing dependencies
+
+spake2-android 2.2.1
+Copyright 2021 Muntashir Al-Islam and upstream contributors.
+License: LGPL-3.0. This APK uses the unmodified Gradle artifact and separate libspake2 shared libraries.
+Corresponding source, submodule references and build scripts:
+https://github.com/MuntashirAkon/spake2-java/tree/2.2.1
+License texts: spake2-LGPL-3.0.txt and spake2-GPL-3.0.txt in this directory.
+The upstream README identifies its Ed25519 source as EdDSA-Java (CC0).
+The Quiet TV source build references this library via Gradle. Users may rebuild/replace the library and rebuild the APK from source; no library modifications are included here.
+
+Conscrypt Android 2.7.0
+License: Apache-2.0; additional notices apply to incorporated native code.
+Source and build scripts: https://github.com/google/conscrypt/tree/2.7.0
+License and notices: conscrypt-LICENSE.txt and conscrypt-NOTICE.txt in this directory.
+
+libadb-android 3.1.1
+Used under its Apache-2.0 licensing option. The upstream pairing protocol is unchanged.
+https://github.com/MuntashirAkon/libadb-android/tree/3.1.1
+The libadb Apache, BSD and MIT texts are also included in this directory.

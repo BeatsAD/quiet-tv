@@ -1,0 +1,6 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'home.quiet.tv.homefixture'
+    compileSdk 36
+    defaultConfig { applicationId 'home.quiet.tv.homefixture'; minSdk 31; targetSdk 31; versionCode 1; versionName '1.0' }
+}

@@ -46,14 +46,17 @@ final class DockChecks {
     }
     void run() throws Exception {
         DockStore store=new DockStore(test.getTargetContext());ArrayList<String> original=store.load();
+        // Occupied-but-unavailable shortcuts are a supported state. Do not require the
+        // emulator owner's saved Dock to happen to contain four entries.
+        java.util.List<String> sample=Arrays.asList("quiet.missing.one","quiet.missing.two","quiet.missing.three","quiet.missing.four");
         try{
             store.save(Collections.emptyList());require(new DockStore(test.getTargetContext()).load().isEmpty(),"Empty Dock re-imported defaults");
             open();capture("dock-empty.png");key(KeyEvent.KEYCODE_DPAD_CENTER);click("home.quiet.tv.fixture");
             require(store.load().equals(Arrays.asList("home.quiet.tv.fixture")),"Add to empty Dock failed");capture("dock-one.png");
             click("位置 1 ·");click("移除快捷入口");require(store.load().isEmpty(),"Remove shortcut failed");
-            for(int count=1;count<=4;count++){store.save(original.subList(0,count));require(new DockStore(test.getTargetContext()).load().equals(original.subList(0,count)),"Dock size "+count+" did not persist");}
+            for(int count=1;count<=4;count++){store.save(sample.subList(0,count));require(new DockStore(test.getTargetContext()).load().equals(sample.subList(0,count)),"Dock size "+count+" did not persist");}
             open();key(KeyEvent.KEYCODE_DPAD_CENTER);click("替换应用");click("home.quiet.tv.fixture");
-            ArrayList<String> replaced=new ArrayList<>(original);replaced.set(0,"home.quiet.tv.fixture");require(store.load().equals(replaced),"Four-slot replacement failed");
+            ArrayList<String> replaced=new ArrayList<>(sample);replaced.set(0,"home.quiet.tv.fixture");require(store.load().equals(replaced),"Four-slot replacement failed");
             click("位置 1 ·");click("左右排序");key(KeyEvent.KEYCODE_DPAD_RIGHT);key(KeyEvent.KEYCODE_DPAD_CENTER);
             Collections.swap(replaced,0,1);require(store.load().equals(replaced),"Reorder save failed");capture("dock-four-sorted.png");
             click("位置 1 ·");click("左右排序");key(KeyEvent.KEYCODE_DPAD_RIGHT);key(KeyEvent.KEYCODE_BACK);
