@@ -10,14 +10,14 @@
 | Topics | android-tv, google-tv, adb, launcher, chinese, sony, tv-customization |
 | Dependabot alerts | 已启用 / Enabled |
 | 依赖版本检查 / Dependency update checks | Gradle、pip 和 Actions 每月检查，人工合入 / Monthly Gradle, pip, and Actions checks; manual merge |
-| 主分支保护 / Main protection | 未启用；公开后 API 读回 protected: false / Not enabled; API confirms protected: false |
+| 主分支保护 / Main protection | 已启用；API 读回 protected: true / Enabled; API confirms protected: true |
 | 私密漏洞报告 / Private vulnerability reporting | 已启用；API 读回 enabled: true / Enabled; API confirms enabled: true |
 
 ## 主分支维护 / Maintaining main
 
-当前使用功能分支和 PR 约定维护。目标保护规则为：通过 PR 合入、解决讨论、禁止强推与删除 main；个人维护时不强制要求另一位审批人。后续需实际配置并读回规则，在此之前不要把本文件当作服务器保护。
+GitHub 已启用并读回 main 分支保护：变更必须通过 PR 合入、解决全部讨论，禁止强推和删除 main，管理员同样受规则约束。个人维护不强制要求另一位审批人（必需批准数为 0）；新增提交会撤销过时的批准。目前未设置必需状态检查。
 
-Use feature branches and PRs by convention. Intended rules require PRs and resolved conversations, and prevent force pushes and deletion of main. Solo maintenance does not require another reviewer. Configure and read back rules before claiming enforcement; this document does not enforce them.
+GitHub main-branch protection is enabled and verified through the API. Changes require a PR and resolved conversations; force pushes and deletion are blocked, including for administrators. Solo maintenance requires zero approving reviews; new commits dismiss stale approvals. No required status checks are configured.
 
 [GitHub 分支保护说明 / Branch protection](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches)。
 
