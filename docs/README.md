@@ -25,7 +25,7 @@
 这些文档记录不同开发阶段；以当前源码、明确版本的发布说明及对应证据为准，不将方案或历史截图视作全部功能已验收。
 These documents describe different development stages. Plans and historical screenshots do not establish acceptance of every feature.
 
-- 首次设置：[开发方案](SETUP_DEVELOPMENT_PLAN.md) · [焦点修复方案](SETUP_FOCUS_REPAIR_PLAN.md) · [验证记录](SETUP_VERIFICATION.md)
+- 首次设置：[开发方案](SETUP_DEVELOPMENT_PLAN.md) · [已确认的交互基线](SETUP_PROTOTYPE_DESIGN.md) · [焦点修复方案](SETUP_FOCUS_REPAIR_PLAN.md) · [验证记录](SETUP_VERIFICATION.md)
 - 关于页：[开发方案](ABOUT_DEVELOPMENT_PLAN.md) · [验证记录](ABOUT_VERIFICATION.md)
 - [应用管理设计](MANAGEMENT_REDESIGN.md) · [历史整机验收](../VERIFICATION.md)
 - [索尼实施记录](DEVICE_NOTES.zh-CN.md) · [截图与展示素材来源](assets/README.md)
@@ -36,11 +36,10 @@ These documents describe different development stages. Plans and historical scre
 | --- | --- |
 | [app](../app/) | Android 原生应用与测试 / Native app and tests |
 | [scripts](../scripts/) | 构建、离线检查及显式设备操作工具 / Build, offline checks, and explicit device tools |
-| [prototypes](../prototypes/) | 交互原型及关于页打包输入 / Interaction prototypes and About bundle inputs |
-| [tools/video-preview](../tools/video-preview/) | 视频剪辑源码与本地预览 / Video edit source and local preview |
+| [prototypes/about](../prototypes/about/) | APK 关于页和离线许可的打包输入 / APK About and offline-license bundle inputs |
 | [management-fixture](../management-fixture/) / [home-fixture](../home-fixture/) | 设备测试辅助模块 / Device-test fixture modules |
 | [gradle](../gradle/) / [.github](../.github/) | 构建工具、安全约束及协作自动化 / Build tooling and collaboration automation |
 
-`device.json`、偏好、包清单、恢复记录以及 `backups/`、`evidence/`、`inspection/`、`output/` 和构建产物仅在本地保存。新克隆不包含实际设备基线；样例不能作为目标设备的恢复记录。
+`device.json`、偏好、包清单、恢复记录以及 `backups/`、`evidence/`、`inspection/`、`output/` 和构建产物仅在本地保存。独立网页演示、宣传视频、图片生成提示词和旧原型截图也已停止跟踪；已确认的设置交互基线保存在文档中。新克隆不包含实际设备基线；样例不能作为目标设备的恢复记录。
 
-Device configuration, preferences, inventories, recovery journals, backups, evidence, inspection output, and build artifacts stay local. A fresh clone has no real device baseline. Examples are not recovery records for a target TV.
+Device configuration, preferences, inventories, recovery journals, backups, evidence, inspection output, and build artifacts stay local. Standalone demos, promotional video work, generation prompts, and old prototype captures are also untracked; the confirmed setup interaction design remains in the documentation. A fresh clone has no real device baseline. Examples are not recovery records for a target TV.

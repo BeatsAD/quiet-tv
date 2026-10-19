@@ -62,26 +62,3 @@ jobs:
       - name: Build Android and run available JVM tests
         if: steps.scope.outputs.android == 'true'
         run: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :management-fixture:assembleDebug :home-fixture:assembleDebug :app:testDebugUnitTest --console=plain
-      - name: Set up Node
-        if: steps.scope.outputs.prototype == 'true' || steps.scope.outputs.video == 'true'
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: '22'
-      - name: Install prototype dependencies
-        if: steps.scope.outputs.prototype == 'true'
-        working-directory: prototypes/app-management
-        run: npm ci
-      - name: Test and build prototype
-        if: steps.scope.outputs.prototype == 'true'
-        working-directory: prototypes/app-management
-        run: |
-          npm run build
-          npm run test:sites
-      - name: Install video project dependencies
-        if: steps.scope.outputs.video == 'true'
-        working-directory: tools/video-preview
-        run: npm ci
-      - name: Check video project source
-        if: steps.scope.outputs.video == 'true'
-        working-directory: tools/video-preview
-        run: npm run lint
