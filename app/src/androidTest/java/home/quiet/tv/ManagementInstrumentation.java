@@ -14,6 +14,10 @@ public final class ManagementInstrumentation extends Instrumentation {
             try{new AboutChecks(this).run();result.putString("stream","PASS: About installed metadata / remote entry / offline QR and licenses / external-link fallback / HOME focus restoration\n");finish(-1,result);}
             catch(Throwable e){android.util.Log.e("QuietTVAboutChecks","About failed",e);result.putString("stream","FAIL: "+e+"\n");finish(0,result);}return;
         }
+        if("setup-focus".equals(scenario)){
+            try{new SetupFocusChecks(this).run();result.putString("stream","PASS: continuous remote paths / visible outer focus rings / readonly original options and cards / empty and mixed grids / modal focus and return / actual HOME unchanged\n");finish(-1,result);}
+            catch(Throwable e){android.util.Log.e("QuietTVChecks","Setup focus failed",e);result.putString("stream","FAIL: "+e+"\n");finish(0,result);}return;
+        }
         if("setup-prototype".equals(scenario)){
             try{new SetupPrototypeChecks(this).run();result.putString("stream","PASS: real native setup entry / anonymous fixed preview independent of Dock and wallpaper / all enabled controls D-pad reachable / remote numeric input and focus restore / selection before authorization / cancellation / actual TCP continuation; emulator HOME and package baseline restored\n");finish(-1,result);}
             catch(Throwable e){android.util.Log.e("QuietTVChecks","Setup prototype failed",e);result.putString("stream","FAIL: "+e+"\n");finish(0,result);}return;

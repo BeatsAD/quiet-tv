@@ -76,6 +76,7 @@ final class AdbConnectionPanel {
             int pairingPort=needsPair?parse(pairPort):-1;if(needsPair && pairingPort<0)return;
             if(wireless)ui.getSharedPreferences("adb",0).edit().putString("tlsPort",String.valueOf(connectionPort)).apply();else ui.getSharedPreferences("adb",0).edit().putInt("port",connectionPort).apply();
             working=true;if(setup!=null)connect.setText("正在连接…");if(discovery!=null)discovery.close();settings.setEnabled(false);connect.setEnabled(false);port.setEnabled(false);pairPort.setEnabled(false);code.setEnabled(false);code.setText("");status.setText(needsPair?"正在配对，取消会关闭连接…":"正在连接并核对本机身份…");
+            if(setup!=null){android.view.View cancel=sheet.dialog.getWindow().getDecorView().findViewWithTag("close-dialog");if(cancel!=null)cancel.requestFocus();}
             worker.execute(()->{try{
                 attempt.check();if(needsPair){adb.pair(pairingPort,secret);attempt.check();}adb.connect(connectionPort);attempt.check();
                 ui.runOnUiThread(()->{if(!attempt.active() || ui.isFinishing() || ui.isDestroyed())return;complete=true;sheet.dialog.dismiss();panel=null;connected.run();});

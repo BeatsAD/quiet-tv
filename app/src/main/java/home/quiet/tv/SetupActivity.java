@@ -28,6 +28,12 @@ public final class SetupActivity extends ManagementUi {
     private boolean originalTouched,busy,active,recovery,roleCancelled,recordAvailable=true;
     private int screen;
     private LinearLayout page,steps;
+    private SetupFocus focusOutline;
+    private TextView originalDetail;
+    private int renderedScreen=-1,renderGeneration;
+    private boolean renderedRecovery;
+    private String lastHome="",lastCard="",lastBottom="",lastMain="";
+    private final ArrayList<View> mainControls=new ArrayList<>(),homeControls=new ArrayList<>(),cardControls=new ArrayList<>(),bottomControls=new ArrayList<>(),footerControls=new ArrayList<>();
 
     @Override public void onCreate(Bundle state){
         super.onCreate(state);home=new HomeController(this);store=new SetupStore(this);repository=new AppRepository(this);operations=new AppOperations(this);
@@ -66,6 +72,74 @@ public final class SetupActivity extends ManagementUi {
         if(!recordAvailable || homeState==null || !homeState.isOwn(this) || !homeState.ownUsable || original==null || !original.metadataKnown || !original.installed || !original.enabled)return false;
         return home.presets.homeAllows("DISABLE".equals(action)?"disableVerified":"uninstallVerified") && (!"UNINSTALL".equals(action) || home.presets.homeAllows("restoreInstallVerified"));
     }
+    private String originalReason(String action){
+        if("KEEP".equals(action))return original==null?"保持原桌面当前状态":!original.installed?"保持原桌面当前未安装状态":!original.enabled?"保持原桌面当前已禁用状态":"保持原桌面当前状态";
+        if(!recordAvailable)return "设置记录无法读取，暂不能执行";
+        if(homeState==null || !homeState.isOwn(this))return "请先将 Quiet TV 设为实际默认桌面";
+        if(!homeState.ownUsable)return "Quiet TV 桌面组件不可用";
+        if(original==null || !original.metadataKnown)return "原桌面身份未确认";
+        if("UNINSTALL".equals(action) && (!home.presets.homeAllows("uninstallVerified") || !home.presets.homeAllows("restoreInstallVerified")))return "当前设备尚未开放原桌面卸载";
+        if(!original.installed)return "原桌面未安装，保持当前状态";
+        if(!original.enabled)return "DISABLE".equals(action)?"原桌面已禁用，无需重复禁用":"原桌面已禁用，当前流程不执行卸载";
+        if(!home.presets.homeAllows("disableVerified") && "DISABLE".equals(action))return "当前设备尚未开放原桌面禁用";
+        return "UNINSTALL".equals(action)?"卸载将删除当前用户数据":"禁用保留安装和数据";
+    }
+    private String recommendReason(AppRepository.App app){
+        if(!recordAvailable)return "设置记录无法读取，暂不能执行";
+        if(!app.installed || !app.enabled)return app.state();
+        if(!app.metadataKnown)return "应用信息未确认";
+        String protection=operations.protection(app);return protection.isEmpty()?"当前设备未开放此操作":protection;
+    }
+    private void focused(View view){
+        String tag=String.valueOf(view.getTag());
+        if(tag.startsWith("home-")){lastHome=tag;if(originalDetail!=null)originalDetail.setText(originalReason(tag.substring(5)));}
+        else if(tag.startsWith("app-"))lastCard=tag;
+        else if(bottomControls.contains(view))lastBottom=tag;
+        else if(mainControls.contains(view))lastMain=tag;
+    }
+    private void collectControls(View view){
+        if(view.isFocusable() && view.isEnabled() && view.getTag() instanceof String){String tag=(String)view.getTag();
+            if(tag.startsWith("home-"))homeControls.add(view);
+            else if(tag.startsWith("app-"))cardControls.add(view);
+            else if("inventory".equals(tag)||"skip".equals(tag)||(!busy&&!recovery&&screen==1&&"primary".equals(tag)))bottomControls.add(view);
+            else if("back".equals(tag)||"temporary".equals(tag)||(!recovery&&"exit".equals(tag)))footerControls.add(view);
+            else if(view instanceof Button)mainControls.add(view);
+        }
+        if(view instanceof ViewGroup){ViewGroup group=(ViewGroup)view;for(int i=0;i<group.getChildCount();i++)collectControls(group.getChildAt(i));}
+    }
+    private View remembered(ArrayList<View> group,String tag,int fallback){
+        for(View view:group)if(tag.equals(view.getTag()))return view;
+        return group.isEmpty()?null:group.get(Math.max(0,Math.min(group.size()-1,fallback)));
+    }
+    private View initialFocus(){
+        if(!busy && !recovery && screen==1)return remembered(homeControls,"home-"+originalChoice,0);
+        View primary=root.findViewWithTag("primary"),refresh=root.findViewWithTag("refresh");
+        if(mainControls.contains(primary))return primary;if(mainControls.contains(refresh))return refresh;return remembered(mainControls,"",0);
+    }
+    private View destination(View source,int key){
+        int index=homeControls.indexOf(source);boolean left=key==KeyEvent.KEYCODE_DPAD_LEFT,right=key==KeyEvent.KEYCODE_DPAD_RIGHT,up=key==KeyEvent.KEYCODE_DPAD_UP;
+        if(index>=0){if(left||right)return remembered(homeControls,"",index+(left?-1:1));if(up)return source;return cardControls.isEmpty()?remembered(bottomControls,lastBottom,2):remembered(cardControls,lastCard,index==0?0:1);}
+        index=cardControls.indexOf(source);
+        if(index>=0){if(left||right){int next=index+(left?-1:1);return next>=0 && next<cardControls.size() && next/2==index/2?cardControls.get(next):source;}
+            if(up)return index>=2?cardControls.get(index-2):remembered(homeControls,lastHome,0);
+            return index+2<cardControls.size()?cardControls.get(index+2):remembered(bottomControls,"",index%2==0?0:2);}
+        index=bottomControls.indexOf(source);
+        if(index>=0){if(left||right)return remembered(bottomControls,"",index+(left?-1:1));if(up)return cardControls.isEmpty()?remembered(homeControls,lastHome,0):remembered(cardControls,lastCard,cardControls.size()-1);return remembered(footerControls,"",0);}
+        index=mainControls.indexOf(source);
+        if(index>=0){if(left||right)return source;if(up)return remembered(mainControls,"",index-1);return index+1<mainControls.size()?mainControls.get(index+1):remembered(footerControls,"",0);}
+        index=footerControls.indexOf(source);
+        if(index>=0){if(left||right)return remembered(footerControls,"",index+(left?-1:1));if(up)return !bottomControls.isEmpty()?remembered(bottomControls,lastBottom,2):remembered(mainControls,lastMain,0);return source;}
+        return initialFocus();
+    }
+    @Override public boolean dispatchKeyEvent(KeyEvent event){
+        int key=event.getKeyCode();
+        if(key==KeyEvent.KEYCODE_DPAD_LEFT || key==KeyEvent.KEYCODE_DPAD_RIGHT || key==KeyEvent.KEYCODE_DPAD_UP || key==KeyEvent.KEYCODE_DPAD_DOWN){
+            if(event.getAction()==KeyEvent.ACTION_DOWN){View source=getCurrentFocus(),next=source==null?initialFocus():destination(source,key);if(next!=null)next.requestFocus();}return true;
+        }
+        return super.dispatchKeyEvent(event);
+    }
+    @Override Button button(String text,Runnable action){Button b=super.button(text,action);b.setFocusableInTouchMode(true);b.setBackground(surface(0x10ffffff,0x06ffffff,0x22ffffff,24));return b;}
+    @Override EditText input(String text,String hint){EditText edit=super.input(text,hint);edit.setBackground(surface(0x10ffffff,0x06ffffff,0x22ffffff,10));return edit;}
     private void persist(){try{JSONObject saved=new JSONObject();for(Map.Entry<String,Boolean> value:choices.entrySet())saved.put(value.getKey(),value.getValue());store.put("choices",saved);store.put("originalChoice",originalChoice);store.put("originalTouched",originalTouched);}catch(Exception e){notice="选择未保存："+e.getMessage();}}
     private Button action(LinearLayout parent,String text,String tag,Runnable run,boolean enabled){Button button=button(text,run);button.setTag(tag);button.setEnabled(enabled);button.setAlpha(enabled?1f:.42f);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,px(40));p.bottomMargin=px(10);parent.addView(button,p);return button;}
     // The setup has its own composition; the existing application manager keeps its surface unchanged.
@@ -82,29 +156,34 @@ public final class SetupActivity extends ManagementUi {
         View shade=new View(this);shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,new int[]{0xed080d15,0xe80a0e16,0xdd0e121a}));stage.addView(shade,new FrameLayout.LayoutParams(-1,-1));
         root=column();root.setPadding(px(51),px(29),px(51),px(19));stage.addView(root,new FrameLayout.LayoutParams(-1,-1));
         header=row();header.addView(glyph(R.drawable.ic_manage_apps,17));TextView brand=label("Quiet TV",14);brand.setPadding(px(9),0,0,0);header.addView(brand);root.addView(header,new LinearLayout.LayoutParams(-1,px(27)));
+        if(focusOutline==null)focusOutline=new SetupFocus(stage,unit,this::focused);
     }
     private ImageView glyph(int resource,int size){ImageView image=new ImageView(this);image.setImageResource(resource);image.setColorFilter(0xffc8cfd8);image.setLayoutParams(new LinearLayout.LayoutParams(px(size),px(size)));return image;}
     Button setupButton(String text,String tag,Runnable run,boolean primary){
         Button b=button(text,run);b.setTag(tag);b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(12));
-        if(primary){StateListDrawable bg=new StateListDrawable();bg.addState(new int[]{android.R.attr.state_focused},surface(0xfff5f6f8,0xffe8ebee,0xffffffff,24));bg.addState(new int[]{},surface(0xffe8ebee,0xffe0e4e9,0xfff4f5f7,24));b.setBackground(bg);b.setTextColor(0xff1e242c);}
+        if(primary){b.setBackground(surface(0xffe8ebee,0xffe0e4e9,0xfff4f5f7,24));b.setTextColor(0xff1e242c);}
         return b;
     }
     Sheet setupSheet(String title){
         Sheet sheet=new Sheet(title);sheet.box.setBackground(surface(0xff20252d,0xff171e27,0x30ffffff,17));sheet.heading.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(20));
-        FrameLayout frame=new FrameLayout(this);((android.view.ViewGroup)sheet.box.getParent()).removeView(sheet.box);frame.addView(sheet.box,new FrameLayout.LayoutParams(-1,-2));Button close=textButton("×","close-dialog",sheet.dialog::dismiss);close.setContentDescription("取消");FrameLayout.LayoutParams cp=new FrameLayout.LayoutParams(px(28),px(28),Gravity.TOP|Gravity.END);cp.setMargins(0,px(8),px(8),0);frame.addView(close,cp);sheet.dialog.setContentView(frame);return sheet;
+        FrameLayout frame=new FrameLayout(this);((android.view.ViewGroup)sheet.box.getParent()).removeView(sheet.box);frame.addView(sheet.box,new FrameLayout.LayoutParams(-1,-2));Button close=textButton("×","close-dialog",sheet.dialog::dismiss);close.setContentDescription("取消");FrameLayout.LayoutParams cp=new FrameLayout.LayoutParams(px(28),px(28),Gravity.TOP|Gravity.END);cp.setMargins(0,px(8),px(8),0);frame.addView(close,cp);sheet.dialog.setContentView(frame);new SetupFocus(frame,unit,null);return sheet;
     }
+    @Override void message(String text){Sheet sheet=setupSheet("提示");sheet.text(text);Button close=sheet.action("确定",sheet.dialog::dismiss);sheet.show(close);}
     private void buttonIcon(Button button,int resource){Drawable icon=getDrawable(resource);icon.setTint(0xff26303b);icon.setBounds(0,0,px(14),px(14));button.setCompoundDrawables(icon,null,null,null);button.setCompoundDrawablePadding(px(8));}
-    private Button textButton(String text,String tag,Runnable run){Button b=setupButton(text,tag,run,false);StateListDrawable bg=new StateListDrawable();bg.addState(new int[]{android.R.attr.state_focused},surface(0x15ffffff,0x08ffffff,0xfff3f4f7,8));bg.addState(new int[]{},new ColorDrawable(Color.TRANSPARENT));b.setBackground(bg);b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(10));b.setTextColor(0xffa4acb7);b.setPadding(px(6),0,px(6),0);return b;}
+    private Button textButton(String text,String tag,Runnable run){Button b=setupButton(text,tag,run,false);b.setBackground(new ColorDrawable(Color.TRANSPARENT));b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(10));b.setTextColor(0xffa4acb7);b.setPadding(px(6),0,px(6),0);return b;}
     private void enable(View view,boolean enabled){view.setEnabled(enabled);view.setAlpha(enabled?1f:.4f);}
     private void render(){
-        if(root==null)return;Object focus=getCurrentFocus()==null?null:getCurrentFocus().getTag();
+        if(root==null)return;Object focus=renderedScreen==screen && renderedRecovery==recovery && getCurrentFocus()!=null?getCurrentFocus().getTag():null;
+        renderedScreen=screen;renderedRecovery=recovery;int generation=++renderGeneration;
+        mainControls.clear();homeControls.clear();cardControls.clear();bottomControls.clear();footerControls.clear();originalDetail=null;
         if(root.getChildCount()>1)root.removeViews(1,root.getChildCount()-1);
         page=column();page.setPadding(px(11),0,px(11),0);LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-1,0,1);bp.topMargin=px(30);root.addView(page,bp);
         if(!notice.isEmpty()){TextView note=muted(notice,11);note.setMaxLines(2);page.addView(note,new LinearLayout.LayoutParams(-1,-2));gap(page,10);}
         if(busy){page.addView(center(progress,18),new LinearLayout.LayoutParams(-1,0,1));action(page,"停止后续操作并退出设置","stop",()->exit(false),true);}
         else if(recovery)renderRecovery(page);else if(screen==0)renderDefault(page);else renderApps(page);
         setupFooter();
-        View restored=focus==null?null:root.findViewWithTag(focus);if(restored!=null && restored.isEnabled() && restored.isFocusable())restored.requestFocus();else{View first=root.findViewWithTag(busy?"stop":"primary");if(first!=null && first.isEnabled())first.requestFocus();}
+        SetupFocus.passiveContainers(root);collectControls(root);
+        root.post(()->{if(generation!=renderGeneration || isFinishing() || isDestroyed())return;View restored=focus==null?null:root.findViewWithTag(focus);if(restored==null || !restored.isEnabled() || !restored.isFocusable())restored=initialFocus();if(restored==null)restored=remembered(footerControls,"",0);if(restored!=null)restored.requestFocus();});
     }
     private void setupFooter(){
         FrameLayout foot=new FrameLayout(this);LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-1,px(32));fp.topMargin=px(12);root.addView(foot,fp);
@@ -132,18 +211,18 @@ public final class SetupActivity extends ManagementUi {
         LinearLayout heading=row();LinearLayout titles=column();titles.addView(muted("02 / 预装应用",10));gap(titles,9);TextView title=label("管理预装应用",27);title.setTag("setup-title");titles.addView(title);heading.addView(titles,new LinearLayout.LayoutParams(0,-2,1));
         TextView count=muted((apps.stream().anyMatch(app->home.presets.recommended(app.pkg))?"推荐预设":"暂无可用推荐")+" · 已选 "+selected().size()+" 项",10);count.setTag("selected-count");heading.addView(count);body.addView(heading,new LinearLayout.LayoutParams(-1,px(50)));gap(body,15);
         LinearLayout factory=row();factory.setTag("factory-choice");factory.setPadding(px(16),px(9),px(12),px(9));factory.setBackground(surface(0x14ffffff,0x08ffffff,0x26ffffff,10));factory.addView(glyph(R.drawable.ic_setup_home,20));
-        LinearLayout info=column();info.addView(label("原桌面",12));gap(info,5);String hint=original==null?"身份未确认，保持当前状态":!original.installed?"已卸载":!original.enabled?"已禁用，保持当前状态":"UNINSTALL".equals(originalChoice)?"卸载将删除当前用户数据":"DISABLE".equals(originalChoice)?"禁用保留安装和数据":"保持当前状态";TextView detail=muted(hint,9);detail.setSingleLine(true);LinearLayout.LayoutParams infop=new LinearLayout.LayoutParams(0,-2,1);infop.leftMargin=px(12);factory.addView(info,infop);info.addView(detail);
+        LinearLayout info=column();info.addView(label("原桌面",12));gap(info,5);String hint=original==null?"身份未确认，保持当前状态":!original.installed?"已卸载":!original.enabled?"已禁用，保持当前状态":"UNINSTALL".equals(originalChoice)?"卸载将删除当前用户数据":"DISABLE".equals(originalChoice)?"禁用保留安装和数据":"保持当前状态";TextView detail=muted(hint,9);originalDetail=detail;detail.setTag("original-reason");detail.setSingleLine(true);detail.setEllipsize(android.text.TextUtils.TruncateAt.END);LinearLayout.LayoutParams infop=new LinearLayout.LayoutParams(0,-2,1);infop.leftMargin=px(12);factory.addView(info,infop);info.addView(detail);
         LinearLayout options=row();options.setTag("factory-options");options.setPadding(px(3),px(3),px(3),px(3));options.setBackground(surface(0x18000000,0x18000000,0x16ffffff,24));
-        for(String value:new String[]{"KEEP","DISABLE","UNINSTALL"}){String text="KEEP".equals(value)?"保留":"DISABLE".equals(value)?"禁用":"卸载";Button option=setupButton(text,"home-"+value,()->{originalTouched=true;originalChoice=value;persist();render();},value.equals(originalChoice));option.setSelected(value.equals(originalChoice));option.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(10));option.setPadding(px(12),0,px(12),0);enable(option,"KEEP".equals(value)||canOriginal(value));options.addView(option,new LinearLayout.LayoutParams(px(55),px(31)));}factory.addView(options);body.addView(factory,new LinearLayout.LayoutParams(-1,px(62)));gap(body,12);
+        for(String value:new String[]{"KEEP","DISABLE","UNINSTALL"}){String text="KEEP".equals(value)?"保留":"DISABLE".equals(value)?"禁用":"卸载";Button option=setupButton(text,"home-"+value,()->{if(!"KEEP".equals(value) && !canOriginal(value)){feedback(originalReason(value));return;}originalTouched=true;originalChoice=value;persist();render();},value.equals(originalChoice));option.setSelected(value.equals(originalChoice));option.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(10));option.setPadding(px(12),0,px(12),0);option.setAlpha("KEEP".equals(value)||canOriginal(value)?1f:.4f);option.setContentDescription(text+" · "+originalReason(value));options.addView(option,new LinearLayout.LayoutParams(px(55),px(31)));}factory.addView(options);body.addView(factory,new LinearLayout.LayoutParams(-1,px(62)));gap(body,12);
         ScrollView scroll=new ScrollView(this);scroll.setClipToPadding(false);scroll.setPadding(px(3),px(3),px(3),px(3));LinearLayout grid=column();grid.setTag("preset-grid");scroll.addView(grid);body.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
         ArrayList<AppRepository.App> shown=new ArrayList<>();for(AppRepository.App app:apps)if(home.presets.recommended(app.pkg))shown.add(app);
         if(shown.isEmpty()){LinearLayout empty=column();empty.setGravity(Gravity.CENTER);empty.addView(glyph(R.drawable.ic_manage_shield,28));gap(empty,14);empty.addView(muted("当前设备暂无已核实的推荐预设",13));gap(empty,9);empty.addView(muted("已识别的预装应用可在完整清单中查看。",10));grid.addView(empty,new LinearLayout.LayoutParams(-1,px(145)));}
-        for(int i=0;i<shown.size();i+=2){LinearLayout pair=row();for(int j=i;j<Math.min(i+2,shown.size());j++){AppRepository.App app=shown.get(j);boolean allowed=canRecommend(app),checked=allowed && Boolean.TRUE.equals(choices.get(app.pkg));LinearLayout card=row();card.setTag("app-"+app.pkg);card.setPadding(px(14),px(6),px(14),px(6));focusable(card,10);card.setFocusable(allowed);card.setAlpha(allowed?1f:.55f);card.setSelected(checked);card.setContentDescription(app.label+(allowed?(checked?" 已选择":" 未选择"):" "+app.state()));card.addView(icon(app.icon,30));LinearLayout text=column();TextView name=label(app.label,12);name.setSingleLine(true);name.setEllipsize(android.text.TextUtils.TruncateAt.END);text.addView(name);if(!allowed){TextView state=muted(app.state(),9);text.addView(state);}LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(0,-2,1);tp.leftMargin=px(12);card.addView(text,tp);TextView check=center(checked?"✓":"",11);check.setTag("check-"+app.pkg);check.setTextColor(0xff26303b);check.setBackground(surface(checked?0xffe1e6ed:0x08ffffff,checked?0xffe1e6ed:0x08ffffff,checked?0xffe1e6ed:0x60ffffff,4));card.addView(check,new LinearLayout.LayoutParams(px(16),px(16)));card.setOnClickListener(v->{if(canRecommend(app)){choices.put(app.pkg,!Boolean.TRUE.equals(choices.get(app.pkg)));persist();render();}});LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,px(51),1);if(j>i)cp.leftMargin=px(12);pair.addView(card,cp);}if(i+1>=shown.size()){View blank=new View(this);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,1,1);p.leftMargin=px(12);pair.addView(blank,p);}LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2);rp.bottomMargin=px(8);grid.addView(pair,rp);}
+        for(int i=0;i<shown.size();i+=2){LinearLayout pair=row();for(int j=i;j<Math.min(i+2,shown.size());j++){AppRepository.App app=shown.get(j);boolean allowed=canRecommend(app),checked=allowed && Boolean.TRUE.equals(choices.get(app.pkg));LinearLayout card=row();card.setTag("app-"+app.pkg);card.setPadding(px(14),px(6),px(14),px(6));focusable(card,10);card.setFocusableInTouchMode(true);StateListDrawable cardBackground=new StateListDrawable();cardBackground.addState(new int[]{android.R.attr.state_selected},surface(0x14ffffff,0x10ffffff,0x1effffff,10));cardBackground.addState(new int[]{},surface(0x10ffffff,0x06ffffff,0x22ffffff,10));card.setBackground(cardBackground);card.setAlpha(allowed?1f:.55f);card.setSelected(checked);card.setContentDescription(app.label+(allowed?(checked?" 已选择":" 未选择"):" "+app.state()));card.addView(icon(app.icon,30));LinearLayout text=column();TextView name=label(app.label,12);name.setSingleLine(true);name.setEllipsize(android.text.TextUtils.TruncateAt.END);text.addView(name);if(!allowed){TextView state=muted(app.state(),9);text.addView(state);}LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(0,-2,1);tp.leftMargin=px(12);card.addView(text,tp);TextView check=center(checked?"✓":"",11);check.setTag("check-"+app.pkg);check.setTextColor(0xff26303b);check.setBackground(surface(checked?0xffe1e6ed:0x08ffffff,checked?0xffe1e6ed:0x08ffffff,checked?0xffe1e6ed:0x60ffffff,4));card.addView(check,new LinearLayout.LayoutParams(px(16),px(16)));card.setOnClickListener(v->{if(canRecommend(app)){choices.put(app.pkg,!Boolean.TRUE.equals(choices.get(app.pkg)));persist();render();}else feedback(app.label+" · "+recommendReason(app));});LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,px(51),1);if(j>i)cp.leftMargin=px(12);pair.addView(card,cp);}if(i+1>=shown.size()){View blank=new View(this);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,1,1);p.leftMargin=px(12);pair.addView(blank,p);}LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2);rp.bottomMargin=px(8);grid.addView(pair,rp);}
         LinearLayout bottom=row();bottom.setPadding(0,px(10),0,0);LinearLayout help=column();help.addView(muted("禁用可恢复，卸载不保留数据。",9));help.addView(textButton("查看全部预装应用","inventory",this::showInventory),new LinearLayout.LayoutParams(-2,px(25)));bottom.addView(help,new LinearLayout.LayoutParams(0,-2,1));
         marginAdd(bottom,textButton("不处理，进入桌面","skip",()->finishSetup("skipped","已进入桌面")),-2,38,10);
         int selected=selected().size();String text=!"KEEP".equals(originalChoice)?("UNINSTALL".equals(originalChoice)?"卸载原桌面并完成":"禁用原桌面并完成"):selected>0?"禁用 "+selected+" 项并完成":"完成设置";Button apply=setupButton(text,"primary",this::confirm,true);buttonIcon(apply,R.drawable.ic_setup_arrow);marginAdd(bottom,apply,-2,38,14);body.addView(bottom,new LinearLayout.LayoutParams(-1,px(58)));
     }
-    private void showInventory(){Sheet sheet=new Sheet("已识别的预装应用");for(AppRepository.App app:apps)if(app.system || home.presets.app(app.pkg)!=null){LinearLayout line=column();line.setPadding(px(8),px(7),px(8),px(7));focusable(line,8);line.addView(label(app.label,12));line.addView(muted(app.state()+" · "+app.pkg,9));sheet.body.addView(line,new LinearLayout.LayoutParams(-1,-2));}Button close=sheet.action("关闭",sheet.dialog::dismiss);sheet.show(close);}
+    private void showInventory(){Sheet sheet=setupSheet("已识别的预装应用");for(AppRepository.App app:apps)if(app.system || home.presets.app(app.pkg)!=null){LinearLayout line=column();line.setPadding(px(8),px(7),px(8),px(7));focusable(line,8);line.setFocusableInTouchMode(true);line.setBackground(surface(0x10ffffff,0x06ffffff,0x22ffffff,8));line.addView(label(app.label,12));line.addView(muted(app.state()+" · "+app.pkg,9));sheet.body.addView(line,new LinearLayout.LayoutParams(-1,-2));}Button close=sheet.action("关闭",sheet.dialog::dismiss);sheet.show(close);}
     private final class HomePreview extends ImageView {
         HomePreview(){super(SetupActivity.this);setTag("home-preview");setBackground(surface(0xff202328,0xff111317,0x30ffffff,13));setClipToOutline(true);
             setContentDescription("Quiet TV 桌面示意图");

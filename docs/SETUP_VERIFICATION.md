@@ -97,3 +97,21 @@ b9 已覆盖安装并核对哈希／HOME／禁用清单／原生设置／个人�
 最终 b10 构建通过，专用模拟器 setup-prototype 再次通过；about 回归检查通过，包含真实版本／构建号、离线二维码与许可、遥控入口及返回焦点。日志：`output/setup-preview-combined-build.log`、`setup-preview-combined-checks.txt`、`setup-preview-combined-about.txt`；截图：`output/setup-preview-final-default.png`、`setup-preview-final-connection.png`。
 
 2026-10-19T19:05:55+08:00（安装核对时间）：最终 b10 已覆盖安装到日用电视，SHA-256 `5c939b123d0c1d6969fd38bafd32b8154e09b7b9d201d62128f3ffff12281597` 与归档一致；安装前 b9 APK 已备份。实际 HOME、禁用包集合、原生设置 JSON 及首页／Dock／壁纸偏好均保持。证据：`evidence/setup-preview-real-install-20261019-190542`；安装回执：`dist/apk/quiet-tv_1.1.0_b10_debug.installed-20261019T190555648785+0800.json`。电视前台仍为视频应用，未切换日用画面或执行真实精简／HOME 切换／重启；真机完整遥控体验与真实操作仍由用户测试，不能将模拟器结果当作实机功能验收。
+
+## 首次设置焦点反馈与导航修复（b14）
+
+2026-10-19，按已确认的焦点方案实施。首次设置专用外框与业务选中状态分离，保留按钮大小和原有布局；外扩间隔和线宽均为 2 个设计单位。页面及每个弹窗独立绘制，焦点、滚动、窗口切换和布局变化时更新。修正弹窗坐标换算，并在焦点回调后安排下一帧重画，避免重绘后外框未出现。
+
+原桌面三项及只读推荐卡片均可聚焦，不可执行项显示实际原因；确定只反馈说明，不持久化无效选择，不进入执行任务。真实 HOME、授权、应用保护及操作预检保持原逻辑。方向键按区域和列移动，三选一边界停留，空列表跳过容器；连接中将焦点移至可取消入口。焦点按稳定 tag 在重绘后恢复。
+
+专用模拟器 `setup-focus` 通过：从页面初始焦点连续输入实际方向键，不依靠逐项程序聚焦作为可达性证明；覆盖 HOME 已设置与未设置、全部只读／部分可操作／六项可操作／空清单、原桌面已禁用／已启用／身份未知、组件不可用时的刷新出口、三项左右边界、只读确定不改变记录、卡片勾选后的焦点恢复、模态弹窗折叠与输入框到达、关闭返回来源。截图像素检查覆盖主按钮、原桌面三项、卡片首末行、完成按钮和弹窗外框；未聚焦控件不显示外框，弹窗打开后背景外框隐藏。
+
+原有 `setup-prototype`、`setup`、`connection-ui` 回归通过，包含实际 TCP 授权继续、取消、陈旧选择拒绝、测试 HOME 禁用及精确恢复、未验收卸载拒绝、无线模式切换。模拟器原有 HOME 为 Quiet TV 且 stock launcher 已禁用；回归期间仅临时布置专用模拟器的 stock HOME，结束后精确还原原 HOME 与禁用清单，不改变日用电视。`about` 回归通过，保留最新只读信息、三个离线二维码和完整许可证。
+
+最终 b14 构建和 Lint 通过（0 错误、21 条警告）；本次未改依赖或复跑无关 JVM 用例。因并行任务共享编译输出曾造成一次增量编译失败，后续构建使用独立输出目录 `output/setup-focus-build/`，未清理或覆盖其他任务产物。最初外框像素失败及测试场景回退假设不符均已修正，最终焦点专项与回归场景分别记录通过。
+
+日志：`output/setup-focus-b14-checks.txt`、`setup-focus-candidate-build.log`、`setup-focus-regression-setup-prototype.txt`、`setup-focus-regression-setup.txt`、`setup-focus-regression-connection-ui.txt`、`setup-focus-about-regression.txt`。截图及按键轨迹：`output/setup-focus-emulator-evidence/`。
+
+b14 已归档，SHA-256 `ec7b21e5e15ffa9f1f90aae03c181b03d7a74993ac2b7eeebf2efe0786dd25b2`。电视覆盖安装前备份 b13，安装后的实际 HOME、禁用包集合、原生设置记录和首页／Dock／壁纸偏好均与安装前一致。安装哈希与归档相同，回执：`dist/apk/quiet-tv_1.1.0_b14_debug.installed-20261019T204612951095+0800.json`。安装证据：`evidence/setup-focus-install-20261019-204601/`。
+
+真机方向键复测已通过：进入预装页初始聚焦“保留”，右移依次到“禁用”“卸载”，继续右移停留在“卸载”；两项不可执行的确定键只显示原因，原生选择记录不变。返回第一屏后，“管理预装应用”获得真实焦点；下到返回、再上回主按钮，均有明确外框。截图 `main-focused.png`／`main-unfocused.png` 与 `disable-focused.png`、`uninstall-focused.png` 已人工检查，完整外框可见；按键轨迹与前后状态在安装证据目录中。实际 HOME、禁用包集合、原生选择、Dock／壁纸在只读复测后保持不变，未执行真实禁用、卸载、恢复或 HOME 切换。电视停留在默认桌面设置页，主按钮已聚焦。这里验证的是电视接收到的 ADB 方向键事件及实际画面，实体遥控器的手感仍请用户复核。
