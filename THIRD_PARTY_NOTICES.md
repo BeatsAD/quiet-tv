@@ -39,6 +39,6 @@ Quiet TV 基于该项目开发，面向国内电视机的适配与应用升级�
 - `1.1.0 / b4` 候选接入无线配对，包含 [spake2-android 2.2.1](https://github.com/MuntashirAkon/spake2-java/tree/2.2.1) 的未修改原生库，采用 LGPL-3.0；版权归 Muntashir Al-Islam 等上游作者。LGPL 与 GPL 文本见 `assets/licenses/spake2-*.txt`。相同版本的完整库源码及构建脚本可从该标签取得；本项目通过 Gradle 引用，保留独立共享库及源码重建／替换路径。上游 Ed25519 实现来源与 CC0 说明见其 README。
 - [Conscrypt 2.7.0](https://github.com/google/conscrypt/tree/2.7.0) 提供 TLS 1.3 与公开密钥导出接口，采用 Apache-2.0；其及内含原生代码的声明随 APK 保存为 `assets/licenses/conscrypt-LICENSE.txt`、`conscrypt-NOTICE.txt`。历史 TCP 版本未包含以上无线依赖。
 
-## Offline setup prototype (b6)
+## Offline setup prototype (b7)
 
 The packaged setup simulation reuses the local React prototype. React, React DOM and Scheduler are MIT licensed; Phosphor Icons React is MIT licensed. Their upstream copyright and license texts are copied without modification from the installed dependency packages into `assets/setup-demo/licenses/` during the prototype build. The coastal wallpaper uses the asset source noted above. The demo app icons and banners are bundled from the existing local prototype for this private device preview; their rights remain with their respective owners. The simulation has no native JavaScript bridge and does not execute ADB or package management operations.
