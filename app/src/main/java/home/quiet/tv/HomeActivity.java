@@ -164,11 +164,15 @@ public final class HomeActivity extends Activity {
         date.setSingleLine(true);date.setGravity(Gravity.CENTER_VERTICAL);
         timeRow.addView(date,new LinearLayout.LayoutParams(-2,-1));
         FrameLayout top = new FrameLayout(this);
-        FrameLayout.LayoutParams topParams=new FrameLayout.LayoutParams(px(348),px(50),Gravity.TOP|Gravity.RIGHT);
+        FrameLayout.LayoutParams topParams=new FrameLayout.LayoutParams(px(444),px(50),Gravity.TOP|Gravity.RIGHT);
         topParams.topMargin=px(67);topParams.rightMargin=px(CONTENT_MARGIN); root.addView(top,topParams);
-        addPill(top, tr("信号源","Inputs"), R.drawable.ic_input, 108, 0, ()->showInputs());
-        network=addPill(top,tr("网络","Network"), R.drawable.ic_ethernet, 108, 120, ()->openSettings(Settings.ACTION_WIFI_SETTINGS));
-        addPill(top,tr("设置","Settings"), R.drawable.ic_settings, 108, 240, ()->openSettings(Settings.ACTION_SETTINGS));
+        addPill(top, tr("信号源","Inputs"), R.drawable.ic_input, 102, 0, ()->showInputs());
+        network=addPill(top,tr("网络","Network"), R.drawable.ic_ethernet, 102, 114, ()->openSettings(Settings.ACTION_WIFI_SETTINGS));
+        addPill(top,tr("设置","Settings"), R.drawable.ic_settings, 102, 228, ()->openSettings(Settings.ACTION_SETTINGS));
+        addPill(top,tr("关于","About"), R.drawable.ic_about, 102, 342, ()->{
+            row=-1;topColumn=pills.size()-1;
+            startActivity(new Intent(this,AboutActivity.class));
+        });
         updateClock(); updateNetwork();
     }
 
@@ -337,7 +341,7 @@ public final class HomeActivity extends Activity {
     }
 
     private int gridRows(){return (apps.size()+3)/4;}
-    private int maxColumn(int r){if(r<0)return 2;if(r==0)return Math.max(0,dock.size()-1);return Math.min(3,apps.size()-(r-1)*4-1);}
+    private int maxColumn(int r){if(r<0)return pills.size()-1;if(r==0)return Math.max(0,dock.size()-1);return Math.min(3,apps.size()-(r-1)*4-1);}
 
     private void saveFocus(){if(row>=0)getPreferences(0).edit().putInt("row",row).putInt("column",column).putString("package",activePackage).apply();}
 
@@ -350,7 +354,7 @@ public final class HomeActivity extends Activity {
             if(event.getAction()==KeyEvent.ACTION_UP)return true;
             if(row<0){
                 if(key==KeyEvent.KEYCODE_DPAD_LEFT)topColumn=Math.max(0,topColumn-1);
-                if(key==KeyEvent.KEYCODE_DPAD_RIGHT)topColumn=Math.min(2,topColumn+1);
+                if(key==KeyEvent.KEYCODE_DPAD_RIGHT)topColumn=Math.min(pills.size()-1,topColumn+1);
                 if(key==KeyEvent.KEYCODE_DPAD_DOWN){row=0;column=Math.min(restoreColumn,maxColumn(0));}
             }else{
                 if(key==KeyEvent.KEYCODE_DPAD_LEFT)column=Math.max(0,column-1);

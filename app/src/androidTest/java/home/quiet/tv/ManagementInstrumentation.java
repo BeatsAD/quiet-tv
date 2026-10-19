@@ -10,6 +10,10 @@ public final class ManagementInstrumentation extends Instrumentation {
     @Override public void onCreate(Bundle args){super.onCreate(args);scenario=args.getString("scenario","adb");start();}
     @Override public void onStart(){
         Bundle result=new Bundle();
+        if("about".equals(scenario)){
+            try{new AboutChecks(this).run();result.putString("stream","PASS: About installed metadata / remote entry / offline QR and licenses / external-link fallback / HOME focus restoration\n");finish(-1,result);}
+            catch(Throwable e){android.util.Log.e("QuietTVAboutChecks","About failed",e);result.putString("stream","FAIL: "+e+"\n");finish(0,result);}return;
+        }
         if("setup-prototype".equals(scenario)){
             try{new SetupPrototypeChecks(this).run();result.putString("stream","PASS: native prototype split preview / horizontal factory options / two-column presets / disconnected selection / D-pad / cancellation / actual TCP authorization continuation; emulator HOME and package baseline restored\n");finish(-1,result);}
             catch(Throwable e){android.util.Log.e("QuietTVChecks","Setup prototype failed",e);result.putString("stream","FAIL: "+e+"\n");finish(0,result);}return;

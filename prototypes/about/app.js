@@ -14,21 +14,33 @@ function icons(root = document) {
 }
 icons();
 
+const embedded = document.body.classList.contains('embedded');
+if (embedded) {
+  const installed = new URLSearchParams(location.search);
+  $('#app-name').textContent = installed.get('name');
+  $('#version-name').textContent = `版本 ${installed.get('version')}`;
+  $('#version-build').textContent = `构建 ${installed.get('build')} · ${installed.get('debug') === 'true' ? '测试版' : '正式版'}`;
+}
 let currentPage = 'about';
 let lastFocus = $('#source-link');
 let toastTimer;
 function resize() {
-  const full = document.fullscreenElement === $('#viewport');
+  const full = embedded || document.fullscreenElement === $('#viewport');
   const available = full ? innerWidth : Math.min(innerWidth - (innerWidth < 900 ? 24 : 64), 1600);
   const scale = full ? Math.min(innerWidth / 1920, innerHeight / 1080) : available / 1920;
   $('#viewport').style.width = `${1920 * scale}px`;
   $('#viewport').style.height = `${1080 * scale}px`;
   $('#tv').style.transform = `scale(${scale})`;
+  if (embedded) {
+    $('#tv').style.left = `${(innerWidth - 1920 * scale) / 2}px`;
+    $('#tv').style.top = `${(innerHeight - 1080 * scale) / 2}px`;
+  }
 }
 addEventListener('resize', resize);
 document.addEventListener('fullscreenchange', resize);
 resize();
 function showPage(page) {
+  if (embedded && page === 'home') { location.href = 'exit'; return; }
   currentPage = page;
   $('#home').hidden = page !== 'home';
   $('#about').hidden = page !== 'about';
@@ -36,15 +48,17 @@ function showPage(page) {
   (page === 'home' ? $('#entry-about') : $('#source-link')).focus();
 }
 document.querySelectorAll('[data-preview]').forEach(el => el.onclick = () => showPage(el.dataset.preview));
-$('#entry-about').onclick = () => showPage('about');
 $('#back-home').onclick = () => showPage('home');
-$('#fullscreen').onclick = async () => {
+if (!embedded) {
+  $('#entry-about').onclick = () => showPage('about');
+  $('#fullscreen').onclick = async () => {
   try {
     if (document.fullscreenElement) await document.exitFullscreen();
     else await $('#viewport').requestFullscreen();
     lastFocus.focus();
   } catch { toast('当前浏览器暂不支持全屏，请放大预览窗口'); }
-};
+  };
+}
 function toast(message) {
   clearTimeout(toastTimer);
   $('#toast').textContent = message;
@@ -101,3 +115,10 @@ document.querySelectorAll('[data-key]').forEach(el => {
   el.onclick = () => navigate(el.dataset.key);
 });
 $('#source-link').focus();
+if (embedded) window.quietTVAbout = {
+  ready: false,
+  move: navigate,
+  activate: () => navigate('Enter'),
+  focusInitial: () => $('#source-link').focus(),
+  restoreLicense: () => $('#license-link').focus()
+};

@@ -1,6 +1,6 @@
 # Quiet TV「关于」单屏设计
 
-状态：设计提案与浏览器交互原型，尚未实施 Android 功能。
+状态：此单屏原型已接入 Android `AboutActivity`。开发与验收见 [开发方案](../../docs/ABOUT_DEVELOPMENT_PLAN.md) 和 [验证记录](../../docs/ABOUT_VERIFICATION.md)；真实电视验收仍单独进行。
 
 ## 入口
 
@@ -32,7 +32,7 @@
 - 开源地址来自仓库 remote；开发者名称、邮箱来自项目现有联系图与提示词。
 - 仓库二维码离线生成；微信和公众号通过 CSS 显示原始 contact-16x9.png 的对应区域，没有重绘。原始图与许可、字体使用仓库相对路径。
 - 本次未核验远程仓库可访问性、手机扫码、真实电视遥控器或当前安装包。
-- 原生实施范围建议为 AboutActivity、HomeActivity 入口与焦点恢复、Manifest 注册及静态资源；本次不改 Android 代码。
+- Android 实现包含 AboutActivity、HomeActivity 入口与焦点恢复、Manifest 注册及从本原型生成的随包资源。页面读取当前安装版本，完整许可离线展示。
 
 ## 预览
 
