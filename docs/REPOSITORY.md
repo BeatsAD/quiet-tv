@@ -33,9 +33,9 @@ GitHub main-branch protection is enabled and verified through the API. Changes r
 
 See [Contributing](../CONTRIBUTING.md) for setup and maintainer participation, and follow the [code of conduct](../CODE_OF_CONDUCT.md). [CODEOWNERS](../.github/CODEOWNERS) currently names only @BeatsAD. Require one approval and code-owner review after a second regular maintainer joins.
 
-`Validate` 会检查差异空白、修改文档的本地文件链接和 Python 语法；Android 变更执行构建及已有 JVM 测试，网页原型变更执行测试和构建，视频源码变更执行 lint 与 TypeScript 检查。当前 Android 没有 JVM 测试用例，NO-SOURCE 不代表测试通过。纯文档修改不构建 Android。CI 不连接电视、不执行系统包操作、不渲染私有视频，也不自动发布 APK。
+`Validate` 会检查差异空白、修改文档的本地文件链接和 Python 语法；Android 变更编译主应用、instrumentation 测试 APK 和辅助模块，并执行已有 JVM 测试，网页原型变更执行测试和构建，视频源码变更执行 lint 与 TypeScript 检查。当前 Android 没有 JVM 测试用例，NO-SOURCE 不代表测试通过。纯文档修改不构建 Android。CI 不连接电视、不执行系统包操作、不渲染私有视频，也不自动发布 APK。
 
-`Validate` checks whitespace, local file links in changed Markdown, and Python syntax. Affected Android, prototype, and video projects run their build/test or lint checks. Android currently has no JVM test cases; NO-SOURCE is not a passing test suite. Docs-only changes skip Android builds. CI never contacts a TV, changes system packages, renders private videos, or publishes APKs.
+`Validate` checks whitespace, local file links in changed Markdown, and Python syntax. Affected Android changes compile the app, instrumentation APK, and fixture module and run available JVM tests; prototype and video projects run their build/test or lint checks. Android currently has no JVM test cases; NO-SOURCE is not a passing test suite. Docs-only changes skip Android builds. CI never contacts a TV, changes system packages, renders private videos, or publishes APKs.
 
 ## 依赖提醒 / Dependency alerts
 
