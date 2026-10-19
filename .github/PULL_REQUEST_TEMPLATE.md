@@ -2,6 +2,8 @@
 
 说明触发场景、原行为和修改后的行为。Describe the trigger and before/after behavior.
 
+关联 Issue / Related issue: #
+
 ## 范围 / Scope
 
 列出涉及的机型、Android 版本、代码或文档范围；涉及系统包时说明原状态与恢复方式。
@@ -9,7 +11,7 @@ List affected devices, Android versions, and code/docs. For package changes, exp
 
 ## 验证 / Validation
 
-列出实际执行的检查及结果；未执行项说明原因。
+列出可复现的实际检查命令及结果；未执行项说明原因。文档修改无需安装到电视。
 List actual checks and results; identify anything not performed.
 
 - 源码／构建 / Source and build:
@@ -23,3 +25,4 @@ List actual checks and results; identify anything not performed.
 - [ ] 文档、兼容性和许可按变更同步 / Relevant docs, compatibility, and notices updated
 - [ ] 没有提交密钥、账号或敏感设备资料 / No keys, accounts, or sensitive device data
 - [ ] 构建通过与真机验收分开描述 / Build and hardware evidence distinguished
+- [ ] 已阅读贡献指南与行为准则 / Contribution guide and code of conduct read

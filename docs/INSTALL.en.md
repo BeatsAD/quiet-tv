@@ -12,7 +12,7 @@ Enable the TV's supported ADB debugging mode on a trusted local network and auth
 
 ## Build from source
 
-Your GitHub account must have access to this private repository.
+The repository is public and can be cloned directly. Read the [contribution guide](../CONTRIBUTING.md) before making changes.
 
 ```sh
 git clone https://github.com/BeatsAD/quiet-tv.git
