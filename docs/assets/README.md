@@ -2,6 +2,7 @@
 
 | 文件 / File | 来源 / Source | 说明 / Notes |
 | --- | --- | --- |
+| [quiet-tv-icon.svg](quiet-tv-icon.svg) | 按用户选定的方案 1「Q 字电视」重建的矢量图标 / Vector reconstruction of selected concept 1 | 深蓝底、雾白 Q 形屏幕、浅蓝尾部；与 Android `launcher_icon.xml` 和关于页内联 SVG 保持相同几何与配色 / Shared geometry and palette across Android and About |
 | [home.png](home.png) | 本地 `evidence/wallpaper-settings-default-blue.png` | Sony KD-65X9000H，2026-10-18，原始 ADB 截图，逐字节复制 / Original ADB capture, copied unchanged |
 | [wallpaper-settings.png](wallpaper-settings.png) | 本地 `evidence/wallpaper-button-compact-picker.png` | 同机型与日期，原始 ADB 截图，逐字节复制 / Same device and date, copied unchanged |
 | [cover.png](cover.png) | 内置 imagegen 工具 / Built-in imagegen | AI 生成的项目品牌插画；不作为设备验证证据 / AI brand illustration, not hardware evidence |
