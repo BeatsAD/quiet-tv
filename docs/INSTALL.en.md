@@ -64,7 +64,7 @@ Other users and vendor restrictions need separate adaptation. Disabling the stoc
 
 ## Helper scripts
 
-Update `device.json` with your target IP and local ADB / SDK paths. Refer to [the example](examples/device.example.json); preserve any active device journal.
+On a fresh clone, follow the [example instructions](examples/README.md) to create an ignored local `device.json` from [the device example](examples/device.example.json), then fill in your own target and ADB / SDK paths. Preserve existing local configuration and journals; do not overwrite them with examples.
 
 ```sh
 python3 -m venv .venv
@@ -85,7 +85,7 @@ The Python backend uses your local `~/.android/adbkey` and its public key. Never
 
 ## Debloating and recovery
 
-Launcher installation does not require system debloating. Included preferences, package lists, `changes.json`, and `backup-current.json` belong to the existing Sony adaptation.
+Launcher installation does not require system debloating. Preferences, package inventories, `changes.json`, and `backup-current.json` are local-only device records, absent from a fresh clone. Public [redacted examples](examples/README.md) describe structure and cannot serve as a recovery baseline.
 
 Git excludes `backups/`, `evidence/`, and `inspection/`. A fresh clone does not contain the original recovery baseline. Do not run `restore.command` on a new clone or another device: it depends on the original backup referenced in `changes.json`. With an existing journal, `scripts/backup.py` preserves the original baseline rather than initializing recovery for a different TV.
 

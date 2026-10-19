@@ -68,6 +68,7 @@ Quiet TV 面向国内 Android 电视的日常使用场景：把常用应用放�
 
 | 我想…… | 查看 |
 | --- | --- |
+| 浏览全部文档与目录职责 | [文档索引](docs/README.md) |
 | 安装桌面、更新 APK 或切回原桌面 | [安装指南](docs/INSTALL.zh-CN.md) |
 | 调整常用应用、壁纸和遥控器操作 | [使用指南](docs/USAGE.zh-CN.md) |
 | 了解机型适配与已验证功能 | [兼容性](docs/COMPATIBILITY.md) · [验收记录](VERIFICATION.md) |

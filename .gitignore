@@ -10,3 +10,12 @@ evidence/
 .DS_Store
 __pycache__/
 *.py[cod]
+
+# Per-device configuration and recovery records stay on this computer.
+/device.json
+/backup-current.json
+/changes.json
+/preferences.json
+/package-inventory.csv
+/PACKAGE-INVENTORY.md
+/.playwright-cli/

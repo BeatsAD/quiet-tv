@@ -1,6 +1,6 @@
 # 真机验收记录
 
-设备：Sony KD-65X9000H / BRAVIA VH1，Android 12 / API 31。局域网 ADB：192.168.124.10:5555。日期：2026-10-18，Asia/Shanghai。
+设备：Sony KD-65X9000H / BRAVIA VH1，Android 12 / API 31。局域网 ADB 地址仅存本地配置。日期：2026-10-18，Asia/Shanghai。
 
 ## 当前记录摘要（2026-10-18）
 

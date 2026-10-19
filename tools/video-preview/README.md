@@ -1,4 +1,4 @@
-# IMG_9608 口播精剪预览
+# Quiet TV 口播视频剪辑预览
 
 原片约 74.29 秒，初剪约 34.87 秒，1080 × 1920、60 fps。保留原声、原速和画面顺序。
 
@@ -20,7 +20,7 @@ npx remotion studio --no-open
 
 打开终端打印的本地地址并选择 `Edited`。点击播放试听；在时间线上选择蓝色片段，可以调整起点、长度和排序。`Original` 可用于对照。
 
-本机素材已复制到 `public/source.mov`，源文件为 `/Users/changwenbin/Downloads/IMG_9608.MOV`。素材不进入 Git；其他电脑运行时需要自行放入同一录制文件。
+原始录制由贡献者自行准备并放到 `public/source.mov`；视频与音轨保持本地，不进入 Git。仅执行源码 lint／TypeScript 检查不需要原始录制。
 
 `src/Composition.tsx` 为可编辑时间线；`edit/timeline.json` 记录本次初剪的源片区间、输出位置和剪辑原因。Studio 后续手动调整以 TSX 为准。
 

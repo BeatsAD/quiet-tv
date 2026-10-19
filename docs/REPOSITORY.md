@@ -37,6 +37,12 @@ See [Contributing](../CONTRIBUTING.md) for setup and maintainer participation, a
 
 `Validate` checks whitespace, local file links in changed Markdown, and Python syntax. Affected Android changes compile the app, instrumentation APK, and fixture module and run available JVM tests; prototype and video projects run their build/test or lint checks. JVM tests cover setup policy and pairing failures; Python tools run offline regression tests. Instrumentation tests are compiled only. Docs-only changes skip Android builds. CI never contacts a TV, changes system packages, renders private videos, or publishes APKs.
 
+## 本地数据与目录 / Local data and directories
+
+[文档索引](README.md)提供目录职责与文档入口，视频工程位于 [tools/video-preview](../tools/video-preview/README.md)。设备配置、偏好、包清单和恢复日志仅保留本地，Git 分发[脱敏样例](examples/README.md)。取消跟踪不会删除本地原件，也不改写已发布的历史提交；新克隆不含目标设备基线。
+
+The [documentation index](README.md) maps the repository. Video source lives in [tools/video-preview](../tools/video-preview/README.md). Device settings, preferences, inventories, and recovery journals stay local; Git distributes [redacted examples](examples/README.md). Untracking preserves local originals and does not rewrite public history. Fresh clones have no device baseline.
+
 ## 依赖提醒 / Dependency alerts
 
 Python 清单由 GitHub 分析。Gradle 依赖需要依赖图提交，工作流只在 main 的相关构建文件变化或手动运行时解析并提交，不安装到电视。该任务使用仓库令牌的 contents: write 以调用依赖图提交 API；默认工作流权限仍为只读。Dependabot 每月提出版本更新 PR，并自动提出可用的安全修复 PR；均不自动合入。

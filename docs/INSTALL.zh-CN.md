@@ -66,7 +66,7 @@ adb -s "$TV_SERIAL" shell input keyevent KEYCODE_HOME
 
 ## 4. 使用本项目辅助脚本
 
-`scripts/tv.py` 从根目录 `device.json` 读取配置。可参考 [device.example.json](examples/device.example.json) 的字段，手动填写你自己的 IP、ADB 和 SDK 路径；不要覆盖仍在使用的设备记录。
+`scripts/tv.py` 从根目录的本地 `device.json` 读取配置。新克隆可按[样例说明](examples/README.md)复制 [device.example.json](examples/device.example.json)，填写自己的 IP、ADB 和 SDK 路径。配置文件被 Git 忽略；已有文件与设备记录必须保留，不用样例覆盖。
 
 ```sh
 python3 -m venv .venv
@@ -87,7 +87,7 @@ TV_ADB_BACKEND=python ./build-and-install.command --summary "说明本次更新�
 
 ## 5. 系统精简与恢复边界
 
-安装桌面不要求先精简系统。`changes.json`、`backup-current.json`、包清单和 `preferences.json` 是已有索尼设备的实施记录，不是通用预设。
+安装桌面不要求先精简系统。`changes.json`、`backup-current.json`、包清单和 `preferences.json` 是仅保留本地的设备实施记录，新克隆不包含这些实际记录。公开仓库仅提供[脱敏结构样例](examples/README.md)，不能作为通用操作预设。
 
 `backups/`、`evidence/`、`inspection/` 被 Git 忽略，新克隆不包含原始设备备份和完整证据。`restore.command` 依赖 `changes.json` 指向的原始备份；新克隆或其他设备不能直接运行它。`scripts/backup.py` 在已有 journal 时会保留原基线，不会自动创建其他设备的新恢复计划。
 

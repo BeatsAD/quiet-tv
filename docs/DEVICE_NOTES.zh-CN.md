@@ -17,7 +17,7 @@
 - **可恢复的系统精简**：根据设备实际包清单与用户选择逐包禁用，保留原安装和数据，并提供恢复记录与脚本。
 - **按机型验证**：保留信号源、网络、系统设置及必要系统组件，分别记录已验证功能和待验收项目。
 
-本项目的改造方式为 Android 应用与 ADB 配置，不刷机、不 root。当前 `device.json`、`preferences.json`、`changes.json` 和包清单对应已适配的索尼设备；在其他电视上使用前，应重新检测设备、备份并确认应用取舍，不能直接套用该设备的禁用或恢复清单。当前机型的详细记录见 [VERIFICATION.md](../VERIFICATION.md)。
+本项目的改造方式为 Android 应用与 ADB 配置，不刷机、不 root。实际 `device.json`、`preferences.json`、`changes.json` 和包清单仅在实施者本地保存，对应已适配的索尼设备；公开仓库提供[脱敏样例](examples/README.md)。在其他电视上使用前，应重新检测设备、备份并确认应用取舍，不能直接套用该设备的禁用或恢复清单。当前机型的详细记录见 [VERIFICATION.md](../VERIFICATION.md)。
 
 ## 项目来源与致谢
 
@@ -29,7 +29,7 @@ Quiet TV 基于 [Gathin23/tv-vibehack](https://github.com/Gathin23/tv-vibehack) 
 
 ## 当前设备和选择
 
-- ADB：`192.168.124.10:5555`，配置见 `device.json`。
+- ADB：目标电视局域网地址与端口（仅存本地配置），配置见 `device.json`。
 - 实机：Sony BRAVIA VH1 / KD-65X9000H，Android 12 / API 31，内存约 3 GB。
 - 系统实际输出 UI 为 1920×1080；物理面板为 3840×2160。保留设备原有显示尺寸与密度设置。
 - 默认 HOME：`home.quiet.tv/.HomeActivity`。
@@ -74,7 +74,7 @@ Dock 最左／最右卡片选中时向内补偿放大与边框占用的空间，
 .venv/bin/python scripts/tv.py shell 'pm enable --user 0 com.ktcp.tvvideo'
 ```
 
-完整分类见 `PACKAGE-INVENTORY.md` 与 `package-inventory.csv`。准确禁用清单以 `changes.json` 为准。
+完整分类、CSV 和变更日志保留在实施者本地，不随新克隆分发。[分类样例](examples/PACKAGE-INVENTORY.example.md)与 [CSV 样例](examples/package-inventory.example.csv)仅说明格式；准确禁用清单以对应目标的本地 `changes.json` 为准。
 
 ## 重新编译并安装
 
