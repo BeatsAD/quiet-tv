@@ -18,5 +18,5 @@ dependencies {
         // TCP only: do not ship the optional native wireless-pairing implementation.
         exclude group: 'com.github.MuntashirAkon.spake2-java', module: 'spake2-android'
     }
-    implementation 'org.bouncycastle:bcpkix-jdk15to18:1.81'
+    implementation 'org.bouncycastle:bcpkix-jdk15to18:1.84'
 }
