@@ -15,3 +15,13 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 2
+  - package-ecosystem: npm
+    directory: /prototypes/app-management
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+  - package-ecosystem: npm
+    directory: /recording-edit-9608
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2

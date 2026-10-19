@@ -12,7 +12,7 @@
 
 ## 2. 获取源码并构建
 
-私密仓库需要你的 GitHub 账号已有访问权限。首次克隆：
+仓库已公开，可直接克隆。参与开发请先阅读[贡献指南](../CONTRIBUTING.md)。首次克隆：
 
 ```sh
 git clone https://github.com/BeatsAD/quiet-tv.git

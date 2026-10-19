@@ -65,6 +65,12 @@ Read the [compatibility details](docs/COMPATIBILITY.md) and [original Chinese ve
 
 The repository, documentation, and test APK downloads are public. Sign in to GitHub to submit feedback.
 
+## Contribute and maintain
+
+Help with native Android features, remote navigation, documentation, translations, device validation, or tests. Start with a [good first issue](https://github.com/BeatsAD/quiet-tv/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22) or [help wanted task](https://github.com/BeatsAD/quiet-tv/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22help%20wanted%22), comment before starting, and submit a PR from your fork.
+
+The [contribution guide](CONTRIBUTING.md) covers setup, checks, and review. Use [Discussions](https://github.com/BeatsAD/quiet-tv/discussions) for questions, larger ideas, or joining ongoing maintenance. Follow our [code of conduct](CODE_OF_CONDUCT.md).
+
 ## Attribution and license
 
 Quiet TV is based on [Gathin23/tv-vibehack](https://github.com/Gathin23/tv-vibehack). Thank you to **Gathin** for the original work. This independently maintained project adapts it for use in China and is not officially affiliated with the upstream project or TV and application brands.

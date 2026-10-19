@@ -1,0 +1,24 @@
+name: 开发任务 / Contribution task
+description: 提出可认领的开发、文档或测试任务 / Propose scoped development, docs, or testing work
+title: "[Task] "
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: 目标与现状 / Goal and current behavior
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: 修改范围与相关文件 / Scope and relevant files
+      description: 说明本任务需要解决的具体问题 / Define the concrete problem this task should solve
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 完成标准与验证方法 / Acceptance and validation
+      description: 区分构建检查与需要硬件的验收，不上传敏感设备资料 / Separate build checks from hardware validation; omit sensitive device details
+    validations:
+      required: true

@@ -3,3 +3,6 @@ contact_links:
   - name: 安全政策 / Security policy
     url: https://github.com/BeatsAD/quiet-tv/blob/main/SECURITY.md
     about: 安全问题请先阅读报告方式，不在普通反馈中披露利用细节 / Read reporting instructions before sharing security details.
+  - name: 问答、方向讨论与维护参与 / Questions and maintainership
+    url: https://github.com/BeatsAD/quiet-tv/discussions
+    about: 使用交流、较大功能和维护意愿请先在 Discussions 讨论 / Discuss usage, larger features, and maintainer responsibilities here.
