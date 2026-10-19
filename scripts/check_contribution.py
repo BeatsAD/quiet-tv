@@ -60,8 +60,6 @@ def main():
                                  or name.startswith('prototypes/about/') for name in project_changes)
                    or 'THIRD_PARTY_NOTICES.md' in changed,
         'python': tooling or any(name.startswith('scripts/') and name.endswith('.py') for name in changed),
-        'prototype': tooling or any(name.startswith('prototypes/app-management/') for name in project_changes),
-        'video': tooling or any(name.startswith('tools/video-preview/') for name in project_changes),
     }
     print('Selected checks:', ', '.join(key for key, enabled in flags.items() if enabled) or 'documentation / Python syntax')
     if os.environ.get('GITHUB_OUTPUT'):

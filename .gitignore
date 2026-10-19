@@ -19,3 +19,12 @@ __pycache__/
 /package-inventory.csv
 /PACKAGE-INVENTORY.md
 /.playwright-cli/
+
+# Local demo, promotional work, and authoring inputs are not APK sources.
+/prototypes/app-management/
+/prototypes/about/qa/
+/tools/video-preview/
+/tools/README.md
+/docs/assets/cover-prompt.txt
+/docs/assets/contact-prompt.txt
+/项目复现提示词.md

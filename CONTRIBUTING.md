@@ -45,15 +45,7 @@ JVM 测试覆盖设置策略和配对失败处理；Python 离线测试命令为
 
 仅修改文档时，无需完整构建 Android。Python 语法检查不会执行脚本或联系电视；若修改脚本行为，还需验证实际受影响路径，使用不连接真实设备的测试或样例。
 
-修改应用管理网页原型时，在 `prototypes/app-management` 下运行：
-
-```sh
-npm ci
-npm run build
-npm run test:sites
-```
-
-修改视频项目源码时，在 `tools/video-preview` 下运行 `npm ci` 和 `npm run lint`。CI 不渲染视频，也不需要私有录制素材；本地播放要求见[视频项目说明](tools/video-preview/README.md)。
+`prototypes/about` 是 APK 关于页和离线许可的构建输入，修改时按 Android 变更检查。独立网页演示、宣传视频和生成提示词只保留本地，已由根目录 `.gitignore` 排除。
 
 ## 修改与验证
 
@@ -80,7 +72,7 @@ This repository is public. Fork it, clone your fork, add `https://github.com/Bea
 
 Use JDK 17 and Android SDK platform 36 / build-tools 36.0.0. Configure `sdk.dir` in `local.properties` or set `ANDROID_HOME`. Run `python3 scripts/check_contribution.py --base upstream/main` for changed-document links, whitespace, and Python syntax. For Android changes, also run `./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :management-fixture:assembleDebug :home-fixture:assembleDebug :app:testDebugUnitTest --console=plain`. JVM tests cover setup policy and pairing failures. Run offline Python tests with `python3 -m unittest discover -s scripts/tests -p 'test_*.py'`. CI compiles instrumentation APKs and both fixture modules without running device tests. Documentation-only changes do not require an Android build.
 
-For the app-management prototype, run `npm ci`, `npm run build`, and `npm run test:sites` in `prototypes/app-management`. For video source changes, run `npm ci` and `npm run lint` in `tools/video-preview`; CI does not render video or require private media.
+`prototypes/about` supplies the APK About page and offline licenses; validate its changes with the Android build. Standalone demos, promotional video work, and generation prompts stay local and are excluded by the root `.gitignore`.
 
 Keep changes scoped, stage explicit paths, and preserve unrelated work and device data. Never use bulk or recursive file deletion or upload keys, accounts, private logs, or backups. Distinguish build, installation, screenshots, playback, recovery, and long-run evidence; mark unperformed checks. Follow [version and APK rules](docs/VERSIONING.md) before delivering an APK, preserve existing archives, and retain upstream and third-party licenses.
 

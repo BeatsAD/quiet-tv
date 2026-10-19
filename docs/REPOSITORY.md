@@ -9,7 +9,7 @@
 | MIT 与上游署名 / License and attribution | 已保留 / Present |
 | Topics | android-tv, google-tv, adb, launcher, chinese, sony, tv-customization |
 | Dependabot alerts | 已启用 / Enabled |
-| 依赖版本检查 / Dependency update checks | Gradle、pip、Actions 与两个 npm 子项目每月检查，人工合入 / Monthly Gradle, pip, Actions, and both npm projects; manual merge |
+| 依赖版本检查 / Dependency update checks | Gradle、pip 与 Actions 每月检查，人工合入 / Monthly Gradle, pip, and Actions; manual merge |
 | 安全更新 PR / Security update PRs | Dependabot 自动提出修复 PR，人工评审合入 / Dependabot security updates enabled; manual review and merge |
 | 密钥扫描与推送保护 / Secret scanning and push protection | 已启用 / Enabled |
 | 交流 / Discussions | 已启用 / Enabled |
@@ -33,15 +33,15 @@ GitHub main-branch protection is enabled and verified through the API. Changes r
 
 See [Contributing](../CONTRIBUTING.md) for setup and maintainer participation, and follow the [code of conduct](../CODE_OF_CONDUCT.md). [CODEOWNERS](../.github/CODEOWNERS) currently names only @BeatsAD. Require one approval and code-owner review after a second regular maintainer joins.
 
-`Validate` 会检查差异空白、修改文档的本地文件链接和 Python 语法；Android 变更编译主应用、instrumentation 测试 APK 和两个辅助模块，并执行已有 JVM 测试，网页原型变更执行测试和构建，视频源码变更执行 lint 与 TypeScript 检查。现有 JVM 测试覆盖设置策略及配对失败处理，Python 工具变更执行离线回归测试；instrumentation 测试仅编译。纯文档修改不构建 Android。CI 不连接电视、不执行系统包操作、不渲染私有视频，也不自动发布 APK。
+`Validate` 会检查差异空白、修改文档的本地文件链接和 Python 语法；Android 变更编译主应用、instrumentation 测试 APK 和两个辅助模块，并执行已有 JVM 测试。现有 JVM 测试覆盖设置策略及配对失败处理，Python 工具变更执行离线回归测试；instrumentation 测试仅编译。纯文档修改不构建 Android。CI 不连接电视、不执行系统包操作，也不自动发布 APK。
 
-`Validate` checks whitespace, local file links in changed Markdown, and Python syntax. Affected Android changes compile the app, instrumentation APK, and fixture module and run available JVM tests; prototype and video projects run their build/test or lint checks. JVM tests cover setup policy and pairing failures; Python tools run offline regression tests. Instrumentation tests are compiled only. Docs-only changes skip Android builds. CI never contacts a TV, changes system packages, renders private videos, or publishes APKs.
+`Validate` checks whitespace, local file links in changed Markdown, and Python syntax. Affected Android changes compile the app, instrumentation APK, and fixture modules and run available JVM tests. JVM tests cover setup policy and pairing failures; Python tools run offline regression tests. Instrumentation tests are compiled only. Docs-only changes skip Android builds. CI never contacts a TV, changes system packages, or publishes APKs.
 
 ## 本地数据与目录 / Local data and directories
 
-[文档索引](README.md)提供目录职责与文档入口，视频工程位于 [tools/video-preview](../tools/video-preview/README.md)。设备配置、偏好、包清单和恢复日志仅保留本地，Git 分发[脱敏样例](examples/README.md)。取消跟踪不会删除本地原件，也不改写已发布的历史提交；新克隆不含目标设备基线。
+[文档索引](README.md)提供目录职责与文档入口。独立网页演示、宣传视频、生成提示词及旧原型截图只保留本地，不再上传；`prototypes/about` 是实际 APK 构建输入，继续跟踪。设备配置、偏好、包清单和恢复日志仅保留本地，Git 分发[脱敏样例](examples/README.md)。取消跟踪不会删除本地原件，也不改写已发布的历史提交；新克隆不含目标设备基线。
 
-The [documentation index](README.md) maps the repository. Video source lives in [tools/video-preview](../tools/video-preview/README.md). Device settings, preferences, inventories, and recovery journals stay local; Git distributes [redacted examples](examples/README.md). Untracking preserves local originals and does not rewrite public history. Fresh clones have no device baseline.
+The [documentation index](README.md) maps the repository. Standalone demos, promotional video work, generation prompts, and old prototype captures stay local. `prototypes/about` remains tracked because the APK build consumes it. Device settings, preferences, inventories, and recovery journals stay local; Git distributes [redacted examples](examples/README.md). Untracking preserves local originals and does not rewrite public history. Fresh clones have no device baseline.
 
 ## 依赖提醒 / Dependency alerts
 
