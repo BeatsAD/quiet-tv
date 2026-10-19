@@ -12,7 +12,7 @@
 | --- | --- |
 | 左侧 | 现有电视图标、Quiet TV、版本 1.1.0、构建 5／测试版。 |
 | 右侧上部：开源项目 | github.com/BeatsAD/quiet-tv、仓库二维码。 |
-| 右侧中部：联系开发者 | WenBin AI LAB、wenbinailab.com、wenbinailab@gmail.com、微信和公众号原始二维码。 |
+| 右侧中部：联系开发者 | WenBin AI LAB、wenbinailab@gmail.com、微信和公众号原始二维码。 |
 | 右侧底部：开源许可与致谢 | MIT 许可链接、tv-vibehack 上游链接、Gathin 署名。 |
 
 删除右侧重复版本入口、问题反馈、宣传语、功能介绍、账号说明及所有详情弹窗。二维码直接可见，不再需要进入联系页面。
@@ -29,7 +29,7 @@
 
 - 名称、图标来自现有 README 与 launcher_icon.xml。
 - 原型版本来自当前 app/build.gradle 的 1.1.0／5／Debug，仅为示例，不证明电视当前安装版本。正式实现应读取当前安装包 PackageInfo 与构建类型。
-- 开源地址来自仓库 remote；开发者名称、网站、邮箱来自项目现有联系图与提示词。
+- 开源地址来自仓库 remote；开发者名称、邮箱来自项目现有联系图与提示词。
 - 仓库二维码离线生成；微信和公众号通过 CSS 显示原始 contact-16x9.png 的对应区域，没有重绘。原始图与许可、字体使用仓库相对路径。
 - 本次未核验远程仓库可访问性、手机扫码、真实电视遥控器或当前安装包。
 - 原生实施范围建议为 AboutActivity、HomeActivity 入口与焦点恢复、Manifest 注册及静态资源；本次不改 Android 代码。

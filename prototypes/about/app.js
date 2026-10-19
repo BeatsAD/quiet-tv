@@ -68,9 +68,8 @@ function navigate(key) {
   if (currentPage === 'about') {
     const routes = {
       'back-home': {ArrowRight: 'source-link', ArrowDown: 'source-link'},
-      'source-link': {ArrowUp: 'back-home', ArrowLeft: 'back-home', ArrowDown: 'website-link'},
-      'website-link': {ArrowUp: 'source-link', ArrowLeft: 'back-home', ArrowDown: 'email-link'},
-      'email-link': {ArrowUp: 'website-link', ArrowLeft: 'back-home', ArrowDown: 'license-link'},
+      'source-link': {ArrowUp: 'back-home', ArrowLeft: 'back-home', ArrowDown: 'email-link'},
+      'email-link': {ArrowUp: 'source-link', ArrowLeft: 'back-home', ArrowDown: 'license-link'},
       'license-link': {ArrowUp: 'email-link', ArrowLeft: 'back-home', ArrowRight: 'upstream-link'},
       'upstream-link': {ArrowUp: 'email-link', ArrowLeft: 'license-link'}
     };
