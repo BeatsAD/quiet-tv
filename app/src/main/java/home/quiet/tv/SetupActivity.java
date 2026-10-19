@@ -144,50 +144,11 @@ public final class SetupActivity extends ManagementUi {
         int selected=selected().size();String text=!"KEEP".equals(originalChoice)?("UNINSTALL".equals(originalChoice)?"卸载原桌面并完成":"禁用原桌面并完成"):selected>0?"禁用 "+selected+" 项并完成":"完成设置";Button apply=setupButton(text,"primary",this::confirm,true);buttonIcon(apply,R.drawable.ic_setup_arrow);marginAdd(bottom,apply,-2,38,14);body.addView(bottom,new LinearLayout.LayoutParams(-1,px(58)));
     }
     private void showInventory(){Sheet sheet=new Sheet("已识别的预装应用");for(AppRepository.App app:apps)if(app.system || home.presets.app(app.pkg)!=null){LinearLayout line=column();line.setPadding(px(8),px(7),px(8),px(7));focusable(line,8);line.addView(label(app.label,12));line.addView(muted(app.state()+" · "+app.pkg,9));sheet.body.addView(line,new LinearLayout.LayoutParams(-1,-2));}Button close=sheet.action("关闭",sheet.dialog::dismiss);sheet.show(close);}
-    private final class HomePreview extends View {
-        private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final class HomePreview extends ImageView {
         HomePreview(){super(SetupActivity.this);setTag("home-preview");setBackground(surface(0xff202328,0xff111317,0x30ffffff,13));setClipToOutline(true);
             setContentDescription("Quiet TV 桌面示意图");
-        }
-        private void block(Canvas canvas,float x,float y,float width,float height,float radius,int color){
-            paint.setColor(color);canvas.drawRoundRect(x,y,x+width,y+height,radius,radius,paint);
-        }
-        @Override protected void onDraw(Canvas canvas){
-            super.onDraw(canvas);canvas.save();canvas.scale(getWidth()/960f,getHeight()/540f);
-            // Same 960 × 540 composition as HomeActivity; abstract content never reads device data.
-            block(canvas,50,38,74,9,4,0xff9b9ea3);
-            paint.setColor(0xffe4e5e7);paint.setTextSize(50);paint.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));
-            canvas.drawText("10:08",50,108,paint);
-            block(canvas,203,75,1,28,0,0xff666a70);
-            block(canvas,220,85,112,8,4,0xff93969c);
-            int[] icons={R.drawable.ic_input,R.drawable.ic_ethernet,R.drawable.ic_settings,R.drawable.ic_about};
-            for(int i=0;i<icons.length;i++){
-                int x=468+114*i;
-                block(canvas,x,67,102,44,22,0x12ffffff);
-                paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(1);block(canvas,x,67,102,44,22,0x36ffffff);paint.setStyle(Paint.Style.FILL);
-                Drawable icon=getDrawable(icons[i]);icon.setTint(0xffb3b6bb);icon.setBounds(x+17,81,x+33,97);icon.draw(canvas);
-                block(canvas,x+42,85,40,7,3.5f,0xff999ca2);
-            }
-            block(canvas,50,302,218,26,7,0xffc6c8cc);
-            float width=(864-36-54)/4f,height=width*203f/360f;
-            block(canvas,48,354,864,height+36,22,0x10ffffff);
-            paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(1);block(canvas,48,354,864,height+36,22,0x32ffffff);paint.setStyle(Paint.Style.FILL);
-            for(int i=0;i<4;i++){
-                float x=66+i*(width+18),y=372;
-                paint.setShader(new LinearGradient(x,y,x+width,y+height,new int[]{0xff3d4148,0xff292d33},null,Shader.TileMode.CLAMP));
-                block(canvas,x,y,width,height,12,Color.WHITE);paint.setShader(null);
-                // Small monochrome geometric marks replace branded application banners.
-                int save=canvas.save();canvas.translate(x+width/2,y+height/2);
-                paint.setColor(i==0?0xffd8dade:0xff989da5);
-                if(i==0){Path play=new Path();play.moveTo(-10,-17);play.lineTo(17,0);play.lineTo(-10,17);play.close();canvas.drawPath(play,paint);}
-                else if(i==1){paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(3);canvas.drawRoundRect(-23,-16,23,16,7,7,paint);canvas.drawLine(-10,-25,-2,-17,paint);canvas.drawLine(10,-25,2,-17,paint);paint.setStyle(Paint.Style.FILL);}
-                else if(i==2){canvas.drawCircle(0,0,18,paint);}
-                else for(int row=0;row<2;row++)for(int col=0;col<2;col++)block(canvas,-18+col*21,-18+row*21,15,15,4,0xff989da5);
-                canvas.restoreToCount(save);
-                if(i==0){paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(3);block(canvas,x-4,y-4,width+8,height+8,16,0xffe6e8eb);paint.setStyle(Paint.Style.FILL);}
-            }
-            block(canvas,415,511,130,5,2.5f,0xff62666d);
-            canvas.restore();
+            setScaleType(ImageView.ScaleType.FIT_CENTER);
+            setImageResource(R.drawable.setup_home_preview);
         }
     }
     private ArrayList<AppRepository.App> selected(){ArrayList<AppRepository.App> result=new ArrayList<>();for(AppRepository.App app:apps)if(Boolean.TRUE.equals(choices.get(app.pkg)) && canRecommend(app))result.add(app);return result;}
