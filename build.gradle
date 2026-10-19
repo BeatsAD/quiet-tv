@@ -1,1 +1,8 @@
 plugins { id 'com.android.application' version '8.12.2' apply false }
+
+// Independent outputs keep concurrent candidates away from the normal build directory.
+allprojects {
+    if (providers.gradleProperty('quietBuildRoot').isPresent()) {
+        layout.buildDirectory.set(file(providers.gradleProperty('quietBuildRoot').get() + '/' + project.name))
+    }
+}

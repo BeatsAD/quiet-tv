@@ -54,9 +54,12 @@ def main():
                   for name in changed)
     project_changes = {name for name in changed if not name.endswith('.md')}
     flags = {
-        'android': tooling or any(name.startswith(('app/', 'management-fixture/', 'gradle/'))
+        'android': tooling or any(name.startswith(('app/', 'management-fixture/', 'home-fixture/', 'gradle/'))
                                  or name in ('build.gradle', 'settings.gradle', 'gradle.properties',
-                                             'gradlew', 'gradlew.bat') for name in project_changes),
+                                             'gradlew', 'gradlew.bat', 'scripts/bundle_about.py', 'LICENSE')
+                                 or name.startswith('prototypes/about/') for name in project_changes)
+                   or 'THIRD_PARTY_NOTICES.md' in changed,
+        'python': tooling or any(name.startswith('scripts/') and name.endswith('.py') for name in changed),
         'prototype': tooling or any(name.startswith('prototypes/app-management/') for name in project_changes),
         'video': tooling or any(name.startswith('recording-edit-9608/') for name in project_changes),
     }

@@ -4,5 +4,6 @@ rootProject.name = 'QuietTV'
 include ':app'
 
 include ':management-fixture'
+include ':home-fixture'
 
 apply from: 'gradle/security-constraints.gradle'

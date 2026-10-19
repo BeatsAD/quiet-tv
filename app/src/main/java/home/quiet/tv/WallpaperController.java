@@ -34,7 +34,9 @@ final class WallpaperController {
     private final View shade;
     private final Ambient ambient;
     private final Bitmap[] thumbnails = new Bitmap[FILES.length];
-    private int index, preview, shown = -1, request;
+    private Bitmap entry;
+    private volatile int request;
+    private int index, preview, shown = -1;
     private boolean rotating, active, useDefault;
     private int themeColor = 0xff557eac;
     private Dialog picker;
@@ -64,9 +66,6 @@ final class WallpaperController {
         background.addView(shade, new FrameLayout.LayoutParams(-1, -1));
         ambient = new Ambient(); background.addView(ambient, new FrameLayout.LayoutParams(-1, -1));
         ambient.setVisibility(View.INVISIBLE);
-        decoder.execute(() -> {
-            for (int n = 0; n < FILES.length; n++) thumbnails[n] = decode(n, 4);
-        });
         display(useDefault ? -1 : index, false);
     }
 
@@ -91,6 +90,23 @@ final class WallpaperController {
         } catch (IOException e) { throw new IllegalStateException("Missing bundled wallpaper", e); }
     }
 
+    private synchronized Bitmap thumbnail(int n) {
+        if (thumbnails[n] == null) thumbnails[n] = decode(n, 4);
+        return thumbnails[n];
+    }
+
+    private Bitmap fullImage(int n) {
+        android.util.DisplayMetrics screen = activity.getResources().getDisplayMetrics();
+        BitmapFactory.Options bounds = new BitmapFactory.Options(); bounds.inJustDecodeBounds = true;
+        try (InputStream input = activity.getAssets().open("wallpapers/" + FILES[n] + ".jpg")) {
+            BitmapFactory.decodeStream(input, null, bounds);
+        } catch (IOException e) { throw new IllegalStateException("Missing bundled wallpaper", e); }
+        int sample = 1;
+        while (bounds.outWidth / (sample * 2) >= screen.widthPixels
+                && bounds.outHeight / (sample * 2) >= screen.heightPixels) sample *= 2;
+        return decode(n, sample);
+    }
+
     private void display(int n, boolean animate) {
         final int version = ++request;
         if (transition != null) { transition.end(); transition = null; }
@@ -103,7 +119,8 @@ final class WallpaperController {
         }
         if (shown == n) return;
         decoder.execute(() -> {
-            Bitmap bitmap = decode(n, 1);
+            if (version != request) return;
+            Bitmap bitmap = fullImage(n);
             main.post(() -> {
                 if (version != request || activity.isDestroyed()) return;
                 ambient.setVisibility(View.INVISIBLE); shade.setVisibility(View.VISIBLE);
@@ -137,19 +154,25 @@ final class WallpaperController {
         if (picker != null) picker.dismiss();
         if (transition != null) transition.end();
     }
-    void destroy() { ++request; decoder.shutdownNow(); }
+    void destroy() {
+        ++request; decoder.shutdownNow(); main.removeCallbacksAndMessages(null);
+        if (transition != null) { transition.cancel(); transition.removeAllUpdateListeners(); transition = null; }
+        current.setImageDrawable(null); incoming.setImageDrawable(null);
+    }
 
-    Bitmap entryBanner() {
+    synchronized Bitmap entryBanner() {
+        if (entry != null) return entry;
         Bitmap bitmap = Bitmap.createBitmap(360, 203, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap); Paint paint = new Paint(3);
-        Bitmap thumbnail = decode(0, 4);
+        Bitmap thumbnail = thumbnail(0);
         canvas.drawBitmap(thumbnail, null, new Rect(0, 0, 360, 203), paint);
         paint.setShader(new LinearGradient(0, 0, 0, 203, 0x18000000, 0xc0000000, Shader.TileMode.CLAMP));
         canvas.drawRect(0, 0, 360, 203, paint); paint.setShader(null);
         paint.setColor(Color.WHITE); paint.setTextSize(chinese ? 34 : 27); paint.setTextAlign(Paint.Align.CENTER);
         paint.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
         canvas.drawText(tr("壁纸设置", "Wallpaper Settings"), 180, 120, paint);
-        return bitmap;
+        entry = bitmap;
+        return entry;
     }
 
     private TextView label(String value, int size) {
@@ -192,7 +215,10 @@ final class WallpaperController {
             ImageView thumb = image();
             card.addView(thumb, new FrameLayout.LayoutParams(-1, px(112)));
             if (choice < 0) thumb.setImageBitmap(defaultThumbnail());
-            else decoder.execute(() -> main.post(() -> thumb.setImageBitmap(thumbnails[choice])));
+            else decoder.execute(() -> {
+                Bitmap bitmap = thumbnail(choice);
+                main.post(() -> { if (picker != null && picker.isShowing()) thumb.setImageBitmap(bitmap); });
+            });
             boolean checked = choice < 0 ? useDefault : !useDefault && !rotating && index == choice;
             TextView caption = label(name(choice) + (checked ? "  ✓" : ""), 15);
             caption.setGravity(Gravity.CENTER);

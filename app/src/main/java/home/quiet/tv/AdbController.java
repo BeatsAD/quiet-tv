@@ -24,23 +24,56 @@ final class AdbController implements Closeable {
     private final Context context;
     private final Status status;
     private volatile AdbConnection connection;
+    private volatile PairingTransport pairing;
     private final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor();
     private volatile boolean closed;
+    private final java.util.concurrent.atomic.AtomicInteger generation=new java.util.concurrent.atomic.AtomicInteger();
     int user = -1;
     String host = "";
     AdbController(Context context, Status status) { this.context=context.getApplicationContext(); this.status=status; }
     boolean connected() { AdbConnection c=connection;return c!=null && c.isConnectionEstablished() && user>=0; }
+    void validateUser() throws Exception {
+        if(!connected())throw new IOException("需要连接 ADB");
+        if(!shell("am get-current-user").trim().equals(String.valueOf(user)) || user!=android.os.Process.myUid()/100000){disconnect();throw new IOException("当前用户已改变，请重新连接");}
+    }
+    static boolean pairingAvailable(){
+        if(Build.VERSION.SDK_INT<33)return false;
+        try{Class.forName("io.github.muntashirakon.crypto.spake2.Spake2Context");return org.conscrypt.Conscrypt.isAvailable();}catch(LinkageError|ReflectiveOperationException e){return false;}
+    }
+    static boolean localAddress(InetAddress address){
+        if(address==null)return false;if(address.isLoopbackAddress())return true;
+        try{for(NetworkInterface nic:Collections.list(NetworkInterface.getNetworkInterfaces()))if(nic.isUp())for(InetAddress local:Collections.list(nic.getInetAddresses()))if(local.equals(address))return true;}catch(SocketException ignored){}return false;
+    }
+    void pair(int port,String code) throws Exception {
+        if(!pairingAvailable())throw new IOException("当前系统或 ABI 无法使用无线配对");
+        if(port<1 || port>65535 || !code.matches("[0-9]{6}"))throw new IOException("请输入有效配对端口及六位配对码");
+        disconnect();int attempt=generation.get();byte[] password=code.getBytes(StandardCharsets.UTF_8);
+        io.github.muntashirakon.adb.PairingConnectionCtx protocol=null;
+        try{
+            String target=null;ArrayList<InetAddress> addresses=new ArrayList<>();addresses.add(InetAddress.getByName("127.0.0.1"));
+            for(NetworkInterface nic:Collections.list(NetworkInterface.getNetworkInterfaces()))if(nic.isUp())for(InetAddress value:Collections.list(nic.getInetAddresses()))if(value instanceof Inet4Address && !value.isLoopbackAddress())addresses.add(value);
+            for(InetAddress address:addresses){if(closed || generation.get()!=attempt)throw new IOException("配对已取消");try(Socket probe=new Socket()){probe.connect(new InetSocketAddress(address,port),1500);target=address.getHostAddress();break;}catch(IOException ignored){}}
+            if(target==null)throw new IOException("本机配对端口不可达");
+            KeyStore keys=loadKeys();PairingTransport transport=new PairingTransport(target,port,30000);pairing=transport;
+            if(closed || generation.get()!=attempt)throw new IOException("配对已取消");
+            status.changed("正在配对 · 请保持系统配对页面有效");
+            protocol=new io.github.muntashirakon.adb.PairingConnectionCtx("127.0.0.1",transport.port(),password,(PrivateKey)keys.getKey("adb",new char[0]),keys.getCertificate("adb"),"QuietTV");
+            protocol.start();if(closed || generation.get()!=attempt)throw new IOException("配对已取消");status.changed("已配对 · 尚需连接并核对本机身份");
+        }catch(Exception|LinkageError e){throw new IOException("配对未完成，请重新打开系统配对页面并核对端口和配对码；取消或超时后不会自动重试");}
+        finally{Arrays.fill(password,(byte)0);PairingTransport transport=pairing;pairing=null;if(transport!=null)transport.close();if(protocol!=null)try{protocol.close();}catch(RuntimeException ignored){}}
+    }
 
     void connect(int port) throws Exception {
         if(port<1 || port>65535)throw new IOException("端口必须在 1～65535 之间");
         disconnect();
+        int attempt=generation.get();
         List<String> hosts=new ArrayList<>();hosts.add("127.0.0.1");
         for(NetworkInterface nic:Collections.list(NetworkInterface.getNetworkInterfaces()))
             if(nic.isUp() && !nic.isLoopback())for(InetAddress address:Collections.list(nic.getInetAddresses()))
                 if(address instanceof Inet4Address)hosts.add(address.getHostAddress());
         Exception failure=null;
         for(String candidate:hosts){
-            if(closed)throw new IOException("连接已取消");
+            if(closed || generation.get()!=attempt)throw new IOException("连接已取消");
             status.changed("连接中 · "+candidate+":"+port);
             // Bound the TCP reachability check; the library's constructor uses a blocking Socket.
             try(Socket probe=new Socket()){probe.connect(new InetSocketAddress(candidate,port),2000);}
@@ -50,23 +83,45 @@ final class AdbController implements Closeable {
                     .setDeviceName("QuietTV").setPrivateKey((PrivateKey)keys.getKey("adb",new char[0]))
                     .setCertificate(keys.getCertificate("adb")).build();
             connection=c;
-            if(closed){disconnect();throw new IOException("连接已取消");}
+            if(closed || generation.get()!=attempt){disconnect();throw new IOException("连接已取消");}
             status.changed("等待授权 · 请在电视弹窗中允许 QuietTV 的调试连接");
             try{
                 if(!c.connect(60,TimeUnit.SECONDS,false))throw new IOException("授权超时，请确认电视调试已开启并允许连接");
-                // The per-boot id proves this shell belongs to the running TV, even with multiple NICs.
-                String localBoot=new String(java.nio.file.Files.readAllBytes(new File("/proc/sys/kernel/random/boot_id").toPath()),StandardCharsets.UTF_8).trim();
-                String remoteBoot=shell("cat /proc/sys/kernel/random/boot_id").trim();
-                if(!localBoot.equals(remoteBoot))throw new IOException("连接目标不是当前电视，已停止");
+                verifyLocalDevice();
                 if(!shell("id -u").trim().equals("2000"))throw new IOException("连接未获得 shell 身份");
                 user=Integer.parseInt(shell("am get-current-user").trim());
                 if(!android.os.UserHandle.getUserHandleForUid(user*100000).equals(android.os.Process.myUserHandle()))throw new IOException("前台用户已切换，请重新打开应用管理");
                 host=candidate;
+                if(closed || generation.get()!=attempt){disconnect();throw new IOException("连接已取消");}
                 status.changed("已连接 · 本机 · 用户 "+user);
                 return;
             }catch(Exception e){failure=e;disconnect();break;}
         }
         throw new IOException("连接失败："+(failure==null?"本机未开放 TCP ADB":failure.getMessage())+"。请开启电视网络调试，核对端口后重试。",failure);
+    }
+
+    private void verifyLocalDevice() throws Exception {
+        String localBoot;
+        try{localBoot=new String(java.nio.file.Files.readAllBytes(new File("/proc/sys/kernel/random/boot_id").toPath()),StandardCharsets.UTF_8).trim();}
+        catch(IOException unavailable){
+            // Older SELinux policies hide boot_id from apps. A fresh local-file challenge still
+            // rejects accidentally forwarded connections to another device; no model-name fallback.
+            File directory=context.getExternalFilesDir(null);
+            if(directory==null)throw new IOException("无法读取本机标识，且本机校验目录不可用");
+            File marker=File.createTempFile("quiet-adb-probe-",".txt",directory);
+            try{
+                String challenge=UUID.randomUUID().toString()+UUID.randomUUID().toString();
+                try(FileOutputStream out=new FileOutputStream(marker)){out.write(challenge.getBytes(StandardCharsets.UTF_8));out.getFD().sync();}
+                String path="'"+marker.getAbsolutePath().replace("'","'\\''")+"'";
+                if(!challenge.equals(shell("cat "+path).trim()))throw new IOException("连接目标不是当前电视，已停止");
+            }finally{
+                // Exactly the one ephemeral marker created by this attempt; never scan or bulk-clean.
+                if(!marker.delete())android.util.Log.w("QuietTVAdb","Temporary local identity marker retained");
+            }
+            return;
+        }
+        String remoteBoot=shell("cat /proc/sys/kernel/random/boot_id").trim();
+        if(localBoot.isEmpty() || !localBoot.equals(remoteBoot))throw new IOException("连接目标不是当前电视，已停止");
     }
 
     String shell(String command) throws Exception {
@@ -112,6 +167,6 @@ final class AdbController implements Closeable {
         }
         return store;
     }
-    void disconnect(){user=-1;AdbConnection c=connection;connection=null;if(c!=null)try{c.close();}catch(IOException ignored){} }
+    void disconnect(){generation.incrementAndGet();user=-1;PairingTransport transport=pairing;if(transport!=null)transport.close();AdbConnection c=connection;connection=null;if(c!=null)try{c.close();}catch(IOException ignored){}status.changed("未连接");}
     @Override public void close(){closed=true;disconnect();timer.shutdownNow();}
 }

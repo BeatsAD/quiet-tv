@@ -6,10 +6,17 @@ import hashlib
 import json
 from pathlib import Path
 import shlex
-from tv import CONFIG, shell
+import subprocess
 
 
-def verify_installed(apk):
+def verify_installed(apk, serial=None, adb='adb'):
+    if serial:
+        def shell(command):
+            return subprocess.check_output([adb, '-s', serial, 'shell', command], text=True, timeout=30)
+        device = serial
+    else:
+        from tv import CONFIG, shell
+        device = CONFIG['ip'] + ':5555'
     apk = Path(apk).resolve()
     local_sha256 = hashlib.sha256(apk.read_bytes()).hexdigest()
     paths = shell('pm path home.quiet.tv').strip().splitlines()
@@ -18,7 +25,7 @@ def verify_installed(apk):
     now = datetime.now().astimezone()
     record = {
         'checked_at': now.isoformat(timespec='seconds'),
-        'device': CONFIG['ip'] + ':5555',
+        'device': device,
         'model': shell('getprop ro.product.model').strip(),
         'application_id': 'home.quiet.tv',
         'local_apk': str(apk),
@@ -40,4 +47,7 @@ def verify_installed(apk):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('apk', type=Path)
-    verify_installed(parser.parse_args().apk)
+    parser.add_argument('--serial', help='Explicit emulator/device; omit to retain device.json behavior')
+    parser.add_argument('--adb', default='adb')
+    args = parser.parse_args()
+    verify_installed(args.apk, args.serial, args.adb)

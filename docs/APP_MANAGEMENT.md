@@ -1,5 +1,7 @@
 # 电视端应用管理与 Dock 编辑
 
+`1.1.0 / b4` 候选新增原生两屏首次设置、按设备规则匹配推荐与原桌面恢复入口，见 [使用说明](SETUP.md)和[本次验证](SETUP_VERIFICATION.md)。以下各阶段为此前版本的历史真机记录，不能替代新增流程验收。
+
 ## A 阶段：本机 ADB
 
 2026-10-18，Sony KD-65X9000H / BRAVIA VH1、Android 12，应用进程内实测：
@@ -79,6 +81,6 @@ adb shell am instrument -w -e scenario uninstall home.quiet.tv.test/home.quiet.t
 
 重启后使用同一应用私有密钥再次通过本机 ADB 连接，读取到 218 个包（专用测试应用已卸载，验收程序保留安装），见 `post-reboot-adb.txt`。
 
-最终 Debug APK 与电视已安装 APK SHA-256 一致：`a17b65d783691d58b386933f52aa70d0ca3f339ad1405ac0eb5709e206a9c3fd`。当前文件含任务开始前已有的首页样式修改；Git 提交仅包含本任务实现，原有样式修改仍留在工作区。
+该阶段最终 Debug APK 与电视已安装 APK SHA-256 一致：`a17b65d783691d58b386933f52aa70d0ca3f339ad1405ac0eb5709e206a9c3fd`。当次安装包包含任务开始前已有的首页样式修改，当次 Git 提交仅包含管理功能实现。后续改版、安装与发布状态见 [验收摘要](../VERIFICATION.md#当前记录摘要2026-10-18)，本段不代表当前工作区仍有未提交修改。
 
 本地证据：`regression.json`、`reboot.json`、`home-after-reboot.png`、`final-build.txt`；均位于 `evidence/app-management/`。预装卸载／恢复按用户要求保留待验收，不操作 BRAVIA 演示，不以普通测试 APK 的成功替代该项证据。
