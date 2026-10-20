@@ -8,7 +8,7 @@
 
 Quiet TV 面向国内 Android 电视的日常使用场景：把常用应用放在首页，用遥控器直接打开，方便地切换信号源、调整壁纸和管理已安装的应用。桌面没有广告和推荐信息流，无需注册账号。采用 Android 原生界面，无需 root 或刷机。
 
-[下载测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b24) · [安装指南](docs/INSTALL.zh-CN.md) · [使用指南](docs/USAGE.zh-CN.md) · [支持机型](docs/COMPATIBILITY.md)
+[下载测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b24) · [安装指南](docs/INSTALL.zh-CN.md) · [使用指南](docs/USAGE.zh-CN.md) · [支持机型](docs/COMPATIBILITY.md) · [已知问题与样机验证](#已知兼容性问题与样机验证)
 
 ## 界面
 
@@ -167,6 +167,21 @@ b24 优化构建通过，完整 Lint 为 0 错误、27 条警告；实际 APK �
 | Android 5.1 及以下，或 Tizen、webOS 等非 Android 系统 | 当前源码不支持。 |
 
 长期运行、投屏和完整影音播放仍待验收；六位码无线配对仍为待验收实验入口，当前要求 API 33+ 及设备实际提供配对能力，不能在 Android 6/7 使用。满足最低安装要求不代表固件全部功能已适配，详见[兼容性说明](docs/COMPATIBILITY.md)。第三方影音应用通过各自渠道更新，Quiet TV 当前不提供第三方应用自动更新服务。
+
+## 已知兼容性问题与样机验证
+
+**以下问题仍待解决或验证，需要其他品牌、型号和固件的真实样机协助；不能视为已修复。** 安装成功、手动启动正常或 HOME 查询结果正确，不代表开机、遥控器 HOME 键和重启后的行为均正常。当前反馈见 [Issue #35](https://github.com/BeatsAD/quiet-tv/issues/35)。
+
+| 问题 | 当前表现与待验证内容 |
+| --- | --- |
+| 厂商主页接管 | 部分固件可能在开机时恢复原厂主页，或由 Home 键直接启动原厂 Activity，绕过标准 HOME 设置；冷启动、重启和待机唤醒需分别验证。 |
+| 默认桌面设置失败 | 已有反馈出现 `cannot be home on user 0`；需核对实际安装包、当前用户、HOME 候选和厂商限制，原因及适配尚待确认。 |
+| 默认桌面状态提示不充分 | 当前检测主要依据 HOME Intent 解析，可能显示“已是默认桌面”，但实际 Home 键或重启仍返回原厂主页；状态提示和持久行为核验仍需改进。 |
+| ADB 被禁用或入口受限 | USB 调试灰色、无线调试缺失或无法取得配对码时，本机应用管理和依赖 ADB 的适配可能不可用；内置 ADB 客户端不能绕过固件封锁或配对认证，目前没有通用解锁方案。 |
+
+可选开机启动、无障碍服务检测原厂主页后跳转、日志监听后拉起桌面均为候选兼容方案，**当前 Quiet TV 尚未提供这些兼容实现，也未在反馈固件上验证**。上游其他设备的成功记录不能代替 Quiet TV 验收；若要走无 ADB 路线，还需确认 APK 安装和系统无障碍入口可用。保留原桌面及本机恢复记录，不套用其他电视的系统包禁用清单。
+
+欢迎通过 [Issue #35](https://github.com/BeatsAD/quiet-tv/issues/35) 或[新机型适配反馈](https://github.com/BeatsAD/quiet-tv/issues/new?template=device_adaptation.yml)补充样机结果：电视型号、Android／固件版本、Quiet TV 版本与安装包来源、复现步骤，以及手动启动、真实遥控器 HOME、冷启动／重启、待机唤醒、信号源和原桌面恢复的实际结果。未测试项请标为“未验证”；日志只提供相关脱敏片段，不公开 IP、序列号、密钥或完整设备转储。
 
 ## 文档与参与
 
