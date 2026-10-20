@@ -27,7 +27,7 @@ def addSecurityConstraints = { configurations, dependencies ->
     }
     minimumVersions.each { module, version ->
         dependencies.constraints.add(security.name, "${module}:${version}") {
-            because 'Patched dependencies; see docs/DEPENDENCY_SECURITY.md'
+            because 'Minimum patched versions for build tools and application cryptography'
         }
     }
     configurations.configureEach { configuration ->

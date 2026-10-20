@@ -44,9 +44,6 @@ jobs:
             base=HEAD^
           fi
           python3 scripts/check_contribution.py --base "$base"
-      - name: Run offline Python tests
-        if: steps.scope.outputs.python == 'true'
-        run: python3 -m unittest discover -s scripts/tests -p 'test_*.py'
       - name: Validate firmware policy profiles
         if: steps.scope.outputs.android == 'true'
         run: python3 scripts/validate_profiles.py
@@ -59,6 +56,6 @@ jobs:
       - name: Install Android SDK platform
         if: steps.scope.outputs.android == 'true'
         run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0"'
-      - name: Build Android and run available JVM tests
+      - name: Build and lint public Android source
         if: steps.scope.outputs.android == 'true'
-        run: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :management-fixture:assembleDebug :home-fixture:assembleDebug :app:testDebugUnitTest --console=plain
+        run: ./gradlew :app:assembleDebug :app:lintDebug --console=plain

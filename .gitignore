@@ -1,3 +1,4 @@
+# Generated files and machine-specific data.
 .venv/
 .gradle/
 **/build/
@@ -10,8 +11,6 @@ evidence/
 .DS_Store
 __pycache__/
 *.py[cod]
-
-# Per-device configuration and recovery records stay on this computer.
 /device.json
 /backup-current.json
 /changes.json
@@ -20,11 +19,53 @@ __pycache__/
 /PACKAGE-INVENTORY.md
 /.playwright-cli/
 
-# Local demo, promotional work, and authoring inputs are not APK sources.
-/prototypes/app-management/
-/prototypes/about/qa/
-/tools/video-preview/
-/tools/README.md
-/docs/assets/cover-prompt.txt
-/docs/assets/contact-prompt.txt
+# Local development and tests remain on disk, outside the public source tree.
+/app/src/test/
+/app/src/androidTest/
+/home-fixture/
+/management-fixture/
+/scripts/*
+!/scripts/build_apk.py
+!/scripts/bundle_about.py
+!/scripts/check_contribution.py
+!/scripts/validate_profiles.py
+/build-and-install.command
+/restore.command
+/requirements.txt
+/VERIFICATION.md
+/prototypes/*
+!/prototypes/about/
+/prototypes/about/*
+!/prototypes/about/index.html
+!/prototypes/about/styles.css
+!/prototypes/about/app.js
+!/prototypes/about/assets/
+/prototypes/about/assets/*
+!/prototypes/about/assets/source.svg
+!/prototypes/about/assets/wechat.png
+!/prototypes/about/assets/official.png
+/recording-edit-9608/
+/tools/
 /项目复现提示词.md
+
+# Keep current user/build documentation; plans and historical records stay local.
+# Add an explicit exception here when the maintainer requests another public file.
+/docs/*
+!/docs/README.md
+!/docs/INSTALL.zh-CN.md
+!/docs/INSTALL.en.md
+!/docs/USAGE.zh-CN.md
+!/docs/USAGE.en.md
+!/docs/COMPATIBILITY.md
+!/docs/SETUP.md
+!/docs/APP_MANAGEMENT.md
+!/docs/VERSIONING.md
+!/docs/PHOSPHOR-LICENSE.txt
+!/docs/assets/
+/docs/assets/*
+!/docs/assets/README.md
+!/docs/assets/cover.png
+!/docs/assets/home.png
+!/docs/assets/wallpaper-settings.png
+!/docs/assets/contact-16x9.png
+!/docs/assets/quiet-tv-icon.svg
