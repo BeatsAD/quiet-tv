@@ -27,7 +27,19 @@ final class AdbConnectionPanel {
         LocalAdbDiscovery discovery;
         Button settings,connect;
         boolean wireless,working,complete,advanced;
-        Panel(Runnable connected,String label){this.connected=connected;continuation=label;port.setInputType(2);pairPort.setInputType(2);code.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD);code.setSaveEnabled(false);code.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(6)});}
+        Panel(Runnable connected,String label){this.connected=connected;continuation=label;port.setInputType(2);pairPort.setInputType(2);code.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD);port.setTag("connection-port");pairPort.setTag("pairing-port");code.setTag("pairing-code");if(setup!=null){remoteInput(port);remoteInput(pairPort);remoteInput(code);}code.setSaveEnabled(false);code.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(6)});}
+        // Native EditText consumes D-pad vertical keys, trapping focus above the action row.
+        void remoteInput(EditText field){
+            field.setShowSoftInputOnFocus(false);
+            android.view.inputmethod.InputMethodManager keyboard=(android.view.inputmethod.InputMethodManager)ui.getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
+            field.setOnKeyListener((view,key,event)->{
+                if(key==android.view.KeyEvent.KEYCODE_DPAD_UP || key==android.view.KeyEvent.KEYCODE_DPAD_DOWN){
+                    if(event.getAction()==android.view.KeyEvent.ACTION_DOWN){android.view.View next=field.focusSearch(key==android.view.KeyEvent.KEYCODE_DPAD_UP?android.view.View.FOCUS_UP:android.view.View.FOCUS_DOWN);if(next!=null && next!=field){keyboard.hideSoftInputFromWindow(field.getWindowToken(),0);next.requestFocus();}}return true;
+                }
+                if(key==android.view.KeyEvent.KEYCODE_DPAD_CENTER || key==android.view.KeyEvent.KEYCODE_ENTER){if(event.getAction()==android.view.KeyEvent.ACTION_UP)keyboard.showSoftInput(field,android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);return true;}return false;
+            });
+            field.setOnFocusChangeListener((view,focused)->{if(!focused)keyboard.hideSoftInputFromWindow(field.getWindowToken(),0);});
+        }
         void show(){
             if(setup==null)sheet.action("取消",sheet.dialog::dismiss);
             settings=setup==null?sheet.action("开发者设置",this::openSettings):setup.setupButton("打开系统设置","settings",this::settingsGuide,false);
@@ -41,17 +53,18 @@ final class AdbConnectionPanel {
         }
         void instruction(String number,String title,String detail){LinearLayout row=ui.row();TextView badge=ui.center(number,10);badge.setBackground(ui.surface(0x05ffffff,0x05ffffff,0x30ffffff,16));row.addView(badge,new LinearLayout.LayoutParams(ui.px(22),ui.px(22)));LinearLayout copy=ui.column();copy.addView(ui.label(title,12));ui.gap(copy,5);copy.addView(ui.muted(detail,10));LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,-2,1);cp.leftMargin=ui.px(12);row.addView(copy,cp);sheet.body.addView(row);ui.gap(sheet.body,18);}
         void body(boolean tls){
-            if(working)return;if(discovery!=null)discovery.close();wireless=tls;sheet.body.removeAllViews();
+            if(working)return;android.view.View focused=sheet.dialog.getCurrentFocus();Object focusTag=focused==null?null:focused.getTag();boolean restoreFocus=sheet.dialog.isShowing();if(discovery!=null)discovery.close();wireless=tls;sheet.body.removeAllViews();
             if(setup!=null){instruction("1","开启开发者选项","设置 → 关于 → 连点版本号");instruction("2",tls?"开启无线调试":"开启网络 / ADB 调试",tls?"选择「使用配对码配对设备」":"仅开启 USB 调试可能无法连接");}
             else sheet.text(tls?"在系统无线调试中打开配对页面；配对与连接端口不同。没有配对页面时请使用 TCP 或取消。返回后配对码可能失效，必要时手动填写本机端口。":"开启电视网络／ADB 调试，连接时在电视弹窗允许 Quiet TV。仅连接当前电视。");ui.gap(sheet.body,12);
             if(setup!=null && !tls){Button expand=setup.setupButton(advanced?"连接设置  ⌄":"连接设置  ›","connection-settings",()->{advanced=!advanced;body(false);},false);expand.setGravity(android.view.Gravity.START|android.view.Gravity.CENTER_VERTICAL);sheet.body.addView(expand,new LinearLayout.LayoutParams(-1,ui.px(32)));ui.gap(sheet.body,8);}
             if(setup==null || advanced || tls){
-            LinearLayout modes=ui.row();sheet.body.addView(modes);Button tcp=ui.button("传统 TCP"+(tls?"":" ✓"),()->body(false));modes.addView(tcp,new LinearLayout.LayoutParams(0,ui.px(36),1));
-            Button pairing=ui.button("无线配对（实验）"+(tls?" ✓":""),()->body(true));pairing.setEnabled(AdbController.pairingAvailable());pairing.setAlpha(pairing.isEnabled()?1f:.4f);modes.addView(pairing,new LinearLayout.LayoutParams(0,ui.px(36),1));ui.gap(sheet.body,12);
+            LinearLayout modes=ui.row();sheet.body.addView(modes);Button tcp=ui.button("传统 TCP"+(tls?"":" ✓"),()->body(false));tcp.setTag("tcp-mode");modes.addView(tcp,new LinearLayout.LayoutParams(0,ui.px(36),1));
+            Button pairing=ui.button("无线配对（实验）"+(tls?" ✓":""),()->body(true));pairing.setTag("pairing-mode");pairing.setEnabled(AdbController.pairingAvailable());pairing.setAlpha(pairing.isEnabled()?1f:.4f);modes.addView(pairing,new LinearLayout.LayoutParams(0,ui.px(36),1));ui.gap(sheet.body,12);
             if(tls){add("配对端口",pairPort);add("配对码",code);}
             port.setText(tls?ui.getSharedPreferences("adb",0).getString("tlsPort",""):String.valueOf(ui.getSharedPreferences("adb",0).getInt("port",5555)));add("连接端口",port);
             }else port.setText(String.valueOf(ui.getSharedPreferences("adb",0).getInt("port",5555)));
             status.setText(setup!=null?(tls?"配对与连接端口不同，可手动填写。":""):tls?"正在识别本机端口；也可手动输入。已配对时可留空配对码，仅连接。":"TCP 能力待连接核对；无线配对需要 Android 13+ 与可用原生库。");ui.gap(sheet.body,10);sheet.body.addView(status);
+            if(restoreFocus)sheet.body.post(()->{if(!sheet.dialog.isShowing())return;android.view.View target=focusTag==null?null:sheet.dialog.getWindow().getDecorView().findViewWithTag(focusTag);if(target==null || !target.isEnabled())target=sheet.body.findViewWithTag("connection-settings");if(target==null)target=port;target.requestFocus();});
             if(tls)discovery=new LocalAdbDiscovery(ui,(pairingPort,value)->{if(working || !attempt.active())return;EditText field=pairingPort?pairPort:port;if(field.getText().length()==0)field.setText(String.valueOf(value));});
         }
         void add(String text,EditText field){sheet.body.addView(ui.muted(text,11));ui.gap(sheet.body,4);sheet.body.addView(field,new LinearLayout.LayoutParams(-1,ui.px(38)));ui.gap(sheet.body,8);}

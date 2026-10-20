@@ -29,6 +29,21 @@ final class SetupPrototypeChecks {
     private void click(String text) throws Exception {require(await(text).performAction(AccessibilityNodeInfo.ACTION_CLICK),"Cannot click "+text);test.waitForIdleSync();}
     private void capture(String name) throws Exception {test.waitForIdleSync();SystemClock.sleep(300);Bitmap b=test.getUiAutomation().takeScreenshot();require(b!=null,"No screenshot");try(FileOutputStream out=context.openFileOutput(name,0)){b.compress(Bitmap.CompressFormat.PNG,100,out);}}
     private void restorePreferences(android.content.SharedPreferences prefs,Map<String,?> values){android.content.SharedPreferences.Editor e=prefs.edit().clear();for(Map.Entry<String,?> entry:values.entrySet()){Object v=entry.getValue();if(v instanceof Boolean)e.putBoolean(entry.getKey(),(Boolean)v);else if(v instanceof Integer)e.putInt(entry.getKey(),(Integer)v);else if(v instanceof Long)e.putLong(entry.getKey(),(Long)v);else if(v instanceof Float)e.putFloat(entry.getKey(),(Float)v);else if(v instanceof String)e.putString(entry.getKey(),(String)v);}e.commit();}
+    private Bitmap preview(SetupActivity ui){View view=ui.root.findViewWithTag("home-preview");Bitmap image=Bitmap.createBitmap(view.getWidth(),view.getHeight(),Bitmap.Config.ARGB_8888);view.draw(new android.graphics.Canvas(image));return image;}
+    private void focusTargets(View view,List<View> targets){
+        if(!view.isShown() || !view.isEnabled())return;
+        if(view.isFocusable() && (view instanceof android.widget.Button || view instanceof android.widget.EditText || String.valueOf(view.getTag()).startsWith("app-")))targets.add(view);
+        if(view instanceof android.view.ViewGroup){android.view.ViewGroup group=(android.view.ViewGroup)view;for(int i=0;i<group.getChildCount();i++)focusTargets(group.getChildAt(i),targets);}
+    }
+    private void auditRemote(View root) throws Exception {
+        List<View> targets=new ArrayList<>();test.runOnMainSync(()->focusTargets(root,targets));require(!targets.isEmpty(),"No remote controls");
+        Set<View> reached=new HashSet<>();ArrayList<View> queue=new ArrayList<>();queue.add(targets.get(0));reached.add(targets.get(0));
+        for(int i=0;i<queue.size();i++)for(int key:new int[]{KeyEvent.KEYCODE_DPAD_LEFT,KeyEvent.KEYCODE_DPAD_RIGHT,KeyEvent.KEYCODE_DPAD_UP,KeyEvent.KEYCODE_DPAD_DOWN}){
+            View source=queue.get(i);test.runOnMainSync(()->source.requestFocus());test.sendKeyDownUpSync(key);test.waitForIdleSync();
+            test.runOnMainSync(()->{View next=root.findFocus();if(next!=null && reached.add(next))queue.add(next);});
+        }
+        for(View target:targets)require(reached.contains(target),"Unreachable remote control: "+target.getTag()+" / "+(target instanceof android.widget.TextView?((android.widget.TextView)target).getText():target.getContentDescription()));
+    }
     void run() throws Exception {
         require("ranchu".equals(Build.HARDWARE)||"goldfish".equals(Build.HARDWARE),"Dedicated emulator only");
         String user=shell("am get-current-user");
@@ -38,13 +53,20 @@ final class SetupPrototypeChecks {
         int fixtureSetting=context.getPackageManager().getApplicationEnabledSetting(FIXTURE);
         String disabled=shell("pm list packages -d --user "+user);boolean suppressed=false;
         android.content.SharedPreferences wallpapers=context.getSharedPreferences("wallpapers",0),ports=context.getSharedPreferences("adb",0);Map<String,?> wallpaperBefore=wallpapers.getAll(),portsBefore=ports.getAll();
+        android.content.SharedPreferences dock=context.getSharedPreferences("dock",0);Map<String,?> dockBefore=dock.getAll();
         SetupActivity activity=null;
         try{
             wallpapers.edit().putBoolean("default",false).putInt("index",0).commit();
             activity=(SetupActivity)test.startActivitySync(new Intent(context,SetupActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
             final SetupActivity ui=activity;await("设为默认桌面");test.waitForIdleSync();
             test.runOnMainSync(()->{View preview=ui.root.findViewWithTag("home-preview"),primary=ui.root.findViewWithTag("primary"),steps=ui.root.findViewWithTag("steps");require(preview!=null && steps!=null,"Default preview or step indicator missing");int[] a=new int[2],b=new int[2];primary.getLocationOnScreen(a);preview.getLocationOnScreen(b);require(a[0]+primary.getWidth()<b[0],"Default page is not split into copy and preview");require(primary.getWidth()<ui.root.getWidth()/2,"Default action is still full width");});
-            capture("setup-prototype-default.png");
+            require(context.getPackageManager().getActivityInfo(new ComponentName(context,SetupActivity.class),0).targetActivity==null,"Setup still resolves to a simulation alias");
+            test.runOnMainSync(()->{View image=ui.root.findViewWithTag("home-preview");require("Quiet TV 桌面示意图".contentEquals(image.getContentDescription()),"Missing illustrative preview description");LinearLayout tiles=image.findViewWithTag("preview-tiles");require(tiles.getChildCount()==4,"Need four generic tiles");String[] labels={"影视","音乐","应用","设置"};for(int i=0;i<labels.length;i++)require(labels[i].contentEquals(((android.widget.TextView)tiles.getChildAt(i)).getText()),"Preview includes device apps");});
+            Bitmap[] before=new Bitmap[1],after=new Bitmap[1];test.runOnMainSync(()->before[0]=preview(ui));
+            dock.edit().putString("packages","[\"home.quiet.tv.fixture\"]").commit();wallpapers.edit().putInt("index",2).commit();
+            test.runOnMainSync(()->{try{Method surface=SetupActivity.class.getDeclaredMethod("setupSurface");surface.setAccessible(true);surface.invoke(ui);render(ui);}catch(Exception e){throw new RuntimeException(e);}});test.waitForIdleSync();test.runOnMainSync(()->after[0]=preview(ui));
+            require(before[0].sameAs(after[0]),"Preview depends on actual Dock or selected wallpaper");before[0].recycle();after[0].recycle();
+            auditRemote(ui.root);capture("setup-prototype-default.png");
             suppressed=true;shell("pm disable-user --user "+user+" "+stock.getPackageName());shell("cmd package set-home-activity --user "+user+" home.quiet.tv/.HomeActivity");
             AppRepository repository=new AppRepository(context);List<AppRepository.App> actual=repository.load(null);ArrayList<AppRepository.App> shown=new ArrayList<>();
             for(AppRepository.App app:actual)if(FIXTURE.equals(app.pkg)){require(app.installed && app.enabled,"Fixture must be enabled");shown.add(app);}
@@ -58,14 +80,23 @@ final class SetupPrototypeChecks {
             test.runOnMainSync(()->{try{set(ui,"home",home);set(ui,"operations",new AppOperations(context,presets));set(ui,"homeState",state);set(ui,"apps",new ArrayList<>(shown));Map<String,Boolean> choices=(Map<String,Boolean>)get(ui,"choices");choices.clear();for(AppRepository.App app:shown)choices.put(app.pkg,true);set(ui,"screen",1);set(ui,"busy",false);set(ui,"originalChoice","KEEP");set(ui,"notice","");render(ui);}catch(Exception e){throw new RuntimeException(e);}});
             await("禁用 6 项并完成");
             test.runOnMainSync(()->{LinearLayout factory=ui.root.findViewWithTag("factory-options"),grid=ui.root.findViewWithTag("preset-grid");require(factory.getOrientation()==LinearLayout.HORIZONTAL && factory.getChildCount()==3,"Factory choices are not a horizontal segment");require(grid.getChildCount()==3,"Six presets are not arranged in three rows");LinearLayout row=(LinearLayout)grid.getChildAt(0);require(row.getChildCount()==2,"Preset grid does not have two columns");int[] a=new int[2],b=new int[2],end=new int[2],button=new int[2];row.getChildAt(0).getLocationOnScreen(a);row.getChildAt(1).getLocationOnScreen(b);grid.getChildAt(2).getLocationOnScreen(end);ui.root.findViewWithTag("primary").getLocationOnScreen(button);require(a[1]==b[1] && a[0]+row.getChildAt(0).getWidth()<b[0],"Cards overlap or are not aligned");require(end[1]+grid.getChildAt(2).getHeight()<=button[1],"Preset cards overlap footer action");for(AppRepository.App app:shown)require(ui.root.findViewWithTag("app-"+app.pkg).isFocusable(),"Disconnected candidate cannot be selected");});
-            capture("setup-prototype-presets.png");
+            auditRemote(ui.root);capture("setup-prototype-presets.png");
             // Change selections with actual D-pad focus before asking for authorization.
             test.runOnMainSync(()->ui.root.findViewWithTag("app-"+shown.get(0).pkg).requestFocus());test.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_RIGHT);test.waitForIdleSync();
             test.runOnMainSync(()->require(ui.getCurrentFocus()==ui.root.findViewWithTag("app-"+shown.get(1).pkg),"Right did not move to the adjacent preset"));
             test.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER);await("禁用 5 项并完成");
             test.runOnMainSync(()->require(ui.getCurrentFocus()==ui.root.findViewWithTag("app-"+shown.get(1).pkg),"Toggle lost D-pad focus"));
             for(int i=2;i<shown.size();i++){final String tag="app-"+shown.get(i).pkg;test.runOnMainSync(()->ui.root.findViewWithTag(tag).performClick());}
-            await("禁用 1 项并完成");click("禁用 1 项并完成");await("连接电视");capture("setup-prototype-connection.png");click("打开系统设置");await("在电视系统设置中操作");click("返回连接");await("连接电视");click("取消");await("禁用 1 项并完成");
+            await("禁用 1 项并完成");click("禁用 1 项并完成");await("连接电视");
+            Object panel=get(get(ui,"connection"),"panel");ManagementUi.Sheet connectionSheet=(ManagementUi.Sheet)get(panel,"sheet");auditRemote(connectionSheet.dialog.getWindow().getDecorView());
+            click("连接设置  ›");await("传统 TCP ✓");auditRemote(connectionSheet.dialog.getWindow().getDecorView());
+            android.widget.EditText port=(android.widget.EditText)get(panel,"port");test.runOnMainSync(()->port.requestFocus());test.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER);test.waitForIdleSync();SystemClock.sleep(500);test.runOnMainSync(()->port.setText(""));
+            test.sendStringSync("5555");test.waitForIdleSync();String[] typed=new String[1];test.runOnMainSync(()->typed[0]=port.getText().toString());require("5555".equals(typed[0]),"Remote numeric input failed: "+typed[0]);
+            test.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK);test.getUiAutomation().waitForIdle(500,5000);await("连接电视");
+            test.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_DOWN);test.waitForIdleSync();View[] focused=new View[1];test.runOnMainSync(()->focused[0]=connectionSheet.dialog.getCurrentFocus());require(focused[0]!=port,"Port input trapped vertical navigation after closing keyboard");
+            test.runOnMainSync(()->connectionSheet.dialog.getWindow().getDecorView().findViewWithTag("tcp-mode").requestFocus());test.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER);test.waitForIdleSync();
+            test.runOnMainSync(()->require("tcp-mode".equals(connectionSheet.dialog.getCurrentFocus().getTag()),"Connection mode rebuild lost source focus"));
+            click("连接设置  ⌄");capture("setup-prototype-connection.png");click("打开系统设置");await("在电视系统设置中操作");click("返回连接");await("连接电视");click("取消");await("禁用 1 项并完成");
             require(repository.find(null,FIXTURE).enabled,"Cancel disabled the fixture");Set<String> afterCancel=AppRepository.parsePackages(shell("pm list packages -d --user "+user));afterCancel.remove(stock.getPackageName());require(AppRepository.parsePackages(disabled).equals(afterCancel),"Cancel changed other packages");
             // An offline snapshot that changed during authorization must fail before any package write.
             try(AdbController check=new AdbController(context,value->{})){
@@ -83,7 +114,7 @@ final class SetupPrototypeChecks {
             shell("pm "+(fixtureSetting==0?"default-state":"enable")+" --user "+user+" "+FIXTURE);
             if(suppressed)shell("pm "+(stockSetting==0?"default-state":"enable")+" --user "+user+" "+stock.getPackageName());
             shell("cmd package set-home-activity --user "+user+" "+previous);
-            restorePreferences(wallpapers,wallpaperBefore);restorePreferences(ports,portsBefore);
+            restorePreferences(wallpapers,wallpaperBefore);restorePreferences(ports,portsBefore);restorePreferences(dock,dockBefore);
             require(AppRepository.parsePackages(disabled).equals(AppRepository.parsePackages(shell("pm list packages -d --user "+user))),"Package baseline not restored");
         }
     }

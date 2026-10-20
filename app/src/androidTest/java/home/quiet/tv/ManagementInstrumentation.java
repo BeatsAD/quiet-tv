@@ -10,15 +10,11 @@ public final class ManagementInstrumentation extends Instrumentation {
     @Override public void onCreate(Bundle args){super.onCreate(args);scenario=args.getString("scenario","adb");start();}
     @Override public void onStart(){
         Bundle result=new Bundle();
-        if(java.util.Arrays.asList("setup-prototype","setup","connection-ui","setup-fresh","setup-upgrade").contains(scenario)){
-            result.putString("stream","NOT RUN: this candidate exposes the offline demo; use scenario setup-demo. Legacy native setup checks belong to the b5 implementation.\n");finish(0,result);return;
-        }
         if("setup-demo".equals(scenario)){
-            try{new SetupDemoChecks(this).run();result.putString("stream","PASS: packaged offline prototype, remote navigation and mock operations; real HOME/packages/native setup unchanged\n");finish(-1,result);}
-            catch(Throwable e){android.util.Log.e("QuietTVChecks","Setup demo failed",e);result.putString("stream","FAIL: "+e+"\n");finish(0,result);}return;
+            result.putString("stream","NOT RUN: setup uses the real native workflow; use setup-prototype, setup or connection-ui.\n");finish(0,result);return;
         }
         if("setup-prototype".equals(scenario)){
-            try{new SetupPrototypeChecks(this).run();result.putString("stream","PASS: native prototype split preview / horizontal factory options / two-column presets / disconnected selection / D-pad / cancellation / actual TCP authorization continuation; emulator HOME and package baseline restored\n");finish(-1,result);}
+            try{new SetupPrototypeChecks(this).run();result.putString("stream","PASS: real native setup entry / anonymous fixed preview independent of Dock and wallpaper / all enabled controls D-pad reachable / remote numeric input and focus restore / selection before authorization / cancellation / actual TCP continuation; emulator HOME and package baseline restored\n");finish(-1,result);}
             catch(Throwable e){android.util.Log.e("QuietTVChecks","Setup prototype failed",e);result.putString("stream","FAIL: "+e+"\n");finish(0,result);}return;
         }
         if("connection-ui".equals(scenario)){
