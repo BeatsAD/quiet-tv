@@ -10,7 +10,7 @@ Quiet TV is built for everyday TV use in China. Keep your favorite apps on the h
 
 The launcher has no ads or recommendation feed and requires no account. It uses native Android views and needs no root access or firmware changes.
 
-[Download the test APK](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0) · [Install](docs/INSTALL.en.md) · [Usage](docs/USAGE.en.md) · [Supported devices](docs/COMPATIBILITY.md)
+[Download the test APK](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b24) · [Install](docs/INSTALL.en.md) · [Usage](docs/USAGE.en.md) · [Supported devices](docs/COMPATIBILITY.md)
 
 ## Screenshots
 
@@ -26,7 +26,7 @@ Use the ambient theme that changes color with the selected app, pick a fixed lan
 
 ![Quiet TV wallpaper settings: default theme, landscapes, and slideshow toggle](docs/assets/wallpaper-settings.png)
 
-These original Sony KD-65X9000H captures were taken on October 19, 2026, with development build 1.1.0 / b15. The current download is the b23 optimized test build. The cover is an AI illustration. See [image provenance](docs/assets/README.md).
+These original Sony KD-65X9000H captures were taken on October 19, 2026, with development build 1.1.0 / b15. The current download is the b24 universal compatibility test build; these captures do not establish hardware validation of b24. The cover is an AI illustration. See [image provenance](docs/assets/README.md).
 
 ## Features
 
@@ -48,20 +48,23 @@ System package operations require local ADB authorization. Disabling keeps app d
 
 ## Install and try it
 
-1. **Check your TV.** Source builds support Android 6.0 or newer; the published b23 APK still requires Android 12. Read the supported-device table below and the [compatibility details](docs/COMPATIBILITY.md).
-2. **Get an APK.** Download the APK and SHA-256 file from [Releases](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0), or build from source using the [installation guide](docs/INSTALL.en.md).
+1. **Check your TV.** The current b24 APK requires Android 6.0 or newer, including Android 7. Meeting this minimum does not establish device or feature compatibility. Read the supported-device table below and the [compatibility details](docs/COMPATIBILITY.md).
+2. **Get an APK.** Download the APK and SHA-256 file from [Releases](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b24), or build from source using the [installation guide](docs/INSTALL.en.md).
 3. **Install and try the launcher.** Follow the guide to connect ADB and install Quiet TV. A fresh install opens setup; choose “暂不设置，临时使用” to try it temporarily and check your remote, app launches, and system shortcuts first.
 4. **Complete first setup.** Set the default home screen, then choose whether to manage preinstalled apps. Select “不处理，进入桌面” to skip package changes. Upgrades do not force setup again. Reopen it through “应用管理 → 更多 → 首次设置”; the same menu offers “恢复原桌面” to restore the original launcher. See [first setup and recovery, Chinese](docs/SETUP.md).
 
-The current download is **v1.1.0 / b23, an ARM32 optimized test build of about 4.54 MiB**, for Android 12 or newer TVs supporting `armeabi-v7a`. Devices that only support 64-bit apps cannot use this APK. It is a prerelease signed with a test key; no stable release is available yet.
+The current download is **v1.1.0 / b24, a universal optimized compatibility test build of about 12.30 MiB**. Its filename is `quiet-tv_1.1.0_b24_benchmark_api23.apk`; it requires Android 6.0 / API 23 and includes `armeabi-v7a`, `arm64-v8a`, `x86`, and `x86_64`. It uses the same test signature as b23 for eligible in-place updates. It remains a prerelease; no stable release is available yet.
 
 Changes in this build:
 
-- Architecture-specific packaging with code and resource shrinking reduces APK size.
+- Android 6.0 minimum and universal architecture packaging with code and resource shrinking; the universal APK is larger than the previous ARM32-only APK.
+- Legacy network monitoring and font fallbacks, remote Back navigation, and Android 6 current-user detection improve source compatibility.
 - Display-sized wallpaper decoding, on-demand thumbnails, and cover caching reduce loading work; returning home avoids unnecessary full app rescans.
 - Improved native two-step setup, default-home verification, and the native About screen, with offline licenses opened on demand.
 
-b23 was installed as an update on one Android 12 / ARM32 TV, with matching APK hashes and checks of HOME return, wallpaper, and Dock display. This does not establish hardware acceptance of every new flow. See the [release notes](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0) for checksums, updates, and validation limits. Historical v1.0.1 remains available. Default source Debug builds are universal and differ from the download; see [build rules](docs/VERSIONING.md).
+b24 passed its optimized build and full Lint with 0 errors and 27 warnings. Its actual minimum API, architectures, signature, and GitHub download hash were checked. **This b24 APK has not been installed on a TV or emulator; Android 6, 7, and other device behavior still needs hardware validation.** See the [b24 release notes](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b24) for checksums, updates, and validation limits.
+
+The historical [b23 ARM32 test APK](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0) (Android 12+, about 4.54 MiB) and v1.0.1 remain available. b23 was installed on one Android 12 / ARM32 TV with matching hashes and checks of HOME return, wallpaper, and Dock display; that result does not validate b24. Default source Debug builds differ from the published optimized APK; see [build rules](docs/VERSIONING.md).
 
 You can keep the original launcher installed while trying Quiet TV. System debloating requires a backup and recovery record for the actual target TV. Real device settings, package inventories, and recovery records stay local; these are not distributed with public source, and another TV’s records are not a recovery baseline for your device.
 
@@ -69,11 +72,11 @@ You can keep the original launcher installed while trying Quiet TV. System deblo
 
 | Device / system | Status |
 | --- | --- |
-| Sony KD-65X9000H / BRAVIA VH1 · Android 12 | Installed and checked for the home screen, app management, wallpaper, selected system shortcuts, and one full reboot. See the [verification record](docs/COMPATIBILITY.md) for the exact scope. |
-| Other TVs running Android 6.0 or newer | Source compatibility is included; vendor firmware, HOME and ADB capabilities need hardware validation. See the [compatibility record](docs/COMPATIBILITY.md). |
+| Sony KD-65X9000H / BRAVIA VH1 · Android 12 | Historical builds were checked for the home screen, app management, wallpaper, selected system shortcuts, and one full reboot. This b24 APK has not been installed or checked. See the [verification record](docs/COMPATIBILITY.md) for the exact scope. |
+| Other TVs running Android 6.0 or newer | The b24 universal APK is available for device-specific trials; vendor firmware, HOME and ADB capabilities need hardware validation. See the [compatibility record](docs/COMPATIBILITY.md). |
 | Android 5.1 or earlier; non-Android systems such as Tizen or webOS | Unsupported by the current source. |
 
-Long-running operation, casting, and full media playback remain unverified. Six-digit wireless pairing is still an experimental entry awaiting validation. Experimental older-Android source builds do not extend the current download to Android 11 or earlier; see [compatibility details](docs/COMPATIBILITY.md). Third-party media apps use their own update channels; Quiet TV does not currently update them automatically.
+Long-running operation, casting, and full media playback remain unverified. Six-digit wireless pairing is still experimental, requires API 33+ and actual device pairing capability, and is unavailable on Android 6/7. Meeting the minimum install requirement does not establish full firmware compatibility; see [compatibility details](docs/COMPATIBILITY.md). Third-party media apps use their own update channels; Quiet TV does not currently update them automatically.
 
 ## Documentation and contributing
 

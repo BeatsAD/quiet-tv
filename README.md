@@ -8,7 +8,7 @@
 
 Quiet TV 面向国内 Android 电视的日常使用场景：把常用应用放在首页，用遥控器直接打开，方便地切换信号源、调整壁纸和管理已安装的应用。桌面没有广告和推荐信息流，无需注册账号。采用 Android 原生界面，无需 root 或刷机。
 
-[下载测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0) · [安装指南](docs/INSTALL.zh-CN.md) · [使用指南](docs/USAGE.zh-CN.md) · [支持机型](docs/COMPATIBILITY.md)
+[下载测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b24) · [安装指南](docs/INSTALL.zh-CN.md) · [使用指南](docs/USAGE.zh-CN.md) · [支持机型](docs/COMPATIBILITY.md)
 
 ## 界面
 
@@ -52,7 +52,7 @@ Quiet TV 面向国内 Android 电视的日常使用场景：把常用应用放�
 | Codex | 已登录、可联网，允许读写项目文件和执行终端命令。 |
 | 构建工具 | Git、Python 3、JDK 17 或 21、Android SDK Platform 36、Build Tools 36.0.0、Platform Tools。 |
 
-当前 b24 源码最低 Android 6.0；公开 b23 测试包要求 Android 12 及 ARM32 支持。设备适配状态见[兼容说明](docs/COMPATIBILITY.md)。
+当前 b24 源码与公开通用测试包均最低要求 Android 6.0；下载包包含 ARM32、ARM64、x86 和 x86_64，具体机型与功能仍待真机验证。设备适配状态见[兼容说明](docs/COMPATIBILITY.md)。
 
 ### 连接电视，读取真实设备能力
 
@@ -138,20 +138,23 @@ Windows 使用 `gradlew.bat`。APK 输出到 `app/build/outputs/apk/debug/app-de
 
 ## 安装与试用
 
-1. **确认电视是否适用**：源码最低为 Android 6.0；已发布 b23 安装包仍要求 Android 12，先查看下方支持范围和[兼容性说明](docs/COMPATIBILITY.md)。
-2. **获取安装包**：从 [Releases](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0) 下载 APK 与 SHA-256 校验文件，或按[安装指南](docs/INSTALL.zh-CN.md)从源码构建。
+1. **确认电视是否适用**：当前 b24 安装包最低要求 Android 6.0，涵盖 Android 7 及更高版本的安装门槛；具体机型与功能仍需验证，先查看下方支持范围和[兼容性说明](docs/COMPATIBILITY.md)。
+2. **获取安装包**：从 [Releases](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b24) 下载 APK 与 SHA-256 校验文件，或按[安装指南](docs/INSTALL.zh-CN.md)从源码构建。
 3. **安装并试用**：按安装指南连接 ADB 并安装。新安装首次打开会进入设置，也可选择“暂不设置，临时使用”，先检查遥控器、应用启动和系统入口。
 4. **完成首次设置**：按两步引导设置默认桌面，再选择是否处理预装应用；可选择“不处理，进入桌面”。升级不会强制重新引导，需要时从“应用管理 → 更多 → 首次设置”打开，同一菜单也提供“恢复原桌面”。详见[首次设置说明](docs/SETUP.md)。
 
-当前下载为 **v1.1.0 / b23 ARM32 优化测试包，约 4.54 MiB**，最低 Android 12，仅适用于支持 `armeabi-v7a` 应用的电视；仅支持 64 位应用的设备不能使用此包。目前仍为测试签名预发布版本，尚无稳定版。
+当前下载为 **v1.1.0 / b24 通用兼容优化测试包，约 12.30 MiB**，文件名为 `quiet-tv_1.1.0_b24_benchmark_api23.apk`，最低 Android 6.0 / API 23，包含 `armeabi-v7a`、`arm64-v8a`、`x86` 和 `x86_64`。本包与 b23 使用相同测试签名，支持满足升级条件的覆盖安装。目前仍为预发布测试版本，尚无稳定版。
 
 本版主要变化：
 
-- 按架构打包，启用代码和资源裁剪，缩小安装包。
+- 降低最低系统要求至 Android 6.0，提供通用架构包并启用代码和资源裁剪；通用包比原 ARM32 单架构包更大。
+- 增加旧系统网络监听与字体回退、遥控器返回导航及 Android 6 用户状态读取等兼容处理。
 - 按显示尺寸加载壁纸、按需加载缩略图并复用封面缓存；普通返回首页不再重复扫描全部应用。
 - 改进原生两步设置、默认桌面状态核验及关于页首屏，离线许可按需打开。
 
-b23 已在一台 Android 12 / ARM32 电视覆盖安装并核对 APK 哈希，确认 HOME 返回、壁纸和 Dock 显示正常；不代表全部新增流程已通过真机验收。校验、更新与完整验证范围见[发布说明](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0)。历史 v1.0.1 保留；源码默认 Debug 构建为通用架构，与下载包区分，详见[构建规则](docs/VERSIONING.md)。
+b24 优化构建通过，完整 Lint 为 0 错误、27 条警告；实际 APK 的最低系统、架构、签名和 GitHub 回下载哈希均已核对。**本次 b24 未安装到电视或模拟器，Android 6、7 及其他机型的功能仍待真机验收。**校验、更新与完整验证范围见[b24 发布说明](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b24)。
+
+历史 [b23 ARM32 测试包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0)（Android 12+，约 4.54 MiB）与 v1.0.1 保留。b23 曾在一台 Android 12 / ARM32 电视覆盖安装、核对哈希，并检查 HOME 返回、壁纸和 Dock；该结果不代表 b24 已通过真机验收。源码默认 Debug 构建与公开优化包区分，详见[构建规则](docs/VERSIONING.md)。
 
 安装 Quiet TV 后可以保留原桌面，试用不要求先禁用系统应用。系统精简需为目标电视备份并记录恢复方式；实际设备配置、包清单和恢复记录仅保留本地，这些资料不随公开源码分发，不能将其他电视的清单作为自己的禁用建议或恢复基线。
 
@@ -159,11 +162,11 @@ b23 已在一台 Android 12 / ARM32 电视覆盖安装并核对 APK 哈希，确
 
 | 设备／系统 | 状态 |
 | --- | --- |
-| Sony KD-65X9000H / BRAVIA VH1 · Android 12 | 已安装并验证首页、应用管理、壁纸、部分系统入口及一次整机重启；完整范围见[验收记录](docs/COMPATIBILITY.md)。 |
-| 其他 Android 6.0 及以上电视 | 源码已包含版本兼容，仍需逐机确认固件、HOME 与 ADB 能力；见[兼容记录](docs/COMPATIBILITY.md)。 |
+| Sony KD-65X9000H / BRAVIA VH1 · Android 12 | 历史版本曾验证首页、应用管理、壁纸、部分系统入口及一次整机重启；本次 b24 尚未安装验证。完整范围见[验收记录](docs/COMPATIBILITY.md)。 |
+| 其他 Android 6.0 及以上电视 | b24 通用包可供按机型试用，仍需逐机确认固件、HOME 与 ADB 能力；见[兼容记录](docs/COMPATIBILITY.md)。 |
 | Android 5.1 及以下，或 Tizen、webOS 等非 Android 系统 | 当前源码不支持。 |
 
-长期运行、投屏和完整影音播放仍待验收；六位码无线配对仍为待验收实验入口。源码中的旧系统实验构建不代表当前下载包支持 Android 11 及以下，详见[兼容性说明](docs/COMPATIBILITY.md)。第三方影音应用通过各自渠道更新，Quiet TV 当前不提供第三方应用自动更新服务。
+长期运行、投屏和完整影音播放仍待验收；六位码无线配对仍为待验收实验入口，当前要求 API 33+ 及设备实际提供配对能力，不能在 Android 6/7 使用。满足最低安装要求不代表固件全部功能已适配，详见[兼容性说明](docs/COMPATIBILITY.md)。第三方影音应用通过各自渠道更新，Quiet TV 当前不提供第三方应用自动更新服务。
 
 ## 文档与参与
 
