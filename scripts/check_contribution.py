@@ -27,6 +27,9 @@ def main():
 
     public_files = set(git('ls-files', '-z').split('\0')) | new_files
     public_files.discard('')
+    local_only = git('ls-files', '--cached', '--ignored', '--exclude-from=.gitignore', '-z').strip('\0')
+    if local_only:
+        raise SystemExit('Local-only files are tracked; update the publication exceptions if explicitly approved: ' + local_only.replace('\0', ', '))
     python_files = {name for name in public_files if name.endswith('.py')}
     for name in sorted(python_files):
         path = ROOT / name
