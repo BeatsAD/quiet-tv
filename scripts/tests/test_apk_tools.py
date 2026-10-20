@@ -66,11 +66,12 @@ class ArchiveChecks(unittest.TestCase):
                 build_apk.archive_apk('wrong sdk', output_dir=self.output, archive_dir=self.archive)
         self.assertFalse(self.archive.exists())
 
-    def test_api26_candidate_has_explicit_suffix(self):
-        with patch.object(build_apk, 'signer_digest', return_value=['certificate']), patch.object(build_apk, 'manifest_min_sdk', return_value=26):
-            apk = build_apk.archive_apk('compat', output_dir=self.output, archive_dir=self.archive, min_sdk=26)
-        self.assertTrue(apk.name.endswith('_api26.apk'))
-        self.assertEqual(json.loads(apk.with_suffix('.json').read_text())['min_sdk'], 26)
+    def test_compatibility_candidate_has_explicit_sdk_suffix(self):
+        for min_sdk in (23, 26):
+            with self.subTest(min_sdk=min_sdk), patch.object(build_apk, 'signer_digest', return_value=['certificate']), patch.object(build_apk, 'manifest_min_sdk', return_value=min_sdk):
+                apk = build_apk.archive_apk('compat', output_dir=self.output, archive_dir=self.archive, min_sdk=min_sdk)
+                self.assertTrue(apk.name.endswith(f'_api{min_sdk}.apk'))
+                self.assertEqual(json.loads(apk.with_suffix('.json').read_text())['min_sdk'], min_sdk)
 
     def test_build_does_not_archive_changing_sources(self):
         with patch.object(build_apk, 'source_digest', side_effect=['before', 'after']), patch.object(build_apk.subprocess, 'run'), patch.object(build_apk, 'archive_apk') as archive:

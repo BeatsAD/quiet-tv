@@ -30,11 +30,23 @@ final class AdbController implements Closeable {
     private final java.util.concurrent.atomic.AtomicInteger generation=new java.util.concurrent.atomic.AtomicInteger();
     int user = -1;
     String host = "";
+    ShellCapabilities capabilities=ShellCapabilities.NONE;
     AdbController(Context context, Status status) { this.context=context.getApplicationContext(); this.status=status; }
     boolean connected() { AdbConnection c=connection;return c!=null && c.isConnectionEstablished() && user>=0; }
     void validateUser() throws Exception {
         if(!connected())throw new IOException("需要连接 ADB");
-        if(!shell("am get-current-user").trim().equals(String.valueOf(user)) || user!=android.os.Process.myUid()/100000){disconnect();throw new IOException("当前用户已改变，请重新连接");}
+        if(currentUser()!=user || user!=android.os.Process.myUid()/100000){disconnect();throw new IOException("当前用户已改变，请重新连接");}
+    }
+    private int currentUser() throws Exception {
+        if(Build.VERSION.SDK_INT>=24)return Integer.parseInt(shell("am get-current-user").trim());
+        // Android 6 has no am get-current-user. Only accept a uniquely resumed foreground user.
+        return parseForegroundUser(shell("dumpsys activity activities"));
+    }
+    static int parseForegroundUser(String output) throws IOException {
+        java.util.regex.Matcher match=java.util.regex.Pattern.compile("mResumedActivity:[ \\t]*ActivityRecord\\{[^\\r\\n}]*\\bu([0-9]+)\\b").matcher(output);
+        int found=-1;
+        while(match.find()){int value=Integer.parseInt(match.group(1));if(found>=0 && found!=value)throw new IOException("前台用户状态不唯一");found=value;}
+        if(found<0)throw new IOException("无法核对前台用户，请返回 Quiet TV 后重试");return found;
     }
     static boolean pairingAvailable(){
         if(Build.VERSION.SDK_INT<33)return false;
@@ -89,8 +101,12 @@ final class AdbController implements Closeable {
                 if(!c.connect(60,TimeUnit.SECONDS,false))throw new IOException("授权超时，请确认电视调试已开启并允许连接");
                 verifyLocalDevice();
                 if(!shell("id -u").trim().equals("2000"))throw new IOException("连接未获得 shell 身份");
-                user=Integer.parseInt(shell("am get-current-user").trim());
-                if(!android.os.UserHandle.getUserHandleForUid(user*100000).equals(android.os.Process.myUserHandle()))throw new IOException("前台用户已切换，请重新打开应用管理");
+                user=currentUser();
+                if(user!=android.os.Process.myUid()/100000)throw new IOException("前台用户已切换，请重新打开应用管理");
+                String pmHelp="",cmdHelp="";
+                try{pmHelp=shell("pm help 2>&1 || true");}catch(IOException ignored){}
+                try{cmdHelp=shell("cmd package help 2>&1 || true");}catch(IOException ignored){}
+                capabilities=new ShellCapabilities(pmHelp,cmdHelp);
                 host=candidate;
                 if(closed || generation.get()!=attempt){disconnect();throw new IOException("连接已取消");}
                 status.changed("已连接 · 本机 · 用户 "+user);
@@ -102,7 +118,7 @@ final class AdbController implements Closeable {
 
     private void verifyLocalDevice() throws Exception {
         String localBoot;
-        try{localBoot=new String(java.nio.file.Files.readAllBytes(new File("/proc/sys/kernel/random/boot_id").toPath()),StandardCharsets.UTF_8).trim();}
+        try(BufferedReader input=new BufferedReader(new InputStreamReader(new FileInputStream("/proc/sys/kernel/random/boot_id"),StandardCharsets.UTF_8))){String value=input.readLine();localBoot=value==null?"":value.trim();}
         catch(IOException unavailable){
             // Older SELinux policies hide boot_id from apps. A fresh local-file challenge still
             // rejects accidentally forwarded connections to another device; no model-name fallback.
@@ -167,6 +183,6 @@ final class AdbController implements Closeable {
         }
         return store;
     }
-    void disconnect(){generation.incrementAndGet();user=-1;PairingTransport transport=pairing;if(transport!=null)transport.close();AdbConnection c=connection;connection=null;if(c!=null)try{c.close();}catch(IOException ignored){}status.changed("未连接");}
+    void disconnect(){generation.incrementAndGet();user=-1;capabilities=ShellCapabilities.NONE;PairingTransport transport=pairing;if(transport!=null)transport.close();AdbConnection c=connection;connection=null;if(c!=null)try{c.close();}catch(IOException ignored){}status.changed("未连接");}
     @Override public void close(){closed=true;disconnect();timer.shutdownNow();}
 }

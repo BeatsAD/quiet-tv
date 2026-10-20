@@ -4,7 +4,7 @@
 
 ## 1. 确认设备与环境
 
-当前 APK 的 minSdk/targetSdk 均为 31，只在 Sony KD-65X9000H / Android 12 做过实机适配。其他 Android 12 及以上电视需要单独试用；Android 11 及以下不能直接安装当前 APK。非 Android 系统不适用。
+当前源码为 1.1.0 / b24，minSdk 23、targetSdk 36；Android 6.0 及以上的实际固件仍需逐机验收，见[兼容记录](android-compatibility.md)。公开 b23 APK 仍要求 Android 12 / API31 和 ARM32 应用支持。Sony KD-65X9000H / Android 12 的既有真机结果不能代替 b24 验收。非 Android 系统不适用。
 
 已使用的开发主机为 macOS。需要 Git、JDK 17 或 21、Android SDK platform 36 / build-tools 36.0.0 / platform-tools，以及 Python 3（仅使用辅助脚本时需要）。Windows 和 Linux 的构建、脚本与设备交互尚未验收，`.command` 为 macOS 入口。
 
@@ -31,7 +31,7 @@ sdk.dir=/absolute/path/to/your/android-sdk
 python3 scripts/build_apk.py --summary "说明本次交付的变更"
 ```
 
-默认源码构建归档至 `dist/apk/quiet-tv_1.1.0_b23_debug.apk`，同目录 JSON 保存版本、时间、SHA-256 和变更摘要。这一步不连接或修改电视。包名为 `home.quiet.tv`，当前源码配置为版本 1.1.0、构建号 23，默认 Debug 构建为通用架构。
+默认源码构建归档至 `dist/apk/quiet-tv_1.1.0_b24_debug_api23.apk`，同目录 JSON 保存版本、时间、SHA-256 和变更摘要。这一步不连接或修改电视。包名为 `home.quiet.tv`，当前源码配置为版本 1.1.0、构建号 24，默认 Debug 构建为通用架构、最低 API23。可用 `--min-sdk 26` 或 `--min-sdk 31` 显式构建较高最低版本。本次集成仅构建验证，没有归档新交付包或安装到电视。
 
 [Releases v1.1.0](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0) 提供独立的 `quiet-tv_1.1.0_b23_benchmark_armeabi-v7a.apk` 优化测试包及 SHA-256 校验文件，仅适用于支持 ARM32 应用的 Android 12 及以上电视。它与上面的通用 Debug 构建文件名不同；下载后安装时使用下载文件的实际路径。尚无稳定版，更新与验证范围见[发布说明](releases/v1.1.0.md)。归档和安装核对约定见[版本规则](VERSIONING.md)。
 
@@ -52,7 +52,7 @@ adb -s "$TV_SERIAL" shell cmd package resolve-activity --brief -a android.intent
 确认目标身份，保存最后一条命令返回的原 HOME 组件，并保留原桌面。安装并启动：
 
 ```sh
-adb -s "$TV_SERIAL" install -r dist/apk/quiet-tv_1.1.0_b23_debug.apk
+adb -s "$TV_SERIAL" install -r dist/apk/quiet-tv_1.1.0_b24_debug_api23.apk
 adb -s "$TV_SERIAL" shell am start -n home.quiet.tv/.HomeActivity
 ```
 

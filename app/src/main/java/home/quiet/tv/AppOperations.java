@@ -33,7 +33,7 @@ final class AppOperations {
         ArrayList<Action> actions=new ArrayList<>();if(!protection(app).isEmpty() || !app.verified || !app.metadataKnown)return actions;
         if(app.installed){actions.add(app.enabled?Action.DISABLE:Action.ENABLE);actions.add(Action.UNINSTALL);}
         else if(app.recoverable)actions.add(Action.RESTORE);
-        if(app.system)actions.removeIf(action->!presets.allows(app.pkg,action.name()));
+        for(Iterator<Action> it=actions.iterator();it.hasNext();){Action action=it.next();if(!app.commands.supports(action) || (app.system && !presets.allows(app.pkg,action.name())))it.remove();}
         return actions;
     }
     String explanation(AppRepository.App app,Action action){
@@ -55,6 +55,7 @@ final class AppOperations {
         if(original){
             HomeController home=new HomeController(context,presets);String target=new SetupStore(context).originalHome();
             if(!before.metadataKnown || !target.equals(presets.home()) || !target.startsWith(before.pkg+"/") || !home.component(target,false))throw new IOException("原桌面身份未确认");
+            if(action==Action.DISABLE && before.enabledSetting==0 && !adb.capabilities.defaultState)throw new IOException("当前系统无法精确恢复原桌面的默认启用状态，不执行禁用");
             if(action==Action.DISABLE || action==Action.UNINSTALL){
                 if(!home.inspect(adb).isOwn(context))throw new IOException("Quiet TV 尚未成为实际默认桌面");
                 if(!presets.homeAllows(action==Action.DISABLE?"disableVerified":"uninstallVerified"))throw new IOException("当前机型的此项原桌面操作尚未验收");
@@ -62,6 +63,7 @@ final class AppOperations {
             }else if(action==Action.RESTORE && (!before.recoverable || !presets.homeAllows("restoreInstallVerified")))throw new IOException("原桌面恢复安装尚未验收或系统安装包缺失");
             else if(action==Action.ENABLE && !presets.homeAllows("disableVerified"))throw new IOException("原桌面启用能力尚未验收");
         }else if(!actions(before).contains(action))throw new IOException("此应用不允许执行该操作");
+        if(!adb.capabilities.supports(action))throw new IOException("当前系统未确认支持此操作："+action.label);
         if(ticket!=null)ticket.check();
         String id=UUID.randomUUID().toString();record(id,user,before,action,null,"执行前",runId);
         String output="",failure="";int expectedEnabledSetting=-1;
@@ -72,11 +74,12 @@ final class AppOperations {
                 case ENABLE:
                     JSONObject baseline=original?new SetupStore(context).get().optJSONObject("originalState"):null;
                     boolean defaultState=baseline!=null && baseline.optInt("enabledSetting",-1)==0;
+                    if(defaultState && !adb.capabilities.defaultState)throw new IOException("当前系统不支持恢复默认启用状态");
                     if(original)expectedEnabledSetting=defaultState?0:1;
-                    output=adb.shell("pm "+(defaultState?"default-state":"enable")+" --user "+user+" "+pkg);break;
-                case DISABLE:output=adb.shell("pm disable-user --user "+user+" "+pkg);break;
-                case UNINSTALL:output=adb.shell("pm uninstall --user "+user+" "+pkg);break;
-                case RESTORE:output=adb.shell("cmd package install-existing --user "+user+" "+pkg);break;
+                    output=adb.shell((defaultState?adb.capabilities.defaultStateCommand:adb.capabilities.enableCommand)+" --user "+user+" "+pkg);break;
+                case DISABLE:output=adb.shell(adb.capabilities.disableCommand+" --user "+user+" "+pkg);break;
+                case UNINSTALL:output=adb.shell(adb.capabilities.uninstallCommand+" --user "+user+" "+pkg);break;
+                case RESTORE:output=adb.shell(adb.capabilities.restore+" --user "+user+" "+pkg);break;
             }
         }catch(Exception e){failure=e.getMessage();}
         AppRepository.App after;

@@ -13,6 +13,7 @@ public final class DockEditorActivity extends ManagementUi {
     private DockStore store;
     private ArrayList<String> packages,moving;
     private int movingIndex;
+    private boolean initialWindowFocus=true;
     private LinearLayout content;
     private TextView counter;
     private final ArrayList<View> slots=new ArrayList<>();
@@ -20,7 +21,8 @@ public final class DockEditorActivity extends ManagementUi {
         super.onCreate(state);store=new DockStore(this);packages=store.load();counter=muted("最多 4 个位置",12);header.addView(counter);toolbar(true);
         content=column();content.setGravity(Gravity.CENTER_VERTICAL);root.addView(content,new LinearLayout.LayoutParams(-1,0,1));footer("方向键选择  ·  确定编辑  ·  返回退出");render(0);
     }
-    private ApplicationInfo info(String pkg){try{return getPackageManager().getApplicationInfo(pkg,PackageManager.MATCH_DISABLED_COMPONENTS|PackageManager.MATCH_UNINSTALLED_PACKAGES);}catch(PackageManager.NameNotFoundException e){return null;}}
+    @Override public void onWindowFocusChanged(boolean focused){super.onWindowFocusChanged(focused);if(focused && initialWindowFocus){initialWindowFocus=false;stage.post(()->slots.get(0).requestFocus());}}
+    private ApplicationInfo info(String pkg){try{return getPackageManager().getApplicationInfo(pkg,HomeController.METADATA);}catch(PackageManager.NameNotFoundException e){return null;}}
     private String name(String pkg){ApplicationInfo info=info(pkg);return info==null?pkg:getPackageManager().getApplicationLabel(info).toString();}
     private Drawable banner(String pkg,ApplicationInfo app){
         PackageManager pm=getPackageManager();Drawable art=app==null?null:app.loadBanner(pm);
@@ -57,17 +59,19 @@ public final class DockEditorActivity extends ManagementUi {
     }
     private void choose(int replace){
         PackageManager pm=getPackageManager();LinkedHashMap<String,ResolveInfo> choices=new LinkedHashMap<>();
-        for(String category:new String[]{Intent.CATEGORY_LEANBACK_LAUNCHER,Intent.CATEGORY_LAUNCHER})for(ResolveInfo info:pm.queryIntentActivities(new Intent(Intent.ACTION_MAIN).addCategory(category),0))if(info.activityInfo.applicationInfo.enabled && !info.activityInfo.packageName.equals(getPackageName()) && !packages.contains(info.activityInfo.packageName))choices.putIfAbsent(info.activityInfo.packageName,info);
-        ArrayList<ResolveInfo> apps=new ArrayList<>(choices.values());apps.sort((a,b)->a.loadLabel(pm).toString().compareTo(b.loadLabel(pm).toString()));if(apps.isEmpty()){message("没有可添加的已启用应用");return;}
+        for(String category:new String[]{Intent.CATEGORY_LEANBACK_LAUNCHER,Intent.CATEGORY_LAUNCHER})for(ResolveInfo info:pm.queryIntentActivities(new Intent(Intent.ACTION_MAIN).addCategory(category),0))if(info.activityInfo.applicationInfo.enabled && !info.activityInfo.packageName.equals(getPackageName()) && !packages.contains(info.activityInfo.packageName)){if(!choices.containsKey(info.activityInfo.packageName))choices.put(info.activityInfo.packageName,info);}
+        ArrayList<ResolveInfo> apps=new ArrayList<>(choices.values());Collections.sort(apps,(a,b)->a.loadLabel(pm).toString().compareTo(b.loadLabel(pm).toString()));if(apps.isEmpty()){message("没有可添加的已启用应用");return;}
         Sheet sheet=new Sheet(replace<0?"添加常用应用":"替换第 "+(replace+1)+" 个位置");Button first=null;
         for(ResolveInfo app:apps){Button option=sheet.option(app.loadLabel(pm)+"\n"+app.activityInfo.packageName,()->{String pkg=app.activityInfo.packageName;if(replace<0){if(packages.size()==4){message("常用应用已满，请选择位置替换");return;}packages.add(pkg);}else packages.set(replace,pkg);store.save(packages);sheet.dialog.dismiss();render(replace<0?packages.size()-1:replace);feedback("已保存常用应用");});option.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(12));Drawable icon=app.loadIcon(pm);icon.setBounds(0,0,px(28),px(28));option.setCompoundDrawables(icon,null,null,null);option.setCompoundDrawablePadding(px(12));if(first==null)first=option;}
         sheet.action("取消",sheet.dialog::dismiss);sheet.show(first);
     }
     private void saveMove(){packages=moving;moving=null;store.save(packages);render(movingIndex);feedback("已保存顺序");}
     private void cancelMove(){moving=null;render(movingIndex);}
+    public void handleBack(){if(moving!=null)cancelMove();else super.handleBack();}
+    // Public Activity override; AndroidX core marks its inherited bridge class library-only.
+    @android.annotation.SuppressLint("RestrictedApi")
     @Override public boolean dispatchKeyEvent(KeyEvent event){
         if(moving==null)return super.dispatchKeyEvent(event);int key=event.getKeyCode();
-        if(key==KeyEvent.KEYCODE_BACK){if(event.getAction()==KeyEvent.ACTION_UP)cancelMove();return true;}
         if(key==KeyEvent.KEYCODE_DPAD_CENTER || key==KeyEvent.KEYCODE_ENTER || key==KeyEvent.KEYCODE_NUMPAD_ENTER){if(slots.contains(getCurrentFocus())){if(event.getAction()==KeyEvent.ACTION_UP)saveMove();return true;}}
         if((key==KeyEvent.KEYCODE_DPAD_LEFT || key==KeyEvent.KEYCODE_DPAD_RIGHT) && slots.contains(getCurrentFocus())){if(event.getAction()==KeyEvent.ACTION_DOWN){int target=Math.max(0,Math.min(moving.size()-1,movingIndex+(key==KeyEvent.KEYCODE_DPAD_LEFT?-1:1)));Collections.swap(moving,movingIndex,target);movingIndex=target;render(target);}return true;}
         return super.dispatchKeyEvent(event);

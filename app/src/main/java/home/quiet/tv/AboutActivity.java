@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.util.Collections;
 
 /** Native About screen; the web engine is used only for the separate offline license document. */
-public final class AboutActivity extends Activity {
+public final class AboutActivity extends androidx.activity.ComponentActivity {
     private static final String ORIGIN="https://quiet-tv.invalid/about/";
     private static final String UPSTREAM="https://github.com/Gathin23/tv-vibehack";
     private AboutView scene;
@@ -32,7 +32,7 @@ public final class AboutActivity extends Activity {
     private long navigation;
 
     @Override public void onCreate(Bundle state) {
-        super.onCreate(state);
+        super.onCreate(state);BackNavigation.install(this,this::handleBack);
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN
                 | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         try {
@@ -65,6 +65,9 @@ public final class AboutActivity extends Activity {
                     try{return new WebResourceResponse("text/html","UTF-8",getAssets().open("about/license.html"));}
                     catch(IOException e){return blocked();}
                 }
+                @Override public boolean shouldOverrideUrlLoading(WebView view,String url){
+                    if((ORIGIN+"index.html").equals(url))returnToAbout();return true;
+                }
                 @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest resource){
                     if((ORIGIN+"index.html").equals(resource.getUrl().toString()))returnToAbout();return true;
                 }
@@ -94,9 +97,11 @@ public final class AboutActivity extends Activity {
         license=false;licenseReady=false;++navigation;web.stopLoading();web.setVisibility(View.INVISIBLE);
         scene.setVisibility(View.VISIBLE);scene.focusLicense();
     }
+    // Public Activity override; AndroidX core marks its inherited bridge library-only.
+    @android.annotation.SuppressLint("RestrictedApi")
     @Override public boolean dispatchKeyEvent(KeyEvent event){
         int code=event.getKeyCode();
-        if(code==KeyEvent.KEYCODE_ESCAPE){if(event.getAction()==KeyEvent.ACTION_DOWN && event.getRepeatCount()==0)onBackPressed();return true;}
+        if(code==KeyEvent.KEYCODE_ESCAPE){if(event.getAction()==KeyEvent.ACTION_DOWN && event.getRepeatCount()==0)handleBack();return true;}
         if(license){
             if(!licenseReady && code!=KeyEvent.KEYCODE_BACK)return true;
             return super.dispatchKeyEvent(event);
@@ -110,7 +115,7 @@ public final class AboutActivity extends Activity {
         return super.dispatchKeyEvent(event);
     }
     @Override public void finish(){super.finish();overridePendingTransition(0,0);}
-    @Override public void onBackPressed(){if(license)returnToAbout();else finish();}
+    public void handleBack(){if(license)returnToAbout();else finish();}
     @Override protected void onSaveInstanceState(Bundle state){state.putBoolean("license",license);super.onSaveInstanceState(state);}
     @Override protected void onPause(){if(web!=null)web.onPause();super.onPause();}
     @Override protected void onResume(){super.onResume();if(web!=null)web.onResume();}

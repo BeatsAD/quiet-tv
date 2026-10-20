@@ -1,5 +1,6 @@
-const $ = (selector) => document.querySelector(selector);
-const paths = {
+// ES5 syntax and DOM APIs keep the bundled page usable in Android 6 WebView.
+function $(selector) { return document.querySelector(selector); }
+var paths = {
   back: '<path d="m14 6-6 6 6 6M8 12h13"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/>',
   close: '<path d="m6 6 12 12M6 18 18 6"/>',
@@ -7,116 +8,128 @@ const paths = {
   network: '<rect x="9" y="2" width="6" height="6"/><path d="M12 8v5M5 13h14M5 13v3M19 13v3"/><rect x="2" y="16" width="6" height="6"/><rect x="16" y="16" width="6" height="6"/>',
   input: '<path d="M6 3h12v8l-4 4v6h-4v-6l-4-4zM10 6v4M14 6v4"/>'
 };
-function icons(root = document) {
-  root.querySelectorAll('[data-icon]').forEach(el => {
-    el.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${paths[el.dataset.icon]}</svg>`;
-  });
+
+function each(selector, callback, root) {
+  var nodes=(root || document).querySelectorAll(selector);
+  for(var i=0;i<nodes.length;i++)callback(nodes[i]);
+}
+function icons(root) {
+  each('[data-icon]',function(el) {
+    el.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+paths[el.dataset.icon]+'</svg>';
+  },root);
 }
 icons();
-
-const embedded = document.body.classList.contains('embedded');
-if (embedded) {
-  const installed = new URLSearchParams(location.search);
-  $('#app-name').textContent = installed.get('name');
-  $('#version-name').textContent = `版本 ${installed.get('version')}`;
-  $('#version-channel').textContent = installed.get('debug') === 'true' ? '测试版' : '正式版';
+var embedded=document.body.classList.contains('embedded');
+if(!window.CSS || !CSS.supports || !CSS.supports('font-variation-settings','normal'))document.body.className+=' legacy-webview';
+function query(name) {
+  var fields=location.search.substring(1).split('&');
+  for(var i=0;i<fields.length;i++) {
+    var pair=fields[i].split('=');
+    if(decodeURIComponent(pair[0])===name)return decodeURIComponent((pair[1] || '').replace(/\+/g,' '));
+  }
+  return '';
 }
-let currentPage = 'about';
-let lastFocus = $('#back-home');
-let toastTimer;
+if(embedded) {
+  $('#app-name').textContent=query('name');
+  $('#version-name').textContent='版本 '+query('version');
+  $('#version-channel').textContent=query('debug')==='true'?'测试版':'正式版';
+}
+var currentPage='about',lastFocus=$('#back-home'),toastTimer;
 function resize() {
-  const full = embedded || document.fullscreenElement === $('#viewport');
-  const available = full ? innerWidth : Math.min(innerWidth - (innerWidth < 900 ? 24 : 64), 1600);
-  const scale = full ? Math.min(innerWidth / 1920, innerHeight / 1080) : available / 1920;
-  $('#viewport').style.width = `${1920 * scale}px`;
-  $('#viewport').style.height = `${1080 * scale}px`;
-  $('#tv').style.transform = `scale(${scale})`;
-  if (embedded) {
-    $('#tv').style.left = `${(innerWidth - 1920 * scale) / 2}px`;
-    $('#tv').style.top = `${(innerHeight - 1080 * scale) / 2}px`;
+  var full=embedded || document.fullscreenElement===$('#viewport');
+  var available=full?innerWidth:Math.min(innerWidth-(innerWidth<900?24:64),1600);
+  var scale=full?Math.min(innerWidth/1920,innerHeight/1080):available/1920;
+  $('#viewport').style.width=1920*scale+'px';
+  $('#viewport').style.height=1080*scale+'px';
+  $('#tv').style.transform='scale('+scale+')';
+  if(embedded) {
+    $('#tv').style.left=(innerWidth-1920*scale)/2+'px';
+    $('#tv').style.top=(innerHeight-1080*scale)/2+'px';
   }
 }
-addEventListener('resize', resize);
-document.addEventListener('fullscreenchange', resize);
+addEventListener('resize',resize);
+document.addEventListener('fullscreenchange',resize);
 resize();
 function showPage(page) {
-  if (embedded && page === 'home') { location.href = 'exit'; return; }
-  currentPage = page;
-  $('#home').hidden = page !== 'home';
-  $('#about').hidden = page !== 'about';
-  document.querySelectorAll('[data-preview]').forEach(el => el.classList.toggle('selected', el.dataset.preview === page));
-  (page === 'home' ? $('#entry-about') : $('#back-home')).focus();
+  if(embedded && page==='home'){location.href='exit';return;}
+  currentPage=page;
+  $('#home').hidden=page!=='home';$('#about').hidden=page!=='about';
+  each('[data-preview]',function(el){el.classList.toggle('selected',el.dataset.preview===page);});
+  (page==='home'?$('#entry-about'):$('#back-home')).focus();
 }
-document.querySelectorAll('[data-preview]').forEach(el => el.onclick = () => showPage(el.dataset.preview));
-$('#back-home').onclick = () => showPage('home');
-if (!embedded) {
-  $('#entry-about').onclick = () => showPage('about');
-  $('#fullscreen').onclick = async () => {
-  try {
-    if (document.fullscreenElement) await document.exitFullscreen();
-    else await $('#viewport').requestFullscreen();
-    lastFocus.focus();
-  } catch { toast('当前浏览器暂不支持全屏，请放大预览窗口'); }
+each('[data-preview]',function(el){el.onclick=function(){showPage(el.dataset.preview);};});
+$('#back-home').onclick=function(){showPage('home');};
+if(!embedded) {
+  $('#entry-about').onclick=function(){showPage('about');};
+  $('#fullscreen').onclick=function(){
+    try {
+      var result=document.fullscreenElement?document.exitFullscreen():$('#viewport').requestFullscreen();
+      if(result && result.then)result.then(function(){lastFocus.focus();},function(){toast('当前浏览器暂不支持全屏，请放大预览窗口');});
+    }catch(error){toast('当前浏览器暂不支持全屏，请放大预览窗口');}
   };
 }
 function toast(message) {
-  clearTimeout(toastTimer);
-  $('#toast').textContent = message;
-  $('#toast').hidden = false;
-  toastTimer = setTimeout(() => $('#toast').hidden = true, 2600);
+  clearTimeout(toastTimer);$('#toast').textContent=message;$('#toast').hidden=false;
+  toastTimer=setTimeout(function(){$('#toast').hidden=true;},2600);
 }
-document.querySelectorAll('[data-demo]').forEach(el => el.onclick = () => toast(`演示入口：${el.dataset.demo}。本次可体验「关于」功能`));
+each('[data-demo]',function(el){el.onclick=function(){toast('演示入口：'+el.dataset.demo+'。本次可体验「关于」功能');};});
 function focusables() {
-  return [...$(`#${currentPage}`).querySelectorAll('button,a[href]')].filter(el => el.getClientRects().length);
+  var result=[];
+  each('button,a[href]',function(el){if(el.getClientRects().length)result.push(el);},$('#'+currentPage));
+  return result;
 }
-$('#tv').addEventListener('focusin', event => { if (event.target !== $('#tv')) lastFocus = event.target; });
+$('#tv').addEventListener('focusin',function(event){if(event.target!==$('#tv'))lastFocus=event.target;});
 function navigate(key) {
-  const items = focusables();
-  if (key === 'Escape' || key === 'Backspace') {
-    if (currentPage === 'about') showPage('home');
-    else toast('已在桌面首页');
+  var items=focusables();
+  if(key==='Escape' || key==='Backspace') {
+    if(currentPage==='about')showPage('home');else toast('已在桌面首页');
     return;
   }
-  if (!items.includes(document.activeElement)) (items.includes(lastFocus) ? lastFocus : items[0])?.focus();
-  const active = document.activeElement;
-  if (key === 'Enter') { active.click(); return; }
-  if (currentPage === 'about') {
-    const routes = {
-      'back-home': {ArrowRight: 'license-link', ArrowDown: 'license-link'},
-      'license-link': {ArrowUp: 'back-home', ArrowLeft: 'back-home', ArrowRight: 'upstream-link'},
-      'upstream-link': {ArrowUp: 'back-home', ArrowLeft: 'license-link'}
+  if(items.indexOf(document.activeElement)<0) {
+    var fallback=items.indexOf(lastFocus)>=0?lastFocus:items[0];
+    if(fallback)fallback.focus();
+  }
+  var active=document.activeElement;
+  if(key==='Enter'){active.click();return;}
+  if(currentPage==='about') {
+    var routes={
+      'back-home':{ArrowRight:'license-link',ArrowDown:'license-link'},
+      'license-link':{ArrowUp:'back-home',ArrowLeft:'back-home',ArrowRight:'upstream-link'},
+      'upstream-link':{ArrowUp:'back-home',ArrowLeft:'license-link'}
     };
-    const next = routes[active.id]?.[key];
-    if (next) $(`#${next}`).focus();
+    var route=routes[active.id],next=route && route[key];
+    if(next)$('#'+next).focus();
     return;
   }
-  const vertical = key === 'ArrowUp' || key === 'ArrowDown';
-  const direction = key === 'ArrowLeft' || key === 'ArrowUp' ? -1 : 1;
-  const rect = active.getBoundingClientRect();
-  const x = rect.x + rect.width / 2, y = rect.y + rect.height / 2;
-  const candidates = items.filter(el => el !== active).map(el => {
-    const next = el.getBoundingClientRect();
-    const dx = next.x + next.width / 2 - x, dy = next.y + next.height / 2 - y;
-    const primary = vertical ? dy : dx, secondary = vertical ? dx : dy;
-    return {el, primary: primary * direction, score: Math.abs(primary) + Math.abs(secondary) * 2.5};
-  }).filter(item => item.primary > 5).sort((a, b) => a.score - b.score);
-  candidates[0]?.el.focus();
+  var vertical=key==='ArrowUp' || key==='ArrowDown';
+  var direction=key==='ArrowLeft' || key==='ArrowUp'?-1:1;
+  var rect=active.getBoundingClientRect(),x=rect.left+rect.width/2,y=rect.top+rect.height/2;
+  var candidates=[];
+  for(var i=0;i<items.length;i++) {
+    if(items[i]===active)continue;
+    var bounds=items[i].getBoundingClientRect();
+    var dx=bounds.left+bounds.width/2-x,dy=bounds.top+bounds.height/2-y;
+    var primary=vertical?dy:dx,secondary=vertical?dx:dy;
+    if(primary*direction>5)candidates.push({el:items[i],score:Math.abs(primary)+Math.abs(secondary)*2.5});
+  }
+  candidates.sort(function(a,b){return a.score-b.score;});
+  if(candidates[0])candidates[0].el.focus();
 }
-document.addEventListener('keydown', event => {
-  if (!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Enter','Escape','Backspace'].includes(event.key)) return;
-  if (!$('#tv').contains(document.activeElement) && !document.activeElement.closest('.remote')) return;
-  event.preventDefault();
-  navigate(event.key);
+document.addEventListener('keydown',function(event){
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Enter','Escape','Backspace'].indexOf(event.key)<0)return;
+  var active=document.activeElement;
+  while(active && !$('#tv').contains(active) && !active.classList.contains('remote'))active=active.parentElement;
+  if(!active)return;
+  event.preventDefault();navigate(event.key);
 });
-document.querySelectorAll('[data-key]').forEach(el => {
-  el.onmousedown = event => event.preventDefault();
-  el.onclick = () => navigate(el.dataset.key);
+each('[data-key]',function(el){
+  el.onmousedown=function(event){event.preventDefault();};
+  el.onclick=function(){navigate(el.dataset.key);};
 });
 $('#back-home').focus();
-if (embedded) window.quietTVAbout = {
-  ready: false,
-  move: navigate,
-  activate: () => navigate('Enter'),
-  focusInitial: () => $('#back-home').focus(),
-  restoreLicense: () => $('#license-link').focus()
+if(embedded)window.quietTVAbout={
+  ready:false,move:navigate,
+  activate:function(){navigate('Enter');},
+  focusInitial:function(){$('#back-home').focus();},
+  restoreLicense:function(){$('#license-link').focus();}
 };
