@@ -22,7 +22,7 @@
 | `codex/public-showcase` | `b5f5dc2` | 原已属于 main 历史，无需重复应用 |
 | `codex/readme-contact-publish` | `65788a8` | 原已属于 main 历史，无需重复应用 |
 | `codex/readme-current-project` | `55b82c1` | 已被 Squash 合入或被后续主线替代；本次补齐历史合并关系，保留当前内容 |
-| `codex/readme-rewrite` | `49db1ab` | 未提交修改保存为 49db1ab，已合入 327e9b9 |
+| `codex/readme-rewrite` | `82eb05d` | 首批修改保存为 49db1ab；最终复查新增 README 修改保存为 82eb05d，一并合入 |
 | `codex/remove-focus-black-outline` | `ad9fec8` | 原已属于 main 历史，无需重复应用 |
 | `codex/repository-layout` | `43480f2` | 已被 Squash 合入或被后续主线替代；本次补齐历史合并关系，保留当前内容 |
 | `codex/setup-demo-remote` | `9833ff3` | 未提交修改经编译与现有单元检查后保存为 9833ff3；功能已被主线后续实现替代，保留完整历史 |
@@ -51,3 +51,16 @@
 - `scripts/check_contribution.py`、差异空白、修改文档本地链接、JavaScript 语法及 5 个 SVG XML 语法：通过。
 
 没有连接设备或模拟器；没有执行本轮界面、真实 HOME 切换、包管理或保留数据升级验收。历史模拟器和真机记录仅代表对应历史候选。本次没有创建新的不可变交付归档。
+
+## 本次新增提交
+
+| 提交 | 信息 |
+| --- | --- |
+| `49db1ab` | 精简首页界面说明并保存关于页二维码资源 |
+| `327e9b9` | 合并首页修改与关于页资源并保留主分支仓库整理 |
+| `9833ff3` | 保存首次设置真实流程恢复与遥控焦点修正 |
+| `65eb7ed` | 合并安卓6兼容能力并保留主线焦点与性能优化 |
+| `42480d5` | 归并已吸收的历史分支并记录全工作树检查结果 |
+| `82eb05d` | 同步首页介绍与壁纸说明的最新文案排版 |
+
+最终复查期间出现的 README 介绍合段与壁纸标题修改已追加保存为 `82eb05d`。其合并只影响 README 与本检查记录，不改变已验证的生产代码。

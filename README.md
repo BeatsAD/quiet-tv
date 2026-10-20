@@ -6,9 +6,7 @@
 
 [简体中文](README.md) · [English](README.en.md)
 
-Quiet TV 面向国内 Android 电视的日常使用场景：把常用应用放在首页，用遥控器直接打开，方便地切换信号源、调整壁纸和管理已安装的应用。
-
-桌面没有广告和推荐信息流，无需注册账号。采用 Android 原生界面，无需 root 或刷机。
+Quiet TV 面向国内 Android 电视的日常使用场景：把常用应用放在首页，用遥控器直接打开，方便地切换信号源、调整壁纸和管理已安装的应用。桌面没有广告和推荐信息流，无需注册账号。采用 Android 原生界面，无需 root 或刷机。
 
 [下载测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0) · [安装指南](docs/INSTALL.zh-CN.md) · [使用指南](docs/USAGE.zh-CN.md) · [支持机型](docs/COMPATIBILITY.md)
 
@@ -18,9 +16,7 @@ Quiet TV 面向国内 Android 电视的日常使用场景：把常用应用放�
 
 ![Quiet TV 首页：时钟、系统入口和四个常用应用](docs/assets/home.png)
 
-**选一张壁纸，也可以保持简单。**
-
-可使用随应用焦点换色的默认主题，固定一张风景图，或开启每 5 分钟切换的壁纸轮播。
+**新增了壁纸功能**可使用随应用焦点换色的默认主题，固定一张风景图，或开启每 5 分钟切换的壁纸轮播。
 
 ![Quiet TV 壁纸设置：默认主题、风景图和轮播开关](docs/assets/wallpaper-settings.png)
 
