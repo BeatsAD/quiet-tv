@@ -3,7 +3,9 @@ dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_P
 rootProject.name = 'QuietTV'
 include ':app'
 
-include ':management-fixture'
-include ':home-fixture'
+// Private test fixtures are optional; a fresh clone builds only the public app.
+['management-fixture', 'home-fixture'].each { name ->
+    if (file(name + '/build.gradle').isFile()) include ':' + name
+}
 
 apply from: 'gradle/security-constraints.gradle'

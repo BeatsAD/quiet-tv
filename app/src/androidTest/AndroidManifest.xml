@@ -1,4 +1,0 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <instrumentation android:name="home.quiet.tv.ManagementInstrumentation" android:targetPackage="home.quiet.tv" android:label="Quiet TV management checks" />
-    <application android:label="Quiet TV management checks" />
-</manifest>
