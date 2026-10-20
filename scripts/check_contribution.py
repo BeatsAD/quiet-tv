@@ -20,12 +20,17 @@ def main():
     args = parser.parse_args()
     # Include deletions in classification, and new local files in pre-commit checks.
     changed = set(git('diff', '--name-only', '-z', args.base).split('\0'))
-    changed.update(git('ls-files', '--others', '--exclude-standard', '-z').split('\0'))
+    new_files = set(git('ls-files', '--others', '--exclude-standard', '-z').split('\0'))
+    changed.update(new_files)
     changed.discard('')
     subprocess.run(['git', 'diff', '--check', args.base], cwd=ROOT, check=True)
 
-    tracked = git('ls-files', '-z').split('\0')
-    python_files = {name for name in tracked + list(changed) if name.endswith('.py')}
+    public_files = set(git('ls-files', '-z').split('\0')) | new_files
+    public_files.discard('')
+    local_only = git('ls-files', '--cached', '--ignored', '--exclude-from=.gitignore', '-z').strip('\0')
+    if local_only:
+        raise SystemExit('Local-only files are tracked; update the publication exceptions if explicitly approved: ' + local_only.replace('\0', ', '))
+    python_files = {name for name in public_files if name.endswith('.py')}
     for name in sorted(python_files):
         path = ROOT / name
         if path.is_file():
@@ -34,7 +39,7 @@ def main():
     documents = 0
     for name in sorted(changed):
         path = ROOT / name
-        if path.suffix != '.md' or not path.is_file():
+        if name not in public_files or path.suffix != '.md' or not path.is_file():
             continue
         documents += 1
         source = re.sub(r'(?ms)^```[^\n]*\n.*?^```[^\n]*$', '', path.read_text())
@@ -48,13 +53,16 @@ def main():
             destination = path.parent / unquote(url.path)
             if not destination.exists():
                 raise SystemExit(f'{name}: missing local link: {target}')
+            relative = os.path.relpath(destination.resolve(), ROOT)
+            if relative not in public_files and not any(item.startswith(relative.rstrip('/') + '/') for item in public_files):
+                raise SystemExit(f'{name}: link target is not included in the public repository: {target}')
     print(f'Python syntax checked; local links checked in {documents} changed Markdown files.')
 
     tooling = any(name.startswith('.github/workflows/') or name == 'scripts/check_contribution.py'
                   for name in changed)
     project_changes = {name for name in changed if not name.endswith('.md')}
     flags = {
-        'android': tooling or any(name.startswith(('app/', 'management-fixture/', 'home-fixture/', 'gradle/'))
+        'android': tooling or any(name.startswith(('app/', 'gradle/'))
                                  or name in ('build.gradle', 'settings.gradle', 'gradle.properties',
                                              'gradlew', 'gradlew.bat', 'scripts/bundle_about.py', 'LICENSE')
                                  or name.startswith('prototypes/about/') for name in project_changes)

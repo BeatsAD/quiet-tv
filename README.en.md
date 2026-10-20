@@ -61,16 +61,16 @@ Changes in this build:
 - Display-sized wallpaper decoding, on-demand thumbnails, and cover caching reduce loading work; returning home avoids unnecessary full app rescans.
 - Improved native two-step setup, default-home verification, and the native About screen, with offline licenses opened on demand.
 
-b23 was installed as an update on one Android 12 / ARM32 TV, with matching APK hashes and checks of HOME return, wallpaper, and Dock display. This does not establish hardware acceptance of every new flow. See the [release notes](docs/releases/v1.1.0.md) for checksums, updates, and validation limits. Historical v1.0.1 remains available. Default source Debug builds are universal and differ from the download; see [build rules](docs/VERSIONING.md).
+b23 was installed as an update on one Android 12 / ARM32 TV, with matching APK hashes and checks of HOME return, wallpaper, and Dock display. This does not establish hardware acceptance of every new flow. See the [release notes](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0) for checksums, updates, and validation limits. Historical v1.0.1 remains available. Default source Debug builds are universal and differ from the download; see [build rules](docs/VERSIONING.md).
 
-You can keep the original launcher installed while trying Quiet TV. System debloating requires a backup and recovery record for the actual target TV. Real device settings, package inventories, and recovery records stay local; the repository provides only [redacted format examples](docs/examples/README.md), not debloating recommendations or recovery baselines for another TV.
+You can keep the original launcher installed while trying Quiet TV. System debloating requires a backup and recovery record for the actual target TV. Real device settings, package inventories, and recovery records stay local; these are not distributed with public source, and another TV’s records are not a recovery baseline for your device.
 
 ## Supported devices
 
 | Device / system | Status |
 | --- | --- |
-| Sony KD-65X9000H / BRAVIA VH1 · Android 12 | Installed and checked for the home screen, app management, wallpaper, selected system shortcuts, and one full reboot. See the [verification record](VERIFICATION.md) for the exact scope. |
-| Other TVs running Android 6.0 or newer | Source compatibility is included; vendor firmware, HOME and ADB capabilities need hardware validation. See the [compatibility record](docs/android-compatibility.md). |
+| Sony KD-65X9000H / BRAVIA VH1 · Android 12 | Installed and checked for the home screen, app management, wallpaper, selected system shortcuts, and one full reboot. See the [verification record](docs/COMPATIBILITY.md) for the exact scope. |
+| Other TVs running Android 6.0 or newer | Source compatibility is included; vendor firmware, HOME and ADB capabilities need hardware validation. See the [compatibility record](docs/COMPATIBILITY.md). |
 | Android 5.1 or earlier; non-Android systems such as Tizen or webOS | Unsupported by the current source. |
 
 Long-running operation, casting, and full media playback remain unverified. Six-digit wireless pairing is still an experimental entry awaiting validation. Experimental older-Android source builds do not extend the current download to Android 11 or earlier; see [compatibility details](docs/COMPATIBILITY.md). Third-party media apps use their own update channels; Quiet TV does not currently update them automatically.
@@ -83,10 +83,9 @@ Long-running operation, casting, and full media playback remain unverified. Six-
 | Install, update, or switch back to my original launcher | [Installation guide](docs/INSTALL.en.md) |
 | Configure favorites, wallpaper, or remote navigation | [Usage guide](docs/USAGE.en.md) |
 | Complete first setup or restore the original launcher | [First setup and recovery, Chinese](docs/SETUP.md) |
-| Check device support and validated behavior | [Compatibility](docs/COMPATIBILITY.md) · [Verification record](VERIFICATION.md) |
+| Check device support and validated behavior | [Compatibility](docs/COMPATIBILITY.md) · [Verification record](docs/COMPATIBILITY.md) |
 | Build or contribute | [Contributing](CONTRIBUTING.md) · [Version and APK rules](docs/VERSIONING.md) |
-| Read about the Sony device setup | [Device notes, Chinese](docs/DEVICE_NOTES.zh-CN.md) |
-| Review security and repository settings | [Security policy](SECURITY.md) · [Dependency security](docs/DEPENDENCY_SECURITY.md) · [Repository notes](docs/REPOSITORY.md) |
+| Review security and repository settings | [Security policy](SECURITY.md) · [Contributing](CONTRIBUTING.md) |
 
 Feedback: [Bug report](https://github.com/BeatsAD/quiet-tv/issues/new?template=bug_report.yml) · [Feature request](https://github.com/BeatsAD/quiet-tv/issues/new?template=feature_request.yml) · [Device adaptation](https://github.com/BeatsAD/quiet-tv/issues/new?template=device_adaptation.yml)
 
@@ -103,10 +102,10 @@ To build locally, install Git, Python 3, JDK 17, Android SDK platform 36, and bu
 ```sh
 git clone https://github.com/BeatsAD/quiet-tv.git
 cd quiet-tv
-./gradlew :app:assembleDebug :app:testDebugUnitTest --console=plain
+./gradlew :app:assembleDebug --console=plain
 ```
 
-The Debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`. Building and offline checks need neither a TV connection nor `device.json`. Configure device tools only when you need to operate your own TV, following the [example guide](docs/examples/README.md) and preserving existing files and backups. Follow [version and APK rules](docs/VERSIONING.md) for archiving, signing, and APK delivery.
+The Debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`. Building and offline checks need neither a TV connection nor `device.json`. Use ADB as described in the [installation guide](docs/INSTALL.en.md) when installing on your own TV; preserve existing files and backups. Follow [version and APK rules](docs/VERSIONING.md) for archiving, signing, and APK delivery.
 
 Native source is in `app/`, build and device tools in `scripts/`, and `prototypes/about/` supplies actual APK bundle inputs. Device data, standalone web demos, and promotional video work are excluded from the current source tree. See the [documentation index](docs/README.md) for the complete layout.
 

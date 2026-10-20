@@ -53,16 +53,16 @@ Quiet TV 面向国内 Android 电视的日常使用场景：把常用应用放�
 - 按显示尺寸加载壁纸、按需加载缩略图并复用封面缓存；普通返回首页不再重复扫描全部应用。
 - 改进原生两步设置、默认桌面状态核验及关于页首屏，离线许可按需打开。
 
-b23 已在一台 Android 12 / ARM32 电视覆盖安装并核对 APK 哈希，确认 HOME 返回、壁纸和 Dock 显示正常；不代表全部新增流程已通过真机验收。校验、更新与完整验证范围见[发布说明](docs/releases/v1.1.0.md)。历史 v1.0.1 保留；源码默认 Debug 构建为通用架构，与下载包区分，详见[构建规则](docs/VERSIONING.md)。
+b23 已在一台 Android 12 / ARM32 电视覆盖安装并核对 APK 哈希，确认 HOME 返回、壁纸和 Dock 显示正常；不代表全部新增流程已通过真机验收。校验、更新与完整验证范围见[发布说明](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0)。历史 v1.0.1 保留；源码默认 Debug 构建为通用架构，与下载包区分，详见[构建规则](docs/VERSIONING.md)。
 
-安装 Quiet TV 后可以保留原桌面，试用不要求先禁用系统应用。系统精简需为目标电视备份并记录恢复方式；实际设备配置、包清单和恢复记录仅保留本地，仓库只提供[脱敏格式样例](docs/examples/README.md)，不能作为其他电视的禁用建议或恢复基线。
+安装 Quiet TV 后可以保留原桌面，试用不要求先禁用系统应用。系统精简需为目标电视备份并记录恢复方式；实际设备配置、包清单和恢复记录仅保留本地，这些资料不随公开源码分发，不能将其他电视的清单作为自己的禁用建议或恢复基线。
 
 ## 支持范围
 
 | 设备／系统 | 状态 |
 | --- | --- |
-| Sony KD-65X9000H / BRAVIA VH1 · Android 12 | 已安装并验证首页、应用管理、壁纸、部分系统入口及一次整机重启；完整范围见[验收记录](VERIFICATION.md)。 |
-| 其他 Android 6.0 及以上电视 | 源码已包含版本兼容，仍需逐机确认固件、HOME 与 ADB 能力；见[兼容记录](docs/android-compatibility.md)。 |
+| Sony KD-65X9000H / BRAVIA VH1 · Android 12 | 已安装并验证首页、应用管理、壁纸、部分系统入口及一次整机重启；完整范围见[验收记录](docs/COMPATIBILITY.md)。 |
+| 其他 Android 6.0 及以上电视 | 源码已包含版本兼容，仍需逐机确认固件、HOME 与 ADB 能力；见[兼容记录](docs/COMPATIBILITY.md)。 |
 | Android 5.1 及以下，或 Tizen、webOS 等非 Android 系统 | 当前源码不支持。 |
 
 长期运行、投屏和完整影音播放仍待验收；六位码无线配对仍为待验收实验入口。源码中的旧系统实验构建不代表当前下载包支持 Android 11 及以下，详见[兼容性说明](docs/COMPATIBILITY.md)。第三方影音应用通过各自渠道更新，Quiet TV 当前不提供第三方应用自动更新服务。
@@ -75,10 +75,9 @@ b23 已在一台 Android 12 / ARM32 电视覆盖安装并核对 APK 哈希，确
 | 安装桌面、更新 APK 或切回原桌面 | [安装指南](docs/INSTALL.zh-CN.md) |
 | 调整常用应用、壁纸和遥控器操作 | [使用指南](docs/USAGE.zh-CN.md) |
 | 完成首次设置或恢复原桌面 | [首次设置与恢复](docs/SETUP.md) |
-| 了解机型适配与已验证功能 | [兼容性](docs/COMPATIBILITY.md) · [验收记录](VERIFICATION.md) |
+| 了解机型适配与已验证功能 | [兼容性](docs/COMPATIBILITY.md) · [验收记录](docs/COMPATIBILITY.md) |
 | 开发、构建或贡献代码 | [贡献指南](CONTRIBUTING.md) · [版本与安装包规则](docs/VERSIONING.md) |
-| 查看索尼设备实施过程 | [设备记录](docs/DEVICE_NOTES.zh-CN.md) |
-| 了解安全与仓库设置 | [安全政策](SECURITY.md) · [依赖安全](docs/DEPENDENCY_SECURITY.md) · [仓库说明](docs/REPOSITORY.md) |
+| 了解安全与仓库设置 | [安全政策](SECURITY.md) · [贡献指南](CONTRIBUTING.md) |
 
 反馈：[Bug](https://github.com/BeatsAD/quiet-tv/issues/new?template=bug_report.yml) · [功能建议](https://github.com/BeatsAD/quiet-tv/issues/new?template=feature_request.yml) · [新机型适配](https://github.com/BeatsAD/quiet-tv/issues/new?template=device_adaptation.yml)
 
@@ -95,12 +94,12 @@ b23 已在一台 Android 12 / ARM32 电视覆盖安装并核对 APK 哈希，确
 ```sh
 git clone https://github.com/BeatsAD/quiet-tv.git
 cd quiet-tv
-./gradlew :app:assembleDebug :app:testDebugUnitTest --console=plain
+./gradlew :app:assembleDebug --console=plain
 ```
 
-Debug APK 位于 `app/build/outputs/apk/debug/app-debug.apk`。构建与离线检查不需要连接电视或准备 `device.json`；需要操作自己的电视时，再按[样例说明](docs/examples/README.md)配置，保留已有文件和备份。正式交付 APK 的归档、签名与版本要求见[版本规则](docs/VERSIONING.md)。
+Debug APK 位于 `app/build/outputs/apk/debug/app-debug.apk`。构建与离线检查不需要连接电视或准备 `device.json`；安装到自己的电视时，按[安装指南](docs/INSTALL.zh-CN.md)使用 ADB，保留已有配置和备份。正式交付 APK 的归档、签名与版本要求见[版本规则](docs/VERSIONING.md)。
 
-原生源码位于 `app/`，构建和设备工具位于 `scripts/`；`prototypes/about/` 是 APK 的实际打包输入。设备数据、独立网页演示和宣传视频不随当前源码分发，完整目录说明见[文档索引](docs/README.md)。
+原生源码位于 `app/`，公开构建工具位于 `scripts/`；`prototypes/about/` 是 APK 的实际打包输入。设备数据、独立网页演示和宣传视频不随当前源码分发，完整目录说明见[文档索引](docs/README.md)。
 
 ## 致谢与许可
 

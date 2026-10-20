@@ -1,81 +1,63 @@
 # 贡献指南 / Contributing
 
-[简体中文首页](README.md) · [English home](README.en.md) · [行为准则 / Code of conduct](CODE_OF_CONDUCT.md)
+[中文首页](README.md) · [English home](README.en.md) · [行为准则 / Code of conduct](CODE_OF_CONDUCT.md)
 
-## 开始之前
+## 开发环境与构建 / Build
 
-仓库已公开，欢迎通过 Fork 和 PR 参与，无需先申请仓库写权限。请先查看 [Issues](https://github.com/BeatsAD/quiet-tv/issues)、[新人任务](https://github.com/BeatsAD/quiet-tv/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22)和[兼容性说明](docs/COMPATIBILITY.md)。
-
-Bug、功能建议和新机型适配使用对应 Issue 模板；开发任务可说明目标、涉及文件和验收方式。准备认领任务时先在对应 Issue 留言，避免重复开发。较大的功能先在 [Discussions](https://github.com/BeatsAD/quiet-tv/discussions) 讨论范围。安全问题使用 [SECURITY.md](SECURITY.md) 中的私密报告入口。
-
-## 从 Fork 到第一个 PR
-
-1. 在 GitHub 点击 Fork，将自己的 Fork 克隆到本地。下面用 `YOUR_GITHUB_NAME` 代表你的账号。
-2. 添加上游远程，基于最新 `upstream/main` 创建功能分支。
-3. 完成最小必要修改，执行与改动匹配的检查，按明确路径提交并推送到自己的 Fork。
-4. 向 `BeatsAD/quiet-tv:main` 提交 PR，关联任务、说明改动与实际验证结果，并响应评审。
+需要 Git、Python 3、JDK 17 或 21、Android SDK platform 36 与 build-tools 36.0.0。按[安装指南](docs/INSTALL.zh-CN.md)设置 `ANDROID_HOME`，或在未跟踪的 `local.properties` 中配置 `sdk.dir`。
 
 ```sh
-git clone https://github.com/YOUR_GITHUB_NAME/quiet-tv.git
-cd quiet-tv
-git remote add upstream https://github.com/BeatsAD/quiet-tv.git
-git fetch upstream
-git switch -c feat/short-name upstream/main
-# 修改并检查后，替换为你实际修改的明确路径：
-git add path/to/changed-file
-git commit -m "说明具体修改及目的"
-git push -u origin feat/short-name
+./gradlew :app:assembleDebug :app:lintDebug --console=plain
+python3 scripts/validate_profiles.py
+python3 scripts/check_contribution.py --base origin/main
 ```
 
-[文档索引](docs/README.md)说明各目录职责；设备配置与恢复记录只保留本地，格式见[脱敏样例](docs/examples/README.md)。
+这些命令不连接电视。全新克隆只需要公开文件和标准开发环境；Debug APK 位于 `app/build/outputs/apk/debug/app-debug.apk`。归档及签名规则见[版本规则](docs/VERSIONING.md)。
 
-## 开发环境与本地检查
+## 公开范围与本地测试 / Public files and local tests
 
-Android 开发使用 JDK 17、Android SDK platform 36 和 build-tools 36.0.0。按[安装指南](docs/INSTALL.zh-CN.md)设置 `local.properties` 中的 `sdk.dir`，或配置 `ANDROID_HOME`。构建和检查无需连接电视。GitHub CI 使用 Ubuntu；macOS 已有开发记录，Windows 本地流程仍待验证。
+公开仓库包含生产源码、资源、构建配置与脚本、必要使用说明、许可证及协作文件。计划、历史过程记录、测试源码及辅助模块、设备配置、备份、独立原型、宣传工程和产物仅保留本地。用户明确要求公开的额外文件，以及新增的生产构建输入，应同步添加 `.gitignore` 例外；不能通过本机已有的未上传文件满足构建或文档链接。
+
+本地原有 `app/src/test`、`app/src/androidTest`、`scripts/tests` 与两个 fixture 目录保留原位置。Gradle 在对应 `build.gradle` 存在时加载本地 fixture 模块。维护者拥有这些本地测试资料时仍可运行：
 
 ```sh
-# 检查相对 upstream/main 的差异、修改文档的本地链接和 Python 语法：
-python3 scripts/check_contribution.py --base upstream/main
-
-# 修改 Android 代码、资源或 Gradle 配置时：
-./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :management-fixture:assembleDebug :home-fixture:assembleDebug :app:testDebugUnitTest --console=plain
+./gradlew :app:testDebugUnitTest :app:assembleDebugAndroidTest :home-fixture:assembleDebug :management-fixture:assembleDebug --console=plain
+python3 -m unittest discover -s scripts/tests -p 'test_*.py'
 ```
 
-JVM 测试覆盖设置策略和配对失败处理；Python 离线测试命令为 `python3 -m unittest discover -s scripts/tests -p 'test_*.py'`。CI 编译 instrumentation 测试 APK 与两个辅助模块，不执行设备上的测试；构建成功不能替代真机验收。
+全新克隆不包含这些私有测试文件；上述本地测试命令不作为公开 CI 的前置条件。PR 应说明实际执行的测试及未执行项，需要共享额外测试文件时按维护者明确要求纳入。设备操作脚本及其配置、恢复记录继续保留在维护者本地，不由 CI 执行。
 
-仅修改文档时，无需完整构建 Android。Python 语法检查不会执行脚本或联系电视；若修改脚本行为，还需验证实际受影响路径，使用不连接真实设备的测试或样例。
+### 已有克隆的迁移 / Existing-clone migration
 
-`prototypes/about` 是 APK 关于页和离线许可的构建输入，修改时按 Android 变更检查。独立网页演示、宣传视频和生成提示词只保留本地，已由根目录 `.gitignore` 排除。
+忽略规则不会阻止 Git 更新移除以前跟踪的文件。其他已有克隆切换到精简版本后，运行下面的必要迁移工具，从最近完整主线历史恢复缺失的本地测试、fixture、设备辅助工具与历史文档：
 
-## 修改与验证
+```sh
+python3 scripts/restore_local_development.py
+```
 
-- 保持原生、轻量、遥控器可操作，不引入广告或无关后台服务。
-- 不覆盖他人的未提交修改，不批量或递归删除文件，不提交设备密钥、账号资料、完整私密日志或其他用户的备份。
-- 行为变化分别记录源码／构建、机型与固件、安装、遥控器操作、截图、真实播放、恢复及长期运行结果；未执行项明确标记。
-- 新机型适配使用目标设备自己的记录，不套用其他机型的禁用名单。系统包变更前先备份并记录原状态与恢复方式。
-- 交付新 APK 前遵循[版本与安装包规则](docs/VERSIONING.md)，递增版本／构建号并归档，不覆盖历史包。PR 检查生成的 APK 仅用于构建验证，不是正式发布。
-- 保留上游代码、字体和第三方素材的许可；按变更同步文档与兼容性记录。
+工具只恢复当前未跟踪且被忽略的文件，只补缺失路径，不覆盖现有内容、不删除文件，也不自动获取远程历史。更新前仍应保存本地修改。浅克隆缺少历史时，按工具提示先获取指定提交再重试。恢复后可继续运行上面的本地测试命令；测试仍不随当前公开源码分发。新克隆的核心构建不需要执行迁移。
 
-## 评审、合入与维护者
+Ignore rules do not preserve paths removed by a Git update. After updating an existing clone, run the migration command to restore missing local-only development files from the last complete public commit. Existing files and local edits are never overwritten. Shallow clones may need the explicit history fetch printed by the tool. Migration is optional for a fresh core-source build.
 
-`main` 已受保护：变更须通过 PR，`Validate` 检查成功并解决全部讨论后才能合入；禁止强推和删除，管理员同样受约束。统一使用 Squash merge，合入后自动删除本仓库中的功能分支；外部 Fork 分支由贡献者自行管理。
+## 提交与评审 / Pull requests
 
-首次贡献者的 Actions 工作流需要维护者批准运行。这是运行检查的批准，不代表代码已被接受。PR 工作流仅有只读仓库权限，不读取发布密钥，也不操作电视。
+1. 从最新 `main` 创建分支；外部贡献者通过 Fork 提交 PR。
+2. 保持修改范围明确，按具体文件路径暂存，保护现有修改与本地资料；不批量删除文件，不提交密钥、账号或私密日志。
+3. 修改生产源码、资源或构建配置时执行构建、Lint 和配置校验；仅文档修改执行链接与差异检查。
+4. 在 PR 中说明问题、行为变化、范围及可复现的验证结果。构建、安装、哈希核对和真机功能验收分别报告。
 
-[CODEOWNERS](.github/CODEOWNERS) 目前由 @BeatsAD 负责。长期参与者可在 Discussions 表达维护意愿，明确愿意负责的模块和时间。经双方确认后再邀请为协作者并更新负责人；本仓库当前属于个人账号，协作者拥有写权限，需谨慎授予。
+`main` 继续要求 PR、成功的 `Validate` 检查和解决全部讨论，统一 Squash merge；不绕过分支保护或强推。CI 检查提交文件中的文档链接、Python 语法、固件配置，并按修改范围构建和 Lint 主应用；不依赖本地测试目录，不连接电视或自动发布 APK。必需检查名称保持 `Validate`。
 
-目前必需批准数为 0，由维护者评审合入。有第二位稳定维护者后，再启用至少 1 人批准和按模块负责人评审，避免个人维护期间出现无人能批准自己 PR 的情况。发布由维护者手动执行，不因 PR 合入自动发布。
+首次贡献者的 Actions 可能需要维护者批准运行。按 [CODEOWNERS](.github/CODEOWNERS) 评审，保留 [Issue 模板](.github/ISSUE_TEMPLATE/) 与 [PR 模板](.github/PULL_REQUEST_TEMPLATE.md)。较大功能先在 [Discussions](https://github.com/BeatsAD/quiet-tv/discussions) 讨论；任务认领与反馈通过 [Issues](https://github.com/BeatsAD/quiet-tv/issues)。安全问题按 [SECURITY.md](SECURITY.md) 私密报告。
+
+## 依赖与交付 / Dependencies and delivery
+
+依赖安全下限在 `gradle/security-constraints.gradle` 中维护，修改时核对实际解析与构建。保留上游、字体、壁纸及其他资源的许可证。源码整理不授权设备操作或 APK 发布；交付不同内容的新包时递增构建号，保留不可变归档。
 
 ## English
 
-This repository is public. Fork it, clone your fork, add `https://github.com/BeatsAD/quiet-tv.git` as `upstream`, and create a descriptive branch from `upstream/main`. Find an issue, comment before starting, and send a PR with its issue link, changes, and reproducible validation. Discuss larger work in [Discussions](https://github.com/BeatsAD/quiet-tv/discussions). Follow the [code of conduct](CODE_OF_CONDUCT.md) and report vulnerabilities privately through [SECURITY.md](SECURITY.md).
+Use Python 3, JDK 17 or 21, and Android SDK platform 36 / build-tools 36.0.0. Set `ANDROID_HOME` or `sdk.dir` in local.properties. A fresh clone builds with `./gradlew :app:assembleDebug :app:lintDebug --console=plain`; run the profile validator and contribution checker above as appropriate.
 
-Use JDK 17 and Android SDK platform 36 / build-tools 36.0.0. Configure `sdk.dir` in `local.properties` or set `ANDROID_HOME`. Run `python3 scripts/check_contribution.py --base upstream/main` for changed-document links, whitespace, and Python syntax. For Android changes, also run `./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :management-fixture:assembleDebug :home-fixture:assembleDebug :app:testDebugUnitTest --console=plain`. JVM tests cover setup policy and pairing failures. Run offline Python tests with `python3 -m unittest discover -s scripts/tests -p 'test_*.py'`. CI compiles instrumentation APKs and both fixture modules without running device tests. Documentation-only changes do not require an Android build.
+Only core source, required resources, build inputs, essential guides, licenses and collaboration files are public. Private tests, fixtures, plans, device records and generated files remain local. Existing local tests keep their paths and commands; fixture modules load when their build files exist. CI does not require those private files. Explicit maintainer requests and new production build inputs update the tracking exceptions.
 
-`prototypes/about` supplies the APK About page and offline licenses; validate its changes with the Android build. Standalone demos, promotional video work, and generation prompts stay local and are excluded by the root `.gitignore`.
-
-Keep changes scoped, stage explicit paths, and preserve unrelated work and device data. Never use bulk or recursive file deletion or upload keys, accounts, private logs, or backups. Distinguish build, installation, screenshots, playback, recovery, and long-run evidence; mark unperformed checks. Follow [version and APK rules](docs/VERSIONING.md) before delivering an APK, preserve existing archives, and retain upstream and third-party licenses.
-
-Protected `main` requires a PR, a successful `Validate` check, and resolved conversations, including for administrators. Squash merge is the only merge method; merged repository branches are deleted automatically. First-time contributors need maintainer approval to run Actions. PR checks have read-only repository permissions, no publishing secrets, and no TV access.
-
-@BeatsAD currently owns all modules in [CODEOWNERS](.github/CODEOWNERS). Prospective maintainers can discuss responsibilities before being invited as collaborators. Required approving reviews remain zero until a second regular maintainer is available; then require one approval and module-owner review. Releases remain manual.
+Start from current main and submit a scoped PR, normally through a Fork. Preserve user data, stage explicit paths, and report actual checks separately from hardware acceptance. Protected main requires the `Validate` check, resolved discussions and Squash merge. Keep CODEOWNERS, templates, Discussions and confidential security reporting. CI never operates a TV or publishes an APK.
