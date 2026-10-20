@@ -26,10 +26,10 @@ Through the agreed restricted channel, include the affected commit or version, d
 
 ADB 调试仅在可信网络启用，使用后可关闭。桌面申请 INTERNET 权限，仅用于按需连接本机 ADB；密钥保存在应用私有目录。系统包变更前需保留目标设备原始备份与恢复记录。
 
-已启用 Dependabot 漏洞提醒。Python 依赖来自 `requirements.txt`；Gradle 依赖通过受信任主分支上的依赖图工作流提交。工作流成功不表示没有漏洞，也不替代实机验收；依赖更新由人工审查，不自动合入。
+已启用 Dependabot 漏洞提醒，公开检查覆盖 Gradle 与 GitHub Actions；Gradle 依赖通过受信任主分支上的依赖图工作流提交。公开 Python 构建、检查与迁移脚本仅使用标准库。本地设备工具的 `requirements.txt` 不随公开源码分发，也不在公开仓库的 pip 监控范围内，由使用者另行维护。工作流成功不表示没有漏洞，也不替代实机验收；依赖更新由人工审查，不自动合入。
 
 Enable ADB only on a trusted network and disable it when no longer needed. The launcher requests INTERNET permission only for on-demand local ADB; its independent key stays in app-private storage. Preserve the target baseline and journal before package changes.
 
-Dependabot alerts are enabled. Python dependencies come from `requirements.txt`; a trusted-main workflow submits Gradle dependencies. A successful submission does not prove an absence of vulnerabilities or hardware compatibility. Dependency updates require human review and are not automatically merged.
+Dependabot covers public Gradle and GitHub Actions dependencies; a trusted-main workflow submits the Gradle graph. Public Python build, check and migration scripts use only the standard library. The requirements.txt for local device tools is not distributed or monitored by public pip updates; users maintain those local dependencies separately. A successful submission does not prove an absence of vulnerabilities or hardware compatibility. Dependency updates require human review and are not automatically merged.
 
 未承诺固定响应或修复时限；维护者会依据问题影响协调处理和披露。No fixed response or remediation SLA is promised; handling and disclosure are coordinated according to impact.

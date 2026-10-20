@@ -29,6 +29,7 @@ __pycache__/
 !/scripts/bundle_about.py
 !/scripts/check_contribution.py
 !/scripts/validate_profiles.py
+!/scripts/restore_local_development.py
 /build-and-install.command
 /restore.command
 /requirements.txt

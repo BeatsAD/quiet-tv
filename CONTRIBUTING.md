@@ -27,6 +27,18 @@ python3 -m unittest discover -s scripts/tests -p 'test_*.py'
 
 全新克隆不包含这些私有测试文件；上述本地测试命令不作为公开 CI 的前置条件。PR 应说明实际执行的测试及未执行项，需要共享额外测试文件时按维护者明确要求纳入。设备操作脚本及其配置、恢复记录继续保留在维护者本地，不由 CI 执行。
 
+### 已有克隆的迁移 / Existing-clone migration
+
+忽略规则不会阻止 Git 更新移除以前跟踪的文件。其他已有克隆切换到精简版本后，运行下面的必要迁移工具，从最近完整主线历史恢复缺失的本地测试、fixture、设备辅助工具与历史文档：
+
+```sh
+python3 scripts/restore_local_development.py
+```
+
+工具只恢复当前未跟踪且被忽略的文件，只补缺失路径，不覆盖现有内容、不删除文件，也不自动获取远程历史。更新前仍应保存本地修改。浅克隆缺少历史时，按工具提示先获取指定提交再重试。恢复后可继续运行上面的本地测试命令；测试仍不随当前公开源码分发。新克隆的核心构建不需要执行迁移。
+
+Ignore rules do not preserve paths removed by a Git update. After updating an existing clone, run the migration command to restore missing local-only development files from the last complete public commit. Existing files and local edits are never overwritten. Shallow clones may need the explicit history fetch printed by the tool. Migration is optional for a fresh core-source build.
+
 ## 提交与评审 / Pull requests
 
 1. 从最新 `main` 创建分支；外部贡献者通过 Fork 提交 PR。
