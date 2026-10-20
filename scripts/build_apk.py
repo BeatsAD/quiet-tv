@@ -101,8 +101,8 @@ def archive_apk(summary, built_at=None, output_dir=None, abi='universal', archiv
     return destination
 
 
-def build_apk(summary, variant='debug', abi='universal', min_sdk=31):
-    if variant not in ('debug', 'benchmark', 'release') or abi not in ABIS or min_sdk not in (26,31):
+def build_apk(summary, variant='debug', abi='universal', min_sdk=23):
+    if variant not in ('debug', 'benchmark', 'release') or abi not in ABIS or min_sdk not in (23,26,31):
         raise ValueError('不支持的构建类型或 ABI')
     build_root = ROOT / 'output/candidate-builds' / f'{variant}-{abi}-api{min_sdk}'
     before = source_digest()
@@ -129,7 +129,7 @@ if __name__ == '__main__':
     parser.add_argument('--summary', required=True)
     parser.add_argument('--variant', choices=['debug', 'benchmark', 'release'], default='debug')
     parser.add_argument('--abi', choices=ABIS, default='universal')
-    parser.add_argument('--min-sdk', choices=[26,31], type=int, default=31, help='26 is an experimental compatibility candidate')
+    parser.add_argument('--min-sdk', choices=[23,26,31], type=int, default=23, help='23 is the source compatibility minimum; 26 and 31 remain available')
     args = parser.parse_args()
     if not args.summary.strip():
         parser.error('--summary 不能为空')

@@ -14,7 +14,7 @@ final class DockChecks {
     DockChecks(Instrumentation test){this.test=test;}
     private void require(boolean condition,String message){if(!condition)throw new AssertionError(message);}
     private void click(String text){
-        for(int attempt=0;attempt<12;attempt++){
+        for(int attempt=0;attempt<48;attempt++){
             test.waitForIdleSync();AccessibilityNodeInfo root=test.getUiAutomation().getRootInActiveWindow();
             if(root!=null){
                 for(AccessibilityNodeInfo node:root.findAccessibilityNodeInfosByText(text)){
@@ -36,7 +36,12 @@ final class DockChecks {
     private void open(){
         if(editor!=null)test.runOnMainSync(()->editor.finish());
         editor=test.startActivitySync(new Intent(test.getTargetContext(),DockEditorActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-        test.waitForIdleSync();
+        long end=android.os.SystemClock.elapsedRealtime()+10000;
+        while(!editor.hasWindowFocus() && android.os.SystemClock.elapsedRealtime()<end)android.os.SystemClock.sleep(80);
+        require(editor.hasWindowFocus(),"Dock window did not gain focus");test.waitForIdleSync();
+        boolean[] first={false};long focusEnd=android.os.SystemClock.elapsedRealtime()+5000;
+        while(!first[0] && android.os.SystemClock.elapsedRealtime()<focusEnd){test.runOnMainSync(()->first[0]=editor.getCurrentFocus()!=null && String.valueOf(editor.getCurrentFocus().getContentDescription()).startsWith("位置 1 ·"));if(!first[0])android.os.SystemClock.sleep(80);}
+        require(first[0],"Dock initial focus is not the first slot");
     }
     private void key(int key){test.sendKeyDownUpSync(key);test.waitForIdleSync();}
     private void capture(String name) throws Exception {
@@ -62,6 +67,6 @@ final class DockChecks {
             click("位置 1 ·");click("左右排序");key(KeyEvent.KEYCODE_DPAD_RIGHT);key(KeyEvent.KEYCODE_BACK);
             require(store.load().equals(replaced),"Reorder cancel changed saved Dock");
             try{store.save(Arrays.asList("a","b","c","d","e"));throw new AssertionError("More than four allowed");}catch(IllegalArgumentException expected){}
-        }finally{store.save(original);require(test.getTargetContext().getSharedPreferences("dock",0).edit().putString("packages",new org.json.JSONArray(original).toString()).commit(),"Restore did not reach disk");if(editor!=null)test.runOnMainSync(()->editor.finish());}
+        }catch(Exception | AssertionError failure){capture("dock-failure.png");throw failure;}finally{store.save(original);require(test.getTargetContext().getSharedPreferences("dock",0).edit().putString("packages",new org.json.JSONArray(original).toString()).commit(),"Restore did not reach disk");if(editor!=null)test.runOnMainSync(()->editor.finish());}
     }
 }

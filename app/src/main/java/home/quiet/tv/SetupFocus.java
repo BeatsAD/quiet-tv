@@ -4,7 +4,6 @@ import android.graphics.*;
 import android.graphics.drawable.Drawable;
 import android.view.*;
 import android.widget.*;
-import java.util.function.Consumer;
 
 /** One outline per setup window, independent of the control's selected/readonly appearance. */
 final class SetupFocus implements ViewTreeObserver.OnGlobalFocusChangeListener,
@@ -12,7 +11,8 @@ final class SetupFocus implements ViewTreeObserver.OnGlobalFocusChangeListener,
         View.OnAttachStateChangeListener {
     private final ViewGroup host;
     private final float unit;
-    private final Consumer<View> changed;
+    interface Changed { void accept(View view); }
+    private final Changed changed;
     private final RectF rect=new RectF();
     private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
     private float radius;
@@ -23,7 +23,7 @@ final class SetupFocus implements ViewTreeObserver.OnGlobalFocusChangeListener,
         @Override public void setColorFilter(ColorFilter filter){paint.setColorFilter(filter);}
         @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
     };
-    SetupFocus(ViewGroup host,float unit,Consumer<View> changed){
+    SetupFocus(ViewGroup host,float unit,Changed changed){
         this.host=host;this.unit=unit;this.changed=changed;
         paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(2*unit);paint.setColor(Color.WHITE);
         host.getOverlay().add(outline);host.addOnAttachStateChangeListener(this);

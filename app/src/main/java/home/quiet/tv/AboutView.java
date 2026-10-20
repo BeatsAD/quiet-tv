@@ -26,7 +26,7 @@ final class AboutView extends FrameLayout {
 
     AboutView(Context context,CharSequence name,String version,boolean debug,Runnable exit,Runnable licenses,Runnable source) {
         super(context);setBackgroundColor(0xff020405);setTag("about-native");
-        font=Typeface.createFromAsset(context.getAssets(),"fonts/outfit.ttf");
+        font=android.os.Build.VERSION.SDK_INT>=26?Typeface.createFromAsset(context.getAssets(),"fonts/outfit.ttf"):Typeface.create("sans-serif",Typeface.NORMAL);
         glow=new RadialGradient(0,0,1,new int[]{0xff244c87,0xff112846,0xff070e18,0xff020405},new float[]{0,.29f,.58f,.85f},Shader.TileMode.CLAMP);
         Matrix matrix=new Matrix();matrix.setScale(1497.6f*(float)Math.sqrt(2),810*(float)Math.sqrt(2));matrix.postTranslate(422.4f,270);glow.setLocalMatrix(matrix);
         // CSS linear-gradient(100deg, #02070b08, #04070bb8), on the same artboard.
@@ -88,7 +88,7 @@ final class AboutView extends FrameLayout {
     }
     private TextView label(CharSequence value,float size,int weight,int color,int x,int y,int w,int h,String tag) {
         TextView view=new TextView(getContext());view.setText(value);view.setTag(tag);view.setTextColor(color);
-        view.setTextSize(TypedValue.COMPLEX_UNIT_PX,size);view.setTypeface(android.os.Build.VERSION.SDK_INT>=28?Typeface.create(font,weight,false):Typeface.create(font,weight>=600?Typeface.BOLD:Typeface.NORMAL));view.setFontVariationSettings("'wght' "+weight);
+        view.setTextSize(TypedValue.COMPLEX_UNIT_PX,size);view.setTypeface(android.os.Build.VERSION.SDK_INT>=28?Typeface.create(font,weight,false):Typeface.create(font,weight>=600?Typeface.BOLD:Typeface.NORMAL));if(android.os.Build.VERSION.SDK_INT>=26)view.setFontVariationSettings("'wght' "+weight);
         view.setIncludeFontPadding(false);view.setSingleLine(true);view.setGravity(Gravity.CENTER_VERTICAL);put(view,x,y,w,h);return view;
     }
     private View action(View view,String tag,int x,int y,int w,int h,Runnable run) {

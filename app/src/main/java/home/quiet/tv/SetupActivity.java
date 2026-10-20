@@ -25,7 +25,7 @@ public final class SetupActivity extends ManagementUi {
     private HomeController.State homeState;
     private AppRepository.App original;
     private String originalChoice="KEEP",notice="",progress="正在检查设备能力…";
-    private boolean originalTouched,busy,active,recovery,roleCancelled,recordAvailable=true;
+    private boolean originalTouched,busy,active,recovery,roleCancelled,roleResultExpected,recordAvailable=true;
     private int screen;
     private LinearLayout page,steps;
     private SetupFocus focusOutline;
@@ -50,7 +50,7 @@ public final class SetupActivity extends ManagementUi {
     @Override protected void onResume(){super.onResume();active=true;refresh();}
     @Override protected void onStop(){active=false;cancel();super.onStop();}
     @Override protected void onDestroy(){cancel();adb.close();worker.shutdownNow();super.onDestroy();}
-    @Override public void onBackPressed(){if(!busy && !recovery && screen==1){screen=0;render();}else exit(false);}
+    public void handleBack(){if(!busy && !recovery && screen==1){screen=0;render();}else exit(false);}
     private void cancel(){if(ticket!=null)ticket.cancel();connection.close();adb.disconnect();busy=false;}
     private boolean valid(SetupOperations.Ticket task){return active && task==ticket && task.active() && !isFinishing() && !isDestroyed();}
     private void ui(SetupOperations.Ticket task,Runnable action){runOnUiThread(()->{if(valid(task))action.run();});}
@@ -69,9 +69,10 @@ public final class SetupActivity extends ManagementUi {
             });
         }catch(Exception e){ui(task,()->{busy=false;homeState=null;screen=0;notice="状态未确认："+e.getMessage();render();});}});
     }
-    private boolean canRecommend(AppRepository.App app){return recordAvailable && app.installed && app.enabled && app.metadataKnown && home.presets.recommended(app.pkg) && operations.protection(app).isEmpty();}
+    private boolean canRecommend(AppRepository.App app){return (!adb.connected() || adb.capabilities.supports(AppOperations.Action.DISABLE)) && recordAvailable && app.installed && app.enabled && app.metadataKnown && home.presets.recommended(app.pkg) && operations.protection(app).isEmpty();}
     private boolean canOriginal(String action){
         if(!recordAvailable || homeState==null || !homeState.isOwn(this) || !homeState.ownUsable || original==null || !original.metadataKnown || !original.installed || !original.enabled)return false;
+        if(adb.connected() && (!adb.capabilities.supports("DISABLE".equals(action)?AppOperations.Action.DISABLE:AppOperations.Action.UNINSTALL) || ("DISABLE".equals(action) && original.enabledSetting==0 && !adb.capabilities.defaultState)))return false;
         return home.presets.homeAllows("DISABLE".equals(action)?"disableVerified":"uninstallVerified") && (!"UNINSTALL".equals(action) || home.presets.homeAllows("restoreInstallVerified"));
     }
     private String originalReason(String action){
@@ -133,6 +134,8 @@ public final class SetupActivity extends ManagementUi {
         if(index>=0){if(left||right)return remembered(footerControls,"",index+(left?-1:1));if(up)return !bottomControls.isEmpty()?remembered(bottomControls,lastBottom,2):remembered(mainControls,lastMain,0);return source;}
         return initialFocus();
     }
+    // Public Activity override; AndroidX core marks its inherited bridge library-only.
+    @android.annotation.SuppressLint("RestrictedApi")
     @Override public boolean dispatchKeyEvent(KeyEvent event){
         int key=event.getKeyCode();
         if(key==KeyEvent.KEYCODE_DPAD_LEFT || key==KeyEvent.KEYCODE_DPAD_RIGHT || key==KeyEvent.KEYCODE_DPAD_UP || key==KeyEvent.KEYCODE_DPAD_DOWN){
@@ -189,7 +192,7 @@ public final class SetupActivity extends ManagementUi {
     }
     private void setupFooter(){
         FrameLayout foot=new FrameLayout(this);LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-1,px(32));fp.topMargin=px(12);root.addView(foot,fp);
-        Button back=textButton("‹  返回","back",this::onBackPressed);foot.addView(back,new FrameLayout.LayoutParams(px(65),-1,Gravity.START));
+        Button back=textButton("‹  返回","back",this::handleBack);foot.addView(back,new FrameLayout.LayoutParams(px(65),-1,Gravity.START));
         if(!recovery){steps=row();steps.setGravity(Gravity.CENTER);steps.setTag("steps");
             for(int i=0;i<2;i++){TextView step=label((i==0?(screen==1?"✓":"❶"):"❷")+"  "+(i==0?"默认桌面":"预装应用"),9);step.setTextColor(i==screen?TEXT:0xff76808d);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,-1);p.setMargins(px(8),0,px(8),0);steps.addView(step,p);}foot.addView(steps,new FrameLayout.LayoutParams(-2,-1,Gravity.CENTER));
         }
@@ -209,9 +212,10 @@ public final class SetupActivity extends ManagementUi {
         LinearLayout status=row();status.setPadding(px(14),px(13),px(14),px(13));status.setBackground(surface(0x10ffffff,0x05ffffff,0x22ffffff,11));status.addView(glyph(R.drawable.ic_manage_shield,17));
         TextView caption=muted(own?"Quiet TV 已是默认桌面":homeState==null?"默认桌面状态未确认":homeState.ownUsable?"原桌面保持当前状态":"Quiet TV 桌面组件不可用",11);LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,-2,1);cp.leftMargin=px(12);status.addView(caption,cp);preview.addView(status,new LinearLayout.LayoutParams(-1,px(58)));
     }
+    private boolean hasRecommendations(){for(AppRepository.App app:apps)if(home.presets.recommended(app.pkg))return true;return false;}
     private void renderApps(LinearLayout body){
         LinearLayout heading=row();LinearLayout titles=column();titles.addView(muted("02 / 预装应用",10));gap(titles,9);TextView title=label("管理预装应用",27);title.setTag("setup-title");titles.addView(title);heading.addView(titles,new LinearLayout.LayoutParams(0,-2,1));
-        TextView count=muted((apps.stream().anyMatch(app->home.presets.recommended(app.pkg))?"推荐预设":"暂无可用推荐")+" · 已选 "+selected().size()+" 项",10);count.setTag("selected-count");heading.addView(count);body.addView(heading,new LinearLayout.LayoutParams(-1,px(50)));gap(body,15);
+        TextView count=muted((hasRecommendations()?"推荐预设":"暂无可用推荐")+" · 已选 "+selected().size()+" 项",10);count.setTag("selected-count");heading.addView(count);body.addView(heading,new LinearLayout.LayoutParams(-1,px(50)));gap(body,15);
         LinearLayout factory=row();factory.setTag("factory-choice");factory.setPadding(px(16),px(9),px(12),px(9));factory.setBackground(surface(0x14ffffff,0x08ffffff,0x26ffffff,10));factory.addView(glyph(R.drawable.ic_setup_home,20));
         LinearLayout info=column();info.addView(label("原桌面",12));gap(info,5);String hint=original==null?"身份未确认，保持当前状态":!original.installed?"已卸载":!original.enabled?"已禁用，保持当前状态":"UNINSTALL".equals(originalChoice)?"卸载将删除当前用户数据":"DISABLE".equals(originalChoice)?"禁用保留安装和数据":"保持当前状态";TextView detail=muted(hint,9);originalDetail=detail;detail.setTag("original-reason");detail.setSingleLine(true);detail.setEllipsize(android.text.TextUtils.TruncateAt.END);LinearLayout.LayoutParams infop=new LinearLayout.LayoutParams(0,-2,1);infop.leftMargin=px(12);factory.addView(info,infop);info.addView(detail);
         LinearLayout options=row();options.setTag("factory-options");options.setPadding(px(3),px(3),px(3),px(3));options.setBackground(surface(0x18000000,0x18000000,0x16ffffff,24));
@@ -233,8 +237,8 @@ public final class SetupActivity extends ManagementUi {
         }
     }
     private ArrayList<AppRepository.App> selected(){ArrayList<AppRepository.App> result=new ArrayList<>();for(AppRepository.App app:apps)if(Boolean.TRUE.equals(choices.get(app.pkg)) && canRecommend(app))result.add(app);return result;}
-    private void requestRole(){if(busy)return;try{home.remember(homeState);roleCancelled=false;startActivityForResult(home.request(),40);}catch(Exception e){notice="系统入口不可用："+e.getMessage();render();}}
-    @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==40){roleCancelled=result!=RESULT_OK;if(roleCancelled)notice="已取消默认桌面设置，可重试、临时使用或退出。";}}
+    private void requestRole(){if(busy)return;try{home.remember(homeState);roleCancelled=false;Intent request=home.request();roleResultExpected="android.app.role.action.REQUEST_ROLE".equals(request.getAction());startActivityForResult(request,40);}catch(Exception e){notice="系统入口不可用："+e.getMessage();render();}}
+    @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==40){roleCancelled=roleResultExpected && result!=RESULT_OK;if(!roleCancelled)notice="";if(roleCancelled)notice="已取消默认桌面设置，可重试、临时使用或退出。";}}
     private void withConnection(Runnable next){if(busy)return;if(adb.connected())next.run();else connection.show(()->{if(active)next.run();},screen==1 && !recovery?("UNINSTALL".equals(originalChoice)?"连接并卸载原桌面":"连接并应用设置"):"连接并继续");}
     private void setDefault(){
         if(busy)return;

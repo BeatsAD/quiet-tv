@@ -97,7 +97,7 @@ public final class AppManagementActivity extends ManagementUi {
             Button b=iconText(text,action==AppOperations.Action.UNINSTALL?R.drawable.ic_manage_trash:R.drawable.ic_manage_power,()->confirm(app,action));if(action==AppOperations.Action.UNINSTALL)b.setTextColor(0xffe3aaa6);
             LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,-1);p.setMargins(px(5),0,px(5),0);actions.addView(b,p);if(firstAction==null)firstAction=b;
         }
-        gap(details,16);TextView hint=center(app.recoverable?"恢复安装不会恢复此前删除的数据。":!adb.connected()?"连接本机 ADB 后，可管理此应用的状态。":"禁用可重新启用；卸载会删除当前用户的应用数据。",11);hint.setTextColor(MUTED);hint.setLineSpacing(px(4),1);details.addView(hint,new LinearLayout.LayoutParams(-1,-2));
+        gap(details,16);TextView hint=center(adb.connected() && operations.actions(app).isEmpty()?"当前系统没有已确认可用的操作，仅供查看。":app.recoverable?"恢复安装不会恢复此前删除的数据。":!adb.connected()?"连接本机 ADB 后，可管理此应用的状态。":"禁用可重新启用；卸载会删除当前用户的应用数据。",11);hint.setTextColor(MUTED);hint.setLineSpacing(px(4),1);details.addView(hint,new LinearLayout.LayoutParams(-1,-2));
     }
     private void confirm(AppRepository.App app,AppOperations.Action action){
         if(busy)return;Sheet sheet=new Sheet(action.label+" · "+app.label);sheet.text(operations.explanation(app,action));gap(sheet.body,16);TextView meta=center(app.pkg+"\n当前用户 "+adb.user,11);meta.setTextColor(MUTED);sheet.body.addView(meta);
@@ -113,11 +113,14 @@ public final class AppManagementActivity extends ManagementUi {
         if(adb.connected()){Sheet sheet=new Sheet("本机 ADB 连接");sheet.text("已连接本机 · 当前用户 "+adb.user);Button cancel=sheet.action("取消",sheet.dialog::dismiss);sheet.action("断开连接",()->{sheet.dialog.dismiss();adb.disconnect();updateConnection("未连接");refresh();});sheet.show(cancel);}
         else connection.show(()->{updateConnection("已连接");refresh();});
     }
+    @Override public void handleBack(){if(details.hasFocus())focusList();else super.handleBack();}
+    // Public Activity override; AndroidX core marks its inherited bridge class library-only.
+    @android.annotation.SuppressLint("RestrictedApi")
     @Override public boolean dispatchKeyEvent(KeyEvent event){
         int key=event.getKeyCode();
         if(event.getAction()==KeyEvent.ACTION_DOWN && list.hasFocus() && key==KeyEvent.KEYCODE_DPAD_RIGHT && firstAction!=null){firstAction.requestFocus();return true;}
-        if(key==KeyEvent.KEYCODE_DPAD_LEFT || key==KeyEvent.KEYCODE_BACK){
-            if(event.getAction()==KeyEvent.ACTION_DOWN && details.hasFocus() && (key==KeyEvent.KEYCODE_BACK || getCurrentFocus()==firstAction)){returningToList=true;return true;}
+        if(key==KeyEvent.KEYCODE_DPAD_LEFT){
+            if(event.getAction()==KeyEvent.ACTION_DOWN && details.hasFocus() && getCurrentFocus()==firstAction){returningToList=true;return true;}
             if(returningToList){if(event.getAction()==KeyEvent.ACTION_UP){returningToList=false;focusList();}return true;}
         }return super.dispatchKeyEvent(event);
     }

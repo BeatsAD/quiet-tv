@@ -48,7 +48,7 @@ System package operations require local ADB authorization. Disabling keeps app d
 
 ## Install and try it
 
-1. **Check your TV.** Android 12 is the minimum. Read the supported-device table below and the [compatibility details](docs/COMPATIBILITY.md).
+1. **Check your TV.** Source builds support Android 6.0 or newer; the published b23 APK still requires Android 12. Read the supported-device table below and the [compatibility details](docs/COMPATIBILITY.md).
 2. **Get an APK.** Download the APK and SHA-256 file from [Releases](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0), or build from source using the [installation guide](docs/INSTALL.en.md).
 3. **Install and try the launcher.** Follow the guide to connect ADB and install Quiet TV. A fresh install opens setup; choose “暂不设置，临时使用” to try it temporarily and check your remote, app launches, and system shortcuts first.
 4. **Complete first setup.** Set the default home screen, then choose whether to manage preinstalled apps. Select “不处理，进入桌面” to skip package changes. Upgrades do not force setup again. Reopen it through “应用管理 → 更多 → 首次设置”; the same menu offers “恢复原桌面” to restore the original launcher. See [first setup and recovery, Chinese](docs/SETUP.md).
@@ -70,8 +70,8 @@ You can keep the original launcher installed while trying Quiet TV. System deblo
 | Device / system | Status |
 | --- | --- |
 | Sony KD-65X9000H / BRAVIA VH1 · Android 12 | Installed and checked for the home screen, app management, wallpaper, selected system shortcuts, and one full reboot. See the [verification record](VERIFICATION.md) for the exact scope. |
-| Other TVs running Android 12 or newer | Require device-specific adaptation, including firmware, default-home selection, and ADB permissions. |
-| Android 11 or earlier; non-Android systems such as Tizen or webOS | Not supported by the current version. |
+| Other TVs running Android 6.0 or newer | Source compatibility is included; vendor firmware, HOME and ADB capabilities need hardware validation. See the [compatibility record](docs/android-compatibility.md). |
+| Android 5.1 or earlier; non-Android systems such as Tizen or webOS | Unsupported by the current source. |
 
 Long-running operation, casting, and full media playback remain unverified. Six-digit wireless pairing is still an experimental entry awaiting validation. Experimental older-Android source builds do not extend the current download to Android 11 or earlier; see [compatibility details](docs/COMPATIBILITY.md). Third-party media apps use their own update channels; Quiet TV does not currently update them automatically.
 

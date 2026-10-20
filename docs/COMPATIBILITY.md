@@ -2,6 +2,8 @@
 
 [简体中文首页](../README.md) · [English home](../README.en.md)
 
+当前源码集成候选为 1.1.0 / b24，最低 Android 6.0（API 23），目标 SDK 为 36；公开 b23 APK 仍最低 API31。以下索尼真机结果属于历史包；新候选的代码、模拟器与待验收范围见[版本兼容记录](android-compatibility.md)。
+
 ## 机型与平台 / Devices and platforms
 
 截至 2026-10-18，已实施机型如下。已适配只覆盖下方列出的验证范围。
@@ -11,8 +13,8 @@ As of October 18, 2026, the following device has been adapted. Validation is lim
 | 机型 / Device | 系统 / OS | 状态 / Status |
 | --- | --- | --- |
 | Sony KD-65X9000H / BRAVIA VH1 | Android 12 / API 31 | 已安装并验证部分功能 / Installed, partially validated |
-| 其他国内销售的 Android TV / Google TV / 兼容 Android 电视 | API 31+ | 待逐机适配 / Requires device-specific adaptation |
-| Android 11 及以下 / Android 11 and earlier | API <31 | 当前 APK 不支持 / Current APK unsupported |
+| 其他国内销售的 Android TV / Google TV / 兼容 Android 电视 | API 23+ | 版本兼容候选，待逐机验收 / Compatibility candidate; hardware validation required |
+| Android 5.1 及以下 / Android 5.1 and earlier | API <23 | 当前 APK 不支持 / Current APK unsupported |
 | Tizen、webOS、HarmonyOS 原生电视及其他非 Android 系统 | 非兼容 Android / Non-compatible Android | 当前方案不支持 / Unsupported |
 
 品牌相同、面板分辨率相同或 Android 版本更高，都不等于已兼容。需确认厂商固件、HOME 切换、系统设置 Intent、TV Input、遥控器按键与 ADB 权限。

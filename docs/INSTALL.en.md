@@ -4,7 +4,7 @@
 
 ## Requirements
 
-The current APK requires Android 12 / API 31. Only Sony KD-65X9000H on Android 12 has been adapted on hardware. Newer systems and other models need validation. Non-Android TV platforms are unsupported.
+Current source is 1.1.0 / b24, minSdk 23 and targetSdk 36. Android 6.0 or newer firmware requires hardware validation; see the [compatibility record](android-compatibility.md). The published b23 APK still requires Android 12 / API31 and ARM32 support. Historical Sony hardware checks do not validate b24. Non-Android TV platforms are unsupported.
 
 The verified development host is macOS. Install Git, JDK 17 or 21, Android SDK platform 36, build-tools 36.0.0, and platform-tools. Python 3 is required only for the helper scripts. Windows and Linux host workflows are unverified; `.command` launchers are macOS-specific.
 
@@ -31,7 +31,7 @@ Then build without connecting to a TV:
 python3 scripts/build_apk.py --summary "Describe this build's changes"
 ```
 
-Default source builds are archived as `dist/apk/quiet-tv_1.1.0_b23_debug.apk`, with a JSON receipt containing version, timestamps, SHA-256, and the summary. This does not contact a TV. Package: `home.quiet.tv`; source configuration: version 1.1.0, build 23, universal Debug by default.
+Default source builds are archived as `dist/apk/quiet-tv_1.1.0_b24_debug_api23.apk`, with a JSON receipt containing version, timestamps, SHA-256, and the summary. This does not contact a TV. Package: `home.quiet.tv`; source configuration: version 1.1.0, build 24, universal Debug with minSdk 23 by default. Use `--min-sdk 26` or `--min-sdk 31` for higher minimums. This integration only checks builds; no delivery archive was created and no TV was updated.
 
 [Releases v1.1.0](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0) provides the separate optimized test APK `quiet-tv_1.1.0_b23_benchmark_armeabi-v7a.apk` and SHA-256 checksum. It requires Android 12 or newer and support for ARM32 apps. Its filename differs from the universal source Debug build; install a downloaded APK using its actual path. No stable APK has been published. See [release notes](releases/v1.1.0.md) for validation limits and [version rules](VERSIONING.md) for immutable archives and installation checks.
 
@@ -52,7 +52,7 @@ adb -s "$TV_SERIAL" shell cmd package resolve-activity --brief -a android.intent
 Confirm the target identity and record the original HOME component before changing the default launcher. Keep the original launcher installed and enabled.
 
 ```sh
-adb -s "$TV_SERIAL" install -r dist/apk/quiet-tv_1.1.0_b23_debug.apk
+adb -s "$TV_SERIAL" install -r dist/apk/quiet-tv_1.1.0_b24_debug_api23.apk
 adb -s "$TV_SERIAL" shell am start -n home.quiet.tv/.HomeActivity
 ```
 

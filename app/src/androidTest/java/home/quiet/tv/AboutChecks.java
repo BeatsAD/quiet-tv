@@ -99,7 +99,7 @@ final class AboutChecks {
         key(KeyEvent.KEYCODE_DPAD_UP);focus("back-home");key(KeyEvent.KEYCODE_DPAD_RIGHT);focus("license-link");
         key(KeyEvent.KEYCODE_DPAD_LEFT);focus("back-home");key(KeyEvent.KEYCODE_DPAD_DOWN);focus("license-link");
         key(KeyEvent.KEYCODE_DPAD_RIGHT);focus("upstream-link");
-        checkExternal();checkUnavailable();
+        checkExternal();if(Build.VERSION.SDK_INT>=26)checkUnavailable();
         checkpoint("PASS: remaining remote routes / license visual readiness / rapid cancel / exact focus restoration");
         key(KeyEvent.KEYCODE_BACK);require(about.isFinishing(),"Back did not exit About");
         require(value("row")==-1 && value("topColumn")==3,"Home entry focus lost");
@@ -115,6 +115,7 @@ final class AboutChecks {
         try{key(KeyEvent.KEYCODE_DPAD_CENTER);Thread.sleep(250);require(!about.isFinishing(),"External action closed About");if(handler)require(monitor.getHits()==1,"External intent not dispatched once");focus("upstream-link");}
         finally{if(monitor!=null)test.removeMonitor(monitor);}
     }
+    @android.annotation.TargetApi(26)
     private void checkUnavailable() throws Exception {
         CountDownLatch attempted=new CountDownLatch(1);
         ActivityMonitor unavailable=new ActivityMonitor(){@Override public ActivityResult onStartActivity(Intent intent){
