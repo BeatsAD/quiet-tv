@@ -10,7 +10,7 @@ Quiet TV is built for everyday TV use in China. Keep your favorite apps on the h
 
 The launcher has no ads or recommendation feed and requires no account. It uses native Android views and needs no root access or firmware changes.
 
-[Download the test APK](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b24) · [Install](docs/INSTALL.en.md) · [Usage](docs/USAGE.en.md) · [Supported devices](docs/COMPATIBILITY.md)
+[Download the test APK](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b24) · [Install](docs/INSTALL.en.md) · [Usage](docs/USAGE.en.md) · [Supported devices](docs/COMPATIBILITY.md) · [Known issues and hardware validation](#known-issues-and-hardware-validation)
 
 ## Screenshots
 
@@ -77,6 +77,21 @@ You can keep the original launcher installed while trying Quiet TV. System deblo
 | Android 5.1 or earlier; non-Android systems such as Tizen or webOS | Unsupported by the current source. |
 
 Long-running operation, casting, and full media playback remain unverified. Six-digit wireless pairing is still experimental, requires API 33+ and actual device pairing capability, and is unavailable on Android 6/7. Meeting the minimum install requirement does not establish full firmware compatibility; see [compatibility details](docs/COMPATIBILITY.md). Third-party media apps use their own update channels; Quiet TV does not currently update them automatically.
+
+## Known issues and hardware validation
+
+**These issues remain unresolved or unverified. More physical TVs across brands, models, and firmware versions are needed; they must not be treated as fixed.** Successful installation, manual launch, or HOME resolution does not establish correct boot, physical Home-button, or post-reboot behavior. See the current report in [Issue #35](https://github.com/BeatsAD/quiet-tv/issues/35).
+
+| Issue | Current behavior and validation needed |
+| --- | --- |
+| Vendor home takeover | Firmware may restore its own launcher at boot or have the Home button start a vendor Activity directly, bypassing standard HOME preferences. Cold boot, reboot, and wake from standby need separate checks. |
+| Default-home command fails | A report includes `cannot be home on user 0`. The installed APK, current user, HOME candidates, and vendor restrictions need investigation; the cause and adaptation remain unconfirmed. |
+| Default-home status is insufficient | Detection mainly uses HOME Intent resolution. Quiet TV may report that it is the default while the physical Home button or a reboot still opens the stock launcher. Status reporting and persistence verification need improvement. |
+| ADB disabled or inaccessible | Greyed-out USB debugging, missing wireless debugging, or an unavailable pairing code may prevent local app management and ADB-dependent adaptation. The built-in ADB client cannot bypass firmware restrictions or pairing authentication; there is no universal unlock method. |
+
+Optional boot startup, accessibility-based redirection when the stock home appears, and log-based home monitoring are candidate approaches. **Quiet TV does not currently implement these compatibility workarounds, and they have not been validated on the reported firmware.** Success on other devices upstream does not validate Quiet TV. An ADB-free approach would also require APK installation and an accessible system accessibility setting. Keep the stock launcher and local recovery records; do not copy another TV's system-package disable list.
+
+Share results in [Issue #35](https://github.com/BeatsAD/quiet-tv/issues/35) or a [device adaptation report](https://github.com/BeatsAD/quiet-tv/issues/new?template=device_adaptation.yml): model, Android/firmware version, Quiet TV version and APK source, reproduction steps, and actual results for manual launch, the physical Home button, cold boot/reboot, standby wake, inputs, and stock-launcher recovery. Mark untested items as unverified. Share only relevant redacted log excerpts; omit IP addresses, serial numbers, keys, and full device dumps.
 
 ## Documentation and contributing
 
