@@ -42,3 +42,9 @@ Quiet TV 基于该项目开发，面向国内电视机的适配与应用升级�
 ## AndroidX 返回导航
 
 - [AndroidX Activity 1.10.1](https://developer.android.com/jetpack/androidx/releases/activity#1.10.1) 及其 AndroidX 生命周期依赖用于统一 Android 6 与新版系统的返回操作，采用 Apache-2.0。完整 Apache-2.0 文本随 APK 保存于 `assets/licenses/libadb-Apache-2.0.txt`；该文本同时适用于这些 AndroidX 组件。版权归 The Android Open Source Project 等贡献者。
+
+## 壁纸局域网上传
+
+- [NanoHTTPD 2.3.1](https://github.com/NanoHttpd/nanohttpd/tree/nanohttpd-project-2.3.1)：用于临时 HTTP 上传服务，BSD-3-Clause，版权归 NanoHTTPD 贡献者。完整声明随 APK 保存于 `assets/licenses/nanohttpd-LICENSE.txt`。
+- [ZXing Core 3.5.3](https://github.com/zxing/zxing/tree/zxing-3.5.3)：仅用于生成上传地址二维码，Apache-2.0，版权归 ZXing Authors。
+- [AndroidX ExifInterface 1.4.2](https://developer.android.com/jetpack/androidx/releases/exifinterface#1.4.2)：用于读取上传照片方向，Apache-2.0，版权归 The Android Open Source Project。以上 Apache-2.0 文本随 APK 保存在 `assets/licenses/libadb-Apache-2.0.txt`。

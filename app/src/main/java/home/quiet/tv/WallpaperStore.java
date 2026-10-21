@@ -1,0 +1,79 @@
+package home.quiet.tv;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.util.AtomicFile;
+import android.util.Log;
+import org.json.*;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+
+/** One process-wide, atomically saved wallpaper catalog for every native surface. */
+final class WallpaperStore {
+    private static WallpaperStore instance;
+    private final File directory;
+    private final AtomicFile catalogFile;
+    private WallpaperCatalog catalog;
+    static synchronized WallpaperStore get(Context context) {
+        if(instance==null) instance=new WallpaperStore(context.getApplicationContext());
+        return instance;
+    }
+    private WallpaperStore(Context context) {
+        directory=new File(context.getFilesDir(),"wallpapers");
+        if(!directory.isDirectory() && !directory.mkdirs()) throw new IllegalStateException("Wallpaper storage unavailable");
+        catalogFile=new AtomicFile(new File(directory,"catalog.json"));
+        if(catalogFile.getBaseFile().exists() || new File(directory,"catalog.json.bak").exists()) {
+            try { catalog=WallpaperCatalog.read(new JSONObject(new String(catalogFile.readFully(),StandardCharsets.UTF_8))); }
+            catch(IOException|JSONException e) { Log.w("QuietTV","Wallpaper catalog could not be read"); catalog=new WallpaperCatalog(); }
+        } else {
+            SharedPreferences old=context.getSharedPreferences("wallpapers",0);
+            catalog=WallpaperCatalog.migrate(old.getBoolean("default",!old.contains("index")),old.getInt("index",0),old.getBoolean("rotating",true));
+            try { persist(catalog); } catch(IOException e) { Log.w("QuietTV","Wallpaper migration will retry on next launch"); }
+        }
+        // A missing upload must never leave the home screen pointing at an absent file.
+        for(Iterator<WallpaperCatalog.Entry> it=catalog.custom.iterator();it.hasNext();) if(!file(it.next().id).isFile()) it.remove();
+        catalog.normalize();
+    }
+    synchronized WallpaperCatalog snapshot() { return catalog.copy(); }
+    File file(String id) {
+        if(!id.matches("user-[a-f0-9-]{36}")) throw new IllegalArgumentException("Invalid wallpaper ID");
+        return new File(directory,id+".jpg");
+    }
+    private void persist(WallpaperCatalog next) throws IOException {
+        FileOutputStream stream=null;
+        try { stream=catalogFile.startWrite(); stream.write(next.json().toString().getBytes(StandardCharsets.UTF_8)); catalogFile.finishWrite(stream); catalog=next; }
+        catch(JSONException|IOException e) { if(stream!=null) catalogFile.failWrite(stream); throw new IOException("Unable to save wallpaper settings",e); }
+    }
+    synchronized void select(String id) throws IOException { WallpaperCatalog next=catalog.copy();next.select(id);persist(next); }
+    synchronized void rotation(boolean enabled) throws IOException { WallpaperCatalog next=catalog.copy();next.rotation(enabled);persist(next); }
+    synchronized void next() throws IOException { WallpaperCatalog next=catalog.copy();next.next();persist(next); }
+    synchronized void restore() throws IOException { WallpaperCatalog next=catalog.copy();next.restore();persist(next); }
+    synchronized void remove(String id) throws IOException {
+        WallpaperCatalog.Entry entry=catalog.find(id); if(entry==null || WallpaperCatalog.DEFAULT.equals(id)) return;
+        WallpaperCatalog old=catalog.copy(),next=catalog.copy();next.remove(id);persist(next);
+        if(entry.custom() && file(id).exists() && !file(id).delete()) {
+            persist(old); throw new IOException("Unable to delete wallpaper file");
+        }
+    }
+    synchronized void checkCapacity() throws IOException {
+        if(catalog.custom.size()>=WallpaperCatalog.MAX_CUSTOM || catalog.bytes()>=WallpaperCatalog.MAX_BYTES) throw new IOException("壁纸库已满，请先在电视删除图片 / Wallpaper library full");
+        if(directory.getUsableSpace()<30L*1024*1024) throw new IOException("电视存储空间不足 / Not enough TV storage");
+    }
+    synchronized WallpaperCatalog.Entry add(File ready,String filename,int width,int height) throws IOException {
+        checkCapacity();
+        if(catalog.bytes()+ready.length()>WallpaperCatalog.MAX_BYTES) throw new IOException("壁纸库已满 / Wallpaper library full");
+        String id="user-"+UUID.randomUUID();
+        String name=filename.replaceAll("[\\p{Cntrl}/\\\\]"," ").replaceFirst("(?i)\\.(jpg|jpeg|png|webp)$","").trim();
+        if(name.isEmpty()) name="我的壁纸 / My wallpaper";
+        if(name.length()>48) name=name.substring(0,48);
+        WallpaperCatalog.Entry entry=new WallpaperCatalog.Entry(id,name,width,height,ready.length());
+        File destination=file(id);
+        if(!ready.renameTo(destination)) throw new IOException("Unable to save wallpaper image");
+        WallpaperCatalog next=catalog.copy();next.add(entry);
+        try { persist(next); } catch(IOException e) { if(!destination.delete()) Log.w("QuietTV","Unindexed wallpaper retained after failed save"); throw e; }
+        return entry;
+    }
+    File incoming() { return new File(directory,"incoming.tmp"); }
+    File prepared() { return new File(directory,"prepared.tmp"); }
+}

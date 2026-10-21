@@ -22,9 +22,9 @@ A clock, date, favorite apps, and system shortcuts keep the main screen simple. 
 
 **Choose a wallpaper, or keep the default theme.**
 
-Use the ambient theme that changes color with the selected app, pick a fixed landscape, or enable a five-minute wallpaper slideshow.
+Use the app-colored ambient theme, a fixed photo, or a five-minute slideshow. Current source adds wallpaper management and LAN uploads; see the [usage guide](docs/USAGE.en.md#wallpapers). These additions are not in the existing b26 download and await real-TV acceptance.
 
-![Quiet TV wallpaper settings: default theme, landscapes, and slideshow toggle](docs/assets/wallpaper-settings.png)
+![Historical Quiet TV wallpaper settings: default theme, landscapes, and slideshow toggle](docs/assets/wallpaper-settings.png)
 
 These original Sony KD-65X9000H captures were taken on October 19, 2026, with development build 1.1.0 / b15. The current download is the b26 universal compatibility test build; these captures do not establish hardware validation of b26. The cover is an AI illustration. See [image provenance](docs/assets/README.md).
 
