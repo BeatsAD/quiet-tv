@@ -34,13 +34,18 @@ The included application package list belongs to the Sony adaptation. Use actual
 
 ## Wallpapers
 
-Open Wallpaper Settings from All Apps. Left / Right previews, OK applies, and Back cancels and restores the previous state.
+Open Wallpaper Settings from All Apps. Left / Right previews; OK or Use wallpaper saves the choice. Back cancels an unapplied preview and returns home. In Manage mode, Back first exits management; completed deletions are not undone.
 
-- Default: a black background with an application-colored ambient glow.
-- Fixed: select and confirm one landscape with rotation disabled.
-- Slideshow: move up to the rotation toggle and enable it; images change every five minutes while the launcher is in the foreground.
+- **Default color theme:** a black background with an app-colored glow. Always available and cannot be deleted.
+- **Photos and slideshow:** applying a photo disables rotation. The slideshow cycles through available built-in and uploaded images every five minutes. Opening the picker or leaving the launcher pauses it; returning starts a new interval.
+- **Manage:** remove one image at a time. Built-in images leave the list and slideshow and can be restored. Uploaded images delete only the TV copy. Deleting the fixed current photo restores the color theme; deleting the slideshow’s current photo advances to the next. Fewer than two photos disables rotation.
+- **Upload:** select Upload on the TV. Scan its QR code or open its complete session address on a phone or computer on the same LAN. Upload, press Back on the TV, then select the new photo to apply it. Wi-Fi and Ethernet are supported; ADB, accounts, and cloud services are not required.
 
-Leaving the launcher or opening the picker pauses rotation. Returning starts a new five-minute interval. Selection and mode are stored locally. See [resource notices](../THIRD_PARTY_NOTICES.md) for wallpaper provenance and licensing limits.
+Accepts JPG, PNG and static WebP: up to 20 MB and 40 megapixels per input, 20 uploaded photos, and 50 MB total processed storage. Saved images retain their aspect ratio with a maximum long edge of 1920 pixels; orientation is corrected and display uses centered cropping. Transparent areas use black. Only the processed TV copy is saved; originals stay on the phone or computer. Convert HEIC to JPG before uploading.
+
+The server runs only while the TV upload dialog is open. Leaving it, backgrounding Quiet TV, changing network addresses, or ten idle minutes ends the session and invalidates its address. If connection fails, check guest-network/device isolation and try a system browser. Failed uploads and storage errors leave existing wallpapers unchanged.
+
+APK updates preserve images and removed built-ins; uninstalling or clearing application data removes uploaded photos. Existing selections and rotation settings migrate on first launch. These management/upload additions describe current source, are not included in the existing b26 download, and await real-TV acceptance. See [resource notices](../THIRD_PARTY_NOTICES.md) for provenance and licensing limits.
 
 ## Inputs and settings
 

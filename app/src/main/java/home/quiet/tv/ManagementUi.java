@@ -20,15 +20,13 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
         super.onCreate(state);BackNavigation.install(this,this::handleBack);unit=getResources().getDisplayMetrics().widthPixels/960f;
         getWindow().getDecorView().setSystemUiVisibility(5894);
         stage=new FrameLayout(this);stage.setBackgroundColor(0xff0e0f13);setContentView(stage);
-        android.content.SharedPreferences prefs=getSharedPreferences("wallpapers",0);
-        if(!prefs.getBoolean("default",!prefs.contains("index"))){
-            String[] files={"big-sur-coastline","big-sur-mountains","big-sur-road"};
-            int index=prefs.getInt("index",0);
-            if(index>=0 && index<files.length)try(java.io.InputStream input=getAssets().open("wallpapers/"+files[index]+".jpg")){
-                BitmapFactory.Options options=new BitmapFactory.Options();options.inSampleSize=4;
-                ImageView image=new ImageView(this);image.setScaleType(ImageView.ScaleType.CENTER_CROP);image.setImageBitmap(BitmapFactory.decodeStream(input,null,options));stage.addView(image,new FrameLayout.LayoutParams(-1,-1));
-            }catch(java.io.IOException ignored){}
-        }
+        WallpaperStore wallpaperStore=WallpaperStore.get(this);
+        WallpaperCatalog wallpaperState=wallpaperStore.snapshot();
+        WallpaperCatalog.Entry wallpaperEntry=wallpaperState.find(wallpaperState.current);
+        if(wallpaperEntry!=null && !WallpaperCatalog.DEFAULT.equals(wallpaperEntry.id))try{
+            Bitmap bitmap=WallpaperImages.decode(this,wallpaperStore,wallpaperEntry,480,270);
+            ImageView image=new ImageView(this);image.setScaleType(ImageView.ScaleType.CENTER_CROP);image.setImageBitmap(bitmap);stage.addView(image,new FrameLayout.LayoutParams(-1,-1));
+        }catch(java.io.IOException ignored){}
         View shade=new View(this);shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0xf00c0d11,0xf50b0c10}));stage.addView(shade,new FrameLayout.LayoutParams(-1,-1));
         root=column();root.setPadding(px(48),px(28),px(48),px(16));stage.addView(root,new FrameLayout.LayoutParams(-1,-1));
         header=row();root.addView(header,new LinearLayout.LayoutParams(-1,px(38)));
