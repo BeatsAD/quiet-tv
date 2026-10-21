@@ -54,7 +54,7 @@ final class HomeController {
         }
         if(state.known){
             String label="其他桌面";try{label=pm.getActivityInfo(ComponentName.unflattenFromString(state.actual),0).loadLabel(pm).toString();}catch(PackageManager.NameNotFoundException ignored){}
-            state.reason=state.isOwn(context)?"Quiet TV 已是默认桌面":"当前默认桌面："+label;
+            state.reason=state.isOwn(context)?"系统 HOME 已指向 Quiet TV":"当前系统 HOME："+label;
         }
         String conflict=homeProblem(state.resolved);
         if(!conflict.isEmpty())state.reason=conflict;
@@ -87,9 +87,7 @@ final class HomeController {
         String desired=new ComponentName(context,HomeActivity.class).flattenToString();
         store.homeSwitch(before.actual,desired,adb.user,"running",before.resolved);
         try{
-            adb.shell(adb.capabilities.home+" --user "+adb.user+" "+desired);
-            State after=inspect(adb);
-            if(!after.isOwn(context))throw new IOException("未设为默认桌面："+after.reason);
+            State after=setOwnAndVerify(adb);
             store.homeSwitch(before.actual,desired,adb.user,"complete",after.actual);
         }catch(Exception failure){
             String observed="未确认",status="incomplete";
@@ -105,6 +103,16 @@ final class HomeController {
             store.homeSwitch(before.actual,desired,android.os.Process.myUid()/100000,status,observed);
             throw failure;
         }
+    }
+    /** Reapply even when resolution is ours: changing HOME candidates clears the saved preference. */
+    State setOwnAndVerify(AdbController adb) throws Exception {
+        if(!component(new ComponentName(context,HomeActivity.class).flattenToString(),true))throw new IOException("Quiet TV HOME 组件不可用");
+        adb.validateUser();
+        if(adb.capabilities.home.isEmpty())throw new IOException("当前系统未提供可核对的桌面切换命令");
+        adb.shell(adb.capabilities.home+" --user "+adb.user+" "+new ComponentName(context,HomeActivity.class).flattenToString());
+        State after=inspect(adb);
+        if(!after.isOwn(context))throw new IOException("未设为系统 HOME："+after.reason);
+        return after;
     }
     void switchToOriginal(AdbController adb,String original) throws Exception {
         if(!original.equals(presets.home()) || !component(original,true))throw new IOException("原桌面组件不可用或适配不匹配");

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Coocaa OS (com.tianci.system) makes com.ccos.tv.homepage/.LaunchActivity the default home at every
+     boot when this package is installed. This activity hands Home on to the Quiet TV launcher. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <queries>
+        <package android:name="${quietLauncherPackage}" />
+        <package android:name="com.tianci.movieplatform" />
+    </queries>
+
+    <application
+        android:label="Home"
+        android:allowBackup="false">
+        <meta-data
+            android:name="com.coocaa.os.multimodel.MODEL_REGISTER"
+            android:resource="@xml/mode_setting" />
+        <activity
+            android:name=".LaunchActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.NoDisplay" />
+        <!-- Started only from this package's boot receiver. Coocaa force-stops a
+             package whose process lingers behind the launcher, which would cost it the next boot
+             broadcast, so the process exits once the launcher is up. -->
+        <service
+            android:name=".BootWatchService"
+            android:exported="false"
+            android:directBootAware="true" />
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="false"
+            android:directBootAware="true">
+            <intent-filter>
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>
