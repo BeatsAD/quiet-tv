@@ -36,7 +36,7 @@ These original Sony KD-65X9000H captures were taken on October 19, 2026, with de
 | App management | Inspect app names, package names, versions, and status. Search, filter, and enable, disable, or uninstall apps individually. Protected system components stay read-only. |
 | First setup | Set the default home screen, then optionally manage preinstalled apps. Choose actions before authorizing them; system packages on unknown firmware stay read-only. |
 | Restore the original launcher | Switch back to or enable the original launcher using local records and validated device capabilities. Unavailable actions explain why they are blocked. |
-| Inputs and settings | Choose from the TV's actual inputs, including HDMI, AV, or live TV where available. Open network and system settings directly. |
+| Inputs and settings | Choose from the TV's actual inputs, including HDMI, AV, or live TV where available. Source now includes selected firmware's system input-panel fallbacks; see [compatibility](docs/COMPATIBILITY.md). Open network and system settings directly. |
 | Wallpaper | Preview and choose the default ambient theme, a fixed landscape, or an automatic slideshow. Cancel to restore your previous choice. |
 | Remote navigation | Use direction keys to move, OK to open, and Back to return. The home screen remembers your last focus. |
 | Local use | Settings stay on the TV. No cloud account is needed; app management connects to the TV's own ADB service on demand. |
