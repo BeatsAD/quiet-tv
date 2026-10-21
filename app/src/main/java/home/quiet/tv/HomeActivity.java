@@ -171,15 +171,11 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         date.setSingleLine(true);date.setGravity(Gravity.CENTER_VERTICAL);
         timeRow.addView(date,new LinearLayout.LayoutParams(-2,-1));
         FrameLayout top = new FrameLayout(this);
-        FrameLayout.LayoutParams topParams=new FrameLayout.LayoutParams(px(444),px(50),Gravity.TOP|Gravity.RIGHT);
+        FrameLayout.LayoutParams topParams=new FrameLayout.LayoutParams(px(330),px(50),Gravity.TOP|Gravity.RIGHT);
         topParams.topMargin=px(67);topParams.rightMargin=px(CONTENT_MARGIN); root.addView(top,topParams);
         addPill(top, tr("信号源","Inputs"), R.drawable.ic_input, 102, 0, ()->showInputs());
         network=addPill(top,tr("网络","Network"), R.drawable.ic_ethernet, 102, 114, ()->openSettings(Settings.ACTION_WIFI_SETTINGS));
         addPill(top,tr("设置","Settings"), R.drawable.ic_settings, 102, 228, ()->openSettings(Settings.ACTION_SETTINGS));
-        addPill(top,tr("关于","About"), R.drawable.ic_about, 102, 342, ()->{
-            row=-1;topColumn=pills.size()-1;
-            startActivity(new Intent(this,AboutActivity.class));
-        });
         updateClock(); updateNetwork();
     }
 

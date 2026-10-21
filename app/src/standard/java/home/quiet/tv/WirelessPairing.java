@@ -26,9 +26,9 @@ final class WirelessPairing {
             if(target==null)throw new IOException("本机配对端口不可达");
             PairingTransport active=new PairingTransport(target,port,30000);transport=active;
             if(generation.get()!=attempt)throw new IOException("配对已取消");
-            status.changed("正在配对 · 请保持系统配对页面有效");
+            status.changed("正在配对  请保持系统配对页面有效");
             protocol=new io.github.muntashirakon.adb.PairingConnectionCtx("127.0.0.1",active.port(),password,(PrivateKey)keys.getKey("adb",new char[0]),keys.getCertificate("adb"),"QuietTV");
-            protocol.start();if(generation.get()!=attempt)throw new IOException("配对已取消");status.changed("已配对 · 尚需连接并核对本机身份");
+            protocol.start();if(generation.get()!=attempt)throw new IOException("配对已取消");status.changed("已配对  尚需连接并核对本机身份");
         }catch(Exception|LinkageError e){throw new IOException("配对未完成，请重新打开系统配对页面并核对端口和配对码；取消或超时后不会自动重试");}
         finally{Arrays.fill(password,(byte)0);close();if(protocol!=null)try{protocol.close();}catch(RuntimeException ignored){}}
     }

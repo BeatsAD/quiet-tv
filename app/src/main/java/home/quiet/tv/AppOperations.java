@@ -90,7 +90,7 @@ final class AppOperations {
         record(id,user,before,action,after,result,runId);
         if(!success)throw new IOException(result);
         if(action==Action.UNINSTALL)new DockStore(context).remove(before.pkg);
-        return action.label+"成功 · "+before.pkg;
+        return action.label+"成功  "+before.pkg;
     }
     private JSONObject state(AppRepository.App app) throws JSONException {
         if(app==null)return null;return new JSONObject().put("installed",app.installed).put("enabled",app.enabled).put("system",app.system).put("version",app.version).put("enabledSetting",app.enabledSetting);
@@ -106,7 +106,7 @@ final class AppOperations {
         File file=new File(context.getFilesDir(),"app-operations.jsonl");if(!file.exists())return "暂无操作记录。记录包含配置状态，不是应用数据备份。";
         StringBuilder result=new StringBuilder("配置记录（不是数据备份）\n\n");
         try(BufferedReader input=new BufferedReader(new InputStreamReader(new FileInputStream(file),java.nio.charset.StandardCharsets.UTF_8))){
-            String line;while((line=input.readLine())!=null)try{JSONObject item=new JSONObject(line);result.append(item.optString("package")).append(" · ").append(item.optString("action")).append(" · 用户 ").append(item.optInt("user")).append("\n").append(item.optString("result")).append("\n\n");}catch(JSONException e){result.append("有一条记录不完整，请保留原文件\n");}
+            String line;while((line=input.readLine())!=null)try{JSONObject item=new JSONObject(line);result.append(item.optString("package")).append("  ").append(item.optString("action")).append("  用户 ").append(item.optInt("user")).append("\n").append(item.optString("result")).append("\n\n");}catch(JSONException e){result.append("有一条记录不完整，请保留原文件\n");}
         }
         return result.toString();
     }
