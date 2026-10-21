@@ -36,7 +36,7 @@ public final class AppManagementActivity extends ManagementUi {
         super.onCreate(state);repository=new AppRepository(this);operations=new AppOperations(this);
         adb=new AdbController(this,value->ui(()->updateConnection(value)));
         connection=new AdbConnectionPanel(this,adb,worker);
-        status=button("●  ADB 未连接",this::connectionPanel);status.setText(dotted("ADB 未连接"));status.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(12));header.addView(status,new LinearLayout.LayoutParams(px(150),px(36)));
+        status=button("ADB 未连接",this::connectionPanel);status.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(12));status.setPadding(px(12),0,px(12),0);header.addView(status,new LinearLayout.LayoutParams(-2,px(30)));
         LinearLayout tools=toolbar(false);
         searchButton=iconText("搜索",R.drawable.ic_manage_search,this::searchPanel);tools.addView(searchButton,new LinearLayout.LayoutParams(-2,px(33)));
         filterButton=iconText("筛选",R.drawable.ic_manage_filter,this::chooseFilter);marginAdd(tools,filterButton,-2,33,8);
@@ -54,7 +54,7 @@ public final class AppManagementActivity extends ManagementUi {
         IntentFilter packages=new IntentFilter(Intent.ACTION_PACKAGE_ADDED);packages.addAction(Intent.ACTION_PACKAGE_REMOVED);packages.addAction(Intent.ACTION_PACKAGE_CHANGED);packages.addDataScheme("package");registerReceiver(packagesChanged,packages);
     }
     private void ui(Runnable action){runOnUiThread(()->{if(!isDestroyed() && !isFinishing())action.run();});}
-    private void updateConnection(String value){connectionState=value;String shortState=adb.connected()?"已连接":value.startsWith("等待授权")?"等待授权":value.startsWith("连接中")?"连接中":value.contains("失败")?"连接失败":"未连接";status.setText(dotted("ADB "+shortState));status.setTextColor(adb.connected()?0xffbacabd:TEXT);status.setContentDescription("ADB "+value);}
+    private void updateConnection(String value){connectionState=value;String shortState=adb.connected()?"已连接":value.startsWith("等待授权")?"等待授权":value.startsWith("连接中")?"连接中":value.contains("失败")?"连接失败":"未连接";status.setText("ADB "+shortState);status.setTextColor(adb.connected()?0xffbacabd:TEXT);status.setContentDescription("ADB "+value);}
     @Override protected void onResume(){super.onResume();active=true;updateConnection(adb.connected()?"已连接":"未连接");refresh();}
     @Override protected void onStop(){active=false;connection.close();if(!connecting)worker.execute(()->{adb.disconnect();ui(()->updateConnection("未连接"));});super.onStop();}
     @Override protected void onDestroy(){unregisterReceiver(packagesChanged);adb.close();worker.shutdownNow();super.onDestroy();}
