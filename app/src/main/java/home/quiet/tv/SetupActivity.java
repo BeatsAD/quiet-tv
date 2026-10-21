@@ -150,14 +150,13 @@ public final class SetupActivity extends ManagementUi {
     // The setup has its own composition; the existing application manager keeps its surface unchanged.
     private void setupSurface(){
         stage.removeAllViews();stage.setBackgroundColor(0xff0d1014);
-        android.content.SharedPreferences prefs=getSharedPreferences("wallpapers",0);
-        if(!prefs.getBoolean("default",!prefs.contains("index"))){
-            String[] names={"big-sur-coastline","big-sur-mountains","big-sur-road"};int index=prefs.getInt("index",0);
-            if(index>=0 && index<names.length)try(java.io.InputStream in=getAssets().open("wallpapers/"+names[index]+".jpg")){
-                BitmapFactory.Options options=new BitmapFactory.Options();options.inSampleSize=2;Bitmap wallpaper=BitmapFactory.decodeStream(in,null,options);
-                ImageView image=new ImageView(this);image.setImageBitmap(wallpaper);image.setScaleType(ImageView.ScaleType.CENTER_CROP);stage.addView(image,new FrameLayout.LayoutParams(-1,-1));
-            }catch(java.io.IOException ignored){}
-        }
+        WallpaperStore wallpaperStore=WallpaperStore.get(this);
+        WallpaperCatalog wallpaperState=wallpaperStore.snapshot();
+        WallpaperCatalog.Entry wallpaperEntry=wallpaperState.find(wallpaperState.current);
+        if(wallpaperEntry!=null && !WallpaperCatalog.DEFAULT.equals(wallpaperEntry.id))try{
+            Bitmap bitmap=WallpaperImages.decode(this,wallpaperStore,wallpaperEntry,480,270);
+            ImageView image=new ImageView(this);image.setScaleType(ImageView.ScaleType.CENTER_CROP);image.setImageBitmap(bitmap);stage.addView(image,new FrameLayout.LayoutParams(-1,-1));
+        }catch(java.io.IOException ignored){}
         View shade=new View(this);shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,new int[]{0xed080d15,0xe80a0e16,0xdd0e121a}));stage.addView(shade,new FrameLayout.LayoutParams(-1,-1));
         root=column();root.setPadding(px(51),px(29),px(51),px(19));stage.addView(root,new FrameLayout.LayoutParams(-1,-1));
         header=row();header.addView(glyph(R.drawable.ic_manage_apps,17));TextView brand=label("Quiet TV",14);brand.setPadding(px(9),0,0,0);header.addView(brand);root.addView(header,new LinearLayout.LayoutParams(-1,px(27)));
@@ -174,7 +173,7 @@ public final class SetupActivity extends ManagementUi {
         FrameLayout frame=new FrameLayout(this);((android.view.ViewGroup)sheet.box.getParent()).removeView(sheet.box);frame.addView(sheet.box,new FrameLayout.LayoutParams(-1,-2));Button close=textButton("×","close-dialog",sheet.dialog::dismiss);close.setContentDescription("取消");FrameLayout.LayoutParams cp=new FrameLayout.LayoutParams(px(28),px(28),Gravity.TOP|Gravity.END);cp.setMargins(0,px(8),px(8),0);frame.addView(close,cp);sheet.dialog.setContentView(frame);new SetupFocus(frame,unit,null);return sheet;
     }
     @Override void message(String text){Sheet sheet=setupSheet("提示");sheet.text(text);Button close=sheet.action("确定",sheet.dialog::dismiss);sheet.show(close);}
-    private void buttonIcon(Button button,int resource){Drawable icon=getDrawable(resource);icon.setTint(0xff26303b);icon.setBounds(0,0,px(14),px(14));button.setCompoundDrawables(icon,null,null,null);button.setCompoundDrawablePadding(px(8));}
+    private void buttonIcon(Button button,int resource){Drawable icon=UiCompat.drawable(this,resource);icon.setColorFilter(0xff26303b,android.graphics.PorterDuff.Mode.SRC_IN);icon.setBounds(0,0,px(14),px(14));button.setCompoundDrawables(icon,null,null,null);button.setCompoundDrawablePadding(px(8));}
     private Button textButton(String text,String tag,Runnable run){Button b=setupButton(text,tag,run,false);b.setBackground(new ColorDrawable(Color.TRANSPARENT));b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(10));b.setTextColor(0xffa4acb7);b.setPadding(px(6),0,px(6),0);return b;}
     private void enable(View view,boolean enabled){view.setEnabled(enabled);view.setAlpha(enabled?1f:.4f);}
     private void render(){
@@ -230,7 +229,7 @@ public final class SetupActivity extends ManagementUi {
     }
     private void showInventory(){Sheet sheet=setupSheet("已识别的预装应用");for(AppRepository.App app:apps)if(app.system || home.presets.app(app.pkg)!=null){LinearLayout line=column();line.setPadding(px(8),px(7),px(8),px(7));focusable(line,8);line.setFocusableInTouchMode(true);line.setBackground(surface(0x10ffffff,0x06ffffff,0x22ffffff,8));line.addView(label(app.label,12));line.addView(muted(app.state()+" · "+app.pkg,9));sheet.body.addView(line,new LinearLayout.LayoutParams(-1,-2));}Button close=sheet.action("关闭",sheet.dialog::dismiss);sheet.show(close);}
     private final class HomePreview extends ImageView {
-        HomePreview(){super(SetupActivity.this);setTag("home-preview");setBackground(surface(0xff202328,0xff111317,0x30ffffff,13));setClipToOutline(true);
+        HomePreview(){super(SetupActivity.this);setTag("home-preview");setBackground(surface(0xff202328,0xff111317,0x30ffffff,13));UiCompat.clipOutline(this);
             setContentDescription("Quiet TV 桌面示意图");
             setScaleType(ImageView.ScaleType.FIT_CENTER);
             setImageResource(R.drawable.setup_home_preview);
