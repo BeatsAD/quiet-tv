@@ -6,6 +6,7 @@ import android.provider.Settings;
 import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.style.ForegroundColorSpan;
+import android.text.format.Formatter;
 import android.view.*;
 import android.widget.*;
 import androidx.recyclerview.widget.*;
@@ -95,10 +96,11 @@ public final class AppManagementActivity extends ManagementUi {
         if(app==null){details.setGravity(Gravity.CENTER);details.addView(center(busy?"正在读取应用…":"没有符合条件的应用",20));if(!busy){gap(details,12);details.addView(muted("试试其他名称或筛选条件",12));}return;}details.setGravity(Gravity.CENTER_HORIZONTAL);
         details.addView(icon(app.icon,67));gap(details,16);TextView title=center(app.label,26);title.setMaxLines(2);title.setEllipsize(android.text.TextUtils.TruncateAt.END);details.addView(title,new LinearLayout.LayoutParams(-1,-2));
         gap(details,10);TextView state=center("",12);state.setText(coloredState(app,app.state()+"  "+(app.system?"预装应用":"用户应用")));state.setTextColor(0xffaab0b8);details.addView(state);
-        gap(details,20);TextView meta=center(app.pkg+"\n版本 "+app.version,12);meta.setTextColor(MUTED);meta.setLineSpacing(px(5),1);details.addView(meta,new LinearLayout.LayoutParams(-1,-2));
+        String size=app.apkSizeBytes>=0?Formatter.formatShortFileSize(this,app.apkSizeBytes):"大小未知";
+        gap(details,20);TextView meta=center(app.pkg+"\n版本 "+app.version+"  "+size,12);meta.setTextColor(MUTED);meta.setLineSpacing(px(5),1);details.addView(meta,new LinearLayout.LayoutParams(-1,-2));
         details.addView(new View(this),new LinearLayout.LayoutParams(1,0,1));gap(details,18);
         String protectedReason=operations.protection(app);
-        if(!protectedReason.isEmpty()){ImageView shield=icon(getDrawable(R.drawable.ic_manage_shield),22);shield.setAlpha(.65f);details.addView(shield);gap(details,10);TextView note=center(protectedReason,12);note.setTextColor(0xffb9bec8);details.addView(note);gap(details,8);details.addView(center("为保证电视正常使用，此应用仅供查看。",11));return;}
+        if(!protectedReason.isEmpty()){TextView note=center(protectedReason,12);note.setTextColor(0xffb9bec8);details.addView(note);gap(details,8);details.addView(center("为保证电视正常使用，此应用仅供查看。",11));return;}
         LinearLayout actions=row();actions.setGravity(Gravity.CENTER);details.addView(actions,new LinearLayout.LayoutParams(-1,px(42)));
         if(busy){details.addView(center(connecting?"正在连接，请在电视弹窗允许授权…":"正在核对实际状态…",12));return;}
         if(!adb.connected()){Button connect=button("连接后管理",this::connectionPanel);actions.addView(connect,new LinearLayout.LayoutParams(-2,-1));firstAction=connect;}
