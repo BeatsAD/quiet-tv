@@ -96,7 +96,7 @@ public final class HomeSortActivity extends ManagementUi {
         saveButton=iconText(saving?"保存中":"保存顺序",R.drawable.ic_home_save,()->save(null));marginAdd(actions,saveButton,-2,40,10);
         boolean canSave=loaded && dirty() && moving.isEmpty() && !saving;saveButton.setEnabled(canSave);resetButton.setEnabled(loaded && !saving);
         saveButton.setTextColor(canSave?0xff171a20:MUTED);
-        Drawable saveIcon=saveButton.getCompoundDrawables()[0].mutate();saveIcon.setTint(canSave?0xff171a20:MUTED);
+        Drawable saveIcon=saveButton.getCompoundDrawables()[0].mutate();saveIcon.setColorFilter(canSave?0xff171a20:MUTED,android.graphics.PorterDuff.Mode.SRC_IN);
         if(canSave){
             android.graphics.drawable.LayerDrawable focused=new android.graphics.drawable.LayerDrawable(new Drawable[]{surface(0,0,TEXT,24),surface(0xfff5f6f9,0xffeff0f4,0,22)});
             focused.setLayerInset(1,px(3),px(3),px(3),px(3));
@@ -204,7 +204,7 @@ public final class HomeSortActivity extends ManagementUi {
             RecyclerView.LayoutParams p=new RecyclerView.LayoutParams(-1,-2);p.leftMargin=px(10);p.rightMargin=px(10);p.bottomMargin=px(18);card.setLayoutParams(p);
             FrameLayout art=new FrameLayout(HomeSortActivity.this){@Override protected void onMeasure(int w,int h){super.onMeasure(w,View.MeasureSpec.makeMeasureSpec(Math.round(View.MeasureSpec.getSize(w)*203f/360f),View.MeasureSpec.EXACTLY));}};
             art.setDuplicateParentStateEnabled(true);art.setPadding(px(3),px(3),px(3),px(3));card.addView(art,new LinearLayout.LayoutParams(-1,-2));
-            ImageView image=new ImageView(HomeSortActivity.this);image.setBackground(surface(0,0,0,10));image.setClipToOutline(true);art.addView(image,new FrameLayout.LayoutParams(-1,-1));
+            ImageView image=new ImageView(HomeSortActivity.this);image.setBackground(surface(0,0,0,10));UiCompat.clipOutline(image);art.addView(image,new FrameLayout.LayoutParams(-1,-1));
             ImageView wallpaperIcon=new ImageView(HomeSortActivity.this);wallpaperIcon.setImageResource(R.drawable.ic_home_wallpaper);art.addView(wallpaperIcon,new FrameLayout.LayoutParams(px(42),px(42),Gravity.CENTER));
             TextView badge=center("正在移动",10);badge.setTextColor(0xff22262e);badge.setPadding(px(6),0,px(6),0);badge.setBackground(surface(0xffeff0f4,0xffeff0f4,0,4));
             FrameLayout.LayoutParams bp=new FrameLayout.LayoutParams(-2,px(23),Gravity.TOP|Gravity.END);bp.setMargins(px(7),px(7),px(7),0);art.addView(badge,bp);
@@ -225,11 +225,11 @@ public final class HomeSortActivity extends ManagementUi {
             FrameLayout.LayoutParams ip=(FrameLayout.LayoutParams)holder.image.getLayoutParams();ip.width=-1;ip.height=-1;ip.gravity=Gravity.CENTER;
             holder.image.setScaleType(ImageView.ScaleType.FIT_XY);
             if(HomeAppCatalog.WALLPAPER.equals(id))holder.image.setImageBitmap(wallpaper);
-            else if(HomeAppCatalog.MANAGEMENT.equals(id)){holder.image.setImageDrawable(getDrawable(R.drawable.ic_manage_apps));ip.width=px(48);ip.height=px(48);holder.image.setScaleType(ImageView.ScaleType.FIT_CENTER);}
+            else if(HomeAppCatalog.MANAGEMENT.equals(id)){holder.image.setImageDrawable(UiCompat.drawable(HomeSortActivity.this,R.drawable.ic_manage_apps));ip.width=px(48);ip.height=px(48);holder.image.setScaleType(ImageView.ScaleType.FIT_CENTER);}
             else{
                 Drawable art=artwork.get(id);boolean banner=true;PackageManager pm=getPackageManager();
-                if(art==null){art=entry.info.activityInfo.loadBanner(pm);if(art==null)art=entry.info.activityInfo.applicationInfo.loadBanner(pm);if(art==null){banner=false;art=entry.info.loadIcon(pm);}artwork.put(id,art);}
-                else banner=entry.info.activityInfo.banner!=0 || entry.info.activityInfo.applicationInfo.banner!=0;
+                if(art==null){if(android.os.Build.VERSION.SDK_INT>=21){art=entry.info.activityInfo.loadBanner(pm);if(art==null)art=entry.info.activityInfo.applicationInfo.loadBanner(pm);}if(art==null){banner=false;art=entry.info.loadIcon(pm);}artwork.put(id,art);}
+                else banner=android.os.Build.VERSION.SDK_INT>=21 && (entry.info.activityInfo.banner!=0 || entry.info.activityInfo.applicationInfo.banner!=0);
                 holder.image.setImageDrawable(art);if(!banner){ip.width=px(48);ip.height=px(48);holder.image.setScaleType(ImageView.ScaleType.FIT_CENTER);}
             }
             holder.image.setLayoutParams(ip);
