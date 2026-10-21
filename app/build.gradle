@@ -14,7 +14,7 @@ android {
         manifestPlaceholders = [leanbackRequired: !legacy]
         buildConfigField 'boolean', 'LEGACY_19', legacy.toString()
         targetSdk 36
-        versionCode 28
+        versionCode 29
         versionName '1.1.0'
     }
     buildFeatures { buildConfig true }
