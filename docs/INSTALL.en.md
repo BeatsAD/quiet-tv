@@ -4,7 +4,7 @@
 
 ## Requirements
 
-Source and the public universal test APK are 1.1.0 / b26, with Android 5.0 / minSdk21 and targetSdk36. The download is about 6.50 MiB and includes ARM32, ARM64, x86 and x86_64. Selected emulator checks passed; physical TV acceptance remains pending. See [compatibility](COMPATIBILITY.md). Historical b24 still requires Android 6.0 and b23 requires Android 12 with ARM32 support; both remain available. Building source does not establish hardware acceptance.
+Source is 1.1.0 / b28: the default standard profile requires Android 5.0 / API21, and `legacy19` requires Android 4.4 / API19. Both target API36. The public download remains b26 / API21; b28 is not published. The download is about 6.50 MiB and includes ARM32, ARM64, x86 and x86_64. Selected emulator checks passed; physical TV acceptance remains pending. See [compatibility](COMPATIBILITY.md). Historical b24 still requires Android 6.0 and b23 requires Android 12 with ARM32 support; both remain available. Building source does not establish hardware acceptance.
 
 Install Git, Python 3, JDK 17 or 21, Android SDK platform 36, build-tools 36.0.0 and platform-tools. Builds need no TV, device configuration, private tests or recovery records.
 
@@ -33,7 +33,21 @@ For immutable archives, configure `sdk.dir` in local.properties and run:
 python3 scripts/build_apk.py --summary "Describe this build's changes"
 ```
 
-The default archive is `dist/apk/quiet-tv_1.1.0_b26_debug_api21.apk`. Options include `--variant benchmark --abi armeabi-v7a`, `--min-sdk 21` (default), `23`, `26` and `31`. See [versioning](VERSIONING.md) for naming and signatures. These commands never install to a TV.
+The default archive is `dist/apk/quiet-tv_1.1.0_b28_debug_api21.apk`. Options include `--variant benchmark --abi armeabi-v7a`, `--min-sdk 21` (default), `23`, `26` and `31`. See [versioning](VERSIONING.md) for naming and signatures. These commands never install to a TV.
+
+## Android 4.4 / API19
+
+Build and archive the separate compatibility profile:
+
+```sh
+python3 scripts/build_apk.py --compatibility legacy19 --variant benchmark --abi armeabi-v7a --summary "Android 4.4 compatibility candidate"
+```
+
+Output: `dist/apk/quiet-tv_1.1.0_b28_benchmark_legacy19_armeabi-v7a_api19.apk`. The profile defaults to API19; lowering the standard profile's minimum alone is rejected. For build and Lint, run `./gradlew :app:assembleDebug :app:lintDebug -PquietCompatibility=legacy19 --console=plain`.
+
+The legacy profile retains the launcher, Dock, wallpaper, app list, native About and offline licenses, with traditional TCP ADB only. Six-digit pairing is absent. Inputs open system settings with a prompt to use the remote input key; vendor-specific direct switching needs separate adaptation. The APK contains no native libraries. ARM32 runtime, real HOME, network changes and reboot/wake still require target hardware validation. Debug uses legacy MultiDex startup support.
+
+Both profiles share the application ID and test key and replace each other. Preserve the previous APK and configuration; do not uninstall to resolve a version or signature mismatch.
 
 ## Download and try
 

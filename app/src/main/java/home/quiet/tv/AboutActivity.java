@@ -19,7 +19,6 @@ import android.widget.FrameLayout;
 import android.widget.Toast;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.util.Collections;
 
 /** Native About screen; the web engine is used only for the separate offline license document. */
 public final class AboutActivity extends androidx.activity.ComponentActivity {
@@ -57,30 +56,33 @@ public final class AboutActivity extends androidx.activity.ComponentActivity {
             web.setVisibility(View.INVISIBLE);root.addView(web,new FrameLayout.LayoutParams(-1,-1));
             WebSettings settings=web.getSettings();settings.setJavaScriptEnabled(false);settings.setDomStorageEnabled(false);
             settings.setAllowFileAccess(false);settings.setAllowContentAccess(false);settings.setBlockNetworkLoads(true);
-            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+            if(android.os.Build.VERSION.SDK_INT>=21)settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
             settings.setJavaScriptCanOpenWindowsAutomatically(false);settings.setSupportMultipleWindows(false);
-            web.setWebViewClient(new WebViewClient(){
-                @Override public WebResourceResponse shouldInterceptRequest(WebView view,WebResourceRequest resource){
-                    if(!"GET".equals(resource.getMethod()) || !(ORIGIN+"license.html").equals(resource.getUrl().toString()))return blocked();
-                    try{return new WebResourceResponse("text/html","UTF-8",getAssets().open("about/license.html"));}
-                    catch(IOException e){return blocked();}
-                }
-                @Override public boolean shouldOverrideUrlLoading(WebView view,String url){
-                    if((ORIGIN+"index.html").equals(url))returnToAbout();return true;
-                }
-                @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest resource){
-                    if((ORIGIN+"index.html").equals(resource.getUrl().toString()))returnToAbout();return true;
-                }
-                @Override public void onPageFinished(WebView view,String url){
-                    if(!(ORIGIN+"license.html").equals(url))return;
-                    long completed=navigation;
-                    if(android.os.Build.VERSION.SDK_INT>=23)Api23.whenDrawn(view,completed,()->showLicense(view,completed));
-                    // Android 5 has no visual-state callback; reveal the finished offline page on the next frame.
-                    else view.postOnAnimation(()->showLicense(view,completed));
-                }
-            });
+            web.setWebViewClient(android.os.Build.VERSION.SDK_INT>=21?new Api21Client():new OfflineClient());
         }
         web.setVisibility(View.INVISIBLE);web.loadUrl(ORIGIN+"license.html");
+    }
+    private class OfflineClient extends WebViewClient {
+        @Override public WebResourceResponse shouldInterceptRequest(WebView view,String url){return localResource(url);}
+        @Override public boolean shouldOverrideUrlLoading(WebView view,String url){
+            if((ORIGIN+"index.html").equals(url))returnToAbout();return true;
+        }
+        @Override public void onPageFinished(WebView view,String url){
+            if(!(ORIGIN+"license.html").equals(url))return;
+            long completed=navigation;
+            if(android.os.Build.VERSION.SDK_INT>=23)Api23.whenDrawn(view,completed,()->showLicense(view,completed));
+            // Android 4/5 have no visual-state callback; reveal the finished offline page on the next frame.
+            else view.postOnAnimation(()->showLicense(view,completed));
+        }
+    }
+    @android.annotation.TargetApi(21)
+    private final class Api21Client extends OfflineClient {
+        @Override public WebResourceResponse shouldInterceptRequest(WebView view,WebResourceRequest resource){
+            return "GET".equals(resource.getMethod())?localResource(resource.getUrl().toString()):blocked();
+        }
+        @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest resource){
+            if((ORIGIN+"index.html").equals(resource.getUrl().toString()))returnToAbout();return true;
+        }
     }
     private void showLicense(WebView view,long completed){
         if(!license || completed!=navigation || isFinishing() || isDestroyed())return;
@@ -96,7 +98,12 @@ public final class AboutActivity extends androidx.activity.ComponentActivity {
             });
         }
     }
-    private WebResourceResponse blocked(){return new WebResourceResponse("text/plain","UTF-8",403,"Blocked",Collections.emptyMap(),new ByteArrayInputStream(new byte[0]));}
+    private WebResourceResponse localResource(String url){
+        if(!(ORIGIN+"license.html").equals(url))return blocked();
+        try{return new WebResourceResponse("text/html","UTF-8",getAssets().open("about/license.html"));}
+        catch(IOException e){return blocked();}
+    }
+    private WebResourceResponse blocked(){return new WebResourceResponse("text/plain","UTF-8",new ByteArrayInputStream(new byte[0]));}
     private void openUpstream(){
         try{startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(UPSTREAM)));}
         catch(ActivityNotFoundException e){Toast.makeText(this,"当前电视没有可用的浏览器",Toast.LENGTH_LONG).show();}

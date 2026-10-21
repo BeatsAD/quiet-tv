@@ -15,6 +15,7 @@ import java.io.*;
 import java.util.*;
 
 /** Standard inputs first; explicit, installed system components provide firmware-specific fallbacks. */
+@android.annotation.TargetApi(21)
 final class TvInputController {
     private static final String TAG="QuietTV";
     enum InputState { READY, EMPTY, UNAVAILABLE, RESTRICTED, FAILED }

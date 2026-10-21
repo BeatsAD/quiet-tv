@@ -24,7 +24,7 @@ final class AdbController implements Closeable {
     private final Context context;
     private final Status status;
     private volatile AdbConnection connection;
-    private volatile PairingTransport pairing;
+    private final WirelessPairing pairing=new WirelessPairing();
     private final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor();
     private volatile boolean closed;
     private final java.util.concurrent.atomic.AtomicInteger generation=new java.util.concurrent.atomic.AtomicInteger();
@@ -48,31 +48,17 @@ final class AdbController implements Closeable {
         while(match.find()){int value=Integer.parseInt(match.group(1));if(found>=0 && found!=value)throw new IOException("前台用户状态不唯一");found=value;}
         if(found<0)throw new IOException("无法核对前台用户，请返回 Quiet TV 后重试");return found;
     }
-    static boolean pairingAvailable(){
-        if(Build.VERSION.SDK_INT<33)return false;
-        try{Class.forName("io.github.muntashirakon.crypto.spake2.Spake2Context");return org.conscrypt.Conscrypt.isAvailable();}catch(LinkageError|ReflectiveOperationException e){return false;}
-    }
+    static boolean pairingAvailable(){return WirelessPairing.available();}
     static boolean localAddress(InetAddress address){
         if(address==null)return false;if(address.isLoopbackAddress())return true;
         try{for(NetworkInterface nic:Collections.list(NetworkInterface.getNetworkInterfaces()))if(nic.isUp())for(InetAddress local:Collections.list(nic.getInetAddresses()))if(local.equals(address))return true;}catch(SocketException ignored){}return false;
     }
     void pair(int port,String code) throws Exception {
-        if(!pairingAvailable())throw new IOException("当前系统或 ABI 无法使用无线配对");
+        if(!pairingAvailable())throw new IOException("当前版本或系统不支持无线配对，请使用传统 TCP");
         if(port<1 || port>65535 || !code.matches("[0-9]{6}"))throw new IOException("请输入有效配对端口及六位配对码");
-        disconnect();int attempt=generation.get();byte[] password=code.getBytes(StandardCharsets.UTF_8);
-        io.github.muntashirakon.adb.PairingConnectionCtx protocol=null;
-        try{
-            String target=null;ArrayList<InetAddress> addresses=new ArrayList<>();addresses.add(InetAddress.getByName("127.0.0.1"));
-            for(NetworkInterface nic:Collections.list(NetworkInterface.getNetworkInterfaces()))if(nic.isUp())for(InetAddress value:Collections.list(nic.getInetAddresses()))if(value instanceof Inet4Address && !value.isLoopbackAddress())addresses.add(value);
-            for(InetAddress address:addresses){if(closed || generation.get()!=attempt)throw new IOException("配对已取消");try(Socket probe=new Socket()){probe.connect(new InetSocketAddress(address,port),1500);target=address.getHostAddress();break;}catch(IOException ignored){}}
-            if(target==null)throw new IOException("本机配对端口不可达");
-            KeyStore keys=loadKeys();PairingTransport transport=new PairingTransport(target,port,30000);pairing=transport;
-            if(closed || generation.get()!=attempt)throw new IOException("配对已取消");
-            status.changed("正在配对 · 请保持系统配对页面有效");
-            protocol=new io.github.muntashirakon.adb.PairingConnectionCtx("127.0.0.1",transport.port(),password,(PrivateKey)keys.getKey("adb",new char[0]),keys.getCertificate("adb"),"QuietTV");
-            protocol.start();if(closed || generation.get()!=attempt)throw new IOException("配对已取消");status.changed("已配对 · 尚需连接并核对本机身份");
-        }catch(Exception|LinkageError e){throw new IOException("配对未完成，请重新打开系统配对页面并核对端口和配对码；取消或超时后不会自动重试");}
-        finally{Arrays.fill(password,(byte)0);PairingTransport transport=pairing;pairing=null;if(transport!=null)transport.close();if(protocol!=null)try{protocol.close();}catch(RuntimeException ignored){}}
+        disconnect();int attempt=generation.get();
+        if(closed)throw new IOException("配对已取消");
+        pairing.start(port,code,loadKeys(),generation,attempt,status);
     }
 
     void connect(int port) throws Exception {
@@ -184,6 +170,6 @@ final class AdbController implements Closeable {
         }
         return store;
     }
-    void disconnect(){generation.incrementAndGet();user=-1;capabilities=ShellCapabilities.NONE;PairingTransport transport=pairing;if(transport!=null)transport.close();AdbConnection c=connection;connection=null;if(c!=null)try{c.close();}catch(IOException ignored){}status.changed("未连接");}
+    void disconnect(){generation.incrementAndGet();user=-1;capabilities=ShellCapabilities.NONE;pairing.close();AdbConnection c=connection;connection=null;if(c!=null)try{c.close();}catch(IOException ignored){}status.changed("未连接");}
     @Override public void close(){closed=true;disconnect();timer.shutdownNow();}
 }
