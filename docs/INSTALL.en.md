@@ -4,7 +4,7 @@
 
 ## Requirements
 
-Source is 1.1.0 / b26, with Android 5.0 / minSdk 21 and targetSdk 36; b26 has not been published. Build this source for Android 5.0 / 5.1. The public b24 APK still requires Android 6.0 / API23. The download is about 12.30 MiB and includes ARM32, ARM64, x86, and x86_64. This APK has not been installed on a TV or emulator; device and feature validation remains pending. The historical b23 ARM32 APK still requires Android 12 and remains available. Building source does not establish hardware acceptance.
+Source and the public universal test APK are 1.1.0 / b26, with Android 5.0 / minSdk21 and targetSdk36. The download is about 6.50 MiB and includes ARM32, ARM64, x86 and x86_64. Selected emulator checks passed; physical TV acceptance remains pending. See [compatibility](COMPATIBILITY.md). Historical b24 still requires Android 6.0 and b23 requires Android 12 with ARM32 support; both remain available. Building source does not establish hardware acceptance.
 
 Install Git, Python 3, JDK 17 or 21, Android SDK platform 36, build-tools 36.0.0 and platform-tools. Builds need no TV, device configuration, private tests or recovery records.
 
@@ -37,13 +37,13 @@ The default archive is `dist/apk/quiet-tv_1.1.0_b26_debug_api21.apk`. Options in
 
 ## Download and try
 
-[b24 Releases](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b24) provides `quiet-tv_1.1.0_b24_benchmark_api23.apk` and its SHA-256 file. Put both in the same directory and run:
+[b26 Releases](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26) provides `quiet-tv_1.1.0_b26_benchmark_api21.apk` and its SHA-256 file. Put both in the same directory and run:
 
 ```sh
-shasum -a 256 -c quiet-tv_1.1.0_b24_benchmark_api23.apk.sha256
+shasum -a 256 -c quiet-tv_1.1.0_b26_benchmark_api21.apk.sha256
 ```
 
-The published APK uses the same test signature as b23. Historical [b23 Releases](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0) requires Android 12+ and ARM32 app support; those requirements do not apply to b24.
+The published APK uses the same test signature as b24. Historical [b23 Releases](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0) requires Android 12+ and ARM32 app support; those requirements do not apply to b26.
 
 Enable supported debugging on your TV and authorize the computer. Replace the documentation-only address below. The example installs a locally built Debug APK; for a downloaded APK, substitute its actual file path:
 

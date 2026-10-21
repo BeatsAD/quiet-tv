@@ -2,9 +2,9 @@
 
 [首页](../README.md) · [安装与构建](INSTALL.zh-CN.md) · [English installation](INSTALL.en.md)
 
-唯一版本配置位于 `app/build.gradle`。当前源码为 `versionName 1.1.0`、`versionCode 26`，默认 minSdk21（Android 5.0）、targetSdk36。b26 尚未发布；当前公开下载为 [b24 通用兼容优化测试包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b24)，最低 Android 6.0 / API23；历史 [b23 / API31 / ARM32 包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0) 保留。
+唯一版本配置位于 `app/build.gradle`。当前源码与公开下载均为 `versionName 1.1.0`、`versionCode 26`，默认 minSdk21（Android 5.0）、targetSdk36。当前下载为 [b26 通用兼容优化测试包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26)；历史 [b24 / API23 通用包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b24) 与 [b23 / API31 / ARM32 包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0) 保留。
 
-公开 b24 文件为 `quiet-tv_1.1.0_b24_benchmark_api23.apk`，约 12.30 MiB，包含 `armeabi-v7a`、`arm64-v8a`、`x86`、`x86_64`，与 b23 使用相同测试签名。发布标签为 `v1.1.0-b24`，包内 `versionName` 仍为 `1.1.0`。构建、Lint、签名及回下载哈希检查通过；本次包尚未安装到电视或模拟器，不能表述为已完成机型适配。
+公开 b26 文件为 `quiet-tv_1.1.0_b26_benchmark_api21.apk`，6,819,366 字节（约 6.50 MiB），包含 `armeabi-v7a`、`arm64-v8a`、`x86`、`x86_64`，与 b24 使用相同测试签名。发布标签为 `v1.1.0-b26`，包内 `versionName` 仍为 `1.1.0`。本次发布复用已验证的不可变 b26 归档，不重新构建或覆盖旧包；APK 来自 `09d92ae`，经 PR #38 Squash 合入 main 的 `3a0cd15` 与其源码树一致。构建、模拟器与真实电视验收边界见[兼容说明](COMPATIBILITY.md)。
 
 ## 命名与签名
 
@@ -35,6 +35,6 @@ CI 仅检查源码，不安装设备或发布 APK。设备升级与正式发布�
 
 ## English
 
-Source is 1.1.0 / b26 with minSdk21 (Android 5.0) and targetSdk36; b26 has not been published. The current download is the universal optimized b24 test APK, tagged `v1.1.0-b24`, with package version `1.1.0` / code `24`, Android 6.0 / API23 minimum, and ARM32, ARM64, x86, and x86_64 libraries. It is about 12.30 MiB and uses the same test signature as b23. Package checks do not establish hardware acceptance; this b24 APK has not been installed on a TV or emulator. Historical b23 remains available under `v1.1.0`.
+Source and the current public download are 1.1.0 / b26 with minSdk21 (Android 5.0) and targetSdk36, tagged `v1.1.0-b26`. The optimized universal test APK is 6,819,366 bytes (about 6.50 MiB), includes ARM32, ARM64, x86 and x86_64, and uses the same test signature as b24. The tested immutable archive was built from `09d92ae`; the source tree matches the PR #38 main merge `3a0cd15`. Selected emulator checks passed; physical TV acceptance remains pending. Historical b24 and b23 downloads are retained.
 
 Read versions from app/build.gradle and actual APK metadata. Increment the global build number for each different delivered build. Debug, optimized test and formally signed release builds are distinct. Archive naming includes ABI when selected and the minimum SDK suffix except for historical API31 names. Archives and receipts are immutable, remain local, and do not establish device installation or acceptance. Publishing and device operations require explicit scope.

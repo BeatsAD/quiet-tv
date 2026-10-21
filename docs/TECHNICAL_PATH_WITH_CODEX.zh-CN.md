@@ -14,7 +14,7 @@
 | Codex | 已登录、可联网，允许读写项目文件和执行终端命令。 |
 | 构建工具 | Git、Python 3、JDK 17 或 21、Android SDK Platform 36、Build Tools 36.0.0、Platform Tools。 |
 
-当前 b26 源码最低要求 Android 5.0 / API21，尚未发布；[公开 b24 通用测试包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b24)仍最低要求 Android 6.0；下载包包含 ARM32、ARM64、x86 和 x86_64，具体机型与功能仍待真机验证。设备适配状态见[兼容说明](COMPATIBILITY.md)。
+当前 b26 源码与[公开通用测试包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26)均最低要求 Android 5.0 / API21；下载包包含 ARM32、ARM64、x86 和 x86_64，具体机型与功能仍待真机验证。设备适配状态见[兼容说明](COMPATIBILITY.md)。
 
 ## 二、连接电视，读取真实设备能力
 
