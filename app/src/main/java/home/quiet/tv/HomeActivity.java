@@ -512,7 +512,10 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         }
     }
 
-    private void openSettings(String action){try{startActivity(new Intent(action));}catch(ActivityNotFoundException e){startActivity(new Intent(Settings.ACTION_SETTINGS));}}
+    private void openSettings(String action){
+        if(!new SystemSettingsRouter(this).open(action))
+            Toast.makeText(this,tr("系统设置入口不可用，请使用电视遥控器","Settings unavailable; use the TV remote"),Toast.LENGTH_LONG).show();
+    }
 
     private void showInputs(){
         if(Build.VERSION.SDK_INT>=21){if(tvInputs==null)tvInputs=new TvInputs();tvInputs.show();return;}
@@ -607,8 +610,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 .setTitle(tr("信号源暂不可用","Inputs unavailable")).setMessage(message)
                 .setNegativeButton(tr("返回","Back"),(d,w)->{})
                 .setPositiveButton(tr("系统设置","System settings"),(d,w)->{
-                    try{startActivity(new Intent(Settings.ACTION_SETTINGS));}
-                    catch(ActivityNotFoundException|SecurityException e){Toast.makeText(HomeActivity.this,tr("系统设置不可用，请使用电视遥控器","Settings unavailable; use the TV remote"),Toast.LENGTH_SHORT).show();}
+                    openSettings(Settings.ACTION_SETTINGS);
                 }).create();
             dialog.setOnDismissListener(d->main.post(()->positionGlass(false)));dialog.show();
         }

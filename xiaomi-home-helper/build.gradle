@@ -1,0 +1,17 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'home.quiet.tv.xiaomihelper'
+    compileSdk 36
+    defaultConfig {
+        applicationId 'home.quiet.tv.xiaomihelper'
+        minSdk 23
+        targetSdk 36
+        versionCode 1
+        versionName '0.1'
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+}
+dependencies { testImplementation 'junit:junit:4.13.2' }

@@ -62,6 +62,9 @@ jobs:
       - name: Build and lint Android 4.4 compatibility source
         if: steps.scope.outputs.android == 'true'
         run: ./gradlew :app:assembleDebug :app:lintDebug -PquietCompatibility=legacy19 -PquietBuildRoot="$PWD/output/ci-legacy19" --console=plain
+      - name: Build and lint optional Xiaomi helper
+        if: steps.scope.outputs.android == 'true'
+        run: ./gradlew :xiaomi-home-helper:assembleDebug :xiaomi-home-helper:lintDebug -PquietXiaomiHelper=true --console=plain
       - name: Build and lint optional Coocaa helper and launcher
         if: steps.scope.outputs.android == 'true'
         run: ./gradlew :app:assembleDebug :coocaa-home-shim:assembleDebug :coocaa-home-shim:lintDebug -PquietCoocaaShim=true -PquietApplicationId=com.coocaa.quiettv -PquietMinSdk=26 -PquietBuildRoot="$PWD/output/ci-coocaa" --console=plain

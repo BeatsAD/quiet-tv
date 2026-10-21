@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Quiet TV 小米中转助手</string>
+    <string name="accessibility_description">启用后，仅在已选定的小米原主页窗口出现时打开 Quiet TV。仅接收窗口变化，不读取屏幕内容或按键。暂停中转可恢复原有主页行为。实验适配仍需真机验收。</string>
+</resources>

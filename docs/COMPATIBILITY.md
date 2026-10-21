@@ -6,7 +6,7 @@
 
 | 内容 / Build | 范围 / Scope |
 | --- | --- |
-| 当前源码 1.1.0 / b30 | `standard`: minSdk21；`legacy19`: minSdk19（Android 4.4）。均为 targetSdk36；已发布 b30 兼容测试包，真实电视待验收。 / Two source profiles; b30 legacy prerelease published; hardware acceptance pending. |
+| 当前源码 1.1.0 / b31 | `standard`: minSdk21；`legacy19`: minSdk19（Android 4.4）。均为 targetSdk36；b31 未发布，新增普通应用入口及小米设置路由。 / Two source profiles; unpublished b31 adds a regular launcher entry and Xiaomi settings routing. |
 | Android 4.4 公开 [b30 兼容测试包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b30) | API19 起，约 2.30 MiB，无原生库，传统 TCP ADB；原生功能与实机待验收。 / API19+, no native libraries; native runtime acceptance pending. |
 | 标准版 [b26 通用兼容测试包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26) | Android 5.0 / API21 起；含 ARM32、ARM64、x86、x86_64，约 6.50 MiB。已通过部分模拟器验证，尚未安装真实电视。 / Android 5.0+ universal APK; selected emulator checks passed; physical TV acceptance pending. |
 | 历史 [b24 通用包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b24) | Android 6.0 / API23 起；原下载保留。 / Android 6.0+; original download retained. |
@@ -24,6 +24,8 @@ Android 5 使用旧版网络状态接口和安装时权限；频道权限或 TV 
 Source includes legacy networking/font fallbacks, detected HOME settings, Back handling and capability-based package operations. Meeting the minimum Android version does not establish vendor-firmware compatibility.
 
 ## 已验证与待验收 / Evidence boundaries
+
+- b31 的小米主页中转助手独立构建，限定 MiTV4-ANSM0 / API23，默认暂停，需手动选择本机原主页并开启无障碍。主程序与助手均未安装目标电视。构建和模拟检查不代表实体 HOME、原厂设置、开机、待机或窗口事件已适配，流程与限制见[助手说明](../xiaomi-home-helper/README.md)。
 
 - 公开 b30：基于合入安卓 4.4 与信号源回退的公开 main 构建；优化构建、19 项单元测试、Lint（0 错误、39 条警告）、API19 元数据、v1/v2 签名与包内容校验通过。与 b26 使用相同测试证书。b30 未完成原生模拟器功能验收，未安装真实电视；下列 b28 记录仅为历史开发证据，不能视为 b30 已通过相同功能验收。
 
