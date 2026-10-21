@@ -52,7 +52,7 @@ Quiet TV 面向国内 Android 电视的日常使用场景：把常用应用放�
 | Codex | 已登录、可联网，允许读写项目文件和执行终端命令。 |
 | 构建工具 | Git、Python 3、JDK 17 或 21、Android SDK Platform 36、Build Tools 36.0.0、Platform Tools。 |
 
-当前 b24 源码与公开通用测试包均最低要求 Android 6.0；下载包包含 ARM32、ARM64、x86 和 x86_64，具体机型与功能仍待真机验证。设备适配状态见[兼容说明](docs/COMPATIBILITY.md)。
+当前源码为 1.1.0 / b26，最低 Android 5.0 / API21，采用同一个通用包覆盖 Android 5.0、5.1 及更高版本；b26 尚未发布。当前公开 b24 测试包仍最低要求 Android 6.0；下载包包含 ARM32、ARM64、x86 和 x86_64，具体机型与功能仍待真机验证。设备适配状态见[兼容说明](docs/COMPATIBILITY.md)。
 
 ### 连接电视，读取真实设备能力
 
@@ -164,9 +164,10 @@ b24 优化构建通过，完整 Lint 为 0 错误、27 条警告；实际 APK �
 | --- | --- |
 | Sony KD-65X9000H / BRAVIA VH1 · Android 12 | 历史版本曾验证首页、应用管理、壁纸、部分系统入口及一次整机重启；本次 b24 尚未安装验证。完整范围见[验收记录](docs/COMPATIBILITY.md)。 |
 | 其他 Android 6.0 及以上电视 | b24 通用包可供按机型试用，仍需逐机确认固件、HOME 与 ADB 能力；见[兼容记录](docs/COMPATIBILITY.md)。 |
-| Android 5.1 及以下，或 Tizen、webOS 等非 Android 系统 | 当前源码不支持。 |
+| Android 5.0 / 5.1 | b26 源码已加入适配，需自行构建；公开 b24 包不能安装。厂商固件与真实 HOME、ADB、输入源行为待验收。 |
+| Android 4.x，或 Tizen、webOS 等非 Android 系统 | 当前源码不支持。 |
 
-长期运行、投屏和完整影音播放仍待验收；六位码无线配对仍为待验收实验入口，当前要求 API 33+ 及设备实际提供配对能力，不能在 Android 6/7 使用。满足最低安装要求不代表固件全部功能已适配，详见[兼容性说明](docs/COMPATIBILITY.md)。第三方影音应用通过各自渠道更新，Quiet TV 当前不提供第三方应用自动更新服务。
+长期运行、投屏和完整影音播放仍待验收；六位码无线配对仍为待验收实验入口，当前要求 API 33+ 及设备实际提供配对能力，不能在 Android 5/6/7 使用。满足最低安装要求不代表固件全部功能已适配，详见[兼容性说明](docs/COMPATIBILITY.md)。第三方影音应用通过各自渠道更新，Quiet TV 当前不提供第三方应用自动更新服务。
 
 ## 已知兼容性问题与样机验证
 

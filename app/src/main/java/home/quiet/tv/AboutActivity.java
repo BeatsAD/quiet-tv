@@ -74,19 +74,27 @@ public final class AboutActivity extends androidx.activity.ComponentActivity {
                 @Override public void onPageFinished(WebView view,String url){
                     if(!(ORIGIN+"license.html").equals(url))return;
                     long completed=navigation;
-                    view.postVisualStateCallback(completed,new WebView.VisualStateCallback(){
-                        @Override public void onComplete(long id){
-                            if(!license || id!=navigation || isFinishing() || isDestroyed())return;
-                            // Attached INVISIBLE WebView becomes visible only when the complete DOM can be drawn.
-                            view.setVisibility(View.VISIBLE);scene.setVisibility(View.INVISIBLE);
-                            view.requestFocus();licenseReady=true;
-                            Log.i("QuietTVAbout","Offline license visual frame ready");
-                        }
-                    });
+                    if(android.os.Build.VERSION.SDK_INT>=23)Api23.whenDrawn(view,completed,()->showLicense(view,completed));
+                    // Android 5 has no visual-state callback; reveal the finished offline page on the next frame.
+                    else view.postOnAnimation(()->showLicense(view,completed));
                 }
             });
         }
         web.setVisibility(View.INVISIBLE);web.loadUrl(ORIGIN+"license.html");
+    }
+    private void showLicense(WebView view,long completed){
+        if(!license || completed!=navigation || isFinishing() || isDestroyed())return;
+        view.setVisibility(View.VISIBLE);scene.setVisibility(View.INVISIBLE);
+        view.requestFocus();licenseReady=true;
+        Log.i("QuietTVAbout","Offline license ready");
+    }
+    @android.annotation.TargetApi(23)
+    private static final class Api23 {
+        static void whenDrawn(WebView view,long completed,Runnable ready){
+            view.postVisualStateCallback(completed,new WebView.VisualStateCallback(){
+                @Override public void onComplete(long id){ready.run();}
+            });
+        }
     }
     private WebResourceResponse blocked(){return new WebResourceResponse("text/plain","UTF-8",403,"Blocked",Collections.emptyMap(),new ByteArrayInputStream(new byte[0]));}
     private void openUpstream(){
@@ -110,7 +118,8 @@ public final class AboutActivity extends androidx.activity.ComponentActivity {
             if(event.getAction()==KeyEvent.ACTION_DOWN)scene.move(code);return true;
         }
         if(code==KeyEvent.KEYCODE_DPAD_CENTER||code==KeyEvent.KEYCODE_ENTER||code==KeyEvent.KEYCODE_NUMPAD_ENTER){
-            if(event.getAction()==KeyEvent.ACTION_DOWN && event.getRepeatCount()==0)scene.activate();return true;
+            // Activate on release, as HOME does, so finishing cannot send this key-up back to HOME.
+            if(event.getAction()==KeyEvent.ACTION_UP)scene.activate();return true;
         }
         return super.dispatchKeyEvent(event);
     }

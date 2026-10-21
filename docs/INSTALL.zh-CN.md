@@ -4,7 +4,7 @@
 
 ## 环境
 
-源码与当前公开 b24 通用兼容测试包均为 1.1.0 / b24，最低 Android 6.0 / API23、targetSdk36。下载包约 12.30 MiB，包含 ARM32、ARM64、x86 和 x86_64；本次包未安装到电视或模拟器，具体机型与功能仍待验证。历史 b23 ARM32 包最低 Android 12，保留原下载。源码构建、公开下载和真机验收分别记录。
+当前源码为 1.1.0 / b26，最低 Android 5.0 / API21、targetSdk36，尚未发布。Android 5.0 / 5.1 需构建此版本；公开 b24 通用兼容测试包仍最低 Android 6.0 / API23。下载包约 12.30 MiB，包含 ARM32、ARM64、x86 和 x86_64；本次包未安装到电视或模拟器，具体机型与功能仍待验证。历史 b23 ARM32 包最低 Android 12，保留原下载。源码构建、公开下载和真机验收分别记录。
 
 需要 Git、Python 3、JDK 17 或 21、Android SDK platform 36、build-tools 36.0.0 和 platform-tools。构建无需设备配置、备份、私有测试目录或电视连接。
 
@@ -33,7 +33,7 @@ sdk.dir=/absolute/path/to/your/android-sdk
 python3 scripts/build_apk.py --summary "说明本次构建的修改"
 ```
 
-默认归档为 `dist/apk/quiet-tv_1.1.0_b24_debug_api23.apk`；脚本支持 `--variant benchmark --abi armeabi-v7a` 及 `--min-sdk 26` / `--min-sdk 31`。签名、版本与不可覆盖约定见[版本规则](VERSIONING.md)。这些命令不会安装或修改电视。
+默认归档为 `dist/apk/quiet-tv_1.1.0_b26_debug_api21.apk`；脚本支持 `--variant benchmark --abi armeabi-v7a` 及 `--min-sdk 21`（默认）/ `23` / `26` / `31`。签名、版本与不可覆盖约定见[版本规则](VERSIONING.md)。这些命令不会安装或修改电视。
 
 ## 下载、安装与试用
 

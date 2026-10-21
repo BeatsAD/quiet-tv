@@ -14,7 +14,7 @@ final class LocalAdbDiscovery implements Closeable {
     private volatile boolean closed;
     private final Handler main=new Handler(Looper.getMainLooper());
     LocalAdbDiscovery(Context context,Found found){
-        manager=context.getSystemService(NsdManager.class);
+        manager=(NsdManager)context.getSystemService(Context.NSD_SERVICE);
         if(manager!=null)for(boolean pairing:new boolean[]{true,false}){
             String type=pairing?"_adb-tls-pairing._tcp.":"_adb-tls-connect._tcp.";
             NsdManager.DiscoveryListener listener=new NsdManager.DiscoveryListener(){
