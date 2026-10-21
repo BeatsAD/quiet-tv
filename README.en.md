@@ -34,6 +34,7 @@ These original Sony KD-65X9000H captures were taken on October 19, 2026, with de
 | --- | --- |
 | Favorite apps | Keep up to four apps on the home screen. Add, replace, remove, and reorder them; launcher updates preserve your selection. |
 | App management | Inspect app names, package names, versions, and status. Search, filter, and enable, disable, or uninstall apps individually. Protected system components stay read-only. |
+| Boot-ad management (new in source) | Inspect verified advertising services, disable them on demand, and restore their original enabled state independently of HOME. No boot-ad profiles have passed Quiet TV hardware acceptance yet; unmatched devices remain read-only. Existing b30 downloads do not include this feature. |
 | First setup | Set the default home screen, then optionally manage preinstalled apps. Choose actions before authorizing them; system packages on unknown firmware stay read-only. |
 | Restore the original launcher | Switch back to or enable the original launcher using local records and validated device capabilities. Unavailable actions explain why they are blocked. |
 | Inputs and settings | Choose from the TV's actual inputs, including HDMI, AV, or live TV where available. Source now includes selected firmware's system input-panel fallbacks; see [compatibility](docs/COMPATIBILITY.md). Open network and system settings directly. |

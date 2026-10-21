@@ -39,4 +39,21 @@ final class SetupStore {
         put("homeSwitch",new JSONObject().put("previousHome",previous).put("desiredHome",desired)
                 .put("user",user).put("state",state).put("observedHome",observed).put("time",System.currentTimeMillis()));
     }
+    JSONArray bootRuns() throws Exception {JSONArray runs=get().optJSONArray("bootAds");return runs==null?new JSONArray():runs;}
+    void bootBegin(String id,int user,JSONArray apps) throws Exception {synchronized(LOCK){
+        JSONArray runs=bootRuns();runs.put(new JSONObject().put("id",id).put("user",user).put("firmware",Build.FINGERPRINT).put("time",System.currentTimeMillis()).put("state","running").put("apps",apps).put("observations",new JSONObject()));put("bootAds",runs);
+    }}
+    private JSONObject bootRun(JSONArray runs,String id) throws Exception {
+        for(int i=0;i<runs.length();i++){JSONObject run=runs.getJSONObject(i);if(id.equals(run.getString("id")))return run;}throw new IOException("开机广告任务记录缺失");
+    }
+    void bootItem(String id,String pkg,String state,boolean attempted,String result) throws Exception {synchronized(LOCK){
+        JSONArray runs=bootRuns(),apps=bootRun(runs,id).getJSONArray("apps");boolean found=false;
+        for(int i=0;i<apps.length();i++){JSONObject app=apps.getJSONObject(i);if(pkg.equals(app.getString("package"))){app.put("state",state).put("attempted",attempted).put("result",result);found=true;break;}}
+        if(!found)throw new IOException("开机广告项目记录缺失");put("bootAds",runs);
+    }}
+    void bootEnd(String id,String state) throws Exception {synchronized(LOCK){JSONArray runs=bootRuns();bootRun(runs,id).put("state",state);put("bootAds",runs);}}
+    void bootObservation(String id,String scene,String result) throws Exception {synchronized(LOCK){
+        if(!java.util.Arrays.asList("reboot","coldBoot","wake").contains(scene) || !java.util.Arrays.asList("absent","present","unknown").contains(result))throw new IOException("验证结果无效");
+        JSONArray runs=bootRuns();bootRun(runs,id).getJSONObject("observations").put(scene,new JSONObject().put("result",result).put("source","user").put("time",System.currentTimeMillis()));put("bootAds",runs);
+    }}
 }

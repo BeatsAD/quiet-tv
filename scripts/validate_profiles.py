@@ -19,6 +19,12 @@ for device in data['devices']:
         packages.add(app['package'])
         assert set(app['actions']) <= {'ENABLE', 'DISABLE', 'UNINSTALL', 'RESTORE'}
         assert not app.get('recommendDisable') or 'DISABLE' in app['actions']
+        if app.get('category') == 'bootAd':
+            assert device.get('brand') and device.get('model'), 'Boot ads require an exact brand and model'
+            assert isinstance(app.get('versionCode'), int) and not isinstance(app['versionCode'], bool) and app['versionCode'] >= 0, 'Boot ads require an exact numeric versionCode'
+            assert set(app['actions']) == {'ENABLE', 'DISABLE'}, 'Boot ads permit only disable and enable-state recovery'
+            assert not app.get('recommendDisable'), 'Boot ads must not be preselected by first setup'
+            assert app.get('purpose') and app.get('impact') and app.get('source', '').startswith('https://'), 'Boot ads require purpose, impact and source'
     home = device.get('home', {})
     assert not home.get('uninstallVerified') or home.get('restoreInstallVerified'), 'HOME uninstall requires verified recovery'
 for reference in data.get('references', []):
