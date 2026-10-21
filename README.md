@@ -8,7 +8,7 @@
 
 Quiet TV 面向国内 Android 电视的日常使用场景：把常用应用放在首页，用遥控器直接打开，方便地切换信号源、调整壁纸和管理已安装的应用。桌面没有广告和推荐信息流，无需注册账号。采用 Android 原生界面，无需 root 或刷机。
 
-[下载测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26) · [安装指南](docs/INSTALL.zh-CN.md) · [使用指南](docs/USAGE.zh-CN.md) · [支持机型](docs/COMPATIBILITY.md) · [已知问题与样机验证](#已知兼容性问题与样机验证)
+[Android 4.4 兼容测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b30) · [Android 5+ 通用测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26) · [安装指南](docs/INSTALL.zh-CN.md) · [使用指南](docs/USAGE.zh-CN.md) · [支持机型](docs/COMPATIBILITY.md) · [已知问题与样机验证](#已知兼容性问题与样机验证)
 
 ## 界面
 
@@ -52,7 +52,7 @@ Quiet TV 面向国内 Android 电视的日常使用场景：把常用应用放�
 | Codex | 已登录、可联网，允许读写项目文件和执行终端命令。 |
 | 构建工具 | Git、Python 3、JDK 17 或 21、Android SDK Platform 36、Build Tools 36.0.0、Platform Tools。 |
 
-当前源码为 1.1.0 / b30，提供 `standard`（Android 5.0+ / API21）和 `legacy19`（Android 4.4 / API19）两个构建档位。安卓 4.4 版保留核心桌面与传统 TCP ADB，输入源回退到系统设置，不包含六位码配对及现代原生密码库。公开下载仍为 b26 / Android 5.0+，b30 尚未发布。构建方式见[安装指南](docs/INSTALL.zh-CN.md)，实际验证范围见[兼容说明](docs/COMPATIBILITY.md)。
+当前源码为 1.1.0 / b30，提供 `standard`（Android 5.0+ / API21）和 `legacy19`（Android 4.4 / API19）两个构建档位。安卓 4.4 版保留核心桌面与传统 TCP ADB，输入源回退到系统设置，不包含六位码配对及现代原生密码库。公开下载提供 b30 / Android 4.4 兼容版，并保留 b26 / Android 5.0+ 标准版；均为预发布测试包。构建方式见[安装指南](docs/INSTALL.zh-CN.md)，实际验证范围见[兼容说明](docs/COMPATIBILITY.md)。
 
 ### 连接电视，读取真实设备能力
 
@@ -138,14 +138,16 @@ Windows 使用 `gradlew.bat`。APK 输出到 `app/build/outputs/apk/debug/app-de
 
 ## 安装与试用
 
-1. **确认电视是否适用**：当前 b26 安装包最低要求 Android 5.0，涵盖 Android 5.1 及更高版本的安装门槛；具体机型与功能仍需验证，先查看下方支持范围和[兼容性说明](docs/COMPATIBILITY.md)。
-2. **获取安装包**：从 [Releases](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26) 下载 APK 与 SHA-256 校验文件，或按[安装指南](docs/INSTALL.zh-CN.md)从源码构建。
+1. **确认电视是否适用**：Android 4.4 选择 b30 兼容包，Android 5.0 及以上可选择保留的 b26 标准包；具体机型与功能仍需验证，先查看下方支持范围和[兼容性说明](docs/COMPATIBILITY.md)。
+2. **获取安装包**：从 [b30 兼容版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b30) 或 [b26 标准版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26) 下载 APK 与同名 SHA-256 校验文件，或按[安装指南](docs/INSTALL.zh-CN.md)从源码构建。
 3. **安装并试用**：按安装指南连接 ADB 并安装。新安装首次打开会进入设置，也可选择“暂不设置，临时使用”，先检查遥控器、应用启动和系统入口。
 4. **完成首次设置**：按两步引导设置默认桌面，再选择是否处理预装应用；可选择“不处理，进入桌面”。升级不会强制重新引导，需要时从“应用管理 → 更多 → 首次设置”打开，同一菜单也提供“恢复原桌面”。详见[首次设置说明](docs/SETUP.md)。
 
-当前下载为 **v1.1.0 / b26 通用兼容优化测试包，约 6.50 MiB**，文件名为 `quiet-tv_1.1.0_b26_benchmark_api21.apk`，最低 Android 5.0 / API21，包含 `armeabi-v7a`、`arm64-v8a`、`x86` 和 `x86_64`。与 b24 使用相同测试签名，支持满足签名与版本条件的覆盖安装；仍为预发布测试版本，尚无稳定版。
+Android 4.4 下载为 **v1.1.0 / b30 兼容优化测试包，约 2.30 MiB**，文件名为 `quiet-tv_1.1.0_b30_benchmark_legacy19_api19.apk`，最低 API19，targetSdk36，不含原生库，无需按 CPU 架构另选文件。保留核心桌面、Dock、壁纸和传统 TCP ADB，不含六位码配对；信号源打开系统设置。优化构建、19 项单元测试、Lint（0 错误、39 条警告）、签名及包元数据校验通过；本次 b30 未完成模拟器功能验收，尚未安装真实电视。历史 b28 模拟器结果不等于本包验收，见[兼容说明](docs/COMPATIBILITY.md)。
 
-本次更新包括：
+保留的 **v1.1.0 / b26 标准版通用优化测试包，约 6.50 MiB**，文件名为 `quiet-tv_1.1.0_b26_benchmark_api21.apk`，最低 Android 5.0 / API21，包含 `armeabi-v7a`、`arm64-v8a`、`x86` 和 `x86_64`。与 b24 使用相同测试签名，支持满足签名与版本条件的覆盖安装；仍为预发布测试版本，尚无稳定版。
+
+b26 标准版更新包括：
 
 - 最低要求降至 Android 5.0；适配旧版网络状态读取、权限及 TV Input 服务受限场景。
 - 离线许可证页增加 Android 5 WebView 回退，修正旧版矢量路径及主题属性。
@@ -165,7 +167,7 @@ b26 构建与 19 项本地单元测试通过，Lint 为 0 错误、28 条警告�
 | Sony KD-65X9000H / BRAVIA VH1 · Android 12 | 历史版本曾验证首页、应用管理、壁纸、部分系统入口及一次整机重启；本次 b26 尚未安装到该电视验证。完整范围见[验收记录](docs/COMPATIBILITY.md)。 |
 | 其他 Android 6.0 及以上电视 | b26 通用包可供按机型试用，仍需逐机确认固件、HOME 与 ADB 能力；见[兼容记录](docs/COMPATIBILITY.md)。 |
 | Android 5.0 / 5.1 | b26 通用测试包可供试用；已通过通用 Android 镜像的电视尺寸配置测试，不能代替原生 TV 固件验收。厂商固件与真实 HOME、ADB、输入源行为待验收。 |
-| Android 4.4 | 从源码构建 `legacy19` 兼容测试包；真实电视、HOME、输入源与 ADB 待验收。 |
+| Android 4.4 | 下载 [b30 兼容测试包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b30)；真实电视、HOME、输入源与 ADB 待验收。 |
 | Android 4.0～4.3，或 Tizen、webOS 等非 Android 系统 | 不支持。 |
 
 长期运行、投屏和完整影音播放仍待验收；六位码无线配对仍为待验收实验入口，当前要求 API 33+ 及设备实际提供配对能力，不能在 Android 5/6/7 使用。满足最低安装要求不代表固件全部功能已适配，详见[兼容性说明](docs/COMPATIBILITY.md)。第三方影音应用通过各自渠道更新，Quiet TV 当前不提供第三方应用自动更新服务。

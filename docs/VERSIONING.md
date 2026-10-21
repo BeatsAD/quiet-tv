@@ -2,9 +2,11 @@
 
 [首页](../README.md) · [安装与构建](INSTALL.zh-CN.md) · [English installation](INSTALL.en.md)
 
-唯一版本配置位于 `app/build.gradle`。当前源码为 `versionName 1.1.0`、`versionCode 30`，默认 `standard` / minSdk21（Android 5.0）；`legacy19` 固定 minSdk19（Android 4.4）。两档保持 targetSdk36、同一包名及签名，不能同时安装；覆盖升级还需匹配签名且构建号不回退。公开下载仍为 b26，b30 尚未发布。当前下载为 [b26 通用兼容优化测试包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26)；历史 [b24 / API23 通用包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b24) 与 [b23 / API31 / ARM32 包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0) 保留。
+唯一版本配置位于 `app/build.gradle`。当前源码为 `versionName 1.1.0`、`versionCode 30`，默认 `standard` / minSdk21（Android 5.0）；`legacy19` 固定 minSdk19（Android 4.4）。两档保持 targetSdk36、同一包名及测试签名，不能同时安装；覆盖升级还需匹配签名且构建号不回退。
 
-公开 b26 文件为 `quiet-tv_1.1.0_b26_benchmark_api21.apk`，6,819,366 字节（约 6.50 MiB），包含 `armeabi-v7a`、`arm64-v8a`、`x86`、`x86_64`，与 b24 使用相同测试签名。发布标签为 `v1.1.0-b26`，包内 `versionName` 仍为 `1.1.0`。本次发布复用已验证的不可变 b26 归档，不重新构建或覆盖旧包；APK 来自 `09d92ae`，经 PR #38 Squash 合入 main 的 `3a0cd15` 与其源码树一致。构建、模拟器与真实电视验收边界见[兼容说明](COMPATIBILITY.md)。
+[b30 安卓 4.4 兼容优化测试包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b30)为 `quiet-tv_1.1.0_b30_benchmark_legacy19_api19.apk`，2,412,105 字节（约 2.30 MiB），最低 API19，无原生库，使用与 b26 相同的测试证书。包内版本为 1.1.0 / 30，发布标签为 `v1.1.0-b30`。基于公开 main 新构建并保留不可变归档，生产源码提交为 `a2c35cb`；历史 b28 归档未覆盖。构建与验收边界见[兼容说明](COMPATIBILITY.md)。
+
+[b26 标准版通用测试包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26)继续保留：最低 API21、6,819,366 字节，包含四种 CPU 架构。历史 [b24 / API23 通用包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b24) 与 [b23 / API31 / ARM32 包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0) 均保留。b30 与 b26 是不同兼容档位，不代表相同功能范围。
 
 ## 命名与签名
 
@@ -35,6 +37,6 @@ CI 仅检查源码，不安装设备或发布 APK。设备升级与正式发布�
 
 ## English
 
-Source is 1.1.0 / b30 with `standard` (minSdk21) and `legacy19` (minSdk19) profiles, both targeting API36. Legacy candidates include `_legacy19` in the archive name, require v1 signing and contain no native libraries. The same application ID and signing key allow eligible in-place updates, not side-by-side installation. The public download remains b26, tagged `v1.1.0-b26`; b30 is not published. The optimized universal test APK is 6,819,366 bytes (about 6.50 MiB), includes ARM32, ARM64, x86 and x86_64, and uses the same test signature as b24. The tested immutable archive was built from `09d92ae`; the source tree matches the PR #38 main merge `3a0cd15`. Selected emulator checks passed; physical TV acceptance remains pending. Historical b24 and b23 downloads are retained.
+Source is 1.1.0 / b30 with `standard` (minSdk21) and `legacy19` (minSdk19) profiles, both targeting API36. [b30 compatibility](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b30) is `quiet-tv_1.1.0_b30_benchmark_legacy19_api19.apk`, 2,412,105 bytes (about 2.30 MiB), with no native libraries and v1/v2 test signatures matching b26. Its production-source commit is `a2c35cb`; the archive is immutable and historical b28 files remain unchanged. The tag is `v1.1.0-b30`, while the in-app version remains 1.1.0 / 30. Native emulator and physical-TV acceptance of b30 remain pending. b26 standard, b24 and b23 downloads remain available; the profiles have different feature scope.
 
 Read versions from app/build.gradle and actual APK metadata. Increment the global build number for each different delivered build. Debug, optimized test and formally signed release builds are distinct. Archive naming includes ABI when selected and the minimum SDK suffix except for historical API31 names. Archives and receipts are immutable, remain local, and do not establish device installation or acceptance. Publishing and device operations require explicit scope.
