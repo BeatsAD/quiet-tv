@@ -46,6 +46,8 @@ The home screen supports Chinese and English; app management currently uses Chin
 
 System package operations require local ADB authorization. Disabling keeps app data; uninstalling deletes data for the current user. Eligible preinstalled apps can be reinstalled, but deleted data cannot be restored. Preinstalled uninstall/reinstall remains unverified on hardware; see [app management details](docs/APP_MANAGEMENT.md).
 
+Source is now **1.1.0 / b26, Android 5.0 / API21 minimum**, using one universal APK for Android 5.0, 5.1 and later. b26 has not been published; the public b24 download still requires Android 6.0. Device-specific validation remains required.
+
 ## Install and try it
 
 1. **Check your TV.** The current b24 APK requires Android 6.0 or newer, including Android 7. Meeting this minimum does not establish device or feature compatibility. Read the supported-device table below and the [compatibility details](docs/COMPATIBILITY.md).
@@ -74,9 +76,10 @@ You can keep the original launcher installed while trying Quiet TV. System deblo
 | --- | --- |
 | Sony KD-65X9000H / BRAVIA VH1 · Android 12 | Historical builds were checked for the home screen, app management, wallpaper, selected system shortcuts, and one full reboot. This b24 APK has not been installed or checked. See the [verification record](docs/COMPATIBILITY.md) for the exact scope. |
 | Other TVs running Android 6.0 or newer | The b24 universal APK is available for device-specific trials; vendor firmware, HOME and ADB capabilities need hardware validation. See the [compatibility record](docs/COMPATIBILITY.md). |
-| Android 5.1 or earlier; non-Android systems such as Tizen or webOS | Unsupported by the current source. |
+| Android 5.0 / 5.1 | Adaptation is included in b26 source; build it locally. The public b24 APK cannot install. Vendor HOME, ADB and TV input behavior needs hardware validation. |
+| Android 4.x; non-Android systems such as Tizen or webOS | Unsupported by the current source. |
 
-Long-running operation, casting, and full media playback remain unverified. Six-digit wireless pairing is still experimental, requires API 33+ and actual device pairing capability, and is unavailable on Android 6/7. Meeting the minimum install requirement does not establish full firmware compatibility; see [compatibility details](docs/COMPATIBILITY.md). Third-party media apps use their own update channels; Quiet TV does not currently update them automatically.
+Long-running operation, casting, and full media playback remain unverified. Six-digit wireless pairing is still experimental, requires API 33+ and actual device pairing capability, and is unavailable on Android 5/6/7. Meeting the minimum install requirement does not establish full firmware compatibility; see [compatibility details](docs/COMPATIBILITY.md). Third-party media apps use their own update channels; Quiet TV does not currently update them automatically.
 
 ## Known issues and hardware validation
 

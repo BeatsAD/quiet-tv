@@ -4,9 +4,9 @@ android {
     compileSdk 36
     defaultConfig {
         applicationId 'home.quiet.tv'
-        minSdk providers.gradleProperty('quietMinSdk').getOrElse('23').toInteger()
+        minSdk providers.gradleProperty('quietMinSdk').getOrElse('21').toInteger()
         targetSdk 36
-        versionCode 24
+        versionCode 26
         versionName '1.1.0'
     }
     buildTypes {

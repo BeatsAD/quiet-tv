@@ -39,7 +39,7 @@ final class AdbController implements Closeable {
     }
     private int currentUser() throws Exception {
         if(Build.VERSION.SDK_INT>=24)return Integer.parseInt(shell("am get-current-user").trim());
-        // Android 6 has no am get-current-user. Only accept a uniquely resumed foreground user.
+        // Android 5/6 have no am get-current-user. Only accept a uniquely resumed foreground user.
         return parseForegroundUser(shell("dumpsys activity activities"));
     }
     static int parseForegroundUser(String output) throws IOException {
@@ -145,7 +145,8 @@ final class AdbController implements Closeable {
         // A timeout closes the transport. Mutating commands are never automatically retried.
         ScheduledFuture<?> timeout=timer.schedule(()->{try{c.close();}catch(IOException ignored){}},20,TimeUnit.SECONDS);
         String marker="__QUIET_EXIT_"+UUID.randomUUID().toString().replace("-","")+"=";
-        String wrapped="( "+command+" ); quiet_result=$?; printf '\\n"+marker+"%d\\n' \"$quiet_result\"";
+        // Android 5 toolbox does not provide printf; echo is a shell builtin there.
+        String wrapped="( "+command+" ); quiet_result=$?; echo; echo \""+marker+"$quiet_result\"";
         try(AdbStream stream=c.open("shell:"+wrapped);InputStream input=stream.openInputStream();ByteArrayOutputStream output=new ByteArrayOutputStream()){
             byte[] buffer=new byte[8192];int size;
             while(true){

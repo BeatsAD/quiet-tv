@@ -4,7 +4,7 @@
 
 ## Requirements
 
-Source and the current universal compatibility test APK are 1.1.0 / b24, with Android 6.0 / minSdk 23 and targetSdk 36. The download is about 12.30 MiB and includes ARM32, ARM64, x86, and x86_64. This APK has not been installed on a TV or emulator; device and feature validation remains pending. The historical b23 ARM32 APK still requires Android 12 and remains available. Building source does not establish hardware acceptance.
+Source is 1.1.0 / b26, with Android 5.0 / minSdk 21 and targetSdk 36; b26 has not been published. Build this source for Android 5.0 / 5.1. The public b24 APK still requires Android 6.0 / API23. The download is about 12.30 MiB and includes ARM32, ARM64, x86, and x86_64. This APK has not been installed on a TV or emulator; device and feature validation remains pending. The historical b23 ARM32 APK still requires Android 12 and remains available. Building source does not establish hardware acceptance.
 
 Install Git, Python 3, JDK 17 or 21, Android SDK platform 36, build-tools 36.0.0 and platform-tools. Builds need no TV, device configuration, private tests or recovery records.
 
@@ -33,7 +33,7 @@ For immutable archives, configure `sdk.dir` in local.properties and run:
 python3 scripts/build_apk.py --summary "Describe this build's changes"
 ```
 
-The default archive is `dist/apk/quiet-tv_1.1.0_b24_debug_api23.apk`. Options include `--variant benchmark --abi armeabi-v7a`, `--min-sdk 26` and `--min-sdk 31`. See [versioning](VERSIONING.md) for naming and signatures. These commands never install to a TV.
+The default archive is `dist/apk/quiet-tv_1.1.0_b26_debug_api21.apk`. Options include `--variant benchmark --abi armeabi-v7a`, `--min-sdk 21` (default), `23`, `26` and `31`. See [versioning](VERSIONING.md) for naming and signatures. These commands never install to a TV.
 
 ## Download and try
 
