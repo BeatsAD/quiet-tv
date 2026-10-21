@@ -4,7 +4,7 @@
 
 ## Requirements
 
-Source is 1.1.0 / b28: the default standard profile requires Android 5.0 / API21, and `legacy19` requires Android 4.4 / API19. Both target API36. The public download remains b26 / API21; b28 is not published. The download is about 6.50 MiB and includes ARM32, ARM64, x86 and x86_64. Selected emulator checks passed; physical TV acceptance remains pending. See [compatibility](COMPATIBILITY.md). Historical b24 still requires Android 6.0 and b23 requires Android 12 with ARM32 support; both remain available. Building source does not establish hardware acceptance.
+Source is 1.1.0 / b29: the default standard profile requires Android 5.0 / API21, and `legacy19` requires Android 4.4 / API19. Both target API36. Public downloads include [b29 / API19 compatibility](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b29) (about 2.24 MiB, no native libraries) and retained b26 / API21 standard (about 6.50 MiB, four CPU architectures). b29 passed build, signature and metadata checks; native emulator acceptance was not completed and no physical TV has received it. See [compatibility](COMPATIBILITY.md). Historical b24 still requires Android 6.0 and b23 requires Android 12 with ARM32 support; both remain available. Building source does not establish hardware acceptance.
 
 Install Git, Python 3, JDK 17 or 21, Android SDK platform 36, build-tools 36.0.0 and platform-tools. Builds need no TV, device configuration, private tests or recovery records.
 
@@ -33,17 +33,17 @@ For immutable archives, configure `sdk.dir` in local.properties and run:
 python3 scripts/build_apk.py --summary "Describe this build's changes"
 ```
 
-The default archive is `dist/apk/quiet-tv_1.1.0_b28_debug_api21.apk`. Options include `--variant benchmark --abi armeabi-v7a`, `--min-sdk 21` (default), `23`, `26` and `31`. See [versioning](VERSIONING.md) for naming and signatures. These commands never install to a TV.
+The default archive is `dist/apk/quiet-tv_1.1.0_b29_debug_api21.apk`. Options include `--variant benchmark --abi armeabi-v7a`, `--min-sdk 21` (default), `23`, `26` and `31`. See [versioning](VERSIONING.md) for naming and signatures. These commands never install to a TV.
 
 ## Android 4.4 / API19
 
 Build and archive the separate compatibility profile:
 
 ```sh
-python3 scripts/build_apk.py --compatibility legacy19 --variant benchmark --abi armeabi-v7a --summary "Android 4.4 compatibility candidate"
+python3 scripts/build_apk.py --compatibility legacy19 --variant benchmark --summary "Android 4.4 compatibility candidate"
 ```
 
-Output: `dist/apk/quiet-tv_1.1.0_b28_benchmark_legacy19_armeabi-v7a_api19.apk`. The profile defaults to API19; lowering the standard profile's minimum alone is rejected. For build and Lint, run `./gradlew :app:assembleDebug :app:lintDebug -PquietCompatibility=legacy19 --console=plain`.
+Output: `dist/apk/quiet-tv_1.1.0_b29_benchmark_legacy19_api19.apk`. The profile defaults to API19; lowering the standard profile's minimum alone is rejected. For build and Lint, run `./gradlew :app:assembleDebug :app:lintDebug -PquietCompatibility=legacy19 --console=plain`.
 
 The legacy profile retains the launcher, Dock, wallpaper, app list, native About and offline licenses, with traditional TCP ADB only. Six-digit pairing is absent. Inputs open system settings with a prompt to use the remote input key; vendor-specific direct switching needs separate adaptation. The APK contains no native libraries. ARM32 runtime, real HOME, network changes and reboot/wake still require target hardware validation. Debug uses legacy MultiDex startup support.
 
@@ -51,13 +51,13 @@ Both profiles share the application ID and test key and replace each other. Pres
 
 ## Download and try
 
-[b26 Releases](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26) provides `quiet-tv_1.1.0_b26_benchmark_api21.apk` and its SHA-256 file. Put both in the same directory and run:
+For Android 4.4, [b29 Releases](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b29) provides `quiet-tv_1.1.0_b29_benchmark_legacy19_api19.apk` and its SHA-256 file. Put both in the same directory and run:
 
 ```sh
-shasum -a 256 -c quiet-tv_1.1.0_b26_benchmark_api21.apk.sha256
+shasum -a 256 -c quiet-tv_1.1.0_b29_benchmark_legacy19_api19.apk.sha256
 ```
 
-The published APK uses the same test signature as b24. Historical [b23 Releases](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0) requires Android 12+ and ARM32 app support; those requirements do not apply to b26.
+The [b26 standard APK](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26) remains available for Android 5.0 and later. b29, b26 and b24 share the same test signer; profiles replace each other and updates require matching signatures and nondecreasing version codes. Historical [b23 Releases](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0) requires Android 12+ and ARM32 app support; those requirements do not apply to b26.
 
 Enable supported debugging on your TV and authorize the computer. Replace the documentation-only address below. The example installs a locally built Debug APK; for a downloaded APK, substitute its actual file path:
 

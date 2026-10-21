@@ -10,7 +10,7 @@ Quiet TV is built for everyday TV use in China. Keep your favorite apps on the h
 
 The launcher has no ads or recommendation feed and requires no account. It uses native Android views and needs no root access or firmware changes.
 
-[Download the test APK](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26) · [Install](docs/INSTALL.en.md) · [Usage](docs/USAGE.en.md) · [Supported devices](docs/COMPATIBILITY.md) · [Known issues and hardware validation](#known-issues-and-hardware-validation)
+[Android 4.4 test APK](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b29) · [Android 5+ test APK](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26) · [Install](docs/INSTALL.en.md) · [Usage](docs/USAGE.en.md) · [Supported devices](docs/COMPATIBILITY.md) · [Known issues and hardware validation](#known-issues-and-hardware-validation)
 
 ## Screenshots
 
@@ -26,7 +26,7 @@ Use the ambient theme that changes color with the selected app, pick a fixed lan
 
 ![Quiet TV wallpaper settings: default theme, landscapes, and slideshow toggle](docs/assets/wallpaper-settings.png)
 
-These original Sony KD-65X9000H captures were taken on October 19, 2026, with development build 1.1.0 / b15. The current download is the b26 universal compatibility test build; these captures do not establish hardware validation of b26. The cover is an AI illustration. See [image provenance](docs/assets/README.md).
+These original Sony KD-65X9000H captures were taken on October 19, 2026, with development build 1.1.0 / b15. Downloads include b29 compatibility and retained b26 standard builds; these captures do not establish hardware validation of either APK. The cover is an AI illustration. See [image provenance](docs/assets/README.md).
 
 ## Features
 
@@ -46,18 +46,20 @@ The home screen supports Chinese and English; app management currently uses Chin
 
 System package operations require local ADB authorization. Disabling keeps app data; uninstalling deletes data for the current user. Eligible preinstalled apps can be reinstalled, but deleted data cannot be restored. Preinstalled uninstall/reinstall remains unverified on hardware; see [app management details](docs/APP_MANAGEMENT.md).
 
-Source is **1.1.0 / b28** with two build profiles: `standard` (Android 5.0+ / API21) and `legacy19` (Android 4.4 / API19). The legacy profile retains the core launcher and traditional TCP ADB, uses system settings for inputs, and omits six-digit pairing and its native crypto libraries. The public download remains b26 / Android 5.0+; b28 has not been published. See the [build guide](docs/INSTALL.en.md) and [validation boundaries](docs/COMPATIBILITY.md).
+Source is **1.1.0 / b29** with two build profiles: `standard` (Android 5.0+ / API21) and `legacy19` (Android 4.4 / API19). The legacy profile retains the core launcher and traditional TCP ADB, uses system settings for inputs, and omits six-digit pairing and its native crypto libraries. Public prereleases include b29 / Android 4.4 and the retained b26 / Android 5.0+ standard APK. See the [build guide](docs/INSTALL.en.md) and [validation boundaries](docs/COMPATIBILITY.md).
 
 ## Install and try it
 
-1. **Check your TV.** The current b26 APK requires Android 5.0 or newer, including Android 5.1. Meeting this minimum does not establish device or feature compatibility. Read the supported-device table below and the [compatibility details](docs/COMPATIBILITY.md).
-2. **Get an APK.** Download the APK and SHA-256 file from [Releases](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26), or build from source using the [installation guide](docs/INSTALL.en.md).
+1. **Check your TV.** Choose b29 for Android 4.4, or the retained b26 standard APK for Android 5.0 and later. Meeting this minimum does not establish device or feature compatibility. Read the supported-device table below and the [compatibility details](docs/COMPATIBILITY.md).
+2. **Get an APK.** Download the APK and SHA-256 file from [b29 compatibility](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b29) or [b26 standard](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26), or build from source using the [installation guide](docs/INSTALL.en.md).
 3. **Install and try the launcher.** Follow the guide to connect ADB and install Quiet TV. A fresh install opens setup; choose “暂不设置，临时使用” to try it temporarily and check your remote, app launches, and system shortcuts first.
 4. **Complete first setup.** Set the default home screen, then choose whether to manage preinstalled apps. Select “不处理，进入桌面” to skip package changes. Upgrades do not force setup again. Reopen it through “应用管理 → 更多 → 首次设置”; the same menu offers “恢复原桌面” to restore the original launcher. See [first setup and recovery, Chinese](docs/SETUP.md).
 
-The current download is **v1.1.0 / b26, a universal optimized compatibility test build of about 6.50 MiB**. Its filename is `quiet-tv_1.1.0_b26_benchmark_api21.apk`; it requires Android 5.0 / API21 and includes `armeabi-v7a`, `arm64-v8a`, `x86`, and `x86_64`. It uses the same test signature as b24 for eligible in-place updates. It remains a prerelease; no stable release is available yet.
+For Android 4.4, download **v1.1.0 / b29, an optimized compatibility test APK of about 2.24 MiB**: `quiet-tv_1.1.0_b29_benchmark_legacy19_api19.apk`. It requires API19, targets API36, and contains no native libraries, so no CPU-specific APK selection is needed. It retains the launcher, Dock, wallpaper and TCP ADB, without six-digit pairing; inputs open system settings. The optimized build, 19 unit tests, Lint (0 errors, 35 warnings), signature and metadata checks passed. Native emulator acceptance was not completed for b29; no physical TV has received it. Historical b28 emulator tests do not validate this APK. See [compatibility](docs/COMPATIBILITY.md).
 
-Changes in this build:
+The retained **v1.1.0 / b26 standard APK is an optimized universal test build of about 6.50 MiB**. Its filename is `quiet-tv_1.1.0_b26_benchmark_api21.apk`; it requires Android 5.0 / API21 and includes `armeabi-v7a`, `arm64-v8a`, `x86`, and `x86_64`. It uses the same test signature as b24 for eligible in-place updates. It remains a prerelease; no stable release is available yet.
+
+Changes in the retained b26 standard build:
 
 - Android 5.0 minimum, legacy networking and permission handling, and graceful handling of unavailable TV input services.
 - Android 5 WebView fallback for offline licenses, corrected legacy vector paths and theme attributes.
@@ -77,7 +79,7 @@ You can keep the original launcher installed while trying Quiet TV. System deblo
 | Sony KD-65X9000H / BRAVIA VH1 · Android 12 | Historical builds were checked for the home screen, app management, wallpaper, selected system shortcuts, and one full reboot. This b26 APK has not been installed on this TV. See the [verification record](docs/COMPATIBILITY.md) for the exact scope. |
 | Other TVs running Android 6.0 or newer | The b26 universal APK is available for device-specific trials; vendor firmware, HOME and ADB capabilities need hardware validation. See the [compatibility record](docs/COMPATIBILITY.md). |
 | Android 5.0 / 5.1 | The b26 universal test APK is available. Tests use generic Android images with a TV-sized configuration and do not replace native TV firmware acceptance. Vendor HOME, ADB and TV input behavior needs hardware validation. |
-| Android 4.4 | Build the `legacy19` compatibility candidate from source; physical TV, HOME, input and ADB acceptance remains device-specific. |
+| Android 4.4 | Download the [b29 compatibility test APK](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b29); physical TV, HOME, input and ADB acceptance remains device-specific. |
 | Android 4.0–4.3; non-Android systems such as Tizen or webOS | Unsupported. |
 
 Long-running operation, casting, and full media playback remain unverified. Six-digit wireless pairing is still experimental, requires API 33+ and actual device pairing capability, and is unavailable on Android 5/6/7. Meeting the minimum install requirement does not establish full firmware compatibility; see [compatibility details](docs/COMPATIBILITY.md). Third-party media apps use their own update channels; Quiet TV does not currently update them automatically.
