@@ -32,7 +32,7 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
         View shade=new View(this);shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0xf00c0d11,0xf50b0c10}));stage.addView(shade,new FrameLayout.LayoutParams(-1,-1));
         root=column();root.setPadding(px(48),px(28),px(48),px(16));stage.addView(root,new FrameLayout.LayoutParams(-1,-1));
         header=row();root.addView(header,new LinearLayout.LayoutParams(-1,px(38)));
-        Button back=iconButton("返回",R.drawable.ic_manage_back,this::finish);header.addView(back,new LinearLayout.LayoutParams(px(34),px(34)));
+        Button back=iconButton("返回",R.drawable.ic_manage_back,this::handleBack);header.addView(back,new LinearLayout.LayoutParams(px(34),px(34)));
         TextView title=label("应用管理",27);title.setPadding(px(14),0,0,0);header.addView(title,new LinearLayout.LayoutParams(0,-1,1));
     }
     public void handleBack(){finish();}
@@ -52,9 +52,19 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     void gap(LinearLayout parent,int height){parent.addView(new View(this),new LinearLayout.LayoutParams(1,px(height)));}
     void marginAdd(LinearLayout parent,View view,int width,int height,int left){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(width<0?width:px(width),height<0?height:px(height));p.leftMargin=px(left);parent.addView(view,p);}
     LinearLayout toolbar(boolean dock){
+        return toolbar(dock?1:0);
+    }
+    void leaveManagement(Runnable action){action.run();}
+    LinearLayout toolbar(int selected){
         LinearLayout tools=row();LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,px(54));p.topMargin=px(22);root.addView(tools,p);
-        tab(tools,"应用列表",!dock,()->{if(dock){startActivity(new Intent(this,AppManagementActivity.class).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));finish();}});
-        tab(tools,"常用应用",dock,()->{if(!dock)startActivity(new Intent(this,DockEditorActivity.class));});
+        Class<?>[] pages={AppManagementActivity.class,DockEditorActivity.class,HomeSortActivity.class};String[] titles={"应用列表","常用应用","首页排序"};
+        for(int i=0;i<pages.length;i++){
+            final int page=i;
+            tab(tools,titles[i],selected==i,()->{if(page!=selected)leaveManagement(()->{
+                startActivity(new Intent(this,pages[page]).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));
+                if(selected!=0)finish();
+            });});
+        }
         tools.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));
         View line=new View(this);line.setBackgroundColor(0x18ffffff);root.addView(line,new LinearLayout.LayoutParams(-1,px(1)));return tools;
     }

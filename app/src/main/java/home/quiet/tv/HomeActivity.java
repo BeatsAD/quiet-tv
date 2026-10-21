@@ -26,8 +26,8 @@ import java.util.concurrent.*;
 /** Local-only TV home. Directional movement is owned here, never by focus search. */
 public final class HomeActivity extends androidx.activity.ComponentActivity {
     private static final String TAG = "QuietTV";
-    private static final String WALLPAPER_ENTRY = "quiet:wallpapers";
-    private static final String MANAGEMENT_ENTRY = "quiet:management";
+    private static final String WALLPAPER_ENTRY = HomeAppCatalog.WALLPAPER;
+    private static final String MANAGEMENT_ENTRY = HomeAppCatalog.MANAGEMENT;
     private static final float CONTENT_MARGIN = 48;
     private static final float FOCUS_SCALE = 1.035f, FOCUS_OUTSET = 5, FOCUS_STROKE = 3;
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -37,7 +37,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private final HashMap<String,Tile> visibleTiles = new HashMap<>();
     private final ArrayList<TextView> pills = new ArrayList<>();
     private final ArrayList<String> dockPackages = new ArrayList<>();
-    private final HashSet<String> hidden = new HashSet<>();
+    private String orderSignature="";
     private final HashMap<String,App> artworkCache = new HashMap<>();
     private boolean appsDirty = true, loadingApps;
     private FrameLayout root;
@@ -60,7 +60,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     };
     private final BroadcastReceiver packageReceiver = new BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) {
-            if(Intent.ACTION_PACKAGE_REMOVED.equals(i.getAction()) && !i.getBooleanExtra(Intent.EXTRA_REPLACING,false) && i.getData()!=null)new DockStore(c).remove(i.getData().getSchemeSpecificPart());
+            if(Intent.ACTION_PACKAGE_REMOVED.equals(i.getAction()) && i.getBooleanExtra(Intent.EXTRA_REPLACING,false))return;
+            if(Intent.ACTION_PACKAGE_REMOVED.equals(i.getAction()) && !i.getBooleanExtra(Intent.EXTRA_REPLACING,false) && i.getData()!=null){String pkg=i.getData().getSchemeSpecificPart();new DockStore(c).remove(pkg);new HomeOrderStore(c).remove(pkg);}
             appsDirty = true;
             if (resumed) loadApps();
         }
@@ -82,8 +83,6 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             chinese = !"en".equals(config.optString("language", "zh"));
             fixedGreeting = "home".equals(config.optString("greeting"));
             dockPackages.addAll(new DockStore(this).load());
-            JSONArray omitted = config.optJSONArray("hidden");
-            if (omitted != null) for (int n = 0; n < omitted.length(); n++) hidden.add(omitted.getString(n));
             outfit = Build.VERSION.SDK_INT>=26 ? Typeface.createFromAsset(getAssets(), "fonts/outfit.ttf") : Typeface.create("sans-serif",Typeface.NORMAL);
         } catch (Exception e) { throw new IllegalStateException("Invalid bundled launcher configuration", e); }
         row = getPreferences(0).getInt("row", 0);
@@ -280,23 +279,20 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private void loadApps() {
         ArrayList<String> currentDock = new DockStore(this).load();
-        if (!currentDock.equals(dockPackages)) appsDirty = true;
+        final String requestedOrder=new HomeOrderStore(this).signature();
+        if (!currentDock.equals(dockPackages) || !requestedOrder.equals(orderSignature)) appsDirty = true;
         if (loadingApps || (ready && !appsDirty)) return;
         loadingApps = true; appsDirty = false;
         dockPackages.clear();dockPackages.addAll(new DockStore(this).load());
         final ArrayList<String> pinned=new ArrayList<>(dockPackages);
         loader.execute(()->{
             try {
-            PackageManager pm=getPackageManager(); LinkedHashMap<String,ResolveInfo> candidates=new LinkedHashMap<>();
-            for(String category:new String[]{Intent.CATEGORY_LEANBACK_LAUNCHER,Intent.CATEGORY_LAUNCHER}) {
-                for(ResolveInfo info:pm.queryIntentActivities(new Intent(Intent.ACTION_MAIN).addCategory(category),0)) {
-                    String pkg=info.activityInfo.packageName;
-                    if((!hidden.contains(pkg) || pinned.contains(pkg)) && !pkg.equals(getPackageName()) && info.activityInfo.applicationInfo.enabled) {if(!candidates.containsKey(pkg))candidates.put(pkg,info);}
-                }
-            }
+            PackageManager pm=getPackageManager();
+            ArrayList<HomeAppCatalog.Entry> catalog=new HomeAppCatalog(this).load(pinned);
             ArrayList<App> found=new ArrayList<>();
             HashMap<String,App> freshCache=new HashMap<>();
-            for(ResolveInfo info:candidates.values()) {
+            for(HomeAppCatalog.Entry entry:catalog) {
+                ResolveInfo info=entry.info;if(info==null)continue;
                 String key=new ComponentName(info.activityInfo.packageName,info.activityInfo.name).flattenToString();
                 try { key += ":" + pm.getPackageInfo(info.activityInfo.packageName,0).lastUpdateTime; }
                 catch (PackageManager.NameNotFoundException e) { continue; }
@@ -311,16 +307,20 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 app.banner=renderBanner(banner,hasBanner);app.color=sampleColor(app.banner);found.add(app);freshCache.put(key,app);
             }
             artworkCache.clear();artworkCache.putAll(freshCache);
-            Collections.sort(found,(a,b)->java.text.Collator.getInstance(Locale.SIMPLIFIED_CHINESE).compare(a.label,b.label));
             App wallpaperApp=new App();wallpaperApp.pkg=WALLPAPER_ENTRY;wallpaperApp.label=tr("壁纸设置","Wallpaper Settings");
             wallpaperApp.banner=wallpapers.entryBanner();wallpaperApp.color=0xff557eac;found.add(0,wallpaperApp);
             App managementApp=new App();managementApp.pkg=MANAGEMENT_ENTRY;managementApp.label=tr("应用管理","App Management");
             managementApp.banner=managementBanner(tr("应用管理","App Management"));managementApp.color=0xff666972;found.add(1,managementApp);
+            ArrayList<String> defaults=new ArrayList<>();for(App app:found)if(!pinned.contains(app.pkg))defaults.add(app.pkg);
+            ArrayList<String> gridOrder=new HomeOrderStore(this).order(defaults);
             main.post(()->{
                 if(isDestroyed())return;
+                orderSignature=requestedOrder;
+                if(!requestedOrder.equals(new HomeOrderStore(this).signature()))appsDirty=true;
                 dock.clear();apps.clear();visibleTiles.clear();dockTiles.clear();
                 for(String pkg:pinned)for(App app:found)if(pkg.equals(app.pkg))dock.add(app);
-                for(App app:found)if(!pinned.contains(app.pkg))apps.add(app);
+                HashMap<String,App> byId=new HashMap<>();for(App app:found)byId.put(app.pkg,app);
+                for(String id:gridOrder)apps.add(byId.get(id));
                 if(dock.isEmpty()){App empty=new App();empty.pkg="quiet:add-dock";empty.label=tr("添加常用应用","Add favorite apps");empty.banner=managementBanner(tr("添加常用应用","Add favorite apps"));empty.color=0xff666972;dock.add(empty);}
                 if(row>=0){
                     if(!activePackage.isEmpty()) {
