@@ -66,7 +66,9 @@ final class HomeOrderStore {
         return result;
     }
     static int target(int index,int count,int columns,int dx,int dy){
-        int next=index+dx+dy*columns;return next>=0 && next<count?next:index;
+        int row=index/columns+dy,column=index%columns+dx;
+        if(row<0 || row>(count-1)/columns || column<0 || column>=columns)return index;
+        return Math.min(row*columns+column,count-1);
     }
     static void move(List<String> order,int from,int to){if(from!=to)order.add(to,order.remove(from));}
 }
