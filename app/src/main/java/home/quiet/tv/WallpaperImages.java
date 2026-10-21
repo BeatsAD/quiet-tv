@@ -1,0 +1,59 @@
+package home.quiet.tv;
+
+import android.content.Context;
+import android.graphics.*;
+import androidx.exifinterface.media.ExifInterface;
+import java.io.*;
+
+final class WallpaperImages {
+    private WallpaperImages() {}
+    static InputStream open(Context context,WallpaperStore store,WallpaperCatalog.Entry entry) throws IOException {
+        return entry.custom()?new FileInputStream(store.file(entry.id)):context.getAssets().open("wallpapers/"+entry.id+".jpg");
+    }
+    static Bitmap decode(Context context,WallpaperStore store,WallpaperCatalog.Entry entry,int width,int height) throws IOException {
+        BitmapFactory.Options options=new BitmapFactory.Options();options.inJustDecodeBounds=true;
+        try(InputStream input=open(context,store,entry)){BitmapFactory.decodeStream(input,null,options);}
+        if(options.outWidth<=0 || options.outHeight<=0) throw new IOException("Invalid wallpaper image");
+        int sample=1;
+        while(options.outWidth/(sample*2)>=width && options.outHeight/(sample*2)>=height) sample*=2;
+        options.inJustDecodeBounds=false;options.inSampleSize=sample;
+        try(InputStream input=open(context,store,entry)) {
+            Bitmap bitmap=BitmapFactory.decodeStream(input,null,options);
+            if(bitmap==null) throw new IOException("Invalid wallpaper image"); return bitmap;
+        }
+    }
+    static int[] prepare(File input,File output) throws IOException {
+        BitmapFactory.Options options=new BitmapFactory.Options();options.inJustDecodeBounds=true;
+        BitmapFactory.decodeFile(input.getPath(),options);
+        if(options.outWidth<=0 || options.outHeight<=0 || (long)options.outWidth*options.outHeight>40000000L
+                || options.outWidth>16384 || options.outHeight>16384
+                || !("image/jpeg".equals(options.outMimeType)||"image/png".equals(options.outMimeType)||"image/webp".equals(options.outMimeType)))
+            throw new IOException("请选择有效的 JPG、PNG 或静态 WebP 图片（不超过 4000 万像素） / Invalid image");
+        // Reject animated WebP containers, including on systems whose decoder only reads frame one.
+        if("image/webp".equals(options.outMimeType)) try(RandomAccessFile file=new RandomAccessFile(input,"r")) {
+            file.seek(12);long position=12;
+            while(position+8<=file.length()) {
+                int type=file.readInt();long size=(Integer.reverseBytes(file.readInt()) & 0xffffffffL);
+                if(type==0x414e494d || type==0x414e4d46) throw new IOException("暂不支持动态壁纸 / Animated images are not supported");
+                position+=8+size+(size&1);if(position>file.length()) break;file.seek(position);
+            }
+        }
+        options.inJustDecodeBounds=false;options.inSampleSize=1;
+        while(Math.max(options.outWidth,options.outHeight)/options.inSampleSize>2560) options.inSampleSize*=2;
+        Bitmap bitmap=BitmapFactory.decodeFile(input.getPath(),options);
+        if(bitmap==null) throw new IOException("无法读取图片 / Cannot decode image");
+        try {
+            ExifInterface exif=new ExifInterface(input); Matrix matrix=new Matrix();
+            if(exif.isFlipped()) matrix.postScale(-1,1);
+            matrix.postRotate(exif.getRotationDegrees());
+            float scale=Math.min(1f,1920f/Math.max(bitmap.getWidth(),bitmap.getHeight()));matrix.postScale(scale,scale);
+            Bitmap rotated=Bitmap.createBitmap(bitmap,0,0,bitmap.getWidth(),bitmap.getHeight(),matrix,true);
+            if(rotated!=bitmap){bitmap.recycle();bitmap=rotated;}
+            if(bitmap.hasAlpha()){Bitmap opaque=Bitmap.createBitmap(bitmap.getWidth(),bitmap.getHeight(),Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(opaque);canvas.drawColor(Color.BLACK);canvas.drawBitmap(bitmap,0,0,null);bitmap.recycle();bitmap=opaque;}
+            try(FileOutputStream stream=new FileOutputStream(output)) {
+                if(!bitmap.compress(Bitmap.CompressFormat.JPEG,90,stream)) throw new IOException("Unable to encode image");stream.getFD().sync();
+            }
+            return new int[]{bitmap.getWidth(),bitmap.getHeight()};
+        } finally { bitmap.recycle(); }
+    }
+}
