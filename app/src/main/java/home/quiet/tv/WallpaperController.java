@@ -293,7 +293,7 @@ final class WallpaperController {
             if(value==targetColor)return;targetColor=value;
             if(animation!=null)animation.cancel();
             if(color==Color.TRANSPARENT){color=value;updateGlow();return;}
-            animation=ValueAnimator.ofArgb(color,value);animation.setDuration(650);
+            animation=ValueAnimator.ofObject(new android.animation.ArgbEvaluator(),color,value);animation.setDuration(650);
             animation.setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator());
             animation.addUpdateListener(a->{color=(int)a.getAnimatedValue();updateGlow();});animation.start();
         }

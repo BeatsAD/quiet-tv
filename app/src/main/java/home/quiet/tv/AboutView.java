@@ -40,7 +40,7 @@ final class AboutView extends FrameLayout {
                 if(active!=null && active!=this){
                     paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(3);paint.setColor(0xfff3f6fb);
                     float radius=active==back?40:14;
-                    canvas.drawRoundRect(active.getLeft()-6.5f,active.getTop()-6.5f,active.getRight()+6.5f,active.getBottom()+6.5f,radius,radius,paint);
+                    canvas.drawRoundRect(new RectF(active.getLeft()-6.5f,active.getTop()-6.5f,active.getRight()+6.5f,active.getBottom()+6.5f),radius,radius,paint);
                     paint.setStyle(Paint.Style.FILL);
                 }
             }
@@ -53,7 +53,7 @@ final class AboutView extends FrameLayout {
         label("关于",38,500,0xfff2f4f8,188,75,160,54,null);
         ImageView brand=new ImageView(context);brand.setImageResource(R.drawable.launcher_icon);put(brand,136,315,160,160);
         SpannableString title=new SpannableString(name+".");title.setSpan(new ForegroundColorSpan(0xff89b8f5),title.length()-1,title.length(),Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        TextView titleView=label(title,104,500,0xfff2f4f8,136,515,626,120,"app-name");titleView.setLetterSpacing(-3f/104);
+        TextView titleView=label(title,104,500,0xfff2f4f8,136,515,626,120,"app-name");UiCompat.letterSpacing(titleView,-3f/104);
         TextView installed=label("版本 "+version,26,400,0xfff2f4f8,136,658,500,45,"version-name");
         int channelX=136+(int)Math.ceil(installed.getPaint().measureText(installed.getText().toString()))+16;
         TextView channel=label(debug?"测试版":"正式版",19,400,0xffacc0db,channelX,658,87,45,"version-channel");
@@ -98,7 +98,7 @@ final class AboutView extends FrameLayout {
     }
     private ImageView code(String tag,int x,int y,int size) {
         ImageView view=new ImageView(getContext());view.setTag(tag);view.setContentDescription(tag.equals("project-qr")?"开源项目二维码":tag.equals("wechat-qr")?"微信二维码":"微信公众号二维码");
-        view.setScaleType(ImageView.ScaleType.FIT_CENTER);view.setPadding(4,4,4,4);view.setBackground(surface(Color.WHITE,size==208?14:10,Color.WHITE));view.setClipToOutline(true);put(view,x,y,size,size);return view;
+        view.setScaleType(ImageView.ScaleType.FIT_CENTER);view.setPadding(4,4,4,4);view.setBackground(surface(Color.WHITE,size==208?14:10,Color.WHITE));UiCompat.clipOutline(view);put(view,x,y,size,size);return view;
     }
     private Bitmap image(String asset) {
         try(InputStream stream=getContext().getAssets().open(asset)) {
