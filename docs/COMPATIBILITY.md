@@ -42,6 +42,24 @@ Published b26 passed Debug build, 19 unit tests and Lint (0 errors, 28 warnings)
 
 The published b24 universal APK passed its optimized build, full Lint (0 errors, 27 warnings), package and signature checks, and GitHub download hash verification. It has not been installed on a TV or emulator. Historical emulator and b23 hardware checks do not validate b24, other vendors, real HOME changes, pairing, casting, or long-running operation. Unknown firmware retains read-only system-package behavior.
 
+## 信号源兼容
+
+源码新增原厂信号源面板回退，公开 b26 安装包不包含此功能。Android 标准 TV Input 列表为空或服务不可用，并不证明电视没有输入接口。标准路径继续读取本机输入；回退按实际安装的系统组件、启用状态、导出状态和调用权限检测，不按品牌名称套用固定 HDMI 数量，也不自动修改系统组件或权限。
+
+| 候选固件 / Candidate | 源码行为 / Source behavior | 依据与验证边界 / Evidence |
+| --- | --- | --- |
+| 海信 / Vidda MT9653 | 检测 `com.hisense.tv.inputs/com.hisense.tv.InputsUIService`，通过 `com.hisense.tv.start_inputs` 打开原厂面板。标准列表正常时保留列表。 | [上游记录](https://github.com/Gathin23/cleanyourtv/blob/3e996739ce0b470b51c1c438bf5d0559d1c9e7eb/examples/vidda-mt9653/debloat.txt#L45)称该固件标准输入为空、原厂面板可以切换；Quiet TV 尚未在目标海信验证，不能视为所有海信支持。 |
+| TCL ak30a5 / Android 9 | 检测 `com.tcl.settings/com.tcl.insrc.ShowWindowService`，通过 `com.tcl.insrc.SHOW_WINDOW` 打开面板。 | [上游 Issue #37](https://github.com/Gathin23/cleanyourtv/issues/37)确认面板调用，但该机型拒绝安装第三方 HOME；存在面板入口不代表 Quiet TV 可以安装，其他 TCL 固件仍需单独验证。 |
+| BYINTEK U4 | 检测 `com.sdt.app.skysettings/.entry.activity.QuickSourceActivity`，优先打开面板，避免上游报告的虚假 HDMI／AV 列表。 | [上游记录](https://github.com/Gathin23/cleanyourtv/blob/3e996739ce0b470b51c1c438bf5d0559d1c9e7eb/examples/byintek-u4/README.md)；Quiet TV 真机待验收。 |
+
+入口配置随源码保存在 [tv-input-profiles.json](../app/src/main/assets/tv-input-profiles.json)。组件名吻合仍需通过运行时权限与状态检查；多个可用面板由用户选择。标准切换发生异常时提供系统面板选项；调用成功但画面黑屏无法据此自动判断，可返回信号源菜单手动打开系统面板。未知机型没有匹配入口时提供原因和系统设置入口。
+
+本次新增逻辑通过 9 项本地单元测试、Debug 构建、Lint 和配置校验。API31 专用模拟器回归覆盖标准服务缺失／受限／异常诊断、原生系统组件检查、Activity／Service 启动分支与失败处理、空输入提示及返回导航；系统组件启动在测试中被拦截，不代表已打开海信／TCL／BYINTEK 原厂面板。目标海信型号与固件尚未提供，实际 HDMI 切换、画面、声音及实体遥控器均待实机验收。
+
+上游还记录 Vidda 的 `com.hisense.tv.tiletransition` 是实际切换依赖，禁用后可能出现“面板打开但 HDMI 不切换”。这是特定固件的诊断线索，Quiet TV 不会自动启用它，也不把信号源适配配置作为禁用／卸载系统包的授权。
+
+System-panel fallback exists in source only, not in the published b26. Profiles identify exact system components and require runtime enabled/exported/permission checks. Standard inputs remain the default, with a vendor-panel preference only for BYINTEK U4's reported bogus list. These are upstream reports, not Quiet TV hardware acceptance or support for every model of a brand. Dispatch success does not verify picture, sound, physical remote behavior or actual source switching. No system package or permission is changed automatically.
+
 ## 默认桌面与恢复
 
 设备需实际提供可用的 HOME 入口、系统设置、TV Input、遥控键和本机调试能力。默认桌面以读回的真实组件为准；命令返回 Success 不代表 HOME 已切换。保留原桌面及恢复记录，先验证再决定是否处理预装应用。流程见[首次设置](SETUP.md)和[应用管理](APP_MANAGEMENT.md)。

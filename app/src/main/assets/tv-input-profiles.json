@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "panels": [
+    {
+      "component": "com.hisense.tv.inputs/com.hisense.tv.InputsUIService",
+      "type": "service",
+      "action": "com.hisense.tv.start_inputs",
+      "labelZh": "海信系统信号源",
+      "labelEn": "Hisense system inputs",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/3e996739ce0b470b51c1c438bf5d0559d1c9e7eb/examples/vidda-mt9653/debloat.txt#L45",
+      "validation": "upstream-reported; Quiet TV hardware acceptance pending"
+    },
+    {
+      "component": "com.tcl.settings/com.tcl.insrc.ShowWindowService",
+      "type": "service",
+      "action": "com.tcl.insrc.SHOW_WINDOW",
+      "labelZh": "TCL 系统信号源",
+      "labelEn": "TCL system inputs",
+      "source": "https://github.com/Gathin23/cleanyourtv/issues/37",
+      "validation": "upstream-reported panel invocation; Quiet TV hardware acceptance pending"
+    },
+    {
+      "component": "com.sdt.app.skysettings/.entry.activity.QuickSourceActivity",
+      "type": "activity",
+      "preferPanel": true,
+      "labelZh": "系统信号源",
+      "labelEn": "System inputs",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/3e996739ce0b470b51c1c438bf5d0559d1c9e7eb/examples/byintek-u4/README.md",
+      "validation": "upstream-reported incorrect standard inputs; Quiet TV hardware acceptance pending"
+    }
+  ]
+}
