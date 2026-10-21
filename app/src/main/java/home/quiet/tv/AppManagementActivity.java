@@ -53,7 +53,6 @@ public final class AppManagementActivity extends ManagementUi {
         list=new RecyclerView(this);list.setLayoutManager(new LinearLayoutManager(this));adapter=new AppAdapter();list.setAdapter(adapter);list.setItemAnimator(null);list.setClipToPadding(false);list.setPadding(px(2),px(2),px(2),px(2));left.addView(list,new LinearLayout.LayoutParams(-1,0,1));
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setClipToPadding(false);details=column();details.setGravity(Gravity.CENTER_HORIZONTAL);details.setPadding(px(25),px(27),px(25),px(22));details.setBackground(surface(0x12ffffff,0x06ffffff,0x1cffffff,20));scroll.addView(details);
         LinearLayout.LayoutParams dp=new LinearLayout.LayoutParams(0,-1,57);dp.leftMargin=px(28);panels.addView(scroll,dp);
-        footer("方向键选择  确定操作  返回退出");
         if(state!=null){selected=state.getString("selected","");filter=state.getInt("filter",0);query=state.getString("query","");}
         IntentFilter packages=new IntentFilter(Intent.ACTION_PACKAGE_ADDED);packages.addAction(Intent.ACTION_PACKAGE_REMOVED);packages.addAction(Intent.ACTION_PACKAGE_CHANGED);packages.addDataScheme("package");registerReceiver(packagesChanged,packages);
     }
