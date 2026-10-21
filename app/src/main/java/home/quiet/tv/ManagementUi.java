@@ -47,7 +47,14 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     Button button(String text,Runnable action){Button b=new Button(this);b.setText(text);b.setAllCaps(false);b.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(13));b.setTextColor(TEXT);b.setIncludeFontPadding(false);b.setGravity(Gravity.CENTER);b.setMinimumWidth(0);b.setMinWidth(0);b.setMinimumHeight(0);b.setMinHeight(0);b.setPadding(px(16),0,px(16),0);b.setBackground(focusSurface(24));b.setStateListAnimator(null);b.setOnClickListener(v->action.run());return b;}
     CharSequence dotted(String text){android.text.SpannableString value=new android.text.SpannableString("●  "+text);value.setSpan(new android.text.style.RelativeSizeSpan(.5f),0,1,0);return value;}
     Drawable listSurface(){StateListDrawable state=new StateListDrawable();state.addState(new int[]{android.R.attr.state_focused},surface(0x24ffffff,0x16ffffff,-1,12));state.addState(new int[]{android.R.attr.state_selected},surface(0x14ffffff,0x10ffffff,0x1effffff,12));state.addState(new int[]{},new ColorDrawable(Color.TRANSPARENT));return state;}
-    Button iconButton(String description,int resource,Runnable action){Button b=button("",action);b.setContentDescription(description);b.setPadding(px(9),px(9),px(9),px(9));Drawable icon=getDrawable(resource);icon.setBounds(0,0,px(16),px(16));b.setCompoundDrawables(icon,null,null,null);return b;}
+    Button iconButton(String description,int resource,Runnable action){
+        Button b=button("",action);b.setContentDescription(description);
+        Drawable icon=getDrawable(resource);icon.setBounds(0,0,px(16),px(16));b.setCompoundDrawables(icon,null,null,null);
+        b.addOnLayoutChangeListener((view,left,top,right,bottom,oldLeft,oldTop,oldRight,oldBottom)->{
+            int horizontal=(right-left-icon.getBounds().width())/2,vertical=(bottom-top-icon.getBounds().height())/2;
+            view.setPadding(horizontal,vertical,horizontal,vertical);
+        });return b;
+    }
     Button iconText(String text,int resource,Runnable action){Button b=button(text,action);Drawable icon=getDrawable(resource);icon.setBounds(0,0,px(15),px(15));b.setCompoundDrawables(icon,null,null,null);b.setCompoundDrawablePadding(px(7));return b;}
     void gap(LinearLayout parent,int height){parent.addView(new View(this),new LinearLayout.LayoutParams(1,px(height)));}
     void marginAdd(LinearLayout parent,View view,int width,int height,int left){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(width<0?width:px(width),height<0?height:px(height));p.leftMargin=px(left);parent.addView(view,p);}
