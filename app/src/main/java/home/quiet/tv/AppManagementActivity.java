@@ -41,6 +41,7 @@ public final class AppManagementActivity extends ManagementUi {
         searchButton=iconText("搜索",R.drawable.ic_manage_search,this::searchPanel);tools.addView(searchButton,new LinearLayout.LayoutParams(-2,px(33)));
         filterButton=iconText("筛选",R.drawable.ic_manage_filter,this::chooseFilter);marginAdd(tools,filterButton,-2,33,8);
         marginAdd(tools,iconButton("更多",R.drawable.ic_manage_more,this::morePanel),40,33,8);
+        marginAdd(tools,iconButton("关于",R.drawable.ic_about,()->startActivity(new Intent(this,AboutActivity.class))),40,33,8);
         LinearLayout panels=row();panels.setGravity(Gravity.TOP);LinearLayout.LayoutParams pp=new LinearLayout.LayoutParams(-1,0,1);pp.topMargin=px(23);root.addView(panels,pp);
         LinearLayout left=column();panels.addView(left,new LinearLayout.LayoutParams(0,-1,40));
         LinearLayout caption=row();LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,px(24));cp.bottomMargin=px(6);left.addView(caption,cp);
