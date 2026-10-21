@@ -14,7 +14,7 @@ final class AppRepository {
         int enabledSetting=-1;
         ShellCapabilities commands=ShellCapabilities.NONE;
         String state(){return !installed?(recoverable?"可恢复安装":"未安装"):enabled?"已启用":"已禁用";}
-        String summary(){return (system?"预装应用":"用户应用")+" · "+state();}
+        String summary(){return (system?"预装应用":"用户应用")+"  "+state();}
     }
     private final Context context;
     AppRepository(Context context){this.context=context;}

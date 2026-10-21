@@ -49,7 +49,7 @@ public final class AppManagementActivity extends ManagementUi {
         list=new RecyclerView(this);list.setLayoutManager(new LinearLayoutManager(this));adapter=new AppAdapter();list.setAdapter(adapter);list.setItemAnimator(null);list.setClipToPadding(false);list.setPadding(px(2),px(2),px(2),px(2));left.addView(list,new LinearLayout.LayoutParams(-1,0,1));
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setClipToPadding(false);details=column();details.setGravity(Gravity.CENTER_HORIZONTAL);details.setPadding(px(25),px(27),px(25),px(22));details.setBackground(surface(0x12ffffff,0x06ffffff,0x1cffffff,20));scroll.addView(details);
         LinearLayout.LayoutParams dp=new LinearLayout.LayoutParams(0,-1,57);dp.leftMargin=px(28);panels.addView(scroll,dp);
-        footer("方向键选择  ·  确定操作  ·  返回退出");
+        footer("方向键选择  确定操作  返回退出");
         if(state!=null){selected=state.getString("selected","");filter=state.getInt("filter",0);query=state.getString("query","");}
         IntentFilter packages=new IntentFilter(Intent.ACTION_PACKAGE_ADDED);packages.addAction(Intent.ACTION_PACKAGE_REMOVED);packages.addAction(Intent.ACTION_PACKAGE_CHANGED);packages.addDataScheme("package");registerReceiver(packagesChanged,packages);
     }
@@ -75,9 +75,9 @@ public final class AppManagementActivity extends ManagementUi {
     private void applyFilter(){
         boolean listFocused=initialFocus || list.hasFocus();filtered.clear();String matchQuery=query.toLowerCase(Locale.ROOT);
         for(AppRepository.App app:all){boolean match=filter==0 || filter==1 && !app.system && app.installed || filter==2 && app.system || filter==3 && app.installed && !app.enabled || filter==4 && app.recoverable;if(match && (app.label.toLowerCase(Locale.ROOT).contains(matchQuery)||app.pkg.toLowerCase(Locale.ROOT).contains(matchQuery)))filtered.add(app);}
-        filterButton.setText(filter==0?"筛选":FILTERS[filter]);searchButton.setText(query.isEmpty()?"搜索":"搜索 · 已筛选");
+        filterButton.setText(filter==0?"筛选":FILTERS[filter]);searchButton.setText(query.isEmpty()?"搜索":"搜索  已筛选");
         boolean present=false;for(AppRepository.App app:filtered)if(app.pkg.equals(selected))present=true;if(!present)selected=filtered.isEmpty()?"":filtered.get(0).pkg;
-        queryChip.setVisibility(query.isEmpty()?View.GONE:View.VISIBLE);queryChip.setText(query+"  ×");queryChip.setContentDescription("清除搜索："+query);count.setText(filtered.size()+" 个应用"+(!adb.connected() && query.isEmpty()?" · 本地信息":""));adapter.notifyDataSetChanged();renderDetails();if(listFocused){initialFocus=false;focusList();}
+        queryChip.setVisibility(query.isEmpty()?View.GONE:View.VISIBLE);queryChip.setText(query+"  ×");queryChip.setContentDescription("清除搜索："+query);count.setText(filtered.size()+" 个应用"+(!adb.connected() && query.isEmpty()?"  本地信息":""));adapter.notifyDataSetChanged();renderDetails();if(listFocused){initialFocus=false;focusList();}
     }
     private AppRepository.App current(){for(AppRepository.App app:filtered)if(app.pkg.equals(selected))return app;return null;}
     private void focusList(){list.post(()->{for(int i=0;i<filtered.size();i++)if(filtered.get(i).pkg.equals(selected)){final int position=i;list.scrollToPosition(position);list.post(()->{RecyclerView.ViewHolder holder=list.findViewHolderForAdapterPosition(position);if(holder!=null)holder.itemView.requestFocus();});return;}searchButton.requestFocus();});}
@@ -85,7 +85,7 @@ public final class AppManagementActivity extends ManagementUi {
         if(details==null)return;details.removeAllViews();firstAction=null;AppRepository.App app=current();
         if(app==null){details.setGravity(Gravity.CENTER);details.addView(center(busy?"正在读取应用…":"没有符合条件的应用",20));if(!busy){gap(details,12);details.addView(muted("试试其他名称或筛选条件",12));}return;}details.setGravity(Gravity.CENTER_HORIZONTAL);
         details.addView(icon(app.icon,67));gap(details,16);TextView title=center(app.label,26);title.setMaxLines(2);title.setEllipsize(android.text.TextUtils.TruncateAt.END);details.addView(title,new LinearLayout.LayoutParams(-1,-2));
-        gap(details,10);TextView state=center("●  "+app.state()+"   ·   "+(app.system?"预装应用":"用户应用"),12);state.setText(dotted(app.state()+"   ·   "+(app.system?"预装应用":"用户应用")));state.setTextColor(0xffaab0b8);details.addView(state);
+        gap(details,10);TextView state=center(app.state()+"  "+(app.system?"预装应用":"用户应用"),12);state.setTextColor(0xffaab0b8);details.addView(state);
         gap(details,20);TextView meta=center(app.pkg+"\n版本 "+app.version,12);meta.setTextColor(MUTED);meta.setLineSpacing(px(5),1);details.addView(meta,new LinearLayout.LayoutParams(-1,-2));
         details.addView(new View(this),new LinearLayout.LayoutParams(1,0,1));gap(details,18);
         String protectedReason=operations.protection(app);
@@ -101,7 +101,7 @@ public final class AppManagementActivity extends ManagementUi {
         gap(details,16);TextView hint=center(adb.connected() && operations.actions(app).isEmpty()?"当前系统没有已确认可用的操作，仅供查看。":app.recoverable?"恢复安装不会恢复此前删除的数据。":!adb.connected()?"连接本机 ADB 后，可管理此应用的状态。":"禁用可重新启用；卸载会删除当前用户的应用数据。",11);hint.setTextColor(MUTED);hint.setLineSpacing(px(4),1);details.addView(hint,new LinearLayout.LayoutParams(-1,-2));
     }
     private void confirm(AppRepository.App app,AppOperations.Action action){
-        if(busy)return;Sheet sheet=new Sheet(action.label+" · "+app.label);sheet.text(operations.explanation(app,action));gap(sheet.body,16);TextView meta=center(app.pkg+"\n当前用户 "+adb.user,11);meta.setTextColor(MUTED);sheet.body.addView(meta);
+        if(busy)return;Sheet sheet=new Sheet(action.label+"  "+app.label);sheet.text(operations.explanation(app,action));gap(sheet.body,16);TextView meta=center(app.pkg+"\n当前用户 "+adb.user,11);meta.setTextColor(MUTED);sheet.body.addView(meta);
         Button cancel=sheet.action("取消",sheet.dialog::dismiss);Button confirm=sheet.action("确认"+action.label,()->{sheet.dialog.dismiss();perform(app,action);});if(action==AppOperations.Action.UNINSTALL)confirm.setTextColor(0xffe3aaa6);sheet.show(cancel);
     }
     private void perform(AppRepository.App app,AppOperations.Action action){
@@ -111,7 +111,7 @@ public final class AppManagementActivity extends ManagementUi {
     private void showHistory(){worker.execute(()->{try{String history=operations.history();ui(()->{Sheet sheet=new Sheet("操作记录");TextView text=muted(history,12);text.setLineSpacing(px(5),1);sheet.body.addView(text);Button close=sheet.action("关闭",sheet.dialog::dismiss);sheet.show(close);});}catch(Exception e){ui(()->message(e.getMessage()));}});}
     private void connectionPanel(){
         if(busy){message("正在读取或执行操作，请稍候");return;}
-        if(adb.connected()){Sheet sheet=new Sheet("本机 ADB 连接");sheet.text("已连接本机 · 当前用户 "+adb.user);Button cancel=sheet.action("取消",sheet.dialog::dismiss);sheet.action("断开连接",()->{sheet.dialog.dismiss();adb.disconnect();updateConnection("未连接");refresh();});sheet.show(cancel);}
+        if(adb.connected()){Sheet sheet=new Sheet("本机 ADB 连接");sheet.text("已连接本机  当前用户 "+adb.user);Button cancel=sheet.action("取消",sheet.dialog::dismiss);sheet.action("断开连接",()->{sheet.dialog.dismiss();adb.disconnect();updateConnection("未连接");refresh();});sheet.show(cancel);}
         else connection.show(()->{updateConnection("已连接");refresh();});
     }
     @Override public void handleBack(){if(details.hasFocus())focusList();else super.handleBack();}
