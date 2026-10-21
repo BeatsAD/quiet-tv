@@ -36,6 +36,9 @@ android {
 dependencies {
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.json:json:20240303'
+    implementation 'org.nanohttpd:nanohttpd:2.3.1'
+    implementation 'com.google.zxing:core:3.5.3'
+    implementation 'androidx.exifinterface:exifinterface:1.4.2'
     implementation 'androidx.recyclerview:recyclerview:1.4.0'
     implementation 'androidx.activity:activity:1.10.1'
     implementation 'com.github.MuntashirAkon:libadb-android:3.1.1'
