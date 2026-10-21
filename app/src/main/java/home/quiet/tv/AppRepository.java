@@ -23,7 +23,7 @@ final class AppRepository {
     private long apkSize(ApplicationInfo info){
         if(info.sourceDir==null)return -1;
         long size=new File(info.sourceDir).length();if(size<=0)return -1;
-        if(info.splitSourceDirs!=null)for(String path:info.splitSourceDirs){
+        if(android.os.Build.VERSION.SDK_INT>=21 && info.splitSourceDirs!=null)for(String path:info.splitSourceDirs){
             long splitSize=new File(path).length();if(splitSize<=0)return -1;size+=splitSize;
         }
         return size;
@@ -54,7 +54,7 @@ final class AppRepository {
             App app=new App();app.pkg=pkg;app.label=pkg;app.verified=online;if(online)app.commands=adb.capabilities;
             PackageInfo info=metadata.get(pkg);
             if(info!=null && info.applicationInfo!=null){
-                ApplicationInfo ai=info.applicationInfo;app.label=ai.loadLabel(pm).toString();app.icon=ai.icon==0?context.getDrawable(R.drawable.ic_manage_apps):ai.loadIcon(pm);app.version=info.versionName==null?String.valueOf(android.os.Build.VERSION.SDK_INT>=28?info.getLongVersionCode():info.versionCode):info.versionName;
+                ApplicationInfo ai=info.applicationInfo;app.label=ai.loadLabel(pm).toString();app.icon=ai.icon==0?UiCompat.drawable(context,R.drawable.ic_manage_apps):ai.loadIcon(pm);app.version=info.versionName==null?String.valueOf(android.os.Build.VERSION.SDK_INT>=28?info.getLongVersionCode():info.versionCode):info.versionName;
                 app.metadataKnown=true;app.apkSizeBytes=apkSize(ai);
                 app.system=(ai.flags&(ApplicationInfo.FLAG_SYSTEM|ApplicationInfo.FLAG_UPDATED_SYSTEM_APP))!=0;app.installed=(ai.flags&ApplicationInfo.FLAG_INSTALLED)!=0;app.enabled=ai.enabled;
                 try{app.enabledSetting=pm.getApplicationEnabledSetting(app.pkg);}catch(IllegalArgumentException ignored){}
@@ -63,7 +63,7 @@ final class AppRepository {
             if(online){app.installed=installed.contains(pkg);app.enabled=app.installed && !disabled.contains(pkg);app.system=system.contains(pkg);}
             // Only retained system APKs are candidates; operation always rechecks before install-existing.
             if(app.system && !app.installed && info!=null && info.applicationInfo!=null){String source=info.applicationInfo.sourceDir;app.recoverable=source!=null && new java.io.File(source).isFile();}
-            if(app.icon==null)app.icon=context.getDrawable(R.drawable.ic_manage_apps);apps.add(app);
+            if(app.icon==null)app.icon=UiCompat.drawable(context,R.drawable.ic_manage_apps);apps.add(app);
         }
         if(online)adb.validateUser();
         Collections.sort(apps,(a,b)->java.text.Collator.getInstance(Locale.SIMPLIFIED_CHINESE).compare(a.label,b.label));return apps;

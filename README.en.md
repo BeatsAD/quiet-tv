@@ -46,7 +46,7 @@ The home screen supports Chinese and English; app management currently uses Chin
 
 System package operations require local ADB authorization. Disabling keeps app data; uninstalling deletes data for the current user. Eligible preinstalled apps can be reinstalled, but deleted data cannot be restored. Preinstalled uninstall/reinstall remains unverified on hardware; see [app management details](docs/APP_MANAGEMENT.md).
 
-Source and the public test APK are **1.1.0 / b26, Android 5.0 / API21 minimum**, using one universal APK for Android 5.0, 5.1 and later. Emulator results and pending hardware acceptance are recorded separately; device-specific validation remains required.
+Source is **1.1.0 / b28** with two build profiles: `standard` (Android 5.0+ / API21) and `legacy19` (Android 4.4 / API19). The legacy profile retains the core launcher and traditional TCP ADB, uses system settings for inputs, and omits six-digit pairing and its native crypto libraries. The public download remains b26 / Android 5.0+; b28 has not been published. See the [build guide](docs/INSTALL.en.md) and [validation boundaries](docs/COMPATIBILITY.md).
 
 ## Install and try it
 
@@ -77,7 +77,8 @@ You can keep the original launcher installed while trying Quiet TV. System deblo
 | Sony KD-65X9000H / BRAVIA VH1 · Android 12 | Historical builds were checked for the home screen, app management, wallpaper, selected system shortcuts, and one full reboot. This b26 APK has not been installed on this TV. See the [verification record](docs/COMPATIBILITY.md) for the exact scope. |
 | Other TVs running Android 6.0 or newer | The b26 universal APK is available for device-specific trials; vendor firmware, HOME and ADB capabilities need hardware validation. See the [compatibility record](docs/COMPATIBILITY.md). |
 | Android 5.0 / 5.1 | The b26 universal test APK is available. Tests use generic Android images with a TV-sized configuration and do not replace native TV firmware acceptance. Vendor HOME, ADB and TV input behavior needs hardware validation. |
-| Android 4.x; non-Android systems such as Tizen or webOS | Unsupported by the current source. |
+| Android 4.4 | Build the `legacy19` compatibility candidate from source; physical TV, HOME, input and ADB acceptance remains device-specific. |
+| Android 4.0–4.3; non-Android systems such as Tizen or webOS | Unsupported. |
 
 Long-running operation, casting, and full media playback remain unverified. Six-digit wireless pairing is still experimental, requires API 33+ and actual device pairing capability, and is unavailable on Android 5/6/7. Meeting the minimum install requirement does not establish full firmware compatibility; see [compatibility details](docs/COMPATIBILITY.md). Third-party media apps use their own update channels; Quiet TV does not currently update them automatically.
 

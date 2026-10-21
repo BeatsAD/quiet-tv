@@ -25,6 +25,7 @@ public final class DockEditorActivity extends ManagementUi {
     private ApplicationInfo info(String pkg){try{return getPackageManager().getApplicationInfo(pkg,HomeController.METADATA);}catch(PackageManager.NameNotFoundException e){return null;}}
     private String name(String pkg){ApplicationInfo info=info(pkg);return info==null?pkg:getPackageManager().getApplicationLabel(info).toString();}
     private Drawable banner(String pkg,ApplicationInfo app){
+        if(android.os.Build.VERSION.SDK_INT<21)return null;
         PackageManager pm=getPackageManager();Drawable art=app==null?null:app.loadBanner(pm);
         if(art==null){Intent launch=pm.getLeanbackLaunchIntentForPackage(pkg);if(launch==null)launch=pm.getLaunchIntentForPackage(pkg);if(launch!=null)try{art=pm.getActivityInfo(launch.getComponent(),0).loadBanner(pm);}catch(PackageManager.NameNotFoundException ignored){}}
         return art;
@@ -42,9 +43,9 @@ public final class DockEditorActivity extends ManagementUi {
             TextView number=muted(String.format(Locale.ROOT,"%02d",i+1),10);card.addView(number);gap(card,10);
             FrameLayout art=new FrameLayout(this);art.setDuplicateParentStateEnabled(true);art.setBackground(focusSurface(12));art.setPadding(px(3),px(3),px(3),px(3));card.addView(art,new LinearLayout.LayoutParams(-1,height));
             ImageView image=new ImageView(this);image.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            Drawable artwork=occupied?banner(pkg,info):getDrawable(R.drawable.ic_manage_plus);
-            if(artwork!=null && occupied){image.setImageDrawable(artwork);image.setBackground(surface(0,0,0,10));image.setClipToOutline(true);image.setScaleType(ImageView.ScaleType.FIT_XY);art.addView(image,new FrameLayout.LayoutParams(-1,-1));}
-            else{image.setImageDrawable(occupied && info!=null?info.loadIcon(getPackageManager()):getDrawable(R.drawable.ic_manage_plus));int size=px(occupied?48:28);art.addView(image,new FrameLayout.LayoutParams(size,size,Gravity.CENTER));}
+            Drawable artwork=occupied?banner(pkg,info):UiCompat.drawable(this,R.drawable.ic_manage_plus);
+            if(artwork!=null && occupied){image.setImageDrawable(artwork);image.setBackground(surface(0,0,0,10));UiCompat.clipOutline(image);image.setScaleType(ImageView.ScaleType.FIT_XY);art.addView(image,new FrameLayout.LayoutParams(-1,-1));}
+            else{image.setImageDrawable(occupied && info!=null?info.loadIcon(getPackageManager()):UiCompat.drawable(this,R.drawable.ic_manage_plus));int size=px(occupied?48:28);art.addView(image,new FrameLayout.LayoutParams(size,size,Gravity.CENTER));}
             if(unavailable){ColorMatrix matrix=new ColorMatrix();matrix.setSaturation(0);image.setColorFilter(new ColorMatrixColorFilter(matrix));image.setAlpha(.45f);}
             gap(card,16);TextView title=center(occupied?name(pkg):"添加常用应用",13);title.setSingleLine();title.setEllipsize(android.text.TextUtils.TruncateAt.END);if(!occupied)title.setTextColor(MUTED);card.addView(title,new LinearLayout.LayoutParams(-1,px(20)));
             if(unavailable){gap(card,5);TextView note=center(info!=null && info.enabled?"未安装  保留位置":"已禁用  保留位置",10);note.setTextColor(MUTED);card.addView(note,new LinearLayout.LayoutParams(-1,px(16)));}

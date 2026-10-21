@@ -48,3 +48,7 @@ Quiet TV 基于该项目开发，面向国内电视机的适配与应用升级�
 - [NanoHTTPD 2.3.1](https://github.com/NanoHttpd/nanohttpd/tree/nanohttpd-project-2.3.1)：用于临时 HTTP 上传服务，BSD-3-Clause，版权归 NanoHTTPD 贡献者。完整声明随 APK 保存于 `assets/licenses/nanohttpd-LICENSE.txt`。
 - [ZXing Core 3.5.3](https://github.com/zxing/zxing/tree/zxing-3.5.3)：仅用于生成上传地址二维码，Apache-2.0，版权归 ZXing Authors。
 - [AndroidX ExifInterface 1.4.2](https://developer.android.com/jetpack/androidx/releases/exifinterface#1.4.2)：用于读取上传照片方向，Apache-2.0，版权归 The Android Open Source Project。以上 Apache-2.0 文本随 APK 保存在 `assets/licenses/libadb-Apache-2.0.txt`。
+
+## Android 4.4 compatibility profile
+
+The `legacy19` profile uses AndroidX Activity 1.9.3, RecyclerView 1.3.2 and MultiDex 2.0.1 under Apache-2.0. Their complete license text is included in the offline license assets. It omits Conscrypt and SPAKE2 from its dependency graph; their historical notices remain available for the standard profile. Bouncy Castle and the existing minimum patched version constraints are retained. Local wallpaper uploads use ExifInterface 1.3.7 under Apache-2.0 in this profile; the standard profile retains 1.4.2.
