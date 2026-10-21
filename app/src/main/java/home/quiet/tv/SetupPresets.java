@@ -17,6 +17,7 @@ final class SetupPresets {
         JSONArray devices=root.getJSONArray("devices");
         for(int i=0;i<devices.length();i++){
             JSONObject candidate=devices.getJSONObject(i);
+            validateBootAds(candidate);
             // A brand match alone never grants permission to alter system packages.
             if(!candidate.optString("fingerprint").equals(firmware) || firmware.isEmpty())continue;
             if(candidate.has("brand") && !candidate.getString("brand").equalsIgnoreCase(brand))continue;
@@ -37,7 +38,23 @@ final class SetupPresets {
         return null;
     }
     boolean allows(String pkg,String action){JSONObject value=app(pkg);JSONArray actions=value==null?null:value.optJSONArray("actions");if(actions!=null)for(int i=0;i<actions.length();i++)if(action.equals(actions.optString(i)))return true;return false;}
-    boolean recommended(String pkg){JSONObject value=app(pkg);return value!=null && value.optBoolean("recommendDisable") && allows(pkg,"DISABLE");}
+    boolean recommended(String pkg){JSONObject value=app(pkg);return value!=null && !bootAd(pkg) && value.optBoolean("recommendDisable") && allows(pkg,"DISABLE");}
+    boolean bootAd(String pkg){JSONObject value=app(pkg);return value!=null && "bootAd".equals(value.optString("category"));}
+    boolean bootAdMatches(String pkg,long version){JSONObject value=app(pkg);return bootAd(pkg) && version>=0 && value.optLong("versionCode",-1)==version;}
+    JSONArray bootAds(){JSONArray result=new JSONArray(),apps=device==null?null:device.optJSONArray("apps");if(apps!=null)for(int i=0;i<apps.length();i++){JSONObject value=apps.optJSONObject(i);if(value!=null && bootAd(value.optString("package")))result.put(value);}return result;}
+    boolean matched(){return device!=null;}
+    static void validateBootAds(JSONObject device) throws JSONException {
+        JSONArray apps=device.optJSONArray("apps");if(apps==null)return;
+        for(int i=0;i<apps.length();i++){
+            JSONObject app=apps.getJSONObject(i);if(!"bootAd".equals(app.optString("category")))continue;
+            if(device.optString("brand").isEmpty() || device.optString("model").isEmpty() || device.optString("fingerprint").isEmpty())throw new JSONException("开机广告规则必须精确限定品牌、型号和固件");
+            Object version=app.opt("versionCode");
+            if(!app.optString("package").matches("[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+") || !(version instanceof Integer || version instanceof Long) || app.optLong("versionCode",-1)<0 || app.optString("purpose").isEmpty() || app.optString("impact").isEmpty() || !app.optString("source").startsWith("https://"))throw new JSONException("开机广告规则缺少包版本、用途、影响或来源");
+            JSONArray actions=app.getJSONArray("actions");boolean enable=false,disable=false;
+            for(int j=0;j<actions.length();j++){String action=actions.getString(j);if("ENABLE".equals(action))enable=true;else if("DISABLE".equals(action))disable=true;else throw new JSONException("开机广告规则仅允许停用和恢复启用状态");}
+            if(!enable || !disable || app.optBoolean("recommendDisable"))throw new JSONException("开机广告必须可恢复且不能作为首次设置的默认推荐");
+        }
+    }
     String purpose(String pkg){JSONObject value=app(pkg);return value==null?"用途待确认":value.optString("purpose","用途待确认");}
     String home(){JSONObject value=device==null?null:device.optJSONObject("home");return value==null?"":value.optString("component");}
     boolean homeAllows(String capability){JSONObject value=device==null?null:device.optJSONObject("home");return value!=null && value.optBoolean(capability);}

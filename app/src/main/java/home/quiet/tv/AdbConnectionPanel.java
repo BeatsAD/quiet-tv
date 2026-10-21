@@ -27,7 +27,7 @@ final class AdbConnectionPanel {
         LocalAdbDiscovery discovery;
         Button settings,connect;
         boolean wireless,working,complete,advanced;
-        Panel(Runnable connected,String label){this.connected=connected;continuation=label;port.setInputType(2);pairPort.setInputType(2);code.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD);port.setTag("connection-port");pairPort.setTag("pairing-port");code.setTag("pairing-code");if(setup!=null){remoteInput(port);remoteInput(pairPort);remoteInput(code);}code.setSaveEnabled(false);code.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(6)});}
+        Panel(Runnable connected,String label){this.connected=connected;continuation=label;port.setInputType(2);pairPort.setInputType(2);code.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD);port.setTag("connection-port");pairPort.setTag("pairing-port");code.setTag("pairing-code");if(setup!=null || ui instanceof BootAdActivity){remoteInput(port);remoteInput(pairPort);remoteInput(code);}code.setSaveEnabled(false);code.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(6)});}
         // Native EditText consumes D-pad vertical keys, trapping focus above the action row.
         void remoteInput(EditText field){
             if(android.os.Build.VERSION.SDK_INT>=21)field.setShowSoftInputOnFocus(false);
