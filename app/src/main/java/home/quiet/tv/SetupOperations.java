@@ -58,6 +58,9 @@ final class SetupOperations {
                 originalAttempted=true;
                 try{String result=operations.perform(adb,original,action,id,ticket,true);store.result(id,original.pkg,action.name(),result);}
                 catch(Exception e){store.result(id,original.pkg,action.name(),"未完成或结果未确认");throw e;}
+                progress.changed("正在重新设置系统 HOME…");
+                ticket.check();home.setOwnAndVerify(adb);
+                store.result(id,original.pkg,"HOME","已重新设置并核对系统 HOME；遥控器及重启需另行确认");
             }
             progress.changed("正在核对默认桌面…");
             ticket.check();if(!home.inspect(adb).isOwn(context))throw new IOException("默认桌面状态未确认");

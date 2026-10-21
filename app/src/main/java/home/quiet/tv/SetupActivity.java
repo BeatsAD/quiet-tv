@@ -202,7 +202,7 @@ public final class SetupActivity extends ManagementUi {
         boolean own=homeState!=null && homeState.isOwn(this),usable=recordAvailable && homeState!=null && homeState.ownUsable;
         LinearLayout split=row();split.setGravity(Gravity.CENTER_VERTICAL);body.addView(split,new LinearLayout.LayoutParams(-1,0,1));
         LinearLayout copy=column();copy.setGravity(Gravity.CENTER_VERTICAL);split.addView(copy,new LinearLayout.LayoutParams(0,-1,47));
-        copy.addView(muted("01 / 默认桌面",10));gap(copy,20);TextView title=label(own?"默认桌面已设置":"设为默认桌面",38);title.setTag("setup-title");copy.addView(title,new LinearLayout.LayoutParams(-1,px(58)));gap(copy,18);copy.addView(muted("按 HOME 键返回 Quiet TV。",13));gap(copy,30);
+        copy.addView(muted("01 / 默认桌面",10));gap(copy,20);TextView title=label(own?"系统 HOME 已设置":"设为默认桌面",38);title.setTag("setup-title");copy.addView(title,new LinearLayout.LayoutParams(-1,px(58)));gap(copy,18);copy.addView(muted("请按遥控器 HOME，并重启电视确认。",13));gap(copy,30);
         Button primary=setupButton(own?"管理预装应用":"设为默认桌面","primary",()->{if(own){screen=1;render();}else if(homeState!=null && homeState.roleAvailable)requestRole();else withConnection(this::setDefault);},true);enable(primary,usable);buttonIcon(primary,R.drawable.ic_setup_home);copy.addView(primary,new LinearLayout.LayoutParams(-2,px(40)));
         if(!own && homeState!=null && homeState.roleAvailable){gap(copy,10);copy.addView(textButton("通过 ADB 设置","adb",()->withConnection(this::setDefault)),new LinearLayout.LayoutParams(-2,px(30)));}
         if(!notice.isEmpty() || !usable){gap(copy,8);copy.addView(textButton("重新检测","refresh",()->{roleCancelled=false;refresh();}),new LinearLayout.LayoutParams(-2,px(30)));}
@@ -210,7 +210,7 @@ public final class SetupActivity extends ManagementUi {
         LinearLayout preview=column();preview.setGravity(Gravity.CENTER_VERTICAL);split.addView(preview,new LinearLayout.LayoutParams(0,-1,48));
         preview.addView(new HomePreview(),new LinearLayout.LayoutParams(-1,px(226)));gap(preview,18);
         LinearLayout status=row();status.setPadding(px(14),px(13),px(14),px(13));status.setBackground(surface(0x10ffffff,0x05ffffff,0x22ffffff,11));status.addView(glyph(R.drawable.ic_manage_shield,17));
-        TextView caption=muted(own?"Quiet TV 已是默认桌面":homeState==null?"默认桌面状态未确认":homeState.ownUsable?"原桌面保持当前状态":"Quiet TV 桌面组件不可用",11);LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,-2,1);cp.leftMargin=px(12);status.addView(caption,cp);preview.addView(status,new LinearLayout.LayoutParams(-1,px(58)));
+        TextView caption=muted(own?"系统 HOME 已指向 Quiet TV":homeState==null?"默认桌面状态未确认":homeState.ownUsable?"原桌面保持当前状态":"Quiet TV 桌面组件不可用",11);LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,-2,1);cp.leftMargin=px(12);status.addView(caption,cp);preview.addView(status,new LinearLayout.LayoutParams(-1,px(58)));
     }
     private boolean hasRecommendations(){for(AppRepository.App app:apps)if(home.presets.recommended(app.pkg))return true;return false;}
     private void renderApps(LinearLayout body){
