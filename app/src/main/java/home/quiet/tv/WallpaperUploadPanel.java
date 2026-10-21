@@ -101,22 +101,36 @@ final class WallpaperUploadPanel {
     void close(){if(dialog!=null)dialog.dismiss();else stopServer();}
     void destroy(){close();worker.shutdown();}
     static String lanAddress(Context context){
+        if(Build.VERSION.SDK_INT>=21)return Api21.lanAddress(context);
         ConnectivityManager manager=(ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);
-        if(manager==null)return null;
-        if(Build.VERSION.SDK_INT<21){
-            @SuppressWarnings("deprecation") android.net.NetworkInfo network=manager.getActiveNetworkInfo();
-            if(network==null||!network.isConnected()||(network.getType()!=ConnectivityManager.TYPE_WIFI&&network.getType()!=ConnectivityManager.TYPE_ETHERNET))return null;
-            try{for(java.util.Enumeration<java.net.NetworkInterface> interfaces=java.net.NetworkInterface.getNetworkInterfaces();interfaces.hasMoreElements();){java.net.NetworkInterface nic=interfaces.nextElement();if(!nic.isUp()||nic.isLoopback())continue;for(java.util.Enumeration<InetAddress> addresses=nic.getInetAddresses();addresses.hasMoreElements();){InetAddress address=addresses.nextElement();if(address instanceof Inet4Address&&address.isSiteLocalAddress()&&!address.isLoopbackAddress())return address.getHostAddress();}}}catch(java.net.SocketException ignored){}
-            return null;
+        NetworkInfo active=manager==null?null:manager.getActiveNetworkInfo();
+        if(active==null||!active.isConnected())return null;
+        if(active.getType()==ConnectivityManager.TYPE_WIFI){
+            android.net.wifi.WifiManager wifi=(android.net.wifi.WifiManager)context.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            android.net.wifi.WifiInfo info=wifi==null?null:wifi.getConnectionInfo();int ip=info==null?0:info.getIpAddress();
+            return ip==0?null:(ip&255)+"."+((ip>>>8)&255)+"."+((ip>>>16)&255)+"."+((ip>>>24)&255);
         }
-        Network[] networks=manager.getAllNetworks();
-        if(Build.VERSION.SDK_INT>=23){Network active=manager.getActiveNetwork();if(active!=null){String address=address(manager,active);if(address!=null)return address;}}
-        for(Network network:networks){String address=address(manager,network);if(address!=null)return address;}return null;
+        if(active.getType()==ConnectivityManager.TYPE_ETHERNET)try{
+            for(NetworkInterface nic:java.util.Collections.list(NetworkInterface.getNetworkInterfaces())){
+                if(!nic.isUp()||!nic.getName().matches("(?:eth|en)[0-9]+"))continue;
+                for(InetAddress address:java.util.Collections.list(nic.getInetAddresses()))if(address instanceof Inet4Address&&!address.isLoopbackAddress()&&!address.isLinkLocalAddress()&&address.isSiteLocalAddress())return address.getHostAddress();
+            }
+        }catch(SocketException ignored){}
+        return null;
     }
     @android.annotation.TargetApi(21)
-    private static String address(ConnectivityManager manager,Network network){
-        NetworkCapabilities capabilities=manager.getNetworkCapabilities(network);LinkProperties links=manager.getLinkProperties(network);
-        if(capabilities==null||links==null||(!capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)&&!capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)))return null;
-        for(LinkAddress link:links.getLinkAddresses()){InetAddress address=link.getAddress();if(address instanceof Inet4Address&&!address.isLoopbackAddress()&&!address.isLinkLocalAddress()&&address.isSiteLocalAddress())return address.getHostAddress();}return null;
+    private static final class Api21 {
+        static String lanAddress(Context context){
+            ConnectivityManager manager=(ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);
+            if(manager==null)return null;
+            Network[] networks=manager.getAllNetworks();
+            if(Build.VERSION.SDK_INT>=23){Network active=manager.getActiveNetwork();if(active!=null){String address=address(manager,active);if(address!=null)return address;}}
+            for(Network network:networks){String address=address(manager,network);if(address!=null)return address;}return null;
+        }
+        private static String address(ConnectivityManager manager,Network network){
+            NetworkCapabilities capabilities=manager.getNetworkCapabilities(network);LinkProperties links=manager.getLinkProperties(network);
+            if(capabilities==null||links==null||(!capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)&&!capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)))return null;
+            for(LinkAddress link:links.getLinkAddresses()){InetAddress address=link.getAddress();if(address instanceof Inet4Address&&!address.isLoopbackAddress()&&!address.isLinkLocalAddress()&&address.isSiteLocalAddress())return address.getHostAddress();}return null;
+        }
     }
 }

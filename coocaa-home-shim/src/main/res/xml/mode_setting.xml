@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Registers LaunchActivity as a Coocaa "mode" (com.coocaa.os.multimodel), so persist.service.model.pkg/cls
+     may name it; while set, those take precedence over persist.service.homepage.*. On the 7S60_A5,
+     ccosservice still cleared them at boot, so Home relies on persist.service.homepage.* alone. -->
+<modelsettings>
+    <model
+        isNeedVerifyLocked="false"
+        modelEntryName="@string/model_entry"
+        modelIcon="@drawable/ic_model"
+        modelName="@string/model_name">
+        <intent targetClass="com.ccos.tv.homepage.LaunchActivity" />
+    </model>
+</modelsettings>
