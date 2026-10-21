@@ -136,6 +136,19 @@ Windows 使用 `gradlew.bat`。APK 输出到 `app/build/outputs/apk/debug/app-de
 分别报告代码、构建、安装、真机验收及尚未完成的项目。
 ```
 
+## 用 Skill 引导切换桌面
+
+仓库中的 [电视桌面切换助手](skills/quiet-tv-switch/SKILL.md) 面向希望用 AI 完成安装和桌面切换的用户。它会引导连接电视、检测实际能力、核验安装包、安装试用、切换默认 HOME，并提供本机恢复方法；默认保留原桌面。
+
+使用支持本地 Skill 和终端执行的 AI 工具。Codex 用户可将完整的 `skills/quiet-tv-switch` 文件夹复制到自己的 `~/.codex/skills/quiet-tv-switch`，重新启动 Codex 后，在新对话中输入：
+
+```text
+请用 $quiet-tv-switch 帮我安装 Quiet TV 并切换电视桌面，保留原桌面和恢复方法。
+我不熟悉 ADB，需要我在电视上操作时，请一步步告诉我。
+```
+
+也可要求“先检查我的电视是否适用，不修改电视”或“帮我恢复原桌面”。AI 完成电脑侧操作，用户仍需在电视上授权，并用真实遥控器确认结果。Skill 不绕过厂商 ADB／HOME 限制，不承诺所有机型都能切换；检测脚本仅做只读查询，不能代替真机验收。
+
 ## 安装与试用
 
 1. **确认电视是否适用**：当前 b24 安装包最低要求 Android 6.0，涵盖 Android 7 及更高版本的安装门槛；具体机型与功能仍需验证，先查看下方支持范围和[兼容性说明](docs/COMPATIBILITY.md)。
