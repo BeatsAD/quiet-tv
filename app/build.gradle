@@ -2,13 +2,16 @@ plugins { id 'com.android.application' }
 def compatibility = providers.gradleProperty('quietCompatibility').getOrElse('standard')
 if (!(compatibility in ['standard', 'legacy19'])) throw new GradleException('Unsupported quietCompatibility')
 def legacy = compatibility == 'legacy19'
+def launcherId = providers.gradleProperty('quietApplicationId').getOrElse('home.quiet.tv')
+if (!(launcherId in ['home.quiet.tv', 'com.coocaa.quiettv'])) throw new GradleException('Unsupported quietApplicationId')
 def minimumSdk = providers.gradleProperty('quietMinSdk').getOrElse(legacy ? '19' : '21').toInteger()
 if ((legacy && minimumSdk != 19) || (!legacy && minimumSdk < 21)) throw new GradleException('Minimum SDK does not match compatibility profile')
+if (launcherId == 'com.coocaa.quiettv' && minimumSdk < 26) throw new GradleException('Coocaa applicationId requires quietMinSdk=26 or newer')
 android {
     namespace 'home.quiet.tv'
     compileSdk 36
     defaultConfig {
-        applicationId 'home.quiet.tv'
+        applicationId launcherId
         minSdk minimumSdk
         if (legacy) multiDexEnabled true
         manifestPlaceholders = [leanbackRequired: !legacy]
