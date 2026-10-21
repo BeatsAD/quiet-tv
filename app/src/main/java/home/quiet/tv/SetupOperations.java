@@ -15,7 +15,6 @@ final class SetupOperations {
         void check() throws IOException {if(!active())throw new IOException("已停止后续操作，请重新查询状态");}
     }
     interface Progress {void changed(String value);}
-    private static final AtomicBoolean RUNNING=new AtomicBoolean();
     private final Context context;
     private final HomeController home;
     private final SetupStore store;
@@ -24,7 +23,7 @@ final class SetupOperations {
     SetupOperations(Context context){this(context,SetupPresets.load(context));}
     SetupOperations(Context context,SetupPresets presets){this.context=context;home=new HomeController(context,presets);store=new SetupStore(context);repository=new AppRepository(context);operations=new AppOperations(context,presets);}
     void execute(AdbController adb,List<AppRepository.App> selected,AppRepository.App original,String choice,Ticket ticket,Progress progress) throws Exception {
-        if(!RUNNING.compareAndSet(false,true))throw new IOException("已有设置操作正在执行");
+        AppOperations.begin();
         String id=UUID.randomUUID().toString();boolean begun=false,originalAttempted=false;
         try{
             if(!Arrays.asList("KEEP","DISABLE","UNINSTALL").contains(choice))throw new IOException("原桌面操作选择无效");
@@ -72,7 +71,7 @@ final class SetupOperations {
             }
             if(begun)store.end(id,ticket.active()?"incomplete":"cancelled");throw e;
         }
-        finally{RUNNING.set(false);}
+        finally{AppOperations.end();}
     }
     private void rollbackOriginal(AdbController adb,AppRepository.App before,String id) throws Exception {
         adb.validateUser();
@@ -88,7 +87,7 @@ final class SetupOperations {
         store.result(id,before.pkg,"ROLLBACK","已恢复本次操作前的原桌面启用状态并核对 HOME");
     }
     void restore(AdbController adb,Ticket ticket,Progress progress) throws Exception {
-        if(!RUNNING.compareAndSet(false,true))throw new IOException("已有设置操作正在执行");
+        AppOperations.begin();
         String id=UUID.randomUUID().toString();boolean begun=false;
         try{
             ticket.check();adb.validateUser();String original=store.originalHome();
@@ -101,7 +100,7 @@ final class SetupOperations {
             if(!app.enabled){ticket.check();progress.changed("正在启用原桌面");operations.perform(adb,app,AppOperations.Action.ENABLE,id,ticket,true);store.result(id,pkg,"ENABLE","已核对启用");}
             ticket.check();progress.changed("正在切回原桌面");home.switchToOriginal(adb,original);store.result(id,pkg,"HOME","已核对默认桌面");store.end(id,"complete");
         }catch(Exception e){if(begun)store.end(id,"incomplete");throw e;}
-        finally{RUNNING.set(false);}
+        finally{AppOperations.end();}
     }
     private boolean unchanged(AppRepository.App selected,AppRepository.App actual){return selected!=null && actual!=null && actual.metadataKnown && actual.verified && selected.pkg.equals(actual.pkg) && selected.version.equals(actual.version) && selected.system==actual.system && selected.installed==actual.installed && selected.enabled==actual.enabled && selected.enabledSetting==actual.enabledSetting;}
     private JSONObject state(AppRepository.App app) throws JSONException {return new JSONObject().put("package",app.pkg).put("version",app.version).put("installed",app.installed).put("enabled",app.enabled).put("enabledSetting",app.enabledSetting);}

@@ -150,14 +150,13 @@ public final class SetupActivity extends ManagementUi {
     // The setup has its own composition; the existing application manager keeps its surface unchanged.
     private void setupSurface(){
         stage.removeAllViews();stage.setBackgroundColor(0xff0d1014);
-        android.content.SharedPreferences prefs=getSharedPreferences("wallpapers",0);
-        if(!prefs.getBoolean("default",!prefs.contains("index"))){
-            String[] names={"big-sur-coastline","big-sur-mountains","big-sur-road"};int index=prefs.getInt("index",0);
-            if(index>=0 && index<names.length)try(java.io.InputStream in=getAssets().open("wallpapers/"+names[index]+".jpg")){
-                BitmapFactory.Options options=new BitmapFactory.Options();options.inSampleSize=2;Bitmap wallpaper=BitmapFactory.decodeStream(in,null,options);
-                ImageView image=new ImageView(this);image.setImageBitmap(wallpaper);image.setScaleType(ImageView.ScaleType.CENTER_CROP);stage.addView(image,new FrameLayout.LayoutParams(-1,-1));
-            }catch(java.io.IOException ignored){}
-        }
+        WallpaperStore wallpaperStore=WallpaperStore.get(this);
+        WallpaperCatalog wallpaperState=wallpaperStore.snapshot();
+        WallpaperCatalog.Entry wallpaperEntry=wallpaperState.find(wallpaperState.current);
+        if(wallpaperEntry!=null && !WallpaperCatalog.DEFAULT.equals(wallpaperEntry.id))try{
+            Bitmap bitmap=WallpaperImages.decode(this,wallpaperStore,wallpaperEntry,480,270);
+            ImageView image=new ImageView(this);image.setScaleType(ImageView.ScaleType.CENTER_CROP);image.setImageBitmap(bitmap);stage.addView(image,new FrameLayout.LayoutParams(-1,-1));
+        }catch(java.io.IOException ignored){}
         View shade=new View(this);shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,new int[]{0xed080d15,0xe80a0e16,0xdd0e121a}));stage.addView(shade,new FrameLayout.LayoutParams(-1,-1));
         root=column();root.setPadding(px(51),px(29),px(51),px(19));stage.addView(root,new FrameLayout.LayoutParams(-1,-1));
         header=row();header.addView(glyph(R.drawable.ic_manage_apps,17));TextView brand=label("Quiet TV",14);brand.setPadding(px(9),0,0,0);header.addView(brand);root.addView(header,new LinearLayout.LayoutParams(-1,px(27)));
