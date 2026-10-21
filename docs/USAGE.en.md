@@ -19,12 +19,15 @@ An incomplete last row uses the nearest valid column. Focus survives launcher pr
 Open 应用管理 (App Management) beside Wallpaper Settings in All Apps. Management controls in this first Sony-targeted version are in Chinese.
 
 - Dock 管理 supports up to four shortcuts: add, replace, remove, or move left/right. OK saves reordering; Back cancels. Editing works without ADB.
+- **Home order**: open App management → 首页排序. Press OK to pick up an entry, use the arrows to move it, and press OK again to drop it. Back cancels the current move; 保存顺序 saves the page. Leaving with changes offers save, discard, or continue editing. Restore default also requires saving. Wallpaper Settings and App Management can both move.
 - Search by application name or package, and filter all, user, preinstalled, disabled, or restorable packages.
 - The top-right ADB status opens local TCP connection settings (default port 5555). Enable network debugging on the TV and approve QuietTV's independent key. Pairing-code wireless debugging is not implemented.
 - Operations affect one package for the current Android user. Disabling retains data; uninstalling removes that user's app data. Preinstalled uninstall leaves the system APK; install-existing is offered only when a system APK is retained and never restores deleted data.
 - Quiet TV, critical components, and unverified system packages are read-only. Operation history records configuration states, not user-data backups. Reconnect and refresh after uncertain results; do not repeat uninstall.
 
 Disabled Dock entries retain their order and reappear when enabled. Confirmed uninstalls remove the shortcut. An explicitly empty Dock stays empty across APK updates. See [implementation and hardware evidence](APP_MANAGEMENT.md).
+
+Home ordering works without ADB and leaves Dock independent. In custom order, newly visible apps append at the end; updates and name changes preserve positions. Disabled or pinned apps retain their order records until shown again; uninstalls remove records. Default order puts Wallpaper Settings and App Management first, followed by apps sorted by name. Settings stay on the device across normal in-place updates; physical remote, reboot, and upgrade behavior must be accepted on each target TV.
 
 ## Language and initial configuration
 

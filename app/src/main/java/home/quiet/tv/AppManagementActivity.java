@@ -32,7 +32,7 @@ public final class AppManagementActivity extends ManagementUi {
     private boolean busy,connecting,active,returningToList,initialFocus=true;
     private final BroadcastReceiver packagesChanged=new BroadcastReceiver(){
         @Override public void onReceive(Context context,Intent intent){
-            if(Intent.ACTION_PACKAGE_REMOVED.equals(intent.getAction()) && !intent.getBooleanExtra(Intent.EXTRA_REPLACING,false) && intent.getData()!=null)new DockStore(context).remove(intent.getData().getSchemeSpecificPart());
+            if(Intent.ACTION_PACKAGE_REMOVED.equals(intent.getAction()) && !intent.getBooleanExtra(Intent.EXTRA_REPLACING,false) && intent.getData()!=null){String pkg=intent.getData().getSchemeSpecificPart();new DockStore(context).remove(pkg);new HomeOrderStore(context).remove(pkg);}
             if(active && !intent.getBooleanExtra(Intent.EXTRA_REPLACING,false))refresh();
         }
     };
