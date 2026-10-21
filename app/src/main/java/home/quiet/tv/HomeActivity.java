@@ -171,15 +171,11 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         date.setSingleLine(true);date.setGravity(Gravity.CENTER_VERTICAL);
         timeRow.addView(date,new LinearLayout.LayoutParams(-2,-1));
         FrameLayout top = new FrameLayout(this);
-        FrameLayout.LayoutParams topParams=new FrameLayout.LayoutParams(px(444),px(50),Gravity.TOP|Gravity.RIGHT);
+        FrameLayout.LayoutParams topParams=new FrameLayout.LayoutParams(px(330),px(50),Gravity.TOP|Gravity.RIGHT);
         topParams.topMargin=px(67);topParams.rightMargin=px(CONTENT_MARGIN); root.addView(top,topParams);
         addPill(top, tr("信号源","Inputs"), R.drawable.ic_input, 102, 0, ()->showInputs());
         network=addPill(top,tr("网络","Network"), R.drawable.ic_ethernet, 102, 114, ()->openSettings(Settings.ACTION_WIFI_SETTINGS));
         addPill(top,tr("设置","Settings"), R.drawable.ic_settings, 102, 228, ()->openSettings(Settings.ACTION_SETTINGS));
-        addPill(top,tr("关于","About"), R.drawable.ic_about, 102, 342, ()->{
-            row=-1;topColumn=pills.size()-1;
-            startActivity(new Intent(this,AboutActivity.class));
-        });
         updateClock(); updateNetwork();
     }
 
@@ -214,13 +210,23 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private void updateNetwork() {
         ConnectivityManager cm=(ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE);
-        NetworkCapabilities nc=cm.getNetworkCapabilities(cm.getActiveNetwork());
-        if(nc!=null && nc.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) {
+        boolean ethernet,wifi;
+        if(Build.VERSION.SDK_INT>=23){
+            NetworkCapabilities nc=cm.getNetworkCapabilities(cm.getActiveNetwork());
+            ethernet=nc!=null && nc.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET);
+            wifi=nc!=null && nc.hasTransport(NetworkCapabilities.TRANSPORT_WIFI);
+        }else{
+            NetworkInfo active=cm.getActiveNetworkInfo();
+            boolean connected=active!=null && active.isConnected();
+            ethernet=connected && active.getType()==ConnectivityManager.TYPE_ETHERNET;
+            wifi=connected && active.getType()==ConnectivityManager.TYPE_WIFI;
+        }
+        if(ethernet) {
             network.setText(tr("有线网络","Ethernet"));setPillIcon(network,R.drawable.ic_ethernet);
         }
-        else if(nc!=null && nc.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+        else if(wifi) {
             setPillIcon(network,R.drawable.ic_wifi);
-            if(checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED && resumed && !requestedLocation){
+            if(Build.VERSION.SDK_INT>=23 && checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED && resumed && !requestedLocation){
                 requestedLocation=true;
                 requestPermissions(new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION},101);
             }
@@ -514,7 +520,10 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private void showInputs(){
         TvInputManager manager=(TvInputManager)getSystemService(TV_INPUT_SERVICE);
-        ArrayList<TvInputInfo> inputs=new ArrayList<>(manager.getTvInputList());
+        ArrayList<TvInputInfo> inputs;
+        try{inputs=manager==null?new ArrayList<>():new ArrayList<>(manager.getTvInputList());}
+        // Some Android 5 images return a manager whose backing TV service is absent.
+        catch(SecurityException|NullPointerException e){Toast.makeText(this,tr("电视输入服务不可用","TV input service unavailable"),Toast.LENGTH_SHORT).show();return;}
         Collections.sort(inputs,(a,b)->{
             int ar=a.getType()==TvInputInfo.TYPE_HDMI?0:a.isPassthroughInput()?1:2;
             int br=b.getType()==TvInputInfo.TYPE_HDMI?0:b.isPassthroughInput()?1:2;
@@ -547,26 +556,28 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         Uri uri;
         if(info.isPassthroughInput())uri=TvContract.buildChannelUriForPassthroughInput(info.getId());
         else{
-            if(checkSelfPermission("android.permission.READ_TV_LISTINGS")!=PackageManager.PERMISSION_GRANTED){
-                pendingTvInput=info;requestPermissions(new String[]{"android.permission.READ_TV_LISTINGS"},102);return;
+            if(checkCallingOrSelfPermission("android.permission.READ_TV_LISTINGS")!=PackageManager.PERMISSION_GRANTED){
+                if(Build.VERSION.SDK_INT>=23){pendingTvInput=info;requestPermissions(new String[]{"android.permission.READ_TV_LISTINGS"},102);}
+                else Toast.makeText(this,tr("系统未授予电视频道读取权限","TV channel permission was not granted by the system"),Toast.LENGTH_SHORT).show();
+                return;
             }
             long channel=-1;
             try(android.database.Cursor cursor=getContentResolver().query(TvContract.buildChannelsUriForInput(info.getId()),new String[]{TvContract.Channels._ID},null,null,null)){
                 if(cursor!=null && cursor.moveToFirst())channel=cursor.getLong(0);
-            }
+            }catch(SecurityException e){Toast.makeText(this,tr("系统未允许读取电视频道","TV channels are restricted by the system"),Toast.LENGTH_SHORT).show();return;}
             if(channel<0){
                 android.app.AlertDialog.Builder dialog=new android.app.AlertDialog.Builder(this)
                     .setTitle(tr("尚未配置电视频道","No TV channels configured"))
                     .setMessage(tr("电视系统的频道库为空。连接天线或有线电视后，可在信号源设置中搜台。网络直播请打开天光云影。","Connect an antenna or cable source, then configure channels. For IPTV, open your streaming app."))
                     .setNegativeButton(tr("返回","Back"),(d,w)->{});
                 Intent setup=info.createSetupIntent();
-                if(setup!=null)dialog.setPositiveButton(tr("信号源设置","Set up input"),(d,w)->startActivity(setup));
+                if(setup!=null)dialog.setPositiveButton(tr("信号源设置","Set up input"),(d,w)->{try{startActivity(setup);}catch(ActivityNotFoundException|SecurityException e){Toast.makeText(this,tr("信号源设置不可用","Input setup unavailable"),Toast.LENGTH_SHORT).show();}});
                 dialog.show();return;
             }
             uri=TvContract.buildChannelUri(channel);
         }
         try{startActivity(new Intent(Intent.ACTION_VIEW,uri).putExtra(TvInputInfo.EXTRA_INPUT_ID,info.getId()));Log.i(TAG,"Switch input "+info.getId());}
-        catch(ActivityNotFoundException e){Toast.makeText(this,tr("此输入无法打开","Input unavailable"),Toast.LENGTH_SHORT).show();}
+        catch(ActivityNotFoundException|SecurityException e){Toast.makeText(this,tr("此输入无法打开","Input unavailable"),Toast.LENGTH_SHORT).show();}
     }
 
     private String inputName(TvInputInfo info){

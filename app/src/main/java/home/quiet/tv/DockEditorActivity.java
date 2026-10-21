@@ -19,7 +19,7 @@ public final class DockEditorActivity extends ManagementUi {
     private final ArrayList<View> slots=new ArrayList<>();
     @Override public void onCreate(Bundle state){
         super.onCreate(state);store=new DockStore(this);packages=store.load();counter=muted("最多 4 个位置",12);header.addView(counter);toolbar(true);
-        content=column();content.setGravity(Gravity.CENTER_VERTICAL);root.addView(content,new LinearLayout.LayoutParams(-1,0,1));footer("方向键选择  ·  确定编辑  ·  返回退出");render(0);
+        content=column();content.setGravity(Gravity.CENTER_VERTICAL);root.addView(content,new LinearLayout.LayoutParams(-1,0,1));footer("方向键选择  确定编辑  返回退出");render(0);
     }
     @Override public void onWindowFocusChanged(boolean focused){super.onWindowFocusChanged(focused);if(focused && initialWindowFocus){initialWindowFocus=false;stage.post(()->slots.get(0).requestFocus());}}
     private ApplicationInfo info(String pkg){try{return getPackageManager().getApplicationInfo(pkg,HomeController.METADATA);}catch(PackageManager.NameNotFoundException e){return null;}}
@@ -37,7 +37,7 @@ public final class DockEditorActivity extends ManagementUi {
         for(int i=0;i<4;i++){
             final int slot=i;boolean occupied=i<values.size();String pkg=occupied?values.get(i):"";ApplicationInfo info=occupied?info(pkg):null;
             boolean unavailable=occupied && (info==null || !info.enabled || (info.flags&ApplicationInfo.FLAG_INSTALLED)==0);
-            LinearLayout card=column();card.setFocusable(true);card.setClickable(true);card.setClipChildren(false);card.setOnClickListener(v->edit(slot));card.setContentDescription("位置 "+(i+1)+" · "+(occupied?name(pkg):"添加常用应用"));slots.add(card);
+            LinearLayout card=column();card.setFocusable(true);card.setClickable(true);card.setClipChildren(false);card.setOnClickListener(v->edit(slot));card.setContentDescription("位置 "+(i+1)+"  "+(occupied?name(pkg):"添加常用应用"));slots.add(card);
             LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,-2,1);if(i>0)cp.leftMargin=px(20);cards.addView(card,cp);
             TextView number=muted(String.format(Locale.ROOT,"%02d",i+1),10);card.addView(number);gap(card,10);
             FrameLayout art=new FrameLayout(this);art.setDuplicateParentStateEnabled(true);art.setBackground(focusSurface(12));art.setPadding(px(3),px(3),px(3),px(3));card.addView(art,new LinearLayout.LayoutParams(-1,height));
@@ -47,7 +47,7 @@ public final class DockEditorActivity extends ManagementUi {
             else{image.setImageDrawable(occupied && info!=null?info.loadIcon(getPackageManager()):getDrawable(R.drawable.ic_manage_plus));int size=px(occupied?48:28);art.addView(image,new FrameLayout.LayoutParams(size,size,Gravity.CENTER));}
             if(unavailable){ColorMatrix matrix=new ColorMatrix();matrix.setSaturation(0);image.setColorFilter(new ColorMatrixColorFilter(matrix));image.setAlpha(.45f);}
             gap(card,16);TextView title=center(occupied?name(pkg):"添加常用应用",13);title.setSingleLine();title.setEllipsize(android.text.TextUtils.TruncateAt.END);if(!occupied)title.setTextColor(MUTED);card.addView(title,new LinearLayout.LayoutParams(-1,px(20)));
-            if(unavailable){gap(card,5);TextView note=center(info!=null && info.enabled?"未安装 · 保留位置":"已禁用 · 保留位置",10);note.setTextColor(MUTED);card.addView(note,new LinearLayout.LayoutParams(-1,px(16)));}
+            if(unavailable){gap(card,5);TextView note=center(info!=null && info.enabled?"未安装  保留位置":"已禁用  保留位置",10);note.setTextColor(MUTED);card.addView(note,new LinearLayout.LayoutParams(-1,px(16)));}
         }
         gap(content,35);TextView note=center(moving==null?"移除仅改变快捷入口；禁用后保留位置，重新启用后恢复。":"调整尚未保存",11);note.setTextColor(MUTED);content.addView(note,new LinearLayout.LayoutParams(-1,px(20)));
         if(moving!=null){gap(content,18);LinearLayout actions=row();actions.setGravity(Gravity.CENTER);content.addView(actions,new LinearLayout.LayoutParams(-1,px(36)));actions.addView(button("取消调整",()->cancelMove()));marginAdd(actions,button("保存顺序",()->saveMove()),-2,36,12);}

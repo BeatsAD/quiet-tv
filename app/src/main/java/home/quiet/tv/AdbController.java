@@ -39,7 +39,7 @@ final class AdbController implements Closeable {
     }
     private int currentUser() throws Exception {
         if(Build.VERSION.SDK_INT>=24)return Integer.parseInt(shell("am get-current-user").trim());
-        // Android 6 has no am get-current-user. Only accept a uniquely resumed foreground user.
+        // Android 5/6 have no am get-current-user. Only accept a uniquely resumed foreground user.
         return parseForegroundUser(shell("dumpsys activity activities"));
     }
     static int parseForegroundUser(String output) throws IOException {
@@ -68,9 +68,9 @@ final class AdbController implements Closeable {
             if(target==null)throw new IOException("本机配对端口不可达");
             KeyStore keys=loadKeys();PairingTransport transport=new PairingTransport(target,port,30000);pairing=transport;
             if(closed || generation.get()!=attempt)throw new IOException("配对已取消");
-            status.changed("正在配对 · 请保持系统配对页面有效");
+            status.changed("正在配对  请保持系统配对页面有效");
             protocol=new io.github.muntashirakon.adb.PairingConnectionCtx("127.0.0.1",transport.port(),password,(PrivateKey)keys.getKey("adb",new char[0]),keys.getCertificate("adb"),"QuietTV");
-            protocol.start();if(closed || generation.get()!=attempt)throw new IOException("配对已取消");status.changed("已配对 · 尚需连接并核对本机身份");
+            protocol.start();if(closed || generation.get()!=attempt)throw new IOException("配对已取消");status.changed("已配对  尚需连接并核对本机身份");
         }catch(Exception|LinkageError e){throw new IOException("配对未完成，请重新打开系统配对页面并核对端口和配对码；取消或超时后不会自动重试");}
         finally{Arrays.fill(password,(byte)0);PairingTransport transport=pairing;pairing=null;if(transport!=null)transport.close();if(protocol!=null)try{protocol.close();}catch(RuntimeException ignored){}}
     }
@@ -86,7 +86,7 @@ final class AdbController implements Closeable {
         Exception failure=null;
         for(String candidate:hosts){
             if(closed || generation.get()!=attempt)throw new IOException("连接已取消");
-            status.changed("连接中 · "+candidate+":"+port);
+            status.changed("连接中  "+candidate+":"+port);
             // Bound the TCP reachability check; the library's constructor uses a blocking Socket.
             try(Socket probe=new Socket()){probe.connect(new InetSocketAddress(candidate,port),2000);}
             catch(IOException e){failure=e;continue;}
@@ -96,7 +96,7 @@ final class AdbController implements Closeable {
                     .setCertificate(keys.getCertificate("adb")).build();
             connection=c;
             if(closed || generation.get()!=attempt){disconnect();throw new IOException("连接已取消");}
-            status.changed("等待授权 · 请在电视弹窗中允许 QuietTV 的调试连接");
+            status.changed("等待授权  请在电视弹窗中允许 QuietTV 的调试连接");
             try{
                 if(!c.connect(60,TimeUnit.SECONDS,false))throw new IOException("授权超时，请确认电视调试已开启并允许连接");
                 verifyLocalDevice();
@@ -109,7 +109,7 @@ final class AdbController implements Closeable {
                 capabilities=new ShellCapabilities(pmHelp,cmdHelp);
                 host=candidate;
                 if(closed || generation.get()!=attempt){disconnect();throw new IOException("连接已取消");}
-                status.changed("已连接 · 本机 · 用户 "+user);
+                status.changed("已连接  本机  用户 "+user);
                 return;
             }catch(Exception e){failure=e;disconnect();break;}
         }
@@ -145,7 +145,8 @@ final class AdbController implements Closeable {
         // A timeout closes the transport. Mutating commands are never automatically retried.
         ScheduledFuture<?> timeout=timer.schedule(()->{try{c.close();}catch(IOException ignored){}},20,TimeUnit.SECONDS);
         String marker="__QUIET_EXIT_"+UUID.randomUUID().toString().replace("-","")+"=";
-        String wrapped="( "+command+" ); quiet_result=$?; printf '\\n"+marker+"%d\\n' \"$quiet_result\"";
+        // Android 5 toolbox does not provide printf; echo is a shell builtin there.
+        String wrapped="( "+command+" ); quiet_result=$?; echo; echo \""+marker+"$quiet_result\"";
         try(AdbStream stream=c.open("shell:"+wrapped);InputStream input=stream.openInputStream();ByteArrayOutputStream output=new ByteArrayOutputStream()){
             byte[] buffer=new byte[8192];int size;
             while(true){

@@ -8,6 +8,6 @@
 | [cover.png](cover.png) | 内置 imagegen 工具 / Built-in imagegen | AI 生成的项目品牌插画；不作为设备验证证据 / AI brand illustration, not hardware evidence |
 | [contact-16x9.png](contact-16x9.png) | 作者提供的联系方式图，经内置 imagegen 横版重排 / Author-provided contact card, recomposed with built-in imagegen | 1920×1080；微信、公众号、小红书二维码解析结果与原图一致，抖音码待平台内扫码确认 / Matching decoded links for WeChat, Official Account, and Xiaohongshu; Douyin code requires an in-app scan |
 
-截图来自电视当前安装的 1.1.0 / b15 开发版本，不代表 Releases 中的 1.0.1 测试包。截图是开发过程的历史状态，不证明其他机型兼容。没有对实际界面、文字、应用卡片做合成或重绘。第三方应用图标及风景壁纸属于各自权利人，见[资源说明](../../THIRD_PARTY_NOTICES.md)。完整本地备份和证据目录没有上传。
+截图来自电视当时安装的 1.1.0 / b15 开发版本，不代表当前公开 b26 测试包。截图是开发过程的历史状态，不证明其他机型兼容。没有对实际界面、文字、应用卡片做合成或重绘。第三方应用图标及风景壁纸属于各自权利人，见[资源说明](../../THIRD_PARTY_NOTICES.md)。完整本地备份和证据目录没有上传。
 
-The TV was running development build 1.1.0 / b15, not the 1.0.1 test APK in Releases. The captures show historical development states and do not establish compatibility with another model. The captured UI, text, and app cards were not composited or redrawn. Third-party application art and wallpaper retain their own rights; see [notices](../../THIRD_PARTY_NOTICES.md). Full local backups and evidence are not uploaded.
+The TV was running development build 1.1.0 / b15; these captures do not represent hardware acceptance of the current public b26 test APK. The captures show historical development states and do not establish compatibility with another model. The captured UI, text, and app cards were not composited or redrawn. Third-party application art and wallpaper retain their own rights; see [notices](../../THIRD_PARTY_NOTICES.md). Full local backups and evidence are not uploaded.

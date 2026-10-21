@@ -10,7 +10,7 @@ Quiet TV is built for everyday TV use in China. Keep your favorite apps on the h
 
 The launcher has no ads or recommendation feed and requires no account. It uses native Android views and needs no root access or firmware changes.
 
-[Download the test APK](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0) · [Install](docs/INSTALL.en.md) · [Usage](docs/USAGE.en.md) · [Supported devices](docs/COMPATIBILITY.md)
+[Download the test APK](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26) · [Install](docs/INSTALL.en.md) · [Usage](docs/USAGE.en.md) · [Supported devices](docs/COMPATIBILITY.md) · [Known issues and hardware validation](#known-issues-and-hardware-validation)
 
 ## Screenshots
 
@@ -26,7 +26,7 @@ Use the ambient theme that changes color with the selected app, pick a fixed lan
 
 ![Quiet TV wallpaper settings: default theme, landscapes, and slideshow toggle](docs/assets/wallpaper-settings.png)
 
-These original Sony KD-65X9000H captures were taken on October 19, 2026, with development build 1.1.0 / b15. The current download is the b23 optimized test build. The cover is an AI illustration. See [image provenance](docs/assets/README.md).
+These original Sony KD-65X9000H captures were taken on October 19, 2026, with development build 1.1.0 / b15. The current download is the b26 universal compatibility test build; these captures do not establish hardware validation of b26. The cover is an AI illustration. See [image provenance](docs/assets/README.md).
 
 ## Features
 
@@ -46,22 +46,27 @@ The home screen supports Chinese and English; app management currently uses Chin
 
 System package operations require local ADB authorization. Disabling keeps app data; uninstalling deletes data for the current user. Eligible preinstalled apps can be reinstalled, but deleted data cannot be restored. Preinstalled uninstall/reinstall remains unverified on hardware; see [app management details](docs/APP_MANAGEMENT.md).
 
+Source and the public test APK are **1.1.0 / b26, Android 5.0 / API21 minimum**, using one universal APK for Android 5.0, 5.1 and later. Emulator results and pending hardware acceptance are recorded separately; device-specific validation remains required.
+
 ## Install and try it
 
-1. **Check your TV.** Source builds support Android 6.0 or newer; the published b23 APK still requires Android 12. Read the supported-device table below and the [compatibility details](docs/COMPATIBILITY.md).
-2. **Get an APK.** Download the APK and SHA-256 file from [Releases](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0), or build from source using the [installation guide](docs/INSTALL.en.md).
+1. **Check your TV.** The current b26 APK requires Android 5.0 or newer, including Android 5.1. Meeting this minimum does not establish device or feature compatibility. Read the supported-device table below and the [compatibility details](docs/COMPATIBILITY.md).
+2. **Get an APK.** Download the APK and SHA-256 file from [Releases](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26), or build from source using the [installation guide](docs/INSTALL.en.md).
 3. **Install and try the launcher.** Follow the guide to connect ADB and install Quiet TV. A fresh install opens setup; choose “暂不设置，临时使用” to try it temporarily and check your remote, app launches, and system shortcuts first.
 4. **Complete first setup.** Set the default home screen, then choose whether to manage preinstalled apps. Select “不处理，进入桌面” to skip package changes. Upgrades do not force setup again. Reopen it through “应用管理 → 更多 → 首次设置”; the same menu offers “恢复原桌面” to restore the original launcher. See [first setup and recovery, Chinese](docs/SETUP.md).
 
-The current download is **v1.1.0 / b23, an ARM32 optimized test build of about 4.54 MiB**, for Android 12 or newer TVs supporting `armeabi-v7a`. Devices that only support 64-bit apps cannot use this APK. It is a prerelease signed with a test key; no stable release is available yet.
+The current download is **v1.1.0 / b26, a universal optimized compatibility test build of about 6.50 MiB**. Its filename is `quiet-tv_1.1.0_b26_benchmark_api21.apk`; it requires Android 5.0 / API21 and includes `armeabi-v7a`, `arm64-v8a`, `x86`, and `x86_64`. It uses the same test signature as b24 for eligible in-place updates. It remains a prerelease; no stable release is available yet.
 
 Changes in this build:
 
-- Architecture-specific packaging with code and resource shrinking reduces APK size.
-- Display-sized wallpaper decoding, on-demand thumbnails, and cover caching reduce loading work; returning home avoids unnecessary full app rescans.
-- Improved native two-step setup, default-home verification, and the native About screen, with offline licenses opened on demand.
+- Android 5.0 minimum, legacy networking and permission handling, and graceful handling of unavailable TV input services.
+- Android 5 WebView fallback for offline licenses, corrected legacy vector paths and theme attributes.
+- Release-to-activate behavior on About prevents the confirmation key from reopening it after returning home.
+- ADB completion markers use the legacy shell's built-in `echo`, retaining identity, timeout and capability checks.
 
-b23 was installed as an update on one Android 12 / ARM32 TV, with matching APK hashes and checks of HOME return, wallpaper, and Dock display. This does not establish hardware acceptance of every new flow. See the [release notes](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0) for checksums, updates, and validation limits. Historical v1.0.1 remains available. Default source Debug builds are universal and differ from the download; see [build rules](docs/VERSIONING.md).
+b26 passed builds, 19 local unit tests and Lint with 0 errors and 28 warnings. API21/22/23/31 page regressions, API21/22 optimized smoke and API31 shell ADB operation checks passed. APK metadata, architectures, signatures and emulator-installed hashes were verified. **This APK has not been installed on a physical TV; Android 5 HOME, remote keys, inputs, network changes and reboot/wake behavior still need hardware validation.** See the [b26 release notes](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26) for checksums and exact limits.
+
+Historical [b24 universal APK](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b24) (Android 6.0+), [b23 ARM32 APK](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0) (Android 12+) and v1.0.1 remain available. b23 hardware checks do not validate b26. Default source Debug builds differ from the published optimized APK; see [build rules](docs/VERSIONING.md).
 
 You can keep the original launcher installed while trying Quiet TV. System debloating requires a backup and recovery record for the actual target TV. Real device settings, package inventories, and recovery records stay local; these are not distributed with public source, and another TV’s records are not a recovery baseline for your device.
 
@@ -69,11 +74,27 @@ You can keep the original launcher installed while trying Quiet TV. System deblo
 
 | Device / system | Status |
 | --- | --- |
-| Sony KD-65X9000H / BRAVIA VH1 · Android 12 | Installed and checked for the home screen, app management, wallpaper, selected system shortcuts, and one full reboot. See the [verification record](docs/COMPATIBILITY.md) for the exact scope. |
-| Other TVs running Android 6.0 or newer | Source compatibility is included; vendor firmware, HOME and ADB capabilities need hardware validation. See the [compatibility record](docs/COMPATIBILITY.md). |
-| Android 5.1 or earlier; non-Android systems such as Tizen or webOS | Unsupported by the current source. |
+| Sony KD-65X9000H / BRAVIA VH1 · Android 12 | Historical builds were checked for the home screen, app management, wallpaper, selected system shortcuts, and one full reboot. This b26 APK has not been installed on this TV. See the [verification record](docs/COMPATIBILITY.md) for the exact scope. |
+| Other TVs running Android 6.0 or newer | The b26 universal APK is available for device-specific trials; vendor firmware, HOME and ADB capabilities need hardware validation. See the [compatibility record](docs/COMPATIBILITY.md). |
+| Android 5.0 / 5.1 | The b26 universal test APK is available. Tests use generic Android images with a TV-sized configuration and do not replace native TV firmware acceptance. Vendor HOME, ADB and TV input behavior needs hardware validation. |
+| Android 4.x; non-Android systems such as Tizen or webOS | Unsupported by the current source. |
 
-Long-running operation, casting, and full media playback remain unverified. Six-digit wireless pairing is still an experimental entry awaiting validation. Experimental older-Android source builds do not extend the current download to Android 11 or earlier; see [compatibility details](docs/COMPATIBILITY.md). Third-party media apps use their own update channels; Quiet TV does not currently update them automatically.
+Long-running operation, casting, and full media playback remain unverified. Six-digit wireless pairing is still experimental, requires API 33+ and actual device pairing capability, and is unavailable on Android 5/6/7. Meeting the minimum install requirement does not establish full firmware compatibility; see [compatibility details](docs/COMPATIBILITY.md). Third-party media apps use their own update channels; Quiet TV does not currently update them automatically.
+
+## Known issues and hardware validation
+
+**These issues remain unresolved or unverified. More physical TVs across brands, models, and firmware versions are needed; they must not be treated as fixed.** Successful installation, manual launch, or HOME resolution does not establish correct boot, physical Home-button, or post-reboot behavior. See the current report in [Issue #35](https://github.com/BeatsAD/quiet-tv/issues/35).
+
+| Issue | Current behavior and validation needed |
+| --- | --- |
+| Vendor home takeover | Firmware may restore its own launcher at boot or have the Home button start a vendor Activity directly, bypassing standard HOME preferences. Cold boot, reboot, and wake from standby need separate checks. |
+| Default-home command fails | A report includes `cannot be home on user 0`. The installed APK, current user, HOME candidates, and vendor restrictions need investigation; the cause and adaptation remain unconfirmed. |
+| Default-home status is insufficient | Detection mainly uses HOME Intent resolution. Quiet TV may report that it is the default while the physical Home button or a reboot still opens the stock launcher. Status reporting and persistence verification need improvement. |
+| ADB disabled or inaccessible | Greyed-out USB debugging, missing wireless debugging, or an unavailable pairing code may prevent local app management and ADB-dependent adaptation. The built-in ADB client cannot bypass firmware restrictions or pairing authentication; there is no universal unlock method. |
+
+Optional boot startup, accessibility-based redirection when the stock home appears, and log-based home monitoring are candidate approaches. **Quiet TV does not currently implement these compatibility workarounds, and they have not been validated on the reported firmware.** Success on other devices upstream does not validate Quiet TV. An ADB-free approach would also require APK installation and an accessible system accessibility setting. Keep the stock launcher and local recovery records; do not copy another TV's system-package disable list.
+
+Share results in [Issue #35](https://github.com/BeatsAD/quiet-tv/issues/35) or a [device adaptation report](https://github.com/BeatsAD/quiet-tv/issues/new?template=device_adaptation.yml): model, Android/firmware version, Quiet TV version and APK source, reproduction steps, and actual results for manual launch, the physical Home button, cold boot/reboot, standby wake, inputs, and stock-launcher recovery. Mark untested items as unverified. Share only relevant redacted log excerpts; omit IP addresses, serial numbers, keys, and full device dumps.
 
 ## Documentation and contributing
 
