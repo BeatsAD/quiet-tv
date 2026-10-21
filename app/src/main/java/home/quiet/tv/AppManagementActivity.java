@@ -3,6 +3,9 @@ package home.quiet.tv;
 import android.content.*;
 import android.os.*;
 import android.provider.Settings;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.style.ForegroundColorSpan;
 import android.view.*;
 import android.widget.*;
 import androidx.recyclerview.widget.*;
@@ -80,12 +83,18 @@ public final class AppManagementActivity extends ManagementUi {
         queryChip.setVisibility(query.isEmpty()?View.GONE:View.VISIBLE);queryChip.setText(query+"  ×");queryChip.setContentDescription("清除搜索："+query);count.setText(filtered.size()+" 个应用"+(!adb.connected() && query.isEmpty()?"  本地信息":""));adapter.notifyDataSetChanged();renderDetails();if(listFocused){initialFocus=false;focusList();}
     }
     private AppRepository.App current(){for(AppRepository.App app:filtered)if(app.pkg.equals(selected))return app;return null;}
+    private CharSequence coloredState(AppRepository.App app,String text){
+        String state=app.state();int start=text.indexOf(state);
+        int color=!app.installed?(app.recoverable?0xff9cbfef:0xffe5b384):app.enabled?0xff9ccfae:0xffa7adb8;
+        SpannableString label=new SpannableString(text);
+        label.setSpan(new ForegroundColorSpan(color),start,start+state.length(),Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);return label;
+    }
     private void focusList(){list.post(()->{for(int i=0;i<filtered.size();i++)if(filtered.get(i).pkg.equals(selected)){final int position=i;list.scrollToPosition(position);list.post(()->{RecyclerView.ViewHolder holder=list.findViewHolderForAdapterPosition(position);if(holder!=null)holder.itemView.requestFocus();});return;}searchButton.requestFocus();});}
     private void renderDetails(){
         if(details==null)return;details.removeAllViews();firstAction=null;AppRepository.App app=current();
         if(app==null){details.setGravity(Gravity.CENTER);details.addView(center(busy?"正在读取应用…":"没有符合条件的应用",20));if(!busy){gap(details,12);details.addView(muted("试试其他名称或筛选条件",12));}return;}details.setGravity(Gravity.CENTER_HORIZONTAL);
         details.addView(icon(app.icon,67));gap(details,16);TextView title=center(app.label,26);title.setMaxLines(2);title.setEllipsize(android.text.TextUtils.TruncateAt.END);details.addView(title,new LinearLayout.LayoutParams(-1,-2));
-        gap(details,10);TextView state=center(app.state()+"  "+(app.system?"预装应用":"用户应用"),12);state.setTextColor(0xffaab0b8);details.addView(state);
+        gap(details,10);TextView state=center("",12);state.setText(coloredState(app,app.state()+"  "+(app.system?"预装应用":"用户应用")));state.setTextColor(0xffaab0b8);details.addView(state);
         gap(details,20);TextView meta=center(app.pkg+"\n版本 "+app.version,12);meta.setTextColor(MUTED);meta.setLineSpacing(px(5),1);details.addView(meta,new LinearLayout.LayoutParams(-1,-2));
         details.addView(new View(this),new LinearLayout.LayoutParams(1,0,1));gap(details,18);
         String protectedReason=operations.protection(app);
@@ -133,7 +142,7 @@ public final class AppManagementActivity extends ManagementUi {
             LinearLayout copy=column();copy.setGravity(Gravity.CENTER_VERTICAL);LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,-1,1);cp.leftMargin=px(14);box.addView(copy,cp);
             TextView title=label("",15);title.setSingleLine();title.setEllipsize(android.text.TextUtils.TruncateAt.END);copy.addView(title);gap(copy,5);TextView summary=muted("",10);copy.addView(summary);ImageView marker=icon(getDrawable(R.drawable.ic_manage_apps),14);marker.setAlpha(.6f);box.addView(marker);return new Holder(box,art,title,summary,marker);
         }
-        @Override public void onBindViewHolder(Holder holder,int position){AppRepository.App app=filtered.get(position);holder.icon.setImageDrawable(app.icon);holder.title.setText(app.label);holder.summary.setText(app.summary());holder.marker.setVisibility(new DockStore(AppManagementActivity.this).load().contains(app.pkg)?View.VISIBLE:View.GONE);holder.box.setSelected(app.pkg.equals(selected));holder.box.setContentDescription(app.label+" "+app.pkg+" "+app.summary());
+        @Override public void onBindViewHolder(Holder holder,int position){AppRepository.App app=filtered.get(position);holder.icon.setImageDrawable(app.icon);holder.title.setText(app.label);holder.summary.setText(coloredState(app,app.summary()));holder.marker.setVisibility(new DockStore(AppManagementActivity.this).load().contains(app.pkg)?View.VISIBLE:View.GONE);holder.box.setSelected(app.pkg.equals(selected));holder.box.setContentDescription(app.label+" "+app.pkg+" "+app.summary());
             holder.box.setOnFocusChangeListener((v,focus)->{if(focus && !selected.equals(app.pkg)){selected=app.pkg;for(int i=0;i<list.getChildCount();i++)list.getChildAt(i).setSelected(list.getChildAt(i)==v);renderDetails();}});
             holder.box.setOnClickListener(v->{selected=app.pkg;renderDetails();if(firstAction!=null)firstAction.requestFocus();});
         }
