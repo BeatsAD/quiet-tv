@@ -6,7 +6,7 @@
 
 | 内容 / Build | 范围 / Scope |
 | --- | --- |
-| 当前源码 1.1.0 / b28 | `standard`: minSdk21；`legacy19`: minSdk19（Android 4.4）。均为 targetSdk36；尚未发布，真实电视待验收。 / Two source build profiles; unpublished candidates; hardware acceptance pending. |
+| 当前源码 1.1.0 / b30 | `standard`: minSdk21；`legacy19`: minSdk19（Android 4.4）。均为 targetSdk36；尚未发布，真实电视待验收。 / Two source build profiles; unpublished candidates; hardware acceptance pending. |
 | 当前公开 [b26 通用兼容测试包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26) | Android 5.0 / API21 起；含 ARM32、ARM64、x86、x86_64，约 6.50 MiB。已通过部分模拟器验证，尚未安装真实电视。 / Android 5.0+ universal APK; selected emulator checks passed; physical TV acceptance pending. |
 | 历史 [b24 通用包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b24) | Android 6.0 / API23 起；原下载保留。 / Android 6.0+; original download retained. |
 | 历史 [b23 ARM32 测试包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0) | Android 12 / API31 起，需支持 armeabi-v7a；仅支持 64 位应用的设备不可用。 / Requires Android 12 and ARM32 app support. |
