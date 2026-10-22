@@ -47,7 +47,7 @@ The home screen supports Chinese and English; app management currently uses Chin
 
 System package operations require local ADB authorization. Disabling keeps app data; uninstalling deletes data for the current user. Eligible preinstalled apps can be reinstalled, but deleted data cannot be restored. Preinstalled uninstall/reinstall remains unverified on hardware; see [app management details](docs/APP_MANAGEMENT.md).
 
-Source is **1.1.0 / b30** with two build profiles: `standard` (Android 5.0+ / API21) and `legacy19` (Android 4.4 / API19). The legacy profile retains the core launcher and traditional TCP ADB, uses system settings for inputs, and omits six-digit pairing and its native crypto libraries. Public prereleases include b30 / Android 4.4 and the retained b26 / Android 5.0+ standard APK. See the [build guide](docs/INSTALL.en.md) and [validation boundaries](docs/COMPATIBILITY.md).
+Source is **1.1.2**, with default versionCode 34 and versionCode 35 for this Android 4.4 delivery with two build profiles: `standard` (Android 5.0+ / API21) and `legacy19` (Android 4.4 / API19). The legacy profile retains the core launcher and traditional TCP ADB, uses system settings for inputs, and omits six-digit pairing and its native crypto libraries. Public prereleases include b30 / Android 4.4 and the retained b26 / Android 5.0+ standard APK. See the [build guide](docs/INSTALL.en.md) and [validation boundaries](docs/COMPATIBILITY.md).
 
 ## Install and try it
 
