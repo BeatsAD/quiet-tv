@@ -8,7 +8,7 @@
 
 ## 环境
 
-当前源码为未发布的 1.1.0 / b31：默认标准版最低 Android 5.0 / API21，`legacy19` 兼容版最低 Android 4.4 / API19，两者均为 targetSdk36。公开下载提供 [b30 / API19 兼容测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b30)（约 2.30 MiB，无原生库），并保留 b26 / API21 标准测试版（约 6.50 MiB，包含四种 CPU 架构）。b30 已核对构建、签名与元数据，未完成原生模拟器功能验收，尚未安装真实电视，具体范围见[兼容说明](COMPATIBILITY.md)。历史 b24 仍要求 Android 6.0，b23 ARM32 包仍要求 Android 12，原下载均保留。源码构建、公开下载和真机验收分别记录。
+当前源码为未发布的 1.1.2：默认标准版最低 Android 5.0 / API21，`legacy19` 兼容版最低 Android 4.4 / API19，两者均为 targetSdk36。公开下载提供 [b30 / API19 兼容测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b30)（约 2.30 MiB，无原生库），并保留 b26 / API21 标准测试版（约 6.50 MiB，包含四种 CPU 架构）。b30 已核对构建、签名与元数据，未完成原生模拟器功能验收，尚未安装真实电视，具体范围见[兼容说明](COMPATIBILITY.md)。历史 b24 仍要求 Android 6.0，b23 ARM32 包仍要求 Android 12，原下载均保留。源码构建、公开下载和真机验收分别记录。
 
 需要 Git、Python 3、JDK 17 或 21、Android SDK platform 36、build-tools 36.0.0 和 platform-tools。构建无需设备配置、备份、私有测试目录或电视连接。
 
@@ -34,20 +34,20 @@ sdk.dir=/absolute/path/to/your/android-sdk
 若要归档构建，先配置 `local.properties` 中的 `sdk.dir`，再运行：
 
 ```sh
-python3 scripts/build_apk.py --summary "说明本次构建的修改"
+python3 scripts/build_apk.py --build-number 34 --summary "说明本次构建的修改"
 ```
 
-当前脚本仍按旧格式归档，例如 `dist/apk/quiet-tv_1.1.0_b31_debug_api21.apk`；脚本支持 `--variant benchmark --abi armeabi-v7a` 及 `--min-sdk 21`（默认）/ `23` / `26` / `31`。后续交付使用中文系统标签和纯数字构建号，须在下次交付前同步适配脚本，详见[版本规则](VERSIONING.md)。这些命令不会安装或修改电视。
+标准版输出示例为 `dist/apk/QuietTV_1.1.2-34_安卓5及以上_测试版.apk`，同时生成 `.apk.sha256` 和 `.json`。每个新交付包使用更高且未占用的 `--build-number`，文件名中的构建号与实际 APK 的 versionCode 一致；历史归档保留原样。可选 `--variant benchmark --abi armeabi-v7a` 及 `--min-sdk 21`（默认）/ `23` / `26` / `31`；实际单架构包自动增加架构标记，详见[版本规则](VERSIONING.md)。这些命令不会安装或修改电视。
 
 ## Android 4.4 / API19
 
 使用独立兼容档位构建和归档：
 
 ```sh
-python3 scripts/build_apk.py --compatibility legacy19 --variant benchmark --summary "Android 4.4 兼容测试版"
+python3 scripts/build_apk.py --build-number 35 --compatibility legacy19 --variant benchmark --summary "Android 4.4 兼容测试版"
 ```
 
-输出为 `dist/apk/quiet-tv_1.1.0_b31_benchmark_legacy19_api19.apk`。不另传 `--min-sdk` 时自动选择 API19；标准档不能用降低数字的方式生成 API19 包。直接构建与 Lint 可执行 `./gradlew :app:assembleDebug :app:lintDebug -PquietCompatibility=legacy19 --console=plain`。
+输出为 `dist/apk/QuietTV_1.1.2-35_安卓4.4_测试版.apk`。不另传 `--min-sdk` 时自动选择 API19；标准档不能用降低数字的方式生成 API19 包。直接构建与 Lint 可执行 `./gradlew :app:assembleDebug :app:lintDebug -PquietCompatibility=legacy19 --console=plain`。
 
 兼容版保留核心桌面、Dock、壁纸、应用列表、关于与离线许可证，使用传统 TCP ADB；不提供六位码配对。信号源按钮打开系统设置并提示使用遥控器信号源键，厂商直切需单独适配。APK 不含原生库；ARM32 运行、真实 HOME、网络切换和重启唤醒仍需目标电视验证。Debug 采用旧版 MultiDex 启动支持。
 
@@ -74,6 +74,6 @@ adb -s "$TV_SERIAL" install -r app/build/outputs/apk/debug/app-debug.apk
 adb -s "$TV_SERIAL" shell am start -n home.quiet.tv/.HomeActivity
 ```
 
-升级覆盖安装需要相同签名且构建号不回退。签名不匹配时不要直接卸载解决；卸载会清除应用私有设置和恢复记录，应先核对旧包来源及备份。
+升级覆盖安装需要相同签名且内部 `versionCode` 递增；关于显示用户可见版本，安装包名称同时标明实际构建号。签名不匹配时不要直接卸载解决；卸载会清除应用私有设置和恢复记录，应先核对旧包来源及备份。
 
 新安装会进入[首次设置](SETUP.md)，可选择“暂不设置，临时使用”，先检查遥控器、应用和系统入口。切回原桌面使用“应用管理 → 更多”的恢复入口；资格与限制见[应用管理](APP_MANAGEMENT.md)。未知固件不套用其他设备的禁用清单。
