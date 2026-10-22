@@ -33,7 +33,7 @@ For immutable archives, configure `sdk.dir` in local.properties and run:
 python3 scripts/build_apk.py --summary "Describe this build's changes"
 ```
 
-The default archive is `dist/apk/quiet-tv_1.1.0_b30_debug_api21.apk`. Options include `--variant benchmark --abi armeabi-v7a`, `--min-sdk 21` (default), `23`, `26` and `31`. See [versioning](VERSIONING.md) for naming and signatures. These commands never install to a TV.
+The script still uses legacy archive names, such as `dist/apk/quiet-tv_1.1.0_b30_debug_api21.apk`. Options include `--variant benchmark --abi armeabi-v7a`, `--min-sdk 21` (default), `23`, `26` and `31`. Future deliveries use Chinese system labels and numeric build numbers; update the script before the next delivery as required by [versioning](VERSIONING.md). These commands never install to a TV.
 
 ## Android 4.4 / API19
 

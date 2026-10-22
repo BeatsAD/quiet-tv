@@ -1,42 +1,116 @@
 # 版本与安装包规则
 
-[首页](../README.md) · [安装与构建](INSTALL.zh-CN.md) · [English installation](INSTALL.en.md)
+[首页](../README.md)  [安装与构建](INSTALL.zh-CN.md)  [English installation](INSTALL.en.md)
 
-唯一版本配置位于 `app/build.gradle`。当前源码为 `versionName 1.1.0`、`versionCode 30`，默认 `standard` / minSdk21（Android 5.0）；`legacy19` 固定 minSdk19（Android 4.4）。两档保持 targetSdk36、同一包名及测试签名，不能同时安装；覆盖升级还需匹配签名且构建号不回退。
+本页承接 [AGENTS.md](../AGENTS.md) 的安装包规则，适用于后续交付。历史安装包、校验记录、发布标签和下载链接保留原样。
 
-[b30 安卓 4.4 兼容优化测试包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b30)为 `quiet-tv_1.1.0_b30_benchmark_legacy19_api19.apk`，2,412,105 字节（约 2.30 MiB），最低 API19，无原生库，使用与 b26 相同的测试证书。包内版本为 1.1.0 / 30，发布标签为 `v1.1.0-b30`。基于公开 main 新构建并保留不可变归档，生产源码提交为 `a2c35cb`；历史 b28 归档未覆盖。构建与验收边界见[兼容说明](COMPATIBILITY.md)。
-
-[b26 标准版通用测试包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26)继续保留：最低 API21、6,819,366 字节，包含四种 CPU 架构。历史 [b24 / API23 通用包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b24) 与 [b23 / API31 / ARM32 包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0) 均保留。b30 与 b26 是不同兼容档位，不代表相同功能范围。
+**实施状态：命名规则已确认，`scripts/build_apk.py` 尚未适配，仍生成旧格式文件名。下一次交付前须同步脚本和相关文档，完成真实 APK 核验；本次文档更新不代表已生成符合新规则的安装包。**
 
 ## 命名与签名
 
-- 文件名为 `quiet-tv_<versionName>_b<versionCode>_<buildType>[_<ABI>][_apiN].apk`；通用架构不加 ABI，API31 保留历史无 SDK 后缀命名，其他最低版本显式追加 `_apiN`。
-- 每次交付不同内容的新包递增全局构建号，不回退或重用；功能版本、修订版本按改动更新。
-- `debug` 用于开发；`benchmark` 使用测试签名并启用代码与资源裁剪；`release` 必须配置持久正式签名，未签名包不得作为正式发布归档。
-- 版本、构建号、ABI 和最低系统均以实际 APK 元数据为准，不能通过改名冒充新版本。
+主程序固定格式：
+
+```text
+QuietTV_<版本号>-<构建号>_<适用系统>[_<单架构标记>]_<发布状态>.apk
+```
+
+方括号表示可选字段，不写入实际名称。固定使用 `QuietTV` 前缀及下划线分隔，不加日期、提交哈希或“最新”。`standard`、`legacy19`、`api21`、`benchmark` 等技术字段写入归档记录。
+
+### 版本号与构建号
+
+- 版本号与实际 APK 的 `versionName` 一致，新版本使用 `主版本.次版本.修订号`。修复问题增加修订号，新增功能增加次版本，重大不兼容变化增加主版本。
+- 构建号与实际 APK 的 `versionCode` 一致，只使用不带前导零的正整数，例如 `31`，不使用 `b31`、`Build31`、`RC31`。
+- 主程序各系统档位、架构和构建类型共用递增交付序列；交付不同内容的新包时分配新号，不回退、复用或因版本变化归零。日常编译不必每次加号，同一归档原字节重发不分配新号。
+- 交付前核对源码配置、历史归档和远程发布中的已用号。文件名、APK 版本和归档记录必须一致，不能通过改名冒充新版本。
+- 主程序版本配置在 `app/build.gradle`，本次文档整理时仍为 `1.1.0 / 30`，standard 与 legacy19 均为 targetSdk36；本页示例不修改配置、不预占构建号。助手版本独立配置在 `coocaa-home-shim/build.gradle`。
+
+### 安卓档位与架构
+
+| 文件名中的适用系统 | 构建对应关系 | 选择范围 |
+| --- | --- | --- |
+| `安卓4.4` | `legacy19`，minSdk19，`home.quiet.tv` | 安卓4.4兼容包，功能有所裁减 |
+| `安卓5及以上` | `standard`，minSdk21，`home.quiet.tv` | 安卓5.0及以上优先选择的标准包 |
+| `酷开安卓8` | 专用包名 `com.coocaa.quiettv`，minSdk26 | 已确认适配条件的固件专项验证，不按品牌推定兼容 |
+
+同一标准包可覆盖多个安卓大版本，仅在存在实际兼容差异时新增档位。若交付其他最低 API 的标准包，标签也须同步变化：minSdk23 为 `安卓6及以上`，minSdk26 为 `安卓8及以上`，minSdk31 为 `安卓12及以上`。最低 API 满足不代表目标电视的 HOME、遥控器、输入源及重启唤醒已通过验收。
+
+默认交付通用架构包，省略 `universal`；纯 DEX/资源包不加架构标记。确需单架构包时，在发布状态前加 `ARM32`（`armeabi-v7a`）、`ARM64`（`arm64-v8a`）、`x86` 或 `x86_64`，并核对实际 APK 内容。兼容档位目前不含原生库，归档中的 `packaged_abis` 为空；构建时的 `--abi` 请求不能代替实际内容或实机架构验收。
+
+### 发布状态与签名
+
+| 发布状态 | 条件 |
+| --- | --- |
+| `测试版` | 普通 Debug 开发包及 benchmark 优化测试包 |
+| `实验版` | 酷开专用适配、助手等实验包 |
+| `正式版` | 持久正式签名、release 构建，并完成该档位约定验收 |
+
+`benchmark` 目前启用代码及资源裁剪，使用 Debug 测试签名；`release` 尚未配置持久正式签名。未签名或仅使用测试签名的包不得当作正式版，单纯改名不能改变签名或验收状态。旧系统归档必须通过 v1 签名验证。
+
+### 中转助手
+
+助手使用 `QuietTV助手` 前缀，版本号及纯数字构建号独立于主程序。适用系统字段同时注明配套目标：`酷开安卓8配套普通桌面`（目标 `home.quiet.tv`）或 `酷开安卓8配套酷开桌面`（目标 `com.coocaa.quiettv`）。助手自身包名为 `com.ccos.tv.homepage`，两种目标不能作为两个助手并存；更换目标需使用新的助手构建号。
+
+助手归档记录注明目标包名、配套主程序文件名和 SHA-256。其 minSdk21 与 Android 8 固件适用范围分别记录，不因可安装就扩大支持范围。构建与恢复流程见[助手说明](../coocaa-home-shim/README.md)。
+
+### 命名示例
+
+以下仅展示格式，不代表已分配构建号、构建、发布或完成设备验收：
+
+```text
+QuietTV_1.1.1-31_安卓5及以上_测试版.apk
+QuietTV_1.1.1-32_安卓4.4_测试版.apk
+QuietTV_1.1.1-33_酷开安卓8_实验版.apk
+QuietTV_1.1.1-34_安卓5及以上_ARM32_测试版.apk
+QuietTV_1.1.1-35_安卓5及以上_正式版.apk
+QuietTV助手_2.0.1-12_酷开安卓8配套酷开桌面_实验版.apk
+```
 
 ## 构建与归档
 
-先按[安装指南](INSTALL.zh-CN.md)配置 SDK，归档脚本读取 `local.properties` 的 `sdk.dir`：
+按[安装指南](INSTALL.zh-CN.md)配置 SDK，现有脚本读取 `local.properties` 的 `sdk.dir`：
 
 ```sh
 python3 scripts/build_apk.py --summary "说明本次更新内容"
 ```
 
-默认输出 `dist/apk/quiet-tv_1.1.0_b30_debug_api21.apk` 及 JSON。可指定 `--variant benchmark`、`--abi armeabi-v7a`、`--min-sdk 21`（默认）、`23`、`26` 或 `31`；优化包同时保存映射文件。`--compatibility legacy19` 使用 API19（不接受其他最低版本），包名增加 `_legacy19` 标记；标准档不接受 API19。旧系统归档必须通过 v1 签名验证。兼容包移除了原生库，`packaged_abis` 为空表示纯 DEX/资源 APK，`--abi` 是构建请求而非实机架构验收。
+**上述脚本当前仍按旧格式归档。** 以现有源码默认配置为例，输出为 `dist/apk/quiet-tv_1.1.0_b30_debug_api21.apk` 及 JSON。该名称描述当前脚本行为，不是新的交付规则；旧的同名归档存在且内容不同时，脚本会拒绝覆盖。
 
-归档记录保存 APK 版本、签名、ABI、最低系统、时间、SHA-256、变更摘要和生产输入指纹。同名同字节可复用；同名不同内容必须递增构建号，不覆盖既有文件。构建期间生产输入改变则停止归档。
+现有参数包括 `--variant benchmark`、`--abi armeabi-v7a`、`--min-sdk 21`（默认）、`23`、`26`、`31`。`--compatibility legacy19` 固定使用 API19，标准档不接受 API19。酷开专用桌面和助手暂按各自说明构建，尚未接入统一归档；交付前须完成对应命名及元数据核验，不将当前脚本描述为已支持所有类别。
 
-Gradle 的 `app/build/outputs/` 是可更新的中间输出；`dist/apk/` 为本地不可变交付归档，不随源码发布。现有归档、配置、密钥和恢复记录全部保留。
+后续交付必须满足：
+
+- APK 放入本地不可变归档 `dist/apk/`，提供 `<完整APK文件名>.sha256` 及相同主文件名的 `.json`；优化包同时保留映射文件。
+- 归档记录包含真实包名、版本号、构建号、兼容档位、最低/目标 API、构建类型、实际架构、签名指纹、源码提交、生产输入指纹、时间、字节数、SHA-256、变更摘要和验收范围。助手额外记录配套关系。
+- 同名同字节且校验记录一致可复用；同名不同内容禁止覆盖，必须使用新构建号。构建期间生产输入改变则停止归档。
+- Gradle 的构建输出目录是可更新的中间产物；归档、密钥和恢复记录保留本地，不随源码发布。
+
+当前脚本已有部分签名、最低 API、架构、输入指纹及不可覆盖校验；新命名、完整元数据、全序列构建号核对和配套助手归档仍须在交付前补齐并验证。
 
 ## 安装与发布边界
 
-构建、归档、安装、已安装包哈希核对、遥控器与功能验收分别记录。工作区提交和脏状态描述构建环境，不能单独证明设备已安装该版本。历史校验只证明对应时间的状态。
+- 下载说明分别展示各档位的最新包，不以最大构建号作为所有电视的统一推荐。测试包和实验包不标为稳定正式版。
+- 覆盖升级核对相同包名、匹配签名、严格递增的构建号，以及系统和架构要求。标准包与兼容包共用 `home.quiet.tv`，不能同时安装；跨档位切换额外核对功能和数据兼容。
+- 酷开专用包是独立应用，不覆盖普通包、不自动迁移数据。签名不同的正式包交付前先制定迁移办法，不承诺直接无损覆盖，不自动卸载旧包或清除数据。
+- 构建、归档、安装、已安装包哈希核对、遥控器及功能验收分别记录。源码提交、工作区状态和历史验证不能证明当前设备已安装或已通过验收。
+- CI 检查源码，不安装设备或发布 APK；设备升级及发布按明确授权执行。
 
-CI 仅检查源码，不安装设备或发布 APK。设备升级与正式发布按明确授权执行；升级应保持签名及数据，并核对真实版本。源码整理不改变生产功能或自动发布新包。
+## 历史发布
+
+下列文件名和标签保持原样，不按新规则追溯改名。历史构建及验收只适用于对应产物：
+
+[b30 安卓 4.4 兼容优化测试包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b30)为 `quiet-tv_1.1.0_b30_benchmark_legacy19_api19.apk`，2,412,105 字节（约 2.30 MiB），最低 API19，无原生库，使用与 b26 相同的测试证书。包内版本为 1.1.0 / 30，发布标签为 `v1.1.0-b30`。基于公开 main 新构建并保留不可变归档，生产源码提交为 `a2c35cb`；历史 b28 归档未覆盖。构建与验收边界见[兼容说明](COMPATIBILITY.md)。
+
+[b26 标准版通用测试包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26)继续保留：最低 API21、6,819,366 字节，包含四种 CPU 架构。历史 [b24 / API23 通用包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b24) 与 [b23 / API31 / ARM32 包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0) 均保留。b30 与 b26 是不同兼容档位，不代表相同功能范围。
+
 
 ## English
 
-Source is 1.1.0 / b30 with `standard` (minSdk21) and `legacy19` (minSdk19) profiles, both targeting API36. [b30 compatibility](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b30) is `quiet-tv_1.1.0_b30_benchmark_legacy19_api19.apk`, 2,412,105 bytes (about 2.30 MiB), with no native libraries and v1/v2 test signatures matching b26. Its production-source commit is `a2c35cb`; the archive is immutable and historical b28 files remain unchanged. The tag is `v1.1.0-b30`, while the in-app version remains 1.1.0 / 30. Native emulator and physical-TV acceptance of b30 remain pending. b26 standard, b24 and b23 downloads remain available; the profiles have different feature scope.
+Historical b30 legacy19 and b26 standard downloads keep their original names and tags. At b30 publication, native emulator and physical-TV acceptance were still pending; historical results for other builds do not validate this APK. See [compatibility](COMPATIBILITY.md) for the recorded scope.
 
-Read versions from app/build.gradle and actual APK metadata. Increment the global build number for each different delivered build. Debug, optimized test and formally signed release builds are distinct. Archive naming includes ABI when selected and the minimum SDK suffix except for historical API31 names. Archives and receipts are immutable, remain local, and do not establish device installation or acceptance. Publishing and device operations require explicit scope.
+Future deliveries use `QuietTV_<version>-<numeric build>_<system>[_<single ABI>]_<status>.apk`. Version and build must match the actual APK. Build numbers are positive integers without prefixes or leading zeros and increase across all main-app delivery variants. Re-sending identical archived bytes does not allocate a new number. The helper uses `QuietTV助手`, its own version/build sequence, and an explicit target launcher.
+
+System labels are `安卓4.4` (legacy19, API19), `安卓5及以上` (standard, API21), and `酷开安卓8` (experimental vendor package, API26). Other minimum APIs require matching labels. Omit the ABI for universal or native-library-free APKs; use ARM32, ARM64, x86 or x86_64 only for actual single-ABI builds. Status is `测试版` (test), `实验版` (experimental), or `正式版` (formally signed release with agreed acceptance completed).
+
+**The build script still generates legacy filenames and does not yet implement all future-delivery requirements above.** Update and verify tooling before the next delivery. Preserve historical files, checksums, tags and links. Archives require matching checksum and metadata records, including the actual package, SDKs, ABI, signing identity, source and acceptance scope. Same-name/different-byte replacement is forbidden.
+
+Recommend downloads per system profile. In-place upgrades require matching package/signature, a strictly higher delivery build number and compatible system/ABI. Check data compatibility when switching profiles; different package IDs or signing identities need an explicit migration plan. CI, source checks and archive metadata do not establish device installation or acceptance. Device operations and publication require authorization.

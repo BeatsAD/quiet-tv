@@ -33,7 +33,7 @@ sdk.dir=/absolute/path/to/your/android-sdk
 python3 scripts/build_apk.py --summary "说明本次构建的修改"
 ```
 
-默认归档为 `dist/apk/quiet-tv_1.1.0_b30_debug_api21.apk`；脚本支持 `--variant benchmark --abi armeabi-v7a` 及 `--min-sdk 21`（默认）/ `23` / `26` / `31`。签名、版本与不可覆盖约定见[版本规则](VERSIONING.md)。这些命令不会安装或修改电视。
+当前脚本仍按旧格式归档，例如 `dist/apk/quiet-tv_1.1.0_b30_debug_api21.apk`；脚本支持 `--variant benchmark --abi armeabi-v7a` 及 `--min-sdk 21`（默认）/ `23` / `26` / `31`。后续交付使用中文系统标签和纯数字构建号，须在下次交付前同步适配脚本，详见[版本规则](VERSIONING.md)。这些命令不会安装或修改电视。
 
 ## Android 4.4 / API19
 
