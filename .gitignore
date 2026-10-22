@@ -22,6 +22,8 @@ __pycache__/
 # Local development and tests remain on disk, outside the public source tree.
 /app/src/test/
 /app/src/androidTest/
+/xiaomi-home-helper/src/test/
+/xiaomi-home-helper/src/androidTest/
 /home-fixture/
 /management-fixture/
 /scripts/*

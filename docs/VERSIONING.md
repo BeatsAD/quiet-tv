@@ -22,7 +22,7 @@ QuietTV_<版本号>-<构建号>_<适用系统>[_<单架构标记>]_<发布状态
 - 构建号与实际 APK 的 `versionCode` 一致，只使用不带前导零的正整数，例如 `31`，不使用 `b31`、`Build31`、`RC31`。
 - 主程序各系统档位、架构和构建类型共用递增交付序列；交付不同内容的新包时分配新号，不回退、复用或因版本变化归零。日常编译不必每次加号，同一归档原字节重发不分配新号。
 - 交付前核对源码配置、历史归档和远程发布中的已用号。文件名、APK 版本和归档记录必须一致，不能通过改名冒充新版本。
-- 主程序版本配置在 `app/build.gradle`，本次文档整理时仍为 `1.1.0 / 30`，standard 与 legacy19 均为 targetSdk36；本页示例不修改配置、不预占构建号。助手版本独立配置在 `coocaa-home-shim/build.gradle`。
+- 主程序版本配置在 `app/build.gradle`，当前未发布源码为 `1.1.0 / 31`，standard 与 legacy19 均为 targetSdk36；本页示例不修改配置、不预占构建号。助手版本独立配置在 `coocaa-home-shim/build.gradle` 和 `xiaomi-home-helper/build.gradle`。
 
 ### 安卓档位与架构
 
@@ -48,9 +48,11 @@ QuietTV_<版本号>-<构建号>_<适用系统>[_<单架构标记>]_<发布状态
 
 ### 中转助手
 
-助手使用 `QuietTV助手` 前缀，版本号及纯数字构建号独立于主程序。适用系统字段同时注明配套目标：`酷开安卓8配套普通桌面`（目标 `home.quiet.tv`）或 `酷开安卓8配套酷开桌面`（目标 `com.coocaa.quiettv`）。助手自身包名为 `com.ccos.tv.homepage`，两种目标不能作为两个助手并存；更换目标需使用新的助手构建号。
+助手使用 `QuietTV助手` 前缀，版本号及纯数字构建号独立于主程序。酷开助手的适用系统字段同时注明配套目标：`酷开安卓8配套普通桌面`（目标 `home.quiet.tv`）或 `酷开安卓8配套酷开桌面`（目标 `com.coocaa.quiettv`）。酷开助手自身包名为 `com.ccos.tv.homepage`，两种目标不能作为两个助手并存；更换目标需使用新的助手构建号。
 
 助手归档记录注明目标包名、配套主程序文件名和 SHA-256。其 minSdk21 与 Android 8 固件适用范围分别记录，不因可安装就扩大支持范围。构建与恢复流程见[助手说明](../coocaa-home-shim/README.md)。
+
+小米助手包名为 `home.quiet.tv.xiaomihelper`，当前实验范围仅为 MiTV4-ANSM0 / Android 6（API23），配套 `home.quiet.tv`。当前模块版本为 `0.1 / 1`，尚未适配三段版本号和统一归档规则，下次交付前须同步适配；构建、暂停与验收范围见[小米助手说明](../xiaomi-home-helper/README.md)。
 
 ### 命名示例
 
@@ -73,9 +75,9 @@ QuietTV助手_2.0.1-12_酷开安卓8配套酷开桌面_实验版.apk
 python3 scripts/build_apk.py --summary "说明本次更新内容"
 ```
 
-**上述脚本当前仍按旧格式归档。** 以现有源码默认配置为例，输出为 `dist/apk/quiet-tv_1.1.0_b30_debug_api21.apk` 及 JSON。该名称描述当前脚本行为，不是新的交付规则；旧的同名归档存在且内容不同时，脚本会拒绝覆盖。
+**上述脚本当前仍按旧格式归档。** 以现有源码默认配置为例，输出为 `dist/apk/quiet-tv_1.1.0_b31_debug_api21.apk` 及 JSON。该名称描述当前脚本行为，不是新的交付规则；旧的同名归档存在且内容不同时，脚本会拒绝覆盖。
 
-现有参数包括 `--variant benchmark`、`--abi armeabi-v7a`、`--min-sdk 21`（默认）、`23`、`26`、`31`。`--compatibility legacy19` 固定使用 API19，标准档不接受 API19。酷开专用桌面和助手暂按各自说明构建，尚未接入统一归档；交付前须完成对应命名及元数据核验，不将当前脚本描述为已支持所有类别。
+现有参数包括 `--variant benchmark`、`--abi armeabi-v7a`、`--min-sdk 21`（默认）、`23`、`26`、`31`。`--compatibility legacy19` 固定使用 API19，标准档不接受 API19。酷开专用桌面及各中转助手暂按各自说明构建，尚未接入统一归档；交付前须完成对应命名及元数据核验，不将当前脚本描述为已支持所有类别。
 
 后续交付必须满足：
 
@@ -105,7 +107,7 @@ python3 scripts/build_apk.py --summary "说明本次更新内容"
 
 ## English
 
-Historical b30 legacy19 and b26 standard downloads keep their original names and tags. At b30 publication, native emulator and physical-TV acceptance were still pending; historical results for other builds do not validate this APK. See [compatibility](COMPATIBILITY.md) for the recorded scope.
+Unpublished source is 1.1.0 / b31, with standard (minSdk21) and legacy19 (minSdk19) profiles targeting API36. Historical b30 legacy19 and b26 standard downloads keep their original names and tags. At b30 publication, native emulator and physical-TV acceptance were still pending; historical results for other builds do not validate this APK. See [compatibility](COMPATIBILITY.md) for the recorded scope.
 
 Future deliveries use `QuietTV_<version>-<numeric build>_<system>[_<single ABI>]_<status>.apk`. Version and build must match the actual APK. Build numbers are positive integers without prefixes or leading zeros and increase across all main-app delivery variants. Re-sending identical archived bytes does not allocate a new number. The helper uses `QuietTV助手`, its own version/build sequence, and an explicit target launcher.
 

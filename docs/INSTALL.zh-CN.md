@@ -8,7 +8,7 @@
 
 ## 环境
 
-当前源码为 1.1.0 / b30：默认标准版最低 Android 5.0 / API21，`legacy19` 兼容版最低 Android 4.4 / API19，两者均为 targetSdk36。公开下载提供 [b30 / API19 兼容测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b30)（约 2.30 MiB，无原生库），并保留 b26 / API21 标准测试版（约 6.50 MiB，包含四种 CPU 架构）。b30 已核对构建、签名与元数据，未完成原生模拟器功能验收，尚未安装真实电视，具体范围见[兼容说明](COMPATIBILITY.md)。历史 b24 仍要求 Android 6.0，b23 ARM32 包仍要求 Android 12，原下载均保留。源码构建、公开下载和真机验收分别记录。
+当前源码为未发布的 1.1.0 / b31：默认标准版最低 Android 5.0 / API21，`legacy19` 兼容版最低 Android 4.4 / API19，两者均为 targetSdk36。公开下载提供 [b30 / API19 兼容测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b30)（约 2.30 MiB，无原生库），并保留 b26 / API21 标准测试版（约 6.50 MiB，包含四种 CPU 架构）。b30 已核对构建、签名与元数据，未完成原生模拟器功能验收，尚未安装真实电视，具体范围见[兼容说明](COMPATIBILITY.md)。历史 b24 仍要求 Android 6.0，b23 ARM32 包仍要求 Android 12，原下载均保留。源码构建、公开下载和真机验收分别记录。
 
 需要 Git、Python 3、JDK 17 或 21、Android SDK platform 36、build-tools 36.0.0 和 platform-tools。构建无需设备配置、备份、私有测试目录或电视连接。
 
@@ -37,7 +37,7 @@ sdk.dir=/absolute/path/to/your/android-sdk
 python3 scripts/build_apk.py --summary "说明本次构建的修改"
 ```
 
-当前脚本仍按旧格式归档，例如 `dist/apk/quiet-tv_1.1.0_b30_debug_api21.apk`；脚本支持 `--variant benchmark --abi armeabi-v7a` 及 `--min-sdk 21`（默认）/ `23` / `26` / `31`。后续交付使用中文系统标签和纯数字构建号，须在下次交付前同步适配脚本，详见[版本规则](VERSIONING.md)。这些命令不会安装或修改电视。
+当前脚本仍按旧格式归档，例如 `dist/apk/quiet-tv_1.1.0_b31_debug_api21.apk`；脚本支持 `--variant benchmark --abi armeabi-v7a` 及 `--min-sdk 21`（默认）/ `23` / `26` / `31`。后续交付使用中文系统标签和纯数字构建号，须在下次交付前同步适配脚本，详见[版本规则](VERSIONING.md)。这些命令不会安装或修改电视。
 
 ## Android 4.4 / API19
 
@@ -47,7 +47,7 @@ python3 scripts/build_apk.py --summary "说明本次构建的修改"
 python3 scripts/build_apk.py --compatibility legacy19 --variant benchmark --summary "Android 4.4 兼容测试版"
 ```
 
-输出为 `dist/apk/quiet-tv_1.1.0_b30_benchmark_legacy19_api19.apk`。不另传 `--min-sdk` 时自动选择 API19；标准档不能用降低数字的方式生成 API19 包。直接构建与 Lint 可执行 `./gradlew :app:assembleDebug :app:lintDebug -PquietCompatibility=legacy19 --console=plain`。
+输出为 `dist/apk/quiet-tv_1.1.0_b31_benchmark_legacy19_api19.apk`。不另传 `--min-sdk` 时自动选择 API19；标准档不能用降低数字的方式生成 API19 包。直接构建与 Lint 可执行 `./gradlew :app:assembleDebug :app:lintDebug -PquietCompatibility=legacy19 --console=plain`。
 
 兼容版保留核心桌面、Dock、壁纸、应用列表、关于与离线许可证，使用传统 TCP ADB；不提供六位码配对。信号源按钮打开系统设置并提示使用遥控器信号源键，厂商直切需单独适配。APK 不含原生库；ARM32 运行、真实 HOME、网络切换和重启唤醒仍需目标电视验证。Debug 采用旧版 MultiDex 启动支持。
 
