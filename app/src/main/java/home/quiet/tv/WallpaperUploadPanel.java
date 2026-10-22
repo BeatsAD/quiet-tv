@@ -36,7 +36,7 @@ final class WallpaperUploadPanel {
     private final Runnable check=new Runnable(){@Override public void run(){
         if(dialog==null || server==null)return;
         if(server.expired() || !host.equals(lanAddress(activity))){
-            status.setText(tr("会话已结束，请重新连接","Session ended. Reconnect to upload."));retry.setVisibility(View.VISIBLE);stopServer();
+            status.setText(tr("会话已结束，请重新连接","Session ended. Reconnect to upload."));status.setVisibility(View.VISIBLE);retry.setVisibility(View.VISIBLE);stopServer();
         } else main.postDelayed(this,2000);
     }};
     WallpaperUploadPanel(Activity activity,WallpaperStore store,float unit,boolean chinese){this.activity=activity;this.store=store;this.unit=unit;this.chinese=chinese;}
@@ -49,25 +49,25 @@ final class WallpaperUploadPanel {
         dialog=new Dialog(activity);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         LinearLayout box=new LinearLayout(activity);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(px(32),px(28),px(32),px(24));
         GradientDrawable bg=new GradientDrawable();bg.setColor(0xff222831);bg.setCornerRadius(px(20));box.setBackground(bg);
-        box.addView(text(tr("把喜欢的风景，留在电视上","Keep your favorite view on TV"),24));
-        TextView steps=text(tr("1  手机或电脑与电视连接同一局域网\n2  扫描二维码，或打开下方完整地址\n3  选择图片上传，再在电视确认使用","1  Connect your phone or computer to the TV’s LAN\n2  Scan the QR code or open the full address below\n3  Upload a photo, then select it on your TV"),13);
+        LinearLayout header=new LinearLayout(activity);header.setGravity(Gravity.CENTER_VERTICAL);
+        header.addView(text(tr("把喜欢的风景，留在电视上","Keep your favorite view on TV"),24),new LinearLayout.LayoutParams(0,-2,1));
+        Button close=button("×",this::close);close.setContentDescription(tr("关闭上传","Close upload"));header.addView(close,new LinearLayout.LayoutParams(px(44),px(44)));box.addView(header);
+        TextView steps=text(tr("1  手机或电脑与电视连接同一局域网\n2  扫描二维码，或打开下方完整地址\n3  选择图片上传，再在电视确认使用\n    JPG / PNG / 静态 WebP  单张 ≤ 20 MB","1  Connect your phone or computer to the TV’s LAN\n2  Scan the QR code or open the full address below\n3  Upload a photo, then select it on your TV\n    JPG / PNG / static WebP  Up to 20 MB"),13);
         steps.setLineSpacing(px(6),1);LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,-2);sp.topMargin=px(22);box.addView(steps,sp);
         LinearLayout connection=new LinearLayout(activity);connection.setGravity(Gravity.CENTER_VERTICAL);
-        address=text(tr("正在开启上传…","Starting upload…"),14);address.setTextIsSelectable(true);
+        address=text(tr("正在开启上传…","Starting upload…"),14);
         connection.addView(address,new LinearLayout.LayoutParams(0,-2,1));
         qr=new ImageView(activity);qr.setContentDescription(tr("上传地址二维码","Upload address QR code"));qr.setBackgroundColor(Color.WHITE);qr.setPadding(px(8),px(8),px(8),px(8));connection.addView(qr,new LinearLayout.LayoutParams(px(146),px(146)));
         LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,-2);cp.topMargin=px(18);box.addView(connection,cp);
-        status=text(tr("JPG / PNG / 静态 WebP  单张 ≤ 20 MB  退出后关闭上传","JPG / PNG / static WebP  Up to 20 MB  Closes when you leave"),12);
+        status=text("",12);status.setVisibility(View.GONE);status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         LinearLayout.LayoutParams st=new LinearLayout.LayoutParams(-1,-2);st.topMargin=px(17);box.addView(status,st);
-        LinearLayout buttons=new LinearLayout(activity);buttons.setGravity(Gravity.END);
-        retry=button(tr("重新连接","Reconnect"),this::start);retry.setVisibility(View.GONE);buttons.addView(retry);
-        Button close=button(tr("关闭","Close"),this::close);buttons.addView(close);box.addView(buttons);
+        retry=button(tr("重新连接","Reconnect"),this::start);retry.setVisibility(View.GONE);box.addView(retry);
         dialog.setContentView(box);dialog.setOnDismissListener(d->{dialog=null;stopServer();Closed finished=this.callback;this.callback=null;if(finished!=null)finished.closed(lastImported);});
         Window window=dialog.getWindow();if(window!=null){window.setBackgroundDrawableResource(android.R.color.transparent);window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);window.setDimAmount(.65f);window.getDecorView().setSystemUiVisibility(5894);}
         dialog.show();if(window!=null)window.setLayout(px(750),-2);close.requestFocus();start();
     }
     private void start(){
-        stopServer();int attempt=++generation;retry.setVisibility(View.GONE);qr.setImageDrawable(null);host=lanAddress(activity);
+        stopServer();int attempt=++generation;status.setVisibility(View.GONE);retry.setVisibility(View.GONE);qr.setImageDrawable(null);host=lanAddress(activity);
         if(host==null){address.setText(tr("未找到局域网地址，请先连接 Wi-Fi 或网线","No LAN address. Connect Wi-Fi or Ethernet first."));retry.setVisibility(View.VISIBLE);return;}
         String selectedHost=host;address.setText(tr("正在开启上传…","Starting upload…"));
         worker.execute(()->{
@@ -77,7 +77,7 @@ final class WallpaperUploadPanel {
                 String url=candidate.address();BitMatrix matrix=new QRCodeWriter().encode(url,BarcodeFormat.QR_CODE,384,384);
                 int[] pixels=new int[384*384];for(int y=0;y<384;y++)for(int x=0;x<384;x++)pixels[y*384+x]=matrix.get(x,y)?Color.BLACK:Color.WHITE;
                 Bitmap bitmap=Bitmap.createBitmap(pixels,384,384,Bitmap.Config.ARGB_8888);WallpaperUploadServer ready=candidate;
-                main.post(()->{if(dialog==null||attempt!=generation){ready.stop();bitmap.recycle();return;}server=ready;address.setText(url);qr.setImageBitmap(bitmap);status.setText(tr("上传已开启  空闲 10 分钟后结束  单张 ≤ 20 MB","Upload ready  Expires after 10 idle minutes  Up to 20 MB"));main.postDelayed(check,2000);});
+                main.post(()->{if(dialog==null||attempt!=generation){ready.stop();bitmap.recycle();return;}server=ready;address.setText(url);qr.setImageBitmap(bitmap);main.postDelayed(check,2000);});
             }catch(IOException|WriterException e){candidate.stop();main.post(()->{if(dialog!=null&&attempt==generation){address.setText(tr("无法开启上传，请检查网络后重试","Unable to start upload. Check your network and retry."));retry.setVisibility(View.VISIBLE);}});}
         });
     }
@@ -91,7 +91,7 @@ final class WallpaperUploadPanel {
             int[] size=WallpaperImages.prepare(incoming,prepared);
             if(attempt!=generation || !active.valid())throw new IOException("上传会话已结束 / Session ended");
             WallpaperCatalog.Entry entry=store.add(prepared,name,size[0],size[1]);
-            main.post(()->{if(dialog!=null&&attempt==generation){lastImported=entry.id;status.setText(tr("已收到图片，请按返回后选择使用","Photo received. Press Back, then select it to apply."));}});
+            main.post(()->{if(dialog!=null&&attempt==generation){lastImported=entry.id;status.setText(tr("已收到图片，请按返回后选择使用","Photo received. Press Back, then select it to apply."));status.setVisibility(View.VISIBLE);}});
             return new JSONObject().put("id",entry.id).toString();
         }catch(JSONException e){throw new IOException(e);}
         catch(OutOfMemoryError e){throw new IOException("图片过大，电视无法处理，请选择较小图片 / Image too large for this TV");}

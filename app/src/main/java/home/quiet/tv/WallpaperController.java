@@ -120,7 +120,7 @@ final class WallpaperController {
         LinearLayout header=row();TextView back=button("‹",false,this::handlePickerBack);back.setContentDescription(tr("返回桌面","Back to home"));header.addView(back,new LinearLayout.LayoutParams(px(38),px(38)));gap(header,14);
         LinearLayout branding=new LinearLayout(activity);branding.setOrientation(LinearLayout.VERTICAL);branding.addView(label("QUIET TV",10));TextView heading=label(tr("壁纸设置","Wallpaper Settings"),28);LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-2,-2);hp.topMargin=px(5);branding.addView(heading,hp);header.addView(branding,new LinearLayout.LayoutParams(0,-2,1));
         auto=button("",false,()->runSaved(()->{WallpaperCatalog s=store.snapshot();store.rotation(!s.rotating);preview=store.snapshot().current;display(preview,true);refreshCards(preview,false);}));header.addView(auto);
-        gap(header,8);upload=button(tr("↑  上传壁纸","↑  Upload"),false,()->uploads.show(id->{if(picker!=null){if(id!=null)preview=id;refreshCards(preview,id!=null);}}));header.addView(upload);
+        gap(header,8);upload=button(tr("↑  上传壁纸","↑  Upload"),false,()->uploads.show(id->{if(picker!=null){if(id!=null){preview=id;display(preview,true);}refreshCards(preview,id!=null);}}));header.addView(upload);
         gap(header,8);manage=button(tr("管理","Manage"),false,()->{managing=!managing;refreshCards(preview,false);});header.addView(manage);layout.addView(header);
         layout.addView(new View(activity),new LinearLayout.LayoutParams(1,0,1));
         LinearLayout actions=row();title=label("",26);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);actions.addView(title,new LinearLayout.LayoutParams(0,-2,1));
