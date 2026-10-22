@@ -315,9 +315,9 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             App wallpaperApp=new App();wallpaperApp.pkg=WALLPAPER_ENTRY;wallpaperApp.label=tr("壁纸设置","Wallpaper Settings");
             wallpaperApp.banner=wallpapers.entryBanner();wallpaperApp.color=0xff557eac;found.add(0,wallpaperApp);
             App desktopApp=new App();desktopApp.pkg=DESKTOP_SETTINGS_ENTRY;desktopApp.label=tr("桌面设置","Desktop Settings");
-            desktopApp.banner=managementBanner(desktopApp.label,R.drawable.ic_setup_home);desktopApp.color=0xff666972;found.add(1,desktopApp);
+            desktopApp.banner=HomeEntryArtwork.render(this,desktopApp.label,true);desktopApp.color=HomeEntryArtwork.DESKTOP_COLOR;found.add(1,desktopApp);
             App managementApp=new App();managementApp.pkg=MANAGEMENT_ENTRY;managementApp.label=tr("应用管理","App Management");
-            managementApp.banner=managementBanner(tr("应用管理","App Management"));managementApp.color=0xff666972;found.add(2,managementApp);
+            managementApp.banner=HomeEntryArtwork.render(this,managementApp.label,false);managementApp.color=HomeEntryArtwork.MANAGEMENT_COLOR;found.add(2,managementApp);
             ArrayList<String> defaults=new ArrayList<>();for(App app:found)if(!pinned.contains(app.pkg))defaults.add(app.pkg);
             ArrayList<String> gridOrder=new HomeOrderStore(this).order(defaults);
             main.post(()->{

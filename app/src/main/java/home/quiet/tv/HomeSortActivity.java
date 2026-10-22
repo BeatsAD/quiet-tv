@@ -60,7 +60,10 @@ public final class HomeSortActivity extends ManagementUi {
                 ArrayList<String> pinned=new DockStore(this).load();ArrayList<HomeAppCatalog.Entry> available=new HomeAppCatalog(this).load(pinned);
                 ArrayList<String> ids=HomeAppCatalog.gridIds(available,pinned),order=store.order(ids);boolean custom=store.custom();
                 HashMap<String,Bitmap> pictures=new HashMap<>();
-                for(HomeAppCatalog.Entry entry:available)if(entry.info!=null)pictures.put(entry.id,AppArtwork.load(this,entry.info));
+                for(HomeAppCatalog.Entry entry:available){
+                    if(entry.info!=null)pictures.put(entry.id,AppArtwork.load(this,entry.info));
+                    else if(HomeAppCatalog.DESKTOP_SETTINGS.equals(entry.id) || HomeAppCatalog.MANAGEMENT.equals(entry.id))pictures.put(entry.id,HomeEntryArtwork.render(this,entry.label,HomeAppCatalog.DESKTOP_SETTINGS.equals(entry.id)));
+                }
                 Bitmap preview=wallpaper;
                 if(preview==null)try(InputStream input=getAssets().open("wallpapers/big-sur-coastline.jpg")){BitmapFactory.Options options=new BitmapFactory.Options();options.inSampleSize=4;preview=BitmapFactory.decodeStream(input,null,options);}
                 final Bitmap image=preview;
@@ -227,8 +230,6 @@ public final class HomeSortActivity extends ManagementUi {
             holder.image.setScaleType(ImageView.ScaleType.FIT_XY);
             holder.image.setBackground(surface(0,0,0,10));
             if(HomeAppCatalog.WALLPAPER.equals(id))holder.image.setImageBitmap(wallpaper);
-            else if(HomeAppCatalog.MANAGEMENT.equals(id)){holder.image.setImageDrawable(UiCompat.drawable(HomeSortActivity.this,R.drawable.ic_manage_apps));ip.width=px(48);ip.height=px(48);holder.image.setScaleType(ImageView.ScaleType.FIT_CENTER);}
-            else if(HomeAppCatalog.DESKTOP_SETTINGS.equals(id)){holder.image.setImageDrawable(UiCompat.drawable(HomeSortActivity.this,R.drawable.ic_setup_home));ip.width=px(48);ip.height=px(48);holder.image.setScaleType(ImageView.ScaleType.FIT_CENTER);}
             else{
                 Bitmap picture=artwork.get(id);int color=picture.getPixel(0,0);
                 holder.image.setBackground(surface(color,color,0,10));holder.image.setScaleType(ImageView.ScaleType.FIT_CENTER);holder.image.setImageBitmap(picture);
