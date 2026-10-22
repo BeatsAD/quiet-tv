@@ -85,3 +85,11 @@ __pycache__/
 !/docs/assets/wallpaper-settings.png
 !/docs/assets/contact-16x9.png
 !/docs/assets/quiet-tv-icon.svg
+
+# Version 1.1.2 screenshots requested for the public documentation.
+!/docs/assets/home-1.1.2.png
+!/docs/assets/all-apps-1.1.2.png
+!/docs/assets/wallpaper-1.1.2.png
+!/docs/assets/wallpaper-manage-1.1.2.png
+!/docs/assets/desktop-settings-1.1.2.png
+!/docs/assets/sort-1.1.2.png
