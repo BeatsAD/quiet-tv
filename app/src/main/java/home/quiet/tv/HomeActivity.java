@@ -149,7 +149,6 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         list.setClipChildren(true); list.setClipToPadding(true);
         list.setOverScrollMode(View.OVER_SCROLL_NEVER); list.setItemAnimator(null);
         list.setFocusable(false); list.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
-        // Keep the home hint (ending at y=524) inside the padded viewport (ending at y=532).
         list.setPadding(px(CONTENT_MARGIN),0,px(CONTENT_MARGIN),px(8));
         layout = new GridLayoutManager(this,APP_COLUMNS);
         layout.setSpanSizeLookup(new GridLayoutManager.SpanSizeLookup() {
@@ -470,8 +469,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             if(type==0){
                 FrameLayout header=new FrameLayout(HomeActivity.this);header.setClipChildren(false);header.setLayoutParams(new RecyclerView.LayoutParams(-1,px(348)));
                 heroTitle=text("",40,400,0xfff1f2f6);place(header,heroTitle,820,56,2,90);
-                TextView hint=text(tr("按下 ↓ 浏览全部应用","Press ↓ for all apps"),12,300,0xff64656e);hint.setGravity(Gravity.CENTER);place(header,hint,-1,20,0,312);
-                FrameLayout band=new FrameLayout(HomeActivity.this);band.setBackground(pillSurface());band.setClipChildren(false);place(header,band,-1,dockHeight+2*dockPadding,0,162);
+                FrameLayout band=new FrameLayout(HomeActivity.this);band.setBackground(pillSurface());band.setClipChildren(false);place(header,band,-1,dockHeight+2*dockPadding,0,194);
                 header.setTag(band);view=header;
             }else if(type==1){TextView title=text(tr("全部应用","All apps"),18,400,0xffbbbbc3);title.setPadding(px(3),px(4),0,0);title.setLayoutParams(new RecyclerView.LayoutParams(-1,px(38)));view=title;}
             else{Tile tile=new Tile();RecyclerView.LayoutParams p=new RecyclerView.LayoutParams(-1,px(gridHeight));p.leftMargin=px(8);p.rightMargin=px(8);p.bottomMargin=px(12);tile.setLayoutParams(p);view=tile;}
