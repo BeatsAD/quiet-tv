@@ -507,7 +507,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             View view;
             if(type==0){
                 FrameLayout header=new FrameLayout(HomeActivity.this);header.setClipChildren(false);header.setLayoutParams(new RecyclerView.LayoutParams(-1,px(348)));
-                heroTitle=text("",40,400,0xfff1f2f6);place(header,heroTitle,820,56,2,90);
+                heroTitle=text("",40,400,0xfff1f2f6);place(header,heroTitle,820,56,2,122);
                 FrameLayout band=new FrameLayout(HomeActivity.this);band.setBackground(pillSurface());band.setClipChildren(false);place(header,band,-1,dockHeight+2*dockPadding,0,194);
                 header.setTag(band);view=header;
             }else if(type==1){TextView title=text(tr("全部应用","All apps"),18,400,0xffbbbbc3);title.setPadding(px(3),px(4),0,0);title.setLayoutParams(new RecyclerView.LayoutParams(-1,px(38)));view=title;}
