@@ -1,7 +1,6 @@
 package home.quiet.tv;
 
 import android.content.*;
-import android.content.pm.PackageManager;
 import android.graphics.*;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
@@ -19,7 +18,7 @@ public final class HomeSortActivity extends ManagementUi {
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private final ArrayList<String> defaults=new ArrayList<>(),original=new ArrayList<>(),draft=new ArrayList<>();
     private final HashMap<String,HomeAppCatalog.Entry> entries=new HashMap<>();
-    private final HashMap<String,Drawable> artwork=new HashMap<>();
+    private final HashMap<String,Bitmap> artwork=new HashMap<>();
     private HomeOrderStore store;
     private RecyclerView list;
     private GridLayoutManager layout;
@@ -60,6 +59,8 @@ public final class HomeSortActivity extends ManagementUi {
             try{
                 ArrayList<String> pinned=new DockStore(this).load();ArrayList<HomeAppCatalog.Entry> available=new HomeAppCatalog(this).load(pinned);
                 ArrayList<String> ids=HomeAppCatalog.gridIds(available,pinned),order=store.order(ids);boolean custom=store.custom();
+                HashMap<String,Bitmap> pictures=new HashMap<>();
+                for(HomeAppCatalog.Entry entry:available)if(entry.info!=null)pictures.put(entry.id,AppArtwork.load(this,entry.info));
                 Bitmap preview=wallpaper;
                 if(preview==null)try(InputStream input=getAssets().open("wallpapers/big-sur-coastline.jpg")){BitmapFactory.Options options=new BitmapFactory.Options();options.inSampleSize=4;preview=BitmapFactory.decodeStream(input,null,options);}
                 final Bitmap image=preview;
@@ -67,7 +68,7 @@ public final class HomeSortActivity extends ManagementUi {
                     if(isDestroyed() || isFinishing())return;
                     boolean editing=loaded && (dirty() || !moving.isEmpty());
                     defaults.clear();defaults.addAll(ids);original.clear();original.addAll(order);savedCustom=custom;wallpaper=image;
-                    entries.clear();for(HomeAppCatalog.Entry entry:available)entries.put(entry.id,entry);artwork.clear();
+                    entries.clear();for(HomeAppCatalog.Entry entry:available)entries.put(entry.id,entry);artwork.clear();artwork.putAll(pictures);
                     ArrayList<String> next=editing?HomeOrderStore.project(resetRequested?ids:draft,ids):new ArrayList<>(order);
                     if(restored!=null && restored.containsKey("draft")){
                         next=HomeOrderStore.project(restored.getStringArrayList("draft"),ids);selected=restored.getString("selected","");resetRequested=restored.getBoolean("reset");
@@ -224,14 +225,13 @@ public final class HomeSortActivity extends ManagementUi {
             holder.card.setOnFocusChangeListener((v,focus)->{if(focus)selected=id;});holder.card.setOnClickListener(v->pick(id));
             FrameLayout.LayoutParams ip=(FrameLayout.LayoutParams)holder.image.getLayoutParams();ip.width=-1;ip.height=-1;ip.gravity=Gravity.CENTER;
             holder.image.setScaleType(ImageView.ScaleType.FIT_XY);
+            holder.image.setBackground(surface(0,0,0,10));
             if(HomeAppCatalog.WALLPAPER.equals(id))holder.image.setImageBitmap(wallpaper);
             else if(HomeAppCatalog.MANAGEMENT.equals(id)){holder.image.setImageDrawable(UiCompat.drawable(HomeSortActivity.this,R.drawable.ic_manage_apps));ip.width=px(48);ip.height=px(48);holder.image.setScaleType(ImageView.ScaleType.FIT_CENTER);}
             else if(HomeAppCatalog.DESKTOP_SETTINGS.equals(id)){holder.image.setImageDrawable(UiCompat.drawable(HomeSortActivity.this,R.drawable.ic_setup_home));ip.width=px(48);ip.height=px(48);holder.image.setScaleType(ImageView.ScaleType.FIT_CENTER);}
             else{
-                Drawable art=artwork.get(id);boolean banner=true;PackageManager pm=getPackageManager();
-                if(art==null){if(android.os.Build.VERSION.SDK_INT>=21){art=entry.info.activityInfo.loadBanner(pm);if(art==null)art=entry.info.activityInfo.applicationInfo.loadBanner(pm);}if(art==null){banner=false;art=entry.info.loadIcon(pm);}artwork.put(id,art);}
-                else banner=android.os.Build.VERSION.SDK_INT>=21 && (entry.info.activityInfo.banner!=0 || entry.info.activityInfo.applicationInfo.banner!=0);
-                holder.image.setImageDrawable(art);if(!banner){ip.width=px(48);ip.height=px(48);holder.image.setScaleType(ImageView.ScaleType.FIT_CENTER);}
+                Bitmap picture=artwork.get(id);int color=picture.getPixel(0,0);
+                holder.image.setBackground(surface(color,color,0,10));holder.image.setScaleType(ImageView.ScaleType.FIT_CENTER);holder.image.setImageBitmap(picture);
             }
             holder.image.setLayoutParams(ip);
         }

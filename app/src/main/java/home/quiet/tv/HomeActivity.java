@@ -309,11 +309,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 if(cached!=null){found.add(cached);freshCache.put(key,cached);continue;}
                 App app=new App();app.pkg=info.activityInfo.packageName;app.label=info.loadLabel(pm).toString();
                 app.component=new ComponentName(app.pkg,info.activityInfo.name);
-                Drawable banner=null;
-                if(Build.VERSION.SDK_INT>=21){banner=info.activityInfo.loadBanner(pm);if(banner==null)banner=info.activityInfo.applicationInfo.loadBanner(pm);}
-                boolean hasBanner=banner!=null;
-                if(banner==null)banner=info.loadIcon(pm);
-                app.banner=renderBanner(banner,hasBanner);app.color=sampleColor(app.banner);found.add(app);freshCache.put(key,app);
+                app.banner=AppArtwork.load(this,info);app.color=sampleColor(app.banner);found.add(app);freshCache.put(key,app);
             }
             artworkCache.clear();artworkCache.putAll(freshCache);
             App wallpaperApp=new App();wallpaperApp.pkg=WALLPAPER_ENTRY;wallpaperApp.label=tr("壁纸设置","Wallpaper Settings");
@@ -350,15 +346,6 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 main.post(()->{loadingApps=false;appsDirty=true;Log.w(TAG,"App refresh failed; retaining current tiles",e);});
             }
         });
-    }
-
-    private Bitmap renderBanner(Drawable drawable,boolean full) {
-        Bitmap bitmap=Bitmap.createBitmap(360,203,Bitmap.Config.ARGB_8888);Canvas c=new Canvas(bitmap);c.drawColor(0xff181a21);
-        if(drawable!=null) {
-            if(full)drawable.setBounds(0,0,360,203);else drawable.setBounds(126,47,234,155);
-            drawable.draw(c);
-        }
-        return bitmap;
     }
 
     private Bitmap managementBanner(String title) {
@@ -425,7 +412,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private void focusCurrent(boolean animate) {
         if(!ready)return;
         if(row<0){
-            if(selected!=null){selected.animate().scaleX(1).scaleY(1).translationX(0).setDuration(160);selected=null;}
+            if(selected!=null){Tile previous=selected;selected=null;previous.invalidate();previous.animate().scaleX(1).scaleY(1).translationX(0).setDuration(160);}
             positionGlass(animate);Log.i(TAG,"Focus top="+topColumn);return;
         }
         if(row==0)layout.scrollToPositionWithOffset(0,0);
@@ -439,8 +426,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             App app=currentApp();if(app==null)return;
             Tile tile=visibleTiles.get(app.pkg);
             if(tile==null){list.postDelayed(()->focusCurrent(animate),40);return;}
-            if(selected!=null && selected!=tile){selected.animate().scaleX(1).scaleY(1).translationX(0).setDuration(180);}
-            selected=tile;tile.animate().scaleX(FOCUS_SCALE).scaleY(FOCUS_SCALE).translationX(focusTranslationX(tile)).setDuration(240).setInterpolator(new OvershootInterpolator(.7f));
+            Tile previous=selected;selected=tile;if(previous!=null && previous!=tile){previous.invalidate();previous.animate().scaleX(1).scaleY(1).translationX(0).setDuration(180);}
+            tile.invalidate();tile.animate().scaleX(FOCUS_SCALE).scaleY(FOCUS_SCALE).translationX(focusTranslationX(tile)).setDuration(240).setInterpolator(new OvershootInterpolator(.7f));
             activePackage=app.pkg;
             if(row==0 && heroTitle!=null)heroTitle.setText(app.label);
             wallpapers.setThemeColor(app.color);
@@ -453,32 +440,24 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private void launchSelected(){App app=currentApp();if(app==null)return;saveFocus();if("quiet:add-dock".equals(app.pkg)){startActivity(new Intent(this,DockEditorActivity.class));return;}if(DESKTOP_SETTINGS_ENTRY.equals(app.pkg)){startActivity(new Intent(this,DesktopSettingsActivity.class));return;}if(MANAGEMENT_ENTRY.equals(app.pkg)){startActivity(new Intent(this,AppManagementActivity.class));return;}if(WALLPAPER_ENTRY.equals(app.pkg)){wallpapers.showPicker();return;}try{startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Build.VERSION.SDK_INT>=21?Intent.CATEGORY_LEANBACK_LAUNCHER:Intent.CATEGORY_LAUNCHER).setComponent(app.component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));}catch(ActivityNotFoundException e){Toast.makeText(this,tr("应用暂不可用","App unavailable"),Toast.LENGTH_SHORT).show();}}
 
-    private int focusOutset(View view) {
-        return px(view instanceof Tile?2:FOCUS_OUTSET);
-    }
-
     private float focusTranslationX(Tile tile) {
-        // Keep the outer white border aligned with the unfocused card edge at either end.
-        float inset=tile.getWidth()*(FOCUS_SCALE-1)/2f+focusOutset(tile)+px(FOCUS_STROKE)/2f;
+        // The border is inside the card; only compensate for its scale at Dock ends.
+        float inset=tile.getWidth()*(FOCUS_SCALE-1)/2f;
         int index=dockTiles.indexOf(tile);
         return index==0?inset:index>=0 && index==dockTiles.size()-1?-inset:0;
     }
 
     private void positionGlass(boolean animate) {
         if(glass==null || !ready)return;
-        View view=row<0?pills.get(topColumn):selected;
+        glass.setVisibility(row<0?View.VISIBLE:View.GONE);
+        if(row>=0)return;
+        View view=pills.get(topColumn);
         if(view==null || !view.isAttachedToWindow())return;
         int[] point=new int[2];int[] origin=new int[2];root.getLocationOnScreen(origin);
-        float scale=view instanceof Tile?FOCUS_SCALE:1;
-        // Animate towards the final transformed bounds, independent of the current animation frame.
         ((View)view.getParent()).getLocationOnScreen(point);
-        float left=point[0]-origin[0]+view.getLeft()+view.getPivotX()*(1-scale);
-        float top=point[1]-origin[1]+view.getTop()+view.getPivotY()*(1-scale);
-        if(view instanceof Tile)left+=focusTranslationX((Tile)view);
-        float height=view instanceof Tile?((Tile)view).imageHeight():view.getHeight();
-        int outset=focusOutset(view);
-        RectF target=new RectF(left-outset,top-outset,left+view.getWidth()*scale+outset,top+height*scale+outset);
-        glass.move(target,row<0?px(25):px(15),animate);
+        float left=point[0]-origin[0]+view.getLeft(),top=point[1]-origin[1]+view.getTop();int outset=px(FOCUS_OUTSET);
+        RectF target=new RectF(left-outset,top-outset,left+view.getWidth()+outset,top+view.getHeight()+outset);
+        glass.move(target,px(25),animate);
     }
 
     private final class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>{
@@ -509,11 +488,17 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     private final class Tile extends View {
-        App app;final Paint paint=new Paint(3);final Path clip=new Path();
+        App app;final Paint paint=new Paint(3);final Path clip=new Path();final RectF imageRect=new RectF();Shader highlight;
         Tile(){super(HomeActivity.this);setOnClickListener(v->{if(app!=null){for(int n=0;n<dock.size();n++)if(dock.get(n)==app){row=0;column=n;}for(int n=0;n<apps.size();n++)if(apps.get(n)==app){row=1+n/APP_COLUMNS;column=n%APP_COLUMNS;}focusCurrent(true);launchSelected();}});}
         void bind(App value){if(app!=null && visibleTiles.get(app.pkg)==this)visibleTiles.remove(app.pkg);app=value;visibleTiles.put(app.pkg,this);setContentDescription(app.label);invalidate();}
         float imageHeight(){return getWidth()*203f/360f;}
-        @Override protected void onDraw(Canvas c){super.onDraw(c);if(app==null)return;float h=imageHeight();RectF rect=new RectF(0,0,getWidth(),h);clip.reset();clip.addRoundRect(rect,px(11),px(11),Path.Direction.CW);c.save();c.clipPath(clip);paint.setColor(0xff191a20);c.drawRect(rect,paint);c.drawBitmap(app.banner,null,rect,paint);c.restore();
+        @Override protected void onSizeChanged(int w,int h,int oldw,int oldh){super.onSizeChanged(w,h,oldw,oldh);highlight=new LinearGradient(0,0,w,imageHeight(),new int[]{0x30ffffff,0x09ffffff},null,Shader.TileMode.CLAMP);}
+        @Override protected void onDraw(Canvas c){super.onDraw(c);if(app==null)return;float h=imageHeight(),radius=px(11);RectF rect=imageRect;rect.set(0,0,getWidth(),h);clip.reset();clip.addRoundRect(rect,radius,radius,Path.Direction.CW);c.save();c.clipPath(clip);paint.setColor(0xff191a20);c.drawRect(rect,paint);c.drawBitmap(app.banner,null,rect,paint);
+            if(selected==this && row>=0){
+                paint.setShader(highlight);c.drawRect(rect,paint);paint.setShader(null);
+                float stroke=px(FOCUS_STROKE),inset=stroke/2f;rect.inset(inset,inset);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(stroke);paint.setColor(Color.WHITE);c.drawRoundRect(rect,Math.max(0,radius-inset),Math.max(0,radius-inset),paint);paint.setStyle(Paint.Style.FILL);
+            }
+            c.restore();
         }
     }
 

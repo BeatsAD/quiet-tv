@@ -8,6 +8,7 @@ import android.os.Bundle;
 import android.view.*;
 import android.widget.*;
 import java.util.*;
+import java.util.concurrent.*;
 
 public final class DockEditorActivity extends ManagementUi {
     private DockStore store;
@@ -17,18 +18,28 @@ public final class DockEditorActivity extends ManagementUi {
     private LinearLayout content;
     private TextView counter;
     private final ArrayList<View> slots=new ArrayList<>();
+    private final ExecutorService worker=Executors.newSingleThreadExecutor();
+    private final HashMap<String,Bitmap> artwork=new HashMap<>();
+    private int artworkGeneration;
     @Override public void onCreate(Bundle state){
         super.onCreate(state);store=new DockStore(this);packages=store.load();counter=muted("最多 "+DockStore.CAPACITY+" 个位置",12);header.addView(counter);toolbar(true);
-        content=column();content.setGravity(Gravity.CENTER_VERTICAL);root.addView(content,new LinearLayout.LayoutParams(-1,0,1));footer("方向键选择  确定编辑  返回退出");render(0);
+        content=column();content.setGravity(Gravity.CENTER_VERTICAL);root.addView(content,new LinearLayout.LayoutParams(-1,0,1));footer("方向键选择  确定编辑  返回退出");
     }
+    @Override protected void onResume(){super.onResume();int focus=slots.indexOf(getCurrentFocus());artworkGeneration++;artwork.clear();render(Math.max(0,focus));}
+    @Override protected void onDestroy(){worker.shutdownNow();super.onDestroy();}
     @Override public void onWindowFocusChanged(boolean focused){super.onWindowFocusChanged(focused);if(focused && initialWindowFocus){initialWindowFocus=false;stage.post(()->slots.get(0).requestFocus());}}
     private ApplicationInfo info(String pkg){try{return getPackageManager().getApplicationInfo(pkg,HomeController.METADATA);}catch(PackageManager.NameNotFoundException e){return null;}}
     private String name(String pkg){ApplicationInfo info=info(pkg);return info==null?pkg:getPackageManager().getApplicationLabel(info).toString();}
-    private Drawable banner(String pkg,ApplicationInfo app){
-        if(android.os.Build.VERSION.SDK_INT<21)return null;
-        PackageManager pm=getPackageManager();Drawable art=app==null?null:app.loadBanner(pm);
-        if(art==null){Intent launch=pm.getLeanbackLaunchIntentForPackage(pkg);if(launch==null)launch=pm.getLaunchIntentForPackage(pkg);if(launch!=null)try{art=pm.getActivityInfo(launch.getComponent(),0).loadBanner(pm);}catch(PackageManager.NameNotFoundException ignored){}}
-        return art;
+    private void loadArtwork(ImageView image,String pkg,ApplicationInfo app){
+        Bitmap cached=artwork.get(pkg);if(cached!=null){showArtwork(image,cached);return;}
+        int generation=artworkGeneration;
+        worker.execute(()->{Bitmap picture=AppArtwork.load(this,pkg,app);runOnUiThread(()->{
+            if(isDestroyed() || generation!=artworkGeneration)return;
+            artwork.put(pkg,picture);showArtwork(image,picture);
+        });});
+    }
+    private void showArtwork(ImageView image,Bitmap picture){
+        int color=picture.getPixel(0,0);image.setBackground(surface(color,color,0,10));image.setImageBitmap(picture);
     }
     private void render(int focus){
         content.removeAllViews();slots.clear();List<String> values=moving==null?packages:moving;counter.setText(values.size()+" / "+DockStore.CAPACITY+" 个位置");
@@ -43,9 +54,8 @@ public final class DockEditorActivity extends ManagementUi {
             TextView number=muted(String.format(Locale.ROOT,"%02d",i+1),10);card.addView(number);gap(card,10);
             FrameLayout art=new FrameLayout(this);art.setDuplicateParentStateEnabled(true);art.setBackground(focusSurface(12));art.setPadding(px(3),px(3),px(3),px(3));card.addView(art,new LinearLayout.LayoutParams(-1,height));
             ImageView image=new ImageView(this);image.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            Drawable artwork=occupied?banner(pkg,info):UiCompat.drawable(this,R.drawable.ic_manage_plus);
-            if(artwork!=null && occupied){image.setImageDrawable(artwork);image.setBackground(surface(0,0,0,10));UiCompat.clipOutline(image);image.setScaleType(ImageView.ScaleType.FIT_XY);art.addView(image,new FrameLayout.LayoutParams(-1,-1));}
-            else{image.setImageDrawable(occupied && info!=null?info.loadIcon(getPackageManager()):UiCompat.drawable(this,R.drawable.ic_manage_plus));int size=px(occupied?48:28);art.addView(image,new FrameLayout.LayoutParams(size,size,Gravity.CENTER));}
+            if(occupied){image.setBackground(surface(AppArtwork.NEUTRAL,AppArtwork.NEUTRAL,0,10));UiCompat.clipOutline(image);image.setScaleType(ImageView.ScaleType.FIT_CENTER);art.addView(image,new FrameLayout.LayoutParams(-1,-1));loadArtwork(image,pkg,info);}
+            else{image.setImageDrawable(UiCompat.drawable(this,R.drawable.ic_manage_plus));art.addView(image,new FrameLayout.LayoutParams(px(28),px(28),Gravity.CENTER));}
             if(unavailable){ColorMatrix matrix=new ColorMatrix();matrix.setSaturation(0);image.setColorFilter(new ColorMatrixColorFilter(matrix));image.setAlpha(.45f);}
             gap(card,16);TextView title=center(occupied?name(pkg):"添加常用应用",13);title.setSingleLine();title.setEllipsize(android.text.TextUtils.TruncateAt.END);if(!occupied)title.setTextColor(MUTED);card.addView(title,new LinearLayout.LayoutParams(-1,px(20)));
             if(unavailable){gap(card,5);TextView note=center(info!=null && info.enabled?"未安装  保留位置":"已禁用  保留位置",10);note.setTextColor(MUTED);card.addView(note,new LinearLayout.LayoutParams(-1,px(16)));}
