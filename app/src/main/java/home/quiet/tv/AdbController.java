@@ -24,6 +24,7 @@ final class AdbController implements Closeable {
     private final Context context;
     private final Status status;
     private volatile AdbConnection connection;
+    private volatile Closeable transport;
     private final WirelessPairing pairing=new WirelessPairing();
     private final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor();
     private volatile boolean closed;
@@ -70,23 +71,32 @@ final class AdbController implements Closeable {
             if(nic.isUp() && !nic.isLoopback())for(InetAddress address:Collections.list(nic.getInetAddresses()))
                 if(address instanceof Inet4Address)hosts.add(address.getHostAddress());
         Exception failure=null;
+        String stage="连接端口";
+        KeyStore keys=loadKeys();
         for(String candidate:hosts){
             if(closed || generation.get()!=attempt)throw new IOException("连接已取消");
             status.changed("连接中  "+candidate+":"+port);
-            // Bound the TCP reachability check; the library's constructor uses a blocking Socket.
-            try(Socket probe=new Socket()){probe.connect(new InetSocketAddress(candidate,port),2000);}
-            catch(IOException e){failure=e;continue;}
-            KeyStore keys=loadKeys();
-            AdbConnection c=new AdbConnection.Builder(candidate,port).setApi(Build.VERSION.SDK_INT)
-                    .setDeviceName("QuietTV").setPrivateKey((PrivateKey)keys.getKey("adb",new char[0]))
-                    .setCertificate(keys.getCertificate("adb")).build();
-            connection=c;
+            // One actual daemon connection, with a bounded connect and cancellation support.
+            Socket socket=new Socket();transport=socket;
             if(closed || generation.get()!=attempt){disconnect();throw new IOException("连接已取消");}
-            status.changed("等待授权  请在电视弹窗中允许 QuietTV 的调试连接");
+            try{socket.connect(new InetSocketAddress(candidate,port),2000);}
+            catch(IOException e){socket.close();transport=null;if(closed || generation.get()!=attempt)throw new IOException("连接已取消",e);failure=e;continue;}
+            stage="ADB 握手／授权";
             try{
-                if(!c.connect(60,TimeUnit.SECONDS,false))throw new IOException("授权超时，请确认电视调试已开启并允许连接");
+                PairingTransport relay=new PairingTransport(socket);transport=relay;
+                if(closed || generation.get()!=attempt){disconnect();throw new IOException("连接已取消");}
+                AdbConnection c=new AdbConnection.Builder("127.0.0.1",relay.port()).setApi(Build.VERSION.SDK_INT)
+                        .setDeviceName("QuietTV").setPrivateKey((PrivateKey)keys.getKey("adb",new char[0]))
+                        .setCertificate(keys.getCertificate("adb")).build();
+                connection=c;
+                if(closed || generation.get()!=attempt){disconnect();throw new IOException("连接已取消");}
+                status.changed("正在进行 ADB 握手  如电视出现调试授权弹窗，请选择允许");
+                if(!c.connect(60,TimeUnit.SECONDS,false))throw new IOException("端口已连接，但 ADB 握手或授权超时；没有弹窗不代表已授权");
+                stage="本机身份核对";
                 verifyLocalDevice();
-                if(!shell("id -u").trim().equals("2000"))throw new IOException("连接未获得 shell 身份");
+                stage="ADB 身份核对";
+                if(!shell("id -u").trim().equals("2000"))throw new IOException("adbd 未提供 shell 身份（uid 2000）；工厂／root 调试模式不能用于当前应用管理");
+                stage="前台用户核对";
                 user=currentUser();
                 if(user!=android.os.Process.myUid()/100000)throw new IOException("前台用户已切换，请重新打开应用管理");
                 String pmHelp="",cmdHelp="";
@@ -97,9 +107,9 @@ final class AdbController implements Closeable {
                 if(closed || generation.get()!=attempt){disconnect();throw new IOException("连接已取消");}
                 status.changed("已连接  本机  用户 "+user);
                 return;
-            }catch(Exception e){failure=e;disconnect();break;}
+            }catch(Exception e){boolean cancelled=closed || generation.get()!=attempt;failure=e;disconnect();if(cancelled)throw new IOException("连接已取消",e);break;}
         }
-        throw new IOException("连接失败："+(failure==null?"本机未开放 TCP ADB":failure.getMessage())+"。请开启电视网络调试，核对端口后重试。",failure);
+        throw new IOException("连接失败（"+stage+"）："+(failure==null?"本机未开放 TCP ADB":(failure.getMessage()==null?failure.getClass().getSimpleName():failure.getMessage())),failure);
     }
 
     private void verifyLocalDevice() throws Exception {
@@ -170,6 +180,6 @@ final class AdbController implements Closeable {
         }
         return store;
     }
-    void disconnect(){generation.incrementAndGet();user=-1;capabilities=ShellCapabilities.NONE;pairing.close();AdbConnection c=connection;connection=null;if(c!=null)try{c.close();}catch(IOException ignored){}status.changed("未连接");}
+    void disconnect(){generation.incrementAndGet();user=-1;capabilities=ShellCapabilities.NONE;pairing.close();Closeable active=transport;transport=null;if(active!=null)try{active.close();}catch(IOException ignored){}AdbConnection c=connection;connection=null;if(c!=null)try{c.close();}catch(IOException ignored){}status.changed("未连接");}
     @Override public void close(){closed=true;disconnect();timer.shutdownNow();}
 }

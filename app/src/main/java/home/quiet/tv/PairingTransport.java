@@ -4,20 +4,28 @@ import java.io.*;
 import java.net.*;
 import java.util.concurrent.*;
 
-/** One loopback relay gives the upstream pairing handshake a deadline and a closeable socket. */
+/** A closeable loopback relay for pairing or an already connected local ADB socket. */
 final class PairingTransport implements Closeable {
     private final ServerSocket listener;
-    private final Socket upstream=new Socket();
+    private final Socket upstream;
     private volatile Socket client;
     private volatile boolean closed;
     private final ExecutorService relay=Executors.newFixedThreadPool(2);
     private final ScheduledExecutorService timer=Executors.newSingleThreadScheduledExecutor();
     PairingTransport(String host,int port,int timeoutMillis) throws IOException {
-        listener=new ServerSocket(0,1,InetAddress.getByName("127.0.0.1"));listener.setSoTimeout(timeoutMillis);
-        timer.schedule(this::close,timeoutMillis,TimeUnit.MILLISECONDS);
+        this(new Socket(),host,port,timeoutMillis);
+    }
+    // libadb creates its own blocking socket. Reuse the bounded connection without probing adbd twice.
+    PairingTransport(Socket connected) throws IOException {this(connected,null,0,0);}
+    private PairingTransport(Socket socket,String host,int port,int timeoutMillis) throws IOException {
+        upstream=socket;
+        try{listener=new ServerSocket(0,1,InetAddress.getByName("127.0.0.1"));listener.setSoTimeout(timeoutMillis);}
+        catch(IOException failure){upstream.close();throw failure;}
+        if(timeoutMillis>0)timer.schedule(this::close,timeoutMillis,TimeUnit.MILLISECONDS);
         relay.execute(()->{try{
             Socket accepted=listener.accept();client=accepted;if(closed){accepted.close();return;}
-            upstream.connect(new InetSocketAddress(host,port),Math.min(2000,timeoutMillis));upstream.setSoTimeout(timeoutMillis);accepted.setSoTimeout(timeoutMillis);
+            if(host!=null)upstream.connect(new InetSocketAddress(host,port),Math.min(2000,timeoutMillis));
+            upstream.setSoTimeout(timeoutMillis);accepted.setSoTimeout(timeoutMillis);
             relay.execute(()->copy(upstream,accepted));copy(accepted,upstream);
         }catch(IOException|RejectedExecutionException ignored){close();}});
     }

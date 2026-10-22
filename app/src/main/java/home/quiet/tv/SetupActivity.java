@@ -199,11 +199,13 @@ public final class SetupActivity extends ManagementUi {
     }
     private void renderDefault(LinearLayout body){
         boolean own=homeState!=null && homeState.isOwn(this),usable=recordAvailable && homeState!=null && homeState.ownUsable;
+        String switchReason=HomeController.unavailableSwitchReason(homeState!=null && homeState.roleAvailable,adb.connected(),adb.capabilities.home);
         LinearLayout split=row();split.setGravity(Gravity.CENTER_VERTICAL);body.addView(split,new LinearLayout.LayoutParams(-1,0,1));
         LinearLayout copy=column();copy.setGravity(Gravity.CENTER_VERTICAL);split.addView(copy,new LinearLayout.LayoutParams(0,-1,47));
         copy.addView(muted("01 / 默认桌面",10));gap(copy,20);TextView title=label(own?"系统 HOME 已设置":"设为默认桌面",38);title.setTag("setup-title");copy.addView(title,new LinearLayout.LayoutParams(-1,px(58)));gap(copy,18);copy.addView(muted("请按遥控器 HOME，并重启电视确认。",13));gap(copy,30);
-        Button primary=setupButton(own?"管理预装应用":"设为默认桌面","primary",()->{if(own){screen=1;render();}else if(homeState!=null && homeState.roleAvailable)requestRole();else withConnection(this::setDefault);},true);enable(primary,usable);buttonIcon(primary,R.drawable.ic_setup_home);copy.addView(primary,new LinearLayout.LayoutParams(-2,px(40)));
-        if(!own && homeState!=null && homeState.roleAvailable){gap(copy,10);copy.addView(textButton("通过 ADB 设置","adb",()->withConnection(this::setDefault)),new LinearLayout.LayoutParams(-2,px(30)));}
+        Button primary=setupButton(own?"管理预装应用":"设为默认桌面","primary",()->{if(own){screen=1;render();}else if(homeState!=null && homeState.roleAvailable)requestRole();else withConnection(this::setDefault);},true);enable(primary,usable && (own || homeState.roleAvailable || switchReason.isEmpty()));buttonIcon(primary,R.drawable.ic_setup_home);copy.addView(primary,new LinearLayout.LayoutParams(-2,px(40)));
+        if(!own && homeState!=null && homeState.roleAvailable){gap(copy,10);Button adbButton=textButton("通过 ADB 设置","adb",()->withConnection(this::setDefault));enable(adbButton,switchReason.isEmpty());copy.addView(adbButton,new LinearLayout.LayoutParams(-2,px(30)));}
+        if(!own && !switchReason.isEmpty()){gap(copy,10);copy.addView(muted(switchReason,11),new LinearLayout.LayoutParams(-1,-2));}
         if(!notice.isEmpty() || !usable){gap(copy,8);copy.addView(textButton("重新检测","refresh",()->{roleCancelled=false;refresh();}),new LinearLayout.LayoutParams(-2,px(30)));}
         View spacing=new View(this);split.addView(spacing,new LinearLayout.LayoutParams(0,1,5));
         LinearLayout preview=column();preview.setGravity(Gravity.CENTER_VERTICAL);split.addView(preview,new LinearLayout.LayoutParams(0,-1,48));
