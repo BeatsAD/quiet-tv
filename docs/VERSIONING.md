@@ -22,7 +22,7 @@ QuietTV_<版本号>-<构建号>_<适用系统>[_<单架构标记>]_<发布状态
 - 构建号与实际 APK 的 `versionCode` 一致，只使用不带前导零的正整数，例如 `31`，不使用 `b31`、`Build31`、`RC31`。
 - 主程序各系统档位、架构和构建类型共用递增交付序列；交付不同内容的新包时分配新号，不回退、复用或因版本变化归零。日常编译不必每次加号，同一归档原字节重发不分配新号。
 - 交付前核对源码配置、历史归档和远程发布中的已用号。文件名、APK 版本和归档记录必须一致，不能通过改名冒充新版本。
-- 主程序版本配置在 `app/build.gradle`，当前未发布源码为 `1.1.2 / 34`，交付时可用 Gradle 参数 `quietBuildNumber` 指定递增构建号，standard 与 legacy19 均为 targetSdk36；本页示例不修改配置、不预占构建号。助手版本独立配置在 `coocaa-home-shim/build.gradle` 和 `xiaomi-home-helper/build.gradle`。
+- 主程序版本配置在 `app/build.gradle`，1.1.2 已发布：标准档为 `1.1.2 / 34`，兼容档为 `1.1.2 / 35`，交付时可用 Gradle 参数 `quietBuildNumber` 指定递增构建号，standard 与 legacy19 均为 targetSdk36；本页示例不修改配置、不预占构建号。助手版本独立配置在 `coocaa-home-shim/build.gradle` 和 `xiaomi-home-helper/build.gradle`。
 
 ### 安卓档位与架构
 
@@ -69,13 +69,15 @@ QuietTV助手_2.0.1-12_酷开安卓8配套酷开桌面_实验版.apk
 
 ## 构建与归档
 
+构建示例中的 `BUILD_NUMBER` 须先设为高于所有已用号的未占用正整数；1.1.2 的 34、35 已发布，不可用于新内容。
+
 按[安装指南](INSTALL.zh-CN.md)配置 SDK，现有脚本读取 `local.properties` 的 `sdk.dir`：
 
 ```sh
-python3 scripts/build_apk.py --build-number 34 --variant benchmark --summary "说明本次更新内容"
+python3 scripts/build_apk.py --build-number "$BUILD_NUMBER" --variant benchmark --summary "说明本次更新内容"
 ```
 
-上述命令输出 `dist/apk/QuietTV_1.1.2-34_安卓5及以上_测试版.apk`、同名 `.apk.sha256`、归档 JSON 及优化映射文件。安卓 4.4 同批包通过 `--compatibility legacy19 --build-number 35` 构建，对应 `QuietTV_1.1.2-35_安卓4.4_测试版.apk`。示例编号须先核对历史占用，同名不同内容拒绝覆盖。
+脚本按实际版本及传入构建号输出 APK、同名 `.apk.sha256`、归档 JSON 及优化映射文件；兼容包增加 `--compatibility legacy19`。已发布的 1.1.2 本地归档为 `QuietTV_1.1.2-34_安卓5及以上_测试版.apk` 与 `QuietTV_1.1.2-35_安卓4.4_测试版.apk`，仅原字节重发可复用这两个编号。
 
 现有参数包括 `--variant benchmark`、`--abi armeabi-v7a`、`--min-sdk 21`（默认）、`23`、`26`、`31`。`--compatibility legacy19` 固定使用 API19，标准档不接受 API19。酷开专用桌面及各中转助手暂按各自说明构建，尚未接入统一归档；交付前须完成对应命名及元数据核验，不将当前脚本描述为已支持所有类别。
 
@@ -96,6 +98,19 @@ python3 scripts/build_apk.py --build-number 34 --variant benchmark --summary "�
 - 构建、归档、安装、已安装包哈希核对、遥控器及功能验收分别记录。源码提交、工作区状态和历史验证不能证明当前设备已安装或已通过验收。
 - CI 检查源码，不安装设备或发布 APK；设备升级及发布按明确授权执行。
 
+## 1.1.2 发布与 GitHub 文件名例外
+
+[Quiet TV 1.1.2 测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.2) 已发布，同一 Release 集中标准档 34 与安卓 4.4 档 35。两档共用生产输入，源码基线见发布标签；均为 benchmark 优化测试签名包。
+
+GitHub 清理中文附件名，本批经明确批准只对 GitHub 下载名采用以下映射；中文显示标签及本地原归档保持原样：
+
+| 本地归档 | GitHub 下载 |
+| --- | --- |
+| `QuietTV_1.1.2-34_安卓5及以上_测试版.apk` | `QuietTV_1.1.2-34_Android5plus_Test.apk` |
+| `QuietTV_1.1.2-35_安卓4.4_测试版.apk` | `QuietTV_1.1.2-35_Android4.4_Test.apk` |
+
+APK 字节、版本与签名均未变化。实际英文名的 `.apk.sha256` 与下载配套，另保留原中文文件名校验记录。后续平台改名必须同步校验文件中的文件名，不能只重命名附件。此例外不改变本地命名规则。
+
 ## 历史发布
 
 下列文件名和标签保持原样，不按新规则追溯改名。历史构建及验收只适用于对应产物：
@@ -107,7 +122,7 @@ python3 scripts/build_apk.py --build-number 34 --variant benchmark --summary "�
 
 ## English
 
-Unpublished source is 1.1.2 / 34, with standard (minSdk21) and legacy19 (minSdk19) profiles targeting API36. Historical b30 legacy19 and b26 standard downloads keep their original names and tags. At b30 publication, native emulator and physical-TV acceptance were still pending; historical results for other builds do not validate this APK. See [compatibility](COMPATIBILITY.md) for the recorded scope.
+Published 1.1.2 provides standard build 34 (minSdk21) and legacy19 build 35 (minSdk19), both targeting API36. GitHub uses the approved English filenames listed in the installation guide; local Chinese archives are unchanged. The matching checksum must name the actual download. Historical b30 legacy19 and b26 standard downloads keep their original names and tags. At b30 publication, native emulator and physical-TV acceptance were still pending; historical results for other builds do not validate this APK. See [compatibility](COMPATIBILITY.md) for the recorded scope.
 
 Future deliveries use `QuietTV_<version>-<numeric build>_<system>[_<single ABI>]_<status>.apk`. Version and build must match the actual APK. Build numbers are positive integers without prefixes or leading zeros and increase across all main-app delivery variants. Re-sending identical archived bytes does not allocate a new number. The helper uses `QuietTV助手`, its own version/build sequence, and an explicit target launcher.
 

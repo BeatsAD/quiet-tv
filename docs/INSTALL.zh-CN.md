@@ -8,11 +8,13 @@
 
 ## 环境
 
-当前源码为未发布的 1.1.2：默认标准版最低 Android 5.0 / API21，`legacy19` 兼容版最低 Android 4.4 / API19，两者均为 targetSdk36。公开下载提供 [b30 / API19 兼容测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b30)（约 2.30 MiB，无原生库），并保留 b26 / API21 标准测试版（约 6.50 MiB，包含四种 CPU 架构）。b30 已核对构建、签名与元数据，未完成原生模拟器功能验收，尚未安装真实电视，具体范围见[兼容说明](COMPATIBILITY.md)。历史 b24 仍要求 Android 6.0，b23 ARM32 包仍要求 Android 12，原下载均保留。源码构建、公开下载和真机验收分别记录。
+当前版本为 [1.1.2 测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.2)：标准包为构建号 34，最低 Android 5.0 / API21；`legacy19` 兼容包为构建号 35，最低 Android 4.4 / API19，均为 targetSdk36。按系统选包，不按构建号大小选包。两档主要功能相同；标准包包含四种 CPU 架构，兼容包不含原生库，不提供六位码配对，信号源通过系统设置或遥控器进入。构建、下载与设备验收范围见[兼容说明](COMPATIBILITY.md)。历史包保留原链接。
 
 需要 Git、Python 3、JDK 17 或 21、Android SDK platform 36、build-tools 36.0.0 和 platform-tools。构建无需设备配置、备份、私有测试目录或电视连接。
 
 ## 全新克隆并构建
+
+构建示例中的 `BUILD_NUMBER` 须先设为高于所有已用号的未占用正整数；1.1.2 的 34、35 已发布，不可用于新内容。
 
 ```sh
 git clone https://github.com/BeatsAD/quiet-tv.git
@@ -34,20 +36,20 @@ sdk.dir=/absolute/path/to/your/android-sdk
 若要归档构建，先配置 `local.properties` 中的 `sdk.dir`，再运行：
 
 ```sh
-python3 scripts/build_apk.py --build-number 34 --summary "说明本次构建的修改"
+python3 scripts/build_apk.py --build-number "$BUILD_NUMBER" --summary "说明本次构建的修改"
 ```
 
-标准版输出示例为 `dist/apk/QuietTV_1.1.2-34_安卓5及以上_测试版.apk`，同时生成 `.apk.sha256` 和 `.json`。每个新交付包使用更高且未占用的 `--build-number`，文件名中的构建号与实际 APK 的 versionCode 一致；历史归档保留原样。可选 `--variant benchmark --abi armeabi-v7a` 及 `--min-sdk 21`（默认）/ `23` / `26` / `31`；实际单架构包自动增加架构标记，详见[版本规则](VERSIONING.md)。这些命令不会安装或修改电视。
+本批已发布标准版归档为 `dist/apk/QuietTV_1.1.2-34_安卓5及以上_测试版.apk`；新构建按实际构建号生成文件，同时输出 `.apk.sha256` 和 `.json`。每个新交付包使用更高且未占用的 `--build-number`，文件名中的构建号与实际 APK 的 versionCode 一致；历史归档保留原样。可选 `--variant benchmark --abi armeabi-v7a` 及 `--min-sdk 21`（默认）/ `23` / `26` / `31`；实际单架构包自动增加架构标记，详见[版本规则](VERSIONING.md)。这些命令不会安装或修改电视。
 
 ## Android 4.4 / API19
 
 使用独立兼容档位构建和归档：
 
 ```sh
-python3 scripts/build_apk.py --build-number 35 --compatibility legacy19 --variant benchmark --summary "Android 4.4 兼容测试版"
+python3 scripts/build_apk.py --build-number "$BUILD_NUMBER" --compatibility legacy19 --variant benchmark --summary "Android 4.4 兼容测试版"
 ```
 
-输出为 `dist/apk/QuietTV_1.1.2-35_安卓4.4_测试版.apk`。不另传 `--min-sdk` 时自动选择 API19；标准档不能用降低数字的方式生成 API19 包。直接构建与 Lint 可执行 `./gradlew :app:assembleDebug :app:lintDebug -PquietCompatibility=legacy19 --console=plain`。
+本批已发布兼容包归档为 `dist/apk/QuietTV_1.1.2-35_安卓4.4_测试版.apk`。不另传 `--min-sdk` 时自动选择 API19；标准档不能用降低数字的方式生成 API19 包。直接构建与 Lint 可执行 `./gradlew :app:assembleDebug :app:lintDebug -PquietCompatibility=legacy19 --console=plain`。
 
 兼容版保留核心桌面、Dock、壁纸、应用列表、关于与离线许可证，使用传统 TCP ADB；不提供六位码配对。信号源按钮打开系统设置并提示使用遥控器信号源键，厂商直切需单独适配。APK 不含原生库；ARM32 运行、真实 HOME、网络切换和重启唤醒仍需目标电视验证。Debug 采用旧版 MultiDex 启动支持。
 
@@ -55,13 +57,20 @@ python3 scripts/build_apk.py --build-number 35 --compatibility legacy19 --varian
 
 ## 下载、安装与试用
 
-Android 4.4 从 [b30 Releases](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b30) 下载 `quiet-tv_1.1.0_b30_benchmark_legacy19_api19.apk` 与同名 SHA-256 校验文件，放在同一目录后执行：
+从 [1.1.2 Releases](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.2) 按系统选择：
+
+| 系统 | GitHub 实际下载文件名 | 大小 |
+| --- | --- | --- |
+| 安卓 4.4 | `QuietTV_1.1.2-35_Android4.4_Test.apk` | 4,900,169 字节，约 4.67 MiB |
+| 安卓 5 及以上 | `QuietTV_1.1.2-34_Android5plus_Test.apk` | 9,370,356 字节，约 8.94 MiB |
+
+GitHub 附件用英文下载名和中文标签，本地中文归档保留。选择 APK 与实际英文名同名的 `.apk.sha256`，放在同一目录；不要用标为“原中文文件名校验记录”的历史记录检查英文名文件。例如安卓 5 及以上：
 
 ```sh
-shasum -a 256 -c quiet-tv_1.1.0_b30_benchmark_legacy19_api19.apk.sha256
+shasum -a 256 -c QuietTV_1.1.2-34_Android5plus_Test.apk.sha256
 ```
 
-Android 5.0 及以上仍可下载 [b26 标准版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26)。b30、b26 与 b24 使用相同测试签名；两个档位不能并存，切换需满足签名及版本条件。历史 [b23 Releases](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0) 仅供 Android 12+ 且支持 ARM32 的设备使用；不要将其最低要求套用到 b26。
+安卓 4.4 改用 `QuietTV_1.1.2-35_Android4.4_Test.apk.sha256`。两档使用与历史 b26／b30 相同的测试签名，不能并存；跨档位覆盖仍需满足签名、递增构建号、系统与数据兼容条件。所有[历史下载](https://github.com/BeatsAD/quiet-tv/releases)及其原校验文件保留。
 
 先在电视“设置 → 系统／设备偏好设置 → 关于”中找到 Build／编译版本号，通常连续按遥控器确定约 7 次可开启“开发者选项”，再进入该页面开启实际支持的 USB／ADB 调试。网络连接还需核对网络调试开关、地址和端口；仅开启 USB 调试不保证网络 ADB 可用。详细菜单位置、开启和授权步骤见[技术路径文档第二节](TECHNICAL_PATH_WITH_CODEX.zh-CN.md#二连接电视读取真实设备能力)。
 
