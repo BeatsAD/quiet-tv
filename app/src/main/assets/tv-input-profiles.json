@@ -2,6 +2,20 @@
   "schema": 1,
   "panels": [
     {
+      "package": "com.android.systemui",
+      "type": "service",
+      "action": "com.tcl.tvstatusbar.action.SHOW_WINDOW",
+      "requiredFeature": "com.tcl.software.systemui_custom_tv_source",
+      "extras": {
+        "TvStatusBar_Type": "Source",
+        "TvStatusBar_StartFrom": "input"
+      },
+      "labelZh": "TCL 快捷信号源",
+      "labelEn": "TCL quick inputs",
+      "source": "https://github.com/pengchujin/aerial-tv/blob/d652d5ef65267f22bd273da01f28a99718d059a8/docs/devices/tcl-mt5879-cn.md",
+      "validation": "upstream-reported panel invocation; Quiet TV hardware acceptance pending"
+    },
+    {
       "component": "com.hisense.tv.inputs/com.hisense.tv.InputsUIService",
       "type": "service",
       "action": "com.hisense.tv.start_inputs",

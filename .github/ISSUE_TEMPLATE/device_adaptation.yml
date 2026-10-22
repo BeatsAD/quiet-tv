@@ -29,6 +29,6 @@ body:
     id: validation
     attributes:
       label: 已验证与待验收 / Verified and pending
-      description: 分别列出安装、导航、应用启动、信号源、网络、壁纸、重启和恢复情况 / Separate install, navigation, apps, inputs, network, wallpaper, reboot, and recovery
+      description: 注明实际 APK 版本/构建号和来源，分别列出安装、导航、应用启动、设置、信号源、网络、壁纸、实体 HOME、重启、冷启动、短/长待机和恢复；未执行请注明 / Separate install, navigation, apps, inputs, network, wallpaper, reboot, and recovery
     validations:
       required: true

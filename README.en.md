@@ -143,3 +143,7 @@ Code is licensed under [MIT](LICENSE), preserving the original copyright and com
 ## Let's connect
 
 ![WenBin AI LAB: X, GitHub, website, email, and QR codes for WeChat, WeChat Official Account, Xiaohongshu, and Douyin](docs/assets/contact-16x9.png)
+
+For a computer Agent workflow, see [installation and recovery instructions (Chinese)](docs/AGENT_INSTALL.zh-CN.md). Preserve the original launcher and report installation, real HOME-key behavior, reboot and standby separately.
+
+Source-only compatibility updates add callable vendor app entries, OEM settings routing, display/memory-aware image handling and scoped input routes. Existing public APKs do not include these changes. See the [implementation and validation scope](docs/COMPATIBILITY.md#本轮源码兼容改进); OEM hardware acceptance remains pending.

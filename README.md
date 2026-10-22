@@ -39,6 +39,8 @@ Quiet TV 面向国内 Android 电视的日常使用场景：把常用应用放�
 
 应用管理入口位于“全部应用”，常用应用和壁纸可直接在电视上调整。系统包操作需要先完成本机 ADB 授权。禁用会保留数据，卸载会删除当前用户的应用数据；符合条件的预装应用可恢复安装，但无法恢复已删除的数据。预装应用卸载／恢复仍待实机验收，详见[应用管理说明](docs/APP_MANAGEMENT.md)。
 
+当前源码还补充了厂商应用入口、系统设置/网络路由、按显示与内存条件处理的新上传图片，以及部分信号源面板与型号限定路由。现有公开下载包不包含本次改动；上游依据和 Quiet TV 真机待验收范围见[兼容说明](docs/COMPATIBILITY.md#本轮源码兼容改进)。
+
 ## 技术实现
 
 **实现路径：Codex 编写原生桌面 → 构建 APK → 局域网 ADB 安装 → 设置默认 HOME → 真机调试。** Codex 在电脑上开发，电视运行 APK；无需 root 或刷机，日常使用无需电脑在线。
@@ -138,6 +140,8 @@ Windows 使用 `gradlew.bat`。APK 输出到 `app/build/outputs/apk/debug/app-de
 ```
 
 ## 安装与试用
+
+普通用户可直接使用[Agent 安装与恢复说明](docs/AGENT_INSTALL.zh-CN.md)，让能执行终端命令的电脑 Agent 完成检测、选包、安装和分项核验。安装试用与设置默认桌面分别选择，默认保留原桌面。
 
 1. **确认电视是否适用**：Android 4.4 选择 b30 兼容包，Android 5.0 及以上可选择保留的 b26 标准包；具体机型与功能仍需验证，先查看下方支持范围和[兼容性说明](docs/COMPATIBILITY.md)。
 2. **获取安装包**：从 [b30 兼容版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b30) 或 [b26 标准版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26) 下载 APK 与同名 SHA-256 校验文件，或按[安装指南](docs/INSTALL.zh-CN.md)从源码构建。
