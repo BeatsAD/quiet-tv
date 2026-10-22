@@ -59,7 +59,8 @@ public final class DockEditorActivity extends ManagementUi {
             gap(card,16);TextView title=center(occupied?name(pkg):"添加常用应用",13);title.setSingleLine();title.setEllipsize(android.text.TextUtils.TruncateAt.END);if(!occupied)title.setTextColor(MUTED);card.addView(title,new LinearLayout.LayoutParams(-1,px(20)));
             if(unavailable){gap(card,5);TextView note=center(info!=null && info.enabled?"未安装  保留位置":"已禁用  保留位置",10);note.setTextColor(MUTED);card.addView(note,new LinearLayout.LayoutParams(-1,px(16)));}
         }
-        if(moving!=null){gap(content,35);TextView note=center("调整尚未保存",11);note.setTextColor(MUTED);content.addView(note,new LinearLayout.LayoutParams(-1,px(20)));gap(content,18);LinearLayout actions=row();actions.setGravity(Gravity.CENTER);content.addView(actions,new LinearLayout.LayoutParams(-1,px(36)));actions.addView(button("取消调整",()->cancelMove()));marginAdd(actions,button("保存顺序",()->saveMove()),-2,36,12);}
+        if(moving!=null){gap(content,35);TextView note=center("调整尚未保存",11);note.setTextColor(MUTED);content.addView(note,new LinearLayout.LayoutParams(-1,px(20)));gap(content,18);LinearLayout actions=row();actions.setGravity(Gravity.CENTER);content.addView(actions,new LinearLayout.LayoutParams(-1,px(36)));marginAdd(actions,button("取消调整",()->cancelMove()),-2,36,0);marginAdd(actions,button("保存顺序",()->saveMove()),-2,36,12);}
+        else{gap(content,35);content.addView(center("请选择应用",23));gap(content,11);TextView note=center("确认进行对应的顺序、替换调整",12);note.setTextColor(MUTED);content.addView(note);}
         slots.get(Math.max(0,Math.min(focus,DockStore.CAPACITY-1))).requestFocus();
     }
     private void edit(int index){
