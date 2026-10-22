@@ -139,6 +139,8 @@ Windows 使用 `gradlew.bat`。APK 输出到 `app/build/outputs/apk/debug/app-de
 
 ## 安装与试用
 
+普通用户可直接使用[Agent 安装与恢复说明](docs/AGENT_INSTALL.zh-CN.md)，让能执行终端命令的电脑 Agent 完成检测、选包、安装和分项核验。安装试用与设置默认桌面分别选择，默认保留原桌面。
+
 1. **确认电视是否适用**：Android 4.4 选择 b30 兼容包，Android 5.0 及以上可选择保留的 b26 标准包；具体机型与功能仍需验证，先查看下方支持范围和[兼容性说明](docs/COMPATIBILITY.md)。
 2. **获取安装包**：从 [b30 兼容版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b30) 或 [b26 标准版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26) 下载 APK 与同名 SHA-256 校验文件，或按[安装指南](docs/INSTALL.zh-CN.md)从源码构建。
 3. **安装并试用**：按安装指南连接 ADB 并安装。新安装首次打开会进入设置，也可选择“暂不设置，临时使用”，先检查遥控器、应用启动和系统入口。

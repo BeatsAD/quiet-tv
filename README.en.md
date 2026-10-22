@@ -143,3 +143,5 @@ Code is licensed under [MIT](LICENSE), preserving the original copyright and com
 ## Let's connect
 
 ![WenBin AI LAB: X, GitHub, website, email, and QR codes for WeChat, WeChat Official Account, Xiaohongshu, and Douyin](docs/assets/contact-16x9.png)
+
+For a computer Agent workflow, see [installation and recovery instructions (Chinese)](docs/AGENT_INSTALL.zh-CN.md). Preserve the original launcher and report installation, real HOME-key behavior, reboot and standby separately.

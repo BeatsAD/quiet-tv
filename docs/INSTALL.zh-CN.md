@@ -2,6 +2,10 @@
 
 [English](INSTALL.en.md) · [首页](../README.md) · [兼容范围](COMPATIBILITY.md)
 
+## 普通用户安装
+
+已有 APK 的使用者优先阅读[Agent 安装与恢复说明](AGENT_INSTALL.zh-CN.md)或本页“下载、安装与试用”。下方构建环境只用于从源码构建，使用已发布 APK 不需要 JDK、Gradle 或完整 Android SDK。
+
 ## 环境
 
 当前源码为 1.1.0 / b30：默认标准版最低 Android 5.0 / API21，`legacy19` 兼容版最低 Android 4.4 / API19，两者均为 targetSdk36。公开下载提供 [b30 / API19 兼容测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b30)（约 2.30 MiB，无原生库），并保留 b26 / API21 标准测试版（约 6.50 MiB，包含四种 CPU 架构）。b30 已核对构建、签名与元数据，未完成原生模拟器功能验收，尚未安装真实电视，具体范围见[兼容说明](COMPATIBILITY.md)。历史 b24 仍要求 Android 6.0，b23 ARM32 包仍要求 Android 12，原下载均保留。源码构建、公开下载和真机验收分别记录。
