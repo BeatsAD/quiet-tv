@@ -52,7 +52,7 @@ final class WallpaperUploadPanel {
         LinearLayout header=new LinearLayout(activity);header.setGravity(Gravity.CENTER_VERTICAL);
         header.addView(text(tr("把喜欢的风景，留在电视上","Keep your favorite view on TV"),24),new LinearLayout.LayoutParams(0,-2,1));
         Button close=button("×",this::close);close.setContentDescription(tr("关闭上传","Close upload"));header.addView(close,new LinearLayout.LayoutParams(px(44),px(44)));box.addView(header);
-        TextView steps=text(tr("1  手机或电脑与电视连接同一局域网\n2  扫描二维码，或打开下方完整地址\n3  选择图片上传，再在电视确认使用\n    JPG / PNG / 静态 WebP  单张 ≤ 20 MB","1  Connect your phone or computer to the TV’s LAN\n2  Scan the QR code or open the full address below\n3  Upload a photo, then select it on your TV\n    JPG / PNG / static WebP  Up to 20 MB"),13);
+        TextView steps=text(tr("1  手机或电脑与电视连接同一局域网\n2  手机扫码；电脑打开下方地址，输入连接码\n3  选择图片上传，再在电视确认使用\n    JPG / PNG / 静态 WebP  单张 ≤ 20 MB","1  Connect your phone or computer to the TV’s LAN\n2  Scan with your phone, or open the address and enter the code\n3  Upload a photo, then select it on your TV\n    JPG / PNG / static WebP  Up to 20 MB"),13);
         steps.setLineSpacing(px(6),1);LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,-2);sp.topMargin=px(22);box.addView(steps,sp);
         LinearLayout connection=new LinearLayout(activity);connection.setGravity(Gravity.CENTER_VERTICAL);
         address=text(tr("正在开启上传…","Starting upload…"),14);
@@ -77,7 +77,7 @@ final class WallpaperUploadPanel {
                 String url=candidate.address();BitMatrix matrix=new QRCodeWriter().encode(url,BarcodeFormat.QR_CODE,384,384);
                 int[] pixels=new int[384*384];for(int y=0;y<384;y++)for(int x=0;x<384;x++)pixels[y*384+x]=matrix.get(x,y)?Color.BLACK:Color.WHITE;
                 Bitmap bitmap=Bitmap.createBitmap(pixels,384,384,Bitmap.Config.ARGB_8888);WallpaperUploadServer ready=candidate;
-                main.post(()->{if(dialog==null||attempt!=generation){ready.stop();bitmap.recycle();return;}server=ready;address.setText(url);qr.setImageBitmap(bitmap);main.postDelayed(check,2000);});
+                main.post(()->{if(dialog==null||attempt!=generation){ready.stop();bitmap.recycle();return;}server=ready;address.setText(ready.shortAddress()+"\n"+tr("连接码  ","Connection code  ")+ready.connectionCode());qr.setImageBitmap(bitmap);main.postDelayed(check,2000);});
             }catch(IOException|WriterException e){candidate.stop();main.post(()->{if(dialog!=null&&attempt==generation){address.setText(tr("无法开启上传，请检查网络后重试","Unable to start upload. Check your network and retry."));retry.setVisibility(View.VISIBLE);}});}
         });
     }
