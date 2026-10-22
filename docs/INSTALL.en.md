@@ -10,7 +10,7 @@ Install Git, Python 3, JDK 17 or 21, Android SDK platform 36, build-tools 36.0.0
 
 ## Fresh-clone build
 
-Set `BUILD_NUMBER` to an unused positive integer above all allocated delivery numbers before archiving. Published 1.1.2 builds 34 and 35 are occupied.
+Before archiving, set `STANDARD_BUILD_NUMBER` to an unused positive integer above all allocated delivery numbers, and `LEGACY_BUILD_NUMBER` to a separate unused number higher than it. The two new APKs must not reuse a build number. Published 1.1.2 builds 34 and 35 are occupied.
 
 ```sh
 git clone https://github.com/BeatsAD/quiet-tv.git
@@ -32,17 +32,17 @@ Output: `app/build/outputs/apk/debug/app-debug.apk`. Use gradlew.bat on Windows;
 For immutable archives, configure `sdk.dir` in local.properties and run:
 
 ```sh
-python3 scripts/build_apk.py --build-number "$BUILD_NUMBER" --summary "Describe this build's changes"
+python3 scripts/build_apk.py --build-number "$STANDARD_BUILD_NUMBER" --summary "Describe this build's changes"
 ```
 
 The published standard archive is `dist/apk/QuietTV_1.1.2-34_安卓5及以上_测试版.apk`; new builds use the requested number and also produce matching `.apk.sha256` and `.json` files. Choose a higher unused `--build-number` for every new delivery; the filename includes the actual APK versionCode. Historical archives keep their original names. Options include `--variant benchmark --abi armeabi-v7a` and `--min-sdk 21` (default), `23`, `26` or `31`; actual single-ABI packages receive an ABI label. See [versioning](VERSIONING.md). These commands never install to a TV.
 
 ## Android 4.4 / API19
 
-Build and archive the separate compatibility profile:
+Build and archive the separate compatibility profile. First set `LEGACY_BUILD_NUMBER` higher than the standard APK and every other archived delivery:
 
 ```sh
-python3 scripts/build_apk.py --build-number "$BUILD_NUMBER" --compatibility legacy19 --variant benchmark --summary "Android 4.4 compatibility candidate"
+python3 scripts/build_apk.py --build-number "$LEGACY_BUILD_NUMBER" --compatibility legacy19 --variant benchmark --summary "Android 4.4 compatibility candidate"
 ```
 
 The published legacy archive is `dist/apk/QuietTV_1.1.2-35_安卓4.4_测试版.apk`. The profile defaults to API19; lowering the standard profile's minimum alone is rejected. For build and Lint, run `./gradlew :app:assembleDebug :app:lintDebug -PquietCompatibility=legacy19 --console=plain`.
