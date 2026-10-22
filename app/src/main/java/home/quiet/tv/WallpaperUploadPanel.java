@@ -88,7 +88,7 @@ final class WallpaperUploadPanel {
                 byte[] buffer=new byte[16384];long remaining=length;
                 while(remaining>0){if(attempt!=generation || !active.valid())throw new IOException("上传会话已结束 / Session ended");int n=input.read(buffer,0,(int)Math.min(buffer.length,remaining));if(n<0)throw new IOException("图片传输未完成 / Incomplete upload");output.write(buffer,0,n);remaining-=n;}
             }
-            int[] size=WallpaperImages.prepare(incoming,prepared);
+            int[] size=WallpaperImages.prepare(incoming,prepared,WallpaperImages.importLimit(activity));
             if(attempt!=generation || !active.valid())throw new IOException("上传会话已结束 / Session ended");
             WallpaperCatalog.Entry entry=store.add(prepared,name,size[0],size[1]);
             main.post(()->{if(dialog!=null&&attempt==generation){lastImported=entry.id;status.setText(tr("已收到图片，请按返回后选择使用","Photo received. Press Back, then select it to apply."));}});

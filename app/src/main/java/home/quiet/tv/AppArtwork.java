@@ -13,30 +13,44 @@ final class AppArtwork {
 
     static Bitmap load(Context context,ResolveInfo info){
         PackageManager pm=context.getPackageManager();Drawable banner=null;
-        if(Build.VERSION.SDK_INT>=21){banner=info.activityInfo.loadBanner(pm);if(banner==null)banner=info.activityInfo.applicationInfo.loadBanner(pm);}
-        Drawable art=banner!=null?banner:info.loadIcon(pm);
-        return render(art!=null?art:UiCompat.drawable(context,R.drawable.ic_manage_apps),banner!=null);
+        ActivityInfo activity=info.activityInfo;
+        if(Build.VERSION.SDK_INT>=21){banner=resource(pm,activity.applicationInfo,activity.getBannerResource());if(banner==null)banner=activity.loadBanner(pm);}
+        Drawable art=banner!=null?banner:resource(pm,activity.applicationInfo,activity.getIconResource());
+        if(art==null)art=info.loadIcon(pm);
+        return render(art!=null?art:UiCompat.drawable(context,R.drawable.ic_manage_apps),banner!=null,width(context));
     }
 
     static Bitmap load(Context context,String pkg,ApplicationInfo info){
-        PackageManager pm=context.getPackageManager();
-        Intent launch=Build.VERSION.SDK_INT>=21?pm.getLeanbackLaunchIntentForPackage(pkg):null;
-        if(launch==null)launch=pm.getLaunchIntentForPackage(pkg);
-        if(launch!=null){ResolveInfo resolved=pm.resolveActivity(launch,0);if(resolved!=null)return load(context,resolved);}
-        Drawable icon=info==null?null:info.loadIcon(pm);
-        return render(icon==null?UiCompat.drawable(context,R.drawable.ic_manage_apps):icon,false);
+        ResolveInfo entry=new HomeAppCatalog(context).launchable().get(pkg);
+        if(entry!=null)return load(context,entry);
+        Drawable icon=info==null?null:resource(context.getPackageManager(),info,info.icon);
+        if(icon==null && info!=null)icon=info.loadIcon(context.getPackageManager());
+        return render(icon==null?UiCompat.drawable(context,R.drawable.ic_manage_apps):icon,false,width(context));
     }
 
-    static Bitmap render(Drawable art,boolean banner){
-        int limitWidth=banner?WIDTH:108,limitHeight=banner?HEIGHT:108;
+    private static Drawable resource(PackageManager pm,ApplicationInfo app,int id){
+        if(id==0)return null;
+        try{return pm.getResourcesForApplication(app).getDrawableForDensity(id,android.util.DisplayMetrics.DENSITY_XXXHIGH);}
+        catch(PackageManager.NameNotFoundException|android.content.res.Resources.NotFoundException|SecurityException e){return null;}
+    }
+    private static int width(Context context){
+        android.app.ActivityManager memory=(android.app.ActivityManager)context.getSystemService(Context.ACTIVITY_SERVICE);
+        if(memory==null || memory.isLowRamDevice() || memory.getMemoryClass()<256)return WIDTH;
+        return Math.max(WIDTH,Math.min(720,Math.round(WIDTH*context.getResources().getDisplayMetrics().widthPixels/1920f)));
+    }
+
+    static Bitmap render(Drawable art,boolean banner){return render(art,banner,WIDTH);}
+    private static Bitmap render(Drawable art,boolean banner,int outputWidth){
+        float ratio=outputWidth/(float)WIDTH;int outputHeight=Math.round(HEIGHT*ratio);
+        int limitWidth=banner?outputWidth:Math.round(108*ratio),limitHeight=banner?outputHeight:Math.round(108*ratio);
         int width=art==null?1:Math.max(1,art.getIntrinsicWidth()),height=art==null?1:Math.max(1,art.getIntrinsicHeight());
         float scale=Math.min(limitWidth/(float)width,limitHeight/(float)height);
         width=Math.max(1,Math.round(width*scale));height=Math.max(1,Math.round(height*scale));
         Bitmap source=Bitmap.createBitmap(width,height,Bitmap.Config.ARGB_8888);
         if(art!=null){Rect bounds=new Rect(art.getBounds());try{art.setBounds(0,0,width,height);art.draw(new Canvas(source));}finally{art.setBounds(bounds);}}
-        Bitmap result=Bitmap.createBitmap(WIDTH,HEIGHT,Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(result);
+        Bitmap result=Bitmap.createBitmap(outputWidth,outputHeight,Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(result);
         canvas.drawColor(background(source,banner));
-        canvas.drawBitmap(source,(WIDTH-width)/2f,(HEIGHT-height)/2f,new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG));
+        canvas.drawBitmap(source,(outputWidth-width)/2f,(outputHeight-height)/2f,new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG));
         source.recycle();return result;
     }
 

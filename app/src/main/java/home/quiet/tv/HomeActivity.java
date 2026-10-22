@@ -438,7 +438,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private App currentApp(){if(row==0)return dock.isEmpty()?null:dock.get(Math.min(column,dock.size()-1));int n=(row-1)*APP_COLUMNS+column;return n>=0&&n<apps.size()?apps.get(n):null;}
 
-    private void launchSelected(){App app=currentApp();if(app==null)return;saveFocus();if("quiet:add-dock".equals(app.pkg)){startActivity(new Intent(this,DockEditorActivity.class));return;}if(DESKTOP_SETTINGS_ENTRY.equals(app.pkg)){startActivity(new Intent(this,DesktopSettingsActivity.class));return;}if(MANAGEMENT_ENTRY.equals(app.pkg)){startActivity(new Intent(this,AppManagementActivity.class));return;}if(WALLPAPER_ENTRY.equals(app.pkg)){wallpapers.showPicker();return;}try{startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Build.VERSION.SDK_INT>=21?Intent.CATEGORY_LEANBACK_LAUNCHER:Intent.CATEGORY_LAUNCHER).setComponent(app.component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));}catch(ActivityNotFoundException e){Toast.makeText(this,tr("应用暂不可用","App unavailable"),Toast.LENGTH_SHORT).show();}}
+    private void launchSelected(){App app=currentApp();if(app==null)return;saveFocus();if("quiet:add-dock".equals(app.pkg)){startActivity(new Intent(this,DockEditorActivity.class));return;}if(DESKTOP_SETTINGS_ENTRY.equals(app.pkg)){startActivity(new Intent(this,DesktopSettingsActivity.class));return;}if(MANAGEMENT_ENTRY.equals(app.pkg)){startActivity(new Intent(this,AppManagementActivity.class));return;}if(WALLPAPER_ENTRY.equals(app.pkg)){wallpapers.showPicker();return;}try{startActivity(new Intent(Intent.ACTION_MAIN).setComponent(app.component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));}catch(ActivityNotFoundException|SecurityException e){Toast.makeText(this,tr("应用暂不可用","App unavailable"),Toast.LENGTH_SHORT).show();}}
 
     private float focusTranslationX(Tile tile) {
         // The border is inside the card; only compensate for its scale at Dock ends.
@@ -521,7 +521,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         }
     }
 
-    private void openSettings(String action){try{startActivity(new Intent(action));}catch(ActivityNotFoundException e){startActivity(new Intent(Settings.ACTION_SETTINGS));}}
+    private void openSettings(String action){if(!new SystemSettingsRouter(this).open(action))Toast.makeText(this,tr("系统设置不可用，请使用电视遥控器","Settings unavailable; use the TV remote"),Toast.LENGTH_LONG).show();}
 
     private void showInputs(){
         if(Build.VERSION.SDK_INT>=21){if(tvInputs==null)tvInputs=new TvInputs();tvInputs.show();return;}
@@ -616,8 +616,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 .setTitle(tr("信号源暂不可用","Inputs unavailable")).setMessage(message)
                 .setNegativeButton(tr("返回","Back"),(d,w)->{})
                 .setPositiveButton(tr("系统设置","System settings"),(d,w)->{
-                    try{startActivity(new Intent(Settings.ACTION_SETTINGS));}
-                    catch(ActivityNotFoundException|SecurityException e){Toast.makeText(HomeActivity.this,tr("系统设置不可用，请使用电视遥控器","Settings unavailable; use the TV remote"),Toast.LENGTH_SHORT).show();}
+                    openSettings(Settings.ACTION_SETTINGS);
                 }).create();
             dialog.setOnDismissListener(d->main.post(()->positionGlass(false)));dialog.show();
         }
@@ -639,6 +638,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         }
 
         private void openInput(TvInputInfo info){
+            if(new TvInputController(HomeActivity.this).openKnownInput(info))return;
             Uri uri;
             if(info.isPassthroughInput())uri=TvContract.buildChannelUriForPassthroughInput(info.getId());
             else{
@@ -668,7 +668,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
         private String inputName(TvInputInfo info){
             if(!info.isPassthroughInput())return tr("电视直播","Live TV");
-            if(info.getType()==TvInputInfo.TYPE_HDMI)return info.loadLabel(HomeActivity.this).toString();
+            if(info.getType()==TvInputInfo.TYPE_HDMI || info.getType()==TvInputInfo.TYPE_DISPLAY_PORT)return new TvInputController(HomeActivity.this).inputLabel(info);
             if(info.getType()==TvInputInfo.TYPE_COMPOSITE)return "AV";
             return info.loadLabel(HomeActivity.this).toString();
         }

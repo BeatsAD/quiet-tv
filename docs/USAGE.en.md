@@ -67,3 +67,5 @@ Ethernet has been checked. Wi-Fi names depend on location permission and the sys
 ## Updates and recovery
 
 Follow [installation](INSTALL.en.md) to rebuild and update Quiet TV. Third-party applications use their own update channels. System recovery requires the original baseline and journal for that exact target; never apply the included Sony recovery list to another TV.
+
+Source-only updates share a callable app catalog across Home, sorting and favorites; add detected OEM settings/input routes; and retain newly uploaded images up to the actual rendering size (3840px maximum, 1920px on low-memory devices). Existing photos and public APKs are unchanged. See [compatibility scope](COMPATIBILITY.md#本轮源码兼容改进).
