@@ -39,7 +39,17 @@ final class WallpaperController {
     private FrameLayout content;
     private LinearLayout rail;
     private HorizontalScrollView scroll;
-    private TextView title,apply,remove,restore,auto,manage,upload;
+    private View pendingCardFocus;
+    private TextView title,apply,restore,auto,manage,upload;
+    private String pressedWallpaper;
+    private int pressedKey=KeyEvent.KEYCODE_UNKNOWN;
+    private long pressedAt;
+    private boolean longPressed;
+    private final Runnable holdCard=()->{
+        View card=cards.get(pressedWallpaper);
+        if(card==null||!card.hasFocus()||picker==null||!picker.isShowing())return;
+        longPressed=true;confirmDelete(pressedWallpaper,pressedKey,pressedAt);
+    };
     private ValueAnimator transition;
     private final Runnable rotate=this::rotateWallpaper;
     private void rotateWallpaper(){try{store.next();display(store.snapshot().current,true);}catch(IOException e){notice(tr("壁纸设置保存失败","Unable to save wallpaper settings"));}schedule();}
@@ -85,7 +95,7 @@ final class WallpaperController {
     }
     private void schedule(){main.removeCallbacks(rotate);WallpaperCatalog state=store.snapshot();if(active&&state.rotating&&picker==null)main.postDelayed(rotate,ROTATION_MS);}
     void resume(){active=true;display(store.snapshot().current,false);schedule();}
-    void pause(){active=false;main.removeCallbacks(rotate);uploads.close();if(confirmation!=null)confirmation.dismiss();if(picker!=null)picker.dismiss();if(transition!=null)transition.end();}
+    void pause(){active=false;cancelCardPress();main.removeCallbacks(rotate);uploads.close();if(confirmation!=null)confirmation.dismiss();if(picker!=null)picker.dismiss();if(transition!=null)transition.end();}
     void destroy(){++request;uploads.destroy();decoder.shutdownNow();main.removeCallbacksAndMessages(null);if(transition!=null){transition.cancel();transition.removeAllUpdateListeners();}current.setImageDrawable(null);incoming.setImageDrawable(null);thumbnails.evictAll();}
 
     synchronized Bitmap entryBanner(){
@@ -117,7 +127,7 @@ final class WallpaperController {
     void showPicker(){
         if(picker!=null)return;main.removeCallbacks(rotate);preview=store.snapshot().current;managing=false;
         for(int n=1;n<root.getChildCount();n++)root.getChildAt(n).setVisibility(View.INVISIBLE);
-        picker=new androidx.activity.ComponentDialog(activity);
+        picker=new androidx.activity.ComponentDialog(activity){@Override public void onWindowFocusChanged(boolean focus){super.onWindowFocusChanged(focus);if(focus)focusPendingCard();else cancelCardPress();}};
         ((androidx.activity.ComponentDialog)picker).getOnBackPressedDispatcher().addCallback((androidx.activity.ComponentDialog)picker,new androidx.activity.OnBackPressedCallback(true){@Override public void handleOnBackPressed(){handlePickerBack();}});
         picker.requestWindowFeature(Window.FEATURE_NO_TITLE);content=new FrameLayout(activity);
         LinearLayout layout=new LinearLayout(activity);layout.setOrientation(LinearLayout.VERTICAL);layout.setPadding(px(36),px(32),px(36),px(32));content.addView(layout,new FrameLayout.LayoutParams(-1,-1));
@@ -125,21 +135,21 @@ final class WallpaperController {
         TextView heading=label(tr("壁纸设置","Wallpaper Settings"),28);header.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
         auto=button("",false,()->runSaved(()->{WallpaperCatalog s=store.snapshot();store.rotation(!s.rotating);preview=store.snapshot().current;display(preview,true);refreshCards(preview,false);}));header.addView(auto);
         gap(header,8);upload=button(tr("上传壁纸","Upload"),false,()->uploads.show(WallpaperUi.backdrop(root,content),id->{if(picker!=null){if(id!=null){preview=id;display(preview,true);}refreshCards(preview,id!=null);}}));ui.icon(upload,R.drawable.wp_upload);header.addView(upload);
-        gap(header,8);manage=button(tr("管理","Manage"),false,()->{managing=!managing;refreshCards(preview,false);});ui.icon(manage,R.drawable.wp_sliders_horizontal);header.addView(manage);layout.addView(header);
+        gap(header,8);manage=button(tr("管理","Manage"),false,()->{managing=!managing;refreshCards(preview,true);});ui.icon(manage,R.drawable.wp_sliders_horizontal);header.addView(manage);layout.addView(header);
         layout.addView(new View(activity),new LinearLayout.LayoutParams(1,0,1));
         LinearLayout actions=row();title=label("",27);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);actions.addView(title,new LinearLayout.LayoutParams(0,-2,1));
-        remove=button(tr("删除","Delete"),false,this::confirmDelete);remove.setMinHeight(px(43));ui.icon(remove,R.drawable.wp_trash_2);actions.addView(remove);gap(actions,10);
         apply=button("",true,()->runSaved(()->{store.select(preview);display(preview,true);refreshCards(preview,true);notice(tr("已应用壁纸","Wallpaper applied"));}));ui.icon(apply,R.drawable.wp_check);actions.addView(apply);
         LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,px(43));ap.setMargins(px(4),0,px(4),px(24));layout.addView(actions,ap);
         LinearLayout restores=row();restores.setGravity(Gravity.END);restore=button(tr("恢复内置壁纸","Restore built-in wallpapers"),false,this::confirmRestore);restore.setMinHeight(px(30));restore.setBackground(ui.focusSurface(Color.TRANSPARENT,100));ui.icon(restore,R.drawable.wp_rotate_ccw);restores.addView(restore);layout.addView(restores);
         scroll=new HorizontalScrollView(activity);scroll.setHorizontalScrollBarEnabled(false);scroll.setClipToPadding(false);scroll.setClipChildren(false);scroll.setFillViewport(false);rail=row();rail.setClipToPadding(false);rail.setClipChildren(false);rail.setGravity(Gravity.BOTTOM);rail.setPadding(px(4),px(7),px(4),0);scroll.addView(rail);LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,px(154));layout.addView(scroll,rp);
-        picker.setContentView(content);picker.setOnDismissListener(d->{++pickerVersion;uploads.close();picker=null;cards.clear();for(int n=1;n<root.getChildCount();n++)root.getChildAt(n).setVisibility(View.VISIBLE);shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x70000000,0x10000000,0xf00a0e15}));display(store.snapshot().current,true);schedule();});
+        picker.setContentView(content);picker.setOnDismissListener(d->{cancelCardPress();pendingCardFocus=null;++pickerVersion;uploads.close();picker=null;cards.clear();for(int n=1;n<root.getChildCount();n++)root.getChildAt(n).setVisibility(View.VISIBLE);shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x70000000,0x10000000,0xf00a0e15}));display(store.snapshot().current,true);schedule();});
         Window window=picker.getWindow();if(window!=null){window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));window.getDecorView().setSystemUiVisibility(5894);window.setDimAmount(0);}
         shade.setBackground(WallpaperUi.shade());picker.show();if(window!=null)window.setLayout(-1,-1);refreshCards(preview,true);
     }
     private void handlePickerBack(){if(picker==null)return;if(managing){managing=false;refreshCards(preview,true);}else picker.dismiss();}
     private void refreshCards(String preferred,boolean focusCard){
-        if(picker==null)return;int version=++pickerVersion;WallpaperCatalog state=store.snapshot();if(state.find(preferred)==null)preferred=state.current;preview=preferred;
+        if(picker==null)return;cancelCardPress();pendingCardFocus=null;int version=++pickerVersion;WallpaperCatalog state=store.snapshot();if(state.find(preferred)==null)preferred=state.current;
+        if(managing&&WallpaperCatalog.DEFAULT.equals(preferred)&&!state.pictures().isEmpty())preferred=state.pictures().get(0).id;preview=preferred;
         rail.removeAllViews();cards.clear();
         for(WallpaperCatalog.Entry wallpaper:state.entries()){
             String id=wallpaper.id;FrameLayout card=new FrameLayout(activity);card.setId(View.generateViewId());card.setFocusable(true);card.setContentDescription(wallpaper.label(chinese));card.setPadding(px(CARD_INSET),px(CARD_INSET),px(CARD_INSET),px(CARD_INSET));card.setBackground(border(false,false));
@@ -155,28 +165,71 @@ final class WallpaperController {
                 TextView mark=label(tr("当前使用","In use"),10);mark.setTextColor(0xff171d25);mark.setPadding(px(6),px(1),px(6),px(1));mark.setBackground(ui.surface(0xfff0f1f4,100,Color.TRANSPARENT,0));
                 LinearLayout.LayoutParams mp=new LinearLayout.LayoutParams(-2,-2);mp.leftMargin=px(4);caption.addView(mark,mp);
             }
-            card.setOnFocusChangeListener((v,focus)->{if(focus){preview=id;display(id,true);details();scroll.requestChildFocus(rail,card);}});
-            card.setOnClickListener(v->runSaved(()->{preview=id;store.select(id);refreshCards(id,true);notice(tr("已应用壁纸","Wallpaper applied"));}));
-            card.setOnKeyListener((v,key,event)->{if(key!=KeyEvent.KEYCODE_DPAD_LEFT&&key!=KeyEvent.KEYCODE_DPAD_RIGHT)return false;if(event.getAction()==KeyEvent.ACTION_DOWN){List<String> ids=new ArrayList<>(cards.keySet());int index=ids.indexOf(id)+(key==KeyEvent.KEYCODE_DPAD_LEFT?-1:1);if(index>=0&&index<ids.size())cards.get(ids.get(index)).requestFocus();}return true;});
+            if(managing&&!WallpaperCatalog.DEFAULT.equals(id)){
+                ImageView trash=new ImageView(activity);trash.setImageDrawable(ui.icon(R.drawable.wp_trash_2,14,WallpaperUi.INK));trash.setPadding(px(4),px(4),px(4),px(4));trash.setBackground(ui.surface(0xcc20252d,100,Color.TRANSPARENT,0));trash.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+                FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(px(24),px(24),Gravity.TOP|Gravity.RIGHT);tp.setMargins(0,px(5),px(5),0);card.addView(trash,tp);
+            }
+            card.setOnFocusChangeListener((v,focus)->{if(focus){preview=id;display(id,true);details();scroll.requestChildFocus(rail,card);}else if(id.equals(pressedWallpaper))cancelCardPress();});
+            card.setOnClickListener(v->{if(managing)confirmDelete(id,KeyEvent.KEYCODE_UNKNOWN,0);else runSaved(()->{preview=id;store.select(id);refreshCards(id,true);notice(tr("已应用壁纸","Wallpaper applied"));});});
+            card.setOnLongClickListener(v->{confirmDelete(id,KeyEvent.KEYCODE_UNKNOWN,0);return true;});
+            card.setFocusable(!managing||!WallpaperCatalog.DEFAULT.equals(id));card.setAlpha(card.isFocusable()?1:.45f);
+            card.setOnKeyListener((v,key,event)->{if(confirmKey(key))return cardKey(id,key,event);if(key!=KeyEvent.KEYCODE_DPAD_LEFT&&key!=KeyEvent.KEYCODE_DPAD_RIGHT)return false;if(event.getAction()==KeyEvent.ACTION_DOWN){cancelCardPress();List<String> ids=focusableCards();int index=ids.indexOf(id)+(key==KeyEvent.KEYCODE_DPAD_LEFT?-1:1);if(index>=0&&index<ids.size())cards.get(ids.get(index)).requestFocus();}return true;});
         }
-        display(preview,true);details();if(focusCard)cards.get(preview).requestFocus();
+        display(preview,true);details();if(focusCard)focusCard(preview);
+    }
+    private List<String> focusableCards(){List<String> ids=new ArrayList<>();for(Map.Entry<String,View> item:cards.entrySet())if(item.getValue().isFocusable())ids.add(item.getKey());return ids;}
+    private void focusCard(String id){
+        if(picker==null)return;View card=cards.get(id);
+        pendingCardFocus=card!=null&&card.isFocusable()?card:((View)restore.getParent()).getVisibility()==View.VISIBLE?restore:manage;
+        pendingCardFocus.post(this::focusPendingCard);
+    }
+    private void focusPendingCard(){
+        // Dialog dismissal can regain window focus after its callback has returned.
+        if(picker==null||pendingCardFocus==null||!pendingCardFocus.hasWindowFocus()||!pendingCardFocus.isShown())return;
+        View target=pendingCardFocus;pendingCardFocus=null;target.requestFocusFromTouch();
+    }
+    private static boolean confirmKey(int key){return key==KeyEvent.KEYCODE_DPAD_CENTER||key==KeyEvent.KEYCODE_ENTER||key==KeyEvent.KEYCODE_NUMPAD_ENTER||key==KeyEvent.KEYCODE_BUTTON_A||key==KeyEvent.KEYCODE_BUTTON_SELECT;}
+    private void cancelCardPress(){main.removeCallbacks(holdCard);View card=cards.get(pressedWallpaper);if(card!=null)card.setPressed(false);pressedWallpaper=null;pressedKey=KeyEvent.KEYCODE_UNKNOWN;longPressed=false;}
+    private boolean cardKey(String id,int key,KeyEvent event){
+        // Own the complete gesture so a long press cannot also apply on release.
+        if(event.getAction()==KeyEvent.ACTION_DOWN){
+            if(event.getRepeatCount()==0){cancelCardPress();pressedWallpaper=id;pressedKey=key;pressedAt=event.getDownTime();cards.get(id).setPressed(true);main.postDelayed(holdCard,ViewConfiguration.getLongPressTimeout());}
+        }else if(event.getAction()==KeyEvent.ACTION_UP){
+            boolean click=id.equals(pressedWallpaper)&&key==pressedKey&&!longPressed&&!event.isCanceled();cancelCardPress();if(click)cards.get(id).performClick();
+        }
+        return true;
     }
     private void details(){
         if(picker==null)return;WallpaperCatalog state=store.snapshot();WallpaperCatalog.Entry entry=state.find(preview);if(entry==null)return;
-        title.setText(entry.label(chinese));remove.setVisibility(managing&&!WallpaperCatalog.DEFAULT.equals(preview)?View.VISIBLE:View.GONE);
-        boolean applied=preview.equals(state.current)&&!state.rotating;apply.setEnabled(!applied);apply.setVisibility(applied?View.GONE:View.VISIBLE);apply.setText(WallpaperCatalog.DEFAULT.equals(preview)?tr("使用颜色主题","Use color theme"):tr("使用这张壁纸","Use wallpaper"));
+        title.setText(entry.label(chinese));
+        boolean applied=preview.equals(state.current)&&!state.rotating;apply.setEnabled(!applied&&!managing);apply.setVisibility(applied||managing?View.GONE:View.VISIBLE);apply.setText(WallpaperCatalog.DEFAULT.equals(preview)?tr("使用颜色主题","Use color theme"):tr("使用这张壁纸","Use wallpaper"));
         auto.setText(tr("壁纸轮播","Slideshow"));auto.setCompoundDrawables(toggleDrawable(state.rotating),null,null,null);auto.setCompoundDrawablePadding(px(7));auto.setContentDescription(state.rotating?tr("壁纸轮播，开","Slideshow, on"):tr("壁纸轮播，关","Slideshow, off"));auto.setEnabled(state.pictures().size()>=2);auto.setAlpha(auto.isEnabled()?1:.4f);
         manage.setText(managing?tr("完成","Done"):tr("管理","Manage"));View restoreRow=(View)restore.getParent();restoreRow.setVisibility(managing&&!state.removed.isEmpty()?View.VISIBLE:View.GONE);
-        View card=cards.get(preview);if(card==null)return;View action=remove.getVisibility()==View.VISIBLE?remove:apply.isEnabled()?apply:upload;
+        View card=cards.get(preview);if(card==null)return;View action=managing?restoreRow.getVisibility()==View.VISIBLE?restore:manage:apply.getVisibility()==View.VISIBLE?apply:upload;
         for(Map.Entry<String,View> item:cards.entrySet()){boolean selected=item.getKey().equals(preview);item.getValue().setBackground(border(selected,false));item.getValue().setPadding(px(CARD_INSET),px(CARD_INSET),px(CARD_INSET),px(CARD_INSET));item.getValue().setTranslationY(selected?-px(3):0);item.getValue().setNextFocusUpId(action.getId());}
-        for(TextView control:new TextView[]{auto,upload,manage})control.setNextFocusDownId(action==upload?card.getId():action.getId());
-        int lower=restoreRow.getVisibility()==View.VISIBLE?restore.getId():card.getId();apply.setNextFocusDownId(lower);remove.setNextFocusDownId(lower);apply.setNextFocusUpId(upload.getId());remove.setNextFocusUpId(upload.getId());restore.setNextFocusDownId(card.getId());restore.setNextFocusUpId(action.getId());
+        int lower=card.isFocusable()?card.getId():restoreRow.getVisibility()==View.VISIBLE?restore.getId():manage.getId();
+        for(TextView control:new TextView[]{auto,upload,manage})control.setNextFocusDownId(managing||action==upload?lower:action.getId());
+        apply.setNextFocusDownId(lower);apply.setNextFocusUpId(upload.getId());restore.setNextFocusDownId(lower);restore.setNextFocusUpId(manage.getId());
     }
-    private void confirmDelete(){
-        WallpaperCatalog.Entry entry=store.snapshot().find(preview);if(entry==null||WallpaperCatalog.DEFAULT.equals(preview))return;
-        confirmation=new AlertDialog.Builder(activity).setTitle(tr("删除「","Delete “")+entry.label(chinese)+tr("」？","”?"))
-            .setMessage((entry.custom()?tr("删除电视中保存的图片，手机或电脑中的原图不受影响。","Delete this TV copy. The original on your phone or computer is unchanged."):tr("将从列表和轮播中移除，以后可恢复内置壁纸。","Remove from the list and slideshow. You can restore built-in wallpapers later."))+(entry.id.equals(store.snapshot().current)?store.snapshot().rotating?tr("\n将切换到下一张有效图片；不足两张时关闭轮播。","\nSwitch to the next available photo; stop slideshow below two images."):tr("\n这张壁纸正在使用，删除后切回默认颜色主题。","\nThis wallpaper is in use. Deleting it restores the default color theme."):""))
-            .setNegativeButton(tr("取消","Cancel"),null).setPositiveButton(tr("删除","Delete"),(d,w)->runSaved(()->{store.remove(entry.id);thumbnails.remove(entry.id);preview=store.snapshot().current;display(preview,true);refreshCards(preview,true);})).show();
+    private void confirmDelete(String id,int initiatingKey,long downTime){
+        if(picker==null||confirmation!=null&&confirmation.isShowing())return;
+        WallpaperCatalog state=store.snapshot();WallpaperCatalog.Entry entry=state.find(id);if(entry==null)return;
+        if(WallpaperCatalog.DEFAULT.equals(id)){notice(tr("默认颜色主题不能删除","The default color theme cannot be deleted"));return;}
+        List<String> before=focusableCards();int index=before.indexOf(id);String[] returnTo={id};
+        AlertDialog dialog=new AlertDialog.Builder(activity).setTitle(tr("删除「","Delete “")+entry.label(chinese)+tr("」？","”?"))
+            .setMessage((entry.custom()?tr("删除电视中保存的图片，手机或电脑中的原图不受影响。","Delete this TV copy. The original on your phone or computer is unchanged."):tr("将从列表和轮播中移除，以后可恢复内置壁纸。","Remove from the list and slideshow. You can restore built-in wallpapers later."))+(entry.id.equals(state.current)?state.rotating?tr("\n将切换到下一张有效图片；不足两张时关闭轮播。","\nSwitch to the next available photo; stop slideshow below two images."):tr("\n这张壁纸正在使用，删除后切回默认颜色主题。","\nThis wallpaper is in use. Deleting it restores the default color theme."):""))
+            .setNegativeButton(tr("取消","Cancel"),null).setPositiveButton(tr("删除","Delete"),null).create();
+        // The opening hold can continue in the new window. Consume its repeats and release.
+        boolean[] releasing={initiatingKey!=KeyEvent.KEYCODE_UNKNOWN};
+        dialog.setOnKeyListener((d,key,event)->{if(!releasing[0]||key!=initiatingKey)return false;if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0&&event.getDownTime()>downTime){releasing[0]=false;return false;}if(event.getAction()==KeyEvent.ACTION_UP)releasing[0]=false;return true;});
+        dialog.setOnDismissListener(d->{if(confirmation==dialog)confirmation=null;if(active)focusCard(returnTo[0]);});
+        confirmation=dialog;dialog.show();View cancel=dialog.getButton(AlertDialog.BUTTON_NEGATIVE);cancel.post(()->{if(dialog.isShowing())cancel.requestFocusFromTouch();});
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
+            try{
+                store.remove(entry.id);thumbnails.remove(entry.id);before.remove(entry.id);returnTo[0]=before.isEmpty()?WallpaperCatalog.DEFAULT:before.get(Math.max(0,Math.min(index,before.size()-1)));
+                refreshCards(returnTo[0],false);dialog.dismiss();
+            }catch(IOException e){notice(tr("删除失败，请检查电视存储后重试","Unable to delete. Check TV storage and retry."));}
+        });
     }
     private void confirmRestore(){confirmation=new AlertDialog.Builder(activity).setTitle(tr("恢复内置壁纸？","Restore built-in wallpapers?"))
         .setMessage(tr("当前壁纸和你上传的图片保持不变。","Your current wallpaper and uploaded photos stay unchanged."))
