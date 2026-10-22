@@ -59,27 +59,31 @@ final class WallpaperUploadPanel {
         dialog=new Dialog(activity);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         FrameLayout stage=new FrameLayout(activity);ImageView background=new ImageView(activity);background.setScaleType(ImageView.ScaleType.FIT_XY);background.setImageBitmap(backdrop);stage.addView(background,new FrameLayout.LayoutParams(-1,-1));
         View dim=new View(activity);dim.setBackgroundColor(0xbf070b12);stage.addView(dim,new FrameLayout.LayoutParams(-1,-1));
-        LinearLayout box=column();box.setPadding(px(34),px(30),px(34),px(30));box.setBackground(ui.surface(0xff222831,23,0x20ffffff,1));
+        LinearLayout box=column();box.setPadding(px(30),px(30),px(30),px(30));box.setBackground(ui.surface(0xff222831,23,0x20ffffff,1));
         if(Build.VERSION.SDK_INT>=21)box.setElevation(px(18));
         LinearLayout header=new LinearLayout(activity);header.setGravity(Gravity.CENTER_VERTICAL);
-        TextView heading=ui.text(tr("把喜欢的风景，留在电视上","Keep your favorite view on TV"),23);header.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
+        TextView heading=ui.text(tr("把喜欢的壁纸，留在电视上","Keep your favorite wallpaper on TV"),23);header.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
         TextView close=ui.button("",false,this::close);close.setContentDescription(tr("关闭上传","Close upload"));close.setPadding(px(8),px(8),px(8),px(8));close.setCompoundDrawables(ui.icon(R.drawable.wp_x,17,WallpaperUi.INK),null,null,null);close.setBackground(ui.focusSurface(0xff343c48,100));
         header.addView(close,new LinearLayout.LayoutParams(px(33),px(33)));box.addView(header,new LinearLayout.LayoutParams(-1,px(42)));
         LinearLayout connection=new LinearLayout(activity);connection.setGravity(Gravity.CENTER_VERTICAL);LinearLayout steps=column();
         step(steps,"1",tr("连接同一个局域网","Connect to the same local network"),tr("电视可使用 Wi-Fi 或网线连接","Your TV can use Wi-Fi or Ethernet"),46);
-        LinearLayout second=step(steps,"2",tr("手机扫码，或在电脑浏览器打开","Scan with your phone, or open on your computer"),null,84);
+        LinearLayout second=step(steps,"2",tr("手机扫码，或在电脑浏览器打开","Scan with your phone, or open on your computer"),null,64);
         address=ui.text(tr("正在开启上传…","Starting upload…"),15);address.setPadding(0,px(8),0,0);second.addView(address);
-        code=ui.text("",12);code.setTextColor(WallpaperUi.MUTED);code.setPadding(0,px(6),0,0);second.addView(code);
         step(steps,"3",tr("选择图片，上传后在电视上应用","Upload a photo, then apply it on your TV"),tr("JPG / PNG / 静态 WebP  单张不超过 20 MB","JPG / PNG / static WebP  Up to 20 MB"),46);
-        connection.addView(steps,new LinearLayout.LayoutParams(0,-2,1));View gap=new View(activity);connection.addView(gap,new LinearLayout.LayoutParams(px(35),1));
+        connection.addView(steps,new LinearLayout.LayoutParams(0,-2,1));View gap=new View(activity);connection.addView(gap,new LinearLayout.LayoutParams(px(28),1));
+        LinearLayout qrColumn=column();qrColumn.setGravity(Gravity.CENTER_HORIZONTAL);
+        // Balance the code's space above the QR so the QR itself stays vertically centered.
+        qrColumn.addView(new View(activity),new LinearLayout.LayoutParams(1,px(44)));
         FrameLayout qrBox=new FrameLayout(activity);qrBox.setBackground(ui.surface(Color.WHITE,15,Color.TRANSPARENT,0));qrBox.setPadding(px(13),px(13),px(13),px(13));
-        qr=new ImageView(activity);qr.setContentDescription(tr("上传地址二维码","Upload address QR code"));qr.setScaleType(ImageView.ScaleType.FIT_CENTER);qrBox.addView(qr,new FrameLayout.LayoutParams(-1,-1));connection.addView(qrBox,new LinearLayout.LayoutParams(px(170),px(170)));
+        qr=new ImageView(activity);qr.setContentDescription(tr("上传地址二维码","Upload address QR code"));qr.setScaleType(ImageView.ScaleType.FIT_CENTER);qrBox.addView(qr,new FrameLayout.LayoutParams(-1,-1));qrColumn.addView(qrBox,new LinearLayout.LayoutParams(px(170),px(170)));
+        code=ui.text("",26);code.setTypeface(Typeface.MONOSPACE,Typeface.BOLD);code.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams codeParams=new LinearLayout.LayoutParams(-1,px(32));codeParams.topMargin=px(12);qrColumn.addView(code,codeParams);connection.addView(qrColumn,new LinearLayout.LayoutParams(px(190),-2));
         LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,-2);cp.topMargin=px(24);box.addView(connection,cp);
         status=ui.text("",12);status.setTextColor(WallpaperUi.MUTED);status.setVisibility(View.GONE);status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         LinearLayout.LayoutParams st=new LinearLayout.LayoutParams(-1,-2);st.topMargin=px(16);box.addView(status,st);
         retry=ui.button(tr("重新连接","Reconnect"),false,this::start);retry.setVisibility(View.GONE);LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-2,-2);rp.topMargin=px(12);box.addView(retry,rp);
         close.setNextFocusDownId(retry.getId());retry.setNextFocusUpId(close.getId());
-        FrameLayout.LayoutParams sheet=new FrameLayout.LayoutParams(px(770),-2,Gravity.CENTER);stage.addView(box,sheet);
+        FrameLayout.LayoutParams sheet=new FrameLayout.LayoutParams(px(680),-2,Gravity.CENTER);stage.addView(box,sheet);
         dialog.setContentView(stage);dialog.setOnDismissListener(d->{dialog=null;stopServer();background.setImageDrawable(null);this.backdrop.recycle();this.backdrop=null;Closed finished=this.callback;this.callback=null;if(finished!=null)finished.closed(lastImported);});
         Window window=dialog.getWindow();if(window!=null){window.setBackgroundDrawableResource(android.R.color.transparent);window.setDimAmount(0);window.getDecorView().setSystemUiVisibility(5894);}
         dialog.show();if(window!=null)window.setLayout(-1,-1);close.requestFocus();start();
@@ -95,7 +99,13 @@ final class WallpaperUploadPanel {
                 String url=candidate.address();BitMatrix matrix=new QRCodeWriter().encode(url,BarcodeFormat.QR_CODE,384,384,java.util.Collections.singletonMap(EncodeHintType.MARGIN,1));
                 int[] pixels=new int[384*384];for(int y=0;y<384;y++)for(int x=0;x<384;x++)pixels[y*384+x]=matrix.get(x,y)?Color.BLACK:Color.WHITE;
                 Bitmap bitmap=Bitmap.createBitmap(pixels,384,384,Bitmap.Config.ARGB_8888);WallpaperUploadServer ready=candidate;
-                main.post(()->{if(dialog==null||attempt!=generation){ready.stop();bitmap.recycle();return;}server=ready;address.setText(ready.shortAddress());code.setText(tr("连接码  ","Connection code  ")+ready.connectionCode());qr.setImageBitmap(bitmap);main.postDelayed(check,2000);});
+                main.post(()->{
+                    if(dialog==null||attempt!=generation){ready.stop();bitmap.recycle();return;}server=ready;address.setText(ready.shortAddress());
+                    String prefix=tr("连接码  ","Code  ");android.text.SpannableString value=new android.text.SpannableString(prefix+ready.connectionCode());
+                    value.setSpan(new android.text.style.AbsoluteSizeSpan(px(11)),0,prefix.length(),android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    value.setSpan(new android.text.style.ForegroundColorSpan(WallpaperUi.MUTED),0,prefix.length(),android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    code.setText(value);code.setContentDescription(tr("连接码  ","Connection code  ")+ready.connectionCode());qr.setImageBitmap(bitmap);main.postDelayed(check,2000);
+                });
             }catch(IOException|WriterException e){candidate.stop();main.post(()->{if(dialog!=null&&attempt==generation){address.setText(tr("无法开启上传，请检查网络后重试","Unable to start upload. Check your network and retry."));retry.setVisibility(View.VISIBLE);}});}
         });
     }

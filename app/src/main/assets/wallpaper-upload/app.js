@@ -5,9 +5,15 @@ let uploadBase=new URL('.',location.href);
 const needsCode=location.pathname==='/';
 $('pairing').hidden=!needsCode;$('editor').hidden=needsCode;
 const message=(zh,en)=>english?en:zh;
-if(english){document.documentElement.lang='en';document.title='Quiet TV  Upload wallpaper';$('connection').textContent='Local network upload';document.querySelector('#editor h1').innerHTML='Your favorite view.<br>On your TV.';document.querySelector('#editor .intro').textContent='Choose a photo, upload it, then apply it on your TV.';$('placeholder').querySelector('span').textContent='Choose a favorite view';$('photo').setAttribute('aria-label','Choose wallpaper image');$('change').textContent='Change photo';$('fileinfo').textContent='16:9 landscape recommended  JPG / PNG / WebP  Up to 20 MB';$('send').textContent='Upload to TV';document.querySelector('#success h1').textContent='Upload complete';document.querySelector('#success .intro').textContent='Added to your TV wallpaper library. Press Back on the TV, then select the photo to apply it.';$('another').textContent='Upload another';document.querySelector('footer').textContent='Direct to your TV  No cloud';}
+if(english){
+  document.documentElement.lang='en';document.title='Quiet TV  Upload wallpaper';
+  document.querySelector('#editor h1').textContent='Upload wallpaper';$('placeholder').querySelector('.placeholder-text').textContent='Choose image';
+  $('photo').setAttribute('aria-label','Choose wallpaper image');$('change').textContent='Change image';$('fileinfo').textContent='JPG / PNG / static WebP  Up to 20 MB';
+  $('send').textContent='Upload to TV';$('progress').setAttribute('aria-label','Upload progress');
+  document.querySelector('#success h1').textContent='Upload complete';document.querySelector('#success .intro').textContent='Press Back on the TV, then select this wallpaper to apply it.';$('another').textContent='Upload another';
+  document.querySelector('#pairing h1').textContent='Connect to TV';document.querySelector('label[for=code]').textContent='Connection code';$('code').placeholder='6 digits';$('connect').textContent='Connect to TV';
+}
 function error(text){$('error').textContent=text;$('error').hidden=false;}
-if(english){document.querySelector('#pairing h1').textContent='Connect to TV';document.querySelector('#pairing .intro').textContent='Enter the six-digit code shown on the TV upload screen.';document.querySelector('label[for=code]').textContent='Connection code';$('connect').textContent='Connect to TV';}
 $('pair-form').addEventListener('submit',async event=>{
   event.preventDefault();$('pair-error').hidden=true;$('connect').disabled=true;
   try{
