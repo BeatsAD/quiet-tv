@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96" fill="none">
+  <title>Quiet TV — Q 字电视</title>
+  <defs>
+    <linearGradient id="quiet-tv-tile" x1="0" y1="0" x2="96" y2="96" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#142B4B"/>
+      <stop offset="1" stop-color="#060E1D"/>
+    </linearGradient>
+  </defs>
+  <path d="M24,0.5H72A23.5,23.5 0,0 1,95.5 24V72A23.5,23.5 0,0 1,72 95.5H24A23.5,23.5 0,0 1,0.5 72V24A23.5,23.5 0,0 1,24 0.5Z" fill="url(#quiet-tv-tile)" stroke="#2D476B" stroke-width="0.7"/>
+  <path d="M29,23H67A14,14 0,0 1,81 37V53A14,14 0,0 1,67 67H29A14,14 0,0 1,15 53V37A14,14 0,0 1,29 23ZM29,30H67A7,7 0,0 1,74 37V53A7,7 0,0 1,67 60H29A7,7 0,0 1,22 53V37A7,7 0,0 1,29 30Z" fill="#F3F4F7" fill-rule="evenodd"/>
+  <path d="M66,67L74,77" stroke="#081222" stroke-width="12" stroke-linecap="round"/>
+  <path d="M66,67L74,77" stroke="#89C9F4" stroke-width="8" stroke-linecap="round"/>
+</svg>
