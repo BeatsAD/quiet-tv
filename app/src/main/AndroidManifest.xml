@@ -24,6 +24,7 @@
         <activity android:name=".AboutActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".DockEditorActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".HomeSortActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".DesktopSettingsActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".AppManagementActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".BootAdActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".SetupActivity" android:exported="false" android:screenOrientation="landscape" />

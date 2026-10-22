@@ -10,7 +10,7 @@ import java.util.*;
 
 /** The home and its editor must enumerate the same launchable packages and built-in entries. */
 final class HomeAppCatalog {
-    static final String WALLPAPER="quiet:wallpapers",MANAGEMENT="quiet:management";
+    static final String WALLPAPER="quiet:wallpapers",DESKTOP_SETTINGS="quiet:desktop-settings",MANAGEMENT="quiet:management";
     static final class Entry {
         final String id,label;final ResolveInfo info;
         Entry(String id,String label,ResolveInfo info){this.id=id;this.label=label;this.info=info;}
@@ -38,7 +38,8 @@ final class HomeAppCatalog {
         Collections.sort(result,(a,b)->{int compared=collator.compare(a.label,b.label);return compared!=0?compared:a.id.compareTo(b.id);});
         boolean chinese=!"en".equals(config.optString("language","zh"));
         result.add(0,new Entry(WALLPAPER,chinese?"壁纸设置":"Wallpaper Settings",null));
-        result.add(1,new Entry(MANAGEMENT,chinese?"应用管理":"App Management",null));
+        result.add(1,new Entry(DESKTOP_SETTINGS,chinese?"桌面设置":"Desktop Settings",null));
+        result.add(2,new Entry(MANAGEMENT,chinese?"应用管理":"App Management",null));
         return result;
     }
     static ArrayList<String> gridIds(List<Entry> entries,List<String> pinned){

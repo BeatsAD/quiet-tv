@@ -8,7 +8,7 @@
 | --- | --- |
 | Left / Right | Move within the current row; stop at its edges |
 | Up / Down | Move one row between shortcuts, dock, and grid |
-| OK | Open the selected application, shortcut, or wallpaper settings |
+| OK | Open the selected application, shortcut, or settings module |
 | Back in the grid | Return to the dock |
 | HOME from an application | Return to Quiet TV and restore focus |
 
@@ -16,10 +16,10 @@ An incomplete last row uses the nearest valid column. Focus survives launcher pr
 
 ## App management and Dock
 
-Open 应用管理 (App Management) beside Wallpaper Settings in All Apps. Management controls in this first Sony-targeted version are in Chinese.
+Open 应用管理 (App Management) from All Apps. Management controls in this first Sony-targeted version are in Chinese.
 
 - Dock 管理 supports up to four shortcuts: add, replace, remove, or move left/right. OK saves reordering; Back cancels. Editing works without ADB.
-- **Home order**: open App management → 首页排序. Press OK to pick up an entry, use the arrows to move it, and press OK again to drop it. Back cancels the current move; 保存顺序 saves the page. Leaving with changes offers save, discard, or continue editing. Restore default also requires saving. Wallpaper Settings and App Management can both move.
+- **Home order**: open App management → 首页排序. Press OK to pick up an entry, use the arrows to move it, and press OK again to drop it. Back cancels the current move; 保存顺序 saves the page. Leaving with changes offers save, discard, or continue editing. Restore default also requires saving. Wallpaper Settings, Desktop Settings and App Management can all move.
 - Search by application name or package, and filter all, user, preinstalled, disabled, or restorable packages.
 - The top-right ADB status opens local TCP connection settings (default port 5555). Enable network debugging on the TV and approve QuietTV's independent key. Pairing-code wireless debugging is not implemented.
 - Operations affect one package for the current Android user. Disabling retains data; uninstalling removes that user's app data. Preinstalled uninstall leaves the system APK; install-existing is offered only when a system APK is retained and never restores deleted data.
@@ -27,7 +27,7 @@ Open 应用管理 (App Management) beside Wallpaper Settings in All Apps. Manage
 
 Disabled Dock entries retain their order and reappear when enabled. Confirmed uninstalls remove the shortcut. An explicitly empty Dock stays empty across APK updates. See [implementation and hardware evidence](APP_MANAGEMENT.md).
 
-Home ordering works without ADB and leaves Dock independent. In custom order, newly visible apps append at the end; updates and name changes preserve positions. Disabled or pinned apps retain their order records until shown again; uninstalls remove records. Default order puts Wallpaper Settings and App Management first, followed by apps sorted by name. Settings stay on the device across normal in-place updates; physical remote, reboot, and upgrade behavior must be accepted on each target TV.
+Home ordering works without ADB and leaves Dock independent. In custom order, newly visible apps append at the end; updates and name changes preserve positions. Disabled or pinned apps retain their order records until shown again; uninstalls remove records. Default order puts Wallpaper Settings, Desktop Settings and App Management first, followed by apps sorted by name. Settings stay on the device across normal in-place updates; physical remote, reboot, and upgrade behavior must be accepted on each target TV.
 
 ## Language and initial configuration
 
@@ -49,6 +49,10 @@ Accepts JPG, PNG and static WebP: up to 20 MB and 40 megapixels per input, 20 up
 The server runs only while the TV upload dialog is open. Leaving it, backgrounding Quiet TV, changing network addresses, or ten idle minutes ends the session and invalidates its address. If connection fails, check guest-network/device isolation and try a system browser. Failed uploads and storage errors leave existing wallpapers unchanged.
 
 APK updates preserve images and removed built-ins; uninstalling or clearing application data removes uploaded photos. Existing selections and rotation settings migrate on first launch. These management/upload additions describe current source, are not included in the existing b26 download, and await real-TV acceptance. See [resource notices](../THIRD_PARTY_NOTICES.md) for provenance and licensing limits.
+
+## Desktop settings
+
+Open the independent Desktop Settings module after Wallpaper Settings in All Apps. Toggle Show time and date or Show right-side buttons (Inputs, Network, Settings); both default to on. Changes apply when returning home and are saved automatically across normal in-place updates. Remote navigation skips hidden buttons; Desktop Settings remains accessible in All Apps to restore them. Existing custom orders receive the new entry immediately after Wallpaper Settings; it can then be moved in Home order. This feature describes current source, is absent from existing downloads, and awaits vendor-TV acceptance.
 
 ## Inputs and settings
 

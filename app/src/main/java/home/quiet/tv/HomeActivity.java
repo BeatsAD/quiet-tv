@@ -27,6 +27,7 @@ import java.util.concurrent.*;
 public final class HomeActivity extends androidx.activity.ComponentActivity {
     private static final String TAG = "QuietTV";
     private static final String WALLPAPER_ENTRY = HomeAppCatalog.WALLPAPER;
+    private static final String DESKTOP_SETTINGS_ENTRY = HomeAppCatalog.DESKTOP_SETTINGS;
     private static final String MANAGEMENT_ENTRY = HomeAppCatalog.MANAGEMENT;
     private static final float CONTENT_MARGIN = 48;
     private static final float FOCUS_SCALE = 1.035f, FOCUS_OUTSET = 5, FOCUS_STROKE = 3;
@@ -45,6 +46,9 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private GridLayoutManager layout;
     private Glass glass;
     private WallpaperController wallpapers;
+    private DesktopSettingsStore desktopSettings;
+    private View timeRow, topButtons;
+    private boolean rightButtonsVisible=true;
     private TextView clock, date, greeting, heroTitle, network;
     private PopupWindow inputPopup;
     private Typeface outfit;
@@ -86,6 +90,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             outfit = Build.VERSION.SDK_INT>=26 ? Typeface.createFromAsset(getAssets(), "fonts/outfit.ttf") : Typeface.create("sans-serif",Typeface.NORMAL);
         } catch (Exception e) { throw new IllegalStateException("Invalid bundled launcher configuration", e); }
         row = getPreferences(0).getInt("row", 0);
+        desktopSettings=new DesktopSettingsStore(this);
         column = getPreferences(0).getInt("column", 0);
         activePackage = getPreferences(0).getString("package", "");
         makeScene();
@@ -158,6 +163,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         greeting=text("",14,600,0xffe6e7ed);UiCompat.letterSpacing(greeting,.14f);
         greeting.setGravity(Gravity.CENTER_VERTICAL);place(root,greeting,430,22,50,32);
         LinearLayout timeRow=new LinearLayout(this);timeRow.setOrientation(LinearLayout.HORIZONTAL);
+        this.timeRow=timeRow;
         timeRow.setGravity(Gravity.CENTER_VERTICAL);place(root,timeRow,430,64,50,57);
         clock=text("",50,400,0xfff1f2f6);clock.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));
         if(Build.VERSION.SDK_INT>=21)clock.setFontFeatureSettings("tnum");
@@ -170,12 +176,21 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         date.setSingleLine(true);date.setGravity(Gravity.CENTER_VERTICAL);
         timeRow.addView(date,new LinearLayout.LayoutParams(-2,-1));
         FrameLayout top = new FrameLayout(this);
+        topButtons=top;
         FrameLayout.LayoutParams topParams=new FrameLayout.LayoutParams(px(330),px(50),Gravity.TOP|Gravity.RIGHT);
         topParams.topMargin=px(67);topParams.rightMargin=px(CONTENT_MARGIN); root.addView(top,topParams);
         addPill(top, tr("信号源","Inputs"), R.drawable.ic_input, 102, 0, ()->showInputs());
         network=addPill(top,tr("网络","Network"), R.drawable.ic_ethernet, 102, 114, ()->openSettings(Settings.ACTION_WIFI_SETTINGS));
         addPill(top,tr("设置","Settings"), R.drawable.ic_settings, 102, 228, ()->openSettings(Settings.ACTION_SETTINGS));
-        updateClock(); updateNetwork();
+        applyDesktopSettings();updateClock(); updateNetwork();
+    }
+
+    private void applyDesktopSettings(){
+        timeRow.setVisibility(desktopSettings.showTime()?View.VISIBLE:View.GONE);
+        rightButtonsVisible=desktopSettings.showButtons();
+        topButtons.setVisibility(rightButtonsVisible?View.VISIBLE:View.GONE);
+        if(!rightButtonsVisible && row<0){row=0;column=Math.min(restoreColumn,maxColumn(0));}
+        if(ready)focusCurrent(false);
     }
 
     private TextView addPill(FrameLayout parent, String title, int icon, float width, float x, Runnable action) {
@@ -208,6 +223,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     private void updateNetwork() {
+        if(!rightButtonsVisible)return;
         ConnectivityManager cm=(ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE);
         boolean ethernet,wifi;
         if(Build.VERSION.SDK_INT>=23){
@@ -248,7 +264,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         registerReceiver(timeReceiver,time);
         if(Build.VERSION.SDK_INT>=24)stopNetworkCallback=Api24.observe(this);
         else registerReceiver(legacyNetworkReceiver,new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
-        updateClock();updateNetwork();
+        applyDesktopSettings();updateClock();updateNetwork();
         wallpapers.resume();
         loadApps();
     }
@@ -301,8 +317,10 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             artworkCache.clear();artworkCache.putAll(freshCache);
             App wallpaperApp=new App();wallpaperApp.pkg=WALLPAPER_ENTRY;wallpaperApp.label=tr("壁纸设置","Wallpaper Settings");
             wallpaperApp.banner=wallpapers.entryBanner();wallpaperApp.color=0xff557eac;found.add(0,wallpaperApp);
+            App desktopApp=new App();desktopApp.pkg=DESKTOP_SETTINGS_ENTRY;desktopApp.label=tr("桌面设置","Desktop Settings");
+            desktopApp.banner=managementBanner(desktopApp.label,R.drawable.ic_setup_home);desktopApp.color=0xff666972;found.add(1,desktopApp);
             App managementApp=new App();managementApp.pkg=MANAGEMENT_ENTRY;managementApp.label=tr("应用管理","App Management");
-            managementApp.banner=managementBanner(tr("应用管理","App Management"));managementApp.color=0xff666972;found.add(1,managementApp);
+            managementApp.banner=managementBanner(tr("应用管理","App Management"));managementApp.color=0xff666972;found.add(2,managementApp);
             ArrayList<String> defaults=new ArrayList<>();for(App app:found)if(!pinned.contains(app.pkg))defaults.add(app.pkg);
             ArrayList<String> gridOrder=new HomeOrderStore(this).order(defaults);
             main.post(()->{
@@ -343,6 +361,10 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     private Bitmap managementBanner(String title) {
+        return managementBanner(title,title.equals(tr("应用管理","App Management"))?R.drawable.ic_manage_apps:R.drawable.ic_manage_plus);
+    }
+
+    private Bitmap managementBanner(String title,int resource) {
         Bitmap bitmap=Bitmap.createBitmap(360,203,Bitmap.Config.ARGB_8888);
         Canvas canvas=new Canvas(bitmap);Paint paint=new Paint(3);
         paint.setShader(new LinearGradient(0,0,360,203,new int[]{0xff2b2d33,0xff1b1d22},null,Shader.TileMode.CLAMP));canvas.drawRect(0,0,360,203,paint);paint.setShader(null);
@@ -350,7 +372,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         paint.setColor(0xffe7e8ec);paint.setTextSize(28);paint.setTextAlign(Paint.Align.CENTER);
         Paint.FontMetrics metrics=paint.getFontMetrics();float textHeight=metrics.descent-metrics.ascent;
         float top=(203-76-12-textHeight)/2f;
-        Drawable icon=UiCompat.drawable(this,title.equals(tr("应用管理","App Management"))?R.drawable.ic_manage_apps:R.drawable.ic_manage_plus);
+        Drawable icon=UiCompat.drawable(this,resource);
         icon.setBounds(142,Math.round(top),218,Math.round(top+76));icon.draw(canvas);
         canvas.drawText(title,180,top+76+12-metrics.ascent,paint);return bitmap;
     }
@@ -388,7 +410,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             }else{
                 if(key==KeyEvent.KEYCODE_DPAD_LEFT)column=Math.max(0,column-1);
                 if(key==KeyEvent.KEYCODE_DPAD_RIGHT)column=Math.min(maxColumn(row),column+1);
-                if(key==KeyEvent.KEYCODE_DPAD_UP){if(row==0){restoreColumn=column;row=-1;}else{row--;column=Math.min(column,maxColumn(row));}}
+                if(key==KeyEvent.KEYCODE_DPAD_UP){if(row==0){if(rightButtonsVisible){restoreColumn=column;row=-1;}}else{row--;column=Math.min(column,maxColumn(row));}}
                 if(key==KeyEvent.KEYCODE_DPAD_DOWN && row<gridRows()){if(row==0)restoreColumn=column;row++;column=Math.min(column,maxColumn(row));}
             }
             focusCurrent(true);return true;
@@ -428,7 +450,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private App currentApp(){if(row==0)return dock.isEmpty()?null:dock.get(Math.min(column,dock.size()-1));int n=(row-1)*4+column;return n>=0&&n<apps.size()?apps.get(n):null;}
 
-    private void launchSelected(){App app=currentApp();if(app==null)return;saveFocus();if("quiet:add-dock".equals(app.pkg)){startActivity(new Intent(this,DockEditorActivity.class));return;}if(MANAGEMENT_ENTRY.equals(app.pkg)){startActivity(new Intent(this,AppManagementActivity.class));return;}if(WALLPAPER_ENTRY.equals(app.pkg)){wallpapers.showPicker();return;}try{startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Build.VERSION.SDK_INT>=21?Intent.CATEGORY_LEANBACK_LAUNCHER:Intent.CATEGORY_LAUNCHER).setComponent(app.component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));}catch(ActivityNotFoundException e){Toast.makeText(this,tr("应用暂不可用","App unavailable"),Toast.LENGTH_SHORT).show();}}
+    private void launchSelected(){App app=currentApp();if(app==null)return;saveFocus();if("quiet:add-dock".equals(app.pkg)){startActivity(new Intent(this,DockEditorActivity.class));return;}if(DESKTOP_SETTINGS_ENTRY.equals(app.pkg)){startActivity(new Intent(this,DesktopSettingsActivity.class));return;}if(MANAGEMENT_ENTRY.equals(app.pkg)){startActivity(new Intent(this,AppManagementActivity.class));return;}if(WALLPAPER_ENTRY.equals(app.pkg)){wallpapers.showPicker();return;}try{startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Build.VERSION.SDK_INT>=21?Intent.CATEGORY_LEANBACK_LAUNCHER:Intent.CATEGORY_LAUNCHER).setComponent(app.component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));}catch(ActivityNotFoundException e){Toast.makeText(this,tr("应用暂不可用","App unavailable"),Toast.LENGTH_SHORT).show();}}
 
     private int focusOutset(View view) {
         return px(view instanceof Tile?2:FOCUS_OUTSET);
