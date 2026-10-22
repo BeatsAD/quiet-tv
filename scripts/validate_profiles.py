@@ -38,15 +38,27 @@ panels = json.loads((source.parent / 'tv-input-profiles.json').read_text())
 assert panels['schema'] == 1
 components = set()
 for panel in panels['panels']:
-    component = panel['component']
-    assert re.fullmatch(r'[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+/[A-Za-z0-9_.$]+', component), 'Invalid panel component'
-    package, activity = component.split('/')
-    canonical = package + '/' + (package + activity if activity.startswith('.') else activity)
+    component = panel.get('component', '')
+    package = panel.get('package', '')
+    if component:
+        assert not package, 'Use either component or package/action'
+        assert re.fullmatch(r'[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+/[A-Za-z0-9_.$]+', component), 'Invalid panel component'
+        package_name, activity = component.split('/')
+        canonical = package_name + '/' + (package_name + activity if activity.startswith('.') else activity)
+    else:
+        assert re.fullmatch(r'[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+', package), 'Invalid service package'
+        assert panel['type'] == 'service' and panel.get('action'), 'Package resolution needs a service action'
+        canonical = package + ':' + panel['action']
     assert canonical not in components, 'Duplicate system input panel'
     components.add(canonical)
+    assert isinstance(panel.get('requiredFeature', ''), str)
+    assert isinstance(panel.get('extras', {}), dict)
+    for value in panel.get('extras', {}).values():
+        assert type(value) in (str, int, bool), 'Only primitive input extras are supported'
+        assert type(value) is not int or -2147483648 <= value <= 2147483647, 'Integer extra out of range'
     assert panel['type'] in {'activity', 'service'}
     assert panel['type'] != 'service' or panel.get('action'), 'Services need an explicit action'
     assert all(panel.get(key) for key in ['labelZh', 'labelEn', 'source', 'validation'])
-    assert panel['source'].startswith('https://github.com/Gathin23/cleanyourtv/'), 'Panel provenance is required'
+    assert panel['source'].startswith(('https://github.com/Gathin23/cleanyourtv/', 'https://github.com/pengchujin/aerial-tv/')), 'Panel provenance is required'
     assert isinstance(panel.get('preferPanel', False), bool)
 print(f'PASS: {len(components)} system input panel profile(s); runtime component and permission checks required')

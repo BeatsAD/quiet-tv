@@ -27,9 +27,13 @@ import java.util.concurrent.*;
 public final class HomeActivity extends androidx.activity.ComponentActivity {
     private static final String TAG = "QuietTV";
     private static final String WALLPAPER_ENTRY = HomeAppCatalog.WALLPAPER;
+    private static final String DESKTOP_SETTINGS_ENTRY = HomeAppCatalog.DESKTOP_SETTINGS;
     private static final String MANAGEMENT_ENTRY = HomeAppCatalog.MANAGEMENT;
+    static final int APP_COLUMNS = 5;
     private static final float CONTENT_MARGIN = 48;
-    private static final float FOCUS_SCALE = 1.035f, FOCUS_OUTSET = 5, FOCUS_STROKE = 3;
+    private static final float FOCUS_SCALE = 1.065f, FOCUS_OUTSET = 5, FOCUS_STROKE = 3;
+    // A critically damped spring settles without bouncing past the target.
+    private static final android.animation.TimeInterpolator FOCUS_MOTION = t -> (float)((1-(1+8*t)*Math.exp(-8*t))/(1-9*Math.exp(-8)));
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService loader = Executors.newSingleThreadExecutor();
     private final ArrayList<App> dock = new ArrayList<>(), apps = new ArrayList<>();
@@ -45,12 +49,17 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private GridLayoutManager layout;
     private Glass glass;
     private WallpaperController wallpapers;
+    private DesktopSettingsStore desktopSettings;
+    private View timeRow, topButtons;
+    private boolean rightButtonsVisible=true;
     private TextView clock, date, greeting, heroTitle, network;
     private PopupWindow inputPopup;
     private Typeface outfit;
     private boolean chinese = true, fixedGreeting = false, ready = false, resumed = false, requestedLocation = false;
     private float unit;
     private int row = 0, column = 0, topColumn = 0, restoreColumn = 0;
+    private int scrollTarget = RecyclerView.NO_POSITION;
+    private ValueAnimator scrollAnimation;
     private String activePackage = "";
     private TvInputs tvInputs;
     private Tile selected;
@@ -86,6 +95,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             outfit = Build.VERSION.SDK_INT>=26 ? Typeface.createFromAsset(getAssets(), "fonts/outfit.ttf") : Typeface.create("sans-serif",Typeface.NORMAL);
         } catch (Exception e) { throw new IllegalStateException("Invalid bundled launcher configuration", e); }
         row = getPreferences(0).getInt("row", 0);
+        desktopSettings=new DesktopSettingsStore(this);
         column = getPreferences(0).getInt("column", 0);
         activePackage = getPreferences(0).getString("package", "");
         makeScene();
@@ -139,25 +149,31 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         root = new FrameLayout(this); root.setBackgroundColor(Color.BLACK); root.setClipChildren(false);
         setContentView(root);
         wallpapers = new WallpaperController(this, root, unit, chinese);
-        list = new RecyclerView(this);
-        list.setClipChildren(true); list.setClipToPadding(true);
+        list = new RecyclerView(this){
+            @Override public void draw(Canvas canvas){int save=canvas.save();canvas.clipRect(0,0,getWidth(),getHeight());super.draw(canvas);canvas.restoreToCount(save);}
+        };
+        list.setClipChildren(true); list.setClipToPadding(false);
         list.setOverScrollMode(View.OVER_SCROLL_NEVER); list.setItemAnimator(null);
         list.setFocusable(false); list.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
-        // Keep the home hint (ending at y=524) inside the padded viewport (ending at y=532).
         list.setPadding(px(CONTENT_MARGIN),0,px(CONTENT_MARGIN),px(8));
-        layout = new GridLayoutManager(this,4);
+        layout = new GridLayoutManager(this,APP_COLUMNS);
         layout.setSpanSizeLookup(new GridLayoutManager.SpanSizeLookup() {
-            @Override public int getSpanSize(int position) { return position < 2 ? 4 : 1; }
+            @Override public int getSpanSize(int position) { return position < 2 ? APP_COLUMNS : 1; }
         });
         list.setLayoutManager(layout); list.setAdapter(new AppAdapter());
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-1,-1); lp.topMargin=px(192); root.addView(list,lp);
         list.addOnScrollListener(new RecyclerView.OnScrollListener() {
-            @Override public void onScrolled(RecyclerView rv, int dx, int dy) { positionGlass(false); }
+            @Override public void onScrolled(RecyclerView rv, int dx, int dy) {
+                View header=layout.findViewByPosition(0);
+                if(header!=null)header.setAlpha(Math.max(0,Math.min(1,1+header.getTop()/(float)px(180))));
+                positionGlass(false);
+            }
         });
         glass = new Glass(); root.addView(glass,new FrameLayout.LayoutParams(-1,-1));
         greeting=text("",14,600,0xffe6e7ed);UiCompat.letterSpacing(greeting,.14f);
         greeting.setGravity(Gravity.CENTER_VERTICAL);place(root,greeting,430,22,50,32);
         LinearLayout timeRow=new LinearLayout(this);timeRow.setOrientation(LinearLayout.HORIZONTAL);
+        this.timeRow=timeRow;
         timeRow.setGravity(Gravity.CENTER_VERTICAL);place(root,timeRow,430,64,50,57);
         clock=text("",50,400,0xfff1f2f6);clock.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));
         if(Build.VERSION.SDK_INT>=21)clock.setFontFeatureSettings("tnum");
@@ -170,12 +186,21 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         date.setSingleLine(true);date.setGravity(Gravity.CENTER_VERTICAL);
         timeRow.addView(date,new LinearLayout.LayoutParams(-2,-1));
         FrameLayout top = new FrameLayout(this);
+        topButtons=top;
         FrameLayout.LayoutParams topParams=new FrameLayout.LayoutParams(px(330),px(50),Gravity.TOP|Gravity.RIGHT);
         topParams.topMargin=px(67);topParams.rightMargin=px(CONTENT_MARGIN); root.addView(top,topParams);
         addPill(top, tr("信号源","Inputs"), R.drawable.ic_input, 102, 0, ()->showInputs());
         network=addPill(top,tr("网络","Network"), R.drawable.ic_ethernet, 102, 114, ()->openSettings(Settings.ACTION_WIFI_SETTINGS));
         addPill(top,tr("设置","Settings"), R.drawable.ic_settings, 102, 228, ()->openSettings(Settings.ACTION_SETTINGS));
-        updateClock(); updateNetwork();
+        applyDesktopSettings();updateClock(); updateNetwork();
+    }
+
+    private void applyDesktopSettings(){
+        timeRow.setVisibility(desktopSettings.showTime()?View.VISIBLE:View.GONE);
+        rightButtonsVisible=desktopSettings.showButtons();
+        topButtons.setVisibility(rightButtonsVisible?View.VISIBLE:View.GONE);
+        if(!rightButtonsVisible && row<0){row=0;column=Math.min(restoreColumn,maxColumn(0));}
+        if(ready)focusCurrent(false);
     }
 
     private TextView addPill(FrameLayout parent, String title, int icon, float width, float x, Runnable action) {
@@ -208,6 +233,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     private void updateNetwork() {
+        if(!rightButtonsVisible)return;
         ConnectivityManager cm=(ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE);
         boolean ethernet,wifi;
         if(Build.VERSION.SDK_INT>=23){
@@ -248,13 +274,13 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         registerReceiver(timeReceiver,time);
         if(Build.VERSION.SDK_INT>=24)stopNetworkCallback=Api24.observe(this);
         else registerReceiver(legacyNetworkReceiver,new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
-        updateClock();updateNetwork();
+        applyDesktopSettings();updateClock();updateNetwork();
         wallpapers.resume();
         loadApps();
     }
 
     @Override protected void onPause() {
-        resumed=false;saveFocus();wallpapers.pause();
+        resumed=false;if(scrollAnimation!=null)scrollAnimation.cancel();list.stopScroll();saveFocus();wallpapers.pause();
         unregisterReceiver(timeReceiver);
         if(Build.VERSION.SDK_INT>=24)stopNetworkCallback.run();
         else unregisterReceiver(legacyNetworkReceiver);
@@ -292,17 +318,15 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 if(cached!=null){found.add(cached);freshCache.put(key,cached);continue;}
                 App app=new App();app.pkg=info.activityInfo.packageName;app.label=info.loadLabel(pm).toString();
                 app.component=new ComponentName(app.pkg,info.activityInfo.name);
-                Drawable banner=null;
-                if(Build.VERSION.SDK_INT>=21){banner=info.activityInfo.loadBanner(pm);if(banner==null)banner=info.activityInfo.applicationInfo.loadBanner(pm);}
-                boolean hasBanner=banner!=null;
-                if(banner==null)banner=info.loadIcon(pm);
-                app.banner=renderBanner(banner,hasBanner);app.color=sampleColor(app.banner);found.add(app);freshCache.put(key,app);
+                app.banner=AppArtwork.load(this,info);app.color=sampleColor(app.banner);found.add(app);freshCache.put(key,app);
             }
             artworkCache.clear();artworkCache.putAll(freshCache);
             App wallpaperApp=new App();wallpaperApp.pkg=WALLPAPER_ENTRY;wallpaperApp.label=tr("壁纸设置","Wallpaper Settings");
-            wallpaperApp.banner=wallpapers.entryBanner();wallpaperApp.color=0xff557eac;found.add(0,wallpaperApp);
+            wallpaperApp.banner=wallpapers.entryBanner();wallpaperApp.color=HomeEntryArtwork.WALLPAPER_COLOR;found.add(0,wallpaperApp);
+            App desktopApp=new App();desktopApp.pkg=DESKTOP_SETTINGS_ENTRY;desktopApp.label=tr("桌面设置","Desktop Settings");
+            desktopApp.banner=HomeEntryArtwork.render(this,desktopApp.label,true);desktopApp.color=HomeEntryArtwork.DESKTOP_COLOR;found.add(1,desktopApp);
             App managementApp=new App();managementApp.pkg=MANAGEMENT_ENTRY;managementApp.label=tr("应用管理","App Management");
-            managementApp.banner=managementBanner(tr("应用管理","App Management"));managementApp.color=0xff666972;found.add(1,managementApp);
+            managementApp.banner=HomeEntryArtwork.render(this,managementApp.label,false);managementApp.color=HomeEntryArtwork.MANAGEMENT_COLOR;found.add(2,managementApp);
             ArrayList<String> defaults=new ArrayList<>();for(App app:found)if(!pinned.contains(app.pkg))defaults.add(app.pkg);
             ArrayList<String> gridOrder=new HomeOrderStore(this).order(defaults);
             main.post(()->{
@@ -317,7 +341,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 if(row>=0){
                     if(!activePackage.isEmpty()) {
                         for(int n=0;n<dock.size();n++)if(activePackage.equals(dock.get(n).pkg)){row=0;column=n;}
-                        for(int n=0;n<apps.size();n++)if(activePackage.equals(apps.get(n).pkg)){row=1+n/4;column=n%4;}
+                        for(int n=0;n<apps.size();n++)if(activePackage.equals(apps.get(n).pkg)){row=1+n/APP_COLUMNS;column=n%APP_COLUMNS;}
                     }
                     row=Math.max(0,Math.min(row,gridRows()));column=Math.min(column,maxColumn(row));
                 }
@@ -333,16 +357,11 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         });
     }
 
-    private Bitmap renderBanner(Drawable drawable,boolean full) {
-        Bitmap bitmap=Bitmap.createBitmap(360,203,Bitmap.Config.ARGB_8888);Canvas c=new Canvas(bitmap);c.drawColor(0xff181a21);
-        if(drawable!=null) {
-            if(full)drawable.setBounds(0,0,360,203);else drawable.setBounds(126,47,234,155);
-            drawable.draw(c);
-        }
-        return bitmap;
+    private Bitmap managementBanner(String title) {
+        return managementBanner(title,title.equals(tr("应用管理","App Management"))?R.drawable.ic_manage_apps:R.drawable.ic_manage_plus);
     }
 
-    private Bitmap managementBanner(String title) {
+    private Bitmap managementBanner(String title,int resource) {
         Bitmap bitmap=Bitmap.createBitmap(360,203,Bitmap.Config.ARGB_8888);
         Canvas canvas=new Canvas(bitmap);Paint paint=new Paint(3);
         paint.setShader(new LinearGradient(0,0,360,203,new int[]{0xff2b2d33,0xff1b1d22},null,Shader.TileMode.CLAMP));canvas.drawRect(0,0,360,203,paint);paint.setShader(null);
@@ -350,7 +369,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         paint.setColor(0xffe7e8ec);paint.setTextSize(28);paint.setTextAlign(Paint.Align.CENTER);
         Paint.FontMetrics metrics=paint.getFontMetrics();float textHeight=metrics.descent-metrics.ascent;
         float top=(203-76-12-textHeight)/2f;
-        Drawable icon=UiCompat.drawable(this,title.equals(tr("应用管理","App Management"))?R.drawable.ic_manage_apps:R.drawable.ic_manage_plus);
+        Drawable icon=UiCompat.drawable(this,resource);
         icon.setBounds(142,Math.round(top),218,Math.round(top+76));icon.draw(canvas);
         canvas.drawText(title,180,top+76+12-metrics.ascent,paint);return bitmap;
     }
@@ -366,8 +385,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         return chosen;
     }
 
-    private int gridRows(){return (apps.size()+3)/4;}
-    private int maxColumn(int r){if(r<0)return pills.size()-1;if(r==0)return Math.max(0,dock.size()-1);return Math.min(3,apps.size()-(r-1)*4-1);}
+    private int gridRows(){return (apps.size()+APP_COLUMNS-1)/APP_COLUMNS;}
+    private int maxColumn(int r){if(r<0)return pills.size()-1;if(r==0)return Math.max(0,dock.size()-1);return Math.min(APP_COLUMNS-1,apps.size()-(r-1)*APP_COLUMNS-1);}
 
     private void saveFocus(){if(row>=0)getPreferences(0).edit().putInt("row",row).putInt("column",column).putString("package",activePackage).apply();}
 
@@ -379,6 +398,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         int key=event.getKeyCode();
         if(inputPopup!=null && inputPopup.isShowing())return super.dispatchKeyEvent(event);
         if(!ready)return super.dispatchKeyEvent(event);
+        if(key==KeyEvent.KEYCODE_BACK && row>0){if(event.getAction()==KeyEvent.ACTION_UP)handleBack();return true;}
         if(key==KeyEvent.KEYCODE_DPAD_LEFT || key==KeyEvent.KEYCODE_DPAD_RIGHT || key==KeyEvent.KEYCODE_DPAD_UP || key==KeyEvent.KEYCODE_DPAD_DOWN){
             if(event.getAction()==KeyEvent.ACTION_UP)return true;
             if(row<0){
@@ -388,7 +408,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             }else{
                 if(key==KeyEvent.KEYCODE_DPAD_LEFT)column=Math.max(0,column-1);
                 if(key==KeyEvent.KEYCODE_DPAD_RIGHT)column=Math.min(maxColumn(row),column+1);
-                if(key==KeyEvent.KEYCODE_DPAD_UP){if(row==0){restoreColumn=column;row=-1;}else{row--;column=Math.min(column,maxColumn(row));}}
+                if(key==KeyEvent.KEYCODE_DPAD_UP){if(row==0){if(rightButtonsVisible){restoreColumn=column;row=-1;}}else{row--;column=Math.min(column,maxColumn(row));}}
                 if(key==KeyEvent.KEYCODE_DPAD_DOWN && row<gridRows()){if(row==0)restoreColumn=column;row++;column=Math.min(column,maxColumn(row));}
             }
             focusCurrent(true);return true;
@@ -402,22 +422,50 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private void focusCurrent(boolean animate) {
         if(!ready)return;
         if(row<0){
-            if(selected!=null){selected.animate().scaleX(1).scaleY(1).translationX(0).setDuration(160);selected=null;}
+            if(selected!=null){Tile previous=selected;selected=null;previous.invalidate();previous.animate().scaleX(1).scaleY(1).translationX(0).translationY(0).setDuration(240).setInterpolator(FOCUS_MOTION);}
             positionGlass(animate);Log.i(TAG,"Focus top="+topColumn);return;
         }
-        if(row==0)layout.scrollToPositionWithOffset(0,0);
-        else{
-            int position=2+(row-1)*4;
+        int position=row==0?0:2+(row-1)*APP_COLUMNS;
+        int offset=row==0?0:px(42);
+        AppAdapter adapter=(AppAdapter)list.getAdapter();
+        int gridStride=px(adapter.gridHeight)+px(12);
+        int bottom=Math.max(px(8),list.getHeight()-px(42)-gridRows()*gridStride);
+        if(list.getPaddingBottom()!=bottom)list.setPadding(px(CONTENT_MARGIN),0,px(CONTENT_MARGIN),bottom);
+        boolean needsScroll=row<=1;
+        if(row>1){
             View first=layout.findViewByPosition(position);
-            if(row==1 || first==null || first.getTop()<px(38) || first.getBottom()>list.getHeight()-px(20)) layout.scrollToPositionWithOffset(position,px(42));
+            needsScroll=first==null || first.getTop()<px(38) || first.getBottom()>list.getHeight()-px(20);
         }
+        if(needsScroll && !(animate && scrollTarget==position && scrollAnimation!=null && scrollAnimation.isRunning())){
+            if(scrollAnimation!=null)scrollAnimation.cancel();
+            list.stopScroll();scrollTarget=position;
+            if(!animate)layout.scrollToPositionWithOffset(position,offset);
+            else{
+                int first=layout.findFirstVisibleItemPosition();View view=layout.findViewByPosition(first);
+                if(view!=null){
+                    int before=first==0?0:px(348)+(first==1?0:px(38)+(first-2)/APP_COLUMNS*gridStride);
+                    int current=before-layout.getDecoratedTop(view);
+                    int target=position==0?0:px(348)+px(38)+(row-1)*gridStride-offset;
+                    if(target!=current){
+                        final int[] moved={0};scrollAnimation=ValueAnimator.ofInt(0,target-current);
+                        scrollAnimation.setDuration(420);scrollAnimation.setInterpolator(FOCUS_MOTION);
+                        scrollAnimation.addUpdateListener(a->{int distance=(int)a.getAnimatedValue();list.scrollBy(0,distance-moved[0]);moved[0]=distance;});scrollAnimation.start();
+                    }
+                }else layout.scrollToPositionWithOffset(position,offset);
+            }
+        }
+        focusApp(animate);
+    }
+
+    private void focusApp(boolean animate) {
         list.post(()->{
             if(row<0)return;
             App app=currentApp();if(app==null)return;
             Tile tile=visibleTiles.get(app.pkg);
-            if(tile==null){list.postDelayed(()->focusCurrent(animate),40);return;}
-            if(selected!=null && selected!=tile){selected.animate().scaleX(1).scaleY(1).translationX(0).setDuration(180);}
-            selected=tile;tile.animate().scaleX(FOCUS_SCALE).scaleY(FOCUS_SCALE).translationX(focusTranslationX(tile)).setDuration(240).setInterpolator(new OvershootInterpolator(.7f));
+            if(row>0){RecyclerView.ViewHolder holder=list.findViewHolderForAdapterPosition(2+(row-1)*APP_COLUMNS+column);tile=holder!=null?(Tile)holder.itemView:null;}
+            if(tile==null || !tile.isAttachedToWindow()){list.postDelayed(()->focusApp(animate),40);return;}
+            Tile previous=selected;selected=tile;if(previous!=null && previous!=tile){previous.invalidate();previous.animate().scaleX(1).scaleY(1).translationX(0).translationY(0).setDuration(260).setInterpolator(FOCUS_MOTION);}
+            tile.invalidate();tile.animate().scaleX(FOCUS_SCALE).scaleY(FOCUS_SCALE).translationX(focusTranslationX(tile)).translationY(-px(2)).setDuration(320).setInterpolator(FOCUS_MOTION);
             activePackage=app.pkg;
             if(row==0 && heroTitle!=null)heroTitle.setText(app.label);
             wallpapers.setThemeColor(app.color);
@@ -426,40 +474,33 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
 
-    private App currentApp(){if(row==0)return dock.isEmpty()?null:dock.get(Math.min(column,dock.size()-1));int n=(row-1)*4+column;return n>=0&&n<apps.size()?apps.get(n):null;}
+    private App currentApp(){if(row==0)return dock.isEmpty()?null:dock.get(Math.min(column,dock.size()-1));int n=(row-1)*APP_COLUMNS+column;return n>=0&&n<apps.size()?apps.get(n):null;}
 
-    private void launchSelected(){App app=currentApp();if(app==null)return;saveFocus();if("quiet:add-dock".equals(app.pkg)){startActivity(new Intent(this,DockEditorActivity.class));return;}if(MANAGEMENT_ENTRY.equals(app.pkg)){startActivity(new Intent(this,AppManagementActivity.class));return;}if(WALLPAPER_ENTRY.equals(app.pkg)){wallpapers.showPicker();return;}try{startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Build.VERSION.SDK_INT>=21?Intent.CATEGORY_LEANBACK_LAUNCHER:Intent.CATEGORY_LAUNCHER).setComponent(app.component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));}catch(ActivityNotFoundException e){Toast.makeText(this,tr("应用暂不可用","App unavailable"),Toast.LENGTH_SHORT).show();}}
-
-    private int focusOutset(View view) {
-        return px(view instanceof Tile?2:FOCUS_OUTSET);
-    }
+    private void launchSelected(){App app=currentApp();if(app==null)return;saveFocus();if("quiet:add-dock".equals(app.pkg)){startActivity(new Intent(this,DockEditorActivity.class));return;}if(DESKTOP_SETTINGS_ENTRY.equals(app.pkg)){startActivity(new Intent(this,DesktopSettingsActivity.class));return;}if(MANAGEMENT_ENTRY.equals(app.pkg)){startActivity(new Intent(this,AppManagementActivity.class));return;}if(WALLPAPER_ENTRY.equals(app.pkg)){wallpapers.showPicker();return;}try{startActivity(new Intent(Intent.ACTION_MAIN).setComponent(app.component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));}catch(ActivityNotFoundException|SecurityException e){Toast.makeText(this,tr("应用暂不可用","App unavailable"),Toast.LENGTH_SHORT).show();}}
 
     private float focusTranslationX(Tile tile) {
-        // Keep the outer white border aligned with the unfocused card edge at either end.
-        float inset=tile.getWidth()*(FOCUS_SCALE-1)/2f+focusOutset(tile)+px(FOCUS_STROKE)/2f;
+        // The border is inside the card; only compensate for its scale at Dock ends.
+        float inset=tile.getWidth()*(FOCUS_SCALE-1)/2f;
         int index=dockTiles.indexOf(tile);
         return index==0?inset:index>=0 && index==dockTiles.size()-1?-inset:0;
     }
 
     private void positionGlass(boolean animate) {
         if(glass==null || !ready)return;
-        View view=row<0?pills.get(topColumn):selected;
+        glass.setVisibility(row<0?View.VISIBLE:View.GONE);
+        if(row>=0)return;
+        View view=pills.get(topColumn);
         if(view==null || !view.isAttachedToWindow())return;
         int[] point=new int[2];int[] origin=new int[2];root.getLocationOnScreen(origin);
-        float scale=view instanceof Tile?FOCUS_SCALE:1;
-        // Animate towards the final transformed bounds, independent of the current animation frame.
         ((View)view.getParent()).getLocationOnScreen(point);
-        float left=point[0]-origin[0]+view.getLeft()+view.getPivotX()*(1-scale);
-        float top=point[1]-origin[1]+view.getTop()+view.getPivotY()*(1-scale);
-        if(view instanceof Tile)left+=focusTranslationX((Tile)view);
-        float height=view instanceof Tile?((Tile)view).imageHeight():view.getHeight();
-        int outset=focusOutset(view);
-        RectF target=new RectF(left-outset,top-outset,left+view.getWidth()*scale+outset,top+height*scale+outset);
-        glass.move(target,row<0?px(25):px(15),animate);
+        float left=point[0]-origin[0]+view.getLeft(),top=point[1]-origin[1]+view.getTop();int outset=px(FOCUS_OUTSET);
+        RectF target=new RectF(left-outset,top-outset,left+view.getWidth()+outset,top+view.getHeight()+outset);
+        glass.move(target,px(25),animate);
     }
 
     private final class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>{
-        private final float dockPadding=18, dockGap=18, dockWidth=(864-2*dockPadding-3*dockGap)/4f, dockHeight=dockWidth*203f/360f;
+        private final float gridHeight=((960-2*CONTENT_MARGIN)/APP_COLUMNS-16)*203f/360f+32;
+        private final float dockPadding=18, dockGap=18, dockWidth=(864-2*dockPadding-(DockStore.CAPACITY-1)*dockGap)/DockStore.CAPACITY, dockHeight=dockWidth*203f/360f;
         @Override public int getItemViewType(int position){return position==0?0:position==1?1:2;}
         @Override public int getItemCount(){return 2+apps.size();}
         @Override public RecyclerView.ViewHolder onCreateViewHolder(android.view.ViewGroup parent,int type){
@@ -467,11 +508,10 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             if(type==0){
                 FrameLayout header=new FrameLayout(HomeActivity.this);header.setClipChildren(false);header.setLayoutParams(new RecyclerView.LayoutParams(-1,px(348)));
                 heroTitle=text("",40,400,0xfff1f2f6);place(header,heroTitle,820,56,2,90);
-                TextView hint=text(tr("按下 ↓ 浏览全部应用","Press ↓ for all apps"),12,300,0xff64656e);hint.setGravity(Gravity.CENTER);place(header,hint,-1,20,0,312);
-                FrameLayout band=new FrameLayout(HomeActivity.this);band.setBackground(pillSurface());band.setClipChildren(false);place(header,band,-1,dockHeight+2*dockPadding,0,162);
+                FrameLayout band=new FrameLayout(HomeActivity.this);band.setBackground(pillSurface());band.setClipChildren(false);place(header,band,-1,dockHeight+2*dockPadding,0,194);
                 header.setTag(band);view=header;
             }else if(type==1){TextView title=text(tr("全部应用","All apps"),18,400,0xffbbbbc3);title.setPadding(px(3),px(4),0,0);title.setLayoutParams(new RecyclerView.LayoutParams(-1,px(38)));view=title;}
-            else{Tile tile=new Tile();RecyclerView.LayoutParams p=new RecyclerView.LayoutParams(-1,px(145));p.leftMargin=px(8);p.rightMargin=px(8);p.bottomMargin=px(12);tile.setLayoutParams(p);view=tile;}
+            else{Tile tile=new Tile();RecyclerView.LayoutParams p=new RecyclerView.LayoutParams(-1,px(gridHeight));p.leftMargin=px(8);p.rightMargin=px(8);p.bottomMargin=px(12);tile.setLayoutParams(p);view=tile;}
             return new RecyclerView.ViewHolder(view){};
         }
         @Override public void onBindViewHolder(RecyclerView.ViewHolder holder,int position){
@@ -485,11 +525,17 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     private final class Tile extends View {
-        App app;final Paint paint=new Paint(3);final Path clip=new Path();
-        Tile(){super(HomeActivity.this);setOnClickListener(v->{if(app!=null){for(int n=0;n<dock.size();n++)if(dock.get(n)==app){row=0;column=n;}for(int n=0;n<apps.size();n++)if(apps.get(n)==app){row=1+n/4;column=n%4;}focusCurrent(true);launchSelected();}});}
+        App app;final Paint paint=new Paint(3);final Path clip=new Path();final RectF imageRect=new RectF();Shader highlight;
+        Tile(){super(HomeActivity.this);setOnClickListener(v->{if(app!=null){for(int n=0;n<dock.size();n++)if(dock.get(n)==app){row=0;column=n;}for(int n=0;n<apps.size();n++)if(apps.get(n)==app){row=1+n/APP_COLUMNS;column=n%APP_COLUMNS;}focusCurrent(true);launchSelected();}});}
         void bind(App value){if(app!=null && visibleTiles.get(app.pkg)==this)visibleTiles.remove(app.pkg);app=value;visibleTiles.put(app.pkg,this);setContentDescription(app.label);invalidate();}
         float imageHeight(){return getWidth()*203f/360f;}
-        @Override protected void onDraw(Canvas c){super.onDraw(c);if(app==null)return;float h=imageHeight();RectF rect=new RectF(0,0,getWidth(),h);clip.reset();clip.addRoundRect(rect,px(11),px(11),Path.Direction.CW);c.save();c.clipPath(clip);paint.setColor(0xff191a20);c.drawRect(rect,paint);c.drawBitmap(app.banner,null,rect,paint);c.restore();
+        @Override protected void onSizeChanged(int w,int h,int oldw,int oldh){super.onSizeChanged(w,h,oldw,oldh);highlight=new LinearGradient(0,0,w,imageHeight(),new int[]{0x30ffffff,0x09ffffff},null,Shader.TileMode.CLAMP);}
+        @Override protected void onDraw(Canvas c){super.onDraw(c);if(app==null)return;float h=imageHeight(),radius=px(11);RectF rect=imageRect;rect.set(0,0,getWidth(),h);clip.reset();clip.addRoundRect(rect,radius,radius,Path.Direction.CW);c.save();c.clipPath(clip);paint.setColor(0xff191a20);c.drawRect(rect,paint);c.drawBitmap(app.banner,null,rect,paint);
+            if(selected==this && row>=0){
+                paint.setShader(highlight);c.drawRect(rect,paint);paint.setShader(null);
+                float stroke=px(FOCUS_STROKE),inset=stroke/2f;rect.inset(inset,inset);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(stroke);paint.setColor(Color.WHITE);c.drawRoundRect(rect,Math.max(0,radius-inset),Math.max(0,radius-inset),paint);paint.setStyle(Paint.Style.FILL);
+            }
+            c.restore();
         }
     }
 
@@ -512,7 +558,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         }
     }
 
-    private void openSettings(String action){try{startActivity(new Intent(action));}catch(ActivityNotFoundException e){startActivity(new Intent(Settings.ACTION_SETTINGS));}}
+    private void openSettings(String action){if(!new SystemSettingsRouter(this).open(action))Toast.makeText(this,tr("系统设置不可用，请使用电视遥控器","Settings unavailable; use the TV remote"),Toast.LENGTH_LONG).show();}
 
     private void showInputs(){
         if(Build.VERSION.SDK_INT>=21){if(tvInputs==null)tvInputs=new TvInputs();tvInputs.show();return;}
@@ -607,8 +653,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 .setTitle(tr("信号源暂不可用","Inputs unavailable")).setMessage(message)
                 .setNegativeButton(tr("返回","Back"),(d,w)->{})
                 .setPositiveButton(tr("系统设置","System settings"),(d,w)->{
-                    try{startActivity(new Intent(Settings.ACTION_SETTINGS));}
-                    catch(ActivityNotFoundException|SecurityException e){Toast.makeText(HomeActivity.this,tr("系统设置不可用，请使用电视遥控器","Settings unavailable; use the TV remote"),Toast.LENGTH_SHORT).show();}
+                    openSettings(Settings.ACTION_SETTINGS);
                 }).create();
             dialog.setOnDismissListener(d->main.post(()->positionGlass(false)));dialog.show();
         }
@@ -630,6 +675,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         }
 
         private void openInput(TvInputInfo info){
+            if(new TvInputController(HomeActivity.this).openKnownInput(info))return;
             Uri uri;
             if(info.isPassthroughInput())uri=TvContract.buildChannelUriForPassthroughInput(info.getId());
             else{
@@ -659,7 +705,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
         private String inputName(TvInputInfo info){
             if(!info.isPassthroughInput())return tr("电视直播","Live TV");
-            if(info.getType()==TvInputInfo.TYPE_HDMI)return info.loadLabel(HomeActivity.this).toString();
+            if(info.getType()==TvInputInfo.TYPE_HDMI || info.getType()==TvInputInfo.TYPE_DISPLAY_PORT)return new TvInputController(HomeActivity.this).inputLabel(info);
             if(info.getType()==TvInputInfo.TYPE_COMPOSITE)return "AV";
             return info.loadLabel(HomeActivity.this).toString();
         }

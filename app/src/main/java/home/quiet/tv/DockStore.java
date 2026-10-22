@@ -8,6 +8,7 @@ import java.util.*;
 
 /** An explicit empty array is a user choice and must never re-import bundled defaults. */
 final class DockStore {
+    static final int CAPACITY = 5;
     private final SharedPreferences preferences;
     DockStore(Context context){
         preferences=context.getSharedPreferences("dock",0);
@@ -25,7 +26,7 @@ final class DockStore {
         }catch(JSONException e){throw new IllegalStateException("Invalid saved Dock",e);}
     }
     void save(List<String> packages){
-        if(packages.size()>4 || new HashSet<>(packages).size()!=packages.size())throw new IllegalArgumentException("Dock 最多 4 个且不能重复");
+        if(packages.size()>CAPACITY || new HashSet<>(packages).size()!=packages.size())throw new IllegalArgumentException("Dock 最多 "+CAPACITY+" 个且不能重复");
         preferences.edit().putString("packages",new JSONArray(packages).toString()).apply();
     }
     void remove(String pkg){ArrayList<String> packages=load();if(packages.remove(pkg))save(packages);}

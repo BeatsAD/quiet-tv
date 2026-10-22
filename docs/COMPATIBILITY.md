@@ -6,7 +6,7 @@
 
 | 内容 / Build | 范围 / Scope |
 | --- | --- |
-| 当前源码 1.1.0 / b30 | `standard`: minSdk21；`legacy19`: minSdk19（Android 4.4）。均为 targetSdk36；已发布 b30 兼容测试包，真实电视待验收。 / Two source profiles; b30 legacy prerelease published; hardware acceptance pending. |
+| 当前源码 1.1.0 / b31 | `standard`: minSdk21；`legacy19`: minSdk19（Android 4.4）。均为 targetSdk36；b31 未发布，新增普通应用入口及小米设置路由。 / Two source profiles; unpublished b31 adds a regular launcher entry and Xiaomi settings routing. |
 | Android 4.4 公开 [b30 兼容测试包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b30) | API19 起，约 2.30 MiB，无原生库，传统 TCP ADB；原生功能与实机待验收。 / API19+, no native libraries; native runtime acceptance pending. |
 | 标准版 [b26 通用兼容测试包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26) | Android 5.0 / API21 起；含 ARM32、ARM64、x86、x86_64，约 6.50 MiB。已通过部分模拟器验证，尚未安装真实电视。 / Android 5.0+ universal APK; selected emulator checks passed; physical TV acceptance pending. |
 | 历史 [b24 通用包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b24) | Android 6.0 / API23 起；原下载保留。 / Android 6.0+; original download retained. |
@@ -24,6 +24,8 @@ Android 5 使用旧版网络状态接口和安装时权限；频道权限或 TV 
 Source includes legacy networking/font fallbacks, detected HOME settings, Back handling and capability-based package operations. Meeting the minimum Android version does not establish vendor-firmware compatibility.
 
 ## 已验证与待验收 / Evidence boundaries
+
+- b31 的小米主页中转助手独立构建，限定 MiTV4-ANSM0 / API23，默认暂停，需手动选择本机原主页并开启无障碍。主程序与助手均未安装目标电视。构建和模拟检查不代表实体 HOME、原厂设置、开机、待机或窗口事件已适配，流程与限制见[助手说明](../xiaomi-home-helper/README.md)。
 
 - 公开 b30：基于合入安卓 4.4 与信号源回退的公开 main 构建；优化构建、19 项单元测试、Lint（0 错误、39 条警告）、API19 元数据、v1/v2 签名与包内容校验通过。与 b26 使用相同测试证书。b30 未完成原生模拟器功能验收，未安装真实电视；下列 b28 记录仅为历史开发证据，不能视为 b30 已通过相同功能验收。
 
@@ -68,3 +70,57 @@ System-panel fallback exists in source only, not in the published b26. Profiles 
 ## 默认桌面与恢复
 
 设备需实际提供可用的 HOME 入口、系统设置、TV Input、遥控键和本机调试能力。默认桌面以读回的真实组件为准；命令返回 Success 不代表 HOME 已切换。保留原桌面及恢复记录，先验证再决定是否处理预装应用。流程见[首次设置](SETUP.md)和[应用管理](APP_MANAGEMENT.md)。
+
+## 上游兼容线索与 Quiet TV 状态
+
+以下记录来自 Aerial 的源码和用户反馈，调查日期 2026-10-22。它们不授予系统包操作权限，也不计入 Quiet TV 已验收机型。完整原始日志、设备资料和过程记录保留本地；公开反馈只保留脱敏必要信息。
+
+| 范围 | 上游记录与方案 | Quiet TV 状态及验收重点 |
+| --- | --- | --- |
+| 小米 MiTV4-ANSM0 / Android 6 | [#81](https://github.com/pengchujin/aerial-tv/issues/81)：服务绑定后仍可能没有有效窗口事件；用户独立 UsageStats 辅助仅有延迟接管和有限重启实测 | 无主程序通用接管结论；目标固件需分别测试事件、实体 HOME、重启、短/长待机及暂停恢复 |
+| 酷开 / Android 8 | [#69](https://github.com/pengchujin/aerial-tv/issues/69)：私有 HOME.CC 类别，识别修复不等于改写固件主页 | Quiet TV 厂商接管待验收；不能按品牌批量应用 |
+| 酷开 / Android 11 | [#122](https://github.com/pengchujin/aerial-tv/issues/122)：LITE_HOME 与 HOME.CC 不同，用户修改包有有限实测 | 原主页识别、实体键、开机与恢复均待目标固件核验 |
+| 海信 Android VIDAA | [#40](https://github.com/pengchujin/aerial-tv/issues/40)：私有主页属性可改变 HOME 行为，开机仍受拦截 | Quiet TV 不自动改属性；系统输入面板调用与 HOME 接管分别验证 |
+| TCL MT9655 / 部分新雷鸟 | [机型记录](https://github.com/pengchujin/aerial-tv/blob/d652d5ef65267f22bd273da01f28a99718d059a8/docs/devices/tcl-mt9655-cn.md)：TLS 动态端口但无可用配对入口，能装 APK 不等于能授权接管 | 先核实调试方式；无配对/授权通道时保留普通 App 使用，不循环试连 5555 |
+| 小米 MiTV-ANTL0 / Android 5.1 | [#64](https://github.com/pengchujin/aerial-tv/issues/64)：输入标签与物理口错位，切换编号不同 | 仅按已知型号、输入服务及硬件 ID 修正，Quiet TV 实际切源待真机验收 |
+| 红米 MiTV-MFFU1 / Android 14 | [#62](https://github.com/pengchujin/aerial-tv/issues/62)：DP 与 USB-C 名称和路由不同，固件连接状态不可靠 | 型号限定映射，未知状态不显示已连接；需实际接线核对 |
+| 康佳 KKTV U86V9 | [PR #125](https://github.com/pengchujin/aerial-tv/pull/125)：原生 SDK 枚举及直切候选，不能按品牌生成固定端口 | 本轮未加入该未合入候选；保留系统设置/遥控器路径，获得样机后验证 |
+| 遥控器与播放保护 | [#115](https://github.com/pengchujin/aerial-tv/issues/115)、[#108](https://github.com/pengchujin/aerial-tv/issues/108)、[#22](https://github.com/pengchujin/aerial-tv/issues/22)：按键过滤连跳、切源误拉回、息屏自行亮起 | 本轮主程序不新增守护或按键过滤；后续助手实验必须覆盖这些回归 |
+
+反馈请分别给出安装包版本/构建号、固件、安装、设置、信号源、实体 HOME、整机重启、冷启动、待机唤醒与恢复结果。未执行记为未执行，不能用模拟器或上游结果代替本应用真机验收。
+
+## 本轮源码兼容改进
+
+本轮只改变普通应用入口、设置调用、图片生成与信号源调用，不增加 HOME 守护、按键过滤、系统包操作权限或 ADB 常开功能。现有公开下载包不包含这些改动。
+
+| 功能 | 公共实现及档位差异 | 验证边界 |
+| --- | --- | --- |
+| 应用入口 | 安卓4.4与标准档共用应用目录；电视入口优先，补 APPSTORE_LAUNCHER 及小米播放器/米家明确组件。厂商补项仅接受可调用系统组件，首页、排序和常用应用选择共用结果 | 原生组件与权限检查可在模拟环境验证；实际厂商入口待验收 |
+| 设置与网络 | 小米优先检测本机设置/Wi-Fi 组件；标准设置不可用时尝试 TCL 系统设置。检查启用、导出、权限，拒绝直接解析到 HOME 的入口，失败显示提示 | 复用实验分支的设置路由；不包含该分支的助手、构建号或设备操作 |
+| Quiet TV 应用图标 | 两档均增加普通 LAUNCHER 入口，同时保留 HOME 和电视入口 | 原厂应用中心是否展示及遥控启动待目标固件验收 |
+| 卡片图片 | 优先加载 APK 中的高密度资源，复用现有卡片样式与缓存；4K 渲染且内存预算足够时提高生成尺寸，低内存设备保留原尺寸 | 不重绘第三方品牌图案；不能提高 APK 本身缺失的源图细节 |
+| 新上传壁纸 | 按应用实际显示长边处理，普通设备最大 3840；低内存或内存档位低于 256 MB 时最大 1920。保留 EXIF 方向、格式与像素上限 | 只影响新上传；不重写已有文件，原图仍在上传端。应用渲染 1080p 的 4K 面板不强行生成 4K 图 |
+| TCL 快捷信号源 | 只有本机声明 com.tcl.software.systemui_custom_tv_source 时，在 SystemUI 包内解析 SHOW_WINDOW 服务并传递 Source/input 参数；再次核对实际系统组件、权限和状态 | 继续保留 TCL 设置面板及其他已有面板；只确认调用，不视为切源成功 |
+| 小米 MiTV-ANTL0 | 仅已注册的系统 com.droidlogic.tvinput HDMI / HW6，显示 HDMI 1 并尝试源编号 23 | 不补造第二个端口；其他型号、服务或类型不继承编号 |
+| 红米 MiTV-MFFU1 | 仅系统 com.mediatek.tvinput DisplayPort / HW9、HW10 分别对应 DP/29、USB-C/30 | 不把框架报告的连接状态当可靠接线证据，不显示未经验证的“已连接” |
+| 未匹配直切 | 继续使用标准 TvContract 调用，失败提供已检测的系统面板和遥控器路径 | 不按品牌硬编码端口数量，不自动授权、不修改主页属性 |
+
+应用入口与图标依据：[Aerial Apps.kt](https://github.com/pengchujin/aerial-tv/blob/d652d5ef65267f22bd273da01f28a99718d059a8/app/src/main/java/app/orchard/tv/apps/Apps.kt)。设置/信号源依据：[SystemState.kt](https://github.com/pengchujin/aerial-tv/blob/d652d5ef65267f22bd273da01f28a99718d059a8/app/src/main/java/app/orchard/tv/system/SystemState.kt)、[TCL 记录](https://github.com/pengchujin/aerial-tv/blob/d652d5ef65267f22bd273da01f28a99718d059a8/docs/devices/tcl-mt5879-cn.md)。本轮按这些接口事实实现现有 Java 结构，未引入上游 UI、守护、视频屏保或额外依赖。
+
+当前代码验证记录见本地任务交付；上游机型结果不计入 Quiet TV 验收。厂商设置、真实信号源画面、实体遥控器、重启、冷启动、待机唤醒均需另行真机验证。Android 4.4 仍不提供标准 TV Input 列表，信号源使用系统设置和实体遥控器替代路径。
+
+
+## 旧版本用户反馈与当前处理
+
+以下反馈的安装包版本未知，用户确认早于 b26。它们不能直接证明当前源码仍有同一故障，也不能据此宣称目标固件已经修复。
+
+| 反馈 | 已核对的源码与处理 | 仍需复测 |
+| --- | --- | --- |
+| TCL 安卓 4.4，root 后可用，但设置、网络、信号源和应用设置闪退 | b24 的最低 API 为 23，旧源码直接调用新系统 API，设置回退也可能再次抛出异常。当前 `legacy19` 已隔离 API21+ 接口；本次补齐设置解析、组件状态查询及启动异常处理，开发者设置复用同一路由。root 不会补齐 Android API。 | 确认真实 API 与所装包，使用安卓 4.4 档复测这四类入口；缺少崩溃栈，尚不能确认每处闪退原因。 |
+| KKTV U55J，工厂菜单开启 ADBD，无授权弹窗且无法连接 | 本次去掉握手前的额外 TCP 探测，复用一次有超时且可取消的连接；错误区分端口、握手／授权、本机身份、ADB 身份及前台用户核对。授权提示仅在实际出现弹窗时要求允许。 | 工厂 ADBD 开关不保证监听 TCP、允许本机访问或提供 shell 身份；无弹窗也不能单独判断成功／失败。需记录失败阶段，再区分固件限制与客户端问题。 |
+| 海信安卓 5.1，信号源无法选择 | b26 之前的标准 TV Input 路径不覆盖原厂私有面板；当前已检测可调用的海信系统面板，保留标准列表及失败提示。 | 现有面板依据来自特定 Vidda 固件，不能外推到这台未知型号的安卓 5.1 电视；升级后仍失败时，需要该机真实面板组件及相关异常，不能套用其他机型端口表。 |
+| 微鲸 55D2UA 安卓 5.0，可开 ADB，无法设置默认桌面 | 当前只使用固件帮助中确实提供且支持指定用户的命令；本次在已连接但缺少切换命令时禁用无效 ADB 操作，并按系统入口是否存在提示系统选择或临时使用。 | Android 5.0 的版本号及 ADB 可连接不等于支持 `set-home-activity`；需核对 HOME 候选、系统选择入口、命令帮助及实际报错。无可用路径时保留原桌面，不能宣称已绕过固件限制。 |
+
+本次改动共用于标准与 `legacy19` 档。Android 4.4 仍使用系统设置／遥控器信号源键，不提供标准 TV Input 列表；两档都不会自动开启 ADBD、改变 root 状态或禁用原桌面。测试通过只证明所列软件路径；实体 HOME、HDMI 画面和声音、重启及待机唤醒仍需各电视验收。
+
+本次本地验证：标准与 `legacy19` 均通过 Debug 构建、23 项单元测试和 Lint（0 错误，仍有警告）；API22 模拟器通过 23 项定向检查，覆盖设置解析／组件状态／启动失败回退、权限与 HOME 入口保护、单次 ADB 连接、握手取消、实际 ADB 本机校验及 root 身份拒绝，以及首页、桌面设置、应用管理和首次设置的启动。实际 ADB 使用转发连接同一模拟器，无需授权弹窗；没有验证 shell 身份下的系统写操作。安卓 4.4 本轮未完成运行验收，四台反馈电视均未实测；不将旧包反馈直接标为已解决。

@@ -22,7 +22,17 @@ final class WallpaperImages {
             if(bitmap==null) throw new IOException("Invalid wallpaper image"); return bitmap;
         }
     }
-    static int[] prepare(File input,File output) throws IOException {
+    static int importLimit(Context context){
+        android.util.DisplayMetrics screen=context.getResources().getDisplayMetrics();
+        android.app.ActivityManager memory=(android.app.ActivityManager)context.getSystemService(Context.ACTIVITY_SERVICE);
+        return importLimit(screen.widthPixels,screen.heightPixels,memory==null || memory.isLowRamDevice(),memory==null?0:memory.getMemoryClass());
+    }
+    static int importLimit(int width,int height,boolean lowRam,int memoryMb){
+        int maximum=lowRam || memoryMb<256?1920:3840;
+        return Math.max(1,Math.min(maximum,Math.max(width,height)));
+    }
+    static int[] prepare(File input,File output) throws IOException {return prepare(input,output,1920);}
+    static int[] prepare(File input,File output,int maximum) throws IOException {
         BitmapFactory.Options options=new BitmapFactory.Options();options.inJustDecodeBounds=true;
         BitmapFactory.decodeFile(input.getPath(),options);
         if(options.outWidth<=0 || options.outHeight<=0 || (long)options.outWidth*options.outHeight>40000000L
@@ -39,14 +49,15 @@ final class WallpaperImages {
             }
         }
         options.inJustDecodeBounds=false;options.inSampleSize=1;
-        while(Math.max(options.outWidth,options.outHeight)/options.inSampleSize>2560) options.inSampleSize*=2;
+        if(maximum<1 || maximum>3840)throw new IllegalArgumentException("Invalid image target size");
+        while(Math.max(options.outWidth,options.outHeight)/(options.inSampleSize*2)>=maximum) options.inSampleSize*=2;
         Bitmap bitmap=BitmapFactory.decodeFile(input.getPath(),options);
         if(bitmap==null) throw new IOException("无法读取图片 / Cannot decode image");
         try {
             ExifInterface exif=new ExifInterface(input); Matrix matrix=new Matrix();
             if(exif.isFlipped()) matrix.postScale(-1,1);
             matrix.postRotate(exif.getRotationDegrees());
-            float scale=Math.min(1f,1920f/Math.max(bitmap.getWidth(),bitmap.getHeight()));matrix.postScale(scale,scale);
+            float scale=Math.min(1f,maximum/(float)Math.max(bitmap.getWidth(),bitmap.getHeight()));matrix.postScale(scale,scale);
             Bitmap rotated=Bitmap.createBitmap(bitmap,0,0,bitmap.getWidth(),bitmap.getHeight(),matrix,true);
             if(rotated!=bitmap){bitmap.recycle();bitmap=rotated;}
             if(bitmap.hasAlpha()){Bitmap opaque=Bitmap.createBitmap(bitmap.getWidth(),bitmap.getHeight(),Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(opaque);canvas.drawColor(Color.BLACK);canvas.drawBitmap(bitmap,0,0,null);bitmap.recycle();bitmap=opaque;}

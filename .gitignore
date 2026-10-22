@@ -22,6 +22,8 @@ __pycache__/
 # Local development and tests remain on disk, outside the public source tree.
 /app/src/test/
 /app/src/androidTest/
+/xiaomi-home-helper/src/test/
+/xiaomi-home-helper/src/androidTest/
 /home-fixture/
 /management-fixture/
 /scripts/*
@@ -35,6 +37,16 @@ __pycache__/
 /requirements.txt
 /VERIFICATION.md
 /prototypes/*
+!/prototypes/install-guide/
+/prototypes/install-guide/*
+!/prototypes/install-guide/index.html
+!/prototypes/install-guide/styles.css
+!/prototypes/install-guide/app.js
+!/prototypes/install-guide/agent.md
+!/prototypes/install-guide/assets/
+/prototypes/install-guide/assets/*
+!/prototypes/install-guide/assets/icon.svg
+!/prototypes/install-guide/assets/home.png
 !/prototypes/about/
 /prototypes/about/*
 !/prototypes/about/index.html
@@ -55,6 +67,7 @@ __pycache__/
 !/docs/README.md
 !/docs/INSTALL.zh-CN.md
 !/docs/INSTALL.en.md
+!/docs/AGENT_INSTALL.zh-CN.md
 !/docs/TECHNICAL_PATH_WITH_CODEX.zh-CN.md
 !/docs/USAGE.zh-CN.md
 !/docs/USAGE.en.md

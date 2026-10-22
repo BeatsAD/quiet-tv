@@ -78,12 +78,17 @@ final class HomeController {
     private static final class Api29 {
         static Intent request(Context context){RoleManager roles=context.getSystemService(RoleManager.class);return roles!=null && roles.isRoleAvailable(RoleManager.ROLE_HOME)?roles.createRequestRoleIntent(RoleManager.ROLE_HOME):null;}
     }
+    static String unavailableSwitchReason(boolean systemEntry,boolean connected,String command){
+        if(!connected || !command.isEmpty())return "";
+        return systemEntry?"当前固件未提供 ADB 桌面切换命令，请使用系统默认桌面设置"
+            :"当前固件未提供默认桌面设置入口或 ADB 切换命令；可临时使用 Quiet TV，请保留原桌面";
+    }
     Intent request(){Intent intent=requestIntent();if(intent==null)throw new IllegalStateException("系统默认桌面入口不可用");return intent;}
     void remember(State state) throws Exception {new SetupStore(context).baseline(state.known?state.actual:"",state.original);}
     void switchToOwn(AdbController adb) throws Exception {
         State before=inspect(adb);if(!before.ownUsable)throw new IOException("Quiet TV HOME 组件不可用");remember(before);
         if(before.isOwn(context))return;
-        adb.validateUser();if(adb.capabilities.home.isEmpty())throw new IOException("当前系统未提供可核对的桌面切换命令，请使用系统默认桌面设置");SetupStore store=new SetupStore(context);
+        adb.validateUser();if(adb.capabilities.home.isEmpty())throw new IOException(unavailableSwitchReason(before.roleAvailable,true,""));SetupStore store=new SetupStore(context);
         String desired=new ComponentName(context,HomeActivity.class).flattenToString();
         store.homeSwitch(before.actual,desired,adb.user,"running",before.resolved);
         try{
