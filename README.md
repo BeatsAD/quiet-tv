@@ -55,7 +55,7 @@ Quiet TV 面向国内 Android 电视的日常使用场景：把常用应用放�
 | Codex | 已登录、可联网，允许读写项目文件和执行终端命令。 |
 | 构建工具 | Git、Python 3、JDK 17 或 21、Android SDK Platform 36、Build Tools 36.0.0、Platform Tools。 |
 
-当前源码为 1.1.0 / b30，提供 `standard`（Android 5.0+ / API21）和 `legacy19`（Android 4.4 / API19）两个构建档位。安卓 4.4 版保留核心桌面与传统 TCP ADB，输入源回退到系统设置，不包含六位码配对及现代原生密码库。公开下载提供 b30 / Android 4.4 兼容版，并保留 b26 / Android 5.0+ 标准版；均为预发布测试包。构建方式见[安装指南](docs/INSTALL.zh-CN.md)，实际验证范围见[兼容说明](docs/COMPATIBILITY.md)。
+当前源码为 1.1.2，默认 versionCode 为 34，安卓 4.4 本批交付包为 35，提供 `standard`（Android 5.0+ / API21）和 `legacy19`（Android 4.4 / API19）两个构建档位。安卓 4.4 版保留核心桌面与传统 TCP ADB，输入源回退到系统设置，不包含六位码配对及现代原生密码库。公开下载提供 b30 / Android 4.4 兼容版，并保留 b26 / Android 5.0+ 标准版；均为预发布测试包。构建方式见[安装指南](docs/INSTALL.zh-CN.md)，实际验证范围见[兼容说明](docs/COMPATIBILITY.md)。
 
 ### 连接电视，读取真实设备能力
 
