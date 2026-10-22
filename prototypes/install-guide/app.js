@@ -9,9 +9,9 @@ const brands = {
 };
 let brand = 'sony';
 let toastTimer;
-const urls = 'https://github.com/BeatsAD/quiet-tv/blob/main/docs/INSTALL.zh-CN.md\nhttps://github.com/BeatsAD/quiet-tv/blob/main/docs/COMPATIBILITY.md';
+const urls = 'https://github.com/BeatsAD/quiet-tv/blob/main/docs/AGENT_INSTALL.zh-CN.md\nhttps://github.com/BeatsAD/quiet-tv/blob/main/docs/INSTALL.zh-CN.md\nhttps://github.com/BeatsAD/quiet-tv/blob/main/docs/COMPATIBILITY.md';
 const discovery = `请自动发现电脑当前局域网内的目标电视：先检查现有 ADB 连接与 ADB mDNS 服务，必要时仅在当前局域网扫描常用 ADB 连接端口，不跨网段或进行全端口扫描。
-结合所选品牌及可读取的型号识别电视；发现多个候选或无法确认目标时，列出候选让我选择，不批量安装或修改设备。
+结合所选品牌及可读取的型号识别电视；无论发现一台还是多台，都列出候选让我确认目标，确认后再安装或修改设备，不批量操作。
 未发现目标时，再指导我在电视上查看网络地址、打开调试或完成无线调试配对。配对端口与连接端口分别核对，电视上的授权或配对码由我现场提供，不绕过授权。
 连接后核对设备身份，后续所有 ADB 命令显式指定同一目标。`;
 function update() {
@@ -19,12 +19,13 @@ function update() {
 目标：先安装并试用 Quiet TV，暂不修改默认桌面。
 电视品牌：${brands[brand][0]}
 
-请先完整阅读安装与兼容说明：
+请先完整阅读并遵循 Agent 安装说明及安装、兼容文档：
 ${urls}
 
 ${discovery}
 
-确认目标设备、系统和当前用户，保存原桌面恢复记录。按系统档位选择已发布 APK，核对 SHA-256、包名、架构、签名和覆盖升级条件。
+确认目标设备、系统和当前用户，保存原桌面恢复记录。按系统档位选择已发布 APK，核对 SHA-256、包名、架构、签名和覆盖升级条件。签名冲突或需要降级时停止并说明原因，不通过卸载、清数据或强制降级解决。
+安装后拉回已安装 APK，核对实际版本与 SHA-256；核对失败或无法完成时说明原因，不宣称安装校验通过。
 首次打开选择“暂不设置，临时使用”，引导我验证遥控器、应用和设置入口。
 试用确认可用后，询问我是否将 Quiet TV 设为默认桌面；只有我同意后，才核对当前固件的 HOME 能力并尝试切换。切换后读回结果，等待我用实体遥控器验证；固件受限或我选择不切换时保留原默认桌面。
 保留原桌面，不禁用、不卸载、不清数据，不处理无关系统应用。电视授权时提醒我，重启测试先单独确认。

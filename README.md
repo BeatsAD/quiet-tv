@@ -8,6 +8,8 @@
 
 Quiet TV 面向国内 Android 电视的日常使用场景：把常用应用放在首页，用遥控器直接打开，方便地切换信号源、调整壁纸和管理已安装的应用。桌面没有广告和推荐信息流，无需注册账号。采用 Android 原生界面，无需 root 或刷机。
 
+[打开安装指引](https://beatsad.github.io/quiet-tv/)：选择电视品牌，复制 Agent 安装请求，或查看手动安装与恢复方法。
+
 [Android 4.4 兼容测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b30) · [Android 5+ 通用测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26) · [安装指南](docs/INSTALL.zh-CN.md) · [使用指南](docs/USAGE.zh-CN.md) · [支持机型](docs/COMPATIBILITY.md) · [已知问题与样机验证](#已知兼容性问题与样机验证)
 
 ## 界面

@@ -4,6 +4,7 @@
 
 ## 使用与构建 / Use and build
 
+- [在线安装指引（中文） / Online installation guide (Chinese)](https://beatsad.github.io/quiet-tv/)
 - 安装与构建：[中文](INSTALL.zh-CN.md) / [English](INSTALL.en.md)
 - [电视桌面的技术实现路径：以 Codex 为例](TECHNICAL_PATH_WITH_CODEX.zh-CN.md)
 - 使用：[中文](USAGE.zh-CN.md) / [English](USAGE.en.md)
@@ -19,6 +20,7 @@
 | --- | --- |
 | [app/src/main](../app/src/main/) | Android 生产源码、资源与许可证 / Production code, resources and licenses |
 | [prototypes/about](../prototypes/about/) | APK 关于资源和离线许可的构建输入 / Required About and offline-license build inputs |
+| [prototypes/install-guide](../prototypes/install-guide/) | GitHub Pages 静态安装指引 / Static installation guide published to GitHub Pages |
 | [scripts](../scripts/) | 公开构建与静态检查工具 / Public build and static checks |
 | [gradle](../gradle/) | Wrapper 与依赖安全约束 / Wrapper and security constraints |
 | [.github](../.github/) | CI、依赖检查、负责人及反馈模板 / CI, dependency updates, ownership and templates |

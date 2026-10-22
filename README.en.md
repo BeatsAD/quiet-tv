@@ -10,6 +10,8 @@ Quiet TV is built for everyday TV use in China. Keep your favorite apps on the h
 
 The launcher has no ads or recommendation feed and requires no account. It uses native Android views and needs no root access or firmware changes.
 
+[Open the installation guide (Chinese)](https://beatsad.github.io/quiet-tv/) to choose your TV brand, copy an Agent installation request, or find manual installation and recovery instructions.
+
 [Android 4.4 test APK](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b30) · [Android 5+ test APK](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26) · [Install](docs/INSTALL.en.md) · [Usage](docs/USAGE.en.md) · [Supported devices](docs/COMPATIBILITY.md) · [Known issues and hardware validation](#known-issues-and-hardware-validation)
 
 ## Screenshots
