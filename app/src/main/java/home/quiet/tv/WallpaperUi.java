@@ -36,12 +36,14 @@ final class WallpaperUi {
         Drawable art=UiCompat.drawable(context,resource).mutate();art.setColorFilter(color,PorterDuff.Mode.SRC_IN);art.setBounds(0,0,px(size),px(size));return art;
     }
     void icon(TextView view,int resource){view.setCompoundDrawables(icon(resource,16,view.getCurrentTextColor()),null,null,null);view.setCompoundDrawablePadding(px(7));}
-    ImageView image(float radius){
+    ImageView image(float outerRadius,float inset){
+        // Subtract after pixel rounding so the inner and outer corner centers coincide.
+        int radius=px(outerRadius)-px(inset);
         return new ImageView(context){
             final Path clip=new Path();
             {setScaleType(ScaleType.CENTER_CROP);setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);}
             @Override protected void onDraw(Canvas canvas){
-                clip.reset();clip.addRoundRect(new RectF(0,0,getWidth(),getHeight()),px(radius),px(radius),Path.Direction.CW);
+                clip.reset();clip.addRoundRect(new RectF(0,0,getWidth(),getHeight()),radius,radius,Path.Direction.CW);
                 int saved=canvas.save();canvas.clipPath(clip);super.onDraw(canvas);canvas.restoreToCount(saved);
             }
         };

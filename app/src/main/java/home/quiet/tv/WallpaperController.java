@@ -15,6 +15,7 @@ import java.util.concurrent.*;
 /** Native full-screen picker with separate preview and committed wallpaper identities. */
 final class WallpaperController {
     private static final long ROTATION_MS=5*60*1000L;
+    private static final int CARD_RADIUS=16,CARD_INSET=5,CARD_STROKE=2;
     private final Activity activity;
     private final FrameLayout root;
     private final WallpaperStore store;
@@ -93,7 +94,11 @@ final class WallpaperController {
         paint.setShader(new RadialGradient(100,50,260,new int[]{0xff426b8e,0xff101822},null,Shader.TileMode.CLAMP));canvas.drawRect(0,0,360,203,paint);paint.setShader(null);paint.setColor(Color.WHITE);paint.setTextSize(chinese?34:27);paint.setTextAlign(Paint.Align.CENTER);paint.setTypeface(Typeface.create("sans-serif",Typeface.BOLD));canvas.drawText(tr("壁纸设置","Wallpaper Settings"),180,120,paint);return entry;
     }
     private TextView label(String value,int size){return ui.text(value,size);}
-    private GradientDrawable border(boolean focus,boolean primary){return ui.surface(primary?0xfff1f2f4:0xff20252d,16,focus?Color.WHITE:0x30ffffff,2);}
+    private GradientDrawable border(boolean focus,boolean primary){
+        GradientDrawable border=ui.surface(primary?0xfff1f2f4:0xff20252d,0,focus?Color.WHITE:0x30ffffff,CARD_STROKE);
+        // GradientDrawable insets its stroke path by half the stroke width.
+        border.setCornerRadius(px(CARD_RADIUS)-px(CARD_STROKE)/2f);return border;
+    }
     private TextView button(String value,boolean primary,Runnable action){return ui.button(value,primary,action);}
     private void gap(LinearLayout parent,int n){parent.addView(new View(activity),new LinearLayout.LayoutParams(px(n),1));}
     private Drawable toggleDrawable(boolean checked){
@@ -137,9 +142,9 @@ final class WallpaperController {
         if(picker==null)return;int version=++pickerVersion;WallpaperCatalog state=store.snapshot();if(state.find(preferred)==null)preferred=state.current;preview=preferred;
         rail.removeAllViews();cards.clear();
         for(WallpaperCatalog.Entry wallpaper:state.entries()){
-            String id=wallpaper.id;FrameLayout card=new FrameLayout(activity);card.setId(View.generateViewId());card.setFocusable(true);card.setContentDescription(wallpaper.label(chinese));card.setPadding(px(5),px(5),px(5),px(5));card.setBackground(border(false,false));
+            String id=wallpaper.id;FrameLayout card=new FrameLayout(activity);card.setId(View.generateViewId());card.setFocusable(true);card.setContentDescription(wallpaper.label(chinese));card.setPadding(px(CARD_INSET),px(CARD_INSET),px(CARD_INSET),px(CARD_INSET));card.setBackground(border(false,false));
             LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(px(184),px(147));cp.rightMargin=px(14);rail.addView(card,cp);cards.put(id,card);
-            ImageView image=ui.image(9);card.addView(image,new FrameLayout.LayoutParams(-1,px(95)));
+            ImageView image=ui.image(CARD_RADIUS,CARD_INSET);card.addView(image,new FrameLayout.LayoutParams(-1,px(95)));
             if(WallpaperCatalog.DEFAULT.equals(id))image.setImageBitmap(defaultThumbnail());else{
                 Bitmap cached=thumbnails.get(id);if(cached!=null)image.setImageBitmap(cached);
                 else decoder.execute(()->{try{Bitmap bitmap=WallpaperImages.decode(activity,store,wallpaper,360,203);thumbnails.put(id,bitmap);main.post(()->{if(picker!=null&&version==pickerVersion)image.setImageBitmap(bitmap);});}catch(IOException|OutOfMemoryError ignored){}});
@@ -163,7 +168,7 @@ final class WallpaperController {
         auto.setText(tr("壁纸轮播","Slideshow"));auto.setCompoundDrawables(toggleDrawable(state.rotating),null,null,null);auto.setCompoundDrawablePadding(px(7));auto.setContentDescription(state.rotating?tr("壁纸轮播，开","Slideshow, on"):tr("壁纸轮播，关","Slideshow, off"));auto.setEnabled(state.pictures().size()>=2);auto.setAlpha(auto.isEnabled()?1:.4f);
         manage.setText(managing?tr("完成","Done"):tr("管理","Manage"));View restoreRow=(View)restore.getParent();restoreRow.setVisibility(managing&&!state.removed.isEmpty()?View.VISIBLE:View.GONE);
         View card=cards.get(preview);if(card==null)return;View action=remove.getVisibility()==View.VISIBLE?remove:apply.isEnabled()?apply:upload;
-        for(Map.Entry<String,View> item:cards.entrySet()){boolean selected=item.getKey().equals(preview);item.getValue().setBackground(border(selected,false));item.getValue().setPadding(px(5),px(5),px(5),px(5));item.getValue().setTranslationY(selected?-px(3):0);item.getValue().setNextFocusUpId(action.getId());}
+        for(Map.Entry<String,View> item:cards.entrySet()){boolean selected=item.getKey().equals(preview);item.getValue().setBackground(border(selected,false));item.getValue().setPadding(px(CARD_INSET),px(CARD_INSET),px(CARD_INSET),px(CARD_INSET));item.getValue().setTranslationY(selected?-px(3):0);item.getValue().setNextFocusUpId(action.getId());}
         for(TextView control:new TextView[]{auto,upload,manage})control.setNextFocusDownId(action==upload?card.getId():action.getId());
         int lower=restoreRow.getVisibility()==View.VISIBLE?restore.getId():card.getId();apply.setNextFocusDownId(lower);remove.setNextFocusDownId(lower);apply.setNextFocusUpId(upload.getId());remove.setNextFocusUpId(upload.getId());restore.setNextFocusDownId(card.getId());restore.setNextFocusUpId(action.getId());
     }
