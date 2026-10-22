@@ -42,7 +42,8 @@ public final class DockEditorActivity extends ManagementUi {
     }
     private void render(int focus){
         content.removeAllViews();slots.clear();List<String> values=moving==null?packages:moving;
-        if(moving!=null){content.addView(label("调整常用应用顺序",23));gap(content,11);content.addView(muted("左右移动当前应用，确定保存，返回取消。",12));gap(content,36);}
+        content.addView(label(moving==null?"请选择应用":"调整常用应用顺序",23));gap(content,11);
+        content.addView(muted(moving==null?"确认进行对应的顺序、替换调整":"左右移动当前应用，确定保存，返回取消。",12));gap(content,36);
         LinearLayout cards=row();cards.setGravity(Gravity.TOP);cards.setClipChildren(false);content.addView(cards,new LinearLayout.LayoutParams(-1,-2));
         int width=px((864-(DockStore.CAPACITY-1)*20)/(float)DockStore.CAPACITY),height=Math.round(width*203f/360f);
         for(int i=0;i<DockStore.CAPACITY;i++){
@@ -60,7 +61,8 @@ public final class DockEditorActivity extends ManagementUi {
             if(unavailable){gap(card,5);TextView note=center(info!=null && info.enabled?"未安装  保留位置":"已禁用  保留位置",10);note.setTextColor(MUTED);card.addView(note,new LinearLayout.LayoutParams(-1,px(16)));}
         }
         if(moving!=null){gap(content,35);TextView note=center("调整尚未保存",11);note.setTextColor(MUTED);content.addView(note,new LinearLayout.LayoutParams(-1,px(20)));gap(content,18);LinearLayout actions=row();actions.setGravity(Gravity.CENTER);content.addView(actions,new LinearLayout.LayoutParams(-1,px(36)));marginAdd(actions,button("取消调整",()->cancelMove()),-2,36,0);marginAdd(actions,button("保存顺序",()->saveMove()),-2,36,12);}
-        else{gap(content,35);content.addView(center("请选择应用",23));gap(content,11);TextView note=center("确认进行对应的顺序、替换调整",12);note.setTextColor(MUTED);content.addView(note);}
+        // Keep the shared heading and cards in place when reorder actions are hidden.
+        else content.addView(new View(this),new LinearLayout.LayoutParams(1,px(35)+px(20)+px(18)+px(36)));
         slots.get(Math.max(0,Math.min(focus,DockStore.CAPACITY-1))).requestFocus();
     }
     private void edit(int index){
