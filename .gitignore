@@ -35,6 +35,16 @@ __pycache__/
 /requirements.txt
 /VERIFICATION.md
 /prototypes/*
+!/prototypes/install-guide/
+/prototypes/install-guide/*
+!/prototypes/install-guide/index.html
+!/prototypes/install-guide/styles.css
+!/prototypes/install-guide/app.js
+!/prototypes/install-guide/agent.md
+!/prototypes/install-guide/assets/
+/prototypes/install-guide/assets/*
+!/prototypes/install-guide/assets/icon.svg
+!/prototypes/install-guide/assets/home.png
 !/prototypes/about/
 /prototypes/about/*
 !/prototypes/about/index.html
