@@ -31,7 +31,9 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private static final String MANAGEMENT_ENTRY = HomeAppCatalog.MANAGEMENT;
     static final int APP_COLUMNS = 5;
     private static final float CONTENT_MARGIN = 48;
-    private static final float FOCUS_SCALE = 1.035f, FOCUS_OUTSET = 5, FOCUS_STROKE = 3;
+    private static final float FOCUS_SCALE = 1.065f, FOCUS_OUTSET = 5, FOCUS_STROKE = 3;
+    // A critically damped spring settles without bouncing past the target.
+    private static final android.animation.TimeInterpolator FOCUS_MOTION = t -> (float)((1-(1+8*t)*Math.exp(-8*t))/(1-9*Math.exp(-8)));
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService loader = Executors.newSingleThreadExecutor();
     private final ArrayList<App> dock = new ArrayList<>(), apps = new ArrayList<>();
@@ -56,6 +58,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private boolean chinese = true, fixedGreeting = false, ready = false, resumed = false, requestedLocation = false;
     private float unit;
     private int row = 0, column = 0, topColumn = 0, restoreColumn = 0;
+    private int scrollTarget = RecyclerView.NO_POSITION;
+    private ValueAnimator scrollAnimation;
     private String activePackage = "";
     private TvInputs tvInputs;
     private Tile selected;
@@ -145,8 +149,10 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         root = new FrameLayout(this); root.setBackgroundColor(Color.BLACK); root.setClipChildren(false);
         setContentView(root);
         wallpapers = new WallpaperController(this, root, unit, chinese);
-        list = new RecyclerView(this);
-        list.setClipChildren(true); list.setClipToPadding(true);
+        list = new RecyclerView(this){
+            @Override public void draw(Canvas canvas){int save=canvas.save();canvas.clipRect(0,0,getWidth(),getHeight());super.draw(canvas);canvas.restoreToCount(save);}
+        };
+        list.setClipChildren(true); list.setClipToPadding(false);
         list.setOverScrollMode(View.OVER_SCROLL_NEVER); list.setItemAnimator(null);
         list.setFocusable(false); list.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
         list.setPadding(px(CONTENT_MARGIN),0,px(CONTENT_MARGIN),px(8));
@@ -157,7 +163,11 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         list.setLayoutManager(layout); list.setAdapter(new AppAdapter());
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-1,-1); lp.topMargin=px(192); root.addView(list,lp);
         list.addOnScrollListener(new RecyclerView.OnScrollListener() {
-            @Override public void onScrolled(RecyclerView rv, int dx, int dy) { positionGlass(false); }
+            @Override public void onScrolled(RecyclerView rv, int dx, int dy) {
+                View header=layout.findViewByPosition(0);
+                if(header!=null)header.setAlpha(Math.max(0,Math.min(1,1+header.getTop()/(float)px(180))));
+                positionGlass(false);
+            }
         });
         glass = new Glass(); root.addView(glass,new FrameLayout.LayoutParams(-1,-1));
         greeting=text("",14,600,0xffe6e7ed);UiCompat.letterSpacing(greeting,.14f);
@@ -270,7 +280,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     @Override protected void onPause() {
-        resumed=false;saveFocus();wallpapers.pause();
+        resumed=false;if(scrollAnimation!=null)scrollAnimation.cancel();list.stopScroll();saveFocus();wallpapers.pause();
         unregisterReceiver(timeReceiver);
         if(Build.VERSION.SDK_INT>=24)stopNetworkCallback.run();
         else unregisterReceiver(legacyNetworkReceiver);
@@ -388,6 +398,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         int key=event.getKeyCode();
         if(inputPopup!=null && inputPopup.isShowing())return super.dispatchKeyEvent(event);
         if(!ready)return super.dispatchKeyEvent(event);
+        if(key==KeyEvent.KEYCODE_BACK && row>0){if(event.getAction()==KeyEvent.ACTION_UP)handleBack();return true;}
         if(key==KeyEvent.KEYCODE_DPAD_LEFT || key==KeyEvent.KEYCODE_DPAD_RIGHT || key==KeyEvent.KEYCODE_DPAD_UP || key==KeyEvent.KEYCODE_DPAD_DOWN){
             if(event.getAction()==KeyEvent.ACTION_UP)return true;
             if(row<0){
@@ -411,22 +422,50 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private void focusCurrent(boolean animate) {
         if(!ready)return;
         if(row<0){
-            if(selected!=null){Tile previous=selected;selected=null;previous.invalidate();previous.animate().scaleX(1).scaleY(1).translationX(0).setDuration(160);}
+            if(selected!=null){Tile previous=selected;selected=null;previous.invalidate();previous.animate().scaleX(1).scaleY(1).translationX(0).translationY(0).setDuration(240).setInterpolator(FOCUS_MOTION);}
             positionGlass(animate);Log.i(TAG,"Focus top="+topColumn);return;
         }
-        if(row==0)layout.scrollToPositionWithOffset(0,0);
-        else{
-            int position=2+(row-1)*APP_COLUMNS;
+        int position=row==0?0:2+(row-1)*APP_COLUMNS;
+        int offset=row==0?0:px(42);
+        AppAdapter adapter=(AppAdapter)list.getAdapter();
+        int gridStride=px(adapter.gridHeight)+px(12);
+        int bottom=Math.max(px(8),list.getHeight()-px(42)-gridRows()*gridStride);
+        if(list.getPaddingBottom()!=bottom)list.setPadding(px(CONTENT_MARGIN),0,px(CONTENT_MARGIN),bottom);
+        boolean needsScroll=row<=1;
+        if(row>1){
             View first=layout.findViewByPosition(position);
-            if(row==1 || first==null || first.getTop()<px(38) || first.getBottom()>list.getHeight()-px(20)) layout.scrollToPositionWithOffset(position,px(42));
+            needsScroll=first==null || first.getTop()<px(38) || first.getBottom()>list.getHeight()-px(20);
         }
+        if(needsScroll && !(animate && scrollTarget==position && scrollAnimation!=null && scrollAnimation.isRunning())){
+            if(scrollAnimation!=null)scrollAnimation.cancel();
+            list.stopScroll();scrollTarget=position;
+            if(!animate)layout.scrollToPositionWithOffset(position,offset);
+            else{
+                int first=layout.findFirstVisibleItemPosition();View view=layout.findViewByPosition(first);
+                if(view!=null){
+                    int before=first==0?0:px(348)+(first==1?0:px(38)+(first-2)/APP_COLUMNS*gridStride);
+                    int current=before-layout.getDecoratedTop(view);
+                    int target=position==0?0:px(348)+px(38)+(row-1)*gridStride-offset;
+                    if(target!=current){
+                        final int[] moved={0};scrollAnimation=ValueAnimator.ofInt(0,target-current);
+                        scrollAnimation.setDuration(420);scrollAnimation.setInterpolator(FOCUS_MOTION);
+                        scrollAnimation.addUpdateListener(a->{int distance=(int)a.getAnimatedValue();list.scrollBy(0,distance-moved[0]);moved[0]=distance;});scrollAnimation.start();
+                    }
+                }else layout.scrollToPositionWithOffset(position,offset);
+            }
+        }
+        focusApp(animate);
+    }
+
+    private void focusApp(boolean animate) {
         list.post(()->{
             if(row<0)return;
             App app=currentApp();if(app==null)return;
             Tile tile=visibleTiles.get(app.pkg);
-            if(tile==null){list.postDelayed(()->focusCurrent(animate),40);return;}
-            Tile previous=selected;selected=tile;if(previous!=null && previous!=tile){previous.invalidate();previous.animate().scaleX(1).scaleY(1).translationX(0).setDuration(180);}
-            tile.invalidate();tile.animate().scaleX(FOCUS_SCALE).scaleY(FOCUS_SCALE).translationX(focusTranslationX(tile)).setDuration(240).setInterpolator(new OvershootInterpolator(.7f));
+            if(row>0){RecyclerView.ViewHolder holder=list.findViewHolderForAdapterPosition(2+(row-1)*APP_COLUMNS+column);tile=holder!=null?(Tile)holder.itemView:null;}
+            if(tile==null || !tile.isAttachedToWindow()){list.postDelayed(()->focusApp(animate),40);return;}
+            Tile previous=selected;selected=tile;if(previous!=null && previous!=tile){previous.invalidate();previous.animate().scaleX(1).scaleY(1).translationX(0).translationY(0).setDuration(260).setInterpolator(FOCUS_MOTION);}
+            tile.invalidate();tile.animate().scaleX(FOCUS_SCALE).scaleY(FOCUS_SCALE).translationX(focusTranslationX(tile)).translationY(-px(2)).setDuration(320).setInterpolator(FOCUS_MOTION);
             activePackage=app.pkg;
             if(row==0 && heroTitle!=null)heroTitle.setText(app.label);
             wallpapers.setThemeColor(app.color);
