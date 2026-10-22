@@ -41,12 +41,14 @@ Ignore rules do not preserve paths removed by a Git update. After updating an ex
 
 ## 提交与评审 / Pull requests
 
+维护者日常开发先在本地完成；“合并到 main”仅指本地主线合并。用户明确要求“推送到 GitHub”或授权远程同步后，才按授权范围推送、建 PR 并合并远程主线；仅授权推送或建 PR 时不扩大范围。以下 PR 流程适用于远程同步，不自动授权 APK 上传或 Release 发布，具体审核要求见 [AGENTS.md](AGENTS.md)。
+
 1. 从最新 `main` 创建分支；外部贡献者通过 Fork 提交 PR。
 2. 保持修改范围明确，按具体文件路径暂存，保护现有修改与本地资料；不批量删除文件，不提交密钥、账号或私密日志。
 3. 修改生产源码、资源或构建配置时执行构建、Lint 和配置校验；仅文档修改执行链接与差异检查。
 4. 在 PR 中说明问题、行为变化、范围及可复现的验证结果。构建、安装、哈希核对和真机功能验收分别报告。
 
-`main` 继续要求 PR、成功的 `Validate` 检查和解决全部讨论，统一 Squash merge；不绕过分支保护或强推。CI 检查提交文件中的文档链接、Python 语法、固件配置，并按修改范围构建和 Lint 主应用；不依赖本地测试目录，不连接电视或自动发布 APK。必需检查名称保持 `Validate`。
+远程 `main` 要求 PR、成功的 `Validate` 检查和解决全部讨论，统一 Squash merge；不绕过分支保护或强推。CI 检查提交文件中的文档链接、Python 语法、固件配置，并按修改范围构建和 Lint 主应用；不依赖本地测试目录，不连接电视或自动发布 APK。必需检查名称保持 `Validate`。
 
 首次贡献者的 Actions 可能需要维护者批准运行。按 [CODEOWNERS](.github/CODEOWNERS) 评审，保留 [Issue 模板](.github/ISSUE_TEMPLATE/) 与 [PR 模板](.github/PULL_REQUEST_TEMPLATE.md)。较大功能先在 [Discussions](https://github.com/BeatsAD/quiet-tv/discussions) 讨论；任务认领与反馈通过 [Issues](https://github.com/BeatsAD/quiet-tv/issues)。安全问题按 [SECURITY.md](SECURITY.md) 私密报告。
 
@@ -60,4 +62,4 @@ Use Python 3, JDK 17 or 21, and Android SDK platform 36 / build-tools 36.0.0. Se
 
 Only core source, required resources, build inputs, essential guides, licenses and collaboration files are public. Private tests, fixtures, plans, device records and generated files remain local. Existing local tests keep their paths and commands; fixture modules load when their build files exist. CI does not require those private files. Explicit maintainer requests and new production build inputs update the tracking exceptions.
 
-Start from current main and submit a scoped PR, normally through a Fork. Preserve user data, stage explicit paths, and report actual checks separately from hardware acceptance. Protected main requires the `Validate` check, resolved discussions and Squash merge. Keep CODEOWNERS, templates, Discussions and confidential security reporting. CI never operates a TV or publishes an APK.
+Maintainer development stays local by default; “merge into main” means local integration. Only explicit GitHub synchronization authorization starts the push/PR/remote-merge workflow; a request limited to pushing or opening a PR does not authorize merging or APK publication. For remote contributions, start from current main and submit a scoped PR, normally through a Fork. Preserve user data, stage explicit paths, and report actual checks separately from hardware acceptance. Protected remote main requires the `Validate` check, resolved discussions and Squash merge. Keep CODEOWNERS, templates, Discussions and confidential security reporting. CI never operates a TV or publishes an APK.
