@@ -23,6 +23,7 @@ final class AppOperations {
     AppOperations(Context context,SetupPresets presets){this.context=context;repository=new AppRepository(context);this.presets=presets;}
     String protection(AppRepository.App app){
         if(app.pkg.equals(context.getPackageName()) || app.pkg.equals("home.quiet.tv.test"))return "Quiet TV 与管理验证组件只读";
+        if(new HomeGuardState(context).protects(app.pkg))return "主页守护依赖此原桌面，请保留";
         if(app.system && presets.app(app.pkg)==null)return "关键组件或用途未确认的预装包只读";
         if(isHome(app.pkg))return "桌面组件请通过首次设置与恢复原桌面处理";
         return "";
@@ -67,6 +68,7 @@ final class AppOperations {
         adb.validateUser();
         AppRepository.App before=repository.find(adb,confirmed.pkg);
         if(before==null || before.installed!=confirmed.installed || before.enabled!=confirmed.enabled || before.system!=confirmed.system || !before.version.equals(confirmed.version) || before.versionCode!=confirmed.versionCode || before.enabledSetting!=confirmed.enabledSetting)throw new IOException("应用状态已变化，请刷新后重新确认");
+        if((action==Action.DISABLE || action==Action.UNINSTALL) && new HomeGuardState(context).protects(before.pkg))throw new IOException("主页守护依赖此原桌面，请先暂停守护");
         if(original){
             HomeController home=new HomeController(context,presets);String target=new SetupStore(context).originalHome();
             if(!before.metadataKnown || !target.equals(presets.home()) || !target.startsWith(before.pkg+"/") || !home.component(target,false))throw new IOException("原桌面身份未确认");

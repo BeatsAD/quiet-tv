@@ -28,6 +28,7 @@ final class SetupOperations {
         try{
             if(!Arrays.asList("KEEP","DISABLE","UNINSTALL").contains(choice))throw new IOException("原桌面操作选择无效");
             ticket.check();HomeController.State current=home.inspect(adb);
+            if(!"KEEP".equals(choice) && original!=null && new HomeGuardState(context).protects(original.pkg))throw new IOException("主页守护依赖此原桌面，请保留");
             if(!current.isOwn(context) || !current.ownUsable)throw new IOException("默认桌面已改变或未确认，请返回第一屏");
             // Choices may be made before authorization. Validate the entire frozen selection before the first write.
             if(!selected.isEmpty() || !"KEEP".equals(choice)){
@@ -90,6 +91,7 @@ final class SetupOperations {
         AppOperations.begin();
         String id=UUID.randomUUID().toString();boolean begun=false;
         try{
+            new HomeGuardState(context).pause("恢复原桌面，守护已暂停");
             ticket.check();adb.validateUser();String original=store.originalHome();
             if(original.isEmpty() || !original.equals(home.presets.home()) || !home.component(original,false))throw new IOException("原桌面记录缺失或当前固件不匹配");
             String pkg=android.content.ComponentName.unflattenFromString(original).getPackageName();AppRepository.App app=repository.find(adb,pkg);

@@ -26,6 +26,11 @@ public final class DesktopSettingsActivity extends ManagementUi {
         gap(root,14);
         Switch buttons=option(chinese?"显示右侧按钮":"Show right-side buttons",store.showButtons());
         buttons.setOnCheckedChangeListener((view,checked)->store.showButtons(checked));
+        if(!BuildConfig.LEGACY_19){
+            gap(root,20);
+            root.addView(button(chinese?"主页兼容（实验）":"Home compatibility (experimental)",
+                ()->startActivity(new android.content.Intent(this,HomeGuardActivity.class))),new LinearLayout.LayoutParams(-2,px(42)));
+        }
         time.requestFocus();
     }
     private Switch option(String title,boolean checked){

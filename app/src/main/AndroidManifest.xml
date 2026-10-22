@@ -17,6 +17,8 @@
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
     <queries>
         <package android:name="com.xiaomi.mitv.settings" />
+        <package android:name="home.quiet.tv.xiaomihelper" />
+        <package android:name="com.ccos.tv.homepage" />
         <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LEANBACK_LAUNCHER" /></intent>
         <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent>
         <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.APPSTORE_LAUNCHER" /></intent>
@@ -27,6 +29,12 @@
         <activity android:name=".DockEditorActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".HomeSortActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".DesktopSettingsActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".HomeGuardActivity" android:exported="false" android:enabled="${homeGuardAvailable}" android:screenOrientation="landscape" />
+        <service android:name=".HomeGuardService" android:exported="true" android:enabled="${homeGuardAvailable}"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" android:label="@string/home_guard_name">
+            <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/home_guard" />
+        </service>
         <activity android:name=".AppManagementActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".BootAdActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".SetupActivity" android:exported="false" android:screenOrientation="landscape" />

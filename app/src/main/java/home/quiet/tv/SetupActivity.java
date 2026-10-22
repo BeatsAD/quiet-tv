@@ -71,12 +71,14 @@ public final class SetupActivity extends ManagementUi {
     }
     private boolean canRecommend(AppRepository.App app){return (!adb.connected() || adb.capabilities.supports(AppOperations.Action.DISABLE)) && recordAvailable && app.installed && app.enabled && app.metadataKnown && home.presets.recommended(app.pkg) && operations.protection(app).isEmpty();}
     private boolean canOriginal(String action){
+        if(original!=null && new HomeGuardState(this).protects(original.pkg))return false;
         if(!recordAvailable || homeState==null || !homeState.isOwn(this) || !homeState.ownUsable || original==null || !original.metadataKnown || !original.installed || !original.enabled)return false;
         if(adb.connected() && (!adb.capabilities.supports("DISABLE".equals(action)?AppOperations.Action.DISABLE:AppOperations.Action.UNINSTALL) || ("DISABLE".equals(action) && original.enabledSetting==0 && !adb.capabilities.defaultState)))return false;
         return home.presets.homeAllows("DISABLE".equals(action)?"disableVerified":"uninstallVerified") && (!"UNINSTALL".equals(action) || home.presets.homeAllows("restoreInstallVerified"));
     }
     private String originalReason(String action){
         if("KEEP".equals(action))return original==null?"保持原桌面当前状态":!original.installed?"保持原桌面当前未安装状态":!original.enabled?"保持原桌面当前已禁用状态":"保持原桌面当前状态";
+        if(original!=null && new HomeGuardState(this).protects(original.pkg))return "主页守护依赖此原桌面，请保留";
         if(!recordAvailable)return "设置记录无法读取，暂不能执行";
         if(homeState==null || !homeState.isOwn(this))return "请先将 Quiet TV 设为实际默认桌面";
         if(!homeState.ownUsable)return "Quiet TV 桌面组件不可用";
@@ -206,6 +208,7 @@ public final class SetupActivity extends ManagementUi {
         Button primary=setupButton(own?"管理预装应用":"设为默认桌面","primary",()->{if(own){screen=1;render();}else if(homeState!=null && homeState.roleAvailable)requestRole();else withConnection(this::setDefault);},true);enable(primary,usable && (own || homeState.roleAvailable || switchReason.isEmpty()));buttonIcon(primary,R.drawable.ic_setup_home);copy.addView(primary,new LinearLayout.LayoutParams(-2,px(40)));
         if(!own && homeState!=null && homeState.roleAvailable){gap(copy,10);Button adbButton=textButton("通过 ADB 设置","adb",()->withConnection(this::setDefault));enable(adbButton,switchReason.isEmpty());copy.addView(adbButton,new LinearLayout.LayoutParams(-2,px(30)));}
         if(!own && !switchReason.isEmpty()){gap(copy,10);copy.addView(muted(switchReason,11),new LinearLayout.LayoutParams(-1,-2));}
+        if(!BuildConfig.LEGACY_19){gap(copy,8);copy.addView(textButton("主页兼容（实验）","home-guard",()->startActivity(new Intent(this,HomeGuardActivity.class))),new LinearLayout.LayoutParams(-2,px(30)));}
         if(!notice.isEmpty() || !usable){gap(copy,8);copy.addView(textButton("重新检测","refresh",()->{roleCancelled=false;refresh();}),new LinearLayout.LayoutParams(-2,px(30)));}
         View spacing=new View(this);split.addView(spacing,new LinearLayout.LayoutParams(0,1,5));
         LinearLayout preview=column();preview.setGravity(Gravity.CENTER_VERTICAL);split.addView(preview,new LinearLayout.LayoutParams(0,-1,48));

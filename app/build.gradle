@@ -14,7 +14,7 @@ android {
         applicationId launcherId
         minSdk minimumSdk
         if (legacy) multiDexEnabled true
-        manifestPlaceholders = [leanbackRequired: !legacy]
+        manifestPlaceholders = [leanbackRequired: !legacy, homeGuardAvailable: !legacy]
         buildConfigField 'boolean', 'LEGACY_19', legacy.toString()
         targetSdk 36
         versionCode providers.gradleProperty('quietBuildNumber').getOrElse('34').toInteger()
@@ -74,3 +74,11 @@ tasks.register('bundleAbout', Exec) {
     commandLine 'python3', file('../scripts/bundle_about.py'), aboutAssets.get().dir('about').asFile
 }
 tasks.named('preBuild').configure { dependsOn 'bundleAbout' }
+
+// A profile switch must invalidate incremental APK packaging, not just its metadata.
+// Otherwise a previously packaged Manifest can survive a standard/legacy19 switch.
+tasks.configureEach {
+    if (name in ['packageDebug', 'packageBenchmark', 'packageRelease']) {
+        inputs.property('quietPackageProfile', "${compatibility}:${minimumSdk}:${launcherId}")
+    }
+}

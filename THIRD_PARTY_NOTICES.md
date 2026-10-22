@@ -10,6 +10,12 @@
 
 Quiet TV 基于该项目开发，面向国内电视机的适配与应用升级改造，独立维护。原作者版权、MIT 授权条件与免责声明予以保留。上游许可快照放在 Android assets 中，后续构建 APK 时会随应用打包。
 
+## Aerial（内置主页守护参考）
+
+- 来源：[pengchujin/aerial-tv](https://github.com/pengchujin/aerial-tv/tree/da9cedc2c5887a46d62b1f54699567a5deac5c2a)，固定提交 `da9cedc2c5887a46d62b1f54699567a5deac5c2a`。
+- Copyright (c) 2026 pengchujin，MIT；[完整许可证](app/src/main/assets/licenses/aerial-MIT.txt)随主程序打包。
+- 参考原主页窗口识别及酷开私有 HOME 类别，在现有 Java 结构实现用户手动启停的实验守护；未移植其通知监听、账号同步或自动重绑机制。上游机型反馈不等于 Quiet TV 真机验收。
+
 ## coocaa-home-shim（可选独立助手）
 
 - 来源：[VincentYe123/coocaa-home-shim](https://github.com/VincentYe123/coocaa-home-shim/tree/281a6a1362a9e30faaeb2169b75ba701dd0b1a03)，固定提交 `281a6a1362a9e30faaeb2169b75ba701dd0b1a03`。

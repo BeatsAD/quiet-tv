@@ -1,0 +1,4 @@
+<resources>
+    <string name="home_guard_name">Quiet TV 主页守护</string>
+    <string name="home_guard_description">仅识别选择的原主页并返回 Quiet TV，不读取屏幕内容。请返回 Quiet TV 的主页兼容页面手动启用或暂停。</string>
+</resources>
