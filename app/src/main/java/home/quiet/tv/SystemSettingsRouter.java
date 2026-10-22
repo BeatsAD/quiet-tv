@@ -1,6 +1,5 @@
 package home.quiet.tv;
 
-import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -42,24 +41,27 @@ final class SystemSettingsRouter {
 
     boolean open(String action){
         for(Intent intent:candidates(action)){
-            ResolveInfo resolved=pm.resolveActivity(intent,PackageManager.MATCH_DEFAULT_ONLY);
-            if(resolved==null || resolved.activityInfo==null)continue;
-            ActivityInfo activity=resolved.activityInfo;
-            int appState=pm.getApplicationEnabledSetting(activity.packageName);
-            int componentState=pm.getComponentEnabledSetting(new ComponentName(activity.packageName,activity.name));
-            if(!(appState==PackageManager.COMPONENT_ENABLED_STATE_DEFAULT?activity.applicationInfo.enabled:appState==PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
-                    || !(componentState==PackageManager.COMPONENT_ENABLED_STATE_DEFAULT?activity.enabled:componentState==PackageManager.COMPONENT_ENABLED_STATE_ENABLED) || !activity.exported
-                    || (activity.permission!=null && pm.checkPermission(activity.permission,context.getPackageName())!=PackageManager.PERMISSION_GRANTED))continue;
-            if((XIAOMI.equals(activity.packageName) || "com.tcl.settings".equals(activity.packageName)) && (activity.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0)continue;
-            ComponentName target=new ComponentName(activity.packageName,activity.name);
-            boolean home=false;
-            for(ResolveInfo candidate:pm.queryIntentActivities(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME),0))
-                if(candidate.activityInfo!=null && target.equals(new ComponentName(candidate.activityInfo.packageName,candidate.activityInfo.name))){home=true;break;}
-            if(home)continue;
             try{
-                context.startActivity(new Intent(intent).setComponent(target));
+                ResolveInfo resolved=pm.resolveActivity(intent,PackageManager.MATCH_DEFAULT_ONLY);
+                if(resolved==null || resolved.activityInfo==null)continue;
+                ActivityInfo activity=resolved.activityInfo;
+                int appState=pm.getApplicationEnabledSetting(activity.packageName);
+                int componentState=pm.getComponentEnabledSetting(new ComponentName(activity.packageName,activity.name));
+                if(!(appState==PackageManager.COMPONENT_ENABLED_STATE_DEFAULT?activity.applicationInfo.enabled:appState==PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
+                        || !(componentState==PackageManager.COMPONENT_ENABLED_STATE_DEFAULT?activity.enabled:componentState==PackageManager.COMPONENT_ENABLED_STATE_ENABLED) || !activity.exported
+                        || (activity.permission!=null && pm.checkPermission(activity.permission,context.getPackageName())!=PackageManager.PERMISSION_GRANTED))continue;
+                if((XIAOMI.equals(activity.packageName) || "com.tcl.settings".equals(activity.packageName)) && (activity.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0)continue;
+                ComponentName target=new ComponentName(activity.packageName,activity.name);
+                boolean home=false;
+                for(ResolveInfo candidate:pm.queryIntentActivities(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME),0))
+                    if(candidate.activityInfo!=null && target.equals(new ComponentName(candidate.activityInfo.packageName,candidate.activityInfo.name))){home=true;break;}
+                if(home)continue;
+                context.startActivity(new Intent(intent).setComponent(target).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
                 return true;
-            }catch(ActivityNotFoundException|SecurityException ignored){/* Try the next usable settings entry. */}
+            }catch(RuntimeException failure){
+                // OEM package lookup and enabled-state queries can fail before startActivity.
+                android.util.Log.w("QuietTV","Settings route unavailable: "+failure.getClass().getSimpleName());
+            }
         }
         return false;
     }

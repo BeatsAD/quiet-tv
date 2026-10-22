@@ -1,6 +1,5 @@
 package home.quiet.tv;
 
-import android.content.Intent;
 import android.provider.Settings;
 import android.widget.*;
 import java.util.concurrent.ExecutorService;
@@ -47,15 +46,15 @@ final class AdbConnectionPanel {
             if(setup!=null){LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-2,-1);sp.rightMargin=ui.px(10);sheet.actions.addView(settings,sp);sheet.actions.addView(connect,new LinearLayout.LayoutParams(-2,-1));}
             sheet.dialog.setOnDismissListener(dialog->{if(!complete)cancel();});body(false);sheet.show(connect);
         }
-        void openSettings(){sheet.dialog.dismiss();try{ui.startActivity(new Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS));}catch(android.content.ActivityNotFoundException|SecurityException e){ui.message("请在电视系统设置中打开开发者选项，开启调试。");}}
+        void openSettings(){sheet.dialog.dismiss();if(!new SystemSettingsRouter(ui).open(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))ui.message("未找到可用的开发者设置，请使用电视系统提供的调试入口。");}
         void settingsGuide(){
-            guide=setup.setupSheet("在电视系统设置中操作");guide.text("设置 → 关于 → 连点版本号，开启开发者选项和网络调试。");guide.action("打开开发者选项",()->{guide.dialog.dismiss();openSettings();});Button back=guide.action("返回连接",guide.dialog::dismiss);guide.show(back);
+            guide=setup.setupSheet("在电视系统设置中操作");guide.text("在电视系统提供的开发者选项或厂商调试入口中开启网络 / ADB 调试；工厂菜单的 ADBD 开关不保证可以连接。");guide.action("打开开发者选项",()->{guide.dialog.dismiss();openSettings();});Button back=guide.action("返回连接",guide.dialog::dismiss);guide.show(back);
         }
         void instruction(String number,String title,String detail){LinearLayout row=ui.row();TextView badge=ui.center(number,10);badge.setBackground(ui.surface(0x05ffffff,0x05ffffff,0x30ffffff,16));row.addView(badge,new LinearLayout.LayoutParams(ui.px(22),ui.px(22)));LinearLayout copy=ui.column();copy.addView(ui.label(title,12));ui.gap(copy,5);copy.addView(ui.muted(detail,10));LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,-2,1);cp.leftMargin=ui.px(12);row.addView(copy,cp);sheet.body.addView(row);ui.gap(sheet.body,18);}
         void body(boolean tls){
             if(working)return;android.view.View focused=sheet.dialog.getCurrentFocus();Object focusTag=focused==null?null:focused.getTag();boolean restoreFocus=sheet.dialog.isShowing();if(discovery!=null)discovery.close();wireless=tls;sheet.body.removeAllViews();
-            if(setup!=null){instruction("1","开启开发者选项","设置 → 关于 → 连点版本号");instruction("2",tls?"开启无线调试":"开启网络 / ADB 调试",tls?"选择「使用配对码配对设备」":"仅开启 USB 调试可能无法连接");}
-            else sheet.text(tls?"在系统无线调试中打开配对页面；配对与连接端口不同。没有配对页面时请使用 TCP 或取消。返回后配对码可能失效，必要时手动填写本机端口。":"开启电视网络／ADB 调试，连接时在电视弹窗允许 Quiet TV。仅连接当前电视。");ui.gap(sheet.body,12);
+            if(setup!=null){instruction("1","找到电视调试入口","开发者选项或厂商提供的调试菜单");instruction("2",tls?"开启无线调试":"开启网络 / ADB 调试",tls?"选择「使用配对码配对设备」":"仅开启 USB 调试可能无法连接");}
+            else sheet.text(tls?"在系统无线调试中打开配对页面；配对与连接端口不同。没有配对页面时请使用 TCP 或取消。返回后配对码可能失效，必要时手动填写本机端口。":"开启电视网络／ADB 调试；如出现授权弹窗，请允许 Quiet TV。未出现弹窗时，以连接及身份核对结果为准。仅连接当前电视。");ui.gap(sheet.body,12);
             if(setup!=null && !tls){Button expand=setup.setupButton(advanced?"连接设置  ⌄":"连接设置  ›","connection-settings",()->{advanced=!advanced;body(false);},false);expand.setGravity(android.view.Gravity.START|android.view.Gravity.CENTER_VERTICAL);sheet.body.addView(expand,new LinearLayout.LayoutParams(-1,ui.px(32)));ui.gap(sheet.body,8);}
             if(setup==null || advanced || tls){
             LinearLayout modes=ui.row();modes.setGravity(android.view.Gravity.CENTER);sheet.body.addView(modes);Button tcp=ui.button("传统 TCP"+(tls?"":" ✓"),()->body(false));tcp.setTag("tcp-mode");modes.addView(tcp,new LinearLayout.LayoutParams(ui.px(156),ui.px(36)));
