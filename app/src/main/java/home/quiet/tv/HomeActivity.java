@@ -459,7 +459,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     private final class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>{
-        private final float dockPadding=18, dockGap=18, dockWidth=(864-2*dockPadding-3*dockGap)/4f, dockHeight=dockWidth*203f/360f;
+        private final float dockPadding=18, dockGap=18, dockWidth=(864-2*dockPadding-(DockStore.CAPACITY-1)*dockGap)/DockStore.CAPACITY, dockHeight=dockWidth*203f/360f;
         @Override public int getItemViewType(int position){return position==0?0:position==1?1:2;}
         @Override public int getItemCount(){return 2+apps.size();}
         @Override public RecyclerView.ViewHolder onCreateViewHolder(android.view.ViewGroup parent,int type){
