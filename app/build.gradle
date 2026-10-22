@@ -17,8 +17,8 @@ android {
         manifestPlaceholders = [leanbackRequired: !legacy]
         buildConfigField 'boolean', 'LEGACY_19', legacy.toString()
         targetSdk 36
-        versionCode 31
-        versionName '1.1.0'
+        versionCode providers.gradleProperty('quietBuildNumber').getOrElse('34').toInteger()
+        versionName '1.1.2'
     }
     buildFeatures { buildConfig true }
     sourceSets.main.java.srcDir(legacy ? 'src/legacy19/java' : 'src/standard/java')

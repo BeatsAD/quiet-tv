@@ -4,7 +4,7 @@
 
 本页承接 [AGENTS.md](../AGENTS.md) 的安装包规则，适用于后续交付。历史安装包、校验记录、发布标签和下载链接保留原样。
 
-**实施状态：命名规则已确认，`scripts/build_apk.py` 尚未适配，仍生成旧格式文件名。下一次交付前须同步脚本和相关文档，完成真实 APK 核验；本次文档更新不代表已生成符合新规则的安装包。**
+**实施状态：主程序归档脚本已适配版本号与数字构建号、中文系统标签、实际单架构标记和同名 SHA-256 文件，并核对 APK 实际版本、签名及已登记 worktree 的归档构建号。助手及正式版流程仍需单独验证。**
 
 ## 命名与签名
 
@@ -22,7 +22,7 @@ QuietTV_<版本号>-<构建号>_<适用系统>[_<单架构标记>]_<发布状态
 - 构建号与实际 APK 的 `versionCode` 一致，只使用不带前导零的正整数，例如 `31`，不使用 `b31`、`Build31`、`RC31`。
 - 主程序各系统档位、架构和构建类型共用递增交付序列；交付不同内容的新包时分配新号，不回退、复用或因版本变化归零。日常编译不必每次加号，同一归档原字节重发不分配新号。
 - 交付前核对源码配置、历史归档和远程发布中的已用号。文件名、APK 版本和归档记录必须一致，不能通过改名冒充新版本。
-- 主程序版本配置在 `app/build.gradle`，当前未发布源码为 `1.1.0 / 31`，standard 与 legacy19 均为 targetSdk36；本页示例不修改配置、不预占构建号。助手版本独立配置在 `coocaa-home-shim/build.gradle` 和 `xiaomi-home-helper/build.gradle`。
+- 主程序版本配置在 `app/build.gradle`，当前未发布源码为 `1.1.2 / 34`，交付时可用 Gradle 参数 `quietBuildNumber` 指定递增构建号，standard 与 legacy19 均为 targetSdk36；本页示例不修改配置、不预占构建号。助手版本独立配置在 `coocaa-home-shim/build.gradle` 和 `xiaomi-home-helper/build.gradle`。
 
 ### 安卓档位与架构
 
@@ -72,10 +72,10 @@ QuietTV助手_2.0.1-12_酷开安卓8配套酷开桌面_实验版.apk
 按[安装指南](INSTALL.zh-CN.md)配置 SDK，现有脚本读取 `local.properties` 的 `sdk.dir`：
 
 ```sh
-python3 scripts/build_apk.py --summary "说明本次更新内容"
+python3 scripts/build_apk.py --build-number 34 --variant benchmark --summary "说明本次更新内容"
 ```
 
-**上述脚本当前仍按旧格式归档。** 以现有源码默认配置为例，输出为 `dist/apk/quiet-tv_1.1.0_b31_debug_api21.apk` 及 JSON。该名称描述当前脚本行为，不是新的交付规则；旧的同名归档存在且内容不同时，脚本会拒绝覆盖。
+上述命令输出 `dist/apk/QuietTV_1.1.2-34_安卓5及以上_测试版.apk`、同名 `.apk.sha256`、归档 JSON 及优化映射文件。安卓 4.4 同批包通过 `--compatibility legacy19 --build-number 35` 构建，对应 `QuietTV_1.1.2-35_安卓4.4_测试版.apk`。示例编号须先核对历史占用，同名不同内容拒绝覆盖。
 
 现有参数包括 `--variant benchmark`、`--abi armeabi-v7a`、`--min-sdk 21`（默认）、`23`、`26`、`31`。`--compatibility legacy19` 固定使用 API19，标准档不接受 API19。酷开专用桌面及各中转助手暂按各自说明构建，尚未接入统一归档；交付前须完成对应命名及元数据核验，不将当前脚本描述为已支持所有类别。
 
@@ -86,7 +86,7 @@ python3 scripts/build_apk.py --summary "说明本次更新内容"
 - 同名同字节且校验记录一致可复用；同名不同内容禁止覆盖，必须使用新构建号。构建期间生产输入改变则停止归档。
 - Gradle 的构建输出目录是可更新的中间产物；归档、密钥和恢复记录保留本地，不随源码发布。
 
-当前脚本已有部分签名、最低 API、架构、输入指纹及不可覆盖校验；新命名、完整元数据、全序列构建号核对和配套助手归档仍须在交付前补齐并验证。
+主程序脚本核对实际包名、版本、最低及目标 API、签名、架构、生产输入指纹与不可覆盖归档，检查所有已登记 worktree 的归档构建号；不自动联网查询远程 Release 或扫描未登记目录，交付者仍须补齐这两项核对。助手配套归档和正式签名流程另行验证。
 
 ## 安装与发布边界
 
@@ -107,12 +107,12 @@ python3 scripts/build_apk.py --summary "说明本次更新内容"
 
 ## English
 
-Unpublished source is 1.1.0 / b31, with standard (minSdk21) and legacy19 (minSdk19) profiles targeting API36. Historical b30 legacy19 and b26 standard downloads keep their original names and tags. At b30 publication, native emulator and physical-TV acceptance were still pending; historical results for other builds do not validate this APK. See [compatibility](COMPATIBILITY.md) for the recorded scope.
+Unpublished source is 1.1.2 / 34, with standard (minSdk21) and legacy19 (minSdk19) profiles targeting API36. Historical b30 legacy19 and b26 standard downloads keep their original names and tags. At b30 publication, native emulator and physical-TV acceptance were still pending; historical results for other builds do not validate this APK. See [compatibility](COMPATIBILITY.md) for the recorded scope.
 
 Future deliveries use `QuietTV_<version>-<numeric build>_<system>[_<single ABI>]_<status>.apk`. Version and build must match the actual APK. Build numbers are positive integers without prefixes or leading zeros and increase across all main-app delivery variants. Re-sending identical archived bytes does not allocate a new number. The helper uses `QuietTV助手`, its own version/build sequence, and an explicit target launcher.
 
 System labels are `安卓4.4` (legacy19, API19), `安卓5及以上` (standard, API21), and `酷开安卓8` (experimental vendor package, API26). Other minimum APIs require matching labels. Omit the ABI for universal or native-library-free APKs; use ARM32, ARM64, x86 or x86_64 only for actual single-ABI builds. Status is `测试版` (test), `实验版` (experimental), or `正式版` (formally signed release with agreed acceptance completed).
 
-**The build script still generates legacy filenames and does not yet implement all future-delivery requirements above.** Update and verify tooling before the next delivery. Preserve historical files, checksums, tags and links. Archives require matching checksum and metadata records, including the actual package, SDKs, ABI, signing identity, source and acceptance scope. Same-name/different-byte replacement is forbidden.
+**The main-app build script implements the naming above, matching checksums, actual APK metadata validation and build-number checks across registered local worktree archives.** Remote releases, unregistered archives, helpers and formal-release acceptance require separate checks. Preserve historical files, checksums, tags and links. Archives require matching checksum and metadata records, including the actual package, SDKs, ABI, signing identity, source and acceptance scope. Same-name/different-byte replacement is forbidden.
 
 Recommend downloads per system profile. In-place upgrades require matching package/signature, a strictly higher delivery build number and compatible system/ABI. Check data compatibility when switching profiles; different package IDs or signing identities need an explicit migration plan. CI, source checks and archive metadata do not establish device installation or acceptance. Device operations and publication require authorization.

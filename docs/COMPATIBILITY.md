@@ -6,7 +6,7 @@
 
 | 内容 / Build | 范围 / Scope |
 | --- | --- |
-| 当前源码 1.1.0 / b31 | `standard`: minSdk21；`legacy19`: minSdk19（Android 4.4）。均为 targetSdk36；b31 未发布，新增普通应用入口及小米设置路由。 / Two source profiles; unpublished b31 adds a regular launcher entry and Xiaomi settings routing. |
+| 当前源码 1.1.2 | `standard`: minSdk21；`legacy19`: minSdk19（Android 4.4）。均为 targetSdk36；1.1.2 未发布，包含普通应用入口及小米设置路由。 / Two source profiles; unpublished 1.1.2 includes a regular launcher entry and Xiaomi settings routing. |
 | Android 4.4 公开 [b30 兼容测试包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b30) | API19 起，约 2.30 MiB，无原生库，传统 TCP ADB；原生功能与实机待验收。 / API19+, no native libraries; native runtime acceptance pending. |
 | 标准版 [b26 通用兼容测试包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26) | Android 5.0 / API21 起；含 ARM32、ARM64、x86、x86_64，约 6.50 MiB。已通过部分模拟器验证，尚未安装真实电视。 / Android 5.0+ universal APK; selected emulator checks passed; physical TV acceptance pending. |
 | 历史 [b24 通用包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b24) | Android 6.0 / API23 起；原下载保留。 / Android 6.0+; original download retained. |
