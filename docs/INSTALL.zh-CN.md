@@ -14,7 +14,7 @@
 
 ## 全新克隆并构建
 
-构建示例中的 `BUILD_NUMBER` 须先设为高于所有已用号的未占用正整数；1.1.2 的 34、35 已发布，不可用于新内容。
+归档前将 `STANDARD_BUILD_NUMBER` 设为高于所有已用号的未占用正整数；`LEGACY_BUILD_NUMBER` 须另设为比它更高的未占用号。两个新包不能复用同一构建号；1.1.2 的 34、35 已发布，不可用于新内容。
 
 ```sh
 git clone https://github.com/BeatsAD/quiet-tv.git
@@ -36,17 +36,17 @@ sdk.dir=/absolute/path/to/your/android-sdk
 若要归档构建，先配置 `local.properties` 中的 `sdk.dir`，再运行：
 
 ```sh
-python3 scripts/build_apk.py --build-number "$BUILD_NUMBER" --summary "说明本次构建的修改"
+python3 scripts/build_apk.py --build-number "$STANDARD_BUILD_NUMBER" --summary "说明本次构建的修改"
 ```
 
 本批已发布标准版归档为 `dist/apk/QuietTV_1.1.2-34_安卓5及以上_测试版.apk`；新构建按实际构建号生成文件，同时输出 `.apk.sha256` 和 `.json`。每个新交付包使用更高且未占用的 `--build-number`，文件名中的构建号与实际 APK 的 versionCode 一致；历史归档保留原样。可选 `--variant benchmark --abi armeabi-v7a` 及 `--min-sdk 21`（默认）/ `23` / `26` / `31`；实际单架构包自动增加架构标记，详见[版本规则](VERSIONING.md)。这些命令不会安装或修改电视。
 
 ## Android 4.4 / API19
 
-使用独立兼容档位构建和归档：
+使用独立兼容档位构建和归档；先设置 `LEGACY_BUILD_NUMBER`，必须高于标准包和其他已归档包的构建号：
 
 ```sh
-python3 scripts/build_apk.py --build-number "$BUILD_NUMBER" --compatibility legacy19 --variant benchmark --summary "Android 4.4 兼容测试版"
+python3 scripts/build_apk.py --build-number "$LEGACY_BUILD_NUMBER" --compatibility legacy19 --variant benchmark --summary "Android 4.4 兼容测试版"
 ```
 
 本批已发布兼容包归档为 `dist/apk/QuietTV_1.1.2-35_安卓4.4_测试版.apk`。不另传 `--min-sdk` 时自动选择 API19；标准档不能用降低数字的方式生成 API19 包。直接构建与 Lint 可执行 `./gradlew :app:assembleDebug :app:lintDebug -PquietCompatibility=legacy19 --console=plain`。

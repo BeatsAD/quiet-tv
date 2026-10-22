@@ -69,12 +69,12 @@ QuietTV助手_2.0.1-12_酷开安卓8配套酷开桌面_实验版.apk
 
 ## 构建与归档
 
-构建示例中的 `BUILD_NUMBER` 须先设为高于所有已用号的未占用正整数；1.1.2 的 34、35 已发布，不可用于新内容。
+归档前将 `STANDARD_BUILD_NUMBER` 设为高于所有已用号的未占用正整数；`LEGACY_BUILD_NUMBER` 须另设为比它更高的未占用号。两个新包不能复用同一构建号；1.1.2 的 34、35 已发布，不可用于新内容。
 
 按[安装指南](INSTALL.zh-CN.md)配置 SDK，现有脚本读取 `local.properties` 的 `sdk.dir`：
 
 ```sh
-python3 scripts/build_apk.py --build-number "$BUILD_NUMBER" --variant benchmark --summary "说明本次更新内容"
+python3 scripts/build_apk.py --build-number "$STANDARD_BUILD_NUMBER" --variant benchmark --summary "说明本次更新内容"
 ```
 
 脚本按实际版本及传入构建号输出 APK、同名 `.apk.sha256`、归档 JSON 及优化映射文件；兼容包增加 `--compatibility legacy19`。已发布的 1.1.2 本地归档为 `QuietTV_1.1.2-34_安卓5及以上_测试版.apk` 与 `QuietTV_1.1.2-35_安卓4.4_测试版.apk`，仅原字节重发可复用这两个编号。
