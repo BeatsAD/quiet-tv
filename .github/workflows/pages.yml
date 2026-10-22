@@ -1,0 +1,46 @@
+name: Publish installation guide
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - prototypes/install-guide/**
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+      - name: Prepare installation guide
+        run: |
+          mkdir -p "$RUNNER_TEMP/quiet-tv-pages/assets"
+          cp prototypes/install-guide/index.html prototypes/install-guide/styles.css prototypes/install-guide/app.js "$RUNNER_TEMP/quiet-tv-pages/"
+          cp prototypes/install-guide/assets/icon.svg prototypes/install-guide/assets/home.png "$RUNNER_TEMP/quiet-tv-pages/assets/"
+      - name: Upload installation guide
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        with:
+          path: ${{ runner.temp }}/quiet-tv-pages
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
