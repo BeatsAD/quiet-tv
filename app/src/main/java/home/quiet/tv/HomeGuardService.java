@@ -58,6 +58,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     }
     @Override public void onAccessibilityEvent(AccessibilityEvent event){
         if(event==null || event.getEventType()!=AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED)return;
+        DiagnosticsRecorder.get(this).event("guard_window",String.valueOf(event.getPackageName())+"/"+String.valueOf(event.getClassName()));
         if(state==null || !state.enabled() || !interactive() || !unlocked()){cancel();return;}
         String pkg=event.getPackageName()==null?null:event.getPackageName().toString();
         String cls=event.getClassName()==null?null:event.getClassName().toString();

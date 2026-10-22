@@ -160,6 +160,12 @@ final class AdbController implements Closeable {
         }finally{timeout.cancel(false);}
     }
 
+    // Read-only diagnostic stream. Its owner closes it on stop, size limit or timeout.
+    AdbStream openLogcat() throws Exception {
+        if(!connected())throw new IOException("需要连接 ADB");
+        return connection.open("shell:"+DiagnosticsRecorder.logcatCommand(shell("logcat --help")));
+    }
+
     private KeyStore loadKeys() throws Exception {
         AtomicFile file=new AtomicFile(new File(context.getFilesDir(),"local-adb.p12"));
         KeyStore store=KeyStore.getInstance("PKCS12");

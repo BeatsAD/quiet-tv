@@ -37,7 +37,8 @@ public final class AboutActivity extends androidx.activity.ComponentActivity {
         try {
             PackageInfo info=getPackageManager().getPackageInfo(getPackageName(),0);
             scene=new AboutView(this,getApplicationInfo().loadLabel(getPackageManager()),info.versionName,
-                    (getApplicationInfo().flags&ApplicationInfo.FLAG_DEBUGGABLE)!=0,this::finish,this::openLicense,this::openUpstream);
+                    (getApplicationInfo().flags&ApplicationInfo.FLAG_DEBUGGABLE)!=0,this::finish,this::openLicense,this::openUpstream,
+                    ()->startActivity(new Intent(this,DiagnosticsActivity.class)));
         } catch(android.content.pm.PackageManager.NameNotFoundException e){throw new IllegalStateException("Own package unavailable",e);}
         root=new FrameLayout(this);root.setBackgroundColor(0xff020405);
         root.addView(scene,new FrameLayout.LayoutParams(-1,-1));setContentView(root);
