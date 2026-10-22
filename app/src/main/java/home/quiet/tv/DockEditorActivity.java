@@ -16,14 +16,13 @@ public final class DockEditorActivity extends ManagementUi {
     private int movingIndex;
     private boolean initialWindowFocus=true;
     private LinearLayout content;
-    private TextView counter;
     private final ArrayList<View> slots=new ArrayList<>();
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private final HashMap<String,Bitmap> artwork=new HashMap<>();
     private int artworkGeneration;
     @Override public void onCreate(Bundle state){
-        super.onCreate(state);store=new DockStore(this);packages=store.load();counter=muted("最多 "+DockStore.CAPACITY+" 个位置",12);header.addView(counter);toolbar(true);
-        content=column();content.setGravity(Gravity.CENTER_VERTICAL);root.addView(content,new LinearLayout.LayoutParams(-1,0,1));footer("方向键选择  确定编辑  返回退出");
+        super.onCreate(state);store=new DockStore(this);packages=store.load();toolbar(true);
+        content=column();content.setGravity(Gravity.CENTER_VERTICAL);root.addView(content,new LinearLayout.LayoutParams(-1,0,1));
     }
     @Override protected void onResume(){super.onResume();int focus=slots.indexOf(getCurrentFocus());artworkGeneration++;artwork.clear();render(Math.max(0,focus));}
     @Override protected void onDestroy(){worker.shutdownNow();super.onDestroy();}
@@ -42,8 +41,8 @@ public final class DockEditorActivity extends ManagementUi {
         int color=picture.getPixel(0,0);image.setBackground(surface(color,color,0,10));image.setImageBitmap(picture);
     }
     private void render(int focus){
-        content.removeAllViews();slots.clear();List<String> values=moving==null?packages:moving;counter.setText(values.size()+" / "+DockStore.CAPACITY+" 个位置");
-        content.addView(label(moving==null?"常用应用，随手可达":"调整常用应用顺序",23));gap(content,11);content.addView(muted(moving==null?"选择一个位置，替换、移除或调整顺序。":"左右移动当前应用，确定保存，返回取消。",12));gap(content,36);
+        content.removeAllViews();slots.clear();List<String> values=moving==null?packages:moving;
+        if(moving!=null){content.addView(label("调整常用应用顺序",23));gap(content,11);content.addView(muted("左右移动当前应用，确定保存，返回取消。",12));gap(content,36);}
         LinearLayout cards=row();cards.setGravity(Gravity.TOP);cards.setClipChildren(false);content.addView(cards,new LinearLayout.LayoutParams(-1,-2));
         int width=px((864-(DockStore.CAPACITY-1)*20)/(float)DockStore.CAPACITY),height=Math.round(width*203f/360f);
         for(int i=0;i<DockStore.CAPACITY;i++){
@@ -60,8 +59,7 @@ public final class DockEditorActivity extends ManagementUi {
             gap(card,16);TextView title=center(occupied?name(pkg):"添加常用应用",13);title.setSingleLine();title.setEllipsize(android.text.TextUtils.TruncateAt.END);if(!occupied)title.setTextColor(MUTED);card.addView(title,new LinearLayout.LayoutParams(-1,px(20)));
             if(unavailable){gap(card,5);TextView note=center(info!=null && info.enabled?"未安装  保留位置":"已禁用  保留位置",10);note.setTextColor(MUTED);card.addView(note,new LinearLayout.LayoutParams(-1,px(16)));}
         }
-        gap(content,35);TextView note=center(moving==null?"移除仅改变快捷入口；禁用后保留位置，重新启用后恢复。":"调整尚未保存",11);note.setTextColor(MUTED);content.addView(note,new LinearLayout.LayoutParams(-1,px(20)));
-        if(moving!=null){gap(content,18);LinearLayout actions=row();actions.setGravity(Gravity.CENTER);content.addView(actions,new LinearLayout.LayoutParams(-1,px(36)));actions.addView(button("取消调整",()->cancelMove()));marginAdd(actions,button("保存顺序",()->saveMove()),-2,36,12);}
+        if(moving!=null){gap(content,35);TextView note=center("调整尚未保存",11);note.setTextColor(MUTED);content.addView(note,new LinearLayout.LayoutParams(-1,px(20)));gap(content,18);LinearLayout actions=row();actions.setGravity(Gravity.CENTER);content.addView(actions,new LinearLayout.LayoutParams(-1,px(36)));actions.addView(button("取消调整",()->cancelMove()));marginAdd(actions,button("保存顺序",()->saveMove()),-2,36,12);}
         slots.get(Math.max(0,Math.min(focus,DockStore.CAPACITY-1))).requestFocus();
     }
     private void edit(int index){
