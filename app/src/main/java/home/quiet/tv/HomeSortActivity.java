@@ -226,6 +226,7 @@ public final class HomeSortActivity extends ManagementUi {
             holder.image.setScaleType(ImageView.ScaleType.FIT_XY);
             if(HomeAppCatalog.WALLPAPER.equals(id))holder.image.setImageBitmap(wallpaper);
             else if(HomeAppCatalog.MANAGEMENT.equals(id)){holder.image.setImageDrawable(UiCompat.drawable(HomeSortActivity.this,R.drawable.ic_manage_apps));ip.width=px(48);ip.height=px(48);holder.image.setScaleType(ImageView.ScaleType.FIT_CENTER);}
+            else if(HomeAppCatalog.DESKTOP_SETTINGS.equals(id)){holder.image.setImageDrawable(UiCompat.drawable(HomeSortActivity.this,R.drawable.ic_setup_home));ip.width=px(48);ip.height=px(48);holder.image.setScaleType(ImageView.ScaleType.FIT_CENTER);}
             else{
                 Drawable art=artwork.get(id);boolean banner=true;PackageManager pm=getPackageManager();
                 if(art==null){if(android.os.Build.VERSION.SDK_INT>=21){art=entry.info.activityInfo.loadBanner(pm);if(art==null)art=entry.info.activityInfo.applicationInfo.loadBanner(pm);}if(art==null){banner=false;art=entry.info.loadIcon(pm);}artwork.put(id,art);}
