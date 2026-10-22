@@ -2,88 +2,80 @@
 
 # Quiet TV
 
-**A simple, customizable home screen for Android TVs.**
+**A simple, customizable launcher for Android TVs.**
 
-[简体中文](README.md) · [English](README.en.md)
+[简体中文](README.md)  [English](README.en.md)
 
-Quiet TV is built for everyday TV use in China. Keep your favorite apps on the home screen, open them with your remote, switch inputs, choose a wallpaper, and manage installed applications.
+Keep favorite apps on the home screen, open them with a remote, choose inputs, personalize wallpapers and manage apps. Quiet TV has no ads, recommendation feed or account requirement. Built with native Android views; no root or firmware flashing is required.
 
-The launcher has no ads or recommendation feed and requires no account. It uses native Android views and needs no root access or firmware changes.
+[Open the installation guide (Chinese)](https://beatsad.github.io/quiet-tv/) to choose your TV brand, copy an Agent installation request, or find manual installation and recovery instructions.
 
-[Android 4.4 test APK](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b30) · [Android 5+ test APK](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26) · [Install](docs/INSTALL.en.md) · [Usage](docs/USAGE.en.md) · [Supported devices](docs/COMPATIBILITY.md) · [Known issues and hardware validation](#known-issues-and-hardware-validation)
+[Download 1.1.2 test builds](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.2)  [Install](docs/INSTALL.en.md)  [Usage](docs/USAGE.en.md)  [Compatibility](docs/COMPATIBILITY.md)
+
+## Download
+
+| TV system | Version 1.1.2 APK | Checksum |
+| --- | --- | --- |
+| Android 4.4 | [Compatibility test build 35, about 4.67 MiB](https://github.com/BeatsAD/quiet-tv/releases/download/v1.1.2/QuietTV_1.1.2-35_Android4.4_Test.apk) | [SHA-256](https://github.com/BeatsAD/quiet-tv/releases/download/v1.1.2/QuietTV_1.1.2-35_Android4.4_Test.apk.sha256) |
+| Android 5.0 and later | [Standard test build 34, about 8.94 MiB](https://github.com/BeatsAD/quiet-tv/releases/download/v1.1.2/QuietTV_1.1.2-34_Android5plus_Test.apk) | [SHA-256](https://github.com/BeatsAD/quiet-tv/releases/download/v1.1.2/QuietTV_1.1.2-34_Android5plus_Test.apk.sha256) |
+
+**Choose by Android version, rather than the highest build number.** Both share the main features, application ID and historical test signer, and replace each other. Android 4.4 uses TCP ADB and system settings or the remote for inputs, without six-digit pairing. The standard APK includes ARM32, ARM64, x86 and x86_64; the compatibility APK has no native libraries.
+
+GitHub downloads use English filenames with Chinese display labels; local Chinese archives are retained. Choose the `.apk.sha256` matching the downloaded APK. See [release notes and validation limits](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.2). Both are optimized test builds; no stable release is available. [Historical releases](https://github.com/BeatsAD/quiet-tv/releases) remain unchanged.
 
 ## Screenshots
 
-**Your favorite apps, right on the home screen.**
+**Five favorite slots.** Time/date and right-side system shortcuts can be hidden in Desktop Settings.
 
-A clock, date, favorite apps, and system shortcuts keep the main screen simple. A white focus outline follows the remote selection; press down to browse all apps.
+![Quiet TV 1.1.2 home with five favorites and system shortcuts](docs/assets/home-1.1.2.png)
 
-![Quiet TV home screen: clock, system shortcuts, and four favorite apps](docs/assets/home.png)
+**Five-column All Apps.** Save a custom order, cancel changes or restore the default; favorites have their own order.
 
-**Choose a wallpaper, or keep the default theme.**
+![Quiet TV 1.1.2 five-column All Apps](docs/assets/all-apps-1.1.2.png)
 
-Use the app-colored ambient theme, a fixed photo, or a five-minute slideshow. Current source adds wallpaper management and LAN uploads; see the [usage guide](docs/USAGE.en.md#wallpapers). These additions are not in the existing b26 download and await real-TV acceptance.
+**Bring your own wallpaper.** Preview, rotate, delete with a long OK press, restore built-ins, or scan the TV upload QR code with a phone on the same LAN.
 
-![Historical Quiet TV wallpaper settings: default theme, landscapes, and slideshow toggle](docs/assets/wallpaper-settings.png)
+![Quiet TV 1.1.2 wallpapers with built-in and uploaded images and the upload entry](docs/assets/wallpaper-1.1.2.png)
 
-These original Sony KD-65X9000H captures were taken on October 19, 2026, with development build 1.1.0 / b15. Downloads include b30 compatibility and retained b26 standard builds; these captures do not establish hardware validation of either APK. The cover is an AI illustration. See [image provenance](docs/assets/README.md).
+These original 1920×1080 captures come directly from a Sony TV running published 1.1.2 / 34, verified against the APK SHA-256. Existing configuration is preserved; UI is neither composited nor redrawn. See [provenance](docs/assets/README.md) and [more UI examples](docs/USAGE.en.md). Screenshots do not establish full hardware acceptance or support for other models.
 
 ## Features
 
 | Feature | What it does |
 | --- | --- |
-| Favorite apps | Keep up to four apps on the home screen. Add, replace, remove, and reorder them; launcher updates preserve your selection. |
-| App management | Inspect app names, package names, versions, and status. Search, filter, and enable, disable, or uninstall apps individually. Protected system components stay read-only. |
-| Boot-ad management (new in source) | Inspect verified advertising services, disable them on demand, and restore their original enabled state independently of HOME. No boot-ad profiles have passed Quiet TV hardware acceptance yet; unmatched devices remain read-only. Existing b30 downloads do not include this feature. |
-| First setup | Set the default home screen, then optionally manage preinstalled apps. Choose actions before authorizing them; system packages on unknown firmware stay read-only. |
-| Restore the original launcher | Switch back to or enable the original launcher using local records and validated device capabilities. Unavailable actions explain why they are blocked. |
-| Inputs and settings | Choose from the TV's actual inputs, including HDMI, AV, or live TV where available. Source now includes selected firmware's system input-panel fallbacks; see [compatibility](docs/COMPATIBILITY.md). Open network and system settings directly. |
-| Wallpaper | Preview and choose the default ambient theme, a fixed landscape, or an automatic slideshow. Cancel to restore your previous choice. |
-| Remote navigation | Use direction keys to move, OK to open, and Back to return. The home screen remembers your last focus. |
-| Local use | Settings stay on the TV. No cloud account is needed; app management connects to the TV's own ADB service on demand. |
-| About and licenses | View the installed version and project/contact QR codes from the home screen. Bundled open-source licenses are available offline. |
+| Favorites and order | Up to five favorite slots; five-column All Apps with save, cancel and restore-default ordering. |
+| Desktop settings | Independently show or hide time/date and right-side Inputs, Network and Settings buttons. |
+| Wallpapers | Color theme, built-ins, uploaded images, preview and five-minute rotation; long-OK deletion, built-in recovery and LAN upload. |
+| App management | Search/filter, inspect versions and states, and enable, disable or uninstall individual apps where supported; critical components stay read-only. |
+| Boot-ad management | Detect adapted services, disable and restore according to rules. No boot-ad rule has passed Quiet TV hardware acceptance yet; unmatched devices are view-only. |
+| Inputs and settings | Read actual inputs, detect vendor-panel fallbacks, and add selected OEM app, settings and network routes. Actual switching needs target-TV checks. |
+| Setup and recovery | Try temporarily, set HOME or recover the original launcher. Unsupported firmware commands are disabled with guidance. |
+| Remote and focus | Arrows, OK and Back, spring scrolling and focus tracking; image quality follows actual rendering size and memory. |
+| Local use | No cloud account. Settings remain on the TV; package operations request separate local ADB authorization. About includes version and offline licenses. |
 
-The home screen supports Chinese and English; app management currently uses Chinese. Open “应用管理” from the all-apps screen to manage apps and edit favorites. Wallpaper settings are also available on the TV.
-
-System package operations require local ADB authorization. Disabling keeps app data; uninstalling deletes data for the current user. Eligible preinstalled apps can be reinstalled, but deleted data cannot be restored. Preinstalled uninstall/reinstall remains unverified on hardware; see [app management details](docs/APP_MANAGEMENT.md).
-
-Source is **1.1.2**, with default versionCode 34 and versionCode 35 for this Android 4.4 delivery with two build profiles: `standard` (Android 5.0+ / API21) and `legacy19` (Android 4.4 / API19). The legacy profile retains the core launcher and traditional TCP ADB, uses system settings for inputs, and omits six-digit pairing and its native crypto libraries. Public prereleases include b30 / Android 4.4 and the retained b26 / Android 5.0+ standard APK. See the [build guide](docs/INSTALL.en.md) and [validation boundaries](docs/COMPATIBILITY.md).
+Find management and sorting under All Apps → 应用管理. Favorites, ordering, desktop settings and wallpapers need no ADB. System operations require separate authorization. Disabling keeps data; uninstalling removes current-user data, which restoring a preinstalled package cannot recover. See [app management](docs/APP_MANAGEMENT.md).
 
 ## Install and try it
 
-1. **Check your TV.** Choose b30 for Android 4.4, or the retained b26 standard APK for Android 5.0 and later. Meeting this minimum does not establish device or feature compatibility. Read the supported-device table below and the [compatibility details](docs/COMPATIBILITY.md).
-2. **Get an APK.** Download the APK and SHA-256 file from [b30 compatibility](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b30) or [b26 standard](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26), or build from source using the [installation guide](docs/INSTALL.en.md).
-3. **Install and try the launcher.** Follow the guide to connect ADB and install Quiet TV. A fresh install opens setup; choose “暂不设置，临时使用” to try it temporarily and check your remote, app launches, and system shortcuts first.
-4. **Complete first setup.** Set the default home screen, then choose whether to manage preinstalled apps. Select “不处理，进入桌面” to skip package changes. Upgrades do not force setup again. Reopen it through “应用管理 → 更多 → 首次设置”; the same menu offers “恢复原桌面” to restore the original launcher. See [first setup and recovery, Chinese](docs/SETUP.md).
+1. Confirm Android support, choose the matching APK above, and [verify its checksum](docs/INSTALL.en.md#download-and-try).
+2. Follow [installation](docs/INSTALL.en.md), or use the [computer Agent instructions, Chinese](docs/AGENT_INSTALL.zh-CN.md).
+3. On first launch choose temporary use to check navigation, apps and system entries while keeping the stock launcher.
+4. Set HOME only when ready. Read back the component, then separately verify the physical Home button, reboot and standby wake. Recovery is under 应用管理 → 更多; see [setup](docs/SETUP.md).
 
-For Android 4.4, download **v1.1.0 / b30, an optimized compatibility test APK of about 2.30 MiB**: `quiet-tv_1.1.0_b30_benchmark_legacy19_api19.apk`. It requires API19, targets API36, and contains no native libraries, so no CPU-specific APK selection is needed. It retains the launcher, Dock, wallpaper and TCP ADB, without six-digit pairing; inputs open system settings. The optimized build, 19 unit tests, Lint (0 errors, 39 warnings), signature and metadata checks passed. Native emulator acceptance was not completed for b30; no physical TV has received it. Historical b28 emulator tests do not validate this APK. See [compatibility](docs/COMPATIBILITY.md).
+Updates need matching package/signature and an increasing build number. Do not uninstall to resolve signing mismatches. Keep backups and recovery records locally, and never reuse another TV's debloating list.
 
-The retained **v1.1.0 / b26 standard APK is an optimized universal test build of about 6.50 MiB**. Its filename is `quiet-tv_1.1.0_b26_benchmark_api21.apk`; it requires Android 5.0 / API21 and includes `armeabi-v7a`, `arm64-v8a`, `x86`, and `x86_64`. It uses the same test signature as b24 for eligible in-place updates. It remains a prerelease; no stable release is available yet.
+## Supported devices and validation
 
-Changes in the retained b26 standard build:
-
-- Android 5.0 minimum, legacy networking and permission handling, and graceful handling of unavailable TV input services.
-- Android 5 WebView fallback for offline licenses, corrected legacy vector paths and theme attributes.
-- Release-to-activate behavior on About prevents the confirmation key from reopening it after returning home.
-- ADB completion markers use the legacy shell's built-in `echo`, retaining identity, timeout and capability checks.
-
-b26 passed builds, 19 local unit tests and Lint with 0 errors and 28 warnings. API21/22/23/31 page regressions, API21/22 optimized smoke and API31 shell ADB operation checks passed. APK metadata, architectures, signatures and emulator-installed hashes were verified. **This APK has not been installed on a physical TV; Android 5 HOME, remote keys, inputs, network changes and reboot/wake behavior still need hardware validation.** See the [b26 release notes](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26) for checksums and exact limits.
-
-Historical [b24 universal APK](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b24) (Android 6.0+), [b23 ARM32 APK](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0) (Android 12+) and v1.0.1 remain available. b23 hardware checks do not validate b26. Default source Debug builds differ from the published optimized APK; see [build rules](docs/VERSIONING.md).
-
-You can keep the original launcher installed while trying Quiet TV. System debloating requires a backup and recovery record for the actual target TV. Real device settings, package inventories, and recovery records stay local; these are not distributed with public source, and another TV’s records are not a recovery baseline for your device.
-
-## Supported devices
-
-| Device / system | Status |
+| System or device | Scope |
 | --- | --- |
-| Sony KD-65X9000H / BRAVIA VH1 · Android 12 | Historical builds were checked for the home screen, app management, wallpaper, selected system shortcuts, and one full reboot. This b26 APK has not been installed on this TV. See the [verification record](docs/COMPATIBILITY.md) for the exact scope. |
-| Other TVs running Android 6.0 or newer | The b26 universal APK is available for device-specific trials; vendor firmware, HOME and ADB capabilities need hardware validation. See the [compatibility record](docs/COMPATIBILITY.md). |
-| Android 5.0 / 5.1 | The b26 universal test APK is available. Tests use generic Android images with a TV-sized configuration and do not replace native TV firmware acceptance. Vendor HOME, ADB and TV input behavior needs hardware validation. |
-| Android 4.4 | Download the [b30 compatibility test APK](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b30); physical TV, HOME, input and ADB acceptance remains device-specific. |
-| Android 4.0–4.3; non-Android systems such as Tizen or webOS | Unsupported. |
+| Sony / Android 12 | Published 1.1.2 / 34 APK hash verified; home, All Apps, wallpaper, desktop settings and sorting pages captured. Full functionality, reboot and standby acceptance were not performed. |
+| Android 5.0+ TVs | Standard test APK; minimum API support does not establish vendor HOME, ADB, settings or input compatibility. |
+| Android 4.4 | Separate compatibility test APK; physical-TV runtime acceptance for this batch remains pending. |
+| Android 4.0–4.3, Tizen, webOS and other non-Android systems | Unsupported. |
 
-Long-running operation, casting, and full media playback remain unverified. Six-digit wireless pairing is still experimental, requires API 33+ and actual device pairing capability, and is unavailable on Android 5/6/7. Meeting the minimum install requirement does not establish full firmware compatibility; see [compatibility details](docs/COMPATIBILITY.md). Third-party media apps use their own update channels; Quiet TV does not currently update them automatically.
+Both profiles passed optimized builds, 49 unit tests each, Lint (zero errors, warnings remain), signature and package checks. Sony captures add page evidence only; final-APK feature acceptance and in-place upgrade data retention remain incomplete. Casting, long runs, full media playback, actual input switching and vendor-specific behavior need separate checks. Six-digit wireless pairing remains experimental, requires API33+ and actual device support.
+
+See [compatibility and historical evidence](docs/COMPATIBILITY.md). Third-party media apps update through their own channels; Quiet TV does not automatically update them.
 
 ## Known issues and hardware validation
 
@@ -103,6 +95,12 @@ The standalone [Xiaomi home helper](xiaomi-home-helper/README.md) remains availa
 An optional standalone [Coocaa home shim](coocaa-home-shim/README.md) adapts the upstream helper for Android 8 firmware confirmed to use vendor homepage properties. **This port has not been validated on a physical TV, is not enabled in the universal APK, and cannot unlock ADB.** Log-based monitoring remains unimplemented. Upstream device results do not validate this port. Keep the stock launcher and local recovery records; do not copy another TV's system-package disable list.
 
 Share results in [Issue #35](https://github.com/BeatsAD/quiet-tv/issues/35) or a [device adaptation report](https://github.com/BeatsAD/quiet-tv/issues/new?template=device_adaptation.yml): model, Android/firmware version, Quiet TV version and APK source, reproduction steps, and actual results for manual launch, the physical Home button, cold boot/reboot, standby wake, inputs, and stock-launcher recovery. Mark untested items as unverified. Share only relevant redacted log excerpts; omit IP addresses, serial numbers, keys, and full device dumps.
+
+## Technical approach
+
+Native Android UI → build an APK → install with ADB → configure HOME → refine on real hardware. Daily use does not require an online computer.
+
+See the [Codex implementation and adaptation guide, Chinese](docs/TECHNICAL_PATH_WITH_CODEX.zh-CN.md) for tools, debugging authorization and a reusable prompt. Computer ADB installation and Quiet TV's local management client request separate authorization.
 
 ## Documentation and contributing
 
@@ -147,7 +145,3 @@ Code is licensed under [MIT](LICENSE), preserving the original copyright and com
 ## Let's connect
 
 ![WenBin AI LAB: X, GitHub, website, email, and QR codes for WeChat, WeChat Official Account, Xiaohongshu, and Douyin](docs/assets/contact-16x9.png)
-
-For a computer Agent workflow, see [installation and recovery instructions (Chinese)](docs/AGENT_INSTALL.zh-CN.md). Preserve the original launcher and report installation, real HOME-key behavior, reboot and standby separately.
-
-Source-only compatibility updates add callable vendor app entries, OEM settings routing, display/memory-aware image handling and scoped input routes. Existing public APKs do not include these changes. See the [implementation and validation scope](docs/COMPATIBILITY.md#本轮源码兼容改进); OEM hardware acceptance remains pending.

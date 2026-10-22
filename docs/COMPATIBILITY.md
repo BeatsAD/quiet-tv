@@ -6,9 +6,9 @@
 
 | 内容 / Build | 范围 / Scope |
 | --- | --- |
-| 当前源码 1.1.2 | `standard`: minSdk21；`legacy19`: minSdk19（Android 4.4）。均为 targetSdk36；1.1.2 未发布，包含普通应用入口及小米设置路由。 / Two source profiles; unpublished 1.1.2 includes a regular launcher entry and Xiaomi settings routing. |
-| Android 4.4 公开 [b30 兼容测试包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b30) | API19 起，约 2.30 MiB，无原生库，传统 TCP ADB；原生功能与实机待验收。 / API19+, no native libraries; native runtime acceptance pending. |
-| 标准版 [b26 通用兼容测试包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26) | Android 5.0 / API21 起；含 ARM32、ARM64、x86、x86_64，约 6.50 MiB。已通过部分模拟器验证，尚未安装真实电视。 / Android 5.0+ universal APK; selected emulator checks passed; physical TV acceptance pending. |
+| [1.1.2 标准测试包，34](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.2) | Android 5.0 / API21 起，target36；9,370,356 字节，ARM32、ARM64、x86、x86_64。 / Standard universal test APK. |
+| [1.1.2 安卓4.4测试包，35](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.2) | API19 起，target36；4,900,169 字节，无原生库，传统 TCP ADB，信号源走系统设置／遥控器。 / Legacy19, no pairing or standard input list. |
+| 历史 [b30](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b30) / [b26](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26) | 原包、标签、校验记录及各自历史验收范围保留，不作为当前默认下载。 / Original historical artifacts and evidence retained. |
 | 历史 [b24 通用包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b24) | Android 6.0 / API23 起；原下载保留。 / Android 6.0+; original download retained. |
 | 历史 [b23 ARM32 测试包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0) | Android 12 / API31 起，需支持 armeabi-v7a；仅支持 64 位应用的设备不可用。 / Requires Android 12 and ARM32 app support. |
 | Android 4.0～4.3、Tizen、webOS 等非 Android 系统 | 不支持 / Unsupported |
@@ -24,6 +24,16 @@ Android 5 使用旧版网络状态接口和安装时权限；频道权限或 TV 
 Source includes legacy networking/font fallbacks, detected HOME settings, Back handling and capability-based package operations. Meeting the minimum Android version does not establish vendor-firmware compatibility.
 
 ## 已验证与待验收 / Evidence boundaries
+
+### 当前 1.1.2 / Current release
+
+- 两档均通过优化构建、各 49 项单元测试、Lint（0 错误；标准 61 条警告，兼容 46 条），以及实际 APK 元数据、签名和 ZIP 对齐检查。归档工具 9 项检查通过；GitHub 回下载 SHA-256 与归档一致。
+- 2026-10-22 在一台 Sony / Android 12 电视核对 1.1.2／34 的实际版本与已安装 APK SHA-256，匹配公开标准包；直接截取首页、五列应用、壁纸及管理模式、桌面设置、首页排序。截图保留原始 1920×1080 像素，不改配置、不执行删除或保存排序；上传会话打开后已关闭，原始连接信息不公开。详见[素材来源](assets/README.md)。
+- 以上页面展示不替代完整功能、覆盖升级数据保留、真实遥控器 HOME、重启、冷启动、待机唤醒、切源画面和声音的验收。安卓4.4本批真实电视验收仍待完成。发布时尚未完成的验收范围保留在 [Release](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.2)。
+
+Both optimized APKs passed 49 unit tests each, Lint with zero errors (warnings remain), metadata, signature and alignment checks; GitHub download hashes match the immutable archives. Sony / Android 12 captures verify the installed standard 1.1.2 / 34 hash and the displayed pages only. No settings, wallpapers or ordering were changed. Final-APK feature acceptance, in-place upgrade retention, physical Home, reboot, standby and actual input switching remain incomplete; Android 4.4 physical-TV acceptance is pending.
+
+### 历史开发与发布证据 / Historical evidence
 
 - 当前开发源码新增主程序内置主页守护，默认关闭，标准档在小米／Redmi、创维／酷开上提供实验入口；通过标准 HOME 与已知酷开私有类别发现候选，用户选择并授权后按精确主页窗口尝试中转。安卓4.4兼容档禁用入口和服务。此功能不改变系统默认 HOME，不包含持续轮询或自动保活；没有窗口事件或后台启动受限时可能无法接管。目标电视的实体 HOME、重启、冷启动、待机唤醒、HDMI／播放及原桌面恢复均待验收，详见[首次设置](SETUP.md#主页兼容实验)。旧独立助手保留，不能与内置守护同时运行。
 
@@ -53,7 +63,7 @@ The published b24 universal APK passed its optimized build, full Lint (0 errors,
 
 ## 信号源兼容
 
-源码新增原厂信号源面板回退，公开 b26 安装包不包含此功能。Android 标准 TV Input 列表为空或服务不可用，并不证明电视没有输入接口。标准路径继续读取本机输入；回退按实际安装的系统组件、启用状态、导出状态和调用权限检测，不按品牌名称套用固定 HDMI 数量，也不自动修改系统组件或权限。
+1.1.2 标准包已包含原厂信号源面板回退；安卓4.4兼容包仍使用系统设置／遥控器。Android 标准 TV Input 列表为空或服务不可用，并不证明电视没有输入接口。标准路径继续读取本机输入；回退按实际安装的系统组件、启用状态、导出状态和调用权限检测，不按品牌名称套用固定 HDMI 数量，也不自动修改系统组件或权限。
 
 | 候选固件 / Candidate | 源码行为 / Source behavior | 依据与验证边界 / Evidence |
 | --- | --- | --- |
@@ -67,7 +77,7 @@ The published b24 universal APK passed its optimized build, full Lint (0 errors,
 
 上游还记录 Vidda 的 `com.hisense.tv.tiletransition` 是实际切换依赖，禁用后可能出现“面板打开但 HDMI 不切换”。这是特定固件的诊断线索，Quiet TV 不会自动启用它，也不把信号源适配配置作为禁用／卸载系统包的授权。
 
-System-panel fallback exists in source only, not in the published b26. Profiles identify exact system components and require runtime enabled/exported/permission checks. Standard inputs remain the default, with a vendor-panel preference only for BYINTEK U4's reported bogus list. These are upstream reports, not Quiet TV hardware acceptance or support for every model of a brand. Dispatch success does not verify picture, sound, physical remote behavior or actual source switching. No system package or permission is changed automatically.
+System-panel fallback is included in the published 1.1.2 standard APK; legacy19 uses settings or the physical remote input key. Profiles identify exact system components and require runtime enabled/exported/permission checks. Standard inputs remain the default, with a vendor-panel preference only for BYINTEK U4's reported bogus list. These are upstream reports, not Quiet TV hardware acceptance or support for every model of a brand. Dispatch success does not verify picture, sound, physical remote behavior or actual source switching. No system package or permission is changed automatically.
 
 ## 默认桌面与恢复
 
@@ -93,7 +103,7 @@ System-panel fallback exists in source only, not in the published b26. Profiles 
 
 ## 本轮源码兼容改进
 
-本轮只改变普通应用入口、设置调用、图片生成与信号源调用，不增加 HOME 守护、按键过滤、系统包操作权限或 ADB 常开功能。现有公开下载包不包含这些改动。
+1.1.2 的这一部分改变普通应用入口、设置调用、图片生成与信号源调用，不增加 HOME 守护、按键过滤、系统包操作权限或 ADB 常开功能。这些改动已包含在 1.1.2 下载中，实际厂商适配仍待验收。
 
 | 功能 | 公共实现及档位差异 | 验证边界 |
 | --- | --- | --- |
