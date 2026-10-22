@@ -28,6 +28,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private static final String TAG = "QuietTV";
     private static final String WALLPAPER_ENTRY = HomeAppCatalog.WALLPAPER;
     private static final String MANAGEMENT_ENTRY = HomeAppCatalog.MANAGEMENT;
+    static final int APP_COLUMNS = 5;
     private static final float CONTENT_MARGIN = 48;
     private static final float FOCUS_SCALE = 1.035f, FOCUS_OUTSET = 5, FOCUS_STROKE = 3;
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -145,9 +146,9 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         list.setFocusable(false); list.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
         // Keep the home hint (ending at y=524) inside the padded viewport (ending at y=532).
         list.setPadding(px(CONTENT_MARGIN),0,px(CONTENT_MARGIN),px(8));
-        layout = new GridLayoutManager(this,4);
+        layout = new GridLayoutManager(this,APP_COLUMNS);
         layout.setSpanSizeLookup(new GridLayoutManager.SpanSizeLookup() {
-            @Override public int getSpanSize(int position) { return position < 2 ? 4 : 1; }
+            @Override public int getSpanSize(int position) { return position < 2 ? APP_COLUMNS : 1; }
         });
         list.setLayoutManager(layout); list.setAdapter(new AppAdapter());
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-1,-1); lp.topMargin=px(192); root.addView(list,lp);
@@ -317,7 +318,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 if(row>=0){
                     if(!activePackage.isEmpty()) {
                         for(int n=0;n<dock.size();n++)if(activePackage.equals(dock.get(n).pkg)){row=0;column=n;}
-                        for(int n=0;n<apps.size();n++)if(activePackage.equals(apps.get(n).pkg)){row=1+n/4;column=n%4;}
+                        for(int n=0;n<apps.size();n++)if(activePackage.equals(apps.get(n).pkg)){row=1+n/APP_COLUMNS;column=n%APP_COLUMNS;}
                     }
                     row=Math.max(0,Math.min(row,gridRows()));column=Math.min(column,maxColumn(row));
                 }
@@ -366,8 +367,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         return chosen;
     }
 
-    private int gridRows(){return (apps.size()+3)/4;}
-    private int maxColumn(int r){if(r<0)return pills.size()-1;if(r==0)return Math.max(0,dock.size()-1);return Math.min(3,apps.size()-(r-1)*4-1);}
+    private int gridRows(){return (apps.size()+APP_COLUMNS-1)/APP_COLUMNS;}
+    private int maxColumn(int r){if(r<0)return pills.size()-1;if(r==0)return Math.max(0,dock.size()-1);return Math.min(APP_COLUMNS-1,apps.size()-(r-1)*APP_COLUMNS-1);}
 
     private void saveFocus(){if(row>=0)getPreferences(0).edit().putInt("row",row).putInt("column",column).putString("package",activePackage).apply();}
 
@@ -407,7 +408,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         }
         if(row==0)layout.scrollToPositionWithOffset(0,0);
         else{
-            int position=2+(row-1)*4;
+            int position=2+(row-1)*APP_COLUMNS;
             View first=layout.findViewByPosition(position);
             if(row==1 || first==null || first.getTop()<px(38) || first.getBottom()>list.getHeight()-px(20)) layout.scrollToPositionWithOffset(position,px(42));
         }
@@ -426,7 +427,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
 
-    private App currentApp(){if(row==0)return dock.isEmpty()?null:dock.get(Math.min(column,dock.size()-1));int n=(row-1)*4+column;return n>=0&&n<apps.size()?apps.get(n):null;}
+    private App currentApp(){if(row==0)return dock.isEmpty()?null:dock.get(Math.min(column,dock.size()-1));int n=(row-1)*APP_COLUMNS+column;return n>=0&&n<apps.size()?apps.get(n):null;}
 
     private void launchSelected(){App app=currentApp();if(app==null)return;saveFocus();if("quiet:add-dock".equals(app.pkg)){startActivity(new Intent(this,DockEditorActivity.class));return;}if(MANAGEMENT_ENTRY.equals(app.pkg)){startActivity(new Intent(this,AppManagementActivity.class));return;}if(WALLPAPER_ENTRY.equals(app.pkg)){wallpapers.showPicker();return;}try{startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Build.VERSION.SDK_INT>=21?Intent.CATEGORY_LEANBACK_LAUNCHER:Intent.CATEGORY_LAUNCHER).setComponent(app.component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));}catch(ActivityNotFoundException e){Toast.makeText(this,tr("应用暂不可用","App unavailable"),Toast.LENGTH_SHORT).show();}}
 
@@ -459,6 +460,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     private final class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>{
+        private final float gridHeight=((960-2*CONTENT_MARGIN)/APP_COLUMNS-16)*203f/360f+32;
         private final float dockPadding=18, dockGap=18, dockWidth=(864-2*dockPadding-(DockStore.CAPACITY-1)*dockGap)/DockStore.CAPACITY, dockHeight=dockWidth*203f/360f;
         @Override public int getItemViewType(int position){return position==0?0:position==1?1:2;}
         @Override public int getItemCount(){return 2+apps.size();}
@@ -471,7 +473,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 FrameLayout band=new FrameLayout(HomeActivity.this);band.setBackground(pillSurface());band.setClipChildren(false);place(header,band,-1,dockHeight+2*dockPadding,0,162);
                 header.setTag(band);view=header;
             }else if(type==1){TextView title=text(tr("全部应用","All apps"),18,400,0xffbbbbc3);title.setPadding(px(3),px(4),0,0);title.setLayoutParams(new RecyclerView.LayoutParams(-1,px(38)));view=title;}
-            else{Tile tile=new Tile();RecyclerView.LayoutParams p=new RecyclerView.LayoutParams(-1,px(145));p.leftMargin=px(8);p.rightMargin=px(8);p.bottomMargin=px(12);tile.setLayoutParams(p);view=tile;}
+            else{Tile tile=new Tile();RecyclerView.LayoutParams p=new RecyclerView.LayoutParams(-1,px(gridHeight));p.leftMargin=px(8);p.rightMargin=px(8);p.bottomMargin=px(12);tile.setLayoutParams(p);view=tile;}
             return new RecyclerView.ViewHolder(view){};
         }
         @Override public void onBindViewHolder(RecyclerView.ViewHolder holder,int position){
@@ -486,7 +488,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private final class Tile extends View {
         App app;final Paint paint=new Paint(3);final Path clip=new Path();
-        Tile(){super(HomeActivity.this);setOnClickListener(v->{if(app!=null){for(int n=0;n<dock.size();n++)if(dock.get(n)==app){row=0;column=n;}for(int n=0;n<apps.size();n++)if(apps.get(n)==app){row=1+n/4;column=n%4;}focusCurrent(true);launchSelected();}});}
+        Tile(){super(HomeActivity.this);setOnClickListener(v->{if(app!=null){for(int n=0;n<dock.size();n++)if(dock.get(n)==app){row=0;column=n;}for(int n=0;n<apps.size();n++)if(apps.get(n)==app){row=1+n/APP_COLUMNS;column=n%APP_COLUMNS;}focusCurrent(true);launchSelected();}});}
         void bind(App value){if(app!=null && visibleTiles.get(app.pkg)==this)visibleTiles.remove(app.pkg);app=value;visibleTiles.put(app.pkg,this);setContentDescription(app.label);invalidate();}
         float imageHeight(){return getWidth()*203f/360f;}
         @Override protected void onDraw(Canvas c){super.onDraw(c);if(app==null)return;float h=imageHeight();RectF rect=new RectF(0,0,getWidth(),h);clip.reset();clip.addRoundRect(rect,px(11),px(11),Path.Direction.CW);c.save();c.clipPath(clip);paint.setColor(0xff191a20);c.drawRect(rect,paint);c.drawBitmap(app.banner,null,rect,paint);c.restore();

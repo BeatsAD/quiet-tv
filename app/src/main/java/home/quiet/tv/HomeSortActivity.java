@@ -42,7 +42,7 @@ public final class HomeSortActivity extends ManagementUi {
         super.onCreate(state);store=new HomeOrderStore(this);restored=state!=null?state:pendingDraft;pendingDraft=null;
         root.setPadding(px(48),px(22),px(48),px(16));
         LinearLayout tools=toolbar(2);LinearLayout.LayoutParams tp=(LinearLayout.LayoutParams)tools.getLayoutParams();tp.topMargin=px(14);tp.height=px(44);tools.setLayoutParams(tp);
-        list=new RecyclerView(this);layout=new GridLayoutManager(this,4);list.setLayoutManager(layout);adapter=new Cards();list.setAdapter(adapter);
+        list=new RecyclerView(this);layout=new GridLayoutManager(this,HomeActivity.APP_COLUMNS);list.setLayoutManager(layout);adapter=new Cards();list.setAdapter(adapter);
         list.setItemAnimator(null);list.setClipToPadding(false);list.setPadding(px(5),px(5),px(5),px(5));list.setOverScrollMode(View.OVER_SCROLL_NEVER);
         LinearLayout.LayoutParams grid=new LinearLayout.LayoutParams(-1,0,1);grid.topMargin=px(18);grid.leftMargin=px(-10);grid.rightMargin=px(-10);root.addView(list,grid);
         controls=row();LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,px(40));cp.topMargin=px(14);root.addView(controls,cp);
@@ -112,7 +112,7 @@ public final class HomeSortActivity extends ManagementUi {
         selected=id;moving=id;beforeMove=new ArrayList<>(draft);beforeReset=resetRequested;render(id);
     }
     private void shift(int dx,int dy){
-        if(moving.isEmpty() || saving)return;int from=draft.indexOf(moving),target=HomeOrderStore.target(from,draft.size(),4,dx,dy);
+        if(moving.isEmpty() || saving)return;int from=draft.indexOf(moving),target=HomeOrderStore.target(from,draft.size(),HomeActivity.APP_COLUMNS,dx,dy);
         if(from==target)return;HomeOrderStore.move(draft,from,target);resetRequested=false;renderMove(moving,from,target);
     }
     private void cancelMove(){if(moving.isEmpty() || saving)return;String id=moving;int from=draft.indexOf(id),to=beforeMove.indexOf(id);draft.clear();draft.addAll(beforeMove);moving="";beforeMove=null;resetRequested=beforeReset;renderMove(id,from,to);}
@@ -178,7 +178,7 @@ public final class HomeSortActivity extends ManagementUi {
             if(confirm){if(event.getAction()==KeyEvent.ACTION_UP)pick(selected);return true;}
             if(direction){
                 if(event.getAction()==KeyEvent.ACTION_UP)return true;int current=draft.indexOf(selected);
-                int next=HomeOrderStore.target(current,draft.size(),4,key==KeyEvent.KEYCODE_DPAD_LEFT?-1:key==KeyEvent.KEYCODE_DPAD_RIGHT?1:0,key==KeyEvent.KEYCODE_DPAD_UP?-1:key==KeyEvent.KEYCODE_DPAD_DOWN?1:0);
+                int next=HomeOrderStore.target(current,draft.size(),HomeActivity.APP_COLUMNS,key==KeyEvent.KEYCODE_DPAD_LEFT?-1:key==KeyEvent.KEYCODE_DPAD_RIGHT?1:0,key==KeyEvent.KEYCODE_DPAD_UP?-1:key==KeyEvent.KEYCODE_DPAD_DOWN?1:0);
                 if(next!=current)focusEntry(draft.get(next));
                 else if(key==KeyEvent.KEYCODE_DPAD_DOWN)resetButton.requestFocus();
                 else if(key==KeyEvent.KEYCODE_DPAD_UP){View tab=findSortTab(root);if(tab!=null)tab.requestFocus();}

@@ -12,7 +12,7 @@
 | Back in the grid | Return to the dock |
 | HOME from an application | Return to Quiet TV and restore focus |
 
-An incomplete last row uses the nearest valid column. Focus survives launcher process restarts. One actual Sony TV reboot has been verified: Quiet TV opened automatically and Dock/wallpaper settings persisted. Long-running behavior remains unverified.
+All Apps and Home order both use five columns. An incomplete last row uses the nearest valid column. Focus survives launcher process restarts. One actual Sony TV reboot has been verified: Quiet TV opened automatically and Dock/wallpaper settings persisted. Long-running behavior remains unverified.
 
 ## App management and Dock
 
