@@ -99,9 +99,8 @@ final class WallpaperController {
     void destroy(){++request;uploads.destroy();decoder.shutdownNow();main.removeCallbacksAndMessages(null);if(transition!=null){transition.cancel();transition.removeAllUpdateListeners();}current.setImageDrawable(null);incoming.setImageDrawable(null);thumbnails.evictAll();}
 
     synchronized Bitmap entryBanner(){
-        if(entry!=null)return entry;
-        entry=Bitmap.createBitmap(360,203,Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(entry);canvas.drawColor(0xff162333);Paint paint=new Paint(3);
-        paint.setShader(new RadialGradient(100,50,260,new int[]{0xff426b8e,0xff101822},null,Shader.TileMode.CLAMP));canvas.drawRect(0,0,360,203,paint);paint.setShader(null);paint.setColor(Color.WHITE);paint.setTextSize(chinese?34:27);paint.setTextAlign(Paint.Align.CENTER);paint.setTypeface(Typeface.create("sans-serif",Typeface.BOLD));canvas.drawText(tr("壁纸设置","Wallpaper Settings"),180,120,paint);return entry;
+        if(entry==null)entry=HomeEntryArtwork.render(activity,tr("壁纸设置","Wallpaper Settings"),HomeAppCatalog.WALLPAPER);
+        return entry;
     }
     private TextView label(String value,int size){return ui.text(value,size);}
     private GradientDrawable border(boolean focus,boolean primary){
