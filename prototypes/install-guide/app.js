@@ -70,7 +70,7 @@ document.querySelectorAll('[data-copy]').forEach(button => button.addEventListen
     await navigator.clipboard.writeText(pre.textContent);
     toast('已复制，发送给电脑上的 Agent 即可。');
   } catch {
-    previewRequest(button.dataset.copy);
+    if (button.dataset.copy === 'restore') previewRequest();
     const selection = window.getSelection();
     const range = document.createRange();
     range.selectNodeContents(pre);
@@ -80,15 +80,10 @@ document.querySelectorAll('[data-copy]').forEach(button => button.addEventListen
     toast('已选中文字，请手动复制。');
   }
 }));
-function previewRequest(mode) {
-  const restore = mode === 'restore';
-  $('#request-dialog-title').textContent = restore ? '恢复请求' : '安装请求';
-  $('#install-prompt').hidden = restore;
-  $('#restore-prompt').hidden = !restore;
-  $('#preview-copy').dataset.copy = restore ? 'restore' : 'install';
+function previewRequest() {
   if (!$('#request-dialog').open) $('#request-dialog').showModal();
 }
-document.querySelectorAll('[data-preview]').forEach(button => button.addEventListener('click', () => previewRequest(button.dataset.preview)));
+document.querySelectorAll('[data-preview]').forEach(button => button.addEventListener('click', previewRequest));
 $('#close-request').addEventListener('click', () => $('#request-dialog').close());
 $('#show-faq').addEventListener('click', () => $('#faq-dialog').showModal());
 $('#close-faq').addEventListener('click', () => $('#faq-dialog').close());
