@@ -118,7 +118,7 @@ final class WallpaperController {
         picker.requestWindowFeature(Window.FEATURE_NO_TITLE);content=new FrameLayout(activity);
         LinearLayout layout=new LinearLayout(activity);layout.setOrientation(LinearLayout.VERTICAL);layout.setPadding(px(40),px(28),px(40),px(28));content.addView(layout,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout header=row();TextView back=button("‹",false,this::handlePickerBack);back.setContentDescription(tr("返回桌面","Back to home"));header.addView(back,new LinearLayout.LayoutParams(px(38),px(38)));gap(header,14);
-        LinearLayout branding=new LinearLayout(activity);branding.setOrientation(LinearLayout.VERTICAL);branding.addView(label("QUIET TV",10));TextView heading=label(tr("壁纸设置","Wallpaper Settings"),28);LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-2,-2);hp.topMargin=px(5);branding.addView(heading,hp);header.addView(branding,new LinearLayout.LayoutParams(0,-2,1));
+        TextView heading=label(tr("壁纸设置","Wallpaper Settings"),28);header.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
         auto=button("",false,()->runSaved(()->{WallpaperCatalog s=store.snapshot();store.rotation(!s.rotating);preview=store.snapshot().current;display(preview,true);refreshCards(preview,false);}));header.addView(auto);
         gap(header,8);upload=button(tr("↑  上传壁纸","↑  Upload"),false,()->uploads.show(id->{if(picker!=null){if(id!=null){preview=id;display(preview,true);}refreshCards(preview,id!=null);}}));header.addView(upload);
         gap(header,8);manage=button(tr("管理","Manage"),false,()->{managing=!managing;refreshCards(preview,false);});header.addView(manage);layout.addView(header);
