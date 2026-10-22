@@ -1,3 +1,45 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Quiet TV  上传壁纸</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head>
-<body><main><header><span class="brand">QUIET TV</span><span id="connection">局域网上传</span></header><section id="editor"><h1>把喜欢的风景，<br>留在电视上。</h1><p class="intro">从相册选择一张图片，上传后在电视上应用。</p><label class="preview" for="photo"><img id="preview" alt="待上传壁纸预览" hidden><span id="placeholder">＋<br><span>选一张喜欢的风景</span></span><span class="change" id="change" hidden>更换图片</span></label><input id="photo" type="file" accept="image/jpeg,image/png,image/webp"><p id="fileinfo">推荐 16:9 横图  JPG / PNG / WebP  单张 ≤ 20 MB</p><button id="send" disabled>上传到电视</button><div id="progress" role="progressbar" aria-label="上传进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden><span></span></div><p id="status" role="status" aria-live="polite"></p><p id="error" role="alert" hidden></p></section><section id="success" hidden><div class="check">✓</div><h1>上传成功</h1><p class="intro">图片已加入电视壁纸库。<br>请在电视按返回，再选择这张壁纸使用。</p><img id="result" alt="已上传的壁纸"><button id="another">继续上传</button></section><footer>图片直传电视  不经过云端</footer></main></body></html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Quiet TV  上传壁纸</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+<main>
+  <section id="pairing" aria-labelledby="pair-title" hidden>
+    <h1 id="pair-title">连接电视</h1>
+    <form id="pair-form">
+      <label for="code">连接码</label>
+      <input id="code" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="6 位数字" autocomplete="one-time-code" required>
+      <button id="connect" type="submit">连接电视</button>
+    </form>
+    <p id="pair-error" role="alert" hidden></p>
+  </section>
+  <section id="editor" aria-labelledby="editor-title" hidden>
+    <h1 id="editor-title">上传壁纸</h1>
+    <label class="preview" for="photo">
+      <input id="photo" class="file-input" type="file" accept="image/jpeg,image/png,image/webp" aria-label="选择壁纸图片">
+      <img id="preview" alt="待上传壁纸预览" hidden>
+      <span id="placeholder"><span class="plus" aria-hidden="true">＋</span><span class="placeholder-text">选择图片</span></span>
+      <span class="change" id="change" hidden>更换图片</span>
+    </label>
+    <p id="fileinfo">JPG / PNG / 静态 WebP  单张不超过 20 MB</p>
+    <button id="send" disabled>上传到电视</button>
+    <div id="progress" role="progressbar" aria-label="上传进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden><span></span></div>
+    <p id="status" role="status" aria-live="polite"></p>
+    <p id="error" role="alert" hidden></p>
+  </section>
+  <section id="success" aria-labelledby="success-title" hidden>
+    <div class="check" aria-hidden="true">✓</div>
+    <h1 id="success-title">上传成功</h1>
+    <p class="intro">在电视按返回，选择这张壁纸使用。</p>
+    <img id="result" alt="已上传的壁纸">
+    <button id="another">继续上传</button>
+  </section>
+</main>
+</body>
+</html>

@@ -32,7 +32,7 @@ final class HomeOrderStore {
                 try{if((context.getPackageManager().getApplicationInfo(id,0).flags&ApplicationInfo.FLAG_INSTALLED)==0)items.remove();}
                 catch(PackageManager.NameNotFoundException e){items.remove();}
             }
-            for(String id:defaults)if(!known.contains(id))known.add(id);
+            addNewEntries(known,defaults);
             // Remember newly visible apps so a later installation cannot sort ahead of them.
             if(!known.equals(saved))preferences.edit().putString("packages",new JSONArray(known).toString()).apply();
             return project(known,defaults);
@@ -58,6 +58,13 @@ final class HomeOrderStore {
         for(String id:order)if(available.contains(id) && !result.contains(id))result.add(id);
         for(String id:visible)if(!result.contains(id))result.add(id);
         return result;
+    }
+    static void addNewEntries(List<String> known,List<String> defaults){
+        for(String id:defaults)if(!known.contains(id)){
+            int wallpaper=known.indexOf(HomeAppCatalog.WALLPAPER);
+            if(HomeAppCatalog.DESKTOP_SETTINGS.equals(id) && wallpaper>=0)known.add(wallpaper+1,id);
+            else known.add(id);
+        }
     }
     static ArrayList<String> merge(List<String> saved,List<String> visible){
         Set<String> active=new HashSet<>(visible);ArrayList<String> result=new ArrayList<>();int next=0;

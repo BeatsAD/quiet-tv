@@ -4,6 +4,8 @@ rootProject.name = 'QuietTV'
 include ':app'
 // The Android 8 Coocaa shim is built only when explicitly requested.
 if (providers.gradleProperty('quietCoocaaShim').getOrElse('false') == 'true') include ':coocaa-home-shim'
+// Experimental, independent Xiaomi Android 6 homepage redirect, never included by default.
+if (providers.gradleProperty('quietXiaomiHelper').getOrElse('false') == 'true') include ':xiaomi-home-helper'
 
 // Private test fixtures are optional; a fresh clone builds only the public app.
 ['management-fixture', 'home-fixture'].each { name ->

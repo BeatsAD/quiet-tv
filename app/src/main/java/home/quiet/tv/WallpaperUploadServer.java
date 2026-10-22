@@ -3,6 +3,7 @@ package home.quiet.tv;
 import fi.iki.elonen.NanoHTTPD;
 import java.io.*;
 import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -18,14 +19,17 @@ final class WallpaperUploadServer extends NanoHTTPD {
     private static final AtomicBoolean IMPORTING=new AtomicBoolean();
     private final Assets assets;
     private final Importer importer;
-    private final String host,token;
+    private final String host,token,connectionCode;
+    private int failedConnections;
+    private long blockedUntil;
     private volatile boolean closed;
     private volatile long touched=System.nanoTime();
 
     WallpaperUploadServer(String host,int port,Assets assets,Importer importer) {
         super(host,port);this.host=host;this.assets=assets;this.importer=importer;
-        byte[] random=new byte[16];new SecureRandom().nextBytes(random);
+        SecureRandom randomSource=new SecureRandom();byte[] random=new byte[16];randomSource.nextBytes(random);
         StringBuilder text=new StringBuilder();for(byte b:random)text.append(String.format(Locale.ROOT,"%02x",b&255));token=text.toString();
+        connectionCode=String.format(Locale.ROOT,"%06d",randomSource.nextInt(1000000));
         setAsyncRunner(new AsyncRunner(){
             private final Set<ClientHandler> clients=new HashSet<>();
             @Override public synchronized void exec(ClientHandler client) {
@@ -37,25 +41,31 @@ final class WallpaperUploadServer extends NanoHTTPD {
         });
     }
     void listen() throws IOException { start(15000,true); }
-    String address(){return "http://"+host+":"+getListeningPort()+"/"+token+"/";}
+    String shortAddress(){return "http://"+host+":"+getListeningPort();}
+    String address(){return shortAddress()+"/"+token+"/";}
+    String connectionCode(){return connectionCode;}
     boolean expired(){return (System.nanoTime()-touched)/1000000>IDLE_MS;}
     void invalidate(){closed=true;}
     @Override public void stop(){invalidate();super.stop();}
     @Override public Response serve(IHTTPSession session) {
         String prefix="/"+token+"/",uri=session.getUri();
         if(closed || expired())return error(Response.Status.GONE,"上传会话已结束，请在电视重新打开 / Session expired");
-        if(!uri.startsWith(prefix))return error(Response.Status.NOT_FOUND,"未找到页面 / Not found");
-        String route=uri.substring(prefix.length());
+        boolean authorized=uri.startsWith(prefix);
+        boolean publicAsset="/".equals(uri)||"/app.js".equals(uri)||"/styles.css".equals(uri);
+        boolean connecting="/connect".equals(uri)&&session.getMethod()==Method.POST;
+        if(!authorized&&!publicAsset&&!connecting)return error(Response.Status.NOT_FOUND,"未找到页面 / Not found");
+        String route=authorized?uri.substring(prefix.length()):uri.substring(1);
         String origin=session.getHeaders().get("origin");
-        if(origin!=null && !origin.equals("http://"+host+":"+getListeningPort()))return error(Response.Status.FORBIDDEN,"无效的上传来源 / Invalid origin");
-        touched=System.nanoTime();
+        if(origin!=null && !origin.equals(shortAddress()))return error(Response.Status.FORBIDDEN,"无效的上传来源 / Invalid origin");
+        if(connecting)return connect(session);
+        if(authorized)touched=System.nanoTime();
         if(session.getMethod()==Method.GET) {
             String name,mime;
             switch(route){case"":name="index.html";mime="text/html; charset=utf-8";break;case"app.js":name="app.js";mime="application/javascript; charset=utf-8";break;case"styles.css":name="styles.css";mime="text/css; charset=utf-8";break;default:return error(Response.Status.NOT_FOUND,"Not found");}
             try {return secure(newChunkedResponse(Response.Status.OK,mime,assets.open(name)));}
             catch(IOException e){return error(Response.Status.INTERNAL_ERROR,"上传页面不可用 / Upload page unavailable");}
         }
-        if(session.getMethod()!=Method.POST || !"upload".equals(route))return error(Response.Status.METHOD_NOT_ALLOWED,"Method not allowed");
+        if(!authorized||session.getMethod()!=Method.POST || !"upload".equals(route))return error(Response.Status.METHOD_NOT_ALLOWED,"Method not allowed");
         long length;
         try { length=Long.parseLong(session.getHeaders().get("content-length")); }
         catch(NumberFormatException e){return error(Response.Status.LENGTH_REQUIRED,"需要文件长度 / Content-Length required");}
@@ -71,6 +81,20 @@ final class WallpaperUploadServer extends NanoHTTPD {
             return secure(newFixedLengthResponse(Response.Status.CREATED,"application/json; charset=utf-8",result));
         } catch(IOException|IllegalArgumentException e){return error(Response.Status.BAD_REQUEST,e.getMessage()==null?"上传失败，请重试 / Upload failed":e.getMessage());}
         finally {IMPORTING.set(false);touched=System.nanoTime();}
+    }
+    private synchronized Response connect(IHTTPSession session) {
+        long now=System.nanoTime();
+        if(now<blockedUntil)return error(Response.Status.FORBIDDEN,"尝试过于频繁，请稍等 30 秒后重试 / Too many attempts. Wait 30 seconds.");
+        if(!"6".equals(session.getHeaders().get("content-length"))||session.getHeaders().containsKey("transfer-encoding"))return error(Response.Status.BAD_REQUEST,"请输入 6 位连接码 / Enter the six-digit code");
+        byte[] code=new byte[6];
+        try {new DataInputStream(session.getInputStream()).readFully(code);}
+        catch(IOException e){return error(Response.Status.BAD_REQUEST,"连接码传输未完成，请重试 / Incomplete connection code");}
+        if(!connectionCode.equals(new String(code,StandardCharsets.US_ASCII))){
+            if(++failedConnections>=5){blockedUntil=now+30000000000L;failedConnections=0;return error(Response.Status.FORBIDDEN,"尝试过于频繁，请稍等 30 秒后重试 / Too many attempts. Wait 30 seconds.");}
+            return error(Response.Status.FORBIDDEN,"连接码不正确，请查看电视后重试 / Incorrect code. Check your TV.");
+        }
+        failedConnections=0;touched=System.nanoTime();
+        return secure(newFixedLengthResponse(Response.Status.OK,"application/json; charset=utf-8","{\"path\":\"/"+token+"/\"}"));
     }
     private Response error(Response.Status status,String message) {
         try{return secure(newFixedLengthResponse(status,"application/json; charset=utf-8",new JSONObject().put("message",message).toString()));}

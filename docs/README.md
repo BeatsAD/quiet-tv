@@ -28,3 +28,5 @@
 本地另保留计划、过程记录、测试与 fixture、设备配置、备份、证据、独立原型、视频工程和构建产物。这些文件不参与公开源码构建，也不作为公开文档链接目标；当前跟踪范围由根目录 `.gitignore` 明确约定。用户明确要求上传的额外内容可以加入例外。取消跟踪不删除本地原件，也不改写历史提交。
 
 Plans, private tests, fixtures, device data, backups, standalone demos and generated files remain local. Fresh-clone builds use only public inputs. Explicit maintainer requests can add exceptions without discarding local originals or rewriting history.
+
+- [Agent 安装与恢复](AGENT_INSTALL.zh-CN.md)：面向可执行终端命令的电脑 Agent，按实际设备选包并保留原桌面。

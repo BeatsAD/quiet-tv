@@ -4,7 +4,7 @@
 
 ## Requirements
 
-Source is 1.1.0 / b30: the default standard profile requires Android 5.0 / API21, and `legacy19` requires Android 4.4 / API19. Both target API36. Public downloads include [b30 / API19 compatibility](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b30) (about 2.30 MiB, no native libraries) and retained b26 / API21 standard (about 6.50 MiB, four CPU architectures). b30 passed build, signature and metadata checks; native emulator acceptance was not completed and no physical TV has received it. See [compatibility](COMPATIBILITY.md). Historical b24 still requires Android 6.0 and b23 requires Android 12 with ARM32 support; both remain available. Building source does not establish hardware acceptance.
+Unpublished source is 1.1.0 / b31: the default standard profile requires Android 5.0 / API21, and `legacy19` requires Android 4.4 / API19. Both target API36. Public downloads include [b30 / API19 compatibility](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b30) (about 2.30 MiB, no native libraries) and retained b26 / API21 standard (about 6.50 MiB, four CPU architectures). b30 passed build, signature and metadata checks; native emulator acceptance was not completed and no physical TV has received it. See [compatibility](COMPATIBILITY.md). Historical b24 still requires Android 6.0 and b23 requires Android 12 with ARM32 support; both remain available. Building source does not establish hardware acceptance.
 
 Install Git, Python 3, JDK 17 or 21, Android SDK platform 36, build-tools 36.0.0 and platform-tools. Builds need no TV, device configuration, private tests or recovery records.
 
@@ -33,7 +33,7 @@ For immutable archives, configure `sdk.dir` in local.properties and run:
 python3 scripts/build_apk.py --summary "Describe this build's changes"
 ```
 
-The default archive is `dist/apk/quiet-tv_1.1.0_b30_debug_api21.apk`. Options include `--variant benchmark --abi armeabi-v7a`, `--min-sdk 21` (default), `23`, `26` and `31`. See [versioning](VERSIONING.md) for naming and signatures. These commands never install to a TV.
+The script still uses legacy archive names, such as `dist/apk/quiet-tv_1.1.0_b31_debug_api21.apk`. Options include `--variant benchmark --abi armeabi-v7a`, `--min-sdk 21` (default), `23`, `26` and `31`. Future deliveries use Chinese system labels and numeric build numbers; update the script before the next delivery as required by [versioning](VERSIONING.md). These commands never install to a TV.
 
 ## Android 4.4 / API19
 
@@ -43,7 +43,7 @@ Build and archive the separate compatibility profile:
 python3 scripts/build_apk.py --compatibility legacy19 --variant benchmark --summary "Android 4.4 compatibility candidate"
 ```
 
-Output: `dist/apk/quiet-tv_1.1.0_b30_benchmark_legacy19_api19.apk`. The profile defaults to API19; lowering the standard profile's minimum alone is rejected. For build and Lint, run `./gradlew :app:assembleDebug :app:lintDebug -PquietCompatibility=legacy19 --console=plain`.
+Output: `dist/apk/quiet-tv_1.1.0_b31_benchmark_legacy19_api19.apk`. The profile defaults to API19; lowering the standard profile's minimum alone is rejected. For build and Lint, run `./gradlew :app:assembleDebug :app:lintDebug -PquietCompatibility=legacy19 --console=plain`.
 
 The legacy profile retains the launcher, Dock, wallpaper, app list, native About and offline licenses, with traditional TCP ADB only. Six-digit pairing is absent. Inputs open system settings with a prompt to use the remote input key; vendor-specific direct switching needs separate adaptation. The APK contains no native libraries. ARM32 runtime, real HOME, network changes and reboot/wake still require target hardware validation. Debug uses legacy MultiDex startup support.
 

@@ -1,14 +1,12 @@
 package home.quiet.tv;
 
 import android.content.*;
-import android.content.pm.PackageManager;
 import android.graphics.*;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.view.*;
 import android.widget.*;
 import androidx.recyclerview.widget.*;
-import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -19,14 +17,13 @@ public final class HomeSortActivity extends ManagementUi {
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private final ArrayList<String> defaults=new ArrayList<>(),original=new ArrayList<>(),draft=new ArrayList<>();
     private final HashMap<String,HomeAppCatalog.Entry> entries=new HashMap<>();
-    private final HashMap<String,Drawable> artwork=new HashMap<>();
+    private final HashMap<String,Bitmap> artwork=new HashMap<>();
     private HomeOrderStore store;
     private RecyclerView list;
     private GridLayoutManager layout;
     private Cards adapter;
     private LinearLayout controls,left,actions;
     private Button saveButton,resetButton;
-    private Bitmap wallpaper;
     private ArrayList<String> beforeMove;
     private String moving="",selected="";
     private boolean loaded,refreshing,refreshAgain,saving,resetRequested,beforeReset,savedCustom,dialogOpen,leaving;
@@ -42,7 +39,7 @@ public final class HomeSortActivity extends ManagementUi {
         super.onCreate(state);store=new HomeOrderStore(this);restored=state!=null?state:pendingDraft;pendingDraft=null;
         root.setPadding(px(48),px(22),px(48),px(16));
         LinearLayout tools=toolbar(2);LinearLayout.LayoutParams tp=(LinearLayout.LayoutParams)tools.getLayoutParams();tp.topMargin=px(14);tp.height=px(44);tools.setLayoutParams(tp);
-        list=new RecyclerView(this);layout=new GridLayoutManager(this,4);list.setLayoutManager(layout);adapter=new Cards();list.setAdapter(adapter);
+        list=new RecyclerView(this);layout=new GridLayoutManager(this,HomeActivity.APP_COLUMNS);list.setLayoutManager(layout);adapter=new Cards();list.setAdapter(adapter);
         list.setItemAnimator(null);list.setClipToPadding(false);list.setPadding(px(5),px(5),px(5),px(5));list.setOverScrollMode(View.OVER_SCROLL_NEVER);
         LinearLayout.LayoutParams grid=new LinearLayout.LayoutParams(-1,0,1);grid.topMargin=px(18);grid.leftMargin=px(-10);grid.rightMargin=px(-10);root.addView(list,grid);
         controls=row();LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,px(40));cp.topMargin=px(14);root.addView(controls,cp);
@@ -60,14 +57,16 @@ public final class HomeSortActivity extends ManagementUi {
             try{
                 ArrayList<String> pinned=new DockStore(this).load();ArrayList<HomeAppCatalog.Entry> available=new HomeAppCatalog(this).load(pinned);
                 ArrayList<String> ids=HomeAppCatalog.gridIds(available,pinned),order=store.order(ids);boolean custom=store.custom();
-                Bitmap preview=wallpaper;
-                if(preview==null)try(InputStream input=getAssets().open("wallpapers/big-sur-coastline.jpg")){BitmapFactory.Options options=new BitmapFactory.Options();options.inSampleSize=4;preview=BitmapFactory.decodeStream(input,null,options);}
-                final Bitmap image=preview;
+                HashMap<String,Bitmap> pictures=new HashMap<>();
+                for(HomeAppCatalog.Entry entry:available){
+                    if(entry.info!=null)pictures.put(entry.id,AppArtwork.load(this,entry.info));
+                    else pictures.put(entry.id,HomeEntryArtwork.render(this,entry.label,entry.id));
+                }
                 runOnUiThread(()->{
                     if(isDestroyed() || isFinishing())return;
                     boolean editing=loaded && (dirty() || !moving.isEmpty());
-                    defaults.clear();defaults.addAll(ids);original.clear();original.addAll(order);savedCustom=custom;wallpaper=image;
-                    entries.clear();for(HomeAppCatalog.Entry entry:available)entries.put(entry.id,entry);artwork.clear();
+                    defaults.clear();defaults.addAll(ids);original.clear();original.addAll(order);savedCustom=custom;
+                    entries.clear();for(HomeAppCatalog.Entry entry:available)entries.put(entry.id,entry);artwork.clear();artwork.putAll(pictures);
                     ArrayList<String> next=editing?HomeOrderStore.project(resetRequested?ids:draft,ids):new ArrayList<>(order);
                     if(restored!=null && restored.containsKey("draft")){
                         next=HomeOrderStore.project(restored.getStringArrayList("draft"),ids);selected=restored.getString("selected","");resetRequested=restored.getBoolean("reset");
@@ -112,7 +111,7 @@ public final class HomeSortActivity extends ManagementUi {
         selected=id;moving=id;beforeMove=new ArrayList<>(draft);beforeReset=resetRequested;render(id);
     }
     private void shift(int dx,int dy){
-        if(moving.isEmpty() || saving)return;int from=draft.indexOf(moving),target=HomeOrderStore.target(from,draft.size(),4,dx,dy);
+        if(moving.isEmpty() || saving)return;int from=draft.indexOf(moving),target=HomeOrderStore.target(from,draft.size(),HomeActivity.APP_COLUMNS,dx,dy);
         if(from==target)return;HomeOrderStore.move(draft,from,target);resetRequested=false;renderMove(moving,from,target);
     }
     private void cancelMove(){if(moving.isEmpty() || saving)return;String id=moving;int from=draft.indexOf(id),to=beforeMove.indexOf(id);draft.clear();draft.addAll(beforeMove);moving="";beforeMove=null;resetRequested=beforeReset;renderMove(id,from,to);}
@@ -178,7 +177,7 @@ public final class HomeSortActivity extends ManagementUi {
             if(confirm){if(event.getAction()==KeyEvent.ACTION_UP)pick(selected);return true;}
             if(direction){
                 if(event.getAction()==KeyEvent.ACTION_UP)return true;int current=draft.indexOf(selected);
-                int next=HomeOrderStore.target(current,draft.size(),4,key==KeyEvent.KEYCODE_DPAD_LEFT?-1:key==KeyEvent.KEYCODE_DPAD_RIGHT?1:0,key==KeyEvent.KEYCODE_DPAD_UP?-1:key==KeyEvent.KEYCODE_DPAD_DOWN?1:0);
+                int next=HomeOrderStore.target(current,draft.size(),HomeActivity.APP_COLUMNS,key==KeyEvent.KEYCODE_DPAD_LEFT?-1:key==KeyEvent.KEYCODE_DPAD_RIGHT?1:0,key==KeyEvent.KEYCODE_DPAD_UP?-1:key==KeyEvent.KEYCODE_DPAD_DOWN?1:0);
                 if(next!=current)focusEntry(draft.get(next));
                 else if(key==KeyEvent.KEYCODE_DPAD_DOWN)resetButton.requestFocus();
                 else if(key==KeyEvent.KEYCODE_DPAD_UP){View tab=findSortTab(root);if(tab!=null)tab.requestFocus();}
@@ -196,8 +195,8 @@ public final class HomeSortActivity extends ManagementUi {
     }
     private final class Cards extends RecyclerView.Adapter<Cards.Holder>{
         final class Holder extends RecyclerView.ViewHolder {
-            final LinearLayout card;final FrameLayout art;final ImageView image,wallpaperIcon;final TextView title,number,badge;
-            Holder(LinearLayout card,FrameLayout art,ImageView image,ImageView wallpaperIcon,TextView title,TextView number,TextView badge){super(card);this.card=card;this.art=art;this.image=image;this.wallpaperIcon=wallpaperIcon;this.title=title;this.number=number;this.badge=badge;}
+            final LinearLayout card;final FrameLayout art;final ImageView image;final TextView title,number,badge;
+            Holder(LinearLayout card,FrameLayout art,ImageView image,TextView title,TextView number,TextView badge){super(card);this.card=card;this.art=art;this.image=image;this.title=title;this.number=number;this.badge=badge;}
         }
         @Override public Holder onCreateViewHolder(ViewGroup parent,int type){
             LinearLayout card=column();card.setFocusable(true);card.setClickable(true);card.setClipChildren(false);card.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
@@ -205,17 +204,15 @@ public final class HomeSortActivity extends ManagementUi {
             FrameLayout art=new FrameLayout(HomeSortActivity.this){@Override protected void onMeasure(int w,int h){super.onMeasure(w,View.MeasureSpec.makeMeasureSpec(Math.round(View.MeasureSpec.getSize(w)*203f/360f),View.MeasureSpec.EXACTLY));}};
             art.setDuplicateParentStateEnabled(true);art.setPadding(px(3),px(3),px(3),px(3));card.addView(art,new LinearLayout.LayoutParams(-1,-2));
             ImageView image=new ImageView(HomeSortActivity.this);image.setBackground(surface(0,0,0,10));UiCompat.clipOutline(image);art.addView(image,new FrameLayout.LayoutParams(-1,-1));
-            ImageView wallpaperIcon=new ImageView(HomeSortActivity.this);wallpaperIcon.setImageResource(R.drawable.ic_home_wallpaper);art.addView(wallpaperIcon,new FrameLayout.LayoutParams(px(42),px(42),Gravity.CENTER));
             TextView badge=center("正在移动",10);badge.setTextColor(0xff22262e);badge.setPadding(px(6),0,px(6),0);badge.setBackground(surface(0xffeff0f4,0xffeff0f4,0,4));
             FrameLayout.LayoutParams bp=new FrameLayout.LayoutParams(-2,px(23),Gravity.TOP|Gravity.END);bp.setMargins(px(7),px(7),px(7),0);art.addView(badge,bp);
             gap(card,8);LinearLayout caption=row();card.addView(caption,new LinearLayout.LayoutParams(-1,px(21)));
             TextView title=label("",13);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);caption.addView(title,new LinearLayout.LayoutParams(0,-1,1));
             TextView number=muted("",10);number.setPadding(px(5),0,0,0);caption.addView(number);
-            return new Holder(card,art,image,wallpaperIcon,title,number,badge);
+            return new Holder(card,art,image,title,number,badge);
         }
         @Override public void onBindViewHolder(Holder holder,int position){
             String id=draft.get(position);HomeAppCatalog.Entry entry=entries.get(id);boolean picked=id.equals(moving);
-            holder.wallpaperIcon.setVisibility(HomeAppCatalog.WALLPAPER.equals(id)?View.VISIBLE:View.GONE);
             holder.title.setText(entry.label);holder.number.setText(String.format(Locale.ROOT,"%02d",position+1));holder.badge.setVisibility(picked?View.VISIBLE:View.GONE);
             android.graphics.drawable.StateListDrawable background=new android.graphics.drawable.StateListDrawable();
             background.addState(new int[]{android.R.attr.state_focused},surface(0xff3b3e46,0xff1b1d24,TEXT,12));
@@ -224,14 +221,9 @@ public final class HomeSortActivity extends ManagementUi {
             holder.card.setOnFocusChangeListener((v,focus)->{if(focus)selected=id;});holder.card.setOnClickListener(v->pick(id));
             FrameLayout.LayoutParams ip=(FrameLayout.LayoutParams)holder.image.getLayoutParams();ip.width=-1;ip.height=-1;ip.gravity=Gravity.CENTER;
             holder.image.setScaleType(ImageView.ScaleType.FIT_XY);
-            if(HomeAppCatalog.WALLPAPER.equals(id))holder.image.setImageBitmap(wallpaper);
-            else if(HomeAppCatalog.MANAGEMENT.equals(id)){holder.image.setImageDrawable(UiCompat.drawable(HomeSortActivity.this,R.drawable.ic_manage_apps));ip.width=px(48);ip.height=px(48);holder.image.setScaleType(ImageView.ScaleType.FIT_CENTER);}
-            else{
-                Drawable art=artwork.get(id);boolean banner=true;PackageManager pm=getPackageManager();
-                if(art==null){if(android.os.Build.VERSION.SDK_INT>=21){art=entry.info.activityInfo.loadBanner(pm);if(art==null)art=entry.info.activityInfo.applicationInfo.loadBanner(pm);}if(art==null){banner=false;art=entry.info.loadIcon(pm);}artwork.put(id,art);}
-                else banner=android.os.Build.VERSION.SDK_INT>=21 && (entry.info.activityInfo.banner!=0 || entry.info.activityInfo.applicationInfo.banner!=0);
-                holder.image.setImageDrawable(art);if(!banner){ip.width=px(48);ip.height=px(48);holder.image.setScaleType(ImageView.ScaleType.FIT_CENTER);}
-            }
+            holder.image.setBackground(surface(0,0,0,10));
+            Bitmap picture=artwork.get(id);int color=picture.getPixel(0,0);
+            holder.image.setBackground(surface(color,color,0,10));holder.image.setScaleType(ImageView.ScaleType.FIT_CENTER);holder.image.setImageBitmap(picture);
             holder.image.setLayoutParams(ip);
         }
         @Override public int getItemCount(){return draft.size();}

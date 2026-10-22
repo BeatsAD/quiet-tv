@@ -16,18 +16,25 @@
     <!-- A HOME and application manager must enumerate installed apps, including those without launcher entries. -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
     <queries>
+        <package android:name="com.xiaomi.mitv.settings" />
         <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LEANBACK_LAUNCHER" /></intent>
         <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent>
+        <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.APPSTORE_LAUNCHER" /></intent>
         <intent><action android:name="android.intent.action.VIEW" /><data android:scheme="content" /></intent>
     </queries>
     <application android:label="Quiet TV" android:theme="@style/AppTheme" android:icon="@drawable/launcher_icon" android:banner="@drawable/launcher_banner" android:allowBackup="false" android:enableOnBackInvokedCallback="true" android:supportsRtl="true">
         <activity android:name=".AboutActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".DockEditorActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".HomeSortActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".DesktopSettingsActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".AppManagementActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".BootAdActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".SetupActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".HomeActivity" android:exported="true" android:launchMode="singleTask" android:excludeFromRecents="true" android:screenOrientation="landscape">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.HOME" />
@@ -36,6 +43,10 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
     </application>

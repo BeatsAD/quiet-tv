@@ -1,2 +1,82 @@
-:root{color-scheme:light;font-family:"PingFang SC","Microsoft YaHei",sans-serif;color:#23382d;background:#eeefe9;font-size:16px}*{box-sizing:border-box}body{margin:0;min-width:320px}main{width:100%;max-width:32rem;margin:auto;padding:2rem 1.5rem}header{display:flex;justify-content:space-between;align-items:center;gap:1rem;color:#627267;font-size:.875rem;margin-bottom:2.5rem}.brand{font-family:"Avenir Next",sans-serif;letter-spacing:.2em;font-size:.875rem}h1{font-size:2rem;font-weight:500;letter-spacing:.03em;line-height:1.35;margin:0 0 1rem}.intro{color:#627267;line-height:1.8;font-size:1rem;margin:0 0 1.75rem}.preview{position:relative;display:grid;place-items:center;width:100%;aspect-ratio:16/9;background:#e0e7dc;border:1px dashed #a0afa0;border-radius:1rem;overflow:hidden;cursor:pointer}.preview img{position:absolute;width:100%;height:100%;object-fit:cover}#placeholder{text-align:center;font-size:2rem;color:#627b66}#placeholder span{font-size:1rem}.change{position:absolute;bottom:1rem;right:1rem;border-radius:2rem;background:#f3f6efeb;color:#314d3a;padding:.5rem 1rem;font-size:.875rem}input[type=file]{width:100%;margin-top:1rem;font-size:.875rem;min-height:2.75rem;color:#526854}input::file-selector-button{border:1px solid #b9c8b5;border-radius:2rem;background:#dce5d7;color:#294532;padding:.7rem 1rem;margin-right:.75rem;cursor:pointer}#fileinfo{font-size:.875rem;color:#647366;line-height:1.7;overflow-wrap:anywhere;margin:1rem 0 1.5rem}button{font:inherit;min-height:3rem;border:0;border-radius:2rem;background:#2d4938;color:#f6f8f1;width:100%;padding:.8rem 1.5rem;cursor:pointer}button:hover{background:#3e5c45}button:disabled{background:#a3b09f;cursor:default}button:focus-visible,label:focus-within,input:focus-visible{outline:3px solid #67866b;outline-offset:4px}#progress{height:.3rem;background:#d4dfcf;margin:1rem 0;border-radius:1rem;overflow:hidden}#progress span{display:block;height:100%;background:#3d6248;width:0;transition:width .15s}#status,#error{font-size:.875rem;line-height:1.7;margin:1rem 0;overflow-wrap:anywhere}#error{color:#a13f35}footer{text-align:center;font-size:.875rem;color:#69796a;margin-top:2rem}.check{width:4rem;height:4rem;border-radius:50%;background:#dce7d4;color:#426747;display:grid;place-items:center;font-size:2rem;margin:1rem auto 1.5rem}#success{text-align:center}#result{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:1rem;margin:0 0 1.5rem}[hidden]{display:none!important}@media(min-width:768px){main{padding:3.5rem 2rem}h1{font-size:2.5rem}header{margin-bottom:3rem}}@media(prefers-reduced-motion:reduce){*{transition:none!important}}
-#fileinfo,footer{white-space:pre-wrap}
+:root {
+  color-scheme: dark;
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 16px;
+  color: #f4f5f7;
+  background: #0a0e15;
+  --panel: #222831;
+  --muted: #aeb9c8;
+  --line: #ffffff26;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  padding: 1.25rem 1rem;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  background: radial-gradient(ellipse at 10% 0%, #26374c 0%, transparent 65%), #0a0e15;
+}
+main {
+  width: 100%;
+  max-width: 36rem;
+  min-width: 0;
+  padding: 1.5rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 1.5rem;
+  box-shadow: 0 1.5rem 5rem #00000040;
+}
+h1 { font-size: 1.75rem; font-weight: 500; line-height: 1.35; margin: 0 0 1.5rem; }
+.intro { color: var(--muted); line-height: 1.7; margin: 0 0 1.5rem; }
+.preview {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #151c25;
+  border: 1px dashed #6b7788;
+  border-radius: 1rem;
+  overflow: hidden;
+  cursor: pointer;
+}
+.preview img { position: absolute; width: 100%; height: 100%; object-fit: cover; }
+#placeholder { display: grid; justify-items: center; gap: .5rem; color: var(--muted); }
+.plus { font-size: 2.5rem; font-weight: 300; line-height: 1; color: #f4f5f7; }
+.change { position: absolute; bottom: .75rem; right: .75rem; border: 1px solid var(--line); border-radius: 2rem; background: #20252deb; padding: .6rem 1rem; font-size: .875rem; }
+.file-input { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; clip: rect(0, 0, 0, 0); clip-path: inset(50%); overflow: hidden; white-space: nowrap; }
+#fileinfo { color: var(--muted); font-size: .875rem; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; margin: 1rem 0 1.5rem; }
+button {
+  font: inherit;
+  font-weight: 500;
+  min-height: 3.25rem;
+  width: 100%;
+  padding: .85rem 1.25rem;
+  border: 1px solid transparent;
+  border-radius: 2rem;
+  background: #f1f2f4;
+  color: #1e242c;
+  cursor: pointer;
+}
+button:disabled { background: #424b59; color: #aeb9c8; cursor: default; }
+button:focus-visible, .preview:focus-within, input:focus-visible { outline: 2px solid #f4f5f7; outline-offset: 4px; }
+.preview:has(input:disabled) { cursor: default; }
+#progress { height: .3rem; background: #424b59; margin: 1rem 0; border-radius: 1rem; overflow: hidden; }
+#progress span { display: block; height: 100%; background: #f1f2f4; width: 0; transition: width .15s; }
+#status, #error, #pair-error { font-size: .875rem; line-height: 1.7; margin: 1rem 0 0; overflow-wrap: anywhere; }
+#status { color: var(--muted); }
+#status:empty { display: none; }
+#error, #pair-error { color: #ffb4ab; }
+.check { width: 3.5rem; height: 3.5rem; border: 1px solid #ffffff38; border-radius: 50%; background: #343c48; display: grid; place-items: center; font-size: 1.75rem; margin: 0 auto 1rem; }
+#success { text-align: center; }
+#success h1 { margin-bottom: .75rem; }
+#result { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 1rem; margin: 0 0 1.5rem; }
+#pair-form label { display: block; color: var(--muted); }
+#code { display: block; width: 100%; min-height: 3.5rem; margin: .75rem 0 1.5rem; padding: .75rem; border: 1px solid #6b7788; border-radius: .875rem; font: inherit; font-family: monospace; font-size: 1.75rem; letter-spacing: .3em; text-align: center; background: #151c25; color: #f4f5f7; }
+#code::placeholder { color: var(--muted); font: 1rem "PingFang SC", "Microsoft YaHei", sans-serif; letter-spacing: .1em; }
+[hidden] { display: none !important; }
+@media (hover: hover) { button:not(:disabled):hover { background: #ffffff; } .preview:hover { border-color: #f4f5f7; } }
+@media (min-width: 768px) { body { padding: 2rem; } main { padding: 2rem; } h1 { font-size: 2rem; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
