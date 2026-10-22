@@ -21,10 +21,10 @@ final class AboutView extends FrameLayout {
     private final Typeface font;
     private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Shader glow,shade;
-    private final View back,license,upstream;
+    private final View back,license,upstream,diagnostics;
     private final FrameLayout artboard;
 
-    AboutView(Context context,CharSequence name,String version,boolean debug,Runnable exit,Runnable licenses,Runnable source) {
+    AboutView(Context context,CharSequence name,String version,boolean debug,Runnable exit,Runnable licenses,Runnable source,Runnable diagnosticAction) {
         super(context);setBackgroundColor(0xff020405);setTag("about-native");
         font=android.os.Build.VERSION.SDK_INT>=26?Typeface.createFromAsset(context.getAssets(),"fonts/outfit.ttf"):Typeface.create("sans-serif",Typeface.NORMAL);
         glow=new RadialGradient(0,0,1,new int[]{0xff244c87,0xff112846,0xff070e18,0xff020405},new float[]{0,.29f,.58f,.85f},Shader.TileMode.CLAMP);
@@ -58,6 +58,8 @@ final class AboutView extends FrameLayout {
         int channelX=136+(int)Math.ceil(installed.getPaint().measureText(installed.getText().toString()))+16;
         TextView channel=label(debug?"测试版":"正式版",19,400,0xffacc0db,channelX,658,87,45,"version-channel");
         channel.setGravity(Gravity.CENTER);channel.setBackground(surface(0x08ffffff,8,0x26ffffff));
+        TextView logs=label("诊断日志",24,400,0xffc4d1e3,136,744,180,52,null);logs.setPadding(16,0,16,0);logs.setBackground(surface(0x08ffffff,10,0x26ffffff));
+        diagnostics=action(logs,"diagnostics-link",136,744,180,52,diagnosticAction);
         label("开源项目",29,500,0xfff2f4f8,782,298,600,41,null);
         label("github.com/BeatsAD/quiet-tv",27,400,0xffdbe5f4,782,360,600,50,"source-address");
         ImageView project=code("project-qr",1576,250,208);project.setImageResource(R.drawable.ic_about_source);
@@ -115,8 +117,10 @@ final class AboutView extends FrameLayout {
     void focusLicense(){license.requestFocus();}
     void move(int key) {
         View active=artboard.findFocus(),next=null;
-        if(active==back && (key==KeyEvent.KEYCODE_DPAD_DOWN||key==KeyEvent.KEYCODE_DPAD_RIGHT))next=license;
-        else if(active==license){if(key==KeyEvent.KEYCODE_DPAD_RIGHT)next=upstream;else if(key==KeyEvent.KEYCODE_DPAD_UP||key==KeyEvent.KEYCODE_DPAD_LEFT)next=back;}
+        if(active==back && key==KeyEvent.KEYCODE_DPAD_DOWN)next=diagnostics;
+        else if(active==back && key==KeyEvent.KEYCODE_DPAD_RIGHT)next=license;
+        else if(active==diagnostics){if(key==KeyEvent.KEYCODE_DPAD_UP)next=back;else if(key==KeyEvent.KEYCODE_DPAD_RIGHT||key==KeyEvent.KEYCODE_DPAD_DOWN)next=license;}
+        else if(active==license){if(key==KeyEvent.KEYCODE_DPAD_RIGHT)next=upstream;else if(key==KeyEvent.KEYCODE_DPAD_UP)next=back;else if(key==KeyEvent.KEYCODE_DPAD_LEFT)next=diagnostics;}
         else if(active==upstream){if(key==KeyEvent.KEYCODE_DPAD_LEFT)next=license;else if(key==KeyEvent.KEYCODE_DPAD_UP)next=back;}
         if(next!=null)next.requestFocus();
     }
