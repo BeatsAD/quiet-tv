@@ -129,7 +129,7 @@ final class WallpaperController {
         layout.addView(new View(activity),new LinearLayout.LayoutParams(1,0,1));
         LinearLayout actions=row();title=label("",27);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);actions.addView(title,new LinearLayout.LayoutParams(0,-2,1));
         remove=button(tr("删除","Delete"),false,this::confirmDelete);remove.setMinHeight(px(43));ui.icon(remove,R.drawable.wp_trash_2);actions.addView(remove);gap(actions,10);
-        apply=button("",true,()->runSaved(()->{store.select(preview);display(preview,true);refreshCards(preview,false);notice(tr("已应用壁纸","Wallpaper applied"));}));ui.icon(apply,R.drawable.wp_check);actions.addView(apply);
+        apply=button("",true,()->runSaved(()->{store.select(preview);display(preview,true);refreshCards(preview,true);notice(tr("已应用壁纸","Wallpaper applied"));}));ui.icon(apply,R.drawable.wp_check);actions.addView(apply);
         LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,px(43));ap.setMargins(px(4),0,px(4),px(24));layout.addView(actions,ap);
         LinearLayout restores=row();restores.setGravity(Gravity.END);restore=button(tr("恢复内置壁纸","Restore built-in wallpapers"),false,this::confirmRestore);restore.setMinHeight(px(30));restore.setBackground(ui.focusSurface(Color.TRANSPARENT,100));ui.icon(restore,R.drawable.wp_rotate_ccw);restores.addView(restore);layout.addView(restores);
         scroll=new HorizontalScrollView(activity);scroll.setHorizontalScrollBarEnabled(false);scroll.setClipToPadding(false);scroll.setClipChildren(false);scroll.setFillViewport(false);rail=row();rail.setClipToPadding(false);rail.setClipChildren(false);rail.setGravity(Gravity.BOTTOM);rail.setPadding(px(4),px(7),px(4),0);scroll.addView(rail);LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,px(154));layout.addView(scroll,rp);
@@ -152,7 +152,7 @@ final class WallpaperController {
             LinearLayout caption=row();FrameLayout.LayoutParams np=new FrameLayout.LayoutParams(-1,px(34),Gravity.BOTTOM);np.leftMargin=px(4);np.rightMargin=px(4);card.addView(caption,np);
             TextView name=label(wallpaper.label(chinese),12);name.setSingleLine(true);name.setEllipsize(android.text.TextUtils.TruncateAt.END);caption.addView(name,new LinearLayout.LayoutParams(0,-2,1));
             if(id.equals(state.current)){
-                TextView mark=label(tr("当前","Current"),10);mark.setTextColor(0xff171d25);mark.setPadding(px(6),px(1),px(6),px(1));mark.setBackground(ui.surface(0xfff0f1f4,100,Color.TRANSPARENT,0));
+                TextView mark=label(tr("当前使用","In use"),10);mark.setTextColor(0xff171d25);mark.setPadding(px(6),px(1),px(6),px(1));mark.setBackground(ui.surface(0xfff0f1f4,100,Color.TRANSPARENT,0));
                 LinearLayout.LayoutParams mp=new LinearLayout.LayoutParams(-2,-2);mp.leftMargin=px(4);caption.addView(mark,mp);
             }
             card.setOnFocusChangeListener((v,focus)->{if(focus){preview=id;display(id,true);details();scroll.requestChildFocus(rail,card);}});
@@ -164,7 +164,7 @@ final class WallpaperController {
     private void details(){
         if(picker==null)return;WallpaperCatalog state=store.snapshot();WallpaperCatalog.Entry entry=state.find(preview);if(entry==null)return;
         title.setText(entry.label(chinese));remove.setVisibility(managing&&!WallpaperCatalog.DEFAULT.equals(preview)?View.VISIBLE:View.GONE);
-        boolean applied=preview.equals(state.current)&&!state.rotating;apply.setEnabled(!applied);apply.setAlpha(applied?.4f:1f);apply.setText(applied?tr("正在使用","In use"):WallpaperCatalog.DEFAULT.equals(preview)?tr("使用颜色主题","Use color theme"):tr("使用这张壁纸","Use wallpaper"));
+        boolean applied=preview.equals(state.current)&&!state.rotating;apply.setEnabled(!applied);apply.setVisibility(applied?View.GONE:View.VISIBLE);apply.setText(WallpaperCatalog.DEFAULT.equals(preview)?tr("使用颜色主题","Use color theme"):tr("使用这张壁纸","Use wallpaper"));
         auto.setText(tr("壁纸轮播","Slideshow"));auto.setCompoundDrawables(toggleDrawable(state.rotating),null,null,null);auto.setCompoundDrawablePadding(px(7));auto.setContentDescription(state.rotating?tr("壁纸轮播，开","Slideshow, on"):tr("壁纸轮播，关","Slideshow, off"));auto.setEnabled(state.pictures().size()>=2);auto.setAlpha(auto.isEnabled()?1:.4f);
         manage.setText(managing?tr("完成","Done"):tr("管理","Manage"));View restoreRow=(View)restore.getParent();restoreRow.setVisibility(managing&&!state.removed.isEmpty()?View.VISIBLE:View.GONE);
         View card=cards.get(preview);if(card==null)return;View action=remove.getVisibility()==View.VISIBLE?remove:apply.isEnabled()?apply:upload;
