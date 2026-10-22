@@ -22,7 +22,7 @@ QuietTV_<版本号>-<构建号>_<适用系统>[_<单架构标记>]_<发布状态
 - 构建号与实际 APK 的 `versionCode` 一致，只使用不带前导零的正整数，例如 `31`，不使用 `b31`、`Build31`、`RC31`。
 - 主程序各系统档位、架构和构建类型共用递增交付序列；交付不同内容的新包时分配新号，不回退、复用或因版本变化归零。日常编译不必每次加号，同一归档原字节重发不分配新号。
 - 交付前核对源码配置、历史归档和远程发布中的已用号。文件名、APK 版本和归档记录必须一致，不能通过改名冒充新版本。
-- 主程序版本配置在 `app/build.gradle`，1.1.2 已发布：标准档为 `1.1.2 / 34`，兼容档为 `1.1.2 / 35`，交付时可用 Gradle 参数 `quietBuildNumber` 指定递增构建号，standard 与 legacy19 均为 targetSdk36；本页示例不修改配置、不预占构建号。助手版本独立配置在 `coocaa-home-shim/build.gradle` 和 `xiaomi-home-helper/build.gradle`。
+- 主程序版本配置在 `app/build.gradle`，当前开发版本为 `1.2.0`，默认开发构建号为 `36`；交付时用 Gradle 参数 `quietBuildNumber` 分别指定递增构建号。1.1.2 已发布：标准档为 `1.1.2 / 34`，兼容档为 `1.1.2 / 35`，历史附件保持原样。standard 与 legacy19 均为 targetSdk36；本页示例不预占构建号。助手版本独立配置在 `coocaa-home-shim/build.gradle` 和 `xiaomi-home-helper/build.gradle`。
 
 ### 安卓档位与架构
 
