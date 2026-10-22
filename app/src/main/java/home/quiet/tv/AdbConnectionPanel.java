@@ -58,8 +58,8 @@ final class AdbConnectionPanel {
             else sheet.text(tls?"在系统无线调试中打开配对页面；配对与连接端口不同。没有配对页面时请使用 TCP 或取消。返回后配对码可能失效，必要时手动填写本机端口。":"开启电视网络／ADB 调试，连接时在电视弹窗允许 Quiet TV。仅连接当前电视。");ui.gap(sheet.body,12);
             if(setup!=null && !tls){Button expand=setup.setupButton(advanced?"连接设置  ⌄":"连接设置  ›","connection-settings",()->{advanced=!advanced;body(false);},false);expand.setGravity(android.view.Gravity.START|android.view.Gravity.CENTER_VERTICAL);sheet.body.addView(expand,new LinearLayout.LayoutParams(-1,ui.px(32)));ui.gap(sheet.body,8);}
             if(setup==null || advanced || tls){
-            LinearLayout modes=ui.row();sheet.body.addView(modes);Button tcp=ui.button("传统 TCP"+(tls?"":" ✓"),()->body(false));tcp.setTag("tcp-mode");modes.addView(tcp,new LinearLayout.LayoutParams(0,ui.px(36),1));
-            Button pairing=ui.button("无线配对（实验）"+(tls?" ✓":""),()->body(true));pairing.setTag("pairing-mode");pairing.setEnabled(AdbController.pairingAvailable());pairing.setAlpha(pairing.isEnabled()?1f:.4f);if(!BuildConfig.LEGACY_19)modes.addView(pairing,new LinearLayout.LayoutParams(0,ui.px(36),1));ui.gap(sheet.body,12);
+            LinearLayout modes=ui.row();modes.setGravity(android.view.Gravity.CENTER);sheet.body.addView(modes);Button tcp=ui.button("传统 TCP"+(tls?"":" ✓"),()->body(false));tcp.setTag("tcp-mode");modes.addView(tcp,new LinearLayout.LayoutParams(ui.px(156),ui.px(36)));
+            Button pairing=ui.button("无线配对（实验）"+(tls?" ✓":""),()->body(true));pairing.setTag("pairing-mode");pairing.setEnabled(AdbController.pairingAvailable());pairing.setAlpha(pairing.isEnabled()?1f:.4f);if(!BuildConfig.LEGACY_19){LinearLayout.LayoutParams pp=new LinearLayout.LayoutParams(ui.px(156),ui.px(36));pp.leftMargin=ui.px(8);modes.addView(pairing,pp);}ui.gap(sheet.body,12);
             if(tls){add("配对端口",pairPort);add("配对码",code);}
             port.setText(tls?ui.getSharedPreferences("adb",0).getString("tlsPort",""):String.valueOf(ui.getSharedPreferences("adb",0).getInt("port",5555)));add("连接端口",port);
             }else port.setText(String.valueOf(ui.getSharedPreferences("adb",0).getInt("port",5555)));
