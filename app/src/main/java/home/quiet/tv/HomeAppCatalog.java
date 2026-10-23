@@ -26,7 +26,7 @@ final class HomeAppCatalog {
         HashSet<String> hidden=new HashSet<>();JSONArray values=config.optJSONArray("hidden");
         if(values!=null)for(int i=0;i<values.length();i++)hidden.add(values.optString(i));
         PackageManager pm=context.getPackageManager();LinkedHashMap<String,ResolveInfo> choices=launchable();
-        for(Iterator<String> ids=choices.keySet().iterator();ids.hasNext();){String id=ids.next();if(hidden.contains(id) && !pinned.contains(id))ids.remove();}
+        for(Iterator<String> ids=choices.keySet().iterator();ids.hasNext();){String id=ids.next();if(new ChildModeStore(context).hidden(id) || hidden.contains(id) && !pinned.contains(id))ids.remove();}
         ArrayList<Entry> result=new ArrayList<>();
         for(Map.Entry<String,ResolveInfo> choice:choices.entrySet())result.add(new Entry(choice.getKey(),choice.getValue().loadLabel(pm).toString(),choice.getValue()));
         Collator collator=Collator.getInstance(Locale.SIMPLIFIED_CHINESE);

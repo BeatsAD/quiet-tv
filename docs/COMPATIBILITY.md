@@ -73,6 +73,15 @@ Published b26 passed Debug build, 19 unit tests and Lint (0 errors, 28 warnings)
 
 The published b24 universal APK passed its optimized build, full Lint (0 errors, 27 warnings), package and signature checks, and GitHub download hash verification. It has not been installed on a TV or emulator. Historical emulator and b23 hardware checks do not validate b24, other vendors, real HOME changes, pairing, casting, or long-running operation. Unknown firmware retains read-only system-package behavior.
 
+## 儿童模式源码兼容
+
+| 功能 | 标准 API21+、安卓4.4、酷开 API26+ 包名档位 | 边界 |
+| --- | --- | --- |
+| 同排标签、隐藏、锁定、数字密码及恢复码 | 共用原生界面与本地存储，不使用系统停用、卸载或 ADB | 仅管理 Quiet TV 内的入口；关于页恢复码按三次确认显示 |
+| 单次限时、每日累计、家长追加时间 | 共用独立无障碍计时服务；API19 使用旧屏幕状态接口，API33+ 使用受限广播注册 | 依赖本机无障碍窗口事件和后台显示能力；安卓4.4不因桌面守护被禁用而裁剪本服务 |
+
+本轮 Android TV API33 Debug 模拟验证覆盖数字恢复码、遥控三次确认、家长验证及密码重设、隐藏与锁定、预设及自定义时长、重新进入验证、家长追加时间、前台计时、切换暂停、息屏暂停／唤醒继续和到时限制页。标准、安卓4.4与酷开包名档位通过编译和 Lint（0 错误，仍有警告），标准档另通过 R8 优化检查；标准与安卓4.4各通过 8 项儿童模式规则／密码单元测试。源码构建／静态检查与模拟验证分开记录，实际厂商固件、实体遥控器、待机唤醒、长时间使用及升级后的规则保留仍需真机验收；不代表现有 Release 已包含。用法见[儿童模式](APP_MANAGEMENT.md#儿童模式)。
+
 ## 信号源兼容
 
 1.1.2 标准包已包含原厂信号源面板回退；安卓4.4兼容包仍使用系统设置／遥控器。Android 标准 TV Input 列表为空或服务不可用，并不证明电视没有输入接口。标准路径继续读取本机输入；回退按实际安装的系统组件、启用状态、导出状态和调用权限检测，不按品牌名称套用固定 HDMI 数量，也不自动修改系统组件或权限。

@@ -21,7 +21,9 @@ final class AboutView extends FrameLayout {
     private final Typeface font;
     private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Shader glow,shade;
-    private final View back,license,upstream;
+    private final View back,license,upstream,recovery;
+    private final TextView recoveryValue;
+    private final ChildModePolicy.TriplePress recoveryPress=new ChildModePolicy.TriplePress();
     private final FrameLayout artboard;
 
     AboutView(Context context,CharSequence name,String version,boolean debug,Runnable exit,Runnable licenses,Runnable source) {
@@ -76,7 +78,13 @@ final class AboutView extends FrameLayout {
         label("基于",21,400,0xff8394ad,939,863,45,41,null);
         TextView origin=label("tv-vibehack",21,400,0xffa7b9d1,978,863,124,41,null);origin.setPadding(7,0,7,0);
         upstream=action(origin,"upstream-link",978,863,124,41,source);
-        label(" · 感谢 Gathin",21,400,0xff8394ad,1102,863,300,41,null);
+        TextView thanks=label("  感谢 Gathin",21,400,0xff8394ad,1102,863,300,41,null);
+        int recoveryX=1102+(int)Math.ceil(thanks.getPaint().measureText(thanks.getText().toString()))+28;
+        TextView recoveryText=label("恢复码",21,400,0xffa7b9d1,recoveryX,863,76,41,null);
+        recovery=action(recoveryText,"recovery-link",recoveryX,863,76,41,this::revealRecovery);
+        recovery.setOnFocusChangeListener((view,focused)->{if(!focused)recoveryPress.clear();artboard.invalidate();});
+        recoveryValue=label("",21,400,0xffdbe5f4,recoveryX+104,863,220,41,"recovery-value");
+        recoveryValue.setVisibility(View.INVISIBLE);
         back.requestFocus();
     }
 
@@ -112,12 +120,18 @@ final class AboutView extends FrameLayout {
         float scale=Math.min(w/1920f,h/1080f);artboard.setScaleX(scale);artboard.setScaleY(scale);
         artboard.setTranslationX((w-1920*scale)/2);artboard.setTranslationY((h-1080*scale)/2);
     }
+    private void revealRecovery(){
+        if(!recoveryPress.press(android.os.SystemClock.elapsedRealtime()))return;
+        String value=new ChildModeStore(getContext()).recovery();recoveryValue.setText(value.isEmpty()?"尚未设置家长密码":value);recoveryValue.setVisibility(View.VISIBLE);
+    }
+    void hideRecovery(){recoveryPress.clear();recoveryValue.setText("");recoveryValue.setVisibility(View.INVISIBLE);}
     void focusLicense(){license.requestFocus();}
     void move(int key) {
         View active=artboard.findFocus(),next=null;
         if(active==back && (key==KeyEvent.KEYCODE_DPAD_DOWN||key==KeyEvent.KEYCODE_DPAD_RIGHT))next=license;
         else if(active==license){if(key==KeyEvent.KEYCODE_DPAD_RIGHT)next=upstream;else if(key==KeyEvent.KEYCODE_DPAD_UP||key==KeyEvent.KEYCODE_DPAD_LEFT)next=back;}
-        else if(active==upstream){if(key==KeyEvent.KEYCODE_DPAD_LEFT)next=license;else if(key==KeyEvent.KEYCODE_DPAD_UP)next=back;}
+        else if(active==upstream){if(key==KeyEvent.KEYCODE_DPAD_LEFT)next=license;else if(key==KeyEvent.KEYCODE_DPAD_UP)next=back;else if(key==KeyEvent.KEYCODE_DPAD_RIGHT)next=recovery;}
+        else if(active==recovery){if(key==KeyEvent.KEYCODE_DPAD_LEFT)next=upstream;else if(key==KeyEvent.KEYCODE_DPAD_UP)next=back;}
         if(next!=null)next.requestFocus();
     }
     void activate(){View view=artboard.findFocus();if(view!=null)view.performClick();}
