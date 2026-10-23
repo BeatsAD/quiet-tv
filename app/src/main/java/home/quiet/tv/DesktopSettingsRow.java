@@ -21,7 +21,7 @@ final class DesktopSettingsRow extends LinearLayout {
         background.addState(new int[]{android.R.attr.state_focused},ui.surface(0x24ffffff,0x16ffffff,0xfff3f4f7,10));
         background.addState(new int[]{android.R.attr.state_selected},ui.surface(0x14ffffff,0x10ffffff,0x1effffff,10));
         background.addState(new int[]{},new ColorDrawable(Color.TRANSPARENT));setBackground(background);
-        start=new ImageView(ui);int resource="shield".equals(symbol)?R.drawable.ic_manage_shield:"refresh".equals(symbol)?R.drawable.ic_manage_refresh:0;
+        start=new ImageView(ui);int resource="shield".equals(symbol)?R.drawable.ic_manage_shield:0;
         if(resource!=0){start.setImageDrawable(UiCompat.drawable(ui,resource));start.setColorFilter(0xffa2a8b3);}else start.setImageDrawable(new Glyph(symbol,0xffa2a8b3));
         LayoutParams ip=new LayoutParams(ui.px(navigation?17:18),ui.px(navigation?17:18));ip.rightMargin=ui.px(13);addView(start,ip);
         LinearLayout copy=new LinearLayout(ui);copy.setOrientation(VERTICAL);copy.setGravity(Gravity.CENTER_VERTICAL);addView(copy,new LayoutParams(0,-1,1));
@@ -58,15 +58,15 @@ final class DesktopSettingsRow extends LinearLayout {
         final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);final String kind;
         Glyph(String kind,int color){this.kind=kind;p.setColor(color);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(1.6f);p.setStrokeCap(Paint.Cap.ROUND);p.setStrokeJoin(Paint.Join.ROUND);}
         private void line(Canvas c,float... points){Path path=new Path();path.moveTo(points[0],points[1]);for(int i=2;i<points.length;i+=2)path.lineTo(points[i],points[i+1]);c.drawPath(path,p);}
-        @Override public void draw(Canvas c){Rect r=getBounds();int save=c.save();c.translate(r.left,r.top);c.scale(r.width()/24f,r.height()/24f);
+        @Override public void draw(Canvas c){Rect r=getBounds();int save=c.save();float size=Math.min(r.width(),r.height());c.translate(r.left+(r.width()-size)/2f,r.top+(r.height()-size)/2f);c.scale(size/24f,size/24f);
             switch(kind){
                 case "desktop":c.drawRoundRect(new RectF(3,4,21,20),2,2,p);line(c,3,9,21,9);line(c,9,9,9,20);break;
                 case "clock":c.drawCircle(12,12,9,p);line(c,12,6,12,12,16,14);break;
                 case "tools":for(int i=0;i<3;i++){float y=6+i*6,x=i==1?15:8;line(c,3,y,21,y);line(c,x,y-2,x,y+2);}break;
                 case "weather":c.drawCircle(8,8,4,p);line(c,8,1,8,2);line(c,1,8,2,8);line(c,3,3,4,4);line(c,13,3,14,2);Path cloud=new Path();cloud.moveTo(8,20);cloud.cubicTo(2,20,3,12,8,13);cloud.cubicTo(9,7,17,7,18,13);cloud.cubicTo(24,13,23,20,18,20);cloud.close();c.drawPath(cloud,p);break;
                 case "locate":c.drawCircle(12,12,7,p);c.drawCircle(12,12,3,p);line(c,12,1,12,5);line(c,12,19,12,23);line(c,1,12,5,12);line(c,19,12,23,12);break;
-                case "pin":c.drawCircle(12,9,2.5f,p);Path pin=new Path();pin.moveTo(12,22);pin.cubicTo(-5,6,8,-3,17,4);pin.cubicTo(25,10,15,19,12,22);c.drawPath(pin,p);break;
-                case "refresh":c.drawArc(new RectF(4,4,20,20),45,290,false,p);line(c,20,3,20,9,14,9);break;
+                case "pin":c.drawCircle(12,9,2.5f,p);Path pin=new Path();pin.moveTo(12,22);pin.cubicTo(10,20,4,14,4,9);pin.cubicTo(4,4.58f,7.58f,1,12,1);pin.cubicTo(16.42f,1,20,4.58f,20,9);pin.cubicTo(20,14,14,20,12,22);pin.close();c.drawPath(pin,p);break;
+                case "refresh":Path refresh=new Path();refresh.addArc(new RectF(4,4,20,20),45,270);refresh.lineTo(20,9);c.drawPath(refresh,p);line(c,20,3,20,9,14,9);break;
                 case "shield":line(c,12,2,21,6,20,15,17,20,12,23,7,20,4,15,3,6,12,2);break;
                 case "logs":c.drawRoundRect(new RectF(5,2,19,22),2,2,p);line(c,8,8,16,8);line(c,8,12,16,12);line(c,8,16,14,16);break;
                 case "info":c.drawCircle(12,12,9,p);line(c,12,11,12,17);c.drawPoint(12,7,p);break;
