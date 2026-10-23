@@ -10,7 +10,7 @@ public final class HomeGuardActivity extends ManagementUi {
     @Override public void onCreate(Bundle saved){
         super.onCreate(saved);((TextView)header.getChildAt(1)).setText("桌面守护（实验）");
         View back=header.getChildAt(0);back.setId(View.generateViewId());
-        panel=new HomeGuardPanel(this,back);panel.restoreState(saved);
+        panel=new HomeGuardPanel(this,back,true);panel.restoreState(saved);
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,0,1);p.topMargin=px(18);root.addView(panel.view,p);
         if(saved==null)root.post(()->panel.firstRow().requestFocus());
     }

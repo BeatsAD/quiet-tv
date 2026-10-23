@@ -22,12 +22,13 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
     private final Runnable bindingRefresh=()->{if(this.resumed)refreshUi();};
     private Button more;
     private final View back;
+    private final boolean headerActions;
     private ManagementUi.Sheet openSheet;
     private boolean resumed;
     private String resumeFocus;
     private final Runnable update=this::refreshUi;
-    HomeGuardPanel(ManagementUi ui,View back){
-        this.ui=ui;this.back=back;state=new HomeGuardState(ui);state.configure();
+    HomeGuardPanel(ManagementUi ui,View back,boolean headerActions){
+        this.ui=ui;this.back=back;this.headerActions=headerActions;state=new HomeGuardState(ui);state.configure();
         adb=new AdbController(ui,value->ui.runOnUiThread(()->{if(resumed)guardRow.description(value);}));
         connection=new AdbConnectionPanel(ui,adb,worker);
         view=new ScrollView(ui);view.setFocusable(false);view.setVerticalScrollBarEnabled(false);
@@ -40,7 +41,8 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
         guardRow=setting("桌面守护","shield","guard-enabled");guardRow.checked(false);guardRow.setOnClickListener(v->toggleGuard());addSetting(group,guardRow);
         ui.gap(body,18);body.addView(ui.muted("首次授权后自动运行，不读取屏幕或通知内容。可在更多操作中配置自动恢复。",12));
         ui.gap(body,7);body.addView(ui.muted("启用后，请分别验证遥控器 HOME、重启和待机唤醒，并确认 HDMI 与播放不受影响。",12));
-        ui.gap(body,14);LinearLayout actions=ui.row();actions.setGravity(Gravity.END);body.addView(actions,new LinearLayout.LayoutParams(-1,ui.px(38)));
+        LinearLayout actions=ui.header;
+        if(!headerActions){ui.gap(body,14);actions=ui.row();actions.setGravity(Gravity.END);body.addView(actions,new LinearLayout.LayoutParams(-1,ui.px(38)));}
         more=ui.button("更多操作",this::showMore);more.setId(View.generateViewId());more.setTag("guard-more");actions.addView(more,new LinearLayout.LayoutParams(-2,-1));
     }
     private DesktopSettingsRow setting(String title,String symbol,String tag){DesktopSettingsRow row=new DesktopSettingsRow(ui,title,symbol,false);row.setTag(tag);return row;}
@@ -79,18 +81,23 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
         guardRow.checked(state.enabled());guardRow.description(state.enabled()?summary:!problem.isEmpty()?problem:"未启用".equals(summary)||"已暂停".equals(summary)?"配置已就绪，打开右侧开关即可启用。":summary);
         guardRow.setEnabled(supported);
         wireFocus();
-        View focus=resumeFocus!=null?view.findViewWithTag(resumeFocus):previous;resumeFocus=null;
+        View focus=resumeFocus!=null?ui.root.findViewWithTag(resumeFocus):previous;resumeFocus=null;
         if(focus==null||!focus.isShown()||!focus.isEnabled())focus=preferredFocus();
         if(focus!=ui.getCurrentFocus())focus.requestFocus();
     }
     private View preferredFocus(){if(state.enabled()&&guardRow.isEnabled())return guardRow;if(!state.validSelection()&&homeRow.isEnabled())return homeRow;if(!state.serviceEnabled()&&accessibilityRow.isEnabled())return accessibilityRow;return guardRow.isEnabled()?guardRow:more;}
     private void wireFocus(){
-        View previous=back;
-        for(View row:new View[]{homeRow,accessibilityRow,notificationRow,guardRow,more}){
+        View previous=headerActions?more:back;
+        View[] rows=headerActions?new View[]{homeRow,accessibilityRow,notificationRow,guardRow}:new View[]{homeRow,accessibilityRow,notificationRow,guardRow,more};
+        for(View row:rows){
             if(!row.isEnabled())continue;
             previous.setNextFocusDownId(row.getId());row.setNextFocusUpId(previous.getId());row.setNextFocusLeftId(row.getId());row.setNextFocusRightId(row.getId());previous=row;
         }
         previous.setNextFocusDownId(previous.getId());
+        if(headerActions){
+            back.setNextFocusLeftId(back.getId());back.setNextFocusRightId(more.getId());back.setNextFocusUpId(back.getId());back.setNextFocusDownId(more.getNextFocusDownId());
+            more.setNextFocusLeftId(back.getId());more.setNextFocusRightId(more.getId());more.setNextFocusUpId(more.getId());
+        }
     }
     private void openAccessibility(){
         resumeFocus="guard-accessibility";
