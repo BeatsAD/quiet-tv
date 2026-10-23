@@ -29,6 +29,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private static final String WALLPAPER_ENTRY = HomeAppCatalog.WALLPAPER;
     private static final String DESKTOP_SETTINGS_ENTRY = HomeAppCatalog.DESKTOP_SETTINGS;
     private static final String MANAGEMENT_ENTRY = HomeAppCatalog.MANAGEMENT;
+    private static final String ADD_DOCK_ENTRY = "quiet:add-dock";
     static final int APP_COLUMNS = 5;
     private static final float CONTENT_MARGIN = 48;
     // Raise the app viewport while keeping the home title and dock at y=314/386.
@@ -177,7 +178,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             @Override public void onScrolled(RecyclerView rv, int dx, int dy) {
                 View header=layout.findViewByPosition(0);
                 if(header!=null)header.setAlpha(Math.max(0,Math.min(1,1+header.getTop()/(float)px(180))));
-                positionGlass(false);if(dockBand!=null)dockBand.invalidate();
+                positionGlass(false);invalidateDockBackdrop();
             }
         });
         glass = new Glass(); root.addView(glass,new FrameLayout.LayoutParams(-1,-1));
@@ -389,7 +390,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 for(String pkg:pinned)for(App app:found)if(pkg.equals(app.pkg))dock.add(app);
                 HashMap<String,App> byId=new HashMap<>();for(App app:found)byId.put(app.pkg,app);
                 for(String id:gridOrder)apps.add(byId.get(id));
-                if(dock.isEmpty()){App empty=new App();empty.pkg="quiet:add-dock";empty.label=tr("添加常用应用","Add favorite apps");empty.banner=emptyDockBanner(empty.label);empty.color=0xff666972;dock.add(empty);}
+                if(dock.isEmpty()){App empty=new App();empty.pkg=ADD_DOCK_ENTRY;empty.label=tr("添加常用应用","Add favorite apps");empty.color=0xff666972;dock.add(empty);}
                 if(row>=0){
                     if(!activePackage.isEmpty()) {
                         for(int n=0;n<dock.size();n++)if(activePackage.equals(dock.get(n).pkg)){row=0;column=n;}
@@ -407,15 +408,6 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 main.post(()->{loadingApps=false;appsDirty=true;Log.w(TAG,"App refresh failed; retaining current tiles",e);});
             }
         });
-    }
-
-    private Bitmap emptyDockBanner(String title) {
-        Bitmap bitmap=Bitmap.createBitmap(360,203,Bitmap.Config.ARGB_8888);
-        Canvas canvas=new Canvas(bitmap);Paint paint=new Paint(3);
-        paint.setShader(new LinearGradient(0,0,360,203,new int[]{0xff2b2d33,0xff1b1d22},null,Shader.TileMode.CLAMP));canvas.drawRect(0,0,360,203,paint);paint.setShader(null);
-        paint.setColor(0xffe7e8ec);paint.setTextSize(28);paint.setTextAlign(Paint.Align.CENTER);
-        Paint.FontMetrics metrics=paint.getFontMetrics();
-        canvas.drawText(title,180,(203-metrics.ascent-metrics.descent)/2f,paint);return bitmap;
     }
 
     private int sampleColor(Bitmap bitmap) {
@@ -516,7 +508,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             updateDock(animate);if(previous!=tile)tile.invalidate();
             if(row>0){tile.setPivotX(tile.getWidth()/2f);tile.setPivotY(tile.getHeight()/2f);tile.animate().scaleX(FOCUS_SCALE).scaleY(FOCUS_SCALE).translationX(0).translationY(-px(2)).setDuration(320).setInterpolator(FOCUS_MOTION);}
             activePackage=app.pkg;
-            if(row==0 && heroTitle!=null)heroTitle.setText(app.label);
+            if(row==0 && heroTitle!=null)heroTitle.setText(tile.emptyDock()?tr("常用应用","Favorite apps"):app.label);
             wallpapers.setThemeColor(app.color);
             positionGlass(animate);saveFocus();Log.i(TAG,"Focus row="+row+" column="+column+" package="+app.pkg);
         });
@@ -525,7 +517,12 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private App currentApp(){if(row==0)return dock.isEmpty()?null:dock.get(Math.min(column,dock.size()-1));int n=(row-1)*APP_COLUMNS+column;return n>=0&&n<apps.size()?apps.get(n):null;}
 
-    private void launchSelected(){App app=currentApp();if(app==null)return;saveFocus();if("quiet:add-dock".equals(app.pkg)){startActivity(new Intent(this,DockEditorActivity.class));return;}if(DESKTOP_SETTINGS_ENTRY.equals(app.pkg)){startActivity(new Intent(this,DesktopSettingsActivity.class));return;}if(MANAGEMENT_ENTRY.equals(app.pkg)){startActivity(new Intent(this,AppManagementActivity.class));return;}if(WALLPAPER_ENTRY.equals(app.pkg)){wallpapers.showPicker();return;}try{if(ChildBlockActivity.gate(this,app.pkg))return;if(new HomeGuardState(this).protects(app.pkg))HomeGuardService.allowOriginal();startActivity(new Intent(Intent.ACTION_MAIN).setComponent(app.component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));}catch(RuntimeException e){Toast.makeText(this,tr("应用暂不可用，请检查儿童模式设置","App unavailable"),Toast.LENGTH_SHORT).show();}}
+    private void launchSelected(){App app=currentApp();if(app==null)return;saveFocus();if(ADD_DOCK_ENTRY.equals(app.pkg)){startActivity(new Intent(this,DockEditorActivity.class));return;}if(DESKTOP_SETTINGS_ENTRY.equals(app.pkg)){startActivity(new Intent(this,DesktopSettingsActivity.class));return;}if(MANAGEMENT_ENTRY.equals(app.pkg)){startActivity(new Intent(this,AppManagementActivity.class));return;}if(WALLPAPER_ENTRY.equals(app.pkg)){wallpapers.showPicker();return;}try{if(ChildBlockActivity.gate(this,app.pkg))return;if(new HomeGuardState(this).protects(app.pkg))HomeGuardService.allowOriginal();startActivity(new Intent(Intent.ACTION_MAIN).setComponent(app.component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));}catch(RuntimeException e){Toast.makeText(this,tr("应用暂不可用，请检查儿童模式设置","App unavailable"),Toast.LENGTH_SHORT).show();}}
+
+    private void invalidateDockBackdrop() {
+        if(dockBand!=null)dockBand.invalidate();
+        for(Tile tile:dockTiles)if(tile.emptyDock())tile.invalidate();
+    }
 
     private void updateDock(boolean animate) {
         if(dockTiles.isEmpty()||dockBand==null||dockBand.getWidth()==0)return;
@@ -537,7 +534,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         float[] shifts=DockMotion.translations(dockTiles.size(),focus,first.getWidth(),gap,first.getLeft(),dockBand.getWidth(),px(8));
         for(int i=0;i<dockTiles.size();i++){
             Tile item=dockTiles.get(i);item.animate().cancel();item.setPivotX(item.getWidth()/2f);item.setPivotY(item.getHeight());
-            float scale=DockMotion.scale(i,focus),rise=focus<0?0:i==focus?-px(2):Math.abs(i-focus)==1?-px(1):0;
+            float scale=item.emptyDock()?(focus<0?1:1.035f):DockMotion.scale(i,focus),rise=focus<0?0:i==focus?-px(2):Math.abs(i-focus)==1?-px(1):0;
+            if(item.emptyDock())shifts[i]=item.getWidth()*(scale-1)/2f;
             if(animate){
                 if(item.getScaleX()!=scale||item.getScaleY()!=scale||item.getTranslationX()!=shifts[i]||item.getTranslationY()!=rise)
                     item.animate().scaleX(scale).scaleY(scale).translationX(shifts[i]).translationY(rise).setDuration(focus<0?220:260).setInterpolator(FOCUS_MOTION);
@@ -549,7 +547,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private void pressDock(boolean pressed) {
         if(dockPress!=null)dockPress.cancel();
         if(row!=0||dockTiles.isEmpty())return;
-        Tile item=dockTiles.get(Math.min(column,dockTiles.size()-1));item.animate().cancel();float from=item.getScaleX(),target=DockMotion.scale(column,column)*(pressed?.98f:1);
+        Tile item=dockTiles.get(Math.min(column,dockTiles.size()-1));item.animate().cancel();float from=item.getScaleX(),target=(item.emptyDock()?1.035f:DockMotion.scale(column,column))*(pressed?.98f:1);
         dockPress=ValueAnimator.ofFloat(from,target);dockPress.setDuration(pressed?80:120);dockPress.setInterpolator(FOCUS_MOTION);
         dockPress.addUpdateListener(a->{float value=(float)a.getAnimatedValue();item.setScaleX(value);item.setScaleY(value);});dockPress.start();
     }
@@ -578,7 +576,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 FrameLayout header=new FrameLayout(HomeActivity.this);header.setClipChildren(false);header.setLayoutParams(new RecyclerView.LayoutParams(-1,px(HOME_HEADER_HEIGHT)));
                 heroTitle=text("",40,400,0xfff1f2f6);heroTitle.setVisibility(desktopSettings.showAppTitle()?View.VISIBLE:View.GONE);place(header,heroTitle,820,56,2,HOME_TITLE_TOP);
                 FrameLayout band=new FrameLayout(HomeActivity.this);dockBand=band;
-                band.setBackground(new DockBackdropDrawable(wallpapers,band,root,unit));wallpapers.observeDock(band::invalidate);
+                wallpapers.observeDock(HomeActivity.this::invalidateDockBackdrop);
                 band.setClipChildren(false);place(header,band,-1,dockHeight+2*dockPadding,0,HOME_DOCK_TOP);
                 header.setTag(band);view=header;
             }else if(type==1){TextView title=text(tr("全部应用","All apps"),18,400,0xffbbbbc3);title.setPadding(px(3),px(4),0,0);title.setLayoutParams(new RecyclerView.LayoutParams(-1,px(APP_TITLE_HEIGHT)));view=title;}
@@ -588,11 +586,14 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         @Override public void onBindViewHolder(RecyclerView.ViewHolder holder,int position){
             if(position==0){
                 FrameLayout band=(FrameLayout)holder.itemView.getTag();if(dockPress!=null)dockPress.cancel();for(Tile old:dockTiles)old.animate().cancel();band.removeAllViews();dockTiles.clear();dockFocus=-2;
+                boolean empty=dock.size()==1&&ADD_DOCK_ENTRY.equals(dock.get(0).pkg);
+                float width=empty?176:dockWidth,height=empty?112:dockHeight;
+                band.setBackground(empty?null:new DockBackdropDrawable(wallpapers,band,root,unit));
                 FrameLayout.LayoutParams bandParams=(FrameLayout.LayoutParams)band.getLayoutParams();
-                bandParams.width=px(2*dockPadding+dock.size()*dockWidth+Math.max(0,dock.size()-1)*dockGap);
-                bandParams.gravity=Gravity.TOP|Gravity.CENTER_HORIZONTAL;band.setLayoutParams(bandParams);
-                for(int n=0;n<dock.size();n++){Tile tile=new Tile();tile.bind(dock.get(n));dockTiles.add(tile);place(band,tile,dockWidth,dockHeight,dockPadding+n*(dockWidth+dockGap),dockPadding);}
-                if(!dock.isEmpty()){App app=dock.get(Math.min(Math.max(column,0),dock.size()-1));heroTitle.setText(app.label);}band.post(()->updateDock(false));
+                bandParams.width=px(2*dockPadding+dock.size()*width+Math.max(0,dock.size()-1)*dockGap);bandParams.height=px(height+2*dockPadding);
+                bandParams.gravity=Gravity.TOP|(empty?Gravity.START:Gravity.CENTER_HORIZONTAL);bandParams.leftMargin=empty?-px(dockPadding):0;band.setLayoutParams(bandParams);
+                for(int n=0;n<dock.size();n++){Tile tile=new Tile();tile.bind(dock.get(n));dockTiles.add(tile);place(band,tile,width,height,dockPadding+n*(width+dockGap),dockPadding);}
+                if(!dock.isEmpty()){App app=dock.get(Math.min(Math.max(column,0),dock.size()-1));heroTitle.setText(empty?tr("常用应用","Favorite apps"):app.label);}band.post(()->updateDock(false));
             }else if(position>=2)((Tile)holder.itemView).bind(apps.get(position-2));
         }
         @Override public void onViewRecycled(RecyclerView.ViewHolder holder){if(holder.itemView instanceof Tile){Tile tile=(Tile)holder.itemView;if(tile.app!=null && visibleTiles.get(tile.app.pkg)==tile)visibleTiles.remove(tile.app.pkg);}}
@@ -600,16 +601,36 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private final class Tile extends View {
         App app;final Paint paint=new Paint(3);final Path clip=new Path();final RectF imageRect=new RectF();Shader highlight;
+        final int[] location=new int[2],origin=new int[2];
         Tile(){super(HomeActivity.this);setOnClickListener(v->{if(app!=null){for(int n=0;n<dock.size();n++)if(dock.get(n)==app){row=0;column=n;}for(int n=0;n<apps.size();n++)if(apps.get(n)==app){row=1+n/APP_COLUMNS;column=n%APP_COLUMNS;}focusCurrent(true);launchSelected();}});}
         void bind(App value){if(app!=null && visibleTiles.get(app.pkg)==this)visibleTiles.remove(app.pkg);app=value;visibleTiles.put(app.pkg,this);setContentDescription(app.label);invalidate();}
-        float imageHeight(){return getWidth()*203f/360f;}
+        boolean emptyDock(){return app!=null&&ADD_DOCK_ENTRY.equals(app.pkg);}
+        float imageHeight(){return emptyDock()?getHeight():getWidth()*203f/360f;}
         @Override protected void onSizeChanged(int w,int h,int oldw,int oldh){super.onSizeChanged(w,h,oldw,oldh);highlight=new LinearGradient(0,0,w,imageHeight(),new int[]{0x30ffffff,0x09ffffff},null,Shader.TileMode.CLAMP);}
-        @Override protected void onDraw(Canvas c){super.onDraw(c);if(app==null)return;float h=imageHeight(),radius=px(11);RectF rect=imageRect;rect.set(0,0,getWidth(),h);clip.reset();clip.addRoundRect(rect,radius,radius,Path.Direction.CW);c.save();c.clipPath(clip);paint.setColor(0xff191a20);c.drawRect(rect,paint);c.drawBitmap(app.banner,null,rect,paint);
+        @Override protected void onDraw(Canvas c){super.onDraw(c);if(app==null)return;float h=imageHeight(),radius=px(emptyDock()?16:11);RectF rect=imageRect;rect.set(0,0,getWidth(),h);clip.reset();clip.addRoundRect(rect,radius,radius,Path.Direction.CW);c.save();c.clipPath(clip);
+            if(emptyDock())drawEmptyDock(c,rect);
+            else{paint.setColor(0xff191a20);c.drawRect(rect,paint);c.drawBitmap(app.banner,null,rect,paint);}
             if(selected==this && row>=0){
-                paint.setShader(highlight);c.drawRect(rect,paint);paint.setShader(null);
-                float stroke=px(FOCUS_STROKE),inset=stroke/2f;rect.inset(inset,inset);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(stroke);paint.setColor(Color.WHITE);c.drawRoundRect(rect,Math.max(0,radius-inset),Math.max(0,radius-inset),paint);paint.setStyle(Paint.Style.FILL);
+                if(!emptyDock()){paint.setShader(highlight);c.drawRect(rect,paint);paint.setShader(null);}
+                float stroke=px(emptyDock()?1.5f:FOCUS_STROKE),inset=stroke/2f;rect.inset(inset,inset);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(stroke);paint.setColor(Color.WHITE);c.drawRoundRect(rect,Math.max(0,radius-inset),Math.max(0,radius-inset),paint);paint.setStyle(Paint.Style.FILL);
             }
             c.restore();
+        }
+        private void drawEmptyDock(Canvas canvas,RectF rect){
+            // Reuse the screen-aligned wallpaper cache; never bake in a wallpaper hue.
+            getLocationInWindow(location);root.getLocationInWindow(origin);
+            int save=canvas.save();canvas.translate(origin[0]-location[0],origin[1]-location[1]);wallpapers.drawDockBackground(canvas,paint);canvas.restoreToCount(save);
+            paint.setColor(0x1fffffff);canvas.drawRect(rect,paint);
+            float center=getWidth()/2f,circle=px(16),gap=px(10);
+            paint.setTypeface(outfit);paint.setTextSize(px(14));paint.setTextAlign(Paint.Align.CENTER);
+            Paint.FontMetrics metrics=paint.getFontMetrics();
+            float top=(rect.height()-2*circle-gap-(metrics.descent-metrics.ascent))/2f,cy=top+circle;
+            paint.setColor(0x0fffffff);canvas.drawCircle(center,cy,circle,paint);
+            paint.setColor(Color.WHITE);paint.setStrokeWidth(px(1.5f));paint.setStrokeCap(Paint.Cap.ROUND);
+            canvas.drawLine(center-px(6),cy,center+px(6),cy,paint);canvas.drawLine(center,cy-px(6),center,cy+px(6),paint);paint.setStrokeCap(Paint.Cap.BUTT);
+            paint.setTextSize(Math.min(px(14),px(14)*(getWidth()-px(20))/paint.measureText(app.label)));metrics=paint.getFontMetrics();
+            canvas.drawText(app.label,center,top+2*circle+gap-metrics.ascent,paint);
+            if(selected!=this||row<0){float stroke=Math.max(1,px(.5f)),inset=stroke/2f;rect.inset(inset,inset);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(stroke);paint.setColor(0x38ffffff);canvas.drawRoundRect(rect,px(16)-inset,px(16)-inset,paint);paint.setStyle(Paint.Style.FILL);}
         }
     }
 
