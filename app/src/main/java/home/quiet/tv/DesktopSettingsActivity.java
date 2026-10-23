@@ -26,6 +26,8 @@ public final class DesktopSettingsActivity extends ManagementUi {
         gap(root,14);
         Switch buttons=option(chinese?"显示右侧按钮":"Show right-side buttons",store.showButtons());
         buttons.setOnCheckedChangeListener((view,checked)->store.showButtons(checked));
+        gap(root,14);root.addView(button(chinese?"天气设置":"Weather settings",
+            ()->startActivity(new android.content.Intent(this,WeatherSettingsActivity.class))),new LinearLayout.LayoutParams(-2,px(42)));
         if(!BuildConfig.LEGACY_19){
             gap(root,20);
             root.addView(button(chinese?"桌面守护（实验）":"Desktop guard (experimental)",

@@ -68,6 +68,16 @@ Open the independent Desktop Settings module after Wallpaper Settings in All App
 
 ![Desktop display settings on the Sony TV, 1.1.2 / 34](assets/desktop-settings-1.1.2.png)
 
+## Home weather (development source)
+
+A static icon, temperature, conditions and city appear beside the greeting on the same line; clock/date positions stay unchanged. Open All Apps → Desktop Settings → Weather Settings to disable weather, use automatic location, search and pin a city, or refresh. No ADB is needed and the system Settings button is unchanged. This feature is not included in the published 1.1.2 packages above.
+
+The client calls the [free UAPI weather service](https://uapis.cn/docs/api-reference/get-misc-weather) directly over HTTPS, with no account, API key or self-hosted server. With existing approximate-location permission, a bounded system network-location request is tried first; coordinates are rounded to two decimal places for region lookup. Otherwise the service estimates a city from the network egress IP. A manually pinned city always takes priority. Automatic location in Weather Settings can request approximate permission; denial still permits IP estimation or manual selection. IP estimates can be inaccurate behind a proxy or ISP gateway. The service receives the request IP and queried region; see its [privacy and terms](https://uapis.cn/docs/getting-started/privacy-policy).
+
+Weather refreshes about every 30 minutes while Home is visible. Returning Home uses cached data first; backgrounding cancels location and scheduled requests. Failed updates or data older than one hour show “Not updated”; data older than six hours no longer shows a temperature. If the upstream observation time cannot be parsed, cache retention uses fetch time and settings explicitly report that observation time is unavailable. Missing data never becomes 0°C or a default city's weather. Free access has dynamic rate limits and no perpetual availability guarantee; a 429 pauses refresh for at least 30 minutes and respects a longer service retry delay.
+
+Android 4.4 enables TLS 1.2 for this connection only, retaining system trust and hostname verification with no plaintext fallback. Old firmware trust stores and OEM location behavior still need hardware acceptance. Icons use local native drawing, without video, WebView or continuous animation.
+
 ## Inputs and settings
 
 Inputs are read from the actual TV Input list. The adapted Sony exposes HDMI 1–4, AV, and Live TV. An empty channel database offers settings without automatically tuning channels. Network and Settings open their corresponding system screens.
