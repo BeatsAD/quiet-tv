@@ -61,7 +61,7 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     void leaveManagement(Runnable action){action.run();}
     LinearLayout toolbar(int selected){
         LinearLayout tools=row();LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,px(54));p.topMargin=px(22);root.addView(tools,p);
-        Class<?>[] pages={AppManagementActivity.class,DockEditorActivity.class,HomeSortActivity.class,ChildModeActivity.class};String[] titles={"应用列表","常用应用","首页排序","儿童模式"};
+        Class<?>[] pages={AppManagementActivity.class,DockEditorActivity.class,HomeSortActivity.class,ChildModeActivity.class};String[] titles={"应用列表","首页应用","应用排序","儿童模式"};
         for(int i=0;i<pages.length;i++){
             final int page=i;
             tab(tools,titles[i],selected==i,()->{if(page!=selected)leaveManagement(()->{

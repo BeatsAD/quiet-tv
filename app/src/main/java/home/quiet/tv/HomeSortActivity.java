@@ -190,7 +190,7 @@ public final class HomeSortActivity extends ManagementUi {
         return super.dispatchKeyEvent(event);
     }
     private View findSortTab(View view){
-        if(view instanceof Button && "首页排序".contentEquals(((Button)view).getText()))return view;
+        if(view instanceof Button && "应用排序".contentEquals(((Button)view).getText()))return view;
         if(view instanceof ViewGroup){ViewGroup group=(ViewGroup)view;for(int i=0;i<group.getChildCount();i++){View found=findSortTab(group.getChildAt(i));if(found!=null)return found;}}return null;
     }
     private final class Cards extends RecyclerView.Adapter<Cards.Holder>{
