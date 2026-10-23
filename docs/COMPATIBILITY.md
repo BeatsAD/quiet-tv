@@ -25,6 +25,20 @@ Source includes legacy networking/font fallbacks, detected HOME settings, Back h
 
 ## 已验证与待验收 / Evidence boundaries
 
+### 桌面布局与实时预览开发源码 / Desktop layouts and live preview
+
+顶部标签替代原侧栏，仅“桌面显示”提供固定首页预览；天气设置和桌面守护使用完整内容区。经典布局、艺术画廊居中及问候语、时间、日期、天气、三个快捷按钮的独立显隐共用同一套原生代码。日期首次继承旧时间日期开关状态；已有问候语、天气、快捷按钮及应用封面配置继续复用。
+
+| 档位 / Profile | 共用功能及差异 / Features | 本轮验证 / Validation |
+| --- | --- | --- |
+| 标准 API21+ | 三个标签、两种布局、实时预览 | 构建与 Lint 通过；API22 和 API31 模拟回归通过，API31 的 720p／1080p 验证覆盖256种组合、遥控焦点、数据迁移、问候语保存取消、页面重建、真实壁纸及常用应用封面。 |
+| 安卓4.4 / legacy19 | 同一布局与预览；沿用桌面守护禁用策略，仅显示前两个标签 | 构建与 Lint 通过；API22 上运行兼容档通过相同256种组合与核心交互。本轮无可运行 API19 镜像，Android4.4实际运行仍待验收。 |
+| 酷开 API26 独立包名 | 复用标准档的布局代码 | 本轮未单独构建或进行酷开固件验收。 |
+
+预览读取本地壁纸、常用应用封面和有效天气缓存，动态壁纸使用本地封面，Dock复用当前磨砂样式并按应用数量居中伸缩，不启动第二套天气请求或壁纸播放流程。以上为本地开发验证，尚未发布，也未安装实体电视；厂商遥控、HOME、待机唤醒、升级数据保留及低内存表现需目标设备验收。
+
+Both layouts share the native Home header with the preview. Only Desktop shows the preview; Weather and Guard use the full content area. Standard emulator checks passed on API22 and API31; API31 covers 720p/1080p and 256 visibility combinations. The legacy19 build passed the same functional checks on API22, which does not establish Android4.4 runtime acceptance. No physical TV or separate Coocaa package acceptance was performed, and this work is not released.
+
 ### 动态壁纸开发源码 / Video wallpaper source
 
 默认关闭，图片和 MP4 共用上传入口，使用系统 MediaPlayer 和固定背景 SurfaceView。源码构建不代表已发布的安装包包含此功能。

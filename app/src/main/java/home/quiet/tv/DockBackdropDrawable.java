@@ -7,7 +7,8 @@ import android.view.View;
 /** Samples only wallpaper pixels, never the Dock's cards or its own surface. */
 final class DockBackdropDrawable extends Drawable {
     private static final int CACHE_WIDTH=320;
-    private final WallpaperController wallpapers;
+    interface Background {void draw(Canvas canvas,Paint paint);}
+    private final Background background;
     private final View host,root;
     private final float unit;
     private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);
@@ -17,7 +18,10 @@ final class DockBackdropDrawable extends Drawable {
     private Shader tint;
 
     DockBackdropDrawable(WallpaperController wallpapers,View host,View root,float unit){
-        this.wallpapers=wallpapers;this.host=host;this.root=root;this.unit=unit;
+        this(wallpapers::drawDockBackground,host,root,unit);
+    }
+    DockBackdropDrawable(Background background,View host,View root,float unit){
+        this.background=background;this.host=host;this.root=root;this.unit=unit;
     }
     @Override protected void onBoundsChange(Rect bounds){
         rect.set(bounds);clip.reset();clip.addRoundRect(rect,22*unit,22*unit,Path.Direction.CW);
@@ -28,8 +32,8 @@ final class DockBackdropDrawable extends Drawable {
         canvas.save();canvas.translate(0,2*unit);canvas.drawRoundRect(rect,22*unit,22*unit,paint);canvas.restore();
         int save=canvas.save();canvas.clipPath(clip);
         host.getLocationInWindow(location);root.getLocationInWindow(origin);
-        canvas.translate(origin[0]-location[0],origin[1]-location[1]);
-        wallpapers.drawDockBackground(canvas,paint);
+        canvas.translate((origin[0]-location[0])/root.getScaleX(),(origin[1]-location[1])/root.getScaleY());
+        background.draw(canvas,paint);
         canvas.restoreToCount(save);
         paint.setAlpha(255);paint.setShader(tint);canvas.drawRoundRect(rect,22*unit,22*unit,paint);paint.setShader(null);
         float stroke=Math.max(1,.5f*unit);rect.inset(stroke/2,stroke/2);
