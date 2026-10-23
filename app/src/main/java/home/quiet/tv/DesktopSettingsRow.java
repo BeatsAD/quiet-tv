@@ -2,13 +2,14 @@ package home.quiet.tv;
 
 import android.graphics.*;
 import android.graphics.drawable.*;
+import android.util.TypedValue;
 import android.view.*;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.*;
 
 /** One remote focus target per setting; child artwork is presentation only. */
 final class DesktopSettingsRow extends LinearLayout {
-    private final TextView title,value;
+    private final TextView title,value,description;
     private final ImageView start,end;
     private final ManagementUi ui;
     private boolean checkable,checked;
@@ -23,15 +24,21 @@ final class DesktopSettingsRow extends LinearLayout {
         start=new ImageView(ui);int resource="shield".equals(symbol)?R.drawable.ic_manage_shield:"refresh".equals(symbol)?R.drawable.ic_manage_refresh:0;
         if(resource!=0){start.setImageDrawable(UiCompat.drawable(ui,resource));start.setColorFilter(0xffa2a8b3);}else start.setImageDrawable(new Glyph(symbol,0xffa2a8b3));
         LayoutParams ip=new LayoutParams(ui.px(navigation?17:18),ui.px(navigation?17:18));ip.rightMargin=ui.px(13);addView(start,ip);
-        title=ui.label(text,16);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);addView(title,new LayoutParams(0,-1,1));
+        LinearLayout copy=new LinearLayout(ui);copy.setOrientation(VERTICAL);copy.setGravity(Gravity.CENTER_VERTICAL);addView(copy,new LayoutParams(0,-1,1));
+        title=ui.label(text,16);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);copy.addView(title,new LayoutParams(-1,-2));
+        description=ui.muted("",12);description.setMaxLines(2);description.setEllipsize(android.text.TextUtils.TruncateAt.END);description.setVisibility(GONE);
+        LayoutParams dp=new LayoutParams(-1,-2);dp.topMargin=ui.px(4);copy.addView(description,dp);
         value=ui.muted("",13);value.setTextColor(0xffa2a8b3);value.setSingleLine(true);value.setMaxWidth(ui.px(300));value.setEllipsize(android.text.TextUtils.TruncateAt.END);addView(value,new LayoutParams(-2,-1));
         end=new ImageView(ui);LayoutParams ep=new LayoutParams(ui.px(18),ui.px(24));ep.leftMargin=ui.px(12);addView(end,ep);end.setVisibility(GONE);
         for(int i=0;i<getChildCount();i++)getChildAt(i).setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        copy.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
         setContentDescription(text);
     }
     void icon(int resource){start.setImageDrawable(UiCompat.drawable(ui,resource));start.clearColorFilter();}
-    void value(String text){value.setText(text);setContentDescription(title.getText()+(text.isEmpty()?"":"  "+text));}
+    void value(String text){value.setText(text);updateDescription();}
     String value(){return value.getText().toString();}
+    void description(String text){description.setText(text);description.setVisibility(text.isEmpty()?GONE:VISIBLE);title.setTextSize(TypedValue.COMPLEX_UNIT_PX,ui.px(text.isEmpty()?16:17));updateDescription();}
+    private void updateDescription(){setContentDescription(title.getText()+(value.length()==0?"":"  "+value.getText())+(description.length()==0?"":"  "+description.getText()));}
     void tail(String symbol){end.setImageDrawable(new Glyph(symbol,0xffa2a8b3));end.setVisibility(VISIBLE);}
     void checked(boolean enabled){checkable=true;checked=enabled;end.setVisibility(VISIBLE);LayoutParams p=(LayoutParams)end.getLayoutParams();p.width=ui.px(44);end.setLayoutParams(p);end.setImageDrawable(new Toggle(enabled));}
     boolean checked(){return checked;}
