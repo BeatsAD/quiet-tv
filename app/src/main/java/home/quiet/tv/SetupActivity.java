@@ -11,7 +11,9 @@ import java.util.*;
 import java.util.concurrent.*;
 
 /** Two native screens. UI choices are snapshots; the worker rechecks every write. */
-public final class SetupActivity extends ManagementUi {
+public final class SetupActivity extends ManagementUi implements SharedPreferences.OnSharedPreferenceChangeListener {
+    private HomeGuardState guardSettings;
+    private final Runnable guardRefresh=()->{if(this.active && !this.busy && !this.recovery && new HomeGuardState(this).compatibleReady())refresh();};
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private final Map<String,Boolean> choices=new LinkedHashMap<>();
     private final ArrayList<AppRepository.App> apps=new ArrayList<>();
@@ -47,8 +49,9 @@ public final class SetupActivity extends ManagementUi {
             if(switching!=null && !"complete".equals(switching.optString("state")) && !"rolled-back".equals(switching.optString("state")))notice="上次默认桌面切换未确认；请刷新实际状态，不会自动重试或禁用应用。";
         }catch(Exception e){recordAvailable=false;notice="设置记录无法读取；请先退出并检查记录，未执行任何操作。";}
     }
-    @Override protected void onResume(){super.onResume();active=true;refresh();}
+    @Override protected void onResume(){super.onResume();active=true;guardSettings=new HomeGuardState(this);guardSettings.preferences.registerOnSharedPreferenceChangeListener(this);refresh();}
     @Override protected void onStop(){active=false;cancel();super.onStop();}
+    @Override public void onSharedPreferenceChanged(SharedPreferences preferences,String key){root.removeCallbacks(guardRefresh);root.post(guardRefresh);}
     @Override protected void onDestroy(){cancel();adb.close();worker.shutdownNow();super.onDestroy();}
     public void handleBack(){if(!busy && !recovery && screen==1){screen=0;render();}else exit(false);}
     private void cancel(){if(ticket!=null)ticket.cancel();connection.close();adb.disconnect();busy=false;}
@@ -62,6 +65,10 @@ public final class SetupActivity extends ManagementUi {
             ui(task,()->{homeState=state;apps.clear();apps.addAll(loaded);original=null;
                 for(AppRepository.App app:apps)if(!state.original.isEmpty() && state.original.startsWith(app.pkg+"/"))original=app;
                 screen=state.isOwn(this) && !roleCancelled?1:0;busy=false;
+                if(!recovery && !state.isOwn(this) && new HomeGuardState(this).compatibleReady()){
+                    try{new SetupOperations(this).completeGuard();openHome("兼容守护已配置，系统默认桌面保持原状");return;}
+                    catch(Exception failure){notice="兼容配置未完成："+failure.getMessage();}
+                }
                 for(AppRepository.App app:apps)if(canRecommend(app) && !choices.containsKey(app.pkg))choices.put(app.pkg,true);
                 if(!originalTouched)originalChoice=canOriginal("DISABLE")?"DISABLE":"KEEP";
                 if(!"KEEP".equals(originalChoice) && !canOriginal(originalChoice))originalChoice="KEEP";
@@ -208,7 +215,8 @@ public final class SetupActivity extends ManagementUi {
         Button primary=setupButton(own?"管理预装应用":"设为默认桌面","primary",()->{if(own){screen=1;render();}else if(homeState!=null && homeState.roleAvailable)requestRole();else withConnection(this::setDefault);},true);enable(primary,usable && (own || homeState.roleAvailable || switchReason.isEmpty()));buttonIcon(primary,R.drawable.ic_setup_home);copy.addView(primary,new LinearLayout.LayoutParams(-2,px(40)));
         if(!own && homeState!=null && homeState.roleAvailable){gap(copy,10);Button adbButton=textButton("通过 ADB 设置","adb",()->withConnection(this::setDefault));enable(adbButton,switchReason.isEmpty());copy.addView(adbButton,new LinearLayout.LayoutParams(-2,px(30)));}
         if(!own && !switchReason.isEmpty()){gap(copy,10);copy.addView(muted(switchReason,11),new LinearLayout.LayoutParams(-1,-2));}
-        if(!BuildConfig.LEGACY_19){gap(copy,8);copy.addView(textButton("桌面守护（实验）","home-guard",()->startActivity(new Intent(this,HomeGuardActivity.class))),new LinearLayout.LayoutParams(-2,px(30)));}
+        if(!BuildConfig.LEGACY_19){gap(copy,8);copy.addView(textButton("自动配置兼容守护","home-guard",()->withConnection(this::configureGuard)),new LinearLayout.LayoutParams(-2,px(30)));
+            copy.addView(textButton("查看守护与手动授权","guard-settings",()->startActivity(new Intent(this,HomeGuardActivity.class))),new LinearLayout.LayoutParams(-2,px(30)));}
         if(!notice.isEmpty() || !usable){gap(copy,8);copy.addView(textButton("重新检测","refresh",()->{roleCancelled=false;refresh();}),new LinearLayout.LayoutParams(-2,px(30)));}
         View spacing=new View(this);split.addView(spacing,new LinearLayout.LayoutParams(0,1,5));
         LinearLayout preview=column();preview.setGravity(Gravity.CENTER_VERTICAL);split.addView(preview,new LinearLayout.LayoutParams(0,-1,48));
@@ -241,12 +249,26 @@ public final class SetupActivity extends ManagementUi {
         }
     }
     private ArrayList<AppRepository.App> selected(){ArrayList<AppRepository.App> result=new ArrayList<>();for(AppRepository.App app:apps)if(Boolean.TRUE.equals(choices.get(app.pkg)) && canRecommend(app))result.add(app);return result;}
-    private void requestRole(){if(busy)return;try{home.remember(homeState);roleCancelled=false;Intent request=home.request();roleResultExpected="android.app.role.action.REQUEST_ROLE".equals(request.getAction());startActivityForResult(request,40);}catch(Exception e){notice="系统入口不可用："+e.getMessage();render();}}
-    @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==40){roleCancelled=roleResultExpected && result!=RESULT_OK;if(!roleCancelled)notice="";if(roleCancelled)notice="已取消默认桌面设置，可重试、临时使用或退出。";}}
+    private void requestRole(){if(busy)return;try{new HomeGuardState(this).configure();home.remember(homeState);roleCancelled=false;Intent request=home.request();roleResultExpected="android.app.role.action.REQUEST_ROLE".equals(request.getAction());startActivityForResult(request,40);}catch(Exception e){notice="系统入口不可用："+e.getMessage();render();}}
+    @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==40){roleCancelled=roleResultExpected && result!=RESULT_OK;if(!roleCancelled)notice="";if(roleCancelled){new HomeGuardState(this).pause("已取消桌面配置");notice="已取消默认桌面设置，可重试、临时使用或退出。";}}}
     private void withConnection(Runnable next){if(busy)return;if(adb.connected())next.run();else connection.show(()->{if(active)next.run();},screen==1 && !recovery?("UNINSTALL".equals(originalChoice)?"连接并卸载原桌面":"连接并应用设置"):"连接并继续");}
+    private void configureGuard(){
+        if(busy)return;
+        HomeGuardState guard=new HomeGuardState(this);guard.configure();
+        if(!guard.enabled()){notice="守护已停用，请在守护设置中开启。";render();return;}
+        SetupOperations.Ticket task=begin("正在配置自动守护…");worker.execute(()->{try{
+            HomeGuardRecovery.configureAdb(this,adb,task);
+            ui(task,()->{busy=false;notice="权限已配置，等待系统绑定后自动完成";refresh();
+                page.postDelayed(()->{if(active && !busy)refresh();},1800);});
+        }catch(Exception failure){ui(task,()->{busy=false;notice="兼容配置未全部完成："+failure.getMessage();render();});}});
+    }
     private void setDefault(){
         if(busy)return;
-        SetupOperations.Ticket task=begin("正在设置并核对默认桌面…");worker.execute(()->{try{task.check();home.switchToOwn(adb);task.check();ui(task,()->{busy=false;roleCancelled=false;notice="";refresh();});}catch(Exception e){ui(task,()->{busy=false;notice="未完成默认桌面设置，请重新检测实际状态："+e.getMessage();render();});}});
+        new HomeGuardState(this).configure();
+        SetupOperations.Ticket task=begin("正在设置并核对默认桌面…");worker.execute(()->{try{task.check();home.switchToOwn(adb);task.check();ui(task,()->{busy=false;roleCancelled=false;notice="";refresh();});}catch(Exception e){
+            boolean fallback=task.active() && adb.connected() && !BuildConfig.LEGACY_19 && new HomeGuardState(this).ready();
+            ui(task,()->{busy=false;notice="默认桌面未确认："+e.getMessage();if(fallback)configureGuard();else render();});
+        }});
     }
     private void confirm(){
         if(busy)return;final ArrayList<AppRepository.App> frozen=selected();final AppRepository.App old=original;final String choice=originalChoice;
@@ -272,6 +294,7 @@ public final class SetupActivity extends ManagementUi {
     }
     private void restore(){if(busy)return;SetupOperations.Ticket task=begin("正在恢复原桌面…");worker.execute(()->{try{home.remember(home.inspect(adb));new SetupOperations(this).restore(adb,task,value->ui(task,()->{progress=value;render();}));ui(task,()->{busy=false;cancel();startActivity(HomeController.homeIntent());finish();});}catch(Exception e){ui(task,()->{busy=false;notice="恢复未完成："+e.getMessage();refresh();});}});}
     private void exit(boolean temporary){
+        if(temporary)new HomeGuardState(this).pause("临时使用，守护已暂停");
         cancel();try{store.put("status",homeState==null || !homeState.known?"unknown":"deferred");}catch(Exception e){Toast.makeText(this,"设置记录未保存",Toast.LENGTH_LONG).show();}
         if(temporary)openHome("已进入 Quiet TV；默认桌面以系统实际状态为准");else{if(isTaskRoot())try{startActivity(HomeController.homeIntent());}catch(ActivityNotFoundException ignored){}finish();}
     }

@@ -87,6 +87,12 @@ final class SetupOperations {
         if(!home.inspect(adb).isOwn(context))home.switchToOriginal(adb,home.presets.home());
         store.result(id,before.pkg,"ROLLBACK","已恢复本次操作前的原桌面启用状态并核对 HOME");
     }
+    void completeGuard() throws Exception {
+        HomeGuardState guard=new HomeGuardState(context);
+        if(!guard.compatibleReady())throw new IOException("兼容守护尚未连接");
+        // No package operations and no assertion that system HOME points to Quiet TV.
+        store.put("status","guard-configured");
+    }
     void restore(AdbController adb,Ticket ticket,Progress progress) throws Exception {
         AppOperations.begin();
         String id=UUID.randomUUID().toString();boolean begun=false;
