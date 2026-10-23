@@ -67,7 +67,7 @@ final class WallpaperController {
         daily=new DailyWallpaperController(activity,store,chinese,this::dailyChanged);dailyPanel=new DailyWallpaperPanel(activity,store,daily,this.unit,chinese);
         FrameLayout background=new FrameLayout(activity);root.addView(background,new FrameLayout.LayoutParams(-1,-1));
         video=new VideoWallpaperPlayer(activity,background);
-        current=image();incoming=image();incoming.setAlpha(0);background.addView(current,new FrameLayout.LayoutParams(-1,-1));background.addView(incoming,new FrameLayout.LayoutParams(-1,-1));
+        current=image();incoming=image();incoming.setAlpha(0f);background.addView(current,new FrameLayout.LayoutParams(-1,-1));background.addView(incoming,new FrameLayout.LayoutParams(-1,-1));
         shade=new View(activity);shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x70000000,0x10000000,0xf00a0e15}));background.addView(shade,new FrameLayout.LayoutParams(-1,-1));
         ambient=new Ambient(activity,homeUnit);ambient.colorChanged=this::invalidateDock;background.addView(ambient,new FrameLayout.LayoutParams(-1,-1));ambient.setVisibility(View.INVISIBLE);
         display(store.snapshot().current,false);
@@ -129,9 +129,9 @@ final class WallpaperController {
                     ambient.setVisibility(View.INVISIBLE);shade.setVisibility(View.VISIBLE);
                     if(!animate||shown==null||WallpaperCatalog.DEFAULT.equals(shown)){current.setImageBitmap(bitmap);currentBlur=blurred;incomingBlur=null;shown=id;shownKey=key;invalidateDock();}
                     else{
-                        incoming.setImageBitmap(bitmap);incomingBlur=blurred;incoming.setAlpha(0);
+                        incoming.setImageBitmap(bitmap);incomingBlur=blurred;incoming.setAlpha(0f);
                         transition=ValueAnimator.ofFloat(0,1);transition.setDuration(450);
-                        transition.addUpdateListener(a->{float fraction=(float)a.getAnimatedValue();incoming.setAlpha(fraction);if(fraction==1f){current.setImageBitmap(bitmap);currentBlur=incomingBlur;incomingBlur=null;incoming.setImageDrawable(null);incoming.setAlpha(0);shown=id;shownKey=key;}invalidateDock();});transition.start();
+                        transition.addUpdateListener(a->{float fraction=(float)a.getAnimatedValue();incoming.setAlpha(fraction);if(fraction==1f){current.setImageBitmap(bitmap);currentBlur=incomingBlur;incomingBlur=null;incoming.setImageDrawable(null);incoming.setAlpha(0f);shown=id;shownKey=key;}invalidateDock();});transition.start();
                     }
                 });
             }catch(IOException|OutOfMemoryError e){main.post(()->{if(version!=request)return;if(WallpaperCatalog.DAILY.equals(id)){daily.cacheUnreadable();if(current.getDrawable()==null)display(store.snapshot().lastLocal,false);return;}notice(tr("无法读取这张壁纸","Unable to read this wallpaper"));if(id.equals(store.snapshot().current))try{store.select(WallpaperCatalog.DEFAULT);}catch(IOException ignored){}display(WallpaperCatalog.DEFAULT,false);});}
@@ -203,15 +203,15 @@ final class WallpaperController {
         Window window=picker.getWindow();if(window!=null){window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));window.getDecorView().setSystemUiVisibility(5894);window.setDimAmount(0);}
         shade.setBackground(WallpaperUi.shade());picker.show();if(window!=null)window.setLayout(-1,-1);refreshCards(preview,true);
     }
-    private void stopVideo(){++videoRequest;video.stop();playingVideo="";current.setAlpha(1);}
+    private void stopVideo(){++videoRequest;video.stop();playingVideo="";current.setAlpha(1f);}
     private void startVideo(String id,boolean commit){
         WallpaperCatalog.Entry entry=store.snapshot().find(id);if(entry==null||!entry.video()||!active)return;
         failedVideo="";display(id,false);stopVideo();playingVideo=id;final int version=videoRequest;
         video.play(entry,new VideoWallpaperPlayer.Listener(){
             boolean applying=commit;
-            @Override public void stopped(){if(version==videoRequest)current.setAlpha(1);}
-            @Override public void ready(){if(version!=videoRequest||!active)return;current.setAlpha(0);if(applying){applying=false;commitVideo(id);}else if(picker!=null)details();}
-            @Override public void failed(){if(version!=videoRequest)return;failedVideo=id;playingVideo="";current.setAlpha(1);if(picker!=null)details();notice(tr("视频播放失败，请使用较低规格的 MP4","Video playback failed. Try a lower-resolution MP4."));}
+            @Override public void stopped(){if(version==videoRequest)current.setAlpha(1f);}
+            @Override public void ready(){if(version!=videoRequest||!active)return;current.setAlpha(0f);if(applying){applying=false;commitVideo(id);}else if(picker!=null)details();}
+            @Override public void failed(){if(version!=videoRequest)return;failedVideo=id;playingVideo="";current.setAlpha(1f);if(picker!=null)details();notice(tr("视频播放失败，请使用较低规格的 MP4","Video playback failed. Try a lower-resolution MP4."));}
         });
     }
     private void commitVideo(String id){
