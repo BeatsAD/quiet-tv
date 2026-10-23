@@ -16,6 +16,8 @@ public final class SetupActivity extends ManagementUi {
     private final Map<String,Boolean> choices=new LinkedHashMap<>();
     private final ArrayList<AppRepository.App> apps=new ArrayList<>();
     private AdbController adb;
+    private AdbSession session;
+    private TextView adbStatus;
     private AdbConnectionPanel connection;
     private AppRepository repository;
     private AppOperations operations;
@@ -25,7 +27,7 @@ public final class SetupActivity extends ManagementUi {
     private HomeController.State homeState;
     private AppRepository.App original;
     private String originalChoice="KEEP",notice="",progress="正在检查设备能力…";
-    private boolean originalTouched,busy,active,recovery,roleCancelled,roleResultExpected,recordAvailable=true;
+    private boolean refreshAfterConnection,originalTouched,busy,active,recovery,roleCancelled,roleResultExpected,recordAvailable=true;
     private int screen;
     private LinearLayout page,steps;
     private SetupFocus focusOutline;
@@ -37,9 +39,13 @@ public final class SetupActivity extends ManagementUi {
 
     @Override public void onCreate(Bundle state){
         super.onCreate(state);home=new HomeController(this);store=new SetupStore(this);repository=new AppRepository(this);operations=new AppOperations(this);
-        adb=new AdbController(this,value->runOnUiThread(()->{if(active && !isDestroyed()){progress=value;if(busy)render();}}));connection=new AdbConnectionPanel(this,adb,worker);
+        session=new AdbSession(this,new AdbSession.Listener(){
+            public void changed(AdbState state){if(adbStatus!=null){adbStatus.setText(state.label());adbStatus.setContentDescription(state.description());}}
+            public void connected(){if(active){if(busy)refreshAfterConnection=true;else refresh();}}
+        });adb=session.adb;connection=new AdbConnectionPanel(this,adb,worker,session);
         recovery=getIntent().getBooleanExtra("restore",false);
         setupSurface();
+        header.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));adbStatus=muted("ADB 检测中",11);header.addView(adbStatus);
         try{JSONObject record=store.get(),saved=record.optJSONObject("choices");if(saved!=null)for(Iterator<String> it=saved.keys();it.hasNext();){String pkg=it.next();choices.put(pkg,saved.getBoolean(pkg));}
             originalTouched=record.optBoolean("originalTouched");originalChoice=record.optString("originalChoice","KEEP");
             JSONObject run=record.optJSONObject("run");if(run!=null && !"complete".equals(run.optString("state")))notice="上次设置未完成；已重新查询状态，不会自动重放操作。";
@@ -47,10 +53,11 @@ public final class SetupActivity extends ManagementUi {
             if(switching!=null && !"complete".equals(switching.optString("state")) && !"rolled-back".equals(switching.optString("state")))notice="上次默认桌面切换未确认；请刷新实际状态，不会自动重试或禁用应用。";
         }catch(Exception e){recordAvailable=false;notice="设置记录无法读取；请先退出并检查记录，未执行任何操作。";}
     }
-    @Override protected void onResume(){super.onResume();active=true;refresh();}
-    @Override protected void onStop(){active=false;cancel();super.onStop();}
-    @Override protected void onDestroy(){cancel();adb.close();worker.shutdownNow();super.onDestroy();}
+    @Override protected void onResume(){super.onResume();active=true;refresh();session.resume();}
+    @Override protected void onStop(){active=false;refreshAfterConnection=false;cancelForStop();session.suspend();super.onStop();}
+    @Override protected void onDestroy(){cancel();session.close();worker.shutdownNow();super.onDestroy();}
     public void handleBack(){if(!busy && !recovery && screen==1){screen=0;render();}else exit(false);}
+    private void cancelForStop(){if(ticket!=null)ticket.cancel();connection.suspend();busy=false;}
     private void cancel(){if(ticket!=null)ticket.cancel();connection.close();adb.disconnect();busy=false;}
     private boolean valid(SetupOperations.Ticket task){return active && task==ticket && task.active() && !isFinishing() && !isDestroyed();}
     private void ui(SetupOperations.Ticket task,Runnable action){runOnUiThread(()->{if(valid(task))action.run();});}
@@ -65,7 +72,7 @@ public final class SetupActivity extends ManagementUi {
                 for(AppRepository.App app:apps)if(canRecommend(app) && !choices.containsKey(app.pkg))choices.put(app.pkg,true);
                 if(!originalTouched)originalChoice=canOriginal("DISABLE")?"DISABLE":"KEEP";
                 if(!"KEEP".equals(originalChoice) && !canOriginal(originalChoice))originalChoice="KEEP";
-                render();
+                render();if(refreshAfterConnection){refreshAfterConnection=false;refresh();}
             });
         }catch(Exception e){ui(task,()->{busy=false;homeState=null;screen=0;notice="状态未确认："+e.getMessage();render();});}});
     }

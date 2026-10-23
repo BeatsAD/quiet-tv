@@ -18,9 +18,24 @@ import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 
-/** A foreground-only, single-worker ADB client restricted to this device's addresses. */
+/** A foreground-owned ADB client with serialized connection attempts restricted to this device's addresses. */
 final class AdbController implements Closeable {
     interface Status { void changed(String value); }
+    enum Stage { IDLE, KEYS, PAIRING, PORT, HANDSHAKE, LOCAL, SHELL, USER, CAPABILITIES, CONNECTED }
+    enum Failure { NONE, KEYS, PORT, HANDSHAKE, LOCAL, SHELL, USER, CAPABILITIES }
+    private static final Object KEY_LOCK=new Object();
+    private static KeyStore cachedKeys;
+    private volatile Stage stage=Stage.IDLE;
+    private volatile Failure failure=Failure.NONE;
+    Stage stage(){return stage;}
+    Failure failure(){return failure;}
+    int generation(){return generation.get();}
+    private void publish(Stage value,String detail){stage=value;status.changed(detail);}
+    private synchronized void publish(Stage value,String detail,int attempt){if(!closed && generation.get()==attempt)publish(value,detail);}
+    private synchronized void attach(Closeable value,int attempt) throws IOException {
+        if(closed || generation.get()!=attempt){value.close();throw new IOException("连接已取消");}transport=value;
+    }
+    synchronized int prepare(){disconnect();failure=Failure.NONE;return generation.get();}
     private final Context context;
     private final Status status;
     private volatile AdbConnection connection;
@@ -33,10 +48,15 @@ final class AdbController implements Closeable {
     String host = "";
     ShellCapabilities capabilities=ShellCapabilities.NONE;
     AdbController(Context context, Status status) { this.context=context.getApplicationContext(); this.status=status; }
-    boolean connected() { AdbConnection c=connection;return c!=null && c.isConnectionEstablished() && user>=0; }
+    boolean connected() { AdbConnection c=connection;return stage==Stage.CONNECTED && c!=null && c.isConnectionEstablished() && user>=0; }
     void validateUser() throws Exception {
+        final int request=generation.get(),expectedUser=user;
         if(!connected())throw new IOException("需要连接 ADB");
-        if(currentUser()!=user || user!=android.os.Process.myUid()/100000){disconnect();throw new IOException("当前用户已改变，请重新连接");}
+        int actual=currentUser();
+        synchronized(this){
+            if(generation.get()!=request)throw new IOException("查询已取消，请重新连接");
+            if(actual!=expectedUser || expectedUser!=android.os.Process.myUid()/100000){disconnect();throw new IOException("当前用户已改变，请重新连接");}
+        }
     }
     private int currentUser() throws Exception {
         if(Build.VERSION.SDK_INT>=24)return Integer.parseInt(shell("am get-current-user").trim());
@@ -54,61 +74,67 @@ final class AdbController implements Closeable {
         if(address==null)return false;if(address.isLoopbackAddress())return true;
         try{for(NetworkInterface nic:Collections.list(NetworkInterface.getNetworkInterfaces()))if(nic.isUp())for(InetAddress local:Collections.list(nic.getInetAddresses()))if(local.equals(address))return true;}catch(SocketException ignored){}return false;
     }
-    void pair(int port,String code) throws Exception {
+    void pair(int port,String code) throws Exception {pair(port,code,prepare());}
+    void pair(int port,String code,int attempt) throws Exception {
         if(!pairingAvailable())throw new IOException("当前版本或系统不支持无线配对，请使用传统 TCP");
         if(port<1 || port>65535 || !code.matches("[0-9]{6}"))throw new IOException("请输入有效配对端口及六位配对码");
-        disconnect();int attempt=generation.get();
-        if(closed)throw new IOException("配对已取消");
-        pairing.start(port,code,loadKeys(),generation,attempt,status);
+        if(closed || generation.get()!=attempt)throw new IOException("配对已取消");
+        publish(Stage.PAIRING,"正在配对",attempt);
+        pairing.start(port,code,loadKeys(),generation,attempt,value->publish(Stage.PAIRING,value,attempt));
     }
 
-    void connect(int port) throws Exception {
+    void connect(int port) throws Exception {connect(port,prepare());}
+    void connect(int port,int attempt) throws Exception {
         if(port<1 || port>65535)throw new IOException("端口必须在 1～65535 之间");
-        disconnect();
-        int attempt=generation.get();
+        if(closed || generation.get()!=attempt)throw new IOException("连接已取消");
         List<String> hosts=new ArrayList<>();hosts.add("127.0.0.1");
         for(NetworkInterface nic:Collections.list(NetworkInterface.getNetworkInterfaces()))
             if(nic.isUp() && !nic.isLoopback())for(InetAddress address:Collections.list(nic.getInetAddresses()))
                 if(address instanceof Inet4Address)hosts.add(address.getHostAddress());
         Exception failure=null;
         String stage="连接端口";
-        KeyStore keys=loadKeys();
+        publish(Stage.KEYS,"正在读取本机连接密钥",attempt);
+        KeyStore keys;
+        try{keys=loadKeys();}catch(Exception e){this.failure=Failure.KEYS;throw new IOException("读取本机连接密钥失败",e);}
         for(String candidate:hosts){
             if(closed || generation.get()!=attempt)throw new IOException("连接已取消");
-            status.changed("连接中  "+candidate+":"+port);
+            publish(Stage.PORT,"连接中  "+candidate+":"+port,attempt);
             // One actual daemon connection, with a bounded connect and cancellation support.
-            Socket socket=new Socket();transport=socket;
-            if(closed || generation.get()!=attempt){disconnect();throw new IOException("连接已取消");}
+            Socket socket=new Socket();attach(socket,attempt);
+            if(closed || generation.get()!=attempt)throw new IOException("连接已取消");
             try{socket.connect(new InetSocketAddress(candidate,port),2000);}
             catch(IOException e){socket.close();transport=null;if(closed || generation.get()!=attempt)throw new IOException("连接已取消",e);failure=e;continue;}
             stage="ADB 握手／授权";
             try{
-                PairingTransport relay=new PairingTransport(socket);transport=relay;
-                if(closed || generation.get()!=attempt){disconnect();throw new IOException("连接已取消");}
+                PairingTransport relay=new PairingTransport(socket);attach(relay,attempt);
+                if(closed || generation.get()!=attempt)throw new IOException("连接已取消");
                 AdbConnection c=new AdbConnection.Builder("127.0.0.1",relay.port()).setApi(Build.VERSION.SDK_INT)
-                        .setDeviceName("QuietTV").setPrivateKey((PrivateKey)keys.getKey("adb",new char[0]))
+                        .setDeviceName("QuietTV").setPrivateKey(privateKey(keys))
                         .setCertificate(keys.getCertificate("adb")).build();
-                connection=c;
-                if(closed || generation.get()!=attempt){disconnect();throw new IOException("连接已取消");}
-                status.changed("正在进行 ADB 握手  如电视出现调试授权弹窗，请选择允许");
+                synchronized(this){if(closed || generation.get()!=attempt){c.close();throw new IOException("连接已取消");}connection=c;}
+                if(closed || generation.get()!=attempt)throw new IOException("连接已取消");
+                publish(Stage.HANDSHAKE,"正在进行 ADB 握手  如电视出现调试授权弹窗，请选择允许",attempt);
                 if(!c.connect(60,TimeUnit.SECONDS,false))throw new IOException("端口已连接，但 ADB 握手或授权超时；没有弹窗不代表已授权");
-                stage="本机身份核对";
+                stage="本机身份核对";publish(Stage.LOCAL,"正在核对本机身份",attempt);
                 verifyLocalDevice();
-                stage="ADB 身份核对";
+                stage="ADB 身份核对";publish(Stage.SHELL,"正在核对 ADB shell 身份",attempt);
                 if(!shell("id -u").trim().equals("2000"))throw new IOException("adbd 未提供 shell 身份（uid 2000）；工厂／root 调试模式不能用于当前应用管理");
-                stage="前台用户核对";
+                stage="前台用户核对";publish(Stage.USER,"正在核对当前用户",attempt);
                 user=currentUser();
                 if(user!=android.os.Process.myUid()/100000)throw new IOException("前台用户已切换，请重新打开应用管理");
+                publish(Stage.CAPABILITIES,"正在核对管理能力",attempt);
                 String pmHelp="",cmdHelp="";
                 try{pmHelp=shell("pm help 2>&1 || true");}catch(IOException ignored){}
                 try{cmdHelp=shell("cmd package help 2>&1 || true");}catch(IOException ignored){}
                 capabilities=new ShellCapabilities(pmHelp,cmdHelp);
                 host=candidate;
-                if(closed || generation.get()!=attempt){disconnect();throw new IOException("连接已取消");}
-                status.changed("已连接  本机  用户 "+user);
+                if(closed || generation.get()!=attempt)throw new IOException("连接已取消");
+                if(!c.isConnectionEstablished())throw new IOException("ADB 连接已断开，请重新连接");
+                publish(Stage.CONNECTED,"已连接  本机  用户 "+user,attempt);
                 return;
-            }catch(Exception e){boolean cancelled=closed || generation.get()!=attempt;failure=e;disconnect();if(cancelled)throw new IOException("连接已取消",e);break;}
+            }catch(Exception e){boolean cancelled=closed || generation.get()!=attempt;failure=e;if(!cancelled){this.failure=failureFor(this.stage);disconnect();}if(cancelled)throw new IOException("连接已取消",e);break;}
         }
+        if(this.failure==Failure.NONE)this.failure=Failure.PORT;
         throw new IOException("连接失败（"+stage+"）："+(failure==null?"本机未开放 TCP ADB":(failure.getMessage()==null?failure.getClass().getSimpleName():failure.getMessage())),failure);
     }
 
@@ -137,7 +163,7 @@ final class AdbController implements Closeable {
     }
 
     String shell(String command) throws Exception {
-        AdbConnection c=connection;if(c==null)throw new IOException("需要连接 ADB");
+        int request=generation.get();AdbConnection c=connection;if(c==null)throw new IOException("需要连接 ADB");
         // A timeout closes the transport. Mutating commands are never automatically retried.
         ScheduledFuture<?> timeout=timer.schedule(()->{try{c.close();}catch(IOException ignored){}},20,TimeUnit.SECONDS);
         String marker="__QUIET_EXIT_"+UUID.randomUUID().toString().replace("-","")+"=";
@@ -153,6 +179,7 @@ final class AdbController implements Closeable {
             }
             String value=output.toString("UTF-8");int position=value.lastIndexOf(marker);
             if(position<0)throw new IOException("ADB 结果不完整，请重新连接并查询状态");
+            if(generation.get()!=request)throw new IOException("查询已取消，请重新连接");
             int exit=Integer.parseInt(value.substring(position+marker.length()).trim());
             String body=value.substring(0,position).trim();
             if(exit!=0)throw new IOException("命令失败（"+exit+"）："+body);
@@ -160,7 +187,17 @@ final class AdbController implements Closeable {
         }finally{timeout.cancel(false);}
     }
 
+    static PrivateKey privateKey(KeyStore keys) throws Exception {
+        // libadb destroys its private-key instance on close. Keep cached credentials
+        // intact and give each connection/pairing an independent RSA key object.
+        return KeyFactory.getInstance("RSA").generatePrivate(new java.security.spec.PKCS8EncodedKeySpec(keys.getKey("adb",new char[0]).getEncoded()));
+    }
     private KeyStore loadKeys() throws Exception {
+        synchronized(KEY_LOCK){if(cachedKeys!=null)return cachedKeys;
+            KeyStore loaded=readKeys();cachedKeys=loaded;return loaded;
+        }
+    }
+    private KeyStore readKeys() throws Exception {
         AtomicFile file=new AtomicFile(new File(context.getFilesDir(),"local-adb.p12"));
         KeyStore store=KeyStore.getInstance("PKCS12");
         if(file.getBaseFile().exists()){
@@ -180,6 +217,9 @@ final class AdbController implements Closeable {
         }
         return store;
     }
-    void disconnect(){generation.incrementAndGet();user=-1;capabilities=ShellCapabilities.NONE;pairing.close();Closeable active=transport;transport=null;if(active!=null)try{active.close();}catch(IOException ignored){}AdbConnection c=connection;connection=null;if(c!=null)try{c.close();}catch(IOException ignored){}status.changed("未连接");}
+    private static Failure failureFor(Stage stage){
+        switch(stage){case KEYS:return Failure.KEYS;case HANDSHAKE:return Failure.HANDSHAKE;case LOCAL:return Failure.LOCAL;case SHELL:return Failure.SHELL;case USER:return Failure.USER;case CAPABILITIES:return Failure.CAPABILITIES;default:return Failure.PORT;}
+    }
+    synchronized void disconnect(){generation.incrementAndGet();user=-1;capabilities=ShellCapabilities.NONE;pairing.close();Closeable active=transport;transport=null;if(active!=null)try{active.close();}catch(IOException ignored){}AdbConnection c=connection;connection=null;if(c!=null)try{c.close();}catch(IOException ignored){}publish(Stage.IDLE,"未连接");}
     @Override public void close(){closed=true;disconnect();timer.shutdownNow();}
 }

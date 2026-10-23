@@ -16,6 +16,7 @@ public final class BootAdActivity extends ManagementUi {
     private List<BootAdOperations.RestoreItem> restores=Collections.emptyList();
     private JSONArray runs=new JSONArray();
     private AdbController adb;
+    private AdbSession session;
     private AdbConnectionPanel connection;
     private BootAdOperations operations;
     private AppRepository repository;
@@ -24,15 +25,18 @@ public final class BootAdActivity extends ManagementUi {
     private LinearLayout content;
     private Button status,apply,restore,refresh,observe;
     private TextView notice;
-    private boolean active,busy;
+    private boolean active,busy,refreshAfterConnection;
     private int generation;
     private String result="",focusTag="";
 
     @Override public void onCreate(Bundle state){
         super.onCreate(state);((TextView)header.getChildAt(1)).setText("开机广告");header.getChildAt(0).setOnClickListener(view->handleBack());
         operations=new BootAdOperations(this);repository=new AppRepository(this);store=new SetupStore(this);
-        adb=new AdbController(this,value->runOnUiThread(()->{if(active && status!=null){status.setText(adb.connected()?"ADB 已连接":"连接本机 ADB");status.setContentDescription("本机 ADB  "+(adb.connected()?"已连接":"未连接"));}}));
-        connection=new AdbConnectionPanel(this,adb,worker);
+        session=new AdbSession(this,new AdbSession.Listener(){
+            public void changed(AdbState state){if(status!=null){status.setText(state.label());status.setContentDescription(state.description());}}
+            public void connected(){if(busy)refreshAfterConnection=true;else refresh();}
+        });adb=session.adb;
+        connection=new AdbConnectionPanel(this,adb,worker,session);
         status=button("连接本机 ADB",()->{if(!busy)connection.show(this::refresh);});status.setTag("connect");header.addView(status,new LinearLayout.LayoutParams(px(155),px(36)));
         gap(root,18);notice=muted("正在读取适配状态…",13);notice.setTag("notice");notice.setLineSpacing(px(4),1);root.addView(notice,new LinearLayout.LayoutParams(-1,-2));gap(root,12);
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(false);content=column();content.setPadding(px(2),px(2),px(2),px(2));scroll.addView(content);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
@@ -51,9 +55,9 @@ public final class BootAdActivity extends ManagementUi {
         });
         footer("方向键选择  确定勾选  返回退出；不会自动重启电视");
     }
-    @Override protected void onResume(){super.onResume();active=true;busy=false;refresh();}
-    @Override protected void onStop(){active=false;generation++;if(ticket!=null)ticket.cancel();connection.close();adb.disconnect();super.onStop();}
-    @Override protected void onDestroy(){adb.close();worker.shutdownNow();super.onDestroy();}
+    @Override protected void onResume(){super.onResume();active=true;busy=false;refresh();session.resume();}
+    @Override protected void onStop(){active=false;refreshAfterConnection=false;generation++;if(ticket!=null)ticket.cancel();connection.suspend();session.suspend();super.onStop();}
+    @Override protected void onDestroy(){session.close();worker.shutdownNow();super.onDestroy();}
     private void ui(int epoch,Runnable action){runOnUiThread(()->{if(active && generation==epoch && !isFinishing() && !isDestroyed())action.run();});}
     private void rememberFocus(){View view=getCurrentFocus();if(view!=null && view.getTag()!=null)focusTag=view.getTag().toString();}
     private void updateActions(){
@@ -64,7 +68,7 @@ public final class BootAdActivity extends ManagementUi {
         worker.execute(()->{try{
             List<AppRepository.App> actual=repository.load(adb);JSONArray saved=store.bootRuns();
             List<BootAdOperations.RestoreItem> items=BootAdOperations.restoreItems(saved,actual,android.os.Process.myUid()/100000,Build.FINGERPRINT);
-            ui(epoch,()->{apps.clear();apps.addAll(actual);runs=saved;restores=items;selected.clear();restoreSelected.clear();busy=false;render();});
+            ui(epoch,()->{apps.clear();apps.addAll(actual);runs=saved;restores=items;selected.clear();restoreSelected.clear();busy=false;render();if(refreshAfterConnection){refreshAfterConnection=false;refresh();}});
         }catch(Exception e){ui(epoch,()->{selected.clear();restoreSelected.clear();busy=false;notice.setText("检测未完成："+e.getMessage());updateActions();});}});
     }
     private AppRepository.App find(String pkg){for(AppRepository.App app:apps)if(pkg.equals(app.pkg))return app;return null;}

@@ -18,6 +18,7 @@ public final class AppManagementActivity extends ManagementUi {
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private final ArrayList<AppRepository.App> all=new ArrayList<>(),filtered=new ArrayList<>();
     private AdbController adb;
+    private AdbSession session;
     private AdbConnectionPanel connection;
     private AppRepository repository;
     private AppOperations operations;
@@ -31,7 +32,8 @@ public final class AppManagementActivity extends ManagementUi {
     private View firstAction;
     private String selected="",query="",connectionState="未连接";
     private int filter;
-    private boolean busy,connecting,active,returningToList,initialFocus=true;
+    private boolean busy,reading,refreshAfterConnection,active,returningToList,initialFocus=true;
+    private volatile int refreshGeneration;
     private final BroadcastReceiver packagesChanged=new BroadcastReceiver(){
         @Override public void onReceive(Context context,Intent intent){
             if(Intent.ACTION_PACKAGE_REMOVED.equals(intent.getAction()) && !intent.getBooleanExtra(Intent.EXTRA_REPLACING,false) && intent.getData()!=null){String pkg=intent.getData().getSchemeSpecificPart();new DockStore(context).remove(pkg);new HomeOrderStore(context).remove(pkg);worker.execute(()->{try{AppCoverStore.get(context).restore(pkg);}catch(java.io.IOException e){android.util.Log.w("QuietTV","Cover cleanup deferred");}});}
@@ -40,8 +42,11 @@ public final class AppManagementActivity extends ManagementUi {
     };
     @Override public void onCreate(Bundle state){
         super.onCreate(state);repository=new AppRepository(this);operations=new AppOperations(this);
-        adb=new AdbController(this,value->ui(()->updateConnection(value)));
-        connection=new AdbConnectionPanel(this,adb,worker);coverUploads=new AppCoverUploadPanel(this);
+        session=new AdbSession(this,new AdbSession.Listener(){
+            public void changed(AdbState state){updateConnection(state);}
+            public void connected(){if(active){if(busy)refreshAfterConnection=true;else refresh();}}
+        });adb=session.adb;
+        connection=new AdbConnectionPanel(this,adb,worker,session);coverUploads=new AppCoverUploadPanel(this);
         status=button("ADB 未连接",this::connectionPanel);status.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(12));status.setPadding(px(12),0,px(12),0);header.addView(status,new LinearLayout.LayoutParams(-2,px(30)));
         marginAdd(header,iconText("更多",R.drawable.ic_manage_more,this::morePanel),-2,30,8);
         marginAdd(header,iconText("关于",R.drawable.ic_about,()->startActivity(new Intent(this,AboutActivity.class))),-2,30,8);
@@ -63,16 +68,16 @@ public final class AppManagementActivity extends ManagementUi {
         IntentFilter packages=new IntentFilter(Intent.ACTION_PACKAGE_ADDED);packages.addAction(Intent.ACTION_PACKAGE_REMOVED);packages.addAction(Intent.ACTION_PACKAGE_CHANGED);packages.addDataScheme("package");registerReceiver(packagesChanged,packages);
     }
     private void ui(Runnable action){runOnUiThread(()->{if(!isDestroyed() && !isFinishing())action.run();});}
-    private void updateConnection(String value){connectionState=value;String shortState=adb.connected()?"已连接":value.startsWith("等待授权")?"等待授权":value.startsWith("连接中")?"连接中":value.contains("失败")?"连接失败":"未连接";status.setText("ADB "+shortState);status.setTextColor(adb.connected()?0xffbacabd:TEXT);status.setContentDescription("ADB "+value);}
-    @Override protected void onResume(){super.onResume();active=true;updateConnection(adb.connected()?"已连接":"未连接");refresh();}
-    @Override protected void onStop(){active=false;connection.close();coverUploads.close();if(!connecting)worker.execute(()->{adb.disconnect();ui(()->updateConnection("未连接"));});super.onStop();}
-    @Override protected void onDestroy(){unregisterReceiver(packagesChanged);coverUploads.destroy();adb.close();worker.shutdownNow();super.onDestroy();}
+    private void updateConnection(AdbState state){connectionState=state.description();status.setText(state.label());status.setTextColor(state.connection==AdbState.Connection.CONNECTED?0xffbacabd:TEXT);status.setContentDescription(state.description());}
+    @Override protected void onResume(){super.onResume();active=true;refresh();session.resume();}
+    @Override protected void onStop(){active=false;refreshAfterConnection=false;refreshGeneration++;if(reading){reading=false;busy=false;}connection.suspend();coverUploads.close();session.suspend();super.onStop();}
+    @Override protected void onDestroy(){unregisterReceiver(packagesChanged);session.close();worker.shutdownNow();super.onDestroy();}
     @Override protected void onSaveInstanceState(Bundle state){state.putString("selected",selected);state.putString("query",query);state.putInt("filter",filter);super.onSaveInstanceState(state);}
     private void refresh(){
-        if(busy)return;busy=true;count.setText("正在读取应用…");renderDetails();
-        worker.execute(()->{try{List<AppRepository.App> values=repository.load(adb);ui(()->{busy=false;all.clear();all.addAll(values);applyFilter();});}catch(Exception e){ui(()->{busy=false;adbFailure(e);});}});
+        if(busy)return;busy=true;reading=true;final int run=++refreshGeneration;count.setText("正在读取应用…");renderDetails();
+        worker.execute(()->{if(run!=refreshGeneration)return;try{List<AppRepository.App> values=repository.load(adb);ui(()->{if(!active || run!=refreshGeneration)return;reading=false;busy=false;all.clear();all.addAll(values);applyFilter();if(refreshAfterConnection){refreshAfterConnection=false;refresh();}});}catch(Exception e){ui(()->{if(!active || run!=refreshGeneration)return;reading=false;busy=false;adbFailure(e);});}});
     }
-    private void adbFailure(Exception e){updateConnection("连接失败");count.setText("读取失败，请重新连接后刷新");renderDetails();message(e.getMessage()==null?e.toString():e.getMessage());}
+    private void adbFailure(Exception e){session.reportFailure(e.getMessage()==null?"读取失败":e.getMessage());count.setText("读取失败，请重试或检查 ADB 连接");renderDetails();message(e.getMessage()==null?e.toString():e.getMessage());}
     private void searchPanel(){
         Sheet sheet=new Sheet("搜索应用");sheet.text("输入应用名称或包名");gap(sheet.body,16);EditText input=input(query,"搜索应用名或包名");sheet.body.addView(input,new LinearLayout.LayoutParams(-1,px(44)));
         sheet.action("清空",()->{query="";sheet.dialog.dismiss();applyFilter();focusList();});
@@ -108,7 +113,7 @@ public final class AppManagementActivity extends ManagementUi {
         boolean coverAllowed=AppCoverPolicy.allowed(this,app.pkg);
         if(!coverAllowed&&!protectedReason.isEmpty()){protectionNote(protectedReason,true);return;}
         LinearLayout actions=row();actions.setGravity(Gravity.CENTER);details.addView(actions,new LinearLayout.LayoutParams(-1,px(42)));
-        if(busy){details.addView(center(connecting?"正在连接，请在电视弹窗允许授权…":"正在核对实际状态…",12));return;}
+        if(busy){details.addView(center("正在核对实际状态…",12));return;}
         if(coverAllowed){
             addAction(actions,button("更换封面",()->coverUploads.show(app.pkg,app.label,()->coverUpdated(app.pkg))));
             Button restore=button("恢复默认",()->restoreCover(app));boolean custom=AppCoverStore.get(this).custom(app.pkg);restore.setEnabled(custom);restore.setFocusable(custom);restore.setAlpha(custom?1f:.4f);addAction(actions,restore);
@@ -145,8 +150,8 @@ public final class AppManagementActivity extends ManagementUi {
     private void showHistory(){worker.execute(()->{try{String history=operations.history();ui(()->{Sheet sheet=new Sheet("操作记录");TextView text=muted(history,12);text.setLineSpacing(px(5),1);sheet.body.addView(text);Button close=sheet.action("关闭",sheet.dialog::dismiss);sheet.show(close);});}catch(Exception e){ui(()->message(e.getMessage()));}});}
     private void connectionPanel(){
         if(busy){message("正在读取或执行操作，请稍候");return;}
-        if(adb.connected()){Sheet sheet=new Sheet("本机 ADB 连接");sheet.text("已连接本机  当前用户 "+adb.user);Button cancel=sheet.action("取消",sheet.dialog::dismiss);sheet.action("断开连接",()->{sheet.dialog.dismiss();adb.disconnect();updateConnection("未连接");refresh();});sheet.show(cancel);}
-        else connection.show(()->{updateConnection("已连接");refresh();});
+        if(adb.connected()){Sheet sheet=new Sheet("本机 ADB 连接");sheet.text("已连接本机  当前用户 "+adb.user);Button cancel=sheet.action("取消",sheet.dialog::dismiss);sheet.action("断开连接",()->{sheet.dialog.dismiss();session.pause();refresh();});sheet.show(cancel);}
+        else connection.show(this::refresh);
     }
     @Override public void handleBack(){if(details.hasFocus())focusList();else super.handleBack();}
     // Public Activity override; AndroidX core marks its inherited bridge class library-only.
