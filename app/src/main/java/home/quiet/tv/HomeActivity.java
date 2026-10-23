@@ -49,6 +49,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private GridLayoutManager layout;
     private Glass glass;
     private WallpaperController wallpapers;
+    private WeatherController weather;
+    private TextView weatherText;
     private DesktopSettingsStore desktopSettings;
     private View timeRow, topButtons;
     private boolean rightButtonsVisible=true;
@@ -171,7 +173,16 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         });
         glass = new Glass(); root.addView(glass,new FrameLayout.LayoutParams(-1,-1));
         greeting=text("",14,600,0xffe6e7ed);UiCompat.letterSpacing(greeting,.14f);
-        greeting.setGravity(Gravity.CENTER_VERTICAL);place(root,greeting,430,22,50,32);
+        greeting.setGravity(Gravity.CENTER_VERTICAL);greeting.setSingleLine(true);
+        LinearLayout greetingRow=new LinearLayout(this);greetingRow.setGravity(Gravity.CENTER_VERTICAL);
+        place(root,greetingRow,860,22,50,32);greetingRow.addView(greeting,new LinearLayout.LayoutParams(-2,-1));
+        weatherText=text("",14,400,0xffe6e7ed);weatherText.setSingleLine(true);weatherText.setEllipsize(android.text.TextUtils.TruncateAt.END);weatherText.setGravity(Gravity.CENTER_VERTICAL);
+        weatherText.setCompoundDrawablePadding(px(6));LinearLayout.LayoutParams wp=new LinearLayout.LayoutParams(0,-1,1);wp.leftMargin=px(16);greetingRow.addView(weatherText,wp);
+        weather=new WeatherController(this,chinese,(data,message,loading)->{
+            weatherText.setVisibility(data==null&&message.isEmpty()?View.GONE:View.VISIBLE);
+            if(data==null){weatherText.setText(message);weatherText.setCompoundDrawables(null,null,null,null);}
+            else{WeatherIcon icon=new WeatherIcon(data.icon);icon.setBounds(0,0,px(18),px(18));weatherText.setCompoundDrawables(icon,null,null,null);weatherText.setText(data.temperatureText()+"  "+data.description+"  "+data.city+(message.isEmpty()?"":"  "+message));}
+        });
         LinearLayout timeRow=new LinearLayout(this);timeRow.setOrientation(LinearLayout.HORIZONTAL);
         this.timeRow=timeRow;
         timeRow.setGravity(Gravity.CENTER_VERTICAL);place(root,timeRow,430,64,50,57);
@@ -275,12 +286,12 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         if(Build.VERSION.SDK_INT>=24)stopNetworkCallback=Api24.observe(this);
         else registerReceiver(legacyNetworkReceiver,new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
         applyDesktopSettings();updateClock();updateNetwork();
-        wallpapers.resume();
+        wallpapers.resume();weather.resume();
         loadApps();
     }
 
     @Override protected void onPause() {
-        resumed=false;if(scrollAnimation!=null)scrollAnimation.cancel();list.stopScroll();saveFocus();wallpapers.pause();
+        resumed=false;if(scrollAnimation!=null)scrollAnimation.cancel();list.stopScroll();saveFocus();wallpapers.pause();weather.pause();
         unregisterReceiver(timeReceiver);
         if(Build.VERSION.SDK_INT>=24)stopNetworkCallback.run();
         else unregisterReceiver(legacyNetworkReceiver);
@@ -288,7 +299,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         super.onPause();
     }
 
-    @Override protected void onDestroy(){unregisterReceiver(packageReceiver);loader.shutdownNow();wallpapers.destroy();super.onDestroy();}
+    @Override protected void onDestroy(){unregisterReceiver(packageReceiver);loader.shutdownNow();wallpapers.destroy();weather.destroy();super.onDestroy();}
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);if(ready)focusCurrent(false);}
 
     private static class App {
