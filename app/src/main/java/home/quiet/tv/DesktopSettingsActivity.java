@@ -117,7 +117,7 @@ public final class DesktopSettingsActivity extends ManagementUi implements Share
         if(resumed&&desktop!=null&&(!"weather".equals(selectedSection)||weather!=null)&&(!"guard".equals(selectedSection)||guard!=null))remember();
         selectedSection=name;
         if("weather".equals(name)&&weather==null){weather=new DesktopWeatherPanel(this);content.addView(weather.view,new FrameLayout.LayoutParams(-1,-1));wireRows(weather.rows(),tabs.get("weather"));}
-        if("guard".equals(name)&&guard==null){guard=new HomeGuardPanel(this,tabs.get("guard"));content.addView(guard.view,new FrameLayout.LayoutParams(-1,-1));}
+        if("guard".equals(name)&&guard==null){guard=new HomeGuardPanel(this,tabs.get("guard"),false);content.addView(guard.view,new FrameLayout.LayoutParams(-1,-1));}
         desktop.setVisibility("desktop".equals(name)?View.VISIBLE:View.GONE);if(weather!=null)weather.view.setVisibility("weather".equals(name)?View.VISIBLE:View.GONE);if(guard!=null)guard.view.setVisibility("guard".equals(name)?View.VISIBLE:View.GONE);
         for(String key:tabs.keySet()){tabs.get(key).setSelected(key.equals(name));tabs.get(key).setTextColor(key.equals(name)?TEXT:MUTED);underlines.get(key).setBackgroundColor(key.equals(name)?TEXT:Color.TRANSPARENT);}
         if(resumed){if("desktop".equals(name))preview.resume();else if("weather".equals(name))weather.resume();else guard.resume();}
