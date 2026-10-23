@@ -9,7 +9,7 @@
 复制下面的请求交给能执行本机命令的 AI 工具。完整操作规则见下文；Agent 须先读完整说明，无法读取时告知用户，取得说明内容后再执行设备修改。
 
 ```text
-请在我的电脑上安装或更新 Quiet TV。
+请通过我的电脑，帮我在电视上安装或更新 Quiet TV。
 
 请先完整读取并遵循操作说明：
 https://raw.githubusercontent.com/BeatsAD/quiet-tv/main/docs/AGENT_INSTALL.zh-CN.md
@@ -106,7 +106,7 @@ https://raw.githubusercontent.com/BeatsAD/quiet-tv/main/docs/AGENT_INSTALL.zh-CN
 恢复前读取现状和本机私有记录，核对目标设备、用户、原桌面组件及原始启用状态。优先使用系统选择、Quiet TV 恢复入口或已验证的本机路径，只恢复实际发生且有记录的变更；原桌面未禁用就不执行启用。保留 Quiet TV 和其他应用数据，记录或权限不足时说明缺失项，不猜原值、不套用其他电视的命令。完成后读回 HOME，等待用户验证实体按键；重启、冷启动和待机结果分别报告，电源操作先确认。失败处理遵循上文要求，不自动重放修改。
 
 ```text
-请在我的电脑上帮我恢复原来的电视桌面。
+请通过我的电脑，帮我恢复电视原来的桌面。
 
 请先完整读取并遵循操作说明：
 https://raw.githubusercontent.com/BeatsAD/quiet-tv/main/docs/AGENT_INSTALL.zh-CN.md
