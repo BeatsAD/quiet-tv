@@ -17,6 +17,8 @@ final class HomeGuardState {
         final ComponentName component;final String label;
         Candidate(ComponentName component,String label){this.component=component;this.label=label;}
     }
+    // Migration must be durable before other components consume the new configuration.
+    @android.annotation.SuppressLint("ApplySharedPref")
     HomeGuardState(Context supplied){
         context=supplied.getApplicationContext();pm=context.getPackageManager();
         Context storage=Build.VERSION.SDK_INT>=24?context.createDeviceProtectedStorageContext():context;
@@ -45,7 +47,11 @@ final class HomeGuardState {
     boolean enabled(){return supported() && preferences.getBoolean("configured",false) && "AUTO".equals(preferences.getString("mode","AUTO"));}
     String selected(){return preferences.getString("home","");}
     boolean protects(String pkg){ComponentName name=ComponentName.unflattenFromString(selected());return enabled() && name!=null && name.getPackageName().equals(pkg);}
+    // Persist disabled mode before canceling scheduled recovery.
+    @android.annotation.SuppressLint("ApplySharedPref")
     void pause(String reason){preferences.edit().putString("mode","OFF").putBoolean("enabled",false).putString("status",reason).commit();HomeGuardRecovery.cancel();HomeGuardService.cancelPending();}
+    // Persist the selected HOME and firmware before subsequent recovery requests.
+    @android.annotation.SuppressLint("ApplySharedPref")
     void select(ComponentName name){HomeGuardRecovery.cancel();HomeGuardService.cancelPending();preferences.edit().putBoolean("configured",true).putString("home",name.flattenToString()).putString("firmware",Build.FINGERPRINT).commit();}
     void configure(){
         if(!supported() || !unlocked(context))return;
@@ -96,6 +102,8 @@ final class HomeGuardState {
         if(!serviceEnabled())return "等待无障碍授权或绑定";
         return "";
     }
+    // Persist enabled mode before requesting recovery.
+    @android.annotation.SuppressLint("ApplySharedPref")
     String enable(){preferences.edit().putString("mode","AUTO").putBoolean("configured",true).commit();configure();HomeGuardRecovery.request(context,"用户启用");return enableProblem();}
     boolean compatibleReady(){return ready() && serviceEnabled() && HomeGuardService.connected();}
     String summary(){

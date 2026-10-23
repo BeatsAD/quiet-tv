@@ -119,6 +119,8 @@ final class HomeGuardRecovery {
         if(HomeGuardState.canShow(c))new HomeGuardState(c).preferences.edit().putBoolean("homeInFront",false).apply();
     }
     /** Called only from the foreground setup's already-authorized local ADB worker. */
+    // Already runs on the ADB worker; keep completed grants durable before continuing/canceling.
+    @android.annotation.SuppressLint("ApplySharedPref")
     static void configureAdb(Context c,AdbController adb,SetupOperations.Ticket task) throws Exception {
         HomeGuardState state=new HomeGuardState(c);state.configure();if(!state.ready())throw new java.io.IOException(state.enableProblem());
         task.check();adb.validateUser();String pkg=c.getPackageName(),user=Integer.toString(adb.user);

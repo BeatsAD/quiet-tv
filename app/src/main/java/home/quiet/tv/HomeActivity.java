@@ -577,7 +577,9 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     private final class Glass extends View {
-        final RectF current=new RectF();final Paint paint=new Paint(3);float radius;ValueAnimator animation;
+        final RectF current=new RectF();final Paint paint=new Paint(3);
+        final Shader glass=new LinearGradient(0,0,1,0,new int[]{0x30ffffff,0x09ffffff},null,Shader.TileMode.CLAMP);
+        final Matrix glassMatrix=new Matrix();final float[] glassTransform={1,0,0,0,1,0,0,0,1};float radius;ValueAnimator animation;
         Glass(){super(HomeActivity.this);setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);}
         void move(RectF target,float corner,boolean spring){
             if(animation!=null)animation.cancel();radius=corner;
@@ -587,7 +589,12 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         }
         @Override protected void onDraw(Canvas c){
             if(current.isEmpty())return;
-            paint.setShader(new LinearGradient(current.left,current.top,current.right,current.bottom,new int[]{0x30ffffff,0x09ffffff},null,Shader.TileMode.CLAMP));
+            // Rotate and uniformly scale the unit gradient onto the original diagonal.
+            // A nonuniform X/Y scale would change the gradient away from that diagonal.
+            float width=current.width(),height=current.height();
+            glassTransform[0]=width;glassTransform[1]=-height;glassTransform[2]=current.left;
+            glassTransform[3]=height;glassTransform[4]=width;glassTransform[5]=current.top;
+            glassMatrix.setValues(glassTransform);glass.setLocalMatrix(glassMatrix);paint.setShader(glass);
             paint.setStyle(Paint.Style.FILL);c.drawRoundRect(current,radius,radius,paint);paint.setShader(null);
             paint.setStyle(Paint.Style.STROKE);
             paint.setColor(Color.WHITE);paint.setStrokeWidth(px(FOCUS_STROKE));c.drawRoundRect(current,radius,radius,paint);

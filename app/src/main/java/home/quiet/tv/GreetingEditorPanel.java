@@ -119,7 +119,7 @@ final class GreetingEditorPanel {
                 candidate.listen();BitMatrix matrix=new QRCodeWriter().encode(candidate.address(),BarcodeFormat.QR_CODE,384,384,Collections.singletonMap(EncodeHintType.MARGIN,1));
                 int[] pixels=new int[384*384];for(int y=0;y<384;y++)for(int x=0;x<384;x++)pixels[y*384+x]=matrix.get(x,y)?Color.BLACK:Color.WHITE;
                 Bitmap bitmap=Bitmap.createBitmap(pixels,384,384,Bitmap.Config.ARGB_8888);
-                main.post(()->{if(phone==null||attempt!=generation){candidate.stop();bitmap.recycle();return;}server=candidate;address.setText(candidate.shortAddress());code.setText(tr("连接码  ","Code  ")+candidate.connectionCode());qr.setImageBitmap(bitmap);main.postDelayed(check,2000);});
+                main.post(()->{if(phone==null||attempt!=generation){candidate.stop();bitmap.recycle();return;}server=candidate;address.setText(candidate.shortAddress());code.setText(String.format(tr(ui.getString(R.string.greeting_connection_code_zh),ui.getString(R.string.greeting_connection_code_en)),candidate.connectionCode()));qr.setImageBitmap(bitmap);main.postDelayed(check,2000);});
             }catch(IOException|WriterException e){candidate.stop();main.post(()->{if(phone!=null&&attempt==generation){address.setText(tr("无法连接，请检查网络后重试","Unable to connect. Check the network and retry."));reconnect.setVisibility(View.VISIBLE);}});}
         });
     }

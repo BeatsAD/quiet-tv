@@ -37,8 +37,8 @@ final class WallpaperUi {
     }
     void icon(TextView view,int resource){view.setCompoundDrawables(icon(resource,16,view.getCurrentTextColor()),null,null,null);view.setCompoundDrawablePadding(px(7));}
     Drawable calendar(int size){
-        Drawable art=new Drawable(){final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
-            @Override public void draw(Canvas canvas){int save=canvas.save();Rect b=getBounds();canvas.translate(b.left,b.top);canvas.scale(b.width()/24f,b.height()/24f);paint.setColor(INK);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(1.8f);paint.setStrokeCap(Paint.Cap.ROUND);canvas.drawRoundRect(new RectF(3,5,21,22),2,2,paint);canvas.drawLine(3,10,21,10,paint);canvas.drawLine(7,2,7,7,paint);canvas.drawLine(17,2,17,7,paint);paint.setStyle(Paint.Style.FILL);canvas.drawRect(7,14,10,17,paint);canvas.drawRect(14,14,17,17,paint);canvas.restoreToCount(save);}
+        Drawable art=new Drawable(){final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);final RectF page=new RectF(3,5,21,22);
+            @Override public void draw(Canvas canvas){int save=canvas.save();Rect b=getBounds();canvas.translate(b.left,b.top);canvas.scale(b.width()/24f,b.height()/24f);paint.setColor(INK);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(1.8f);paint.setStrokeCap(Paint.Cap.ROUND);canvas.drawRoundRect(page,2,2,paint);canvas.drawLine(3,10,21,10,paint);canvas.drawLine(7,2,7,7,paint);canvas.drawLine(17,2,17,7,paint);paint.setStyle(Paint.Style.FILL);canvas.drawRect(7,14,10,17,paint);canvas.drawRect(14,14,17,17,paint);canvas.restoreToCount(save);}
             @Override public void setAlpha(int alpha){paint.setAlpha(alpha);}@Override public void setColorFilter(ColorFilter filter){paint.setColorFilter(filter);}@Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
         };art.setBounds(0,0,px(size),px(size));return art;
     }
@@ -46,10 +46,10 @@ final class WallpaperUi {
         // Subtract after pixel rounding so the inner and outer corner centers coincide.
         int radius=px(outerRadius)-px(inset);
         return new ImageView(context){
-            final Path clip=new Path();
+            final Path clip=new Path();final RectF imageBounds=new RectF();
             {setScaleType(ScaleType.CENTER_CROP);setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);}
             @Override protected void onDraw(Canvas canvas){
-                clip.reset();clip.addRoundRect(new RectF(0,0,getWidth(),getHeight()),radius,radius,Path.Direction.CW);
+                imageBounds.set(0,0,getWidth(),getHeight());clip.reset();clip.addRoundRect(imageBounds,radius,radius,Path.Direction.CW);
                 int saved=canvas.save();canvas.clipPath(clip);super.onDraw(canvas);canvas.restoreToCount(saved);
             }
         };

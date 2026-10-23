@@ -62,7 +62,7 @@ public final class AppManagementActivity extends ManagementUi {
         IntentFilter packages=new IntentFilter(Intent.ACTION_PACKAGE_ADDED);packages.addAction(Intent.ACTION_PACKAGE_REMOVED);packages.addAction(Intent.ACTION_PACKAGE_CHANGED);packages.addDataScheme("package");registerReceiver(packagesChanged,packages);
     }
     private void ui(Runnable action){runOnUiThread(()->{if(!isDestroyed() && !isFinishing())action.run();});}
-    private void updateConnection(String value){connectionState=value;String shortState=adb.connected()?"已连接":value.startsWith("等待授权")?"等待授权":value.startsWith("连接中")?"连接中":value.contains("失败")?"连接失败":"未连接";status.setText("ADB "+shortState);status.setTextColor(adb.connected()?0xffbacabd:TEXT);status.setContentDescription("ADB "+value);}
+    private void updateConnection(String value){connectionState=value;String shortState=adb.connected()?"已连接":value.startsWith("等待授权")?"等待授权":value.startsWith("连接中")?"连接中":value.contains("失败")?"连接失败":"未连接";status.setText(getString(R.string.adb_short_state,shortState));status.setTextColor(adb.connected()?0xffbacabd:TEXT);status.setContentDescription("ADB "+value);}
     @Override protected void onResume(){super.onResume();active=true;updateConnection(adb.connected()?"已连接":"未连接");refresh();}
     @Override protected void onStop(){active=false;connection.close();coverUploads.close();if(!connecting)worker.execute(()->{adb.disconnect();ui(()->updateConnection("未连接"));});super.onStop();}
     @Override protected void onDestroy(){unregisterReceiver(packagesChanged);coverUploads.destroy();adb.close();worker.shutdownNow();super.onDestroy();}
@@ -73,12 +73,14 @@ public final class AppManagementActivity extends ManagementUi {
     }
     private void adbFailure(Exception e){updateConnection("连接失败");count.setText("读取失败，请重新连接后刷新");renderDetails();message(e.getMessage()==null?e.toString():e.getMessage());}
     private void morePanel(){Sheet sheet=new Sheet("更多");Button refresh=sheet.option("刷新应用列表",R.drawable.ic_manage_refresh,()->{sheet.dialog.dismiss();refresh();});sheet.option("开机广告",()->{sheet.dialog.dismiss();startActivity(new Intent(this,BootAdActivity.class));});sheet.option("首次设置",()->{sheet.dialog.dismiss();startActivity(new Intent(this,SetupActivity.class));});sheet.option("恢复原桌面",()->{sheet.dialog.dismiss();startActivity(new Intent(this,SetupActivity.class).putExtra("restore",true));});sheet.option("操作记录",R.drawable.ic_manage_history,()->{sheet.dialog.dismiss();showHistory();});sheet.action("关闭",sheet.dialog::dismiss);sheet.show(refresh);}
+    // Each repository snapshot replaces app metadata as well as list membership/order.
+    @android.annotation.SuppressLint("NotifyDataSetChanged")
     private void applyFilter(){
         boolean listFocused=initialFocus || list.hasFocus();filtered.clear();
         for(AppRepository.App app:all){boolean match=filter==0 || filter==1 && !app.system && app.installed || filter==2 && app.system || filter==3 && app.installed && !app.enabled || filter==4 && app.recoverable;if(match)filtered.add(app);}
         for(int i=0;i<filterButtons.size();i++)filterButtons.get(i).setSelected(i==filter);
         boolean present=false;for(AppRepository.App app:filtered)if(app.pkg.equals(selected))present=true;if(!present)selected=filtered.isEmpty()?"":filtered.get(0).pkg;
-        count.setText(filtered.size()+" 个应用"+(!adb.connected()?"  本地信息":""));adapter.notifyDataSetChanged();renderDetails();if(listFocused){initialFocus=false;focusList();}
+        count.setText(getString(R.string.management_app_count,filtered.size(),!adb.connected()?getString(R.string.management_local_suffix):""));adapter.notifyDataSetChanged();renderDetails();if(listFocused){initialFocus=false;focusList();}
     }
     private AppRepository.App current(){for(AppRepository.App app:filtered)if(app.pkg.equals(selected))return app;return null;}
     private CharSequence coloredState(AppRepository.App app,String text){
@@ -132,7 +134,7 @@ public final class AppManagementActivity extends ManagementUi {
         Button cancel=sheet.action("取消",sheet.dialog::dismiss);Button confirm=sheet.action("确认"+action.label,()->{sheet.dialog.dismiss();perform(app,action);});if(action==AppOperations.Action.UNINSTALL)confirm.setTextColor(0xffe3aaa6);sheet.show(cancel);
     }
     private void perform(AppRepository.App app,AppOperations.Action action){
-        if(busy)return;busy=true;count.setText("正在"+action.label+"并核对实际状态…");renderDetails();
+        if(busy)return;busy=true;count.setText(getString(R.string.management_action_progress,action.label));renderDetails();
         worker.execute(()->{try{String result=operations.perform(adb,app,action);ui(()->{busy=false;feedback(result);refresh();focusList();});}catch(Exception e){ui(()->{busy=false;message(e.getMessage());refresh();focusList();});}});
     }
     private void showHistory(){worker.execute(()->{try{String history=operations.history();ui(()->{Sheet sheet=new Sheet("操作记录");TextView text=muted(history,12);text.setLineSpacing(px(5),1);sheet.body.addView(text);Button close=sheet.action("关闭",sheet.dialog::dismiss);sheet.show(close);});}catch(Exception e){ui(()->message(e.getMessage()));}});}

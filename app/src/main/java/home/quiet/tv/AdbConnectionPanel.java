@@ -79,7 +79,7 @@ final class AdbConnectionPanel {
             worker.execute(()->{try{
                 attempt.check();if(needsPair){adb.pair(pairingPort,secret);attempt.check();}adb.connect(connectionPort);attempt.check();
                 ui.runOnUiThread(()->{if(!attempt.active() || ui.isFinishing() || ui.isDestroyed())return;complete=true;sheet.dialog.dismiss();panel=null;connected.run();});
-            }catch(Exception e){ui.runOnUiThread(()->{if(!attempt.active() || ui.isFinishing() || ui.isDestroyed())return;working=false;if(setup!=null)connect.setText(continuation);status.setText("未连接："+e.getMessage());settings.setEnabled(true);connect.setEnabled(true);port.setEnabled(true);pairPort.setEnabled(true);code.setEnabled(true);});}});
+            }catch(Exception e){ui.runOnUiThread(()->{if(!attempt.active() || ui.isFinishing() || ui.isDestroyed())return;working=false;if(setup!=null)connect.setText(continuation);status.setText(ui.getString(R.string.adb_connection_failed,e.getMessage()));settings.setEnabled(true);connect.setEnabled(true);port.setEnabled(true);pairPort.setEnabled(true);code.setEnabled(true);});}});
         }
         void cancel(){if(!attempt.active())return;attempt.cancel();if(discovery!=null)discovery.close();if(guide!=null)guide.dialog.dismiss();code.setText("");if(!complete)adb.disconnect();if(sheet.dialog.isShowing())sheet.dialog.dismiss();}
     }
