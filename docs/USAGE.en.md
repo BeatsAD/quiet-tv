@@ -72,6 +72,14 @@ Open the independent Desktop Settings module after Wallpaper Settings in All App
 
 ![Desktop display settings on the Sony TV, 1.1.2 / 34](assets/desktop-settings-1.1.2.png)
 
+## Home greeting (development source)
+
+Open All Apps → Desktop Settings → Desktop → Home greeting. Show greeting controls the text independently of weather and time. Turning it off retains the saved text for the next time you enable it.
+
+Select the input with your remote to use the system keyboard; Chinese input requires an installed Chinese IME. Alternatively, select Phone input, connect your phone to the TV’s local network and scan the QR code. You can also open the displayed address in a browser and enter the connection code. Sending only fills the TV draft: select Save on the TV to apply it. Cancel or Back discards both text and switch changes.
+
+Saving empty text restores the time-based greeting. Long text is ellipsized on Home and remains complete in the editor. Existing fixed Welcome home configurations keep their text until edited. Each phone session accepts one submission and ends when you return to editing, background the app, change network addresses or leave it idle for ten minutes. Text is saved locally on the TV; no account or cloud service is required. This feature is not included in the published 1.1.2 packages above.
+
 ## Home weather (development source)
 
 A static icon, temperature, conditions and city appear beside the greeting on the same line; clock/date positions stay unchanged. Toggle weather under All Apps → Desktop Settings → Desktop. The Weather category provides automatic location, city selection, refresh and service information. Turning off automatic location pins the resolved city; if no city is available, choose one first, or cancel to keep automatic location. Choosing a city turns automatic location off. City preferences remain editable while weather is hidden, without location or weather refresh requests. No ADB is needed and the system Settings button is unchanged. This feature is not included in the published 1.1.2 packages above.
