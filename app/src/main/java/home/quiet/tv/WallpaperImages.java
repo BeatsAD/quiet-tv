@@ -8,7 +8,7 @@ import java.io.*;
 final class WallpaperImages {
     private WallpaperImages() {}
     static InputStream open(Context context,WallpaperStore store,WallpaperCatalog.Entry entry) throws IOException {
-        if(entry.video())return new FileInputStream(store.poster(entry.id));
+        if(entry.video())return entry.custom()?new FileInputStream(store.poster(entry.id)):context.getAssets().open("wallpapers/"+entry.id+".jpg");
         if(WallpaperCatalog.DAILY.equals(entry.id)){
             WallpaperCatalog state=store.snapshot();WallpaperCatalog.DailyImage image=state.dailyImages.get(state.dailySource);
             if(store.cached(image))return new FileInputStream(store.dailyFile(image.source,image.slot));

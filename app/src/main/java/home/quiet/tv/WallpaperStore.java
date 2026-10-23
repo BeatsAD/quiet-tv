@@ -82,6 +82,7 @@ final class WallpaperStore {
     synchronized void remove(String id) throws IOException {
         WallpaperCatalog.Entry entry=catalog.find(id); if(entry==null || WallpaperCatalog.DEFAULT.equals(id)||WallpaperCatalog.DAILY.equals(id)) return;
         WallpaperCatalog old=catalog.copy(),next=catalog.copy();next.remove(id);persist(next);
+        if(!entry.custom())return;
         File deleted=mediaFile(id,entry.video());
         if(entry.custom() && deleted.exists() && !deleted.delete()) {
             persist(old); throw new IOException("Unable to delete wallpaper file");

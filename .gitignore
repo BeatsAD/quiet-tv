@@ -13,6 +13,9 @@ evidence/
 !/app/src/main/assets/child-rest/forest.webp
 !/app/src/main/assets/child-rest/cloud.webp
 !/app/src/main/assets/child-rest/space.webp
+# Built-in video wallpaper and its offline poster are production inputs.
+!/app/src/main/assets/wallpapers/golden-gate-sunset.mp4
+!/app/src/main/assets/wallpapers/golden-gate-sunset.jpg
 .DS_Store
 __pycache__/
 *.py[cod]

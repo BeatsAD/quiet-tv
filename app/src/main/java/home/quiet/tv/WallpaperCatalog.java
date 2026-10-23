@@ -6,6 +6,7 @@ import java.util.*;
 /** Stable wallpaper identities and policy, independent of Android views and file I/O. */
 final class WallpaperCatalog {
     static final String DEFAULT = "default";
+    static final String DEFAULT_VIDEO = "golden-gate-sunset";
     static final String DAILY = "daily", BING = "bing-cn", BT = "bt-landscape";
     static boolean dailySource(String source) { return BING.equals(source)||BT.equals(source); }
     static String sourceLabel(String source,boolean chinese) { return BT.equals(source)?chinese?"搏天风景":"Btstu Landscape":chinese?"必应国区":"Bing China"; }
@@ -48,13 +49,14 @@ final class WallpaperCatalog {
         String label(boolean chinese) {
             if (DEFAULT.equals(id)) return chinese ? "默认颜色主题" : "Default color theme";
             if (DAILY.equals(id)) return chinese ? "每日壁纸" : "Daily wallpaper";
+            if (DEFAULT_VIDEO.equals(id)) return chinese ? "金门大桥日落" : "Golden Gate Sunset";
             for (int i=0;i<BUILTINS.length;i++) if (BUILTINS[i].equals(id)) return chinese ? ZH[i] : EN[i];
             return name;
         }
     }
     String current = DEFAULT;
     boolean rotating;
-    String lastVideo="",staticBeforeVideo=DEFAULT;
+    String lastVideo=DEFAULT_VIDEO,staticBeforeVideo=DEFAULT;
     boolean rotationBeforeVideo;
     String dailySource=BING,lastLocal=DEFAULT;
     final Map<String,DailyImage> dailyImages=new LinkedHashMap<>();
@@ -73,18 +75,19 @@ final class WallpaperCatalog {
         result.add(new Entry(DEFAULT,"",0,0,0));
         result.add(new Entry(DAILY,"",0,0,0));
         for (String id:BUILTINS) if (!removed.contains(id)) result.add(new Entry(id,"",1920,1080,0));
+        if (!removed.contains(DEFAULT_VIDEO)) result.add(new Entry(DEFAULT_VIDEO,"",1920,1080,0,"video","video/avc",23000,30,0));
         result.addAll(custom); return result;
     }
     Entry find(String id) { for (Entry entry:entries()) if (entry.id.equals(id)) return entry; return null; }
     List<Entry> pictures() { List<Entry> result=new ArrayList<>();for(Entry e:entries())if(!e.video()&&!DEFAULT.equals(e.id)&&!DAILY.equals(e.id))result.add(e);return result; }
-    List<Entry> videos(){List<Entry> result=new ArrayList<>();for(Entry e:custom)if(e.video())result.add(e);return result;}
+    List<Entry> videos(){List<Entry> result=new ArrayList<>();for(Entry e:entries())if(e.video())result.add(e);return result;}
     boolean dynamic(){Entry e=find(current);return e!=null&&e.video();}
     int count(boolean video){int n=0;for(Entry e:custom)if(e.video()==video)n++;return n;}
     void normalize() {
         if (find(current)==null) {current=staticBeforeVideo;rotating=rotationBeforeVideo;}
         if(find(current)==null)current=DEFAULT;
         Entry previous=find(staticBeforeVideo);if(previous==null||previous.video()){staticBeforeVideo=DEFAULT;rotationBeforeVideo=false;}
-        Entry video=find(lastVideo);if(video==null||!video.video())lastVideo="";
+        Entry video=find(lastVideo);if(video==null||!video.video()){List<Entry> pool=videos();lastVideo=pool.isEmpty()?"":pool.get(0).id;}
         if (dynamic() || DEFAULT.equals(current) || DAILY.equals(current) || pictures().size()<2) rotating=false;
         if(DAILY.equals(lastLocal)||find(lastLocal)==null||find(lastLocal).video())lastLocal=DEFAULT;
     }
@@ -139,9 +142,12 @@ final class WallpaperCatalog {
         if (json.getInt("version")!=1&&json.getInt("version")!=2) throw new JSONException("Unsupported wallpaper catalog");
         WallpaperCatalog result=new WallpaperCatalog();
         result.current=json.optString("current",DEFAULT); result.rotating=json.optBoolean("rotating",false);
-        result.lastVideo=json.optString("lastVideo","");result.staticBeforeVideo=json.optString("staticBeforeVideo",DEFAULT);result.rotationBeforeVideo=json.optBoolean("rotationBeforeVideo",false);
+        result.lastVideo=json.optString("lastVideo",DEFAULT_VIDEO);result.staticBeforeVideo=json.optString("staticBeforeVideo",DEFAULT);result.rotationBeforeVideo=json.optBoolean("rotationBeforeVideo",false);
         JSONArray hidden=json.optJSONArray("removed");
-        if(hidden!=null) for(int i=0;i<hidden.length();i++) for(String id:BUILTINS) if(id.equals(hidden.optString(i))) result.removed.add(id);
+        if(hidden!=null) for(int i=0;i<hidden.length();i++) {
+            String id=hidden.optString(i);
+            if(DEFAULT_VIDEO.equals(id)||Arrays.asList(BUILTINS).contains(id)) result.removed.add(id);
+        }
         JSONArray users=json.optJSONArray("custom");
         if(users!=null) for(int i=0;i<users.length() && result.custom.size()<MAX_CUSTOM+MAX_VIDEOS;i++) {
             JSONObject e=users.getJSONObject(i); String id=e.getString("id");
