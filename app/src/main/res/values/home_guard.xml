@@ -1,4 +1,4 @@
 <resources>
     <string name="home_guard_name">桌面守护（实验）</string>
-    <string name="home_guard_description">仅识别选择的原主页并返回 Quiet TV，不读取屏幕内容。请返回 Quiet TV 的“桌面守护（实验）”页面手动启用或暂停。</string>
+    <string name="home_guard_description">仅识别选择的原主页并返回 Quiet TV，不读取屏幕内容。请返回 Quiet TV 的“桌面守护（实验）”页面，手动开启或关闭守护开关。</string>
 </resources>
