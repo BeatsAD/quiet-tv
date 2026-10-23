@@ -9,37 +9,26 @@ const brands = {
 };
 let brand = 'sony';
 let toastTimer;
-const urls = 'https://raw.githubusercontent.com/BeatsAD/quiet-tv/main/docs/AGENT_INSTALL.zh-CN.md\nhttps://github.com/BeatsAD/quiet-tv/blob/main/docs/INSTALL.zh-CN.md\nhttps://github.com/BeatsAD/quiet-tv/blob/main/docs/COMPATIBILITY.md';
-const discovery = `请自动发现电脑当前局域网内的目标电视：先检查现有 ADB 连接与 ADB mDNS 服务，必要时仅在当前局域网扫描常用 ADB 连接端口，不跨网段或进行全端口扫描。
-结合所选品牌及可读取的型号识别电视；发现多个候选或无法确认目标时，列出候选让我选择，不批量安装或修改设备。
-未发现目标时，再指导我在电视上查看网络地址、打开调试或完成无线调试配对。配对端口与连接端口分别核对，电视上的授权或配对码由我现场提供，不绕过授权。
-连接后核对设备身份，后续所有 ADB 命令显式指定同一目标。`;
+const guideUrl = 'https://raw.githubusercontent.com/BeatsAD/quiet-tv/main/docs/AGENT_INSTALL.zh-CN.md';
 function update() {
-  $('#install-prompt').textContent = `请在电脑上执行命令，帮我安装 Quiet TV。
-目标：先安装并试用 Quiet TV，暂不修改默认桌面。
+  $('#install-prompt').textContent = `请在我的电脑上安装或更新 Quiet TV。
 电视品牌：${brands[brand][0]}
 
-请先完整阅读安装与兼容说明：
-${urls}
+请先完整读取并遵循操作说明：
+${guideUrl}
 
-从官方 Releases（含预发布／测试版）选择适配系统的最新主程序，当前推荐 1.1.2，更新版本以发布列表为准。安装后核对实际版本与目标一致；无法确认版本或下载失败时先告诉我，不改装历史包。
+从官方 Releases（含预发布／测试版）选择适配电视的最新主程序。安装前告知目标版本，安装后核对实际版本和 SHA-256，不自动改装历史包。
 
-${discovery}
-
-确认目标设备、系统和当前用户，保存原桌面恢复记录。按系统档位选择已发布 APK，核对 SHA-256、包名、架构、签名和覆盖升级条件。
-首次打开选择“暂不设置，临时使用”，引导我验证遥控器、应用和设置入口。
-试用确认可用后，询问我是否将 Quiet TV 设为默认桌面；只有我同意后，才核对当前固件的 HOME 能力并尝试切换。切换后读回结果，等待我用实体遥控器验证；固件受限或我选择不切换时保留原默认桌面。
-保留原桌面，不禁用、不卸载、不清数据，不处理无关系统应用。电视授权时提醒我，重启测试先单独确认。
-分别报告安装校验、默认 HOME、实体 HOME、重启及待机唤醒结果，未验证请标明，并提供本机恢复方法。`;
-  $('#restore-prompt').textContent = `请在电脑上执行命令，帮我恢复原来的电视桌面。
+先发现电视并让我确认目标。已有安装则保留数据更新；首次安装先试用，再让我选择是否设置默认桌面及管理应用。
+需要授权或选择时等待我确认；无法读取说明、确认版本或完成操作时，停止相关修改，显示具体错误、当前状态和下一步，不猜测执行。`;
+  $('#restore-prompt').textContent = `请在我的电脑上帮我恢复原来的电视桌面。
 电视品牌：${brands[brand][0]}
 
-${discovery}
+请先完整读取并遵循操作说明：
+${guideUrl}
 
-先读取现状和安装时保存的本机恢复记录，核对目标设备、当前用户、原桌面组件和原始启用状态。
-优先使用系统或 Quiet TV 的恢复入口，仅恢复有记录的变更。保留 Quiet TV 和数据，不操作无关应用。
-需要电视端操作时逐步提示，完成后读回 HOME，等待我用实体遥控器验证。
-记录缺失、连接或权限受限时说明原因，不猜测原值、不套用其他电视的命令。`;
+确认目标电视后，根据本机记录恢复，保留 Quiet TV 和应用数据。
+失败时显示具体错误、当前状态和下一步；记录缺失或无法读取说明时先告诉我，不猜测执行。`;
 }
 function wireTabs(selector, activate) {
   const tabs = [...document.querySelectorAll(selector)];
