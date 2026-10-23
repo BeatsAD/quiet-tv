@@ -20,6 +20,7 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
         super.onCreate(state);BackNavigation.install(this,this::handleBack);unit=getResources().getDisplayMetrics().widthPixels/960f;
         getWindow().getDecorView().setSystemUiVisibility(5894);
         stage=new FrameLayout(this);stage.setBackgroundColor(0xff0e0f13);setContentView(stage);
+        if(loadWallpaper()){
         WallpaperStore wallpaperStore=WallpaperStore.get(this);
         WallpaperCatalog wallpaperState=wallpaperStore.snapshot();
         WallpaperCatalog.Entry wallpaperEntry=wallpaperState.find(wallpaperState.current);
@@ -27,12 +28,14 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
             Bitmap bitmap=WallpaperImages.decode(this,wallpaperStore,wallpaperEntry,480,270);
             ImageView image=new ImageView(this);image.setScaleType(ImageView.ScaleType.CENTER_CROP);image.setImageBitmap(bitmap);stage.addView(image,new FrameLayout.LayoutParams(-1,-1));
         }catch(java.io.IOException ignored){}
+        }
         View shade=new View(this);shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0xf00c0d11,0xf50b0c10}));stage.addView(shade,new FrameLayout.LayoutParams(-1,-1));
         root=column();root.setPadding(px(48),px(28),px(48),px(16));stage.addView(root,new FrameLayout.LayoutParams(-1,-1));
         header=row();root.addView(header,new LinearLayout.LayoutParams(-1,px(38)));
         Button back=iconButton("返回",R.drawable.ic_manage_back,this::handleBack);header.addView(back,new LinearLayout.LayoutParams(px(34),px(34)));
         TextView title=label("应用管理",27);title.setPadding(px(14),0,0,0);header.addView(title,new LinearLayout.LayoutParams(0,-1,1));
     }
+    boolean loadWallpaper(){return true;}
     public void handleBack(){finish();}
     LinearLayout row(){LinearLayout view=new LinearLayout(this);view.setOrientation(LinearLayout.HORIZONTAL);view.setGravity(Gravity.CENTER_VERTICAL);return view;}
     LinearLayout column(){LinearLayout view=new LinearLayout(this);view.setOrientation(LinearLayout.VERTICAL);return view;}
