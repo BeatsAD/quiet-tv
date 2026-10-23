@@ -33,7 +33,6 @@ public final class DesktopSettingsActivity extends ManagementUi {
             root.addView(button(chinese?"桌面守护（实验）":"Desktop guard (experimental)",
                 ()->startActivity(new android.content.Intent(this,HomeGuardActivity.class))),new LinearLayout.LayoutParams(-2,px(42)));
         }
-        gap(root,14);root.addView(button(chinese?"诊断日志":"Diagnostics",()->startActivity(new android.content.Intent(this,DiagnosticsActivity.class))),new LinearLayout.LayoutParams(-2,px(38)));
         time.requestFocus();
     }
     private Switch option(String title,boolean checked){
