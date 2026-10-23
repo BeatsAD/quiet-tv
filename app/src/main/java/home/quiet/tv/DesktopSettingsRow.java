@@ -37,6 +37,7 @@ final class DesktopSettingsRow extends LinearLayout {
     void icon(int resource){start.setImageDrawable(UiCompat.drawable(ui,resource));start.clearColorFilter();}
     void value(String text){value.setText(text);updateDescription();}
     String value(){return value.getText().toString();}
+    void compact(){start.setVisibility(GONE);title.setTextSize(TypedValue.COMPLEX_UNIT_PX,ui.px(14));value.setMaxWidth(ui.px(90));setPadding(ui.px(10),0,ui.px(10),0);}
     void description(String text){description.setText(text);description.setVisibility(text.isEmpty()?GONE:VISIBLE);title.setTextSize(TypedValue.COMPLEX_UNIT_PX,ui.px(text.isEmpty()?16:17));updateDescription();}
     private void updateDescription(){setContentDescription(title.getText()+(value.length()==0?"":"  "+value.getText())+(description.length()==0?"":"  "+description.getText()));}
     void tail(String symbol){end.setImageDrawable(new Glyph(symbol,0xffa2a8b3));end.setVisibility(VISIBLE);}

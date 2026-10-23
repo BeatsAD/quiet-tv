@@ -62,7 +62,7 @@ final class WallpaperController {
         FrameLayout background=new FrameLayout(activity);root.addView(background,new FrameLayout.LayoutParams(-1,-1));
         current=image();incoming=image();incoming.setAlpha(0);background.addView(current,new FrameLayout.LayoutParams(-1,-1));background.addView(incoming,new FrameLayout.LayoutParams(-1,-1));
         shade=new View(activity);shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x70000000,0x10000000,0xf00a0e15}));background.addView(shade,new FrameLayout.LayoutParams(-1,-1));
-        ambient=new Ambient();background.addView(ambient,new FrameLayout.LayoutParams(-1,-1));ambient.setVisibility(View.INVISIBLE);
+        ambient=new Ambient(activity,homeUnit);background.addView(ambient,new FrameLayout.LayoutParams(-1,-1));ambient.setVisibility(View.INVISIBLE);
         display(store.snapshot().current,false);
     }
     private int px(float value){return Math.round(value*unit);}
@@ -261,12 +261,13 @@ final class WallpaperController {
         .setMessage(tr("当前壁纸和你上传的图片保持不变。","Your current wallpaper and uploaded photos stay unchanged."))
         .setNegativeButton(tr("取消","Cancel"),null).setPositiveButton(tr("恢复","Restore"),(d,w)->runSaved(()->{store.restore();refreshCards(preview,true);})).show();}
     private Bitmap defaultThumbnail(){Bitmap bitmap=Bitmap.createBitmap(360,203,Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(bitmap);canvas.drawColor(Color.BLACK);Paint paint=new Paint(3);paint.setShader(new RadialGradient(116,59,232,new int[]{0xac557eac,0x40557eac,Color.TRANSPARENT},new float[]{0,.5f,1},Shader.TileMode.CLAMP));canvas.drawRect(0,0,360,203,paint);return bitmap;}
-    private final class Ambient extends View {
+    static final class Ambient extends View {
+        private final float homeUnit;
         final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.DITHER_FLAG);
         Shader bloom,spill;int color=Color.TRANSPARENT,targetColor=Color.TRANSPARENT;ValueAnimator animation;
         final float[] stops={0,.12f,.26f,.42f,.58f,.74f,.88f,1};
         final float[] falloff={1,.96f,.80f,.54f,.28f,.10f,.015f,0};
-        Ambient(){super(activity);}
+        Ambient(android.content.Context context,float homeUnit){super(context);this.homeUnit=homeUnit;}
         void setColor(int value){
             float[] hsv=new float[3];Color.colorToHSV(value,hsv);
             hsv[1]=Math.min(.88f,hsv[1]);hsv[2]=.95f;value=Color.HSVToColor(hsv);
