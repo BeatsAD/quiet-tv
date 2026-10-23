@@ -72,7 +72,7 @@ public final class AppManagementActivity extends ManagementUi {
         worker.execute(()->{try{List<AppRepository.App> values=repository.load(adb);ui(()->{busy=false;all.clear();all.addAll(values);applyFilter();});}catch(Exception e){ui(()->{busy=false;adbFailure(e);});}});
     }
     private void adbFailure(Exception e){updateConnection("连接失败");count.setText("读取失败，请重新连接后刷新");renderDetails();message(e.getMessage()==null?e.toString():e.getMessage());}
-    private void morePanel(){Sheet sheet=new Sheet("更多");Button refresh=sheet.option("刷新应用列表",R.drawable.ic_manage_refresh,()->{sheet.dialog.dismiss();refresh();});sheet.option("开机广告",()->{sheet.dialog.dismiss();startActivity(new Intent(this,BootAdActivity.class));});sheet.option("首次设置",()->{sheet.dialog.dismiss();startActivity(new Intent(this,SetupActivity.class));});sheet.option("恢复原桌面",()->{sheet.dialog.dismiss();startActivity(new Intent(this,SetupActivity.class).putExtra("restore",true));});sheet.option("操作记录",R.drawable.ic_manage_history,()->{sheet.dialog.dismiss();showHistory();});sheet.action("关闭",sheet.dialog::dismiss);sheet.show(refresh);}
+    private void morePanel(){Sheet sheet=new Sheet("更多");Button refresh=sheet.option("刷新应用列表",R.drawable.ic_manage_refresh,()->{sheet.dialog.dismiss();refresh();});sheet.option("开机自启",()->{sheet.dialog.dismiss();bootAppPanel();});sheet.option("开机广告",()->{sheet.dialog.dismiss();startActivity(new Intent(this,BootAdActivity.class));});sheet.option("首次设置",()->{sheet.dialog.dismiss();startActivity(new Intent(this,SetupActivity.class));});sheet.option("恢复原桌面",()->{sheet.dialog.dismiss();startActivity(new Intent(this,SetupActivity.class).putExtra("restore",true));});sheet.option("操作记录",R.drawable.ic_manage_history,()->{sheet.dialog.dismiss();showHistory();});sheet.action("关闭",sheet.dialog::dismiss);sheet.show(refresh);}
     private void applyFilter(){
         boolean listFocused=initialFocus || list.hasFocus();filtered.clear();
         for(AppRepository.App app:all){boolean match=filter==0 || filter==1 && !app.system && app.installed || filter==2 && app.system || filter==3 && app.installed && !app.enabled || filter==4 && app.recoverable;if(match)filtered.add(app);}
@@ -96,6 +96,7 @@ public final class AppManagementActivity extends ManagementUi {
         String size=app.apkSizeBytes>=0?Formatter.formatShortFileSize(this,app.apkSizeBytes):"大小未知";
         gap(details,20);TextView meta=center(app.pkg+"\n版本 "+app.version+"  "+size,12);meta.setTextColor(MUTED);meta.setLineSpacing(px(5),1);details.addView(meta,new LinearLayout.LayoutParams(-1,-2));
         details.addView(new View(this),new LinearLayout.LayoutParams(1,0,1));gap(details,18);
+        if(!busy)bootAppAction(app);
         String protectedReason=operations.protection(app);
         if(AppCoverPolicy.ownReadOnly(this,app.pkg)){protectionNote(protectedReason,true);return;}
         boolean coverAllowed=AppCoverPolicy.allowed(this,app.pkg);
@@ -115,6 +116,29 @@ public final class AppManagementActivity extends ManagementUi {
         }
         gap(details,16);String text=!protectedReason.isEmpty()?protectedReason:adb.connected()&&operations.actions(app).isEmpty()?"当前系统没有已确认可用的应用状态操作。":app.recoverable?"恢复安装不会恢复此前删除的数据。":!adb.connected()?"连接本机 ADB 后，可管理此应用的状态。":"禁用可重新启用  卸载会删除当前用户的应用数据。";
         TextView hint=center(text,11);hint.setTextColor(MUTED);hint.setLineSpacing(px(4),1);details.addView(hint,new LinearLayout.LayoutParams(-1,-2));
+    }
+    private void bootAppAction(AppRepository.App app){
+        BootAppStore store=new BootAppStore(this);boolean chosen=app.pkg.equals(store.target());
+        if(!chosen && (!app.installed || !app.enabled || store.launchIntent(app.pkg)==null))return;
+        LinearLayout row=row();row.setGravity(Gravity.CENTER);details.addView(row,new LinearLayout.LayoutParams(-1,px(38)));
+        addAction(row,button(chosen?"关闭开机自启":"设为开机自启",()->{
+            if(chosen){saveBootApp("","");return;}
+            Sheet sheet=new Sheet("设为开机自启？");
+            sheet.text("下次开机进入 Quiet TV 后，将自动打开 "+app.label+"。"+(store.target().isEmpty()?"":"将替换当前自启应用："+store.label()+"。")+"每次开机仅打开一次，儿童模式限制仍然有效。");
+            Button cancel=sheet.action("取消",sheet.dialog::dismiss);
+            sheet.action("开启",()->{sheet.dialog.dismiss();saveBootApp(app.pkg,app.label);});sheet.show(cancel);
+        }));gap(details,12);
+    }
+    private void saveBootApp(String pkg,String label){
+        try{new BootAppStore(this).select(pkg,label);renderDetails();if(firstAction!=null)firstAction.requestFocus();feedback(pkg.isEmpty()?"已关闭开机自启":"已设置，下次开机生效");}
+        catch(java.io.IOException e){message(e.getMessage());}
+    }
+    private void bootAppPanel(){
+        BootAppStore store=new BootAppStore(this);Sheet sheet=new Sheet("开机自启");
+        sheet.text(store.target().isEmpty()?"未开启。选择应用后，在详情中设置开机自启。":"当前自启应用："+store.label()+"。可选择其他应用替换。");
+        sheet.text("需让电视开机进入 Quiet TV。按 Home 返回桌面或待机唤醒时不会再次打开应用。");
+        Button close=sheet.action("关闭",sheet.dialog::dismiss);
+        if(!store.target().isEmpty())sheet.action("关闭开机自启",()->{sheet.dialog.dismiss();saveBootApp("","");});sheet.show(close);
     }
     private void protectionNote(String reason,boolean readOnly){TextView note=center(reason,12);note.setTextColor(0xffb9bec8);details.addView(note);if(readOnly){gap(details,8);details.addView(center("为保证电视正常使用，此应用仅供查看。",11));}}
     private void addAction(LinearLayout row,Button action){
