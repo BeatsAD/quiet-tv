@@ -15,6 +15,9 @@ final class ImageUploadDialog {
     private final boolean chinese;
     private final Bitmap backdrop;
     ImageUploadDialog(Activity activity,float unit,boolean chinese,Bitmap backdrop,String title,String requirements,String note,Runnable closeAction,Runnable reconnect){
+        this(activity,unit,chinese,backdrop,title,requirements,note,closeAction,reconnect,null);
+    }
+    ImageUploadDialog(Activity activity,float unit,boolean chinese,Bitmap backdrop,String title,String requirements,String note,Runnable closeAction,Runnable reconnect,String selection){
         this.activity=activity;this.ui=new WallpaperUi(activity,unit);this.chinese=chinese;this.backdrop=backdrop;
         dialog=new Dialog(activity);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         FrameLayout stage=new FrameLayout(activity);background=new ImageView(activity);background.setScaleType(ImageView.ScaleType.FIT_XY);background.setImageBitmap(backdrop);stage.addView(background,new FrameLayout.LayoutParams(-1,-1));
@@ -28,7 +31,7 @@ final class ImageUploadDialog {
         step(steps,"1",tr("连接同一个局域网","Connect to the same local network"),tr("电视可使用 Wi-Fi 或网线连接","Your TV can use Wi-Fi or Ethernet"),46);
         LinearLayout second=step(steps,"2",tr("手机扫码，或在电脑浏览器打开","Scan with your phone, or open on your computer"),null,64);
         address=ui.text(tr("正在开启上传…","Starting upload…"),15);address.setPadding(0,ui.px(8),0,0);second.addView(address);
-        LinearLayout third=step(steps,"3",tr("选择图片，上传后在电视上应用","Upload a photo, then apply it on your TV"),requirements,46);
+        LinearLayout third=step(steps,"3",selection==null?tr("选择图片，上传后在电视上应用","Upload a photo, then apply it on your TV"):selection,requirements,46);
         if(note!=null){TextView hint=ui.text(note,11);hint.setTextColor(WallpaperUi.MUTED);hint.setPadding(0,ui.px(8),0,0);third.addView(hint);}
         connection.addView(steps,new LinearLayout.LayoutParams(0,-2,1));connection.addView(new View(activity),new LinearLayout.LayoutParams(ui.px(28),1));
         LinearLayout qrColumn=column();qrColumn.setGravity(Gravity.CENTER_HORIZONTAL);

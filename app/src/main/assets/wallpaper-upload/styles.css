@@ -42,7 +42,7 @@ h1 { font-size: 1.75rem; font-weight: 500; line-height: 1.35; margin: 0 0 1.5rem
   overflow: hidden;
   cursor: pointer;
 }
-.preview img { position: absolute; width: 100%; height: 100%; object-fit: cover; }
+.preview img, .preview video { position: absolute; width: 100%; height: 100%; object-fit: cover; }
 #placeholder { display: grid; justify-items: center; gap: .5rem; color: var(--muted); }
 .plus { font-size: 2.5rem; font-weight: 300; line-height: 1; color: #f4f5f7; }
 .change { position: absolute; bottom: .75rem; right: .75rem; border: 1px solid var(--line); border-radius: 2rem; background: #20252deb; padding: .6rem 1rem; font-size: .875rem; }
@@ -72,7 +72,7 @@ button:focus-visible, .preview:focus-within, input:focus-visible { outline: 2px 
 .check { width: 3.5rem; height: 3.5rem; border: 1px solid #ffffff38; border-radius: 50%; background: #343c48; display: grid; place-items: center; font-size: 1.75rem; margin: 0 auto 1rem; }
 #success { text-align: center; }
 #success h1 { margin-bottom: .75rem; }
-#result { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 1rem; margin: 0 0 1.5rem; }
+#result, #result-video { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 1rem; margin: 0 0 1.5rem; }
 #pair-form label { display: block; color: var(--muted); }
 #code { display: block; width: 100%; min-height: 3.5rem; margin: .75rem 0 1.5rem; padding: .75rem; border: 1px solid #6b7788; border-radius: .875rem; font: inherit; font-family: monospace; font-size: 1.75rem; letter-spacing: .3em; text-align: center; background: #151c25; color: #f4f5f7; }
 #code::placeholder { color: var(--muted); font: 1rem "PingFang SC", "Microsoft YaHei", sans-serif; letter-spacing: .1em; }
@@ -80,3 +80,5 @@ button:focus-visible, .preview:focus-within, input:focus-visible { outline: 2px 
 @media (hover: hover) { button:not(:disabled):hover { background: #ffffff; } .preview:hover { border-color: #f4f5f7; } }
 @media (min-width: 768px) { body { padding: 2rem; } main { padding: 2rem; } h1 { font-size: 2rem; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+#cancel { margin-top: .75rem; background: transparent; border-color: var(--line); color: inherit; }
