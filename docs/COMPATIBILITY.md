@@ -86,6 +86,18 @@ Published b26 passed Debug build, 19 unit tests and Lint (0 errors, 28 warnings)
 
 The published b24 universal APK passed its optimized build, full Lint (0 errors, 27 warnings), package and signature checks, and GitHub download hash verification. It has not been installed on a TV or emulator. Historical emulator and b23 hardware checks do not validate b24, other vendors, real HOME changes, pairing, casting, or long-running operation. Unknown firmware retains read-only system-package behavior.
 
+## 首页 Dock 材质与动效（开发源码）
+
+首页 Dock 使用壁纸模糊缓存、半透明覆层、细描边和轻阴影；遥控焦点带动当前封面及相邻封面缩放、避让，确认键提供短促按压反馈。保留五项容量、横向封面、应用顺序和焦点记忆；顶部按钮及全部应用网格沿用各自样式。焦点移动复用背景缓存，壁纸变化时在后台生成缓存并同步淡入。视频壁纸下使用视频封面的磨砂缓存，不逐帧抓取或模糊视频；封面缺失时沿用视频播放器的静态背景。
+
+| 档位 | 共同功能及差异 | 本次验证边界 |
+| --- | --- | --- |
+| 标准 API21+ | 相同磨砂底板和焦点动画，无额外权限或依赖 | 构建、局部单元测试及 Lint 通过；API31 的 1080p、720p 模拟检查通过 |
+| 安卓4.4 / legacy19 | 共用实现，不依赖 API31 的 RenderEffect | 构建、局部单元测试及 Lint 通过；API21 运行检查通过，API19 运行与老电视性能待验收 |
+| 酷开 API26+ 包名档位 | 共用首页实现，无 Dock 专用兼容分支 | 本次未单独构建或验收酷开档位 |
+
+此处描述当前开发源码，不代表已发布 APK 包含。模拟器验证不替代厂商电视的真实遥控、升级数据保留及长时间运行验收。与动态壁纸集成后，API31 另通过视频播放期间的焦点动画、封面缓存复用、离开返回、静态／默认切换和封面缺失检查；视频布局仅在显示尺寸或源缓冲尺寸变化时更新，避免持续重复布局。
+
 ## 儿童模式源码兼容
 
 | 功能 | 标准 API21+、安卓4.4、酷开 API26+ 包名档位 | 边界 |

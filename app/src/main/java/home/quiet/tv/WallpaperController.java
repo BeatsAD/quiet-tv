@@ -36,7 +36,9 @@ final class WallpaperController {
     private boolean dynamicTab;
     private final LruCache<String,Bitmap> thumbnails=new LruCache<String,Bitmap>(6*1024){@Override protected int sizeOf(String id,Bitmap bitmap){return bitmap.getByteCount()/1024;}};
     private final Map<String,View> cards=new LinkedHashMap<>();
-    private Bitmap entry;
+    private Bitmap entry,currentBlur,incomingBlur;
+    private Runnable dockInvalidation;
+    private final RectF dockScreen=new RectF();
     private volatile int request;
     private int pickerVersion,themeColor=0xff557eac;
     private String preview,shown,shownKey;
@@ -74,6 +76,16 @@ final class WallpaperController {
     private String tr(String zh,String en){return chinese?zh:en;}
     private void notice(String message){Toast.makeText(activity,message,Toast.LENGTH_SHORT).show();}
     void setThemeColor(int color){themeColor=color;if(ambient.getVisibility()==View.VISIBLE)ambient.setColor(color);}
+    void observeDock(Runnable invalidation){dockInvalidation=invalidation;}
+    private void invalidateDock(){if(dockInvalidation!=null)dockInvalidation.run();}
+    void drawDockBackground(Canvas canvas,Paint paint){
+        canvas.drawColor(Color.BLACK);
+        if(ambient.getVisibility()==View.VISIBLE){ambient.draw(canvas);return;}
+        dockScreen.set(0,0,root.getWidth(),root.getHeight());paint.setAlpha(255);
+        if(currentBlur!=null)canvas.drawBitmap(currentBlur,null,dockScreen,paint);
+        if(incomingBlur!=null){paint.setAlpha(Math.round(incoming.getAlpha()*255));canvas.drawBitmap(incomingBlur,null,dockScreen,paint);paint.setAlpha(255);}
+        if(shade.getVisibility()==View.VISIBLE)shade.draw(canvas);
+    }
     private ImageView image(){ImageView view=new ImageView(activity);view.setScaleType(ImageView.ScaleType.CENTER_CROP);view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);return view;}
     private void display(String id,boolean animate){
         WallpaperCatalog.Entry selected=store.snapshot().find(id);
@@ -81,33 +93,45 @@ final class WallpaperController {
         stopVideo();final int version=++request;
         if(transition!=null){transition.end();transition=null;}
         if(WallpaperCatalog.DEFAULT.equals(id)){
-            current.setImageDrawable(null);incoming.setImageDrawable(null);shade.setVisibility(View.INVISIBLE);ambient.setVisibility(View.VISIBLE);ambient.setColor(themeColor);shown=id;shownKey=id;return;
+            current.setImageDrawable(null);incoming.setImageDrawable(null);currentBlur=null;incomingBlur=null;shade.setVisibility(View.INVISIBLE);ambient.setVisibility(View.VISIBLE);ambient.setColor(themeColor);shown=id;shownKey=id;invalidateDock();return;
         }
         WallpaperCatalog state=store.snapshot();
         if(selected!=null&&selected.video()){
-            ambient.setVisibility(View.INVISIBLE);shade.setVisibility(View.VISIBLE);current.setImageBitmap(defaultThumbnail());incoming.setImageDrawable(null);shown=id;shownKey=id;
+            Bitmap fallback=defaultThumbnail();
+            ambient.setVisibility(View.INVISIBLE);shade.setVisibility(View.VISIBLE);current.setImageBitmap(fallback);incoming.setImageDrawable(null);currentBlur=null;incomingBlur=null;shown=id;shownKey=id;invalidateDock();
             WallpaperCatalog.Entry posterEntry=store.poster(id).isFile()?selected:state.find(state.staticBeforeVideo);
-            if(posterEntry!=null&&!WallpaperCatalog.DEFAULT.equals(posterEntry.id)&&(!posterEntry.video()||posterEntry==selected))decoder.execute(()->{try{Bitmap poster=WallpaperImages.decode(activity,store,posterEntry,960,540);main.post(()->{if(version==request&&!activity.isDestroyed())current.setImageBitmap(poster);});}catch(IOException|OutOfMemoryError ignored){}});return;
+            // SurfaceView video frames are not captured: the Dock uses the matching poster.
+            decoder.execute(()->{try{
+                if(version!=request)return;
+                Bitmap poster=fallback;
+                if(posterEntry!=null&&!WallpaperCatalog.DEFAULT.equals(posterEntry.id)&&(!posterEntry.video()||posterEntry==selected))try{poster=WallpaperImages.decode(activity,store,posterEntry,960,540);}catch(IOException ignored){}
+                if(version!=request)return;
+                android.util.DisplayMetrics screen=activity.getResources().getDisplayMetrics();
+                Bitmap image=poster,blurred=DockBackdropDrawable.prepare(poster,screen.widthPixels,screen.heightPixels);
+                main.post(()->{if(version==request&&!activity.isDestroyed()){current.setImageBitmap(image);currentBlur=blurred;invalidateDock();}});
+            }catch(OutOfMemoryError ignored){}});return;
         }
         String key=store.imageKey(id);
         if(WallpaperCatalog.DAILY.equals(id)&&!store.cached(state.dailyImages.get(state.dailySource))){
             if(shown==null)display(state.lastLocal,false);return;
         }
-        if(id.equals(shown)&&key.equals(shownKey)&&current.getDrawable()!=null){ambient.setVisibility(View.INVISIBLE);shade.setVisibility(View.VISIBLE);return;}
+        if(id.equals(shown)&&key.equals(shownKey)&&current.getDrawable()!=null){ambient.setVisibility(View.INVISIBLE);shade.setVisibility(View.VISIBLE);invalidateDock();return;}
         WallpaperCatalog.Entry wallpaper=store.snapshot().find(id);if(wallpaper==null){display(WallpaperCatalog.DEFAULT,false);return;}
         decoder.execute(()->{
             if(version!=request)return;
             try{
                 android.util.DisplayMetrics screen=activity.getResources().getDisplayMetrics();
                 Bitmap bitmap=WallpaperImages.decode(activity,store,wallpaper,screen.widthPixels,screen.heightPixels);
+                if(version!=request)return;
+                Bitmap blurred=DockBackdropDrawable.prepare(bitmap,screen.widthPixels,screen.heightPixels);
                 main.post(()->{
                     if(version!=request||activity.isDestroyed())return;
                     ambient.setVisibility(View.INVISIBLE);shade.setVisibility(View.VISIBLE);
-                    if(!animate||shown==null||WallpaperCatalog.DEFAULT.equals(shown)){current.setImageBitmap(bitmap);shown=id;shownKey=key;}
+                    if(!animate||shown==null||WallpaperCatalog.DEFAULT.equals(shown)){current.setImageBitmap(bitmap);currentBlur=blurred;incomingBlur=null;shown=id;shownKey=key;invalidateDock();}
                     else{
-                        incoming.setImageBitmap(bitmap);incoming.setAlpha(0);
+                        incoming.setImageBitmap(bitmap);incomingBlur=blurred;incoming.setAlpha(0);
                         transition=ValueAnimator.ofFloat(0,1);transition.setDuration(450);
-                        transition.addUpdateListener(a->{float fraction=(float)a.getAnimatedValue();incoming.setAlpha(fraction);if(fraction==1f){current.setImageBitmap(bitmap);incoming.setImageDrawable(null);incoming.setAlpha(0);shown=id;shownKey=key;}});transition.start();
+                        transition.addUpdateListener(a->{float fraction=(float)a.getAnimatedValue();incoming.setAlpha(fraction);if(fraction==1f){current.setImageBitmap(bitmap);currentBlur=incomingBlur;incomingBlur=null;incoming.setImageDrawable(null);incoming.setAlpha(0);shown=id;shownKey=key;}invalidateDock();});transition.start();
                     }
                 });
             }catch(IOException|OutOfMemoryError e){main.post(()->{if(version!=request)return;if(WallpaperCatalog.DAILY.equals(id)){daily.cacheUnreadable();if(current.getDrawable()==null)display(store.snapshot().lastLocal,false);return;}notice(tr("无法读取这张壁纸","Unable to read this wallpaper"));if(id.equals(store.snapshot().current))try{store.select(WallpaperCatalog.DEFAULT);}catch(IOException ignored){}display(WallpaperCatalog.DEFAULT,false);});}
@@ -125,7 +149,7 @@ final class WallpaperController {
         }else if(active)display(store.snapshot().current,true);
     }
     void pause(){active=false;stopVideo();daily.pause();dailyPanel.close();cancelCardPress();main.removeCallbacks(rotate);uploads.close();if(confirmation!=null)confirmation.dismiss();if(picker!=null)picker.dismiss();if(transition!=null)transition.end();}
-    void destroy(){++request;video.destroy();daily.destroy();uploads.destroy();decoder.shutdownNow();main.removeCallbacksAndMessages(null);if(transition!=null){transition.cancel();transition.removeAllUpdateListeners();}current.setImageDrawable(null);incoming.setImageDrawable(null);thumbnails.evictAll();}
+    void destroy(){++request;video.destroy();daily.destroy();uploads.destroy();decoder.shutdownNow();main.removeCallbacksAndMessages(null);if(transition!=null){transition.cancel();transition.removeAllUpdateListeners();}current.setImageDrawable(null);incoming.setImageDrawable(null);currentBlur=null;incomingBlur=null;dockInvalidation=null;thumbnails.evictAll();}
 
     synchronized Bitmap entryBanner(){
         if(entry==null)entry=HomeEntryArtwork.render(activity,tr("壁纸设置","Wallpaper Settings"),HomeAppCatalog.WALLPAPER);
@@ -343,7 +367,7 @@ final class WallpaperController {
         private void updateGlow(){
             bloom=glow(310,158,620,.68f,172);
             spill=glow(100,310,480,.72f,48);
-            invalidate();
+            invalidate();invalidateDock();
         }
         @Override protected void onDraw(Canvas c){
             if(bloom==null)return;

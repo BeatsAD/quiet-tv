@@ -21,7 +21,7 @@ final class VideoWallpaperPlayer implements SurfaceHolder.Callback {
     private WallpaperCatalog.Entry entry;
     private Listener listener;
     private boolean enabled,screenOff,rendered;
-    private int generation;
+    private int generation,bufferWidth,bufferHeight;
     private final Runnable timeout=()->fail(player);
     VideoWallpaperPlayer(Activity activity,FrameLayout host){
         this.activity=activity;this.host=host;frame=new FrameLayout(activity);frame.setClipChildren(true);frame.setVisibility(View.GONE);host.addView(frame,new FrameLayout.LayoutParams(-1,-1));
@@ -41,9 +41,12 @@ final class VideoWallpaperPlayer implements SurfaceHolder.Callback {
         if(entry==null||host.getWidth()==0||host.getHeight()==0)return;
         int w=entry.rotation%180==0?entry.width:entry.height,h=entry.rotation%180==0?entry.height:entry.width;
         float scale=Math.max(host.getWidth()/(float)w,host.getHeight()/(float)h);
-        FrameLayout.LayoutParams params=new FrameLayout.LayoutParams(Math.round(w*scale),Math.round(h*scale),Gravity.CENTER);surface.setLayoutParams(params);
+        int width=Math.round(w*scale),height=Math.round(h*scale);
+        FrameLayout.LayoutParams params=(FrameLayout.LayoutParams)surface.getLayoutParams();
+        // A layout callback can run even with unchanged bounds; do not request another pass.
+        if(params.width!=width||params.height!=height){params.width=width;params.height=height;surface.setLayoutParams(params);}
         // The decoder's buffers retain source resolution, including on TVs with a 1080p UI.
-        surface.getHolder().setFixedSize(w,h);
+        if(bufferWidth!=w||bufferHeight!=h){bufferWidth=w;bufferHeight=h;surface.getHolder().setFixedSize(w,h);}
     }
     private void start(){
         if(!enabled||screenOff||player!=null||file==null||!surface.getHolder().getSurface().isValid())return;
