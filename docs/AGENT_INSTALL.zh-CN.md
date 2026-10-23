@@ -10,7 +10,6 @@
 
 ```text
 请在我的电脑上安装或更新 Quiet TV。
-电视品牌：<自己的电视品牌，不确定可留空>
 
 请先完整读取并遵循操作说明：
 https://raw.githubusercontent.com/BeatsAD/quiet-tv/main/docs/AGENT_INSTALL.zh-CN.md
@@ -108,7 +107,6 @@ https://raw.githubusercontent.com/BeatsAD/quiet-tv/main/docs/AGENT_INSTALL.zh-CN
 
 ```text
 请在我的电脑上帮我恢复原来的电视桌面。
-电视品牌：<自己的电视品牌，不确定可留空>
 
 请先完整读取并遵循操作说明：
 https://raw.githubusercontent.com/BeatsAD/quiet-tv/main/docs/AGENT_INSTALL.zh-CN.md
