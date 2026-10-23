@@ -9,7 +9,7 @@
 复制下面的请求交给能执行本机命令的 AI 工具。完整操作规则见下文；Agent 须先读完整说明，无法读取时告知用户，取得说明内容后再执行设备修改。
 
 ```text
-请在我的电脑上安装或更新 Quiet TV。
+请通过我的电脑，帮我在电视上安装或更新 Quiet TV。
 
 请先完整读取并遵循操作说明：
 https://raw.githubusercontent.com/BeatsAD/quiet-tv/main/docs/AGENT_INSTALL.zh-CN.md
@@ -64,7 +64,7 @@ https://raw.githubusercontent.com/BeatsAD/quiet-tv/main/docs/AGENT_INSTALL.zh-CN
 ## 请求恢复原桌面
 
 ```text
-请在我的电脑上帮我恢复原来的电视桌面。
+请通过我的电脑，帮我恢复电视原来的桌面。
 
 请先完整读取并遵循操作说明：
 https://raw.githubusercontent.com/BeatsAD/quiet-tv/main/docs/AGENT_INSTALL.zh-CN.md

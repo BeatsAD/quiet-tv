@@ -11,7 +11,7 @@ let brand = 'sony';
 let toastTimer;
 const guideUrl = 'https://raw.githubusercontent.com/BeatsAD/quiet-tv/main/docs/AGENT_INSTALL.zh-CN.md';
 function update() {
-  $('#install-prompt').textContent = `请在我的电脑上安装或更新 Quiet TV。
+  $('#install-prompt').textContent = `请通过我的电脑，帮我在电视上安装或更新 Quiet TV。
 
 请先完整读取并遵循操作说明：
 ${guideUrl}
@@ -20,7 +20,7 @@ ${guideUrl}
 
 先发现电视并让我确认目标。已有安装则保留数据更新；首次安装先试用，再让我选择是否设置默认桌面及管理应用。
 需要授权或选择时等待我确认；无法读取说明、确认版本或完成操作时，停止相关修改，显示具体错误、当前状态和下一步，不猜测执行。`;
-  $('#restore-prompt').textContent = `请在我的电脑上帮我恢复原来的电视桌面。
+  $('#restore-prompt').textContent = `请通过我的电脑，帮我恢复电视原来的桌面。
 
 请先完整读取并遵循操作说明：
 ${guideUrl}
