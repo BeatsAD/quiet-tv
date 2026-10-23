@@ -15,6 +15,11 @@ final class WeatherStore {
     boolean automatic(){return adcode().isEmpty();}
     void automaticMode(){preferences.edit().remove("adcode").remove("city").apply();}
     void select(String adcode,String city){preferences.edit().putString("adcode",adcode).putString("city",city).apply();}
+    boolean fixAutomaticCity(boolean chinese){
+        WeatherData data=cached(chinese);
+        if(data==null||!data.adcode.matches("[0-9]{6}"))return false;
+        select(data.adcode,data.city);save(chinese,data);return true;
+    }
     String key(boolean chinese){return (automatic()?"auto":adcode())+(chinese?":zh":":en");}
     WeatherData cached(boolean chinese){
         if(!key(chinese).equals(preferences.getString("cache-key","")))return null;
