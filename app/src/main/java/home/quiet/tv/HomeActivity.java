@@ -253,7 +253,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     @Override protected void onResume() {
         super.onResume(); resumed=true;
         if(!HomeGuardService.connected())HomeGuardRecovery.request(this,"桌面恢复");
-        getWindow().getDecorView().post(()->{if(resumed && hasWindowFocus())HomeGuardRecovery.visible(this);});
+        getWindow().getDecorView().post(()->{if(resumed && hasWindowFocus()){HomeGuardRecovery.visible(this);launchBootApp();}});
         IntentFilter time=new IntentFilter(Intent.ACTION_TIME_TICK);time.addAction(Intent.ACTION_TIME_CHANGED);time.addAction(Intent.ACTION_TIMEZONE_CHANGED);
         registerReceiver(timeReceiver,time);
         if(Build.VERSION.SDK_INT>=24)stopNetworkCallback=Api24.observe(this);
@@ -264,7 +264,20 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     @Override public void onWindowFocusChanged(boolean focused){
-        super.onWindowFocusChanged(focused);if(focused && resumed)HomeGuardRecovery.visible(this);
+        super.onWindowFocusChanged(focused);if(focused && resumed){HomeGuardRecovery.visible(this);launchBootApp();}
+    }
+
+    private void launchBootApp(){
+        android.app.KeyguardManager keyguard=(android.app.KeyguardManager)getSystemService(KEYGUARD_SERVICE);
+        if(keyguard!=null && keyguard.isKeyguardLocked())return;
+        BootAppStore store=new BootAppStore(this);String pkg=store.consume();if(pkg.isEmpty())return;
+        try{
+            Intent intent=store.launchIntent(pkg);
+            if(intent==null){Toast.makeText(this,tr("自启应用不可用，请在应用管理中重新设置","Startup app unavailable"),Toast.LENGTH_LONG).show();return;}
+            if(ChildBlockActivity.gate(this,pkg))return;
+            if(new HomeGuardState(this).protects(pkg))HomeGuardService.allowOriginal();
+            startActivity(intent);
+        }catch(RuntimeException e){Toast.makeText(this,tr("自启应用暂时无法打开","Unable to open startup app"),Toast.LENGTH_SHORT).show();}
     }
 
     @Override protected void onPause() {
