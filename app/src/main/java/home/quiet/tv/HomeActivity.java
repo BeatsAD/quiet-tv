@@ -217,6 +217,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private void applyDesktopSettings(){
         timeRow.setVisibility(desktopSettings.showTime()?View.VISIBLE:View.GONE);
+        if(heroTitle!=null)heroTitle.setVisibility(desktopSettings.showAppTitle()?View.VISIBLE:View.GONE);
         TextView previous=visiblePills.isEmpty()?null:visiblePills.get(topColumn);
         boolean[] shown={desktopSettings.showInput(),desktopSettings.showNetwork(),desktopSettings.showSettings()};
         visiblePills.clear();
@@ -573,7 +574,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             View view;
             if(type==0){
                 FrameLayout header=new FrameLayout(HomeActivity.this);header.setClipChildren(false);header.setLayoutParams(new RecyclerView.LayoutParams(-1,px(HOME_HEADER_HEIGHT)));
-                heroTitle=text("",40,400,0xfff1f2f6);place(header,heroTitle,820,56,2,HOME_TITLE_TOP);
+                heroTitle=text("",40,400,0xfff1f2f6);heroTitle.setVisibility(desktopSettings.showAppTitle()?View.VISIBLE:View.GONE);place(header,heroTitle,820,56,2,HOME_TITLE_TOP);
                 FrameLayout band=new FrameLayout(HomeActivity.this);dockBand=band;
                 band.setBackground(new DockBackdropDrawable(wallpapers,band,root,unit));wallpapers.observeDock(band::invalidate);
                 band.setClipChildren(false);place(header,band,-1,dockHeight+2*dockPadding,0,HOME_DOCK_TOP);
