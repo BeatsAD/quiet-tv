@@ -513,7 +513,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             if(tile==null || !tile.isAttachedToWindow()){list.postDelayed(()->focusApp(animate),40);return;}
             Tile previous=selected;selected=tile;
             if(previous!=null && previous!=tile){previous.invalidate();if(!dockTiles.contains(previous))previous.animate().scaleX(1).scaleY(1).translationX(0).translationY(0).setDuration(260).setInterpolator(FOCUS_MOTION);}
-            updateDock(animate);tile.invalidate();
+            updateDock(animate);if(previous!=tile)tile.invalidate();
             if(row>0){tile.setPivotX(tile.getWidth()/2f);tile.setPivotY(tile.getHeight()/2f);tile.animate().scaleX(FOCUS_SCALE).scaleY(FOCUS_SCALE).translationX(0).translationY(-px(2)).setDuration(320).setInterpolator(FOCUS_MOTION);}
             activePackage=app.pkg;
             if(row==0 && heroTitle!=null)heroTitle.setText(app.label);
@@ -538,9 +538,11 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         for(int i=0;i<dockTiles.size();i++){
             Tile item=dockTiles.get(i);item.animate().cancel();item.setPivotX(item.getWidth()/2f);item.setPivotY(item.getHeight());
             float scale=DockMotion.scale(i,focus),rise=focus<0?0:i==focus?-px(2):Math.abs(i-focus)==1?-px(1):0;
-            if(animate)item.animate().scaleX(scale).scaleY(scale).translationX(shifts[i]).translationY(rise).setDuration(focus<0?220:260).setInterpolator(FOCUS_MOTION);
+            if(animate){
+                if(item.getScaleX()!=scale||item.getScaleY()!=scale||item.getTranslationX()!=shifts[i]||item.getTranslationY()!=rise)
+                    item.animate().scaleX(scale).scaleY(scale).translationX(shifts[i]).translationY(rise).setDuration(focus<0?220:260).setInterpolator(FOCUS_MOTION);
+            }
             else{item.setScaleX(scale);item.setScaleY(scale);item.setTranslationX(shifts[i]);item.setTranslationY(rise);}
-            item.invalidate();
         }
     }
 
