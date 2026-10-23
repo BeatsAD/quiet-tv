@@ -381,7 +381,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 for(String pkg:pinned)for(App app:found)if(pkg.equals(app.pkg))dock.add(app);
                 HashMap<String,App> byId=new HashMap<>();for(App app:found)byId.put(app.pkg,app);
                 for(String id:gridOrder)apps.add(byId.get(id));
-                if(dock.isEmpty()){App empty=new App();empty.pkg="quiet:add-dock";empty.label=tr("添加常用应用","Add favorite apps");empty.banner=managementBanner(tr("添加常用应用","Add favorite apps"));empty.color=0xff666972;dock.add(empty);}
+                if(dock.isEmpty()){App empty=new App();empty.pkg="quiet:add-dock";empty.label=tr("添加常用应用","Add favorite apps");empty.banner=emptyDockBanner(empty.label);empty.color=0xff666972;dock.add(empty);}
                 if(row>=0){
                     if(!activePackage.isEmpty()) {
                         for(int n=0;n<dock.size();n++)if(activePackage.equals(dock.get(n).pkg)){row=0;column=n;}
@@ -401,21 +401,13 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         });
     }
 
-    private Bitmap managementBanner(String title) {
-        return managementBanner(title,title.equals(tr("应用管理","App Management"))?R.drawable.ic_manage_apps:R.drawable.ic_manage_plus);
-    }
-
-    private Bitmap managementBanner(String title,int resource) {
+    private Bitmap emptyDockBanner(String title) {
         Bitmap bitmap=Bitmap.createBitmap(360,203,Bitmap.Config.ARGB_8888);
         Canvas canvas=new Canvas(bitmap);Paint paint=new Paint(3);
         paint.setShader(new LinearGradient(0,0,360,203,new int[]{0xff2b2d33,0xff1b1d22},null,Shader.TileMode.CLAMP));canvas.drawRect(0,0,360,203,paint);paint.setShader(null);
-        // Center the icon + gap + actual font metrics as one group inside the banner.
         paint.setColor(0xffe7e8ec);paint.setTextSize(28);paint.setTextAlign(Paint.Align.CENTER);
-        Paint.FontMetrics metrics=paint.getFontMetrics();float textHeight=metrics.descent-metrics.ascent;
-        float top=(203-76-12-textHeight)/2f;
-        Drawable icon=UiCompat.drawable(this,resource);
-        icon.setBounds(142,Math.round(top),218,Math.round(top+76));icon.draw(canvas);
-        canvas.drawText(title,180,top+76+12-metrics.ascent,paint);return bitmap;
+        Paint.FontMetrics metrics=paint.getFontMetrics();
+        canvas.drawText(title,180,(203-metrics.ascent-metrics.descent)/2f,paint);return bitmap;
     }
 
     private int sampleColor(Bitmap bitmap) {
@@ -586,6 +578,9 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         @Override public void onBindViewHolder(RecyclerView.ViewHolder holder,int position){
             if(position==0){
                 FrameLayout band=(FrameLayout)holder.itemView.getTag();if(dockPress!=null)dockPress.cancel();for(Tile old:dockTiles)old.animate().cancel();band.removeAllViews();dockTiles.clear();dockFocus=-2;
+                FrameLayout.LayoutParams bandParams=(FrameLayout.LayoutParams)band.getLayoutParams();
+                bandParams.width=px(2*dockPadding+dock.size()*dockWidth+Math.max(0,dock.size()-1)*dockGap);
+                bandParams.gravity=Gravity.TOP|Gravity.CENTER_HORIZONTAL;band.setLayoutParams(bandParams);
                 for(int n=0;n<dock.size();n++){Tile tile=new Tile();tile.bind(dock.get(n));dockTiles.add(tile);place(band,tile,dockWidth,dockHeight,dockPadding+n*(dockWidth+dockGap),dockPadding);}
                 if(!dock.isEmpty()){App app=dock.get(Math.min(Math.max(column,0),dock.size()-1));heroTitle.setText(app.label);}band.post(()->updateDock(false));
             }else if(position>=2)((Tile)holder.itemView).bind(apps.get(position-2));
