@@ -179,9 +179,9 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         weatherText=text("",14,400,0xffe6e7ed);weatherText.setSingleLine(true);weatherText.setEllipsize(android.text.TextUtils.TruncateAt.END);weatherText.setGravity(Gravity.CENTER_VERTICAL);
         weatherText.setCompoundDrawablePadding(px(6));LinearLayout.LayoutParams wp=new LinearLayout.LayoutParams(0,-1,1);wp.leftMargin=px(16);greetingRow.addView(weatherText,wp);
         weather=new WeatherController(this,chinese,(data,message,loading)->{
-            weatherText.setVisibility(data==null&&message.isEmpty()?View.GONE:View.VISIBLE);
-            if(data==null){weatherText.setText(message);weatherText.setCompoundDrawables(null,null,null,null);}
-            else{WeatherIcon icon=new WeatherIcon(data.icon);icon.setBounds(0,0,px(18),px(18));weatherText.setCompoundDrawables(icon,null,null,null);weatherText.setText(data.temperatureText()+"  "+data.description+"  "+data.city+(message.isEmpty()?"":"  "+message));}
+            weatherText.setVisibility(data==null?View.GONE:View.VISIBLE);
+            if(data==null){weatherText.setText("");weatherText.setCompoundDrawables(null,null,null,null);}
+            else{WeatherIcon icon=new WeatherIcon(data.icon);icon.setBounds(0,0,px(18),px(18));weatherText.setCompoundDrawables(icon,null,null,null);weatherText.setText(data.temperatureText()+"  "+data.description+"  "+data.city);}
         });
         LinearLayout timeRow=new LinearLayout(this);timeRow.setOrientation(LinearLayout.HORIZONTAL);
         this.timeRow=timeRow;
