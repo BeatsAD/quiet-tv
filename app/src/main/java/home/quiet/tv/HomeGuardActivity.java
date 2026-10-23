@@ -14,7 +14,7 @@ public final class HomeGuardActivity extends ManagementUi {
     private void render(){
         if(state.enabled() && (!state.supported() || !state.validSelection()))state.pause("原主页或适用条件已变化，守护已暂停");
         while(root.getChildCount()>1)root.removeViewAt(1);
-        ((TextView)header.getChildAt(1)).setText("主页兼容（实验）");
+        ((TextView)header.getChildAt(1)).setText("桌面守护（实验）");
         gap(root,18);root.addView(label(state.summary(),17));gap(root,9);
         root.addView(muted("识别原主页后返回 Quiet TV。系统默认 HOME 不因此改变。",12));
         root.addView(muted("请先停用独立中转助手；HOME、重启和待机唤醒需分别验证。",12));gap(root,14);
@@ -33,7 +33,7 @@ public final class HomeGuardActivity extends ManagementUi {
         gap(root,12);LinearLayout actions=row();root.addView(actions,new LinearLayout.LayoutParams(-1,px(40)));
         Button settings=button("开启无障碍",()->{
             try{startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));}
-            catch(ActivityNotFoundException|SecurityException failure){message("电视未开放无障碍设置入口，暂不能启用主页守护。");}
+            catch(ActivityNotFoundException|SecurityException failure){message("电视未开放无障碍设置入口，暂不能启用桌面守护（实验）。");}
         });actions.addView(settings,new LinearLayout.LayoutParams(-2,-1));settings.setEnabled(state.supported());
         Button enable=button("启用守护",()->{String problem=state.enable();if(!problem.isEmpty())message(problem);else render();});marginAdd(actions,enable,-2,-1,10);enable.setEnabled(state.supported() && !candidates.isEmpty());
         Button pause=button("暂停守护",()->{state.pause("已暂停");render();});marginAdd(actions,pause,-2,-1,10);
