@@ -9,7 +9,7 @@ const brands = {
 };
 let brand = 'sony';
 let toastTimer;
-const urls = 'https://github.com/BeatsAD/quiet-tv/blob/main/docs/INSTALL.zh-CN.md\nhttps://github.com/BeatsAD/quiet-tv/blob/main/docs/COMPATIBILITY.md';
+const urls = 'https://raw.githubusercontent.com/BeatsAD/quiet-tv/main/docs/AGENT_INSTALL.zh-CN.md\nhttps://github.com/BeatsAD/quiet-tv/blob/main/docs/INSTALL.zh-CN.md\nhttps://github.com/BeatsAD/quiet-tv/blob/main/docs/COMPATIBILITY.md';
 const discovery = `请自动发现电脑当前局域网内的目标电视：先检查现有 ADB 连接与 ADB mDNS 服务，必要时仅在当前局域网扫描常用 ADB 连接端口，不跨网段或进行全端口扫描。
 结合所选品牌及可读取的型号识别电视；发现多个候选或无法确认目标时，列出候选让我选择，不批量安装或修改设备。
 未发现目标时，再指导我在电视上查看网络地址、打开调试或完成无线调试配对。配对端口与连接端口分别核对，电视上的授权或配对码由我现场提供，不绕过授权。
@@ -21,6 +21,8 @@ function update() {
 
 请先完整阅读安装与兼容说明：
 ${urls}
+
+从官方 Releases（含预发布／测试版）选择适配系统的最新主程序，当前推荐 1.1.2，更新版本以发布列表为准。安装后核对实际版本与目标一致；无法确认版本或下载失败时先告诉我，不改装历史包。
 
 ${discovery}
 
