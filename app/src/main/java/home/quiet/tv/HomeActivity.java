@@ -308,6 +308,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     @Override protected void onResume() {
         super.onResume(); resumed=true;
+        if(!HomeGuardService.connected())HomeGuardRecovery.request(this,"桌面恢复");
+        getWindow().getDecorView().post(()->{if(resumed && hasWindowFocus())HomeGuardRecovery.visible(this);});
         IntentFilter time=new IntentFilter(Intent.ACTION_TIME_TICK);time.addAction(Intent.ACTION_TIME_CHANGED);time.addAction(Intent.ACTION_TIMEZONE_CHANGED);
         registerReceiver(timeReceiver,time);
         if(Build.VERSION.SDK_INT>=24)stopNetworkCallback=Api24.observe(this);
@@ -317,8 +319,13 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         loadApps();if(ready)focusCurrent(false);
     }
 
+    @Override public void onWindowFocusChanged(boolean focused){
+        super.onWindowFocusChanged(focused);if(focused && resumed)HomeGuardRecovery.visible(this);
+    }
+
     @Override protected void onPause() {
         if(dockPress!=null)dockPress.cancel();updateDock(false);
+        HomeGuardRecovery.leftHome(this);
         resumed=false;if(scrollAnimation!=null)scrollAnimation.cancel();list.stopScroll();saveFocus();wallpapers.pause();weather.pause();
         unregisterReceiver(timeReceiver);
         if(Build.VERSION.SDK_INT>=24)stopNetworkCallback.run();
@@ -517,7 +524,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private App currentApp(){if(row==0)return dock.isEmpty()?null:dock.get(Math.min(column,dock.size()-1));int n=(row-1)*APP_COLUMNS+column;return n>=0&&n<apps.size()?apps.get(n):null;}
 
-    private void launchSelected(){App app=currentApp();if(app==null)return;saveFocus();if("quiet:add-dock".equals(app.pkg)){startActivity(new Intent(this,DockEditorActivity.class));return;}if(DESKTOP_SETTINGS_ENTRY.equals(app.pkg)){startActivity(new Intent(this,DesktopSettingsActivity.class));return;}if(MANAGEMENT_ENTRY.equals(app.pkg)){startActivity(new Intent(this,AppManagementActivity.class));return;}if(WALLPAPER_ENTRY.equals(app.pkg)){wallpapers.showPicker();return;}try{if(ChildBlockActivity.gate(this,app.pkg))return;startActivity(new Intent(Intent.ACTION_MAIN).setComponent(app.component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));}catch(RuntimeException e){Toast.makeText(this,tr("应用暂不可用，请检查儿童模式设置","App unavailable"),Toast.LENGTH_SHORT).show();}}
+    private void launchSelected(){App app=currentApp();if(app==null)return;saveFocus();if("quiet:add-dock".equals(app.pkg)){startActivity(new Intent(this,DockEditorActivity.class));return;}if(DESKTOP_SETTINGS_ENTRY.equals(app.pkg)){startActivity(new Intent(this,DesktopSettingsActivity.class));return;}if(MANAGEMENT_ENTRY.equals(app.pkg)){startActivity(new Intent(this,AppManagementActivity.class));return;}if(WALLPAPER_ENTRY.equals(app.pkg)){wallpapers.showPicker();return;}try{if(ChildBlockActivity.gate(this,app.pkg))return;if(new HomeGuardState(this).protects(app.pkg))HomeGuardService.allowOriginal();startActivity(new Intent(Intent.ACTION_MAIN).setComponent(app.component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));}catch(RuntimeException e){Toast.makeText(this,tr("应用暂不可用，请检查儿童模式设置","App unavailable"),Toast.LENGTH_SHORT).show();}}
 
     private void updateDock(boolean animate) {
         if(dockTiles.isEmpty()||dockBand==null||dockBand.getWidth()==0)return;
