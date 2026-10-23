@@ -28,7 +28,7 @@ public final class DesktopSettingsActivity extends ManagementUi {
         buttons.setOnCheckedChangeListener((view,checked)->store.showButtons(checked));
         if(!BuildConfig.LEGACY_19){
             gap(root,20);
-            root.addView(button(chinese?"主页兼容（实验）":"Home compatibility (experimental)",
+            root.addView(button(chinese?"桌面守护（实验）":"Desktop guard (experimental)",
                 ()->startActivity(new android.content.Intent(this,HomeGuardActivity.class))),new LinearLayout.LayoutParams(-2,px(42)));
         }
         gap(root,14);root.addView(button(chinese?"诊断日志":"Diagnostics",()->startActivity(new android.content.Intent(this,DiagnosticsActivity.class))),new LinearLayout.LayoutParams(-2,px(38)));

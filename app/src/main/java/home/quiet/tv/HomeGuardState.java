@@ -64,7 +64,7 @@ final class HomeGuardState {
         if(!supported())return "当前设备未开放此实验功能";
         if(!validSelection())return "请先选择本机检测到的原主页";
         if(helperActive())return "请先暂停独立中转助手，避免同时接管主页";
-        if(!serviceEnabled())return "请先开启 Quiet TV 主页守护的无障碍权限";
+        if(!serviceEnabled())return "请先开启“桌面守护（实验）”的无障碍权限";
         return "";
     }
     String enable(){
