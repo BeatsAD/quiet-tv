@@ -50,7 +50,7 @@
           </div>
           <div id="agent-panel" class="method-panel" role="tabpanel" aria-labelledby="method-agent">
             <p class="agent-description">复制后发给 Codex、Claude Code、豆包、WorkBuddy、TRAE 等电脑端 Agent。</p>
-            <div class="request-summary"><button class="preview-link" data-preview="install">预览请求 <span aria-hidden="true">↗</span></button></div>
+            <pre id="install-prompt" class="install-request" aria-label="安装请求" tabindex="0"></pre>
             <button class="primary copy" data-copy="install"><svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="7" y="6" width="10" height="12" rx="2"/><path d="M12 6V4a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h2"/></svg><span>复制安装请求</span><span class="button-arrow" aria-hidden="true">↗</span></button>
           </div>
           <div id="manual-panel" class="method-panel" role="tabpanel" aria-labelledby="method-manual" hidden>
@@ -70,7 +70,7 @@
     <footer><span class="privacy"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="2"/><path d="M5 7V5a3 3 0 0 1 6 0v2"/></svg>安装请求仅在浏览器本地生成</span><div><a href="https://github.com/BeatsAD/quiet-tv/blob/main/docs/COMPATIBILITY.md" target="_blank" rel="noreferrer">兼容范围 ↗</a><a href="https://github.com/BeatsAD/quiet-tv/blob/main/docs/AGENT_INSTALL.zh-CN.md" target="_blank" rel="noreferrer">Agent 说明 ↗</a></div></footer>
   </div>
   <dialog id="faq-dialog" aria-labelledby="faq-title"><div class="dialog-heading"><h2 id="faq-title">常见问题</h2><button class="close" id="close-faq" aria-label="关闭常见问题">×</button></div><details open><summary>哪些电视可以安装？</summary><p>提供安卓 4.4 兼容档位和安卓 5 及以上标准档位。具体功能以固件为准；Tizen、webOS 等非 Android 系统不适用。</p></details><details><summary>安装后会自动进入 Quiet TV 吗？</summary><p>不一定。设置默认桌面、实体 HOME、重启和待机唤醒需要分别验证。固件受限时，仍可保留原桌面并手动打开 Quiet TV。</p></details><details><summary>原来的应用和会员还在吗？</summary><p>本页请求保留原桌面和其他应用数据，会员继续在原应用中使用。更换桌面不保证去除固件开机广告。</p></details><details><summary>网页可以直接安装到电视吗？</summary><p>网页只生成操作请求。Agent 需要能在电脑上执行命令，电视上的调试授权由你确认。</p></details></dialog>
-  <dialog id="request-dialog" aria-labelledby="request-dialog-title"><div class="dialog-heading"><h2 id="request-dialog-title">安装请求</h2><button class="close" id="close-request" aria-label="关闭请求预览">×</button></div><pre id="install-prompt" tabindex="0"></pre><pre id="restore-prompt" tabindex="0" hidden></pre><button class="primary" id="preview-copy" data-copy="install">复制请求</button></dialog>
+  <dialog id="request-dialog" aria-labelledby="request-dialog-title"><div class="dialog-heading"><h2 id="request-dialog-title">恢复请求</h2><button class="close" id="close-request" aria-label="关闭请求预览">×</button></div><pre id="restore-prompt" tabindex="0"></pre><button class="primary" id="preview-copy" data-copy="restore">复制请求</button></dialog>
   <div class="toast" id="toast" role="status" hidden></div>
 </body>
 </html>
