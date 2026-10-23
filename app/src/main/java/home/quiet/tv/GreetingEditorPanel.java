@@ -2,6 +2,12 @@ package home.quiet.tv;
 
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.graphics.Rect;
+import android.graphics.drawable.*;
+import android.graphics.drawable.shapes.OvalShape;
 import android.os.*;
 import android.view.*;
 import android.view.inputmethod.*;
@@ -22,7 +28,7 @@ final class GreetingEditorPanel {
     private final Handler main=new Handler(Looper.getMainLooper());
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private ManagementUi.Sheet editor,phone;
-    private DesktopSettingsRow toggle;
+    private Switch toggle;
     private EditText edit;
     private Button scan,cancel,save,reconnect;
     private TextView address,code,status;
@@ -44,15 +50,22 @@ final class GreetingEditorPanel {
     void show(){
         if(editor!=null)return;
         enabled=store.greetingEnabled();editor=ui.new Sheet(tr("首页问候语","Home greeting"));
-        toggle=new DesktopSettingsRow(ui,tr("显示问候语","Show greeting"),"",false);identify(toggle,"greeting-toggle");toggle.checked(enabled);
-        toggle.setOnClickListener(v->{enabled=!enabled;toggle.checked(enabled);updateEnabled();});editor.body.addView(toggle,new LinearLayout.LayoutParams(-1,ui.px(44)));ui.gap(editor.body,12);
+        editor.heading.setTypeface(Typeface.DEFAULT,Typeface.BOLD);editor.heading.setHeight(ui.px(31));
+        toggle=new Switch(ui);identify(toggle,"greeting-toggle");toggle.setText(tr("显示问候语","Show greeting"));toggle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,ui.px(14));toggle.setTypeface(Typeface.DEFAULT,Typeface.BOLD);toggle.setTextColor(ManagementUi.TEXT);toggle.setIncludeFontPadding(false);
+        toggle.setTextOn("");toggle.setTextOff("");toggle.setThumbTextPadding(0);toggle.setSwitchMinWidth(ui.px(44));toggle.setSwitchPadding(ui.px(12));toggle.setMinimumHeight(0);toggle.setPadding(ui.px(2),0,ui.px(2),0);toggle.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);toggle.setBackgroundColor(Color.TRANSPARENT);toggle.setFocusable(true);toggle.setFocusableInTouchMode(true);
+        StateListDrawable track=new StateListDrawable();track.addState(new int[]{android.R.attr.state_focused,android.R.attr.state_checked},switchTrack(0xffe1e6ed,true));track.addState(new int[]{android.R.attr.state_focused},switchTrack(0xff535860,true));track.addState(new int[]{android.R.attr.state_checked},switchTrack(0xffe1e6ed,false));track.addState(new int[]{},switchTrack(0xff535860,false));toggle.setTrackDrawable(track);
+        StateListDrawable thumb=new StateListDrawable();thumb.addState(new int[]{android.R.attr.state_checked},switchThumb(0xff26303b));thumb.addState(new int[]{},switchThumb(0xffe1e3e5));toggle.setThumbDrawable(thumb);toggle.setChecked(enabled);
+        if(Build.VERSION.SDK_INT>=21)toggle.setSplitTrack(false);
+        toggle.setOnCheckedChangeListener((v,checked)->{enabled=checked;updateEnabled();});editor.body.addView(toggle,new LinearLayout.LayoutParams(-1,ui.px(42)));ui.gap(editor.body,13);
         edit=ui.input(store.greetingText(fallback),tr("输入想在首页显示的文字","Enter text to show on Home"));identify(edit,"greeting-text");
-        edit.setImeOptions(EditorInfo.IME_ACTION_DONE|EditorInfo.IME_FLAG_NO_EXTRACT_UI);editor.body.addView(edit,new LinearLayout.LayoutParams(-1,ui.px(46)));ui.gap(editor.body,10);
-        TextView hint=ui.muted(tr("留空时，按时间显示早上好、下午好或晚上好","Leave empty for a greeting based on the time of day"),11);editor.body.addView(hint,new LinearLayout.LayoutParams(-1,-2));
+        edit.setTypeface(Typeface.DEFAULT,Typeface.BOLD);StateListDrawable inputBackground=new StateListDrawable();inputBackground.addState(new int[]{android.R.attr.state_focused},ui.surface(0x07ffffff,0x07ffffff,Color.WHITE,10));inputBackground.addState(new int[]{},ui.surface(0x07ffffff,0x07ffffff,0x35ffffff,10));edit.setBackground(inputBackground);
+        edit.setImeOptions(EditorInfo.IME_ACTION_DONE|EditorInfo.IME_FLAG_NO_EXTRACT_UI);editor.body.addView(edit,new LinearLayout.LayoutParams(-1,ui.px(44)));ui.gap(editor.body,10);
+        TextView hint=ui.muted(tr("留空时，按时间显示早上好、下午好或晚上好","Leave empty for a greeting based on the time of day"),11);hint.setTextColor(0xffaeb3bf);hint.setTypeface(Typeface.DEFAULT,Typeface.BOLD);hint.setMinimumHeight(ui.px(19));editor.body.addView(hint,new LinearLayout.LayoutParams(-1,-2));
         scan=editor.action(tr("手机扫码输入","Phone input"),this::showPhone);identify(scan,"greeting-scan");
         editor.actions.addView(new View(ui),new LinearLayout.LayoutParams(0,1,1));
         cancel=editor.action(tr("取消","Cancel"),()->editor.dialog.dismiss());identify(cancel,"greeting-cancel");
         save=editor.action(tr("保存","Save"),()->{store.saveGreeting(enabled,edit.getText().toString());saved.run();editor.dialog.dismiss();});identify(save,"greeting-save");
+        for(Button action:new Button[]{scan,cancel,save}){action.setTypeface(Typeface.DEFAULT,Typeface.BOLD);action.setMinWidth(ui.px(70));action.setMinimumWidth(ui.px(70));LinearLayout.LayoutParams p=(LinearLayout.LayoutParams)action.getLayoutParams();p.leftMargin=action==scan?0:ui.px(5);p.rightMargin=action==save?0:ui.px(5);action.setLayoutParams(p);StateListDrawable background=new StateListDrawable();background.addState(new int[]{android.R.attr.state_focused},ui.surface(0x24ffffff,0x16ffffff,Color.WHITE,24));background.addState(new int[]{},ui.surface(0x10ffffff,0x06ffffff,0x30ffffff,24));action.setBackground(background);}
         toggle.setNextFocusUpId(toggle.getId());toggle.setNextFocusLeftId(toggle.getId());toggle.setNextFocusRightId(toggle.getId());
         edit.setNextFocusUpId(toggle.getId());edit.setNextFocusDownId(scan.getId());
         edit.setOnKeyListener((v,key,event)->{
@@ -66,6 +79,14 @@ final class GreetingEditorPanel {
         editor.dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN|WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         editor.dialog.setOnDismissListener(d->{hideKeyboard();if(phone!=null)phone.dialog.dismiss();stopServer(false);editor=null;edit=null;ui.root.findViewWithTag("greeting").requestFocus();});
         updateEnabled();editor.show(toggle);
+    }
+    private GradientDrawable switchTrack(int color,boolean focused){
+        GradientDrawable shape=new GradientDrawable(){@Override public boolean getPadding(Rect padding){padding.set(ui.px(3),0,ui.px(3),0);return true;}};
+        shape.setColor(color);shape.setCornerRadius(ui.px(12));shape.setSize(ui.px(44),ui.px(24));if(focused)shape.setStroke(ui.px(2),Color.WHITE);return shape;
+    }
+    private ShapeDrawable switchThumb(int color){
+        ShapeDrawable shape=new ShapeDrawable(new OvalShape(){@Override public void draw(Canvas canvas,Paint paint){canvas.drawCircle(getWidth()/2,getHeight()/2,Math.min(getWidth(),getHeight())/2-ui.px(3),paint);}});
+        shape.getPaint().setColor(color);shape.setIntrinsicWidth(ui.px(24));shape.setIntrinsicHeight(ui.px(24));shape.setPadding(ui.px(3),ui.px(3),ui.px(3),ui.px(3));return shape;
     }
     private void updateEnabled(){
         edit.setEnabled(enabled);edit.setAlpha(enabled?1f:.4f);scan.setEnabled(enabled);scan.setAlpha(enabled?1f:.4f);
@@ -116,6 +137,6 @@ final class GreetingEditorPanel {
     void pause(){if(phone!=null)phone.dialog.dismiss();stopServer(false);}
     void destroy(){if(editor!=null)editor.dialog.dismiss();stopServer(false);worker.shutdown();}
     void saveState(Bundle state){if(editor==null)return;state.putBoolean("greeting-editor",true);state.putBoolean("greeting-draft-enabled",enabled);state.putString("greeting-draft-text",edit.getText().toString());View focus=editor.dialog.getCurrentFocus();state.putString("greeting-draft-focus",focus!=null&&focus.getTag() instanceof String?(String)focus.getTag():"greeting-toggle");}
-    void restoreState(Bundle state){if(!state.getBoolean("greeting-editor"))return;show();enabled=state.getBoolean("greeting-draft-enabled");toggle.checked(enabled);edit.setText(state.getString("greeting-draft-text",""));updateEnabled();restoredFocus=state.getString("greeting-draft-focus");}
+    void restoreState(Bundle state){if(!state.getBoolean("greeting-editor"))return;show();enabled=state.getBoolean("greeting-draft-enabled");toggle.setChecked(enabled);edit.setText(state.getString("greeting-draft-text",""));updateEnabled();restoredFocus=state.getString("greeting-draft-focus");}
     void restoreFocus(){if(editor==null)return;View target=editor.box.findViewWithTag(restoredFocus==null?"greeting-toggle":restoredFocus);if(target==null||!target.isEnabled())target=toggle;target.requestFocus();}
 }
