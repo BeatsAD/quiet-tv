@@ -48,7 +48,7 @@ final class WallpaperController {
     private LinearLayout rail,actions;
     private HorizontalScrollView scroll;
     private View pendingCardFocus;
-    private TextView title,subtitle,apply,dailySettings,restore,auto,manage,upload,staticCategory,videoCategory,dynamicToggle,playPreview;
+    private TextView title,subtitle,apply,dailySettings,restore,auto,manage,upload,categoryToggle,dynamicToggle,playPreview;
     private String pressedWallpaper;
     private int pressedKey=KeyEvent.KEYCODE_UNKNOWN;
     private long pressedAt;
@@ -185,14 +185,11 @@ final class WallpaperController {
         LinearLayout layout=new LinearLayout(activity);layout.setOrientation(LinearLayout.VERTICAL);layout.setPadding(px(36),px(32),px(36),px(32));content.addView(layout,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout header=row();TextView back=button("",false,this::handlePickerBack);back.setPadding(px(10),px(10),px(10),px(10));back.setCompoundDrawables(ui.icon(R.drawable.wp_chevron_left,17,WallpaperUi.INK),null,null,null);back.setBackground(ui.focusSurface(0xa6111924,100));back.setContentDescription(tr("返回桌面","Back to home"));header.addView(back,new LinearLayout.LayoutParams(px(37),px(37)));gap(header,13);
         TextView heading=label(tr("壁纸设置","Wallpaper Settings"),28);header.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
+        categoryToggle=button("",false,()->category(!dynamicTab));header.addView(categoryToggle);gap(header,8);
         auto=button("",false,()->runSaved(()->{WallpaperCatalog s=store.snapshot();daily.cancel();store.rotation(!s.rotating);preview=store.snapshot().current;display(preview,true);refreshCards(preview,false);}));header.addView(auto);
         dynamicToggle=button("",false,this::toggleVideo);header.addView(dynamicToggle);
         gap(header,8);upload=button(tr("上传壁纸","Upload"),false,()->{daily.cancel();stopVideo();uploads.show(WallpaperUi.backdrop(root,content),id->{if(picker!=null){if(id!=null){preview=id;WallpaperCatalog.Entry added=store.snapshot().find(id);dynamicTab=added!=null&&added.video();}refreshCards(preview,id!=null);}});});ui.icon(upload,R.drawable.wp_upload);header.addView(upload);
         gap(header,8);manage=button(tr("管理","Manage"),false,()->{daily.cancel();managing=!managing;refreshCards(preview,true);});ui.icon(manage,R.drawable.wp_sliders_horizontal);header.addView(manage);layout.addView(header);
-        LinearLayout categories=row();categories.setPadding(0,px(18),0,0);
-        staticCategory=button(tr("静态壁纸","Static"),false,()->category(false));categories.addView(staticCategory);gap(categories,8);
-        videoCategory=button(tr("动态壁纸","Video"),false,()->category(true));categories.addView(videoCategory);
-        layout.addView(categories);
         layout.addView(new View(activity),new LinearLayout.LayoutParams(1,0,1));
         actions=row();LinearLayout titles=new LinearLayout(activity);titles.setOrientation(LinearLayout.VERTICAL);title=label("",27);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);titles.addView(title,new LinearLayout.LayoutParams(-1,-2));
         subtitle=label("",12);subtitle.setTextColor(WallpaperUi.MUTED);subtitle.setSingleLine(true);subtitle.setEllipsize(android.text.TextUtils.TruncateAt.END);subtitle.setPadding(0,px(8),0,0);titles.addView(subtitle,new LinearLayout.LayoutParams(-1,-2));actions.addView(titles,new LinearLayout.LayoutParams(0,-2,1));
@@ -225,7 +222,7 @@ final class WallpaperController {
         if(entry.video()){if(preview.equals(playingVideo)&&video.ready())commitVideo(preview);else startVideo(preview,true);}
         else runSaved(()->{daily.cancel();store.select(preview);display(preview,true);refreshCards(preview,true);notice(tr("已应用壁纸","Wallpaper applied"));});
     }
-    private void category(boolean videos){stopVideo();dynamicTab=videos;managing=false;refreshCards(store.snapshot().current,true);}
+    private void category(boolean videos){stopVideo();dynamicTab=videos;managing=false;refreshCards(store.snapshot().current,false);categoryToggle.requestFocus();}
     private void toggleVideo(){
         WallpaperCatalog state=store.snapshot();if(state.dynamic()){stopVideo();runSaved(()->{store.stopVideo();dynamicTab=false;refreshCards(store.snapshot().current,true);daily.environmentChanged();schedule();});}
         else if(state.find(state.lastVideo)!=null){dynamicTab=true;refreshCards(state.lastVideo,false);startVideo(state.lastVideo,true);}
@@ -295,7 +292,9 @@ final class WallpaperController {
     }
     private void details(){
         if(picker==null)return;WallpaperCatalog state=store.snapshot();WallpaperCatalog.Entry entry=state.find(preview);
-        staticCategory.setAlpha(dynamicTab?.5f:1);videoCategory.setAlpha(dynamicTab?1:.5f);
+        categoryToggle.setText(dynamicTab?tr("动态壁纸","Video"):tr("静态壁纸","Static"));
+        categoryToggle.setContentDescription(dynamicTab?tr("动态壁纸，点击切换为静态壁纸","Video wallpapers. Switch to static wallpapers"):tr("静态壁纸，点击切换为动态壁纸","Static wallpapers. Switch to video wallpapers"));
+        categoryToggle.setNextFocusRightId(dynamicTab?dynamicToggle.getId():auto.getId());auto.setNextFocusLeftId(categoryToggle.getId());dynamicToggle.setNextFocusLeftId(categoryToggle.getId());
         dynamicToggle.setVisibility(dynamicTab?View.VISIBLE:View.GONE);dynamicToggle.setText(tr("动态壁纸","Video wallpaper"));dynamicToggle.setCompoundDrawables(toggleDrawable(state.dynamic()),null,null,null);dynamicToggle.setCompoundDrawablePadding(px(7));dynamicToggle.setContentDescription(state.dynamic()?tr("动态壁纸，开","Video wallpaper, on"):tr("动态壁纸，关","Video wallpaper, off"));
         auto.setVisibility(dynamicTab?View.GONE:View.VISIBLE);
         if(entry==null){title.setText(tr("还没有动态壁纸","No video wallpapers"));subtitle.setVisibility(View.GONE);apply.setVisibility(View.GONE);dailySettings.setVisibility(View.GONE);playPreview.setVisibility(View.GONE);((View)restore.getParent()).setVisibility(View.GONE);manage.setEnabled(false);return;}
@@ -311,9 +310,9 @@ final class WallpaperController {
         View card=cards.get(preview);if(card==null)return;View action=managing?restoreRow.getVisibility()==View.VISIBLE?restore:manage:dailySettings.getVisibility()==View.VISIBLE?dailySettings:playPreview.getVisibility()==View.VISIBLE?playPreview:apply.getVisibility()==View.VISIBLE?apply:upload;
         for(Map.Entry<String,View> item:cards.entrySet()){boolean selected=item.getKey().equals(preview);item.getValue().setBackground(border(selected,false));item.getValue().setPadding(px(CARD_INSET),px(CARD_INSET),px(CARD_INSET),px(CARD_INSET));item.getValue().setTranslationY(selected?-px(3):0);item.getValue().setNextFocusUpId(action.getId());}
         int lower=card.isFocusable()?card.getId():restoreRow.getVisibility()==View.VISIBLE?restore.getId():manage.getId();
-        for(TextView control:new TextView[]{auto,upload,manage,staticCategory,videoCategory,dynamicToggle})control.setNextFocusDownId(managing||action==upload?lower:action.getId());
+        for(TextView control:new TextView[]{auto,upload,manage,categoryToggle,dynamicToggle})control.setNextFocusDownId(managing||action==upload?lower:action.getId());
         dailySettings.setNextFocusDownId(lower);dailySettings.setNextFocusUpId(upload.getId());
-        playPreview.setNextFocusDownId(lower);playPreview.setNextFocusUpId(videoCategory.getId());
+        playPreview.setNextFocusDownId(lower);playPreview.setNextFocusUpId(categoryToggle.getId());
         apply.setNextFocusDownId(lower);apply.setNextFocusUpId(upload.getId());restore.setNextFocusDownId(lower);restore.setNextFocusUpId(manage.getId());
     }
     private void confirmDelete(String id,int initiatingKey,long downTime){
