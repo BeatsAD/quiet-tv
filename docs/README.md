@@ -5,7 +5,7 @@
 ## 使用与构建 / Use and build
 
 - 安装与构建：[中文](INSTALL.zh-CN.md) / [English](INSTALL.en.md)
-- [电视桌面的技术实现路径：以 Codex 为例](TECHNICAL_PATH_WITH_CODEX.zh-CN.md)
+- [用 AI 编程工具实现电视桌面：技术与操作流程（含分阶段提示词）](TECHNICAL_PATH_WITH_CODEX.zh-CN.md)
 - 使用：[中文](USAGE.zh-CN.md) / [English](USAGE.en.md)
 - [兼容范围 / Compatibility](COMPATIBILITY.md)
 - [首次设置与恢复 / Setup and recovery](SETUP.md)

@@ -100,9 +100,9 @@ GitHub 下载文件使用英文名、中文显示标签，本地中文归档不�
 
 ## 技术实现
 
-实现路径：Codex 编写 Android 原生桌面 → 构建 APK → ADB 安装 → 设置默认 HOME → 真机调试。日常使用无需电脑在线。
+实现路径：获取源码 → 用 Codex、TRAE 等 AI 编程工具定制原生桌面 → 构建 APK → ADB 安装试用 → 设置默认 HOME → 遥控器验收。日常使用无需电脑在线。
 
-完整环境、开发者选项、连接授权、实现说明与可复制提示词见[用 Codex 复现与适配的技术路径](docs/TECHNICAL_PATH_WITH_CODEX.zh-CN.md)。电脑 ADB 用于安装，Quiet TV 内置 ADB 用于电视端管理，两者分别授权。
+完整环境、开发者选项、连接授权、实现说明与可复制提示词见[用 AI 编程工具定制与适配的分阶段教程](docs/TECHNICAL_PATH_WITH_CODEX.zh-CN.md)。电脑 ADB 用于安装，Quiet TV 内置 ADB 用于电视端管理，两者分别授权。
 
 ## 文档与参与
 
