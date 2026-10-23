@@ -24,7 +24,7 @@ Open 应用管理 (App Management) from All Apps. Management controls in this fi
 
 - Dock 管理 supports up to five shortcuts: add, replace, remove, or move left/right. OK saves reordering; Back cancels. Editing works without ADB.
 - **Home order**: open App management → 首页排序. Press OK to pick up an entry, use the arrows to move it, and press OK again to drop it. Back cancels the current move; 保存顺序 saves the page. Leaving with changes offers save, discard, or continue editing. Restore default also requires saving. Wallpaper Settings, Desktop Settings and App Management can all move.
-- Search by application name or package, and filter all, user, preinstalled, disabled, or restorable packages.
+- Filter all, user, preinstalled, disabled, or restorable packages.
 - The top-right ADB status opens local TCP connection settings (default port 5555). Enable network debugging on the TV and approve QuietTV's independent key. Six-digit wireless pairing is experimental, requires API33+ and actual device support, and is absent from legacy19.
 - Operations affect one package for the current Android user. Disabling retains data; uninstalling removes that user's app data. Preinstalled uninstall leaves the system APK; install-existing is offered only when a system APK is retained and never restores deleted data.
 - Quiet TV, critical components, and unverified system packages are protected from system-state changes. Operation history records configuration states, not user-data backups. Reconnect and refresh after uncertain results; do not repeat uninstall.
