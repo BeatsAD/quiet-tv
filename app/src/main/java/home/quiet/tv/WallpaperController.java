@@ -99,7 +99,7 @@ final class WallpaperController {
         if(selected!=null&&selected.video()){
             Bitmap fallback=defaultThumbnail();
             ambient.setVisibility(View.INVISIBLE);shade.setVisibility(View.VISIBLE);current.setImageBitmap(fallback);incoming.setImageDrawable(null);currentBlur=null;incomingBlur=null;shown=id;shownKey=id;invalidateDock();
-            WallpaperCatalog.Entry posterEntry=store.poster(id).isFile()?selected:state.find(state.staticBeforeVideo);
+            WallpaperCatalog.Entry posterEntry=!selected.custom()||store.poster(id).isFile()?selected:state.find(state.staticBeforeVideo);
             // SurfaceView video frames are not captured: the Dock uses the matching poster.
             decoder.execute(()->{try{
                 if(version!=request)return;
@@ -210,7 +210,7 @@ final class WallpaperController {
     private void startVideo(String id,boolean commit){
         WallpaperCatalog.Entry entry=store.snapshot().find(id);if(entry==null||!entry.video()||!active)return;
         failedVideo="";display(id,false);stopVideo();playingVideo=id;final int version=videoRequest;
-        video.play(store.file(id),entry,new VideoWallpaperPlayer.Listener(){
+        video.play(entry,new VideoWallpaperPlayer.Listener(){
             boolean applying=commit;
             @Override public void stopped(){if(version==videoRequest)current.setAlpha(1);}
             @Override public void ready(){if(version!=videoRequest||!active)return;current.setAlpha(0);if(applying){applying=false;commitVideo(id);}else if(picker!=null)details();}

@@ -45,6 +45,16 @@ Quiet TV 基于该项目开发，面向国内电视机的适配与应用升级�
 这些图片的权利归各自权利人所有，不属于本项目 MIT 许可的代码。上述来源记录不是再分发授权；尚未记录可供公开再分发的授权依据，公开发布源码或 APK 前需核实相应权利，或替换为获准再分发的图片。
 
 
+## 金门大桥日落动态壁纸
+
+内置视频「金门大桥日落 / Golden Gate Sunset」选自本机 macOS 已下载的 Apple 航拍壁纸，资源 ID 为 `4207734D-74FE-4F92-B5E1-6EC8DEE24A15`。本机资源清单名称为 `Golden Gate Sunset`，[原始 Apple CDN 来源](https://sylvan.apple.com/itunes-assets/Aerials116/v4/cb/5b/50/cb5b5035-6701-619f-9065-3d7d0e5fbef4/GG_A_SUNSET_MarshallsBeach_c28_v7_24comp_HFR_16Mbps.mov)。
+
+- 视频：`app/src/main/assets/wallpapers/golden-gate-sunset.mp4`，从原视频前 24 秒制作约 23 秒循环，结尾与开头进行 1 秒淡化衔接，转为 1920×1080、30 FPS、SDR、H.264 Baseline Level 4.0，无音轨。
+- 封面：`app/src/main/assets/wallpapers/golden-gate-sunset.jpg`，取内置视频首帧，供离线预览及播放前展示。
+- 首次开启动态壁纸时使用该内置选项；已有当前壁纸及最近使用的视频选择保留。内置视频不占上传视频配额，可从列表移除，并通过「恢复内置壁纸」恢复。
+
+资源权利归相应权利人所有，不属于本项目 MIT 许可的代码；来源记录不代表公开再分发授权，与上文大苏尔图片采用相同的本地使用及发布前权利核实边界。
+
 ## 电视端 ADB 与证书依赖
 
 - [libadb-android 3.1.1](https://github.com/MuntashirAkon/libadb-android/tree/3.1.1)：采用其 Apache-2.0 许可选项，保留继承代码的 BSD-3-Clause 和 MIT 声明。许可文本随 APK 保存在 `assets/licenses/libadb-*.txt`。
