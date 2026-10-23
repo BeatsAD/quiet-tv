@@ -306,10 +306,12 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         String pkg,label; ComponentName component; Bitmap banner; int color;
     }
 
+    private long childRevision=-1;
     private void loadApps() {
         ArrayList<String> currentDock = new DockStore(this).load();
         final String requestedOrder=new HomeOrderStore(this).signature();
-        if (!currentDock.equals(dockPackages) || !requestedOrder.equals(orderSignature)) appsDirty = true;
+        final long requestedChild=new ChildModeStore(this).revision();
+        if (!currentDock.equals(dockPackages) || !requestedOrder.equals(orderSignature) || requestedChild!=childRevision) appsDirty = true;
         if (loadingApps || (ready && !appsDirty)) return;
         loadingApps = true; appsDirty = false;
         dockPackages.clear();dockPackages.addAll(new DockStore(this).load());
@@ -342,7 +344,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             ArrayList<String> gridOrder=new HomeOrderStore(this).order(defaults);
             main.post(()->{
                 if(isDestroyed())return;
-                orderSignature=requestedOrder;
+                orderSignature=requestedOrder;childRevision=requestedChild;
                 if(!requestedOrder.equals(new HomeOrderStore(this).signature()))appsDirty=true;
                 dock.clear();apps.clear();visibleTiles.clear();dockTiles.clear();
                 for(String pkg:pinned)for(App app:found)if(pkg.equals(app.pkg))dock.add(app);
@@ -487,7 +489,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private App currentApp(){if(row==0)return dock.isEmpty()?null:dock.get(Math.min(column,dock.size()-1));int n=(row-1)*APP_COLUMNS+column;return n>=0&&n<apps.size()?apps.get(n):null;}
 
-    private void launchSelected(){App app=currentApp();if(app==null)return;saveFocus();if("quiet:add-dock".equals(app.pkg)){startActivity(new Intent(this,DockEditorActivity.class));return;}if(DESKTOP_SETTINGS_ENTRY.equals(app.pkg)){startActivity(new Intent(this,DesktopSettingsActivity.class));return;}if(MANAGEMENT_ENTRY.equals(app.pkg)){startActivity(new Intent(this,AppManagementActivity.class));return;}if(WALLPAPER_ENTRY.equals(app.pkg)){wallpapers.showPicker();return;}try{startActivity(new Intent(Intent.ACTION_MAIN).setComponent(app.component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));}catch(ActivityNotFoundException|SecurityException e){Toast.makeText(this,tr("应用暂不可用","App unavailable"),Toast.LENGTH_SHORT).show();}}
+    private void launchSelected(){App app=currentApp();if(app==null)return;saveFocus();if("quiet:add-dock".equals(app.pkg)){startActivity(new Intent(this,DockEditorActivity.class));return;}if(DESKTOP_SETTINGS_ENTRY.equals(app.pkg)){startActivity(new Intent(this,DesktopSettingsActivity.class));return;}if(MANAGEMENT_ENTRY.equals(app.pkg)){startActivity(new Intent(this,AppManagementActivity.class));return;}if(WALLPAPER_ENTRY.equals(app.pkg)){wallpapers.showPicker();return;}try{if(ChildBlockActivity.gate(this,app.pkg))return;startActivity(new Intent(Intent.ACTION_MAIN).setComponent(app.component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));}catch(RuntimeException e){Toast.makeText(this,tr("应用暂不可用，请检查儿童模式设置","App unavailable"),Toast.LENGTH_SHORT).show();}}
 
     private float focusTranslationX(Tile tile) {
         // The border is inside the card; only compensate for its scale at Dock ends.

@@ -56,9 +56,10 @@ public final class DockEditorActivity extends ManagementUi {
             ImageView image=new ImageView(this);image.setScaleType(ImageView.ScaleType.FIT_CENTER);
             if(occupied){image.setBackground(surface(AppArtwork.NEUTRAL,AppArtwork.NEUTRAL,0,10));UiCompat.clipOutline(image);image.setScaleType(ImageView.ScaleType.FIT_CENTER);art.addView(image,new FrameLayout.LayoutParams(-1,-1));loadArtwork(image,pkg,info);}
             else{image.setImageDrawable(UiCompat.drawable(this,R.drawable.ic_manage_plus));art.addView(image,new FrameLayout.LayoutParams(px(28),px(28),Gravity.CENTER));}
-            if(unavailable){ColorMatrix matrix=new ColorMatrix();matrix.setSaturation(0);image.setColorFilter(new ColorMatrixColorFilter(matrix));image.setAlpha(.45f);}
+            if(unavailable || occupied && new ChildModeStore(this).hidden(pkg)){ColorMatrix matrix=new ColorMatrix();matrix.setSaturation(0);image.setColorFilter(new ColorMatrixColorFilter(matrix));image.setAlpha(.45f);}
             gap(card,16);TextView title=center(occupied?name(pkg):"添加常用应用",13);title.setSingleLine();title.setEllipsize(android.text.TextUtils.TruncateAt.END);if(!occupied)title.setTextColor(MUTED);card.addView(title,new LinearLayout.LayoutParams(-1,px(20)));
-            if(unavailable){gap(card,5);TextView note=center(info!=null && info.enabled?"未安装  保留位置":"已禁用  保留位置",10);note.setTextColor(MUTED);card.addView(note,new LinearLayout.LayoutParams(-1,px(16)));}
+            if(occupied && new ChildModeStore(this).hidden(pkg)){gap(card,5);card.addView(center("已隐藏  保留位置",10));}
+            else if(unavailable){gap(card,5);TextView note=center(info!=null && info.enabled?"未安装  保留位置":"已禁用  保留位置",10);note.setTextColor(MUTED);card.addView(note,new LinearLayout.LayoutParams(-1,px(16)));}
         }
         if(moving!=null){gap(content,35);TextView note=center("调整尚未保存",11);note.setTextColor(MUTED);content.addView(note,new LinearLayout.LayoutParams(-1,px(20)));gap(content,18);LinearLayout actions=row();actions.setGravity(Gravity.CENTER);content.addView(actions,new LinearLayout.LayoutParams(-1,px(36)));marginAdd(actions,button("取消调整",()->cancelMove()),-2,36,0);marginAdd(actions,button("保存顺序",()->saveMove()),-2,36,12);}
         // Keep the shared heading and cards in place when reorder actions are hidden.
@@ -71,7 +72,7 @@ public final class DockEditorActivity extends ManagementUi {
     }
     private void choose(int replace){
         PackageManager pm=getPackageManager();LinkedHashMap<String,ResolveInfo> choices=new LinkedHashMap<>();
-        for(Map.Entry<String,ResolveInfo> entry:new HomeAppCatalog(this).launchable().entrySet())if(!packages.contains(entry.getKey()))choices.put(entry.getKey(),entry.getValue());
+        for(Map.Entry<String,ResolveInfo> entry:new HomeAppCatalog(this).launchable().entrySet())if(!packages.contains(entry.getKey()) && !new ChildModeStore(this).hidden(entry.getKey()))choices.put(entry.getKey(),entry.getValue());
         ArrayList<ResolveInfo> apps=new ArrayList<>(choices.values());Collections.sort(apps,(a,b)->a.loadLabel(pm).toString().compareTo(b.loadLabel(pm).toString()));if(apps.isEmpty()){message("没有可添加的已启用应用");return;}
         Sheet sheet=new Sheet(replace<0?"添加常用应用":"替换第 "+(replace+1)+" 个位置");Button first=null;
         for(ResolveInfo app:apps){Button option=sheet.option(app.loadLabel(pm)+"\n"+app.activityInfo.packageName,()->{String pkg=app.activityInfo.packageName;if(replace<0){if(packages.size()==DockStore.CAPACITY){message("常用应用已满，请选择位置替换");return;}packages.add(pkg);}else packages.set(replace,pkg);store.save(packages);sheet.dialog.dismiss();render(replace<0?packages.size()-1:replace);feedback("已保存常用应用");});option.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(12));Drawable icon=app.loadIcon(pm);icon.setBounds(0,0,px(28),px(28));option.setCompoundDrawables(icon,null,null,null);option.setCompoundDrawablePadding(px(12));if(first==null)first=option;}

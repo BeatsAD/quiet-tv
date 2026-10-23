@@ -1,0 +1,4 @@
+<resources>
+    <string name="child_usage_name">儿童模式计时</string>
+    <string name="child_usage_description">仅识别 Quiet TV 启动应用的前台窗口，累计使用时间并在额度用完时显示限制页。不读取页面内容。需要保持服务开启，具体效果仍需在本机验证。</string>
+</resources>

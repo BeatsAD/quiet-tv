@@ -1,0 +1,54 @@
+package home.quiet.tv;
+
+import android.content.*;
+import android.content.pm.ResolveInfo;
+import android.os.Bundle;
+import android.provider.Settings;
+import android.view.Gravity;
+import android.widget.*;
+
+/** Private launch gate and expiry screen. Returning cannot uncover the restricted application. */
+public final class ChildBlockActivity extends ManagementUi {
+    private String pkg;
+    private ChildModeStore store;
+    private boolean launched;
+    private android.app.Dialog grantDialog;
+    static Intent intent(Context context,String pkg){return new Intent(context,ChildBlockActivity.class).putExtra("package",pkg);}
+    static boolean gate(Context context,String pkg){
+        ChildModeStore store=new ChildModeStore(context);ChildModePolicy.Rule r=store.rule(pkg);
+        if(r.hidden)return true;
+        if(r.locked || r.limited() && (r.remaining()<=0 || !ChildUsageService.ready(context))){context.startActivity(intent(context,pkg));return true;}
+        if(r.limited())ChildUsageService.watch(pkg);else ChildUsageService.cancel();return false;
+    }
+    @Override public void onCreate(Bundle state){super.onCreate(state);store=new ChildModeStore(this);pkg=getIntent().getStringExtra("package");if(pkg==null || !store.eligible(pkg)){finish();return;}render();}
+    @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);pkg=intent.getStringExtra("package");if(pkg==null || !store.eligible(pkg)){finish();return;}render();}
+    @Override protected void onResume(){super.onResume();if(pkg!=null && !isFinishing()){ChildUsageService.blockVisible(pkg);if(!launched)render();}}
+    @Override protected void onStop(){ChildModeAuth.dismiss(this);if(grantDialog!=null)grantDialog.dismiss();super.onStop();}
+    private void render(){
+        if(pkg==null)return;ChildModePolicy.Rule r=store.rule(pkg);
+        root.removeAllViews();LinearLayout box=column();box.setGravity(Gravity.CENTER);root.addView(box,new LinearLayout.LayoutParams(-1,-1));
+        String name=pkg;try{name=getPackageManager().getApplicationLabel(getPackageManager().getApplicationInfo(pkg,0)).toString();}catch(android.content.pm.PackageManager.NameNotFoundException ignored){}
+        box.addView(center(name,18));gap(box,24);
+        boolean needsService=!r.locked && r.limited() && !ChildUsageService.ready(this);
+        box.addView(center(r.hidden?"此应用已隐藏":r.locked?"此应用已上锁":needsService?"需要开启计时服务":r.remaining()<=0?r.mode==ChildModePolicy.DAILY?"今天的使用时间已用完":"本次的使用时间已用完":"可以继续使用",28));gap(box,18);
+        if(needsService){TextView note=center(store.fault().isEmpty()?"开启儿童模式无障碍服务后，才能计时和显示到时限制":store.fault(),12);note.setTextColor(MUTED);box.addView(note);gap(box,22);}
+        LinearLayout actions=row();actions.setGravity(Gravity.CENTER);box.addView(actions,new LinearLayout.LayoutParams(-1,px(42)));marginAdd(actions,button("返回桌面",this::handleBack),-2,42,0);
+        if(r.hidden)return;
+        if(needsService)marginAdd(actions,button("开启计时服务",()->{try{startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));}catch(android.content.ActivityNotFoundException e){message("当前电视没有可用的无障碍设置入口");}}),-2,42,12);
+        else if(r.locked || r.remaining()<=0)marginAdd(actions,button("家长授权",()->ChildModeAuth.show(this,()->{if(store.rule(pkg).locked)launch();else grant();})),-2,42,12);
+        else marginAdd(actions,button("继续使用",this::launch),-2,42,12);
+    }
+    private void grant(){
+        Sheet sheet=new Sheet("追加使用时间");Button first=null;for(int minutes:new int[]{15,30}){Button b=sheet.option(minutes+" 分钟",()->add(minutes,sheet));if(first==null)first=b;}
+        EditText custom=input("","自定义分钟");custom.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);sheet.body.addView(custom,new LinearLayout.LayoutParams(-1,px(40)));sheet.action("取消",sheet.dialog::dismiss);sheet.action("追加",()->{try{add(Integer.parseInt(custom.getText().toString()),sheet);}catch(NumberFormatException e){feedback("请输入 1–1440 分钟");}});grantDialog=sheet.dialog;sheet.dialog.setOnDismissListener(d->{if(grantDialog==sheet.dialog)grantDialog=null;});sheet.show(first);
+    }
+    private void add(int minutes,Sheet sheet){try{if(!store.grant(pkg,minutes*ChildModePolicy.MINUTE)){feedback("保存失败，请重试");return;}sheet.dialog.dismiss();launch();}catch(IllegalArgumentException e){feedback(e.getMessage());}}
+    private void launch(){
+        ChildModePolicy.Rule r=store.rule(pkg);if(r.hidden)return;
+        ResolveInfo target=new HomeAppCatalog(this).launchable().get(pkg);if(target==null){message("应用暂不可用");return;}
+        if(!r.locked && r.limited()){if(!ChildUsageService.ready(this) || r.remaining()<=0){render();return;}ChildUsageService.watch(pkg);}else ChildUsageService.cancel();
+        try{launched=true;startActivity(new Intent(Intent.ACTION_MAIN).setComponent(new ComponentName(pkg,target.activityInfo.name)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));finish();}
+        catch(android.content.ActivityNotFoundException|SecurityException e){launched=false;message("应用暂不可用");}
+    }
+    @Override public void handleBack(){ChildUsageService.cancel();startActivity(new Intent(this,HomeActivity.class).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP));finish();}
+}
