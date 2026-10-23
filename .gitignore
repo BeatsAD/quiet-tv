@@ -47,6 +47,7 @@ __pycache__/
 /prototypes/install-guide/assets/*
 !/prototypes/install-guide/assets/icon.svg
 !/prototypes/install-guide/assets/home.png
+!/prototypes/install-guide/assets/home.jpg
 !/prototypes/about/
 /prototypes/about/*
 !/prototypes/about/index.html
