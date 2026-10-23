@@ -74,10 +74,18 @@ final class HomeHeaderView extends FrameLayout {
         information.setGravity(gallery?Gravity.CENTER_HORIZONTAL:Gravity.START);
         for(TextView v:new TextView[]{greeting,clock,date,weather})v.setGravity(gallery?Gravity.CENTER:Gravity.CENTER_VERTICAL);
         clock.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(gallery?79:50));
+        greeting.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(gallery?15:14));date.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(gallery?15:14));weather.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(gallery?15:14));
+        UiCompat.letterSpacing(greeting,gallery?.02f:.14f);UiCompat.letterSpacing(date,gallery?.02f:.08f);
         FrameLayout.LayoutParams ip=(FrameLayout.LayoutParams)information.getLayoutParams();ip.width=px(gallery?538:510);ip.leftMargin=px(gallery?211:50);ip.topMargin=px(gallery?(settings.showTime()?75:97):32);information.setLayoutParams(ip);
         greeting.setVisibility(settings.greetingEnabled()?VISIBLE:GONE);clock.setVisibility(settings.showTime()?VISIBLE:GONE);date.setVisibility(settings.showDate()?VISIBLE:GONE);
         weather.setVisibility(weatherAvailable&&new WeatherStore(getContext()).enabled()?VISIBLE:GONE);
-        if(!gallery){
+        if(gallery){
+            boolean previous=false;
+            for(View item:new View[]{greeting,clock,date,weather}){
+                LinearLayout.LayoutParams p=(LinearLayout.LayoutParams)item.getLayoutParams();int spacing=previous&&item.getVisibility()==VISIBLE?px(8):0;
+                if(p.topMargin!=spacing){p.topMargin=spacing;item.setLayoutParams(p);}if(item.getVisibility()==VISIBLE)previous=true;
+            }
+        }else{
             intro.setVisibility(greeting.getVisibility()==VISIBLE||weather.getVisibility()==VISIBLE?VISIBLE:GONE);
             timeRow.setVisibility(settings.showTime()||settings.showDate()?VISIBLE:GONE);divider.setVisibility(settings.showTime()&&settings.showDate()?VISIBLE:GONE);
             LinearLayout.LayoutParams wp=(LinearLayout.LayoutParams)weather.getLayoutParams();wp.leftMargin=settings.greetingEnabled()?px(16):0;weather.setLayoutParams(wp);

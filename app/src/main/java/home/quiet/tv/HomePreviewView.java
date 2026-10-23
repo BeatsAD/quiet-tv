@@ -55,7 +55,7 @@ final class HomePreviewView extends FrameLayout {
     private void loadLocalScene(){
         final int request=++generation;final Context context=getContext();
         android.app.ActivityManager memory=(android.app.ActivityManager)context.getSystemService(Context.ACTIVITY_SERVICE);
-        int limit=memory==null||memory.isLowRamDevice()||memory.getMemoryClass()<256?480:960;
+        int limit=memory!=null&&memory.isLowRamDevice()?720:1280;
         final int width=Math.min(limit,Math.max(360,getWidth()));
         worker.execute(()->{
             if(request!=generation)return;
