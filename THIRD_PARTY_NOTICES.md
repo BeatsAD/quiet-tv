@@ -14,7 +14,7 @@ Quiet TV 基于该项目开发，面向国内电视机的适配与应用升级�
 
 - 来源：[pengchujin/aerial-tv](https://github.com/pengchujin/aerial-tv/tree/da9cedc2c5887a46d62b1f54699567a5deac5c2a)，固定提交 `da9cedc2c5887a46d62b1f54699567a5deac5c2a`。
 - Copyright (c) 2026 pengchujin，MIT；[完整许可证](app/src/main/assets/licenses/aerial-MIT.txt)随主程序打包。
-- 参考原主页窗口识别及酷开私有 HOME 类别，在现有 Java 结构实现用户手动启停的实验守护；未移植其通知监听、账号同步或自动重绑机制。上游机型反馈不等于 Quiet TV 真机验收。
+- 参考原主页窗口识别及酷开私有 HOME 类别，后续恢复机制固定参考提交 [bd30a9f9fbbcbb8e8ff02963dc265714e7a67a8e](https://github.com/pengchujin/aerial-tv/tree/bd30a9f9fbbcbb8e8ff02963dc265714e7a67a8e)。在现有 Java 结构实现自动策略、普通主页快速接管、开机稳定期复核、通知监听恢复与有限重绑；未引入账号同步、全局按键过滤、后台 ADB 或调试常开。MIT 版权和许可继续随包保留。上游机型反馈不等于 Quiet TV 真机验收。
 
 ## coocaa-home-shim（可选独立助手）
 

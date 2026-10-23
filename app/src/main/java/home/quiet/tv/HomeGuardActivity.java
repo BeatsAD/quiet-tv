@@ -16,5 +16,6 @@ public final class HomeGuardActivity extends ManagementUi {
     }
     @Override protected void onResume(){super.onResume();panel.resume();}
     @Override protected void onPause(){panel.pause();super.onPause();}
+    @Override protected void onDestroy(){panel.destroy();super.onDestroy();}
     @Override protected void onSaveInstanceState(Bundle saved){super.onSaveInstanceState(saved);panel.saveState(saved);}
 }

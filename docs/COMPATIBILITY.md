@@ -35,9 +35,22 @@ Source includes legacy networking/font fallbacks, detected HOME settings, Back h
 | 安卓4.4 / legacy19 | 同一布局与预览；沿用桌面守护禁用策略，仅显示前两个标签 | 构建与 Lint 通过；API22 上运行兼容档通过相同256种组合与核心交互。本轮无可运行 API19 镜像，Android4.4实际运行仍待验收。 |
 | 酷开 API26 独立包名 | 复用标准档的布局代码 | 本轮未单独构建或进行酷开固件验收。 |
 
-预览读取本地壁纸、常用应用封面和有效天气缓存，不启动第二套天气请求或壁纸播放流程。以上为本地开发验证，尚未发布，也未安装实体电视；厂商遥控、HOME、待机唤醒、升级数据保留及低内存表现需目标设备验收。
+预览读取本地壁纸、常用应用封面和有效天气缓存，动态壁纸使用本地封面，Dock复用当前磨砂样式并按应用数量居中伸缩，不启动第二套天气请求或壁纸播放流程。以上为本地开发验证，尚未发布，也未安装实体电视；厂商遥控、HOME、待机唤醒、升级数据保留及低内存表现需目标设备验收。
 
 Both layouts share the native Home header with the preview. Only Desktop shows the preview; Weather and Guard use the full content area. Standard emulator checks passed on API22 and API31; API31 covers 720p/1080p and 256 visibility combinations. The legacy19 build passed the same functional checks on API22, which does not establish Android4.4 runtime acceptance. No physical TV or separate Coocaa package acceptance was performed, and this work is not released.
+
+### 动态壁纸开发源码 / Video wallpaper source
+
+默认关闭，图片和 MP4 共用上传入口，使用系统 MediaPlayer 和固定背景 SurfaceView。源码构建不代表已发布的安装包包含此功能。
+
+| 能力 | Android 4.4 | Android 5+ |
+| --- | --- | --- |
+| 上传、预览、静音循环、关闭恢复、退出释放 | 共用实现 | 共用实现 |
+| 输入上限 | H.264 8bit SDR、1080p30 内 | 按解码能力，最高 4K30；HEVC Main 8bit SDR 可选 |
+| 4K 封面 | 本批不开放 4K | API 27+ 缩放取帧，旧 API 可用占位图 |
+| 厂商硬解、实际输出、长期性能、屏保与待机 | 待对应设备验收 | 待对应设备验收 |
+
+不接收 HDR／10bit／60 FPS。SurfaceView 保留部分电视独立于 UI 分辨率的视频输出路径；不能仅凭面板或素材标签确认原生 4K。4K 不可用时需另传低规格文件，不自动在电视转码。详见[使用指南](USAGE.zh-CN.md)。
 
 ### 每日壁纸开发源码 / Daily wallpaper source
 
@@ -61,7 +74,7 @@ Both optimized APKs passed 49 unit tests each, Lint with zero errors (warnings r
 
 ### 历史开发与发布证据 / Historical evidence
 
-- 当前开发源码新增主程序内置桌面守护（实验），默认关闭，标准档在小米／Redmi、创维／酷开上提供实验入口；通过标准 HOME 与已知酷开私有类别发现候选，用户选择并授权后按精确主页窗口尝试中转。安卓4.4兼容档禁用入口和服务。此功能不改变系统默认 HOME，不包含持续轮询或自动保活；没有窗口事件或后台启动受限时可能无法接管。目标电视的实体 HOME、重启、冷启动、待机唤醒、HDMI／播放及原桌面恢复均待验收，详见[首次设置](SETUP.md#桌面守护实验)。旧独立助手保留，不能与内置守护同时运行。
+- 当前开发源码的内置桌面守护采用自动策略，进入配置并完成首次授权后自动运行；标准档按 HOME 身份与系统能力识别，普通原主页事件快速接管，开机/唤醒稳定期复核，通知监听提供有限恢复。安卓4.4档禁用相关组件。守护不改真实 HOME、不禁用原桌面、不读取屏幕或通知正文；首次兼容配置可在 HOME 仍属原桌面时完成，但不解锁系统包操作。通知绑定、后台启动和厂商实际效果仍有系统限制；目标固件的重启、冷启动、待机及 HDMI/播放均需单独验收，详见[首次设置](SETUP.md#桌面守护实验)。旧独立助手保留并互斥。
 
 - b31 的小米主页中转助手独立构建，限定 MiTV4-ANSM0 / API23，默认暂停，需手动选择本机原主页并开启无障碍。主程序与助手均未安装目标电视。构建和模拟检查不代表实体 HOME、原厂设置、开机、待机或窗口事件已适配，流程与限制见[助手说明](../xiaomi-home-helper/README.md)。
 
@@ -86,6 +99,18 @@ For the b28 development cycle, both profiles passed builds, full Lint (zero erro
 Published b26 passed Debug build, 19 unit tests and Lint (0 errors, 28 warnings). API21/22/23/31 emulator checks cover basic UI, app enumeration, Back and offline licenses; the optimized universal APK also passed API21/22 UI and native-library smoke checks. Android 5 ADB checks use a forwarded loop to the same emulator and verify identity, output markers and root rejection; shell package writes and actual TV firmware remain unverified. API31 also passed shell-authorized fixture disable/enable, operation journal, exact state restoration and optimized local ADB smoke. Installed optimized APK hashes match the candidate on API21/22/31. b26 is a prerelease and has not been installed on a physical TV.
 
 The published b24 universal APK passed its optimized build, full Lint (0 errors, 27 warnings), package and signature checks, and GitHub download hash verification. It has not been installed on a TV or emulator. Historical emulator and b23 hardware checks do not validate b24, other vendors, real HOME changes, pairing, casting, or long-running operation. Unknown firmware retains read-only system-package behavior.
+
+## 首页 Dock 材质与动效（开发源码）
+
+首页 Dock 使用壁纸模糊缓存、半透明覆层、细描边和轻阴影；遥控焦点带动当前封面及相邻封面缩放、避让，确认键提供短促按压反馈。保留五项容量、横向封面、应用顺序和焦点记忆；顶部按钮及全部应用网格沿用各自样式。焦点移动复用背景缓存，壁纸变化时在后台生成缓存并同步淡入。视频壁纸下使用视频封面的磨砂缓存，不逐帧抓取或模糊视频；封面缺失时沿用视频播放器的静态背景。
+
+| 档位 | 共同功能及差异 | 本次验证边界 |
+| --- | --- | --- |
+| 标准 API21+ | 相同磨砂底板和焦点动画，无额外权限或依赖 | 构建、局部单元测试及 Lint 通过；API31 的 1080p、720p 模拟检查通过 |
+| 安卓4.4 / legacy19 | 共用实现，不依赖 API31 的 RenderEffect | 构建、局部单元测试及 Lint 通过；API21 运行检查通过，API19 运行与老电视性能待验收 |
+| 酷开 API26+ 包名档位 | 共用首页实现，无 Dock 专用兼容分支 | 本次未单独构建或验收酷开档位 |
+
+此处描述当前开发源码，不代表已发布 APK 包含。模拟器验证不替代厂商电视的真实遥控、升级数据保留及长时间运行验收。与动态壁纸集成后，API31 另通过视频播放期间的焦点动画、封面缓存复用、离开返回、静态／默认切换和封面缺失检查；视频布局仅在显示尺寸或源缓冲尺寸变化时更新，避免持续重复布局。
 
 ## 儿童模式源码兼容
 

@@ -21,7 +21,7 @@ public final class AppManagementActivity extends ManagementUi {
     private AdbConnectionPanel connection;
     private AppRepository repository;
     private AppOperations operations;
-    private Button status,searchButton,queryChip;
+    private Button status;
     private final ArrayList<Button> filterButtons=new ArrayList<>();
     private AppCoverUploadPanel coverUploads;
     private TextView count;
@@ -29,7 +29,7 @@ public final class AppManagementActivity extends ManagementUi {
     private RecyclerView list;
     private AppAdapter adapter;
     private View firstAction;
-    private String selected="",query="",connectionState="未连接";
+    private String selected="",connectionState="未连接";
     private int filter;
     private boolean busy,connecting,active,returningToList,initialFocus=true;
     private final BroadcastReceiver packagesChanged=new BroadcastReceiver(){
@@ -45,21 +45,20 @@ public final class AppManagementActivity extends ManagementUi {
         status=button("ADB 未连接",this::connectionPanel);status.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(12));status.setPadding(px(12),0,px(12),0);header.addView(status,new LinearLayout.LayoutParams(-2,px(30)));
         marginAdd(header,iconText("更多",R.drawable.ic_manage_more,this::morePanel),-2,30,8);
         marginAdd(header,iconText("关于",R.drawable.ic_about,()->startActivity(new Intent(this,AboutActivity.class))),-2,30,8);
-        LinearLayout tools=toolbar(false);
-        searchButton=iconText("搜索",R.drawable.ic_manage_search,this::searchPanel);tools.addView(searchButton,new LinearLayout.LayoutParams(-2,px(33)));
+        toolbar(false);
         LinearLayout panels=row();panels.setGravity(Gravity.TOP);LinearLayout.LayoutParams pp=new LinearLayout.LayoutParams(-1,0,1);pp.topMargin=px(23);root.addView(panels,pp);
         LinearLayout left=column();panels.addView(left,new LinearLayout.LayoutParams(0,-1,40));
         LinearLayout filters=row();LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-1,px(36));fp.bottomMargin=px(12);left.addView(filters,fp);
-        for(int i=0;i<FILTERS.length;i++){final int chosen=i;Button option=button(FILTERS[i],()->{filter=chosen;applyFilter();});option.setId(View.generateViewId());option.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(12));option.setPadding(px(7),0,px(7),0);option.setSingleLine();
+        for(int i=0;i<FILTERS.length;i++){final int chosen=i;Button option=button(FILTERS[i],()->{filter=chosen;applyFilter();});option.setId(View.generateViewId());option.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(12));option.setPadding(px(10),0,px(10),0);option.setMinWidth(px(48));option.setSingleLine();
             option.setOnKeyListener((v,key,event)->{if(key==KeyEvent.KEYCODE_DPAD_DOWN){if(event.getAction()==KeyEvent.ACTION_DOWN)focusList();return true;}return false;});
-            filterButtons.add(option);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,-1);if(i>0)p.leftMargin=px(3);filters.addView(option,p);}
+            filterButtons.add(option);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,-1);if(i>0)p.leftMargin=px(10);filters.addView(option,p);}
         for(int i=0;i<filterButtons.size();i++){Button b=filterButtons.get(i);if(i>0)b.setNextFocusLeftId(filterButtons.get(i-1).getId());if(i+1<filterButtons.size())b.setNextFocusRightId(filterButtons.get(i+1).getId());}
         LinearLayout caption=row();LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,px(24));cp.bottomMargin=px(6);left.addView(caption,cp);
-        count=muted("正在读取应用…",11);caption.addView(count,new LinearLayout.LayoutParams(0,-1,1));queryChip=button("",()->{query="";applyFilter();focusList();});queryChip.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(10));queryChip.setSingleLine();queryChip.setEllipsize(android.text.TextUtils.TruncateAt.END);queryChip.setMaxWidth(px(185));queryChip.setVisibility(View.GONE);caption.addView(queryChip,new LinearLayout.LayoutParams(-2,px(24)));
+        count=muted("正在读取应用…",11);caption.addView(count,new LinearLayout.LayoutParams(0,-1,1));
         list=new RecyclerView(this);list.setLayoutManager(new LinearLayoutManager(this));adapter=new AppAdapter();list.setAdapter(adapter);list.setItemAnimator(null);list.setClipToPadding(false);list.setPadding(px(2),px(2),px(2),px(2));left.addView(list,new LinearLayout.LayoutParams(-1,0,1));
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setClipToPadding(false);details=column();details.setGravity(Gravity.CENTER_HORIZONTAL);details.setPadding(px(25),px(27),px(25),px(22));details.setBackground(surface(0x12ffffff,0x06ffffff,0x1cffffff,20));scroll.addView(details);
         LinearLayout.LayoutParams dp=new LinearLayout.LayoutParams(0,-1,57);dp.leftMargin=px(28);panels.addView(scroll,dp);
-        if(state!=null){selected=state.getString("selected","");filter=state.getInt("filter",0);query=state.getString("query","");}
+        if(state!=null){selected=state.getString("selected","");filter=state.getInt("filter",0);}
         IntentFilter packages=new IntentFilter(Intent.ACTION_PACKAGE_ADDED);packages.addAction(Intent.ACTION_PACKAGE_REMOVED);packages.addAction(Intent.ACTION_PACKAGE_CHANGED);packages.addDataScheme("package");registerReceiver(packagesChanged,packages);
     }
     private void ui(Runnable action){runOnUiThread(()->{if(!isDestroyed() && !isFinishing())action.run();});}
@@ -67,25 +66,19 @@ public final class AppManagementActivity extends ManagementUi {
     @Override protected void onResume(){super.onResume();active=true;updateConnection(adb.connected()?"已连接":"未连接");refresh();}
     @Override protected void onStop(){active=false;connection.close();coverUploads.close();if(!connecting)worker.execute(()->{adb.disconnect();ui(()->updateConnection("未连接"));});super.onStop();}
     @Override protected void onDestroy(){unregisterReceiver(packagesChanged);coverUploads.destroy();adb.close();worker.shutdownNow();super.onDestroy();}
-    @Override protected void onSaveInstanceState(Bundle state){state.putString("selected",selected);state.putString("query",query);state.putInt("filter",filter);super.onSaveInstanceState(state);}
+    @Override protected void onSaveInstanceState(Bundle state){state.putString("selected",selected);state.putInt("filter",filter);super.onSaveInstanceState(state);}
     private void refresh(){
         if(busy)return;busy=true;count.setText("正在读取应用…");renderDetails();
         worker.execute(()->{try{List<AppRepository.App> values=repository.load(adb);ui(()->{busy=false;all.clear();all.addAll(values);applyFilter();});}catch(Exception e){ui(()->{busy=false;adbFailure(e);});}});
     }
     private void adbFailure(Exception e){updateConnection("连接失败");count.setText("读取失败，请重新连接后刷新");renderDetails();message(e.getMessage()==null?e.toString():e.getMessage());}
-    private void searchPanel(){
-        Sheet sheet=new Sheet("搜索应用");sheet.text("输入应用名称或包名");gap(sheet.body,16);EditText input=input(query,"搜索应用名或包名");sheet.body.addView(input,new LinearLayout.LayoutParams(-1,px(44)));
-        sheet.action("清空",()->{query="";sheet.dialog.dismiss();applyFilter();focusList();});
-        sheet.action("搜索",()->{query=input.getText().toString().trim();sheet.dialog.dismiss();applyFilter();focusList();});
-        input.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);input.setOnEditorActionListener((v,action,event)->{if(action==android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH){query=input.getText().toString().trim();sheet.dialog.dismiss();applyFilter();focusList();return true;}return false;});sheet.show(input);
-    }
     private void morePanel(){Sheet sheet=new Sheet("更多");Button refresh=sheet.option("刷新应用列表",R.drawable.ic_manage_refresh,()->{sheet.dialog.dismiss();refresh();});sheet.option("开机广告",()->{sheet.dialog.dismiss();startActivity(new Intent(this,BootAdActivity.class));});sheet.option("首次设置",()->{sheet.dialog.dismiss();startActivity(new Intent(this,SetupActivity.class));});sheet.option("恢复原桌面",()->{sheet.dialog.dismiss();startActivity(new Intent(this,SetupActivity.class).putExtra("restore",true));});sheet.option("操作记录",R.drawable.ic_manage_history,()->{sheet.dialog.dismiss();showHistory();});sheet.action("关闭",sheet.dialog::dismiss);sheet.show(refresh);}
     private void applyFilter(){
-        boolean listFocused=initialFocus || list.hasFocus();filtered.clear();String matchQuery=query.toLowerCase(Locale.ROOT);
-        for(AppRepository.App app:all){boolean match=filter==0 || filter==1 && !app.system && app.installed || filter==2 && app.system || filter==3 && app.installed && !app.enabled || filter==4 && app.recoverable;if(match && (app.label.toLowerCase(Locale.ROOT).contains(matchQuery)||app.pkg.toLowerCase(Locale.ROOT).contains(matchQuery)))filtered.add(app);}
-        for(int i=0;i<filterButtons.size();i++)filterButtons.get(i).setSelected(i==filter);searchButton.setText(query.isEmpty()?"搜索":"搜索  已筛选");
+        boolean listFocused=initialFocus || list.hasFocus();filtered.clear();
+        for(AppRepository.App app:all){boolean match=filter==0 || filter==1 && !app.system && app.installed || filter==2 && app.system || filter==3 && app.installed && !app.enabled || filter==4 && app.recoverable;if(match)filtered.add(app);}
+        for(int i=0;i<filterButtons.size();i++)filterButtons.get(i).setSelected(i==filter);
         boolean present=false;for(AppRepository.App app:filtered)if(app.pkg.equals(selected))present=true;if(!present)selected=filtered.isEmpty()?"":filtered.get(0).pkg;
-        queryChip.setVisibility(query.isEmpty()?View.GONE:View.VISIBLE);queryChip.setText(query+"  ×");queryChip.setContentDescription("清除搜索："+query);count.setText(filtered.size()+" 个应用"+(!adb.connected() && query.isEmpty()?"  本地信息":""));adapter.notifyDataSetChanged();renderDetails();if(listFocused){initialFocus=false;focusList();}
+        count.setText(filtered.size()+" 个应用"+(!adb.connected()?"  本地信息":""));adapter.notifyDataSetChanged();renderDetails();if(listFocused){initialFocus=false;focusList();}
     }
     private AppRepository.App current(){for(AppRepository.App app:filtered)if(app.pkg.equals(selected))return app;return null;}
     private CharSequence coloredState(AppRepository.App app,String text){
@@ -94,10 +87,10 @@ public final class AppManagementActivity extends ManagementUi {
         SpannableString label=new SpannableString(text);
         label.setSpan(new ForegroundColorSpan(color),start,start+state.length(),Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);return label;
     }
-    private void focusList(){list.post(()->{for(int i=0;i<filtered.size();i++)if(filtered.get(i).pkg.equals(selected)){final int position=i;list.scrollToPosition(position);list.post(()->{RecyclerView.ViewHolder holder=list.findViewHolderForAdapterPosition(position);if(holder!=null)holder.itemView.requestFocus();});return;}searchButton.requestFocus();});}
+    private void focusList(){list.post(()->{for(int i=0;i<filtered.size();i++)if(filtered.get(i).pkg.equals(selected)){final int position=i;list.scrollToPosition(position);list.post(()->{RecyclerView.ViewHolder holder=list.findViewHolderForAdapterPosition(position);if(holder!=null)holder.itemView.requestFocus();});return;}filterButtons.get(filter).requestFocus();});}
     private void renderDetails(){
         if(details==null)return;details.removeAllViews();firstAction=null;AppRepository.App app=current();
-        if(app==null){details.setGravity(Gravity.CENTER);details.addView(center(busy?"正在读取应用…":"没有符合条件的应用",20));if(!busy){gap(details,12);details.addView(muted("试试其他名称或筛选条件",12));}return;}details.setGravity(Gravity.CENTER_HORIZONTAL);
+        if(app==null){details.setGravity(Gravity.CENTER);details.addView(center(busy?"正在读取应用…":"没有符合条件的应用",20));if(!busy){gap(details,12);details.addView(muted("试试其他筛选条件",12));}return;}details.setGravity(Gravity.CENTER_HORIZONTAL);
         details.addView(icon(app.icon,67));gap(details,16);TextView title=center(app.label,26);title.setMaxLines(2);title.setEllipsize(android.text.TextUtils.TruncateAt.END);details.addView(title,new LinearLayout.LayoutParams(-1,-2));
         gap(details,10);TextView state=center("",12);state.setText(coloredState(app,app.state()+"  "+(app.system?"预装应用":"用户应用")));state.setTextColor(0xffaab0b8);details.addView(state);
         String size=app.apkSizeBytes>=0?Formatter.formatShortFileSize(this,app.apkSizeBytes):"大小未知";

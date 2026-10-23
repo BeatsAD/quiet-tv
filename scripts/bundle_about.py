@@ -60,7 +60,7 @@ def bundle(output):
     (output / 'assets').mkdir(exist_ok=True)
     shutil.copyfile(prototype / 'assets/source.svg', output / 'assets/source.svg')
     shutil.copyfile(prototype / 'assets/wechat.png', output / 'assets/wechat.png')
-    shutil.copyfile(prototype / 'assets/official.png', output / 'assets/official.png')
+    shutil.copyfile(prototype / 'assets/qq-group.png', output / 'assets/qq-group.png')
     # Remove only the obsolete generated contact sheet from earlier builds.
     if (output / 'contact.png').is_file():
         (output / 'contact.png').unlink()
