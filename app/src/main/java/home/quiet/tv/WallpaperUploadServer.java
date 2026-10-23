@@ -19,6 +19,8 @@ final class WallpaperUploadServer extends NanoHTTPD {
     private static final AtomicBoolean IMPORTING=new AtomicBoolean();
     private final Assets assets;
     private final Importer importer;
+    private final long maximum;
+    private final String information;
     private final String host,token,connectionCode;
     private int failedConnections;
     private long blockedUntil;
@@ -26,7 +28,10 @@ final class WallpaperUploadServer extends NanoHTTPD {
     private volatile long touched=System.nanoTime();
 
     WallpaperUploadServer(String host,int port,Assets assets,Importer importer) {
-        super(host,port);this.host=host;this.assets=assets;this.importer=importer;
+        this(host,port,assets,importer,MAX_UPLOAD,null);
+    }
+    WallpaperUploadServer(String host,int port,Assets assets,Importer importer,long maximum,String information) {
+        super(host,port);this.maximum=maximum;this.information=information;this.host=host;this.assets=assets;this.importer=importer;
         SecureRandom randomSource=new SecureRandom();byte[] random=new byte[16];randomSource.nextBytes(random);
         StringBuilder text=new StringBuilder();for(byte b:random)text.append(String.format(Locale.ROOT,"%02x",b&255));token=text.toString();
         connectionCode=String.format(Locale.ROOT,"%06d",randomSource.nextInt(1000000));
@@ -60,6 +65,7 @@ final class WallpaperUploadServer extends NanoHTTPD {
         if(connecting)return connect(session);
         if(authorized)touched=System.nanoTime();
         if(session.getMethod()==Method.GET) {
+            if(authorized&&"info".equals(route)&&information!=null)return secure(newFixedLengthResponse(Response.Status.OK,"application/json; charset=utf-8",information));
             String name,mime;
             switch(route){case"":name="index.html";mime="text/html; charset=utf-8";break;case"app.js":name="app.js";mime="application/javascript; charset=utf-8";break;case"styles.css":name="styles.css";mime="text/css; charset=utf-8";break;default:return error(Response.Status.NOT_FOUND,"Not found");}
             try {return secure(newChunkedResponse(Response.Status.OK,mime,assets.open(name)));}
@@ -69,7 +75,7 @@ final class WallpaperUploadServer extends NanoHTTPD {
         long length;
         try { length=Long.parseLong(session.getHeaders().get("content-length")); }
         catch(NumberFormatException e){return error(Response.Status.LENGTH_REQUIRED,"需要文件长度 / Content-Length required");}
-        if(length<=0 || length>MAX_UPLOAD)return error(Response.Status.PAYLOAD_TOO_LARGE,"单张图片不能超过 20 MB / Maximum image size: 20 MB");
+        if(length<=0 || length>maximum)return error(Response.Status.PAYLOAD_TOO_LARGE,"单张图片不能超过 "+(maximum/(1024*1024))+" MB / Maximum image size: "+(maximum/(1024*1024))+" MB");
         if(session.getHeaders().containsKey("transfer-encoding"))return error(Response.Status.BAD_REQUEST,"Unsupported transfer encoding");
         if(!IMPORTING.compareAndSet(false,true))return error(Response.Status.SERVICE_UNAVAILABLE,"正在处理另一张图片，请稍后重试 / Another upload is in progress");
         try {

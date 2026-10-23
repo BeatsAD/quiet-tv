@@ -77,7 +77,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private final BroadcastReceiver packageReceiver = new BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) {
             if(Intent.ACTION_PACKAGE_REMOVED.equals(i.getAction()) && i.getBooleanExtra(Intent.EXTRA_REPLACING,false))return;
-            if(Intent.ACTION_PACKAGE_REMOVED.equals(i.getAction()) && !i.getBooleanExtra(Intent.EXTRA_REPLACING,false) && i.getData()!=null){String pkg=i.getData().getSchemeSpecificPart();new DockStore(c).remove(pkg);new HomeOrderStore(c).remove(pkg);}
+            if(Intent.ACTION_PACKAGE_REMOVED.equals(i.getAction()) && !i.getBooleanExtra(Intent.EXTRA_REPLACING,false) && i.getData()!=null){String pkg=i.getData().getSchemeSpecificPart();new DockStore(c).remove(pkg);new HomeOrderStore(c).remove(pkg);try{AppCoverStore.get(c).restore(pkg);}catch(java.io.IOException e){Log.w(TAG,"Cover cleanup deferred");}}
             appsDirty = true;
             if (resumed) loadApps();
         }
@@ -326,12 +326,13 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         String pkg,label; ComponentName component; Bitmap banner; int color;
     }
 
-    private long childRevision=-1;
+    private long childRevision=-1,coverRevision=-1;
     private void loadApps() {
         ArrayList<String> currentDock = new DockStore(this).load();
         final String requestedOrder=new HomeOrderStore(this).signature();
         final long requestedChild=new ChildModeStore(this).revision();
-        if (!currentDock.equals(dockPackages) || !requestedOrder.equals(orderSignature) || requestedChild!=childRevision) appsDirty = true;
+        final long requestedCover=AppCoverStore.get(this).revision();
+        if (!currentDock.equals(dockPackages) || !requestedOrder.equals(orderSignature) || requestedChild!=childRevision || requestedCover!=coverRevision) appsDirty = true;
         if (loadingApps || (ready && !appsDirty)) return;
         loadingApps = true; appsDirty = false;
         dockPackages.clear();dockPackages.addAll(new DockStore(this).load());
@@ -347,6 +348,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 String key=new ComponentName(info.activityInfo.packageName,info.activityInfo.name).flattenToString();
                 try { key += ":" + pm.getPackageInfo(info.activityInfo.packageName,0).lastUpdateTime; }
                 catch (PackageManager.NameNotFoundException e) { continue; }
+                key += ":cover:"+AppCoverStore.get(this).key(info.activityInfo.packageName);
                 App cached=artworkCache.get(key);
                 if(cached!=null){found.add(cached);freshCache.put(key,cached);continue;}
                 App app=new App();app.pkg=info.activityInfo.packageName;app.label=info.loadLabel(pm).toString();
@@ -364,7 +366,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             ArrayList<String> gridOrder=new HomeOrderStore(this).order(defaults);
             main.post(()->{
                 if(isDestroyed())return;
-                orderSignature=requestedOrder;childRevision=requestedChild;
+                if(requestedCover!=AppCoverStore.get(this).revision()){loadingApps=false;appsDirty=true;if(resumed)loadApps();return;}
+                orderSignature=requestedOrder;childRevision=requestedChild;coverRevision=requestedCover;
                 if(!requestedOrder.equals(new HomeOrderStore(this).signature()))appsDirty=true;
                 dock.clear();apps.clear();visibleTiles.clear();dockTiles.clear();
                 for(String pkg:pinned)for(App app:found)if(pkg.equals(app.pkg))dock.add(app);

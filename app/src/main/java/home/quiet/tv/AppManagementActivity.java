@@ -21,7 +21,9 @@ public final class AppManagementActivity extends ManagementUi {
     private AdbConnectionPanel connection;
     private AppRepository repository;
     private AppOperations operations;
-    private Button status,filterButton,searchButton,queryChip;
+    private Button status,searchButton,queryChip;
+    private final ArrayList<Button> filterButtons=new ArrayList<>();
+    private AppCoverUploadPanel coverUploads;
     private TextView count;
     private LinearLayout details;
     private RecyclerView list;
@@ -32,22 +34,26 @@ public final class AppManagementActivity extends ManagementUi {
     private boolean busy,connecting,active,returningToList,initialFocus=true;
     private final BroadcastReceiver packagesChanged=new BroadcastReceiver(){
         @Override public void onReceive(Context context,Intent intent){
-            if(Intent.ACTION_PACKAGE_REMOVED.equals(intent.getAction()) && !intent.getBooleanExtra(Intent.EXTRA_REPLACING,false) && intent.getData()!=null){String pkg=intent.getData().getSchemeSpecificPart();new DockStore(context).remove(pkg);new HomeOrderStore(context).remove(pkg);}
+            if(Intent.ACTION_PACKAGE_REMOVED.equals(intent.getAction()) && !intent.getBooleanExtra(Intent.EXTRA_REPLACING,false) && intent.getData()!=null){String pkg=intent.getData().getSchemeSpecificPart();new DockStore(context).remove(pkg);new HomeOrderStore(context).remove(pkg);worker.execute(()->{try{AppCoverStore.get(context).restore(pkg);}catch(java.io.IOException e){android.util.Log.w("QuietTV","Cover cleanup deferred");}});}
             if(active && !intent.getBooleanExtra(Intent.EXTRA_REPLACING,false))refresh();
         }
     };
     @Override public void onCreate(Bundle state){
         super.onCreate(state);repository=new AppRepository(this);operations=new AppOperations(this);
         adb=new AdbController(this,value->ui(()->updateConnection(value)));
-        connection=new AdbConnectionPanel(this,adb,worker);
+        connection=new AdbConnectionPanel(this,adb,worker);coverUploads=new AppCoverUploadPanel(this);
         status=button("ADB 未连接",this::connectionPanel);status.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(12));status.setPadding(px(12),0,px(12),0);header.addView(status,new LinearLayout.LayoutParams(-2,px(30)));
+        marginAdd(header,iconText("更多",R.drawable.ic_manage_more,this::morePanel),-2,30,8);
+        marginAdd(header,iconText("关于",R.drawable.ic_about,()->startActivity(new Intent(this,AboutActivity.class))),-2,30,8);
         LinearLayout tools=toolbar(false);
         searchButton=iconText("搜索",R.drawable.ic_manage_search,this::searchPanel);tools.addView(searchButton,new LinearLayout.LayoutParams(-2,px(33)));
-        filterButton=iconText("筛选",R.drawable.ic_manage_filter,this::chooseFilter);marginAdd(tools,filterButton,-2,33,8);
-        marginAdd(tools,iconText("更多",R.drawable.ic_manage_more,this::morePanel),-2,33,8);
-        marginAdd(tools,iconText("关于",R.drawable.ic_about,()->startActivity(new Intent(this,AboutActivity.class))),-2,33,8);
         LinearLayout panels=row();panels.setGravity(Gravity.TOP);LinearLayout.LayoutParams pp=new LinearLayout.LayoutParams(-1,0,1);pp.topMargin=px(23);root.addView(panels,pp);
         LinearLayout left=column();panels.addView(left,new LinearLayout.LayoutParams(0,-1,40));
+        LinearLayout filters=row();LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-1,px(36));fp.bottomMargin=px(12);left.addView(filters,fp);
+        for(int i=0;i<FILTERS.length;i++){final int chosen=i;Button option=button(FILTERS[i],()->{filter=chosen;applyFilter();});option.setId(View.generateViewId());option.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(12));option.setPadding(px(7),0,px(7),0);option.setSingleLine();
+            option.setOnKeyListener((v,key,event)->{if(key==KeyEvent.KEYCODE_DPAD_DOWN){if(event.getAction()==KeyEvent.ACTION_DOWN)focusList();return true;}return false;});
+            filterButtons.add(option);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,-1);if(i>0)p.leftMargin=px(3);filters.addView(option,p);}
+        for(int i=0;i<filterButtons.size();i++){Button b=filterButtons.get(i);if(i>0)b.setNextFocusLeftId(filterButtons.get(i-1).getId());if(i+1<filterButtons.size())b.setNextFocusRightId(filterButtons.get(i+1).getId());}
         LinearLayout caption=row();LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,px(24));cp.bottomMargin=px(6);left.addView(caption,cp);
         count=muted("正在读取应用…",11);caption.addView(count,new LinearLayout.LayoutParams(0,-1,1));queryChip=button("",()->{query="";applyFilter();focusList();});queryChip.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(10));queryChip.setSingleLine();queryChip.setEllipsize(android.text.TextUtils.TruncateAt.END);queryChip.setMaxWidth(px(185));queryChip.setVisibility(View.GONE);caption.addView(queryChip,new LinearLayout.LayoutParams(-2,px(24)));
         list=new RecyclerView(this);list.setLayoutManager(new LinearLayoutManager(this));adapter=new AppAdapter();list.setAdapter(adapter);list.setItemAnimator(null);list.setClipToPadding(false);list.setPadding(px(2),px(2),px(2),px(2));left.addView(list,new LinearLayout.LayoutParams(-1,0,1));
@@ -59,8 +65,8 @@ public final class AppManagementActivity extends ManagementUi {
     private void ui(Runnable action){runOnUiThread(()->{if(!isDestroyed() && !isFinishing())action.run();});}
     private void updateConnection(String value){connectionState=value;String shortState=adb.connected()?"已连接":value.startsWith("等待授权")?"等待授权":value.startsWith("连接中")?"连接中":value.contains("失败")?"连接失败":"未连接";status.setText("ADB "+shortState);status.setTextColor(adb.connected()?0xffbacabd:TEXT);status.setContentDescription("ADB "+value);}
     @Override protected void onResume(){super.onResume();active=true;updateConnection(adb.connected()?"已连接":"未连接");refresh();}
-    @Override protected void onStop(){active=false;connection.close();if(!connecting)worker.execute(()->{adb.disconnect();ui(()->updateConnection("未连接"));});super.onStop();}
-    @Override protected void onDestroy(){unregisterReceiver(packagesChanged);adb.close();worker.shutdownNow();super.onDestroy();}
+    @Override protected void onStop(){active=false;connection.close();coverUploads.close();if(!connecting)worker.execute(()->{adb.disconnect();ui(()->updateConnection("未连接"));});super.onStop();}
+    @Override protected void onDestroy(){unregisterReceiver(packagesChanged);coverUploads.destroy();adb.close();worker.shutdownNow();super.onDestroy();}
     @Override protected void onSaveInstanceState(Bundle state){state.putString("selected",selected);state.putString("query",query);state.putInt("filter",filter);super.onSaveInstanceState(state);}
     private void refresh(){
         if(busy)return;busy=true;count.setText("正在读取应用…");renderDetails();
@@ -73,12 +79,11 @@ public final class AppManagementActivity extends ManagementUi {
         sheet.action("搜索",()->{query=input.getText().toString().trim();sheet.dialog.dismiss();applyFilter();focusList();});
         input.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);input.setOnEditorActionListener((v,action,event)->{if(action==android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH){query=input.getText().toString().trim();sheet.dialog.dismiss();applyFilter();focusList();return true;}return false;});sheet.show(input);
     }
-    private void chooseFilter(){Sheet sheet=new Sheet("筛选应用");View focus=null;for(int i=0;i<FILTERS.length;i++){final int which=i;Button option=sheet.option(FILTERS[i]+(i==filter?"  ✓":""),()->{filter=which;sheet.dialog.dismiss();applyFilter();focusList();});if(i==filter)focus=option;}sheet.action("取消",sheet.dialog::dismiss);sheet.show(focus);}
     private void morePanel(){Sheet sheet=new Sheet("更多");Button refresh=sheet.option("刷新应用列表",R.drawable.ic_manage_refresh,()->{sheet.dialog.dismiss();refresh();});sheet.option("开机广告",()->{sheet.dialog.dismiss();startActivity(new Intent(this,BootAdActivity.class));});sheet.option("首次设置",()->{sheet.dialog.dismiss();startActivity(new Intent(this,SetupActivity.class));});sheet.option("恢复原桌面",()->{sheet.dialog.dismiss();startActivity(new Intent(this,SetupActivity.class).putExtra("restore",true));});sheet.option("操作记录",R.drawable.ic_manage_history,()->{sheet.dialog.dismiss();showHistory();});sheet.action("关闭",sheet.dialog::dismiss);sheet.show(refresh);}
     private void applyFilter(){
         boolean listFocused=initialFocus || list.hasFocus();filtered.clear();String matchQuery=query.toLowerCase(Locale.ROOT);
         for(AppRepository.App app:all){boolean match=filter==0 || filter==1 && !app.system && app.installed || filter==2 && app.system || filter==3 && app.installed && !app.enabled || filter==4 && app.recoverable;if(match && (app.label.toLowerCase(Locale.ROOT).contains(matchQuery)||app.pkg.toLowerCase(Locale.ROOT).contains(matchQuery)))filtered.add(app);}
-        filterButton.setText(filter==0?"筛选":FILTERS[filter]);searchButton.setText(query.isEmpty()?"搜索":"搜索  已筛选");
+        for(int i=0;i<filterButtons.size();i++)filterButtons.get(i).setSelected(i==filter);searchButton.setText(query.isEmpty()?"搜索":"搜索  已筛选");
         boolean present=false;for(AppRepository.App app:filtered)if(app.pkg.equals(selected))present=true;if(!present)selected=filtered.isEmpty()?"":filtered.get(0).pkg;
         queryChip.setVisibility(query.isEmpty()?View.GONE:View.VISIBLE);queryChip.setText(query+"  ×");queryChip.setContentDescription("清除搜索："+query);count.setText(filtered.size()+" 个应用"+(!adb.connected() && query.isEmpty()?"  本地信息":""));adapter.notifyDataSetChanged();renderDetails();if(listFocused){initialFocus=false;focusList();}
     }
@@ -99,16 +104,35 @@ public final class AppManagementActivity extends ManagementUi {
         gap(details,20);TextView meta=center(app.pkg+"\n版本 "+app.version+"  "+size,12);meta.setTextColor(MUTED);meta.setLineSpacing(px(5),1);details.addView(meta,new LinearLayout.LayoutParams(-1,-2));
         details.addView(new View(this),new LinearLayout.LayoutParams(1,0,1));gap(details,18);
         String protectedReason=operations.protection(app);
-        if(!protectedReason.isEmpty()){TextView note=center(protectedReason,12);note.setTextColor(0xffb9bec8);details.addView(note);gap(details,8);details.addView(center("为保证电视正常使用，此应用仅供查看。",11));return;}
+        if(AppCoverPolicy.ownReadOnly(this,app.pkg)){protectionNote(protectedReason,true);return;}
+        boolean coverAllowed=AppCoverPolicy.allowed(this,app.pkg);
+        if(!coverAllowed&&!protectedReason.isEmpty()){protectionNote(protectedReason,true);return;}
         LinearLayout actions=row();actions.setGravity(Gravity.CENTER);details.addView(actions,new LinearLayout.LayoutParams(-1,px(42)));
         if(busy){details.addView(center(connecting?"正在连接，请在电视弹窗允许授权…":"正在核对实际状态…",12));return;}
-        if(!adb.connected()){Button connect=button("连接后管理",this::connectionPanel);actions.addView(connect,new LinearLayout.LayoutParams(-2,-1));firstAction=connect;}
-        else for(AppOperations.Action action:operations.actions(app)){
-            String text=action==AppOperations.Action.UNINSTALL && app.system?"为当前用户卸载":action==AppOperations.Action.RESTORE?action.label:action.label+"应用";
-            Button b=iconText(text,action==AppOperations.Action.UNINSTALL?R.drawable.ic_manage_trash:R.drawable.ic_manage_power,()->confirm(app,action));if(action==AppOperations.Action.UNINSTALL)b.setTextColor(0xffe3aaa6);
-            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,-1);p.setMargins(px(5),0,px(5),0);actions.addView(b,p);if(firstAction==null)firstAction=b;
+        if(coverAllowed){
+            addAction(actions,button("更换封面",()->coverUploads.show(app.pkg,app.label,()->coverUpdated(app.pkg))));
+            Button restore=button("恢复默认",()->restoreCover(app));boolean custom=AppCoverStore.get(this).custom(app.pkg);restore.setEnabled(custom);restore.setFocusable(custom);restore.setAlpha(custom?1f:.4f);addAction(actions,restore);
         }
-        gap(details,16);TextView hint=center(adb.connected() && operations.actions(app).isEmpty()?"当前系统没有已确认可用的操作，仅供查看。":app.recoverable?"恢复安装不会恢复此前删除的数据。":!adb.connected()?"连接本机 ADB 后，可管理此应用的状态。":"禁用可重新启用；卸载会删除当前用户的应用数据。",11);hint.setTextColor(MUTED);hint.setLineSpacing(px(4),1);details.addView(hint,new LinearLayout.LayoutParams(-1,-2));
+        if(protectedReason.isEmpty()){
+            if(!adb.connected())addAction(actions,button("连接后管理",this::connectionPanel));
+            else for(AppOperations.Action action:operations.actions(app)){
+                String text=action==AppOperations.Action.UNINSTALL&&app.system?"为当前用户卸载":action==AppOperations.Action.RESTORE?action.label:action.label+"应用";
+                Button b=button(text,()->confirm(app,action));if(action==AppOperations.Action.UNINSTALL)b.setTextColor(0xffe3aaa6);addAction(actions,b);
+            }
+        }
+        gap(details,16);String text=!protectedReason.isEmpty()?protectedReason:adb.connected()&&operations.actions(app).isEmpty()?"当前系统没有已确认可用的应用状态操作。":app.recoverable?"恢复安装不会恢复此前删除的数据。":!adb.connected()?"连接本机 ADB 后，可管理此应用的状态。":"禁用可重新启用  卸载会删除当前用户的应用数据。";
+        TextView hint=center(text,11);hint.setTextColor(MUTED);hint.setLineSpacing(px(4),1);details.addView(hint,new LinearLayout.LayoutParams(-1,-2));
+    }
+    private void protectionNote(String reason,boolean readOnly){TextView note=center(reason,12);note.setTextColor(0xffb9bec8);details.addView(note);if(readOnly){gap(details,8);details.addView(center("为保证电视正常使用，此应用仅供查看。",11));}}
+    private void addAction(LinearLayout row,Button action){
+        action.setSingleLine();action.setPadding(px(10),0,px(10),0);action.setId(View.generateViewId());
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,-1);if(row.getChildCount()>0)p.leftMargin=px(6);row.addView(action,p);
+        if(action.isEnabled()&&firstAction==null)firstAction=action;
+    }
+    private void coverUpdated(String pkg){if(isDestroyed()||!selected.equals(pkg))return;renderDetails();if(firstAction!=null)firstAction.requestFocus();}
+    private void restoreCover(AppRepository.App app){
+        Sheet sheet=new Sheet("恢复默认封面？");sheet.text(app.label+" 将使用应用自带的封面。");sheet.action("取消",sheet.dialog::dismiss);
+        sheet.action("恢复默认",()->{sheet.dialog.dismiss();busy=true;renderDetails();worker.execute(()->{String failure=null;try{AppCoverPolicy.require(this,app.pkg);AppCoverStore.get(this).restore(app.pkg);}catch(java.io.IOException e){failure=e.getMessage();}String error=failure;ui(()->{busy=false;coverUpdated(app.pkg);if(error==null)feedback("已恢复默认封面");else message(error);});});});sheet.show(null);
     }
     private void confirm(AppRepository.App app,AppOperations.Action action){
         if(busy)return;Sheet sheet=new Sheet(action.label+"  "+app.label);sheet.text(operations.explanation(app,action));gap(sheet.body,16);TextView meta=center(app.pkg+"\n当前用户 "+adb.user,11);meta.setTextColor(MUTED);sheet.body.addView(meta);
@@ -130,6 +154,9 @@ public final class AppManagementActivity extends ManagementUi {
     @Override public boolean dispatchKeyEvent(KeyEvent event){
         int key=event.getKeyCode();
         if(event.getAction()==KeyEvent.ACTION_DOWN && list.hasFocus() && key==KeyEvent.KEYCODE_DPAD_RIGHT && firstAction!=null){firstAction.requestFocus();return true;}
+        if(key==KeyEvent.KEYCODE_DPAD_UP&&event.getAction()==KeyEvent.ACTION_DOWN&&list.hasFocus()){
+            RecyclerView.ViewHolder holder=list.findContainingViewHolder(getCurrentFocus());if(holder!=null&&holder.getBindingAdapterPosition()==0){filterButtons.get(filter).requestFocus();return true;}
+        }
         if(key==KeyEvent.KEYCODE_DPAD_LEFT){
             if(event.getAction()==KeyEvent.ACTION_DOWN && details.hasFocus() && getCurrentFocus()==firstAction){returningToList=true;return true;}
             if(returningToList){if(event.getAction()==KeyEvent.ACTION_UP){returningToList=false;focusList();}return true;}
