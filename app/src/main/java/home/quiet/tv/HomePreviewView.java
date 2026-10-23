@@ -63,7 +63,7 @@ final class HomePreviewView extends FrameLayout {
         worker.execute(()->{
             if(request!=generation)return;
             WallpaperStore store=WallpaperStore.get(context);WallpaperCatalog catalog=store.snapshot();WallpaperCatalog.Entry entry=catalog.find(catalog.current);Bitmap background=null;
-            if(entry!=null&&entry.video()&&!store.poster(entry.id).isFile())entry=catalog.find(catalog.staticBeforeVideo);
+            if(entry!=null&&entry.video()&&entry.custom()&&!store.poster(entry.id).isFile())entry=catalog.find(catalog.staticBeforeVideo);
             if(entry!=null&&!WallpaperCatalog.DEFAULT.equals(entry.id))try{background=WallpaperImages.decode(context,store,entry,width,width*9/16);}catch(java.io.IOException ignored){}
             if(request!=generation)return;
             ArrayList<String> packages=new DockStore(context).load();ArrayList<Bitmap> art=new ArrayList<>();ArrayList<String> names=new ArrayList<>();ArrayList<HomeAppCatalog.Entry> catalogApps=new HomeAppCatalog(context).load(packages);
