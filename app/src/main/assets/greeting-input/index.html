@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>首页问候语 / Home greeting</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head>
+<body><main>
+<p class="brand">Quiet TV</p><h1>首页问候语</h1>
+<form id="connect" hidden><label for="code">电视上的 6 位连接码</label><input id="code" inputmode="numeric" autocomplete="off" pattern="[0-9]{6}" maxlength="6" required><button>连接电视</button></form>
+<form id="editor" hidden><label for="text">想在首页显示的文字</label><textarea id="text" rows="3" placeholder="留空则跟随时间显示问候语"></textarea><p class="hint">发送后，请在电视上选择“保存”。</p><button id="send">发送到电视</button></form>
+<p id="status" role="status" aria-live="polite">正在连接电视…</p>
+</main></body></html>

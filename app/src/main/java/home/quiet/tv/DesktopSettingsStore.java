@@ -7,6 +7,9 @@ import android.content.SharedPreferences;
 final class DesktopSettingsStore {
     private final SharedPreferences preferences;
     DesktopSettingsStore(Context context){preferences=context.getSharedPreferences("desktop-settings",0);}
+    boolean greetingEnabled(){return preferences.getBoolean("greeting-enabled",true);}
+    String greetingText(String fallback){return preferences.getString("greeting-text",fallback);}
+    void saveGreeting(boolean enabled,String text){preferences.edit().putBoolean("greeting-enabled",enabled).putString("greeting-text",text.replace('\r',' ').replace('\n',' ').replace('\t',' ').trim()).apply();}
     boolean showTime(){return preferences.getBoolean("show-time",true);}
     boolean showButtons(){return preferences.getBoolean("show-buttons",true);}
     boolean showInput(){return preferences.getBoolean("show-input",showButtons());}

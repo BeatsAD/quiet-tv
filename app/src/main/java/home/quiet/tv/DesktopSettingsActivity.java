@@ -11,7 +11,9 @@ import org.json.JSONObject;
 /** Desktop and weather share a native shell and one activity back stack. */
 public final class DesktopSettingsActivity extends ManagementUi {
     static final String SECTION="section";
-    private boolean chinese,resumed,weatherSelected;
+    private boolean chinese,resumed,weatherSelected,fixedGreeting;
+    private GreetingEditorPanel greetingEditor;
+    private DesktopSettingsRow greeting;
     private DesktopSettingsStore desktopStore;
     private WeatherStore weatherStore;
     private DesktopWeatherPanel weather;
@@ -26,7 +28,7 @@ public final class DesktopSettingsActivity extends ManagementUi {
         super.onCreate(state);
         try(java.io.InputStream input=getAssets().open("launcher.json");java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream()){
             byte[] bytes=new byte[4096];int count;while((count=input.read(bytes))!=-1)out.write(bytes,0,count);
-            chinese=!"en".equals(new JSONObject(out.toString("UTF-8")).optString("language","zh"));
+            JSONObject config=new JSONObject(out.toString("UTF-8"));chinese=!"en".equals(config.optString("language","zh"));fixedGreeting="home".equals(config.optString("greeting"));
         }catch(java.io.IOException|org.json.JSONException e){throw new IllegalStateException("Invalid bundled launcher configuration",e);}
         desktopStore=new DesktopSettingsStore(this);weatherStore=new WeatherStore(this);
         Button back=(Button)header.getChildAt(0);back.setContentDescription(tr("返回","Back"));back.setId(View.generateViewId());back.setTag("back");
@@ -43,18 +45,21 @@ public final class DesktopSettingsActivity extends ManagementUi {
         LinearLayout desktop=column();LinearLayout group=group();desktop.addView(group);
         time=setting(tr("时间与日期","Time and date"),"clock","time");time.checked(desktopStore.showTime());time.setOnClickListener(v->{desktopStore.showTime(!desktopStore.showTime());time.checked(desktopStore.showTime());});addSetting(group,time);
         enabled=setting(tr("天气","Weather"),"weather","enabled");enabled.checked(weatherStore.enabled());enabled.setOnClickListener(v->{weatherStore.enabled(!weatherStore.enabled());enabled.checked(weatherStore.enabled());if(weather!=null)weather.settingsChanged();});addSetting(group,enabled);
+        greeting=setting(tr("首页问候语","Home greeting"),"desktop","greeting");greeting.tail("arrow");
+        greetingEditor=new GreetingEditorPanel(this,desktopStore,fixedGreeting?tr("欢迎回家","Welcome home"):"",this::refreshGreeting);
+        greeting.setOnClickListener(v->greetingEditor.show());addSetting(group,greeting);refreshGreeting();
         gap(desktop,16);desktop.addView(section(tr("右侧快捷按钮","Quick buttons")));LinearLayout buttons=group();desktop.addView(buttons);
         input=setting(tr("信号源","Inputs"),"","input");input.icon(R.drawable.ic_input);input.checked(desktopStore.showInput());input.setOnClickListener(v->{desktopStore.showInput(!desktopStore.showInput());input.checked(desktopStore.showInput());});addSetting(buttons,input);
         network=setting(tr("网络","Network"),"","network");network.icon(R.drawable.ic_wifi);network.checked(desktopStore.showNetwork());network.setOnClickListener(v->{desktopStore.showNetwork(!desktopStore.showNetwork());network.checked(desktopStore.showNetwork());});addSetting(buttons,network);
         settings=setting(tr("设置","Settings"),"","settings");settings.icon(R.drawable.ic_settings);settings.checked(desktopStore.showSettings());settings.setOnClickListener(v->{desktopStore.showSettings(!desktopStore.showSettings());settings.checked(desktopStore.showSettings());});addSetting(buttons,settings);
         TextView hint=muted(tr("隐藏后，可从“全部应用 → 桌面设置”重新开启。","Restore hidden buttons in All Apps → Desktop Settings."),12);LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,-2);hp.topMargin=px(12);desktop.addView(hint,hp);
         desktopScroll=new ScrollView(this);desktopScroll.setVerticalScrollBarEnabled(false);desktopScroll.setFocusable(false);desktopScroll.addView(desktop,new ScrollView.LayoutParams(-1,-2));
-        content.addView(desktopScroll,new FrameLayout.LayoutParams(-1,-1));wireRows(new DesktopSettingsRow[]{time,enabled,input,network,settings},desktopTab);
+        content.addView(desktopScroll,new FrameLayout.LayoutParams(-1,-1));wireRows(new DesktopSettingsRow[]{time,enabled,greeting,input,network,settings},desktopTab);
         footer(tr("方向键移动  确定选择  返回上一级","Move with arrows  Select with OK  Back to return"));
         for(int i=0;i<tabs.size();i++){DesktopSettingsRow tab=tabs.get(i);tab.setNextFocusUpId(i==0?back.getId():tabs.get(i-1).getId());tab.setNextFocusDownId(i+1<tabs.size()?tabs.get(i+1).getId():tab.getId());}
         weatherSelected=state!=null?state.getBoolean("weather-section"):"weather".equals(getIntent().getStringExtra(SECTION));
-        final String restoreFocus=state==null?null:state.getString("focus");showSection(weatherSelected);
-        root.post(()->{View target=restoreFocus==null?null:root.findViewWithTag(restoreFocus);if(target==null||!target.isShown())target=weatherSelected?weatherTab:desktopTab;target.requestFocus();});
+        final String restoreFocus=state==null?null:state.getString("focus");showSection(weatherSelected);if(state!=null)greetingEditor.restoreState(state);
+        root.post(()->{View target=restoreFocus==null?null:root.findViewWithTag(restoreFocus);if(target==null||!target.isShown())target=weatherSelected?weatherTab:desktopTab;target.requestFocus();if(state!=null)greetingEditor.restoreFocus();});
     }
     private DesktopSettingsRow tab(LinearLayout rail,String text,String icon,String tag,Runnable action){
         DesktopSettingsRow b=new DesktopSettingsRow(this,text,icon,true);b.setTag(tag);b.setOnClickListener(v->{v.requestFocus();action.run();});
@@ -82,9 +87,13 @@ public final class DesktopSettingsActivity extends ManagementUi {
         if(group.getChildCount()>0){View line=new View(this);line.setBackgroundColor(0x16ffffff);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,px(1));p.setMargins(px(4),0,px(4),0);group.addView(line,p);}
         group.addView(row,new LinearLayout.LayoutParams(-1,px(60)));
     }
-    @Override protected void onResume(){super.onResume();resumed=true;time.checked(desktopStore.showTime());input.checked(desktopStore.showInput());network.checked(desktopStore.showNetwork());settings.checked(desktopStore.showSettings());enabled.checked(weatherStore.enabled());if(weatherSelected)weather.resume();}
-    @Override protected void onPause(){resumed=false;if(weather!=null)weather.pause();super.onPause();}
-    @Override protected void onDestroy(){if(weather!=null)weather.destroy();super.onDestroy();}
-    @Override protected void onSaveInstanceState(Bundle state){super.onSaveInstanceState(state);state.putBoolean("weather-section",weatherSelected);View focus=getCurrentFocus();if(focus!=null&&focus.getTag() instanceof String)state.putString("focus",(String)focus.getTag());}
+    private void refreshGreeting(){
+        String text=desktopStore.greetingText(fixedGreeting?tr("欢迎回家","Welcome home"):"");
+        greeting.value(!desktopStore.greetingEnabled()?tr("已关闭","Off"):text.isEmpty()?tr("跟随时间","By time"):text);
+    }
+    @Override protected void onResume(){super.onResume();resumed=true;refreshGreeting();time.checked(desktopStore.showTime());input.checked(desktopStore.showInput());network.checked(desktopStore.showNetwork());settings.checked(desktopStore.showSettings());enabled.checked(weatherStore.enabled());if(weatherSelected)weather.resume();}
+    @Override protected void onPause(){resumed=false;if(greetingEditor!=null)greetingEditor.pause();if(weather!=null)weather.pause();super.onPause();}
+    @Override protected void onDestroy(){if(greetingEditor!=null)greetingEditor.destroy();if(weather!=null)weather.destroy();super.onDestroy();}
+    @Override protected void onSaveInstanceState(Bundle state){super.onSaveInstanceState(state);state.putBoolean("weather-section",weatherSelected);if(greetingEditor!=null)greetingEditor.saveState(state);View focus=getCurrentFocus();if(focus!=null&&focus.getTag() instanceof String)state.putString("focus",(String)focus.getTag());}
     @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] results){super.onRequestPermissionsResult(code,permissions,results);if(weather!=null)weather.permissionResult(code);}
 }

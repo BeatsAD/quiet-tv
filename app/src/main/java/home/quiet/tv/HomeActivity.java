@@ -174,7 +174,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         });
         glass = new Glass(); root.addView(glass,new FrameLayout.LayoutParams(-1,-1));
         greeting=text("",14,600,0xffe6e7ed);UiCompat.letterSpacing(greeting,.14f);
-        greeting.setGravity(Gravity.CENTER_VERTICAL);greeting.setSingleLine(true);
+        greeting.setGravity(Gravity.CENTER_VERTICAL);greeting.setSingleLine(true);greeting.setMaxWidth(px(288));greeting.setEllipsize(android.text.TextUtils.TruncateAt.END);
         LinearLayout greetingRow=new LinearLayout(this);greetingRow.setGravity(Gravity.CENTER_VERTICAL);
         place(root,greetingRow,860,22,50,32);greetingRow.addView(greeting,new LinearLayout.LayoutParams(-2,-1));
         weatherText=text("",14,400,0xffe6e7ed);weatherText.setSingleLine(true);weatherText.setEllipsize(android.text.TextUtils.TruncateAt.END);weatherText.setGravity(Gravity.CENTER_VERTICAL);
@@ -252,7 +252,11 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private void updateClock() {
         Calendar c=Calendar.getInstance(); int hour=c.get(Calendar.HOUR_OF_DAY);
         String message=hour<11?tr("早上好","Good morning"):hour<18?tr("下午好","Good afternoon"):tr("晚上好","Good evening");
-        greeting.setText(fixedGreeting?tr("欢迎回家","Welcome home"):message);
+        String custom=desktopSettings.greetingText(fixedGreeting?tr("欢迎回家","Welcome home"):"");
+        boolean showGreeting=desktopSettings.greetingEnabled();
+        greeting.setText(custom.isEmpty()?message:custom);greeting.setVisibility(showGreeting?View.VISIBLE:View.GONE);
+        LinearLayout.LayoutParams weatherParams=(LinearLayout.LayoutParams)weatherText.getLayoutParams();
+        int spacing=showGreeting?px(16):0;if(weatherParams.leftMargin!=spacing){weatherParams.leftMargin=spacing;weatherText.setLayoutParams(weatherParams);}
         clock.setText(new SimpleDateFormat("HH:mm",Locale.US).format(c.getTime()));
         date.setText(new SimpleDateFormat(chinese?"M月d日  EEEE":"EEEE, MMMM d",chinese?Locale.SIMPLIFIED_CHINESE:Locale.US).format(c.getTime()));
     }
