@@ -25,6 +25,19 @@ Source includes legacy networking/font fallbacks, detected HOME settings, Back h
 
 ## 已验证与待验收 / Evidence boundaries
 
+### 动态壁纸开发源码 / Video wallpaper source
+
+默认关闭，图片和 MP4 共用上传入口，使用系统 MediaPlayer 和固定背景 SurfaceView。源码构建不代表已发布的安装包包含此功能。
+
+| 能力 | Android 4.4 | Android 5+ |
+| --- | --- | --- |
+| 上传、预览、静音循环、关闭恢复、退出释放 | 共用实现 | 共用实现 |
+| 输入上限 | H.264 8bit SDR、1080p30 内 | 按解码能力，最高 4K30；HEVC Main 8bit SDR 可选 |
+| 4K 封面 | 本批不开放 4K | API 27+ 缩放取帧，旧 API 可用占位图 |
+| 厂商硬解、实际输出、长期性能、屏保与待机 | 待对应设备验收 | 待对应设备验收 |
+
+不接收 HDR／10bit／60 FPS。SurfaceView 保留部分电视独立于 UI 分辨率的视频输出路径；不能仅凭面板或素材标签确认原生 4K。4K 不可用时需另传低规格文件，不自动在电视转码。详见[使用指南](USAGE.zh-CN.md)。
+
 ### 每日壁纸开发源码 / Daily wallpaper source
 
 每日壁纸共用同一套 Java 实现，入口位于原有壁纸设置，选中确认即启用。默认必应国区，搏天风景可选；本地轮播与每日模式互斥，离线保留已缓存图片。

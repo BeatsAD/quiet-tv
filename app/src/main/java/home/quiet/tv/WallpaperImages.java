@@ -8,6 +8,7 @@ import java.io.*;
 final class WallpaperImages {
     private WallpaperImages() {}
     static InputStream open(Context context,WallpaperStore store,WallpaperCatalog.Entry entry) throws IOException {
+        if(entry.video())return new FileInputStream(store.poster(entry.id));
         if(WallpaperCatalog.DAILY.equals(entry.id)){
             WallpaperCatalog state=store.snapshot();WallpaperCatalog.DailyImage image=state.dailyImages.get(state.dailySource);
             if(store.cached(image))return new FileInputStream(store.dailyFile(image.source,image.slot));
@@ -51,7 +52,7 @@ final class WallpaperImages {
             file.seek(12);long position=12;
             while(position+8<=file.length()) {
                 int type=file.readInt();long size=(Integer.reverseBytes(file.readInt()) & 0xffffffffL);
-                if(type==0x414e494d || type==0x414e4d46) throw new IOException("暂不支持动态壁纸 / Animated images are not supported");
+                if(type==0x414e494d || type==0x414e4d46) throw new IOException("动态图片暂不支持，请使用 MP4 视频 / Use MP4 for animated wallpapers");
                 position+=8+size+(size&1);if(position>file.length()) break;file.seek(position);
             }
         }
