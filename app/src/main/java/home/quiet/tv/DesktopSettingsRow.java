@@ -9,7 +9,7 @@ import android.widget.*;
 /** One remote focus target per setting; child artwork is presentation only. */
 final class DesktopSettingsRow extends LinearLayout {
     private final TextView title,value;
-    private final ImageView end;
+    private final ImageView start,end;
     private final ManagementUi ui;
     private boolean checkable,checked;
     DesktopSettingsRow(ManagementUi ui,String text,String symbol,boolean navigation){
@@ -20,7 +20,7 @@ final class DesktopSettingsRow extends LinearLayout {
         background.addState(new int[]{android.R.attr.state_focused},ui.surface(0x24ffffff,0x16ffffff,0xfff3f4f7,10));
         background.addState(new int[]{android.R.attr.state_selected},ui.surface(0x14ffffff,0x10ffffff,0x1effffff,10));
         background.addState(new int[]{},new ColorDrawable(Color.TRANSPARENT));setBackground(background);
-        ImageView start=new ImageView(ui);int resource="shield".equals(symbol)?R.drawable.ic_manage_shield:"refresh".equals(symbol)?R.drawable.ic_manage_refresh:0;
+        start=new ImageView(ui);int resource="shield".equals(symbol)?R.drawable.ic_manage_shield:"refresh".equals(symbol)?R.drawable.ic_manage_refresh:0;
         if(resource!=0){start.setImageDrawable(UiCompat.drawable(ui,resource));start.setColorFilter(0xffa2a8b3);}else start.setImageDrawable(new Glyph(symbol,0xffa2a8b3));
         LayoutParams ip=new LayoutParams(ui.px(navigation?17:18),ui.px(navigation?17:18));ip.rightMargin=ui.px(13);addView(start,ip);
         title=ui.label(text,16);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);addView(title,new LayoutParams(0,-1,1));
@@ -29,6 +29,7 @@ final class DesktopSettingsRow extends LinearLayout {
         for(int i=0;i<getChildCount();i++)getChildAt(i).setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         setContentDescription(text);
     }
+    void icon(int resource){start.setImageDrawable(UiCompat.drawable(ui,resource));start.clearColorFilter();}
     void value(String text){value.setText(text);setContentDescription(title.getText()+(text.isEmpty()?"":"  "+text));}
     String value(){return value.getText().toString();}
     void tail(String symbol){end.setImageDrawable(new Glyph(symbol,0xffa2a8b3));end.setVisibility(VISIBLE);}

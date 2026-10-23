@@ -40,6 +40,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private final ArrayList<Tile> dockTiles = new ArrayList<>();
     private final HashMap<String,Tile> visibleTiles = new HashMap<>();
     private final ArrayList<TextView> pills = new ArrayList<>();
+    private final ArrayList<TextView> visiblePills = new ArrayList<>();
     private final ArrayList<String> dockPackages = new ArrayList<>();
     private String orderSignature="";
     private final HashMap<String,App> artworkCache = new HashMap<>();
@@ -54,7 +55,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private DesktopSettingsStore desktopSettings;
     private View timeRow, topButtons;
     private boolean rightButtonsVisible=true;
-    private TextView clock, date, greeting, heroTitle, network;
+    private TextView clock, date, greeting, heroTitle, network, inputButton;
     private PopupWindow inputPopup;
     private Typeface outfit;
     private boolean chinese = true, fixedGreeting = false, ready = false, resumed = false, requestedLocation = false;
@@ -200,7 +201,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         topButtons=top;
         FrameLayout.LayoutParams topParams=new FrameLayout.LayoutParams(px(330),px(50),Gravity.TOP|Gravity.RIGHT);
         topParams.topMargin=px(67);topParams.rightMargin=px(CONTENT_MARGIN); root.addView(top,topParams);
-        addPill(top, tr("信号源","Inputs"), R.drawable.ic_input, 102, 0, ()->showInputs());
+        inputButton=addPill(top, tr("信号源","Inputs"), R.drawable.ic_input, 102, 0, ()->showInputs());
         network=addPill(top,tr("网络","Network"), R.drawable.ic_ethernet, 102, 114, ()->openSettings(Settings.ACTION_WIFI_SETTINGS));
         addPill(top,tr("设置","Settings"), R.drawable.ic_settings, 102, 228, ()->openSettings(Settings.ACTION_SETTINGS));
         applyDesktopSettings();updateClock(); updateNetwork();
@@ -208,10 +209,23 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private void applyDesktopSettings(){
         timeRow.setVisibility(desktopSettings.showTime()?View.VISIBLE:View.GONE);
-        rightButtonsVisible=desktopSettings.showButtons();
+        TextView previous=visiblePills.isEmpty()?null:visiblePills.get(topColumn);
+        boolean[] shown={desktopSettings.showInput(),desktopSettings.showNetwork(),desktopSettings.showSettings()};
+        visiblePills.clear();
+        for(int i=0;i<pills.size();i++){
+            TextView pill=pills.get(i);pill.setVisibility(shown[i]?View.VISIBLE:View.GONE);
+            if(shown[i])visiblePills.add(pill);
+        }
+        for(int i=0;i<visiblePills.size();i++){
+            TextView pill=visiblePills.get(i);FrameLayout.LayoutParams p=(FrameLayout.LayoutParams)pill.getLayoutParams();
+            p.leftMargin=px(228-(visiblePills.size()-1-i)*114);pill.setLayoutParams(p);
+        }
+        int restored=visiblePills.indexOf(previous);
+        topColumn=restored>=0?restored:Math.max(0,Math.min(topColumn,visiblePills.size()-1));
+        rightButtonsVisible=!visiblePills.isEmpty();
         topButtons.setVisibility(rightButtonsVisible?View.VISIBLE:View.GONE);
         if(!rightButtonsVisible && row<0){row=0;column=Math.min(restoreColumn,maxColumn(0));}
-        if(ready)focusCurrent(false);
+        topButtons.post(()->{if(ready)focusCurrent(false);});
     }
 
     private TextView addPill(FrameLayout parent, String title, int icon, float width, float x, Runnable action) {
@@ -231,7 +245,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private void centerPillContents(TextView pill) {
         float content=px(22)+pill.getPaint().measureText(pill.getText().toString());
-        int padding=Math.max(px(12),Math.round((pill.getLayoutParams().width-content)/2));
+        int padding=Math.max(px(12),(int)((pill.getLayoutParams().width-content)/2));
         pill.setPadding(padding,0,padding,0);
     }
 
@@ -245,7 +259,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private void updateNetwork() {
         if(wallpapers!=null)wallpapers.environmentChanged();
-        if(!rightButtonsVisible)return;
+        if(network.getVisibility()!=View.VISIBLE)return;
         ConnectivityManager cm=(ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE);
         boolean ethernet,wifi;
         if(Build.VERSION.SDK_INT>=23){
@@ -400,7 +414,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     private int gridRows(){return (apps.size()+APP_COLUMNS-1)/APP_COLUMNS;}
-    private int maxColumn(int r){if(r<0)return pills.size()-1;if(r==0)return Math.max(0,dock.size()-1);return Math.min(APP_COLUMNS-1,apps.size()-(r-1)*APP_COLUMNS-1);}
+    private int maxColumn(int r){if(r<0)return visiblePills.size()-1;if(r==0)return Math.max(0,dock.size()-1);return Math.min(APP_COLUMNS-1,apps.size()-(r-1)*APP_COLUMNS-1);}
 
     private void saveFocus(){if(row>=0)getPreferences(0).edit().putInt("row",row).putInt("column",column).putString("package",activePackage).apply();}
 
@@ -417,7 +431,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             if(event.getAction()==KeyEvent.ACTION_UP)return true;
             if(row<0){
                 if(key==KeyEvent.KEYCODE_DPAD_LEFT)topColumn=Math.max(0,topColumn-1);
-                if(key==KeyEvent.KEYCODE_DPAD_RIGHT)topColumn=Math.min(pills.size()-1,topColumn+1);
+                if(key==KeyEvent.KEYCODE_DPAD_RIGHT)topColumn=Math.min(visiblePills.size()-1,topColumn+1);
                 if(key==KeyEvent.KEYCODE_DPAD_DOWN){row=0;column=Math.min(restoreColumn,maxColumn(0));}
             }else{
                 if(key==KeyEvent.KEYCODE_DPAD_LEFT)column=Math.max(0,column-1);
@@ -428,7 +442,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             focusCurrent(true);return true;
         }
         if(key==KeyEvent.KEYCODE_DPAD_CENTER || key==KeyEvent.KEYCODE_ENTER || key==KeyEvent.KEYCODE_NUMPAD_ENTER){
-            if(event.getAction()==KeyEvent.ACTION_UP){if(row<0)pills.get(topColumn).performClick();else launchSelected();}return true;
+            if(event.getAction()==KeyEvent.ACTION_UP){if(row<0)visiblePills.get(topColumn).performClick();else launchSelected();}return true;
         }
         return super.dispatchKeyEvent(event);
     }
@@ -503,7 +517,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         if(glass==null || !ready)return;
         glass.setVisibility(row<0?View.VISIBLE:View.GONE);
         if(row>=0)return;
-        View view=pills.get(topColumn);
+        View view=visiblePills.get(topColumn);
         if(view==null || !view.isAttachedToWindow())return;
         int[] point=new int[2];int[] origin=new int[2];root.getLocationOnScreen(origin);
         ((View)view.getParent()).getLocationOnScreen(point);
@@ -624,7 +638,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                     if(key==KeyEvent.KEYCODE_DPAD_UP || key==KeyEvent.KEYCODE_DPAD_DOWN){if(event.getAction()==KeyEvent.ACTION_DOWN)choices.get(Math.max(0,Math.min(choices.size()-1,index+(key==KeyEvent.KEYCODE_DPAD_UP?-1:1)))).requestFocus();return true;}return false;
                 });
             }
-            inputPopup.showAsDropDown(pills.get(0),0,px(9));choices.get(0).requestFocus();
+            inputPopup.showAsDropDown(inputButton,0,px(9));choices.get(0).requestFocus();
         }
 
         private void addInputChoice(LinearLayout menu,ArrayList<TextView> choices,String title,Runnable action){
