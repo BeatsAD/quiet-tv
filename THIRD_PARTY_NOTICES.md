@@ -56,6 +56,14 @@ Quiet TV 基于该项目开发，面向国内电视机的适配与应用升级�
 
 - [AndroidX Activity 1.10.1](https://developer.android.com/jetpack/androidx/releases/activity#1.10.1) 及其 AndroidX 生命周期依赖用于统一 Android 6 与新版系统的返回操作，采用 Apache-2.0。完整 Apache-2.0 文本随 APK 保存于 `assets/licenses/libadb-Apache-2.0.txt`；该文本同时适用于这些 AndroidX 组件。版权归 The Android Open Source Project 等贡献者。
 
+## 每日在线壁纸
+
+每日壁纸按用户选择直接访问必应国区或搏天风景接口及其图片 CDN，只在桌面前台按需请求，将有限缓存保存在电视本机。第三方服务可看到通常的网络请求信息；本功能不上传用户图片，不向提供方发送设备标识或位置。
+
+- 必应保留接口返回的图片标题、版权及来源链接，来源见 [Bing 首页说明](https://support.microsoft.com/en-us/topic/explore-the-homepage-bab2022c-cdb4-4d1f-80e2-c8f5c55712c7)。接口可访问不表示所有图片获得再分发授权，在线图片不作为应用内置资源分发。
+- 搏天采用 [随机壁纸接口](https://api.btstu.cn/doc/sjbz.php)的电脑端风景类别，每天缓存一张。接口未提供完整摄影署名时不编造作者，图片权利仍归原权利人。
+- Android 7.1 及以下仅对 `api.btstu.cn`、`img.btstu.cn` 请求补充官方 [ISRG Root X1](https://letsencrypt.org/certificates/) 根证书，保留系统信任及正常域名校验，不修改设备证书库。证书文件为 `app/src/main/assets/certificates/isrg-root-x1.pem`，DER SHA-256 为 `96bcec06264976f37460779acf28c5a7cfe8a3c0aae11a8ffcee05c0bddf08c6`。此证书用于验证 HTTPS，不是私钥。
+
 ## 壁纸局域网上传
 
 - [NanoHTTPD 2.3.1](https://github.com/NanoHttpd/nanohttpd/tree/nanohttpd-project-2.3.1)：用于临时 HTTP 上传服务，BSD-3-Clause，版权归 NanoHTTPD 贡献者。完整声明随 APK 保存于 `assets/licenses/nanohttpd-LICENSE.txt`。

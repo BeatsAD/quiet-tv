@@ -8,6 +8,13 @@ import java.io.*;
 final class WallpaperImages {
     private WallpaperImages() {}
     static InputStream open(Context context,WallpaperStore store,WallpaperCatalog.Entry entry) throws IOException {
+        if(WallpaperCatalog.DAILY.equals(entry.id)){
+            WallpaperCatalog state=store.snapshot();WallpaperCatalog.DailyImage image=state.dailyImages.get(state.dailySource);
+            if(store.cached(image))return new FileInputStream(store.dailyFile(image.source,image.slot));
+            WallpaperCatalog.Entry fallback=state.find(state.lastLocal);
+            if(fallback==null||WallpaperCatalog.DEFAULT.equals(fallback.id))throw new IOException("Daily wallpaper cache unavailable");
+            return open(context,store,fallback);
+        }
         return entry.custom()?new FileInputStream(store.file(entry.id)):context.getAssets().open("wallpapers/"+entry.id+".jpg");
     }
     static Bitmap decode(Context context,WallpaperStore store,WallpaperCatalog.Entry entry,int width,int height) throws IOException {

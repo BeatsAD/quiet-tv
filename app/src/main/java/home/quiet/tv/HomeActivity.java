@@ -67,7 +67,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private Tile selected;
     private JSONObject config;
     private final BroadcastReceiver timeReceiver = new BroadcastReceiver() {
-        @Override public void onReceive(Context c, Intent i) { updateClock(); }
+        @Override public void onReceive(Context c, Intent i) { updateClock();if(wallpapers!=null)wallpapers.environmentChanged(); }
     };
     private final BroadcastReceiver packageReceiver = new BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) {
@@ -244,6 +244,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     private void updateNetwork() {
+        if(wallpapers!=null)wallpapers.environmentChanged();
         if(!rightButtonsVisible)return;
         ConnectivityManager cm=(ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE);
         boolean ethernet,wifi;
