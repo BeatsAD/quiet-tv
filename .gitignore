@@ -109,3 +109,18 @@ __pycache__/
 /app/src/main/java/home/quiet/tv/DiagnosticsRecorder.java
 /app/src/main/java/home/quiet/tv/DiagnosticsSnapshot.java
 !/docs/AGENT_DIAGNOSE.zh-CN.md
+
+# Reviewed desktop-switch skill; other local skills remain private.
+/skills/*
+!/skills/quiet-tv-switch/
+/skills/quiet-tv-switch/*
+!/skills/quiet-tv-switch/SKILL.md
+!/skills/quiet-tv-switch/agents/
+!/skills/quiet-tv-switch/references/
+!/skills/quiet-tv-switch/scripts/
+/skills/quiet-tv-switch/agents/*
+!/skills/quiet-tv-switch/agents/openai.yaml
+/skills/quiet-tv-switch/references/*
+!/skills/quiet-tv-switch/references/operations.md
+/skills/quiet-tv-switch/scripts/*
+!/skills/quiet-tv-switch/scripts/inspect_tv.py
