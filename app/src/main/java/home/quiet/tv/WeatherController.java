@@ -42,6 +42,7 @@ final class WeatherController {
         cancel();
     }
     void destroy(){pause();worker.shutdownNow();}
+    String errorMessage(){return error;}
     void settingsChanged(){cancel();key=store.key(chinese);data=store.cached(chinese);if(!rateLimited)nextAttempt=0;error="";render();refresh(true);}
     void refresh(boolean force){
         main.removeCallbacks(refresh);

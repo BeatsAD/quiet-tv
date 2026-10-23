@@ -1,45 +1,89 @@
 package home.quiet.tv;
 
+import android.content.Intent;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
-import android.util.TypedValue;
-import android.view.Gravity;
-import android.widget.LinearLayout;
-import android.widget.Switch;
-import android.widget.TextView;
+import android.view.*;
+import android.widget.*;
+import java.util.ArrayList;
+import java.util.List;
 import org.json.JSONObject;
 
-/** Independent home display controls; changes take effect on returning Home. */
+/** Desktop and weather share a native shell and one activity back stack. */
 public final class DesktopSettingsActivity extends ManagementUi {
+    static final String SECTION="section";
+    private boolean chinese,resumed,weatherSelected;
+    private DesktopSettingsStore desktopStore;
+    private WeatherStore weatherStore;
+    private DesktopWeatherPanel weather;
+    private FrameLayout content;
+    private LinearLayout desktop;
+    private TextView title;
+    private DesktopSettingsRow desktopTab,weatherTab,time,tools,enabled;
+    private final List<DesktopSettingsRow> tabs=new ArrayList<>();
+    String tr(String zh,String en){return chinese?zh:en;}
+    boolean chinese(){return chinese;}
     @Override public void onCreate(Bundle state){
         super.onCreate(state);
-        boolean chinese=true;
         try(java.io.InputStream input=getAssets().open("launcher.json");java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream()){
             byte[] bytes=new byte[4096];int count;while((count=input.read(bytes))!=-1)out.write(bytes,0,count);
             chinese=!"en".equals(new JSONObject(out.toString("UTF-8")).optString("language","zh"));
         }catch(java.io.IOException|org.json.JSONException e){throw new IllegalStateException("Invalid bundled launcher configuration",e);}
-        ((TextView)header.getChildAt(1)).setText(chinese?"桌面设置":"Desktop Settings");
-        header.getChildAt(0).setContentDescription(chinese?"返回":"Back");
-        DesktopSettingsStore store=new DesktopSettingsStore(this);
-        gap(root,32);
-        Switch time=option(chinese?"显示时间与日期":"Show time and date",store.showTime());
-        time.setOnCheckedChangeListener((view,checked)->store.showTime(checked));
-        gap(root,14);
-        Switch buttons=option(chinese?"显示右侧按钮":"Show right-side buttons",store.showButtons());
-        buttons.setOnCheckedChangeListener((view,checked)->store.showButtons(checked));
-        gap(root,14);root.addView(button(chinese?"天气设置":"Weather settings",
-            ()->startActivity(new android.content.Intent(this,WeatherSettingsActivity.class))),new LinearLayout.LayoutParams(-2,px(42)));
-        if(!BuildConfig.LEGACY_19){
-            gap(root,20);
-            root.addView(button(chinese?"桌面守护（实验）":"Desktop guard (experimental)",
-                ()->startActivity(new android.content.Intent(this,HomeGuardActivity.class))),new LinearLayout.LayoutParams(-2,px(42)));
+        desktopStore=new DesktopSettingsStore(this);weatherStore=new WeatherStore(this);
+        root.removeAllViews();root.setPadding(0,0,0,0);root.setBackgroundColor(0xff101113);
+        header=row();header.setPadding(px(32),0,px(32),0);root.addView(header,new LinearLayout.LayoutParams(-1,px(86)));
+        Button back=iconButton(tr("返回","Back"),R.drawable.ic_manage_back,this::handleBack);back.setId(View.generateViewId());back.setTag("back");header.addView(back,new LinearLayout.LayoutParams(px(38),px(38)));
+        title=label("",25);title.setPadding(px(16),0,0,0);header.addView(title,new LinearLayout.LayoutParams(0,-1,1));
+        TextView brand=muted("QUIET TV",12);UiCompat.letterSpacing(brand,.18f);header.addView(brand);
+        View topLine=new View(this);topLine.setBackgroundColor(0xff303338);root.addView(topLine,new LinearLayout.LayoutParams(-1,px(1)));
+        LinearLayout layout=row();layout.setGravity(Gravity.TOP);root.addView(layout,new LinearLayout.LayoutParams(-1,0,1));
+        LinearLayout rail=column();rail.setPadding(px(15),px(24),px(15),0);layout.addView(rail,new LinearLayout.LayoutParams(px(174),-1));
+        desktopTab=tab(rail,tr("桌面显示","Desktop"),"desktop","nav-desktop",()->showSection(false));
+        weatherTab=tab(rail,tr("天气","Weather"),"weather","nav-weather",()->showSection(true));
+        gap(rail,12);View divider=new View(this);divider.setBackgroundColor(0xff303338);LinearLayout.LayoutParams dp=new LinearLayout.LayoutParams(-1,px(1));dp.setMargins(px(12),0,px(12),px(12));rail.addView(divider,dp);
+        if(!BuildConfig.LEGACY_19)tab(rail,tr("桌面守护","Guard"),"shield","nav-guard",()->startActivity(new Intent(this,HomeGuardActivity.class)));
+        tab(rail,tr("诊断日志","Logs"),"logs","nav-logs",()->startActivity(new Intent(this,DiagnosticsActivity.class)));
+        View line=new View(this);line.setBackgroundColor(0xff303338);layout.addView(line,new LinearLayout.LayoutParams(px(1),-1));
+        content=new FrameLayout(this);content.setPadding(px(28),px(28),px(28),px(20));layout.addView(content,new LinearLayout.LayoutParams(0,-1,1));
+        desktop=column();desktop.addView(section(tr("首页显示","Home display")));LinearLayout group=group();desktop.addView(group);
+        time=setting(tr("时间与日期","Time and date"),"clock","time");time.checked(desktopStore.showTime());time.setOnClickListener(v->{desktopStore.showTime(!desktopStore.showTime());time.checked(desktopStore.showTime());});addSetting(group,time);
+        tools=setting(tr("右侧快捷按钮","Quick buttons"),"tools","tools");tools.checked(desktopStore.showButtons());tools.setOnClickListener(v->{desktopStore.showButtons(!desktopStore.showButtons());tools.checked(desktopStore.showButtons());});addSetting(group,tools);
+        enabled=setting(tr("天气","Weather"),"weather","enabled");enabled.checked(weatherStore.enabled());enabled.setOnClickListener(v->{weatherStore.enabled(!weatherStore.enabled());enabled.checked(weatherStore.enabled());if(weather!=null)weather.settingsChanged();});addSetting(group,enabled);
+        content.addView(desktop,new FrameLayout.LayoutParams(-1,-1));wireRows(new DesktopSettingsRow[]{time,tools,enabled},desktopTab);
+        for(int i=0;i<tabs.size();i++){DesktopSettingsRow tab=tabs.get(i);tab.setNextFocusUpId(i==0?back.getId():tabs.get(i-1).getId());tab.setNextFocusDownId(i+1<tabs.size()?tabs.get(i+1).getId():tab.getId());}
+        weatherSelected=state!=null?state.getBoolean("weather-section"):"weather".equals(getIntent().getStringExtra(SECTION));
+        final String restoreFocus=state==null?null:state.getString("focus");showSection(weatherSelected);
+        root.post(()->{View target=restoreFocus==null?null:root.findViewWithTag(restoreFocus);if(target==null||!target.isShown())target=weatherSelected?weatherTab:desktopTab;target.requestFocus();});
+    }
+    private DesktopSettingsRow tab(LinearLayout rail,String text,String icon,String tag,Runnable action){
+        DesktopSettingsRow b=new DesktopSettingsRow(this,text,icon,true);b.setTag(tag);b.setOnClickListener(v->{v.requestFocus();action.run();});
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,px(50));p.bottomMargin=px(8);rail.addView(b,p);tabs.add(b);
+        b.setOnKeyListener((v,key,event)->{if(key!=KeyEvent.KEYCODE_DPAD_RIGHT)return false;if(event.getAction()==KeyEvent.ACTION_DOWN){if(v==desktopTab||v==weatherTab)showSection(v==weatherTab);firstRow().requestFocus();}return true;});return b;
+    }
+    void showSection(boolean selected){
+        if(weather!=null)weather.pause();weatherSelected=selected;
+        if(selected&&weather==null){weather=new DesktopWeatherPanel(this);content.addView(weather.view,new FrameLayout.LayoutParams(-1,-1));wireRows(weather.rows(),weatherTab);}
+        desktop.setVisibility(selected?View.GONE:View.VISIBLE);if(weather!=null)weather.view.setVisibility(selected?View.VISIBLE:View.GONE);
+        desktopTab.setSelected(!selected);weatherTab.setSelected(selected);title.setText(selected?tr("天气设置","Weather Settings"):tr("桌面设置","Desktop Settings"));
+        if(resumed&&selected)weather.resume();
+    }
+    private DesktopSettingsRow firstRow(){return weatherSelected?weather.firstRow():time;}
+    @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);if("weather".equals(intent.getStringExtra(SECTION))){showSection(true);weatherTab.requestFocus();}}
+    void wireRows(DesktopSettingsRow[] rows,View tab){
+        for(int i=0;i<rows.length;i++){
+            DesktopSettingsRow r=rows[i];r.setNextFocusUpId(rows[Math.max(0,i-1)].getId());r.setNextFocusDownId(rows[Math.min(rows.length-1,i+1)].getId());r.setNextFocusRightId(r.getId());r.setNextFocusLeftId(tab.getId());
         }
-        gap(root,14);root.addView(button(chinese?"诊断日志":"Diagnostics",()->startActivity(new android.content.Intent(this,DiagnosticsActivity.class))),new LinearLayout.LayoutParams(-2,px(38)));
-        time.requestFocus();
     }
-    private Switch option(String title,boolean checked){
-        Switch view=new Switch(this);view.setText(title);view.setTextColor(TEXT);
-        view.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(18));view.setGravity(Gravity.CENTER_VERTICAL);
-        view.setPadding(px(24),0,px(24),0);view.setSwitchPadding(px(24));view.setChecked(checked);
-        focusable(view,14);root.addView(view,new LinearLayout.LayoutParams(-1,px(76)));return view;
+    TextView section(String name){TextView label=muted(name,13);label.setLayoutParams(new LinearLayout.LayoutParams(-1,px(30)));return label;}
+    LinearLayout group(){LinearLayout box=column();GradientDrawable shape=new GradientDrawable();shape.setColor(0xff1c1e21);shape.setCornerRadius(px(12));box.setBackground(shape);UiCompat.clipOutline(box);return box;}
+    DesktopSettingsRow setting(String label,String icon,String tag){DesktopSettingsRow r=new DesktopSettingsRow(this,label,icon,false);r.setTag(tag);return r;}
+    void addSetting(LinearLayout group,DesktopSettingsRow row){
+        if(group.getChildCount()>0){View line=new View(this);line.setBackgroundColor(0xff303338);group.addView(line,new LinearLayout.LayoutParams(-1,px(1)));}
+        group.addView(row,new LinearLayout.LayoutParams(-1,px(64)));
     }
+    @Override protected void onResume(){super.onResume();resumed=true;time.checked(desktopStore.showTime());tools.checked(desktopStore.showButtons());enabled.checked(weatherStore.enabled());if(weatherSelected)weather.resume();}
+    @Override protected void onPause(){resumed=false;if(weather!=null)weather.pause();super.onPause();}
+    @Override protected void onDestroy(){if(weather!=null)weather.destroy();super.onDestroy();}
+    @Override protected void onSaveInstanceState(Bundle state){super.onSaveInstanceState(state);state.putBoolean("weather-section",weatherSelected);View focus=getCurrentFocus();if(focus!=null&&focus.getTag() instanceof String)state.putString("focus",(String)focus.getTag());}
+    @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] results){super.onRequestPermissionsResult(code,permissions,results);if(weather!=null)weather.permissionResult(code);}
 }
