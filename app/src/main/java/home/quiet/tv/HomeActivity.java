@@ -59,6 +59,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private ValueAnimator dockPress;
     private WallpaperController wallpapers;
     private WeatherController weather;
+    private HomeHeaderView homeHeader;
     private TextView weatherText;
     private DesktopSettingsStore desktopSettings;
     private View timeRow, topButtons;
@@ -182,42 +183,16 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             }
         });
         glass = new Glass(); root.addView(glass,new FrameLayout.LayoutParams(-1,-1));
-        greeting=text("",14,600,0xffe6e7ed);UiCompat.letterSpacing(greeting,.14f);
-        greeting.setGravity(Gravity.CENTER_VERTICAL);greeting.setSingleLine(true);greeting.setMaxWidth(px(288));greeting.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        LinearLayout greetingRow=new LinearLayout(this);greetingRow.setGravity(Gravity.CENTER_VERTICAL);
-        place(root,greetingRow,860,22,50,32);greetingRow.addView(greeting,new LinearLayout.LayoutParams(-2,-1));
-        weatherText=text("",14,400,0xffe6e7ed);weatherText.setSingleLine(true);weatherText.setEllipsize(android.text.TextUtils.TruncateAt.END);weatherText.setGravity(Gravity.CENTER_VERTICAL);
-        weatherText.setCompoundDrawablePadding(px(6));LinearLayout.LayoutParams wp=new LinearLayout.LayoutParams(0,-1,1);wp.leftMargin=px(16);greetingRow.addView(weatherText,wp);
-        weather=new WeatherController(this,chinese,(data,message,loading)->{
-            weatherText.setVisibility(data==null?View.GONE:View.VISIBLE);
-            if(data==null){weatherText.setText("");weatherText.setCompoundDrawables(null,null,null,null);}
-            else{WeatherIcon icon=new WeatherIcon(data.icon);icon.setBounds(0,0,px(18),px(18));weatherText.setCompoundDrawables(icon,null,null,null);weatherText.setText(data.temperatureText()+"  "+data.description+"  "+data.city);}
-        });
-        LinearLayout timeRow=new LinearLayout(this);timeRow.setOrientation(LinearLayout.HORIZONTAL);
-        this.timeRow=timeRow;
-        timeRow.setGravity(Gravity.CENTER_VERTICAL);place(root,timeRow,430,64,50,57);
-        clock=text("",50,400,0xfff1f2f6);clock.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));
-        if(Build.VERSION.SDK_INT>=21)clock.setFontFeatureSettings("tnum");
-        clock.setSingleLine(true);clock.setGravity(Gravity.CENTER_VERTICAL);
-        timeRow.addView(clock,new LinearLayout.LayoutParams(-2,-1));
-        View divider=new View(this);divider.setBackgroundColor(0x70e6e7ed);
-        LinearLayout.LayoutParams dividerParams=new LinearLayout.LayoutParams(px(1),px(28));
-        dividerParams.leftMargin=px(16);dividerParams.rightMargin=px(16);timeRow.addView(divider,dividerParams);
-        date=text("",14,500,0xffe6e7ed);UiCompat.letterSpacing(date,.08f);
-        date.setSingleLine(true);date.setGravity(Gravity.CENTER_VERTICAL);
-        timeRow.addView(date,new LinearLayout.LayoutParams(-2,-1));
-        FrameLayout top = new FrameLayout(this);
-        topButtons=top;
-        FrameLayout.LayoutParams topParams=new FrameLayout.LayoutParams(px(330),px(50),Gravity.TOP|Gravity.RIGHT);
-        topParams.topMargin=px(67);topParams.rightMargin=px(CONTENT_MARGIN); root.addView(top,topParams);
-        inputButton=addPill(top, tr("信号源","Inputs"), R.drawable.ic_input, 102, 0, ()->showInputs());
-        network=addPill(top,tr("网络","Network"), R.drawable.ic_ethernet, 102, 114, ()->openSettings(Settings.ACTION_WIFI_SETTINGS));
-        addPill(top,tr("设置","Settings"), R.drawable.ic_settings, 102, 228, ()->openSettings(Settings.ACTION_SETTINGS));
+        homeHeader=new HomeHeaderView(this,unit,chinese,outfit);root.addView(homeHeader,new FrameLayout.LayoutParams(-1,-1));
+        greeting=homeHeader.greeting;weatherText=homeHeader.weather;clock=homeHeader.clock;date=homeHeader.date;timeRow=homeHeader.timeRow;topButtons=homeHeader.buttons;
+        pills.addAll(homeHeader.pills);inputButton=pills.get(0);network=pills.get(1);
+        inputButton.setOnClickListener(v->showInputs());network.setOnClickListener(v->openSettings(Settings.ACTION_WIFI_SETTINGS));pills.get(2).setOnClickListener(v->openSettings(Settings.ACTION_SETTINGS));
+        weather=new WeatherController(this,chinese,(data,message,loading)->homeHeader.weather(data));
         applyDesktopSettings();updateClock(); updateNetwork();
     }
 
     private void applyDesktopSettings(){
-        timeRow.setVisibility(desktopSettings.showTime()?View.VISIBLE:View.GONE);
+        homeHeader.apply();
         if(heroTitle!=null)heroTitle.setVisibility(desktopSettings.showAppTitle()?View.VISIBLE:View.GONE);
         TextView previous=visiblePills.isEmpty()?null:visiblePills.get(topColumn);
         boolean[] shown={desktopSettings.showInput(),desktopSettings.showNetwork(),desktopSettings.showSettings()};
@@ -225,10 +200,6 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         for(int i=0;i<pills.size();i++){
             TextView pill=pills.get(i);pill.setVisibility(shown[i]?View.VISIBLE:View.GONE);
             if(shown[i])visiblePills.add(pill);
-        }
-        for(int i=0;i<visiblePills.size();i++){
-            TextView pill=visiblePills.get(i);FrameLayout.LayoutParams p=(FrameLayout.LayoutParams)pill.getLayoutParams();
-            p.leftMargin=px(228-(visiblePills.size()-1-i)*114);pill.setLayoutParams(p);
         }
         int restored=visiblePills.indexOf(previous);
         topColumn=restored>=0?restored:Math.max(0,Math.min(topColumn,visiblePills.size()-1));
@@ -238,38 +209,9 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         topButtons.post(()->{if(ready)focusCurrent(false);});
     }
 
-    private TextView addPill(FrameLayout parent, String title, int icon, float width, float x, Runnable action) {
-        TextView pill = text(title,14,400,0xffededf1); pill.setGravity(Gravity.CENTER);
-        pill.setSingleLine(true); pill.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        pill.setPadding(px(12),0,px(12),0); pill.setBackground(pillSurface());
-        pill.setCompoundDrawablePadding(px(6));setPillIcon(pill,icon);
-        pill.setOnClickListener(v->action.run()); pills.add(pill); place(parent,pill,width,44,x,0);
-        centerPillContents(pill);
-        return pill;
-    }
-
-    private void setPillIcon(TextView pill,int resource) {
-        Drawable icon=UiCompat.drawable(this,resource);icon.setBounds(0,0,px(16),px(16));
-        pill.setCompoundDrawablesRelative(icon,null,null,null);
-    }
-
-    private void centerPillContents(TextView pill) {
-        float content=px(22)+pill.getPaint().measureText(pill.getText().toString());
-        int padding=Math.max(px(12),(int)((pill.getLayoutParams().width-content)/2));
-        pill.setPadding(padding,0,padding,0);
-    }
-
-    private void updateClock() {
-        Calendar c=Calendar.getInstance(); int hour=c.get(Calendar.HOUR_OF_DAY);
-        String message=hour<11?tr("早上好","Good morning"):hour<18?tr("下午好","Good afternoon"):tr("晚上好","Good evening");
-        String custom=desktopSettings.greetingText(fixedGreeting?tr("欢迎回家","Welcome home"):"");
-        boolean showGreeting=desktopSettings.greetingEnabled();
-        greeting.setText(custom.isEmpty()?message:custom);greeting.setVisibility(showGreeting?View.VISIBLE:View.GONE);
-        LinearLayout.LayoutParams weatherParams=(LinearLayout.LayoutParams)weatherText.getLayoutParams();
-        int spacing=showGreeting?px(16):0;if(weatherParams.leftMargin!=spacing){weatherParams.leftMargin=spacing;weatherText.setLayoutParams(weatherParams);}
-        clock.setText(new SimpleDateFormat("HH:mm",Locale.US).format(c.getTime()));
-        date.setText(new SimpleDateFormat(chinese?"M月d日  EEEE":"EEEE, MMMM d",chinese?Locale.SIMPLIFIED_CHINESE:Locale.US).format(c.getTime()));
-    }
+    private void setPillIcon(TextView pill,int resource){homeHeader.setPillIcon(pill,resource);}
+    private void centerPillContents(TextView pill){homeHeader.centerPill(pill);}
+    private void updateClock(){homeHeader.updateClock(fixedGreeting);}
 
     private void updateNetwork() {
         if(wallpapers!=null)wallpapers.environmentChanged();
@@ -410,7 +352,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         });
     }
 
-    private int sampleColor(Bitmap bitmap) {
+    static int sampleColor(Bitmap bitmap) {
         double best=0;int chosen=0xff5a6680;
         float[] hsv=new float[3];
         for(int y=10;y<bitmap.getHeight();y+=12)for(int x=10;x<bitmap.getWidth();x+=12){
