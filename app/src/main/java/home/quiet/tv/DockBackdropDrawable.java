@@ -6,6 +6,7 @@ import android.view.View;
 
 /** Samples only wallpaper pixels, never the Dock's cards or its own surface. */
 final class DockBackdropDrawable extends Drawable {
+    private static final int CACHE_WIDTH=320;
     interface Background {void draw(Canvas canvas,Paint paint);}
     private final Background background;
     private final View host,root;
@@ -46,12 +47,13 @@ final class DockBackdropDrawable extends Drawable {
 
     /** Bounded, screen-aligned cache prepared on the wallpaper decoder thread. */
     static Bitmap prepare(Bitmap source,int screenWidth,int screenHeight){
-        int width=Math.min(480,screenWidth),height=Math.max(1,Math.round(width*screenHeight/(float)screenWidth));
+        int width=Math.min(CACHE_WIDTH,screenWidth),height=Math.max(1,Math.round(width*screenHeight/(float)screenWidth));
         Bitmap bitmap=Bitmap.createBitmap(width,height,Bitmap.Config.ARGB_8888);
         float scale=Math.max(width/(float)source.getWidth(),height/(float)source.getHeight());
         float w=source.getWidth()*scale,h=source.getHeight()*scale;
         new Canvas(bitmap).drawBitmap(source,null,new RectF((width-w)/2,(height-h)/2,(width+w)/2,(height+h)/2),new Paint(Paint.FILTER_BITMAP_FLAG));
         int[] pixels=new int[width*height];bitmap.getPixels(pixels,0,width,0,0,width,height);
+        // Preserve the screen-space blur strength as the cache resolution changes.
         blurPixels(pixels,width,height,Math.max(1,Math.round(width*8f/480)));
         bitmap.setPixels(pixels,0,width,0,0,width,height);return bitmap;
     }
