@@ -18,6 +18,13 @@ final class DailyWallpaperClient {
     private final Context context;
     private SSLSocketFactory btTls;
     DailyWallpaperClient(Context context){this.context=context.getApplicationContext();}
+    static final class Unavailable extends IOException {
+        Unavailable(){super("This Bing image is unavailable as wallpaper");}
+    }
+    static final class HttpFailure extends IOException {
+        final int status;
+        HttpFailure(int status){super("Wallpaper service unavailable");this.status=status;}
+    }
     static final class Limited extends IOException {
         final long retryMs;
         Limited(long retryMs){super("Wallpaper service rate limited");this.retryMs=retryMs;}
@@ -36,7 +43,7 @@ final class DailyWallpaperClient {
         Candidate result=new Candidate();result.source=source;
         if(WallpaperCatalog.BING.equals(source)){
             JSONObject image=json.getJSONArray("images").getJSONObject(0);
-            if(!image.optBoolean("wp",true))throw new IOException("This Bing image is unavailable as wallpaper");
+            if(!image.optBoolean("wp",true))throw new Unavailable();
             result.url=new URL(new URL("https://cn.bing.com"),image.getString("url")).toString();
             result.title=image.optString("title");result.copyright=image.optString("copyright");result.link=image.optString("copyrightlink");result.upstream=image.optString("fullstartdate",image.optString("startdate"));
         }else if(WallpaperCatalog.BT.equals(source)){
@@ -77,7 +84,7 @@ final class DailyWallpaperClient {
                     long retry=0;try{retry=Math.min(86400,Math.max(0,Long.parseLong(request.getHeaderField("Retry-After"))))*1000L;}catch(NumberFormatException ignored){}
                     if(retry==0)retry=Math.max(0,request.getHeaderFieldDate("Retry-After",0)-System.currentTimeMillis());throw new Limited(retry);
                 }
-                if(status!=200)throw new IOException("Wallpaper service unavailable ("+status+")");
+                if(status!=200)throw new HttpFailure(status);
                 if(request.getContentLength()>limit)throw new IOException("Wallpaper response too large");
                 try(InputStream input=request.getInputStream()){
                     byte[] buffer=new byte[16384];long total=0;int count;

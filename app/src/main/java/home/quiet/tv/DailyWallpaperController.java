@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.*;
 import android.net.*;
 import android.os.*;
+import android.util.Log;
 import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -20,7 +21,13 @@ final class DailyWallpaperController {
     private final Handler main=new Handler(Looper.getMainLooper());
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private final DailyWallpaperClient client;
-    private final Map<String,Long> retryAt=new HashMap<>();
+    private static final class Failure {
+        final long retryAt;
+        final boolean limited;
+        final String message;
+        Failure(long retryAt,boolean limited,String message){this.retryAt=retryAt;this.limited=limited;this.message=message;}
+    }
+    private final Map<String,Failure> failures=new HashMap<>();
     private final Set<String> unreadable=new HashSet<>();
     private static final class CacheInvalid extends IOException {}
     private Future<?> task;
@@ -35,13 +42,19 @@ final class DailyWallpaperController {
     String status(String source){
         if(busy&&source.equals(pendingSource))return tr("正在获取壁纸…","Getting wallpaper…");
         if(source.equals(messageSource)&&!message.isEmpty())return message;
+        Failure failure=failures.get(source);if(failure!=null)return failureStatus(failure);
         return store.cached(store.snapshot().dailyImages.get(source))?tr("壁纸已保存到本地  断网可用","Wallpaper cached  Available offline"):tr("启用后每天自动更新，断网保留上一张","Updates daily; keeps the previous image offline");
     }
     private boolean online(){
         ConnectivityManager manager=(ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkInfo info=manager==null?null:manager.getActiveNetworkInfo();return info!=null&&info.isConnected();
     }
-    private long retryTime(String source){Long value=retryAt.get(source);return value==null?0:value;}
+    private long retryTime(String source){Failure failure=failures.get(source);return failure==null?0:failure.retryAt;}
+    private String failureStatus(Failure failure){
+        long remaining=failure.retryAt-SystemClock.elapsedRealtime();
+        if(failure.limited&&remaining>0){long minutes=(remaining+59999)/60000;return failure.message+"  "+tr("请在 "+minutes+" 分钟后重试","Try again in "+minutes+" min");}
+        return failure.message+"  "+tr("可检查更新重试","Check for updates to retry");
+    }
     void resume(){active=true;environmentChanged();}
     void pause(){active=false;cancel();}
     void destroy(){pause();worker.shutdownNow();main.removeCallbacksAndMessages(null);}
@@ -62,31 +75,33 @@ final class DailyWallpaperController {
         WallpaperCatalog state=store.snapshot();WallpaperCatalog.DailyImage old=state.dailyImages.get(source);
         boolean cached=store.cached(old)&&!unreadable.contains(source),connected=online();String day=today();
         boolean reuse=cached&&(!connected||(!manual&&apply&&day.equals(old.day))||(WallpaperCatalog.BT.equals(source)&&day.equals(old.day)));
-        if(!reuse&&SystemClock.elapsedRealtime()<retryTime(source)){
-            finishMessage(source,tr("来源暂不可用，请稍后重试","Source unavailable. Try again later."),false,completed);return;
+        Failure previous=failures.get(source);
+        if(!reuse&&previous!=null&&SystemClock.elapsedRealtime()<previous.retryAt&&(!manual||previous.limited)){
+            finishMessage(source,failureStatus(previous),false,completed);return;
         }
         if(!connected&&!reuse){finishMessage(source,tr("网络不可用  此来源暂无缓存","Offline  No cache for this source"),false,completed);return;}
         final int attempt=++generation;busy=true;pendingSource=source;message="";messageSource=source;changed.run();
         task=worker.submit(()->{
+            String stage="image";
             try{
                 WallpaperCatalog.DailyImage ready=old;File prepared=null;
                 if(reuse){validate(store.dailyFile(old.source,old.slot));}
                 else{
                     DailyWallpaperClient.Candidate candidate=null;String key=null;boolean duplicate=false;
                     int attempts=WallpaperCatalog.BT.equals(source)&&old!=null&&!day.equals(old.day)?3:1;
-                    File download=new File(store.dailyDirectory(),"download.tmp");
+                    stage="save";File download=new File(store.dailyDirectory(),"download.tmp");
                     for(int n=0;n<attempts;n++){
-                        valid(attempt);candidate=client.latest(source);valid(attempt);
+                        valid(attempt);stage="metadata";candidate=client.latest(source);valid(attempt);
                         if(cached&&candidate.url.equals(old.url)&&WallpaperCatalog.BING.equals(source)){key=old.key;duplicate=true;break;}
-                        key=client.download(candidate,download);valid(attempt);duplicate=cached&&old.key.equals(key);
+                        stage="download";key=client.download(candidate,download);valid(attempt);duplicate=cached&&old.key.equals(key);
                         if(!duplicate||WallpaperCatalog.BING.equals(source)||day.equals(old.day))break;
                     }
                     if(duplicate&&WallpaperCatalog.BT.equals(source)&&!day.equals(old.day))throw new IOException("No different landscape available");
-                    if(duplicate){validate(store.dailyFile(old.source,old.slot));}
+                    if(duplicate){stage="image";validate(store.dailyFile(old.source,old.slot));}
                     else{
-                        if(store.dailyDirectory().getUsableSpace()<24L*1024*1024)throw new IOException("Insufficient wallpaper storage");
+                        stage="save";if(store.dailyDirectory().getUsableSpace()<24L*1024*1024)throw new IOException("Insufficient wallpaper storage");
                         prepared=new File(store.dailyDirectory(),"prepared.tmp");
-                        int[] size=WallpaperImages.prepare(download,prepared,Math.min(1920,WallpaperImages.importLimit(context)));valid(attempt);
+                        stage="image";int[] size=WallpaperImages.prepare(download,prepared,Math.min(1920,WallpaperImages.importLimit(context)));valid(attempt);
                         if(prepared.length()>DailyWallpaperClient.MAX_IMAGE_BYTES)throw new IOException("Prepared wallpaper too large");
                         ready=new WallpaperCatalog.DailyImage();ready.width=size[0];ready.height=size[1];
                     }
@@ -98,11 +113,11 @@ final class DailyWallpaperController {
                 main.post(()->{
                     if(attempt!=generation||!active)return;
                     try{
-                        store.commitDaily(image,file,apply);retryAt.remove(source);unreadable.remove(source);busy=false;task=null;pendingSource=null;
+                        store.commitDaily(image,file,apply);failures.remove(source);unreadable.remove(source);busy=false;task=null;pendingSource=null;
                         finishMessage(source,tr("壁纸已保存到本地  断网可用","Wallpaper cached  Available offline"),true,completed);
-                    }catch(IOException e){failed(attempt,source,e,completed);}
+                    }catch(IOException e){failed(attempt,source,"save",e,completed);}
                 });
-            }catch(IOException|OutOfMemoryError e){main.post(()->failed(attempt,source,e,completed));}
+            }catch(IOException|OutOfMemoryError e){String failedStage=stage;main.post(()->failed(attempt,source,failedStage,e,completed));}
         });
     }
     private static WallpaperCatalog.DailyImage copy(WallpaperCatalog.DailyImage image) throws IOException {
@@ -113,12 +128,24 @@ final class DailyWallpaperController {
         BitmapFactory.Options options=new BitmapFactory.Options();options.inSampleSize=4;Bitmap bitmap=BitmapFactory.decodeFile(file.getPath(),options);
         if(bitmap==null)throw new CacheInvalid();bitmap.recycle();
     }
-    private void failed(int attempt,String source,Throwable error,Completed completed){
+    private void failed(int attempt,String source,String stage,Throwable error,Completed completed){
         if(attempt!=generation||!active)return;
         if(error instanceof CacheInvalid)unreadable.add(source);
         long delay=error instanceof DailyWallpaperClient.Limited?Math.max(COOLDOWN_MS,((DailyWallpaperClient.Limited)error).retryMs):COOLDOWN_MS;
-        retryAt.put(source,SystemClock.elapsedRealtime()+delay);busy=false;task=null;pendingSource=null;
-        finishMessage(source,tr("更新失败  保留当前壁纸，请稍后重试","Update failed  Current wallpaper kept. Try later."),false,completed);
+        boolean limited=error instanceof DailyWallpaperClient.Limited;
+        String reason;
+        if(error instanceof DailyWallpaperClient.Unavailable)reason=tr("今日必应图片不可用作壁纸","Today's Bing image is unavailable as wallpaper");
+        else if(limited)reason=tr("壁纸来源请求过于频繁","Wallpaper source rate limited");
+        else if(error instanceof OutOfMemoryError)reason=tr("内存不足，无法处理壁纸","Not enough memory to process wallpaper");
+        else if("save".equals(stage))reason=tr("壁纸保存失败，请检查存储空间","Unable to save wallpaper. Check storage");
+        else if("image".equals(stage))reason=tr("壁纸图片处理失败","Unable to process wallpaper image");
+        else reason=tr("壁纸请求失败，请检查网络或稍后重试","Wallpaper request failed. Check network or try later");
+        Failure failure=new Failure(SystemClock.elapsedRealtime()+delay,limited,reason+"  "+tr("已保留当前壁纸","Current wallpaper kept"));
+        failures.put(source,failure);busy=false;task=null;pendingSource=null;
+        // Keep causes useful without logging URLs, response bodies or exception messages.
+        Log.w("QuietTV","Daily wallpaper failed: source="+source+" stage="+stage+" error="+error.getClass().getSimpleName()
+            +(error instanceof DailyWallpaperClient.HttpFailure?" http="+((DailyWallpaperClient.HttpFailure)error).status:limited?" http=429":""));
+        finishMessage(source,failureStatus(failure),false,completed);
     }
     private void finishMessage(String source,String value,boolean success,Completed completed){messageSource=source;message=value;changed.run();if(completed!=null)completed.done(success,value);}
 }
