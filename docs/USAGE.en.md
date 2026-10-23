@@ -66,7 +66,7 @@ The upload dialog contains a local address, connection code and QR code, so its 
 
 ## Desktop settings
 
-Open the independent Desktop Settings module after Wallpaper Settings in All Apps. Toggle Show time and date or Show right-side buttons (Inputs, Network, Settings); both default to on. Changes apply when returning home and are saved automatically across normal in-place updates. Remote navigation skips hidden buttons; Desktop Settings remains accessible in All Apps to restore them. Existing custom orders receive the new entry immediately after Wallpaper Settings; it can then be moved in Home order. Both 1.1.2 downloads include this feature. Switches were not changed during Sony captures; persistence and reboot behavior need target-TV acceptance.
+Open the independent Desktop Settings module after Wallpaper Settings in All Apps. Time/date and weather have separate toggles. Under Quick buttons, toggle Inputs, Network and Settings individually; all default to visible. Remaining buttons keep their original order, align to the right, and remote navigation skips hidden buttons. Changes apply when returning home and are saved across normal in-place updates. Each unset individual preference inherits the previous right-side button group setting. Even when all three buttons are hidden, restore them through All Apps → Desktop Settings. Existing custom orders receive the entry after Wallpaper Settings; it can then be moved in Home order. Published 1.1.2 packages have the original group toggle; individual visibility controls are not released yet. Physical remote, restart and in-place upgrade persistence need acceptance on each target TV.
 
 ![Desktop display settings on the Sony TV, 1.1.2 / 34](assets/desktop-settings-1.1.2.png)
 

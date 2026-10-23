@@ -16,9 +16,9 @@ public final class DesktopSettingsActivity extends ManagementUi {
     private WeatherStore weatherStore;
     private DesktopWeatherPanel weather;
     private FrameLayout content;
-    private LinearLayout desktop;
+    private ScrollView desktopScroll;
     private TextView title;
-    private DesktopSettingsRow desktopTab,weatherTab,time,tools,enabled;
+    private DesktopSettingsRow desktopTab,weatherTab,time,input,network,settings,enabled;
     private final List<DesktopSettingsRow> tabs=new ArrayList<>();
     String tr(String zh,String en){return chinese?zh:en;}
     boolean chinese(){return chinese;}
@@ -40,11 +40,16 @@ public final class DesktopSettingsActivity extends ManagementUi {
             tab(rail,tr("桌面守护","Guard"),"shield","nav-guard",()->startActivity(new Intent(this,HomeGuardActivity.class)));
         }
         content=new FrameLayout(this);LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,-1,1);cp.leftMargin=px(28);layout.addView(content,cp);
-        desktop=column();LinearLayout group=group();desktop.addView(group);
+        LinearLayout desktop=column();LinearLayout group=group();desktop.addView(group);
         time=setting(tr("时间与日期","Time and date"),"clock","time");time.checked(desktopStore.showTime());time.setOnClickListener(v->{desktopStore.showTime(!desktopStore.showTime());time.checked(desktopStore.showTime());});addSetting(group,time);
-        tools=setting(tr("右侧快捷按钮","Quick buttons"),"tools","tools");tools.checked(desktopStore.showButtons());tools.setOnClickListener(v->{desktopStore.showButtons(!desktopStore.showButtons());tools.checked(desktopStore.showButtons());});addSetting(group,tools);
         enabled=setting(tr("天气","Weather"),"weather","enabled");enabled.checked(weatherStore.enabled());enabled.setOnClickListener(v->{weatherStore.enabled(!weatherStore.enabled());enabled.checked(weatherStore.enabled());if(weather!=null)weather.settingsChanged();});addSetting(group,enabled);
-        content.addView(desktop,new FrameLayout.LayoutParams(-1,-1));wireRows(new DesktopSettingsRow[]{time,tools,enabled},desktopTab);
+        gap(desktop,16);desktop.addView(section(tr("右侧快捷按钮","Quick buttons")));LinearLayout buttons=group();desktop.addView(buttons);
+        input=setting(tr("信号源","Inputs"),"","input");input.icon(R.drawable.ic_input);input.checked(desktopStore.showInput());input.setOnClickListener(v->{desktopStore.showInput(!desktopStore.showInput());input.checked(desktopStore.showInput());});addSetting(buttons,input);
+        network=setting(tr("网络","Network"),"","network");network.icon(R.drawable.ic_wifi);network.checked(desktopStore.showNetwork());network.setOnClickListener(v->{desktopStore.showNetwork(!desktopStore.showNetwork());network.checked(desktopStore.showNetwork());});addSetting(buttons,network);
+        settings=setting(tr("设置","Settings"),"","settings");settings.icon(R.drawable.ic_settings);settings.checked(desktopStore.showSettings());settings.setOnClickListener(v->{desktopStore.showSettings(!desktopStore.showSettings());settings.checked(desktopStore.showSettings());});addSetting(buttons,settings);
+        TextView hint=muted(tr("隐藏后，可从“全部应用 → 桌面设置”重新开启。","Restore hidden buttons in All Apps → Desktop Settings."),12);LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,-2);hp.topMargin=px(12);desktop.addView(hint,hp);
+        desktopScroll=new ScrollView(this);desktopScroll.setVerticalScrollBarEnabled(false);desktopScroll.setFocusable(false);desktopScroll.addView(desktop,new ScrollView.LayoutParams(-1,-2));
+        content.addView(desktopScroll,new FrameLayout.LayoutParams(-1,-1));wireRows(new DesktopSettingsRow[]{time,enabled,input,network,settings},desktopTab);
         footer(tr("方向键移动  确定选择  返回上一级","Move with arrows  Select with OK  Back to return"));
         for(int i=0;i<tabs.size();i++){DesktopSettingsRow tab=tabs.get(i);tab.setNextFocusUpId(i==0?back.getId():tabs.get(i-1).getId());tab.setNextFocusDownId(i+1<tabs.size()?tabs.get(i+1).getId():tab.getId());}
         weatherSelected=state!=null?state.getBoolean("weather-section"):"weather".equals(getIntent().getStringExtra(SECTION));
@@ -59,7 +64,7 @@ public final class DesktopSettingsActivity extends ManagementUi {
     void showSection(boolean selected){
         if(weather!=null)weather.pause();weatherSelected=selected;
         if(selected&&weather==null){weather=new DesktopWeatherPanel(this);content.addView(weather.view,new FrameLayout.LayoutParams(-1,-1));wireRows(weather.rows(),weatherTab);}
-        desktop.setVisibility(selected?View.GONE:View.VISIBLE);if(weather!=null)weather.view.setVisibility(selected?View.VISIBLE:View.GONE);
+        desktopScroll.setVisibility(selected?View.GONE:View.VISIBLE);if(weather!=null)weather.view.setVisibility(selected?View.VISIBLE:View.GONE);
         desktopTab.setSelected(!selected);weatherTab.setSelected(selected);
         if(resumed&&selected)weather.resume();
     }
@@ -77,7 +82,7 @@ public final class DesktopSettingsActivity extends ManagementUi {
         if(group.getChildCount()>0){View line=new View(this);line.setBackgroundColor(0x16ffffff);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,px(1));p.setMargins(px(4),0,px(4),0);group.addView(line,p);}
         group.addView(row,new LinearLayout.LayoutParams(-1,px(60)));
     }
-    @Override protected void onResume(){super.onResume();resumed=true;time.checked(desktopStore.showTime());tools.checked(desktopStore.showButtons());enabled.checked(weatherStore.enabled());if(weatherSelected)weather.resume();}
+    @Override protected void onResume(){super.onResume();resumed=true;time.checked(desktopStore.showTime());input.checked(desktopStore.showInput());network.checked(desktopStore.showNetwork());settings.checked(desktopStore.showSettings());enabled.checked(weatherStore.enabled());if(weatherSelected)weather.resume();}
     @Override protected void onPause(){resumed=false;if(weather!=null)weather.pause();super.onPause();}
     @Override protected void onDestroy(){if(weather!=null)weather.destroy();super.onDestroy();}
     @Override protected void onSaveInstanceState(Bundle state){super.onSaveInstanceState(state);state.putBoolean("weather-section",weatherSelected);View focus=getCurrentFocus();if(focus!=null&&focus.getTag() instanceof String)state.putString("focus",(String)focus.getTag());}
