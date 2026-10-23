@@ -68,9 +68,9 @@ final class AboutView extends FrameLayout {
         label("WenBin AI LAB",27,400,0xffc4d1e3,782,625,600,34,null);
         label("wenbinailab@gmail.com",24,400,0xff9eafc7,782,674,600,45,"developer-email");
         code("wechat-qr",1394,528,184).setImageBitmap(image("about/assets/wechat.png"));
-        code("official-qr",1600,528,184).setImageBitmap(image("about/assets/official.png"));
+        code("official-qr",1600,528,184).setImageBitmap(image("about/assets/qq-group.png"));
         label("微信",21,400,0xff9eafc7,1394,725,184,30,null).setGravity(Gravity.CENTER);
-        label("公众号",21,400,0xff9eafc7,1600,725,184,30,null).setGravity(Gravity.CENTER);
+        label("扫码进 QQ交流群",21,400,0xff9eafc7,1600,725,184,30,null).setGravity(Gravity.CENTER);
         line(790);
         label("开源许可与致谢",23,500,0xffb9c8dc,782,819,1002,33,null);
         TextView mit=label("MIT 许可证 ↗",21,400,0xffa7b9d1,775,863,135,41,null);mit.setPadding(7,0,7,0);
@@ -105,7 +105,7 @@ final class AboutView extends FrameLayout {
         view.setOnFocusChangeListener((v,focused)->artboard.invalidate());return view;
     }
     private ImageView code(String tag,int x,int y,int size) {
-        ImageView view=new ImageView(getContext());view.setTag(tag);view.setContentDescription(tag.equals("project-qr")?"开源项目二维码":tag.equals("wechat-qr")?"微信二维码":"微信公众号二维码");
+        ImageView view=new ImageView(getContext());view.setTag(tag);view.setContentDescription(tag.equals("project-qr")?"开源项目二维码":tag.equals("wechat-qr")?"微信二维码":"QQ 群二维码");
         view.setScaleType(ImageView.ScaleType.FIT_CENTER);view.setPadding(4,4,4,4);view.setBackground(surface(Color.WHITE,size==208?14:10,Color.WHITE));UiCompat.clipOutline(view);put(view,x,y,size,size);return view;
     }
     private Bitmap image(String asset) {
