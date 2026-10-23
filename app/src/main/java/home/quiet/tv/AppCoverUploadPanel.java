@@ -34,7 +34,7 @@ final class AppCoverUploadPanel {
         if(view==null||server==null)return;
         if(server.expired()||!host.equals(WallpaperUploadPanel.lanAddress(activity))){
             ImageUploadDialog current=view;stopServer();if(confirmation!=null)confirmation.dialog.dismiss();
-            if(view!=current)return;view.status.setText("会话已结束，请重新连接 / Session ended. Reconnect to upload.");view.status.setVisibility(View.VISIBLE);view.retry.setVisibility(View.VISIBLE);
+            if(view!=current)return;view.status.setText(R.string.upload_session_ended);view.status.setVisibility(View.VISIBLE);view.retry.setVisibility(View.VISIBLE);
         }else main.postDelayed(this,2000);
     }};
     AppCoverUploadPanel(ManagementUi activity){this.activity=activity;store=AppCoverStore.get(activity);}
@@ -50,7 +50,7 @@ final class AppCoverUploadPanel {
         stopServer();final int attempt=generation;receiving.set(false);ImageUploadDialog current=view;if(current==null)return;
         current.status.setVisibility(View.GONE);current.retry.setVisibility(View.GONE);current.code.setText("");current.qr.setImageDrawable(null);
         host=WallpaperUploadPanel.lanAddress(activity);
-        if(host==null){current.address.setText("未找到局域网地址，请先连接 Wi-Fi 或网线");current.retry.setVisibility(View.VISIBLE);return;}
+        if(host==null){current.address.setText(R.string.upload_network_unavailable);current.retry.setVisibility(View.VISIBLE);return;}
         final String selectedHost=host,target=pkg,name=label;
         worker.execute(()->{
             WallpaperUploadServer candidate=null;

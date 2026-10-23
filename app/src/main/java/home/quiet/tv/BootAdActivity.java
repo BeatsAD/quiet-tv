@@ -65,7 +65,7 @@ public final class BootAdActivity extends ManagementUi {
             List<AppRepository.App> actual=repository.load(adb);JSONArray saved=store.bootRuns();
             List<BootAdOperations.RestoreItem> items=BootAdOperations.restoreItems(saved,actual,android.os.Process.myUid()/100000,Build.FINGERPRINT);
             ui(epoch,()->{apps.clear();apps.addAll(actual);runs=saved;restores=items;selected.clear();restoreSelected.clear();busy=false;render();});
-        }catch(Exception e){ui(epoch,()->{selected.clear();restoreSelected.clear();busy=false;notice.setText("检测未完成："+e.getMessage());updateActions();});}});
+        }catch(Exception e){ui(epoch,()->{selected.clear();restoreSelected.clear();busy=false;notice.setText(getString(R.string.boot_ad_detection_failed,e.getMessage()));updateActions();});}});
     }
     private AppRepository.App find(String pkg){for(AppRepository.App app:apps)if(pkg.equals(app.pkg))return app;return null;}
     private void text(String value,int size){TextView view=muted(value,size);view.setLineSpacing(px(4),1);content.addView(view,new LinearLayout.LayoutParams(-1,-2));gap(content,10);}

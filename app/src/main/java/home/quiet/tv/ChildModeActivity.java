@@ -42,7 +42,7 @@ public final class ChildModeActivity extends ManagementUi {
         TextView footer=visual.text("方向键移动  确定选择  返回上一级",14.98f,21,0xff67717f);visual.place(canvas,footer,86.4f,1028.28f,1400,21);TextView brand=visual.text("Quiet TV",14.98f,21,0xff67717f);brand.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);visual.place(canvas,brand,1633.6f,1028.28f,200,21);
     }
     @Override protected void onResume(){super.onResume();if(!authorized)ChildModeAuth.show(this,()->{authorized=true;load();});else load();}
-    @Override protected void onPause(){authorized=false;ChildModeAuth.dismiss(this);if(editing!=null)editing.dismiss();visible.clear();cards.notifyDataSetChanged();details.removeAllViews();count.setText("请输入家长密码");super.onPause();}
+    @Override protected void onPause(){authorized=false;ChildModeAuth.dismiss(this);if(editing!=null)editing.dismiss();int removed=visible.size();visible.clear();cards.notifyItemRangeRemoved(0,removed);details.removeAllViews();count.setText("请输入家长密码");super.onPause();}
     @Override protected void onDestroy(){worker.shutdownNow();super.onDestroy();}
     private void load(){
         if(!authorized || loading)return;loading=true;
@@ -52,10 +52,12 @@ public final class ChildModeActivity extends ManagementUi {
             final String problem=failure;runOnUiThread(()->{loading=false;if(isDestroyed() || !authorized)return;if(problem!=null){message(problem);return;}apps.clear();apps.addAll(found);filter();});
         });
     }
+    // Catalog reloads and searches can replace the entire ordered list.
+    @android.annotation.SuppressLint("NotifyDataSetChanged")
     private void filter(){
         visible.clear();for(ResolveInfo info:apps)if((info.loadLabel(getPackageManager())+" "+info.activityInfo.packageName).toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT)))visible.add(info);
         boolean found=false;for(ResolveInfo info:visible)if(info.activityInfo.packageName.equals(selected))found=true;
-        if(!found)selected=visible.isEmpty()?"":visible.get(0).activityInfo.packageName;count.setText(visible.size()+" 个应用  家长设置");cards.notifyDataSetChanged();render();
+        if(!found)selected=visible.isEmpty()?"":visible.get(0).activityInfo.packageName;count.setText(getString(R.string.child_management_app_count,visible.size()));cards.notifyDataSetChanged();render();
         list.post(()->{for(int i=0;i<visible.size();i++)if(visible.get(i).activityInfo.packageName.equals(selected)){list.scrollToPosition(i);RecyclerView.ViewHolder holder=list.findViewHolderForAdapterPosition(i);if(holder!=null)holder.itemView.requestFocus();break;}});
     }
     private ResolveInfo current(){for(ResolveInfo info:visible)if(selected.equals(info.activityInfo.packageName))return info;return null;}
@@ -75,11 +77,14 @@ public final class ChildModeActivity extends ManagementUi {
     }
     private View toggle(String title,String hint,boolean checked,Runnable action){
         LinearLayout row=optionRow(),copy=column();copy.addView(visual.text(title,26.88f,37.5f,0xffeeeff2));visual.gap(copy,12.48f);copy.addView(visual.text(hint,18.43f,26,0xff848e9c));row.addView(copy,new LinearLayout.LayoutParams(0,-2,1));
-        View toggle=new View(this){private final android.graphics.Paint paint=new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);@Override protected void onDraw(android.graphics.Canvas c){super.onDraw(c);float scale=visual.p(72.96f)/72.96f;c.save();c.scale(scale,scale);c.translate(6,6);paint.setStyle(android.graphics.Paint.Style.FILL);paint.setColor(checked?0xffbdccc1:0x10ffffff);c.drawRoundRect(new android.graphics.RectF(0,0,72.96f,40.32f),30,30,paint);paint.setStyle(android.graphics.Paint.Style.STROKE);paint.setStrokeWidth(1);paint.setColor(checked?0xffbdccc1:0x26ffffff);c.drawRoundRect(new android.graphics.RectF(1,1,71.96f,39.32f),30,30,paint);paint.setStyle(android.graphics.Paint.Style.FILL);paint.setColor(checked?0xff263d33:0xff9099a4);c.drawCircle(19.72f+(checked?29.76f:0),19.72f,12.96f,paint);if(isFocused()){paint.setStyle(android.graphics.Paint.Style.STROKE);paint.setStrokeWidth(2);paint.setColor(0xfff6f6f8);c.drawRoundRect(new android.graphics.RectF(-5,-5,77.96f,45.32f),35,35,paint);}c.restore();}};
+        View toggle=new View(this){private final android.graphics.Paint paint=new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);private final android.graphics.RectF track=new android.graphics.RectF(0,0,72.96f,40.32f),border=new android.graphics.RectF(1,1,71.96f,39.32f),focusRing=new android.graphics.RectF(-5,-5,77.96f,45.32f);@Override protected void onDraw(android.graphics.Canvas c){super.onDraw(c);float scale=visual.p(72.96f)/72.96f;c.save();c.scale(scale,scale);c.translate(6,6);paint.setStyle(android.graphics.Paint.Style.FILL);paint.setColor(checked?0xffbdccc1:0x10ffffff);c.drawRoundRect(track,30,30,paint);paint.setStyle(android.graphics.Paint.Style.STROKE);paint.setStrokeWidth(1);paint.setColor(checked?0xffbdccc1:0x26ffffff);c.drawRoundRect(border,30,30,paint);paint.setStyle(android.graphics.Paint.Style.FILL);paint.setColor(checked?0xff263d33:0xff9099a4);c.drawCircle(19.72f+(checked?29.76f:0),19.72f,12.96f,paint);if(isFocused()){paint.setStyle(android.graphics.Paint.Style.STROKE);paint.setStrokeWidth(2);paint.setColor(0xfff6f6f8);c.drawRoundRect(focusRing,35,35,paint);}c.restore();}};
         toggle.setFocusable(true);toggle.setClickable(true);toggle.setContentDescription(title+"  "+(checked?"开启":"关闭"));toggle.setOnClickListener(v->action.run());row.setOnClickListener(v->toggle.performClick());toggle.setOnFocusChangeListener((v,f)->v.invalidate());LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(visual.p(84.96f),visual.p(52.32f));tp.rightMargin=-visual.p(6);row.addView(toggle,tp);return toggle;
     }
     private void save(ChildModePolicy.Rule rule,int focus){
-        if(!store.save(selected,rule)){feedback("保存失败，请重试");return;}cards.notifyDataSetChanged();render();if(focus==0 && first!=null)first.requestFocus();else if(focus==1 && details.getChildCount()>5)((ViewGroup)details.getChildAt(5)).getChildAt(1).requestFocus();
+        if(!store.save(selected,rule)){feedback("保存失败，请重试");return;}refreshSelectedCard();render();if(focus==0 && first!=null)first.requestFocus();else if(focus==1 && details.getChildCount()>5)((ViewGroup)details.getChildAt(5)).getChildAt(1).requestFocus();
+    }
+    private void refreshSelectedCard(){
+        for(int i=0;i<visible.size();i++)if(selected.equals(visible.get(i).activityInfo.packageName)){cards.notifyItemChanged(i);return;}
     }
     private void time(){
         if(!authorized || selected.isEmpty())return;
@@ -95,7 +100,7 @@ public final class ChildModeActivity extends ManagementUi {
             if(edited.limited() && custom[0])try{int h=Integer.parseInt(hours.getText().toString()),m=Integer.parseInt(minutes.getText().toString());if(h<0 || h>24 || m<0 || m>59)throw new NumberFormatException();edited.limit=(h*60L+m)*ChildModePolicy.MINUTE;}catch(NumberFormatException e){feedback("请输入 1 分钟至 24 小时，分钟填写 0–59");return;}
             try{edited.validate();}catch(IllegalArgumentException e){feedback("时长需为 1 分钟至 24 小时");return;}
             if(edited.limited() && !ChildUsageService.ready(this)){sheet.dialog.dismiss();permission();return;}
-            if(!store.save(selected,edited)){feedback("保存失败，请重试");return;}sheet.dialog.dismiss();cards.notifyDataSetChanged();render();details.getChildAt(7).requestFocus();
+            if(!store.save(selected,edited)){feedback("保存失败，请重试");return;}sheet.dialog.dismiss();refreshSelectedCard();render();details.getChildAt(7).requestFocus();
         },true);refresh.run();editing=sheet.dialog;sheet.dialog.setOnDismissListener(d->{sheet.release();if(editing==sheet.dialog)editing=null;});sheet.show(modeButtons.get(edited.mode));
     }
     private void show(Sheet sheet,View focus){editing=sheet.dialog;sheet.dialog.setOnDismissListener(d->{if(editing==sheet.dialog)editing=null;});sheet.show(focus);}
