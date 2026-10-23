@@ -49,6 +49,8 @@ https://raw.githubusercontent.com/BeatsAD/quiet-tv/main/docs/AGENT_INSTALL.zh-CN
 
 本流程不 root、不刷机、不恢复出厂、不清数据、不卸载或禁用原桌面，不操作无关系统包，也不默认保持 ADB 常开。安装和源码同步不授权发布 APK。
 
+安装、HOME 或运行异常需要取证时，使用[Agent 问题排查](AGENT_DIAGNOSE.zh-CN.md)，排查不自动重复安装或修改系统。
+
 ## 请求恢复原桌面
 
 ```text

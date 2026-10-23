@@ -85,7 +85,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private String tr(String zh, String en) { return chinese ? zh : en; }
 
     @Override public void onCreate(Bundle state) {
-        super.onCreate(state);DiagnosticsRecorder.get(this);BackNavigation.install(this,this::handleBack);
+        super.onCreate(state);BackNavigation.install(this,this::handleBack);
         unit = getResources().getDisplayMetrics().widthPixels / 960f;
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN
                 | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
