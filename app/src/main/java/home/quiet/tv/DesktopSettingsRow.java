@@ -14,23 +14,24 @@ final class DesktopSettingsRow extends LinearLayout {
     private boolean checkable,checked;
     DesktopSettingsRow(ManagementUi ui,String text,String symbol,boolean navigation){
         super(ui);this.ui=ui;setOrientation(HORIZONTAL);setGravity(Gravity.CENTER_VERTICAL);
-        setPadding(ui.px(navigation?14:20),0,ui.px(navigation?14:20),0);
+        setPadding(ui.px(navigation?14:18),0,ui.px(navigation?14:18),0);
         setId(View.generateViewId());setFocusable(true);setFocusableInTouchMode(true);setClickable(true);
         StateListDrawable background=new StateListDrawable();
-        background.addState(new int[]{android.R.attr.state_focused},ui.surface(0xff282b2f,0xff282b2f,0xfff2f3f4,9));
-        background.addState(new int[]{android.R.attr.state_selected},ui.surface(0xff282b2f,0xff282b2f,0,9));
+        background.addState(new int[]{android.R.attr.state_focused},ui.surface(0x24ffffff,0x16ffffff,0xfff3f4f7,10));
+        background.addState(new int[]{android.R.attr.state_selected},ui.surface(0x14ffffff,0x10ffffff,0x1effffff,10));
         background.addState(new int[]{},new ColorDrawable(Color.TRANSPARENT));setBackground(background);
-        ImageView start=new ImageView(ui);start.setImageDrawable(new Glyph(symbol,0xffa7abb2));
-        LayoutParams ip=new LayoutParams(ui.px(19),ui.px(19));ip.rightMargin=ui.px(13);addView(start,ip);
-        title=ui.label(text,navigation?16:18);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);addView(title,new LayoutParams(0,-1,1));
-        value=ui.muted("",14);value.setSingleLine(true);value.setMaxWidth(ui.px(300));value.setEllipsize(android.text.TextUtils.TruncateAt.END);addView(value,new LayoutParams(-2,-1));
+        ImageView start=new ImageView(ui);int resource="shield".equals(symbol)?R.drawable.ic_manage_shield:"refresh".equals(symbol)?R.drawable.ic_manage_refresh:0;
+        if(resource!=0){start.setImageDrawable(UiCompat.drawable(ui,resource));start.setColorFilter(0xffa2a8b3);}else start.setImageDrawable(new Glyph(symbol,0xffa2a8b3));
+        LayoutParams ip=new LayoutParams(ui.px(navigation?17:18),ui.px(navigation?17:18));ip.rightMargin=ui.px(13);addView(start,ip);
+        title=ui.label(text,16);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);addView(title,new LayoutParams(0,-1,1));
+        value=ui.muted("",13);value.setTextColor(0xffa2a8b3);value.setSingleLine(true);value.setMaxWidth(ui.px(300));value.setEllipsize(android.text.TextUtils.TruncateAt.END);addView(value,new LayoutParams(-2,-1));
         end=new ImageView(ui);LayoutParams ep=new LayoutParams(ui.px(18),ui.px(24));ep.leftMargin=ui.px(12);addView(end,ep);end.setVisibility(GONE);
         for(int i=0;i<getChildCount();i++)getChildAt(i).setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         setContentDescription(text);
     }
     void value(String text){value.setText(text);setContentDescription(title.getText()+(text.isEmpty()?"":"  "+text));}
     String value(){return value.getText().toString();}
-    void tail(String symbol){end.setImageDrawable(new Glyph(symbol,0xffa7abb2));end.setVisibility(VISIBLE);}
+    void tail(String symbol){end.setImageDrawable(new Glyph(symbol,0xffa2a8b3));end.setVisibility(VISIBLE);}
     void checked(boolean enabled){checkable=true;checked=enabled;end.setVisibility(VISIBLE);LayoutParams p=(LayoutParams)end.getLayoutParams();p.width=ui.px(44);end.setLayoutParams(p);end.setImageDrawable(new Toggle(enabled));}
     boolean checked(){return checked;}
     void available(boolean enabled){setEnabled(enabled);setAlpha(enabled?1f:.55f);}
@@ -38,7 +39,7 @@ final class DesktopSettingsRow extends LinearLayout {
     private static final class Toggle extends Drawable {
         final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);final boolean on;
         Toggle(boolean on){this.on=on;}
-        @Override public void draw(Canvas c){Rect r=getBounds();int save=c.save();c.translate(r.left,r.top);c.scale(r.width()/44f,r.height()/24f);paint.setColor(on?0xffd9e5d5:0xff535860);c.drawRoundRect(new RectF(0,0,44,24),12,12,paint);paint.setColor(on?0xff252d24:0xffe1e3e5);c.drawCircle(on?32:12,12,9,paint);c.restoreToCount(save);}
+        @Override public void draw(Canvas c){Rect r=getBounds();int save=c.save();c.translate(r.left,r.top);c.scale(r.width()/44f,r.height()/24f);paint.setColor(on?0xffe1e6ed:0xff535860);c.drawRoundRect(new RectF(0,0,44,24),12,12,paint);paint.setColor(on?0xff26303b:0xffe1e3e5);c.drawCircle(on?32:12,12,9,paint);c.restoreToCount(save);}
         @Override public void setAlpha(int a){paint.setAlpha(a);}
         @Override public void setColorFilter(ColorFilter f){paint.setColorFilter(f);}
         @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
