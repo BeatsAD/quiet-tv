@@ -18,7 +18,7 @@ public final class HomeGuardRevivalListener extends NotificationListenerService 
         super.onListenerConnected();connected=true;rebindRequested=false;new HomeGuardState(this).preferences.edit().putBoolean("listenerConnected",true).apply();
         HomeGuardRecovery.noteRevival(this);
         if(HomeGuardState.unlocked(this)){HomeGuardRecovery.request(this,"通知监听连接");return;}
-        if(unlock==null){
+        if(Build.VERSION.SDK_INT>=24 && unlock==null){
             unlock=new BroadcastReceiver(){@Override public void onReceive(Context context,Intent intent){
                 if(!Intent.ACTION_USER_UNLOCKED.equals(intent.getAction()))return;
                 unregisterReceiver(this);unlock=null;HomeGuardRecovery.request(context,"用户解锁");
