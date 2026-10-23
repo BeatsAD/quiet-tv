@@ -36,6 +36,31 @@ final class WallpaperStore {
         catalog.normalize();
     }
     synchronized WallpaperCatalog snapshot() { return catalog.copy(); }
+    File dailyDirectory() throws IOException {
+        File folder=new File(directory,"daily");
+        if(!folder.isDirectory()&&!folder.mkdirs())throw new IOException("Daily wallpaper storage unavailable");return folder;
+    }
+    File dailyFile(String source,int slot) {
+        if(!WallpaperCatalog.dailySource(source)||(slot!=0&&slot!=1))throw new IllegalArgumentException("Invalid daily wallpaper slot");
+        return new File(new File(directory,"daily"),source+"-"+slot+".jpg");
+    }
+    boolean cached(WallpaperCatalog.DailyImage image) { return image!=null&&dailyFile(image.source,image.slot).isFile()&&dailyFile(image.source,image.slot).length()>0; }
+    synchronized String imageKey(String id) {
+        if(!WallpaperCatalog.DAILY.equals(id))return id;
+        WallpaperCatalog.DailyImage image=catalog.dailyImages.get(catalog.dailySource);
+        return cached(image)?id+":"+image.source+":"+image.key+":"+image.slot:id+":missing";
+    }
+    synchronized void commitDaily(WallpaperCatalog.DailyImage image,File prepared,boolean apply) throws IOException {
+        WallpaperCatalog next=catalog.copy();
+        if(prepared!=null){
+            if(prepared.length()==0||prepared.length()>DailyWallpaperClient.MAX_IMAGE_BYTES)throw new IOException("Invalid daily wallpaper size");
+            WallpaperCatalog.DailyImage old=catalog.dailyImages.get(image.source);image.slot=old==null?0:1-old.slot;
+            if(!prepared.renameTo(dailyFile(image.source,image.slot)))throw new IOException("Unable to save daily wallpaper");
+        }else if(!cached(image))throw new IOException("Daily wallpaper cache unavailable");
+        next.dailyImages.put(image.source,image);
+        if(apply){next.select(WallpaperCatalog.DAILY);next.dailySource=image.source;}
+        persist(next);
+    }
     File file(String id) {
         if(!id.matches("user-[a-f0-9-]{36}")) throw new IllegalArgumentException("Invalid wallpaper ID");
         return new File(directory,id+".jpg");
@@ -50,7 +75,7 @@ final class WallpaperStore {
     synchronized void next() throws IOException { WallpaperCatalog next=catalog.copy();next.next();persist(next); }
     synchronized void restore() throws IOException { WallpaperCatalog next=catalog.copy();next.restore();persist(next); }
     synchronized void remove(String id) throws IOException {
-        WallpaperCatalog.Entry entry=catalog.find(id); if(entry==null || WallpaperCatalog.DEFAULT.equals(id)) return;
+        WallpaperCatalog.Entry entry=catalog.find(id); if(entry==null || WallpaperCatalog.DEFAULT.equals(id)||WallpaperCatalog.DAILY.equals(id)) return;
         WallpaperCatalog old=catalog.copy(),next=catalog.copy();next.remove(id);persist(next);
         if(entry.custom() && file(id).exists() && !file(id).delete()) {
             persist(old); throw new IOException("Unable to delete wallpaper file");

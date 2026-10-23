@@ -25,6 +25,18 @@ Source includes legacy networking/font fallbacks, detected HOME settings, Back h
 
 ## 已验证与待验收 / Evidence boundaries
 
+### 每日壁纸开发源码 / Daily wallpaper source
+
+每日壁纸共用同一套 Java 实现，入口位于原有壁纸设置，选中确认即启用。默认必应国区，搏天风景可选；本地轮播与每日模式互斥，离线保留已缓存图片。
+
+| 档位 / Profile | 共用功能 / Shared features | 验证边界 / Evidence |
+| --- | --- | --- |
+| 安卓5及以上 / Standard API21+ | 两来源、来源确认、前台每日更新、独立缓存 | API21 与 API31 模拟器通过两来源实际 HTTPS 和图片解码，以及原生交互、取消、离线、故障与缓存检查。 |
+| 安卓4.4 / legacy19 | 同一功能代码，启用 TLS 1.2 | 构建、定向单元测试及 Lint 通过；本轮无可运行的 API19 镜像，运行和 TLS 验收待完成。 |
+| 酷开安卓8 / Coocaa API26 | 同一功能代码，独立包名 | 专用配置构建通过；酷开固件真机未测。 |
+
+搏天在旧系统上的证书链兼容仅对其接口和图片域名补充官方 ISRG 根证书，保留证书与域名校验。以上为本地开发验证，不代表已发布安装包，也不保证所有地区、运营商或电视固件的网络可达；实体遥控器、待机唤醒和跨日长期使用仍需真机验收。
+
 ### 当前 1.1.2 / Current release
 
 - 两档均通过优化构建、各 49 项单元测试、Lint（0 错误；标准 61 条警告，兼容 46 条），以及实际 APK 元数据、签名和 ZIP 对齐检查。归档工具 9 项检查通过；GitHub 回下载 SHA-256 与归档一致。
