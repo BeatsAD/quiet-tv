@@ -22,6 +22,10 @@ android {
     }
     buildFeatures { buildConfig true }
     sourceSets.main.java.srcDir(legacy ? 'src/legacy19/java' : 'src/standard/java')
+    // Former clones may retain these local-only files; never compile the retired recorder.
+    sourceSets.main.java.exclude 'home/quiet/tv/DiagnosticText.java', 'home/quiet/tv/DiagnosticsActivity.java',
+        'home/quiet/tv/DiagnosticsDownloadServer.java', 'home/quiet/tv/DiagnosticsRecorder.java',
+        'home/quiet/tv/DiagnosticsSnapshot.java'
     buildTypes {
         debug { debuggable true }
         benchmark {

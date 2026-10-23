@@ -92,3 +92,11 @@ __pycache__/
 !/docs/assets/wallpaper-manage-1.1.2.png
 !/docs/assets/desktop-settings-1.1.2.png
 !/docs/assets/sort-1.1.2.png
+
+# Retired in-app diagnostics stay local; no longer public or compiled.
+/app/src/main/java/home/quiet/tv/DiagnosticText.java
+/app/src/main/java/home/quiet/tv/DiagnosticsActivity.java
+/app/src/main/java/home/quiet/tv/DiagnosticsDownloadServer.java
+/app/src/main/java/home/quiet/tv/DiagnosticsRecorder.java
+/app/src/main/java/home/quiet/tv/DiagnosticsSnapshot.java
+!/docs/AGENT_DIAGNOSE.zh-CN.md
