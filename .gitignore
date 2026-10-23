@@ -8,6 +8,11 @@ inspection/
 backups/
 evidence/
 /output/
+# Production illustrations required by the child-mode rest screen.
+!/app/src/main/assets/child-rest/
+!/app/src/main/assets/child-rest/forest.webp
+!/app/src/main/assets/child-rest/cloud.webp
+!/app/src/main/assets/child-rest/space.webp
 .DS_Store
 __pycache__/
 *.py[cod]
