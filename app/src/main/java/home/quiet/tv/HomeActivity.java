@@ -31,6 +31,10 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private static final String MANAGEMENT_ENTRY = HomeAppCatalog.MANAGEMENT;
     static final int APP_COLUMNS = 5;
     private static final float CONTENT_MARGIN = 48;
+    // Raise the app viewport while keeping the home title and dock at y=314/386.
+    private static final float LIST_TOP = 147, HOME_HEADER_HEIGHT = 393;
+    private static final float HOME_TITLE_TOP = 167, HOME_DOCK_TOP = 239;
+    private static final float APP_TITLE_HEIGHT = 38;
     private static final float FOCUS_SCALE = 1.065f, FOCUS_OUTSET = 5, FOCUS_STROKE = 3;
     // A critically damped spring settles without bouncing past the target.
     private static final android.animation.TimeInterpolator FOCUS_MOTION = t -> (float)((1-(1+8*t)*Math.exp(-8*t))/(1-9*Math.exp(-8)));
@@ -157,6 +161,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         };
         list.setClipChildren(true); list.setClipToPadding(false);
         list.setOverScrollMode(View.OVER_SCROLL_NEVER); list.setItemAnimator(null);
+        list.setVerticalScrollBarEnabled(false); list.setHorizontalScrollBarEnabled(false);
         list.setFocusable(false); list.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
         list.setPadding(px(CONTENT_MARGIN),0,px(CONTENT_MARGIN),px(8));
         layout = new GridLayoutManager(this,APP_COLUMNS);
@@ -164,7 +169,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             @Override public int getSpanSize(int position) { return position < 2 ? APP_COLUMNS : 1; }
         });
         list.setLayoutManager(layout); list.setAdapter(new AppAdapter());
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-1,-1); lp.topMargin=px(192); root.addView(list,lp);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-1,-1); lp.topMargin=px(LIST_TOP); root.addView(list,lp);
         list.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override public void onScrolled(RecyclerView rv, int dx, int dy) {
                 View header=layout.findViewByPosition(0);
@@ -436,7 +441,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             }else{
                 if(key==KeyEvent.KEYCODE_DPAD_LEFT)column=Math.max(0,column-1);
                 if(key==KeyEvent.KEYCODE_DPAD_RIGHT)column=Math.min(maxColumn(row),column+1);
-                if(key==KeyEvent.KEYCODE_DPAD_UP){if(row==0){if(rightButtonsVisible){restoreColumn=column;row=-1;}}else{row--;column=Math.min(column,maxColumn(row));}}
+                if(key==KeyEvent.KEYCODE_DPAD_UP){if(row==0){if(rightButtonsVisible){restoreColumn=column;row=-1;}}else{row--;column=Math.min(row==0?restoreColumn:column,maxColumn(row));}}
                 if(key==KeyEvent.KEYCODE_DPAD_DOWN && row<gridRows()){if(row==0)restoreColumn=column;row++;column=Math.min(column,maxColumn(row));}
             }
             focusCurrent(true);return true;
@@ -454,15 +459,16 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             positionGlass(animate);Log.i(TAG,"Focus top="+topColumn);return;
         }
         int position=row==0?0:2+(row-1)*APP_COLUMNS;
-        int offset=row==0?0:px(42);
+        int offset=row==0?0:px(APP_TITLE_HEIGHT);
+        if(scrollAnimation!=null && scrollAnimation.isRunning() && scrollTarget!=position){scrollAnimation.cancel();list.stopScroll();}
         AppAdapter adapter=(AppAdapter)list.getAdapter();
         int gridStride=px(adapter.gridHeight)+px(12);
-        int bottom=Math.max(px(8),list.getHeight()-px(42)-gridRows()*gridStride);
+        int bottom=Math.max(px(8),list.getHeight()-px(APP_TITLE_HEIGHT)-gridRows()*gridStride);
         if(list.getPaddingBottom()!=bottom)list.setPadding(px(CONTENT_MARGIN),0,px(CONTENT_MARGIN),bottom);
         boolean needsScroll=row<=1;
         if(row>1){
             View first=layout.findViewByPosition(position);
-            needsScroll=first==null || first.getTop()<px(38) || first.getBottom()>list.getHeight()-px(20);
+            needsScroll=first==null || first.getTop()<px(APP_TITLE_HEIGHT) || first.getBottom()>list.getHeight()-px(20);
         }
         if(needsScroll && !(animate && scrollTarget==position && scrollAnimation!=null && scrollAnimation.isRunning())){
             if(scrollAnimation!=null)scrollAnimation.cancel();
@@ -471,9 +477,9 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             else{
                 int first=layout.findFirstVisibleItemPosition();View view=layout.findViewByPosition(first);
                 if(view!=null){
-                    int before=first==0?0:px(348)+(first==1?0:px(38)+(first-2)/APP_COLUMNS*gridStride);
+                    int before=first==0?0:px(HOME_HEADER_HEIGHT)+(first==1?0:px(APP_TITLE_HEIGHT)+(first-2)/APP_COLUMNS*gridStride);
                     int current=before-layout.getDecoratedTop(view);
-                    int target=position==0?0:px(348)+px(38)+(row-1)*gridStride-offset;
+                    int target=position==0?0:px(HOME_HEADER_HEIGHT)+px(APP_TITLE_HEIGHT)+(row-1)*gridStride-offset;
                     if(target!=current){
                         final int[] moved={0};scrollAnimation=ValueAnimator.ofInt(0,target-current);
                         scrollAnimation.setDuration(420);scrollAnimation.setInterpolator(FOCUS_MOTION);
@@ -534,11 +540,11 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         @Override public RecyclerView.ViewHolder onCreateViewHolder(android.view.ViewGroup parent,int type){
             View view;
             if(type==0){
-                FrameLayout header=new FrameLayout(HomeActivity.this);header.setClipChildren(false);header.setLayoutParams(new RecyclerView.LayoutParams(-1,px(348)));
-                heroTitle=text("",40,400,0xfff1f2f6);place(header,heroTitle,820,56,2,122);
-                FrameLayout band=new FrameLayout(HomeActivity.this);band.setBackground(pillSurface());band.setClipChildren(false);place(header,band,-1,dockHeight+2*dockPadding,0,194);
+                FrameLayout header=new FrameLayout(HomeActivity.this);header.setClipChildren(false);header.setLayoutParams(new RecyclerView.LayoutParams(-1,px(HOME_HEADER_HEIGHT)));
+                heroTitle=text("",40,400,0xfff1f2f6);place(header,heroTitle,820,56,2,HOME_TITLE_TOP);
+                FrameLayout band=new FrameLayout(HomeActivity.this);band.setBackground(pillSurface());band.setClipChildren(false);place(header,band,-1,dockHeight+2*dockPadding,0,HOME_DOCK_TOP);
                 header.setTag(band);view=header;
-            }else if(type==1){TextView title=text(tr("全部应用","All apps"),18,400,0xffbbbbc3);title.setPadding(px(3),px(4),0,0);title.setLayoutParams(new RecyclerView.LayoutParams(-1,px(38)));view=title;}
+            }else if(type==1){TextView title=text(tr("全部应用","All apps"),18,400,0xffbbbbc3);title.setPadding(px(3),px(4),0,0);title.setLayoutParams(new RecyclerView.LayoutParams(-1,px(APP_TITLE_HEIGHT)));view=title;}
             else{Tile tile=new Tile();RecyclerView.LayoutParams p=new RecyclerView.LayoutParams(-1,px(gridHeight));p.leftMargin=px(8);p.rightMargin=px(8);p.bottomMargin=px(12);tile.setLayoutParams(p);view=tile;}
             return new RecyclerView.ViewHolder(view){};
         }
