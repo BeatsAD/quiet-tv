@@ -31,7 +31,7 @@ final class WallpaperController {
     private final View shade;
     private final Ambient ambient;
     private final VideoWallpaperPlayer video;
-    private String playingVideo="",failedVideo="";
+    private String playingVideo="",failedVideo="",pendingVideoCommit="";
     private int videoRequest;
     private boolean dynamicTab;
     private final LruCache<String,Bitmap> thumbnails=new LruCache<String,Bitmap>(6*1024){@Override protected int sizeOf(String id,Bitmap bitmap){return bitmap.getByteCount()/1024;}};
@@ -48,7 +48,7 @@ final class WallpaperController {
     private LinearLayout rail,actions;
     private HorizontalScrollView scroll;
     private View pendingCardFocus;
-    private TextView title,subtitle,apply,dailySettings,restore,auto,manage,upload,categoryToggle,dynamicToggle,playPreview;
+    private TextView title,subtitle,dailySettings,restore,auto,manage,upload,categoryToggle,dynamicToggle;
     private String pressedWallpaper;
     private int pressedKey=KeyEvent.KEYCODE_UNKNOWN;
     private long pressedAt;
@@ -89,7 +89,7 @@ final class WallpaperController {
     private ImageView image(){ImageView view=new ImageView(activity);view.setScaleType(ImageView.ScaleType.CENTER_CROP);view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);return view;}
     private void display(String id,boolean animate){
         WallpaperCatalog.Entry selected=store.snapshot().find(id);
-        if(selected!=null&&selected.video()&&id.equals(playingVideo)&&video.ready())return;
+        if(selected!=null&&selected.video()&&id.equals(playingVideo))return;
         stopVideo();final int version=++request;
         if(transition!=null){transition.end();transition=null;}
         if(WallpaperCatalog.DEFAULT.equals(id)){
@@ -189,37 +189,38 @@ final class WallpaperController {
         auto=button("",false,()->runSaved(()->{WallpaperCatalog s=store.snapshot();daily.cancel();store.rotation(!s.rotating);preview=store.snapshot().current;display(preview,true);refreshCards(preview,false);}));header.addView(auto);
         dynamicToggle=button("",false,this::toggleVideo);header.addView(dynamicToggle);
         gap(header,8);upload=button(tr("上传壁纸","Upload"),false,()->{daily.cancel();stopVideo();uploads.show(WallpaperUi.backdrop(root,content),id->{if(picker!=null){if(id!=null){preview=id;WallpaperCatalog.Entry added=store.snapshot().find(id);dynamicTab=added!=null&&added.video();}refreshCards(preview,id!=null);}});});ui.icon(upload,R.drawable.wp_upload);header.addView(upload);
-        gap(header,8);manage=button(tr("管理","Manage"),false,()->{daily.cancel();managing=!managing;refreshCards(preview,true);});ui.icon(manage,R.drawable.wp_sliders_horizontal);header.addView(manage);layout.addView(header);
+        gap(header,8);manage=button(tr("管理","Manage"),false,()->{daily.cancel();stopVideo();managing=!managing;refreshCards(preview,true);});ui.icon(manage,R.drawable.wp_sliders_horizontal);header.addView(manage);layout.addView(header);
         layout.addView(new View(activity),new LinearLayout.LayoutParams(1,0,1));
         actions=row();LinearLayout titles=new LinearLayout(activity);titles.setOrientation(LinearLayout.VERTICAL);title=label("",27);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);titles.addView(title,new LinearLayout.LayoutParams(-1,-2));
         subtitle=label("",12);subtitle.setTextColor(WallpaperUi.MUTED);subtitle.setSingleLine(true);subtitle.setEllipsize(android.text.TextUtils.TruncateAt.END);subtitle.setPadding(0,px(8),0,0);titles.addView(subtitle,new LinearLayout.LayoutParams(-1,-2));actions.addView(titles,new LinearLayout.LayoutParams(0,-2,1));
         dailySettings=button(tr("每日设置","Daily settings"),false,()->dailyPanel.show(WallpaperUi.backdrop(root,content),()->{if(picker!=null&&active){details();dailySettings.post(()->{if(picker!=null)dailySettings.requestFocusFromTouch();});}}));ui.icon(dailySettings,R.drawable.wp_sliders_horizontal);actions.addView(dailySettings);
-        playPreview=button(tr("预览","Preview"),false,()->startVideo(preview,false));actions.addView(playPreview);gap(actions,8);
-        apply=button("",true,this::applySelected);ui.icon(apply,R.drawable.wp_check);actions.addView(apply);
         LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,px(60));ap.setMargins(px(4),0,px(4),px(24));layout.addView(actions,ap);
         LinearLayout restores=row();restores.setGravity(Gravity.END);restore=button(tr("恢复内置壁纸","Restore built-in wallpapers"),false,this::confirmRestore);restore.setMinHeight(px(30));restore.setBackground(ui.focusSurface(Color.TRANSPARENT,100));ui.icon(restore,R.drawable.wp_rotate_ccw);restores.addView(restore);layout.addView(restores);
         scroll=new HorizontalScrollView(activity);scroll.setHorizontalScrollBarEnabled(false);scroll.setClipToPadding(false);scroll.setClipChildren(false);scroll.setFillViewport(false);rail=row();rail.setClipToPadding(false);rail.setClipChildren(false);rail.setGravity(Gravity.BOTTOM);rail.setPadding(px(4),px(7),px(4),0);scroll.addView(rail);LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,px(154));layout.addView(scroll,rp);
-        picker.setContentView(content);picker.setOnDismissListener(d->{cancelCardPress();pendingCardFocus=null;++pickerVersion;uploads.close();picker=null;dailyPanel.close();daily.cancel();cards.clear();for(int n=1;n<root.getChildCount();n++)root.getChildAt(n).setVisibility(View.VISIBLE);shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x70000000,0x10000000,0xf00a0e15}));String selected=store.snapshot().current;display(selected,true);if(active&&store.snapshot().dynamic()&&!selected.equals(failedVideo))startVideo(selected,false);schedule();});
+        picker.setContentView(content);picker.setOnDismissListener(d->{cancelCardPress();stopVideo();pendingCardFocus=null;++pickerVersion;uploads.close();picker=null;dailyPanel.close();daily.cancel();cards.clear();for(int n=1;n<root.getChildCount();n++)root.getChildAt(n).setVisibility(View.VISIBLE);shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x70000000,0x10000000,0xf00a0e15}));String selected=store.snapshot().current;display(selected,true);if(active&&store.snapshot().dynamic()&&!selected.equals(failedVideo))startVideo(selected,false);schedule();});
         Window window=picker.getWindow();if(window!=null){window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));window.getDecorView().setSystemUiVisibility(5894);window.setDimAmount(0);}
         shade.setBackground(WallpaperUi.shade());picker.show();if(window!=null)window.setLayout(-1,-1);refreshCards(preview,true);
     }
-    private void stopVideo(){++videoRequest;video.stop();playingVideo="";current.setAlpha(1f);}
+    private void stopVideo(){++videoRequest;pendingVideoCommit="";video.stop();playingVideo="";current.setAlpha(1f);}
     private void startVideo(String id,boolean commit){
         WallpaperCatalog.Entry entry=store.snapshot().find(id);if(entry==null||!entry.video()||!active)return;
-        failedVideo="";display(id,false);stopVideo();playingVideo=id;final int version=videoRequest;
+        if(id.equals(playingVideo)){
+            if(commit){pendingVideoCommit=id;if(video.ready()){pendingVideoCommit="";commitVideo(id);}}return;
+        }
+        failedVideo="";display(id,false);stopVideo();playingVideo=id;pendingVideoCommit=commit?id:"";final int version=videoRequest;
         video.play(entry,new VideoWallpaperPlayer.Listener(){
-            boolean applying=commit;
             @Override public void stopped(){if(version==videoRequest)current.setAlpha(1f);}
-            @Override public void ready(){if(version!=videoRequest||!active)return;current.setAlpha(0f);if(applying){applying=false;commitVideo(id);}else if(picker!=null)details();}
-            @Override public void failed(){if(version!=videoRequest)return;failedVideo=id;playingVideo="";current.setAlpha(1f);if(picker!=null)details();notice(tr("视频播放失败，请使用较低规格的 MP4","Video playback failed. Try a lower-resolution MP4."));}
+            @Override public void ready(){if(version!=videoRequest||!active)return;current.setAlpha(0f);if(id.equals(pendingVideoCommit)){pendingVideoCommit="";commitVideo(id);}else if(picker!=null)details();}
+            @Override public void failed(){if(version!=videoRequest)return;failedVideo=id;playingVideo="";pendingVideoCommit="";current.setAlpha(1f);if(picker!=null)details();notice(tr("视频播放失败，请使用较低规格的 MP4","Video playback failed. Try a lower-resolution MP4."));}
         });
     }
     private void commitVideo(String id){
-        try{daily.cancel();store.select(id);if(picker!=null)refreshCards(id,false);notice(tr("已应用动态壁纸","Video wallpaper applied"));}
+        try{daily.cancel();store.select(id);if(picker!=null)refreshCards(id,cards.get(id)!=null&&cards.get(id).hasFocus());notice(tr("已应用动态壁纸","Video wallpaper applied"));}
         catch(IOException e){stopVideo();display(store.snapshot().current,false);notice(tr("壁纸设置保存失败","Unable to save wallpaper settings"));}
     }
     private void applySelected(){WallpaperCatalog.Entry entry=store.snapshot().find(preview);if(entry==null)return;
-        if(entry.video()){if(preview.equals(playingVideo)&&video.ready())commitVideo(preview);else startVideo(preview,true);}
+        if(entry.video())startVideo(preview,true);
+        else if(WallpaperCatalog.DAILY.equals(preview))daily.apply(store.snapshot().dailySource,(success,message)->{if(picker!=null){refreshCards(WallpaperCatalog.DAILY,true);notice(success?tr("已应用每日壁纸","Daily wallpaper applied"):message);}});
         else runSaved(()->{daily.cancel();store.select(preview);display(preview,true);refreshCards(preview,true);notice(tr("已应用壁纸","Wallpaper applied"));});
     }
     private void category(boolean videos){stopVideo();dynamicTab=videos;managing=false;refreshCards(store.snapshot().current,false);categoryToggle.requestFocus();}
@@ -228,7 +229,7 @@ final class WallpaperController {
         else if(state.find(state.lastVideo)!=null){dynamicTab=true;refreshCards(state.lastVideo,false);startVideo(state.lastVideo,true);}
         else {dynamicTab=true;refreshCards(null,false);upload.requestFocus();}
     }
-    private void handlePickerBack(){if(picker==null)return;if(!playingVideo.isEmpty()&&!playingVideo.equals(store.snapshot().current)){stopVideo();display(store.snapshot().current,false);details();return;}if(managing){managing=false;refreshCards(preview,true);}else picker.dismiss();}
+    private void handlePickerBack(){if(picker==null)return;if(managing){managing=false;refreshCards(preview,true);}else{stopVideo();picker.dismiss();}}
     private void refreshCards(String preferred,boolean focusCard){
         if(picker==null)return;cancelCardPress();pendingCardFocus=null;int version=++pickerVersion;WallpaperCatalog state=store.snapshot();
         List<WallpaperCatalog.Entry> entries=new ArrayList<>();for(WallpaperCatalog.Entry e:state.entries())if(e.video()==dynamicTab)entries.add(e);
@@ -259,8 +260,8 @@ final class WallpaperController {
                 ImageView trash=new ImageView(activity);trash.setImageDrawable(ui.icon(R.drawable.wp_trash_2,14,WallpaperUi.INK));trash.setPadding(px(4),px(4),px(4),px(4));trash.setBackground(ui.surface(0xcc20252d,100,Color.TRANSPARENT,0));trash.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
                 FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(px(24),px(24),Gravity.TOP|Gravity.RIGHT);tp.setMargins(0,px(5),px(5),0);card.addView(trash,tp);
             }
-            card.setOnFocusChangeListener((v,focus)->{if(focus){preview=id;display(id,true);details();scroll.requestChildFocus(rail,card);}else if(id.equals(pressedWallpaper))cancelCardPress();});
-            card.setOnClickListener(v->{if(managing)confirmDelete(id,KeyEvent.KEYCODE_UNKNOWN,0);else if(wallpaper.video()){preview=id;startVideo(id,false);}else if(WallpaperCatalog.DAILY.equals(id)){preview=id;daily.apply(store.snapshot().dailySource,(success,message)->{if(picker!=null){refreshCards(id,true);notice(success?tr("已应用每日壁纸","Daily wallpaper applied"):message);}});}else runSaved(()->{preview=id;daily.cancel();store.select(id);refreshCards(id,true);notice(tr("已应用壁纸","Wallpaper applied"));});});
+            card.setOnFocusChangeListener((v,focus)->{if(focus){preview=id;if(wallpaper.video()&&!managing)startVideo(id,false);else display(id,true);details();scroll.requestChildFocus(rail,card);}else if(id.equals(pressedWallpaper))cancelCardPress();});
+            card.setOnClickListener(v->{if(managing)confirmDelete(id,KeyEvent.KEYCODE_UNKNOWN,0);else{preview=id;applySelected();}});
             card.setOnLongClickListener(v->{confirmDelete(id,KeyEvent.KEYCODE_UNKNOWN,0);return true;});
             card.setFocusable(!managing||!WallpaperCatalog.DEFAULT.equals(id)&&!WallpaperCatalog.DAILY.equals(id));card.setAlpha(card.isFocusable()?1:.45f);
             card.setOnKeyListener((v,key,event)->{if(confirmKey(key))return cardKey(id,key,event);if(key!=KeyEvent.KEYCODE_DPAD_LEFT&&key!=KeyEvent.KEYCODE_DPAD_RIGHT)return false;if(event.getAction()==KeyEvent.ACTION_DOWN){cancelCardPress();List<String> ids=focusableCards();int index=ids.indexOf(id)+(key==KeyEvent.KEYCODE_DPAD_LEFT?-1:1);if(index>=0&&index<ids.size())cards.get(ids.get(index)).requestFocus();}return true;});
@@ -297,23 +298,21 @@ final class WallpaperController {
         categoryToggle.setNextFocusRightId(dynamicTab?dynamicToggle.getId():auto.getId());auto.setNextFocusLeftId(categoryToggle.getId());dynamicToggle.setNextFocusLeftId(categoryToggle.getId());
         dynamicToggle.setVisibility(dynamicTab?View.VISIBLE:View.GONE);dynamicToggle.setText(tr("动态壁纸","Video wallpaper"));dynamicToggle.setCompoundDrawables(toggleDrawable(state.dynamic()),null,null,null);dynamicToggle.setCompoundDrawablePadding(px(7));dynamicToggle.setContentDescription(state.dynamic()?tr("动态壁纸，开","Video wallpaper, on"):tr("动态壁纸，关","Video wallpaper, off"));
         auto.setVisibility(dynamicTab?View.GONE:View.VISIBLE);
-        if(entry==null){title.setText(tr("还没有动态壁纸","No video wallpapers"));subtitle.setVisibility(View.GONE);apply.setVisibility(View.GONE);dailySettings.setVisibility(View.GONE);playPreview.setVisibility(View.GONE);((View)restore.getParent()).setVisibility(View.GONE);manage.setEnabled(false);return;}
-        manage.setEnabled(true);playPreview.setVisibility(entry.video()&&!managing?View.VISIBLE:View.GONE);
+        if(entry==null){title.setText(tr("还没有动态壁纸","No video wallpapers"));subtitle.setVisibility(View.GONE);dailySettings.setVisibility(View.GONE);((View)restore.getParent()).setVisibility(View.GONE);manage.setEnabled(false);return;}
+        manage.setEnabled(true);
         title.setText(entry.label(chinese));boolean isDaily=WallpaperCatalog.DAILY.equals(preview);
         ViewGroup.LayoutParams actionSize=actions.getLayoutParams();int actionHeight=px((isDaily||entry.video())&&!managing?60:43);if(actionSize.height!=actionHeight){actionSize.height=actionHeight;actions.setLayoutParams(actionSize);}
         dailySettings.setVisibility(isDaily&&!managing?View.VISIBLE:View.GONE);subtitle.setVisibility((isDaily||entry.video())&&!managing?View.VISIBLE:View.GONE);
-        if(entry.video())subtitle.setText(preview.equals(failedVideo)?tr("播放已暂停，请预览重试或关闭动态壁纸","Playback paused. Preview to retry or turn off video wallpaper."):entry.width+" × "+entry.height+"  "+Math.round(entry.fps)+" FPS  "+Math.round(entry.durationMs/1000f)+tr(" 秒"," s"));
+        if(entry.video())subtitle.setText(preview.equals(failedVideo)?tr("播放失败，按确定键重试","Playback failed. Press OK to retry."):entry.width+" × "+entry.height+"  "+Math.round(entry.fps)+" FPS  "+Math.round(entry.durationMs/1000f)+tr(" 秒"," s"));
         if(isDaily){WallpaperCatalog.DailyImage image=state.dailyImages.get(state.dailySource);String source=WallpaperCatalog.sourceLabel(state.dailySource,chinese);subtitle.setText(daily.busy()?daily.status(state.dailySource):source+"  "+(image!=null&&!image.title.isEmpty()?image.title:tr("每天自动更新","Updates daily")));}
-        boolean applied=preview.equals(state.current)&&!state.rotating;apply.setEnabled(!applied&&!managing);apply.setVisibility(applied||managing||isDaily?View.GONE:View.VISIBLE);apply.setText(entry.video()?tr("使用动态壁纸","Use video wallpaper"):WallpaperCatalog.DEFAULT.equals(preview)?tr("使用颜色主题","Use color theme"):tr("使用这张壁纸","Use wallpaper"));
         auto.setText(tr("壁纸轮播","Slideshow"));auto.setCompoundDrawables(toggleDrawable(state.rotating),null,null,null);auto.setCompoundDrawablePadding(px(7));auto.setContentDescription(state.rotating?tr("壁纸轮播，开","Slideshow, on"):tr("壁纸轮播，关","Slideshow, off"));auto.setEnabled(!WallpaperCatalog.DAILY.equals(state.current)&&state.pictures().size()>=2);auto.setAlpha(auto.isEnabled()?1:.4f);
         manage.setText(managing?tr("完成","Done"):tr("管理","Manage"));View restoreRow=(View)restore.getParent();restoreRow.setVisibility(managing&&!state.removed.isEmpty()?View.VISIBLE:View.GONE);
-        View card=cards.get(preview);if(card==null)return;View action=managing?restoreRow.getVisibility()==View.VISIBLE?restore:manage:dailySettings.getVisibility()==View.VISIBLE?dailySettings:playPreview.getVisibility()==View.VISIBLE?playPreview:apply.getVisibility()==View.VISIBLE?apply:upload;
+        View card=cards.get(preview);if(card==null)return;View action=managing?restoreRow.getVisibility()==View.VISIBLE?restore:manage:dailySettings.getVisibility()==View.VISIBLE?dailySettings:upload;
         for(Map.Entry<String,View> item:cards.entrySet()){boolean selected=item.getKey().equals(preview);item.getValue().setBackground(border(selected,false));item.getValue().setPadding(px(CARD_INSET),px(CARD_INSET),px(CARD_INSET),px(CARD_INSET));item.getValue().setTranslationY(selected?-px(3):0);item.getValue().setNextFocusUpId(action.getId());}
         int lower=card.isFocusable()?card.getId():restoreRow.getVisibility()==View.VISIBLE?restore.getId():manage.getId();
         for(TextView control:new TextView[]{auto,upload,manage,categoryToggle,dynamicToggle})control.setNextFocusDownId(managing||action==upload?lower:action.getId());
         dailySettings.setNextFocusDownId(lower);dailySettings.setNextFocusUpId(upload.getId());
-        playPreview.setNextFocusDownId(lower);playPreview.setNextFocusUpId(categoryToggle.getId());
-        apply.setNextFocusDownId(lower);apply.setNextFocusUpId(upload.getId());restore.setNextFocusDownId(lower);restore.setNextFocusUpId(manage.getId());
+        restore.setNextFocusDownId(lower);restore.setNextFocusUpId(manage.getId());
     }
     private void confirmDelete(String id,int initiatingKey,long downTime){
         if(picker==null||confirmation!=null&&confirmation.isShowing())return;
