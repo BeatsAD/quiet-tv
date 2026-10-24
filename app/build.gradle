@@ -17,8 +17,8 @@ android {
         manifestPlaceholders = [leanbackRequired: !legacy, homeGuardAvailable: !legacy]
         buildConfigField 'boolean', 'LEGACY_19', legacy.toString()
         targetSdk 36
-        versionCode providers.gradleProperty('quietBuildNumber').getOrElse('36').toInteger()
-        versionName '1.2.0'
+        versionCode providers.gradleProperty('quietBuildNumber').getOrElse('51').toInteger()
+        versionName '1.2.1'
     }
     buildFeatures { buildConfig true }
     // Keep historical source media and superseded generated QR PNGs out of APK assets.
