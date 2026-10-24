@@ -92,7 +92,7 @@ final class WeatherCityPicker {
         ScrollView scroll=new ScrollView(ui);scroll.setFillViewport(false);scroll.addView(list);PopupWindow popup=new PopupWindow(scroll,Math.max(anchor.getWidth(),ui.px(180)),ui.px(Math.min(212,choices.size()*40+12)),true);dropdown=popup;
         popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));popup.setOutsideTouchable(true);if(Build.VERSION.SDK_INT>=21)popup.setElevation(ui.px(14));
         for(WeatherRegions.Region region:choices){
-            Button option=ui.button(region.name,()->{popup.dismiss();selected.accept(region);});option.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);option.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,ui.px(13));option.setSingleLine(true);option.setEllipsize(TextUtils.TruncateAt.END);ControlStyle.choice(option,ui.unit,9,0x10ffffff,0x22ffffff);option.setSelected((draft!=null&&draft.code.equals(region.code))||(city!=null&&city.code.equals(region.code))||(province!=null&&province.code.equals(region.code)));list.addView(option,new LinearLayout.LayoutParams(-1,ui.px(40)));
+            Button option=ui.button(region.name,()->{popup.dismiss();selected.accept(region);});option.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);option.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,ui.px(13));option.setSingleLine(true);option.setEllipsize(TextUtils.TruncateAt.END);option.setBackground(ui.listSurface());option.setSelected((draft!=null&&draft.code.equals(region.code))||(city!=null&&city.code.equals(region.code))||(province!=null&&province.code.equals(region.code)));list.addView(option,new LinearLayout.LayoutParams(-1,ui.px(40)));
         }
         popup.setOnDismissListener(()->{if(dropdown==popup)dropdown=null;anchor.requestFocus();});popup.showAsDropDown(anchor,0,ui.px(6));if(list.getChildCount()>0)list.getChildAt(0).requestFocus();
     }
@@ -101,7 +101,7 @@ final class WeatherCityPicker {
         List<WeatherRegions.Region> matches=regions.search(text,20);
         if(matches.isEmpty())results.addView(ui.muted(tr("未找到地区，请换个关键词","No regions found. Try another keyword."),12));
         for(WeatherRegions.Region region:matches){
-            Button option=ui.button(region.label(),()->{select(region);hideKeyboard();save.requestFocus();});option.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);option.setSingleLine(true);option.setEllipsize(TextUtils.TruncateAt.END);ControlStyle.choice(option,ui.unit,9,0x10ffffff,0x22ffffff);option.setSelected(draft!=null&&draft.code.equals(region.code));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,ui.px(42));p.topMargin=ui.px(5);results.addView(option,p);
+            Button option=ui.button(region.label(),()->{select(region);hideKeyboard();save.requestFocus();});option.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);option.setSingleLine(true);option.setEllipsize(TextUtils.TruncateAt.END);option.setBackground(ui.listSurface());option.setSelected(draft!=null&&draft.code.equals(region.code));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,ui.px(42));p.topMargin=ui.px(5);results.addView(option,p);
         }
         if(focus&&!matches.isEmpty()){hideKeyboard();results.getChildAt(0).requestFocus();}
     }

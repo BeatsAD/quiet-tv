@@ -11,6 +11,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 public final class ChildModeActivity extends ManagementUi {
+    @Override boolean useSettingListStyle(){return false;}
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private final ArrayList<ResolveInfo> apps=new ArrayList<>(),visible=new ArrayList<>();
     private ChildModeStore store;
