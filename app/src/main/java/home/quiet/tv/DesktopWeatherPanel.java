@@ -74,11 +74,14 @@ final class DesktopWeatherPanel {
     private void serviceInformation(){
         ManagementUi.Sheet sheet=ui.new Sheet(tr("服务说明","Service information"));information=sheet;
         boolean primary=snapshot==null?WeatherConfiguration.load(ui).configured():"qweather".equals(snapshot.provider);
-        detail(sheet,tr("天气来源","Weather source"),snapshot==null?(primary?tr("和风天气优先，UAPI 备用","QWeather first, UAPI fallback"):"UAPI"):snapshot.providerName());
+        sheet.body.addView(ui.label(tr("天气来源","Weather source"),15));
+        TextView attribution=ui.muted(snapshot==null?(primary?tr("和风天气优先，UAPI 备用","QWeather first, UAPI fallback"):"UAPI")
+            :primary?tr("天气服务由和风天气提供","Weather service provided by QWeather"):tr("天气服务由 UAPI 提供","Weather service provided by UAPI"),12);
+        attribution.setTextColor(0xffb0b4be);attribution.setLineSpacing(ui.px(3),1);sheet.body.addView(attribution,new LinearLayout.LayoutParams(-1,-2));
         detail(sheet,tr("自动定位","Automatic location"),tr("优先使用系统位置；不可用时根据网络 IP 推测城市，可手动选择城市。","Uses system location when available, otherwise estimates the city from the network IP. You can choose a city manually."));
         detail(sheet,tr("隐私与条款","Privacy and terms"),tr("通过 HTTPS 查询和风天气，失败时尝试 UAPI。地区选择和搜索在本地完成，手机输入仅在当前局域网会话中接收。","Queries QWeather over HTTPS with UAPI fallback. Region search is local; phone input is limited to the current LAN session."));
         if(snapshot!=null){SimpleDateFormat time=new SimpleDateFormat("MM-dd HH:mm",Locale.US);detail(sheet,tr("数据时间","Observation time"),snapshot.observedAt>0?time.format(new Date(snapshot.observedAt)):tr("接口未提供可识别时间","Observation time unavailable"));}
-        sheet.action(tr("数据来源","Data source"),()->open(primary?WeatherClient.SOURCE_URL:"https://uapis.cn/docs/api-reference/get-misc-weather"));sheet.action(tr("隐私与条款","Privacy and terms"),()->open(primary?"https://dev.qweather.com/docs/terms/tos/":"https://uapis.cn/docs/getting-started/privacy-policy"));Button close=sheet.action(tr("关闭","Close"),sheet.dialog::dismiss);
+        sheet.action(primary?tr("和风天气官网","QWeather site"):tr("UAPI 官网","UAPI website"),()->open(primary?"https://www.qweather.com":"https://uapis.cn"));sheet.action(tr("隐私与条款","Privacy and terms"),()->open(primary?"https://dev.qweather.com/docs/terms/tos/":"https://uapis.cn/docs/getting-started/privacy-policy"));Button close=sheet.action(tr("关闭","Close"),sheet.dialog::dismiss);
         sheet.dialog.setOnDismissListener(d->{information=null;if(active)service.requestFocus();});sheet.show(close);
     }
     private void detail(ManagementUi.Sheet sheet,String heading,String text){
