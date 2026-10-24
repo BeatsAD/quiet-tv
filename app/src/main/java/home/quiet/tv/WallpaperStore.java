@@ -51,14 +51,14 @@ final class WallpaperStore {
         return cached(image)?id+":"+image.source+":"+image.key+":"+image.slot:id+":missing";
     }
     synchronized void commitDaily(WallpaperCatalog.DailyImage image,File prepared,boolean apply) throws IOException {
+        if(!WallpaperCatalog.BING.equals(image.source))throw new IOException("Unknown wallpaper source");
         WallpaperCatalog next=catalog.copy();
         if(prepared!=null){
             if(prepared.length()==0||prepared.length()>DailyWallpaperClient.MAX_IMAGE_BYTES)throw new IOException("Invalid daily wallpaper size");
             WallpaperCatalog.DailyImage old=catalog.dailyImages.get(image.source);image.slot=old==null?0:1-old.slot;
             if(!prepared.renameTo(dailyFile(image.source,image.slot)))throw new IOException("Unable to save daily wallpaper");
         }else if(!cached(image))throw new IOException("Daily wallpaper cache unavailable");
-        next.dailyImages.put(image.source,image);
-        if(apply){next.select(WallpaperCatalog.DAILY);next.dailySource=image.source;}
+        next.updateDaily(image,apply);
         persist(next);
     }
     synchronized File file(String id) {

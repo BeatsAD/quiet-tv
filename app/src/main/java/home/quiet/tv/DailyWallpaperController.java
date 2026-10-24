@@ -35,7 +35,7 @@ final class DailyWallpaperController {
     private boolean active,busy;
     private String pendingSource,message="",messageSource="";
 
-    DailyWallpaperController(Context context,WallpaperStore store,boolean chinese,Runnable changed){this.context=context.getApplicationContext();this.store=store;this.chinese=chinese;this.changed=changed;client=new DailyWallpaperClient(this.context);}
+    DailyWallpaperController(Context context,WallpaperStore store,boolean chinese,Runnable changed){this.context=context.getApplicationContext();this.store=store;this.chinese=chinese;this.changed=changed;client=new DailyWallpaperClient();}
     private String tr(String zh,String en){return chinese?zh:en;}
     static String today(){return new SimpleDateFormat("yyyy-MM-dd",Locale.US).format(new Date());}
     boolean busy(){return busy;}
@@ -58,30 +58,30 @@ final class DailyWallpaperController {
     private String failureStatus(Failure failure){
         long remaining=failure.retryAt-SystemClock.elapsedRealtime();
         if(failure.limited&&remaining>0){long minutes=(remaining+59999)/60000;return failure.message+"  "+tr("请在 "+minutes+" 分钟后重试","Try again in "+minutes+" min");}
-        return failure.message+"  "+tr("可检查更新重试","Check for updates to retry");
+        return failure.message+"  "+tr("稍后重试","Try again later");
     }
     void resume(){active=true;environmentChanged();}
     void pause(){active=false;cancel();}
     void destroy(){pause();worker.shutdownNow();main.removeCallbacksAndMessages(null);}
     void cancel(){++generation;client.cancel();if(task!=null)task.cancel(true);task=null;busy=false;pendingSource=null;}
-    void cacheUnreadable(){unreadable.add(store.snapshot().dailySource);environmentChanged();}
+    void cacheUnreadable(){unreadable.add(WallpaperCatalog.BING);environmentChanged();}
     void environmentChanged(){
         WallpaperCatalog state=store.snapshot();
         if(!active||busy||!WallpaperCatalog.DAILY.equals(state.current)||!online())return;
-        WallpaperCatalog.DailyImage image=state.dailyImages.get(state.dailySource);
-        if(store.cached(image)&&!unreadable.contains(state.dailySource)&&today().equals(image.day))return;
-        if(SystemClock.elapsedRealtime()<retryTime(state.dailySource))return;
-        start(state.dailySource,false,false,null);
+        WallpaperCatalog.DailyImage image=state.dailyImages.get(WallpaperCatalog.BING);
+        if(WallpaperCatalog.BING.equals(state.dailySource)&&store.cached(image)&&!unreadable.contains(WallpaperCatalog.BING)&&today().equals(image.day))return;
+        if(SystemClock.elapsedRealtime()<retryTime(WallpaperCatalog.BING))return;
+        start(false,null);
     }
-    void apply(String source,Completed completed){start(source,true,false,completed);}
-    void check(String source,Completed completed){start(source,false,true,completed);}
-    private void start(String source,boolean apply,boolean manual,Completed completed){
-        if(!active||!WallpaperCatalog.dailySource(source)||busy)return;
+    void apply(Completed completed){start(true,completed);}
+    private void start(boolean apply,Completed completed){
+        if(!active||busy)return;
+        final String source=WallpaperCatalog.BING;
         WallpaperCatalog state=store.snapshot();WallpaperCatalog.DailyImage old=state.dailyImages.get(source);
         boolean cached=store.cached(old)&&!unreadable.contains(source),connected=online();String day=today();
-        boolean reuse=cached&&(!connected||(!manual&&apply&&day.equals(old.day))||(WallpaperCatalog.BT.equals(source)&&day.equals(old.day)));
+        boolean reuse=cached&&(!connected||day.equals(old.day));
         Failure previous=failures.get(source);
-        if(!reuse&&previous!=null&&SystemClock.elapsedRealtime()<previous.retryAt&&(!manual||previous.limited)){
+        if(!reuse&&previous!=null&&SystemClock.elapsedRealtime()<previous.retryAt){
             finishMessage(source,failureStatus(previous),false,completed);return;
         }
         if(!connected&&!reuse){finishMessage(source,tr("网络不可用  此来源暂无缓存","Offline  No cache for this source"),false,completed);return;}
@@ -92,16 +92,12 @@ final class DailyWallpaperController {
                 WallpaperCatalog.DailyImage ready=old;File prepared=null;
                 if(reuse){validate(store.dailyFile(old.source,old.slot));}
                 else{
-                    DailyWallpaperClient.Candidate candidate=null;String key=null;boolean duplicate=false,keepCached=false;
-                    int attempts=WallpaperCatalog.BT.equals(source)&&old!=null&&!day.equals(old.day)?3:1;
-                    stage="save";download=new File(store.dailyDirectory(),"download.tmp");
-                    for(int n=0;n<attempts;n++){
-                        valid(attempt);stage="metadata";candidate=client.latest(source);valid(attempt);
-                        if(cached&&candidate.reuses(old)){key=old.key;duplicate=true;keepCached=true;break;}
+                    stage="metadata";valid(attempt);DailyWallpaperClient.Candidate candidate=client.latest(source);valid(attempt);
+                    boolean keepCached=cached&&candidate.reuses(old),duplicate=keepCached;String key=keepCached?old.key:null;
+                    if(!keepCached){
+                        stage="save";download=new File(store.dailyDirectory(),"download.tmp");
                         stage="download";key=client.download(candidate,download);valid(attempt);duplicate=cached&&old.key.equals(key);
-                        if(!duplicate||WallpaperCatalog.BING.equals(source)||day.equals(old.day))break;
                     }
-                    if(duplicate&&WallpaperCatalog.BT.equals(source)&&!day.equals(old.day))throw new IOException("No different landscape available");
                     if(duplicate){stage="image";validate(store.dailyFile(old.source,old.slot));}
                     else{
                         stage="save";if(store.dailyDirectory().getUsableSpace()<24L*1024*1024)throw new IOException("Insufficient wallpaper storage");

@@ -9,8 +9,9 @@ final class WallpaperCatalog {
     static final String DEFAULT = "default";
     static final String DEFAULT_VIDEO = "golden-gate-sunset";
     static final String DAILY = "daily", BING = "bing-cn", BT = "bt-landscape";
+    // BT is accepted only for reading legacy caches until a Bing image is committed.
     static boolean dailySource(String source) { return BING.equals(source)||BT.equals(source); }
-    static String sourceLabel(String source,boolean chinese) { return BT.equals(source)?chinese?"搏天风景":"Btstu Landscape":chinese?"必应中国":"Bing China"; }
+    static String sourceLabel(String source,boolean chinese) { return chinese?"必应中国":"Bing China"; }
     static final class DailyImage {
         String source=BING, key="", url="", title="", copyright="", link="", upstream="", day="";
         int slot,width,height;
@@ -65,6 +66,7 @@ final class WallpaperCatalog {
     boolean rotating;
     String lastVideo=DEFAULT_VIDEO,staticBeforeVideo=DEFAULT;
     boolean rotationBeforeVideo;
+    // Source of the displayed cache, not a configurable download provider.
     String dailySource=BING,lastLocal=DEFAULT;
     final Map<String,DailyImage> dailyImages=new LinkedHashMap<>();
     final Set<String> removed = new LinkedHashSet<>();
@@ -105,6 +107,11 @@ final class WallpaperCatalog {
         current=id; rotating=false;
     }
     void stopVideo(){if(!dynamic())return;current=staticBeforeVideo;rotating=rotationBeforeVideo;normalize();}
+    void updateDaily(DailyImage image,boolean apply){
+        dailyImages.put(BING,image);
+        if(apply)select(DAILY);
+        if(DAILY.equals(current))dailySource=BING;
+    }
     void rotation(boolean enabled) {
         if(dynamic()){stopVideo();if(enabled&&DAILY.equals(current)&&!pictures().isEmpty())current=pictures().get(0).id;}
         List<Entry> pool=pictures();
