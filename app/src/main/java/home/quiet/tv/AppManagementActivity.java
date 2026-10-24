@@ -53,8 +53,8 @@ public final class AppManagementActivity extends ManagementUi {
         toolbar(false);
         LinearLayout panels=row();panels.setGravity(Gravity.TOP);LinearLayout.LayoutParams pp=new LinearLayout.LayoutParams(-1,0,1);pp.topMargin=px(23);root.addView(panels,pp);
         LinearLayout left=column();panels.addView(left,new LinearLayout.LayoutParams(0,-1,40));
-        LinearLayout filters=row();LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-1,px(36));fp.bottomMargin=px(12);left.addView(filters,fp);
-        for(int i=0;i<FILTERS.length;i++){final int chosen=i;Button option=button(FILTERS[i],()->{filter=chosen;applyFilter();});option.setId(View.generateViewId());option.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(12));option.setPadding(px(10),0,px(10),0);option.setMinWidth(px(48));option.setSingleLine();
+        LinearLayout filters=row();LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-1,px(30));fp.bottomMargin=px(12);left.addView(filters,fp);
+        for(int i=0;i<FILTERS.length;i++){final int chosen=i;Button option=button(FILTERS[i],()->{filter=chosen;applyFilter();});option.setId(View.generateViewId());styleTab(option,true);
             option.setOnKeyListener((v,key,event)->{if(key==KeyEvent.KEYCODE_DPAD_DOWN){if(event.getAction()==KeyEvent.ACTION_DOWN)focusList();return true;}return false;});
             filterButtons.add(option);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,-1);if(i>0)p.leftMargin=px(10);filters.addView(option,p);}
         for(int i=0;i<filterButtons.size();i++){Button b=filterButtons.get(i);if(i>0)b.setNextFocusLeftId(filterButtons.get(i-1).getId());if(i+1<filterButtons.size())b.setNextFocusRightId(filterButtons.get(i+1).getId());}

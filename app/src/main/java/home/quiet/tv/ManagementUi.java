@@ -2,6 +2,7 @@ package home.quiet.tv;
 
 import android.app.*;
 import android.content.*;
+import android.content.res.ColorStateList;
 import android.graphics.*;
 import android.graphics.drawable.*;
 import android.os.*;
@@ -46,6 +47,15 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     Drawable focusSurface(float radius){StateListDrawable state=new StateListDrawable();state.addState(new int[]{android.R.attr.state_focused},surface(0x24ffffff,0x16ffffff,0xfff3f4f7,radius));state.addState(new int[]{android.R.attr.state_selected},surface(0x14ffffff,0x10ffffff,0x1effffff,radius));state.addState(new int[]{},surface(0x10ffffff,0x06ffffff,0x22ffffff,radius));return state;}
     void focusable(View view,float radius){view.setFocusable(true);view.setBackground(focusSurface(radius));}
     Button button(String text,Runnable action){Button b=new Button(this);b.setText(text);b.setAllCaps(false);b.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(13));b.setTextColor(TEXT);b.setIncludeFontPadding(false);b.setGravity(Gravity.CENTER);b.setMinimumWidth(0);b.setMinWidth(0);b.setMinimumHeight(0);b.setMinHeight(0);b.setPadding(px(16),0,px(16),0);b.setBackground(focusSurface(24));if(android.os.Build.VERSION.SDK_INT>=21)b.setStateListAnimator(null);b.setOnClickListener(v->action.run());return b;}
+    void styleTab(Button b,boolean compact){
+        int[][] states={{android.R.attr.state_selected,android.R.attr.state_focused},{android.R.attr.state_focused},{android.R.attr.state_selected},{}};
+        int[] backgrounds={0xfff5f6f8,0xff353a43,0xffe6e8ec,Color.TRANSPARENT};
+        StateListDrawable background=new StateListDrawable();
+        for(int i=0;i<states.length;i++)background.addState(states[i],surface(backgrounds[i],backgrounds[i],0,compact?15:18));
+        b.setBackground(background);b.setTextColor(new ColorStateList(states,new int[]{0xff191d23,0xfff5f6f8,0xff191d23,MUTED}));
+        b.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));b.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(compact?12:16));
+        b.setSingleLine(true);b.setPadding(px(compact?10:18),0,px(compact?10:18),0);b.setMinWidth(px(compact?48:100));
+    }
     Drawable listSurface(){StateListDrawable state=new StateListDrawable();state.addState(new int[]{android.R.attr.state_focused},surface(0x24ffffff,0x16ffffff,-1,12));state.addState(new int[]{android.R.attr.state_selected},surface(0x14ffffff,0x10ffffff,0x1effffff,12));state.addState(new int[]{},new ColorDrawable(Color.TRANSPARENT));return state;}
     Button iconButton(String description,int resource,Runnable action){
         Button b=button("",action);b.setContentDescription(description);
@@ -76,10 +86,8 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
         View line=new View(this);line.setBackgroundColor(0x18ffffff);root.addView(line,new LinearLayout.LayoutParams(-1,px(1)));return tools;
     }
     private void tab(LinearLayout tools,String text,boolean selected,Runnable action){
-        LinearLayout tab=column();LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(px(97),-1);tp.rightMargin=px(16);tools.addView(tab,tp);
-        Button b=button(text,action);b.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(16));b.setPadding(px(3),0,px(3),0);b.setTextColor(selected?TEXT:MUTED);
-        StateListDrawable bg=new StateListDrawable();bg.addState(new int[]{android.R.attr.state_focused},surface(0x18ffffff,0x10ffffff,-1,8));bg.addState(new int[]{},new ColorDrawable(Color.TRANSPARENT));b.setBackground(bg);tab.addView(b,new LinearLayout.LayoutParams(-1,0,1));
-        View underline=new View(this);underline.setBackgroundColor(selected?TEXT:Color.TRANSPARENT);tab.addView(underline,new LinearLayout.LayoutParams(-1,px(2)));
+        Button b=button(text,action);styleTab(b,false);b.setSelected(selected);
+        LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(-2,px(36));tp.rightMargin=px(12);tools.addView(b,tp);
     }
     ImageView icon(android.graphics.drawable.Drawable art,int size){ImageView image=new ImageView(this);image.setScaleType(ImageView.ScaleType.FIT_CENTER);image.setBackground(surface(0x08ffffff,0x08ffffff,0,size*.24f));UiCompat.clipOutline(image);image.setImageDrawable(art);image.setLayoutParams(new LinearLayout.LayoutParams(px(size),px(size)));return image;}
     EditText input(String text,String hint){EditText edit=new EditText(this);edit.setText(text);edit.setHint(hint);edit.setSingleLine(true);edit.setTextColor(TEXT);edit.setHintTextColor(MUTED);edit.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(14));edit.setPadding(px(14),px(10),px(14),px(10));edit.setBackground(focusSurface(10));return edit;}

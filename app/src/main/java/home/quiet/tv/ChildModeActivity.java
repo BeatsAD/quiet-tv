@@ -32,7 +32,13 @@ public final class ChildModeActivity extends ManagementUi {
         Button back=iconButton("返回",R.drawable.ic_manage_back,this::handleBack);back.setBackground(visual.focus(0x04ffffff,0x21ffffff,100,false));visual.place(canvas,back,86.4f,63.66f,63.36f,63.36f);
         TextView title=visual.text("应用管理",53.76f,75.5f,0xffeeeff2);UiCompat.letterSpacing(title,.06f);visual.place(canvas,title,173.76f,57.6f,550,75.5f);
         String[] titles={"应用列表","首页应用","应用排序","儿童模式"};Class<?>[] pages={AppManagementActivity.class,DockEditorActivity.class,HomeSortActivity.class,ChildModeActivity.class};
-        for(int i=0;i<4;i++){final int page=i;Button tab=visual.button(titles[i],()->{if(page!=3){startActivity(new Intent(this,pages[page]).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));finish();}},false);tab.setPadding(0,0,0,0);tab.setTextColor(i==3?0xfff1f2f4:0xff8a909b);tab.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,visual.font(29.76f));tab.setBackground(visual.focus(0,0,3,false));visual.place(canvas,tab,86.4f+i*168.97f,179.65f,119.05f,57.6f);if(i==3){View underline=new View(this);underline.setBackgroundColor(0xfff0f1f3);visual.place(canvas,underline,86.4f+i*168.97f,259.24f,119.05f,2);}}
+        int tabLeft=visual.p(86.4f);
+        for(int i=0;i<4;i++){
+            final int page=i;Button tab=visual.button(titles[i],()->{if(page!=3){startActivity(new Intent(this,pages[page]).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));finish();}},false);
+            styleTab(tab,false);tab.setSelected(i==3);
+            int width=Math.max(tab.getMinWidth(),(int)Math.ceil(tab.getPaint().measureText(titles[i]))+tab.getPaddingLeft()+tab.getPaddingRight());
+            FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(width,px(36));tp.leftMargin=tabLeft;tp.topMargin=visual.p(176.29f);canvas.addView(tab,tp);tabLeft+=width+px(12);
+        }
         Button search=visual.button("搜索",this::search,false);search.setPadding(visual.p(22.08f),0,visual.p(22.08f),0);search.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,visual.font(22.08f));android.graphics.drawable.Drawable magnify=UiCompat.drawable(this,R.drawable.ic_manage_search);magnify.setBounds(0,0,visual.p(26.88f),visual.p(26.88f));search.setCompoundDrawables(magnify,null,null,null);search.setCompoundDrawablePadding(visual.p(12.48f));visual.place(canvas,search,1548.43f,176.29f,129.65f,64.32f);
         Button more=iconButton("更多",R.drawable.ic_manage_more,this::more),about=iconButton("关于",R.drawable.ic_about,()->startActivity(new Intent(this,AboutActivity.class)));more.setBackground(visual.focus(0x06ffffff,0x25ffffff,40,false));about.setBackground(visual.focus(0x06ffffff,0x25ffffff,40,false));visual.place(canvas,more,1691.52f,176.29f,64.32f,64.32f);visual.place(canvas,about,1769.28f,176.29f,64.32f,64.32f);
         View divider=new View(this);divider.setBackgroundColor(0x13ffffff);visual.place(canvas,divider,86.4f,262.68f,1747.2f,1);
