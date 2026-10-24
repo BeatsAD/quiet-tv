@@ -34,13 +34,13 @@ final class AppCoverUploadPanel {
         if(view==null||server==null)return;
         if(server.expired()||!host.equals(WallpaperUploadPanel.lanAddress(activity))){
             ImageUploadDialog current=view;stopServer();if(confirmation!=null)confirmation.dialog.dismiss();
-            if(view!=current)return;view.status.setText(R.string.upload_session_ended);view.status.setVisibility(View.VISIBLE);view.retry.setVisibility(View.VISIBLE);
+            if(view!=current)return;view.resetConnection();view.address.setVisibility(View.GONE);view.status.setText(R.string.upload_session_ended);view.status.setVisibility(View.VISIBLE);view.retry.setVisibility(View.VISIBLE);
         }else main.postDelayed(this,2000);
     }};
     AppCoverUploadPanel(ManagementUi activity){this.activity=activity;store=AppCoverStore.get(activity);}
     void show(String pkg,String label,Runnable updated){
         if(view!=null||committing||destroyed)return;this.pkg=pkg;this.label=label;this.updated=updated;
-        view=new ImageUploadDialog(activity,activity.unit,true,WallpaperUi.backdrop(activity.stage,activity.root),"更换 "+label+" 封面",
+        view=new ImageUploadDialog(activity,true,WallpaperUi.backdrop(activity.stage,activity.root),"更换 "+label+" 封面",
             "推荐 720 × 406 px  最低 360 × 203 px\nJPG / PNG / 静态 WebP  单张不超过 2 MB",
             "可用 AI 辅助生成应用封面，按上述尺寸导出。",this::close,this::start);
         view.dialog.setOnDismissListener(d->{ImageUploadDialog old=view;view=null;stopServer();if(confirmation!=null)confirmation.dialog.dismiss();old.release();});
@@ -48,7 +48,7 @@ final class AppCoverUploadPanel {
     }
     private void start(){
         stopServer();final int attempt=generation;receiving.set(false);ImageUploadDialog current=view;if(current==null)return;
-        current.status.setVisibility(View.GONE);current.retry.setVisibility(View.GONE);current.code.setText("");current.qr.setImageDrawable(null);
+        current.status.setVisibility(View.GONE);current.retry.setVisibility(View.GONE);current.resetConnection();
         host=WallpaperUploadPanel.lanAddress(activity);
         if(host==null){current.address.setText(R.string.upload_network_unavailable);current.retry.setVisibility(View.VISIBLE);return;}
         final String selectedHost=host,target=pkg,name=label;
@@ -64,7 +64,7 @@ final class AppCoverUploadPanel {
                 BitMatrix matrix=new QRCodeWriter().encode(candidate.address(),BarcodeFormat.QR_CODE,384,384,Collections.singletonMap(EncodeHintType.MARGIN,1));
                 int[] pixels=new int[384*384];for(int y=0;y<384;y++)for(int x=0;x<384;x++)pixels[y*384+x]=matrix.get(x,y)?Color.BLACK:Color.WHITE;
                 Bitmap qr=Bitmap.createBitmap(pixels,384,384,Bitmap.Config.ARGB_8888);WallpaperUploadServer ready=candidate;
-                main.post(()->{if(view==null||attempt!=generation){ready.stop();qr.recycle();return;}server=ready;view.address.setText(ready.shortAddress());view.connectionCode(ready.connectionCode());view.qr.setImageBitmap(qr);main.postDelayed(check,2000);});
+                main.post(()->{if(view==null||attempt!=generation){ready.stop();qr.recycle();return;}server=ready;view.connected(ready.shortAddress(),ready.connectionCode());view.qr.setImageBitmap(qr);main.postDelayed(check,2000);});
             }catch(IOException|JSONException|WriterException e){if(candidate!=null)candidate.stop();main.post(()->{if(view!=null&&attempt==generation){view.address.setText("无法开启上传，请检查应用状态与网络后重试");view.retry.setVisibility(View.VISIBLE);}});}
         });
     }

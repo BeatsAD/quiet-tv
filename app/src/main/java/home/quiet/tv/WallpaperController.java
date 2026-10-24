@@ -65,7 +65,7 @@ final class WallpaperController {
     private void rotateWallpaper(){try{store.next();display(store.snapshot().current,true);}catch(IOException e){notice(tr("壁纸设置保存失败","Unable to save wallpaper settings"));}schedule();}
 
     WallpaperController(Activity activity,FrameLayout root,float unit,boolean chinese){
-        this.activity=activity;this.root=root;this.homeUnit=unit;this.unit=unit*960f/1040f;this.ui=new WallpaperUi(activity,this.unit);this.chinese=chinese;store=WallpaperStore.get(activity);uploads=new WallpaperUploadPanel(activity,store,this.unit,chinese);
+        this.activity=activity;this.root=root;this.homeUnit=unit;this.unit=unit*960f/1040f;this.ui=new WallpaperUi(activity,this.unit);this.chinese=chinese;store=WallpaperStore.get(activity);uploads=new WallpaperUploadPanel(activity,store,chinese);
         daily=new DailyWallpaperController(activity,store,chinese,this::dailyChanged);
         FrameLayout background=new FrameLayout(activity);root.addView(background,new FrameLayout.LayoutParams(-1,-1));
         video=new VideoWallpaperPlayer(activity,background);
