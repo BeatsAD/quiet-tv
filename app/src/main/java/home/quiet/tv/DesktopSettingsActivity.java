@@ -104,7 +104,7 @@ public final class DesktopSettingsActivity extends ManagementUi implements Share
     private void refreshControls(){
         classic.setSelected("classic".equals(desktopStore.layout()));gallery.setSelected("gallery".equals(desktopStore.layout()));
         boolean[] checked={desktopStore.greetingEnabled(),desktopStore.showTime(),desktopStore.showAppTitle(),desktopStore.showDate(),weatherStore.enabled(),desktopStore.showAllAppsNames(),desktopStore.showInput(),desktopStore.showNetwork(),desktopStore.showSettings()};int i=0;for(DisplayChoice b:choices.values())b.setChecked(checked[i++]);
-        String text=desktopStore.greetingText(fixedGreeting?tr("欢迎回家","Welcome home"):"");greeting.value(!desktopStore.greetingEnabled()?tr("已关闭","Off"):text.isEmpty()?tr("跟随时间","By time"):text);
+        String text=desktopStore.greetingText(fixedGreeting?tr("欢迎回家","Welcome home"):"");greeting.value(!desktopStore.greetingEnabled()?(desktopStore.avatarEnabled()?tr("仅头像","Avatar only"):tr("已关闭","Off")):text.isEmpty()?tr("跟随时间","By time"):text);
         if(preview!=null&&"desktop".equals(selectedSection))preview.refresh();
     }
     private View activeView(){return "desktop".equals(selectedSection)?desktopScroll:"weather".equals(selectedSection)?weather.view:guard.view;}
