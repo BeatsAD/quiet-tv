@@ -97,6 +97,7 @@ final class HomeGuardRecovery {
     static void launch(Context c,String reason){
         HomeGuardState state=new HomeGuardState(c);if(!state.ready() || !HomeGuardState.canShow(c))return;
         if(requestedAt!=0)return;
+        HomeGuardService.homeRequested();
         requestedAt=SystemClock.uptimeMillis();requestedHome=state.selected();state.status("已请求接管，等待桌面显示");Log.i(TAG,"home requested: "+reason+" uptime="+requestedAt);
         confirmation=()->{confirmation=null;requestedAt=0;requestedHome="";if(new HomeGuardState(c).enabled())new HomeGuardState(c).status("未确认进入桌面，请检查系统限制");};
         handler.postDelayed(confirmation,5000);
@@ -118,6 +119,26 @@ final class HomeGuardRecovery {
     static void leftHome(Context c){
         if(HomeGuardState.canShow(c))new HomeGuardState(c).preferences.edit().putBoolean("homeInFront",false).apply();
     }
+    static void configureGranted(Context c) throws java.io.IOException {
+        HomeGuardState state=new HomeGuardState(c);
+        if(!state.ready())throw new java.io.IOException(state.enableProblem());
+        if(!writeAllowed(c))throw new java.io.IOException("写安全设置权限未授予");
+        if(Build.VERSION.SDK_INT<27 && notificationSupported(c) && !notificationAllowed(c)){
+            String current=Settings.Secure.getString(c.getContentResolver(),"enabled_notification_listeners");
+            String desired=HomeGuardPolicy.services(current,listener(c),true);
+            if(!Settings.Secure.putString(c.getContentResolver(),"enabled_notification_listeners",desired))throw new java.io.IOException("通知访问未授予");
+            state.preferences.edit().putBoolean("grantedListener",true).apply();
+        }
+        request(c,"授权配置完成");
+    }
+    static String configurationProblem(Context c){
+        if(!writeAllowed(c))return "写安全设置权限未授予";
+        if(!new HomeGuardState(c).serviceEnabled())return "无障碍权限未开启";
+        if(HomeGuardService.usageRequired() && !HomeGuardService.usageAllowed(c))return "旧系统兼容检测未授权";
+        if(Build.VERSION.SDK_INT>=23 && !Settings.canDrawOverlays(c))return "后台启动权限未确认";
+        if(notificationSupported(c) && !notificationAllowed(c))return "通知访问未授予";
+        return "";
+    }
     /** Called only from the foreground setup's already-authorized local ADB worker. */
     // Already runs on the ADB worker; keep completed grants durable before continuing/canceling.
     @android.annotation.SuppressLint("ApplySharedPref")
@@ -129,8 +150,8 @@ final class HomeGuardRecovery {
         // These grants are independent: unsupported notification commands do not undo accessibility.
         String note="";
         if(!notificationSupported(c))note="此设备不支持通知恢复";
-        else if(!notificationAllowed(c)){
-            String help="";if(Build.VERSION.SDK_INT>=24)try{help=adb.shell("cmd notification help 2>&1 || true");}catch(java.io.IOException unsupported){note="此系统需手动授权通知访问";}
+        else if(Build.VERSION.SDK_INT>=27 && !notificationAllowed(c)){
+            String help="";try{help=adb.shell("cmd notification help 2>&1 || true");}catch(java.io.IOException unsupported){note="此系统需手动授权通知访问";}
             if(help.contains("allow_listener") && help.contains("user_id")){
                 task.check();adb.validateUser();adb.shell("cmd notification allow_listener "+listener(c)+" "+user);
                 if(notificationAllowed(c))state.preferences.edit().putBoolean("grantedListener",true).commit();else note="通知访问未授予";
@@ -141,7 +162,22 @@ final class HomeGuardRecovery {
             adb.shell("appops set --user "+user+" "+pkg+" SYSTEM_ALERT_WINDOW allow");
             if(Settings.canDrawOverlays(c))state.preferences.edit().putBoolean("grantedOverlay",true).commit();else note="后台启动权限未确认";
         }
+        if(HomeGuardService.usageRequired() && !HomeGuardService.usageAllowed(c)){
+            task.check();adb.validateUser();
+            String output;
+            try{output=adb.shell("appops set --user "+user+" "+pkg+" GET_USAGE_STATS allow");}
+            catch(java.io.IOException failure){
+                if(failure.getMessage()==null || !failure.getMessage().contains("Unknown operation"))throw failure;
+                output=failure.getMessage();
+            }
+            if(output.contains("Unknown operation")){
+                task.check();adb.validateUser();adb.shell("appops set --user "+user+" "+pkg+" android:get_usage_stats allow");
+            }
+            if(!HomeGuardService.usageAllowed(c))note="旧系统兼容检测未授权";
+        }
         task.check();if(!new HomeGuardState(c).ready())throw new java.io.IOException("守护已暂停或配置已改变");
-        handler.post(()->request(c,"首次配置"));if(!note.isEmpty())throw new java.io.IOException(note+"；已完成的授权保留");
+        configureGranted(c);
+        if(note.isEmpty())note=configurationProblem(c);
+        if(!note.isEmpty())throw new java.io.IOException(note+"；已完成的授权保留");
     }
 }

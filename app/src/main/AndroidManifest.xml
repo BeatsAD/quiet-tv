@@ -13,6 +13,7 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
     <!-- libadb's old target declaration otherwise adds unrelated implicit permissions. -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE" tools:node="remove" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove" />
@@ -44,6 +45,11 @@
             android:enabled="${homeGuardAvailable}" android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" android:label="@string/home_guard_revival_name">
             <intent-filter><action android:name="android.service.notification.NotificationListenerService" /></intent-filter>
         </service>
+        <!-- The ADB shell can configure grants without the app's independent ADB client. -->
+        <receiver android:name=".HomeGuardSetupReceiver" android:exported="true" android:enabled="${homeGuardAvailable}"
+            android:permission="android.permission.WRITE_SECURE_SETTINGS">
+            <intent-filter><action android:name="${applicationId}.CONFIGURE_HOME_GUARD" /></intent-filter>
+        </receiver>
         <receiver android:name=".HomeGuardBootReceiver" android:exported="true" android:directBootAware="true" android:enabled="${homeGuardAvailable}">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

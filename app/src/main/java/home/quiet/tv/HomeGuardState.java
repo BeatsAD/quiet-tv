@@ -110,6 +110,7 @@ final class HomeGuardState {
         if(!enabled())return preferences.getString("status","未配置");
         String problem=enableProblem();if(!problem.isEmpty())return problem;
         if(!HomeGuardService.connected())return "等待系统绑定无障碍";
+        if(HomeGuardService.usageRequired() && !HomeGuardService.usageAllowed(context))return "无障碍已连接  兼容检测未授权，可通过电脑配置";
         return preferences.getString("status","守护就绪，等待原主页");
     }
     boolean helperActive(){

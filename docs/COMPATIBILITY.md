@@ -155,7 +155,7 @@ System-panel fallback is included in the published 1.1.2 standard APK; legacy19 
 
 | 范围 | 上游记录与方案 | Quiet TV 状态及验收重点 |
 | --- | --- | --- |
-| 小米 MiTV4-ANSM0 / Android 6 | [#81](https://github.com/pengchujin/aerial-tv/issues/81)：服务绑定后仍可能没有有效窗口事件；用户独立 UsageStats 辅助仅有延迟接管和有限重启实测 | 无主程序通用接管结论；目标固件需分别测试事件、实体 HOME、重启、短/长待机及暂停恢复 |
+| 小米 MiTV4-ANSM0 / Android 6 | [#81](https://github.com/pengchujin/aerial-tv/issues/81)：服务绑定后仍可能没有有效窗口事件；上游1.43起增加 UsageStats 补偿，1.46有用户延迟返回及有限重启实测 | 本修复源码加入安卓5／6精确主页补偿与电脑首次配置；未发布，目标固件的事件、实体 HOME、重启、短/长待机及暂停恢复仍待 Quiet TV 真机验收 |
 | 酷开 / Android 8 | [#69](https://github.com/pengchujin/aerial-tv/issues/69)：私有 HOME.CC 类别，识别修复不等于改写固件主页 | Quiet TV 厂商接管待验收；不能按品牌批量应用 |
 | 酷开 / Android 11 | [#122](https://github.com/pengchujin/aerial-tv/issues/122)：LITE_HOME 与 HOME.CC 不同，用户修改包有有限实测 | 原主页识别、实体键、开机与恢复均待目标固件核验 |
 | 海信 Android VIDAA | [#40](https://github.com/pengchujin/aerial-tv/issues/40)：私有主页属性可改变 HOME 行为，开机仍受拦截 | Quiet TV 不自动改属性；系统输入面板调用与 HOME 接管分别验证 |

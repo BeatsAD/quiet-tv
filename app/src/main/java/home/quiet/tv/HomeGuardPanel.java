@@ -110,6 +110,14 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
     private void configureRecovery(){
         if(configuring)return;
         if(!state.enabled()){ui.message("请先启用桌面守护。");return;}
+        if(HomeGuardRecovery.writeAllowed(ui)){
+            try{
+                HomeGuardRecovery.configureGranted(ui);
+                if(HomeGuardRecovery.configurationProblem(ui).isEmpty()){
+                    refreshUi();ui.message("权限已配置，等待系统绑定");view.postDelayed(bindingRefresh,1800);return;
+                }
+            }catch(java.io.IOException|SecurityException failure){ui.message("配置未全部完成："+failure.getMessage());return;}
+        }
         connection.show(()->{
             configuring=true;ticket=new SetupOperations.Ticket();SetupOperations.Ticket task=ticket;
             worker.execute(()->{String result;
@@ -149,6 +157,12 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
         ManagementUi.Sheet sheet=ui.new Sheet("更多操作");
         sheet.text("自动恢复会修复被系统移除的无障碍配置。停止自动接管请关闭守护开关；首次调试授权仍由系统确认。");
         sheet.option("配置自动恢复",this::configureRecovery);
+        sheet.option("电脑配置说明",()->{
+            sheet.dialog.dismiss();ManagementUi.Sheet guide=ui.new Sheet("通过电脑配置守护");
+            guide.text("请让电脑上的安装助手配置桌面守护。电视内置 ADB 连接失败时，仍可使用已授权的电脑连接。");
+            guide.text(HomeGuardRecovery.configurationProblem(ui).isEmpty()?"权限已配置，实际接管仍需按遥控器 HOME 验证。":HomeGuardRecovery.configurationProblem(ui));
+            Button close=guide.action("返回",guide.dialog::dismiss);showSheet(guide,close,more);
+        });
         boolean canOpen=state.validSelection();if(!canOpen)sheet.text("请先选择有效的原桌面，才能打开原桌面。");
         Button refresh=sheet.option("重新检测",R.drawable.ic_manage_refresh,()->{sheet.dialog.dismiss();ui.feedback("已重新检测原桌面与权限状态");});
         Button original=sheet.option("暂停并打开原桌面",R.drawable.ic_manage_back,()->{sheet.dialog.dismiss();openOriginal();});original.setEnabled(canOpen);original.setAlpha(canOpen?1f:.45f);
