@@ -43,7 +43,12 @@ final class DailyWallpaperController {
         if(busy&&source.equals(pendingSource))return tr("正在获取壁纸…","Getting wallpaper…");
         if(source.equals(messageSource)&&!message.isEmpty())return message;
         Failure failure=failures.get(source);if(failure!=null)return failureStatus(failure);
-        return store.cached(store.snapshot().dailyImages.get(source))?tr("壁纸已保存到本地  断网可用","Wallpaper cached  Available offline"):tr("启用后每天自动更新，断网保留上一张","Updates daily; keeps the previous image offline");
+        WallpaperCatalog.DailyImage image=store.snapshot().dailyImages.get(source);
+        return store.cached(image)?cachedStatus(image):tr("启用后每天自动更新，断网保留上一张","Updates daily; keeps the previous image offline");
+    }
+    private String cachedStatus(WallpaperCatalog.DailyImage image){
+        String date=image.dateLabel();
+        return date.isEmpty()?tr("壁纸已保存到本地  断网可用","Wallpaper cached  Available offline"):tr("图片日期 "+date+"  断网可用","Image date "+date+"  Available offline");
     }
     private boolean online(){
         ConnectivityManager manager=(ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);
@@ -82,17 +87,17 @@ final class DailyWallpaperController {
         if(!connected&&!reuse){finishMessage(source,tr("网络不可用  此来源暂无缓存","Offline  No cache for this source"),false,completed);return;}
         final int attempt=++generation;busy=true;pendingSource=source;message="";messageSource=source;changed.run();
         task=worker.submit(()->{
-            String stage="image";
+            String stage="image";File download=null;
             try{
                 WallpaperCatalog.DailyImage ready=old;File prepared=null;
                 if(reuse){validate(store.dailyFile(old.source,old.slot));}
                 else{
-                    DailyWallpaperClient.Candidate candidate=null;String key=null;boolean duplicate=false;
+                    DailyWallpaperClient.Candidate candidate=null;String key=null;boolean duplicate=false,keepCached=false;
                     int attempts=WallpaperCatalog.BT.equals(source)&&old!=null&&!day.equals(old.day)?3:1;
-                    stage="save";File download=new File(store.dailyDirectory(),"download.tmp");
+                    stage="save";download=new File(store.dailyDirectory(),"download.tmp");
                     for(int n=0;n<attempts;n++){
                         valid(attempt);stage="metadata";candidate=client.latest(source);valid(attempt);
-                        if(cached&&candidate.url.equals(old.url)&&WallpaperCatalog.BING.equals(source)){key=old.key;duplicate=true;break;}
+                        if(cached&&candidate.reuses(old)){key=old.key;duplicate=true;keepCached=true;break;}
                         stage="download";key=client.download(candidate,download);valid(attempt);duplicate=cached&&old.key.equals(key);
                         if(!duplicate||WallpaperCatalog.BING.equals(source)||day.equals(old.day))break;
                     }
@@ -107,17 +112,19 @@ final class DailyWallpaperController {
                     }
                     // Copy cached metadata before changing its date; the committed catalog is untouched.
                     if(duplicate)ready=copy(old);
-                    ready.source=source;ready.key=key;ready.url=candidate.url;ready.title=candidate.title;ready.copyright=candidate.copyright;ready.link=candidate.link;ready.upstream=candidate.upstream;ready.day=day;ready.checked=System.currentTimeMillis();
+                    if(!keepCached){ready.source=source;ready.key=key;ready.url=candidate.url;ready.title=candidate.title;ready.copyright=candidate.copyright;ready.link=candidate.link;ready.upstream=candidate.upstream;}
+                    ready.day=day;ready.checked=System.currentTimeMillis();
                 }
                 valid(attempt);WallpaperCatalog.DailyImage image=ready;File file=prepared;
                 main.post(()->{
                     if(attempt!=generation||!active)return;
                     try{
                         store.commitDaily(image,file,apply);failures.remove(source);unreadable.remove(source);busy=false;task=null;pendingSource=null;
-                        finishMessage(source,tr("壁纸已保存到本地  断网可用","Wallpaper cached  Available offline"),true,completed);
+                        finishMessage(source,cachedStatus(image),true,completed);
                     }catch(IOException e){failed(attempt,source,"save",e,completed);}
                 });
             }catch(IOException|OutOfMemoryError e){String failedStage=stage;main.post(()->failed(attempt,source,failedStage,e,completed));}
+            finally{if(download!=null&&download.exists()&&!download.delete())Log.w("QuietTV","Daily wallpaper download temporary file retained");}
         });
     }
     private static WallpaperCatalog.DailyImage copy(WallpaperCatalog.DailyImage image) throws IOException {
@@ -134,7 +141,7 @@ final class DailyWallpaperController {
         long delay=error instanceof DailyWallpaperClient.Limited?Math.max(COOLDOWN_MS,((DailyWallpaperClient.Limited)error).retryMs):COOLDOWN_MS;
         boolean limited=error instanceof DailyWallpaperClient.Limited;
         String reason;
-        if(error instanceof DailyWallpaperClient.Unavailable)reason=tr("今日必应图片不可用作壁纸","Today's Bing image is unavailable as wallpaper");
+        if(error instanceof DailyWallpaperClient.Unavailable)reason=tr("近期必应图片均未开放壁纸下载","Recent Bing images are unavailable for wallpaper download");
         else if(limited)reason=tr("壁纸来源请求过于频繁","Wallpaper source rate limited");
         else if(error instanceof OutOfMemoryError)reason=tr("内存不足，无法处理壁纸","Not enough memory to process wallpaper");
         else if("save".equals(stage))reason=tr("壁纸保存失败，请检查存储空间","Unable to save wallpaper. Check storage");

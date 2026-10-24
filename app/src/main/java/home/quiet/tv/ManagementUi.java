@@ -81,7 +81,6 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
         StateListDrawable bg=new StateListDrawable();bg.addState(new int[]{android.R.attr.state_focused},surface(0x18ffffff,0x10ffffff,-1,8));bg.addState(new int[]{},new ColorDrawable(Color.TRANSPARENT));b.setBackground(bg);tab.addView(b,new LinearLayout.LayoutParams(-1,0,1));
         View underline=new View(this);underline.setBackgroundColor(selected?TEXT:Color.TRANSPARENT);tab.addView(underline,new LinearLayout.LayoutParams(-1,px(2)));
     }
-    void footer(String help){LinearLayout footer=row();LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,px(18));p.topMargin=px(16);root.addView(footer,p);footer.addView(muted(help,10),new LinearLayout.LayoutParams(0,-1,1));footer.addView(muted("Quiet TV",10));}
     ImageView icon(android.graphics.drawable.Drawable art,int size){ImageView image=new ImageView(this);image.setScaleType(ImageView.ScaleType.FIT_CENTER);image.setBackground(surface(0x08ffffff,0x08ffffff,0,size*.24f));UiCompat.clipOutline(image);image.setImageDrawable(art);image.setLayoutParams(new LinearLayout.LayoutParams(px(size),px(size)));return image;}
     EditText input(String text,String hint){EditText edit=new EditText(this);edit.setText(text);edit.setHint(hint);edit.setSingleLine(true);edit.setTextColor(TEXT);edit.setHintTextColor(MUTED);edit.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(14));edit.setPadding(px(14),px(10),px(14),px(10));edit.setBackground(focusSurface(10));return edit;}
     final class Sheet {
