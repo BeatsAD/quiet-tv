@@ -223,8 +223,9 @@ final class WallpaperController {
         layout.addView(header);
         layout.addView(new View(activity),new LinearLayout.LayoutParams(1,0,1));
         actions=row();LinearLayout titles=new LinearLayout(activity);titles.setOrientation(LinearLayout.VERTICAL);title=label("",27);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);titles.addView(title,new LinearLayout.LayoutParams(-1,-2));
-        subtitle=label("",12);subtitle.setTextColor(WallpaperUi.MUTED);subtitle.setSingleLine(true);subtitle.setEllipsize(android.text.TextUtils.TruncateAt.END);subtitle.setPadding(0,px(8),0,0);titles.addView(subtitle,new LinearLayout.LayoutParams(-1,-2));actions.addView(titles,new LinearLayout.LayoutParams(0,-2,1));
-        LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,px(60));ap.setMargins(px(4),0,px(4),px(24));layout.addView(actions,ap);
+        subtitle=label("",12);subtitle.setTextColor(WallpaperUi.MUTED);subtitle.setSingleLine(true);subtitle.setEllipsize(android.text.TextUtils.TruncateAt.END);subtitle.setPadding(0,px(7),0,0);titles.addView(subtitle,new LinearLayout.LayoutParams(-1,-2));actions.addView(titles,new LinearLayout.LayoutParams(0,-2,1));
+        // Together with the rail's top padding and focused-card lift, leave about 36px at 1080p.
+        LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,-2);ap.setMargins(px(4),0,px(4),px(16));layout.addView(actions,ap);
         scroll=new HorizontalScrollView(activity);scroll.setHorizontalScrollBarEnabled(false);scroll.setClipToPadding(false);scroll.setClipChildren(false);scroll.setFillViewport(false);rail=row();rail.setClipToPadding(false);rail.setClipChildren(false);rail.setGravity(Gravity.BOTTOM);rail.setPadding(px(4),px(7),px(4),0);scroll.addView(rail);LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,px(154));layout.addView(scroll,rp);
         picker.setContentView(content);picker.setOnDismissListener(d->{commitPending=false;cancelCardPress();pendingCardFocus=null;++pickerVersion;uploads.close();picker=null;daily.cancel();cards.clear();for(int n=1;n<root.getChildCount();n++)root.getChildAt(n).setVisibility(View.VISIBLE);shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x70000000,0x10000000,0xf00a0e15}));if(active)restoreSelected();schedule();});
         Window window=picker.getWindow();if(window!=null){window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));window.getDecorView().setSystemUiVisibility(5894);window.setDimAmount(0);}
@@ -335,7 +336,6 @@ final class WallpaperController {
         auto.setVisibility(dynamicTab?View.GONE:View.VISIBLE);
         if(entry==null){title.setText(tr("还没有动态壁纸","No video wallpapers"));subtitle.setVisibility(View.GONE);for(TextView control:new TextView[]{staticTab,videoTab,dynamicToggle,upload})control.setNextFocusDownId(upload.getId());return;}
         title.setText(entry.label(chinese));boolean isDaily=WallpaperCatalog.DAILY.equals(preview);
-        ViewGroup.LayoutParams actionSize=actions.getLayoutParams();int actionHeight=px(isDaily||entry.video()?60:43);if(actionSize.height!=actionHeight){actionSize.height=actionHeight;actions.setLayoutParams(actionSize);}
         subtitle.setVisibility(isDaily||entry.video()?View.VISIBLE:View.GONE);
         if(entry.video())subtitle.setText(preview.equals(failedVideo)?tr("播放失败，按确定键重试","Playback failed. Press OK to retry."):entry.width+" × "+entry.height+"  "+Math.round(entry.fps)+" FPS  "+Math.round(entry.durationMs/1000f)+tr(" 秒"," s"));
         if(isDaily){
