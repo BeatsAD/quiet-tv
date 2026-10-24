@@ -46,7 +46,7 @@ final class WallpaperUploadPanel {
         if(dialog!=null){backdrop.recycle();return;}this.callback=callback;lastImported=null;
         view=new ImageUploadDialog(activity,chinese,backdrop,
             tr("把喜欢的壁纸，留在电视上","Keep your favorite wallpaper on TV"),
-            tr("图片  JPG / PNG / 静态 WebP  最大 20 MB\n视频  MP4  最大 100 MB  30 FPS","Images  JPG / PNG / static WebP  Up to 20 MB\nVideo  MP4  Up to 100 MB  30 FPS"),null,this::close,this::start,tr("选择图片或视频，上传后在电视上应用","Upload an image or video, then apply it on your TV"));
+            tr("图片  JPG / PNG / 静态 WebP  最大 20 MB\n视频  MP4  最大 30 MB  30 FPS","Images  JPG / PNG / static WebP  Up to 20 MB\nVideo  MP4  Up to 30 MB  30 FPS"),null,this::close,this::start,tr("选择图片或视频，上传后在电视上应用","Upload an image or video, then apply it on your TV"));
         dialog=view.dialog;address=view.address;status=view.status;retry=view.retry;qr=view.qr;
         ImageUploadDialog current=view;dialog.setOnDismissListener(d->{dialog=null;view=null;stopServer();current.release();Closed finished=this.callback;this.callback=null;if(finished!=null)finished.closed(lastImported);});
         dialog.show();start();

@@ -63,3 +63,12 @@ Use Python 3, JDK 17 or 21, and Android SDK platform 36 / build-tools 36.0.0. Se
 Only core source, required resources, build inputs, essential guides, licenses and collaboration files are public. Private tests, fixtures, plans, device records and generated files remain local. Existing local tests keep their paths and commands; fixture modules load when their build files exist. CI does not require those private files. Explicit maintainer requests and new production build inputs update the tracking exceptions.
 
 Maintainer development stays local by default; “merge into main” means local integration. Only explicit GitHub synchronization authorization starts the push/PR/remote-merge workflow; a request limited to pushing or opening a PR does not authorize merging or APK publication. For remote contributions, start from current main and submit a scoped PR, normally through a Fork. Preserve user data, stage explicit paths, and report actual checks separately from hardware acceptance. Protected remote main requires the `Validate` check, resolved discussions and Squash merge. Keep CODEOWNERS, templates, Discussions and confidential security reporting. CI never operates a TV or publishes an APK.
+
+
+### 可选和风天气配置 / Optional QWeather configuration
+
+全新克隆不需要天气密钥即可构建，缺少配置时使用 UAPI。要以和风为主源，在仓库外保存仅当前用户可读的 UTF-8 JSON 文件，包含 `qweatherHost`（控制台提供的纯域名）及 `qweatherApiKey`（API KEY）。构建时通过环境变量 `QUIETTV_WEATHER_CONFIG` 或 Gradle 属性 `-PquietWeatherConfig=/绝对路径/weather.local.json` 传入文件路径。禁止在命令行、源码、日志或提交中填写密钥值。
+
+`bundleWeatherConfiguration` 仅将配置写入忽略的构建 assets；没有配置时写入空配置，防止复用先前构建的凭据。私有配置不会进入手机选城接口。APK 内置 Key 可以被提取，公开分发前应配置 Android 包名/签名和 API 权限限制，并按开发者账号的合计免费额度控制用量；本地限流不能代替服务端账号配额。
+
+地区库和手机网页是已提交的生产输入，不需要在线下载。测试仅使用合成凭据；真实接口联调单独记录结果，不记录认证头。

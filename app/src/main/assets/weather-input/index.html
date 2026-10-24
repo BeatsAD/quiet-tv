@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>天气地区 / Weather location</title><link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="weather.css"><script src="app.js" defer></script></head>
+<body><main>
+<p class="brand">Quiet TV</p><h1>天气地区</h1>
+<form id="connect" hidden><label for="code">电视上的 6 位连接码</label><input id="code" inputmode="numeric" autocomplete="off" pattern="[0-9]{6}" maxlength="6" required><button>连接电视</button></form>
+<section id="editor" hidden>
+<div class="locations"><div><label for="province">省份</label><select id="province" aria-label="省份"></select></div><div><label for="city">城市</label><select id="city" aria-label="城市" disabled></select></div><div><label for="district">区县</label><select id="district" aria-label="区县" disabled></select></div></div>
+<form id="search"><label for="query">搜索城市或区县</label><div class="search-row"><input id="query" type="search" maxlength="60" placeholder="例如：武汉、武昌" autocomplete="off"><button>搜索</button></div></form>
+<div id="results" aria-label="搜索结果"></div>
+<p id="selection" role="status"></p><p class="hint">发送后，请在电视上选择“保存”。</p><button id="send" disabled>发送到电视</button>
+</section>
+<p id="status" role="status" aria-live="polite">正在连接电视…</p>
+</main></body></html>
