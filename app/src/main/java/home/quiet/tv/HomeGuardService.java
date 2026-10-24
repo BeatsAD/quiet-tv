@@ -40,12 +40,13 @@ public final class HomeGuardService extends AccessibilityService implements Shar
                 return;
             }
             if(Intent.ACTION_SCREEN_OFF.equals(action)){cancel();HomeGuardRecovery.cancel();policy.clear();lastPackage="";return;}
-            if(Intent.ACTION_USER_UNLOCKED.equals(action))state=new HomeGuardState(HomeGuardService.this);
+            if(Intent.ACTION_USER_UNLOCKED.equals(action)){state=new HomeGuardState(HomeGuardService.this);BootAppLifecycle.observe(HomeGuardService.this);}
             HomeGuardRecovery.request(context,"屏幕或解锁");schedule("亮屏或解锁");
         }
     };
     @Override protected void onServiceConnected(){
         super.onServiceConnected();instance=this;state=new HomeGuardState(this);
+        BootAppLifecycle.observe(this);
         state.preferences.registerOnSharedPreferenceChangeListener(this);
         if(!registered){IntentFilter filter=new IntentFilter(Intent.ACTION_SCREEN_OFF);filter.addAction(Intent.ACTION_SCREEN_ON);filter.addAction(Intent.ACTION_USER_PRESENT);filter.addAction(Intent.ACTION_CLOSE_SYSTEM_DIALOGS);
             if(Build.VERSION.SDK_INT>=24)filter.addAction(Intent.ACTION_USER_UNLOCKED);androidx.core.content.ContextCompat.registerReceiver(this,lifecycle,filter,androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);registered=true;}
@@ -84,6 +85,8 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         String pkg=event.getPackageName()==null?null:event.getPackageName().toString(),cls=event.getClassName()==null?null:event.getClassName().toString();
         if(pkg==null || cls==null || !activity(pkg,cls))return;
         long now=SystemClock.uptimeMillis(),age=now-event.getEventTime();if(age<0 || age>HomeGuardPolicy.MAX_AGE_MS)return;
+        BootAppLifecycle.foreground(this,(pkg.equals(getPackageName()) && cls.equals(HomeActivity.class.getName()))
+            || (state.validSelection() && HomeGuardPolicy.matches(state.eventHome(),pkg,cls)));
         String previous=lastPackage;lastPackage=pkg;
         boolean target=policy.observe(state.eventHome(),pkg,cls,now);
         ComponentName original=ComponentName.unflattenFromString(state.selected());
