@@ -57,17 +57,18 @@ final class DiagnosticLog {
         int count=dropped.getAndSet(0);
         if(count>0)journal.append(DiagnosticJournal.entry(System.currentTimeMillis()+" WARN log.queue_dropped count="+count));
     }
-    static File export(Context supplied) throws Exception {
+    static File export(Context supplied,String snapshot) throws Exception {
         DiagnosticLog log=instance;if(log==null)throw new IOException("Diagnostic log unavailable");
         Context context=supplied.getApplicationContext();
         Future<File> result=log.worker.submit(()->{
             if(log.journal==null)throw new IOException("Diagnostic log incomplete",log.storageError);
             log.reportDropped();File file=new File(context.getCacheDir(),"diagnostic-export.txt");
             String header="Quiet TV 诊断日志\n生成时间："+new SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z",Locale.ROOT).format(new Date())
-                +"\n版本："+BuildConfig.VERSION_NAME+"  构建号："+BuildConfig.VERSION_CODE+"\n包名："+context.getPackageName()
-                +"\n设备："+DiagnosticJournal.clean(Build.MANUFACTURER+" "+Build.MODEL)+"  Android "+Build.VERSION.RELEASE+"  API "+Build.VERSION.SDK_INT
-                +"\n本进程写入失败："+log.failedWrites+"  队列丢弃："+log.droppedTotal.get()+"\n范围：Quiet TV 自身关键事件及错误，不含完整系统日志、其他应用操作或逐次按键。\n时间字段为 Unix 毫秒；容量轮转会覆盖较早日志，进程停止期间不记录，异常终止可能丢失末尾记录。\n请检查内容后私下分享。\n\n";
-            try(OutputStream output=new FileOutputStream(file)){output.write(header.getBytes(StandardCharsets.UTF_8));log.journal.copyTo(output);}
+                +"\n"+snapshot
+                +"\n本进程写入失败："+log.failedWrites+"  队列丢弃："+log.droppedTotal.get()+"\n范围：Quiet TV 自身关键事件及错误，不含完整系统日志、其他应用操作或逐次按键。\n时间字段为 Unix 毫秒；容量轮转会覆盖较早日志，进程停止期间不记录，异常终止可能丢失末尾记录。\n请检查内容后私下分享。\n\n[历史事件]\n";
+            byte[] headerBytes=header.getBytes(StandardCharsets.UTF_8);
+            if(headerBytes.length>32768)throw new IOException("Diagnostic snapshot exceeds limit");
+            try(OutputStream output=new FileOutputStream(file)){output.write(headerBytes);log.journal.copyTo(output);}
             return file;
         });
         try{return result.get(5,TimeUnit.SECONDS);}catch(TimeoutException e){result.cancel(false);throw e;}
