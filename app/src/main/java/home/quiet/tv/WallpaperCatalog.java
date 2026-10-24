@@ -7,7 +7,6 @@ import java.util.*;
 /** Stable wallpaper identities and policy, independent of Android views and file I/O. */
 final class WallpaperCatalog {
     static final String DEFAULT = "default";
-    static final String DEFAULT_VIDEO = "golden-gate-sunset";
     static final String DAILY = "daily", BING = "bing-cn", BT = "bt-landscape";
     // BT is accepted only for reading legacy caches until a Bing image is committed.
     static boolean dailySource(String source) { return BING.equals(source)||BT.equals(source); }
@@ -31,9 +30,6 @@ final class WallpaperCatalog {
             return image.key.matches("[a-f0-9]{64}")&&(image.slot==0||image.slot==1)&&image.width>0&&image.height>0?image:null;
         }
     }
-    static final String[] BUILTINS = {"big-sur-coastline", "big-sur-mountains", "big-sur-road"};
-    static final String[] ZH = {"大苏尔海岸", "大苏尔群山", "大苏尔山路"};
-    static final String[] EN = {"Big Sur Coastline", "Big Sur Mountains", "Big Sur Road"};
     static final int MAX_CUSTOM = 20;
     static final long MAX_BYTES = 50L * 1024 * 1024;
     static final int MAX_VIDEOS = 10;
@@ -57,34 +53,22 @@ final class WallpaperCatalog {
         String label(boolean chinese) {
             if (DEFAULT.equals(id)) return chinese ? "默认颜色主题" : "Default color theme";
             if (DAILY.equals(id)) return chinese ? "每日壁纸" : "Daily wallpaper";
-            if (DEFAULT_VIDEO.equals(id)) return chinese ? "金门大桥日落" : "Golden Gate Sunset";
-            for (int i=0;i<BUILTINS.length;i++) if (BUILTINS[i].equals(id)) return chinese ? ZH[i] : EN[i];
             return name;
         }
     }
     String current = DEFAULT;
     boolean rotating;
-    String lastVideo=DEFAULT_VIDEO,staticBeforeVideo=DEFAULT;
+    String lastVideo="",staticBeforeVideo=DEFAULT;
     boolean rotationBeforeVideo;
     // Source of the displayed cache, not a configurable download provider.
     String dailySource=BING,lastLocal=DEFAULT;
     final Map<String,DailyImage> dailyImages=new LinkedHashMap<>();
-    final Set<String> removed = new LinkedHashSet<>();
     final List<Entry> custom = new ArrayList<>();
 
-    static WallpaperCatalog migrate(boolean defaultTheme, int index, boolean rotating) {
-        WallpaperCatalog result=new WallpaperCatalog();
-        if (!defaultTheme && index>=0 && index<BUILTINS.length) {
-            result.current=BUILTINS[index]; result.rotating=rotating;
-        }
-        return result;
-    }
     List<Entry> entries() {
         List<Entry> result=new ArrayList<>();
         result.add(new Entry(DEFAULT,"",0,0,0));
         result.add(new Entry(DAILY,"",0,0,0));
-        for (String id:BUILTINS) if (!removed.contains(id)) result.add(new Entry(id,"",1920,1080,0));
-        if (!removed.contains(DEFAULT_VIDEO)) result.add(new Entry(DEFAULT_VIDEO,"",1920,1080,0,"video","video/avc",23000,30,0));
         result.addAll(custom); return result;
     }
     Entry find(String id) { for (Entry entry:entries()) if (entry.id.equals(id)) return entry; return null; }
@@ -130,12 +114,11 @@ final class WallpaperCatalog {
         Entry entry=find(id); if (entry==null) return;
         List<Entry> pool=pictures(); int position=0;
         for (int i=0;i<pool.size();i++) if (pool.get(i).id.equals(id)) position=i;
-        if (entry.custom()) custom.remove(entry); else removed.add(id);
+        custom.remove(entry);
         pool=pictures();
         if (current.equals(id)){if(entry.video()){current=staticBeforeVideo;rotating=rotationBeforeVideo;}else current=rotating && !pool.isEmpty() ? pool.get(position%pool.size()).id : DEFAULT;}
         normalize();
     }
-    void restore() { removed.clear(); }
     long bytes() {return bytes(false);}
     long bytes(boolean video){long size=0;for(Entry e:custom)if(e.video()==video)size+=e.bytes;return size;}
     void add(Entry entry) {
@@ -146,7 +129,6 @@ final class WallpaperCatalog {
     JSONObject json() throws JSONException {
         JSONObject result=new JSONObject().put("version",2).put("current",current).put("rotating",rotating);
         result.put("lastVideo",lastVideo).put("staticBeforeVideo",staticBeforeVideo).put("rotationBeforeVideo",rotationBeforeVideo);
-        result.put("removed",new JSONArray(removed));
         JSONArray user=new JSONArray();
         for (Entry e:custom) user.put(new JSONObject().put("id",e.id).put("name",e.name).put("width",e.width).put("height",e.height).put("bytes",e.bytes).put("kind",e.kind).put("mime",e.videoMime).put("durationMs",e.durationMs).put("fps",e.fps).put("rotation",e.rotation));
         JSONObject images=new JSONObject();for(DailyImage image:dailyImages.values())images.put(image.source,image.json());
@@ -156,12 +138,7 @@ final class WallpaperCatalog {
         if (json.getInt("version")!=1&&json.getInt("version")!=2) throw new JSONException("Unsupported wallpaper catalog");
         WallpaperCatalog result=new WallpaperCatalog();
         result.current=json.optString("current",DEFAULT); result.rotating=json.optBoolean("rotating",false);
-        result.lastVideo=json.optString("lastVideo",DEFAULT_VIDEO);result.staticBeforeVideo=json.optString("staticBeforeVideo",DEFAULT);result.rotationBeforeVideo=json.optBoolean("rotationBeforeVideo",false);
-        JSONArray hidden=json.optJSONArray("removed");
-        if(hidden!=null) for(int i=0;i<hidden.length();i++) {
-            String id=hidden.optString(i);
-            if(DEFAULT_VIDEO.equals(id)||Arrays.asList(BUILTINS).contains(id)) result.removed.add(id);
-        }
+        result.lastVideo=json.optString("lastVideo","");result.staticBeforeVideo=json.optString("staticBeforeVideo",DEFAULT);result.rotationBeforeVideo=json.optBoolean("rotationBeforeVideo",false);
         JSONArray users=json.optJSONArray("custom");
         if(users!=null) for(int i=0;i<users.length() && result.custom.size()<MAX_CUSTOM+MAX_VIDEOS;i++) {
             JSONObject e=users.getJSONObject(i); String id=e.getString("id");

@@ -6,6 +6,8 @@
 
 **实施状态：主程序归档脚本已适配版本号与数字构建号、中文系统标签、实际单架构标记和同名 SHA-256 文件，并核对 APK 实际版本、签名及已登记 worktree 的归档构建号。助手及正式版流程仍需单独验证。**
 
+**分包实施状态：标准版已确定采用 ARM32、ARM64、通用备用三个包的默认交付策略。现有脚本支持通过 `--abi` 逐包构建，整批统一源码基线、完整原生库核验、批次清单和首批分包验收尚未完成。下次交付前须补齐并更新本状态，不能将该策略视为已有可发布的整批产物。**
+
 ## 命名与签名
 
 主程序固定格式：
@@ -34,7 +36,20 @@ QuietTV_<版本号>-<构建号>_<适用系统>[_<单架构标记>]_<发布状态
 
 同一标准包可覆盖多个安卓大版本，仅在存在实际兼容差异时新增档位。若交付其他最低 API 的标准包，标签也须同步变化：minSdk23 为 `安卓6及以上`，minSdk26 为 `安卓8及以上`，minSdk31 为 `安卓12及以上`。最低 API 满足不代表目标电视的 HOME、遥控器、输入源及重启唤醒已通过验收。
 
-默认交付通用架构包，省略 `universal`；纯 DEX/资源包不加架构标记。确需单架构包时，在发布状态前加 `ARM32`（`armeabi-v7a`）、`ARM64`（`arm64-v8a`）、`x86` 或 `x86_64`，并核对实际 APK 内容。兼容档位目前不含原生库，归档中的 `packaged_abis` 为空；构建时的 `--abi` 请求不能代替实际内容或实机架构验收。
+通用架构包省略 `universal`；纯 DEX/资源包不加架构标记。单架构包在发布状态前加 `ARM32`（`armeabi-v7a`）、`ARM64`（`arm64-v8a`）、`x86` 或 `x86_64`，并核对实际 APK 内容。兼容档位目前不含原生库，归档中的 `packaged_abis` 为空；构建时的 `--abi` 请求不能代替实际内容或实机架构验收。
+
+### 默认分包交付
+
+| 档位 | 默认交付范围 |
+| --- | --- |
+| 标准版 `home.quiet.tv` | ARM32、ARM64、通用备用三个完整 APK；通用包保留 ARM32、ARM64、x86、x86_64 四种原生库架构 |
+| 安卓4.4兼容版 | 无原生库或无实际架构差异时保留一个包，不生成内容相同的架构副本 |
+| 酷开专用版 | 按实际交付需求确定架构范围，保留专用包名与兼容条件，不默认扩展整套包 |
+
+- 每台设备只安装其中一个完整 APK。同批标准三包共用源码提交、生产输入、软件版本、功能配置和签名证书，按架构保留对应原生库；不为各架构维护独立功能分支。
+- 按 ARM32、ARM64、通用包的顺序分配全局递增构建号，通用包使用本批标准三包中的最高号。每包分别核验实际架构、所需原生库完整性、签名、版本和升级兼容性，并记录大小、SHA-256 及验收结果；未完成项由用户决定延期或排除，不宣称整批完成。
+- 依据系统实际支持的架构选包；系统支持 ARM64 时优先选 ARM64，否则按支持情况选择 ARM32，架构不明确时提供通用备用包。64 位处理器可能运行 32 位系统，不能只按处理器名称或品牌推断。x86 设备可使用匹配的通用包，不默认新增两个公开下载项。
+- 覆盖安装仍要求目标包构建号高于已安装包。同批高号通用包切换到低号 ARM 包不满足升级条件，应提供后续更高构建号的匹配包，不通过卸载、清数据或强制降级解决。保留用户配置及原有签名关系，分别验证升级后的数据保留。
 
 ### 发布状态与签名
 
@@ -69,9 +84,11 @@ QuietTV助手_2.0.1-12_酷开安卓8配套酷开桌面_实验版.apk
 
 ## 构建与归档
 
-归档前将 `STANDARD_BUILD_NUMBER` 设为高于所有已用号的未占用正整数；`LEGACY_BUILD_NUMBER` 须另设为比它更高的未占用号。两个新包不能复用同一构建号；1.1.2 的 34、35 已发布，不可用于新内容。
+归档前为本批每个新包分配高于所有已用号且未占用的正整数构建号，标准三包按 ARM32、ARM64、通用的顺序递增。`STANDARD_BUILD_NUMBER` 表示下方单包示例的构建号；若随后交付兼容包，`LEGACY_BUILD_NUMBER` 须高于本批全部已分配号。不同新包不能复用同一构建号；1.1.2 的 34、35 已发布，不可用于新内容。
 
 按[安装指南](INSTALL.zh-CN.md)配置 SDK，现有脚本读取 `local.properties` 的 `sdk.dir`：
+
+以下命令只构建一个通用包，当前不会自动生成默认三包或完成整批验收。
 
 ```sh
 python3 scripts/build_apk.py --build-number "$STANDARD_BUILD_NUMBER" --variant benchmark --summary "说明本次更新内容"
@@ -92,7 +109,7 @@ python3 scripts/build_apk.py --build-number "$STANDARD_BUILD_NUMBER" --variant b
 
 ## 安装与发布边界
 
-- 下载说明分别展示各档位的最新包，不以最大构建号作为所有电视的统一推荐。测试包和实验包不标为稳定正式版。
+- 下载说明按系统档位及架构展示适配包，并提供通用备用入口，不以最大构建号作为所有电视的统一推荐。测试包和实验包不标为稳定正式版。
 - 覆盖升级核对相同包名、匹配签名、严格递增的构建号，以及系统和架构要求。标准包与兼容包共用 `home.quiet.tv`，不能同时安装；跨档位切换额外核对功能和数据兼容。
 - 酷开专用包是独立应用，不覆盖普通包、不自动迁移数据。签名不同的正式包交付前先制定迁移办法，不承诺直接无损覆盖，不自动卸载旧包或清除数据。
 - 构建、归档、安装、已安装包哈希核对、遥控器及功能验收分别记录。源码提交、工作区状态和历史验证不能证明当前设备已安装或已通过验收。
@@ -127,6 +144,10 @@ Published 1.1.2 provides standard build 34 (minSdk21) and legacy19 build 35 (min
 Future deliveries use `QuietTV_<version>-<numeric build>_<system>[_<single ABI>]_<status>.apk`. Version and build must match the actual APK. Build numbers are positive integers without prefixes or leading zeros and increase across all main-app delivery variants. Re-sending identical archived bytes does not allocate a new number. The helper uses `QuietTV助手`, its own version/build sequence, and an explicit target launcher.
 
 System labels are `安卓4.4` (legacy19, API19), `安卓5及以上` (standard, API21), and `酷开安卓8` (experimental vendor package, API26). Other minimum APIs require matching labels. Omit the ABI for universal or native-library-free APKs; use ARM32, ARM64, x86 or x86_64 only for actual single-ABI builds. Status is `测试版` (test), `实验版` (experimental), or `正式版` (formally signed release with agreed acceptance completed).
+
+Future standard deliveries default to three standalone APKs: ARM32, ARM64 and a universal fallback containing all four native-library ABIs. Each device installs one APK. All three share the source commit, production inputs, software version, feature configuration and signing certificate; assign increasing build numbers in ARM32, ARM64, universal order. Keep one legacy19 APK while it has no native-library or actual ABI differences; determine the Coocaa package set per delivery. Select by the ABIs supported by the operating system, and use the universal fallback when uncertain. In-place switches still require a higher build number; do not uninstall, clear data or force a downgrade to switch to a lower-numbered package.
+
+The default package policy is recorded; batch-wide source checks, complete native-library checks, batch receipts and first-batch acceptance remain pending. The current script builds one APK per invocation with `--abi`. Complete and record implementation and acceptance before treating the three-package delivery as ready.
 
 **The main-app build script implements the naming above, matching checksums, actual APK metadata validation and build-number checks across registered local worktree archives.** Remote releases, unregistered archives, helpers and formal-release acceptance require separate checks. Preserve historical files, checksums, tags and links. Archives require matching checksum and metadata records, including the actual package, SDKs, ABI, signing identity, source and acceptance scope. Same-name/different-byte replacement is forbidden.
 

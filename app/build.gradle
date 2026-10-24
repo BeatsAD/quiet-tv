@@ -21,6 +21,12 @@ android {
         versionName '1.2.0'
     }
     buildFeatures { buildConfig true }
+    // Keep historical source media and superseded generated QR PNGs out of APK assets.
+    androidResources {
+        ignoreAssetsPatterns.addAll(['big-sur-coastline.jpg', 'big-sur-mountains.jpg',
+            'big-sur-road.jpg', 'golden-gate-sunset.jpg', 'golden-gate-sunset.mp4',
+            'wechat.png', 'qq-group.png'])
+    }
     sourceSets.main.java.srcDir(legacy ? 'src/legacy19/java' : 'src/standard/java')
     // Former clones may retain these local-only files; never compile the retired recorder.
     sourceSets.main.java.exclude 'home/quiet/tv/DiagnosticText.java', 'home/quiet/tv/DiagnosticsActivity.java',
@@ -71,7 +77,7 @@ dependencies {
 def aboutAssets = layout.buildDirectory.dir('generated/aboutAssets')
 android.sourceSets.main.assets.srcDir(aboutAssets)
 tasks.register('bundleAbout', Exec) {
-    inputs.files('../prototypes/about/index.html', '../prototypes/about/styles.css', '../prototypes/about/app.js', '../prototypes/about/assets/source.svg', '../prototypes/about/assets/wechat.png', '../prototypes/about/assets/qq-group.png')
+    inputs.files('../prototypes/about/index.html', '../prototypes/about/styles.css', '../prototypes/about/app.js', '../prototypes/about/assets/source.svg', '../prototypes/about/assets/wechat.webp', '../prototypes/about/assets/qq-group.webp')
     inputs.files('../scripts/bundle_about.py', '../LICENSE', '../THIRD_PARTY_NOTICES.md')
     inputs.files(fileTree('src/main/assets/fonts'), fileTree('src/main/assets/licenses'))
     outputs.dir(aboutAssets)

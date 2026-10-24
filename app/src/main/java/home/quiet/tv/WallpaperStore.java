@@ -1,7 +1,6 @@
 package home.quiet.tv;
 
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.util.AtomicFile;
 import android.util.Log;
 import org.json.*;
@@ -27,8 +26,8 @@ final class WallpaperStore {
             try { catalog=WallpaperCatalog.read(new JSONObject(new String(catalogFile.readFully(),StandardCharsets.UTF_8))); }
             catch(IOException|JSONException e) { Log.w("QuietTV","Wallpaper catalog could not be read");DiagnosticLog.error("wallpaper.catalog.failed",e); catalog=new WallpaperCatalog(); }
         } else {
-            SharedPreferences old=context.getSharedPreferences("wallpapers",0);
-            catalog=WallpaperCatalog.migrate(old.getBoolean("default",!old.contains("index")),old.getInt("index",0),old.getBoolean("rotating",true));
+            // Pre-catalog preferences referred only to the retired built-in photos.
+            catalog=new WallpaperCatalog();
             try { persist(catalog); } catch(IOException e) { Log.w("QuietTV","Wallpaper migration will retry on next launch"); }
         }
         // A missing upload must never leave the home screen pointing at an absent file.
@@ -78,7 +77,6 @@ final class WallpaperStore {
     synchronized void stopVideo() throws IOException {WallpaperCatalog next=catalog.copy();next.stopVideo();persist(next);}
     synchronized void rotation(boolean enabled) throws IOException { WallpaperCatalog next=catalog.copy();next.rotation(enabled);persist(next); }
     synchronized void next() throws IOException { WallpaperCatalog next=catalog.copy();next.next();persist(next); }
-    synchronized void restore() throws IOException { WallpaperCatalog next=catalog.copy();next.restore();persist(next); }
     synchronized void remove(String id) throws IOException {
         WallpaperCatalog.Entry entry=catalog.find(id); if(entry==null || WallpaperCatalog.DEFAULT.equals(id)||WallpaperCatalog.DAILY.equals(id)) return;
         WallpaperCatalog old=catalog.copy(),next=catalog.copy();next.remove(id);persist(next);

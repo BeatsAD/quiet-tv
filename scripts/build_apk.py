@@ -20,7 +20,7 @@ def source_digest():
     paths += [ROOT / name for name in ['app/build.gradle', 'app/proguard-rules.pro', 'build.gradle', 'settings.gradle',
               'gradle.properties', 'gradle/security-constraints.gradle', 'scripts/bundle_about.py', 'scripts/build_apk.py',
               'prototypes/about/index.html', 'prototypes/about/styles.css', 'prototypes/about/app.js',
-              'prototypes/about/assets/source.svg', 'prototypes/about/assets/wechat.png', 'prototypes/about/assets/qq-group.png',
+              'prototypes/about/assets/source.svg', 'prototypes/about/assets/wechat.webp', 'prototypes/about/assets/qq-group.webp',
               'LICENSE', 'THIRD_PARTY_NOTICES.md']]
     digest = hashlib.sha256()
     for path in sorted(set(paths)):
