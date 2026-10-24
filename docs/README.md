@@ -33,4 +33,4 @@ Plans, private tests, fixtures, device data, backups, standalone demos and gener
 
 - [Agent 安装与恢复](AGENT_INSTALL.zh-CN.md)：面向可执行终端命令的电脑 Agent，按实际设备选包并保留原桌面。
 
-- [Agent 问题排查](AGENT_DIAGNOSE.zh-CN.md)：电脑侧指导复现、采集日志与生成反馈，电视内不再提供诊断入口。
+- [Agent 问题排查](AGENT_DIAGNOSE.zh-CN.md)：电视内扫码日志不足时，电脑侧指导复现、采集系统日志与生成反馈。

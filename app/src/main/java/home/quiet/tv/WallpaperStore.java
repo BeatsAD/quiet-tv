@@ -25,7 +25,7 @@ final class WallpaperStore {
         catalogFile=new AtomicFile(new File(directory,"catalog.json"));
         if(catalogFile.getBaseFile().exists() || new File(directory,"catalog.json.bak").exists()) {
             try { catalog=WallpaperCatalog.read(new JSONObject(new String(catalogFile.readFully(),StandardCharsets.UTF_8))); }
-            catch(IOException|JSONException e) { Log.w("QuietTV","Wallpaper catalog could not be read"); catalog=new WallpaperCatalog(); }
+            catch(IOException|JSONException e) { Log.w("QuietTV","Wallpaper catalog could not be read");DiagnosticLog.error("wallpaper.catalog.failed",e); catalog=new WallpaperCatalog(); }
         } else {
             SharedPreferences old=context.getSharedPreferences("wallpapers",0);
             catalog=WallpaperCatalog.migrate(old.getBoolean("default",!old.contains("index")),old.getInt("index",0),old.getBoolean("rotating",true));
@@ -71,8 +71,8 @@ final class WallpaperStore {
     }
     private void persist(WallpaperCatalog next) throws IOException {
         FileOutputStream stream=null;
-        try { stream=catalogFile.startWrite(); stream.write(next.json().toString().getBytes(StandardCharsets.UTF_8)); catalogFile.finishWrite(stream); catalog=next; }
-        catch(JSONException|IOException e) { if(stream!=null) catalogFile.failWrite(stream); throw new IOException("Unable to save wallpaper settings",e); }
+        try { stream=catalogFile.startWrite(); stream.write(next.json().toString().getBytes(StandardCharsets.UTF_8)); catalogFile.finishWrite(stream); catalog=next;DiagnosticLog.info("wallpaper.saved","current="+next.current+" rotating="+next.rotating); }
+        catch(JSONException|IOException e) { if(stream!=null) catalogFile.failWrite(stream); DiagnosticLog.error("wallpaper.save.failed",e);throw new IOException("Unable to save wallpaper settings",e); }
     }
     synchronized void select(String id) throws IOException { WallpaperCatalog next=catalog.copy();next.select(id);persist(next); }
     synchronized void stopVideo() throws IOException {WallpaperCatalog next=catalog.copy();next.stopVideo();persist(next);}

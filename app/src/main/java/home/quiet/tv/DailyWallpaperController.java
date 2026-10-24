@@ -145,6 +145,7 @@ final class DailyWallpaperController {
         else reason=tr("壁纸请求失败，请检查网络或稍后重试","Wallpaper request failed. Check network or try later");
         Failure failure=new Failure(SystemClock.elapsedRealtime()+delay,limited,reason+"  "+tr("已保留当前壁纸","Current wallpaper kept"));
         failures.put(source,failure);busy=false;task=null;pendingSource=null;
+        DiagnosticLog.info("wallpaper.daily.failed","source="+source+" stage="+stage);DiagnosticLog.error("wallpaper.daily.error",error);
         // Keep causes useful without logging URLs, response bodies or exception messages.
         Log.w("QuietTV","Daily wallpaper failed: source="+source+" stage="+stage+" error="+error.getClass().getSimpleName()
             +(error instanceof DailyWallpaperClient.HttpFailure?" http="+((DailyWallpaperClient.HttpFailure)error).status:limited?" http=429":""));

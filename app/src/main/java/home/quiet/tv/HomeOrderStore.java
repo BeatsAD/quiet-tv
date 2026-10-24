@@ -45,7 +45,8 @@ final class HomeOrderStore {
             String previous=signature();boolean wasCustom=custom();
             if(reset)editor.remove("packages");
             else editor.putString("packages",new JSONArray(merge(load(),visible)).toString());
-            if(editor.commit())return true;
+            if(editor.commit()){DiagnosticLog.info("home.order.saved","reset="+reset+" count="+visible.size());return true;}
+            DiagnosticLog.info("home.order.failed","preferences write failed");
             // A failed disk write still changes the SharedPreferences memory snapshot.
             SharedPreferences.Editor rollback=preferences.edit();if(wasCustom)rollback.putString("packages",previous);else rollback.remove("packages");rollback.apply();return false;
         }

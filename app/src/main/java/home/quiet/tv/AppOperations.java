@@ -59,7 +59,11 @@ final class AppOperations {
         return perform(adb,confirmed,Action.ENABLE,runId,ticket,false,setting);
     }
     private String perform(AdbController adb,AppRepository.App confirmed,Action action,String runId,SetupOperations.Ticket ticket,boolean original,int restoreSetting) throws Exception {
-        begin();try{return performLocked(adb,confirmed,action,runId,ticket,original,restoreSetting);}finally{end();}
+        begin();try{
+            DiagnosticLog.info("app.operation.request",action.name()+" package="+(confirmed.pkg.matches("[A-Za-z0-9_.]+")?confirmed.pkg:"[invalid]"));
+            String result=performLocked(adb,confirmed,action,runId,ticket,original,restoreSetting);
+            DiagnosticLog.info("app.operation.verified",action.name());return result;
+        }catch(Exception e){DiagnosticLog.error("app.operation.failed."+action.name(),e);throw e;}finally{end();}
     }
     private String performLocked(AdbController adb,AppRepository.App confirmed,Action action,String runId,SetupOperations.Ticket ticket,boolean original,int restoreSetting) throws Exception {
         if(!adb.connected())throw new IOException("需要连接 ADB");

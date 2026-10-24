@@ -116,7 +116,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         loadApps();
         loader.execute(()->{try{
             if(new SetupStore(this).shouldOffer(this))main.post(()->{if(!isFinishing() && !isDestroyed())leaveHome(()->startActivity(new Intent(this,SetupActivity.class)));});
-        }catch(Exception e){Log.w(TAG,"Setup state unavailable; retaining home",e);}});
+        }catch(Exception e){Log.w(TAG,"Setup state unavailable; retaining home",e);DiagnosticLog.error("home.setup_state.failed",e);}});
     }
 
     private String readAsset(String name) throws IOException {
@@ -277,8 +277,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             if(ChildBlockActivity.gate(this,pkg)){Log.i(BootAppStore.TAG,"blocked by child mode");return;}
             if(new HomeGuardState(this).protects(pkg))HomeGuardService.allowOriginal();
             startActivity(intent);
-            Log.i(BootAppStore.TAG,"launch requested");
-        }catch(RuntimeException e){Log.w(BootAppStore.TAG,"launch rejected");wallpapers.resume();Toast.makeText(this,tr("自启应用暂时无法打开","Unable to open startup app"),Toast.LENGTH_SHORT).show();}});
+            Log.i(BootAppStore.TAG,"launch requested");DiagnosticLog.info("app.autostart.dispatched",pkg);
+        }catch(RuntimeException e){Log.w(BootAppStore.TAG,"launch rejected");DiagnosticLog.error("app.autostart.failed",e);wallpapers.resume();Toast.makeText(this,tr("自启应用暂时无法打开","Unable to open startup app"),Toast.LENGTH_SHORT).show();}});
     }
 
     @Override protected void onPause() {
@@ -362,7 +362,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 Log.i(TAG,"Loaded dock="+dock.size()+" apps="+apps.size());
             });
             } catch (RuntimeException e) {
-                main.post(()->{loadingApps=false;appsDirty=true;Log.w(TAG,"App refresh failed; retaining current tiles",e);});
+                main.post(()->{loadingApps=false;appsDirty=true;Log.w(TAG,"App refresh failed; retaining current tiles",e);DiagnosticLog.error("app.catalog.failed",e);});
             }
         });
     }
@@ -488,8 +488,10 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             try{
                 if(ChildBlockActivity.gate(this,app.pkg))return;
                 if(new HomeGuardState(this).protects(app.pkg))HomeGuardService.allowOriginal();
+                DiagnosticLog.info("app.launch.request",app.pkg);
                 startActivity(new Intent(Intent.ACTION_MAIN).setComponent(app.component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-            }catch(RuntimeException e){wallpapers.resume();Toast.makeText(this,tr("应用暂不可用，请检查儿童模式设置","App unavailable"),Toast.LENGTH_SHORT).show();}
+                DiagnosticLog.info("app.launch.dispatched",app.pkg);
+            }catch(RuntimeException e){DiagnosticLog.error("app.launch.failed",e);wallpapers.resume();Toast.makeText(this,tr("应用暂不可用，请检查儿童模式设置","App unavailable"),Toast.LENGTH_SHORT).show();}
         });
     }
 
@@ -762,8 +764,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 }
                 uri=TvContract.buildChannelUri(channel);
             }
-            try{startActivity(new Intent(Intent.ACTION_VIEW,uri).putExtra(TvInputInfo.EXTRA_INPUT_ID,info.getId()));Log.i(TAG,"Switch input "+info.getId());}
-            catch(ActivityNotFoundException|SecurityException e){Log.w(TAG,"Standard TV input launch failed: "+e.getClass().getSimpleName());offerSystemInputs();}
+            try{startActivity(new Intent(Intent.ACTION_VIEW,uri).putExtra(TvInputInfo.EXTRA_INPUT_ID,info.getId()));Log.i(TAG,"Switch input "+info.getId());DiagnosticLog.info("input.launch","standard requested");}
+            catch(ActivityNotFoundException|SecurityException e){Log.w(TAG,"Standard TV input launch failed: "+e.getClass().getSimpleName());DiagnosticLog.error("input.launch.failed",e);offerSystemInputs();}
         }
 
         private String inputName(TvInputInfo info){
