@@ -10,7 +10,7 @@ import org.json.*;
 
 /** Bounded local-video inspection. No network, transcoding or full-video buffering. */
 final class WallpaperVideo {
-    static final long MAX_UPLOAD=100L*1024*1024;
+    static final long MAX_UPLOAD=30L*1024*1024;
     static final class Info {
         int width,height,rotation;long durationMs;float fps;String mime;
     }
