@@ -136,8 +136,8 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     }
     void leaveManagement(Runnable action){action.run();}
     LinearLayout managementContent(){
-        managementInfo=row();LinearLayout.LayoutParams info=new LinearLayout.LayoutParams(-1,px(30));info.topMargin=px(23);root.addView(managementInfo,info);
-        LinearLayout body=column();LinearLayout.LayoutParams content=new LinearLayout.LayoutParams(-1,0,1);content.topMargin=px(12);root.addView(body,content);return body;
+        managementInfo=row();LinearLayout.LayoutParams info=new LinearLayout.LayoutParams(-1,px(26));info.topMargin=px(8);root.addView(managementInfo,info);
+        LinearLayout body=column();LinearLayout.LayoutParams content=new LinearLayout.LayoutParams(-1,0,1);content.topMargin=px(6);root.addView(body,content);return body;
     }
     TextView managementHint(String text){TextView hint=muted(text,11);hint.setSingleLine();hint.setEllipsize(android.text.TextUtils.TruncateAt.END);return hint;}
     LinearLayout toolbar(int selected){
