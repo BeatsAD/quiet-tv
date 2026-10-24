@@ -10,9 +10,10 @@
 | Up / Down | Move one row between shortcuts, dock, and grid |
 | OK | Open the selected application, shortcut, or settings module |
 | Back in the grid | Return to the dock |
-| HOME from an application | Return to Quiet TV and restore focus |
+| HOME (development source) | Return to the first screen, with focus in Favorite apps |
+| Back from an application to Home (development source) | Keep the position and focus used before opening the application |
 
-All Apps and Home order both use five columns. An incomplete last row uses the nearest valid column. Focus survives launcher process restarts. A historical build passed one Sony TV reboot. That result does not establish reboot or upgrade-state acceptance for 1.1.2.
+All Apps and Home order both use five columns. An incomplete last row uses the nearest valid column. Focus is saved locally for restoration. In development source, a new HOME request always takes priority and returns to the first screen; ordinary Back returns preserve the previous position. A historical build passed one Sony TV reboot. That result does not establish reboot or upgrade-state acceptance for 1.1.2.
 
 In development builds, the greeting, clock, date, weather, top-right shortcuts and dock scroll out together when entering All Apps, in both Classic and Art Gallery layouts. All Apps uses a smaller top gap and shows a centered, single-line name below every cover; long names end with an ellipsis, and row spacing stays consistent. More apps scroll continuously by row with focus, without scrollbars, an app count or footer labels. Up from the first grid row or Back from the grid restores the original home layout and the dock item selected before entering the grid. This change is not included in published 1.1.2 APKs.
 
