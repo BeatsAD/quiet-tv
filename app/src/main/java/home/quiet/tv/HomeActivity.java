@@ -604,7 +604,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 float stroke=px(emptyDock()?1.5f:FOCUS_STROKE),inset=stroke/2f;rect.inset(inset,inset);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(stroke);paint.setColor(Color.WHITE);c.drawRoundRect(rect,Math.max(0,radius-inset),Math.max(0,radius-inset),paint);paint.setStyle(Paint.Style.FILL);
             }
             c.restore();
-            if(showLabel)c.drawText(label,getWidth()/2f,labelBaseline,labelPaint);
+            if(showLabel&&desktopSettings.showAllAppsNames())c.drawText(label,getWidth()/2f,labelBaseline,labelPaint);
         }
         private void drawEmptyDock(Canvas canvas,RectF rect){
             // Reuse the screen-aligned wallpaper cache; never bake in a wallpaper hue.
