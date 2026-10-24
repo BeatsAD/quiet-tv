@@ -35,7 +35,7 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
         LinearLayout body=ui.column();view.addView(body,new ScrollView.LayoutParams(-1,-2));
         LinearLayout heading=ui.row();heading.addView(ui.muted("当电视回到原厂桌面时，尝试返回 Quiet TV。",14),new LinearLayout.LayoutParams(0,-2,1));
         body.addView(heading,new LinearLayout.LayoutParams(-1,headerActions?-2:ui.px(38)));ui.gap(body,22);
-        LinearLayout group=ui.column();group.setPadding(ui.px(4),ui.px(4),ui.px(4),ui.px(4));group.setBackground(ui.surface(0x12ffffff,0x06ffffff,0x1cffffff,16));UiCompat.clipOutline(group);body.addView(group);
+        LinearLayout group=ui.listGroup();body.addView(group);
         homeRow=setting("原桌面","desktop","guard-home");homeRow.tail("arrow");homeRow.setOnClickListener(v->showHomes());addSetting(group,homeRow);
         accessibilityRow=setting("无障碍权限","tools","guard-accessibility");accessibilityRow.tail("arrow");accessibilityRow.setOnClickListener(v->openAccessibility());addSetting(group,accessibilityRow);
         notificationRow=setting("通知恢复","tools","guard-notification");notificationRow.tail("arrow");notificationRow.setOnClickListener(v->openNotification());addSetting(group,notificationRow);
@@ -45,7 +45,6 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
     }
     private DesktopSettingsRow setting(String title,String symbol,String tag){DesktopSettingsRow row=new DesktopSettingsRow(ui,title,symbol,false);row.setTag(tag);return row;}
     private void addSetting(LinearLayout group,DesktopSettingsRow row){
-        if(group.getChildCount()>0){View line=new View(ui);line.setBackgroundColor(0x16ffffff);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,ui.px(1));p.setMargins(ui.px(18),0,ui.px(18),0);group.addView(line,p);}
         group.addView(row,new LinearLayout.LayoutParams(-1,ui.px(80)));
     }
     void resume(){
@@ -110,6 +109,14 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
     private void configureRecovery(){
         if(configuring)return;
         if(!state.enabled()){ui.message("请先启用桌面守护。");return;}
+        if(HomeGuardRecovery.writeAllowed(ui)){
+            try{
+                HomeGuardRecovery.configureGranted(ui);
+                if(HomeGuardRecovery.configurationProblem(ui).isEmpty()){
+                    refreshUi();ui.message("权限已配置，等待系统绑定");view.postDelayed(bindingRefresh,1800);return;
+                }
+            }catch(java.io.IOException|SecurityException failure){ui.message("配置未全部完成："+failure.getMessage());return;}
+        }
         connection.show(()->{
             configuring=true;ticket=new SetupOperations.Ticket();SetupOperations.Ticket task=ticket;
             worker.execute(()->{String result;
@@ -133,7 +140,7 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
             for(HomeGuardState.Candidate other:candidates)if(candidate.label.equals(other.label))same++;
             String name=(selected?"已选择  ":"")+candidate.label+(same>1?"  "+candidate.component.getShortClassName():"");
             Button option=sheet.option(name,()->{state.select(candidate.component);sheet.dialog.dismiss();});
-            ControlStyle.choice(option,ui.unit,9,0x10ffffff,0x22ffffff);option.setSelected(selected);
+            option.setSelected(selected);
             option.setSingleLine(true);option.setEllipsize(android.text.TextUtils.TruncateAt.END);option.setContentDescription(name+"  "+candidate.component.flattenToString());
             if(focus==null||selected)focus=option;
         }
@@ -149,6 +156,12 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
         ManagementUi.Sheet sheet=ui.new Sheet("更多操作");
         sheet.text("自动恢复会修复被系统移除的无障碍配置。停止自动接管请关闭守护开关；首次调试授权仍由系统确认。");
         sheet.option("配置自动恢复",this::configureRecovery);
+        sheet.option("电脑配置说明",()->{
+            sheet.dialog.dismiss();ManagementUi.Sheet guide=ui.new Sheet("通过电脑配置守护");
+            guide.text("请让电脑上的安装助手配置桌面守护。电视内置 ADB 连接失败时，仍可使用已授权的电脑连接。");
+            guide.text(HomeGuardRecovery.configurationProblem(ui).isEmpty()?"权限已配置，实际接管仍需按遥控器 HOME 验证。":HomeGuardRecovery.configurationProblem(ui));
+            Button close=guide.action("返回",guide.dialog::dismiss);showSheet(guide,close,more);
+        });
         boolean canOpen=state.validSelection();if(!canOpen)sheet.text("请先选择有效的原桌面，才能打开原桌面。");
         Button refresh=sheet.option("重新检测",R.drawable.ic_manage_refresh,()->{sheet.dialog.dismiss();ui.feedback("已重新检测原桌面与权限状态");});
         Button original=sheet.option("暂停并打开原桌面",R.drawable.ic_manage_back,()->{sheet.dialog.dismiss();openOriginal();});original.setEnabled(canOpen);original.setAlpha(canOpen?1f:.45f);

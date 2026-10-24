@@ -4,6 +4,7 @@
 **/build/
 dist/apk/
 local.properties
+/weather.local.json
 inspection/
 backups/
 evidence/
@@ -13,7 +14,7 @@ evidence/
 !/app/src/main/assets/child-rest/forest.webp
 !/app/src/main/assets/child-rest/cloud.webp
 !/app/src/main/assets/child-rest/space.webp
-# Built-in video wallpaper and its offline poster are production inputs.
+# Historical wallpaper sources stay available; Gradle excludes them from APK assets.
 !/app/src/main/assets/wallpapers/golden-gate-sunset.mp4
 !/app/src/main/assets/wallpapers/golden-gate-sunset.jpg
 .DS_Store
@@ -25,6 +26,13 @@ __pycache__/
 /preferences.json
 /package-inventory.csv
 /PACKAGE-INVENTORY.md
+
+# Bundled region data and the phone picker are public production inputs.
+!/app/src/main/assets/weather/
+!/app/src/main/assets/weather/regions.json
+!/app/src/main/assets/weather-input/
+!/app/src/main/assets/weather-input/*
+!/app/src/main/assets/licenses/china-regions-WTFPL.txt
 /.playwright-cli/
 
 # Local development and tests remain on disk, outside the public source tree.
@@ -38,6 +46,7 @@ __pycache__/
 !/scripts/build_apk.py
 !/scripts/bundle_about.py
 !/scripts/check_contribution.py
+!/scripts/configure_home_guard.py
 !/scripts/validate_profiles.py
 !/scripts/restore_local_development.py
 /build-and-install.command
@@ -67,6 +76,8 @@ __pycache__/
 !/prototypes/about/assets/wechat.png
 !/prototypes/about/assets/official.png
 !/prototypes/about/assets/qq-group.png
+!/prototypes/about/assets/wechat.webp
+!/prototypes/about/assets/qq-group.webp
 /recording-edit-9608/
 /tools/
 /项目复现提示词.md

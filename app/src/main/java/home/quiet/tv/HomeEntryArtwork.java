@@ -20,7 +20,7 @@ final class HomeEntryArtwork {
         canvas.drawRect(0,0,360,203,paint);paint.setShader(null);
 
         // Decode near the drawing size; do not retain full-resolution icon bitmaps.
-        BitmapFactory.Options options=new BitmapFactory.Options();options.inSampleSize=4;
+        BitmapFactory.Options options=new BitmapFactory.Options();options.inSampleSize=2;
         Bitmap icon=BitmapFactory.decodeResource(context.getResources(),wallpaper?R.drawable.home_wallpaper_art:desktop?R.drawable.home_desktop_art:R.drawable.home_management_art,options);
         paint.setTypeface(Typeface.create("sans-serif",Typeface.BOLD));paint.setTextSize(34);paint.setColor(Color.WHITE);
         float width=paint.measureText(title);if(width>172){paint.setTextSize(34*172/width);width=paint.measureText(title);}

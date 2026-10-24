@@ -21,15 +21,12 @@ final class DesktopWeatherPanel {
     private final DesktopSettingsRow automatic,city,refresh,service;
     private final TextView status;
     private final Handler main=new Handler(Looper.getMainLooper());
-    private final ExecutorService searcher=Executors.newSingleThreadExecutor();
-    private final WeatherClient searchClient=new WeatherClient();
-    private Future<?> search;
-    private ManagementUi.Sheet picker,information;
-    private int searchVersion;
+    private final WeatherCityPicker cityPicker;
+    private ManagementUi.Sheet information;
     private boolean active;
     private WeatherData snapshot;
     DesktopWeatherPanel(DesktopSettingsActivity ui){
-        this.ui=ui;store=new WeatherStore(ui);controller=new WeatherController(ui,ui.chinese(),this::render);view=ui.column();view.addView(ui.section(tr("位置与更新","Location and updates")));
+        this.ui=ui;store=new WeatherStore(ui);controller=new WeatherController(ui,ui.chinese(),this::render);cityPicker=new WeatherCityPicker(ui,store,controller::settingsChanged);view=ui.column();view.addView(ui.section(tr("位置与更新","Location and updates")));
         LinearLayout group=ui.group();view.addView(group);
         automatic=ui.setting(tr("自动定位","Automatic location"),"locate","automatic");automatic.checked(store.automatic());automatic.setOnClickListener(v->toggleAutomatic());ui.addSetting(group,automatic);
         city=ui.setting(tr("选择城市","Choose city"),"pin","city");city.tail("arrow");city.setOnClickListener(v->chooseCity());ui.addSetting(group,city);
@@ -43,8 +40,8 @@ final class DesktopWeatherPanel {
     DesktopSettingsRow firstRow(){return automatic;}
     DesktopSettingsRow[] rows(){return new DesktopSettingsRow[]{automatic,city,refresh,service};}
     void resume(){if(active)return;active=true;controller.resume();}
-    void pause(){active=false;controller.pause();if(picker!=null)picker.dialog.dismiss();if(information!=null)information.dialog.dismiss();}
-    void destroy(){pause();controller.destroy();++searchVersion;searchClient.cancel();searcher.shutdownNow();main.removeCallbacksAndMessages(null);}
+    void pause(){active=false;controller.pause();cityPicker.pause();if(information!=null)information.dialog.dismiss();}
+    void destroy(){pause();controller.destroy();cityPicker.destroy();main.removeCallbacksAndMessages(null);}
     void settingsChanged(){controller.settingsChanged();}
     private void toggleAutomatic(){
         if(store.automatic()){
@@ -73,43 +70,18 @@ final class DesktopWeatherPanel {
         else refresh.value(message.isEmpty()?tr("尚未更新","Not updated"):tr("更新失败","Update failed"));
         String failure=controller.errorMessage();status.setText(store.enabled()?(failure.isEmpty()?message:failure):"");
     }
-    private void chooseCity(){
-        if(picker!=null)return;
-        final View origin=ui.getCurrentFocus();
-        ManagementUi.Sheet sheet=ui.new Sheet(tr("选择城市","Choose city"));picker=sheet;
-        EditText query=ui.input("",tr("输入城市或区县名称","Enter city or district"));query.setImeOptions(EditorInfo.IME_ACTION_SEARCH);sheet.body.addView(query,new LinearLayout.LayoutParams(-1,ui.px(46)));
-        LinearLayout results=ui.column();sheet.body.addView(results,new LinearLayout.LayoutParams(-1,-2));
-        Runnable run=()->{
-            String keywords=query.getText().toString().trim();if(keywords.isEmpty()||keywords.length()>60){ui.feedback(tr("请输入城市名称","Enter a city name"));return;}
-            android.view.inputmethod.InputMethodManager keyboard=(android.view.inputmethod.InputMethodManager)ui.getSystemService(Context.INPUT_METHOD_SERVICE);
-            if(keyboard!=null)keyboard.hideSoftInputFromWindow(query.getWindowToken(),0);
-            int version=++searchVersion;if(search!=null)search.cancel(true);searchClient.cancel();
-            results.removeAllViews();results.addView(ui.muted(tr("正在搜索…","Searching…"),13));
-            search=searcher.submit(()->{
-                try{
-                    List<WeatherClient.City> cities=searchClient.cities(keywords,ui.chinese());
-                    main.post(()->{
-                        if(picker!=sheet||version!=searchVersion)return;results.removeAllViews();
-                        if(cities.isEmpty())results.addView(ui.muted(tr("未找到城市，请输入完整名称","No results. Try the full city name."),13));
-                        for(WeatherClient.City result:cities){
-                            Button option=ui.button(result.name+(result.area.isEmpty()?"":"  "+result.area),()->{store.select(result.adcode,result.name);sheet.dialog.dismiss();controller.settingsChanged();});ControlStyle.choice(option,ui.unit,24,0x10ffffff,0x22ffffff);option.setSelected(result.adcode.equals(store.adcode()));option.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,ui.px(42));p.topMargin=ui.px(6);results.addView(option,p);
-                        }
-                        if(results.getChildCount()>0)results.getChildAt(0).requestFocus();
-                    });
-                }catch(java.io.IOException|org.json.JSONException e){main.post(()->{if(picker!=sheet||version!=searchVersion)return;results.removeAllViews();results.addView(ui.muted(e instanceof WeatherClient.ApiException&&((WeatherClient.ApiException)e).status==429?tr("搜索受限，请稍后再试","Search limited. Try later."):tr("搜索失败，请检查网络后重试","Search failed. Check the network."),13));});}
-            });
-        };
-        Button submit=sheet.action(tr("搜索","Search"),run);submit.setId(View.generateViewId());sheet.action(tr("取消","Cancel"),sheet.dialog::dismiss);
-        query.setOnEditorActionListener((v,id,event)->{if(id==EditorInfo.IME_ACTION_SEARCH){run.run();return true;}return false;});
-        sheet.dialog.setOnDismissListener(d->{++searchVersion;if(search!=null)search.cancel(true);searchClient.cancel();picker=null;automatic.checked(store.automatic());if(origin!=null&&active)origin.requestFocus();});sheet.show(query);query.setNextFocusDownId(submit.getId());
-    }
+    private void chooseCity(){cityPicker.show();}
     private void serviceInformation(){
         ManagementUi.Sheet sheet=ui.new Sheet(tr("服务说明","Service information"));information=sheet;
-        detail(sheet,tr("天气来源","Weather source"),"UAPI");
+        boolean primary=snapshot==null?WeatherConfiguration.load(ui).configured():"qweather".equals(snapshot.provider);
+        sheet.body.addView(ui.label(tr("天气来源","Weather source"),15));
+        TextView attribution=ui.muted(snapshot==null?(primary?tr("和风天气优先，UAPI 备用","QWeather first, UAPI fallback"):"UAPI")
+            :primary?tr("天气服务由和风天气提供","Weather service provided by QWeather"):tr("天气服务由 UAPI 提供","Weather service provided by UAPI"),12);
+        attribution.setTextColor(0xffb0b4be);attribution.setLineSpacing(ui.px(3),1);sheet.body.addView(attribution,new LinearLayout.LayoutParams(-1,-2));
         detail(sheet,tr("自动定位","Automatic location"),tr("优先使用系统位置；不可用时根据网络 IP 推测城市，可手动选择城市。","Uses system location when available, otherwise estimates the city from the network IP. You can choose a city manually."));
-        detail(sheet,tr("隐私与条款","Privacy and terms"),tr("通过 HTTPS 向 UAPI 查询天气及位置。天气显示可在桌面显示中关闭。","Weather and location queries are sent to UAPI over HTTPS. Weather can be turned off in Desktop display."));
+        detail(sheet,tr("隐私与条款","Privacy and terms"),tr("通过 HTTPS 查询和风天气，失败时尝试 UAPI。地区选择和搜索在本地完成，手机输入仅在当前局域网会话中接收。","Queries QWeather over HTTPS with UAPI fallback. Region search is local; phone input is limited to the current LAN session."));
         if(snapshot!=null){SimpleDateFormat time=new SimpleDateFormat("MM-dd HH:mm",Locale.US);detail(sheet,tr("数据时间","Observation time"),snapshot.observedAt>0?time.format(new Date(snapshot.observedAt)):tr("接口未提供可识别时间","Observation time unavailable"));}
-        sheet.action(tr("数据来源","Data source"),()->open(WeatherClient.SOURCE_URL));sheet.action(tr("隐私与条款","Privacy and terms"),()->open("https://uapis.cn/docs/getting-started/privacy-policy"));Button close=sheet.action(tr("关闭","Close"),sheet.dialog::dismiss);
+        sheet.action(primary?tr("和风天气官网","QWeather site"):tr("UAPI 官网","UAPI website"),()->open(primary?"https://www.qweather.com":"https://uapis.cn"));sheet.action(tr("隐私与条款","Privacy and terms"),()->open(primary?"https://dev.qweather.com/docs/terms/tos/":"https://uapis.cn/docs/getting-started/privacy-policy"));Button close=sheet.action(tr("关闭","Close"),sheet.dialog::dismiss);
         sheet.dialog.setOnDismissListener(d->{information=null;if(active)service.requestFocus();});sheet.show(close);
     }
     private void detail(ManagementUi.Sheet sheet,String heading,String text){

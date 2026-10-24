@@ -5,11 +5,13 @@ import java.util.LinkedHashSet;
 /** Fresh home events are immediate; lifecycle recovery has a separate, bounded settle path. */
 final class HomeGuardPolicy {
     static final long SETTLE_MS=1500, MAX_AGE_MS=3000, BOOT_WINDOW_MS=180000;
+    static final long USAGE_POLL_MS=1000, USAGE_LOOKBACK_MS=10000;
     private String window="";
-    private long arrived;
+    private long arrived,usageTakenAt=Long.MIN_VALUE;
     private boolean consumed,unknownUsed;
 
     static boolean supported(String manufacturer,String brand,int sdk,boolean legacy){return !legacy && sdk>=21;}
+    static boolean usageFallback(int sdk,boolean legacy){return !legacy && sdk>=21 && sdk<=23;}
     static boolean vendorHome(String category){
         return "android.intent.category.HOME.CC".equals(category)
             || "android.intent.category.HOME.CC_MAIN".equals(category)
@@ -56,6 +58,12 @@ final class HomeGuardPolicy {
         if(!window.equals(selected) || consumed)return false;
         consumed=true;return true;
     }
+    // Wall-clock timestamps from UsageEvents are separate from accessibility's uptime.
+    boolean consumeUsage(String selected,String pkg,String cls,long at,long now){
+        if(at<=usageTakenAt || now<at || now-at>USAGE_LOOKBACK_MS || !matches(selected,pkg,cls))return false;
+        usageTakenAt=at;return true;
+    }
+    void ignoreUsageThrough(long now){usageTakenAt=Math.max(usageTakenAt,now);}
     boolean unknown(){return window.isEmpty();}
     void confirmed(){unknownUsed=true;}
     void clear(){window="";arrived=0;consumed=false;}

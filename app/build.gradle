@@ -17,10 +17,16 @@ android {
         manifestPlaceholders = [leanbackRequired: !legacy, homeGuardAvailable: !legacy]
         buildConfigField 'boolean', 'LEGACY_19', legacy.toString()
         targetSdk 36
-        versionCode providers.gradleProperty('quietBuildNumber').getOrElse('36').toInteger()
-        versionName '1.2.0'
+        versionCode providers.gradleProperty('quietBuildNumber').getOrElse('51').toInteger()
+        versionName '1.2.1'
     }
     buildFeatures { buildConfig true }
+    // Keep historical source media and superseded generated QR PNGs out of APK assets.
+    androidResources {
+        ignoreAssetsPatterns.addAll(['big-sur-coastline.jpg', 'big-sur-mountains.jpg',
+            'big-sur-road.jpg', 'golden-gate-sunset.jpg', 'golden-gate-sunset.mp4',
+            'wechat.png', 'qq-group.png'])
+    }
     sourceSets.main.java.srcDir(legacy ? 'src/legacy19/java' : 'src/standard/java')
     // Former clones may retain these local-only files; never compile the retired recorder.
     sourceSets.main.java.exclude 'home/quiet/tv/DiagnosticText.java', 'home/quiet/tv/DiagnosticsActivity.java',
@@ -71,13 +77,38 @@ dependencies {
 def aboutAssets = layout.buildDirectory.dir('generated/aboutAssets')
 android.sourceSets.main.assets.srcDir(aboutAssets)
 tasks.register('bundleAbout', Exec) {
-    inputs.files('../prototypes/about/index.html', '../prototypes/about/styles.css', '../prototypes/about/app.js', '../prototypes/about/assets/source.svg', '../prototypes/about/assets/wechat.png', '../prototypes/about/assets/qq-group.png')
+    inputs.files('../prototypes/about/index.html', '../prototypes/about/styles.css', '../prototypes/about/app.js', '../prototypes/about/assets/source.svg', '../prototypes/about/assets/wechat.webp', '../prototypes/about/assets/qq-group.webp')
     inputs.files('../scripts/bundle_about.py', '../LICENSE', '../THIRD_PARTY_NOTICES.md')
     inputs.files(fileTree('src/main/assets/fonts'), fileTree('src/main/assets/licenses'))
     outputs.dir(aboutAssets)
     commandLine 'python3', file('../scripts/bundle_about.py'), aboutAssets.get().dir('about').asFile
 }
 tasks.named('preBuild').configure { dependsOn 'bundleAbout' }
+
+// Credentials are opt-in build inputs outside Git, never generated Java constants.
+def weatherAssets = layout.buildDirectory.dir('generated/weatherAssets')
+def weatherConfigPath = providers.gradleProperty('quietWeatherConfig').orElse(providers.environmentVariable('QUIETTV_WEATHER_CONFIG'))
+android.sourceSets.main.assets.srcDir(weatherAssets)
+tasks.register('bundleWeatherConfiguration') {
+    def configuration = weatherConfigPath.isPresent() ? file(weatherConfigPath.get()) : null
+    if (configuration != null) inputs.file(configuration).withPropertyName('privateWeatherConfiguration')
+    inputs.property('weatherConfigured', configuration != null)
+    outputs.file(weatherAssets.map { it.file('weather-config.json') })
+    doLast {
+        def values = configuration == null ? [:] : new groovy.json.JsonSlurper().parse(configuration)
+        if (configuration != null && (!(values.qweatherHost instanceof String) || !(values.qweatherApiKey instanceof String)
+                || !(values.qweatherHost ==~ /[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*\.qweatherapi\.com/)
+                || !(values.qweatherApiKey ==~ /[a-fA-F0-9]{32}/))) {
+            throw new GradleException('Invalid private weather configuration')
+        }
+        def output = weatherAssets.get().file('weather-config.json').asFile
+        output.parentFile.mkdirs()
+        output.text = groovy.json.JsonOutput.toJson(configuration == null ? [:] : [qweatherHost: values.qweatherHost, qweatherApiKey: values.qweatherApiKey])
+        output.setReadable(false, false)
+        output.setReadable(true, true)
+    }
+}
+tasks.named('preBuild').configure { dependsOn 'bundleWeatherConfiguration' }
 
 // A profile switch must invalidate incremental APK packaging, not just its metadata.
 // Otherwise a previously packaged Manifest can survive a standard/legacy19 switch.

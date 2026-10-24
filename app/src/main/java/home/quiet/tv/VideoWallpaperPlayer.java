@@ -120,7 +120,7 @@ final class VideoWallpaperPlayer {
     private void begin(Target next,WallpaperCatalog.Entry selected){
         File file=selected.custom()?WallpaperStore.get(activity).file(selected.id):null;
         SurfaceTexture texture=next.texture;
-        Log.i(TAG,"prepare texture request="+next.request);
+        Log.i(TAG,"prepare texture request="+next.request);DiagnosticLog.info("wallpaper.video.prepare","requested");
         worker.post(()->{
             if(next.request!=generation||next.retired)return;
             releasePlayer();if(next.request!=generation||next.retired)return;
@@ -133,19 +133,19 @@ final class VideoWallpaperPlayer {
                     p.start();main.post(()->{if(current(next)){next.started=true;firstFrame(next);}});
                 }catch(RuntimeException e){main.post(()->fail(next.request));}});
                 // MediaPlayer's rendering notification alone does not establish a composited frame.
-                created.setOnErrorListener((p,what,extra)->{main.post(()->fail(next.request));return true;});
+                created.setOnErrorListener((p,what,extra)->{DiagnosticLog.info("wallpaper.video.player_error","what="+what+" extra="+extra);main.post(()->fail(next.request));return true;});
                 created.prepareAsync();
-            }catch(IOException|RuntimeException e){main.post(()->fail(next.request));}
+            }catch(IOException|RuntimeException e){DiagnosticLog.error("wallpaper.video.prepare_failed",e);main.post(()->fail(next.request));}
         });
     }
     private void firstFrame(Target next){
         if(!current(next)||!next.started||!next.updated||rendered)return;
-        rendered=true;main.removeCallbacks(timeout);Log.i(TAG,"texture updated request="+next.request);
+        rendered=true;main.removeCallbacks(timeout);Log.i(TAG,"texture updated request="+next.request);DiagnosticLog.info("wallpaper.video.rendered","first frame");
         main.post(()->{if(current(next)&&rendered&&listener!=null)listener.ready();});
     }
     private void fail(int request){
         if(request!=generation||!enabled||destroyed)return;
-        enabled=false;rendered=false;main.removeCallbacks(timeout);Log.w(TAG,"texture unavailable request="+request);
+        enabled=false;rendered=false;main.removeCallbacks(timeout);Log.w(TAG,"texture unavailable request="+request);DiagnosticLog.info("wallpaper.video.failed","rendering unavailable");
         if(listener!=null)listener.failed();else stop();
     }
     private void release(){

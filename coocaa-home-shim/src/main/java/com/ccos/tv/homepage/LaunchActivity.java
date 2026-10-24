@@ -28,6 +28,7 @@ public class LaunchActivity extends Activity {
         try {
             startActivity(new Intent(Intent.ACTION_MAIN)
                     .setClassName(pkg, cls)
+                    .addCategory(Intent.CATEGORY_HOME)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED));
             return true;
         } catch (ActivityNotFoundException | SecurityException e) {

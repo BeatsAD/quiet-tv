@@ -24,6 +24,7 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     private Button managementStatus;
     private Button managementMoreButton;
     private PopupWindow managementMorePopup;
+    private DiagnosticLogPanel diagnosticPanel;
     int px(float value){return Math.round(value*unit);}
     @Override public void onCreate(Bundle state){
         super.onCreate(state);BackNavigation.install(this,this::handleBack);unit=getResources().getDisplayMetrics().widthPixels/960f;
@@ -47,8 +48,8 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     boolean loadWallpaper(){return true;}
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);managementEntry=true;}
     @Override protected void onResume(){super.onResume();if(managementSession!=null)managementSession.resume();if(managementEntry && managementPage>=0){managementEntry=false;managementTab().requestFocus();}}
-    @Override protected void onStop(){if(managementMorePopup!=null)managementMorePopup.dismiss();if(managementConnection!=null)managementConnection.suspend();if(managementSession!=null)managementSession.suspend();super.onStop();}
-    @Override protected void onDestroy(){if(managementSession!=null)managementSession.close();super.onDestroy();}
+    @Override protected void onStop(){if(diagnosticPanel!=null)diagnosticPanel.close();if(managementMorePopup!=null)managementMorePopup.dismiss();if(managementConnection!=null)managementConnection.suspend();if(managementSession!=null)managementSession.suspend();super.onStop();}
+    @Override protected void onDestroy(){if(diagnosticPanel!=null)diagnosticPanel.destroy();if(managementSession!=null)managementSession.close();super.onDestroy();}
     void managementConnected(){}
     void connectionPanel(){
         AdbController adb=managementSession.adb;
@@ -76,11 +77,14 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
         managementMoreOption(menu,"开机广告",()->startActivity(new Intent(this,BootAdActivity.class)));
         managementMoreOption(menu,"首次设置",()->startActivity(new Intent(this,SetupActivity.class)));
         managementMoreOption(menu,"恢复原桌面",()->startActivity(new Intent(this,SetupActivity.class).putExtra("restore",true)));
+        managementMoreOption(menu,"诊断日志",this::diagnosticLog);
     }
+    void diagnosticClosed(){if(managementMoreButton!=null)managementMoreButton.requestFocus();}
+    private void diagnosticLog(){if(diagnosticPanel==null)diagnosticPanel=new DiagnosticLogPanel(this);diagnosticPanel.show();}
     void managementMoreOption(LinearLayout menu,String title,Runnable action){
         Button choice=button(title,()->{managementMorePopup.dismiss();action.run();});choice.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(15));choice.setTextColor(0xffeeeeef);
         choice.setPadding(px(16),0,px(12),0);choice.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);choice.setFocusableInTouchMode(true);
-        choice.setBackground(ControlStyle.action(unit,11,Color.TRANSPARENT,0));
+        choice.setBackground(useSettingListStyle()?ControlStyle.listRow(unit,11):ControlStyle.action(unit,11,Color.TRANSPARENT,0));
         menu.addView(choice,new LinearLayout.LayoutParams(-1,px(40)));
     }
     private void managementHeader(){
@@ -116,7 +120,12 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
         b.setSingleLine(true);b.setPadding(px(compact?10:18),0,px(compact?10:18),0);b.setMinWidth(px(compact?48:100));
     }
     void styleManagementTab(Button b,boolean compact){styleTab(b,compact);}
-    Drawable listSurface(){StateListDrawable state=new StateListDrawable();state.addState(new int[]{android.R.attr.state_focused},surface(0x24ffffff,0x16ffffff,-1,12));state.addState(new int[]{android.R.attr.state_selected},surface(0x14ffffff,0x10ffffff,0x1effffff,12));state.addState(new int[]{},new ColorDrawable(Color.TRANSPARENT));return state;}
+    boolean useSettingListStyle(){return true;}
+    Drawable listSurface(){
+        if(useSettingListStyle())return ControlStyle.listRow(unit,10);
+        StateListDrawable state=new StateListDrawable();state.addState(new int[]{android.R.attr.state_focused},surface(0x24ffffff,0x16ffffff,-1,12));state.addState(new int[]{android.R.attr.state_selected},surface(0x14ffffff,0x10ffffff,0x1effffff,12));state.addState(new int[]{},new ColorDrawable(Color.TRANSPARENT));return state;
+    }
+    LinearLayout listGroup(){LinearLayout box=column();box.setPadding(px(4),px(4),px(4),px(4));box.setBackground(surface(0x12ffffff,0x06ffffff,0x1cffffff,16));UiCompat.clipOutline(box);return box;}
     Button iconButton(String description,int resource,Runnable action){
         Button b=button("",action);b.setContentDescription(description);
         Drawable icon=UiCompat.drawable(ManagementUi.this,resource);icon.setBounds(0,0,px(16),px(16));b.setCompoundDrawables(icon,null,null,null);
@@ -181,7 +190,7 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
         }
         void text(String text){TextView description=center(text,13);description.setTextColor(0xffb0b4be);description.setLineSpacing(px(5),1);body.addView(description,new LinearLayout.LayoutParams(-1,-2));}
         Button action(String text,Runnable action){Button b=button(text,action);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,-1);p.setMargins(px(5),0,px(5),0);actions.addView(b,p);return b;}
-        Button option(String text,Runnable action){Button b=button(text,action);b.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);b.setBackground(focusSurface(9));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,px(43));p.bottomMargin=px(6);body.addView(b,p);return b;}
+        Button option(String text,Runnable action){Button b=button(text,action);b.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);b.setBackground(useSettingListStyle()?listSurface():focusSurface(9));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,px(43));p.bottomMargin=px(6);body.addView(b,p);return b;}
         Button option(String text,int resource,Runnable action){Button b=option(text,action);Drawable icon=UiCompat.drawable(ManagementUi.this,resource);icon.setBounds(0,0,px(17),px(17));b.setCompoundDrawables(icon,null,null,null);b.setCompoundDrawablePadding(px(10));return b;}
         void show(View focus){dialog.show();Window window=dialog.getWindow();window.setLayout(px(444),-2);window.getDecorView().setSystemUiVisibility(5894);if(focus!=null)focus.requestFocus();}
     }

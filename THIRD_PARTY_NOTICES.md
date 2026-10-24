@@ -14,7 +14,9 @@ Quiet TV 基于该项目开发，面向国内电视机的适配与应用升级�
 
 - 来源：[pengchujin/aerial-tv](https://github.com/pengchujin/aerial-tv/tree/da9cedc2c5887a46d62b1f54699567a5deac5c2a)，固定提交 `da9cedc2c5887a46d62b1f54699567a5deac5c2a`。
 - Copyright (c) 2026 pengchujin，MIT；[完整许可证](app/src/main/assets/licenses/aerial-MIT.txt)随主程序打包。
-- 参考原主页窗口识别及酷开私有 HOME 类别，后续恢复机制固定参考提交 [bd30a9f9fbbcbb8e8ff02963dc265714e7a67a8e](https://github.com/pengchujin/aerial-tv/tree/bd30a9f9fbbcbb8e8ff02963dc265714e7a67a8e)。在现有 Java 结构实现自动策略、普通主页快速接管、开机稳定期复核、通知监听恢复与有限重绑；未引入账号同步、全局按键过滤、后台 ADB 或调试常开。MIT 版权和许可继续随包保留。上游机型反馈不等于 Quiet TV 真机验收。
+- 参考原主页窗口识别及酷开私有 HOME 类别，后续恢复机制固定参考提交 [bd30a9f9fbbcbb8e8ff02963dc265714e7a67a8e](https://github.com/pengchujin/aerial-tv/tree/bd30a9f9fbbcbb8e8ff02963dc265714e7a67a8e)。在现有 Java 结构实现自动策略、普通主页快速接管、开机稳定期复核、通知监听恢复与有限重绑；未引入账号同步、全局按键过滤、后台 ADB 或调试常开。MIT 版权和许可继续随包保留。旧安卓 UsageStats 前台检测与电脑首次授权路径固定参考提交 [bc89bc51a382899d3233f7d0b87db54a5d408348](https://github.com/pengchujin/aerial-tv/tree/bc89bc51a382899d3233f7d0b87db54a5d408348)，按本项目精确原主页、暂停与启动确认策略实现；未移植全局无障碍开关重启、账号同步或 ADB 常开。电脑端独立连接与保留原桌面的边界同时对照 [cleanyourtv 小米记录](https://github.com/Gathin23/cleanyourtv/blob/eb0131a32fd8567086f39002f1782f7c1b078ca6/docs/devices/xiaomi-mitv4-ansm0.md)。上游机型反馈不等于 Quiet TV 真机验收。
+
+系统设置、网络和厂商信号源接口另参考 [Aerial bc89bc51](https://github.com/pengchujin/aerial-tv/tree/bc89bc51a382899d3233f7d0b87db54a5d408348) 的 SystemState.kt、SettingsLaunch.kt 与 KonkaSources.kt，以及 [cleanyourtv eb0131a3](https://github.com/Gathin23/cleanyourtv/tree/eb0131a32fd8567086f39002f1782f7c1b078ca6) 的 SystemSettings.java、CoocaaSources.java。按现有 Java 结构实现组件检查、网络入口优先级和实际输入枚举；两项目的 MIT 版权及完整许可继续随包保留。具体适用范围见[兼容说明](docs/COMPATIBILITY.md)。
 
 ## coocaa-home-shim（可选独立助手）
 
@@ -51,7 +53,7 @@ Quiet TV 基于该项目开发，面向国内电视机的适配与应用升级�
 
 - 视频：`app/src/main/assets/wallpapers/golden-gate-sunset.mp4`，从原视频前 24 秒制作约 23 秒循环，结尾与开头进行 1 秒淡化衔接，转为 1920×1080、30 FPS、SDR、H.264 Baseline Level 4.0，无音轨。
 - 封面：`app/src/main/assets/wallpapers/golden-gate-sunset.jpg`，取内置视频首帧，供离线预览及播放前展示。
-- 首次开启动态壁纸时使用该内置选项；已有当前壁纸及最近使用的视频选择保留。内置视频不占上传视频配额，可从列表移除，并通过「恢复内置壁纸」恢复。
+- 当前源码已取消该内置选项及恢复入口。视频、封面和上文三张大苏尔图片仅作为历史来源资料保留在源码中，通过构建排除，不进入 APK。用户仍可上传自己的图片和视频。
 
 资源权利归相应权利人所有，不属于本项目 MIT 许可的代码；来源记录不代表公开再分发授权，与上文大苏尔图片采用相同的本地使用及发布前权利核实边界。
 
@@ -89,3 +91,10 @@ The wallpaper uploader in `legacy19` uses ZXing Core 3.3.0 and AndroidX ExifInte
 ## Wallpaper interface icons
 
 The wallpaper settings and upload dialog use raster exports of Lucide 0.468.0 icons (chevron-left, upload, sliders-horizontal, trash-2, check, x, rotate-ccw). Original source: https://github.com/lucide-icons/lucide/tree/0.468.0/icons . The original ISC and Feather-derived MIT license notices are included in `app/src/main/assets/licenses/Lucide-LICENSE.txt` and the APK offline licenses.
+
+
+## 天气地区数据
+
+省市区县选择及本地模糊查询使用 [modood/Administrative-divisions-of-China](https://github.com/modood/Administrative-divisions-of-China/tree/c49d495b40ac73eb1a66f6eeae5f8fd10696f035) 的 `dist/pca-code.json`，固定提交 `c49d495b40ac73eb1a66f6eeae5f8fd10696f035`。原始 JSON 保存在 `app/src/main/assets/weather/regions.json`，完整 WTFPL 2.0 许可随包保存在 [china-regions-WTFPL.txt](app/src/main/assets/licenses/china-regions-WTFPL.txt)。数据快照包含中国大陆 31 个省级单位，不包含港澳台完整区划；行政区调整可能晚于实际生效时间。未收录地区不冒充已支持，不以相近区县替代。
+
+天气数据不属于以上地区数据许可。和风天气通过开发者独立配置的 Host 和凭据请求，来源标注要求见[官方说明](https://dev.qweather.com/docs/terms/attribution/)；当前界面将来源署名与官网入口集中放在“天气设置 → 服务说明”中，首页保留天气主信息。失败时尝试 UAPI，显示实际成功来源。私有凭据不提交源码，查询地区和出口 IP 会被实际请求的服务接收。

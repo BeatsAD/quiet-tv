@@ -30,7 +30,7 @@ final class AdbController implements Closeable {
     Stage stage(){return stage;}
     Failure failure(){return failure;}
     int generation(){return generation.get();}
-    private void publish(Stage value,String detail){stage=value;status.changed(detail);}
+    private void publish(Stage value,String detail){if(stage!=value)DiagnosticLog.info("adb.stage",value.name());stage=value;status.changed(detail);}
     private synchronized void publish(Stage value,String detail,int attempt){if(!closed && generation.get()==attempt)publish(value,detail);}
     private synchronized void attach(Closeable value,int attempt) throws IOException {
         if(closed || generation.get()!=attempt){value.close();throw new IOException("连接已取消");}transport=value;
@@ -46,6 +46,8 @@ final class AdbController implements Closeable {
     private final java.util.concurrent.atomic.AtomicInteger generation=new java.util.concurrent.atomic.AtomicInteger();
     int user = -1;
     String host = "";
+    private volatile int connectedPort;
+    int connectedPort(){return connected()?connectedPort:0;}
     ShellCapabilities capabilities=ShellCapabilities.NONE;
     AdbController(Context context, Status status) { this.context=context.getApplicationContext(); this.status=status; }
     boolean connected() { AdbConnection c=connection;return stage==Stage.CONNECTED && c!=null && c.isConnectionEstablished() && user>=0; }
@@ -127,7 +129,7 @@ final class AdbController implements Closeable {
                 try{pmHelp=shell("pm help 2>&1 || true");}catch(IOException ignored){}
                 try{cmdHelp=shell("cmd package help 2>&1 || true");}catch(IOException ignored){}
                 capabilities=new ShellCapabilities(pmHelp,cmdHelp);
-                host=candidate;
+                host=candidate;connectedPort=port;
                 if(closed || generation.get()!=attempt)throw new IOException("连接已取消");
                 if(!c.isConnectionEstablished())throw new IOException("ADB 连接已断开，请重新连接");
                 publish(Stage.CONNECTED,"已连接  本机  用户 "+user,attempt);
@@ -135,6 +137,7 @@ final class AdbController implements Closeable {
             }catch(Exception e){boolean cancelled=closed || generation.get()!=attempt;failure=e;if(!cancelled){this.failure=failureFor(this.stage);disconnect();}if(cancelled)throw new IOException("连接已取消",e);break;}
         }
         if(this.failure==Failure.NONE)this.failure=Failure.PORT;
+        DiagnosticLog.error("adb.connection_failed."+this.failure.name(),failure);
         throw new IOException("连接失败（"+stage+"）："+(failure==null?"本机未开放 TCP ADB":(failure.getMessage()==null?failure.getClass().getSimpleName():failure.getMessage())),failure);
     }
 

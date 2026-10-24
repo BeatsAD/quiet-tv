@@ -56,7 +56,7 @@ final class HelperState {
     }
     boolean openQuiet(){
         if(!quietAvailable())return false;
-        try{context.startActivity(new Intent().setComponent(QUIET).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));return true;}
+        try{context.startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).setComponent(QUIET).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));return true;}
         catch(ActivityNotFoundException|SecurityException e){return false;}
     }
     void redirect(){

@@ -155,7 +155,7 @@ System-panel fallback is included in the published 1.1.2 standard APK; legacy19 
 
 | 范围 | 上游记录与方案 | Quiet TV 状态及验收重点 |
 | --- | --- | --- |
-| 小米 MiTV4-ANSM0 / Android 6 | [#81](https://github.com/pengchujin/aerial-tv/issues/81)：服务绑定后仍可能没有有效窗口事件；用户独立 UsageStats 辅助仅有延迟接管和有限重启实测 | 无主程序通用接管结论；目标固件需分别测试事件、实体 HOME、重启、短/长待机及暂停恢复 |
+| 小米 MiTV4-ANSM0 / Android 6 | [#81](https://github.com/pengchujin/aerial-tv/issues/81)：服务绑定后仍可能没有有效窗口事件；上游1.43起增加 UsageStats 补偿，1.46有用户延迟返回及有限重启实测 | 本修复源码加入安卓5／6精确主页补偿与电脑首次配置；未发布，目标固件的事件、实体 HOME、重启、短/长待机及暂停恢复仍待 Quiet TV 真机验收 |
 | 酷开 / Android 8 | [#69](https://github.com/pengchujin/aerial-tv/issues/69)：私有 HOME.CC 类别，识别修复不等于改写固件主页 | Quiet TV 厂商接管待验收；不能按品牌批量应用 |
 | 酷开 / Android 11 | [#122](https://github.com/pengchujin/aerial-tv/issues/122)：LITE_HOME 与 HOME.CC 不同，用户修改包有有限实测 | 原主页识别、实体键、开机与恢复均待目标固件核验 |
 | 海信 Android VIDAA | [#40](https://github.com/pengchujin/aerial-tv/issues/40)：私有主页属性可改变 HOME 行为，开机仍受拦截 | Quiet TV 不自动改属性；系统输入面板调用与 HOME 接管分别验证 |
@@ -186,6 +186,26 @@ System-panel fallback is included in the published 1.1.2 standard APK; legacy19 
 应用入口与图标依据：[Aerial Apps.kt](https://github.com/pengchujin/aerial-tv/blob/d652d5ef65267f22bd273da01f28a99718d059a8/app/src/main/java/app/orchard/tv/apps/Apps.kt)。设置/信号源依据：[SystemState.kt](https://github.com/pengchujin/aerial-tv/blob/d652d5ef65267f22bd273da01f28a99718d059a8/app/src/main/java/app/orchard/tv/system/SystemState.kt)、[TCL 记录](https://github.com/pengchujin/aerial-tv/blob/d652d5ef65267f22bd273da01f28a99718d059a8/docs/devices/tcl-mt5879-cn.md)。本轮按这些接口事实实现现有 Java 结构，未引入上游 UI、守护、视频屏保或额外依赖。
 
 当前代码验证记录见本地任务交付；上游机型结果不计入 Quiet TV 验收。厂商设置、真实信号源画面、实体遥控器、重启、冷启动、待机唤醒均需另行真机验证。Android 4.4 仍不提供标准 TV Input 列表，信号源使用系统设置和实体遥控器替代路径。
+
+## 本地源码新增的系统入口适配
+
+以下实现已加入本地源码，尚未作为新安装包交付；历史 1.1.2 下载不包含本节新增内容。上游案例只说明接口依据，不能作为 Quiet TV 真机验收。
+
+| 入口 | 实现与限制 | 适用档位 |
+| --- | --- | --- |
+| 网络 | 优先检测 TV 网络页，避开小米部分固件会立即关闭的 Wi-Fi 子页；有线连接先检测小米 Ethernet 入口。按明确组件顺序尝试，仅在同步调用失败时推进；快速返回或 HOME 不会触发计时重开 | 三档共用路由，以固件实际组件为准 |
+| 原厂设置 | 补海尔、PPTV、微鲸、Fire OS 设置入口及极米设置服务/页面链接；过滤 CTS 空壳、HOME、禁用、未导出、无权限和非系统目标。开发者设置仍先打开其专用入口 | 安卓4.4、安卓5及以上、酷开安卓8 |
+| 海信面板 | 仅配置的 InputsUIService 在 API26+ 使用前台服务启动；其他面板保持原启动类型 | API21+，不代表其他品牌通用 |
+| TCL / 雷鸟 | 保留原厂面板；标准请求无法调起时，在 MT5879 / T966D5 中间件和系统输入服务匹配时提供原厂播放器候选，按实际枚举的 HDMI 1–4、DTV、AV 选择序号，不补造端口 | API21+；T966D5 序号仍待目标固件验收 |
+| DroidLogic | 已注册 HDMI、系统输入服务及原厂播放器同时匹配时，将实际输入 ID 交给 DroidLogicTv | API21+，不代表任意 Amlogic 固件支持 |
+| 创维 / 酷开 | 标准列表为空时识别厂商 source_list provider：旧接口使用 METHOD_GOTO_SOURCE，SDK 列表使用 SkyTVMainActivity 与 source 参数。先读取实际端口再选择路径，不连续盲试两套切换 API | API21+，不同固件分别验收 |
+| 康佳 | 标准列表为空且系统播放器可用时，通过现有 KKCommonManager 读取实际端口枚举；不打包厂商 jar，不硬编码端口数量 | API21+，系统 SDK 不可访问时保留原面板路径 |
+| 小米 | 保留既有直切，补旧 MiTV4-ANSM0 / MiTV4A 的 Amlogic 固件差异，过滤 MFTR0 / MFZP0 已知虚假端口 | API21+，按型号、服务和固件限制 |
+| 标准输入 | 显式携带 channel MIME，绑定已解析的可调用系统播放器，避免第三方 URI 处理程序接走请求；日志只记录请求，不视为切源成功 | API21+，安卓4.4仍使用设置/实体遥控器 |
+
+接口依据：[原项目系统设置](https://github.com/Gathin23/cleanyourtv/blob/eb0131a32fd8567086f39002f1782f7c1b078ca6/launcher/app/src/main/java/com/gathin/tvhome/SystemSettings.java)、[原项目酷开输入](https://github.com/Gathin23/cleanyourtv/blob/eb0131a32fd8567086f39002f1782f7c1b078ca6/launcher/app/src/main/java/com/gathin/tvhome/CoocaaSources.java)、[Aerial 系统入口及输入](https://github.com/pengchujin/aerial-tv/blob/bc89bc51a382899d3233f7d0b87db54a5d408348/app/src/main/java/app/orchard/tv/system/SystemState.kt)、[康佳输入](https://github.com/pengchujin/aerial-tv/blob/bc89bc51a382899d3233f7d0b87db54a5d408348/app/src/main/java/app/orchard/tv/system/KonkaSources.kt)。小米网络页秒退见 [#331](https://github.com/pengchujin/aerial-tv/issues/331)，雷鸟播放器候选及未验收边界见 [#395](https://github.com/pengchujin/aerial-tv/issues/395)。
+
+本次验证覆盖本地构建、配置/文档检查、模拟器中的路由故障注入及系统页面返回导航。未在厂商电视验证原厂服务、真实切源画面声音、CEC、实体遥控器、重启、待机或升级保留，未发布新包。
 
 
 ## 旧版本用户反馈与当前处理

@@ -9,16 +9,17 @@ import android.widget.*;
 final class ImageUploadDialog {
     final Dialog dialog;
     final ImageView background,qr;
-    final TextView address,code,status,retry;
+    final TextView address,status,retry;
+    private final TextView code;
     private final Activity activity;
     private final WallpaperUi ui;
     private final boolean chinese;
     private final Bitmap backdrop;
-    ImageUploadDialog(Activity activity,float unit,boolean chinese,Bitmap backdrop,String title,String requirements,String note,Runnable closeAction,Runnable reconnect){
-        this(activity,unit,chinese,backdrop,title,requirements,note,closeAction,reconnect,null);
+    ImageUploadDialog(Activity activity,boolean chinese,Bitmap backdrop,String title,String requirements,String note,Runnable closeAction,Runnable reconnect){
+        this(activity,chinese,backdrop,title,requirements,note,closeAction,reconnect,null);
     }
-    ImageUploadDialog(Activity activity,float unit,boolean chinese,Bitmap backdrop,String title,String requirements,String note,Runnable closeAction,Runnable reconnect,String selection){
-        this.activity=activity;this.ui=new WallpaperUi(activity,unit);this.chinese=chinese;this.backdrop=backdrop;
+    ImageUploadDialog(Activity activity,boolean chinese,Bitmap backdrop,String title,String requirements,String note,Runnable closeAction,Runnable reconnect,String selection){
+        this.activity=activity;this.ui=new WallpaperUi(activity,activity.getResources().getDisplayMetrics().widthPixels/960f);this.chinese=chinese;this.backdrop=backdrop;
         dialog=new Dialog(activity);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         FrameLayout stage=new FrameLayout(activity);background=new ImageView(activity);background.setScaleType(ImageView.ScaleType.FIT_XY);background.setImageBitmap(backdrop);stage.addView(background,new FrameLayout.LayoutParams(-1,-1));
         View dim=new View(activity);dim.setBackgroundColor(0xbf070b12);stage.addView(dim,new FrameLayout.LayoutParams(-1,-1));
@@ -37,18 +38,25 @@ final class ImageUploadDialog {
         LinearLayout qrColumn=column();qrColumn.setGravity(Gravity.CENTER_HORIZONTAL);
         FrameLayout qrBox=new FrameLayout(activity);qrBox.setBackground(ui.surface(Color.WHITE,15,Color.TRANSPARENT,0));qrBox.setPadding(ui.px(13),ui.px(13),ui.px(13),ui.px(13));
         qr=new ImageView(activity);qr.setContentDescription(tr("上传地址二维码","Upload address QR code"));qr.setScaleType(ImageView.ScaleType.FIT_CENTER);qrBox.addView(qr,new FrameLayout.LayoutParams(-1,-1));qrColumn.addView(qrBox,new LinearLayout.LayoutParams(ui.px(170),ui.px(170)));
-        code=ui.text("",26);code.setTypeface(Typeface.MONOSPACE,Typeface.BOLD);code.setGravity(Gravity.CENTER);LinearLayout.LayoutParams codeParams=new LinearLayout.LayoutParams(-1,ui.px(32));codeParams.topMargin=ui.px(12);qrColumn.addView(code,codeParams);
-        connection.addView(new View(activity),new LinearLayout.LayoutParams(ui.px(190),1));LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,-2);cp.topMargin=ui.px(24);box.addView(connection,cp);
+        code=ui.text("",32);code.setTypeface(Typeface.MONOSPACE,Typeface.BOLD);code.setGravity(Gravity.CENTER);code.setLineSpacing(ui.px(4),1);code.setVisibility(View.INVISIBLE);
+        LinearLayout.LayoutParams codeParams=new LinearLayout.LayoutParams(-1,ui.px(64));codeParams.topMargin=ui.px(12);qrColumn.addView(code,codeParams);
+        connection.addView(qrColumn,new LinearLayout.LayoutParams(ui.px(190),-2));LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,-2);cp.topMargin=ui.px(24);box.addView(connection,cp);
         status=ui.text("",12);status.setTextColor(WallpaperUi.MUTED);status.setVisibility(View.GONE);status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);LinearLayout.LayoutParams st=new LinearLayout.LayoutParams(-1,-2);st.topMargin=ui.px(16);box.addView(status,st);
         retry=ui.button(tr("重新连接","Reconnect"),false,reconnect);retry.setVisibility(View.GONE);LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-2,-2);rp.topMargin=ui.px(12);box.addView(retry,rp);close.setNextFocusDownId(retry.getId());retry.setNextFocusUpId(close.getId());
-        panel.addView(box,new FrameLayout.LayoutParams(-1,-2));FrameLayout.LayoutParams qrPosition=new FrameLayout.LayoutParams(ui.px(190),-2,Gravity.RIGHT|Gravity.CENTER_VERTICAL);qrPosition.rightMargin=ui.px(30);panel.addView(qrColumn,qrPosition);
+        panel.addView(box,new FrameLayout.LayoutParams(-1,-2));
         stage.addView(panel,new FrameLayout.LayoutParams(ui.px(680),-2,Gravity.CENTER));dialog.setContentView(stage);
         Window window=dialog.getWindow();if(window!=null){window.setBackgroundDrawableResource(android.R.color.transparent);window.setDimAmount(0);window.getDecorView().setSystemUiVisibility(5894);}
         dialog.setOnShowListener(d->{Window w=dialog.getWindow();if(w!=null)w.setLayout(-1,-1);close.requestFocus();});
     }
     private String tr(String zh,String en){return chinese?zh:en;}
-    void connectionCode(String digits){
-        String prefix=tr("连接码  ","Code  ");android.text.SpannableString value=new android.text.SpannableString(prefix+digits);
+    void resetConnection(){
+        address.setText(tr("正在开启上传…","Starting upload…"));address.setVisibility(View.VISIBLE);code.setText("");code.setContentDescription(null);code.setVisibility(View.INVISIBLE);qr.setImageDrawable(null);
+    }
+    void connected(String url,String digits){
+        address.setText(url);connectionCode(digits);code.setVisibility(View.VISIBLE);
+    }
+    private void connectionCode(String digits){
+        String prefix=tr("连接码\n","Connection code\n");android.text.SpannableString value=new android.text.SpannableString(prefix+digits);
         value.setSpan(new android.text.style.AbsoluteSizeSpan(ui.px(11)),0,prefix.length(),android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         value.setSpan(new android.text.style.ForegroundColorSpan(WallpaperUi.MUTED),0,prefix.length(),android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         code.setText(value);code.setContentDescription(tr("连接码  ","Connection code  ")+digits);
