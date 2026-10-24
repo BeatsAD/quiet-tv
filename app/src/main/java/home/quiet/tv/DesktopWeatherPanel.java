@@ -92,7 +92,7 @@ final class DesktopWeatherPanel {
                         if(picker!=sheet||version!=searchVersion)return;results.removeAllViews();
                         if(cities.isEmpty())results.addView(ui.muted(tr("未找到城市，请输入完整名称","No results. Try the full city name."),13));
                         for(WeatherClient.City result:cities){
-                            Button option=ui.button(result.name+(result.area.isEmpty()?"":"  "+result.area),()->{store.select(result.adcode,result.name);sheet.dialog.dismiss();controller.settingsChanged();});ControlStyle.choice(option,ui.unit,24,0x10ffffff,0x22ffffff);option.setSelected(result.adcode.equals(store.adcode()));option.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,ui.px(42));p.topMargin=ui.px(6);results.addView(option,p);
+                            Button option=ui.button(result.name+(result.area.isEmpty()?"":"  "+result.area),()->{store.select(result.adcode,result.name);sheet.dialog.dismiss();controller.settingsChanged();});option.setBackground(ui.listSurface());option.setSelected(result.adcode.equals(store.adcode()));option.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,ui.px(42));p.topMargin=ui.px(6);results.addView(option,p);
                         }
                         if(results.getChildCount()>0)results.getChildAt(0).requestFocus();
                     });

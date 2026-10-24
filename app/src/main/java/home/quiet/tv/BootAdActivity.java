@@ -79,11 +79,11 @@ public final class BootAdActivity extends ManagementUi {
             if(event.getAction()==KeyEvent.ACTION_DOWN){int index=cards.indexOf(view),next=index+(key==KeyEvent.KEYCODE_DPAD_UP?-1:1);(next<0?status:next>=cards.size()?firstAction():cards.get(next)).requestFocus();}return true;
         });
     }
-    private void row(String tag,String value,boolean checked,String reason,Runnable toggle){
+    private void row(LinearLayout group,String tag,String value,boolean checked,String reason,Runnable toggle){
         Button item=button((checked?"☑  ":"□  ")+value+(reason.isEmpty()?"":"\n"+reason),()->{if(busy)return;if(reason.isEmpty()){rememberFocus();toggle.run();render();}else message(reason);});
-        item.setTag(tag);item.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);item.setPadding(px(16),px(12),px(16),px(12));item.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(13));ControlStyle.choice(item,unit,24,0x10ffffff,0x22ffffff);item.setSelected(checked);item.setAlpha(reason.isEmpty()?1f:.65f);
+        item.setTag(tag);item.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);item.setPadding(px(16),px(12),px(16),px(12));item.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(13));item.setBackground(listSurface());item.setSelected(checked);item.setAlpha(reason.isEmpty()?1f:.65f);
         linkCard(item);
-        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.bottomMargin=px(8);content.addView(item,p);
+        group.addView(item,new LinearLayout.LayoutParams(-1,-2));
     }
     private void render(){
         content.removeAllViews();cards.clear();JSONArray rules=operations.presets.bootAds();
@@ -93,21 +93,23 @@ public final class BootAdActivity extends ManagementUi {
             text(operations.presets.matched()?"本机已有其他功能适配，尚未开放开机广告操作。":"本机固件未匹配可执行规则，系统包保持只读。",14);
             text("上游资料仅供调查，不代表本机已支持。可先向电视官方客服申请永久关闭开机广告。",13);
         }
+        LinearLayout services=listGroup();if(rules.length()>0)content.addView(services);
         for(int i=0;i<rules.length();i++){
             JSONObject rule=rules.optJSONObject(i);if(rule==null)continue;String pkg=rule.optString("package");AppRepository.App app=find(pkg);
             String reason=operations.reason(app,false),name=app==null?pkg:app.label;
-            row("app:"+pkg,name+"  "+(app==null?"未找到":app.state())+"\n"+rule.optString("purpose")+"\n影响："+rule.optString("impact")+"\n"+pkg+"  版本号 "+(app==null?"未知":app.versionCode),selected.contains(pkg),reason,()->{if(!selected.add(pkg))selected.remove(pkg);});
+            row(services,"app:"+pkg,name+"  "+(app==null?"未找到":app.state())+"\n"+rule.optString("purpose")+"\n影响："+rule.optString("impact")+"\n"+pkg+"  版本号 "+(app==null?"未知":app.versionCode),selected.contains(pkg),reason,()->{if(!selected.add(pkg))selected.remove(pkg);});
         }
         gap(content,12);text("本次修改的恢复记录",17);
         if(restores.isEmpty())text("暂无待恢复项目。已在其他地方停用的应用不会自动纳入恢复。",12);
+        LinearLayout recovery=listGroup();if(!restores.isEmpty())content.addView(recovery);
         for(BootAdOperations.RestoreItem item:restores){String key=item.runId+":"+item.pkg(),reason=operations.restoreReason(item,false);String label=item.current==null?item.pkg():item.current.label;
-            row("restore:"+key,label+"  "+(item.current==null?"未找到":item.current.state())+"\n"+item.baseline.optString("result")+"\n恢复目标："+(item.baseline.optInt("enabledSetting",-1)==0?"系统默认启用状态":"手动启用状态"),restoreSelected.contains(key),reason,()->{if(!restoreSelected.add(key))restoreSelected.remove(key);});
+            row(recovery,"restore:"+key,label+"  "+(item.current==null?"未找到":item.current.state())+"\n"+item.baseline.optString("result")+"\n恢复目标："+(item.baseline.optInt("enabledSetting",-1)==0?"系统默认启用状态":"手动启用状态"),restoreSelected.contains(key),reason,()->{if(!restoreSelected.add(key))restoreSelected.remove(key);});
         }
         if(runs.length()>0){JSONObject last=runs.optJSONObject(runs.length()-1);if(last!=null){
             gap(content,12);StringBuilder history=new StringBuilder("最近一次停用任务  ").append(runState(last.optString("state")));JSONArray entries=last.optJSONArray("apps");
             if(entries!=null)for(int i=0;i<entries.length();i++){JSONObject entry=entries.optJSONObject(i);if(entry!=null)history.append("\n").append(entry.optString("package")).append("  ").append(entry.optString("result"));}
             history.append("\n\n").append(observationSummary(last));String description=history.toString();
-            Button details=button("查看最近任务及开机效果记录",()->{Sheet sheet=new Sheet("最近任务记录");sheet.text(description);Button close=sheet.action("关闭",sheet.dialog::dismiss);sheet.show(close);});details.setTag("run-details");linkCard(details);content.addView(details,new LinearLayout.LayoutParams(-1,px(40)));
+            Button details=button("查看最近任务及开机效果记录",()->{Sheet sheet=new Sheet("最近任务记录");sheet.text(description);Button close=sheet.action("关闭",sheet.dialog::dismiss);sheet.show(close);});details.setTag("run-details");details.setBackground(listSurface());linkCard(details);LinearLayout historyGroup=listGroup();historyGroup.addView(details,new LinearLayout.LayoutParams(-1,px(40)));content.addView(historyGroup);
         }}
         updateActions();content.post(()->{if(!active)return;View target=stage.findViewWithTag(focusTag);if(target==null || !target.isEnabled() || !target.isFocusable())target=status;target.requestFocus();});
     }

@@ -17,7 +17,7 @@ final class DesktopSettingsRow extends LinearLayout {
         super(ui);this.ui=ui;setOrientation(HORIZONTAL);setGravity(Gravity.CENTER_VERTICAL);
         setPadding(ui.px(navigation?14:18),0,ui.px(navigation?14:18),0);
         setId(View.generateViewId());setFocusable(true);setFocusableInTouchMode(true);setClickable(true);
-        setBackground(ui.focusSurface(10));
+        setBackground(ui.listSurface());
         start=new ImageView(ui);int resource="shield".equals(symbol)?R.drawable.ic_manage_shield:0;
         if(resource!=0){start.setImageDrawable(UiCompat.drawable(ui,resource));start.setColorFilter(0xffa2a8b3);}else start.setImageDrawable(new Glyph(symbol,0xffa2a8b3));
         LayoutParams ip=new LayoutParams(ui.px(navigation?17:18),ui.px(navigation?17:18));ip.rightMargin=ui.px(13);addView(start,ip);
