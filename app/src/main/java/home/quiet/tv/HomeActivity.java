@@ -246,7 +246,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     @Override public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] results){
         super.onRequestPermissionsResult(requestCode,permissions,results);
         if(requestCode==101)updateNetwork();
-        if(requestCode==102 && results.length>0 && results[0]==PackageManager.PERMISSION_GRANTED && tvInputs!=null)tvInputs.openPending();
+        if(requestCode==102 && tvInputs!=null){if(results.length>0 && results[0]==PackageManager.PERMISSION_GRANTED)tvInputs.openPending();else tvInputs.pendingTvInput=null;}
     }
 
     @Override protected void onResume() {
@@ -261,6 +261,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         applyDesktopSettings();updateClock();updateNetwork();
         wallpapers.resume();weather.resume();
         loadApps();if(ready)focusCurrent(false);
+        if(tvInputs!=null)main.post(tvInputs::openPending);
     }
 
     @Override public void onWindowFocusChanged(boolean focused){
@@ -661,10 +662,11 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     @android.annotation.TargetApi(21)
     private final class TvInputs {
         private TvInputInfo pendingTvInput;
-        void openPending(){if(pendingTvInput!=null)openInput(pendingTvInput);}
+        void openPending(){if(pendingTvInput!=null && resumed && checkCallingOrSelfPermission("android.permission.READ_TV_LISTINGS")==PackageManager.PERMISSION_GRANTED){TvInputInfo input=pendingTvInput;pendingTvInput=null;openInput(input);}}
         void show(){
             TvInputController.Snapshot snapshot=new TvInputController(HomeActivity.this).inspect();
-            TvInputController.Panel direct=snapshot.directPanel();
+            List<VendorTvInputs.Source> vendor=snapshot.inputs.isEmpty()?new VendorTvInputs(HomeActivity.this).load():Collections.emptyList();
+            TvInputController.Panel direct=vendor.isEmpty()?snapshot.directPanel():null;
             if(direct!=null){openSystemInputs(direct);return;}
             ArrayList<TvInputInfo> inputs=snapshot.inputs;
             Collections.sort(inputs,(a,b)->{
@@ -678,6 +680,9 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 if(!info.isPassthroughInput() && !tuners.add("live"))continue;
                 addInputChoice(menu,choices,inputName(info),()->openInput(info));
             }
+            for(VendorTvInputs.Source source:vendor)addInputChoice(menu,choices,source.label,()->leaveHome(()->{
+                if(!new VendorTvInputs(HomeActivity.this).open(source)){wallpapers.resume();showInputProblem(tr("原厂信号源未接受切换请求，请使用电视遥控器。","The TV did not accept the input request. Use the TV remote."));}
+            }));
             for(TvInputController.Panel panel:snapshot.availablePanels())addInputChoice(menu,choices,panel.profile.label(chinese),()->openSystemInputs(panel));
             if(choices.isEmpty()){showUnavailableInputs(snapshot);return;}
             inputPopup=new PopupWindow(menu,px(222),-2,true);inputPopup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));inputPopup.setElevation(px(14));inputPopup.setOutsideTouchable(true);
@@ -708,8 +713,10 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         }
 
         private void openSystemInputs(TvInputController.Panel panel){
-            TvInputController.PanelState state=new TvInputController(HomeActivity.this).openPanel(panel.profile);
-            if(state!=TvInputController.PanelState.READY)showInputProblem(panelProblem(state));
+            leaveHome(()->{
+                TvInputController.PanelState state=new TvInputController(HomeActivity.this).openPanel(panel.profile);
+                if(state!=TvInputController.PanelState.READY){wallpapers.resume();showInputProblem(panelProblem(state));}
+            });
         }
 
         private void showUnavailableInputs(TvInputController.Snapshot snapshot){
@@ -752,20 +759,24 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             dialog.setOnDismissListener(d->main.post(()->updateHeaderFocus()));dialog.show();ControlStyle.dialog(dialog,unit);
         }
 
-        private void openInput(TvInputInfo info){
-            if(new TvInputController(HomeActivity.this).openKnownInput(info))return;
+        private void openInput(TvInputInfo info){leaveHome(()->{if(!launchInput(info))wallpapers.resume();});}
+        private boolean launchInput(TvInputInfo info){
+            TvInputController controller=new TvInputController(HomeActivity.this);
+            if(controller.openKnownInput(info))return true;
+            // Native DTV players do not need an Android channel database or READ_TV_LISTINGS.
+            if(info.getType()==TvInputInfo.TYPE_TUNER && controller.openFallbackInput(info))return true;
             Uri uri;
             if(info.isPassthroughInput())uri=TvContract.buildChannelUriForPassthroughInput(info.getId());
             else{
                 if(checkCallingOrSelfPermission("android.permission.READ_TV_LISTINGS")!=PackageManager.PERMISSION_GRANTED){
                     if(Build.VERSION.SDK_INT>=23){pendingTvInput=info;requestPermissions(new String[]{"android.permission.READ_TV_LISTINGS"},102);}
                     else Toast.makeText(HomeActivity.this,tr("系统未授予电视频道读取权限","TV channel permission was not granted by the system"),Toast.LENGTH_SHORT).show();
-                    return;
+                    return false;
                 }
                 long channel=-1;
                 try(android.database.Cursor cursor=getContentResolver().query(TvContract.buildChannelsUriForInput(info.getId()),new String[]{TvContract.Channels._ID},null,null,null)){
                     if(cursor!=null && cursor.moveToFirst())channel=cursor.getLong(0);
-                }catch(SecurityException e){Toast.makeText(HomeActivity.this,tr("系统未允许读取电视频道","TV channels are restricted by the system"),Toast.LENGTH_SHORT).show();return;}
+                }catch(SecurityException e){Toast.makeText(HomeActivity.this,tr("系统未允许读取电视频道","TV channels are restricted by the system"),Toast.LENGTH_SHORT).show();return false;}
                 if(channel<0){
                     android.app.AlertDialog.Builder dialog=new android.app.AlertDialog.Builder(HomeActivity.this)
                         .setTitle(tr("尚未配置电视频道","No TV channels configured"))
@@ -773,12 +784,16 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                         .setNegativeButton(tr("返回","Back"),(d,w)->{});
                     Intent setup=info.createSetupIntent();
                     if(setup!=null)dialog.setPositiveButton(tr("信号源设置","Set up input"),(d,w)->{try{startActivity(setup);}catch(ActivityNotFoundException|SecurityException e){Toast.makeText(HomeActivity.this,tr("信号源设置不可用","Input setup unavailable"),Toast.LENGTH_SHORT).show();}});
-                    ControlStyle.dialog(dialog.show(),unit);return;
+                    ControlStyle.dialog(dialog.show(),unit);return false;
                 }
                 uri=TvContract.buildChannelUri(channel);
             }
-            try{startActivity(new Intent(Intent.ACTION_VIEW,uri).putExtra(TvInputInfo.EXTRA_INPUT_ID,info.getId()));Log.i(TAG,"Switch input "+info.getId());DiagnosticLog.info("input.launch","standard requested");}
-            catch(ActivityNotFoundException|SecurityException e){Log.w(TAG,"Standard TV input launch failed: "+e.getClass().getSimpleName());DiagnosticLog.error("input.launch.failed",e);offerSystemInputs();}
+            try{
+                Intent intent=controller.standardIntent(info.getId(),uri);
+                if(intent!=null){startActivity(intent);DiagnosticLog.info("input.standard.dispatch",intent.getComponent().flattenToShortString());return true;}
+            }catch(RuntimeException e){DiagnosticLog.error("input.standard.failed",e);}
+            if(controller.openFallbackInput(info))return true;
+            offerSystemInputs();return false;
         }
 
         private String inputName(TvInputInfo info){

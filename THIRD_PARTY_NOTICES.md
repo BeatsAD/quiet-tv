@@ -16,6 +16,8 @@ Quiet TV 基于该项目开发，面向国内电视机的适配与应用升级�
 - Copyright (c) 2026 pengchujin，MIT；[完整许可证](app/src/main/assets/licenses/aerial-MIT.txt)随主程序打包。
 - 参考原主页窗口识别及酷开私有 HOME 类别，后续恢复机制固定参考提交 [bd30a9f9fbbcbb8e8ff02963dc265714e7a67a8e](https://github.com/pengchujin/aerial-tv/tree/bd30a9f9fbbcbb8e8ff02963dc265714e7a67a8e)。在现有 Java 结构实现自动策略、普通主页快速接管、开机稳定期复核、通知监听恢复与有限重绑；未引入账号同步、全局按键过滤、后台 ADB 或调试常开。MIT 版权和许可继续随包保留。旧安卓 UsageStats 前台检测与电脑首次授权路径固定参考提交 [bc89bc51a382899d3233f7d0b87db54a5d408348](https://github.com/pengchujin/aerial-tv/tree/bc89bc51a382899d3233f7d0b87db54a5d408348)，按本项目精确原主页、暂停与启动确认策略实现；未移植全局无障碍开关重启、账号同步或 ADB 常开。电脑端独立连接与保留原桌面的边界同时对照 [cleanyourtv 小米记录](https://github.com/Gathin23/cleanyourtv/blob/eb0131a32fd8567086f39002f1782f7c1b078ca6/docs/devices/xiaomi-mitv4-ansm0.md)。上游机型反馈不等于 Quiet TV 真机验收。
 
+系统设置、网络和厂商信号源接口另参考 [Aerial bc89bc51](https://github.com/pengchujin/aerial-tv/tree/bc89bc51a382899d3233f7d0b87db54a5d408348) 的 SystemState.kt、SettingsLaunch.kt 与 KonkaSources.kt，以及 [cleanyourtv eb0131a3](https://github.com/Gathin23/cleanyourtv/tree/eb0131a32fd8567086f39002f1782f7c1b078ca6) 的 SystemSettings.java、CoocaaSources.java。按现有 Java 结构实现组件检查、网络入口优先级和实际输入枚举；两项目的 MIT 版权及完整许可继续随包保留。具体适用范围见[兼容说明](docs/COMPATIBILITY.md)。
+
 ## coocaa-home-shim（可选独立助手）
 
 - 来源：[VincentYe123/coocaa-home-shim](https://github.com/VincentYe123/coocaa-home-shim/tree/281a6a1362a9e30faaeb2169b75ba701dd0b1a03)，固定提交 `281a6a1362a9e30faaeb2169b75ba701dd0b1a03`。
