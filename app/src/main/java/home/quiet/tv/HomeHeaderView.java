@@ -35,11 +35,12 @@ final class HomeHeaderView extends FrameLayout {
         clock=text("",50,400,0xfff1f2f6);clock.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));if(Build.VERSION.SDK_INT>=21)clock.setFontFeatureSettings("tnum");
         date=text("",14,500,0xffe6e7ed);UiCompat.letterSpacing(date,.08f);
         divider=new View(context);divider.setBackgroundColor(0x70e6e7ed);
-        buttons=new FrameLayout(context);place(buttons,330,50,582,67);
+        buttons=new FrameLayout(context);place(buttons,132,36,780,67);
         String[] titles={tr("信号源","Inputs"),tr("网络","Network"),tr("设置","Settings")};int[] icons={R.drawable.ic_input,R.drawable.ic_ethernet,R.drawable.ic_settings};
         for(int i=0;i<3;i++){
-            TextView pill=text(titles[i],14,400,0xffededf1);pill.setGravity(Gravity.CENTER);pill.setBackground(pillSurface(unit));pill.setPadding(px(12),0,px(12),0);pill.setCompoundDrawablePadding(px(6));
-            setPillIcon(pill,icons[i]);pills.add(pill);FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(px(102),px(44));p.leftMargin=px(i*114);buttons.addView(pill,p);centerPill(pill);
+            TextView pill=text("",14,400,0xffededf1);pill.setGravity(Gravity.CENTER);pill.setContentDescription(titles[i]);
+            GradientDrawable background=new GradientDrawable();background.setShape(GradientDrawable.OVAL);background.setColor(0x550b2538);pill.setBackground(background);
+            setPillIcon(pill,icons[i]);pills.add(pill);FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(px(36),px(36));p.leftMargin=px(i*48);buttons.addView(pill,p);
         }
         apply();
     }
@@ -53,8 +54,7 @@ final class HomeHeaderView extends FrameLayout {
     }
     private void place(View child,float width,float height,float x,float y){FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(width<0?(int)width:px(width),height<0?(int)height:px(height));p.leftMargin=px(x);p.topMargin=px(y);addView(child,p);}
     static GradientDrawable pillSurface(float unit){GradientDrawable bg=new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x38ffffff,0x1cffffff,0x12ffffff});bg.setCornerRadius(22*unit);bg.setStroke(Math.max(1,Math.round(.5f*unit)),0x78ffffff);return bg;}
-    void setPillIcon(TextView pill,int resource){Drawable icon=UiCompat.drawable(getContext(),resource);icon.setBounds(0,0,px(16),px(16));pill.setCompoundDrawablesRelative(icon,null,null,null);}
-    void centerPill(TextView pill){int padding=Math.max(px(12),(int)((px(102)-px(22)-pill.getPaint().measureText(pill.getText().toString()))/2));pill.setPadding(padding,0,padding,0);}
+    void setPillIcon(TextView pill,int resource){Drawable icon=UiCompat.drawable(getContext(),resource);int size=px(18);icon.setBounds(0,0,size,size);int padding=(px(36)-size)/2;pill.setPadding(padding,0,padding,0);pill.setCompoundDrawables(icon,null,null,null);}
     private void detach(View v){if(v.getParent()!=null)((android.view.ViewGroup)v.getParent()).removeView(v);}
     private void add(LinearLayout parent,View v,int width,int height,int top){detach(v);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(width<0?width:px(width),height<0?height:px(height));p.topMargin=px(top);parent.addView(v,p);}
     void apply(){
@@ -92,7 +92,7 @@ final class HomeHeaderView extends FrameLayout {
         }
         information.setVisibility(greeting.getVisibility()==VISIBLE||weather.getVisibility()==VISIBLE||settings.showTime()||settings.showDate()?VISIBLE:GONE);
         boolean[] shown={settings.showInput(),settings.showNetwork(),settings.showSettings()};int count=0;for(boolean show:shown)if(show)count++;
-        int n=0;for(int i=0;i<pills.size();i++){TextView pill=pills.get(i);pill.setVisibility(shown[i]?VISIBLE:GONE);if(shown[i]){FrameLayout.LayoutParams p=(FrameLayout.LayoutParams)pill.getLayoutParams();p.leftMargin=px(228-(count-1-n++)*114);pill.setLayoutParams(p);}}
+        int n=0;for(int i=0;i<pills.size();i++){TextView pill=pills.get(i);pill.setVisibility(shown[i]?VISIBLE:GONE);if(shown[i]){FrameLayout.LayoutParams p=(FrameLayout.LayoutParams)pill.getLayoutParams();p.leftMargin=px(96-(count-1-n++)*48);pill.setLayoutParams(p);}}
         buttons.setVisibility(count==0?GONE:VISIBLE);FrameLayout.LayoutParams bp=(FrameLayout.LayoutParams)buttons.getLayoutParams();bp.topMargin=px(gallery?24:67);buttons.setLayoutParams(bp);
     }
     void updateClock(boolean fixedGreeting){Calendar now=Calendar.getInstance();int hour=now.get(Calendar.HOUR_OF_DAY);String automatic=hour<11?tr("早上好","Good morning"):hour<18?tr("下午好","Good afternoon"):tr("晚上好","Good evening");String custom=settings.greetingText(fixedGreeting?tr("欢迎回家","Welcome home"):"");greeting.setText(custom.isEmpty()?automatic:custom);clock.setText(new SimpleDateFormat("HH:mm",Locale.US).format(now.getTime()));date.setText(new SimpleDateFormat(chinese?"M月d日  EEEE":"EEEE, MMMM d",chinese?Locale.SIMPLIFIED_CHINESE:Locale.US).format(now.getTime()));apply();}
