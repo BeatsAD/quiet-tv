@@ -46,6 +46,8 @@ final class AdbController implements Closeable {
     private final java.util.concurrent.atomic.AtomicInteger generation=new java.util.concurrent.atomic.AtomicInteger();
     int user = -1;
     String host = "";
+    private volatile int connectedPort;
+    int connectedPort(){return connected()?connectedPort:0;}
     ShellCapabilities capabilities=ShellCapabilities.NONE;
     AdbController(Context context, Status status) { this.context=context.getApplicationContext(); this.status=status; }
     boolean connected() { AdbConnection c=connection;return stage==Stage.CONNECTED && c!=null && c.isConnectionEstablished() && user>=0; }
@@ -127,7 +129,7 @@ final class AdbController implements Closeable {
                 try{pmHelp=shell("pm help 2>&1 || true");}catch(IOException ignored){}
                 try{cmdHelp=shell("cmd package help 2>&1 || true");}catch(IOException ignored){}
                 capabilities=new ShellCapabilities(pmHelp,cmdHelp);
-                host=candidate;
+                host=candidate;connectedPort=port;
                 if(closed || generation.get()!=attempt)throw new IOException("连接已取消");
                 if(!c.isConnectionEstablished())throw new IOException("ADB 连接已断开，请重新连接");
                 publish(Stage.CONNECTED,"已连接  本机  用户 "+user,attempt);

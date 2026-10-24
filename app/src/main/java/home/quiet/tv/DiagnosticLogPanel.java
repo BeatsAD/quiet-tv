@@ -58,10 +58,11 @@ final class DiagnosticLogPanel {
         String address=WallpaperUploadPanel.lanAddress(owner);
         if(address==null){failure("未连接局域网，请连接 Wi-Fi 或网线后重试");return;}
         host=address;DiagnosticLog.info("diagnostic.export","requested");
+        String adb=DiagnosticDeviceSnapshot.adb(owner,owner.managementSession);
         worker.execute(()->{
             DiagnosticDownloadServer candidate=null;
             try{
-                File file=DiagnosticLog.export(owner);
+                File file=DiagnosticLog.export(owner,DiagnosticDeviceSnapshot.collect(owner,adb));
                 if(attempt!=generation)return;
                 candidate=new DiagnosticDownloadServer(address,file,name->owner.getAssets().open("diagnostic-download/"+name));preparing=candidate;candidate.listen();
                 if(attempt!=generation){candidate.stop();return;}

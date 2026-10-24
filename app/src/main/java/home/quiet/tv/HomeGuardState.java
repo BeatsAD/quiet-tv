@@ -18,11 +18,13 @@ final class HomeGuardState {
         Candidate(ComponentName component,String label){this.component=component;this.label=label;}
     }
     // Migration must be durable before other components consume the new configuration.
+    HomeGuardState(Context supplied){this(supplied,true);}
     @android.annotation.SuppressLint("ApplySharedPref")
-    HomeGuardState(Context supplied){
+    HomeGuardState(Context supplied,boolean migrate){
         context=supplied.getApplicationContext();pm=context.getPackageManager();
         Context storage=Build.VERSION.SDK_INT>=24?context.createDeviceProtectedStorageContext():context;
         preferences=storage.getSharedPreferences(PREFS,Context.MODE_PRIVATE);
+        if(!migrate)return;
         if(Build.VERSION.SDK_INT>=24 && unlocked(context) && !preferences.getBoolean("migrated",false)){
             SharedPreferences old=context.getSharedPreferences(PREFS,Context.MODE_PRIVATE);
             SharedPreferences.Editor edit=preferences.edit();
