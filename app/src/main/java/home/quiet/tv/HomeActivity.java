@@ -763,6 +763,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         private boolean launchInput(TvInputInfo info){
             TvInputController controller=new TvInputController(HomeActivity.this);
             if(controller.openKnownInput(info))return true;
+            // Native DTV players do not need an Android channel database or READ_TV_LISTINGS.
+            if(info.getType()==TvInputInfo.TYPE_TUNER && controller.openFallbackInput(info))return true;
             Uri uri;
             if(info.isPassthroughInput())uri=TvContract.buildChannelUriForPassthroughInput(info.getId());
             else{
