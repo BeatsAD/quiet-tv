@@ -33,16 +33,14 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
         connection=new AdbConnectionPanel(ui,adb,worker);
         view=new ScrollView(ui);view.setFocusable(false);view.setVerticalScrollBarEnabled(false);
         LinearLayout body=ui.column();view.addView(body,new ScrollView.LayoutParams(-1,-2));
-        body.addView(ui.muted("当电视回到原厂桌面时，尝试返回 Quiet TV。",14));ui.gap(body,22);
+        LinearLayout heading=ui.row();heading.addView(ui.muted("当电视回到原厂桌面时，尝试返回 Quiet TV。",14),new LinearLayout.LayoutParams(0,-2,1));
+        body.addView(heading,new LinearLayout.LayoutParams(-1,headerActions?-2:ui.px(38)));ui.gap(body,22);
         LinearLayout group=ui.column();group.setPadding(ui.px(4),ui.px(4),ui.px(4),ui.px(4));group.setBackground(ui.surface(0x12ffffff,0x06ffffff,0x1cffffff,16));UiCompat.clipOutline(group);body.addView(group);
         homeRow=setting("原桌面","desktop","guard-home");homeRow.tail("arrow");homeRow.setOnClickListener(v->showHomes());addSetting(group,homeRow);
         accessibilityRow=setting("无障碍权限","tools","guard-accessibility");accessibilityRow.tail("arrow");accessibilityRow.setOnClickListener(v->openAccessibility());addSetting(group,accessibilityRow);
         notificationRow=setting("通知恢复","tools","guard-notification");notificationRow.tail("arrow");notificationRow.setOnClickListener(v->openNotification());addSetting(group,notificationRow);
         guardRow=setting("桌面守护","shield","guard-enabled");guardRow.checked(false);guardRow.setOnClickListener(v->toggleGuard());addSetting(group,guardRow);
-        ui.gap(body,18);body.addView(ui.muted("首次授权后自动运行，不读取屏幕或通知内容。可在更多操作中配置自动恢复。",12));
-        ui.gap(body,7);body.addView(ui.muted("启用后，请分别验证遥控器 HOME、重启和待机唤醒，并确认 HDMI 与播放不受影响。",12));
-        LinearLayout actions=ui.header;
-        if(!headerActions){ui.gap(body,14);actions=ui.row();actions.setGravity(Gravity.END);body.addView(actions,new LinearLayout.LayoutParams(-1,ui.px(38)));}
+        LinearLayout actions=headerActions?ui.header:heading;
         more=ui.button("更多操作",this::showMore);more.setId(View.generateViewId());more.setTag("guard-more");actions.addView(more,new LinearLayout.LayoutParams(-2,-1));
     }
     private DesktopSettingsRow setting(String title,String symbol,String tag){DesktopSettingsRow row=new DesktopSettingsRow(ui,title,symbol,false);row.setTag(tag);return row;}
@@ -88,7 +86,7 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
     private View preferredFocus(){if(state.enabled()&&guardRow.isEnabled())return guardRow;if(!state.validSelection()&&homeRow.isEnabled())return homeRow;if(!state.serviceEnabled()&&accessibilityRow.isEnabled())return accessibilityRow;return guardRow.isEnabled()?guardRow:more;}
     private void wireFocus(){
         View previous=headerActions?more:back;
-        View[] rows=headerActions?new View[]{homeRow,accessibilityRow,notificationRow,guardRow}:new View[]{homeRow,accessibilityRow,notificationRow,guardRow,more};
+        View[] rows=headerActions?new View[]{homeRow,accessibilityRow,notificationRow,guardRow}:new View[]{more,homeRow,accessibilityRow,notificationRow,guardRow};
         for(View row:rows){
             if(!row.isEnabled())continue;
             previous.setNextFocusDownId(row.getId());row.setNextFocusUpId(previous.getId());row.setNextFocusLeftId(row.getId());row.setNextFocusRightId(row.getId());previous=row;
