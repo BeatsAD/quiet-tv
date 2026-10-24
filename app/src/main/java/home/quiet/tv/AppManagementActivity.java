@@ -14,6 +14,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 public final class AppManagementActivity extends ManagementUi {
+    @Override boolean useSettingListStyle(){return false;}
     private static final String[] FILTERS={"全部","用户应用","预装应用","已禁用","可恢复"};
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private final ArrayList<AppRepository.App> all=new ArrayList<>(),filtered=new ArrayList<>();

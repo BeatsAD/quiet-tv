@@ -12,7 +12,7 @@ final class WeatherController {
     private final boolean chinese;
     private final Listener listener;
     private final WeatherStore store;
-    private final WeatherClient client=new WeatherClient();
+    private final WeatherClient client;
     private final WeatherLocationResolver locations;
     private final Handler main=new Handler(Looper.getMainLooper());
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
@@ -27,7 +27,7 @@ final class WeatherController {
     private static long lastAttempt;
     private String key="",error="";
     WeatherController(Context context,boolean chinese,Listener listener){
-        this.context=context;this.chinese=chinese;this.listener=listener;store=new WeatherStore(context);locations=new WeatherLocationResolver(context);
+        this.context=context;this.chinese=chinese;this.listener=listener;store=new WeatherStore(context);locations=new WeatherLocationResolver(context);client=new WeatherClient(context);
     }
     private String tr(String zh,String en){return chinese?zh:en;}
     void resume(){
@@ -62,14 +62,11 @@ final class WeatherController {
     private void fetch(int version,String selected,String adcode,android.location.Location location){
         request=worker.submit(()->{
             try{
-                String query=adcode,source=adcode.isEmpty()?"ip":"manual";
-                if(location!=null){
-                    try{query=client.coordinates(location.getLatitude(),location.getLongitude()).adcode;source="system";}
-                    catch(java.io.IOException|org.json.JSONException e){if(Thread.currentThread().isInterrupted())return;query="";source="ip";}
-                }
-                WeatherData result=client.weather(query,source,chinese);
+                WeatherData result=location==null?client.weather(adcode,adcode.isEmpty()?"ip":"manual",chinese)
+                    :client.locatedWeather(location.getLatitude(),location.getLongitude(),chinese);
                 main.post(()->{if(!accept(version,selected))return;loading=false;data=result;store.save(chinese,result);nextAttempt=0;rateLimited=false;error="";render();schedule(WeatherData.REFRESH_MS);});
             }catch(java.io.IOException|org.json.JSONException e){
+                DiagnosticLog.error("weather.refresh.failed",e);
                 main.post(()->{
                     if(!accept(version,selected))return;loading=false;
                     long delay=5*60*1000L;
