@@ -79,6 +79,31 @@ tasks.register('bundleAbout', Exec) {
 }
 tasks.named('preBuild').configure { dependsOn 'bundleAbout' }
 
+// Credentials are opt-in build inputs outside Git, never generated Java constants.
+def weatherAssets = layout.buildDirectory.dir('generated/weatherAssets')
+def weatherConfigPath = providers.gradleProperty('quietWeatherConfig').orElse(providers.environmentVariable('QUIETTV_WEATHER_CONFIG'))
+android.sourceSets.main.assets.srcDir(weatherAssets)
+tasks.register('bundleWeatherConfiguration') {
+    def configuration = weatherConfigPath.isPresent() ? file(weatherConfigPath.get()) : null
+    if (configuration != null) inputs.file(configuration).withPropertyName('privateWeatherConfiguration')
+    inputs.property('weatherConfigured', configuration != null)
+    outputs.file(weatherAssets.map { it.file('weather-config.json') })
+    doLast {
+        def values = configuration == null ? [:] : new groovy.json.JsonSlurper().parse(configuration)
+        if (configuration != null && (!(values.qweatherHost instanceof String) || !(values.qweatherApiKey instanceof String)
+                || !(values.qweatherHost ==~ /[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*\.qweatherapi\.com/)
+                || !(values.qweatherApiKey ==~ /[a-fA-F0-9]{32}/))) {
+            throw new GradleException('Invalid private weather configuration')
+        }
+        def output = weatherAssets.get().file('weather-config.json').asFile
+        output.parentFile.mkdirs()
+        output.text = groovy.json.JsonOutput.toJson(configuration == null ? [:] : [qweatherHost: values.qweatherHost, qweatherApiKey: values.qweatherApiKey])
+        output.setReadable(false, false)
+        output.setReadable(true, true)
+    }
+}
+tasks.named('preBuild').configure { dependsOn 'bundleWeatherConfiguration' }
+
 // A profile switch must invalidate incremental APK packaging, not just its metadata.
 // Otherwise a previously packaged Manifest can survive a standard/legacy19 switch.
 tasks.configureEach {
