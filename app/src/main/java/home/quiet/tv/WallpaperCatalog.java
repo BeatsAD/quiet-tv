@@ -1,6 +1,7 @@
 package home.quiet.tv;
 
 import org.json.*;
+import java.text.*;
 import java.util.*;
 
 /** Stable wallpaper identities and policy, independent of Android views and file I/O. */
@@ -14,6 +15,12 @@ final class WallpaperCatalog {
         String source=BING, key="", url="", title="", copyright="", link="", upstream="", day="";
         int slot,width,height;
         long checked;
+        String dateLabel(){
+            if(!BING.equals(source)||!upstream.matches("[0-9]{8}([0-9]{4})?"))return "";
+            SimpleDateFormat input=new SimpleDateFormat(upstream.length()==12?"yyyyMMddHHmm":"yyyyMMdd",Locale.US);input.setLenient(false);
+            if(upstream.length()==12)input.setTimeZone(TimeZone.getTimeZone("UTC"));
+            try{return new SimpleDateFormat("yyyy-MM-dd",Locale.US).format(input.parse(upstream));}catch(ParseException e){return "";}
+        }
         JSONObject json() throws JSONException {
             return new JSONObject().put("source",source).put("key",key).put("url",url).put("title",title).put("copyright",copyright).put("link",link).put("upstream",upstream).put("day",day).put("slot",slot).put("width",width).put("height",height).put("checked",checked);
         }
