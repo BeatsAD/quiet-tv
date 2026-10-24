@@ -1,0 +1,4 @@
+interface:
+  display_name: "电视桌面切换助手"
+  short_description: "引导普通用户检测电视、安装 Quiet TV、切换默认桌面并保留恢复方法"
+  default_prompt: "请用 $quiet-tv-switch 帮我检查电视是否适用，安装 Quiet TV 并切换默认桌面，保留原桌面和恢复方法。"

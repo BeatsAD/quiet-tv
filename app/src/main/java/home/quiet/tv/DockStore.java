@@ -29,5 +29,11 @@ final class DockStore {
         if(packages.size()>CAPACITY || new HashSet<>(packages).size()!=packages.size())throw new IllegalArgumentException("Dock 最多 "+CAPACITY+" 个且不能重复");
         preferences.edit().putString("packages",new JSONArray(packages).toString()).apply();
     }
+    boolean saveOrder(List<String> packages){
+        if(packages.size()>CAPACITY || new HashSet<>(packages).size()!=packages.size())throw new IllegalArgumentException("Dock 最多 "+CAPACITY+" 个且不能重复");
+        String previous=preferences.getString("packages","[]");
+        if(preferences.edit().putString("packages",new JSONArray(packages).toString()).commit())return true;
+        preferences.edit().putString("packages",previous).apply();return false;
+    }
     void remove(String pkg){ArrayList<String> packages=load();if(packages.remove(pkg))save(packages);}
 }

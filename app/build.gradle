@@ -14,14 +14,18 @@ android {
         applicationId launcherId
         minSdk minimumSdk
         if (legacy) multiDexEnabled true
-        manifestPlaceholders = [leanbackRequired: !legacy]
+        manifestPlaceholders = [leanbackRequired: !legacy, homeGuardAvailable: !legacy]
         buildConfigField 'boolean', 'LEGACY_19', legacy.toString()
         targetSdk 36
-        versionCode providers.gradleProperty('quietBuildNumber').getOrElse('34').toInteger()
-        versionName '1.1.2'
+        versionCode providers.gradleProperty('quietBuildNumber').getOrElse('36').toInteger()
+        versionName '1.2.0'
     }
     buildFeatures { buildConfig true }
     sourceSets.main.java.srcDir(legacy ? 'src/legacy19/java' : 'src/standard/java')
+    // Former clones may retain these local-only files; never compile the retired recorder.
+    sourceSets.main.java.exclude 'home/quiet/tv/DiagnosticText.java', 'home/quiet/tv/DiagnosticsActivity.java',
+        'home/quiet/tv/DiagnosticsDownloadServer.java', 'home/quiet/tv/DiagnosticsRecorder.java',
+        'home/quiet/tv/DiagnosticsSnapshot.java'
     buildTypes {
         debug { debuggable true }
         benchmark {
@@ -67,10 +71,18 @@ dependencies {
 def aboutAssets = layout.buildDirectory.dir('generated/aboutAssets')
 android.sourceSets.main.assets.srcDir(aboutAssets)
 tasks.register('bundleAbout', Exec) {
-    inputs.files('../prototypes/about/index.html', '../prototypes/about/styles.css', '../prototypes/about/app.js', '../prototypes/about/assets/source.svg', '../prototypes/about/assets/wechat.png', '../prototypes/about/assets/official.png')
+    inputs.files('../prototypes/about/index.html', '../prototypes/about/styles.css', '../prototypes/about/app.js', '../prototypes/about/assets/source.svg', '../prototypes/about/assets/wechat.png', '../prototypes/about/assets/qq-group.png')
     inputs.files('../scripts/bundle_about.py', '../LICENSE', '../THIRD_PARTY_NOTICES.md')
     inputs.files(fileTree('src/main/assets/fonts'), fileTree('src/main/assets/licenses'))
     outputs.dir(aboutAssets)
     commandLine 'python3', file('../scripts/bundle_about.py'), aboutAssets.get().dir('about').asFile
 }
 tasks.named('preBuild').configure { dependsOn 'bundleAbout' }
+
+// A profile switch must invalidate incremental APK packaging, not just its metadata.
+// Otherwise a previously packaged Manifest can survive a standard/legacy19 switch.
+tasks.configureEach {
+    if (name in ['packageDebug', 'packageBenchmark', 'packageRelease']) {
+        inputs.property('quietPackageProfile', "${compatibility}:${minimumSdk}:${launcherId}")
+    }
+}

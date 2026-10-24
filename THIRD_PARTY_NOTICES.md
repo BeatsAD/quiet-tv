@@ -10,6 +10,12 @@
 
 Quiet TV 基于该项目开发，面向国内电视机的适配与应用升级改造，独立维护。原作者版权、MIT 授权条件与免责声明予以保留。上游许可快照放在 Android assets 中，后续构建 APK 时会随应用打包。
 
+## Aerial 桌面守护（实验）参考
+
+- 来源：[pengchujin/aerial-tv](https://github.com/pengchujin/aerial-tv/tree/da9cedc2c5887a46d62b1f54699567a5deac5c2a)，固定提交 `da9cedc2c5887a46d62b1f54699567a5deac5c2a`。
+- Copyright (c) 2026 pengchujin，MIT；[完整许可证](app/src/main/assets/licenses/aerial-MIT.txt)随主程序打包。
+- 参考原主页窗口识别及酷开私有 HOME 类别，后续恢复机制固定参考提交 [bd30a9f9fbbcbb8e8ff02963dc265714e7a67a8e](https://github.com/pengchujin/aerial-tv/tree/bd30a9f9fbbcbb8e8ff02963dc265714e7a67a8e)。在现有 Java 结构实现自动策略、普通主页快速接管、开机稳定期复核、通知监听恢复与有限重绑；未引入账号同步、全局按键过滤、后台 ADB 或调试常开。MIT 版权和许可继续随包保留。上游机型反馈不等于 Quiet TV 真机验收。
+
 ## coocaa-home-shim（可选独立助手）
 
 - 来源：[VincentYe123/coocaa-home-shim](https://github.com/VincentYe123/coocaa-home-shim/tree/281a6a1362a9e30faaeb2169b75ba701dd0b1a03)，固定提交 `281a6a1362a9e30faaeb2169b75ba701dd0b1a03`。
@@ -39,6 +45,16 @@ Quiet TV 基于该项目开发，面向国内电视机的适配与应用升级�
 这些图片的权利归各自权利人所有，不属于本项目 MIT 许可的代码。上述来源记录不是再分发授权；尚未记录可供公开再分发的授权依据，公开发布源码或 APK 前需核实相应权利，或替换为获准再分发的图片。
 
 
+## 金门大桥日落动态壁纸
+
+内置视频「金门大桥日落 / Golden Gate Sunset」选自本机 macOS 已下载的 Apple 航拍壁纸，资源 ID 为 `4207734D-74FE-4F92-B5E1-6EC8DEE24A15`。本机资源清单名称为 `Golden Gate Sunset`，[原始 Apple CDN 来源](https://sylvan.apple.com/itunes-assets/Aerials116/v4/cb/5b/50/cb5b5035-6701-619f-9065-3d7d0e5fbef4/GG_A_SUNSET_MarshallsBeach_c28_v7_24comp_HFR_16Mbps.mov)。
+
+- 视频：`app/src/main/assets/wallpapers/golden-gate-sunset.mp4`，从原视频前 24 秒制作约 23 秒循环，结尾与开头进行 1 秒淡化衔接，转为 1920×1080、30 FPS、SDR、H.264 Baseline Level 4.0，无音轨。
+- 封面：`app/src/main/assets/wallpapers/golden-gate-sunset.jpg`，取内置视频首帧，供离线预览及播放前展示。
+- 首次开启动态壁纸时使用该内置选项；已有当前壁纸及最近使用的视频选择保留。内置视频不占上传视频配额，可从列表移除，并通过「恢复内置壁纸」恢复。
+
+资源权利归相应权利人所有，不属于本项目 MIT 许可的代码；来源记录不代表公开再分发授权，与上文大苏尔图片采用相同的本地使用及发布前权利核实边界。
+
 ## 电视端 ADB 与证书依赖
 
 - [libadb-android 3.1.1](https://github.com/MuntashirAkon/libadb-android/tree/3.1.1)：采用其 Apache-2.0 许可选项，保留继承代码的 BSD-3-Clause 和 MIT 声明。许可文本随 APK 保存在 `assets/licenses/libadb-*.txt`。
@@ -49,6 +65,14 @@ Quiet TV 基于该项目开发，面向国内电视机的适配与应用升级�
 ## AndroidX 返回导航
 
 - [AndroidX Activity 1.10.1](https://developer.android.com/jetpack/androidx/releases/activity#1.10.1) 及其 AndroidX 生命周期依赖用于统一 Android 6 与新版系统的返回操作，采用 Apache-2.0。完整 Apache-2.0 文本随 APK 保存于 `assets/licenses/libadb-Apache-2.0.txt`；该文本同时适用于这些 AndroidX 组件。版权归 The Android Open Source Project 等贡献者。
+
+## 每日在线壁纸
+
+每日壁纸固定访问必应中国接口及其图片 CDN，只在桌面前台按需请求，将有限缓存保存在电视本机。第三方服务可看到通常的网络请求信息；本功能不上传用户图片，不向提供方发送设备标识或位置。
+
+- 必应保留接口返回的图片标题、版权及来源链接，来源见 [Bing 首页说明](https://support.microsoft.com/en-us/topic/explore-the-homepage-bab2022c-cdb4-4d1f-80e2-c8f5c55712c7)。接口可访问不表示所有图片获得再分发授权，在线图片不作为应用内置资源分发。
+- 历史版本曾采用[搏天随机壁纸接口](https://api.btstu.cn/doc/sjbz.php)。当前不再请求该服务；旧缓存仅用于升级期间保留背景，不作为内置资源分发。图片权利仍归原权利人。
+- 历史 Android 7.1 及以下版本曾仅对 `api.btstu.cn`、`img.btstu.cn` 请求补充官方 [ISRG Root X1](https://letsencrypt.org/certificates/) 根证书，保留系统信任及正常域名校验，不修改设备证书库。证书文件为 `app/src/main/assets/certificates/isrg-root-x1.pem`，DER SHA-256 为 `96bcec06264976f37460779acf28c5a7cfe8a3c0aae11a8ffcee05c0bddf08c6`。当前已移除上述网络和证书补充逻辑，保留历史证书文件，不再加载；该证书不是私钥。
 
 ## 壁纸局域网上传
 

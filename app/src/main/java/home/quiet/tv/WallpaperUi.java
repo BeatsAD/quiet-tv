@@ -1,12 +1,13 @@
 package home.quiet.tv;
 
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.graphics.*;
 import android.graphics.drawable.*;
 import android.view.*;
 import android.widget.*;
 
-/** Styles and small, version-independent artwork used by the two wallpaper surfaces. */
+/** Styles and small, version-independent artwork used by the wallpaper surfaces. */
 final class WallpaperUi {
     static final int INK=0xfff4f5f7,MUTED=0xffaeb9c8;
     final Context context;
@@ -22,28 +23,36 @@ final class WallpaperUi {
         GradientDrawable bg=new GradientDrawable();bg.setColor(color);bg.setCornerRadius(px(radius));bg.setStroke(px(width),stroke);return bg;
     }
     Drawable focusSurface(int color,float radius){
-        StateListDrawable states=new StateListDrawable();
-        states.addState(new int[]{android.R.attr.state_focused},surface(color,radius,Color.WHITE,2));
-        states.addState(new int[]{},surface(color,radius,0x38ffffff,1));return states;
+        return ControlStyle.action(unit,radius,color,0x38ffffff);
     }
     TextView button(String value,boolean primary,Runnable action){
         TextView view=text(value,12);view.setId(View.generateViewId());view.setFocusable(true);view.setGravity(Gravity.CENTER);
-        view.setTextColor(primary?0xff1e242c:INK);view.setMinHeight(px(primary?43:38));view.setPadding(px(primary?17:13),px(9),px(primary?17:13),px(9));
-        view.setBackground(focusSurface(primary?0xfff1f2f4:0xff242a33,100));
+        view.setTextColor(INK);view.setMinHeight(px(primary?43:38));view.setPadding(px(primary?17:13),px(9),px(primary?17:13),px(9));
+        view.setBackground(focusSurface(0xff242a33,100));
         view.setOnClickListener(v->action.run());return view;
+    }
+    TextView categoryTab(String value,Runnable action){
+        TextView view=button(value,false,action);view.setMinHeight(0);view.setPadding(px(10),0,px(10),0);
+        ControlStyle.choice(view,unit,100,Color.TRANSPARENT,0);return view;
     }
     Drawable icon(int resource,int size,int color){
         Drawable art=UiCompat.drawable(context,resource).mutate();art.setColorFilter(color,PorterDuff.Mode.SRC_IN);art.setBounds(0,0,px(size),px(size));return art;
     }
     void icon(TextView view,int resource){view.setCompoundDrawables(icon(resource,16,view.getCurrentTextColor()),null,null,null);view.setCompoundDrawablePadding(px(7));}
+    Drawable calendar(int size){
+        Drawable art=new Drawable(){final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);final RectF page=new RectF(3,5,21,22);
+            @Override public void draw(Canvas canvas){int save=canvas.save();Rect b=getBounds();canvas.translate(b.left,b.top);canvas.scale(b.width()/24f,b.height()/24f);paint.setColor(INK);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(1.8f);paint.setStrokeCap(Paint.Cap.ROUND);canvas.drawRoundRect(page,2,2,paint);canvas.drawLine(3,10,21,10,paint);canvas.drawLine(7,2,7,7,paint);canvas.drawLine(17,2,17,7,paint);paint.setStyle(Paint.Style.FILL);canvas.drawRect(7,14,10,17,paint);canvas.drawRect(14,14,17,17,paint);canvas.restoreToCount(save);}
+            @Override public void setAlpha(int alpha){paint.setAlpha(alpha);}@Override public void setColorFilter(ColorFilter filter){paint.setColorFilter(filter);}@Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
+        };art.setBounds(0,0,px(size),px(size));return art;
+    }
     ImageView image(float outerRadius,float inset){
         // Subtract after pixel rounding so the inner and outer corner centers coincide.
         int radius=px(outerRadius)-px(inset);
         return new ImageView(context){
-            final Path clip=new Path();
+            final Path clip=new Path();final RectF imageBounds=new RectF();
             {setScaleType(ScaleType.CENTER_CROP);setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);}
             @Override protected void onDraw(Canvas canvas){
-                clip.reset();clip.addRoundRect(new RectF(0,0,getWidth(),getHeight()),radius,radius,Path.Direction.CW);
+                imageBounds.set(0,0,getWidth(),getHeight());clip.reset();clip.addRoundRect(imageBounds,radius,radius,Path.Direction.CW);
                 int saved=canvas.save();canvas.clipPath(clip);super.onDraw(canvas);canvas.restoreToCount(saved);
             }
         };

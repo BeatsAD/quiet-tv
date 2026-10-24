@@ -8,6 +8,14 @@ inspection/
 backups/
 evidence/
 /output/
+# Production illustrations required by the child-mode rest screen.
+!/app/src/main/assets/child-rest/
+!/app/src/main/assets/child-rest/forest.webp
+!/app/src/main/assets/child-rest/cloud.webp
+!/app/src/main/assets/child-rest/space.webp
+# Built-in video wallpaper and its offline poster are production inputs.
+!/app/src/main/assets/wallpapers/golden-gate-sunset.mp4
+!/app/src/main/assets/wallpapers/golden-gate-sunset.jpg
 .DS_Store
 __pycache__/
 *.py[cod]
@@ -58,6 +66,7 @@ __pycache__/
 !/prototypes/about/assets/source.svg
 !/prototypes/about/assets/wechat.png
 !/prototypes/about/assets/official.png
+!/prototypes/about/assets/qq-group.png
 /recording-edit-9608/
 /tools/
 /项目复现提示词.md
@@ -93,3 +102,26 @@ __pycache__/
 !/docs/assets/wallpaper-manage-1.1.2.png
 !/docs/assets/desktop-settings-1.1.2.png
 !/docs/assets/sort-1.1.2.png
+
+# Retired in-app diagnostics stay local; no longer public or compiled.
+/app/src/main/java/home/quiet/tv/DiagnosticText.java
+/app/src/main/java/home/quiet/tv/DiagnosticsActivity.java
+/app/src/main/java/home/quiet/tv/DiagnosticsDownloadServer.java
+/app/src/main/java/home/quiet/tv/DiagnosticsRecorder.java
+/app/src/main/java/home/quiet/tv/DiagnosticsSnapshot.java
+!/docs/AGENT_DIAGNOSE.zh-CN.md
+
+# Reviewed desktop-switch skill; other local skills remain private.
+/skills/*
+!/skills/quiet-tv-switch/
+/skills/quiet-tv-switch/*
+!/skills/quiet-tv-switch/SKILL.md
+!/skills/quiet-tv-switch/agents/
+!/skills/quiet-tv-switch/references/
+!/skills/quiet-tv-switch/scripts/
+/skills/quiet-tv-switch/agents/*
+!/skills/quiet-tv-switch/agents/openai.yaml
+/skills/quiet-tv-switch/references/*
+!/skills/quiet-tv-switch/references/operations.md
+/skills/quiet-tv-switch/scripts/*
+!/skills/quiet-tv-switch/scripts/inspect_tv.py

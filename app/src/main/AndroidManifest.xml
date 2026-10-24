@@ -3,12 +3,16 @@
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-feature android:name="android.hardware.wifi" android:required="false" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+    <uses-feature android:name="android.hardware.location.network" android:required="false" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.READ_TV_LISTINGS" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <!-- libadb's old target declaration otherwise adds unrelated implicit permissions. -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE" tools:node="remove" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove" />
@@ -17,6 +21,8 @@
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
     <queries>
         <package android:name="com.xiaomi.mitv.settings" />
+        <package android:name="home.quiet.tv.xiaomihelper" />
+        <package android:name="com.ccos.tv.homepage" />
         <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LEANBACK_LAUNCHER" /></intent>
         <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent>
         <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.APPSTORE_LAUNCHER" /></intent>
@@ -24,9 +30,32 @@
     </queries>
     <application android:label="Quiet TV" android:theme="@style/AppTheme" android:icon="@drawable/launcher_icon" android:banner="@drawable/launcher_banner" android:allowBackup="false" android:enableOnBackInvokedCallback="true" android:supportsRtl="true">
         <activity android:name=".AboutActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".WeatherSettingsActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".DockEditorActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".HomeSortActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".DesktopSettingsActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".HomeGuardActivity" android:exported="false" android:enabled="${homeGuardAvailable}" android:screenOrientation="landscape" />
+        <service android:name=".HomeGuardService" android:exported="true" android:directBootAware="true" android:enabled="${homeGuardAvailable}"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" android:label="@string/home_guard_name">
+            <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/home_guard" />
+        </service>
+        <service android:name=".HomeGuardRevivalListener" android:exported="true" android:directBootAware="true"
+            android:enabled="${homeGuardAvailable}" android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" android:label="@string/home_guard_revival_name">
+            <intent-filter><action android:name="android.service.notification.NotificationListenerService" /></intent-filter>
+        </service>
+        <receiver android:name=".HomeGuardBootReceiver" android:exported="true" android:directBootAware="true" android:enabled="${homeGuardAvailable}">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+        <activity android:name=".ChildModeActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".ChildBlockActivity" android:exported="false" android:launchMode="singleTop" android:excludeFromRecents="true" android:screenOrientation="landscape" />
+        <service android:name=".ChildUsageService" android:exported="true" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" android:label="@string/child_usage_name">
+            <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/child_usage" />
+        </service>
         <activity android:name=".AppManagementActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".BootAdActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".SetupActivity" android:exported="false" android:screenOrientation="landscape" />

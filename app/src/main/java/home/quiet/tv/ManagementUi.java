@@ -2,6 +2,7 @@ package home.quiet.tv;
 
 import android.app.*;
 import android.content.*;
+import android.content.res.ColorStateList;
 import android.graphics.*;
 import android.graphics.drawable.*;
 import android.os.*;
@@ -12,14 +13,23 @@ import android.widget.*;
 /** Native management surfaces share the launcher's quiet glass and white focus outline. */
 abstract class ManagementUi extends androidx.activity.ComponentActivity {
     static final int TEXT=0xffeff0f4,MUTED=0xff9298a4;
-    LinearLayout root,header;
+    LinearLayout root,header,managementInfo;
     FrameLayout stage;
     float unit;
+    private final Button[] managementTabs=new Button[4];
+    private int managementPage=-1;
+    private boolean managementEntry=true;
+    AdbSession managementSession;
+    private AdbConnectionPanel managementConnection;
+    private Button managementStatus;
+    private Button managementMoreButton;
+    private PopupWindow managementMorePopup;
     int px(float value){return Math.round(value*unit);}
     @Override public void onCreate(Bundle state){
         super.onCreate(state);BackNavigation.install(this,this::handleBack);unit=getResources().getDisplayMetrics().widthPixels/960f;
         getWindow().getDecorView().setSystemUiVisibility(5894);
         stage=new FrameLayout(this);stage.setBackgroundColor(0xff0e0f13);setContentView(stage);
+        if(loadWallpaper()){
         WallpaperStore wallpaperStore=WallpaperStore.get(this);
         WallpaperCatalog wallpaperState=wallpaperStore.snapshot();
         WallpaperCatalog.Entry wallpaperEntry=wallpaperState.find(wallpaperState.current);
@@ -27,12 +37,69 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
             Bitmap bitmap=WallpaperImages.decode(this,wallpaperStore,wallpaperEntry,480,270);
             ImageView image=new ImageView(this);image.setScaleType(ImageView.ScaleType.CENTER_CROP);image.setImageBitmap(bitmap);stage.addView(image,new FrameLayout.LayoutParams(-1,-1));
         }catch(java.io.IOException ignored){}
+        }
         View shade=new View(this);shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0xf00c0d11,0xf50b0c10}));stage.addView(shade,new FrameLayout.LayoutParams(-1,-1));
         root=column();root.setPadding(px(48),px(28),px(48),px(16));stage.addView(root,new FrameLayout.LayoutParams(-1,-1));
         header=row();root.addView(header,new LinearLayout.LayoutParams(-1,px(38)));
         Button back=iconButton("返回",R.drawable.ic_manage_back,this::handleBack);header.addView(back,new LinearLayout.LayoutParams(px(34),px(34)));
         TextView title=label("应用管理",27);title.setPadding(px(14),0,0,0);header.addView(title,new LinearLayout.LayoutParams(0,-1,1));
     }
+    boolean loadWallpaper(){return true;}
+    @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);managementEntry=true;}
+    @Override protected void onResume(){super.onResume();if(managementSession!=null)managementSession.resume();if(managementEntry && managementPage>=0){managementEntry=false;managementTab().requestFocus();}}
+    @Override protected void onStop(){if(managementMorePopup!=null)managementMorePopup.dismiss();if(managementConnection!=null)managementConnection.suspend();if(managementSession!=null)managementSession.suspend();super.onStop();}
+    @Override protected void onDestroy(){if(managementSession!=null)managementSession.close();super.onDestroy();}
+    void managementConnected(){}
+    void connectionPanel(){
+        AdbController adb=managementSession.adb;
+        if(adb.connected()){Sheet sheet=new Sheet("本机 ADB 连接");sheet.text("已连接本机  当前用户 "+adb.user);Button cancel=sheet.action("取消",sheet.dialog::dismiss);sheet.action("断开连接",()->{sheet.dialog.dismiss();managementSession.pause();managementConnected();});sheet.show(cancel);}
+        else managementConnection.show(this::managementConnected);
+    }
+    void managementMore(){
+        LinearLayout menu=column();menu.setPadding(px(7),px(7),px(7),px(7));menu.setBackground(surface(0xfa25262e,0xfa25262e,0,18));
+        managementMoreOptions(menu);
+        int width=px(180);managementMorePopup=new PopupWindow(menu,width,-2,true);
+        managementMorePopup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        if(Build.VERSION.SDK_INT>=21)managementMorePopup.setElevation(px(14));
+        managementMorePopup.setOutsideTouchable(true);
+        managementMorePopup.setOnDismissListener(()->{managementMorePopup=null;managementMoreButton.requestFocus();});
+        for(int i=0;i<menu.getChildCount();i++){
+            final int index=i;
+            menu.getChildAt(i).setOnKeyListener((v,key,event)->{
+                if(key==KeyEvent.KEYCODE_DPAD_LEFT || key==KeyEvent.KEYCODE_DPAD_RIGHT)return true;
+                if(key==KeyEvent.KEYCODE_DPAD_UP || key==KeyEvent.KEYCODE_DPAD_DOWN){if(event.getAction()==KeyEvent.ACTION_DOWN)menu.getChildAt(Math.max(0,Math.min(menu.getChildCount()-1,index+(key==KeyEvent.KEYCODE_DPAD_UP?-1:1)))).requestFocus();return true;}return false;
+            });
+        }
+        managementMorePopup.showAsDropDown(managementMoreButton,managementMoreButton.getWidth()-width,px(9));menu.getChildAt(0).requestFocus();
+    }
+    void managementMoreOptions(LinearLayout menu){
+        managementMoreOption(menu,"开机广告",()->startActivity(new Intent(this,BootAdActivity.class)));
+        managementMoreOption(menu,"首次设置",()->startActivity(new Intent(this,SetupActivity.class)));
+        managementMoreOption(menu,"恢复原桌面",()->startActivity(new Intent(this,SetupActivity.class).putExtra("restore",true)));
+    }
+    void managementMoreOption(LinearLayout menu,String title,Runnable action){
+        Button choice=button(title,()->{managementMorePopup.dismiss();action.run();});choice.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(15));choice.setTextColor(0xffeeeeef);
+        choice.setPadding(px(16),0,px(12),0);choice.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);choice.setFocusableInTouchMode(true);
+        choice.setBackground(ControlStyle.action(unit,11,Color.TRANSPARENT,0));
+        menu.addView(choice,new LinearLayout.LayoutParams(-1,px(40)));
+    }
+    private void managementHeader(){
+        managementStatus=button("ADB 检测中",this::connectionPanel);managementStatus.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(12));managementStatus.setPadding(px(12),0,px(12),0);header.addView(managementStatus,new LinearLayout.LayoutParams(-2,px(30)));
+        Button more=iconText("更多",R.drawable.ic_manage_more,this::managementMore),about=iconText("关于",R.drawable.ic_about,()->startActivity(new Intent(this,AboutActivity.class)));
+        managementMoreButton=more;
+        marginAdd(header,more,-2,30,8);marginAdd(header,about,-2,30,8);
+        View[] actions={header.getChildAt(0),managementStatus,more,about};
+        for(View action:actions)if(action.getId()==View.NO_ID)action.setId(View.generateViewId());
+        for(int i=0;i<actions.length;i++){View action=actions[i];action.setNextFocusLeftId(actions[Math.max(0,i-1)].getId());action.setNextFocusRightId(actions[Math.min(actions.length-1,i+1)].getId());action.setNextFocusDownId(managementTab().getId());}
+        managementSession=new AdbSession(this,new AdbSession.Listener(){
+            public void changed(AdbState state){managementStatus.setText(state.label());managementStatus.setTextColor(state.connection==AdbState.Connection.CONNECTED?0xffbacabd:TEXT);managementStatus.setContentDescription(state.description());}
+            public void connected(){managementConnected();}
+        });
+        managementConnection=new AdbConnectionPanel(this,managementSession.adb,managementSession.worker(),managementSession);
+    }
+    Button managementTab(){return managementTabs[managementPage];}
+    boolean managementTabFocused(){for(Button tab:managementTabs)if(tab!=null && tab.isFocused())return true;return false;}
+    void focusManagementContent(){}
     public void handleBack(){finish();}
     LinearLayout row(){LinearLayout view=new LinearLayout(this);view.setOrientation(LinearLayout.HORIZONTAL);view.setGravity(Gravity.CENTER_VERTICAL);return view;}
     LinearLayout column(){LinearLayout view=new LinearLayout(this);view.setOrientation(LinearLayout.VERTICAL);return view;}
@@ -40,9 +107,15 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     TextView muted(String text,int size){TextView view=label(text,size);view.setTextColor(MUTED);return view;}
     TextView center(String text,int size){TextView view=label(text,size);view.setGravity(Gravity.CENTER);return view;}
     GradientDrawable surface(int top,int bottom,int stroke,float radius){GradientDrawable shape=new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{top,bottom});shape.setCornerRadius(px(radius));shape.setStroke(px(1),stroke);return shape;}
-    Drawable focusSurface(float radius){StateListDrawable state=new StateListDrawable();state.addState(new int[]{android.R.attr.state_focused},surface(0x24ffffff,0x16ffffff,0xfff3f4f7,radius));state.addState(new int[]{android.R.attr.state_selected},surface(0x14ffffff,0x10ffffff,0x1effffff,radius));state.addState(new int[]{},surface(0x10ffffff,0x06ffffff,0x22ffffff,radius));return state;}
+    Drawable focusSurface(float radius){return ControlStyle.action(unit,radius,0x10ffffff,0x22ffffff);}
     void focusable(View view,float radius){view.setFocusable(true);view.setBackground(focusSurface(radius));}
     Button button(String text,Runnable action){Button b=new Button(this);b.setText(text);b.setAllCaps(false);b.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(13));b.setTextColor(TEXT);b.setIncludeFontPadding(false);b.setGravity(Gravity.CENTER);b.setMinimumWidth(0);b.setMinWidth(0);b.setMinimumHeight(0);b.setMinHeight(0);b.setPadding(px(16),0,px(16),0);b.setBackground(focusSurface(24));if(android.os.Build.VERSION.SDK_INT>=21)b.setStateListAnimator(null);b.setOnClickListener(v->action.run());return b;}
+    void styleTab(Button b,boolean compact){
+        ControlStyle.choice(b,unit,compact?15:18,Color.TRANSPARENT,0);
+        b.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));b.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(compact?12:16));
+        b.setSingleLine(true);b.setPadding(px(compact?10:18),0,px(compact?10:18),0);b.setMinWidth(px(compact?48:100));
+    }
+    void styleManagementTab(Button b,boolean compact){styleTab(b,compact);}
     Drawable listSurface(){StateListDrawable state=new StateListDrawable();state.addState(new int[]{android.R.attr.state_focused},surface(0x24ffffff,0x16ffffff,-1,12));state.addState(new int[]{android.R.attr.state_selected},surface(0x14ffffff,0x10ffffff,0x1effffff,12));state.addState(new int[]{},new ColorDrawable(Color.TRANSPARENT));return state;}
     Button iconButton(String description,int resource,Runnable action){
         Button b=button("",action);b.setContentDescription(description);
@@ -59,26 +132,39 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
         return toolbar(dock?1:0);
     }
     void leaveManagement(Runnable action){action.run();}
+    LinearLayout managementContent(){
+        managementInfo=row();LinearLayout.LayoutParams info=new LinearLayout.LayoutParams(-1,px(26));info.topMargin=px(8);root.addView(managementInfo,info);
+        LinearLayout body=column();LinearLayout.LayoutParams content=new LinearLayout.LayoutParams(-1,0,1);content.topMargin=px(6);root.addView(body,content);return body;
+    }
+    TextView managementHint(String text){TextView hint=muted(text,11);hint.setSingleLine();hint.setEllipsize(android.text.TextUtils.TruncateAt.END);return hint;}
     LinearLayout toolbar(int selected){
         LinearLayout tools=row();LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,px(54));p.topMargin=px(22);root.addView(tools,p);
-        Class<?>[] pages={AppManagementActivity.class,DockEditorActivity.class,HomeSortActivity.class};String[] titles={"应用列表","常用应用","首页排序"};
-        for(int i=0;i<pages.length;i++){
-            final int page=i;
-            tab(tools,titles[i],selected==i,()->{if(page!=selected)leaveManagement(()->{
-                startActivity(new Intent(this,pages[page]).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));
-                if(selected!=0)finish();
-            });});
+        String[] titles={"应用列表","首页应用","应用排序","儿童模式"};
+        for(int i=0;i<titles.length;i++){
+            Button tab=button(titles[i],()->{});managementTab(tab,i,selected,header.getChildAt(0));
+            LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(-2,px(36));tp.rightMargin=px(12);tools.addView(tab,tp);
         }
+        managementHeader();
         tools.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));
         View line=new View(this);line.setBackgroundColor(0x18ffffff);root.addView(line,new LinearLayout.LayoutParams(-1,px(1)));return tools;
     }
-    private void tab(LinearLayout tools,String text,boolean selected,Runnable action){
-        LinearLayout tab=column();LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(px(97),-1);tp.rightMargin=px(16);tools.addView(tab,tp);
-        Button b=button(text,action);b.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(16));b.setPadding(px(3),0,px(3),0);b.setTextColor(selected?TEXT:MUTED);
-        StateListDrawable bg=new StateListDrawable();bg.addState(new int[]{android.R.attr.state_focused},surface(0x18ffffff,0x10ffffff,-1,8));bg.addState(new int[]{},new ColorDrawable(Color.TRANSPARENT));b.setBackground(bg);tab.addView(b,new LinearLayout.LayoutParams(-1,0,1));
-        View underline=new View(this);underline.setBackgroundColor(selected?TEXT:Color.TRANSPARENT);tab.addView(underline,new LinearLayout.LayoutParams(-1,px(2)));
+    void managementTab(Button tab,int page,int selected,View back){
+        managementPage=selected;managementTabs[page]=tab;styleManagementTab(tab,false);tab.setSelected(page==selected);tab.setFocusableInTouchMode(true);tab.setId(View.generateViewId());tab.setTag("management-tab-"+page);
+        if(back.getId()==View.NO_ID)back.setId(View.generateViewId());tab.setNextFocusUpId(back.getId());
+        if(page==selected)back.setNextFocusDownId(tab.getId());
+        tab.setOnClickListener(v->{if(page==selected){tab.requestFocus();return;}leaveManagement(()->{
+            Class<?>[] pages={AppManagementActivity.class,DockEditorActivity.class,HomeSortActivity.class,ChildModeActivity.class};
+            startActivity(new Intent(this,pages[page]).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));
+            if(selected!=0)finish();
+        });});
+        tab.setOnKeyListener((v,key,event)->{
+            if(key!=KeyEvent.KEYCODE_DPAD_LEFT && key!=KeyEvent.KEYCODE_DPAD_RIGHT && key!=KeyEvent.KEYCODE_DPAD_DOWN)return false;
+            if(event.getAction()==KeyEvent.ACTION_UP)return true;
+            if(key==KeyEvent.KEYCODE_DPAD_DOWN)focusManagementContent();
+            else{int next=Math.max(0,Math.min(managementTabs.length-1,page+(key==KeyEvent.KEYCODE_DPAD_RIGHT?1:-1)));if(next!=page)managementTabs[next].performClick();}
+            return true;
+        });
     }
-    void footer(String help){LinearLayout footer=row();LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,px(18));p.topMargin=px(16);root.addView(footer,p);footer.addView(muted(help,10),new LinearLayout.LayoutParams(0,-1,1));footer.addView(muted("Quiet TV",10));}
     ImageView icon(android.graphics.drawable.Drawable art,int size){ImageView image=new ImageView(this);image.setScaleType(ImageView.ScaleType.FIT_CENTER);image.setBackground(surface(0x08ffffff,0x08ffffff,0,size*.24f));UiCompat.clipOutline(image);image.setImageDrawable(art);image.setLayoutParams(new LinearLayout.LayoutParams(px(size),px(size)));return image;}
     EditText input(String text,String hint){EditText edit=new EditText(this);edit.setText(text);edit.setHint(hint);edit.setSingleLine(true);edit.setTextColor(TEXT);edit.setHintTextColor(MUTED);edit.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(14));edit.setPadding(px(14),px(10),px(14),px(10));edit.setBackground(focusSurface(10));return edit;}
     final class Sheet {

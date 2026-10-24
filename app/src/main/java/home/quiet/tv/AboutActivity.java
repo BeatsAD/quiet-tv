@@ -50,6 +50,7 @@ public final class AboutActivity extends androidx.activity.ComponentActivity {
     }
 
     private void openLicense() {
+        scene.hideRecovery();
         license=true;licenseReady=false;++navigation;
         if(web==null){
             web=new WebView(this);web.setTag("about-license");web.setBackgroundColor(0xff0b121c);
@@ -126,6 +127,7 @@ public final class AboutActivity extends androidx.activity.ComponentActivity {
         }
         if(code==KeyEvent.KEYCODE_DPAD_CENTER||code==KeyEvent.KEYCODE_ENTER||code==KeyEvent.KEYCODE_NUMPAD_ENTER){
             // Activate on release, as HOME does, so finishing cannot send this key-up back to HOME.
+            if(event.getAction()==KeyEvent.ACTION_DOWN)scene.press(true);
             if(event.getAction()==KeyEvent.ACTION_UP)scene.activate();return true;
         }
         return super.dispatchKeyEvent(event);
@@ -133,7 +135,7 @@ public final class AboutActivity extends androidx.activity.ComponentActivity {
     @Override public void finish(){super.finish();overridePendingTransition(0,0);}
     public void handleBack(){if(license)returnToAbout();else finish();}
     @Override protected void onSaveInstanceState(Bundle state){state.putBoolean("license",license);super.onSaveInstanceState(state);}
-    @Override protected void onPause(){if(web!=null)web.onPause();super.onPause();}
+    @Override protected void onPause(){if(scene!=null)scene.hideRecovery();if(web!=null)web.onPause();super.onPause();}
     @Override protected void onResume(){super.onResume();if(web!=null)web.onResume();}
     @Override protected void onDestroy(){if(web!=null){web.stopLoading();root.removeView(web);web.destroy();}super.onDestroy();}
 }

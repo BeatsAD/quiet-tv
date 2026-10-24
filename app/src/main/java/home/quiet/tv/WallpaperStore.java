@@ -36,9 +36,38 @@ final class WallpaperStore {
         catalog.normalize();
     }
     synchronized WallpaperCatalog snapshot() { return catalog.copy(); }
-    File file(String id) {
+    File dailyDirectory() throws IOException {
+        File folder=new File(directory,"daily");
+        if(!folder.isDirectory()&&!folder.mkdirs())throw new IOException("Daily wallpaper storage unavailable");return folder;
+    }
+    File dailyFile(String source,int slot) {
+        if(!WallpaperCatalog.dailySource(source)||(slot!=0&&slot!=1))throw new IllegalArgumentException("Invalid daily wallpaper slot");
+        return new File(new File(directory,"daily"),source+"-"+slot+".jpg");
+    }
+    boolean cached(WallpaperCatalog.DailyImage image) { return image!=null&&dailyFile(image.source,image.slot).isFile()&&dailyFile(image.source,image.slot).length()>0; }
+    synchronized String imageKey(String id) {
+        if(!WallpaperCatalog.DAILY.equals(id))return id;
+        WallpaperCatalog.DailyImage image=catalog.dailyImages.get(catalog.dailySource);
+        return cached(image)?id+":"+image.source+":"+image.key+":"+image.slot:id+":missing";
+    }
+    synchronized void commitDaily(WallpaperCatalog.DailyImage image,File prepared,boolean apply) throws IOException {
+        if(!WallpaperCatalog.BING.equals(image.source))throw new IOException("Unknown wallpaper source");
+        WallpaperCatalog next=catalog.copy();
+        if(prepared!=null){
+            if(prepared.length()==0||prepared.length()>DailyWallpaperClient.MAX_IMAGE_BYTES)throw new IOException("Invalid daily wallpaper size");
+            WallpaperCatalog.DailyImage old=catalog.dailyImages.get(image.source);image.slot=old==null?0:1-old.slot;
+            if(!prepared.renameTo(dailyFile(image.source,image.slot)))throw new IOException("Unable to save daily wallpaper");
+        }else if(!cached(image))throw new IOException("Daily wallpaper cache unavailable");
+        next.updateDaily(image,apply);
+        persist(next);
+    }
+    synchronized File file(String id) {
+        WallpaperCatalog.Entry entry=catalog.find(id);return mediaFile(id,entry!=null&&entry.video());
+    }
+    File poster(String id){mediaFile(id,true);return new File(directory,id+"-poster.jpg");}
+    private File mediaFile(String id,boolean video){
         if(!id.matches("user-[a-f0-9-]{36}")) throw new IllegalArgumentException("Invalid wallpaper ID");
-        return new File(directory,id+".jpg");
+        return new File(directory,id+(video?".mp4":".jpg"));
     }
     private void persist(WallpaperCatalog next) throws IOException {
         FileOutputStream stream=null;
@@ -46,18 +75,22 @@ final class WallpaperStore {
         catch(JSONException|IOException e) { if(stream!=null) catalogFile.failWrite(stream); throw new IOException("Unable to save wallpaper settings",e); }
     }
     synchronized void select(String id) throws IOException { WallpaperCatalog next=catalog.copy();next.select(id);persist(next); }
+    synchronized void stopVideo() throws IOException {WallpaperCatalog next=catalog.copy();next.stopVideo();persist(next);}
     synchronized void rotation(boolean enabled) throws IOException { WallpaperCatalog next=catalog.copy();next.rotation(enabled);persist(next); }
     synchronized void next() throws IOException { WallpaperCatalog next=catalog.copy();next.next();persist(next); }
     synchronized void restore() throws IOException { WallpaperCatalog next=catalog.copy();next.restore();persist(next); }
     synchronized void remove(String id) throws IOException {
-        WallpaperCatalog.Entry entry=catalog.find(id); if(entry==null || WallpaperCatalog.DEFAULT.equals(id)) return;
+        WallpaperCatalog.Entry entry=catalog.find(id); if(entry==null || WallpaperCatalog.DEFAULT.equals(id)||WallpaperCatalog.DAILY.equals(id)) return;
         WallpaperCatalog old=catalog.copy(),next=catalog.copy();next.remove(id);persist(next);
-        if(entry.custom() && file(id).exists() && !file(id).delete()) {
+        if(!entry.custom())return;
+        File deleted=mediaFile(id,entry.video());
+        if(entry.custom() && deleted.exists() && !deleted.delete()) {
             persist(old); throw new IOException("Unable to delete wallpaper file");
         }
+        if(entry.video()&&poster(id).exists()&&!poster(id).delete())Log.w("QuietTV","Removed video poster retained");
     }
     synchronized void checkCapacity() throws IOException {
-        if(catalog.custom.size()>=WallpaperCatalog.MAX_CUSTOM || catalog.bytes()>=WallpaperCatalog.MAX_BYTES) throw new IOException("壁纸库已满，请先在电视删除图片 / Wallpaper library full");
+        if(catalog.count(false)>=WallpaperCatalog.MAX_CUSTOM || catalog.bytes()>=WallpaperCatalog.MAX_BYTES) throw new IOException("壁纸库已满，请先在电视删除图片 / Wallpaper library full");
         if(directory.getUsableSpace()<30L*1024*1024) throw new IOException("电视存储空间不足 / Not enough TV storage");
     }
     synchronized WallpaperCatalog.Entry add(File ready,String filename,int width,int height) throws IOException {
@@ -74,6 +107,25 @@ final class WallpaperStore {
         try { persist(next); } catch(IOException e) { if(!destination.delete()) Log.w("QuietTV","Unindexed wallpaper retained after failed save"); throw e; }
         return entry;
     }
+    synchronized void checkVideoCapacity(long incoming) throws IOException {
+        if(catalog.count(true)>=WallpaperCatalog.MAX_VIDEOS||catalog.bytes(true)+incoming>WallpaperCatalog.MAX_VIDEO_BYTES)throw new IOException("动态壁纸库已满 / Video wallpaper library full");
+        if(directory.getUsableSpace()<incoming+32L*1024*1024)throw new IOException("电视存储空间不足 / Not enough TV storage");
+    }
+    synchronized WallpaperCatalog.Entry addVideo(File ready,File poster, String filename,WallpaperVideo.Info info,WallpaperUploadServer.Active active) throws IOException {
+        long bytes=ready.length()+(poster.isFile()?poster.length():0);
+        if(catalog.count(true)>=WallpaperCatalog.MAX_VIDEOS||catalog.bytes(true)+bytes>WallpaperCatalog.MAX_VIDEO_BYTES)throw new IOException("动态壁纸库已满 / Video wallpaper library full");
+        if(!active.valid())throw new IOException("上传会话已结束 / Session ended");
+        String id="user-"+UUID.randomUUID(),name=filename.replaceAll("[\\p{Cntrl}/\\\\]"," ").replaceFirst("(?i)\\.mp4$", "").trim();
+        if(name.isEmpty())name="动态壁纸 / Video wallpaper";if(name.length()>48)name=name.substring(0,48);
+        WallpaperCatalog.Entry entry=new WallpaperCatalog.Entry(id,name,info.width,info.height,bytes,"video",info.mime,info.durationMs,info.fps,info.rotation);
+        File destination=mediaFile(id,true);if(!ready.renameTo(destination))throw new IOException("无法保存视频 / Unable to save video");
+        if(poster.isFile()&&!poster.renameTo(poster(id)))throw new IOException("无法保存视频封面 / Unable to save poster");
+        WallpaperCatalog next=catalog.copy();next.add(entry);
+        // A failed commit leaves this task's unindexed files, never removes an existing wallpaper.
+        if(!active.valid())throw new IOException("上传会话已结束 / Session ended");
+        persist(next);return entry;
+    }
+    File videoIncoming(){return new File(directory,"upload-"+UUID.randomUUID()+".tmp");}
     File incoming() { return new File(directory,"incoming.tmp"); }
     File prepared() { return new File(directory,"prepared.tmp"); }
 }

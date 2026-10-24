@@ -6,7 +6,7 @@
 
 - [在线安装指引（中文） / Online installation guide (Chinese)](https://beatsad.github.io/quiet-tv/)
 - 安装与构建：[中文](INSTALL.zh-CN.md) / [English](INSTALL.en.md)
-- [电视桌面的技术实现路径：以 Codex 为例](TECHNICAL_PATH_WITH_CODEX.zh-CN.md)
+- [用 AI 编程工具实现电视桌面：技术与操作流程（含分阶段提示词）](TECHNICAL_PATH_WITH_CODEX.zh-CN.md)
 - 使用：[中文](USAGE.zh-CN.md) / [English](USAGE.en.md)
 - [兼容范围 / Compatibility](COMPATIBILITY.md)
 - [首次设置与恢复 / Setup and recovery](SETUP.md)
@@ -32,3 +32,5 @@
 Plans, private tests, fixtures, device data, backups, standalone demos and generated files remain local. Fresh-clone builds use only public inputs. Explicit maintainer requests can add exceptions without discarding local originals or rewriting history.
 
 - [Agent 安装与恢复](AGENT_INSTALL.zh-CN.md)：面向可执行终端命令的电脑 Agent，按实际设备选包并保留原桌面。
+
+- [Agent 问题排查](AGENT_DIAGNOSE.zh-CN.md)：电脑侧指导复现、采集日志与生成反馈，电视内不再提供诊断入口。

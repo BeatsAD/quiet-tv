@@ -120,6 +120,7 @@ final class HomeController {
         return after;
     }
     void switchToOriginal(AdbController adb,String original) throws Exception {
+        new HomeGuardState(context).pause("恢复原桌面，守护已暂停");
         if(!original.equals(presets.home()) || !component(original,true))throw new IOException("原桌面组件不可用或适配不匹配");
         adb.validateUser();if(adb.capabilities.home.isEmpty())throw new IOException("当前系统未提供可核对的桌面切换命令，请使用系统默认桌面设置");adb.shell(adb.capabilities.home+" --user "+adb.user+" "+original);
         State after=inspect(adb);if(!after.known || !after.actual.equals(original))throw new IOException("原桌面默认状态未确认");

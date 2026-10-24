@@ -12,6 +12,7 @@ final class AppArtwork {
     static final int WIDTH=360,HEIGHT=203,NEUTRAL=0xff505966;
 
     static Bitmap load(Context context,ResolveInfo info){
+        Bitmap custom=custom(context,info.activityInfo.packageName);if(custom!=null)return custom;
         PackageManager pm=context.getPackageManager();Drawable banner=null;
         ActivityInfo activity=info.activityInfo;
         if(Build.VERSION.SDK_INT>=21){banner=resource(pm,activity.applicationInfo,activity.getBannerResource());if(banner==null)banner=activity.loadBanner(pm);}
@@ -21,11 +22,18 @@ final class AppArtwork {
     }
 
     static Bitmap load(Context context,String pkg,ApplicationInfo info){
+        Bitmap custom=custom(context,pkg);if(custom!=null)return custom;
         ResolveInfo entry=new HomeAppCatalog(context).launchable().get(pkg);
         if(entry!=null)return load(context,entry);
         Drawable icon=info==null?null:resource(context.getPackageManager(),info,info.icon);
         if(icon==null && info!=null)icon=info.loadIcon(context.getPackageManager());
         return render(icon==null?UiCompat.drawable(context,R.drawable.ic_manage_apps):icon,false,width(context));
+    }
+
+    private static Bitmap custom(Context context,String pkg){
+        java.io.File file=AppCoverStore.get(context).file(pkg);if(file==null)return null;
+        try{return AppCoverImages.load(file,width(context));}
+        catch(RuntimeException|OutOfMemoryError e){android.util.Log.w("QuietTV","Custom cover unavailable; using original artwork");return null;}
     }
 
     private static Drawable resource(PackageManager pm,ApplicationInfo app,int id){

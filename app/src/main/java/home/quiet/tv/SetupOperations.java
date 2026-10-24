@@ -28,6 +28,7 @@ final class SetupOperations {
         try{
             if(!Arrays.asList("KEEP","DISABLE","UNINSTALL").contains(choice))throw new IOException("原桌面操作选择无效");
             ticket.check();HomeController.State current=home.inspect(adb);
+            if(!"KEEP".equals(choice) && original!=null && new HomeGuardState(context).protects(original.pkg))throw new IOException("桌面守护（实验）依赖此原桌面，请保留");
             if(!current.isOwn(context) || !current.ownUsable)throw new IOException("默认桌面已改变或未确认，请返回第一屏");
             // Choices may be made before authorization. Validate the entire frozen selection before the first write.
             if(!selected.isEmpty() || !"KEEP".equals(choice)){
@@ -86,10 +87,17 @@ final class SetupOperations {
         if(!home.inspect(adb).isOwn(context))home.switchToOriginal(adb,home.presets.home());
         store.result(id,before.pkg,"ROLLBACK","已恢复本次操作前的原桌面启用状态并核对 HOME");
     }
+    void completeGuard() throws Exception {
+        HomeGuardState guard=new HomeGuardState(context);
+        if(!guard.compatibleReady())throw new IOException("兼容守护尚未连接");
+        // No package operations and no assertion that system HOME points to Quiet TV.
+        store.put("status","guard-configured");
+    }
     void restore(AdbController adb,Ticket ticket,Progress progress) throws Exception {
         AppOperations.begin();
         String id=UUID.randomUUID().toString();boolean begun=false;
         try{
+            new HomeGuardState(context).pause("恢复原桌面，守护已暂停");
             ticket.check();adb.validateUser();String original=store.originalHome();
             if(original.isEmpty() || !original.equals(home.presets.home()) || !home.component(original,false))throw new IOException("原桌面记录缺失或当前固件不匹配");
             String pkg=android.content.ComponentName.unflattenFromString(original).getPackageName();AppRepository.App app=repository.find(adb,pkg);

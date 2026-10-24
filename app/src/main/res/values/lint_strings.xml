@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="adb_connection_failed">未连接：%1$s</string>
+    <string name="adb_short_state">ADB %1$s</string>
+    <string name="upload_session_ended">会话已结束，请重新连接 / Session ended. Reconnect to upload.</string>
+    <string name="upload_network_unavailable">未找到局域网地址，请先连接 Wi-Fi 或网线</string>
+    <string name="management_app_count">%1$d 个应用%2$s</string>
+    <string name="management_local_suffix">"  本地信息"</string>
+    <string name="management_action_progress">正在%1$s并核对实际状态…</string>
+    <string name="boot_ad_detection_failed">检测未完成：%1$s</string>
+    <string name="child_management_app_count">"%1$d 个应用  家长设置"</string>
+    <string name="greeting_connection_code_zh">"连接码  %1$s"</string>
+    <string name="greeting_connection_code_en">"Code  %1$s"</string>
+</resources>

@@ -25,6 +25,49 @@ Source includes legacy networking/font fallbacks, detected HOME settings, Back h
 
 ## 已验证与待验收 / Evidence boundaries
 
+### 桌面布局与实时预览开发源码 / Desktop layouts and live preview
+
+顶部标签替代原侧栏，仅“桌面显示”提供固定首页预览；天气设置和桌面守护使用完整内容区。经典布局、艺术画廊居中及问候语、时间、日期、天气、三个快捷按钮的独立显隐共用同一套原生代码。日期首次继承旧时间日期开关状态；已有问候语、天气、快捷按钮及应用封面配置继续复用。
+
+| 档位 / Profile | 共用功能及差异 / Features | 本轮验证 / Validation |
+| --- | --- | --- |
+| 标准 API21+ | 三个标签、两种布局、实时预览 | 构建与 Lint 通过；API22 和 API31 模拟回归通过，API31 的 720p／1080p 验证覆盖256种组合、遥控焦点、数据迁移、问候语保存取消、页面重建、真实壁纸及常用应用封面。 |
+| 安卓4.4 / legacy19 | 同一布局与预览；沿用桌面守护禁用策略，仅显示前两个标签 | 构建与 Lint 通过；API22 上运行兼容档通过相同256种组合与核心交互。本轮无可运行 API19 镜像，Android4.4实际运行仍待验收。 |
+| 酷开 API26 独立包名 | 复用标准档的布局代码 | 本轮未单独构建或进行酷开固件验收。 |
+
+预览读取本地壁纸、常用应用封面和有效天气缓存，动态壁纸使用本地封面，Dock复用当前磨砂样式并按应用数量居中伸缩，不启动第二套天气请求或壁纸播放流程。以上为本地开发验证，尚未发布，也未安装实体电视；厂商遥控、HOME、待机唤醒、升级数据保留及低内存表现需目标设备验收。
+
+Both layouts share the native Home header with the preview. Only Desktop shows the preview; Weather and Guard use the full content area. Standard emulator checks passed on API22 and API31; API31 covers 720p/1080p and 256 visibility combinations. The legacy19 build passed the same functional checks on API22, which does not establish Android4.4 runtime acceptance. No physical TV or separate Coocaa package acceptance was performed, and this work is not released.
+
+### 动态壁纸开发源码 / Video wallpaper source
+
+默认关闭，图片和 MP4 共用上传入口，使用系统 MediaPlayer 和固定背景 SurfaceView。源码构建不代表已发布的安装包包含此功能。
+
+| 能力 | Android 4.4 | Android 5+ |
+| --- | --- | --- |
+| 上传、预览、静音循环、关闭恢复、退出释放 | 共用实现 | 共用实现 |
+| 输入上限 | H.264 8bit SDR、1080p30 内 | 按解码能力，最高 4K30；HEVC Main 8bit SDR 可选 |
+| 4K 封面 | 本批不开放 4K | API 27+ 缩放取帧，旧 API 可用占位图 |
+| 厂商硬解、实际输出、长期性能、屏保与待机 | 待对应设备验收 | 待对应设备验收 |
+
+不接收 HDR／10bit／60 FPS。SurfaceView 保留部分电视独立于 UI 分辨率的视频输出路径；不能仅凭面板或素材标签确认原生 4K。4K 不可用时需另传低规格文件，不自动在电视转码。详见[使用指南](USAGE.zh-CN.md)。
+
+### 每日壁纸开发源码 / Daily wallpaper source
+
+每日壁纸共用同一套 Java 实现，入口位于原有壁纸设置，选中确认即启用。固定使用必应中国，已移除每日设置按钮、弹窗及搏天请求路径；本地轮播与每日模式互斥，离线保留已缓存图片。旧搏天背景在必应缓存成功保存前保留。
+
+| 档位 / Profile | 共用功能 / Shared features | 验证边界 / Evidence |
+| --- | --- | --- |
+| 安卓5及以上 / Standard API21+ | 必应每日更新、不可用图片过滤、固定缓存、旧缓存过渡 | 历史 API21 与 API31 模拟器验证包括双来源 HTTPS 和原生流程；该历史证据不代替本次单来源界面及升级验证。 |
+| 安卓4.4 / legacy19 | 同一功能代码，启用 TLS 1.2 | 本次构建、定向单元测试及 Lint 通过；运行和 TLS 验收待完成。 |
+| 酷开安卓8 / Coocaa API26 | 同一功能代码，独立包名 | 历史专用配置构建通过；本次未单独构建，酷开固件真机未测。 |
+
+旧版本曾为搏天接口补充 ISRG 根证书；当前已移除搏天网络路径，该兼容逻辑不再加载。以上为本地开发验证，不代表已发布安装包，也不保证所有地区、运营商或电视固件的网络可达；实体遥控器、待机唤醒和跨日长期使用仍需真机验收。
+
+2026-10-24 单来源调整：移除每日设置按钮、弹窗及搏天请求路径，固定必应自动更新。旧搏天背景在必应成功提交前继续使用。标准与安卓4.4开发构建、各 25 项定向单元测试及 Lint（0 错误）通过，覆盖筛选、同图复用、旧缓存过渡及配置保留。本机 emulator 为 x86_64 程序，现有 ARM64 API31 测试 AVD 启动受阻，因此本次界面、遥控焦点及实际覆盖升级未运行验收；未安装电视或发布。
+
+此前的 2026-10-24 必应筛选与存储调整：从最近 8 张资料中跳过未开放下载的图片，只下载最近可用的一张；相同或更新的缓存直接复用，不回退旧图。继续使用每来源两个固定图片位，并在请求结束时释放下载原始临时文件。标准与安卓4.4开发构建、各 18 项定向单元测试及 Lint（0 错误）通过；真实接口资料验证已跳过不可用首图，选择最近可用图。此次未安装模拟器或电视，未验证真机跨日、断网及磁盘占用，未发布。
+
 ### 当前 1.1.2 / Current release
 
 - 两档均通过优化构建、各 49 项单元测试、Lint（0 错误；标准 61 条警告，兼容 46 条），以及实际 APK 元数据、签名和 ZIP 对齐检查。归档工具 9 项检查通过；GitHub 回下载 SHA-256 与归档一致。
@@ -34,6 +77,8 @@ Source includes legacy networking/font fallbacks, detected HOME settings, Back h
 Both optimized APKs passed 49 unit tests each, Lint with zero errors (warnings remain), metadata, signature and alignment checks; GitHub download hashes match the immutable archives. Sony / Android 12 captures verify the installed standard 1.1.2 / 34 hash and the displayed pages only. No settings, wallpapers or ordering were changed. Final-APK feature acceptance, in-place upgrade retention, physical Home, reboot, standby and actual input switching remain incomplete; Android 4.4 physical-TV acceptance is pending.
 
 ### 历史开发与发布证据 / Historical evidence
+
+- 当前开发源码的内置桌面守护采用自动策略，进入配置并完成首次授权后自动运行；标准档按 HOME 身份与系统能力识别，普通原主页事件快速接管，开机/唤醒稳定期复核，通知监听提供有限恢复。安卓4.4档禁用相关组件。守护不改真实 HOME、不禁用原桌面、不读取屏幕或通知正文；首次兼容配置可在 HOME 仍属原桌面时完成，但不解锁系统包操作。通知绑定、后台启动和厂商实际效果仍有系统限制；目标固件的重启、冷启动、待机及 HDMI/播放均需单独验收，详见[首次设置](SETUP.md#桌面守护实验)。旧独立助手保留并互斥。
 
 - b31 的小米主页中转助手独立构建，限定 MiTV4-ANSM0 / API23，默认暂停，需手动选择本机原主页并开启无障碍。主程序与助手均未安装目标电视。构建和模拟检查不代表实体 HOME、原厂设置、开机、待机或窗口事件已适配，流程与限制见[助手说明](../xiaomi-home-helper/README.md)。
 
@@ -59,7 +104,30 @@ Published b26 passed Debug build, 19 unit tests and Lint (0 errors, 28 warnings)
 
 The published b24 universal APK passed its optimized build, full Lint (0 errors, 27 warnings), package and signature checks, and GitHub download hash verification. It has not been installed on a TV or emulator. Historical emulator and b23 hardware checks do not validate b24, other vendors, real HOME changes, pairing, casting, or long-running operation. Unknown firmware retains read-only system-package behavior.
 
+## 首页 Dock 材质与动效（开发源码）
+
+首页 Dock 使用壁纸模糊缓存、半透明覆层、细描边和轻阴影；遥控焦点带动当前封面及相邻封面缩放、避让，确认键提供短促按压反馈。保留五项容量、横向封面、应用顺序和焦点记忆；顶部按钮及全部应用网格沿用各自样式。焦点移动复用背景缓存，壁纸变化时在后台生成缓存并同步淡入。视频壁纸下使用视频封面的磨砂缓存，不逐帧抓取或模糊视频；封面缺失时沿用视频播放器的静态背景。
+
+| 档位 | 共同功能及差异 | 本次验证边界 |
+| --- | --- | --- |
+| 标准 API21+ | 相同磨砂底板和焦点动画，无额外权限或依赖 | 构建、局部单元测试及 Lint 通过；API31 的 1080p、720p 模拟检查通过 |
+| 安卓4.4 / legacy19 | 共用实现，不依赖 API31 的 RenderEffect | 构建、局部单元测试及 Lint 通过；API21 运行检查通过，API19 运行与老电视性能待验收 |
+| 酷开 API26+ 包名档位 | 共用首页实现，无 Dock 专用兼容分支 | 本次未单独构建或验收酷开档位 |
+
+此处描述当前开发源码，不代表已发布 APK 包含。模拟器验证不替代厂商电视的真实遥控、升级数据保留及长时间运行验收。与动态壁纸集成后，API31 另通过视频播放期间的焦点动画、封面缓存复用、离开返回、静态／默认切换和封面缺失检查；视频布局仅在显示尺寸或源缓冲尺寸变化时更新，避免持续重复布局。
+
+## 儿童模式源码兼容
+
+| 功能 | 标准 API21+、安卓4.4、酷开 API26+ 包名档位 | 边界 |
+| --- | --- | --- |
+| 同排标签、隐藏、锁定、数字密码及恢复码 | 共用原生界面与本地存储，不使用系统停用、卸载或 ADB | 仅管理 Quiet TV 内的入口；关于页恢复码按三次确认显示 |
+| 单次限时、每日累计、家长追加时间 | 共用独立无障碍计时服务；API19 使用旧屏幕状态接口，API33+ 使用受限广播注册 | 依赖本机无障碍窗口事件和后台显示能力；安卓4.4不因桌面守护被禁用而裁剪本服务 |
+
+本轮 Android TV API33 Debug 模拟验证覆盖数字恢复码、遥控三次确认、家长验证及密码重设、隐藏与锁定、预设及自定义时长、重新进入验证、家长追加时间、前台计时、切换暂停、息屏暂停／唤醒继续和到时限制页。标准、安卓4.4与酷开包名档位通过编译和 Lint（0 错误，仍有警告），标准档另通过 R8 优化检查；标准与安卓4.4各通过 8 项儿童模式规则／密码单元测试。源码构建／静态检查与模拟验证分开记录，实际厂商固件、实体遥控器、待机唤醒、长时间使用及升级后的规则保留仍需真机验收；不代表现有 Release 已包含。用法见[儿童模式](APP_MANAGEMENT.md#儿童模式)。
+
 ## 信号源兼容
+
+当前源码新增小米 MediaTek 输入直切（尚未发布）：只有本机已注册的系统输入及可调用的小米系统播放器同时存在时，HDMI HW5／HW6／HW7 分别使用源编号 23／24／25，AV HW2 使用 2，数字／模拟电视 HW0／HW1 使用各自播放器入口。型号修正优先，保留 MiTV-ANTL0 和 MiTV-MFFU1 的特定映射，并按上游记录处理 MiTV-MFZP0 的 HW4／HW5／HW6→23／24／25，避免通用编号误切；其他硬件编号和提供方继续使用标准路径，不按品牌补造端口。播放器缺失、禁用、未导出或权限不足时保留原有回退，调用异常记录异常类型。依据为 [Aerial 输入路由](https://github.com/pengchujin/aerial-tv/blob/e0173e672192d7fb2f0a2eb5510d8400253b1edf/app/src/main/java/app/orchard/tv/system/SystemState.kt)、[CleanYourTV 小米 Android 14 记录](https://github.com/Gathin23/cleanyourtv/blob/538d2606a6edcf2850b1257efb23526c72a6c44a/docs/devices/xiaomi-mitv-mftr0-freeguy.txt)和[端口映射修复](https://github.com/Gathin23/cleanyourtv/pull/722)。小米 S85 Mini LED／澎湃 3／Android 14 的输入列表、真实画面、声音及实体遥控切换仍待目标电视验收，不能将上游其他型号结果视为本机通过。安卓4.4档仍使用系统设置／遥控器。
 
 1.1.2 标准包已包含原厂信号源面板回退；安卓4.4兼容包仍使用系统设置／遥控器。Android 标准 TV Input 列表为空或服务不可用，并不证明电视没有输入接口。标准路径继续读取本机输入；回退按实际安装的系统组件、启用状态、导出状态和调用权限检测，不按品牌名称套用固定 HDMI 数量，也不自动修改系统组件或权限。
 
