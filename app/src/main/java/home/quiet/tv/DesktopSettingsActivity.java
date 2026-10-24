@@ -81,8 +81,8 @@ public final class DesktopSettingsActivity extends ManagementUi implements Share
         greeting=setting(tr("首页问候语","Home greeting"),"desktop","greeting");greeting.compact();greeting.tail("arrow");greeting.setBackground(focusSurface(9));
         greetingEditor=new GreetingEditorPanel(this,desktopStore,fixedGreeting?tr("欢迎回家","Welcome home"):"",this::refreshControls);greeting.setOnClickListener(v->greetingEditor.show());LinearLayout.LayoutParams gp=new LinearLayout.LayoutParams(-1,px(44));gp.topMargin=px(8);controls.addView(greeting,gp);
         gap(controls,16);controls.addView(desktopLabel(tr("快捷按钮","Quick buttons")));LinearLayout shortcuts=row();controls.addView(shortcuts,new LinearLayout.LayoutParams(-1,px(38)));choice(shortcuts,"input",tr("信号源","Inputs"));choice(shortcuts,"network",tr("网络","Network"));choice(shortcuts,"settings",tr("设置","Settings"));
-        LinearLayout right=column();right.setGravity(Gravity.CENTER_VERTICAL);LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(0,-1,1);rp.leftMargin=px(24);desktop.addView(right,rp);
-        LinearLayout heading=row();heading.addView(muted(tr("首页实时预览","Live Home preview"),13),new LinearLayout.LayoutParams(0,px(22),1));right.addView(heading,new LinearLayout.LayoutParams(-1,px(22)));gap(right,8);
+        LinearLayout right=column();right.setGravity(Gravity.TOP);right.setPadding(0,px(1),0,0);LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(0,-1,1);rp.leftMargin=px(24);desktop.addView(right,rp);
+        right.addView(desktopLabel(tr("首页实时预览","Live Home preview")));gap(right,8);
         preview=new HomePreviewView(this,chinese,fixedGreeting);preview.setBackground(surface(0xff0e0f13,0xff0e0f13,0x26ffffff,10));UiCompat.clipOutline(preview);right.addView(preview,new LinearLayout.LayoutParams(-1,-2));
         wireDesktop();refreshControls();
     }
