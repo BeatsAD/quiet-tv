@@ -68,11 +68,11 @@ Quiet TV 基于该项目开发，面向国内电视机的适配与应用升级�
 
 ## 每日在线壁纸
 
-每日壁纸按用户选择直接访问必应国区或搏天风景接口及其图片 CDN，只在桌面前台按需请求，将有限缓存保存在电视本机。第三方服务可看到通常的网络请求信息；本功能不上传用户图片，不向提供方发送设备标识或位置。
+每日壁纸固定访问必应中国接口及其图片 CDN，只在桌面前台按需请求，将有限缓存保存在电视本机。第三方服务可看到通常的网络请求信息；本功能不上传用户图片，不向提供方发送设备标识或位置。
 
 - 必应保留接口返回的图片标题、版权及来源链接，来源见 [Bing 首页说明](https://support.microsoft.com/en-us/topic/explore-the-homepage-bab2022c-cdb4-4d1f-80e2-c8f5c55712c7)。接口可访问不表示所有图片获得再分发授权，在线图片不作为应用内置资源分发。
-- 搏天采用 [随机壁纸接口](https://api.btstu.cn/doc/sjbz.php)的电脑端风景类别，每天缓存一张。接口未提供完整摄影署名时不编造作者，图片权利仍归原权利人。
-- Android 7.1 及以下仅对 `api.btstu.cn`、`img.btstu.cn` 请求补充官方 [ISRG Root X1](https://letsencrypt.org/certificates/) 根证书，保留系统信任及正常域名校验，不修改设备证书库。证书文件为 `app/src/main/assets/certificates/isrg-root-x1.pem`，DER SHA-256 为 `96bcec06264976f37460779acf28c5a7cfe8a3c0aae11a8ffcee05c0bddf08c6`。此证书用于验证 HTTPS，不是私钥。
+- 历史版本曾采用[搏天随机壁纸接口](https://api.btstu.cn/doc/sjbz.php)。当前不再请求该服务；旧缓存仅用于升级期间保留背景，不作为内置资源分发。图片权利仍归原权利人。
+- 历史 Android 7.1 及以下版本曾仅对 `api.btstu.cn`、`img.btstu.cn` 请求补充官方 [ISRG Root X1](https://letsencrypt.org/certificates/) 根证书，保留系统信任及正常域名校验，不修改设备证书库。证书文件为 `app/src/main/assets/certificates/isrg-root-x1.pem`，DER SHA-256 为 `96bcec06264976f37460779acf28c5a7cfe8a3c0aae11a8ffcee05c0bddf08c6`。当前已移除上述网络和证书补充逻辑，保留历史证书文件，不再加载；该证书不是私钥。
 
 ## 壁纸局域网上传
 
