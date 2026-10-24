@@ -60,8 +60,8 @@ final class AboutView extends FrameLayout {
         label("联系开发者",29,500,0xfff2f4f8,782,563,600,41,null);
         label("WenBin AI LAB",27,400,0xffc4d1e3,782,625,600,34,null);
         label("wenbinailab@gmail.com",24,400,0xff9eafc7,782,674,600,45,"developer-email");
-        code("wechat-qr",1394,528,184).setImageBitmap(image("about/assets/wechat.png"));
-        code("official-qr",1600,528,184).setImageBitmap(image("about/assets/qq-group.png"));
+        code("wechat-qr",1394,528,184).setImageBitmap(image("about/assets/wechat.webp"));
+        code("official-qr",1600,528,184).setImageBitmap(image("about/assets/qq-group.webp"));
         label("微信",21,400,0xff9eafc7,1394,725,184,30,null).setGravity(Gravity.CENTER);
         label("扫码进 QQ交流群",21,400,0xff9eafc7,1600,725,184,30,null).setGravity(Gravity.CENTER);
         line(790);
