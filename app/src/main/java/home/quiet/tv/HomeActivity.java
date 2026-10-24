@@ -212,7 +212,6 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     private void setPillIcon(TextView pill,int resource){homeHeader.setPillIcon(pill,resource);}
-    private void centerPillContents(TextView pill){homeHeader.centerPill(pill);}
     private void updateClock(){homeHeader.updateClock(fixedGreeting);}
 
     private void updateNetwork() {
@@ -231,7 +230,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             wifi=connected && active.getType()==ConnectivityManager.TYPE_WIFI;
         }
         if(ethernet) {
-            network.setText(tr("有线网络","Ethernet"));setPillIcon(network,R.drawable.ic_ethernet);
+            network.setContentDescription(tr("有线网络","Ethernet"));setPillIcon(network,R.drawable.ic_ethernet);
         }
         else if(wifi) {
             setPillIcon(network,R.drawable.ic_wifi);
@@ -241,9 +240,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             }
             WifiManager wm=(WifiManager)getApplicationContext().getSystemService(WIFI_SERVICE);
             String ssid=wm.getConnectionInfo().getSSID();
-            network.setText(ssid!=null && !ssid.equals("<unknown ssid>")?ssid.replace("\"", ""):tr("Wi-Fi 已连接","Wi-Fi connected"));
-        } else {network.setText(tr("Wi-Fi 未连接","Wi-Fi offline"));setPillIcon(network,R.drawable.ic_wifi_off);}
-        centerPillContents(network);
+            network.setContentDescription(ssid!=null && !ssid.equals("<unknown ssid>")?ssid.replace("\"", ""):tr("Wi-Fi 已连接","Wi-Fi connected"));
+        } else {network.setContentDescription(tr("Wi-Fi 未连接","Wi-Fi offline"));setPillIcon(network,R.drawable.ic_wifi_off);}
     }
 
     @Override public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] results){
@@ -543,7 +541,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         ((View)view.getParent()).getLocationOnScreen(point);
         float left=point[0]-origin[0]+view.getLeft(),top=point[1]-origin[1]+view.getTop();int outset=px(FOCUS_OUTSET);
         RectF target=new RectF(left-outset,top-outset,left+view.getWidth()+outset,top+view.getHeight()+outset);
-        glass.move(target,px(25),animate);
+        glass.move(target,target.width()/2f,animate);
     }
 
     private final class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>{

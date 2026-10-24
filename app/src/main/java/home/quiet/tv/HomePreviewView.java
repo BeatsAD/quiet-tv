@@ -50,7 +50,7 @@ final class HomePreviewView extends FrameLayout {
         TextView pill=header.pills.get(1);boolean connected=network!=null&&network.isConnected();int icon=R.drawable.ic_wifi_off;String label=chinese?"Wi-Fi 未连接":"Wi-Fi offline";
         if(connected){if(network.getType()==ConnectivityManager.TYPE_ETHERNET){icon=R.drawable.ic_ethernet;label=chinese?"有线网络":"Ethernet";}else{icon=R.drawable.ic_wifi;label=chinese?"Wi-Fi 已连接":"Wi-Fi connected";
             try{WifiManager wifi=(WifiManager)getContext().getApplicationContext().getSystemService(Context.WIFI_SERVICE);String ssid=wifi==null?null:wifi.getConnectionInfo().getSSID();if(ssid!=null&&!"<unknown ssid>".equals(ssid))label=ssid.replace("\"","");}catch(SecurityException ignored){}
-        }}pill.setText(label);header.setPillIcon(pill,icon);header.centerPill(pill);
+        }}pill.setContentDescription(label);header.setPillIcon(pill,icon);
     }
     void resume(){if(active)return;active=true;IntentFilter filter=new IntentFilter(Intent.ACTION_TIME_CHANGED);filter.addAction(Intent.ACTION_TIMEZONE_CHANGED);filter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);getContext().registerReceiver(changes,filter);tick.run();if(getWidth()>0)loadLocalScene();}
     void pause(){if(!active)return;active=false;++generation;getContext().unregisterReceiver(changes);main.removeCallbacks(tick);}
