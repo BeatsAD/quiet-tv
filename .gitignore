@@ -38,6 +38,7 @@ __pycache__/
 !/scripts/build_apk.py
 !/scripts/bundle_about.py
 !/scripts/check_contribution.py
+!/scripts/configure_home_guard.py
 !/scripts/validate_profiles.py
 !/scripts/restore_local_development.py
 /build-and-install.command
