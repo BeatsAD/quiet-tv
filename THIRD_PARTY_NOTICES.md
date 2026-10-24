@@ -89,3 +89,10 @@ The wallpaper uploader in `legacy19` uses ZXing Core 3.3.0 and AndroidX ExifInte
 ## Wallpaper interface icons
 
 The wallpaper settings and upload dialog use raster exports of Lucide 0.468.0 icons (chevron-left, upload, sliders-horizontal, trash-2, check, x, rotate-ccw). Original source: https://github.com/lucide-icons/lucide/tree/0.468.0/icons . The original ISC and Feather-derived MIT license notices are included in `app/src/main/assets/licenses/Lucide-LICENSE.txt` and the APK offline licenses.
+
+
+## 天气地区数据
+
+省市区县选择及本地模糊查询使用 [modood/Administrative-divisions-of-China](https://github.com/modood/Administrative-divisions-of-China/tree/c49d495b40ac73eb1a66f6eeae5f8fd10696f035) 的 `dist/pca-code.json`，固定提交 `c49d495b40ac73eb1a66f6eeae5f8fd10696f035`。原始 JSON 保存在 `app/src/main/assets/weather/regions.json`，完整 WTFPL 2.0 许可随包保存在 [china-regions-WTFPL.txt](app/src/main/assets/licenses/china-regions-WTFPL.txt)。数据快照包含中国大陆 31 个省级单位，不包含港澳台完整区划；行政区调整可能晚于实际生效时间。未收录地区不冒充已支持，不以相近区县替代。
+
+天气数据不属于以上地区数据许可。和风天气通过开发者独立配置的 Host 和凭据请求，遵循其[来源注明要求](https://dev.qweather.com/docs/terms/attribution/)；首页随数据显示和风天气来源，服务说明提供来源入口。失败时尝试 UAPI，显示实际成功来源。私有凭据不提交源码，查询地区和出口 IP 会被实际请求的服务接收。

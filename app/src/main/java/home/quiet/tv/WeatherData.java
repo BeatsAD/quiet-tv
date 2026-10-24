@@ -12,21 +12,21 @@ import java.util.regex.Pattern;
 /** A weather response and its timestamps, kept with the location that produced it. */
 final class WeatherData {
     static final long REFRESH_MS=30*60*1000L, STALE_MS=60*60*1000L, EXPIRE_MS=6*60*60*1000L;
-    final String city, province, adcode, description, icon, locationSource;
+    final String city, province, adcode, description, icon, locationSource,provider;
     final double temperature;
     final long fetchedAt, observedAt;
     WeatherData(JSONObject json,long fetchedAt,String source)throws JSONException {
         city=required(json,"city");province=json.optString("province","");adcode=json.optString("adcode","");
         description=required(json,"weather");icon=json.optString("weather_icon","999");temperature=json.getDouble("temperature");
         if(Double.isNaN(temperature)||Double.isInfinite(temperature))throw new JSONException("Invalid temperature");
-        this.fetchedAt=fetchedAt;locationSource=source;
+        this.fetchedAt=fetchedAt;locationSource=source;provider=json.optString("provider","uapi");
         observedAt=reportTime(json.optString("report_time",""),fetchedAt);
     }
     private WeatherData(JSONObject json)throws JSONException {
         city=required(json,"city");province=json.optString("province","");adcode=json.optString("adcode","");
         description=required(json,"weather");icon=json.optString("weather_icon","999");temperature=json.getDouble("temperature");
         if(Double.isNaN(temperature)||Double.isInfinite(temperature))throw new JSONException("Invalid temperature");
-        fetchedAt=json.getLong("fetchedAt");observedAt=json.optLong("observedAt",0);locationSource=required(json,"source");
+        fetchedAt=json.getLong("fetchedAt");observedAt=json.optLong("observedAt",0);locationSource=required(json,"source");provider=json.optString("provider","uapi");
     }
     static WeatherData read(JSONObject json)throws JSONException{return new WeatherData(json);}
     private static String required(JSONObject json,String key)throws JSONException{
@@ -39,9 +39,10 @@ final class WeatherData {
     boolean usable(long now){return age(now)<EXPIRE_MS;}
     boolean stale(long now){return age(now)>=STALE_MS;}
     String temperatureText(){return Math.round(temperature)+"°C";}
+    String providerName(){return "qweather".equals(provider)?"和风天气":"UAPI";}
     JSONObject json()throws JSONException{
         return new JSONObject().put("city",city).put("province",province).put("adcode",adcode).put("weather",description)
-            .put("weather_icon",icon).put("temperature",temperature).put("fetchedAt",fetchedAt).put("observedAt",observedAt).put("source",locationSource);
+            .put("weather_icon",icon).put("temperature",temperature).put("fetchedAt",fetchedAt).put("observedAt",observedAt).put("source",locationSource).put("provider",provider);
     }
     static long reportTime(String text,long received){
         Matcher relative=Pattern.compile("(\\d+)\\s*(分钟|小时|minutes?|hours?)",Pattern.CASE_INSENSITIVE).matcher(text);
