@@ -297,8 +297,6 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         super.onPause();
     }
 
-    @Override protected void onStop(){wallpapers.stopped();super.onStop();}
-
     @Override protected void onDestroy(){BootAppLifecycle.destroyed(this);unregisterReceiver(packageReceiver);loader.shutdownNow();wallpapers.destroy();weather.destroy();super.onDestroy();}
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);if(ready)focusCurrent(false);}
 
