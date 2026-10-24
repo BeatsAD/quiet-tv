@@ -31,10 +31,8 @@ final class WallpaperController {
     private final Ambient ambient;
     private final VideoWallpaperPlayer video;
     private String playingVideo="",failedVideo="";
-    private int videoRequest,coverRequest;
+    private int videoRequest;
     private boolean commitPending,leaving,destroyed;
-    private Runnable pendingCover,coverCommit;
-    private ViewTreeObserver.OnDrawListener coverDraw;
     private String posterId;
     private Bitmap poster,posterBlur;
     private boolean dynamicTab;
@@ -62,7 +60,7 @@ final class WallpaperController {
         if(card==null||!card.hasFocus()||picker==null||!picker.isShowing())return;
         longPressed=true;confirmDelete(pressedWallpaper,pressedKey,pressedAt);
     };
-    private ValueAnimator transition;
+    private ValueAnimator transition,videoFade;
     private final Runnable rotate=this::rotateWallpaper;
     private void rotateWallpaper(){try{store.next();display(store.snapshot().current,true);}catch(IOException e){notice(tr("壁纸设置保存失败","Unable to save wallpaper settings"));}schedule();}
 
@@ -149,41 +147,23 @@ final class WallpaperController {
         incoming.setImageDrawable(null);incoming.setAlpha(0f);incomingBlur=null;shown=id;shownKey=id;invalidateDock();
         if(prepared!=null)prepared.run();else stopVideo();
     }
-    private void cancelCover(){
-        ++coverRequest;pendingCover=null;
-        ViewTreeObserver observer=root.getViewTreeObserver();
-        if(observer.isAlive()){
-            if(coverDraw!=null)observer.removeOnDrawListener(coverDraw);
-            if(coverCommit!=null&&Build.VERSION.SDK_INT>=29)Api29.cancel(observer,coverCommit);
-        }
-        coverDraw=null;coverCommit=null;
-    }
-    private void afterCover(Runnable action){
-        cancelCover();current.setAlpha(1f);
+    private void withCover(Runnable action){
+        cancelVideoFade();current.setAlpha(1f);
         if(current.getDrawable()==null&&ambient.getVisibility()!=View.VISIBLE){ambient.setVisibility(View.VISIBLE);ambient.setColor(themeColor);shade.setVisibility(View.INVISIBLE);}
-        if(!video.visible()||!root.isAttachedToWindow()||root.getWindowVisibility()!=View.VISIBLE){action.run();return;}
-        pendingCover=action;int version=coverRequest;
-        Runnable committed=()->main.post(()->{if(version==coverRequest&&!destroyed)finishCover();});
-        ViewTreeObserver observer=root.getViewTreeObserver();
-        if(Build.VERSION.SDK_INT>=29&&root.isHardwareAccelerated()){coverCommit=committed;Api29.submit(observer,committed);}
-        else{
-            coverDraw=new ViewTreeObserver.OnDrawListener(){boolean submitted;@Override public void onDraw(){if(!submitted){submitted=true;root.postOnAnimation(committed);}}};
-            observer.addOnDrawListener(coverDraw);
-        }
-        root.invalidate();
+        // Texture and cover belong to one window: cover and removal are recorded in the same UI frame.
+        // A covered window may stop submitting frames; waiting on its commit can strand navigation.
+        action.run();
     }
-    private void finishCover(){Runnable action=pendingCover;cancelCover();if(action!=null)action.run();}
-    @android.annotation.TargetApi(29)
-    private static final class Api29 {
-        static void submit(ViewTreeObserver observer,Runnable callback){observer.registerFrameCommitCallback(callback);}
-        static void cancel(ViewTreeObserver observer,Runnable callback){observer.unregisterFrameCommitCallback(callback);}
+    private void cancelVideoFade(){if(videoFade!=null){videoFade.cancel();videoFade.removeAllUpdateListeners();videoFade=null;}}
+    private void revealVideo(int version){
+        cancelVideoFade();videoFade=ValueAnimator.ofFloat(current.getAlpha(),0f);videoFade.setDuration(200);
+        videoFade.addUpdateListener(a->{if(version==videoRequest&&active&&!destroyed)current.setAlpha((float)a.getAnimatedValue());});videoFade.start();
     }
     void beforeLeave(Runnable launch){
         if(destroyed)return;
         if(!video.visible()){launch.run();return;}
         leaving=true;++request;stopVideo(()->{leaving=false;if(active&&!destroyed)launch.run();});
     }
-    void stopped(){finishCover();}
     private void restoreSelected(){String id=store.snapshot().current;if(store.snapshot().dynamic()&&!id.equals(failedVideo))startVideo(id,false);else display(id,false);}
     private void schedule(){main.removeCallbacks(rotate);WallpaperCatalog state=store.snapshot();if(active&&state.rotating&&picker==null)main.postDelayed(rotate,ROTATION_MS);}
     void resume(){active=true;leaving=false;restoreSelected();daily.resume();schedule();}
@@ -196,7 +176,7 @@ final class WallpaperController {
         }else if(active)display(store.snapshot().current,true);
     }
     void pause(){active=false;++request;stopVideo();daily.pause();cancelCardPress();main.removeCallbacks(rotate);uploads.close();if(confirmation!=null)confirmation.dismiss();if(picker!=null)picker.dismiss();if(transition!=null)transition.end();}
-    void destroy(){destroyed=true;++request;cancelCover();video.destroy();poster=null;posterBlur=null;daily.destroy();uploads.destroy();decoder.shutdownNow();main.removeCallbacksAndMessages(null);if(transition!=null){transition.cancel();transition.removeAllUpdateListeners();}current.setImageDrawable(null);incoming.setImageDrawable(null);currentBlur=null;incomingBlur=null;dockInvalidation=null;thumbnails.evictAll();}
+    void destroy(){destroyed=true;++request;cancelVideoFade();video.destroy();poster=null;posterBlur=null;daily.destroy();uploads.destroy();decoder.shutdownNow();main.removeCallbacksAndMessages(null);if(transition!=null){transition.cancel();transition.removeAllUpdateListeners();}current.setImageDrawable(null);incoming.setImageDrawable(null);currentBlur=null;incomingBlur=null;dockInvalidation=null;thumbnails.evictAll();}
 
     synchronized Bitmap entryBanner(){
         if(entry==null)entry=HomeEntryArtwork.render(activity,tr("壁纸设置","Wallpaper Settings"),HomeAppCatalog.WALLPAPER);
@@ -254,21 +234,21 @@ final class WallpaperController {
     private void stopVideo(){stopVideo(null);}
     private void stopVideo(Runnable after){
         ++videoRequest;playingVideo="";commitPending=false;
-        afterCover(()->{video.stop();if(after!=null)after.run();});
+        withCover(()->{video.stop();if(after!=null)after.run();});
     }
     private void startVideo(String id,boolean commit){
         WallpaperCatalog.Entry entry=store.snapshot().find(id);if(entry==null||!entry.video()||!active||leaving)return;
         if(id.equals(playingVideo)){commitPending|=commit;if(commitPending&&video.requested(id)&&video.ready()){commitPending=false;commitVideo(id);}return;}
-        failedVideo="";playingVideo=id;commitPending=commit;final int version=++videoRequest;
+        cancelVideoFade();failedVideo="";playingVideo=id;commitPending=commit;final int version=++videoRequest;
         display(id,false,()->{
             if(version!=videoRequest||!active||destroyed)return;
-            afterCover(()->{
+            withCover(()->{
                 if(version!=videoRequest||!active||destroyed)return;
                 video.play(entry,new VideoWallpaperPlayer.Listener(){
-                    @Override public void stopped(){if(version==videoRequest)current.setAlpha(1f);}
+                    @Override public void stopped(){if(version==videoRequest){cancelVideoFade();current.setAlpha(1f);}}
                     @Override public void ready(){
                         if(version!=videoRequest||!active||destroyed)return;
-                        ambient.setVisibility(View.INVISIBLE);shade.setVisibility(View.VISIBLE);current.setAlpha(0f);
+                        ambient.setVisibility(View.INVISIBLE);shade.setVisibility(View.VISIBLE);revealVideo(version);
                         if(commitPending){commitPending=false;commitVideo(id);}else if(picker!=null)details();
                     }
                     @Override public void failed(){if(version!=videoRequest)return;failedVideo=id;stopVideo();if(picker!=null)details();notice(tr("视频播放失败，请使用较低规格的 MP4","Video playback failed. Try a lower-resolution MP4."));}
