@@ -252,6 +252,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     @Override protected void onResume() {
         super.onResume(); resumed=true;
+        BootAppLifecycle.visible(this);
         if(!HomeGuardService.connected())HomeGuardRecovery.request(this,"桌面恢复");
         getWindow().getDecorView().post(()->{if(resumed && hasWindowFocus()){HomeGuardRecovery.visible(this);launchBootApp();}});
         IntentFilter time=new IntentFilter(Intent.ACTION_TIME_TICK);time.addAction(Intent.ACTION_TIME_CHANGED);time.addAction(Intent.ACTION_TIMEZONE_CHANGED);
@@ -267,20 +268,23 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         super.onWindowFocusChanged(focused);if(focused && resumed){HomeGuardRecovery.visible(this);launchBootApp();}
     }
 
+    void checkBootApp(){getWindow().getDecorView().post(this::launchBootApp);}
+
     private void launchBootApp(){
-        android.app.KeyguardManager keyguard=(android.app.KeyguardManager)getSystemService(KEYGUARD_SERVICE);
-        if(keyguard!=null && keyguard.isKeyguardLocked())return;
+        if(!resumed || !hasWindowFocus() || !HomeGuardState.canShow(this))return;
         BootAppStore store=new BootAppStore(this);String pkg=store.consume();if(pkg.isEmpty())return;
         try{
             Intent intent=store.launchIntent(pkg);
-            if(intent==null){Toast.makeText(this,tr("自启应用不可用，请在应用管理中重新设置","Startup app unavailable"),Toast.LENGTH_LONG).show();return;}
-            if(ChildBlockActivity.gate(this,pkg))return;
+            if(intent==null){Log.i(BootAppStore.TAG,"target unavailable");Toast.makeText(this,tr("自启应用不可用，请在应用管理中重新设置","Startup app unavailable"),Toast.LENGTH_LONG).show();return;}
+            if(ChildBlockActivity.gate(this,pkg)){Log.i(BootAppStore.TAG,"blocked by child mode");return;}
             if(new HomeGuardState(this).protects(pkg))HomeGuardService.allowOriginal();
             startActivity(intent);
-        }catch(RuntimeException e){Toast.makeText(this,tr("自启应用暂时无法打开","Unable to open startup app"),Toast.LENGTH_SHORT).show();}
+            Log.i(BootAppStore.TAG,"launch requested");
+        }catch(RuntimeException e){Log.w(BootAppStore.TAG,"launch rejected");Toast.makeText(this,tr("自启应用暂时无法打开","Unable to open startup app"),Toast.LENGTH_SHORT).show();}
     }
 
     @Override protected void onPause() {
+        BootAppLifecycle.left(this);
         if(dockPress!=null)dockPress.cancel();updateDock(false);
         HomeGuardRecovery.leftHome(this);
         resumed=false;if(scrollAnimation!=null)scrollAnimation.cancel();list.stopScroll();saveFocus();wallpapers.pause();weather.pause();
@@ -291,7 +295,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         super.onPause();
     }
 
-    @Override protected void onDestroy(){unregisterReceiver(packageReceiver);loader.shutdownNow();wallpapers.destroy();weather.destroy();super.onDestroy();}
+    @Override protected void onDestroy(){BootAppLifecycle.destroyed(this);unregisterReceiver(packageReceiver);loader.shutdownNow();wallpapers.destroy();weather.destroy();super.onDestroy();}
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);if(ready)focusCurrent(false);}
 
     private static class App {
