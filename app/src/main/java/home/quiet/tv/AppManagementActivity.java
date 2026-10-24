@@ -32,7 +32,7 @@ public final class AppManagementActivity extends ManagementUi {
     private View firstAction;
     private String selected="",connectionState="未连接";
     private int filter;
-    private boolean busy,reading,refreshAfterConnection,active,returningToList,initialFocus=true;
+    private boolean busy,reading,refreshAfterConnection,active,returningToList;
     private volatile int refreshGeneration;
     private final BroadcastReceiver packagesChanged=new BroadcastReceiver(){
         @Override public void onReceive(Context context,Intent intent){
@@ -56,7 +56,7 @@ public final class AppManagementActivity extends ManagementUi {
         LinearLayout filters=row();LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-1,px(30));fp.bottomMargin=px(12);left.addView(filters,fp);
         for(int i=0;i<FILTERS.length;i++){final int chosen=i;Button option=button(FILTERS[i],()->{filter=chosen;applyFilter();});option.setId(View.generateViewId());styleTab(option,true);
             option.setOnKeyListener((v,key,event)->{if(key==KeyEvent.KEYCODE_DPAD_DOWN){if(event.getAction()==KeyEvent.ACTION_DOWN)focusList();return true;}return false;});
-            filterButtons.add(option);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,-1);if(i>0)p.leftMargin=px(10);filters.addView(option,p);}
+            option.setNextFocusUpId(managementTab().getId());filterButtons.add(option);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,-1);if(i>0)p.leftMargin=px(10);filters.addView(option,p);}
         for(int i=0;i<filterButtons.size();i++){Button b=filterButtons.get(i);if(i>0)b.setNextFocusLeftId(filterButtons.get(i-1).getId());if(i+1<filterButtons.size())b.setNextFocusRightId(filterButtons.get(i+1).getId());}
         LinearLayout caption=row();LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,px(24));cp.bottomMargin=px(6);left.addView(caption,cp);
         count=muted("正在读取应用…",11);caption.addView(count,new LinearLayout.LayoutParams(0,-1,1));
@@ -69,6 +69,7 @@ public final class AppManagementActivity extends ManagementUi {
     private void ui(Runnable action){runOnUiThread(()->{if(!isDestroyed() && !isFinishing())action.run();});}
     private void updateConnection(AdbState state){connectionState=state.description();status.setText(state.label());status.setTextColor(state.connection==AdbState.Connection.CONNECTED?0xffbacabd:TEXT);status.setContentDescription(state.description());}
     @Override protected void onResume(){super.onResume();active=true;refresh();session.resume();}
+    @Override void focusManagementContent(){filterButtons.get(filter).requestFocus();}
     @Override protected void onStop(){active=false;refreshAfterConnection=false;refreshGeneration++;if(reading){reading=false;busy=false;}connection.suspend();coverUploads.close();session.suspend();super.onStop();}
     @Override protected void onDestroy(){unregisterReceiver(packagesChanged);coverUploads.destroy();session.close();worker.shutdownNow();super.onDestroy();}
     @Override protected void onSaveInstanceState(Bundle state){state.putString("selected",selected);state.putInt("filter",filter);super.onSaveInstanceState(state);}
@@ -81,11 +82,11 @@ public final class AppManagementActivity extends ManagementUi {
     // Each repository snapshot replaces app metadata as well as list membership/order.
     @android.annotation.SuppressLint("NotifyDataSetChanged")
     private void applyFilter(){
-        boolean listFocused=initialFocus || list.hasFocus();filtered.clear();
+        boolean listFocused=list.hasFocus();filtered.clear();
         for(AppRepository.App app:all){boolean match=filter==0 || filter==1 && !app.system && app.installed || filter==2 && app.system || filter==3 && app.installed && !app.enabled || filter==4 && app.recoverable;if(match)filtered.add(app);}
         for(int i=0;i<filterButtons.size();i++)filterButtons.get(i).setSelected(i==filter);
         boolean present=false;for(AppRepository.App app:filtered)if(app.pkg.equals(selected))present=true;if(!present)selected=filtered.isEmpty()?"":filtered.get(0).pkg;
-        count.setText(getString(R.string.management_app_count,filtered.size(),!adb.connected()?getString(R.string.management_local_suffix):""));adapter.notifyDataSetChanged();renderDetails();if(listFocused){initialFocus=false;focusList();}
+        count.setText(getString(R.string.management_app_count,filtered.size(),!adb.connected()?getString(R.string.management_local_suffix):""));adapter.notifyDataSetChanged();renderDetails();if(listFocused)focusList();
     }
     private AppRepository.App current(){for(AppRepository.App app:filtered)if(app.pkg.equals(selected))return app;return null;}
     private CharSequence coloredState(AppRepository.App app,String text){
@@ -94,7 +95,7 @@ public final class AppManagementActivity extends ManagementUi {
         SpannableString label=new SpannableString(text);
         label.setSpan(new ForegroundColorSpan(color),start,start+state.length(),Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);return label;
     }
-    private void focusList(){list.post(()->{for(int i=0;i<filtered.size();i++)if(filtered.get(i).pkg.equals(selected)){final int position=i;list.scrollToPosition(position);list.post(()->{RecyclerView.ViewHolder holder=list.findViewHolderForAdapterPosition(position);if(holder!=null)holder.itemView.requestFocus();});return;}filterButtons.get(filter).requestFocus();});}
+    private void focusList(){list.post(()->{if(managementTabFocused() || !active)return;for(int i=0;i<filtered.size();i++)if(filtered.get(i).pkg.equals(selected)){final int position=i;list.scrollToPosition(position);list.post(()->{if(managementTabFocused() || !active)return;RecyclerView.ViewHolder holder=list.findViewHolderForAdapterPosition(position);if(holder!=null)holder.itemView.requestFocus();});return;}filterButtons.get(filter).requestFocus();});}
     private void renderDetails(){
         if(details==null)return;details.removeAllViews();firstAction=null;AppRepository.App app=current();
         if(app==null){details.setGravity(Gravity.CENTER);details.addView(center(busy?"正在读取应用…":"没有符合条件的应用",20));return;}details.setGravity(Gravity.CENTER_HORIZONTAL);
