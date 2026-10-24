@@ -12,14 +12,14 @@ import javax.net.ssl.*;
 /** Two fixed providers; metadata and final image requests have independent bounds. */
 final class DailyWallpaperClient {
     static final long MAX_IMAGE_BYTES=8L*1024*1024;
-    static final String BING_URL="https://cn.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=zh-CN";
+    static final String BING_URL="https://cn.bing.com/HPImageArchive.aspx?format=js&idx=0&n=8&mkt=zh-CN";
     static final String BT_URL="https://api.btstu.cn/sjbz/api.php?lx=fengjing&method=pc&format=json";
     private volatile HttpsURLConnection connection;
     private final Context context;
     private SSLSocketFactory btTls;
     DailyWallpaperClient(Context context){this.context=context.getApplicationContext();}
     static final class Unavailable extends IOException {
-        Unavailable(){super("This Bing image is unavailable as wallpaper");}
+        Unavailable(){super("No recent Bing image is available as wallpaper");}
     }
     static final class HttpFailure extends IOException {
         final int status;
@@ -31,6 +31,11 @@ final class DailyWallpaperClient {
     }
     static final class Candidate {
         String source,url,title,copyright,link,upstream;
+        boolean reuses(WallpaperCatalog.DailyImage image){
+            if(image==null||!WallpaperCatalog.BING.equals(source)||!source.equals(image.source))return false;
+            if(url.equals(image.url))return true;
+            return upstream.matches("[0-9]{8}([0-9]{4})?")&&image.upstream.matches("[0-9]{8}([0-9]{4})?")&&upstream.compareTo(image.upstream)<0;
+        }
     }
     Candidate latest(String source) throws IOException {
         if(!WallpaperCatalog.dailySource(source))throw new IOException("Unknown wallpaper source");
@@ -42,8 +47,13 @@ final class DailyWallpaperClient {
     static Candidate parse(String source,JSONObject json) throws IOException,JSONException {
         Candidate result=new Candidate();result.source=source;
         if(WallpaperCatalog.BING.equals(source)){
-            JSONObject image=json.getJSONArray("images").getJSONObject(0);
-            if(!image.optBoolean("wp",true))throw new Unavailable();
+            JSONArray images=json.getJSONArray("images");JSONObject image=null;
+            // Bing returns newest first. Inspect metadata only; download just the selected image.
+            for(int n=0;n<Math.min(8,images.length());n++){
+                JSONObject item=images.getJSONObject(n);
+                if(item.optBoolean("wp",false)){image=item;break;}
+            }
+            if(image==null)throw new Unavailable();
             result.url=new URL(new URL("https://cn.bing.com"),image.getString("url")).toString();
             result.title=image.optString("title");result.copyright=image.optString("copyright");result.link=image.optString("copyrightlink");result.upstream=image.optString("fullstartdate",image.optString("startdate"));
         }else if(WallpaperCatalog.BT.equals(source)){
