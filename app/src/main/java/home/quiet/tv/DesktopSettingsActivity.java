@@ -74,7 +74,7 @@ public final class DesktopSettingsActivity extends ManagementUi implements Share
         desktopScroll=new ScrollView(this);desktopScroll.setFocusable(false);desktopScroll.setVerticalScrollBarEnabled(false);desktop.addView(desktopScroll,new LinearLayout.LayoutParams(px(298),-1));
         LinearLayout controls=column();controls.setPadding(px(1),px(1),px(3),px(2));desktopScroll.addView(controls,new ScrollView.LayoutParams(-1,-2));
         controls.addView(desktopLabel(tr("布局方式","Layout")));LinearLayout layouts=row();controls.addView(layouts,new LinearLayout.LayoutParams(-1,px(38)));
-        classic=layoutChoice(layouts,tr("经典布局","Classic"),"classic",1);gallery=layoutChoice(layouts,tr("艺术画廊居中","Gallery"),"gallery",1.38f);
+        classic=layoutChoice(layouts,tr("经典布局","Classic"),"classic",1);gallery=layoutChoice(layouts,tr("艺术画廊","Gallery"),"gallery",1.38f);
         gap(controls,16);controls.addView(desktopLabel(tr("首页信息","Home information")));
         LinearLayout first=row();controls.addView(first,new LinearLayout.LayoutParams(-1,px(38)));choice(first,"greeting",tr("问候语","Greeting"));choice(first,"time",tr("时间","Time"));choice(first,"app-title",tr("应用标题","App title"));
         gap(controls,8);LinearLayout second=row();controls.addView(second,new LinearLayout.LayoutParams(-1,px(38)));choice(second,"date",tr("日期","Date"));choice(second,"weather",tr("天气","Weather"));
