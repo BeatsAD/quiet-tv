@@ -80,7 +80,7 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     void managementMoreOption(LinearLayout menu,String title,Runnable action){
         Button choice=button(title,()->{managementMorePopup.dismiss();action.run();});choice.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(15));choice.setTextColor(0xffeeeeef);
         choice.setPadding(px(16),0,px(12),0);choice.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);choice.setFocusableInTouchMode(true);
-        StateListDrawable background=new StateListDrawable();background.addState(new int[]{android.R.attr.state_focused},surface(0xff51525d,0xff51525d,0,11));background.addState(new int[]{},new ColorDrawable(Color.TRANSPARENT));choice.setBackground(background);
+        choice.setBackground(ControlStyle.action(unit,11,Color.TRANSPARENT,0));
         menu.addView(choice,new LinearLayout.LayoutParams(-1,px(40)));
     }
     private void managementHeader(){
@@ -107,18 +107,15 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     TextView muted(String text,int size){TextView view=label(text,size);view.setTextColor(MUTED);return view;}
     TextView center(String text,int size){TextView view=label(text,size);view.setGravity(Gravity.CENTER);return view;}
     GradientDrawable surface(int top,int bottom,int stroke,float radius){GradientDrawable shape=new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{top,bottom});shape.setCornerRadius(px(radius));shape.setStroke(px(1),stroke);return shape;}
-    Drawable focusSurface(float radius){StateListDrawable state=new StateListDrawable();state.addState(new int[]{android.R.attr.state_focused},surface(0x24ffffff,0x16ffffff,0xfff3f4f7,radius));state.addState(new int[]{android.R.attr.state_selected},surface(0x14ffffff,0x10ffffff,0x1effffff,radius));state.addState(new int[]{},surface(0x10ffffff,0x06ffffff,0x22ffffff,radius));return state;}
+    Drawable focusSurface(float radius){return ControlStyle.action(unit,radius,0x10ffffff,0x22ffffff);}
     void focusable(View view,float radius){view.setFocusable(true);view.setBackground(focusSurface(radius));}
     Button button(String text,Runnable action){Button b=new Button(this);b.setText(text);b.setAllCaps(false);b.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(13));b.setTextColor(TEXT);b.setIncludeFontPadding(false);b.setGravity(Gravity.CENTER);b.setMinimumWidth(0);b.setMinWidth(0);b.setMinimumHeight(0);b.setMinHeight(0);b.setPadding(px(16),0,px(16),0);b.setBackground(focusSurface(24));if(android.os.Build.VERSION.SDK_INT>=21)b.setStateListAnimator(null);b.setOnClickListener(v->action.run());return b;}
     void styleTab(Button b,boolean compact){
-        int[][] states={{android.R.attr.state_selected,android.R.attr.state_focused},{android.R.attr.state_focused},{android.R.attr.state_selected},{}};
-        int[] backgrounds={0xfff5f6f8,0xff353a43,0xffe6e8ec,Color.TRANSPARENT};
-        StateListDrawable background=new StateListDrawable();
-        for(int i=0;i<states.length;i++)background.addState(states[i],surface(backgrounds[i],backgrounds[i],0,compact?15:18));
-        b.setBackground(background);b.setTextColor(new ColorStateList(states,new int[]{0xff191d23,0xfff5f6f8,0xff191d23,MUTED}));
+        ControlStyle.choice(b,unit,compact?15:18,Color.TRANSPARENT,0);
         b.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));b.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(compact?12:16));
         b.setSingleLine(true);b.setPadding(px(compact?10:18),0,px(compact?10:18),0);b.setMinWidth(px(compact?48:100));
     }
+    void styleManagementTab(Button b,boolean compact){styleTab(b,compact);}
     Drawable listSurface(){StateListDrawable state=new StateListDrawable();state.addState(new int[]{android.R.attr.state_focused},surface(0x24ffffff,0x16ffffff,-1,12));state.addState(new int[]{android.R.attr.state_selected},surface(0x14ffffff,0x10ffffff,0x1effffff,12));state.addState(new int[]{},new ColorDrawable(Color.TRANSPARENT));return state;}
     Button iconButton(String description,int resource,Runnable action){
         Button b=button("",action);b.setContentDescription(description);
@@ -152,7 +149,7 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
         View line=new View(this);line.setBackgroundColor(0x18ffffff);root.addView(line,new LinearLayout.LayoutParams(-1,px(1)));return tools;
     }
     void managementTab(Button tab,int page,int selected,View back){
-        managementPage=selected;managementTabs[page]=tab;styleTab(tab,false);tab.setSelected(page==selected);tab.setFocusableInTouchMode(true);tab.setId(View.generateViewId());tab.setTag("management-tab-"+page);
+        managementPage=selected;managementTabs[page]=tab;styleManagementTab(tab,false);tab.setSelected(page==selected);tab.setFocusableInTouchMode(true);tab.setId(View.generateViewId());tab.setTag("management-tab-"+page);
         if(back.getId()==View.NO_ID)back.setId(View.generateViewId());tab.setNextFocusUpId(back.getId());
         if(page==selected)back.setNextFocusDownId(tab.getId());
         tab.setOnClickListener(v->{if(page==selected){tab.requestFocus();return;}leaveManagement(()->{

@@ -17,17 +17,12 @@ final class ChildModeUi {
     }
     GradientDrawable shape(int color,int border,float radius,float stroke){GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(p(radius));d.setStroke(Math.max(1,p(stroke)),border);return d;}
     Drawable focus(int color,int border,float radius,boolean primary){
-        StateListDrawable d=new StateListDrawable();Drawable focused=ui.surface(0x24ffffff,0x16ffffff,0xfff3f4f7,radius/2);
-        if(primary){
-            // Keep the white focus outline and its separating gap inside the control bounds.
-            LayerDrawable layers=new LayerDrawable(new Drawable[]{shape(0,0xfff3f4f7,radius,2),shape(0xffe7e9ec,0,radius-4,0)});
-            layers.setLayerInset(1,p(4),p(4),p(4),p(4));focused=layers;
-        }
-        d.addState(new int[]{android.R.attr.state_focused},focused);d.addState(new int[]{android.R.attr.state_selected},shape(0x0cffffff,0xffdbe1e9,radius,1));d.addState(new int[]{},shape(color,border,radius,1));return d;
+        return ControlStyle.action(ui.unit,radius/2,primary?0xff30343c:color,primary?0x25ffffff:border);
     }
+    void choice(Button b,float radius){ControlStyle.choice(b,ui.unit,radius/2,0x04ffffff,0x1dffffff);}
     ImageView image(int resource,int color){ImageView image=new ImageView(ui);image.setImageDrawable(UiCompat.drawable(ui,resource));image.setColorFilter(color);image.setScaleType(ImageView.ScaleType.FIT_CENTER);image.setFocusable(false);image.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);return image;}
     Button button(String label,Runnable click,boolean primary){
-        Button b=ui.button(label,click);b.setSingleLine(true);b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,font(21.12f));b.setTypeface(Typeface.DEFAULT);b.setTextColor(primary?0xff191d23:ManagementUi.TEXT);b.setPadding(p(26.88f),0,p(26.88f),0);b.setBackground(focus(primary?0xffe7e9ec:0x06ffffff,primary?0xffe7e9ec:0x25ffffff,30,primary));return b;
+        Button b=ui.button(label,click);b.setSingleLine(true);b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,font(21.12f));b.setTypeface(Typeface.DEFAULT);b.setTextColor(ManagementUi.TEXT);b.setPadding(p(26.88f),0,p(26.88f),0);b.setBackground(focus(primary?0xffe7e9ec:0x06ffffff,primary?0xffe7e9ec:0x25ffffff,30,primary));return b;
     }
     ImageView appIcon(android.graphics.drawable.Drawable art,float size,float radius){ImageView image=new ImageView(ui){private final Path clip=new Path();private final RectF imageBounds=new RectF();@Override protected void onDraw(Canvas canvas){imageBounds.set(0,0,getWidth(),getHeight());clip.reset();clip.addRoundRect(imageBounds,p(radius),p(radius),Path.Direction.CW);int save=canvas.save();canvas.clipPath(clip);super.onDraw(canvas);canvas.restoreToCount(save);}};image.setScaleType(ImageView.ScaleType.FIT_CENTER);image.setImageDrawable(art);image.setBackground(shape(0x09ffffff,0,radius,1));return image;}
     void place(FrameLayout parent,View view,float x,float y,float w,float h){FrameLayout.LayoutParams lp=new FrameLayout.LayoutParams(p(w),p(h));lp.leftMargin=p(x);lp.topMargin=p(y);parent.addView(view,lp);}

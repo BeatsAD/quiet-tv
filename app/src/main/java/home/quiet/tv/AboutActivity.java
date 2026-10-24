@@ -127,6 +127,7 @@ public final class AboutActivity extends androidx.activity.ComponentActivity {
         }
         if(code==KeyEvent.KEYCODE_DPAD_CENTER||code==KeyEvent.KEYCODE_ENTER||code==KeyEvent.KEYCODE_NUMPAD_ENTER){
             // Activate on release, as HOME does, so finishing cannot send this key-up back to HOME.
+            if(event.getAction()==KeyEvent.ACTION_DOWN)scene.press(true);
             if(event.getAction()==KeyEvent.ACTION_UP)scene.activate();return true;
         }
         return super.dispatchKeyEvent(event);

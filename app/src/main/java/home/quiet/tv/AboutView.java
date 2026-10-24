@@ -38,13 +38,6 @@ final class AboutView extends FrameLayout {
                 paint.setShader(glow);canvas.drawRect(0,0,1920,1080,paint);
                 paint.setShader(shade);canvas.drawRect(0,0,1920,1080,paint);paint.setShader(null);
                 super.dispatchDraw(canvas);
-                View active=findFocus();
-                if(active!=null && active!=this){
-                    paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(3);paint.setColor(0xfff3f6fb);
-                    float radius=active==back?40:14;
-                    canvas.drawRoundRect(new RectF(active.getLeft()-6.5f,active.getTop()-6.5f,active.getRight()+6.5f,active.getBottom()+6.5f),radius,radius,paint);
-                    paint.setStyle(Paint.Style.FILL);
-                }
             }
         };
         artboard.setClipChildren(false);artboard.setPivotX(0);artboard.setPivotY(0);
@@ -101,6 +94,7 @@ final class AboutView extends FrameLayout {
     }
     private View action(View view,String tag,int x,int y,int w,int h,Runnable run) {
         if(view.getParent()==null)put(view,x,y,w,h);
+        view.setBackground(ControlStyle.action(2,"back-home".equals(tag)?16:5,"back-home".equals(tag)?0x0affffff:Color.TRANSPARENT,0));
         view.setTag(tag);view.setFocusable(true);view.setFocusableInTouchMode(true);view.setOnClickListener(v->run.run());
         view.setOnFocusChangeListener((v,focused)->artboard.invalidate());return view;
     }
@@ -124,7 +118,7 @@ final class AboutView extends FrameLayout {
         if(!recoveryPress.press(android.os.SystemClock.elapsedRealtime()))return;
         String value=new ChildModeStore(getContext()).recovery();recoveryValue.setText(value.isEmpty()?"尚未设置家长密码":value);recoveryValue.setVisibility(View.VISIBLE);
     }
-    void hideRecovery(){recoveryPress.clear();recoveryValue.setText("");recoveryValue.setVisibility(View.INVISIBLE);}
+    void hideRecovery(){press(false);recoveryPress.clear();recoveryValue.setText("");recoveryValue.setVisibility(View.INVISIBLE);}
     void focusLicense(){license.requestFocus();}
     void move(int key) {
         View active=artboard.findFocus(),next=null;
@@ -134,5 +128,6 @@ final class AboutView extends FrameLayout {
         else if(active==recovery){if(key==KeyEvent.KEYCODE_DPAD_LEFT)next=upstream;else if(key==KeyEvent.KEYCODE_DPAD_UP)next=back;}
         if(next!=null)next.requestFocus();
     }
-    void activate(){View view=artboard.findFocus();if(view!=null)view.performClick();}
+    void press(boolean pressed){View view=artboard.findFocus();if(view!=null)view.setPressed(pressed);}
+    void activate(){press(false);View view=artboard.findFocus();if(view!=null)view.performClick();}
 }

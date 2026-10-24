@@ -23,26 +23,17 @@ final class WallpaperUi {
         GradientDrawable bg=new GradientDrawable();bg.setColor(color);bg.setCornerRadius(px(radius));bg.setStroke(px(width),stroke);return bg;
     }
     Drawable focusSurface(int color,float radius){
-        StateListDrawable states=new StateListDrawable();
-        states.addState(new int[]{android.R.attr.state_focused},surface(color,radius,Color.WHITE,2));
-        states.addState(new int[]{},surface(color,radius,0x38ffffff,1));return states;
+        return ControlStyle.action(unit,radius,color,0x38ffffff);
     }
     TextView button(String value,boolean primary,Runnable action){
         TextView view=text(value,12);view.setId(View.generateViewId());view.setFocusable(true);view.setGravity(Gravity.CENTER);
-        view.setTextColor(primary?0xff1e242c:INK);view.setMinHeight(px(primary?43:38));view.setPadding(px(primary?17:13),px(9),px(primary?17:13),px(9));
-        view.setBackground(focusSurface(primary?0xfff1f2f4:0xff242a33,100));
+        view.setTextColor(INK);view.setMinHeight(px(primary?43:38));view.setPadding(px(primary?17:13),px(9),px(primary?17:13),px(9));
+        view.setBackground(focusSurface(0xff242a33,100));
         view.setOnClickListener(v->action.run());return view;
     }
     TextView categoryTab(String value,Runnable action){
         TextView view=button(value,false,action);view.setMinHeight(0);view.setPadding(px(10),0,px(10),0);
-        view.setTextColor(new ColorStateList(new int[][]{new int[]{android.R.attr.state_selected},new int[]{}},new int[]{0xff1e242c,INK}));
-        StateListDrawable states=new StateListDrawable();
-        // All states share the same bounds; GradientDrawable draws its stroke inward.
-        states.addState(new int[]{android.R.attr.state_selected,android.R.attr.state_focused},new LayerDrawable(new Drawable[]{
-            surface(0xfff1f2f4,100,0xff242a33,4),surface(Color.TRANSPARENT,100,Color.WHITE,2)}));
-        states.addState(new int[]{android.R.attr.state_focused},surface(Color.TRANSPARENT,100,Color.WHITE,2));
-        states.addState(new int[]{android.R.attr.state_selected},surface(0xfff1f2f4,100,Color.TRANSPARENT,0));
-        states.addState(new int[]{},new ColorDrawable(Color.TRANSPARENT));view.setBackground(states);return view;
+        ControlStyle.choice(view,unit,100,Color.TRANSPARENT,0);return view;
     }
     Drawable icon(int resource,int size,int color){
         Drawable art=UiCompat.drawable(context,resource).mutate();art.setColorFilter(color,PorterDuff.Mode.SRC_IN);art.setBounds(0,0,px(size),px(size));return art;

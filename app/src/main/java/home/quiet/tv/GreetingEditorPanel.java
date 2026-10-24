@@ -65,7 +65,7 @@ final class GreetingEditorPanel {
         editor.actions.addView(new View(ui),new LinearLayout.LayoutParams(0,1,1));
         cancel=editor.action(tr("取消","Cancel"),()->editor.dialog.dismiss());identify(cancel,"greeting-cancel");
         save=editor.action(tr("保存","Save"),()->{store.saveGreeting(enabled,edit.getText().toString());saved.run();editor.dialog.dismiss();});identify(save,"greeting-save");
-        for(Button action:new Button[]{scan,cancel,save}){action.setTypeface(Typeface.DEFAULT,Typeface.BOLD);action.setMinWidth(ui.px(70));action.setMinimumWidth(ui.px(70));LinearLayout.LayoutParams p=(LinearLayout.LayoutParams)action.getLayoutParams();p.leftMargin=action==scan?0:ui.px(5);p.rightMargin=action==save?0:ui.px(5);action.setLayoutParams(p);StateListDrawable background=new StateListDrawable();background.addState(new int[]{android.R.attr.state_focused},ui.surface(0x24ffffff,0x16ffffff,Color.WHITE,24));background.addState(new int[]{},ui.surface(0x10ffffff,0x06ffffff,0x30ffffff,24));action.setBackground(background);}
+        for(Button action:new Button[]{scan,cancel,save}){action.setTypeface(Typeface.DEFAULT,Typeface.BOLD);action.setMinWidth(ui.px(70));action.setMinimumWidth(ui.px(70));LinearLayout.LayoutParams p=(LinearLayout.LayoutParams)action.getLayoutParams();p.leftMargin=action==scan?0:ui.px(5);p.rightMargin=action==save?0:ui.px(5);action.setLayoutParams(p);action.setBackground(ui.focusSurface(24));}
         toggle.setNextFocusUpId(toggle.getId());toggle.setNextFocusLeftId(toggle.getId());toggle.setNextFocusRightId(toggle.getId());
         edit.setNextFocusUpId(toggle.getId());edit.setNextFocusDownId(scan.getId());
         edit.setOnKeyListener((v,key,event)->{

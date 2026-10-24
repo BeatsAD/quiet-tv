@@ -37,7 +37,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private static final float HOME_TITLE_TOP = 314, HOME_DOCK_TOP = 386;
     private static final float APP_TOP = 24, APP_TITLE_HEIGHT = APP_TOP + 38;
     private static final float APP_GAP = 16, APP_LABEL_GAP = 6, APP_LABEL_HEIGHT = 20;
-    private static final float FOCUS_SCALE = 1.065f, FOCUS_OUTSET = 5, FOCUS_STROKE = 3;
+    private static final float FOCUS_SCALE = 1.065f, FOCUS_STROKE = 3;
     // A critically damped spring settles without bouncing past the target.
     private static final android.animation.TimeInterpolator FOCUS_MOTION = t -> (float)((1-(1+8*t)*Math.exp(-8*t))/(1-9*Math.exp(-8)));
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -54,7 +54,6 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private FrameLayout root;
     private RecyclerView list;
     private GridLayoutManager layout;
-    private Glass glass;
     private FrameLayout dockBand;
     private int dockFocus=-2;
     private ValueAnimator dockPress;
@@ -180,10 +179,9 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             @Override public void onScrolled(RecyclerView rv, int dx, int dy) {
                 View header=layout.findViewByPosition(0);
                 if(header!=null)header.setAlpha(Math.max(0,Math.min(1,1+header.getTop()/(float)px(180))));
-                positionGlass(false);invalidateDockBackdrop();
+                updateHeaderFocus();invalidateDockBackdrop();
             }
         });
-        glass = new Glass(); root.addView(glass,new FrameLayout.LayoutParams(-1,-1));
         homeHeader=new HomeHeaderView(this,unit,chinese,outfit);
         greeting=homeHeader.greeting;weatherText=homeHeader.weather;clock=homeHeader.clock;date=homeHeader.date;timeRow=homeHeader.timeRow;topButtons=homeHeader.buttons;
         pills.addAll(homeHeader.pills);inputButton=pills.get(0);network=pills.get(1);
@@ -409,6 +407,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             focusCurrent(true);return true;
         }
         if(key==KeyEvent.KEYCODE_DPAD_CENTER || key==KeyEvent.KEYCODE_ENTER || key==KeyEvent.KEYCODE_NUMPAD_ENTER){
+            if(row<0)visiblePills.get(topColumn).setPressed(event.getAction()==KeyEvent.ACTION_DOWN);
             if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0)pressDock(true);
             if(event.getAction()==KeyEvent.ACTION_UP){pressDock(false);if(row<0)visiblePills.get(topColumn).performClick();else launchSelected();}return true;
         }
@@ -422,7 +421,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             if(selected!=null){Tile previous=selected;selected=null;previous.invalidate();if(!dockTiles.contains(previous))previous.animate().scaleX(1).scaleY(1).translationX(0).translationY(0).setDuration(240).setInterpolator(FOCUS_MOTION);}
             if(scrollAnimation!=null)scrollAnimation.cancel();
             list.stopScroll();scrollTarget=0;layout.scrollToPositionWithOffset(0,0);
-            list.post(()->positionGlass(animate));Log.i(TAG,"Focus top="+topColumn);return;
+            list.post(()->updateHeaderFocus());Log.i(TAG,"Focus top="+topColumn);return;
         }
         int position=row==0?0:2+(row-1)*APP_COLUMNS;
         int offset=row==0?0:px(row==1?APP_TITLE_HEIGHT:APP_TOP);
@@ -471,7 +470,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             activePackage=app.pkg;
             if(row==0 && heroTitle!=null)heroTitle.setText(tile.emptyDock()?tr("常用应用","Favorite apps"):app.label);
             wallpapers.setThemeColor(app.color);
-            positionGlass(animate);saveFocus();Log.i(TAG,"Focus row="+row+" column="+column+" package="+app.pkg);
+            updateHeaderFocus();saveFocus();Log.i(TAG,"Focus row="+row+" column="+column+" package="+app.pkg);
         });
     }
 
@@ -527,19 +526,10 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         dockPress.addUpdateListener(a->{float value=(float)a.getAnimatedValue();item.setScaleX(value);item.setScaleY(value);});dockPress.start();
     }
 
-    private void positionGlass(boolean animate) {
-        if(glass==null || !ready)return;
-        View header=layout.findViewByPosition(0);
-        boolean visible=row<0 && header!=null && header.getTop()==0;
-        glass.setVisibility(visible?View.VISIBLE:View.GONE);
-        if(!visible)return;
-        View view=visiblePills.get(topColumn);
-        if(view==null || !view.isAttachedToWindow())return;
-        int[] point=new int[2];int[] origin=new int[2];root.getLocationOnScreen(origin);
-        ((View)view.getParent()).getLocationOnScreen(point);
-        float left=point[0]-origin[0]+view.getLeft(),top=point[1]-origin[1]+view.getTop();int outset=px(FOCUS_OUTSET);
-        RectF target=new RectF(left-outset,top-outset,left+view.getWidth()+outset,top+view.getHeight()+outset);
-        glass.move(target,target.width()/2f,animate);
+    private void updateHeaderFocus() {
+        if(!ready)return;
+        View header=layout.findViewByPosition(0);boolean visible=row<0 && header!=null && header.getTop()==0;
+        for(TextView pill:pills){boolean focused=visible && visiblePills.indexOf(pill)==topColumn;pill.setActivated(focused);if(!focused)pill.setPressed(false);}
     }
 
     private final class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>{
@@ -632,32 +622,6 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         }
     }
 
-    private final class Glass extends View {
-        final RectF current=new RectF();final Paint paint=new Paint(3);
-        final Shader glass=new LinearGradient(0,0,1,0,new int[]{0x30ffffff,0x09ffffff},null,Shader.TileMode.CLAMP);
-        final Matrix glassMatrix=new Matrix();final float[] glassTransform={1,0,0,0,1,0,0,0,1};float radius;ValueAnimator animation;
-        Glass(){super(HomeActivity.this);setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);}
-        void move(RectF target,float corner,boolean spring){
-            if(animation!=null)animation.cancel();radius=corner;
-            if(!spring || current.isEmpty()){current.set(target);invalidate();return;}
-            RectF from=new RectF(current);animation=ValueAnimator.ofFloat(0,1);animation.setDuration(340);animation.setInterpolator(new OvershootInterpolator(.8f));
-            animation.addUpdateListener(a->{float f=(float)a.getAnimatedValue();current.set(from.left+(target.left-from.left)*f,from.top+(target.top-from.top)*f,from.right+(target.right-from.right)*f,from.bottom+(target.bottom-from.bottom)*f);invalidate();});animation.start();
-        }
-        @Override protected void onDraw(Canvas c){
-            if(current.isEmpty())return;
-            // Rotate and uniformly scale the unit gradient onto the original diagonal.
-            // A nonuniform X/Y scale would change the gradient away from that diagonal.
-            float width=current.width(),height=current.height();
-            glassTransform[0]=width;glassTransform[1]=-height;glassTransform[2]=current.left;
-            glassTransform[3]=height;glassTransform[4]=width;glassTransform[5]=current.top;
-            glassMatrix.setValues(glassTransform);glass.setLocalMatrix(glassMatrix);paint.setShader(glass);
-            paint.setStyle(Paint.Style.FILL);c.drawRoundRect(current,radius,radius,paint);paint.setShader(null);
-            paint.setStyle(Paint.Style.STROKE);
-            paint.setColor(Color.WHITE);paint.setStrokeWidth(px(FOCUS_STROKE));c.drawRoundRect(current,radius,radius,paint);
-            paint.setStyle(Paint.Style.FILL);
-        }
-    }
-
     private void openSettings(String action){leaveHome(()->{if(!new SystemSettingsRouter(this).open(action)){wallpapers.resume();Toast.makeText(this,tr("系统设置不可用，请使用电视遥控器","Settings unavailable; use the TV remote"),Toast.LENGTH_LONG).show();}});}
 
     private void showInputs(){
@@ -702,7 +666,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             for(TvInputController.Panel panel:snapshot.availablePanels())addInputChoice(menu,choices,panel.profile.label(chinese),()->openSystemInputs(panel));
             if(choices.isEmpty()){showUnavailableInputs(snapshot);return;}
             inputPopup=new PopupWindow(menu,px(222),-2,true);inputPopup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));inputPopup.setElevation(px(14));inputPopup.setOutsideTouchable(true);
-            inputPopup.setOnDismissListener(()->main.post(()->positionGlass(false)));
+            inputPopup.setOnDismissListener(()->main.post(()->updateHeaderFocus()));
             for(int n=0;n<choices.size();n++){
                 final int index=n;TextView choice=choices.get(n);
                 choice.setOnKeyListener((v,key,event)->{
@@ -714,8 +678,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         }
 
         private void addInputChoice(LinearLayout menu,ArrayList<TextView> choices,String title,Runnable action){
-            TextView choice=text(title,15,400,0xffeeeeef);choice.setPadding(px(16),0,px(12),0);choice.setGravity(Gravity.CENTER_VERTICAL);choice.setFocusable(true);choice.setFocusableInTouchMode(true);choice.setBackground(surface(0x0025262e,11));
-            choice.setOnFocusChangeListener((v,has)->v.setBackground(surface(has?0xff51525d:0x0025262e,11)));
+            TextView choice=text(title,15,400,0xffeeeeef);choice.setPadding(px(16),0,px(12),0);choice.setGravity(Gravity.CENTER_VERTICAL);choice.setFocusable(true);choice.setFocusableInTouchMode(true);choice.setBackground(ControlStyle.action(unit,11,Color.TRANSPARENT,0));
             choice.setOnClickListener(v->{inputPopup.dismiss();action.run();});
             choices.add(choice);menu.addView(choice,new LinearLayout.LayoutParams(-1,px(40)));
         }
@@ -755,7 +718,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 .setPositiveButton(tr("系统设置","System settings"),(d,w)->{
                     openSettings(Settings.ACTION_SETTINGS);
                 }).create();
-            dialog.setOnDismissListener(d->main.post(()->positionGlass(false)));dialog.show();
+            dialog.setOnDismissListener(d->main.post(()->updateHeaderFocus()));dialog.show();ControlStyle.dialog(dialog,unit);
         }
 
         private void offerSystemInputs(){
@@ -771,7 +734,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 .setTitle(tr("此输入无法打开，请选择系统信号源","Input unavailable; choose system inputs"))
                 .setItems(labels,(d,which)->openSystemInputs(panels.get(which)))
                 .setNegativeButton(tr("返回","Back"),(d,w)->{}).create();
-            dialog.setOnDismissListener(d->main.post(()->positionGlass(false)));dialog.show();
+            dialog.setOnDismissListener(d->main.post(()->updateHeaderFocus()));dialog.show();ControlStyle.dialog(dialog,unit);
         }
 
         private void openInput(TvInputInfo info){
@@ -795,7 +758,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                         .setNegativeButton(tr("返回","Back"),(d,w)->{});
                     Intent setup=info.createSetupIntent();
                     if(setup!=null)dialog.setPositiveButton(tr("信号源设置","Set up input"),(d,w)->{try{startActivity(setup);}catch(ActivityNotFoundException|SecurityException e){Toast.makeText(HomeActivity.this,tr("信号源设置不可用","Input setup unavailable"),Toast.LENGTH_SHORT).show();}});
-                    dialog.show();return;
+                    ControlStyle.dialog(dialog.show(),unit);return;
                 }
                 uri=TvContract.buildChannelUri(channel);
             }

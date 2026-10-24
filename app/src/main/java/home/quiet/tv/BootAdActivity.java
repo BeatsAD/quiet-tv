@@ -81,7 +81,7 @@ public final class BootAdActivity extends ManagementUi {
     }
     private void row(String tag,String value,boolean checked,String reason,Runnable toggle){
         Button item=button((checked?"☑  ":"□  ")+value+(reason.isEmpty()?"":"\n"+reason),()->{if(busy)return;if(reason.isEmpty()){rememberFocus();toggle.run();render();}else message(reason);});
-        item.setTag(tag);item.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);item.setPadding(px(16),px(12),px(16),px(12));item.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(13));item.setSelected(checked);item.setAlpha(reason.isEmpty()?1f:.65f);
+        item.setTag(tag);item.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);item.setPadding(px(16),px(12),px(16),px(12));item.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(13));ControlStyle.choice(item,unit,24,0x10ffffff,0x22ffffff);item.setSelected(checked);item.setAlpha(reason.isEmpty()?1f:.65f);
         linkCard(item);
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.bottomMargin=px(8);content.addView(item,p);
     }
