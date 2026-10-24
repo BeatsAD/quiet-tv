@@ -15,13 +15,14 @@ public final class DockEditorActivity extends ManagementUi {
     private ArrayList<String> packages,moving;
     private int movingIndex;
     private LinearLayout content;
+    private TextView description;
     private final ArrayList<View> slots=new ArrayList<>();
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private final HashMap<String,Bitmap> artwork=new HashMap<>();
     private int artworkGeneration;
     @Override public void onCreate(Bundle state){
         super.onCreate(state);store=new DockStore(this);packages=store.load();toolbar(true);
-        content=column();content.setGravity(Gravity.CENTER_VERTICAL);root.addView(content,new LinearLayout.LayoutParams(-1,0,1));
+        content=managementContent();description=managementHint("");managementInfo.addView(description,new LinearLayout.LayoutParams(-1,-1));
     }
     @Override protected void onResume(){super.onResume();int focus=slots.indexOf(getCurrentFocus());artworkGeneration++;artwork.clear();render(Math.max(0,focus));}
     @Override protected void onDestroy(){worker.shutdownNow();super.onDestroy();}
@@ -41,8 +42,7 @@ public final class DockEditorActivity extends ManagementUi {
     }
     private void render(int focus){
         content.removeAllViews();slots.clear();List<String> values=moving==null?packages:moving;
-        content.addView(label(moving==null?"请选择应用":"调整常用应用顺序",23));gap(content,11);
-        content.addView(muted(moving==null?"确认进行对应的顺序、替换调整":"左右移动当前应用，确定保存，返回取消。",12));gap(content,36);
+        description.setText(moving==null?"确认进行对应的顺序、替换调整":"左右移动当前应用，确定保存，返回取消。");
         LinearLayout cards=row();cards.setGravity(Gravity.TOP);cards.setClipChildren(false);content.addView(cards,new LinearLayout.LayoutParams(-1,-2));
         int width=px((864-(DockStore.CAPACITY-1)*20)/(float)DockStore.CAPACITY),height=Math.round(width*203f/360f);
         for(int i=0;i<DockStore.CAPACITY;i++){
@@ -57,11 +57,10 @@ public final class DockEditorActivity extends ManagementUi {
             else{image.setImageDrawable(UiCompat.drawable(this,R.drawable.ic_manage_plus));art.addView(image,new FrameLayout.LayoutParams(px(28),px(28),Gravity.CENTER));}
             if(unavailable || occupied && new ChildModeStore(this).hidden(pkg)){ColorMatrix matrix=new ColorMatrix();matrix.setSaturation(0);image.setColorFilter(new ColorMatrixColorFilter(matrix));image.setAlpha(.45f);}
             gap(card,16);TextView title=center(occupied?name(pkg):"添加常用应用",13);title.setSingleLine();title.setEllipsize(android.text.TextUtils.TruncateAt.END);if(!occupied)title.setTextColor(MUTED);card.addView(title,new LinearLayout.LayoutParams(-1,px(20)));
-            if(occupied && new ChildModeStore(this).hidden(pkg)){gap(card,5);card.addView(center("已隐藏  保留位置",10));}
-            else if(unavailable){gap(card,5);TextView note=center(info!=null && info.enabled?"未安装  保留位置":"已禁用  保留位置",10);note.setTextColor(MUTED);card.addView(note,new LinearLayout.LayoutParams(-1,px(16)));}
+            gap(card,5);TextView note=center(occupied && new ChildModeStore(this).hidden(pkg)?"已隐藏  保留位置":unavailable?info!=null && info.enabled?"未安装  保留位置":"已禁用  保留位置":"",10);note.setTextColor(MUTED);card.addView(note,new LinearLayout.LayoutParams(-1,px(16)));
         }
         if(moving!=null){gap(content,35);TextView note=center("调整尚未保存",11);note.setTextColor(MUTED);content.addView(note,new LinearLayout.LayoutParams(-1,px(20)));gap(content,18);LinearLayout actions=row();actions.setGravity(Gravity.CENTER);content.addView(actions,new LinearLayout.LayoutParams(-1,px(36)));marginAdd(actions,button("取消调整",()->cancelMove()),-2,36,0);marginAdd(actions,button("保存顺序",()->saveMove()),-2,36,12);}
-        // Keep the shared heading and cards in place when reorder actions are hidden.
+        // Reserve the same action area when reorder controls are hidden.
         else content.addView(new View(this),new LinearLayout.LayoutParams(1,px(35)+px(20)+px(18)+px(36)));
         if(!managementTabFocused())slots.get(Math.max(0,Math.min(focus,DockStore.CAPACITY-1))).requestFocus();
     }

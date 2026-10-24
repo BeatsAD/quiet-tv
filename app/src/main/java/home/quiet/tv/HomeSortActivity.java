@@ -24,6 +24,7 @@ public final class HomeSortActivity extends ManagementUi {
     private Cards adapter;
     private LinearLayout controls,left,actions;
     private Button saveButton,resetButton;
+    private TextView statusHint;
     private ArrayList<String> beforeMove;
     private String moving="",selected="";
     private boolean loaded,refreshing,refreshAgain,saving,resetRequested,beforeReset,savedCustom,dialogOpen,leaving;
@@ -37,12 +38,11 @@ public final class HomeSortActivity extends ManagementUi {
     };
     @Override public void onCreate(Bundle state){
         super.onCreate(state);store=new HomeOrderStore(this);restored=state!=null?state:pendingDraft;pendingDraft=null;
-        root.setPadding(px(48),px(22),px(48),px(16));
-        LinearLayout tools=toolbar(2);LinearLayout.LayoutParams tp=(LinearLayout.LayoutParams)tools.getLayoutParams();tp.topMargin=px(14);tp.height=px(44);tools.setLayoutParams(tp);
+        toolbar(2);LinearLayout body=managementContent();statusHint=managementHint("");managementInfo.addView(statusHint,new LinearLayout.LayoutParams(-1,-1));
         list=new RecyclerView(this);layout=new GridLayoutManager(this,HomeActivity.APP_COLUMNS);list.setLayoutManager(layout);adapter=new Cards();list.setAdapter(adapter);
         list.setItemAnimator(null);list.setClipToPadding(false);list.setPadding(px(5),px(5),px(5),px(5));list.setOverScrollMode(View.OVER_SCROLL_NEVER);
-        LinearLayout.LayoutParams grid=new LinearLayout.LayoutParams(-1,0,1);grid.topMargin=px(18);grid.leftMargin=px(-10);grid.rightMargin=px(-10);root.addView(list,grid);
-        controls=row();LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,px(40));cp.topMargin=px(14);root.addView(controls,cp);
+        LinearLayout.LayoutParams grid=new LinearLayout.LayoutParams(-1,0,1);grid.leftMargin=px(-10);grid.rightMargin=px(-10);body.addView(list,grid);
+        controls=row();LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,px(40));cp.topMargin=px(14);body.addView(controls,cp);
         left=row();controls.addView(left,new LinearLayout.LayoutParams(0,-1,1));actions=row();controls.addView(actions,new LinearLayout.LayoutParams(-2,-1));updateControls();
         IntentFilter filter=new IntentFilter(Intent.ACTION_PACKAGE_ADDED);filter.addAction(Intent.ACTION_PACKAGE_REMOVED);filter.addAction(Intent.ACTION_PACKAGE_CHANGED);filter.addDataScheme("package");registerReceiver(packagesChanged,filter);
     }
@@ -87,8 +87,8 @@ public final class HomeSortActivity extends ManagementUi {
     }
     private void updateControls(){
         left.removeAllViews();actions.removeAllViews();
-        if(moving.isEmpty()){TextView state=muted(dirty()?"未保存":"",11);left.addView(state);}
-        else{
+        statusHint.setText(dirty()?"未保存":"");
+        if(!moving.isEmpty()){
             String[] labels={"←","↑","↓","→"},names={"将应用左移","将应用上移","将应用下移","将应用右移"};int[] dx={-1,0,0,1},dy={0,-1,1,0};
             for(int i=0;i<labels.length;i++){final int step=i;Button arrow=button(labels[i],()->shift(dx[step],dy[step]));arrow.setContentDescription(names[i]);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(px(38),-1);p.rightMargin=px(6);arrow.setPadding(0,0,0,0);left.addView(arrow,p);}
         }

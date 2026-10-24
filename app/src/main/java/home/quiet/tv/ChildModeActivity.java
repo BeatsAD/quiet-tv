@@ -2,7 +2,6 @@ package home.quiet.tv;
 
 import android.content.*;
 import android.content.pm.*;
-import android.graphics.Color;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.view.*;
@@ -24,26 +23,17 @@ public final class ChildModeActivity extends ManagementUi {
     private String selected="",query="";
     private boolean authorized,loading,returning;
     private ChildModeUi visual;
-    private FrameLayout canvas;
     @Override public void onCreate(Bundle state){
         super.onCreate(state);store=new ChildModeStore(this);visual=new ChildModeUi(this);
-        root.removeAllViews();root.setPadding(0,0,0,0);canvas=new FrameLayout(this);canvas.setClipChildren(false);root.addView(canvas,new LinearLayout.LayoutParams(-1,-1));
-        // Same management shell as the reviewed prototype, scoped to this page.
-        Button back=iconButton("返回",R.drawable.ic_manage_back,this::handleBack);back.setBackground(visual.focus(0x04ffffff,0x21ffffff,100,false));visual.place(canvas,back,86.4f,63.66f,63.36f,63.36f);
-        TextView title=visual.text("应用管理",53.76f,75.5f,0xffeeeff2);UiCompat.letterSpacing(title,.06f);visual.place(canvas,title,173.76f,57.6f,550,75.5f);
-        String[] titles={"应用列表","首页应用","应用排序","儿童模式"};
-        int tabLeft=visual.p(86.4f);
-        for(int i=0;i<4;i++){
-            Button tab=visual.button(titles[i],()->{},false);managementTab(tab,i,3,back);
-            int width=Math.max(tab.getMinWidth(),(int)Math.ceil(tab.getPaint().measureText(titles[i]))+tab.getPaddingLeft()+tab.getPaddingRight());
-            FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(width,px(36));tp.leftMargin=tabLeft;tp.topMargin=visual.p(176.29f);canvas.addView(tab,tp);tabLeft+=width+px(12);
-        }
-        Button search=visual.button("搜索",this::search,false);search.setPadding(visual.p(22.08f),0,visual.p(22.08f),0);search.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,visual.font(22.08f));android.graphics.drawable.Drawable magnify=UiCompat.drawable(this,R.drawable.ic_manage_search);magnify.setBounds(0,0,visual.p(26.88f),visual.p(26.88f));search.setCompoundDrawables(magnify,null,null,null);search.setCompoundDrawablePadding(visual.p(12.48f));visual.place(canvas,search,1548.43f,176.29f,129.65f,64.32f);
-        Button more=iconButton("更多",R.drawable.ic_manage_more,this::more),about=iconButton("关于",R.drawable.ic_about,()->startActivity(new Intent(this,AboutActivity.class)));more.setBackground(visual.focus(0x06ffffff,0x25ffffff,40,false));about.setBackground(visual.focus(0x06ffffff,0x25ffffff,40,false));visual.place(canvas,more,1691.52f,176.29f,64.32f,64.32f);visual.place(canvas,about,1769.28f,176.29f,64.32f,64.32f);
-        View divider=new View(this);divider.setBackgroundColor(0x13ffffff);visual.place(canvas,divider,86.4f,262.68f,1747.2f,1);
-        count=visual.text("请输入家长密码",20.16f,28.5f,0xff8d95a1);visual.place(canvas,count,86.4f,309.76f,698.88f,28.5f);
-        list=new RecyclerView(this);list.setLayoutManager(new LinearLayoutManager(this));cards=new Cards();list.setAdapter(cards);list.setItemAnimator(null);list.setClipToPadding(false);list.setPadding(visual.p(5),visual.p(5),visual.p(5),visual.p(5));visual.place(canvas,list,81.4f,352.45f,708.88f,701.83f);
-        details=column();details.setClipToPadding(false);details.setClipChildren(false);details.setPadding(visual.p(58.6f),visual.p(47.08f),visual.p(58.6f),visual.p(47.08f));details.setBackground(visual.shape(0x06ffffff,0x15ffffff,31.68f,1));visual.place(canvas,details,842.87f,357.45f,990.73f,691.83f);
+        marginAdd(header,iconText("搜索",R.drawable.ic_manage_search,this::search),-2,30,0);
+        marginAdd(header,iconText("更多",R.drawable.ic_manage_more,this::more),-2,30,8);
+        marginAdd(header,iconText("关于",R.drawable.ic_about,()->startActivity(new Intent(this,AboutActivity.class))),-2,30,8);
+        toolbar(3);LinearLayout body=managementContent();count=managementHint("请输入家长密码");managementInfo.addView(count,new LinearLayout.LayoutParams(-1,-1));
+        LinearLayout panels=row();panels.setGravity(Gravity.TOP);body.addView(panels,new LinearLayout.LayoutParams(-1,-1));
+        list=new RecyclerView(this);list.setLayoutManager(new LinearLayoutManager(this));cards=new Cards();list.setAdapter(cards);list.setItemAnimator(null);list.setClipToPadding(false);list.setPadding(visual.p(5),visual.p(5),visual.p(5),visual.p(5));panels.addView(list,new LinearLayout.LayoutParams(0,-1,40));
+        ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setClipToPadding(false);scroll.setBackground(visual.shape(0x06ffffff,0x15ffffff,31.68f,1));
+        details=column();details.setClipToPadding(false);details.setClipChildren(false);details.setPadding(visual.p(58.6f),visual.p(47.08f),visual.p(58.6f),visual.p(47.08f));scroll.addView(details);
+        LinearLayout.LayoutParams dp=new LinearLayout.LayoutParams(0,-1,57);dp.leftMargin=px(28);panels.addView(scroll,dp);
     }
     @Override protected void onResume(){super.onResume();if(authorized)load();else focusManagementContent();}
     @Override void focusManagementContent(){if(!authorized)ChildModeAuth.show(this,()->{authorized=true;list.requestFocus();load();});else list.requestFocus();}

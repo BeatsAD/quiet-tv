@@ -51,17 +51,16 @@ public final class AppManagementActivity extends ManagementUi {
         marginAdd(header,iconText("更多",R.drawable.ic_manage_more,this::morePanel),-2,30,8);
         marginAdd(header,iconText("关于",R.drawable.ic_about,()->startActivity(new Intent(this,AboutActivity.class))),-2,30,8);
         toolbar(false);
-        LinearLayout panels=row();panels.setGravity(Gravity.TOP);LinearLayout.LayoutParams pp=new LinearLayout.LayoutParams(-1,0,1);pp.topMargin=px(23);root.addView(panels,pp);
-        LinearLayout left=column();panels.addView(left,new LinearLayout.LayoutParams(0,-1,40));
-        LinearLayout filters=row();LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-1,px(30));fp.bottomMargin=px(12);left.addView(filters,fp);
+        LinearLayout body=managementContent(),filters=managementInfo;
         for(int i=0;i<FILTERS.length;i++){final int chosen=i;Button option=button(FILTERS[i],()->{filter=chosen;applyFilter();});option.setId(View.generateViewId());styleTab(option,true);
             option.setOnKeyListener((v,key,event)->{if(key==KeyEvent.KEYCODE_DPAD_DOWN){if(event.getAction()==KeyEvent.ACTION_DOWN)focusList();return true;}return false;});
             option.setNextFocusUpId(managementTab().getId());filterButtons.add(option);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,-1);if(i>0)p.leftMargin=px(10);filters.addView(option,p);}
         for(int i=0;i<filterButtons.size();i++){Button b=filterButtons.get(i);if(i>0)b.setNextFocusLeftId(filterButtons.get(i-1).getId());if(i+1<filterButtons.size())b.setNextFocusRightId(filterButtons.get(i+1).getId());}
-        LinearLayout caption=row();LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,px(24));cp.bottomMargin=px(6);left.addView(caption,cp);
-        count=muted("正在读取应用…",11);caption.addView(count,new LinearLayout.LayoutParams(0,-1,1));
+        count=managementHint("正在读取应用…");count.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);count.setPadding(px(16),0,0,0);filters.addView(count,new LinearLayout.LayoutParams(0,-1,1));
+        LinearLayout panels=row();panels.setGravity(Gravity.TOP);body.addView(panels,new LinearLayout.LayoutParams(-1,-1));
+        LinearLayout left=column();panels.addView(left,new LinearLayout.LayoutParams(0,-1,40));
         list=new RecyclerView(this);list.setLayoutManager(new LinearLayoutManager(this));adapter=new AppAdapter();list.setAdapter(adapter);list.setItemAnimator(null);list.setClipToPadding(false);list.setPadding(px(2),px(2),px(2),px(2));left.addView(list,new LinearLayout.LayoutParams(-1,0,1));
-        ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setClipToPadding(false);details=column();details.setGravity(Gravity.CENTER_HORIZONTAL);details.setPadding(px(25),px(27),px(25),px(22));details.setBackground(surface(0x12ffffff,0x06ffffff,0x1cffffff,20));scroll.addView(details);
+        ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setClipToPadding(false);scroll.setBackground(surface(0x12ffffff,0x06ffffff,0x1cffffff,20));details=column();details.setGravity(Gravity.CENTER_HORIZONTAL);details.setPadding(px(25),px(27),px(25),px(22));scroll.addView(details);
         LinearLayout.LayoutParams dp=new LinearLayout.LayoutParams(0,-1,57);dp.leftMargin=px(28);panels.addView(scroll,dp);
         if(state!=null){selected=state.getString("selected","");filter=state.getInt("filter",0);}
         IntentFilter packages=new IntentFilter(Intent.ACTION_PACKAGE_ADDED);packages.addAction(Intent.ACTION_PACKAGE_REMOVED);packages.addAction(Intent.ACTION_PACKAGE_CHANGED);packages.addDataScheme("package");registerReceiver(packagesChanged,packages);
