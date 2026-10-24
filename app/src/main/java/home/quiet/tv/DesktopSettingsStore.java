@@ -21,6 +21,7 @@ final class DesktopSettingsStore {
     void saveGreeting(boolean enabled,String text){preferences.edit().putBoolean("greeting-enabled",enabled).putString("greeting-text",text.replace('\r',' ').replace('\n',' ').replace('\t',' ').trim()).apply();DiagnosticLog.info("desktop.greeting.saved","enabled="+enabled);}
     boolean showTime(){return preferences.getBoolean("show-time",true);}
     boolean showAppTitle(){return preferences.getBoolean("show-app-title",true);}
+    boolean showAllAppsNames(){return preferences.getBoolean("show-all-apps-names",true);}
     boolean showButtons(){return preferences.getBoolean("show-buttons",true);}
     boolean showInput(){return preferences.getBoolean("show-input",showButtons());}
     boolean showNetwork(){return preferences.getBoolean("show-network",showButtons());}
@@ -30,5 +31,6 @@ final class DesktopSettingsStore {
     void showSettings(boolean show){preferences.edit().putBoolean("show-settings",show).apply();DiagnosticLog.info("desktop.setting","show-settings="+show);}
     void showTime(boolean show){preferences.edit().putBoolean("show-time",show).apply();DiagnosticLog.info("desktop.setting","show-time="+show);}
     void showAppTitle(boolean show){preferences.edit().putBoolean("show-app-title",show).apply();DiagnosticLog.info("desktop.setting","show-app-title="+show);}
+    void showAllAppsNames(boolean show){preferences.edit().putBoolean("show-all-apps-names",show).apply();DiagnosticLog.info("desktop.setting","show-all-apps-names="+show);}
     void showButtons(boolean show){preferences.edit().putBoolean("show-buttons",show).apply();DiagnosticLog.info("desktop.setting","show-buttons="+show);}
 }

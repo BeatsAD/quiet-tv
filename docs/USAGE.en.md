@@ -85,6 +85,8 @@ On upgrade, both time and date inherit the old combined preference once; they ca
 
 Desktop → App title controls the large title above the Dock and defaults to on. Hiding it keeps the Dock in place and updates the preview immediately. Changes apply when returning Home and persist locally across app restarts. This toggle is not included in the published packages yet.
 
+Desktop → All apps → App names controls names below second-screen cards. It defaults to on and is independent of the Home App title setting. Hiding names preserves card spacing and order. Changes apply when returning Home and persist across restarts. Classic, Gallery and the Android 4.4 compatibility profile share this setting. This toggle is not included in the published packages yet.
+
 ![Desktop display settings on the Sony TV, 1.1.2 / 34](assets/desktop-settings-1.1.2.png)
 
 ## Home greeting (development source)
