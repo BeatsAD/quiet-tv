@@ -9,6 +9,7 @@ import android.widget.*;
 
 /** Private launch gate and expiry screen. Returning cannot uncover the restricted application. */
 public final class ChildBlockActivity extends ManagementUi {
+    @Override boolean useSettingListStyle(){return false;}
     private String pkg;
     private ChildModeStore store;
     private boolean launched;
