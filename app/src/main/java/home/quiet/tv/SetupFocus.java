@@ -51,7 +51,7 @@ final class SetupFocus implements ViewTreeObserver.OnGlobalFocusChangeListener,
     @Override public boolean onPreDraw(){passiveContainers(host);update();return true;}
     private void update(){
         View focused=host.findFocus();RectF next=new RectF();
-        if(host.hasWindowFocus() && focused!=null && focused!=host && focused.isShown() && focused.isEnabled() && !(focused instanceof ScrollView)){
+        if(host.hasWindowFocus() && focused!=null && focused!=host && focused.isShown() && focused.isEnabled() && !(focused instanceof ScrollView) && !(focused.getBackground() instanceof ControlStyle)){
             Rect visible=new Rect();
             if(focused.getGlobalVisibleRect(visible)){
                 int[] origin=new int[2],windowOrigin=new int[2];host.getLocationOnScreen(origin);focused.getRootView().getLocationOnScreen(windowOrigin);

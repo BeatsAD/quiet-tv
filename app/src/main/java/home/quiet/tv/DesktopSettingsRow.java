@@ -17,10 +17,7 @@ final class DesktopSettingsRow extends LinearLayout {
         super(ui);this.ui=ui;setOrientation(HORIZONTAL);setGravity(Gravity.CENTER_VERTICAL);
         setPadding(ui.px(navigation?14:18),0,ui.px(navigation?14:18),0);
         setId(View.generateViewId());setFocusable(true);setFocusableInTouchMode(true);setClickable(true);
-        StateListDrawable background=new StateListDrawable();
-        background.addState(new int[]{android.R.attr.state_focused},ui.surface(0x24ffffff,0x16ffffff,0xfff3f4f7,10));
-        background.addState(new int[]{android.R.attr.state_selected},ui.surface(0x14ffffff,0x10ffffff,0x1effffff,10));
-        background.addState(new int[]{},new ColorDrawable(Color.TRANSPARENT));setBackground(background);
+        setBackground(ui.focusSurface(10));
         start=new ImageView(ui);int resource="shield".equals(symbol)?R.drawable.ic_manage_shield:0;
         if(resource!=0){start.setImageDrawable(UiCompat.drawable(ui,resource));start.setColorFilter(0xffa2a8b3);}else start.setImageDrawable(new Glyph(symbol,0xffa2a8b3));
         LayoutParams ip=new LayoutParams(ui.px(navigation?17:18),ui.px(navigation?17:18));ip.rightMargin=ui.px(13);addView(start,ip);

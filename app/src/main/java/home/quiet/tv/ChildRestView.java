@@ -40,11 +40,11 @@ final class ChildRestView extends FrameLayout {
         title.setLineSpacing(0,1.13f);if(Build.VERSION.SDK_INT>=28)title.setFallbackLineSpacing(false);
         note=text(theme==0?"伸个懒腰，和小熊一起放松一下。":theme==1?"让眼睛歇一歇，和小云朵伸个懒腰。":"小小探险家，也需要休息一下。",muted,false);
         leave=ui.button("好呀，去休息",onLeave);leave.setId(View.generateViewId());leave.setTextColor(theme==2?0xff25264e:Color.WHITE);
-        parent=ui.button("家长授权",onParent);parent.setId(View.generateViewId());parent.setTextColor(muted);
+        parent=ui.button("家长授权",onParent);parent.setId(View.generateViewId());parent.setTextColor(new android.content.res.ColorStateList(new int[][]{{android.R.attr.state_focused},{}},new int[]{ManagementUi.TEXT,muted}));
         leave.setContentDescription("好呀，去休息，返回桌面");parent.setContentDescription("家长授权");
         leave.setSingleLine(true);parent.setSingleLine(true);leave.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
         leave.setBackground(control(accent));parent.setBackground(control(Color.TRANSPARENT));
-        Drawable lock=UiCompat.drawable(ui,R.drawable.ic_child_lock).mutate();lock.setColorFilter(muted,PorterDuff.Mode.SRC_IN);parent.setCompoundDrawables(lock,null,null,null);
+        Drawable lock=UiCompat.drawable(ui,R.drawable.ic_child_lock).mutate();lock.setColorFilter(muted,PorterDuff.Mode.SRC_IN);parent.setCompoundDrawables(lock,null,null,null);parent.setOnFocusChangeListener((view,focused)->lock.setColorFilter(focused?ManagementUi.TEXT:muted,PorterDuff.Mode.SRC_IN));
         content.addView(leave);content.addView(parent);
         leave.setNextFocusDownId(parent.getId());leave.setNextFocusUpId(parent.getId());leave.setNextFocusLeftId(parent.getId());leave.setNextFocusRightId(parent.getId());
         parent.setNextFocusUpId(leave.getId());parent.setNextFocusDownId(leave.getId());parent.setNextFocusLeftId(leave.getId());parent.setNextFocusRightId(leave.getId());
@@ -55,10 +55,7 @@ final class ChildRestView extends FrameLayout {
         TextView v=new TextView(getContext());v.setText(value);v.setTextColor(color);v.setIncludeFontPadding(false);v.setGravity(Gravity.CENTER_VERTICAL);v.setTypeface(Typeface.DEFAULT,bold?Typeface.BOLD:Typeface.NORMAL);content.addView(v);return v;
     }
     private Drawable control(int color){
-        StateListDrawable states=new StateListDrawable();
-        GradientDrawable focused=new GradientDrawable(){private final Paint ring=new Paint(Paint.ANTI_ALIAS_FLAG);@Override public void draw(Canvas c){super.draw(c);Rect b=getBounds();ring.setColor(Color.WHITE);ring.setStyle(Paint.Style.STROKE);ring.setStrokeWidth(3*scale);float out=6*scale;c.drawRoundRect(new RectF(b.left-out,b.top-out,b.right+out,b.bottom+out),80*scale,80*scale,ring);}};
-        focused.setColor(color);focused.setCornerRadius(200);states.addState(new int[]{android.R.attr.state_focused},focused);
-        GradientDrawable normal=new GradientDrawable();normal.setColor(color);normal.setCornerRadius(200);states.addState(new int[]{},normal);return states;
+        return ControlStyle.action(getResources().getDisplayMetrics().widthPixels/960f,100,color,0);
     }
     private void place(View v,float x,float y,float w,float h,float font){
         LayoutParams p=new LayoutParams(Math.round(w*scale),Math.round(h*scale));p.leftMargin=Math.round(x*scale);p.topMargin=Math.round(y*scale);v.setLayoutParams(p);

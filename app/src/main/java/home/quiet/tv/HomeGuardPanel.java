@@ -133,6 +133,7 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
             for(HomeGuardState.Candidate other:candidates)if(candidate.label.equals(other.label))same++;
             String name=(selected?"已选择  ":"")+candidate.label+(same>1?"  "+candidate.component.getShortClassName():"");
             Button option=sheet.option(name,()->{state.select(candidate.component);sheet.dialog.dismiss();});
+            ControlStyle.choice(option,ui.unit,9,0x10ffffff,0x22ffffff);option.setSelected(selected);
             option.setSingleLine(true);option.setEllipsize(android.text.TextUtils.TruncateAt.END);option.setContentDescription(name+"  "+candidate.component.flattenToString());
             if(focus==null||selected)focus=option;
         }
