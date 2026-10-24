@@ -131,19 +131,19 @@ public final class AppManagementActivity extends ManagementUi {
         addAction(row,button(chosen?"关闭开机自启":"设为开机自启",()->{
             if(chosen){saveBootApp("","");return;}
             Sheet sheet=new Sheet("设为开机自启？");
-            sheet.text("下次开机进入 Quiet TV 后，将自动打开 "+app.label+"。"+(store.target().isEmpty()?"":"将替换当前自启应用："+store.label()+"。")+"每次开机仅打开一次，儿童模式限制仍然有效。");
+            sheet.text("开机或待机唤醒进入 Quiet TV 后，将自动打开 "+app.label+"。"+(store.target().isEmpty()?"":"将替换当前自启应用："+store.label()+"。")+"每次仅打开一次，按 Home 返回不重复，儿童模式限制仍然有效。");
             Button cancel=sheet.action("取消",sheet.dialog::dismiss);
             sheet.action("开启",()->{sheet.dialog.dismiss();saveBootApp(app.pkg,app.label);});sheet.show(cancel);
         }));gap(details,12);
     }
     private void saveBootApp(String pkg,String label){
-        try{new BootAppStore(this).select(pkg,label);renderDetails();if(firstAction!=null)firstAction.requestFocus();feedback(pkg.isEmpty()?"已关闭开机自启":"已设置，下次开机生效");}
+        try{new BootAppStore(this).select(pkg,label);renderDetails();if(firstAction!=null)firstAction.requestFocus();feedback(pkg.isEmpty()?"已关闭开机自启":"已设置，下次开机或待机唤醒生效");}
         catch(java.io.IOException e){message(e.getMessage());}
     }
     private void bootAppPanel(){
         BootAppStore store=new BootAppStore(this);Sheet sheet=new Sheet("开机自启");
         sheet.text(store.target().isEmpty()?"未开启。选择应用后，在详情中设置开机自启。":"当前自启应用："+store.label()+"。可选择其他应用替换。");
-        sheet.text("需让电视开机进入 Quiet TV。按 Home 返回桌面或待机唤醒时不会再次打开应用。");
+        sheet.text("开机或待机唤醒进入 Quiet TV 后生效。按 Home 返回桌面不会重复打开应用。");
         Button close=sheet.action("关闭",sheet.dialog::dismiss);
         if(!store.target().isEmpty())sheet.action("关闭开机自启",()->{sheet.dialog.dismiss();saveBootApp("","");});sheet.show(close);
     }
