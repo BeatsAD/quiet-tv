@@ -57,7 +57,7 @@ public final class AppManagementActivity extends ManagementUi {
     }
     private void ui(Runnable action){runOnUiThread(()->{if(!isDestroyed() && !isFinishing())action.run();});}
     @Override void managementConnected(){if(active){if(busy)refreshAfterConnection=true;else refresh();}}
-    @Override void managementMore(){morePanel();}
+    @Override void managementMoreOptions(LinearLayout menu){managementMoreOption(menu,"开机自启",this::bootAppPanel);super.managementMoreOptions(menu);}
     @Override protected void onResume(){super.onResume();active=true;refresh();}
     @Override void focusManagementContent(){filterButtons.get(filter).requestFocus();}
     @Override protected void onStop(){active=false;refreshAfterConnection=false;refreshGeneration++;if(reading){reading=false;busy=false;}coverUploads.close();super.onStop();}
@@ -68,7 +68,6 @@ public final class AppManagementActivity extends ManagementUi {
         worker.execute(()->{if(run!=refreshGeneration)return;try{List<AppRepository.App> values=repository.load(adb);ui(()->{if(!active || run!=refreshGeneration)return;reading=false;busy=false;all.clear();all.addAll(values);applyFilter();if(refreshAfterConnection){refreshAfterConnection=false;refresh();}});}catch(Exception e){ui(()->{if(!active || run!=refreshGeneration)return;reading=false;busy=false;adbFailure(e);});}});
     }
     private void adbFailure(Exception e){session.reportFailure(e.getMessage()==null?"读取失败":e.getMessage());count.setText("读取失败，请重试或检查 ADB 连接");renderDetails();message(e.getMessage()==null?e.toString():e.getMessage());}
-    private void morePanel(){Sheet sheet=new Sheet("更多");Button refresh=sheet.option("刷新应用列表",R.drawable.ic_manage_refresh,()->{sheet.dialog.dismiss();refresh();});sheet.option("开机自启",()->{sheet.dialog.dismiss();bootAppPanel();});sheet.option("开机广告",()->{sheet.dialog.dismiss();startActivity(new Intent(this,BootAdActivity.class));});sheet.option("首次设置",()->{sheet.dialog.dismiss();startActivity(new Intent(this,SetupActivity.class));});sheet.option("恢复原桌面",()->{sheet.dialog.dismiss();startActivity(new Intent(this,SetupActivity.class).putExtra("restore",true));});sheet.option("操作记录",R.drawable.ic_manage_history,()->{sheet.dialog.dismiss();showHistory();});sheet.action("关闭",sheet.dialog::dismiss);sheet.show(refresh);}
     // Each repository snapshot replaces app metadata as well as list membership/order.
     @android.annotation.SuppressLint("NotifyDataSetChanged")
     private void applyFilter(){
@@ -157,7 +156,6 @@ public final class AppManagementActivity extends ManagementUi {
         if(busy)return;busy=true;count.setText(getString(R.string.management_action_progress,action.label));renderDetails();
         worker.execute(()->{try{String result=operations.perform(adb,app,action);ui(()->{busy=false;feedback(result);refresh();focusList();});}catch(Exception e){ui(()->{busy=false;message(e.getMessage());refresh();focusList();});}});
     }
-    private void showHistory(){worker.execute(()->{try{String history=operations.history();ui(()->{Sheet sheet=new Sheet("操作记录");TextView text=muted(history,12);text.setLineSpacing(px(5),1);sheet.body.addView(text);Button close=sheet.action("关闭",sheet.dialog::dismiss);sheet.show(close);});}catch(Exception e){ui(()->message(e.getMessage()));}});}
     @Override void connectionPanel(){
         if(busy){message("正在读取或执行操作，请稍候");return;}
         super.connectionPanel();
