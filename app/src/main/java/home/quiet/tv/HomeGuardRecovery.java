@@ -100,7 +100,7 @@ final class HomeGuardRecovery {
         requestedAt=SystemClock.uptimeMillis();requestedHome=state.selected();state.status("已请求接管，等待桌面显示");Log.i(TAG,"home requested: "+reason+" uptime="+requestedAt);
         confirmation=()->{confirmation=null;requestedAt=0;requestedHome="";if(new HomeGuardState(c).enabled())new HomeGuardState(c).status("未确认进入桌面，请检查系统限制");};
         handler.postDelayed(confirmation,5000);
-        try{c.startActivity(new Intent(c,HomeActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED));}
+        try{c.startActivity(new Intent(c,HomeActivity.class).setAction(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED));}
         catch(ActivityNotFoundException|SecurityException failure){handler.removeCallbacks(confirmation);confirmation=null;requestedAt=0;requestedHome="";state.status("系统拒绝启动桌面");}
     }
     static void visible(Context c){

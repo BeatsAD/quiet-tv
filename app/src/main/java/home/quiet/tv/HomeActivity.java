@@ -110,6 +110,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         desktopSettings=new DesktopSettingsStore(this);
         column = getPreferences(0).getInt("column", 0);
         activePackage = getPreferences(0).getString("package", "");
+        if(state==null && isHomeIntent(getIntent()))resetHomeFocus();
         makeScene();
         IntentFilter packages=new IntentFilter(Intent.ACTION_PACKAGE_ADDED);packages.addAction(Intent.ACTION_PACKAGE_REMOVED);packages.addAction(Intent.ACTION_PACKAGE_CHANGED);packages.addDataScheme("package");
         registerReceiver(packageReceiver,packages);
@@ -294,7 +295,19 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     @Override protected void onDestroy(){BootAppLifecycle.destroyed(this);unregisterReceiver(packageReceiver);loader.shutdownNow();wallpapers.destroy();weather.destroy();super.onDestroy();}
-    @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);if(ready)focusCurrent(false);}
+    @Override protected void onNewIntent(Intent intent){
+        super.onNewIntent(intent);setIntent(intent);
+        if(isHomeIntent(intent))resetHomeFocus();else if(ready)focusCurrent(false);
+    }
+
+    private boolean isHomeIntent(Intent intent){return Intent.ACTION_MAIN.equals(intent.getAction()) && intent.hasCategory(Intent.CATEGORY_HOME);}
+
+    private void resetHomeFocus(){
+        if(inputPopup!=null && inputPopup.isShowing())inputPopup.dismiss();
+        row=0;column=Math.max(0,Math.min(restoreColumn,maxColumn(0)));
+        // Do not let an in-flight catalog refresh restore the old grid application.
+        activePackage="";saveFocus();focusCurrent(false);
+    }
 
     private static class App {
         String pkg,label; ComponentName component; Bitmap banner; int color;
