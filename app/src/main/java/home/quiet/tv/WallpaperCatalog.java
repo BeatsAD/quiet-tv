@@ -10,7 +10,7 @@ final class WallpaperCatalog {
     static final String DEFAULT_VIDEO = "golden-gate-sunset";
     static final String DAILY = "daily", BING = "bing-cn", BT = "bt-landscape";
     static boolean dailySource(String source) { return BING.equals(source)||BT.equals(source); }
-    static String sourceLabel(String source,boolean chinese) { return BT.equals(source)?chinese?"搏天风景":"Btstu Landscape":chinese?"必应国区":"Bing China"; }
+    static String sourceLabel(String source,boolean chinese) { return BT.equals(source)?chinese?"搏天风景":"Btstu Landscape":chinese?"必应中国":"Bing China"; }
     static final class DailyImage {
         String source=BING, key="", url="", title="", copyright="", link="", upstream="", day="";
         int slot,width,height;
