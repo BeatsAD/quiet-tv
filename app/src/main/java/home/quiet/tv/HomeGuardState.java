@@ -49,7 +49,7 @@ final class HomeGuardState {
     boolean protects(String pkg){ComponentName name=ComponentName.unflattenFromString(selected());return enabled() && name!=null && name.getPackageName().equals(pkg);}
     // Persist disabled mode before canceling scheduled recovery.
     @android.annotation.SuppressLint("ApplySharedPref")
-    void pause(String reason){preferences.edit().putString("mode","OFF").putBoolean("enabled",false).putString("status",reason).commit();HomeGuardRecovery.cancel();HomeGuardService.cancelPending();}
+    void pause(String reason){DiagnosticLog.info("home_guard.pause",reason);preferences.edit().putString("mode","OFF").putBoolean("enabled",false).putString("status",reason).commit();HomeGuardRecovery.cancel();HomeGuardService.cancelPending();}
     // Persist the selected HOME and firmware before subsequent recovery requests.
     @android.annotation.SuppressLint("ApplySharedPref")
     void select(ComponentName name){HomeGuardRecovery.cancel();HomeGuardService.cancelPending();preferences.edit().putBoolean("configured",true).putString("home",name.flattenToString()).putString("firmware",Build.FINGERPRINT).commit();}
@@ -62,7 +62,7 @@ final class HomeGuardState {
             for(Candidate home:homes)if(home.component.equals(actual)){select(actual);return;}}
         if(homes.size()==1)select(homes.get(0).component);
     }
-    void status(String text){if(!text.equals(preferences.getString("status","")))preferences.edit().putString("status",text).apply();}
+    void status(String text){if(!text.equals(preferences.getString("status",""))){preferences.edit().putString("status",text).apply();DiagnosticLog.info("home_guard.status",text);}}
     boolean serviceEnabled(){
         if(Settings.Secure.getInt(context.getContentResolver(),Settings.Secure.ACCESSIBILITY_ENABLED,0)!=1)return false;
         String current=Settings.Secure.getString(context.getContentResolver(),Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);

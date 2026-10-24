@@ -27,12 +27,13 @@ final class DockStore {
     }
     void save(List<String> packages){
         if(packages.size()>CAPACITY || new HashSet<>(packages).size()!=packages.size())throw new IllegalArgumentException("Dock 最多 "+CAPACITY+" 个且不能重复");
-        preferences.edit().putString("packages",new JSONArray(packages).toString()).apply();
+        preferences.edit().putString("packages",new JSONArray(packages).toString()).apply();DiagnosticLog.info("dock.saved","count="+packages.size());
     }
     boolean saveOrder(List<String> packages){
         if(packages.size()>CAPACITY || new HashSet<>(packages).size()!=packages.size())throw new IllegalArgumentException("Dock 最多 "+CAPACITY+" 个且不能重复");
         String previous=preferences.getString("packages","[]");
-        if(preferences.edit().putString("packages",new JSONArray(packages).toString()).commit())return true;
+        if(preferences.edit().putString("packages",new JSONArray(packages).toString()).commit()){DiagnosticLog.info("dock.order.saved","count="+packages.size());return true;}
+        DiagnosticLog.info("dock.order.failed","preferences write failed");
         preferences.edit().putString("packages",previous).apply();return false;
     }
     void remove(String pkg){ArrayList<String> packages=load();if(packages.remove(pkg))save(packages);}

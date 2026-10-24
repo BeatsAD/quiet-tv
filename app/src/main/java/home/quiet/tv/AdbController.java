@@ -30,7 +30,7 @@ final class AdbController implements Closeable {
     Stage stage(){return stage;}
     Failure failure(){return failure;}
     int generation(){return generation.get();}
-    private void publish(Stage value,String detail){stage=value;status.changed(detail);}
+    private void publish(Stage value,String detail){if(stage!=value)DiagnosticLog.info("adb.stage",value.name());stage=value;status.changed(detail);}
     private synchronized void publish(Stage value,String detail,int attempt){if(!closed && generation.get()==attempt)publish(value,detail);}
     private synchronized void attach(Closeable value,int attempt) throws IOException {
         if(closed || generation.get()!=attempt){value.close();throw new IOException("连接已取消");}transport=value;
@@ -135,6 +135,7 @@ final class AdbController implements Closeable {
             }catch(Exception e){boolean cancelled=closed || generation.get()!=attempt;failure=e;if(!cancelled){this.failure=failureFor(this.stage);disconnect();}if(cancelled)throw new IOException("连接已取消",e);break;}
         }
         if(this.failure==Failure.NONE)this.failure=Failure.PORT;
+        DiagnosticLog.error("adb.connection_failed."+this.failure.name(),failure);
         throw new IOException("连接失败（"+stage+"）："+(failure==null?"本机未开放 TCP ADB":(failure.getMessage()==null?failure.getClass().getSimpleName():failure.getMessage())),failure);
     }
 

@@ -45,7 +45,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         }
     };
     @Override protected void onServiceConnected(){
-        super.onServiceConnected();instance=this;state=new HomeGuardState(this);
+        super.onServiceConnected();DiagnosticLog.info("home_guard.service","connected");instance=this;state=new HomeGuardState(this);
         BootAppLifecycle.observe(this);
         state.preferences.registerOnSharedPreferenceChangeListener(this);
         if(!registered){IntentFilter filter=new IntentFilter(Intent.ACTION_SCREEN_OFF);filter.addAction(Intent.ACTION_SCREEN_ON);filter.addAction(Intent.ACTION_USER_PRESENT);filter.addAction(Intent.ACTION_CLOSE_SYSTEM_DIALOGS);
@@ -99,8 +99,9 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         if("com.tianci.tv".equals(previous) || "com.tianci.tv".equals(pkg) || now<transitionUntil){schedule("主页稳定期");return;}
         if(policy.consume(state.eventHome(),now,true,true,true))HomeGuardRecovery.launch(this,"原主页事件");
     }
-    @Override public void onInterrupt(){cancel();}
+    @Override public void onInterrupt(){DiagnosticLog.info("home_guard.service","interrupted");cancel();}
     @Override public boolean onUnbind(Intent intent){
+        DiagnosticLog.info("home_guard.service","unbound");
         cancel();if(instance==this)instance=null;
         if(state!=null && state.enabled())state.status("无障碍已断开，等待系统恢复");
         return super.onUnbind(intent);
