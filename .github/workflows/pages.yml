@@ -36,7 +36,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/quiet-tv-pages/assets"
           cp prototypes/install-guide/index.html prototypes/install-guide/styles.css prototypes/install-guide/app.js prototypes/install-guide/agent.md "$RUNNER_TEMP/quiet-tv-pages/"
-          cp prototypes/install-guide/assets/icon.svg prototypes/install-guide/assets/home.png "$RUNNER_TEMP/quiet-tv-pages/assets/"
+          cp prototypes/install-guide/assets/icon.svg prototypes/install-guide/assets/home.jpg "$RUNNER_TEMP/quiet-tv-pages/assets/"
       - name: Upload installation guide
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:

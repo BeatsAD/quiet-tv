@@ -152,6 +152,7 @@ dialog details { border-top: 1px solid #00000016; font-size: .875rem; }
 dialog summary { padding-block: .875rem; cursor: pointer; }
 dialog details p { color: var(--secondary); font-size: .8125rem; line-height: 1.8; margin: 0 0 1rem; }
 pre { font-family: "SFMono-Regular",Consolas,"PingFang SC",monospace; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--surface); border-radius: .75rem; margin: 0 0 1rem; padding: 1rem; max-height: 52dvh; overflow: auto; font-size: .75rem; line-height: 1.9; color: #424245; scrollbar-width: thin; }
+.install-request { max-height: none; overflow: visible; margin-bottom: .875rem; background: #fff; border: 1px solid #00000012; font-family: var(--font); font-size: .875rem; line-height: 1.8; }
 @media(min-width:375px) {
   .goal-options { grid-template-columns: 1fr 1.2fr; }
   .goal { padding: .7rem; gap: .5rem; }
@@ -215,10 +216,10 @@ pre { font-family: "SFMono-Regular",Consolas,"PingFang SC",monospace; white-spac
   html { scroll-behavior: auto; }
   *, *::before, *::after { transition: none !important; }
 }
-/* Keep the handoff compact: one primary action and a quiet preview link. */
-#agent-panel, #restore-panel { display: grid; grid-template-columns: minmax(0,1fr) auto; column-gap: 1rem; align-items: center; }
-.agent-description, #restore-panel .result-heading { grid-column: 1 / -1; }
-#agent-panel .primary, #restore-panel .primary { grid-column: 1; grid-row: 2; }
+/* Restore requests keep their secondary preview action. */
+#restore-panel { display: grid; grid-template-columns: minmax(0,1fr) auto; column-gap: 1rem; align-items: center; }
+#restore-panel .result-heading { grid-column: 1 / -1; }
+#restore-panel .primary { grid-column: 1; grid-row: 2; }
 .request-summary { grid-column: 2; grid-row: 2; }
 .request-summary > span { display: none; }
 .agent-description { margin: .65rem 0 .75rem; }
