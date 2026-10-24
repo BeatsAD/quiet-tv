@@ -22,8 +22,8 @@ This guide describes published [1.1.2 test builds](https://github.com/BeatsAD/qu
 
 Open 应用管理 (App Management) from All Apps. Management controls in this first Sony-targeted version are in Chinese.
 
-- Dock 管理 supports up to five shortcuts: add, replace, remove, or move left/right. OK saves reordering; Back cancels. Editing works without ADB.
-- **Home order**: open App management → 首页排序. Press OK to pick up an entry, use the arrows to move it, and press OK again to drop it. Back cancels the current move; 保存顺序 saves the page. Leaving with changes offers save, discard, or continue editing. Restore default also requires saving. Wallpaper Settings, Desktop Settings and App Management can all move.
+- Dock 管理 supports up to five shortcuts: add, replace, remove, or move left/right. In development source, each reorder move saves automatically; OK or Back ends moving without undoing saved changes. Editing works without ADB.
+- **Home order**: in development source, open App management → 应用排序. Press OK to select an entry, then use the arrows to move it. Each position change saves automatically; OK or Back ends moving. There are no save/reset buttons or save-on-exit prompts. Historical APKs retain their version-specific behavior. Wallpaper Settings, Desktop Settings and App Management can all move.
 - Filter all, user, preinstalled, disabled, or restorable packages.
 - The top-right ADB status opens local TCP connection settings (default port 5555). Enable network debugging on the TV and approve QuietTV's independent key. Six-digit wireless pairing is experimental, requires API33+ and actual device support, and is absent from legacy19.
 - Operations affect one package for the current Android user. Disabling retains data; uninstalling removes that user's app data. Preinstalled uninstall leaves the system APK; install-existing is offered only when a system APK is retained and never restores deleted data.
