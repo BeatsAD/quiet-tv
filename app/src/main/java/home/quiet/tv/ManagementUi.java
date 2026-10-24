@@ -16,6 +16,9 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     LinearLayout root,header;
     FrameLayout stage;
     float unit;
+    private final Button[] managementTabs=new Button[4];
+    private int managementPage=-1;
+    private boolean managementEntry=true;
     int px(float value){return Math.round(value*unit);}
     @Override public void onCreate(Bundle state){
         super.onCreate(state);BackNavigation.install(this,this::handleBack);unit=getResources().getDisplayMetrics().widthPixels/960f;
@@ -37,6 +40,11 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
         TextView title=label("应用管理",27);title.setPadding(px(14),0,0,0);header.addView(title,new LinearLayout.LayoutParams(0,-1,1));
     }
     boolean loadWallpaper(){return true;}
+    @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);managementEntry=true;}
+    @Override protected void onResume(){super.onResume();if(managementEntry && managementPage>=0){managementEntry=false;managementTab().requestFocus();}}
+    Button managementTab(){return managementTabs[managementPage];}
+    boolean managementTabFocused(){for(Button tab:managementTabs)if(tab!=null && tab.isFocused())return true;return false;}
+    void focusManagementContent(){}
     public void handleBack(){finish();}
     LinearLayout row(){LinearLayout view=new LinearLayout(this);view.setOrientation(LinearLayout.HORIZONTAL);view.setGravity(Gravity.CENTER_VERTICAL);return view;}
     LinearLayout column(){LinearLayout view=new LinearLayout(this);view.setOrientation(LinearLayout.VERTICAL);return view;}
@@ -74,20 +82,30 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     void leaveManagement(Runnable action){action.run();}
     LinearLayout toolbar(int selected){
         LinearLayout tools=row();LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,px(54));p.topMargin=px(22);root.addView(tools,p);
-        Class<?>[] pages={AppManagementActivity.class,DockEditorActivity.class,HomeSortActivity.class,ChildModeActivity.class};String[] titles={"应用列表","首页应用","应用排序","儿童模式"};
-        for(int i=0;i<pages.length;i++){
-            final int page=i;
-            tab(tools,titles[i],selected==i,()->{if(page!=selected)leaveManagement(()->{
-                startActivity(new Intent(this,pages[page]).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));
-                if(selected!=0)finish();
-            });});
+        String[] titles={"应用列表","首页应用","应用排序","儿童模式"};
+        for(int i=0;i<titles.length;i++){
+            Button tab=button(titles[i],()->{});managementTab(tab,i,selected,header.getChildAt(0));
+            LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(-2,px(36));tp.rightMargin=px(12);tools.addView(tab,tp);
         }
         tools.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));
         View line=new View(this);line.setBackgroundColor(0x18ffffff);root.addView(line,new LinearLayout.LayoutParams(-1,px(1)));return tools;
     }
-    private void tab(LinearLayout tools,String text,boolean selected,Runnable action){
-        Button b=button(text,action);styleTab(b,false);b.setSelected(selected);
-        LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(-2,px(36));tp.rightMargin=px(12);tools.addView(b,tp);
+    void managementTab(Button tab,int page,int selected,View back){
+        managementPage=selected;managementTabs[page]=tab;styleTab(tab,false);tab.setSelected(page==selected);tab.setFocusableInTouchMode(true);tab.setId(View.generateViewId());tab.setTag("management-tab-"+page);
+        if(back.getId()==View.NO_ID)back.setId(View.generateViewId());tab.setNextFocusUpId(back.getId());
+        if(page==selected)back.setNextFocusDownId(tab.getId());
+        tab.setOnClickListener(v->{if(page==selected){tab.requestFocus();return;}leaveManagement(()->{
+            Class<?>[] pages={AppManagementActivity.class,DockEditorActivity.class,HomeSortActivity.class,ChildModeActivity.class};
+            startActivity(new Intent(this,pages[page]).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));
+            if(selected!=0)finish();
+        });});
+        tab.setOnKeyListener((v,key,event)->{
+            if(key!=KeyEvent.KEYCODE_DPAD_LEFT && key!=KeyEvent.KEYCODE_DPAD_RIGHT && key!=KeyEvent.KEYCODE_DPAD_DOWN)return false;
+            if(event.getAction()==KeyEvent.ACTION_UP)return true;
+            if(key==KeyEvent.KEYCODE_DPAD_DOWN)focusManagementContent();
+            else{int next=Math.max(0,Math.min(managementTabs.length-1,page+(key==KeyEvent.KEYCODE_DPAD_RIGHT?1:-1)));if(next!=page)managementTabs[next].performClick();}
+            return true;
+        });
     }
     ImageView icon(android.graphics.drawable.Drawable art,int size){ImageView image=new ImageView(this);image.setScaleType(ImageView.ScaleType.FIT_CENTER);image.setBackground(surface(0x08ffffff,0x08ffffff,0,size*.24f));UiCompat.clipOutline(image);image.setImageDrawable(art);image.setLayoutParams(new LinearLayout.LayoutParams(px(size),px(size)));return image;}
     EditText input(String text,String hint){EditText edit=new EditText(this);edit.setText(text);edit.setHint(hint);edit.setSingleLine(true);edit.setTextColor(TEXT);edit.setHintTextColor(MUTED);edit.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(14));edit.setPadding(px(14),px(10),px(14),px(10));edit.setBackground(focusSurface(10));return edit;}

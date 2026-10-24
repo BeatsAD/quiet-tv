@@ -47,6 +47,7 @@ public final class HomeSortActivity extends ManagementUi {
         IntentFilter filter=new IntentFilter(Intent.ACTION_PACKAGE_ADDED);filter.addAction(Intent.ACTION_PACKAGE_REMOVED);filter.addAction(Intent.ACTION_PACKAGE_CHANGED);filter.addDataScheme("package");registerReceiver(packagesChanged,filter);
     }
     @Override protected void onResume(){super.onResume();refresh();}
+    @Override void focusManagementContent(){list.requestFocus();if(loaded)focusEntry(selected);}
     @Override protected void onPause(){if(loaded && !leaving && (dirty() || !moving.isEmpty()))pendingDraft=snapshot();super.onPause();}
     @Override protected void onDestroy(){unregisterReceiver(packagesChanged);worker.shutdown();super.onDestroy();}
     private boolean dirty(){return !draft.equals(original) || resetRequested && savedCustom;}
@@ -77,8 +78,8 @@ public final class HomeSortActivity extends ManagementUi {
                     if(beforeMove!=null)beforeMove=HomeOrderStore.project(beforeMove,ids);
                     if(!draft.contains(moving)){moving="";beforeMove=null;}
                     if(!draft.contains(selected))selected=draft.isEmpty()?"":draft.get(0);
-                    boolean first=!loaded;loaded=true;refreshing=false;adapter.notifyDataSetChanged();updateControls();
-                    if(first || list.hasFocus())focusEntry(selected);
+                    boolean listFocused=list.hasFocus();loaded=true;refreshing=false;adapter.notifyDataSetChanged();updateControls();
+                    if(listFocused)focusEntry(selected,true);
                     if(refreshAgain){refreshAgain=false;refresh();}
                 });
             }catch(Exception e){runOnUiThread(()->{if(isDestroyed() || isFinishing())return;refreshing=false;feedback("无法读取应用，请重新进入");});}
@@ -121,8 +122,11 @@ public final class HomeSortActivity extends ManagementUi {
         adapter.notifyItemRangeChanged(Math.min(from,to),Math.abs(from-to)+1);updateControls();focusEntry(id);
     }
     private void focusEntry(String id){
+        focusEntry(id,false);
+    }
+    private void focusEntry(String id,boolean preserveTab){
         int position=draft.indexOf(id);if(position<0)return;selected=id;
-        layout.scrollToPosition(position);list.post(()->{if(!focusHolder(position))list.post(()->focusHolder(position));});
+        layout.scrollToPosition(position);list.post(()->{if(preserveTab && managementTabFocused())return;if(!focusHolder(position))list.post(()->{if(!preserveTab || !managementTabFocused())focusHolder(position);});});
     }
     private boolean focusHolder(int position){
         if(isDestroyed() || isFinishing())return true;RecyclerView.ViewHolder holder=list.findViewHolderForAdapterPosition(position);

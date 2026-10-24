@@ -31,11 +31,10 @@ public final class ChildModeActivity extends ManagementUi {
         // Same management shell as the reviewed prototype, scoped to this page.
         Button back=iconButton("返回",R.drawable.ic_manage_back,this::handleBack);back.setBackground(visual.focus(0x04ffffff,0x21ffffff,100,false));visual.place(canvas,back,86.4f,63.66f,63.36f,63.36f);
         TextView title=visual.text("应用管理",53.76f,75.5f,0xffeeeff2);UiCompat.letterSpacing(title,.06f);visual.place(canvas,title,173.76f,57.6f,550,75.5f);
-        String[] titles={"应用列表","首页应用","应用排序","儿童模式"};Class<?>[] pages={AppManagementActivity.class,DockEditorActivity.class,HomeSortActivity.class,ChildModeActivity.class};
+        String[] titles={"应用列表","首页应用","应用排序","儿童模式"};
         int tabLeft=visual.p(86.4f);
         for(int i=0;i<4;i++){
-            final int page=i;Button tab=visual.button(titles[i],()->{if(page!=3){startActivity(new Intent(this,pages[page]).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));finish();}},false);
-            styleTab(tab,false);tab.setSelected(i==3);
+            Button tab=visual.button(titles[i],()->{},false);managementTab(tab,i,3,back);
             int width=Math.max(tab.getMinWidth(),(int)Math.ceil(tab.getPaint().measureText(titles[i]))+tab.getPaddingLeft()+tab.getPaddingRight());
             FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(width,px(36));tp.leftMargin=tabLeft;tp.topMargin=visual.p(176.29f);canvas.addView(tab,tp);tabLeft+=width+px(12);
         }
@@ -46,7 +45,8 @@ public final class ChildModeActivity extends ManagementUi {
         list=new RecyclerView(this);list.setLayoutManager(new LinearLayoutManager(this));cards=new Cards();list.setAdapter(cards);list.setItemAnimator(null);list.setClipToPadding(false);list.setPadding(visual.p(5),visual.p(5),visual.p(5),visual.p(5));visual.place(canvas,list,81.4f,352.45f,708.88f,701.83f);
         details=column();details.setClipToPadding(false);details.setClipChildren(false);details.setPadding(visual.p(58.6f),visual.p(47.08f),visual.p(58.6f),visual.p(47.08f));details.setBackground(visual.shape(0x06ffffff,0x15ffffff,31.68f,1));visual.place(canvas,details,842.87f,357.45f,990.73f,691.83f);
     }
-    @Override protected void onResume(){super.onResume();if(!authorized)ChildModeAuth.show(this,()->{authorized=true;load();});else load();}
+    @Override protected void onResume(){super.onResume();if(authorized)load();else managementTab().requestFocus();}
+    @Override void focusManagementContent(){if(!authorized)ChildModeAuth.show(this,()->{authorized=true;list.requestFocus();load();});else list.requestFocus();}
     @Override protected void onPause(){authorized=false;ChildModeAuth.dismiss(this);if(editing!=null)editing.dismiss();int removed=visible.size();visible.clear();cards.notifyItemRangeRemoved(0,removed);details.removeAllViews();count.setText("请输入家长密码");super.onPause();}
     @Override protected void onDestroy(){worker.shutdownNow();super.onDestroy();}
     private void load(){
@@ -60,10 +60,10 @@ public final class ChildModeActivity extends ManagementUi {
     // Catalog reloads and searches can replace the entire ordered list.
     @android.annotation.SuppressLint("NotifyDataSetChanged")
     private void filter(){
-        visible.clear();for(ResolveInfo info:apps)if((info.loadLabel(getPackageManager())+" "+info.activityInfo.packageName).toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT)))visible.add(info);
+        boolean listFocused=list.hasFocus();visible.clear();for(ResolveInfo info:apps)if((info.loadLabel(getPackageManager())+" "+info.activityInfo.packageName).toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT)))visible.add(info);
         boolean found=false;for(ResolveInfo info:visible)if(info.activityInfo.packageName.equals(selected))found=true;
         if(!found)selected=visible.isEmpty()?"":visible.get(0).activityInfo.packageName;count.setText(getString(R.string.child_management_app_count,visible.size()));cards.notifyDataSetChanged();render();
-        list.post(()->{for(int i=0;i<visible.size();i++)if(visible.get(i).activityInfo.packageName.equals(selected)){list.scrollToPosition(i);RecyclerView.ViewHolder holder=list.findViewHolderForAdapterPosition(i);if(holder!=null)holder.itemView.requestFocus();break;}});
+        if(listFocused)list.post(()->{if(managementTabFocused() || !authorized)return;for(int i=0;i<visible.size();i++)if(visible.get(i).activityInfo.packageName.equals(selected)){list.scrollToPosition(i);RecyclerView.ViewHolder holder=list.findViewHolderForAdapterPosition(i);if(holder!=null)holder.itemView.requestFocus();break;}});
     }
     private ResolveInfo current(){for(ResolveInfo info:visible)if(selected.equals(info.activityInfo.packageName))return info;return null;}
     private void render(){
@@ -115,7 +115,9 @@ public final class ChildModeActivity extends ManagementUi {
     static String describeTime(ChildModePolicy.Rule r){long minutes=r.limit/ChildModePolicy.MINUTE;return !r.limited()?"不限制":(r.mode==ChildModePolicy.DAILY?"每日 ":"单次 ")+(minutes>=60?minutes/60+" 小时"+(minutes%60==0?"":" "+minutes%60+" 分钟"):minutes+" 分钟");}
     static String summary(ChildModePolicy.Rule r){return (r.hidden?"已隐藏  ":"")+(r.locked?"已上锁":r.limited() && r.remaining()==0?"额度已用完":describeTime(r));}
     @android.annotation.SuppressLint("RestrictedApi")
-    @Override public boolean dispatchKeyEvent(KeyEvent event){int key=event.getKeyCode();if(event.getAction()==KeyEvent.ACTION_DOWN && list.hasFocus() && key==KeyEvent.KEYCODE_DPAD_RIGHT && first!=null){first.requestFocus();return true;}if(key==KeyEvent.KEYCODE_DPAD_LEFT){if(event.getAction()==KeyEvent.ACTION_DOWN && getCurrentFocus()==first){returning=true;return true;}if(returning){if(event.getAction()==KeyEvent.ACTION_UP){returning=false;list.requestFocus();}return true;}}return super.dispatchKeyEvent(event);}
+    @Override public boolean dispatchKeyEvent(KeyEvent event){int key=event.getKeyCode();if(event.getAction()==KeyEvent.ACTION_DOWN && list.hasFocus() && key==KeyEvent.KEYCODE_DPAD_RIGHT && first!=null){first.requestFocus();return true;}
+        if(event.getAction()==KeyEvent.ACTION_DOWN && list.hasFocus() && key==KeyEvent.KEYCODE_DPAD_UP){RecyclerView.ViewHolder holder=list.findContainingViewHolder(getCurrentFocus());if(holder==null || holder.getBindingAdapterPosition()==0){managementTab().requestFocus();return true;}}
+        if(key==KeyEvent.KEYCODE_DPAD_LEFT){if(event.getAction()==KeyEvent.ACTION_DOWN && getCurrentFocus()==first){returning=true;return true;}if(returning){if(event.getAction()==KeyEvent.ACTION_UP){returning=false;list.requestFocus();}return true;}}return super.dispatchKeyEvent(event);}
     private final class Cards extends RecyclerView.Adapter<Cards.Holder>{
         final class Holder extends RecyclerView.ViewHolder{final LinearLayout box;final ImageView icon,hidden,policy;final TextView title,state;Holder(LinearLayout box,ImageView icon,TextView title,TextView state,ImageView hidden,ImageView policy){super(box);this.box=box;this.icon=icon;this.title=title;this.state=state;this.hidden=hidden;this.policy=policy;}}
         @Override public Holder onCreateViewHolder(ViewGroup parent,int type){LinearLayout box=row();box.setPadding(visual.p(24.04f),visual.p(20.16f),visual.p(24.04f),visual.p(20.16f));box.setFocusable(true);box.setClickable(true);android.graphics.drawable.StateListDrawable bg=new android.graphics.drawable.StateListDrawable();bg.addState(new int[]{android.R.attr.state_focused},visual.shape(0x0cffffff,0xfff6f6f8,21.12f,2));bg.addState(new int[]{android.R.attr.state_selected},visual.shape(0x0cffffff,0x36ffffff,21.12f,1));bg.addState(new int[]{},visual.shape(0,0,21.12f,1));box.setBackground(bg);box.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);RecyclerView.LayoutParams lp=new RecyclerView.LayoutParams(-1,visual.p(117.37f));lp.bottomMargin=visual.p(9.6f);box.setLayoutParams(lp);
