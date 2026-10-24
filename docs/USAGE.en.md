@@ -14,7 +14,7 @@
 
 All Apps and Home order both use five columns. An incomplete last row uses the nearest valid column. Focus survives launcher process restarts. A historical build passed one Sony TV reboot. That result does not establish reboot or upgrade-state acceptance for 1.1.2.
 
-Development builds reduce the top gap when entering All Apps, keeping the clock, date and visible shortcuts fixed. More apps scroll continuously by row with focus, without scrollbars, an app count or footer labels. Up from the first grid row or Back from the grid restores the original home layout and the dock item selected before entering the grid. This change is not included in published 1.1.2 APKs.
+In development builds, the greeting, clock, date, weather, top-right shortcuts and dock scroll out together when entering All Apps, in both Classic and Art Gallery layouts. All Apps uses a smaller top gap and shows a centered, single-line name below every cover; long names end with an ellipsis, and row spacing stays consistent. More apps scroll continuously by row with focus, without scrollbars, an app count or footer labels. Up from the first grid row or Back from the grid restores the original home layout and the dock item selected before entering the grid. This change is not included in published 1.1.2 APKs.
 
 This guide describes published [1.1.2 test builds](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.2). Images are captured on a Sony TV running standard build 34 and do not establish full feature or other-device acceptance.
 

@@ -32,10 +32,11 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private static final String ADD_DOCK_ENTRY = "quiet:add-dock";
     static final int APP_COLUMNS = 5;
     private static final float CONTENT_MARGIN = 48;
-    // Raise the app viewport while keeping the home title and dock at y=314/386.
-    private static final float LIST_TOP = 147, HOME_HEADER_HEIGHT = 393;
-    private static final float HOME_TITLE_TOP = 167, HOME_DOCK_TOP = 239;
-    private static final float APP_TITLE_HEIGHT = 38;
+    // The complete first screen scrolls as one item; preserve its original composition.
+    private static final float HOME_HEADER_HEIGHT = 540;
+    private static final float HOME_TITLE_TOP = 314, HOME_DOCK_TOP = 386;
+    private static final float APP_TOP = 24, APP_TITLE_HEIGHT = APP_TOP + 38;
+    private static final float APP_GAP = 16, APP_LABEL_GAP = 6, APP_LABEL_HEIGHT = 20;
     private static final float FOCUS_SCALE = 1.065f, FOCUS_OUTSET = 5, FOCUS_STROKE = 3;
     // A critically damped spring settles without bouncing past the target.
     private static final android.animation.TimeInterpolator FOCUS_MOTION = t -> (float)((1-(1+8*t)*Math.exp(-8*t))/(1-9*Math.exp(-8)));
@@ -173,8 +174,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         layout.setSpanSizeLookup(new GridLayoutManager.SpanSizeLookup() {
             @Override public int getSpanSize(int position) { return position < 2 ? APP_COLUMNS : 1; }
         });
-        list.setLayoutManager(layout); list.setAdapter(new AppAdapter());
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-1,-1); lp.topMargin=px(LIST_TOP); root.addView(list,lp);
+        list.setLayoutManager(layout);
+        root.addView(list,new FrameLayout.LayoutParams(-1,-1));
         list.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override public void onScrolled(RecyclerView rv, int dx, int dy) {
                 View header=layout.findViewByPosition(0);
@@ -183,11 +184,12 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             }
         });
         glass = new Glass(); root.addView(glass,new FrameLayout.LayoutParams(-1,-1));
-        homeHeader=new HomeHeaderView(this,unit,chinese,outfit);root.addView(homeHeader,new FrameLayout.LayoutParams(-1,-1));
+        homeHeader=new HomeHeaderView(this,unit,chinese,outfit);
         greeting=homeHeader.greeting;weatherText=homeHeader.weather;clock=homeHeader.clock;date=homeHeader.date;timeRow=homeHeader.timeRow;topButtons=homeHeader.buttons;
         pills.addAll(homeHeader.pills);inputButton=pills.get(0);network=pills.get(1);
         inputButton.setOnClickListener(v->showInputs());network.setOnClickListener(v->openSettings(Settings.ACTION_WIFI_SETTINGS));pills.get(2).setOnClickListener(v->openSettings(Settings.ACTION_SETTINGS));
         weather=new WeatherController(this,chinese,(data,message,loading)->homeHeader.weather(data));
+        list.setAdapter(new AppAdapter());
         applyDesktopSettings();updateClock(); updateNetwork();
     }
 
@@ -422,19 +424,21 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         if(row<0){
             updateDock(animate);
             if(selected!=null){Tile previous=selected;selected=null;previous.invalidate();if(!dockTiles.contains(previous))previous.animate().scaleX(1).scaleY(1).translationX(0).translationY(0).setDuration(240).setInterpolator(FOCUS_MOTION);}
-            positionGlass(animate);Log.i(TAG,"Focus top="+topColumn);return;
+            if(scrollAnimation!=null)scrollAnimation.cancel();
+            list.stopScroll();scrollTarget=0;layout.scrollToPositionWithOffset(0,0);
+            list.post(()->positionGlass(animate));Log.i(TAG,"Focus top="+topColumn);return;
         }
         int position=row==0?0:2+(row-1)*APP_COLUMNS;
-        int offset=row==0?0:px(APP_TITLE_HEIGHT);
+        int offset=row==0?0:px(row==1?APP_TITLE_HEIGHT:APP_TOP);
         if(scrollAnimation!=null && scrollAnimation.isRunning() && scrollTarget!=position){scrollAnimation.cancel();list.stopScroll();}
         AppAdapter adapter=(AppAdapter)list.getAdapter();
-        int gridStride=px(adapter.gridHeight)+px(12);
-        int bottom=Math.max(px(8),list.getHeight()-px(APP_TITLE_HEIGHT)-gridRows()*gridStride);
+        int gridStride=px(adapter.gridHeight)+px(APP_GAP);
+        int bottom=Math.max(px(20),list.getHeight()-px(APP_TITLE_HEIGHT)-gridRows()*gridStride);
         if(list.getPaddingBottom()!=bottom)list.setPadding(px(CONTENT_MARGIN),0,px(CONTENT_MARGIN),bottom);
         boolean needsScroll=row<=1;
         if(row>1){
             View first=layout.findViewByPosition(position);
-            needsScroll=first==null || first.getTop()<px(APP_TITLE_HEIGHT) || first.getBottom()>list.getHeight()-px(20);
+            needsScroll=first==null || first.getTop()<px(APP_TOP) || first.getBottom()>list.getHeight()-px(20);
         }
         if(needsScroll && !(animate && scrollTarget==position && scrollAnimation!=null && scrollAnimation.isRunning())){
             if(scrollAnimation!=null)scrollAnimation.cancel();
@@ -529,8 +533,10 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private void positionGlass(boolean animate) {
         if(glass==null || !ready)return;
-        glass.setVisibility(row<0?View.VISIBLE:View.GONE);
-        if(row>=0)return;
+        View header=layout.findViewByPosition(0);
+        boolean visible=row<0 && header!=null && header.getTop()==0;
+        glass.setVisibility(visible?View.VISIBLE:View.GONE);
+        if(!visible)return;
         View view=visiblePills.get(topColumn);
         if(view==null || !view.isAttachedToWindow())return;
         int[] point=new int[2];int[] origin=new int[2];root.getLocationOnScreen(origin);
@@ -541,7 +547,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     private final class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>{
-        private final float gridHeight=((960-2*CONTENT_MARGIN)/APP_COLUMNS-16)*203f/360f+32;
+        private final float gridHeight=((960-2*CONTENT_MARGIN)/APP_COLUMNS-APP_GAP)*203f/360f+APP_LABEL_GAP+APP_LABEL_HEIGHT;
         private final float dockPadding=18, dockGap=18, dockWidth=(864-2*dockPadding-(DockStore.CAPACITY-1)*dockGap)/DockStore.CAPACITY, dockHeight=dockWidth*203f/360f;
         @Override public int getItemViewType(int position){return position==0?0:position==1?1:2;}
         @Override public int getItemCount(){return 2+apps.size();}
@@ -554,12 +560,18 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 wallpapers.observeDock(HomeActivity.this::invalidateDockBackdrop);
                 band.setClipChildren(false);place(header,band,-1,dockHeight+2*dockPadding,0,HOME_DOCK_TOP);
                 header.setTag(band);view=header;
-            }else if(type==1){TextView title=text(tr("全部应用","All apps"),18,400,0xffbbbbc3);title.setPadding(px(3),px(4),0,0);title.setLayoutParams(new RecyclerView.LayoutParams(-1,px(APP_TITLE_HEIGHT)));view=title;}
-            else{Tile tile=new Tile();RecyclerView.LayoutParams p=new RecyclerView.LayoutParams(-1,px(gridHeight));p.leftMargin=px(8);p.rightMargin=px(8);p.bottomMargin=px(12);tile.setLayoutParams(p);view=tile;}
+            }else if(type==1){TextView title=text(tr("全部应用","All apps"),18,400,0xffbbbbc3);title.setPadding(px(3),px(APP_TOP+4),0,0);title.setLayoutParams(new RecyclerView.LayoutParams(-1,px(APP_TITLE_HEIGHT)));view=title;}
+            else{Tile tile=new Tile(true);RecyclerView.LayoutParams p=new RecyclerView.LayoutParams(-1,px(gridHeight));p.leftMargin=px(APP_GAP/2);p.rightMargin=px(APP_GAP/2);p.bottomMargin=px(APP_GAP);tile.setLayoutParams(p);view=tile;}
             return new RecyclerView.ViewHolder(view){};
         }
         @Override public void onBindViewHolder(RecyclerView.ViewHolder holder,int position){
             if(position==0){
+                FrameLayout header=(FrameLayout)holder.itemView;
+                if(homeHeader.getParent()!=header){
+                    if(homeHeader.getParent()!=null)((ViewGroup)homeHeader.getParent()).removeView(homeHeader);
+                    place(header,homeHeader,960,HOME_HEADER_HEIGHT,-CONTENT_MARGIN,0);
+                }
+                header.setAlpha(1);
                 FrameLayout band=(FrameLayout)holder.itemView.getTag();if(dockPress!=null)dockPress.cancel();for(Tile old:dockTiles)old.animate().cancel();band.removeAllViews();dockTiles.clear();dockFocus=-2;
                 boolean empty=dock.size()==1&&ADD_DOCK_ENTRY.equals(dock.get(0).pkg);
                 float width=empty?176:dockWidth,height=empty?112:dockHeight;
@@ -577,11 +589,25 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private final class Tile extends View {
         App app;final Paint paint=new Paint(3);final Path clip=new Path();final RectF imageRect=new RectF();Shader highlight;
         final int[] location=new int[2],origin=new int[2];
-        Tile(){super(HomeActivity.this);setOnClickListener(v->{if(app!=null){for(int n=0;n<dock.size();n++)if(dock.get(n)==app){row=0;column=n;}for(int n=0;n<apps.size();n++)if(apps.get(n)==app){row=1+n/APP_COLUMNS;column=n%APP_COLUMNS;}focusCurrent(true);launchSelected();}});}
-        void bind(App value){if(app!=null && visibleTiles.get(app.pkg)==this)visibleTiles.remove(app.pkg);app=value;visibleTiles.put(app.pkg,this);setContentDescription(app.label);invalidate();}
+        final boolean showLabel;
+        final android.text.TextPaint labelPaint=new android.text.TextPaint(Paint.ANTI_ALIAS_FLAG);
+        private String label="";
+        private float labelBaseline;
+        Tile(){this(false);}
+        Tile(boolean showLabel){super(HomeActivity.this);this.showLabel=showLabel;
+            labelPaint.setTextSize(px(14));labelPaint.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));
+            labelPaint.setColor(0xfff1f2f6);labelPaint.setTextAlign(Paint.Align.CENTER);labelPaint.setShadowLayer(px(1),0,px(1),0x99000000);
+            setOnClickListener(v->{if(app!=null){for(int n=0;n<dock.size();n++)if(dock.get(n)==app){row=0;column=n;}for(int n=0;n<apps.size();n++)if(apps.get(n)==app){row=1+n/APP_COLUMNS;column=n%APP_COLUMNS;}focusCurrent(true);launchSelected();}});}
+        void bind(App value){if(app!=null && visibleTiles.get(app.pkg)==this)visibleTiles.remove(app.pkg);app=value;visibleTiles.put(app.pkg,this);setContentDescription(app.label);updateLabel();invalidate();}
         boolean emptyDock(){return app!=null&&ADD_DOCK_ENTRY.equals(app.pkg);}
         float imageHeight(){return emptyDock()?getHeight():getWidth()*203f/360f;}
-        @Override protected void onSizeChanged(int w,int h,int oldw,int oldh){super.onSizeChanged(w,h,oldw,oldh);highlight=new LinearGradient(0,0,w,imageHeight(),new int[]{0x30ffffff,0x09ffffff},null,Shader.TileMode.CLAMP);}
+        @Override protected void onSizeChanged(int w,int h,int oldw,int oldh){super.onSizeChanged(w,h,oldw,oldh);highlight=new LinearGradient(0,0,w,imageHeight(),new int[]{0x30ffffff,0x09ffffff},null,Shader.TileMode.CLAMP);updateLabel();}
+        private void updateLabel(){
+            if(!showLabel || app==null)return;
+            label=android.text.TextUtils.ellipsize(app.label,labelPaint,Math.max(0,getWidth()-px(8)),android.text.TextUtils.TruncateAt.END).toString();
+            Paint.FontMetrics metrics=labelPaint.getFontMetrics();
+            labelBaseline=imageHeight()+px(APP_LABEL_GAP)+(px(APP_LABEL_HEIGHT)-metrics.bottom-metrics.top)/2;
+        }
         @Override protected void onDraw(Canvas c){super.onDraw(c);if(app==null)return;float h=imageHeight(),radius=px(emptyDock()?16:11);RectF rect=imageRect;rect.set(0,0,getWidth(),h);clip.reset();clip.addRoundRect(rect,radius,radius,Path.Direction.CW);c.save();c.clipPath(clip);
             if(emptyDock())drawEmptyDock(c,rect);
             else{paint.setColor(0xff191a20);c.drawRect(rect,paint);c.drawBitmap(app.banner,null,rect,paint);}
@@ -590,6 +616,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 float stroke=px(emptyDock()?1.5f:FOCUS_STROKE),inset=stroke/2f;rect.inset(inset,inset);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(stroke);paint.setColor(Color.WHITE);c.drawRoundRect(rect,Math.max(0,radius-inset),Math.max(0,radius-inset),paint);paint.setStyle(Paint.Style.FILL);
             }
             c.restore();
+            if(showLabel)c.drawText(label,getWidth()/2f,labelBaseline,labelPaint);
         }
         private void drawEmptyDock(Canvas canvas,RectF rect){
             // Reuse the screen-aligned wallpaper cache; never bake in a wallpaper hue.
