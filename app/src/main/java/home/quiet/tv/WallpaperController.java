@@ -366,7 +366,12 @@ final class WallpaperController {
         ViewGroup.LayoutParams actionSize=actions.getLayoutParams();int actionHeight=px((isDaily||entry.video())&&!managing?60:43);if(actionSize.height!=actionHeight){actionSize.height=actionHeight;actions.setLayoutParams(actionSize);}
         dailySettings.setVisibility(isDaily&&!managing?View.VISIBLE:View.GONE);subtitle.setVisibility((isDaily||entry.video())&&!managing?View.VISIBLE:View.GONE);
         if(entry.video())subtitle.setText(preview.equals(failedVideo)?tr("播放已暂停，请预览重试或关闭动态壁纸","Playback paused. Preview to retry or turn off video wallpaper."):entry.width+" × "+entry.height+"  "+Math.round(entry.fps)+" FPS  "+Math.round(entry.durationMs/1000f)+tr(" 秒"," s"));
-        if(isDaily){WallpaperCatalog.DailyImage image=state.dailyImages.get(state.dailySource);String source=WallpaperCatalog.sourceLabel(state.dailySource,chinese);subtitle.setText(daily.busy()?daily.status(state.dailySource):source+"  "+(image!=null&&!image.title.isEmpty()?image.title:tr("每天自动更新","Updates daily")));}
+        if(isDaily){
+            WallpaperCatalog.DailyImage image=state.dailyImages.get(state.dailySource);
+            String description=WallpaperCatalog.sourceLabel(state.dailySource,chinese)+"  "+tr("每天自动更新","Updates daily");
+            if(store.cached(image)&&!image.title.isEmpty())description+="  "+image.title;
+            subtitle.setText(daily.busy()?daily.status(state.dailySource):description);
+        }
         boolean applied=preview.equals(state.current)&&!state.rotating;apply.setEnabled(!applied&&!managing);apply.setVisibility(applied||managing||isDaily?View.GONE:View.VISIBLE);apply.setText(entry.video()?tr("使用动态壁纸","Use video wallpaper"):WallpaperCatalog.DEFAULT.equals(preview)?tr("使用颜色主题","Use color theme"):tr("使用这张壁纸","Use wallpaper"));
         auto.setText(tr("壁纸轮播","Slideshow"));auto.setCompoundDrawables(toggleDrawable(state.rotating),null,null,null);auto.setCompoundDrawablePadding(px(7));auto.setContentDescription(state.rotating?tr("壁纸轮播，开","Slideshow, on"):tr("壁纸轮播，关","Slideshow, off"));auto.setEnabled(!WallpaperCatalog.DAILY.equals(state.current)&&state.pictures().size()>=2);auto.setAlpha(auto.isEnabled()?1:.4f);
         manage.setText(managing?tr("完成","Done"):tr("管理","Manage"));View restoreRow=(View)restore.getParent();restoreRow.setVisibility(managing&&!state.removed.isEmpty()?View.VISIBLE:View.GONE);
