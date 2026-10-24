@@ -19,6 +19,9 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     private final Button[] managementTabs=new Button[4];
     private int managementPage=-1;
     private boolean managementEntry=true;
+    AdbSession managementSession;
+    private AdbConnectionPanel managementConnection;
+    private Button managementStatus;
     int px(float value){return Math.round(value*unit);}
     @Override public void onCreate(Bundle state){
         super.onCreate(state);BackNavigation.install(this,this::handleBack);unit=getResources().getDisplayMetrics().widthPixels/960f;
@@ -41,7 +44,35 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     }
     boolean loadWallpaper(){return true;}
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);managementEntry=true;}
-    @Override protected void onResume(){super.onResume();if(managementEntry && managementPage>=0){managementEntry=false;managementTab().requestFocus();}}
+    @Override protected void onResume(){super.onResume();if(managementSession!=null)managementSession.resume();if(managementEntry && managementPage>=0){managementEntry=false;managementTab().requestFocus();}}
+    @Override protected void onStop(){if(managementConnection!=null)managementConnection.suspend();if(managementSession!=null)managementSession.suspend();super.onStop();}
+    @Override protected void onDestroy(){if(managementSession!=null)managementSession.close();super.onDestroy();}
+    void managementConnected(){}
+    void connectionPanel(){
+        AdbController adb=managementSession.adb;
+        if(adb.connected()){Sheet sheet=new Sheet("本机 ADB 连接");sheet.text("已连接本机  当前用户 "+adb.user);Button cancel=sheet.action("取消",sheet.dialog::dismiss);sheet.action("断开连接",()->{sheet.dialog.dismiss();managementSession.pause();managementConnected();});sheet.show(cancel);}
+        else managementConnection.show(this::managementConnected);
+    }
+    void managementMore(){
+        Sheet sheet=new Sheet("更多");
+        Button boot=sheet.option("开机广告",()->{sheet.dialog.dismiss();startActivity(new Intent(this,BootAdActivity.class));});
+        sheet.option("首次设置",()->{sheet.dialog.dismiss();startActivity(new Intent(this,SetupActivity.class));});
+        sheet.option("恢复原桌面",()->{sheet.dialog.dismiss();startActivity(new Intent(this,SetupActivity.class).putExtra("restore",true));});
+        sheet.action("关闭",sheet.dialog::dismiss);sheet.show(boot);
+    }
+    private void managementHeader(){
+        managementStatus=button("ADB 检测中",this::connectionPanel);managementStatus.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(12));managementStatus.setPadding(px(12),0,px(12),0);header.addView(managementStatus,new LinearLayout.LayoutParams(-2,px(30)));
+        Button more=iconText("更多",R.drawable.ic_manage_more,this::managementMore),about=iconText("关于",R.drawable.ic_about,()->startActivity(new Intent(this,AboutActivity.class)));
+        marginAdd(header,more,-2,30,8);marginAdd(header,about,-2,30,8);
+        View[] actions={header.getChildAt(0),managementStatus,more,about};
+        for(View action:actions)if(action.getId()==View.NO_ID)action.setId(View.generateViewId());
+        for(int i=0;i<actions.length;i++){View action=actions[i];action.setNextFocusLeftId(actions[Math.max(0,i-1)].getId());action.setNextFocusRightId(actions[Math.min(actions.length-1,i+1)].getId());action.setNextFocusDownId(managementTab().getId());}
+        managementSession=new AdbSession(this,new AdbSession.Listener(){
+            public void changed(AdbState state){managementStatus.setText(state.label());managementStatus.setTextColor(state.connection==AdbState.Connection.CONNECTED?0xffbacabd:TEXT);managementStatus.setContentDescription(state.description());}
+            public void connected(){managementConnected();}
+        });
+        managementConnection=new AdbConnectionPanel(this,managementSession.adb,managementSession.worker(),managementSession);
+    }
     Button managementTab(){return managementTabs[managementPage];}
     boolean managementTabFocused(){for(Button tab:managementTabs)if(tab!=null && tab.isFocused())return true;return false;}
     void focusManagementContent(){}
@@ -92,6 +123,7 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
             Button tab=button(titles[i],()->{});managementTab(tab,i,selected,header.getChildAt(0));
             LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(-2,px(36));tp.rightMargin=px(12);tools.addView(tab,tp);
         }
+        managementHeader();
         tools.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));
         View line=new View(this);line.setBackgroundColor(0x18ffffff);root.addView(line,new LinearLayout.LayoutParams(-1,px(1)));return tools;
     }

@@ -19,10 +19,8 @@ public final class AppManagementActivity extends ManagementUi {
     private final ArrayList<AppRepository.App> all=new ArrayList<>(),filtered=new ArrayList<>();
     private AdbController adb;
     private AdbSession session;
-    private AdbConnectionPanel connection;
     private AppRepository repository;
     private AppOperations operations;
-    private Button status;
     private final ArrayList<Button> filterButtons=new ArrayList<>();
     private AppCoverUploadPanel coverUploads;
     private TextView count;
@@ -30,7 +28,7 @@ public final class AppManagementActivity extends ManagementUi {
     private RecyclerView list;
     private AppAdapter adapter;
     private View firstAction;
-    private String selected="",connectionState="未连接";
+    private String selected="";
     private int filter;
     private boolean busy,reading,refreshAfterConnection,active,returningToList;
     private volatile int refreshGeneration;
@@ -42,15 +40,7 @@ public final class AppManagementActivity extends ManagementUi {
     };
     @Override public void onCreate(Bundle state){
         super.onCreate(state);repository=new AppRepository(this);operations=new AppOperations(this);
-        session=new AdbSession(this,new AdbSession.Listener(){
-            public void changed(AdbState state){updateConnection(state);}
-            public void connected(){if(active){if(busy)refreshAfterConnection=true;else refresh();}}
-        });adb=session.adb;
-        connection=new AdbConnectionPanel(this,adb,worker,session);coverUploads=new AppCoverUploadPanel(this);
-        status=button("ADB 未连接",this::connectionPanel);status.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(12));status.setPadding(px(12),0,px(12),0);header.addView(status,new LinearLayout.LayoutParams(-2,px(30)));
-        marginAdd(header,iconText("更多",R.drawable.ic_manage_more,this::morePanel),-2,30,8);
-        marginAdd(header,iconText("关于",R.drawable.ic_about,()->startActivity(new Intent(this,AboutActivity.class))),-2,30,8);
-        toolbar(false);
+        coverUploads=new AppCoverUploadPanel(this);toolbar(false);session=managementSession;adb=session.adb;
         LinearLayout body=managementContent(),filters=managementInfo;
         for(int i=0;i<FILTERS.length;i++){final int chosen=i;Button option=button(FILTERS[i],()->{filter=chosen;applyFilter();});option.setId(View.generateViewId());styleTab(option,true);
             option.setOnKeyListener((v,key,event)->{if(key==KeyEvent.KEYCODE_DPAD_DOWN){if(event.getAction()==KeyEvent.ACTION_DOWN)focusList();return true;}return false;});
@@ -66,11 +56,12 @@ public final class AppManagementActivity extends ManagementUi {
         IntentFilter packages=new IntentFilter(Intent.ACTION_PACKAGE_ADDED);packages.addAction(Intent.ACTION_PACKAGE_REMOVED);packages.addAction(Intent.ACTION_PACKAGE_CHANGED);packages.addDataScheme("package");registerReceiver(packagesChanged,packages);
     }
     private void ui(Runnable action){runOnUiThread(()->{if(!isDestroyed() && !isFinishing())action.run();});}
-    private void updateConnection(AdbState state){connectionState=state.description();status.setText(state.label());status.setTextColor(state.connection==AdbState.Connection.CONNECTED?0xffbacabd:TEXT);status.setContentDescription(state.description());}
-    @Override protected void onResume(){super.onResume();active=true;refresh();session.resume();}
+    @Override void managementConnected(){if(active){if(busy)refreshAfterConnection=true;else refresh();}}
+    @Override void managementMore(){morePanel();}
+    @Override protected void onResume(){super.onResume();active=true;refresh();}
     @Override void focusManagementContent(){filterButtons.get(filter).requestFocus();}
-    @Override protected void onStop(){active=false;refreshAfterConnection=false;refreshGeneration++;if(reading){reading=false;busy=false;}connection.suspend();coverUploads.close();session.suspend();super.onStop();}
-    @Override protected void onDestroy(){unregisterReceiver(packagesChanged);coverUploads.destroy();session.close();worker.shutdownNow();super.onDestroy();}
+    @Override protected void onStop(){active=false;refreshAfterConnection=false;refreshGeneration++;if(reading){reading=false;busy=false;}coverUploads.close();super.onStop();}
+    @Override protected void onDestroy(){unregisterReceiver(packagesChanged);coverUploads.destroy();worker.shutdownNow();super.onDestroy();}
     @Override protected void onSaveInstanceState(Bundle state){state.putString("selected",selected);state.putInt("filter",filter);super.onSaveInstanceState(state);}
     private void refresh(){
         if(busy)return;busy=true;reading=true;final int run=++refreshGeneration;count.setText("正在读取应用…");renderDetails();
@@ -167,10 +158,9 @@ public final class AppManagementActivity extends ManagementUi {
         worker.execute(()->{try{String result=operations.perform(adb,app,action);ui(()->{busy=false;feedback(result);refresh();focusList();});}catch(Exception e){ui(()->{busy=false;message(e.getMessage());refresh();focusList();});}});
     }
     private void showHistory(){worker.execute(()->{try{String history=operations.history();ui(()->{Sheet sheet=new Sheet("操作记录");TextView text=muted(history,12);text.setLineSpacing(px(5),1);sheet.body.addView(text);Button close=sheet.action("关闭",sheet.dialog::dismiss);sheet.show(close);});}catch(Exception e){ui(()->message(e.getMessage()));}});}
-    private void connectionPanel(){
+    @Override void connectionPanel(){
         if(busy){message("正在读取或执行操作，请稍候");return;}
-        if(adb.connected()){Sheet sheet=new Sheet("本机 ADB 连接");sheet.text("已连接本机  当前用户 "+adb.user);Button cancel=sheet.action("取消",sheet.dialog::dismiss);sheet.action("断开连接",()->{sheet.dialog.dismiss();session.pause();refresh();});sheet.show(cancel);}
-        else connection.show(this::refresh);
+        super.connectionPanel();
     }
     @Override public void handleBack(){if(details.hasFocus())focusList();else super.handleBack();}
     // Public Activity override; AndroidX core marks its inherited bridge class library-only.

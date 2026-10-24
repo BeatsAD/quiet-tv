@@ -25,9 +25,6 @@ public final class ChildModeActivity extends ManagementUi {
     private ChildModeUi visual;
     @Override public void onCreate(Bundle state){
         super.onCreate(state);store=new ChildModeStore(this);visual=new ChildModeUi(this);
-        marginAdd(header,iconText("搜索",R.drawable.ic_manage_search,this::search),-2,30,0);
-        marginAdd(header,iconText("更多",R.drawable.ic_manage_more,this::more),-2,30,8);
-        marginAdd(header,iconText("关于",R.drawable.ic_about,()->startActivity(new Intent(this,AboutActivity.class))),-2,30,8);
         toolbar(3);LinearLayout body=managementContent();count=managementHint("请输入家长密码");managementInfo.addView(count,new LinearLayout.LayoutParams(-1,-1));
         LinearLayout panels=row();panels.setGravity(Gravity.TOP);body.addView(panels,new LinearLayout.LayoutParams(-1,-1));
         list=new RecyclerView(this);list.setLayoutManager(new LinearLayoutManager(this));cards=new Cards();list.setAdapter(cards);list.setItemAnimator(null);list.setClipToPadding(false);list.setPadding(visual.p(5),visual.p(5),visual.p(5),visual.p(5));panels.addView(list,new LinearLayout.LayoutParams(0,-1,40));
@@ -101,7 +98,7 @@ public final class ChildModeActivity extends ManagementUi {
     private void show(Sheet sheet,View focus){editing=sheet.dialog;sheet.dialog.setOnDismissListener(d->{if(editing==sheet.dialog)editing=null;});sheet.show(focus);}
     private void permission(){Sheet sheet=new Sheet("开启计时服务");sheet.text(store.fault().isEmpty()?"需在无障碍设置开启“儿童模式计时”。到时限制的效果仍需在本机验证。":store.fault());sheet.action("取消",sheet.dialog::dismiss);Button open=sheet.action("去开启",()->{sheet.dialog.dismiss();try{startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));}catch(ActivityNotFoundException e){message("当前电视没有可用的无障碍设置入口");}});show(sheet,open);}
     private void search(){if(!authorized){ChildModeAuth.show(this,()->{authorized=true;load();});return;}Sheet sheet=new Sheet("搜索应用");EditText input=input(query,"应用名称或包名");sheet.body.addView(input);sheet.action("清空",()->{query="";sheet.dialog.dismiss();filter();});sheet.action("搜索",()->{query=input.getText().toString().trim();sheet.dialog.dismiss();filter();});show(sheet,input);}
-    private void more(){if(!authorized)return;Sheet sheet=new Sheet("更多");Button password=sheet.option("修改家长密码",()->{sheet.dialog.dismiss();ChildModeAuth.change(this,()->feedback("家长密码已修改"));});sheet.option("计时服务",()->{sheet.dialog.dismiss();permission();});sheet.action("关闭",sheet.dialog::dismiss);show(sheet,password);}
+    @Override void managementMore(){if(!authorized){ChildModeAuth.show(this,()->{authorized=true;load();managementMore();});return;}Sheet sheet=new Sheet("更多");sheet.option("搜索应用",R.drawable.ic_manage_search,()->{sheet.dialog.dismiss();search();});Button password=sheet.option("修改家长密码",()->{sheet.dialog.dismiss();ChildModeAuth.change(this,()->feedback("家长密码已修改"));});sheet.option("计时服务",()->{sheet.dialog.dismiss();permission();});sheet.action("关闭",sheet.dialog::dismiss);show(sheet,password);}
     static String describeTime(ChildModePolicy.Rule r){long minutes=r.limit/ChildModePolicy.MINUTE;return !r.limited()?"不限制":(r.mode==ChildModePolicy.DAILY?"每日 ":"单次 ")+(minutes>=60?minutes/60+" 小时"+(minutes%60==0?"":" "+minutes%60+" 分钟"):minutes+" 分钟");}
     static String summary(ChildModePolicy.Rule r){return (r.hidden?"已隐藏  ":"")+(r.locked?"已上锁":r.limited() && r.remaining()==0?"额度已用完":describeTime(r));}
     @android.annotation.SuppressLint("RestrictedApi")
