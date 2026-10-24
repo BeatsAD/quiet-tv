@@ -159,8 +159,9 @@ final class TvInputController {
         catch(RuntimeException e){return PanelState.FAILED;}
     }
     static final class Route {
-        final String label;final int source;
-        Route(String label,int source){this.label=label;this.source=source;}
+        final String label,activity,action;final int source;
+        Route(String label,int source){this.label=label;this.source=source;activity="ExternalSourceActivity";action="EXTSRC_PLAY";}
+        Route(String activity,String action){label=null;source=-1;this.activity=activity;this.action=action;}
     }
     static Route correction(String model,String provider,int type,String id){
         if(("MiTV-ANTL0".equals(model)||"MiTV_ANTL0".equals(model)) && "com.droidlogic.tvinput".equals(provider)
@@ -169,6 +170,26 @@ final class TvInputController {
                 && type==TvInputInfo.TYPE_DISPLAY_PORT){
             if(id.endsWith("/HW9"))return new Route("DP",29);
             if(id.endsWith("/HW10"))return new Route("USB-C",30);
+        }
+        if(("MiTV-MFZP0".equals(model)||"MiTV_MFZP0".equals(model)) && "com.mediatek.tvinput".equals(provider)
+                && type==TvInputInfo.TYPE_HDMI){
+            for(int port=4;port<=6;port++)if(id.endsWith("/HW"+port))return new Route("HDMI "+(port-3),port+19);
+        }
+        return null;
+    }
+    static Route xiaomiRoute(String model,String provider,int type,String id){
+        Route corrected=correction(model,provider,type,id);if(corrected!=null)return corrected;
+        // CN MediaTek firmware registers these inputs but does not handle their standard VIEW URI.
+        // Use only registered, known hardware IDs; never infer ports from the Xiaomi brand alone.
+        if(!"com.mediatek.tvinput".equals(provider))return null;
+        if(type==TvInputInfo.TYPE_HDMI){
+            if("MiTV-MFZP0".equals(model)||"MiTV_MFZP0".equals(model))return null;
+            for(int port=5;port<=7;port++)if(id.endsWith("/HW"+port))return new Route(null,port+18);
+        }
+        if(type==TvInputInfo.TYPE_COMPOSITE && id.endsWith("/HW2"))return new Route(null,2);
+        if(type==TvInputInfo.TYPE_TUNER){
+            if(id.endsWith("/HW0"))return new Route("dtmb.DTMBActivity","DTMB_PLAY");
+            if(id.endsWith("/HW1"))return new Route("AtvActivity","ATV_PLAY");
         }
         return null;
     }
@@ -179,8 +200,10 @@ final class TvInputController {
     }
     String inputLabel(TvInputInfo input){Route route=correction(input);return route==null?input.loadLabel(context).toString():route.label;}
     boolean openKnownInput(TvInputInfo input){
-        Route route=correction(input);if(route==null)return false;
-        ComponentName target=new ComponentName("com.xiaomi.mitv.tvplayer","com.xiaomi.mitv.tvplayer.ExternalSourceActivity");
+        android.content.pm.ServiceInfo service=input.getServiceInfo();
+        if((service.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0)return false;
+        Route route=xiaomiRoute(Build.MODEL,service.packageName,input.getType(),input.getId());if(route==null)return false;
+        ComponentName target=new ComponentName("com.xiaomi.mitv.tvplayer","com.xiaomi.mitv.tvplayer."+route.activity);
         try{
             android.content.pm.ActivityInfo activity=pm.getActivityInfo(target,0);
             int appState=pm.getApplicationEnabledSetting(target.getPackageName()),componentState=pm.getComponentEnabledSetting(target);
@@ -188,9 +211,12 @@ final class TvInputController {
                     || !(appState==PackageManager.COMPONENT_ENABLED_STATE_DEFAULT?activity.applicationInfo.enabled:appState==PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
                     || !(componentState==PackageManager.COMPONENT_ENABLED_STATE_DEFAULT?activity.enabled:componentState==PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
                     || (activity.permission!=null && pm.checkPermission(activity.permission,context.getPackageName())!=PackageManager.PERMISSION_GRANTED))return false;
-            context.startActivity(new Intent("com.xiaomi.mitv.tvplayer.EXTSRC_PLAY").setComponent(target).putExtra("input",route.source).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            Intent intent=new Intent("com.xiaomi.mitv.tvplayer."+route.action).setComponent(target).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            if(route.source>=0)intent.putExtra("input",route.source);
+            context.startActivity(intent);
             return true;
-        }catch(PackageManager.NameNotFoundException|SecurityException|android.content.ActivityNotFoundException e){return false;}
+        }catch(PackageManager.NameNotFoundException e){return false;}
+        catch(SecurityException|android.content.ActivityNotFoundException e){Log.w(TAG,"Xiaomi TV input launch failed: "+e.getClass().getSimpleName());return false;}
     }
 
 }
