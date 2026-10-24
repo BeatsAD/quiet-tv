@@ -53,8 +53,8 @@ public final class AppManagementActivity extends ManagementUi {
         toolbar(false);
         LinearLayout panels=row();panels.setGravity(Gravity.TOP);LinearLayout.LayoutParams pp=new LinearLayout.LayoutParams(-1,0,1);pp.topMargin=px(23);root.addView(panels,pp);
         LinearLayout left=column();panels.addView(left,new LinearLayout.LayoutParams(0,-1,40));
-        LinearLayout filters=row();LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-1,px(36));fp.bottomMargin=px(12);left.addView(filters,fp);
-        for(int i=0;i<FILTERS.length;i++){final int chosen=i;Button option=button(FILTERS[i],()->{filter=chosen;applyFilter();});option.setId(View.generateViewId());option.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(12));option.setPadding(px(10),0,px(10),0);option.setMinWidth(px(48));option.setSingleLine();
+        LinearLayout filters=row();LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-1,px(30));fp.bottomMargin=px(12);left.addView(filters,fp);
+        for(int i=0;i<FILTERS.length;i++){final int chosen=i;Button option=button(FILTERS[i],()->{filter=chosen;applyFilter();});option.setId(View.generateViewId());styleTab(option,true);
             option.setOnKeyListener((v,key,event)->{if(key==KeyEvent.KEYCODE_DPAD_DOWN){if(event.getAction()==KeyEvent.ACTION_DOWN)focusList();return true;}return false;});
             filterButtons.add(option);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,-1);if(i>0)p.leftMargin=px(10);filters.addView(option,p);}
         for(int i=0;i<filterButtons.size();i++){Button b=filterButtons.get(i);if(i>0)b.setNextFocusLeftId(filterButtons.get(i-1).getId());if(i+1<filterButtons.size())b.setNextFocusRightId(filterButtons.get(i+1).getId());}
@@ -131,19 +131,19 @@ public final class AppManagementActivity extends ManagementUi {
         addAction(row,button(chosen?"关闭开机自启":"设为开机自启",()->{
             if(chosen){saveBootApp("","");return;}
             Sheet sheet=new Sheet("设为开机自启？");
-            sheet.text("下次开机进入 Quiet TV 后，将自动打开 "+app.label+"。"+(store.target().isEmpty()?"":"将替换当前自启应用："+store.label()+"。")+"每次开机仅打开一次，儿童模式限制仍然有效。");
+            sheet.text("开机或待机唤醒进入 Quiet TV 后，将自动打开 "+app.label+"。"+(store.target().isEmpty()?"":"将替换当前自启应用："+store.label()+"。")+"每次仅打开一次，按 Home 返回不重复，儿童模式限制仍然有效。");
             Button cancel=sheet.action("取消",sheet.dialog::dismiss);
             sheet.action("开启",()->{sheet.dialog.dismiss();saveBootApp(app.pkg,app.label);});sheet.show(cancel);
         }));gap(details,12);
     }
     private void saveBootApp(String pkg,String label){
-        try{new BootAppStore(this).select(pkg,label);renderDetails();if(firstAction!=null)firstAction.requestFocus();feedback(pkg.isEmpty()?"已关闭开机自启":"已设置，下次开机生效");}
+        try{new BootAppStore(this).select(pkg,label);renderDetails();if(firstAction!=null)firstAction.requestFocus();feedback(pkg.isEmpty()?"已关闭开机自启":"已设置，下次开机或待机唤醒生效");}
         catch(java.io.IOException e){message(e.getMessage());}
     }
     private void bootAppPanel(){
         BootAppStore store=new BootAppStore(this);Sheet sheet=new Sheet("开机自启");
         sheet.text(store.target().isEmpty()?"未开启。选择应用后，在详情中设置开机自启。":"当前自启应用："+store.label()+"。可选择其他应用替换。");
-        sheet.text("需让电视开机进入 Quiet TV。按 Home 返回桌面或待机唤醒时不会再次打开应用。");
+        sheet.text("开机或待机唤醒进入 Quiet TV 后生效。按 Home 返回桌面不会重复打开应用。");
         Button close=sheet.action("关闭",sheet.dialog::dismiss);
         if(!store.target().isEmpty())sheet.action("关闭开机自启",()->{sheet.dialog.dismiss();saveBootApp("","");});sheet.show(close);
     }

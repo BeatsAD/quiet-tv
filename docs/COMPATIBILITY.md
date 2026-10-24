@@ -54,7 +54,7 @@ Both layouts share the native Home header with the preview. Only Desktop shows t
 
 ### 每日壁纸开发源码 / Daily wallpaper source
 
-每日壁纸共用同一套 Java 实现，入口位于原有壁纸设置，选中确认即启用。默认必应国区，搏天风景可选；本地轮播与每日模式互斥，离线保留已缓存图片。
+每日壁纸共用同一套 Java 实现，入口位于原有壁纸设置，选中确认即启用。默认必应中国，搏天风景可选；本地轮播与每日模式互斥，离线保留已缓存图片。
 
 | 档位 / Profile | 共用功能 / Shared features | 验证边界 / Evidence |
 | --- | --- | --- |

@@ -25,10 +25,8 @@ public final class DesktopSettingsActivity extends ManagementUi implements Share
     private LinearLayout desktop;
     private ScrollView desktopScroll;
     private DesktopSettingsRow greeting;
-    private TextView previewLayout;
     private Button back,classic,gallery;
     private final LinkedHashMap<String,Button> tabs=new LinkedHashMap<>();
-    private final Map<String,View> underlines=new HashMap<>();
     private final Map<String,DisplayChoice> choices=new LinkedHashMap<>();
     private final Map<String,String> focusTags=new HashMap<>();
     private final Map<String,Integer> scrollPositions=new HashMap<>();
@@ -60,9 +58,8 @@ public final class DesktopSettingsActivity extends ManagementUi implements Share
         root.post(()->{View target=focused==null?null:root.findViewWithTag(focused);if(target==null||!target.isShown()||!target.isEnabled())target=tabs.get(selectedSection);target.requestFocus();greetingEditor.restoreFocus();});
     }
     private void tab(LinearLayout navigation,String name,String text){
-        LinearLayout box=column();LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-2,-1);bp.rightMargin=px(30);navigation.addView(box,bp);
-        Button b=button(text,()->select(name,true));b.setFocusableInTouchMode(true);b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(16));b.setPadding(px(3),0,px(3),0);StateListDrawable tabBackground=new StateListDrawable();tabBackground.addState(new int[]{android.R.attr.state_focused},surface(0x18ffffff,0x10ffffff,0xfff3f4f7,8));tabBackground.addState(new int[]{},new ColorDrawable(Color.TRANSPARENT));b.setBackground(tabBackground);b.setId(View.generateViewId());b.setTag("tab-"+name);tabs.put(name,b);box.addView(b,new LinearLayout.LayoutParams(-2,0,1));
-        View underline=new View(this);box.addView(underline,new LinearLayout.LayoutParams(-1,px(2)));underlines.put(name,underline);
+        Button b=button(text,()->select(name,true));styleTab(b,false);b.setFocusableInTouchMode(true);b.setId(View.generateViewId());b.setTag("tab-"+name);tabs.put(name,b);
+        LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-2,px(36));bp.rightMargin=px(12);navigation.addView(b,bp);
         b.setOnKeyListener((v,key,event)->{
             if(key!=KeyEvent.KEYCODE_DPAD_LEFT&&key!=KeyEvent.KEYCODE_DPAD_RIGHT&&key!=KeyEvent.KEYCODE_DPAD_DOWN)return false;
             if(event.getAction()==KeyEvent.ACTION_UP)return true;
@@ -85,7 +82,7 @@ public final class DesktopSettingsActivity extends ManagementUi implements Share
         greetingEditor=new GreetingEditorPanel(this,desktopStore,fixedGreeting?tr("欢迎回家","Welcome home"):"",this::refreshControls);greeting.setOnClickListener(v->greetingEditor.show());LinearLayout.LayoutParams gp=new LinearLayout.LayoutParams(-1,px(44));gp.topMargin=px(8);controls.addView(greeting,gp);
         gap(controls,16);controls.addView(desktopLabel(tr("快捷按钮","Quick buttons")));LinearLayout shortcuts=row();controls.addView(shortcuts,new LinearLayout.LayoutParams(-1,px(38)));choice(shortcuts,"input",tr("信号源","Inputs"));choice(shortcuts,"network",tr("网络","Network"));choice(shortcuts,"settings",tr("设置","Settings"));
         LinearLayout right=column();right.setGravity(Gravity.CENTER_VERTICAL);LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(0,-1,1);rp.leftMargin=px(24);desktop.addView(right,rp);
-        LinearLayout heading=row();heading.addView(muted(tr("首页实时预览","Live Home preview"),13),new LinearLayout.LayoutParams(0,px(22),1));previewLayout=muted("",13);previewLayout.setTextColor(0xffa2a8b3);heading.addView(previewLayout);right.addView(heading,new LinearLayout.LayoutParams(-1,px(22)));gap(right,8);
+        LinearLayout heading=row();heading.addView(muted(tr("首页实时预览","Live Home preview"),13),new LinearLayout.LayoutParams(0,px(22),1));right.addView(heading,new LinearLayout.LayoutParams(-1,px(22)));gap(right,8);
         preview=new HomePreviewView(this,chinese,fixedGreeting);preview.setBackground(surface(0xff0e0f13,0xff0e0f13,0x26ffffff,10));UiCompat.clipOutline(preview);right.addView(preview,new LinearLayout.LayoutParams(-1,-2));
         wireDesktop();refreshControls();
     }
@@ -107,7 +104,7 @@ public final class DesktopSettingsActivity extends ManagementUi implements Share
         classic.setSelected("classic".equals(desktopStore.layout()));gallery.setSelected("gallery".equals(desktopStore.layout()));classic.setTextColor(classic.isSelected()?TEXT:MUTED);gallery.setTextColor(gallery.isSelected()?TEXT:MUTED);
         boolean[] checked={desktopStore.greetingEnabled(),desktopStore.showTime(),desktopStore.showAppTitle(),desktopStore.showDate(),weatherStore.enabled(),desktopStore.showInput(),desktopStore.showNetwork(),desktopStore.showSettings()};int i=0;for(DisplayChoice b:choices.values())b.setChecked(checked[i++]);
         String text=desktopStore.greetingText(fixedGreeting?tr("欢迎回家","Welcome home"):"");greeting.value(!desktopStore.greetingEnabled()?tr("已关闭","Off"):text.isEmpty()?tr("跟随时间","By time"):text);
-        previewLayout.setText("classic".equals(desktopStore.layout())?tr("经典布局","Classic"):tr("艺术画廊居中","Gallery"));if(preview!=null&&"desktop".equals(selectedSection))preview.refresh();
+        if(preview!=null&&"desktop".equals(selectedSection))preview.refresh();
     }
     private View activeView(){return "desktop".equals(selectedSection)?desktopScroll:"weather".equals(selectedSection)?weather.view:guard.view;}
     private void remember(){View focus=getCurrentFocus();if(focus!=null&&focus.getTag() instanceof String&&!String.valueOf(focus.getTag()).startsWith("tab-"))focusTags.put(selectedSection,(String)focus.getTag());View v=activeView();scrollPositions.put(selectedSection,v.getScrollY());}
@@ -119,7 +116,7 @@ public final class DesktopSettingsActivity extends ManagementUi implements Share
         if("weather".equals(name)&&weather==null){weather=new DesktopWeatherPanel(this);content.addView(weather.view,new FrameLayout.LayoutParams(-1,-1));wireRows(weather.rows(),tabs.get("weather"));}
         if("guard".equals(name)&&guard==null){guard=new HomeGuardPanel(this,tabs.get("guard"),false);content.addView(guard.view,new FrameLayout.LayoutParams(-1,-1));}
         desktop.setVisibility("desktop".equals(name)?View.VISIBLE:View.GONE);if(weather!=null)weather.view.setVisibility("weather".equals(name)?View.VISIBLE:View.GONE);if(guard!=null)guard.view.setVisibility("guard".equals(name)?View.VISIBLE:View.GONE);
-        for(String key:tabs.keySet()){tabs.get(key).setSelected(key.equals(name));tabs.get(key).setTextColor(key.equals(name)?TEXT:MUTED);underlines.get(key).setBackgroundColor(key.equals(name)?TEXT:Color.TRANSPARENT);}
+        for(String key:tabs.keySet())tabs.get(key).setSelected(key.equals(name));
         if(resumed){if("desktop".equals(name))preview.resume();else if("weather".equals(name))weather.resume();else guard.resume();}
         refreshControls();final int scroll=scrollPositions.containsKey(name)?scrollPositions.get(name):0;final View selectedView=activeView();selectedView.post(()->selectedView.scrollTo(0,scroll));
         if(tabFocus)tabs.get(name).requestFocus();back.setNextFocusDownId(tabs.get(name).getId());

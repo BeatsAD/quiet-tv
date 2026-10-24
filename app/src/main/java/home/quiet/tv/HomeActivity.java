@@ -115,7 +115,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         registerReceiver(packageReceiver,packages);
         loadApps();
         loader.execute(()->{try{
-            if(new SetupStore(this).shouldOffer(this))main.post(()->{if(!isFinishing() && !isDestroyed())startActivity(new Intent(this,SetupActivity.class));});
+            if(new SetupStore(this).shouldOffer(this))main.post(()->{if(!isFinishing() && !isDestroyed())leaveHome(()->startActivity(new Intent(this,SetupActivity.class)));});
         }catch(Exception e){Log.w(TAG,"Setup state unavailable; retaining home",e);}});
     }
 
@@ -252,6 +252,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     @Override protected void onResume() {
         super.onResume(); resumed=true;
+        BootAppLifecycle.visible(this);
         if(!HomeGuardService.connected())HomeGuardRecovery.request(this,"桌面恢复");
         getWindow().getDecorView().post(()->{if(resumed && hasWindowFocus()){HomeGuardRecovery.visible(this);launchBootApp();}});
         IntentFilter time=new IntentFilter(Intent.ACTION_TIME_TICK);time.addAction(Intent.ACTION_TIME_CHANGED);time.addAction(Intent.ACTION_TIMEZONE_CHANGED);
@@ -267,20 +268,23 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         super.onWindowFocusChanged(focused);if(focused && resumed){HomeGuardRecovery.visible(this);launchBootApp();}
     }
 
+    void checkBootApp(){getWindow().getDecorView().post(this::launchBootApp);}
+
     private void launchBootApp(){
-        android.app.KeyguardManager keyguard=(android.app.KeyguardManager)getSystemService(KEYGUARD_SERVICE);
-        if(keyguard!=null && keyguard.isKeyguardLocked())return;
+        if(!resumed || !hasWindowFocus() || !HomeGuardState.canShow(this))return;
         BootAppStore store=new BootAppStore(this);String pkg=store.consume();if(pkg.isEmpty())return;
-        try{
+        leaveHome(()->{try{
             Intent intent=store.launchIntent(pkg);
-            if(intent==null){Toast.makeText(this,tr("自启应用不可用，请在应用管理中重新设置","Startup app unavailable"),Toast.LENGTH_LONG).show();return;}
-            if(ChildBlockActivity.gate(this,pkg))return;
+            if(intent==null){Log.i(BootAppStore.TAG,"target unavailable");wallpapers.resume();Toast.makeText(this,tr("自启应用不可用，请在应用管理中重新设置","Startup app unavailable"),Toast.LENGTH_LONG).show();return;}
+            if(ChildBlockActivity.gate(this,pkg)){Log.i(BootAppStore.TAG,"blocked by child mode");return;}
             if(new HomeGuardState(this).protects(pkg))HomeGuardService.allowOriginal();
             startActivity(intent);
-        }catch(RuntimeException e){Toast.makeText(this,tr("自启应用暂时无法打开","Unable to open startup app"),Toast.LENGTH_SHORT).show();}
+            Log.i(BootAppStore.TAG,"launch requested");
+        }catch(RuntimeException e){Log.w(BootAppStore.TAG,"launch rejected");wallpapers.resume();Toast.makeText(this,tr("自启应用暂时无法打开","Unable to open startup app"),Toast.LENGTH_SHORT).show();}});
     }
 
     @Override protected void onPause() {
+        BootAppLifecycle.left(this);
         if(dockPress!=null)dockPress.cancel();updateDock(false);
         HomeGuardRecovery.leftHome(this);
         resumed=false;if(scrollAnimation!=null)scrollAnimation.cancel();list.stopScroll();saveFocus();wallpapers.pause();weather.pause();
@@ -291,7 +295,9 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         super.onPause();
     }
 
-    @Override protected void onDestroy(){unregisterReceiver(packageReceiver);loader.shutdownNow();wallpapers.destroy();weather.destroy();super.onDestroy();}
+    @Override protected void onStop(){wallpapers.stopped();super.onStop();}
+
+    @Override protected void onDestroy(){BootAppLifecycle.destroyed(this);unregisterReceiver(packageReceiver);loader.shutdownNow();wallpapers.destroy();weather.destroy();super.onDestroy();}
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);if(ready)focusCurrent(false);}
 
     private static class App {
@@ -472,7 +478,21 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private App currentApp(){if(row==0)return dock.isEmpty()?null:dock.get(Math.min(column,dock.size()-1));int n=(row-1)*APP_COLUMNS+column;return n>=0&&n<apps.size()?apps.get(n):null;}
 
-    private void launchSelected(){App app=currentApp();if(app==null)return;saveFocus();if(ADD_DOCK_ENTRY.equals(app.pkg)){startActivity(new Intent(this,DockEditorActivity.class));return;}if(DESKTOP_SETTINGS_ENTRY.equals(app.pkg)){startActivity(new Intent(this,DesktopSettingsActivity.class));return;}if(MANAGEMENT_ENTRY.equals(app.pkg)){startActivity(new Intent(this,AppManagementActivity.class));return;}if(WALLPAPER_ENTRY.equals(app.pkg)){wallpapers.showPicker();return;}try{if(ChildBlockActivity.gate(this,app.pkg))return;if(new HomeGuardState(this).protects(app.pkg))HomeGuardService.allowOriginal();startActivity(new Intent(Intent.ACTION_MAIN).setComponent(app.component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));}catch(RuntimeException e){Toast.makeText(this,tr("应用暂不可用，请检查儿童模式设置","App unavailable"),Toast.LENGTH_SHORT).show();}}
+    private void leaveHome(Runnable launch){wallpapers.beforeLeave(()->{if(resumed&&!isFinishing()&&!isDestroyed())launch.run();});}
+    private void launchSelected(){
+        App app=currentApp();if(app==null)return;saveFocus();
+        if(WALLPAPER_ENTRY.equals(app.pkg)){wallpapers.showPicker();return;}
+        leaveHome(()->{
+            if(ADD_DOCK_ENTRY.equals(app.pkg)){startActivity(new Intent(this,DockEditorActivity.class));return;}
+            if(DESKTOP_SETTINGS_ENTRY.equals(app.pkg)){startActivity(new Intent(this,DesktopSettingsActivity.class));return;}
+            if(MANAGEMENT_ENTRY.equals(app.pkg)){startActivity(new Intent(this,AppManagementActivity.class));return;}
+            try{
+                if(ChildBlockActivity.gate(this,app.pkg))return;
+                if(new HomeGuardState(this).protects(app.pkg))HomeGuardService.allowOriginal();
+                startActivity(new Intent(Intent.ACTION_MAIN).setComponent(app.component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            }catch(RuntimeException e){wallpapers.resume();Toast.makeText(this,tr("应用暂不可用，请检查儿童模式设置","App unavailable"),Toast.LENGTH_SHORT).show();}
+        });
+    }
 
     private void invalidateDockBackdrop() {
         if(dockBand!=null)dockBand.invalidate();
@@ -615,7 +635,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         }
     }
 
-    private void openSettings(String action){if(!new SystemSettingsRouter(this).open(action))Toast.makeText(this,tr("系统设置不可用，请使用电视遥控器","Settings unavailable; use the TV remote"),Toast.LENGTH_LONG).show();}
+    private void openSettings(String action){leaveHome(()->{if(!new SystemSettingsRouter(this).open(action)){wallpapers.resume();Toast.makeText(this,tr("系统设置不可用，请使用电视遥控器","Settings unavailable; use the TV remote"),Toast.LENGTH_LONG).show();}});}
 
     private void showInputs(){
         if(Build.VERSION.SDK_INT>=21){if(tvInputs==null)tvInputs=new TvInputs();tvInputs.show();return;}
