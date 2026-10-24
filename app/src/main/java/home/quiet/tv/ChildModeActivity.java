@@ -45,7 +45,7 @@ public final class ChildModeActivity extends ManagementUi {
         list=new RecyclerView(this);list.setLayoutManager(new LinearLayoutManager(this));cards=new Cards();list.setAdapter(cards);list.setItemAnimator(null);list.setClipToPadding(false);list.setPadding(visual.p(5),visual.p(5),visual.p(5),visual.p(5));visual.place(canvas,list,81.4f,352.45f,708.88f,701.83f);
         details=column();details.setClipToPadding(false);details.setClipChildren(false);details.setPadding(visual.p(58.6f),visual.p(47.08f),visual.p(58.6f),visual.p(47.08f));details.setBackground(visual.shape(0x06ffffff,0x15ffffff,31.68f,1));visual.place(canvas,details,842.87f,357.45f,990.73f,691.83f);
     }
-    @Override protected void onResume(){super.onResume();if(authorized)load();else managementTab().requestFocus();}
+    @Override protected void onResume(){super.onResume();if(authorized)load();else focusManagementContent();}
     @Override void focusManagementContent(){if(!authorized)ChildModeAuth.show(this,()->{authorized=true;list.requestFocus();load();});else list.requestFocus();}
     @Override protected void onPause(){authorized=false;ChildModeAuth.dismiss(this);if(editing!=null)editing.dismiss();int removed=visible.size();visible.clear();cards.notifyItemRangeRemoved(0,removed);details.removeAllViews();count.setText("请输入家长密码");super.onPause();}
     @Override protected void onDestroy(){worker.shutdownNow();super.onDestroy();}
