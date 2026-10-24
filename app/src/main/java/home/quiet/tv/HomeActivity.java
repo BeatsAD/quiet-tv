@@ -804,7 +804,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 uri=TvContract.buildChannelUri(channel);
             }
             try{startActivity(new Intent(Intent.ACTION_VIEW,uri).putExtra(TvInputInfo.EXTRA_INPUT_ID,info.getId()));Log.i(TAG,"Switch input "+info.getId());}
-            catch(ActivityNotFoundException|SecurityException e){offerSystemInputs();}
+            catch(ActivityNotFoundException|SecurityException e){Log.w(TAG,"Standard TV input launch failed: "+e.getClass().getSimpleName());offerSystemInputs();}
         }
 
         private String inputName(TvInputInfo info){

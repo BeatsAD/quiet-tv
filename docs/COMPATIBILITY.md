@@ -127,6 +127,8 @@ The published b24 universal APK passed its optimized build, full Lint (0 errors,
 
 ## 信号源兼容
 
+当前源码新增小米 MediaTek 输入直切（尚未发布）：只有本机已注册的系统输入及可调用的小米系统播放器同时存在时，HDMI HW5／HW6／HW7 分别使用源编号 23／24／25，AV HW2 使用 2，数字／模拟电视 HW0／HW1 使用各自播放器入口。型号修正优先，保留 MiTV-ANTL0 和 MiTV-MFFU1 的特定映射，并按上游记录处理 MiTV-MFZP0 的 HW4／HW5／HW6→23／24／25，避免通用编号误切；其他硬件编号和提供方继续使用标准路径，不按品牌补造端口。播放器缺失、禁用、未导出或权限不足时保留原有回退，调用异常记录异常类型。依据为 [Aerial 输入路由](https://github.com/pengchujin/aerial-tv/blob/e0173e672192d7fb2f0a2eb5510d8400253b1edf/app/src/main/java/app/orchard/tv/system/SystemState.kt)、[CleanYourTV 小米 Android 14 记录](https://github.com/Gathin23/cleanyourtv/blob/538d2606a6edcf2850b1257efb23526c72a6c44a/docs/devices/xiaomi-mitv-mftr0-freeguy.txt)和[端口映射修复](https://github.com/Gathin23/cleanyourtv/pull/722)。小米 S85 Mini LED／澎湃 3／Android 14 的输入列表、真实画面、声音及实体遥控切换仍待目标电视验收，不能将上游其他型号结果视为本机通过。安卓4.4档仍使用系统设置／遥控器。
+
 1.1.2 标准包已包含原厂信号源面板回退；安卓4.4兼容包仍使用系统设置／遥控器。Android 标准 TV Input 列表为空或服务不可用，并不证明电视没有输入接口。标准路径继续读取本机输入；回退按实际安装的系统组件、启用状态、导出状态和调用权限检测，不按品牌名称套用固定 HDMI 数量，也不自动修改系统组件或权限。
 
 | 候选固件 / Candidate | 源码行为 / Source behavior | 依据与验证边界 / Evidence |
