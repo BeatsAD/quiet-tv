@@ -61,4 +61,6 @@ for panel in panels['panels']:
     assert all(panel.get(key) for key in ['labelZh', 'labelEn', 'source', 'validation'])
     assert panel['source'].startswith(('https://github.com/Gathin23/cleanyourtv/', 'https://github.com/pengchujin/aerial-tv/')), 'Panel provenance is required'
     assert isinstance(panel.get('preferPanel', False), bool)
+    assert isinstance(panel.get('foregroundService', False), bool)
+    assert not panel.get('foregroundService') or panel['type'] == 'service'
 print(f'PASS: {len(components)} system input panel profile(s); runtime component and permission checks required')

@@ -18,6 +18,8 @@ Quiet TV 基于该项目开发，面向国内电视机的适配与应用升级�
 
 ## coocaa-home-shim（可选独立助手）
 
+系统设置、网络和厂商信号源接口另参考 [Aerial bc89bc51](https://github.com/pengchujin/aerial-tv/tree/bc89bc51a382899d3233f7d0b87db54a5d408348) 的 SystemState.kt、SettingsLaunch.kt 与 KonkaSources.kt，以及 [cleanyourtv eb0131a3](https://github.com/Gathin23/cleanyourtv/tree/eb0131a32fd8567086f39002f1782f7c1b078ca6) 的 SystemSettings.java、CoocaaSources.java。按现有 Java 结构实现组件检查、网络入口优先级和实际输入枚举；两项目的 MIT 版权及完整许可继续随包保留。具体适用范围见[兼容说明](docs/COMPATIBILITY.md)。
+
 - 来源：[VincentYe123/coocaa-home-shim](https://github.com/VincentYe123/coocaa-home-shim/tree/281a6a1362a9e30faaeb2169b75ba701dd0b1a03)，固定提交 `281a6a1362a9e30faaeb2169b75ba701dd0b1a03`。
 - Copyright (c) 2026 VincentYe123，MIT；[完整许可证](coocaa-home-shim/LICENSE)随助手 APK 打包。
 - 移植仅调整 Quiet TV 目标组件、构建配置及外部调用入口；保留上游主页中转、原桌面回退和短时开机处理。该助手不包含在普通 Quiet TV APK 内。

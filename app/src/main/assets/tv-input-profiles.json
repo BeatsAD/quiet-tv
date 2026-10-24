@@ -19,6 +19,7 @@
       "component": "com.hisense.tv.inputs/com.hisense.tv.InputsUIService",
       "type": "service",
       "action": "com.hisense.tv.start_inputs",
+      "foregroundService": true,
       "labelZh": "海信系统信号源",
       "labelEn": "Hisense system inputs",
       "source": "https://github.com/Gathin23/cleanyourtv/blob/3e996739ce0b470b51c1c438bf5d0559d1c9e7eb/examples/vidda-mt9653/debloat.txt#L45",
