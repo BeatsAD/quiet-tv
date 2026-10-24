@@ -26,7 +26,8 @@ final class WallpaperUploadServer extends NanoHTTPD {
     private final String host,token,connectionCode;
     private int failedConnections;
     private long blockedUntil;
-    private volatile boolean closed;
+    private volatile boolean closed,draining;
+    private final Set<ClientHandler> clients=new HashSet<>();
     private volatile long touched=System.nanoTime();
 
     WallpaperUploadServer(String host,int port,Assets assets,Importer importer) {
@@ -41,13 +42,12 @@ final class WallpaperUploadServer extends NanoHTTPD {
         StringBuilder text=new StringBuilder();for(byte b:random)text.append(String.format(Locale.ROOT,"%02x",b&255));token=text.toString();
         connectionCode=String.format(Locale.ROOT,"%06d",randomSource.nextInt(1000000));
         setAsyncRunner(new AsyncRunner(){
-            private final Set<ClientHandler> clients=new HashSet<>();
-            @Override public synchronized void exec(ClientHandler client) {
-                if(closed || clients.size()>=4){client.close();return;}clients.add(client);
+            @Override public void exec(ClientHandler client) {
+                synchronized(clients){if(closed || clients.size()>=4){client.close();return;}clients.add(client);}
                 Thread thread=new Thread(client,"wallpaper-http");thread.setDaemon(true);thread.start();
             }
-            @Override public synchronized void closed(ClientHandler client){clients.remove(client);}
-            @Override public synchronized void closeAll(){for(ClientHandler client:clients)client.close();clients.clear();}
+            @Override public void closed(ClientHandler client){boolean finish;synchronized(clients){clients.remove(client);finish=draining&&clients.isEmpty();}if(finish)WallpaperUploadServer.super.stop();}
+            @Override public void closeAll(){synchronized(clients){for(ClientHandler client:new ArrayList<>(clients))client.close();clients.clear();}}
         });
     }
     void listen() throws IOException { start(15000,true); }
@@ -56,6 +56,8 @@ final class WallpaperUploadServer extends NanoHTTPD {
     String connectionCode(){return connectionCode;}
     boolean expired(){return (System.nanoTime()-touched)/1000000>IDLE_MS;}
     void invalidate(){closed=true;}
+    /** For a one-shot recipient: reject new work while allowing the success response to drain. */
+    void finishAfterResponse(){boolean finish;synchronized(clients){closed=true;draining=true;finish=clients.isEmpty();}if(finish)super.stop();}
     @Override public void stop(){invalidate();super.stop();}
     @Override public Response serve(IHTTPSession session) {
         String prefix="/"+token+"/",uri=session.getUri();
