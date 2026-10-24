@@ -22,6 +22,8 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     AdbSession managementSession;
     private AdbConnectionPanel managementConnection;
     private Button managementStatus;
+    private Button managementMoreButton;
+    private PopupWindow managementMorePopup;
     int px(float value){return Math.round(value*unit);}
     @Override public void onCreate(Bundle state){
         super.onCreate(state);BackNavigation.install(this,this::handleBack);unit=getResources().getDisplayMetrics().widthPixels/960f;
@@ -45,7 +47,7 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     boolean loadWallpaper(){return true;}
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);managementEntry=true;}
     @Override protected void onResume(){super.onResume();if(managementSession!=null)managementSession.resume();if(managementEntry && managementPage>=0){managementEntry=false;managementTab().requestFocus();}}
-    @Override protected void onStop(){if(managementConnection!=null)managementConnection.suspend();if(managementSession!=null)managementSession.suspend();super.onStop();}
+    @Override protected void onStop(){if(managementMorePopup!=null)managementMorePopup.dismiss();if(managementConnection!=null)managementConnection.suspend();if(managementSession!=null)managementSession.suspend();super.onStop();}
     @Override protected void onDestroy(){if(managementSession!=null)managementSession.close();super.onDestroy();}
     void managementConnected(){}
     void connectionPanel(){
@@ -54,15 +56,37 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
         else managementConnection.show(this::managementConnected);
     }
     void managementMore(){
-        Sheet sheet=new Sheet("更多");
-        Button boot=sheet.option("开机广告",()->{sheet.dialog.dismiss();startActivity(new Intent(this,BootAdActivity.class));});
-        sheet.option("首次设置",()->{sheet.dialog.dismiss();startActivity(new Intent(this,SetupActivity.class));});
-        sheet.option("恢复原桌面",()->{sheet.dialog.dismiss();startActivity(new Intent(this,SetupActivity.class).putExtra("restore",true));});
-        sheet.action("关闭",sheet.dialog::dismiss);sheet.show(boot);
+        LinearLayout menu=column();menu.setPadding(px(7),px(7),px(7),px(7));menu.setBackground(surface(0xfa25262e,0xfa25262e,0,18));
+        managementMoreOptions(menu);
+        int width=px(180);managementMorePopup=new PopupWindow(menu,width,-2,true);
+        managementMorePopup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        if(Build.VERSION.SDK_INT>=21)managementMorePopup.setElevation(px(14));
+        managementMorePopup.setOutsideTouchable(true);
+        managementMorePopup.setOnDismissListener(()->{managementMorePopup=null;managementMoreButton.requestFocus();});
+        for(int i=0;i<menu.getChildCount();i++){
+            final int index=i;
+            menu.getChildAt(i).setOnKeyListener((v,key,event)->{
+                if(key==KeyEvent.KEYCODE_DPAD_LEFT || key==KeyEvent.KEYCODE_DPAD_RIGHT)return true;
+                if(key==KeyEvent.KEYCODE_DPAD_UP || key==KeyEvent.KEYCODE_DPAD_DOWN){if(event.getAction()==KeyEvent.ACTION_DOWN)menu.getChildAt(Math.max(0,Math.min(menu.getChildCount()-1,index+(key==KeyEvent.KEYCODE_DPAD_UP?-1:1)))).requestFocus();return true;}return false;
+            });
+        }
+        managementMorePopup.showAsDropDown(managementMoreButton,managementMoreButton.getWidth()-width,px(9));menu.getChildAt(0).requestFocus();
+    }
+    void managementMoreOptions(LinearLayout menu){
+        managementMoreOption(menu,"开机广告",()->startActivity(new Intent(this,BootAdActivity.class)));
+        managementMoreOption(menu,"首次设置",()->startActivity(new Intent(this,SetupActivity.class)));
+        managementMoreOption(menu,"恢复原桌面",()->startActivity(new Intent(this,SetupActivity.class).putExtra("restore",true)));
+    }
+    void managementMoreOption(LinearLayout menu,String title,Runnable action){
+        Button choice=button(title,()->{managementMorePopup.dismiss();action.run();});choice.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(15));choice.setTextColor(0xffeeeeef);
+        choice.setPadding(px(16),0,px(12),0);choice.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);choice.setFocusableInTouchMode(true);
+        StateListDrawable background=new StateListDrawable();background.addState(new int[]{android.R.attr.state_focused},surface(0xff51525d,0xff51525d,0,11));background.addState(new int[]{},new ColorDrawable(Color.TRANSPARENT));choice.setBackground(background);
+        menu.addView(choice,new LinearLayout.LayoutParams(-1,px(40)));
     }
     private void managementHeader(){
         managementStatus=button("ADB 检测中",this::connectionPanel);managementStatus.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(12));managementStatus.setPadding(px(12),0,px(12),0);header.addView(managementStatus,new LinearLayout.LayoutParams(-2,px(30)));
         Button more=iconText("更多",R.drawable.ic_manage_more,this::managementMore),about=iconText("关于",R.drawable.ic_about,()->startActivity(new Intent(this,AboutActivity.class)));
+        managementMoreButton=more;
         marginAdd(header,more,-2,30,8);marginAdd(header,about,-2,30,8);
         View[] actions={header.getChildAt(0),managementStatus,more,about};
         for(View action:actions)if(action.getId()==View.NO_ID)action.setId(View.generateViewId());
