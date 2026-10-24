@@ -53,7 +53,6 @@ public final class BootAdActivity extends ManagementUi {
             if(key!=KeyEvent.KEYCODE_DPAD_DOWN)return false;
             if(event.getAction()==KeyEvent.ACTION_DOWN)(cards.isEmpty()?firstAction():cards.get(0)).requestFocus();return true;
         });
-        footer("方向键选择  确定勾选  返回退出；不会自动重启电视");
     }
     @Override protected void onResume(){super.onResume();active=true;busy=false;refresh();session.resume();}
     @Override protected void onStop(){active=false;refreshAfterConnection=false;generation++;if(ticket!=null)ticket.cancel();connection.suspend();session.suspend();super.onStop();}

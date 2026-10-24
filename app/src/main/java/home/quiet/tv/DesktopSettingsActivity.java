@@ -50,7 +50,7 @@ public final class DesktopSettingsActivity extends ManagementUi implements Share
         if(!BuildConfig.LEGACY_19)tab(navigation,"guard",tr("桌面守护","Guard"));
         View line=new View(this);line.setBackgroundColor(0x18ffffff);root.addView(line,new LinearLayout.LayoutParams(-1,px(1)));
         content=new FrameLayout(this);LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,0,1);cp.topMargin=px(18);root.addView(content,cp);
-        makeDesktop();footer(tr("方向键移动  确定选择  返回上一级","Move with arrows  Select with OK  Back to return"));
+        makeDesktop();
         if(saved!=null)for(String name:tabs.keySet()){String tag=saved.getString("focus-"+name);if(tag!=null)focusTags.put(name,tag);scrollPositions.put(name,saved.getInt("scroll-"+name));}
         String section=saved==null?getIntent().getStringExtra(SECTION):saved.getString("desktop-section","desktop");
         select(section,false);
