@@ -36,6 +36,12 @@ final class DiagnosticLog {
     }
     static void info(String event,String detail){DiagnosticLog log=instance;if(log!=null)log.enqueue("INFO",event,detail);}
     static void error(String event,Throwable error){DiagnosticLog log=instance;if(log!=null)log.enqueue("ERROR",event,trace(error));}
+    static void error(String event,String detail,Throwable error){DiagnosticLog log=instance;if(log!=null)log.enqueue("ERROR",event,detail+" "+trace(error));}
+    // Deliberately omit data, extras, labels and URI paths: they may contain user information.
+    static String intent(android.content.Intent intent){
+        return "action="+intent.getAction()+" component="+(intent.getComponent()==null?"implicit":intent.getComponent().flattenToShortString())
+            +" package="+intent.getPackage()+" scheme="+intent.getScheme();
+    }
     // Exception messages can include input, URLs and credentials: keep only types and bounded frames.
     private static String trace(Throwable error){
         StringBuilder text=new StringBuilder();
@@ -65,7 +71,7 @@ final class DiagnosticLog {
             log.reportDropped();File file=new File(context.getCacheDir(),"diagnostic-export.txt");
             String header="Quiet TV 诊断日志\n生成时间："+new SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z",Locale.ROOT).format(new Date())
                 +"\n"+snapshot
-                +"\n本进程写入失败："+log.failedWrites+"  队列丢弃："+log.droppedTotal.get()+"\n范围：Quiet TV 自身关键事件及错误，不含完整系统日志、其他应用操作或逐次按键。\n时间字段为 Unix 毫秒；容量轮转会覆盖较早日志，进程停止期间不记录，异常终止可能丢失末尾记录。\n请检查内容后私下分享。\n\n[历史事件]\n";
+                +"\n本进程写入失败："+log.failedWrites+"  队列丢弃："+log.droppedTotal.get()+"\n范围：Quiet TV 自身关键事件及错误，包含首页三项系统入口的焦点、确认键和路由结果，不含完整系统日志或其他应用操作。跳转记录不证明系统页面正常显示或物理信号已切换。\n时间字段为 Unix 毫秒；容量轮转会覆盖较早日志，进程停止期间不记录，异常终止可能丢失末尾记录。\n请检查内容后私下分享。\n\n[历史事件]\n";
             byte[] headerBytes=header.getBytes(StandardCharsets.UTF_8);
             if(headerBytes.length>32768)throw new IOException("Diagnostic snapshot exceeds limit");
             try(OutputStream output=new FileOutputStream(file)){output.write(headerBytes);log.journal.copyTo(output);}

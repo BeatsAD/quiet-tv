@@ -66,6 +66,9 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private boolean rightButtonsVisible=true;
     private TextView clock, date, greeting, heroTitle, network, inputButton;
     private PopupWindow inputPopup;
+    private String systemEntryPending="";
+    private long systemEntryStarted;
+    private boolean systemEntryDispatched;
     private Typeface outfit;
     private boolean chinese = true, fixedGreeting = false, ready = false, resumed = false, requestedLocation = false;
     private float unit;
@@ -246,11 +249,13 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     @Override public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] results){
         super.onRequestPermissionsResult(requestCode,permissions,results);
         if(requestCode==101)updateNetwork();
+        if(requestCode==102)DiagnosticLog.info("input.permission.result","granted="+(results.length>0 && results[0]==PackageManager.PERMISSION_GRANTED));
         if(requestCode==102 && tvInputs!=null){if(results.length>0 && results[0]==PackageManager.PERMISSION_GRANTED)tvInputs.openPending();else tvInputs.pendingTvInput=null;}
     }
 
     @Override protected void onResume() {
         super.onResume(); resumed=true;
+        if(!systemEntryPending.isEmpty()){systemEntryLifecycle(systemEntryDispatched?"resume_return_unverified":"resume_before_dispatch");systemEntryPending="";}
         BootAppLifecycle.visible(this);
         if(!HomeGuardService.connected())HomeGuardRecovery.request(this,"桌面恢复");
         getWindow().getDecorView().post(()->{if(resumed && hasWindowFocus()){HomeGuardRecovery.visible(this);launchBootApp();}});
@@ -265,7 +270,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     @Override public void onWindowFocusChanged(boolean focused){
-        super.onWindowFocusChanged(focused);if(focused && resumed){HomeGuardRecovery.visible(this);launchBootApp();}
+        super.onWindowFocusChanged(focused);systemEntryLifecycle("window_focus="+focused);if(focused && resumed && systemEntryDispatched)systemEntryPending="";if(focused && resumed){HomeGuardRecovery.visible(this);launchBootApp();}
     }
 
     void checkBootApp(){getWindow().getDecorView().post(this::launchBootApp);}
@@ -284,6 +289,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     @Override protected void onPause() {
+        systemEntryLifecycle("pause");
         BootAppLifecycle.left(this);
         if(dockPress!=null)dockPress.cancel();updateDock(false);
         HomeGuardRecovery.leftHome(this);
@@ -403,11 +409,16 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     @android.annotation.SuppressLint("RestrictedApi")
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
         int key=event.getKeyCode();
+        if(event.getAction()==KeyEvent.ACTION_DOWN && hasWindowFocus() && systemEntryDispatched && !systemEntryPending.isEmpty()){systemEntryLifecycle("next_home_key");systemEntryPending="";}
+        boolean confirm=key==KeyEvent.KEYCODE_DPAD_CENTER || key==KeyEvent.KEYCODE_ENTER || key==KeyEvent.KEYCODE_NUMPAD_ENTER;
+        if(confirm && (!ready || row<0) && event.getRepeatCount()==0)
+            DiagnosticLog.info("home.action.key","entry="+topEntry()+" key="+key+" phase="+event.getAction()+" ready="+ready+" popup="+(inputPopup!=null && inputPopup.isShowing()));
         if(inputPopup!=null && inputPopup.isShowing())return super.dispatchKeyEvent(event);
         if(!ready)return super.dispatchKeyEvent(event);
         if(key==KeyEvent.KEYCODE_BACK && row>0){if(event.getAction()==KeyEvent.ACTION_UP)handleBack();return true;}
         if(key==KeyEvent.KEYCODE_DPAD_LEFT || key==KeyEvent.KEYCODE_DPAD_RIGHT || key==KeyEvent.KEYCODE_DPAD_UP || key==KeyEvent.KEYCODE_DPAD_DOWN){
             if(event.getAction()==KeyEvent.ACTION_UP)return true;
+            int previousRow=row,previousTop=topColumn;
             if(row<0){
                 if(key==KeyEvent.KEYCODE_DPAD_LEFT)topColumn=Math.max(0,topColumn-1);
                 if(key==KeyEvent.KEYCODE_DPAD_RIGHT)topColumn=Math.min(visiblePills.size()-1,topColumn+1);
@@ -418,6 +429,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 if(key==KeyEvent.KEYCODE_DPAD_UP){if(row==0){if(rightButtonsVisible){restoreColumn=column;row=-1;}}else{row--;column=Math.min(row==0?restoreColumn:column,maxColumn(row));}}
                 if(key==KeyEvent.KEYCODE_DPAD_DOWN && row<gridRows()){if(row==0)restoreColumn=column;row++;column=Math.min(column,maxColumn(row));}
             }
+            if((previousRow<0 || row<0) && (previousRow!=row || previousTop!=topColumn))
+                DiagnosticLog.info("home.action.focus","entry="+topEntry()+" row="+row+" key="+key);
             focusCurrent(true);return true;
         }
         if(key==KeyEvent.KEYCODE_DPAD_CENTER || key==KeyEvent.KEYCODE_ENTER || key==KeyEvent.KEYCODE_NUMPAD_ENTER){
@@ -638,9 +651,32 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         }
     }
 
-    private void openSettings(String action){leaveHome(()->{if(!new SystemSettingsRouter(this).open(action)){wallpapers.resume();Toast.makeText(this,tr("系统设置不可用，请使用电视遥控器","Settings unavailable; use the TV remote"),Toast.LENGTH_LONG).show();}});}
+    private String topEntry(){
+        if(row>=0 || topColumn<0 || topColumn>=visiblePills.size())return "none";
+        int index=pills.indexOf(visiblePills.get(topColumn));return index==0?"input":index==1?"network":index==2?"settings":"none";
+    }
+    private void systemEntryLifecycle(String state){
+        if(!systemEntryPending.isEmpty())DiagnosticLog.info("home.action.lifecycle","entry="+systemEntryPending+" elapsedMs="+(android.os.SystemClock.elapsedRealtime()-systemEntryStarted)+" state="+state);
+    }
+    private void leaveSystemEntry(String entry,Runnable action){
+        systemEntryPending=entry;systemEntryDispatched=false;systemEntryStarted=android.os.SystemClock.elapsedRealtime();
+        DiagnosticLog.info("home.action.request","entry="+entry+" ready="+ready+" resumed="+resumed+" windowFocus="+hasWindowFocus()+" api="+Build.VERSION.SDK_INT);
+        leaveHome(()->{systemEntryLifecycle("wallpaper_exit_ready");action.run();});
+    }
+    private void systemEntryResult(boolean dispatched){
+        systemEntryDispatched=dispatched;
+        systemEntryLifecycle(dispatched?"dispatched_unverified":"not_dispatched");
+        if(!dispatched)systemEntryPending="";
+    }
+    private void openSettings(String action){
+        leaveSystemEntry(Settings.ACTION_WIFI_SETTINGS.equals(action)?"network":"settings",()->{
+            boolean opened=new SystemSettingsRouter(this).open(action);systemEntryResult(opened);
+            if(!opened){wallpapers.resume();Toast.makeText(this,tr("系统设置不可用，请使用电视遥控器","Settings unavailable; use the TV remote"),Toast.LENGTH_LONG).show();}
+        });
+    }
 
     private void showInputs(){
+        DiagnosticLog.info("input.request","api="+Build.VERSION.SDK_INT+" standardSupported="+(Build.VERSION.SDK_INT>=21));
         if(Build.VERSION.SDK_INT>=21){if(tvInputs==null)tvInputs=new TvInputs();tvInputs.show();return;}
         Toast.makeText(this,tr("请在电视系统设置中选择信号源，或使用遥控器信号源键","Select an input in TV settings or use the remote input key"),Toast.LENGTH_LONG).show();
         openSettings(Settings.ACTION_SETTINGS);
@@ -667,6 +703,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             TvInputController.Snapshot snapshot=new TvInputController(HomeActivity.this).inspect();
             List<VendorTvInputs.Source> vendor=snapshot.inputs.isEmpty()?new VendorTvInputs(HomeActivity.this).load():Collections.emptyList();
             TvInputController.Panel direct=vendor.isEmpty()?snapshot.directPanel():null;
+            DiagnosticLog.info("input.menu.inspect","standard="+snapshot.state+" inputs="+snapshot.inputs.size()+" vendor="+vendor.size()+" panels="+snapshot.panels.size()+" profilesUnavailable="+snapshot.profilesUnavailable+" direct="+(direct!=null));
             if(direct!=null){openSystemInputs(direct);return;}
             ArrayList<TvInputInfo> inputs=snapshot.inputs;
             Collections.sort(inputs,(a,b)->{
@@ -680,10 +717,12 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 if(!info.isPassthroughInput() && !tuners.add("live"))continue;
                 addInputChoice(menu,choices,inputName(info),()->openInput(info));
             }
-            for(VendorTvInputs.Source source:vendor)addInputChoice(menu,choices,source.label,()->leaveHome(()->{
-                if(!new VendorTvInputs(HomeActivity.this).open(source)){wallpapers.resume();showInputProblem(tr("原厂信号源未接受切换请求，请使用电视遥控器。","The TV did not accept the input request. Use the TV remote."));}
+            for(VendorTvInputs.Source source:vendor)addInputChoice(menu,choices,source.label,()->leaveSystemEntry("input.vendor",()->{
+                boolean opened=new VendorTvInputs(HomeActivity.this).open(source);systemEntryResult(opened);
+                if(!opened){wallpapers.resume();showInputProblem(tr("原厂信号源未接受切换请求，请使用电视遥控器。","The TV did not accept the input request. Use the TV remote."));}
             }));
             for(TvInputController.Panel panel:snapshot.availablePanels())addInputChoice(menu,choices,panel.profile.label(chinese),()->openSystemInputs(panel));
+            DiagnosticLog.info("input.menu","choices="+choices.size());
             if(choices.isEmpty()){showUnavailableInputs(snapshot);return;}
             inputPopup=new PopupWindow(menu,px(222),-2,true);inputPopup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));inputPopup.setElevation(px(14));inputPopup.setOutsideTouchable(true);
             inputPopup.setOnDismissListener(()->main.post(()->updateHeaderFocus()));
@@ -699,7 +738,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
         private void addInputChoice(LinearLayout menu,ArrayList<TextView> choices,String title,Runnable action){
             TextView choice=text(title,15,400,0xffeeeeef);choice.setPadding(px(16),0,px(12),0);choice.setGravity(Gravity.CENTER_VERTICAL);choice.setFocusable(true);choice.setFocusableInTouchMode(true);choice.setBackground(ControlStyle.listRow(unit,11));
-            choice.setOnClickListener(v->{inputPopup.dismiss();action.run();});
+            final int choiceIndex=choices.size();choice.setOnClickListener(v->{DiagnosticLog.info("input.menu.select","index="+choiceIndex);inputPopup.dismiss();action.run();});
             choices.add(choice);menu.addView(choice,new LinearLayout.LayoutParams(-1,px(40)));
         }
 
@@ -713,8 +752,9 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         }
 
         private void openSystemInputs(TvInputController.Panel panel){
-            leaveHome(()->{
+            leaveSystemEntry("input.panel",()->{
                 TvInputController.PanelState state=new TvInputController(HomeActivity.this).openPanel(panel.profile);
+                systemEntryResult(state==TvInputController.PanelState.READY);
                 if(state!=TvInputController.PanelState.READY){wallpapers.resume();showInputProblem(panelProblem(state));}
             });
         }
@@ -734,6 +774,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         }
 
         private void showInputProblem(String message){
+            DiagnosticLog.info("input.problem","dialog_shown");
             android.app.AlertDialog dialog=new android.app.AlertDialog.Builder(HomeActivity.this)
                 .setTitle(tr("信号源暂不可用","Inputs unavailable")).setMessage(message)
                 .setNegativeButton(tr("返回","Back"),(d,w)->{})
@@ -759,7 +800,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             dialog.setOnDismissListener(d->main.post(()->updateHeaderFocus()));dialog.show();ControlStyle.dialog(dialog,unit);
         }
 
-        private void openInput(TvInputInfo info){leaveHome(()->{if(!launchInput(info))wallpapers.resume();});}
+        private void openInput(TvInputInfo info){leaveSystemEntry("input.standard",()->{DiagnosticLog.info("input.select","provider="+info.getServiceInfo().packageName+" type="+info.getType()+" passthrough="+info.isPassthroughInput());boolean opened=launchInput(info);systemEntryResult(opened);if(!opened)wallpapers.resume();});}
         private boolean launchInput(TvInputInfo info){
             TvInputController controller=new TvInputController(HomeActivity.this);
             if(controller.openKnownInput(info))return true;
@@ -769,6 +810,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             if(info.isPassthroughInput())uri=TvContract.buildChannelUriForPassthroughInput(info.getId());
             else{
                 if(checkCallingOrSelfPermission("android.permission.READ_TV_LISTINGS")!=PackageManager.PERMISSION_GRANTED){
+                    DiagnosticLog.info("input.permission","permission=android.permission.READ_TV_LISTINGS result=missing requestable="+(Build.VERSION.SDK_INT>=23));
                     if(Build.VERSION.SDK_INT>=23){pendingTvInput=info;requestPermissions(new String[]{"android.permission.READ_TV_LISTINGS"},102);}
                     else Toast.makeText(HomeActivity.this,tr("系统未授予电视频道读取权限","TV channel permission was not granted by the system"),Toast.LENGTH_SHORT).show();
                     return false;
@@ -776,14 +818,15 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 long channel=-1;
                 try(android.database.Cursor cursor=getContentResolver().query(TvContract.buildChannelsUriForInput(info.getId()),new String[]{TvContract.Channels._ID},null,null,null)){
                     if(cursor!=null && cursor.moveToFirst())channel=cursor.getLong(0);
-                }catch(SecurityException e){Toast.makeText(HomeActivity.this,tr("系统未允许读取电视频道","TV channels are restricted by the system"),Toast.LENGTH_SHORT).show();return false;}
+                }catch(SecurityException e){DiagnosticLog.error("input.channels.failed",e);Toast.makeText(HomeActivity.this,tr("系统未允许读取电视频道","TV channels are restricted by the system"),Toast.LENGTH_SHORT).show();return false;}
+                DiagnosticLog.info("input.channels","hasChannel="+(channel>=0));
                 if(channel<0){
                     android.app.AlertDialog.Builder dialog=new android.app.AlertDialog.Builder(HomeActivity.this)
                         .setTitle(tr("尚未配置电视频道","No TV channels configured"))
                         .setMessage(tr("电视系统的频道库为空。连接天线或有线电视后，可在信号源设置中搜台。网络直播请打开天光云影。","Connect an antenna or cable source, then configure channels. For IPTV, open your streaming app."))
                         .setNegativeButton(tr("返回","Back"),(d,w)->{});
                     Intent setup=info.createSetupIntent();
-                    if(setup!=null)dialog.setPositiveButton(tr("信号源设置","Set up input"),(d,w)->{try{startActivity(setup);}catch(ActivityNotFoundException|SecurityException e){Toast.makeText(HomeActivity.this,tr("信号源设置不可用","Input setup unavailable"),Toast.LENGTH_SHORT).show();}});
+                    if(setup!=null)dialog.setPositiveButton(tr("信号源设置","Set up input"),(d,w)->{try{DiagnosticLog.info("input.setup.request",DiagnosticLog.intent(setup));startActivity(setup);DiagnosticLog.info("input.setup.dispatch","dispatched_unverified");}catch(ActivityNotFoundException|SecurityException e){DiagnosticLog.error("input.setup.failed",e);Toast.makeText(HomeActivity.this,tr("信号源设置不可用","Input setup unavailable"),Toast.LENGTH_SHORT).show();}});
                     ControlStyle.dialog(dialog.show(),unit);return false;
                 }
                 uri=TvContract.buildChannelUri(channel);

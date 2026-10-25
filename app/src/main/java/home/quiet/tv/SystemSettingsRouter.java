@@ -66,24 +66,31 @@ final class SystemSettingsRouter {
 
     @SuppressWarnings("deprecation")
     boolean open(String action){
+        DiagnosticLog.info("settings.begin","action="+action);
         boolean ethernet=false;
         if(Settings.ACTION_WIFI_SETTINGS.equals(action)){
             ConnectivityManager manager=(ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);
             NetworkInfo active=manager==null?null:manager.getActiveNetworkInfo();
             ethernet=active!=null && active.isConnected() && active.getType()==ConnectivityManager.TYPE_ETHERNET;
+            DiagnosticLog.info("settings.network","service="+(manager!=null)+" active="+(active!=null)+" connected="+(active!=null && active.isConnected())+" type="+(active==null?-1:active.getType()));
         }
-        HashSet<String> attempted=new HashSet<>();
+        DiagnosticLog.info("settings.request","action="+action+" ethernet="+ethernet);
+        HashSet<String> attempted=new HashSet<>();int candidate=0;
         for(Intent intent:candidates(action,ethernet)){
+            String route="request="+action+" candidate="+(++candidate)+" "+DiagnosticLog.intent(intent);
             try{
                 boolean service=XGIMI.equals(intent.getComponent());
                 ResolveInfo resolved=service?pm.resolveService(intent,0):pm.resolveActivity(intent,0);
                 ComponentInfo info=resolved==null?null:service?resolved.serviceInfo:resolved.activityInfo;
-                if(info==null || !usable(info,service?((ServiceInfo)info).permission:((ActivityInfo)info).permission))continue;
+                if(info==null){DiagnosticLog.info("settings.route",route+" result=unresolved");continue;}
+                String rejection=rejection(info,service?((ServiceInfo)info).permission:((ActivityInfo)info).permission);
+                route+=" resolved="+new ComponentName(info.packageName,info.name).flattenToShortString();
+                if(!rejection.isEmpty()){DiagnosticLog.info("settings.route",route+" result="+rejection);continue;}
                 ComponentName target=new ComponentName(info.packageName,info.name);
-                if(!attempted.add(target.flattenToString()))continue;
-                if(!service && isHome((ActivityInfo)info))continue;
+                if(!attempted.add(target.flattenToString())){DiagnosticLog.info("settings.route",route+" result=duplicate");continue;}
+                if(!service && isHome((ActivityInfo)info)){DiagnosticLog.info("settings.route",route+" result=home_handler");continue;}
                 Intent launch=new Intent(intent).setComponent(target);
-                if(service){if(context.startService(launch)==null)continue;}
+                if(service){if(context.startService(launch)==null){DiagnosticLog.info("settings.route",route+" result=null_service");continue;}}
                 else{
                     // AOSP's translucent panel belongs above Home, without a separate black task.
                     boolean panel=context instanceof android.app.Activity && "com.android.tv.settings".equals(info.packageName)
@@ -91,21 +98,23 @@ final class SystemSettingsRouter {
                     if(!panel)launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                     context.startActivity(launch);
                 }
-                DiagnosticLog.info("settings.dispatch",(service?"service ":"activity ")+target.flattenToShortString());
+                DiagnosticLog.info("settings.dispatch",route+" type="+(service?"service":"activity")+" result=dispatched_unverified");
                 return true;
             }catch(RuntimeException failure){
-                DiagnosticLog.error("settings.route.failed",failure);
+                DiagnosticLog.error("settings.route.failed",route,failure);
             }
         }
         DiagnosticLog.info("settings.unavailable",action);
         return false;
     }
-    private boolean usable(ComponentInfo info,String permission){
-        if((info.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0 || !info.exported || (info.name.contains("CTSDummy") || "com.android.internal.app.ResolverActivity".equals(info.name) || "com.android.internal.app.ChooserActivity".equals(info.name)))return false;
+    private String rejection(ComponentInfo info,String permission){
+        if((info.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0)return "not_system";
+        if(!info.exported)return "not_exported";
+        if(info.name.contains("CTSDummy") || "com.android.internal.app.ResolverActivity".equals(info.name) || "com.android.internal.app.ChooserActivity".equals(info.name))return "resolver_or_dummy";
         int app=pm.getApplicationEnabledSetting(info.packageName),component=pm.getComponentEnabledSetting(new ComponentName(info.packageName,info.name));
-        return (app==PackageManager.COMPONENT_ENABLED_STATE_DEFAULT?info.applicationInfo.enabled:app==PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
-            && (component==PackageManager.COMPONENT_ENABLED_STATE_DEFAULT?info.enabled:component==PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
-            && (permission==null || pm.checkPermission(permission,context.getPackageName())==PackageManager.PERMISSION_GRANTED);
+        if(!(app==PackageManager.COMPONENT_ENABLED_STATE_DEFAULT?info.applicationInfo.enabled:app==PackageManager.COMPONENT_ENABLED_STATE_ENABLED))return "app_disabled state="+app;
+        if(!(component==PackageManager.COMPONENT_ENABLED_STATE_DEFAULT?info.enabled:component==PackageManager.COMPONENT_ENABLED_STATE_ENABLED))return "component_disabled state="+component;
+        return permission!=null && pm.checkPermission(permission,context.getPackageName())!=PackageManager.PERMISSION_GRANTED?"permission_denied permission="+permission:"";
     }
     private boolean isHome(ActivityInfo activity){
         for(ResolveInfo candidate:pm.queryIntentActivities(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME),0)){

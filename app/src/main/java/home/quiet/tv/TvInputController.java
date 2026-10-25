@@ -94,22 +94,28 @@ final class TvInputController {
     TvInputController(Context context){this.context=context;pm=context.getPackageManager();}
 
     Snapshot inspect(){
-        Snapshot result=new Snapshot();
+        Snapshot result=new Snapshot();int reported=0,filtered=0;
         try{
             TvInputManager manager=(TvInputManager)context.getSystemService(Context.TV_INPUT_SERVICE);
             if(manager==null)result.state=InputState.UNAVAILABLE;
             else{
-                for(TvInputInfo input:manager.getTvInputList())if(input.getParentId()==null
-                    && (Build.VERSION.SDK_INT<24 || !input.isHidden(context)) && !hiddenInput(Build.MODEL,input.getServiceInfo().packageName,input.getId()))result.inputs.add(input);
+                for(TvInputInfo input:manager.getTvInputList()){
+                    reported++;
+                    if(input.getParentId()==null && (Build.VERSION.SDK_INT<24 || !input.isHidden(context)) && !hiddenInput(Build.MODEL,input.getServiceInfo().packageName,input.getId())){
+                        result.inputs.add(input);
+                        if(result.inputs.size()<=8)DiagnosticLog.info("input.enumeration.item","index="+(result.inputs.size()-1)+" service="+new ComponentName(input.getServiceInfo().packageName,input.getServiceInfo().name).flattenToShortString()+" type="+input.getType()+" passthrough="+input.isPassthroughInput());
+                    }else filtered++;
+                }
                 result.state=result.inputs.isEmpty()?InputState.EMPTY:InputState.READY;
             }
-        }catch(SecurityException e){result.state=InputState.RESTRICTED;}
+        }catch(SecurityException e){result.state=InputState.RESTRICTED;DiagnosticLog.error("input.enumeration.restricted",e);}
         // Some old firmware exposes a manager without a working backing service.
-        catch(RuntimeException e){result.state=InputState.FAILED;Log.w(TAG,"TV input enumeration failed: "+e.getClass().getSimpleName());}
+        catch(RuntimeException e){result.state=InputState.FAILED;DiagnosticLog.error("input.enumeration.failed",e);Log.w(TAG,"TV input enumeration failed: "+e.getClass().getSimpleName());}
         try(InputStream in=context.getAssets().open("tv-input-profiles.json");ByteArrayOutputStream out=new ByteArrayOutputStream()){
             byte[] buffer=new byte[4096];int size;while((size=in.read(buffer))!=-1)out.write(buffer,0,size);
             for(Profile profile:parseProfiles(out.toString("UTF-8"))){Panel panel=inspectPanel(profile);if(panel!=null)result.panels.add(panel);}
-        }catch(IOException|JSONException e){result.profilesUnavailable=true;Log.w(TAG,"TV input profiles unavailable: "+e.getClass().getSimpleName());}
+        }catch(IOException|JSONException e){result.profilesUnavailable=true;DiagnosticLog.error("input.profiles.failed",e);Log.w(TAG,"TV input profiles unavailable: "+e.getClass().getSimpleName());}
+        DiagnosticLog.info("input.enumeration","state="+result.state+" reported="+reported+" filtered="+filtered+" usable="+result.inputs.size()+" detailsOmitted="+Math.max(0,result.inputs.size()-8)+" panels="+result.panels.size());
         return result;
     }
 
@@ -121,11 +127,12 @@ final class TvInputController {
     }
 
     private Panel inspectPanel(Profile profile){
-        if(!profile.feature.isEmpty() && !pm.hasSystemFeature(profile.feature))return null;
+        String route="type="+profile.type+" "+DiagnosticLog.intent(profile.intent());
+        if(!profile.feature.isEmpty() && !pm.hasSystemFeature(profile.feature)){DiagnosticLog.info("input.panel.inspect",route+" result=missing_feature feature="+profile.feature);return null;}
         ComponentName name=null;
         int flags=Build.VERSION.SDK_INT>=24?PackageManager.MATCH_DISABLED_COMPONENTS:PackageManager.GET_DISABLED_COMPONENTS;
         try{
-            name=panelComponent(profile);if(name==null)return null;
+            name=panelComponent(profile);if(name==null){DiagnosticLog.info("input.panel.inspect",route+" result=unresolved");return null;}
             ComponentInfo info;String permission;
             if("activity".equals(profile.type)){
                 android.content.pm.ActivityInfo activity=pm.getActivityInfo(name,flags);info=activity;permission=activity.permission;
@@ -133,34 +140,35 @@ final class TvInputController {
                 android.content.pm.ServiceInfo service=pm.getServiceInfo(name,flags);info=service;permission=service.permission;
             }
             // A matching package name alone must not turn an ordinary app into a system-source handler.
-            if((info.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0)return null;
+            if((info.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0){DiagnosticLog.info("input.panel.inspect",route+" result=not_system");return null;}
             int appState=pm.getApplicationEnabledSetting(name.getPackageName()),componentState=pm.getComponentEnabledSetting(name);
             boolean appEnabled=appState==PackageManager.COMPONENT_ENABLED_STATE_DEFAULT?info.applicationInfo.enabled:appState==PackageManager.COMPONENT_ENABLED_STATE_ENABLED;
             boolean componentEnabled=componentState==PackageManager.COMPONENT_ENABLED_STATE_DEFAULT?info.enabled:componentState==PackageManager.COMPONENT_ENABLED_STATE_ENABLED;
-            if(!appEnabled||!componentEnabled)return new Panel(profile,PanelState.DISABLED,name);
-            if(!info.exported || (permission!=null && context.checkCallingOrSelfPermission(permission)!=PackageManager.PERMISSION_GRANTED))return new Panel(profile,PanelState.RESTRICTED,name);
-            return new Panel(profile,PanelState.READY,name);
-        }catch(PackageManager.NameNotFoundException e){return null;}
-        catch(SecurityException e){return new Panel(profile,PanelState.RESTRICTED,name);}
-        catch(RuntimeException e){return new Panel(profile,PanelState.FAILED,name);}
+            if(!appEnabled||!componentEnabled){DiagnosticLog.info("input.panel.inspect",route+" result=disabled appState="+appState+" componentState="+componentState);return new Panel(profile,PanelState.DISABLED,name);}
+            if(!info.exported || (permission!=null && context.checkCallingOrSelfPermission(permission)!=PackageManager.PERMISSION_GRANTED)){DiagnosticLog.info("input.panel.inspect",route+" result=restricted exported="+info.exported+" permission="+permission);return new Panel(profile,PanelState.RESTRICTED,name);}
+            DiagnosticLog.info("input.panel.inspect",route+" result=ready");return new Panel(profile,PanelState.READY,name);
+        }catch(PackageManager.NameNotFoundException e){DiagnosticLog.info("input.panel.inspect",route+" result=not_installed");return null;}
+        catch(SecurityException e){DiagnosticLog.error("input.panel.inspect.restricted",route,e);return new Panel(profile,PanelState.RESTRICTED,name);}
+        catch(RuntimeException e){DiagnosticLog.error("input.panel.inspect.failed",route,e);return new Panel(profile,PanelState.FAILED,name);}
     }
 
     PanelState openPanel(Profile profile){
         // Packages may be disabled or replaced while a menu is open.
         Panel current=inspectPanel(profile);
+        DiagnosticLog.info("input.panel.request",DiagnosticLog.intent(profile.intent())+" state="+(current==null?PanelState.UNAVAILABLE:current.state));
         if(current==null)return PanelState.UNAVAILABLE;
         if(current.state!=PanelState.READY)return current.state;
-        ComponentName target=current.component;if(target==null)return PanelState.UNAVAILABLE;
+        ComponentName target=current.component;if(target==null){DiagnosticLog.info("input.panel.result","result=no_component");return PanelState.UNAVAILABLE;}
         Intent intent=profile.intent().setComponent(target);
         try{
             if("activity".equals(profile.type))context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-            else if((profile.foregroundService && Build.VERSION.SDK_INT>=26?context.startForegroundService(intent):context.startService(intent))==null)return PanelState.UNAVAILABLE;
+            else if((profile.foregroundService && Build.VERSION.SDK_INT>=26?context.startForegroundService(intent):context.startService(intent))==null){DiagnosticLog.info("input.panel.result","result=null_service");return PanelState.UNAVAILABLE;}
             DiagnosticLog.info("input.panel.dispatch",profile.type+" "+target.flattenToShortString());
             // This only confirms dispatch; physical switching requires hardware acceptance.
             return PanelState.READY;
-        }catch(SecurityException e){return PanelState.RESTRICTED;}
-        catch(android.content.ActivityNotFoundException e){return PanelState.UNAVAILABLE;}
-        catch(RuntimeException e){return PanelState.FAILED;}
+        }catch(SecurityException e){DiagnosticLog.error("input.panel.dispatch.restricted",DiagnosticLog.intent(intent),e);return PanelState.RESTRICTED;}
+        catch(android.content.ActivityNotFoundException e){DiagnosticLog.error("input.panel.dispatch.unavailable",DiagnosticLog.intent(intent),e);return PanelState.UNAVAILABLE;}
+        catch(RuntimeException e){DiagnosticLog.error("input.panel.dispatch.failed",DiagnosticLog.intent(intent),e);return PanelState.FAILED;}
     }
     static final class Route {
         final String label,activity,action;final int source;
@@ -221,7 +229,7 @@ final class TvInputController {
     boolean openKnownInput(TvInputInfo input){
         android.content.pm.ServiceInfo service=input.getServiceInfo();
         if((service.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0)return false;
-        Route route=xiaomiRoute(Build.MODEL,service.packageName,input.getType(),input.getId(),Build.DISPLAY);if(route==null)return false;
+        Route route=xiaomiRoute(Build.MODEL,service.packageName,input.getType(),input.getId(),Build.DISPLAY);if(route==null){DiagnosticLog.info("input.xiaomi.route","provider="+service.packageName+" type="+input.getType()+" result=no_known_route");return false;}
         ComponentName target=new ComponentName("com.xiaomi.mitv.tvplayer","com.xiaomi.mitv.tvplayer."+route.activity);
         try{
             android.content.pm.ActivityInfo activity=pm.getActivityInfo(target,0);
@@ -229,13 +237,13 @@ final class TvInputController {
             if((activity.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0 || !activity.exported
                     || !(appState==PackageManager.COMPONENT_ENABLED_STATE_DEFAULT?activity.applicationInfo.enabled:appState==PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
                     || !(componentState==PackageManager.COMPONENT_ENABLED_STATE_DEFAULT?activity.enabled:componentState==PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
-                    || (activity.permission!=null && pm.checkPermission(activity.permission,context.getPackageName())!=PackageManager.PERMISSION_GRANTED))return false;
+                    || (activity.permission!=null && pm.checkPermission(activity.permission,context.getPackageName())!=PackageManager.PERMISSION_GRANTED)){DiagnosticLog.info("input.xiaomi.route","component="+target.flattenToShortString()+" result=not_callable exported="+activity.exported+" appState="+appState+" componentState="+componentState+" permission="+activity.permission);return false;}
             Intent intent=new Intent("com.xiaomi.mitv.tvplayer."+route.action).setComponent(target).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             if(route.source>=0)intent.putExtra("input",route.source);
             context.startActivity(intent);
             DiagnosticLog.info("input.xiaomi.dispatch",target.flattenToShortString());return true;
-        }catch(PackageManager.NameNotFoundException e){return false;}
-        catch(RuntimeException e){DiagnosticLog.error("input.xiaomi.failed",e);return false;}
+        }catch(PackageManager.NameNotFoundException e){DiagnosticLog.info("input.xiaomi.route","component="+target.flattenToShortString()+" result=not_installed");return false;}
+        catch(RuntimeException e){DiagnosticLog.error("input.xiaomi.failed","component="+target.flattenToShortString(),e);return false;}
     }
 
     static boolean enabledSystem(Context context,ComponentInfo info){
@@ -249,22 +257,26 @@ final class TvInputController {
         if(target==null)return false;
         try{
             android.content.pm.ActivityInfo info=context.getPackageManager().getActivityInfo(target,0);
-            return enabledSystem(context,info) && info.exported
-                && (info.permission==null || context.getPackageManager().checkPermission(info.permission,context.getPackageName())==PackageManager.PERMISSION_GRANTED);
-        }catch(PackageManager.NameNotFoundException|RuntimeException unavailable){return false;}
+            String reason=!enabledSystem(context,info)?"not_enabled_system":!info.exported?"not_exported":info.permission!=null && context.getPackageManager().checkPermission(info.permission,context.getPackageName())!=PackageManager.PERMISSION_GRANTED?"permission_denied permission="+info.permission:"";
+            if(!reason.isEmpty())DiagnosticLog.info("input.component","component="+target.flattenToShortString()+" result="+reason);
+            return reason.isEmpty();
+        }catch(PackageManager.NameNotFoundException unavailable){DiagnosticLog.info("input.component","component="+target.flattenToShortString()+" result=not_installed");return false;}
+        catch(RuntimeException unavailable){DiagnosticLog.error("input.component.failed","component="+target.flattenToShortString(),unavailable);return false;}
     }
     Intent standardIntent(String inputId,android.net.Uri uri){
         Intent intent=new Intent(Intent.ACTION_VIEW).setDataAndType(uri,TvContract.Channels.CONTENT_ITEM_TYPE).putExtra(TvInputInfo.EXTRA_INPUT_ID,inputId);
         List<android.content.pm.ResolveInfo> handlers=pm.queryIntentActivities(intent,PackageManager.MATCH_DEFAULT_ONLY);
         android.content.pm.ResolveInfo preferred=pm.resolveActivity(intent,PackageManager.MATCH_DEFAULT_ONLY);
         ComponentName only=null;int count=0;
+        DiagnosticLog.info("input.standard.resolve","handlers="+handlers.size()+" preferred="+(preferred==null || preferred.activityInfo==null?"none":new ComponentName(preferred.activityInfo.packageName,preferred.activityInfo.name).flattenToShortString()));
         for(android.content.pm.ResolveInfo handler:handlers){
             android.content.pm.ActivityInfo info=handler.activityInfo;
             if(info==null || context.getPackageName().equals(info.packageName))continue;
-            ComponentName component=new ComponentName(info.packageName,info.name);if(!canOpen(context,component))continue;
-            if(preferred!=null && preferred.activityInfo!=null && info.packageName.equals(preferred.activityInfo.packageName) && info.name.equals(preferred.activityInfo.name))return intent.setComponent(component);
+            ComponentName component=new ComponentName(info.packageName,info.name);if(!canOpen(context,component)){DiagnosticLog.info("input.standard.handler","component="+component.flattenToShortString()+" result=not_callable");continue;}
+            if(preferred!=null && preferred.activityInfo!=null && info.packageName.equals(preferred.activityInfo.packageName) && info.name.equals(preferred.activityInfo.name)){DiagnosticLog.info("input.standard.resolve.result","result=preferred component="+component.flattenToShortString());return intent.setComponent(component);}
             only=component;count++;
         }
+        DiagnosticLog.info("input.standard.resolve.result","callable="+count+" result="+(count==1?"single_handler":count==0?"no_handler":"ambiguous"));
         return count==1?intent.setComponent(only):null;
     }
     static Integer tclSource(String device,String hardware,String provider,int type,String label){
@@ -278,18 +290,18 @@ final class TvInputController {
         return null;
     }
     boolean openFallbackInput(TvInputInfo input){
-        if(!enabledSystem(context,input.getServiceInfo()))return false;
+        if(!enabledSystem(context,input.getServiceInfo())){DiagnosticLog.info("input.fallback.route","result=not_enabled_system");return false;}
         Intent intent=null;
         ComponentName droidlogic=new ComponentName("com.droidlogic.tvsource","com.droidlogic.tvsource.DroidLogicTv");
         if(input.getType()==TvInputInfo.TYPE_HDMI && "com.droidlogic.tvinput".equals(input.getServiceInfo().packageName) && canOpen(context,droidlogic))intent=new Intent(Intent.ACTION_MAIN).setComponent(droidlogic).putExtra("id",input.getId());
         if(intent==null){
             // Prefer TCL's native picker if present; only documented middleware uses these ordinals.
-            for(Panel panel:inspect().availablePanels())if(panel.profile.component.startsWith("com.tcl.settings/") || "com.android.systemui".equals(panel.profile.packageName))return false;
+            for(Panel panel:inspect().availablePanels())if(panel.profile.component.startsWith("com.tcl.settings/") || "com.android.systemui".equals(panel.profile.packageName)){DiagnosticLog.info("input.fallback.route","result=prefer_native_panel");return false;}
             Integer source=tclSource(Build.DEVICE,Build.HARDWARE,input.getServiceInfo().packageName,input.getType(),input.loadLabel(context).toString());
             ComponentName player=new ComponentName("com.tcl.tv","com.tcl.tv.TVActivity");
             if(source!=null && canOpen(context,player))intent=new Intent().setComponent(player).putExtra("targetSourceId",source).putExtra("referer","com.tcl.settings.module_source");
         }
-        if(intent==null)return false;
+        if(intent==null){DiagnosticLog.info("input.fallback.route","result=no_known_route provider="+input.getServiceInfo().packageName+" type="+input.getType());return false;}
         try{context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));DiagnosticLog.info("input.fallback.dispatch",intent.getComponent().flattenToShortString());return true;}
         catch(RuntimeException failure){DiagnosticLog.error("input.fallback.failed",failure);return false;}
     }
