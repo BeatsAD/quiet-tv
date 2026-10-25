@@ -18,6 +18,8 @@ Quiet TV 基于该项目开发，面向国内电视机的适配与应用升级�
 
 系统设置、网络和厂商信号源接口另参考 [Aerial bc89bc51](https://github.com/pengchujin/aerial-tv/tree/bc89bc51a382899d3233f7d0b87db54a5d408348) 的 SystemState.kt、SettingsLaunch.kt 与 KonkaSources.kt，以及 [cleanyourtv eb0131a3](https://github.com/Gathin23/cleanyourtv/tree/eb0131a32fd8567086f39002f1782f7c1b078ca6) 的 SystemSettings.java、CoocaaSources.java。按现有 Java 结构实现组件检查、网络入口优先级和实际输入枚举；两项目的 MIT 版权及完整许可继续随包保留。具体适用范围见[兼容说明](docs/COMPATIBILITY.md)。
 
+小米 HDMI 固件配置读取与分层回退参考 [Aerial f1c8ea97 的 SystemState.kt](https://github.com/pengchujin/aerial-tv/blob/f1c8ea979a9128cebc46c646bb8efba1644e7b26/app/src/main/java/app/orchard/tv/system/SystemState.kt#L653-L703)，保留已实测特殊映射优先，通过反射读取 `mitv.common.ConfigurationManager` 的 `hdmiN_order`，读取失败再用原有备用规则。没有引入上游依赖或设备操作；MIT 版权和完整许可继续随包保留。
+
 ## 动态壁纸播放
 
 - Android 5+ 使用 [AndroidX Media3 ExoPlayer 1.8.1](https://developer.android.com/jetpack/androidx/releases/media3#1.8.1)，Apache-2.0，版权归 The Android Open Source Project 等贡献者；完整许可沿用 APK 中的 `assets/licenses/libadb-Apache-2.0.txt`。固定此兼容版本以保留 Android 5.0 支持，不引入额外 FFmpeg 解码库；Android 4.4 不包含 Media3，继续使用系统 MediaPlayer。
