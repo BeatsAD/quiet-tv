@@ -35,7 +35,9 @@ final class AdbController implements Closeable {
     private synchronized void attach(Closeable value,int attempt) throws IOException {
         if(closed || generation.get()!=attempt){value.close();throw new IOException("连接已取消");}transport=value;
     }
-    synchronized int prepare(){disconnect();failure=Failure.NONE;return generation.get();}
+    synchronized int prepare(){disconnect();failure=Failure.NONE;identityDiagnostics="";return generation.get();}
+    private volatile String identityDiagnostics="";
+    String identityDiagnostics(){return identityDiagnostics;}
     private final Context context;
     private final Status status;
     private volatile AdbConnection connection;
@@ -120,7 +122,14 @@ final class AdbController implements Closeable {
                 stage="本机身份核对";publish(Stage.LOCAL,"正在核对本机身份",attempt);
                 verifyLocalDevice();
                 stage="ADB 身份核对";publish(Stage.SHELL,"正在核对 ADB shell 身份",attempt);
-                if(!shell("id -u").trim().equals("2000"))throw new IOException("adbd 未提供 shell 身份（uid 2000）；工厂／root 调试模式不能用于当前应用管理");
+                String uid;
+                try{uid=shell("id -u").trim();}
+                catch(Exception e){identityContext(attempt);throw e;}
+                DiagnosticLog.info("adb.identity","attempt="+attempt+" expected_uid=2000 accepted="+"2000".equals(uid));
+                if(!uid.equals("2000")){
+                    identityContext(attempt);
+                    throw new IOException("adbd 未提供 shell 身份（uid 2000）；工厂／root 调试模式不能用于当前应用管理");
+                }
                 stage="前台用户核对";publish(Stage.USER,"正在核对当前用户",attempt);
                 user=currentUser();
                 if(user!=android.os.Process.myUid()/100000)throw new IOException("前台用户已切换，请重新打开应用管理");
@@ -139,6 +148,29 @@ final class AdbController implements Closeable {
         if(this.failure==Failure.NONE)this.failure=Failure.PORT;
         DiagnosticLog.error("adb.connection_failed."+this.failure.name(),failure);
         throw new IOException("连接失败（"+stage+"）："+(failure==null?"本机未开放 TCP ADB":(failure.getMessage()==null?failure.getClass().getSimpleName():failure.getMessage())),failure);
+    }
+
+    // Only after local-device verification, on the existing transport; never grant or change anything.
+    private void identityContext(int attempt){
+        for(String command:new String[]{"id","getprop ro.secure","getprop ro.debuggable","getprop service.adb.root"}){
+            AdbConnection current=connection;
+            if(closed || generation.get()!=attempt || current==null || !current.isConnectionEstablished())return;
+            try{shell(command);}catch(Exception ignored){} // Each unavailable query is recorded by shell().
+        }
+    }
+    // Never log arbitrary shell commands, app data, boot IDs, local challenges or pairing values.
+    static String identityResult(String command,String status,Integer exit,String output){
+        if(!Arrays.asList("id -u","id","getprop ro.secure","getprop ro.debuggable","getprop service.adb.root").contains(command))return "";
+        String escaped=output.replace("\\","\\\\").replace("\r","\\r").replace("\n","\\n").replace("\t","\\t");
+        String cleaned=DiagnosticJournal.clean(escaped);boolean truncated=escaped.length()>1000 || cleaned.length()>400;
+        if(cleaned.length()>400)cleaned=cleaned.substring(0,400);
+        return "command="+command+" status="+status+" exit="+(exit==null?"unknown":exit)+" output=["+cleaned+"]"+(truncated?" truncated=true":"");
+    }
+    private synchronized void recordIdentityResult(int attempt,String command,String status,Integer exit,String output){
+        String detail=identityResult(command,status,exit,output);if(detail.isEmpty() || generation.get()!=attempt)return;
+        String entry="attempt="+attempt+" time_ms="+System.currentTimeMillis()+" "+detail;
+        identityDiagnostics+=entry+"\n";
+        DiagnosticLog.info("adb.shell.result",entry);
     }
 
     private void verifyLocalDevice() throws Exception {
@@ -172,7 +204,8 @@ final class AdbController implements Closeable {
         String marker="__QUIET_EXIT_"+UUID.randomUUID().toString().replace("-","")+"=";
         // Android 5 toolbox does not provide printf; echo is a shell builtin there.
         String wrapped="( "+command+" ); quiet_result=$?; echo; echo \""+marker+"$quiet_result\"";
-        try(AdbStream stream=c.open("shell:"+wrapped);InputStream input=stream.openInputStream();ByteArrayOutputStream output=new ByteArrayOutputStream()){
+        ByteArrayOutputStream output=new ByteArrayOutputStream();boolean recorded=false;
+        try(AdbStream stream=c.open("shell:"+wrapped);InputStream input=stream.openInputStream()){
             byte[] buffer=new byte[8192];int size;
             while(true){
                 try{size=input.read(buffer);}catch(IOException e){if(!output.toString("UTF-8").contains(marker))throw e;break;}
@@ -181,12 +214,16 @@ final class AdbController implements Closeable {
                 if(position>=0 && value.substring(position).endsWith("\n"))break;
             }
             String value=output.toString("UTF-8");int position=value.lastIndexOf(marker);
-            if(position<0)throw new IOException("ADB 结果不完整，请重新连接并查询状态");
+            if(position<0){recordIdentityResult(request,command,"incomplete",null,value);recorded=true;throw new IOException("ADB 结果不完整，请重新连接并查询状态");}
             if(generation.get()!=request)throw new IOException("查询已取消，请重新连接");
             int exit=Integer.parseInt(value.substring(position+marker.length()).trim());
             String body=value.substring(0,position).trim();
+            recordIdentityResult(request,command,"complete",exit,body);recorded=true;
             if(exit!=0)throw new IOException("命令失败（"+exit+"）："+body);
             return body;
+        }catch(Exception e){
+            if(!recorded)recordIdentityResult(request,command,"failed_"+e.getClass().getSimpleName(),null,output.toString("UTF-8"));
+            throw e;
         }finally{timeout.cancel(false);}
     }
 
