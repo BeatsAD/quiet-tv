@@ -28,3 +28,26 @@ The historical home.png and wallpaper-settings.png captures were running develop
 | [sort-1.1.2.png](sort-1.1.2.png) | `8b3e4fd960a195e0cdc43518f8eafba7389ae247abb250e04174744815e177dd` |
 
 Direct Sony / Android 12 ADB captures, 2026-10-22, at 1920×1080. Installed version 1.1.2 / 34 and APK hash match the published standard download. Every PNG is copied unchanged; no cropping, synthesis or UI redraw. Existing preferences are retained and the TV was returned to its home screen. The private upload-session image is not published. Captures demonstrate displayed pages, not full feature, upgrade, physical Home, reboot, standby or other-model acceptance. Existing custom wallpaper and third-party artwork retain their original rights.
+
+
+## 1.2.4 索尼真机截图 / Sony captures
+
+2026-10-25 通过指定电视的 ADB `exec-out screencap -p` 直接获取，设备为 Sony BRAVIA VH1 / Android 12（API31），原始渲染尺寸1920×1080。实际安装为已发布 [1.2.4 测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.2.4)的 ARM32 构建64；拉取已安装 APK，其 SHA-256 为 `960804b87b6626f744389777a5d2fcf3d52f2c11f0ac4794bda216f50df0c48e`，与 GitHub 附件及本地归档一致。
+
+下列 PNG 均为原始截图逐字节复制，未裁切、合成或重绘。保留电视既有壁纸、布局、常用应用、排序和儿童模式规则；采集后返回首页。仅打开页面，未输入家长密码、开启计时、移动排序、上传或删除素材、切换壁纸、设置自启或执行应用启禁/卸载。应用管理截图展示已存在的本机ADB连接，未变更系统HOME。家长验证图为空白输入；关于页只有项目及作者原有公开二维码，没有上传会话、设备地址或私人恢复码。
+
+第三方应用图标和设备已有自定义壁纸属于各自权利人，见[资源说明](../../THIRD_PARTY_NOTICES.md)。关于页的“恢复码”为入口按钮，未打开实际恢复码。截图证明页面显示，不能代替完整功能、升级数据、实体遥控器、HOME、重启、唤醒或其他机型验收。旧版素材保留为历史记录。
+
+| 文件 / File | 原始 PNG SHA-256 |
+| --- | --- |
+| [home-1.2.4.png](home-1.2.4.png) | `caac0ad39acc2ef1bd1b0ec55818cb169927c1a9b5e2bb49507fa438bec58256` |
+| [all-apps-1.2.4.png](all-apps-1.2.4.png) | `b6a0e2de9644dad1a980a463533a2c1be98c16c8d09a3fd2358757055cd8f8a1` |
+| [desktop-settings-1.2.4.png](desktop-settings-1.2.4.png) | `99a138302bc05995c926633cc1a8bd92264c4c1eea28e2de50091d2dfb340e61` |
+| [wallpaper-1.2.4.png](wallpaper-1.2.4.png) | `0ad3a37e96a6ba1cf539f97f8cd3790a4b8f2fc5b6886d4810ff2e111a654d73` |
+| [weather-1.2.4.png](weather-1.2.4.png) | `56284a02c293cfd1147632ce3521de35f36af3e31b45de0b8a876ef2fe6c9b9f` |
+| [app-management-1.2.4.png](app-management-1.2.4.png) | `7e13d4114527fdaff4a7a2fede5276a224a1362b4910ddb81bcd52b305a4f42f` |
+| [sort-1.2.4.png](sort-1.2.4.png) | `31c204f111e90f34ad3ba7e0f30dc64be95a11dc5d9272623e425c69cd85c549` |
+| [child-auth-1.2.4.png](child-auth-1.2.4.png) | `7a3a4def3edc18d8bc645e81ebd819f8b0967d36be66db5c9bd2ea1c24b4a009` |
+| [update-1.2.4.png](update-1.2.4.png) | `3fbdefae79b198d4bfd42a53a7a09e1e1efec01b2e0e02865b5347207b159f64` |
+
+Captured directly from Sony BRAVIA VH1 / Android 12 running the published 1.2.4 / 64 ARM32 APK, verified against its installed-file SHA-256. Original 1920×1080 PNGs are copied unchanged. Existing customization and child rules were retained, and the TV was returned home. Parent verification is blank; the About image contains only already-public project/author QR codes and a recovery-entry button, not a private recovery code. Captures show pages, not full runtime, upgrade-state, physical Home, reboot/wake or other-model acceptance. Older assets remain historical evidence.
