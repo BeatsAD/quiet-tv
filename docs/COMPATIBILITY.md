@@ -2,12 +2,24 @@
 
 [中文首页](../README.md) · [English home](../README.en.md) · [安装指南](INSTALL.zh-CN.md)
 
+## 1.2.5 待发布候选
+
+本地候选补齐开机/待机守护、海信 ADB 身份、图标完整绘制、海尔设置与小米信号源路由；静态图上传放宽至60 MB，动态视频放宽至200 MB与60 FPS，标准档使用 Media3，安卓4.4保留系统播放器。各项厂商行为及最终 APK 升级保留仍待目标电视验收。已发布下载仍为1.2.4。
+
+## 当前测试版 / Current test release
+
+[1.2.4 测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.2.4)提供安卓5+ ARM32／64／通用包（构建64–66）及安卓4.4兼容包（67），详见[选包与安装](INSTALL.zh-CN.md#下载安装与试用)。四包同源同版本同签名；旧系统不提供无线配对、桌面守护或HOME代理。
+
+本次在 Sony BRAVIA VH1 / Android 12 上保留数据从1.2.4／63更新到公开ARM32包64，实际安装APK哈希一致、原HOME和应用数据目录保持，并采集[当前界面](assets/README.md#124-索尼真机截图--sony-captures)。仅核对现有页面与可见配置；全部数据、完整功能、实体HOME、重启和待机唤醒未作全面验收。安卓4.4及其他厂商仍需各自真机验收。
+
+Version 1.2.4 has standard ARM32/ARM64/universal and Android 4.4 profiles. Sony build 64 installation and page captures do not establish complete feature, data-retention, physical HOME, reboot/wake or other-device acceptance. The following sections retain historical development and validation records; older artifacts are not current download recommendations.
+
 ## 源码与下载 / Source and download
 
 | 内容 / Build | 范围 / Scope |
 | --- | --- |
-| [1.1.2 标准测试包，34](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.2) | Android 5.0 / API21 起，target36；9,370,356 字节，ARM32、ARM64、x86、x86_64。 / Standard universal test APK. |
-| [1.1.2 安卓4.4测试包，35](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.2) | API19 起，target36；4,900,169 字节，无原生库，传统 TCP ADB，信号源走系统设置／遥控器。 / Legacy19, no pairing or standard input list. |
+| 历史 [1.1.2 标准测试包，34](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.2) | Android 5.0 / API21 起，target36；9,370,356 字节，ARM32、ARM64、x86、x86_64。 / Standard universal test APK. |
+| 历史 [1.1.2 安卓4.4测试包，35](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.2) | API19 起，target36；4,900,169 字节，无原生库，传统 TCP ADB，信号源走系统设置／遥控器。 / Legacy19, no pairing or standard input list. |
 | 历史 [b30](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b30) / [b26](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26) | 原包、标签、校验记录及各自历史验收范围保留，不作为当前默认下载。 / Original historical artifacts and evidence retained. |
 | 历史 [b24 通用包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b24) | Android 6.0 / API23 起；原下载保留。 / Android 6.0+; original download retained. |
 | 历史 [b23 ARM32 测试包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0) | Android 12 / API31 起，需支持 armeabi-v7a；仅支持 64 位应用的设备不可用。 / Requires Android 12 and ARM32 app support. |
@@ -48,12 +60,12 @@ TLS 测试通过离线握手复现缺根证书时失败、补充后成功，并�
 | 档位 / Profile | 共用功能及差异 / Features | 本轮验证 / Validation |
 | --- | --- | --- |
 | 标准 API21+ | 三个标签、两种布局、实时预览 | 构建与 Lint 通过；API22 和 API31 模拟回归通过，API31 的 720p／1080p 验证覆盖256种组合、遥控焦点、数据迁移、问候语保存取消、页面重建、真实壁纸及常用应用封面。 |
-| 安卓4.4 / legacy19 | 同一布局与预览；沿用桌面守护禁用策略，仅显示前两个标签 | 构建与 Lint 通过；API22 上运行兼容档通过相同256种组合与核心交互。本轮无可运行 API19 镜像，Android4.4实际运行仍待验收。 |
+| 安卓4.4 / legacy19 | 同一布局与预览；沿用桌面守护禁用策略，仅显示前两个标签 | 构建与 Lint 通过；API22 上运行兼容档通过相同256种组合与核心交互。本轮无可运行 API19 镜像，Android 4.4实际运行仍待验收。 |
 | 酷开 API26 独立包名 | 复用标准档的布局代码 | 本轮未单独构建或进行酷开固件验收。 |
 
 预览读取本地壁纸、常用应用封面和有效天气缓存，动态壁纸使用本地封面，Dock复用当前磨砂样式并按应用数量居中伸缩，不启动第二套天气请求或壁纸播放流程。以上为本地开发验证，尚未发布，也未安装实体电视；厂商遥控、HOME、待机唤醒、升级数据保留及低内存表现需目标设备验收。
 
-Both layouts share the native Home header with the preview. Only Desktop shows the preview; Weather and Guard use the full content area. Standard emulator checks passed on API22 and API31; API31 covers 720p/1080p and 256 visibility combinations. The legacy19 build passed the same functional checks on API22, which does not establish Android4.4 runtime acceptance. No physical TV or separate Coocaa package acceptance was performed, and this work is not released.
+Both layouts share the native Home header with the preview. Only Desktop shows the preview; Weather and Guard use the full content area. Standard emulator checks passed on API22 and API31; API31 covers 720p/1080p and 256 visibility combinations. The legacy19 build passed the same functional checks on API22, which does not establish Android 4.4 runtime acceptance. No physical TV or separate Coocaa package acceptance was performed, and this work is not released.
 
 ### 动态壁纸开发源码 / Video wallpaper source
 
@@ -178,8 +190,7 @@ System-panel fallback is included in the published 1.1.2 standard APK; legacy19 
 
 | 范围 | 上游记录与方案 | Quiet TV 状态及验收重点 |
 | --- | --- | --- |
-| 小米 MiTV4-ANSM0 / Android 6 | [#81](https://github.com/pengchujin/aerial-tv/issues/81)：服务绑定后仍可能没有有效窗口事件；上游1.43起增加 UsageStats 补偿，1.46有用户延迟返回及有限重启实测 | 本地源码按小米／Redmi 品牌及 API 增加开机30／45秒复查、安卓5／6无事件时的单次无障碍恢复；原主页识别不以型号或固件指纹阻断。API23／31模拟验证通过，实体 HOME、自然重启、短/长待机及暂停恢复仍待 Quiet TV 真机验收 |
-| 小米／Redmi Android9低内存等设备 | [Aerial v1.47同步恢复](https://github.com/pengchujin/aerial-tv/blob/7b005c6b35d068f1772c0e956a0cfddbbd803690/app/src/main/java/app/orchard/tv/guard/RevivalSync.kt)：通知监听不可用时使用本地账号与系统同步唤醒 | 本地源码提供账号/同步入口和默认关闭的KEEP_ADB；按品牌与系统能力判断。系统总同步及联网调度条件须满足；自然待机、固定时延和真实低内存固件仍待真机验收 |
+| 小米 MiTV4-ANSM0 / Android 6 | [#81](https://github.com/pengchujin/aerial-tv/issues/81)：服务绑定后仍可能没有有效窗口事件；上游1.43起增加 UsageStats 补偿，1.46有用户延迟返回及有限重启实测 | 本修复源码加入安卓5／6精确主页补偿与电脑首次配置；未发布，目标固件的事件、实体 HOME、重启、短/长待机及暂停恢复仍待 Quiet TV 真机验收 |
 | 酷开 / Android 8 | [#69](https://github.com/pengchujin/aerial-tv/issues/69)：私有 HOME.CC 类别，识别修复不等于改写固件主页 | Quiet TV 厂商接管待验收；不能按品牌批量应用 |
 | 酷开 / Android 11 | [#122](https://github.com/pengchujin/aerial-tv/issues/122)：LITE_HOME 与 HOME.CC 不同，用户修改包有有限实测 | 原主页识别、实体键、开机与恢复均待目标固件核验 |
 | 海信 Android VIDAA | [#40](https://github.com/pengchujin/aerial-tv/issues/40)：私有主页属性可改变 HOME 行为，开机仍受拦截 | Quiet TV 不自动改属性；系统输入面板调用与 HOME 接管分别验证 |
@@ -252,15 +263,3 @@ System-panel fallback is included in the published 1.1.2 standard APK; legacy19 
 可选 HOME 助手接入两路线自动选配：主程序直接 HOME 优先，明确失败后尝试同签名代理，再回退原主页识别。助手本身声明 HOME，无 HOME 主程序并不保证助手也能安装；包名允许名单、开机强制组件及后台限制仍需按固件验收，不根据小米、创维、TCL 或雷鸟品牌作成功承诺。当前不收录这些品牌的代理验收规则，也不自动替换 `com.ts.launcher` 等外部同名应用。
 
 代理保持原桌面和必要依赖，支持独立原桌面回退、全局暂停、来源一致的恢复启用与实际 HOME 恢复。开机跳板仍默认关闭；代理前台回执不能作为重启、断电开机、待机唤醒或实体 HOME 的通过证据。安卓5及以上的标准/无 HOME 形态可使用，安卓4.4保留原有流程。构建方式和故障回退限制见 [HOME 助手说明](../home-proxy/README.md)。
-
-## Aerial 1.49 守护补偿（当前开发源码）
-
-| 档位 | 公共行为与必要差异 |
-| --- | --- |
-| 安卓5+ 标准档 | 直接 HOME 保留补偿；开机窗口30／45秒各一次原主页复查；通知监听及本地账号同步恢复 |
-| 安卓5／6 | 已授权的用量检测；无窗口事件时每次开机至多重绑本服务一次；旧授权命令仅在已核对用户0时省略不支持的用户参数 |
-| 酷开安卓8包名 | 共用实现，本地恢复账号类型随实际包名隔离；厂商效果另验收 |
-| 无 HOME 兼容形态 | 共用观察中转与恢复；已选 HOME 代理保持独立回退，避免双重接管 |
-| 安卓4.4 | 保留普通 HOME；守护、通知／同步恢复组件禁用，移除同步配置权限，不创建恢复账号 |
-
-海信 root 身份仅限定所提供日志中的 VIDAA_TV / API22 / MSD6A828 / LVY48C 生产固件与 hshell 上下文，不扩展为通用 root 支持。新路径仍需目标固件的实体 HOME、正常重启、断电开机、待机及 HDMI／播放验收；本地模拟器与自动测试不能替代。

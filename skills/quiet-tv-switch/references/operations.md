@@ -33,7 +33,7 @@ adb -s "$TV_SERIAL" shell dumpsys package "$ORIGINAL_PACKAGE"
 
 ## APK 与安装
 
-按当前 Agent 安装说明读取完整发布列表，包含预发布／测试版，不仅查询 `/releases/latest`。从适配目标电视的实际发布资产获取 APK 及同名校验文件；安装前明确目标版本，已安装同一文件时无需重装，不自动回退历史版本。使用本机现有工具读取 APK，例如 Android SDK 的 `aapt dump badging`／`apkanalyzer` 与 `apksigner verify --print-certs`。仅凭文件名不能推断包名、minSdk 或架构。
+按当前 Agent 安装说明，通过本机终端读取 [最新版索引](https://beatsad.github.io/quiet-tv/latest.json)，自动附加本次实际时间的 `check` 参数并禁用缓存，包含预发布／测试版。按适配与升级条件选择 APK，使用索引中的实际下载地址、大小及 SHA-256；历史包也可核对同名校验文件，不因缺少独立校验文件改装旧版。不得只用网页摘要或 `/releases/latest` 判定没有新版；安装前明确目标版本，已安装同一文件时无需重装，不自动回退历史版本。使用本机现有工具读取 APK，例如 Android SDK 的 `aapt dump badging`／`apkanalyzer` 与 `apksigner verify --print-certs`。仅凭文件名不能推断包名、minSdk 或架构。
 
 先比对设备 API、CPU ABI 和电视特性。已安装 Quiet TV 时查询其版本和 APK 路径；将已安装 APK 拉到电脑私有目录读取签名后再决定是否覆盖，不能只比较包名。哈希是文件一致性证据，不替代来源信任。
 

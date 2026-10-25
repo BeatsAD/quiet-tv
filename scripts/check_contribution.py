@@ -62,6 +62,9 @@ def main():
                   for name in changed)
     project_changes = {name for name in changed if not name.endswith('.md')}
     flags = {
+        'install': any(name.startswith('prototypes/install-guide/') or name in (
+            'docs/AGENT_INSTALL.zh-CN.md', 'scripts/build_install_guide.py', '.github/workflows/pages.yml')
+                       for name in changed),
         'android': tooling or any(name.startswith(('app/', 'gradle/', 'coocaa-home-shim/', 'xiaomi-home-helper/', 'home-proxy/'))
                                  or name in ('build.gradle', 'settings.gradle', 'gradle.properties',
                                              'gradlew', 'gradlew.bat', 'scripts/bundle_about.py', 'LICENSE')

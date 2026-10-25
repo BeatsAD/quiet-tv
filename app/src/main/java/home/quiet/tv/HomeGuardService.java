@@ -122,7 +122,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     private final Runnable handover=()->{
         if(!usable() || !HomeGuardState.canShow(this) || allowStock){DiagnosticLog.info("home_guard.settle","source="+settleReason+" decision=conditions_unavailable allowOriginal="+allowStock);return;}
         UsageEvents.Event latest=latestUsage();
-        boolean other=latest!=null && (latest.getTimeStamp()>System.currentTimeMillis() || !HomeGuardPolicy.matches(state.eventHome(),latest.getPackageName(),latest.getClassName()));
+        boolean other=Build.VERSION.SDK_INT>=21 && latest!=null && (latest.getTimeStamp()>System.currentTimeMillis() || !HomeGuardPolicy.matches(state.eventHome(),latest.getPackageName(),latest.getClassName()));
         boolean accepted=!other && policy.settle(state.eventHome(),HomeGuardRecovery.unknownAllowed(this));
         DiagnosticLog.info("home_guard.settle","source="+settleReason+" decision="+(accepted?"handover":"policy_skip")+" windowUnknown="+policy.unknown());
         if(accepted)HomeGuardRecovery.launch(this,settleReason);

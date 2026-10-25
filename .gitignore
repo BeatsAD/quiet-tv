@@ -143,8 +143,20 @@ __pycache__/
 
 # Signed public application-update input and its offline release tooling.
 !/scripts/build_update_manifest.py
+!/scripts/build_install_guide.py
 !/docs/UPDATES.md
 
 # Local HOME proxy verification fixtures.
 /home-proxy/src/test/
 /home-proxy/src/androidTest/
+
+# Original Sony captures for the published 1.2.4 interface documentation.
+!/docs/assets/home-1.2.4.png
+!/docs/assets/all-apps-1.2.4.png
+!/docs/assets/desktop-settings-1.2.4.png
+!/docs/assets/wallpaper-1.2.4.png
+!/docs/assets/weather-1.2.4.png
+!/docs/assets/app-management-1.2.4.png
+!/docs/assets/sort-1.2.4.png
+!/docs/assets/child-auth-1.2.4.png
+!/docs/assets/update-1.2.4.png

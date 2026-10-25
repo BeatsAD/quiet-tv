@@ -5,8 +5,12 @@ on:
     branches: [main]
     paths:
       - prototypes/install-guide/**
+      - docs/AGENT_INSTALL.zh-CN.md
+      - scripts/build_install_guide.py
       - updates/updates.json
       - .github/workflows/pages.yml
+  release:
+    types: [published, edited, released, unpublished, deleted]
   workflow_dispatch:
 
 permissions:
@@ -19,6 +23,17 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  refresh-release:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    permissions:
+      actions: write
+    steps:
+      - name: Request installation site refresh from main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --ref main --repo "$GITHUB_REPOSITORY"
   deploy:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
@@ -30,15 +45,14 @@ jobs:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: main
           persist-credentials: false
       - name: Configure GitHub Pages
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
       - name: Prepare installation guide
-        run: |
-          mkdir -p "$RUNNER_TEMP/quiet-tv-pages/assets"
-          cp prototypes/install-guide/index.html prototypes/install-guide/styles.css prototypes/install-guide/app.js prototypes/install-guide/agent.md "$RUNNER_TEMP/quiet-tv-pages/"
-          cp updates/updates.json "$RUNNER_TEMP/quiet-tv-pages/updates.json"
-          cp prototypes/install-guide/assets/icon.svg prototypes/install-guide/assets/home.jpg "$RUNNER_TEMP/quiet-tv-pages/assets/"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/build_install_guide.py --output "$RUNNER_TEMP/quiet-tv-pages"
       - name: Upload installation guide
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:

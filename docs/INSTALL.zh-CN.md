@@ -1,27 +1,25 @@
 # 安装与构建
 
-[English](INSTALL.en.md) · [首页](../README.md) · [兼容范围](COMPATIBILITY.md)
+[English](INSTALL.en.md)  [首页](../README.md)  [兼容范围](COMPATIBILITY.md)
 
 ## 普通用户安装
 
-已有 APK 的使用者优先阅读[Agent 安装与恢复说明](AGENT_INSTALL.zh-CN.md)或本页“下载、安装与试用”。下方构建环境只用于从源码构建，使用已发布 APK 不需要 JDK、Gradle 或完整 Android SDK。
+当前公开版本与下载地址由[最新版索引](https://beatsad.github.io/quiet-tv/latest.json)自动维护，包含测试版；也可直接使用[安装页](https://beatsad.github.io/quiet-tv/)。使用已发布 APK 不需要 JDK、Gradle 或完整 Android SDK。可阅读[Agent 安装与恢复说明](AGENT_INSTALL.zh-CN.md)，或按下方“下载、安装与试用”操作。
 
 ## 环境
 
-当前版本为 [1.1.2 测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.2)：标准包为构建号 34，最低 Android 5.0 / API21；`legacy19` 兼容包为构建号 35，最低 Android 4.4 / API19，均为 targetSdk36。按系统选包，不按构建号大小选包。两档主要功能相同；标准包包含四种 CPU 架构，兼容包不含原生库，不提供六位码配对，信号源通过系统设置或遥控器进入。构建、下载与设备验收范围见[兼容说明](COMPATIBILITY.md)。历史包保留原链接。
+安卓5+标准档最低 API21，按 ARM32、ARM64 和通用备用分包；安卓4.4兼容档最低 API19，不含原生库、不提供六位码配对和桌面守护，信号源通过系统设置或遥控器进入。各包均为 targetSdk36，包名为 `home.quiet.tv`。最低系统满足不代表厂商固件已验收。
 
-需要 Git、Python 3、JDK 17 或 21、Android SDK platform 36、build-tools 36.0.0 和 platform-tools。构建无需设备配置、备份、私有测试目录或电视连接。
+从源码构建需要 Git、Python 3、JDK 17 或 21、Android SDK platform 36、build-tools 36.0.0 和 platform-tools。无需设备配置、私有测试、备份或电视连接。
 
 ## 全新克隆并构建
-
-归档前将 `STANDARD_BUILD_NUMBER` 设为高于所有已用号的未占用正整数；`LEGACY_BUILD_NUMBER` 须另设为比它更高的未占用号。两个新包不能复用同一构建号；1.1.2 的 34、35 已发布，不可用于新内容。
 
 ```sh
 git clone https://github.com/BeatsAD/quiet-tv.git
 cd quiet-tv
 ```
 
-设置标准环境变量 `ANDROID_HOME`，或在仓库根目录创建自己的 `local.properties`：
+设置 `ANDROID_HOME`，或在仓库根目录创建自己的 `local.properties`：
 
 ```properties
 sdk.dir=/absolute/path/to/your/android-sdk
@@ -31,58 +29,53 @@ sdk.dir=/absolute/path/to/your/android-sdk
 ./gradlew :app:assembleDebug --console=plain
 ```
 
-输出为 `app/build/outputs/apk/debug/app-debug.apk`。Windows 使用 `gradlew.bat`；Python、脚本和 Windows 本地交互仍需各主机验证。协作检查命令见[贡献指南](../CONTRIBUTING.md)。
+输出为 `app/build/outputs/apk/debug/app-debug.apk`。Windows 使用 `gradlew.bat`；各主机本地脚本仍需验证。详见[贡献指南](../CONTRIBUTING.md)。
 
-若要归档构建，先配置 `local.properties` 中的 `sdk.dir`，再运行：
+交付归档先配置 `local.properties` 中的 `sdk.dir`，将 `FIRST_BUILD_NUMBER` 设为高于全部已用号的未占用正整数；1.2.4 的 64–67 已发布。整批会依次分配四个数字构建号：
 
 ```sh
-python3 scripts/build_apk.py --build-number "$STANDARD_BUILD_NUMBER" --summary "说明本次构建的修改"
+python3 scripts/build_apk.py --batch --build-number "$FIRST_BUILD_NUMBER" --variant benchmark --summary "说明本次构建的修改"
 ```
 
-本批已发布标准版归档为 `dist/apk/QuietTV_1.1.2-34_安卓5及以上_测试版.apk`；新构建按实际构建号生成本地归档，同时输出 `.apk.sha256` 和 `.json`。每个新交付包使用更高且未占用的 `--build-number`，本地归档名中的构建号与 APK 内部 versionCode 一致；公开下载名省略构建号，由 JSON 的 `public_apk` 记录，不额外生成副本。新名称使用 `安卓5+` 等简短系统标签，按实际内容标明 `ARM32`、`ARM64` 或 `通用`，无原生库时省略架构，状态使用 `测试`。历史归档保留原样。可选 `--variant benchmark --abi armeabi-v7a` 及 `--min-sdk 21`（默认）/ `23` / `26` / `31`，详见[版本规则](VERSIONING.md)。这些命令不会安装或修改电视。
+脚本按固定提交顺序构建 ARM32、ARM64、通用和安卓4.4包，检查版本、签名和原生库一致性，在 `dist/apk/` 生成不可变 APK、同名 SHA-256、JSON 和批次清单。本地归档名保留构建号，公开名省略构建号；脚本不安装电视或上传发布。`benchmark` 使用测试签名，不是正式包。已发布后交付修改过的内容须增加软件版本号，详见[版本规则](VERSIONING.md)。
+
+仅构建标准单包可省略 `--batch`，指定 `--abi armeabi-v7a`、`arm64-v8a` 或 `universal`；最低 API 默认21，可按实际适配选择23、26或31。
 
 ## Android 4.4 / API19
 
-使用独立兼容档位构建和归档；先设置 `LEGACY_BUILD_NUMBER`，必须高于标准包和其他已归档包的构建号：
+使用独立兼容档位，不能只降低标准版最低 API。`LEGACY_BUILD_NUMBER` 同样须是高于全部已用号的未占用数字：
 
 ```sh
 python3 scripts/build_apk.py --build-number "$LEGACY_BUILD_NUMBER" --compatibility legacy19 --variant benchmark --summary "Android 4.4 兼容测试版"
 ```
 
-本批已发布兼容包归档为 `dist/apk/QuietTV_1.1.2-35_安卓4.4_测试版.apk`。不另传 `--min-sdk` 时自动选择 API19；标准档不能用降低数字的方式生成 API19 包。直接构建与 Lint 可执行 `./gradlew :app:assembleDebug :app:lintDebug -PquietCompatibility=legacy19 --console=plain`。
-
-兼容版保留核心桌面、Dock、壁纸、应用列表、关于与离线许可证，使用传统 TCP ADB；不提供六位码配对。信号源按钮打开系统设置并提示使用遥控器信号源键，厂商直切需单独适配。APK 不含原生库；ARM32 运行、真实 HOME、网络切换和重启唤醒仍需目标电视验证。Debug 采用旧版 MultiDex 启动支持。
-
-两个档位共用包名和测试签名，会覆盖安装；切换档位前保留原包与配置，不通过卸载清空设置解决版本或签名问题。
+不另传 `--min-sdk` 时自动选择 API19。构建与 Lint 可用 `./gradlew :app:assembleDebug :app:lintDebug -PquietCompatibility=legacy19 --console=plain`。兼容版保留核心桌面、天气、壁纸、应用管理、儿童模式、关于和离线许可证，使用传统 TCP ADB；API19及厂商真实 HOME、遥控器、网络、重启与唤醒仍需目标电视验收。Debug 采用旧版 MultiDex 启动支持。
 
 ## 下载、安装与试用
 
-从 [1.1.2 Releases](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.2) 按系统选择：
+从[安装页](https://beatsad.github.io/quiet-tv/)或[最新版索引](https://beatsad.github.io/quiet-tv/latest.json)按系统、架构及升级条件选择最新适配 APK，包含测试版。索引中的 `url` 是真实附件地址，`bytes` 为大小，`sha256` 为校验值；不要根据旧文档或文件命名猜测当前包名和下载链接。
 
-| 系统 | GitHub 实际下载文件名 | 大小 |
-| --- | --- | --- |
-| 安卓 4.4 | `QuietTV_1.1.2-35_Android4.4_Test.apk` | 4,900,169 字节，约 4.67 MiB |
-| 安卓 5 及以上 | `QuietTV_1.1.2-34_Android5plus_Test.apk` | 9,370,356 字节，约 8.94 MiB |
-
-GitHub 附件用英文下载名和中文标签，本地中文归档保留。选择 APK 与实际英文名同名的 `.apk.sha256`，放在同一目录；不要用标为“原中文文件名校验记录”的历史记录检查英文名文件。例如安卓 5 及以上：
+下载后计算文件 SHA-256，与所选附件记录逐字核对，例如将变量设为本次实际下载的文件路径：
 
 ```sh
-shasum -a 256 -c QuietTV_1.1.2-34_Android5plus_Test.apk.sha256
+shasum -a 256 "$APK_PATH"
 ```
 
-安卓 4.4 改用 `QuietTV_1.1.2-35_Android4.4_Test.apk.sha256`。两档使用与历史 b26／b30 相同的测试签名，不能并存；跨档位覆盖仍需满足签名、递增构建号、系统与数据兼容条件。所有[历史下载](https://github.com/BeatsAD/quiet-tv/releases)及其原校验文件保留。
+历史附件有同名 `.apk.sha256` 时也可使用；缺少独立校验文件不代表没有新版。跨档位覆盖仍需核对实际包名、签名、递增构建号、系统及数据兼容条件，不卸载或清数据解决不匹配。所有[历史下载](https://github.com/BeatsAD/quiet-tv/releases)及原校验文件保留。
 
-先在电视“设置 → 系统／设备偏好设置 → 关于”中找到 Build／编译版本号，通常连续按遥控器确定约 7 次可开启“开发者选项”，再进入该页面开启实际支持的 USB／ADB 调试。网络连接还需核对网络调试开关、地址和端口；仅开启 USB 调试不保证网络 ADB 可用。详细菜单位置、开启和授权步骤见[技术路径文档第二节](TECHNICAL_PATH_WITH_CODEX.zh-CN.md#二连接电视读取真实设备能力)。
+电视支持时可通过文件管理器手动安装，来源授权由用户在系统设置中确认。通过电脑 ADB 安装时，先开启电视实际提供的调试入口，电脑与电视处于同一可互访局域网，并在电视上确认电脑授权。仅开启 USB 调试不保证网络 ADB 可用，详见[连接与授权](TECHNICAL_PATH_WITH_CODEX.zh-CN.md#二连接电视读取真实设备能力)。
 
-使用网络 ADB 时，电脑与电视需处于同一可互访局域网，并在电视上确认电脑授权。下方地址是文档占位，必须替换成自己的设备地址和实际调试端口。示例安装自行构建的 Debug APK；使用下载包时，将 APK 路径替换为下载文件的实际路径：
+先读取设备当前用户及命令帮助，核对 `--user` 支持；将 `TV_SERIAL`、`TV_USER` 设为实际目标地址和用户编号。将 `APK_PATH` 设为本次实际下载且已校验的 APK 路径。下例地址为占位，用户0仅为示例：
 
 ```sh
 TV_SERIAL=192.0.2.10:5555
+TV_USER=0
 adb connect "$TV_SERIAL"
-adb -s "$TV_SERIAL" install -r app/build/outputs/apk/debug/app-debug.apk
-adb -s "$TV_SERIAL" shell am start -n home.quiet.tv/.HomeActivity
+adb -s "$TV_SERIAL" shell am get-current-user
+adb -s "$TV_SERIAL" install -r --user "$TV_USER" "$APK_PATH"
+adb -s "$TV_SERIAL" shell am start --user "$TV_USER" -n home.quiet.tv/.HomeActivity
 ```
 
-升级覆盖安装需要相同签名且内部 `versionCode` 递增；关于显示用户可见版本，安装包名称同时标明实际构建号。签名不匹配时不要直接卸载解决；卸载会清除应用私有设置和恢复记录，应先核对旧包来源及备份。
+安装后读取实际版本并拉取已安装 APK 核对 SHA-256，不能仅凭 `Success` 判断更新完成。新安装先选“暂不设置，临时使用”；更新时保持原 HOME、壁纸、排序和应用状态，并实际检查。默认桌面、实体 HOME、重启及待机唤醒分别验收，恢复入口见[首次设置与恢复](SETUP.md)。
 
-新安装会进入[首次设置](SETUP.md)，可选择“暂不设置，临时使用”，先检查遥控器、应用和系统入口。切回原桌面使用“应用管理 → 更多”的恢复入口；资格与限制见[应用管理](APP_MANAGEMENT.md)。未知固件不套用其他设备的禁用清单。
+已有应用内更新入口时，可在“应用管理 → 关于 → 检查更新”下载并确认安装。1.2.4 签名清单已上线；同版本不会因构建号不同重复提示升级。没有更新入口的旧版先手动安装，详见[应用内更新](UPDATES.md)。
