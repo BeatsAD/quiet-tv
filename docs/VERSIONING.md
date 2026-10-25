@@ -4,26 +4,27 @@
 
 本页承接 [AGENTS.md](../AGENTS.md) 的安装包规则，适用于后续交付。历史安装包、校验记录、发布标签和下载链接保留原样。
 
-**实施状态：主程序归档脚本已适配版本号与数字构建号、中文系统标签、实际单架构标记和同名 SHA-256 文件，并核对 APK 实际版本、签名及已登记 worktree 的归档构建号。助手及正式版流程仍需单独验证。**
+**实施状态：主程序归档脚本已实现简短系统标签、明确的通用/单架构标记和“测试”状态；本地归档名保留构建号，JSON 的 `public_apk` 记录不带构建号的公开名。脚本不生成公开名副本、不上传；发布准备时按审核通过的名称提供原字节安装包。实际版本、签名、同名 SHA-256 文件及已登记 worktree 的构建号检查保留。助手及正式版流程仍需单独验证。**
 
 **分包实施状态：标准版已确定采用 ARM32、ARM64、通用备用三个包的默认交付策略。脚本新增 `--batch`，按固定提交依次构建标准三包及一个安卓4.4包，核对版本、签名、生产输入、递增构建号，以及单架构包与通用包的原生库名称和字节一致性，并生成批次清单。首批最终 APK 的功能、升级保留和厂商真机验收仍须单独记录；批次清单不代表设备验收。**
 
 ## 命名与签名
 
-主程序固定格式：
+主程序公开下载名固定格式：
 
 ```text
-QuietTV_<版本号>-<构建号>_<适用系统>[_<单架构标记>]_<发布状态>.apk
+QuietTV_<版本号>_<适用系统>[_<架构>]_<状态>.apk
 ```
 
-方括号表示可选字段，不写入实际名称。固定使用 `QuietTV` 前缀及下划线分隔，不加日期、提交哈希或“最新”。`standard`、`legacy19`、`api21`、`benchmark` 等技术字段写入归档记录。
+方括号表示可选字段，不写入实际名称。固定使用 `QuietTV` 前缀及下划线分隔，公开名不加构建号、日期、提交哈希或“最新”。本地不可变归档仍使用 `QuietTV_<版本号>-<构建号>_<适用系统>[_<架构>]_<状态>.apk`，并记录对应的公开名。`standard`、`legacy19`、`api21`、`benchmark` 等技术字段写入归档记录。历史包、附件和下载链接不追溯改名。
 
 ### 版本号与构建号
 
 - 版本号与实际 APK 的 `versionName` 一致，新版本使用 `主版本.次版本.修订号`。修复问题增加修订号，新增功能增加次版本，重大不兼容变化增加主版本。
+- 已发布批次后再公开交付修改过的内容，须使用新的软件版本号；同版本各档位、架构仍共用软件版本号。不得在同一公开文件名下替换不同内容。本地尚未发布的候选可保留软件版本号并使用新的递增构建号，不能将其当作已获发布批准。
 - 构建号与实际 APK 的 `versionCode` 一致，只使用不带前导零的正整数，例如 `31`，不使用 `b31`、`Build31`、`RC31`。
 - 主程序各系统档位、架构和构建类型共用递增交付序列；交付不同内容的新包时分配新号，不回退、复用或因版本变化归零。日常编译不必每次加号，同一归档原字节重发不分配新号。
-- 交付前核对源码配置、历史归档和远程发布中的已用号。文件名、APK 版本和归档记录必须一致，不能通过改名冒充新版本。
+- 交付前核对源码配置、历史归档和远程发布中的已用号。公开名中的软件版本、本地归档名中的软件版本及构建号、APK 内部版本和归档记录必须对应，不能通过改名冒充新版本；安装时读取 APK 内部构建号，不从公开名推断。
 - 主程序版本配置在 `app/build.gradle`，当前开发版本为 `1.2.1`，默认开发构建号为 `51`；交付时用 Gradle 参数 `quietBuildNumber` 分别指定递增构建号。1.1.2 已发布：标准档为 `1.1.2 / 34`，兼容档为 `1.1.2 / 35`，历史附件保持原样。standard 与 legacy19 均为 targetSdk36；本页示例不预占构建号。助手版本独立配置在 `coocaa-home-shim/build.gradle` 和 `xiaomi-home-helper/build.gradle`。
 
 ### 安卓档位与架构
@@ -31,12 +32,12 @@ QuietTV_<版本号>-<构建号>_<适用系统>[_<单架构标记>]_<发布状态
 | 文件名中的适用系统 | 构建对应关系 | 选择范围 |
 | --- | --- | --- |
 | `安卓4.4` | `legacy19`，minSdk19，`home.quiet.tv` | 安卓4.4兼容包，功能有所裁减 |
-| `安卓5及以上` | `standard`，minSdk21，`home.quiet.tv` | 安卓5.0及以上优先选择的标准包 |
+| `安卓5+` | `standard`，minSdk21，`home.quiet.tv` | 安卓5.0及以上优先选择的标准包 |
 | `酷开安卓8` | 专用包名 `com.coocaa.quiettv`，minSdk26 | 已确认适配条件的固件专项验证，不按品牌推定兼容 |
 
-同一标准包可覆盖多个安卓大版本，仅在存在实际兼容差异时新增档位。若交付其他最低 API 的标准包，标签也须同步变化：minSdk23 为 `安卓6及以上`，minSdk26 为 `安卓8及以上`，minSdk31 为 `安卓12及以上`。最低 API 满足不代表目标电视的 HOME、遥控器、输入源及重启唤醒已通过验收。
+同一标准包可覆盖多个安卓大版本，仅在存在实际兼容差异时新增档位。`+` 表示该版本及以上；其他最低 API 的标签同步变化：minSdk23 为 `安卓6+`，minSdk26 为 `安卓8+`，minSdk31 为 `安卓12+`。最低 API 满足不代表目标电视的 HOME、遥控器、输入源及重启唤醒已通过验收。
 
-通用架构包省略 `universal`；纯 DEX/资源包不加架构标记。单架构包在发布状态前加 `ARM32`（`armeabi-v7a`）、`ARM64`（`arm64-v8a`）、`x86` 或 `x86_64`，并核对实际 APK 内容。兼容档位目前不含原生库，归档中的 `packaged_abis` 为空；构建时的 `--abi` 请求不能代替实际内容或实机架构验收。
+多架构包明确写 `通用`，不再省略；纯 DEX/资源包不加架构标记。单架构包在状态前加 `ARM32`（`armeabi-v7a`）、`ARM64`（`arm64-v8a`）、`x86` 或 `x86_64`，并核对实际 APK 内容。`通用` 只表示多架构，系统及固件兼容条件仍然适用。兼容档位目前不含原生库，归档中的 `packaged_abis` 为空；构建时的 `--abi` 请求不能代替实际内容或实机架构验收。
 
 ### 默认分包交付
 
@@ -55,15 +56,15 @@ QuietTV_<版本号>-<构建号>_<适用系统>[_<单架构标记>]_<发布状态
 
 | 发布状态 | 条件 |
 | --- | --- |
-| `测试版` | 普通 Debug 开发包及 benchmark 优化测试包 |
-| `实验版` | 酷开专用适配、助手等实验包 |
-| `正式版` | 持久正式签名、release 构建，并完成该档位约定验收 |
+| `测试` | 普通 Debug 开发包及 benchmark 优化测试包 |
+| `实验` | 酷开专用适配、助手等实验包 |
+| `正式` | 持久正式签名、release 构建，并完成该档位约定验收 |
 
 `benchmark` 目前启用代码及资源裁剪，使用 Debug 测试签名；`release` 尚未配置持久正式签名。未签名或仅使用测试签名的包不得当作正式版，单纯改名不能改变签名或验收状态。旧系统归档必须通过 v1 签名验证。
 
 ### 中转助手
 
-助手使用 `QuietTV助手` 前缀，版本号及纯数字构建号独立于主程序。酷开助手的适用系统字段同时注明配套目标：`酷开安卓8配套普通桌面`（目标 `home.quiet.tv`）或 `酷开安卓8配套酷开桌面`（目标 `com.coocaa.quiettv`）。酷开助手自身包名为 `com.ccos.tv.homepage`，两种目标不能作为两个助手并存；更换目标需使用新的助手构建号。
+助手使用 `QuietTV助手` 前缀，版本号及纯数字构建号独立于主程序；公开名省略构建号，本地归档保留。酷开助手的适用系统字段同时注明配套目标：`酷开安卓8配套普通桌面`（目标 `home.quiet.tv`）或 `酷开安卓8配套酷开桌面`（目标 `com.coocaa.quiettv`）。酷开助手自身包名为 `com.ccos.tv.homepage`，两种目标不能作为两个助手并存；更换目标需使用新的助手构建号。
 
 助手归档记录注明目标包名、配套主程序文件名和 SHA-256。其 minSdk21 与 Android 8 固件适用范围分别记录，不因可安装就扩大支持范围。构建与恢复流程见[助手说明](../coocaa-home-shim/README.md)。
 
@@ -74,13 +75,16 @@ QuietTV_<版本号>-<构建号>_<适用系统>[_<单架构标记>]_<发布状态
 以下仅展示格式，不代表已分配构建号、构建、发布或完成设备验收：
 
 ```text
-QuietTV_1.1.1-31_安卓5及以上_测试版.apk
-QuietTV_1.1.1-32_安卓4.4_测试版.apk
-QuietTV_1.1.1-33_酷开安卓8_实验版.apk
-QuietTV_1.1.1-34_安卓5及以上_ARM32_测试版.apk
-QuietTV_1.1.1-35_安卓5及以上_正式版.apk
-QuietTV助手_2.0.1-12_酷开安卓8配套酷开桌面_实验版.apk
+QuietTV_1.2.2_安卓5+_ARM32_测试.apk
+QuietTV_1.2.2_安卓5+_ARM64_测试.apk
+QuietTV_1.2.2_安卓5+_通用_测试.apk
+QuietTV_1.2.2_安卓4.4_测试.apk
+QuietTV_1.2.2_酷开安卓8_实验.apk
+QuietTV_1.2.2_安卓5+_通用_正式.apk
+QuietTV助手_2.0.1_酷开安卓8配套酷开桌面_实验.apk
 ```
+
+例如公开名 `QuietTV_1.2.2_安卓5+_ARM32_测试.apk` 可对应本地归档 `QuietTV_1.2.2-55_安卓5+_ARM32_测试.apk`，实际构建号由交付时分配，不因示例而占用。若 GitHub 需要英文实际下载名，使用本批审核确认的映射，如 `安卓5+` 对应 `Android5plus`、`通用` 对应 `Universal`，状态对应 `Test`、`Experimental`、`Release`；同样不带构建号，中文显示标签使用上述公开名。上传前核对实际下载名及字节，不能仅修改显示标签后宣称下载文件已改名。
 
 ## 构建与归档
 
@@ -94,14 +98,14 @@ QuietTV助手_2.0.1-12_酷开安卓8配套酷开桌面_实验版.apk
 python3 scripts/build_apk.py --build-number "$STANDARD_BUILD_NUMBER" --variant benchmark --summary "说明本次更新内容"
 ```
 
-脚本按实际版本及传入构建号输出 APK、同名 `.apk.sha256`、归档 JSON 及优化映射文件；兼容包增加 `--compatibility legacy19`。已发布的 1.1.2 本地归档为 `QuietTV_1.1.2-34_安卓5及以上_测试版.apk` 与 `QuietTV_1.1.2-35_安卓4.4_测试版.apk`，仅原字节重发可复用这两个编号。
+脚本按实际版本及传入构建号输出本地归档 APK、同名 `.apk.sha256`、归档 JSON 及优化映射文件，并在 JSON 的 `public_apk` 记录公开名；不会额外生成公开名副本或自动上传。兼容包增加 `--compatibility legacy19`。已发布的 1.1.2 本地归档为 `QuietTV_1.1.2-34_安卓5及以上_测试版.apk` 与 `QuietTV_1.1.2-35_安卓4.4_测试版.apk`，仅原字节重发可复用这两个编号。
 
 现有参数包括 `--variant benchmark`、`--abi armeabi-v7a`、`--min-sdk 21`（默认）、`23`、`26`、`31`。`--compatibility legacy19` 固定使用 API19，标准档不接受 API19。酷开专用桌面及各中转助手暂按各自说明构建，尚未接入统一归档；交付前须完成对应命名及元数据核验，不将当前脚本描述为已支持所有类别。
 
 后续交付必须满足：
 
 - APK 放入本地不可变归档 `dist/apk/`，提供 `<完整APK文件名>.sha256` 及相同主文件名的 `.json`；优化包同时保留映射文件。
-- 归档记录包含真实包名、版本号、构建号、兼容档位、最低/目标 API、构建类型、实际架构、签名指纹、源码提交、生产输入指纹、时间、字节数、SHA-256、变更摘要和验收范围。助手额外记录配套关系。
+- 归档记录包含本地归档名、对应公开名、真实包名、版本号、构建号、兼容档位、最低/目标 API、构建类型、实际架构、签名指纹、源码提交、生产输入指纹、时间、字节数、SHA-256、变更摘要和验收范围。助手额外记录配套关系。
 - 同名同字节且校验记录一致可复用；同名不同内容禁止覆盖，必须使用新构建号。构建期间生产输入改变则停止归档。
 - Gradle 的构建输出目录是可更新的中间产物；归档、密钥和恢复记录保留本地，不随源码发布。
 
@@ -142,7 +146,7 @@ GitHub 清理中文附件名，本批经明确批准只对 GitHub 下载名采�
 | `QuietTV_1.1.2-34_安卓5及以上_测试版.apk` | `QuietTV_1.1.2-34_Android5plus_Test.apk` |
 | `QuietTV_1.1.2-35_安卓4.4_测试版.apk` | `QuietTV_1.1.2-35_Android4.4_Test.apk` |
 
-APK 字节、版本与签名均未变化。实际英文名的 `.apk.sha256` 与下载配套，另保留原中文文件名校验记录。后续平台改名必须同步校验文件中的文件名，不能只重命名附件。此例外不改变本地命名规则。
+APK 字节、版本与签名均未变化。该历史批次的实际英文名 `.apk.sha256` 与下载配套，另保留原中文文件名校验记录；本节只描述已发布历史附件，不追溯按新规则改名。后续公开命名、校验及上传范围按前文执行。
 
 ## 历史发布
 
@@ -157,9 +161,9 @@ APK 字节、版本与签名均未变化。实际英文名的 `.apk.sha256` 与�
 
 Published 1.1.2 provides standard build 34 (minSdk21) and legacy19 build 35 (minSdk19), both targeting API36. GitHub uses the approved English filenames listed in the installation guide; local Chinese archives are unchanged. The matching checksum must name the actual download. Historical b30 legacy19 and b26 standard downloads keep their original names and tags. At b30 publication, native emulator and physical-TV acceptance were still pending; historical results for other builds do not validate this APK. See [compatibility](COMPATIBILITY.md) for the recorded scope.
 
-Future deliveries use `QuietTV_<version>-<numeric build>_<system>[_<single ABI>]_<status>.apk`. Version and build must match the actual APK. Build numbers are positive integers without prefixes or leading zeros and increase across all main-app delivery variants. Re-sending identical archived bytes does not allocate a new number. The helper uses `QuietTV助手`, its own version/build sequence, and an explicit target launcher.
+Future public downloads use `QuietTV_<version>_<system>[_<architecture>]_<status>.apk`. Local immutable archives retain `-<numeric build>` after the version and record the public name in `public_apk`; the script does not create public-name copies or upload them. Version and internal build must match the actual APK. Build numbers are positive integers without prefixes or leading zeros and increase across all main-app delivery variants. Changed content delivered after a published batch requires a new software version; never replace different bytes under the same public filename. Re-sending identical archived bytes does not allocate a new number. The helper uses `QuietTV助手`, its own version/build sequence, and an explicit target launcher; its public name omits the build while its local archive retains it.
 
-System labels are `安卓4.4` (legacy19, API19), `安卓5及以上` (standard, API21), and `酷开安卓8` (experimental vendor package, API26). Other minimum APIs require matching labels. Omit the ABI for universal or native-library-free APKs; use ARM32, ARM64, x86 or x86_64 only for actual single-ABI builds. Status is `测试版` (test), `实验版` (experimental), or `正式版` (formally signed release with agreed acceptance completed).
+System labels are `安卓4.4` (legacy19, API19), `安卓5+` (standard, API21), and `酷开安卓8` (experimental vendor package, API26); `+` means that version and above. Other minimum APIs require matching labels. Multi-ABI packages explicitly use `通用`; omit architecture only for native-library-free APKs. Use ARM32, ARM64, x86 or x86_64 only for actual single-ABI builds. Universal architecture does not imply compatibility with every OS or TV. Status is `测试` (test), `实验` (experimental), or `正式` (formally signed release with agreed acceptance completed). If GitHub needs English download names, use the approved system/architecture/status mapping (for example, Android5plus, Universal and Test) without build numbers, with the Chinese public name as the display label; verify actual download names and bytes before upload.
 
 Future standard deliveries default to three standalone APKs: ARM32, ARM64 and a universal fallback containing all four native-library ABIs. Each device installs one APK. All three share the source commit, production inputs, software version, feature configuration and signing certificate; assign increasing build numbers in ARM32, ARM64, universal order. Keep one legacy19 APK while it has no native-library or actual ABI differences; determine the Coocaa package set per delivery. Select by the ABIs supported by the operating system, and use the universal fallback when uncertain. In-place switches still require a higher build number; do not uninstall, clear data or force a downgrade to switch to a lower-numbered package.
 

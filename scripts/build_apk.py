@@ -102,10 +102,12 @@ def archive_apk(summary, built_at=None, output_dir=None, abi='universal', archiv
         raise ValueError('归档仅支持三段版本号及正整数构建号的 Quiet TV 主程序')
     if compatibility not in COMPATIBILITY or (compatibility == 'legacy19' and min_sdk != 19) or (compatibility == 'standard' and min_sdk < 21):
         raise ValueError('兼容档位与 APK 最低系统不符')
-    system = {19: '安卓4.4', 21: '安卓5及以上', 23: '安卓6及以上', 26: '安卓8及以上', 31: '安卓12及以上'}[min_sdk]
+    system = {19: '安卓4.4', 21: '安卓5+', 23: '安卓6+', 26: '安卓8+', 31: '安卓12+'}[min_sdk]
     abi_names = {'armeabi-v7a': 'ARM32', 'arm64-v8a': 'ARM64', 'x86': 'x86', 'x86_64': 'x86_64'}
-    suffix = '_' + abi_names[packaged_abis[0]] if len(packaged_abis) == 1 else ''
-    name = f"QuietTV_{actual['version_name']}-{actual['version_code']}_{system}{suffix}_测试版.apk"
+    architecture = abi_names[packaged_abis[0]] if len(packaged_abis) == 1 else ('通用' if packaged_abis else '')
+    suffix = '_' + architecture if architecture else ''
+    public_name = f"QuietTV_{actual['version_name']}_{system}{suffix}_测试.apk"
+    name = f"QuietTV_{actual['version_name']}-{actual['version_code']}_{system}{suffix}_测试.apk"
     destination = Path(archive_dir or ROOT / 'dist/apk') / name
     receipt = destination.with_suffix('.json')
     checksum = destination.with_name(destination.name + '.sha256')
@@ -123,9 +125,9 @@ def archive_apk(summary, built_at=None, output_dir=None, abi='universal', archiv
     if used and actual['version_code'] <= max(used):
         raise ValueError(f'新包构建号必须高于已归档的 {max(used)}')
     record = {
-        'apk': name, 'application_id': metadata['applicationId'],
+        'apk': name, 'public_apk': public_name, 'application_id': metadata['applicationId'],
         'version_name': element['versionName'], 'version_code': element['versionCode'],
-        'build_type': metadata['variantName'], 'status': '测试版', 'system': system,
+        'build_type': metadata['variantName'], 'status': '测试', 'system': system,
         'compatibility': compatibility, 'abi': abi, 'packaged_abis': packaged_abis, 'min_sdk': min_sdk, 'target_sdk': actual['target_sdk'],
         'signer_sha256': certs, 'built_at': built_at,
         'apk_modified_at': datetime.fromtimestamp(apk.stat().st_mtime).astimezone().isoformat(timespec='seconds'),
@@ -151,7 +153,7 @@ def archive_apk(summary, built_at=None, output_dir=None, abi='universal', archiv
         out.write(json.dumps(record, ensure_ascii=False, indent=2) + '\n')
     with checksum.open('x', encoding='utf-8') as out:
         out.write(checksum_text)
-    print(f'安装包：{destination}\n字节数：{len(data)}\nSHA-256：{sha256}')
+    print(f'安装包：{destination}\n公开名称：{public_name}\n字节数：{len(data)}\nSHA-256：{sha256}')
     return destination
 
 
