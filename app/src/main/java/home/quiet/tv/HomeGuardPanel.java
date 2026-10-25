@@ -98,13 +98,11 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
     }
     private void openAccessibility(){
         resumeFocus="guard-accessibility";
-        try{ui.startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));}
-        catch(ActivityNotFoundException|SecurityException failure){resumeFocus=null;ui.message("电视未开放无障碍设置入口，暂不能启用桌面守护（实验）。");}
+        if(!ExternalActivityLauncher.open(ui,"guard.accessibility",new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))){resumeFocus=null;ui.message("无障碍设置暂时无法打开，暂不能启用桌面守护（实验）。");}
     }
     private void openNotification(){
         resumeFocus="guard-notification";
-        try{ui.startActivity(new Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"));}
-        catch(ActivityNotFoundException|SecurityException failure){resumeFocus=null;ui.message("电视未开放通知访问入口，可通过更多操作配置自动恢复。");}
+        if(!ExternalActivityLauncher.open(ui,"guard.notification",new Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))){resumeFocus=null;ui.message("通知访问设置暂时无法打开，可通过更多操作配置自动恢复。");}
     }
     private void configureRecovery(){
         if(configuring)return;
@@ -170,8 +168,7 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
     private void openOriginal(){
         state.pause("已暂停");refreshUi();
         if(!state.validSelection()){ui.message("原主页不可用，请重新选择。");return;}
-        try{ui.startActivity(new Intent(Intent.ACTION_MAIN).setComponent(ComponentName.unflattenFromString(state.selected())));}
-        catch(ActivityNotFoundException|SecurityException failure){ui.message("原桌面无法打开，守护保持暂停。");}
+        if(!ExternalActivityLauncher.open(ui,"guard.original_home",new Intent(Intent.ACTION_MAIN).setComponent(ComponentName.unflattenFromString(state.selected()))))ui.message("原桌面无法打开，守护保持暂停。");
     }
     private void showSheet(ManagementUi.Sheet sheet,View focus,View origin){
         if(openSheet!=null)openSheet.dialog.dismiss();openSheet=sheet;

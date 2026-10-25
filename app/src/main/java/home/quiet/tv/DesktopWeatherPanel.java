@@ -81,11 +81,11 @@ final class DesktopWeatherPanel {
         detail(sheet,tr("自动定位","Automatic location"),tr("优先使用系统位置；不可用时根据网络 IP 推测城市，可手动选择城市。","Uses system location when available, otherwise estimates the city from the network IP. You can choose a city manually."));
         detail(sheet,tr("隐私与条款","Privacy and terms"),tr("通过 HTTPS 查询和风天气，失败时尝试 UAPI。地区选择和搜索在本地完成，手机输入仅在当前局域网会话中接收。","Queries QWeather over HTTPS with UAPI fallback. Region search is local; phone input is limited to the current LAN session."));
         if(snapshot!=null){SimpleDateFormat time=new SimpleDateFormat("MM-dd HH:mm",Locale.US);detail(sheet,tr("数据时间","Observation time"),snapshot.observedAt>0?time.format(new Date(snapshot.observedAt)):tr("接口未提供可识别时间","Observation time unavailable"));}
-        sheet.action(primary?tr("和风天气官网","QWeather site"):tr("UAPI 官网","UAPI website"),()->open(primary?"https://www.qweather.com":"https://uapis.cn"));sheet.action(tr("隐私与条款","Privacy and terms"),()->open(primary?"https://dev.qweather.com/docs/terms/tos/":"https://uapis.cn/docs/getting-started/privacy-policy"));Button close=sheet.action(tr("关闭","Close"),sheet.dialog::dismiss);
+        sheet.action(primary?tr("和风天气官网","QWeather site"):tr("UAPI 官网","UAPI website"),()->open("weather.website",primary?"https://www.qweather.com":"https://uapis.cn"));sheet.action(tr("隐私与条款","Privacy and terms"),()->open("weather.terms",primary?"https://dev.qweather.com/docs/terms/tos/":"https://uapis.cn/docs/getting-started/privacy-policy"));Button close=sheet.action(tr("关闭","Close"),sheet.dialog::dismiss);
         sheet.dialog.setOnDismissListener(d->{information=null;if(active)service.requestFocus();});sheet.show(close);
     }
     private void detail(ManagementUi.Sheet sheet,String heading,String text){
         if(sheet.body.getChildCount()>0)ui.gap(sheet.body,12);sheet.body.addView(ui.label(heading,15));TextView body=ui.muted(text,13);body.setLineSpacing(ui.px(3),1);sheet.body.addView(body);
     }
-    private void open(String url){try{ui.startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(url)));}catch(ActivityNotFoundException e){ui.feedback(tr("当前电视没有可用的浏览器","No browser is available on this TV"));}}
+    private void open(String entry,String url){if(!ExternalActivityLauncher.open(ui,entry,new Intent(Intent.ACTION_VIEW,Uri.parse(url))))ui.feedback(tr("链接暂时无法打开","Unable to open this link"));}
 }
