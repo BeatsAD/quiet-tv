@@ -178,7 +178,8 @@ System-panel fallback is included in the published 1.1.2 standard APK; legacy19 
 
 | 范围 | 上游记录与方案 | Quiet TV 状态及验收重点 |
 | --- | --- | --- |
-| 小米 MiTV4-ANSM0 / Android 6 | [#81](https://github.com/pengchujin/aerial-tv/issues/81)：服务绑定后仍可能没有有效窗口事件；上游1.43起增加 UsageStats 补偿，1.46有用户延迟返回及有限重启实测 | 本修复源码加入安卓5／6精确主页补偿与电脑首次配置；未发布，目标固件的事件、实体 HOME、重启、短/长待机及暂停恢复仍待 Quiet TV 真机验收 |
+| 小米 MiTV4-ANSM0 / Android 6 | [#81](https://github.com/pengchujin/aerial-tv/issues/81)：服务绑定后仍可能没有有效窗口事件；上游1.43起增加 UsageStats 补偿，1.46有用户延迟返回及有限重启实测 | 本地源码按小米／Redmi 品牌及 API 增加开机30／45秒复查、安卓5／6无事件时的单次无障碍恢复；原主页识别不以型号或固件指纹阻断。API23／31模拟验证通过，实体 HOME、自然重启、短/长待机及暂停恢复仍待 Quiet TV 真机验收 |
+| 小米／Redmi Android9低内存等设备 | [Aerial v1.47同步恢复](https://github.com/pengchujin/aerial-tv/blob/7b005c6b35d068f1772c0e956a0cfddbbd803690/app/src/main/java/app/orchard/tv/guard/RevivalSync.kt)：通知监听不可用时使用本地账号与系统同步唤醒 | 本地源码提供账号/同步入口和默认关闭的KEEP_ADB；按品牌与系统能力判断。系统总同步及联网调度条件须满足；自然待机、固定时延和真实低内存固件仍待真机验收 |
 | 酷开 / Android 8 | [#69](https://github.com/pengchujin/aerial-tv/issues/69)：私有 HOME.CC 类别，识别修复不等于改写固件主页 | Quiet TV 厂商接管待验收；不能按品牌批量应用 |
 | 酷开 / Android 11 | [#122](https://github.com/pengchujin/aerial-tv/issues/122)：LITE_HOME 与 HOME.CC 不同，用户修改包有有限实测 | 原主页识别、实体键、开机与恢复均待目标固件核验 |
 | 海信 Android VIDAA | [#40](https://github.com/pengchujin/aerial-tv/issues/40)：私有主页属性可改变 HOME 行为，开机仍受拦截 | Quiet TV 不自动改属性；系统输入面板调用与 HOME 接管分别验证 |

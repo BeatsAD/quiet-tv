@@ -92,6 +92,7 @@ final class DesktopRoutes {
                     .put("evidenceId",recorded?prefs.getString("routeTestEvidence_"+scene,""):""));
         }
         return snapshot.put("sceneEvidence",evidence).put("vendorBootProblem",vendorProblem())
+                .put("syncRecovery",HomeGuardSync.summary(context)).put("syncRecoveryReady",HomeGuardSync.ready(context)).put("keepAdb",HomeGuardAdb.enabled(context))
                 .put("observationReady",state.ready() && state.serviceEnabled() && HomeGuardService.connected());
     }
     private JSONObject bridge(){return rules.vendorBoot();}

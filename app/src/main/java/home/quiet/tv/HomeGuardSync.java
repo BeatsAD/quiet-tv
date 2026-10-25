@@ -1,68 +1,62 @@
 package home.quiet.tv;
 
 import android.accounts.*;
-import android.app.Service;
 import android.content.*;
 import android.os.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
-/** Local system-sync binding revives the guard when notification access cannot bind. No data sync. */
-public final class HomeGuardSync extends Service {
-    private static final String AUTHORITY="settings";
-    private static Account account(Context c){return new Account("Quiet TV 桌面恢复",c.getPackageName()+".guard");}
-    static boolean ready(Context c){
-        if(!new HomeGuardState(c).ready() || !HomeGuardRecovery.writeAllowed(c))return false;
-        try{return ContentResolver.getMasterSyncAutomatically() && ContentResolver.getIsSyncable(account(c),AUTHORITY)>0
-                && ContentResolver.getSyncAutomatically(account(c),AUTHORITY);}
-        catch(SecurityException|IllegalArgumentException failure){return false;}
-    }
-    static void ensure(Context c){
-        if(!new HomeGuardState(c).ready() || !HomeGuardRecovery.writeAllowed(c) || ready(c))return;
-        try{
-            Account own=account(c);
-            if(ContentResolver.getIsSyncable(own,AUTHORITY)<=0){
-                AccountManager.get(c).addAccountExplicitly(own,null,null);
-                ContentResolver.setIsSyncable(own,AUTHORITY,1);
-            }
-            if(!ContentResolver.getSyncAutomatically(own,AUTHORITY))ContentResolver.setSyncAutomatically(own,AUTHORITY,true);
-            // Respect the system's master switch; do not enable syncing for any other account.
-            DiagnosticLog.info("home_guard.sync",ready(c)?"configured":"master_sync_unavailable");
-        }catch(SecurityException|IllegalArgumentException failure){DiagnosticLog.info("home_guard.sync","configuration_unavailable");}
+/** Local account + settings sync, including low-RAM devices without notification access. */
+final class HomeGuardSync {
+    static final String AUTHORITY="settings";
+    private static final ExecutorService worker=new ThreadPoolExecutor(0,1,5,TimeUnit.SECONDS,new LinkedBlockingQueue<>());
+    static boolean supported(Context c){return HomeGuardPolicy.supported(Build.MANUFACTURER,Build.BRAND,Build.VERSION.SDK_INT,BuildConfig.LEGACY_19);}
+    static Account account(Context c){
+        String name=c.getString(R.string.home_guard_account_name),type=c.getString(R.string.home_guard_account_type);
+        for(Account existing:AccountManager.get(c).getAccountsByType(type))
+            if(name.equals(existing.name) || "Quiet TV 桌面恢复".equals(existing.name))return existing;
+        return new Account(name,type);
     }
     static void pause(Context c){
-        if(BuildConfig.LEGACY_19 || !HomeGuardState.unlocked(c))return;
-        try{if(ContentResolver.getSyncAutomatically(account(c),AUTHORITY))ContentResolver.setSyncAutomatically(account(c),AUTHORITY,false);}
-        catch(SecurityException|IllegalArgumentException ignored){}
+        if(!supported(c) || !HomeGuardState.unlocked(c))return;
+        try{Account own=account(c);if(ContentResolver.getSyncAutomatically(own,AUTHORITY))ContentResolver.setSyncAutomatically(own,AUTHORITY,false);ContentResolver.cancelSync(own,AUTHORITY);}
+        catch(SecurityException|IllegalArgumentException failure){DiagnosticLog.error("home_guard.sync.pause_failed",failure);}
     }
-    private AbstractThreadedSyncAdapter adapter;
-    @Override public IBinder onBind(Intent intent){
-        if(adapter==null)adapter=new AbstractThreadedSyncAdapter(getApplicationContext(),false){
-            @Override public void onPerformSync(Account own,Bundle extras,String authority,ContentProviderClient provider,SyncResult result){
-                Context c=getContext();
-                if(!account(c).equals(own) || !AUTHORITY.equals(authority) || !new HomeGuardState(c).ready())return;
-                // Never read SettingsProvider or transfer settings/account data.
-                new Handler(Looper.getMainLooper()).post(()->{
-                    if(!new HomeGuardState(c).ready())return;
-                    DiagnosticLog.info("home_guard.sync_callback","guardConnected="+HomeGuardService.connected());
-                    if(!HomeGuardService.connected())HomeGuardRecovery.noteRevival(c);
-                    HomeGuardRecovery.request(c,"系统同步恢复");
-                });
+    static void refresh(Context c){if(!supported(c) || !HomeGuardState.unlocked(c))return;Context app=c.getApplicationContext();worker.execute(()->ensure(app));}
+    static synchronized void ensure(Context c){
+        if(!supported(c) || !HomeGuardState.unlocked(c))return;
+        HomeGuardState state=new HomeGuardState(c);Account own=account(c);
+        try{
+            boolean exists=false;for(Account value:AccountManager.get(c).getAccountsByType(own.type))if(own.equals(value)){exists=true;break;}
+            if(!state.enabled()){
+                if(exists)pause(c);
+                status(state,"已暂停");return;
             }
-        };
-        return adapter.getSyncAdapterBinder();
+            if(!state.validSelection() || state.helperActive()){status(state,"原主页或中转条件不可用");return;}
+            if(!HomeGuardRecovery.writeAllowed(c)){status(state,"写安全设置权限未授予");return;}
+            if(!exists && !AccountManager.get(c).addAccountExplicitly(own,null,null)){status(state,"同步恢复账号未能创建");return;}
+            if(ContentResolver.getIsSyncable(own,AUTHORITY)<=0)ContentResolver.setIsSyncable(own,AUTHORITY,1);
+            if(!ContentResolver.getSyncAutomatically(own,AUTHORITY))ContentResolver.setSyncAutomatically(own,AUTHORITY,true);
+            status(state,ContentResolver.getMasterSyncAutomatically()?"已配置，等待系统调度":"系统自动同步已关闭");
+        }catch(SecurityException|IllegalArgumentException failure){status(state,"系统不允许配置同步恢复");DiagnosticLog.error("home_guard.sync.setup_failed",failure);}
     }
-    public static final class AccountService extends Service {
-        private AbstractAccountAuthenticator authenticator;
-        @Override public IBinder onBind(Intent intent){
-            if(authenticator==null)authenticator=new AbstractAccountAuthenticator(this){
-                @Override public Bundle editProperties(AccountAuthenticatorResponse r,String type){return null;}
-                @Override public Bundle addAccount(AccountAuthenticatorResponse r,String type,String token,String[] features,Bundle options){return null;}
-                @Override public Bundle confirmCredentials(AccountAuthenticatorResponse r,Account account,Bundle options){return null;}
-                @Override public Bundle getAuthToken(AccountAuthenticatorResponse r,Account account,String type,Bundle options){return null;}
-                @Override public String getAuthTokenLabel(String type){return null;}
-                @Override public Bundle updateCredentials(AccountAuthenticatorResponse r,Account account,String type,Bundle options){return null;}
-                @Override public Bundle hasFeatures(AccountAuthenticatorResponse r,Account account,String[] features){Bundle b=new Bundle();b.putBoolean(AccountManager.KEY_BOOLEAN_RESULT,false);return b;}
-            };
-            return authenticator.getIBinder();
-        }
+    private static void status(HomeGuardState state,String text){if(!text.equals(state.preferences.getString("syncRecoveryStatus","")))state.preferences.edit().putString("syncRecoveryStatus",text).apply();}
+    static String summary(Context c){return new HomeGuardState(c).preferences.getString("syncRecoveryStatus","尚未配置");}
+    static boolean ready(Context c){
+        if(!supported(c) || !HomeGuardState.unlocked(c) || !new HomeGuardState(c).ready() || !HomeGuardRecovery.writeAllowed(c))return false;
+        try{Account own=account(c);return ContentResolver.getMasterSyncAutomatically() && ContentResolver.getIsSyncable(own,AUTHORITY)>0 && ContentResolver.getSyncAutomatically(own,AUTHORITY);}
+        catch(SecurityException|IllegalArgumentException failure){return false;}
+    }
+    static void perform(Context c,Account account,String authority){
+        if(!supported(c) || !HomeGuardState.unlocked(c) || !AUTHORITY.equals(authority) || !account(c).equals(account))return;
+        HomeGuardState state=new HomeGuardState(c);if(!state.ready()){if(!state.enabled())refresh(c);return;}
+        DiagnosticLog.info("home_guard.sync.callback","local_only=true");HomeGuardAdb.ensure(c);
+        if(!HomeGuardService.connected() || !HomeGuardState.interactive(c))HomeGuardRecovery.recovered(c);
+        if(HomeGuardService.connected())return;
+        boolean missing=!state.serviceEnabled();
+        if(missing)HomeGuardRecovery.noteRevival(c);
+        HomeGuardRecovery.request(c,"系统同步恢复");
     }
 }

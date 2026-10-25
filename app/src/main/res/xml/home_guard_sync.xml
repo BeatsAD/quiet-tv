@@ -1,8 +1,6 @@
-<!-- SettingsProvider emits upload-only changes; this binding only revives the process, and transfers no data. -->
+<?xml version="1.0" encoding="utf-8"?>
+<!-- No data is read or transferred; SettingsProvider changes let SyncManager bind our process. -->
 <sync-adapter xmlns:android="http://schemas.android.com/apk/res/android"
-    android:contentAuthority="settings"
-    android:accountType="@string/home_guard_account_type"
-    android:userVisible="false"
-    android:supportsUploading="true"
-    android:allowParallelSyncs="false"
-    android:isAlwaysSyncable="true" />
+    android:contentAuthority="settings" android:accountType="@string/home_guard_account_type"
+    android:userVisible="false" android:supportsUploading="true"
+    android:allowParallelSyncs="false" android:isAlwaysSyncable="true" />

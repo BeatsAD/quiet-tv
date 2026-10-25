@@ -109,7 +109,9 @@ final class HomeGuardState {
         }catch(PackageManager.NameNotFoundException|SecurityException ignored){}return selected;
     }
     boolean validSelection(){
-        if(!unlocked(context) || !Build.FINGERPRINT.equals(preferences.getString("firmware","")))return false;
+        // Observer recovery follows the installed HOME component across firmware updates.
+        // Firmware-specific vendor entry points and the optional proxy keep their own checks.
+        if(!unlocked(context))return false;
         for(Candidate home:candidates())if(home.component.flattenToString().equals(selected()))return true;return false;
     }
     boolean ready(){return enabled() && validSelection() && !helperActive();}
@@ -123,7 +125,7 @@ final class HomeGuardState {
     }
     // Persist enabled mode before requesting recovery.
     @android.annotation.SuppressLint("ApplySharedPref")
-    String enable(){if(new DesktopRoutes(context).proxySelected() && !new HomeProxy(context).pause())return "代理暂停回执待确认，请先恢复原桌面";preferences.edit().putString("mode","AUTO").putBoolean("configured",true).commit();configure();new DesktopRoutes(context).observe();HomeGuardRecovery.request(context,"用户启用");return enableProblem();}
+    String enable(){if(new DesktopRoutes(context).proxySelected() && !new HomeProxy(context).pause())return "代理暂停回执待确认，请先恢复原桌面";preferences.edit().putString("mode","AUTO").putBoolean("configured",true).commit();configure();new DesktopRoutes(context).observe();HomeGuardSync.refresh(context);HomeGuardAdb.ensure(context);HomeGuardRecovery.request(context,"用户启用");return enableProblem();}
     // A boot-only entry does not establish that pressing HOME can be redirected.
     boolean compatibleReady(){return new HomeProxy(context).ready() || ready() && serviceEnabled() && HomeGuardService.connected();}
     String summary(){
