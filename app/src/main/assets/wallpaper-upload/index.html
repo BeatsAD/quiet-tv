@@ -22,13 +22,13 @@
   <section id="editor" aria-labelledby="editor-title" hidden>
     <h1 id="editor-title">上传壁纸</h1>
     <label class="preview" for="photo">
-      <input id="photo" class="file-input" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,.mp4" aria-label="选择壁纸图片或视频">
+      <input id="photo" class="file-input" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/x-matroska,video/webm,.mp4,.mov,.mkv,.webm" aria-label="选择壁纸图片或视频">
       <img id="preview" alt="待上传壁纸预览" hidden>
       <video id="video-preview" muted playsinline controls preload="metadata" aria-label="待上传视频预览" hidden></video>
       <span id="placeholder"><span class="plus" aria-hidden="true">＋</span><span class="placeholder-text">选择图片或视频</span></span>
       <span class="change" id="change" hidden>更换文件</span>
     </label>
-    <p id="fileinfo">图片  JPG / PNG / 静态 WebP  最大 20 MB<br>视频  MP4  最大 30 MB  30 FPS</p>
+    <p id="fileinfo">图片  JPG / PNG / 静态 WebP  最大 20 MB<br>视频  MP4 / MOV / MKV / WebM  最大 200 MB  60 FPS</p>
     <button id="send" disabled>上传到电视</button>
     <button id="cancel" type="button" hidden>取消上传</button>
     <div id="progress" role="progressbar" aria-label="上传进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden><span></span></div>
@@ -41,6 +41,7 @@
     <p class="intro">在电视按返回，选择壁纸预览并使用。</p>
     <img id="result" alt="已上传的壁纸">
     <video id="result-video" muted playsinline controls preload="metadata" aria-label="已上传视频" hidden></video>
+    <p id="result-status" class="intro" role="status" aria-live="polite" hidden></p>
     <button id="another">继续上传</button>
   </section>
 </main>

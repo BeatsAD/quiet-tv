@@ -31,6 +31,7 @@ final class WallpaperController {
     private final Ambient ambient;
     private final VideoWallpaperPlayer video;
     private String playingVideo="",failedVideo="";
+    private VideoWallpaperPlayer.Failure videoFailure=VideoWallpaperPlayer.Failure.UNKNOWN;
     private int videoRequest;
     private boolean commitPending,leaving,destroyed;
     private String posterId;
@@ -251,7 +252,7 @@ final class WallpaperController {
                         ambient.setVisibility(View.INVISIBLE);shade.setVisibility(View.VISIBLE);revealVideo(version);
                         if(commitPending){commitPending=false;commitVideo(id);}else if(picker!=null)details();
                     }
-                    @Override public void failed(){if(version!=videoRequest)return;failedVideo=id;stopVideo();if(picker!=null)details();notice(tr("视频播放失败，请使用较低规格的 MP4","Video playback failed. Try a lower-resolution MP4."));}
+                    @Override public void failed(VideoWallpaperPlayer.Failure reason){if(version!=videoRequest)return;failedVideo=id;videoFailure=reason;stopVideo();if(picker!=null)details();notice(reason.hint(chinese));}
                 });
             });
         });
@@ -337,7 +338,7 @@ final class WallpaperController {
         if(entry==null){title.setText(tr("还没有动态壁纸","No video wallpapers"));subtitle.setVisibility(View.GONE);for(TextView control:new TextView[]{staticTab,videoTab,dynamicToggle,upload})control.setNextFocusDownId(upload.getId());return;}
         title.setText(entry.label(chinese));boolean isDaily=WallpaperCatalog.DAILY.equals(preview);
         subtitle.setVisibility(isDaily||entry.video()?View.VISIBLE:View.GONE);
-        if(entry.video())subtitle.setText(preview.equals(failedVideo)?tr("播放失败，按确定键重试","Playback failed. Press OK to retry."):entry.width+" × "+entry.height+"  "+Math.round(entry.fps)+" FPS  "+Math.round(entry.durationMs/1000f)+tr(" 秒"," s"));
+        if(entry.video())subtitle.setText(preview.equals(failedVideo)?videoFailure.hint(chinese):entry.width+" × "+entry.height+"  "+Math.round(entry.fps)+" FPS  "+Math.round(entry.durationMs/1000f)+tr(" 秒"," s"));
         if(isDaily){
             WallpaperCatalog.DailyImage image=state.dailyImages.get(state.dailySource);
             String description=WallpaperCatalog.sourceLabel(state.dailySource,chinese)+"  "+tr("每天自动更新","Updates daily");

@@ -57,16 +57,17 @@ Both layouts share the native Home header with the preview. Only Desktop shows t
 
 ### 动态壁纸开发源码 / Video wallpaper source
 
-默认关闭，图片和 MP4 共用上传入口，使用系统 MediaPlayer 和固定背景 SurfaceView。源码构建不代表已发布的安装包包含此功能。
+默认关闭，图片和 MP4／MOV／MKV／WebM 共用上传入口。单视频 200 MB、最高 60 FPS；总容量和剩余空间检查仍保留。源码构建不代表已发布的安装包包含此功能。
 
 | 能力 | Android 4.4 | Android 5+ |
 | --- | --- | --- |
-| 上传、预览、静音循环、关闭恢复、退出释放 | 共用实现 | 共用实现 |
-| 输入上限 | H.264 8bit SDR、1080p30 内 | 按解码能力，最高 4K30；HEVC Main 8bit SDR 可选 |
+| 上传、预览、静音循环、关闭恢复、退出释放 | 共用流程 | 共用流程 |
+| 播放路径 | 系统 MediaPlayer + TextureView，无 Media3 | Media3 1.8.1 + SurfaceView，12 MiB 缓冲目标，禁用音频轨，可用解码器回退 |
+| 输入上限 | SDR、8bit、1080p、60 FPS 内，依系统解码器 | SDR、8bit、4K、60 FPS 内，依实际编码／分辨率／帧率组合 |
 | 4K 封面 | 本批不开放 4K | API 27+ 缩放取帧，旧 API 可用占位图 |
 | 厂商硬解、实际输出、长期性能、屏保与待机 | 待对应设备验收 | 待对应设备验收 |
 
-不接收 HDR／10bit／60 FPS。SurfaceView 保留部分电视独立于 UI 分辨率的视频输出路径；不能仅凭面板或素材标签确认原生 4K。4K 不可用时需另传低规格文件，不自动在电视转码。详见[使用指南](USAGE.zh-CN.md)。
+不接收 HDR／10bit。手机本机预览与电视首帧验证分别判断；播放错误区分读取、格式、解码、超时及输出失败。上述新范围尚待厂商真机验收；SurfaceView 保留部分电视独立于 UI 分辨率的视频输出路径；不能仅凭面板或素材标签确认原生 4K。4K 不可用时需另传低规格文件，不自动在电视转码。详见[使用指南](USAGE.zh-CN.md)。
 
 ### 每日壁纸开发源码 / Daily wallpaper source
 

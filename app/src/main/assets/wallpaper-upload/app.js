@@ -17,7 +17,7 @@ function error(text){$('error').textContent=text;$('error').hidden=false;}
 async function capabilities(){
   limits=null;$('photo').disabled=true;$('send').disabled=true;
   try{const response=await fetch(new URL('info',uploadBase));if(!response.ok)throw Error();const data=await response.json();if(data.purpose!=='wallpaper')throw Error();limits=data;
-    $('fileinfo').textContent=message('图片  JPG / PNG / 静态 WebP  最大 ','Images  JPG / PNG / static WebP  Up to ')+(data.imageMaxBytes/1024/1024)+' MB\n'+message('视频  MP4  最大 ','Video  MP4  Up to ')+(data.videoMaxBytes/1024/1024)+' MB  '+data.videoMaxFps+' FPS\n'+message('视频规格以电视检查结果为准','Video compatibility is checked on the TV');$('photo').disabled=false;
+    $('fileinfo').textContent=message('图片  JPG / PNG / 静态 WebP  最大 ','Images  JPG / PNG / static WebP  Up to ')+(data.imageMaxBytes/1024/1024)+' MB\n'+message('视频  MP4 / MOV / MKV / WebM  最大 ','Video  MP4 / MOV / MKV / WebM  Up to ')+(data.videoMaxBytes/1024/1024)+' MB  '+data.videoMaxFps+' FPS\n'+message('视频规格以电视检查结果为准','Video compatibility is checked on the TV');$('photo').disabled=false;
   }catch{error(message('会话不可用，请在电视重新打开上传页面。','Session unavailable. Reopen upload on your TV.'));}
 }
 if(!needsCode)capabilities();
@@ -37,8 +37,8 @@ function releasePreview(){
 $('photo').addEventListener('change',()=>{
   const chosen=$('photo').files[0];if(!chosen||!limits)return;const version=++selection;
   releasePreview();file=null;$('send').disabled=true;$('error').hidden=true;$('status').textContent='';
-  video=chosen.type==='video/mp4'||/\.mp4$/i.test(chosen.name);
-  if(!video&&!['image/jpeg','image/png','image/webp'].includes(chosen.type)){error(message('请选择 JPG、PNG、静态 WebP 或 MP4；其他格式请先转换。','Choose JPG, PNG, static WebP or MP4. Convert other formats first.'));return;}
+  video=['video/mp4','video/quicktime','video/x-matroska','video/webm'].includes(chosen.type)||/\.(mp4|mov|mkv|webm)$/i.test(chosen.name);
+  if(!video&&!['image/jpeg','image/png','image/webp'].includes(chosen.type)){error(message('请选择 JPG、PNG、静态 WebP 图片或 MP4、MOV、MKV、WebM 视频。','Choose JPG, PNG, static WebP, MP4, MOV, MKV or WebM.'));return;}
   const maximum=video?limits.videoMaxBytes:limits.imageMaxBytes;
   if(chosen.size===0||chosen.size>maximum){error(message('文件不能为空，大小不能超过 ','Choose a non-empty file up to ')+(maximum/1024/1024)+' MB');return;}
   url=URL.createObjectURL(chosen);$('placeholder').hidden=true;$('change').hidden=false;
@@ -56,13 +56,18 @@ $('photo').addEventListener('change',()=>{
 $('send').addEventListener('click',()=>{
   if(!file||xhr)return;const request=new XMLHttpRequest();xhr=request;const sendingVideo=video;
   $('send').disabled=true;$('photo').disabled=true;$('error').hidden=true;$('cancel').hidden=false;$('progress').hidden=false;$('progress').setAttribute('aria-valuenow','0');$('progress').querySelector('span').style.width='0%';$('status').textContent=message('正在上传…','Uploading…');
-  request.open('POST',new URL('upload',uploadBase));request.setRequestHeader('Content-Type',file.type||'application/octet-stream');request.setRequestHeader('X-Wallpaper-Name',encodeURIComponent(file.name));request.setRequestHeader('X-Wallpaper-Kind',sendingVideo?'video':'image');request.timeout=sendingVideo?330000:90000;
+  request.open('POST',new URL('upload',uploadBase));request.setRequestHeader('Content-Type',file.type||'application/octet-stream');request.setRequestHeader('X-Wallpaper-Name',encodeURIComponent(file.name));request.setRequestHeader('X-Wallpaper-Kind',sendingVideo?'video':'image');request.timeout=sendingVideo?630000:90000;
   request.upload.onprogress=e=>{if(e.lengthComputable){const n=Math.round(e.loaded/e.total*100);$('progress').setAttribute('aria-valuenow',String(n));$('progress').querySelector('span').style.width=n+'%';if(n===100)$('status').textContent=sendingVideo?message('电视正在检查视频…','Your TV is checking the video…'):message('电视正在处理图片…','Your TV is processing the photo…');}};
   function finish(){xhr=null;$('status').textContent='';$('photo').disabled=false;$('send').disabled=!file;$('progress').hidden=true;$('cancel').hidden=true;}
   request.onload=()=>{finish();let result;try{result=JSON.parse(request.responseText);}catch{error(message('电视返回异常，请重新打开上传页面。','Unexpected TV response. Reopen the upload page.'));return;}
     if(request.status!==201){error(result.message||message('上传失败，请重试。','Upload failed. Please retry.'));return;}
     $('editor').hidden=true;$('success').hidden=false;$('video-preview').pause();
-    if(sendingVideo){$('result-video').src=url;$('result-video').hidden=false;}else{$('result').src=url;$('result').hidden=false;}
+    if(sendingVideo){
+      const resultVideo=$('result-video'),status=$('result-status');status.hidden=false;
+      status.textContent=message('本机视频预览；电视播放效果请返回电视确认。','Local video preview. Check playback on your TV.');
+      resultVideo.onerror=()=>{resultVideo.hidden=true;status.textContent=message('视频已上传；此浏览器无法预览，请返回电视确认播放。','Video uploaded. This browser cannot preview it; check playback on your TV.');};
+      resultVideo.src=url;resultVideo.hidden=false;
+    }else{$('result').src=url;$('result').hidden=false;}
   };
   request.onerror=()=>{finish();error(message('连接已断开，请保持电视上传页面打开，并检查局域网。','Connection lost. Keep the TV upload screen open and check your local network.'));};
   request.ontimeout=()=>{finish();error(message('上传超时，请检查电视上的结果后重试。','Upload timed out. Check the result on your TV before retrying.'));};
@@ -70,6 +75,6 @@ $('send').addEventListener('click',()=>{
   request.send(file);
 });
 $('cancel').addEventListener('click',()=>{if(xhr)xhr.abort();});
-$('another').addEventListener('click',()=>{++selection;releasePreview();file=null;$('photo').value='';$('send').disabled=true;$('placeholder').hidden=false;$('change').hidden=true;$('success').hidden=true;$('editor').hidden=false;$('status').textContent='';$('error').hidden=true;capabilities();});
+$('another').addEventListener('click',()=>{++selection;releasePreview();file=null;$('photo').value='';$('send').disabled=true;$('placeholder').hidden=false;$('change').hidden=true;$('success').hidden=true;$('result-status').hidden=true;$('editor').hidden=false;$('status').textContent='';$('error').hidden=true;capabilities();});
 window.addEventListener('pagehide',()=>{if(xhr)xhr.abort();releasePreview();});
 })();
