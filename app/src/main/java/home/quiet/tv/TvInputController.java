@@ -217,6 +217,28 @@ final class TvInputController {
         }
         return xiaomiRoute(model,provider,type,id);
     }
+    static Route xiaomiRoute(String model,String provider,int type,String id,String firmware,String label){
+        Route corrected=correction(model,provider,type,id,firmware);if(corrected!=null)return corrected;
+        if(type==TvInputInfo.TYPE_HDMI && id.matches(".*/HW[0-9]+")){
+            Integer configured=xiaomiConfiguredSource(label);
+            if(configured!=null)return new Route(null,configured);
+        }
+        return xiaomiRoute(model,provider,type,id,firmware);
+    }
+    // Aerial f1c8ea97: read the board's HDMI order before guessing from model/build numbers.
+    static Integer xiaomiConfiguredSource(String label){
+        if(label==null)return null;
+        java.util.regex.Matcher match=java.util.regex.Pattern.compile("HDMI\\s*([0-9]+)",java.util.regex.Pattern.CASE_INSENSITIVE).matcher(label);
+        if(!match.find())return null;
+        try{
+            int port=Integer.parseInt(match.group(1));if(port<=0)return null;
+            Class<?> configuration=Class.forName("mitv.common.ConfigurationManager");
+            Object manager=configuration.getMethod("getInstance").invoke(null);
+            Object value=configuration.getMethod("queryTvConfigByKey",String.class).invoke(manager,"hdmi"+port+"_order");
+            if(!(value instanceof String))return null;
+            int source=Integer.parseInt(((String)value).trim());return source>0?source:null;
+        }catch(ReflectiveOperationException|RuntimeException|LinkageError unavailable){return null;}
+    }
     static boolean hiddenInput(String model,String provider,String id){
         return hiddenInput(model,provider,id,"");
     }
@@ -243,7 +265,9 @@ final class TvInputController {
     boolean openKnownInput(TvInputInfo input){
         android.content.pm.ServiceInfo service=input.getServiceInfo();
         if((service.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0)return false;
-        Route route=xiaomiRoute(Build.MODEL,service.packageName,input.getType(),input.getId(),Build.DISPLAY);if(route==null){DiagnosticLog.info("input.xiaomi.route","provider="+service.packageName+" type="+input.getType()+" result=no_known_route");return false;}
+        String label=null;
+        if(input.getType()==TvInputInfo.TYPE_HDMI)try{CharSequence value=input.loadLabel(context);if(value!=null)label=value.toString();}catch(RuntimeException unavailable){DiagnosticLog.error("input.xiaomi.label.failed",unavailable);}
+        Route route=xiaomiRoute(Build.MODEL,service.packageName,input.getType(),input.getId(),Build.DISPLAY,label);if(route==null){DiagnosticLog.info("input.xiaomi.route","provider="+service.packageName+" type="+input.getType()+" result=no_known_route");return false;}
         ComponentName target=new ComponentName("com.xiaomi.mitv.tvplayer","com.xiaomi.mitv.tvplayer."+route.activity);
         try{
             android.content.pm.ActivityInfo activity=pm.getActivityInfo(target,0);
@@ -255,7 +279,7 @@ final class TvInputController {
             Intent intent=new Intent("com.xiaomi.mitv.tvplayer."+route.action).setComponent(target).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             if(route.source>=0)intent.putExtra("input",route.source);
             context.startActivity(intent);
-            DiagnosticLog.info("input.xiaomi.dispatch",target.flattenToShortString());return true;
+            DiagnosticLog.info("input.xiaomi.dispatch",target.flattenToShortString()+" source="+route.source);return true;
         }catch(PackageManager.NameNotFoundException e){DiagnosticLog.info("input.xiaomi.route","component="+target.flattenToShortString()+" result=not_installed");return false;}
         catch(RuntimeException e){DiagnosticLog.error("input.xiaomi.failed","component="+target.flattenToShortString(),e);return false;}
     }

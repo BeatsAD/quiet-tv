@@ -147,7 +147,9 @@ The published b24 universal APK passed its optimized build, full Lint (0 errors,
 
 ## 信号源兼容
 
-当前源码新增小米 MediaTek 输入直切（尚未发布）：只有本机已注册的系统输入及可调用的小米系统播放器同时存在时，HDMI HW5／HW6／HW7 分别使用源编号 23／24／25，AV HW2 使用 2，数字／模拟电视 HW0／HW1 使用各自播放器入口。型号修正优先，保留 MiTV-ANTL0 和 MiTV-MFFU1 的特定映射，并按上游记录处理 MiTV-MFZP0 的 HW4／HW5／HW6→23／24／25，避免通用编号误切；其他硬件编号和提供方继续使用标准路径，不按品牌补造端口。播放器缺失、禁用、未导出或权限不足时保留原有回退，调用异常记录异常类型。依据为 [Aerial 输入路由](https://github.com/pengchujin/aerial-tv/blob/e0173e672192d7fb2f0a2eb5510d8400253b1edf/app/src/main/java/app/orchard/tv/system/SystemState.kt)、[CleanYourTV 小米 Android 14 记录](https://github.com/Gathin23/cleanyourtv/blob/538d2606a6edcf2850b1257efb23526c72a6c44a/docs/devices/xiaomi-mitv-mftr0-freeguy.txt)和[端口映射修复](https://github.com/Gathin23/cleanyourtv/pull/722)。小米 S85 Mini LED／澎湃 3／Android 14 的输入列表、真实画面、声音及实体遥控切换仍待目标电视验收，不能将上游其他型号结果视为本机通过。安卓4.4档仍使用系统设置／遥控器。
+当前开发源码的小米 HDMI 直切采用分层规则（尚未发布）：先用已实测的特殊映射，再从输入原始标签提取 HDMI 端口，通过 `mitv.common.ConfigurationManager.getInstance().queryTvConfigByKey("hdmiN_order")` 读取固件源编号；类或方法缺失、访问受限、查询异常或返回值不是正整数字符串时，再回退原有型号／固件及通用规则。固件读取不限定型号或固件版本，但只处理本机已注册、硬件 ID 为 `/HW数字` 的 HDMI 输入，实际启动仍要求系统输入及可调用的小米系统播放器；不补造端口，不尝试轮流切换编号。
+
+保留 MiTV-ANTL0、MiTV-MFFU1、MiTV-MFZP0，以及 MiTV4-ANSM0／22.11.18.3386 的已实测特殊映射。其中最后一项将 `/HW7` 显示为 HDMI 1、使用源编号 23，并过滤已确认的 `/HDMI300004` 重复条目；这些特殊映射不会被固件查询覆盖。标签修正和重复条目过滤继续独立处理，读取固件编号不等于自动识别全部物理接口。AV、DP、USB-C 及电视调谐器保留各自既有规则。依据为 [Aerial 分层输入路由](https://github.com/pengchujin/aerial-tv/blob/f1c8ea979a9128cebc46c646bb8efba1644e7b26/app/src/main/java/app/orchard/tv/system/SystemState.kt#L653-L703)、[小米 Android 6 编号差异记录](https://github.com/pengchujin/aerial-tv/blob/f1c8ea979a9128cebc46c646bb8efba1644e7b26/docs/devices/xiaomi-android6.md#L13-L19)及 [CleanYourTV 端口映射记录](https://github.com/Gathin23/cleanyourtv/pull/722)。标准档 API21+ 与酷开 API26+ 包名档位共用此代码；安卓4.4档仍使用系统设置／遥控器。厂商接口可访问性、真实画面／声音及实体遥控切换仍待目标电视验收，上游实测不代表 Quiet TV 真机通过。
 
 1.1.2 标准包已包含原厂信号源面板回退；安卓4.4兼容包仍使用系统设置／遥控器。Android 标准 TV Input 列表为空或服务不可用，并不证明电视没有输入接口。标准路径继续读取本机输入；回退按实际安装的系统组件、启用状态、导出状态和调用权限检测，不按品牌名称套用固定 HDMI 数量，也不自动修改系统组件或权限。
 
