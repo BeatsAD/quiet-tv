@@ -50,7 +50,7 @@ final class WeatherController {
         long elapsed=SystemClock.elapsedRealtime(),now=System.currentTimeMillis();
         if(elapsed<nextAttempt&&(!force||rateLimited)){schedule(nextAttempt-elapsed);render();return;}
         if(!force&&data!=null&&data.usable(now)&&now-data.fetchedAt>=0&&now-data.fetchedAt<WeatherData.REFRESH_MS){schedule(WeatherData.REFRESH_MS-(now-data.fetchedAt));render();return;}
-        if(!connected()){error=tr("天气暂不可用","Weather unavailable");render();return;}
+        if(!connected()){DiagnosticLog.info("weather.refresh.skipped","reason=offline");error=tr("天气暂不可用","Weather unavailable");render();return;}
         // A remote cannot create a burst by repeatedly pressing Refresh.
         if(lastAttempt>0&&elapsed-lastAttempt<10000){schedule(10000-(elapsed-lastAttempt));return;}
         lastAttempt=elapsed;loading=true;error="";render();final int version=++generation;final String selected=key;

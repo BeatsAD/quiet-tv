@@ -35,7 +35,17 @@ final class DiagnosticLog {
         });
     }
     static void info(String event,String detail){DiagnosticLog log=instance;if(log!=null)log.enqueue("INFO",event,detail);}
-    static void error(String event,Throwable error){DiagnosticLog log=instance;if(log!=null)log.enqueue("ERROR",event,trace(error));}
+    static void error(String event,Throwable error){
+        DiagnosticLog log=instance;if(log==null)return;
+        if(event.startsWith("weather.")||event.startsWith("wallpaper.daily."))log.enqueue("ERROR",event+".reason",NetworkDiagnostics.failureDetails(error)
+            +(error instanceof WeatherClient.ApiException?" status="+((WeatherClient.ApiException)error).status:""));
+        log.enqueue("ERROR",event,trace(error));
+    }
+    static void networkTls(String event,javax.net.ssl.SSLSocketFactory factory){
+        DiagnosticLog log=instance;if(log==null)return;
+        try{log.enqueue("INFO",event,NetworkDiagnostics.tlsDetails(factory));}
+        catch(IOException|RuntimeException e){log.enqueue("INFO",event,"probe_failed "+NetworkDiagnostics.failureDetails(e));}
+    }
     static void error(String event,String detail,Throwable error){DiagnosticLog log=instance;if(log!=null)log.enqueue("ERROR",event,detail+" "+trace(error));}
     // Deliberately omit data, extras, labels and URI paths: they may contain user information.
     static String intent(android.content.Intent intent){
