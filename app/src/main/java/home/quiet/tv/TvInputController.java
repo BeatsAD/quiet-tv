@@ -101,7 +101,7 @@ final class TvInputController {
             else{
                 for(TvInputInfo input:manager.getTvInputList()){
                     reported++;
-                    if(input.getParentId()==null && (Build.VERSION.SDK_INT<24 || !input.isHidden(context)) && !hiddenInput(Build.MODEL,input.getServiceInfo().packageName,input.getId())){
+                    if(input.getParentId()==null && (Build.VERSION.SDK_INT<24 || !input.isHidden(context)) && !hiddenInput(Build.MODEL,input.getServiceInfo().packageName,input.getId(),Build.DISPLAY)){
                         result.inputs.add(input);
                         if(result.inputs.size()<=8)DiagnosticLog.info("input.enumeration.item","index="+(result.inputs.size()-1)+" service="+new ComponentName(input.getServiceInfo().packageName,input.getServiceInfo().name).flattenToShortString()+" type="+input.getType()+" passthrough="+input.isPassthroughInput());
                     }else filtered++;
@@ -206,6 +206,7 @@ final class TvInputController {
         return null;
     }
     static Route xiaomiRoute(String model,String provider,int type,String id,String firmware){
+        Route corrected=correction(model,provider,type,id,firmware);if(corrected!=null)return corrected;
         if(("MiTV4-ANSM0".equals(model)||"MiTV4_ANSM0".equals(model)||"MiTV4A".equals(model))
                 && "com.droidlogic.tvinput".equals(provider)){
             int major=0;try{major=Integer.parseInt(firmware.split("\\.")[0]);}catch(NumberFormatException ignored){}
@@ -217,13 +218,26 @@ final class TvInputController {
         return xiaomiRoute(model,provider,type,id);
     }
     static boolean hiddenInput(String model,String provider,String id){
+        return hiddenInput(model,provider,id,"");
+    }
+    static boolean hiddenInput(String model,String provider,String id,String firmware){
+        if(ansm0Firmware(model,provider,firmware) && id.endsWith("/HDMI300004"))return true;
         return "com.mediatek.tvinput".equals(provider) && ((("MiTV-MFTR0".equals(model)||"MiTV_MFTR0".equals(model)) && id.endsWith("/HW8"))
             || (("MiTV-MFZP0".equals(model)||"MiTV_MFZP0".equals(model)) && id.endsWith("/HW7")));
+    }
+    private static boolean ansm0Firmware(String model,String provider,String firmware){
+        return ("MiTV4-ANSM0".equals(model)||"MiTV4_ANSM0".equals(model)) && "com.droidlogic.tvinput".equals(provider)
+            && "22.11.18.3386".equals(firmware);
+    }
+    static Route correction(String model,String provider,int type,String id,String firmware){
+        // This firmware exposes physical HDMI1 as HAL HDMI3/HW7, but tvplayer expects source 23.
+        if(ansm0Firmware(model,provider,firmware) && type==TvInputInfo.TYPE_HDMI && id.endsWith("/HW7"))return new Route("HDMI 1",23);
+        return correction(model,provider,type,id);
     }
     private Route correction(TvInputInfo input){
         android.content.pm.ServiceInfo service=input.getServiceInfo();
         if((service.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0)return null;
-        return correction(Build.MODEL,service.packageName,input.getType(),input.getId());
+        return correction(Build.MODEL,service.packageName,input.getType(),input.getId(),Build.DISPLAY);
     }
     String inputLabel(TvInputInfo input){Route route=correction(input);return route==null?input.loadLabel(context).toString():route.label;}
     boolean openKnownInput(TvInputInfo input){
