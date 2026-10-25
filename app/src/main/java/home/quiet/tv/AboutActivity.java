@@ -25,6 +25,8 @@ public final class AboutActivity extends androidx.activity.ComponentActivity {
     private static final String ORIGIN="https://quiet-tv.invalid/about/";
     private static final String UPSTREAM="https://github.com/Gathin23/tv-vibehack";
     private AboutView scene;
+    private UpdatePanel updates;
+    private final UpdateRepository.Listener updateListener=()->{if(scene!=null)scene.updateAvailable(UpdateRepository.get(this).available!=null);if(updates!=null)updates.changed();};
     private FrameLayout root;
     private WebView web;
     private boolean license, licenseReady;
@@ -34,10 +36,11 @@ public final class AboutActivity extends androidx.activity.ComponentActivity {
         super.onCreate(state);BackNavigation.install(this,this::handleBack);
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN
                 | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+        updates=new UpdatePanel(this);
         try {
             PackageInfo info=getPackageManager().getPackageInfo(getPackageName(),0);
             scene=new AboutView(this,getApplicationInfo().loadLabel(getPackageManager()),info.versionName,
-                    (getApplicationInfo().flags&ApplicationInfo.FLAG_DEBUGGABLE)!=0,this::finish,this::openLicense,this::openUpstream);
+                    UpdatePanel.channel(BuildConfig.UPDATE_CHANNEL),this::finish,this::openLicense,this::openUpstream,updates::check);
         } catch(android.content.pm.PackageManager.NameNotFoundException e){throw new IllegalStateException("Own package unavailable",e);}
         root=new FrameLayout(this);root.setBackgroundColor(0xff020405);
         root.addView(scene,new FrameLayout.LayoutParams(-1,-1));setContentView(root);
@@ -136,6 +139,7 @@ public final class AboutActivity extends androidx.activity.ComponentActivity {
     public void handleBack(){if(license)returnToAbout();else finish();}
     @Override protected void onSaveInstanceState(Bundle state){state.putBoolean("license",license);super.onSaveInstanceState(state);}
     @Override protected void onPause(){if(scene!=null)scene.hideRecovery();if(web!=null)web.onPause();super.onPause();}
-    @Override protected void onResume(){super.onResume();if(web!=null)web.onResume();}
+    @Override protected void onResume(){super.onResume();UpdateRepository.get(this).add(updateListener);UpdateRepository.get(this).reconcile();updateListener.changed();updates.resumed();if(web!=null)web.onResume();}
+    @Override protected void onStop(){UpdateRepository.get(this).remove(updateListener);if(updates!=null)updates.suspend();super.onStop();}
     @Override protected void onDestroy(){if(web!=null){web.stopLoading();root.removeView(web);web.destroy();}super.onDestroy();}
 }
