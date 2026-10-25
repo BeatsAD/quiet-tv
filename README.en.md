@@ -22,35 +22,42 @@ Use the index's actual download URL and SHA-256, or a matching checksum attachme
 
 ## Screenshots
 
-**Five favorite slots.** Time/date and right-side system shortcuts can be hidden in Desktop Settings.
+**Favorite apps, time, weather and shortcuts on your home screen.**
 
-![Quiet TV 1.1.2 home with five favorites and system shortcuts](docs/assets/home-1.1.2.png)
+![Quiet TV 1.2.4 home](docs/assets/home-1.2.4.png)
 
-**Five-column All Apps.** Save a custom order, cancel changes or restore the default; favorites have their own order.
+**Five-column All Apps with automatically saved ordering.**
 
-![Quiet TV 1.1.2 five-column All Apps](docs/assets/all-apps-1.1.2.png)
+![Quiet TV 1.2.4 All Apps](docs/assets/all-apps-1.2.4.png)
 
-**Bring your own wallpaper.** Preview, rotate, delete with a long OK press, restore built-ins, or scan the TV upload QR code with a phone on the same LAN.
+**Classic and Art Gallery layouts with a live preview.**
 
-![Quiet TV 1.1.2 wallpapers with built-in and uploaded images and the upload entry](docs/assets/wallpaper-1.1.2.png)
+![Quiet TV 1.2.4 desktop settings](docs/assets/desktop-settings-1.2.4.png)
 
-These original 1920×1080 captures come directly from a Sony TV running published 1.1.2 / 34, verified against the APK SHA-256. Existing configuration is preserved; UI is neither composited nor redrawn. See [provenance](docs/assets/README.md) and [more UI examples](docs/USAGE.en.md). Screenshots do not establish full hardware acceptance or support for other models.
+**Daily wallpaper, uploaded photos and your own video loops.**
+
+![Quiet TV 1.2.4 wallpaper settings](docs/assets/wallpaper-1.2.4.png)
+
+Original captures from Quiet TV 1.2.4 on a Sony BRAVIA VH1 / Android 12. See [more interfaces](docs/USAGE.en.md) and [capture provenance](docs/assets/README.md). These images show this TV's actual interface, not compatibility with every model.
 
 ## Features
 
 | Feature | What it does |
 | --- | --- |
-| Favorites and order | Up to five favorite slots; five-column All Apps with save, cancel and restore-default ordering. |
-| Desktop settings | Independently show or hide time/date and right-side Inputs, Network and Settings buttons. |
-| Wallpapers | Color theme, built-ins, uploaded images, preview and five-minute rotation; long-OK deletion, built-in recovery and LAN upload. |
-| App management | Search/filter, inspect versions and states, and enable, disable or uninstall individual apps where supported; critical components stay read-only. |
-| Boot-ad management | Detect adapted services, disable and restore according to rules. No boot-ad rule has passed Quiet TV hardware acceptance yet; unmatched devices are view-only. |
-| Inputs and settings | Read actual inputs, detect vendor-panel fallbacks, and add selected OEM app, settings and network routes. Actual switching needs target-TV checks. |
-| Setup and recovery | Try temporarily, set HOME or recover the original launcher. Unsupported firmware commands are disabled with guidance. |
-| Remote and focus | Arrows, OK and Back, spring scrolling and focus tracking; image quality follows actual rendering size and memory. |
-| Local use | No cloud account. Settings remain on the TV; package operations request separate local ADB authorization. About includes version and offline licenses. |
+| Favorites and order | Up to five favorite apps, five-column All Apps and automatically saved ordering. |
+| Personalization | Classic or Art Gallery, custom greetings and avatars, independent information and shortcut visibility. |
+| Weather | Automatic location, manual city selection and phone-assisted city entry. |
+| Wallpapers | Color theme, Bing daily wallpaper, uploaded photos and videos, LAN uploads and long-OK deletion. |
+| App management | Category filters, package details, custom artwork and individually authorized package operations; critical components stay read-only. |
+| Child mode | Hide or lock apps, set per-session or daily limits, and use parent verification and rest reminders. |
+| App autostart | Open a selected app after boot or standby wake enters Quiet TV, without repeating on ordinary HOME returns. |
+| Inputs and home setup | Open supported input/settings routes, configure HOME or experimental compatibility paths, and retain stock-home recovery. |
+| In-app updates | Check versions, download from multiple sources, verify integrity and signing, then confirm installation. |
+| Remote and local use | Arrows, OK and Back; no cloud account, with preferences stored on the TV. |
 
-Find management and sorting under All Apps → 应用管理. Favorites, ordering, desktop settings and wallpapers need no ADB. System operations require separate authorization. Disabling keeps data; uninstalling removes current-user data, which restoring a preinstalled package cannot recover. See [app management](docs/APP_MANAGEMENT.md).
+Open All Apps → 应用管理 for 应用列表 (App list), 首页应用 (Favorites), 应用排序 (Order) and 儿童模式 (Child mode). Everyday customization needs no ADB; package changes require separate authorization. Disabling retains data, while uninstalling removes current-user app data. Boot-ad actions depend on verified adaptation rules; unmatched devices are view-only. See [app management](docs/APP_MANAGEMENT.md).
+
+The signed update feed is live. Automatic checks run every 24 hours while Home is in the foreground; manual checks are under App Management → About → Check for updates. Older versions without this feature need a manual installation first. A higher build of the same software version is not offered as an update. See [in-app updates](docs/UPDATES.md).
 
 ## Install and try it
 
@@ -65,12 +72,12 @@ Updates need matching package/signature and an increasing build number. Do not u
 
 | System or device | Scope |
 | --- | --- |
-| Sony / Android 12 | Published 1.1.2 / 34 APK hash verified; home, All Apps, wallpaper, desktop settings and sorting pages captured. Full functionality, reboot and standby acceptance were not performed. |
+| Sony / Android 12 | Published 1.2.4 / 64 ARM32 APK hash verified after an in-place update; current pages captured. Full feature, physical HOME, reboot and standby acceptance remain pending. |
 | Android 5.0+ TVs | Standard test APK; minimum API support does not establish vendor HOME, ADB, settings or input compatibility. |
 | Android 4.4 | Separate compatibility test APK; physical-TV runtime acceptance for this batch remains pending. |
 | Android 4.0–4.3, Tizen, webOS and other non-Android systems | Unsupported. |
 
-Both profiles passed optimized builds, 49 unit tests each, Lint (zero errors, warnings remain), signature and package checks. Sony captures add page evidence only; final-APK feature acceptance and in-place upgrade data retention remain incomplete. Casting, long runs, full media playback, actual input switching and vendor-specific behavior need separate checks. Six-digit wireless pairing remains experimental, requires API33+ and actual device support.
+The four published APKs share one source commit, software version and test signer. Sony page captures do not establish complete upgrade-state retention or other-model acceptance. Physical HOME, reboot, standby, playback and input switching need separate checks. Six-digit wireless pairing is experimental and requires API33+ and actual device support.
 
 See [compatibility and historical evidence](docs/COMPATIBILITY.md). Third-party media apps update through their own channels; Quiet TV does not automatically update them.
 
@@ -82,10 +89,10 @@ See [compatibility and historical evidence](docs/COMPATIBILITY.md). Third-party 
 | --- | --- |
 | Vendor home takeover | Firmware may restore its own launcher at boot or have the Home button start a vendor Activity directly, bypassing standard HOME preferences. Cold boot, reboot, and wake from standby need separate checks. |
 | Default-home command fails | A report includes `cannot be home on user 0`. The installed APK, current user, HOME candidates, and vendor restrictions need investigation; the cause and adaptation remain unconfirmed. |
-| Default-home status is insufficient | Detection mainly uses HOME Intent resolution. Quiet TV may report that it is the default while the physical Home button or a reboot still opens the stock launcher. Status reporting and persistence verification need improvement. |
+| Default-home status is insufficient | Check default HOME, compatibility guard and proxy status separately. Status text does not establish physical Home-button, reboot or standby behavior. |
 | ADB disabled or inaccessible | Greyed-out USB debugging, missing wireless debugging, or an unavailable pairing code may prevent local app management and ADB-dependent adaptation. The built-in ADB client cannot bypass firmware restrictions or pairing authentication; there is no universal unlock method. |
 
-The standard development app includes an experimental desktop guard. AUTO becomes active after initial configuration and accessibility authorization; boot and notification-listener callbacks provide bounded recovery. It uses detected stock HOME identity, does not read screen or notification content, change system HOME, or disable the stock launcher. Devices that retain the stock HOME can finish compatibility setup without enabling system-package operations. Android 4.4 disables the guard and recovery components. **Unpublished; vendor-TV Home keys, reboot, cold boot, standby and uninterrupted HDMI/playback still require validation.** See [configuration and pause instructions](docs/SETUP.md#桌面守护实验).
+Version 1.2.4 standard provides automatic configuration, pause and stock-home recovery under Desktop Settings → 桌面配置 (Home setup). Compatibility guard and optional HOME proxy paths are experimental and depend on firmware, permissions and companion components. Android 4.4 has no desktop guard. Physical Home, reboot, cold boot, standby and HDMI/playback need separate target-TV checks. See [configuration and pause](docs/SETUP.md#桌面守护实验).
 
 The standalone [Xiaomi home helper](xiaomi-home-helper/README.md) remains available as an alternative experiment; disable its accessibility service before enabling the built-in guard. Existing helper settings are not migrated automatically.
 

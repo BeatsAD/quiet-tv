@@ -2,12 +2,20 @@
 
 [中文首页](../README.md) · [English home](../README.en.md) · [安装指南](INSTALL.zh-CN.md)
 
+## 当前测试版 / Current test release
+
+[1.2.4 测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.2.4)提供安卓5+ ARM32／64／通用包（构建64–66）及安卓4.4兼容包（67），详见[选包与安装](INSTALL.zh-CN.md#下载安装与试用)。四包同源同版本同签名；旧系统不提供无线配对、桌面守护或HOME代理。
+
+本次在 Sony BRAVIA VH1 / Android 12 上保留数据从1.2.4／63更新到公开ARM32包64，实际安装APK哈希一致、原HOME和应用数据目录保持，并采集[当前界面](assets/README.md#124-索尼真机截图--sony-captures)。仅核对现有页面与可见配置；全部数据、完整功能、实体HOME、重启和待机唤醒未作全面验收。安卓4.4及其他厂商仍需各自真机验收。
+
+Version 1.2.4 has standard ARM32/ARM64/universal and Android 4.4 profiles. Sony build 64 installation and page captures do not establish complete feature, data-retention, physical HOME, reboot/wake or other-device acceptance. The following sections retain historical development and validation records; older artifacts are not current download recommendations.
+
 ## 源码与下载 / Source and download
 
 | 内容 / Build | 范围 / Scope |
 | --- | --- |
-| [1.1.2 标准测试包，34](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.2) | Android 5.0 / API21 起，target36；9,370,356 字节，ARM32、ARM64、x86、x86_64。 / Standard universal test APK. |
-| [1.1.2 安卓4.4测试包，35](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.2) | API19 起，target36；4,900,169 字节，无原生库，传统 TCP ADB，信号源走系统设置／遥控器。 / Legacy19, no pairing or standard input list. |
+| 历史 [1.1.2 标准测试包，34](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.2) | Android 5.0 / API21 起，target36；9,370,356 字节，ARM32、ARM64、x86、x86_64。 / Standard universal test APK. |
+| 历史 [1.1.2 安卓4.4测试包，35](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.2) | API19 起，target36；4,900,169 字节，无原生库，传统 TCP ADB，信号源走系统设置／遥控器。 / Legacy19, no pairing or standard input list. |
 | 历史 [b30](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b30) / [b26](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b26) | 原包、标签、校验记录及各自历史验收范围保留，不作为当前默认下载。 / Original historical artifacts and evidence retained. |
 | 历史 [b24 通用包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0-b24) | Android 6.0 / API23 起；原下载保留。 / Android 6.0+; original download retained. |
 | 历史 [b23 ARM32 测试包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0) | Android 12 / API31 起，需支持 armeabi-v7a；仅支持 64 位应用的设备不可用。 / Requires Android 12 and ARM32 app support. |
@@ -48,12 +56,12 @@ TLS 测试通过离线握手复现缺根证书时失败、补充后成功，并�
 | 档位 / Profile | 共用功能及差异 / Features | 本轮验证 / Validation |
 | --- | --- | --- |
 | 标准 API21+ | 三个标签、两种布局、实时预览 | 构建与 Lint 通过；API22 和 API31 模拟回归通过，API31 的 720p／1080p 验证覆盖256种组合、遥控焦点、数据迁移、问候语保存取消、页面重建、真实壁纸及常用应用封面。 |
-| 安卓4.4 / legacy19 | 同一布局与预览；沿用桌面守护禁用策略，仅显示前两个标签 | 构建与 Lint 通过；API22 上运行兼容档通过相同256种组合与核心交互。本轮无可运行 API19 镜像，Android4.4实际运行仍待验收。 |
+| 安卓4.4 / legacy19 | 同一布局与预览；沿用桌面守护禁用策略，仅显示前两个标签 | 构建与 Lint 通过；API22 上运行兼容档通过相同256种组合与核心交互。本轮无可运行 API19 镜像，Android 4.4实际运行仍待验收。 |
 | 酷开 API26 独立包名 | 复用标准档的布局代码 | 本轮未单独构建或进行酷开固件验收。 |
 
 预览读取本地壁纸、常用应用封面和有效天气缓存，动态壁纸使用本地封面，Dock复用当前磨砂样式并按应用数量居中伸缩，不启动第二套天气请求或壁纸播放流程。以上为本地开发验证，尚未发布，也未安装实体电视；厂商遥控、HOME、待机唤醒、升级数据保留及低内存表现需目标设备验收。
 
-Both layouts share the native Home header with the preview. Only Desktop shows the preview; Weather and Guard use the full content area. Standard emulator checks passed on API22 and API31; API31 covers 720p/1080p and 256 visibility combinations. The legacy19 build passed the same functional checks on API22, which does not establish Android4.4 runtime acceptance. No physical TV or separate Coocaa package acceptance was performed, and this work is not released.
+Both layouts share the native Home header with the preview. Only Desktop shows the preview; Weather and Guard use the full content area. Standard emulator checks passed on API22 and API31; API31 covers 720p/1080p and 256 visibility combinations. The legacy19 build passed the same functional checks on API22, which does not establish Android 4.4 runtime acceptance. No physical TV or separate Coocaa package acceptance was performed, and this work is not released.
 
 ### 动态壁纸开发源码 / Video wallpaper source
 
