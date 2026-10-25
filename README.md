@@ -8,20 +8,7 @@
 
 把常用应用放在首页，用遥控器直接打开，方便地切换信号源、调整壁纸和管理应用。桌面没有广告和推荐信息流，无需注册账号。采用 Android 原生界面，无需 root 或刷机。
 
-[打开安装指引](https://beatsad.github.io/quiet-tv/)：选择电视品牌，复制 Agent 安装请求，或查看手动安装与恢复方法。
-
-[下载 1.1.2 测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.2)  [安装指南](docs/INSTALL.zh-CN.md)  [使用指南](docs/USAGE.zh-CN.md)  [兼容范围](docs/COMPATIBILITY.md)
-
-## 下载与选包
-
-| 电视系统 | 1.1.2 安装包 | 校验文件 |
-| --- | --- | --- |
-| 安卓 4.4 | [安卓4.4 测试版，构建号 35，约 4.67 MiB](https://github.com/BeatsAD/quiet-tv/releases/download/v1.1.2/QuietTV_1.1.2-35_Android4.4_Test.apk) | [SHA-256](https://github.com/BeatsAD/quiet-tv/releases/download/v1.1.2/QuietTV_1.1.2-35_Android4.4_Test.apk.sha256) |
-| 安卓 5.0 及以上 | [安卓5及以上 测试版，构建号 34，约 8.94 MiB](https://github.com/BeatsAD/quiet-tv/releases/download/v1.1.2/QuietTV_1.1.2-34_Android5plus_Test.apk) | [SHA-256](https://github.com/BeatsAD/quiet-tv/releases/download/v1.1.2/QuietTV_1.1.2-34_Android5plus_Test.apk.sha256) |
-
-**按电视系统选包，不按构建号大小选包。** 两档共用 1.1.2 的主要功能、包名与历史测试签名，不能同时安装。安卓 4.4 使用传统 TCP ADB，信号源通过系统设置或遥控器进入；不提供六位码无线配对。标准包包含 ARM32、ARM64、x86、x86_64，安卓 4.4 包不含原生库。
-
-GitHub 下载文件使用英文名、中文显示标签，本地中文归档不变；下载时选择与 APK 同名的 `.apk.sha256`。完整更新、验证边界见 [1.1.2 发布说明](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.2)。两档均为优化测试版，尚无正式稳定版。[历史版本](https://github.com/BeatsAD/quiet-tv/releases)及校验记录保留。
+[安装方式](#安装方式)  [使用指南](docs/USAGE.zh-CN.md)  [兼容范围](docs/COMPATIBILITY.md)
 
 ## 界面
 
@@ -55,42 +42,25 @@ GitHub 下载文件使用英文名、中文显示标签，本地中文归档不�
 
 应用管理与排序位于“全部应用 → 应用管理”。Dock 编辑、排序、桌面设置和壁纸不依赖 ADB。系统操作需单独授权；禁用保留数据，卸载删除当前用户的应用数据，恢复预装包也不会找回已删数据。详见[应用管理](docs/APP_MANAGEMENT.md)。
 
-## 用 Skill 引导切换桌面
+## 安装方式
 
-仓库中的 [电视桌面切换助手](skills/quiet-tv-switch/SKILL.md) 面向希望用 AI 完成安装和桌面切换的用户。它会引导连接电视、检测实际能力、核验安装包、安装试用、切换默认 HOME，并提供本机恢复方法；默认保留原桌面。
+### 1. 使用 Skill
 
-使用支持本地 Skill 和终端执行的 AI 工具。Codex 用户可将完整的 `skills/quiet-tv-switch` 文件夹安装到自己的技能目录；已有同名技能时先比对版本，保留自己的修改，避免覆盖。在启用该技能的对话中输入：
+安装仓库中的[电视桌面切换助手](skills/quiet-tv-switch/SKILL.md)，在支持 Skill 和终端操作的 AI 工具中输入：
 
 ```text
 请用 $quiet-tv-switch 帮我安装 Quiet TV 并切换电视桌面，保留原桌面和恢复方法。
-我不熟悉 ADB，需要我在电视上操作时，请一步步告诉我。
 ```
 
-也可要求“先检查我的电视是否适用，不修改电视”或“帮我恢复原桌面”。AI 完成电脑侧操作，用户仍需在电视上授权，并用真实遥控器确认结果。Skill 不绕过厂商 ADB／HOME 限制，不承诺所有机型都能切换；检测脚本仅做只读查询，不能代替真机验收。
+### 2. 使用安装指令
 
-## 安装与试用
+打开[安装指引](https://beatsad.github.io/quiet-tv/?v=d8ae60b)，选择电视品牌，复制生成的指令，交给电脑上的 AI 工具执行。
 
-1. 确认电视运行 Android，按上表下载 APK 与同名校验文件，先[校验完整性](docs/INSTALL.zh-CN.md#下载安装与试用)。
-2. 按[安装指南](docs/INSTALL.zh-CN.md)安装，或使用[Agent 安装与恢复说明](docs/AGENT_INSTALL.zh-CN.md)让电脑 Agent 协助。
-3. 首次打开可选“暂不设置，临时使用”，先检查遥控器、应用启动和系统入口，保留原桌面。
-4. 需要替换桌面时再完成[首次设置](docs/SETUP.md)，读回 HOME 组件，并分别检查实体 HOME、重启与待机唤醒。恢复入口在“应用管理 → 更多”。
+### 3. 手动安装 APK
 
-覆盖更新需核对相同包名、匹配签名和递增构建号；不要通过卸载解决签名问题。设备包清单、备份和恢复记录仅保留本地，不套用其他电视的禁用清单。
+从 [GitHub Releases](https://github.com/BeatsAD/quiet-tv/releases) 下载适合电视系统和架构的 APK，按[安装指南](docs/INSTALL.zh-CN.md)完成安装和桌面设置。
 
-## 支持范围与验证
-
-| 系统或设备 | 范围 |
-| --- | --- |
-| Sony / Android 12 | 本次直接截取已发布 1.1.2／34 的首页、应用列表、壁纸、桌面设置与排序页面，并核对已安装 APK 哈希；未据此完成全量功能、重启或唤醒验收。 |
-| 安卓 5.0 及以上电视 | 使用标准测试包；系统版本满足仅表示最低安装要求，厂商 HOME、ADB、设置和信号源仍需逐机确认。 |
-| 安卓 4.4 | 使用独立兼容测试包；本批真实电视运行与验收待完成。 |
-| 安卓 4.0～4.3、Tizen、webOS 等非 Android 系统 | 不支持。 |
-
-两档已通过优化构建、各 49 项单元测试、Lint（0 错误，仍有警告）及签名与包元数据校验。本次截图只补充索尼页面展示，最终 APK 的逐项功能和覆盖升级数据保留仍未完整验收。投屏、长期运行、完整影音播放、真实切源及其他厂商适配需分别验证。六位码无线配对为 API33+ 且依赖设备能力的实验入口。
-
-具体档位差异、历史证据和厂商待验收项见[兼容说明](docs/COMPATIBILITY.md)。第三方影音应用通过各自渠道更新，Quiet TV 不提供第三方应用自动更新。
-
-遇到故障可复制 [Agent 排查提示词](docs/AGENT_DIAGNOSE.zh-CN.md)，由电脑侧 AI 指导复现并整理反馈。
+安装时保留原桌面；不同厂商的桌面切换能力可能有所不同。
 
 ## 已知兼容性问题与样机验证
 
@@ -110,12 +80,6 @@ GitHub 下载文件使用英文名、中文显示标签，本地中文归档不�
 针对已确认使用厂商主页属性的酷开 Android 8 固件，仓库另提供可选独立的[主页中转助手](coocaa-home-shim/README.md)，复用上游实现并指向 Quiet TV。**该移植尚未经过真实电视验收，不随通用包启用，也不能解锁 ADB。** 日志监听暂未实现。上游其他设备的成功记录不能代替 Quiet TV 验收；保留原桌面及本机恢复记录，不套用其他电视的系统包禁用清单。
 
 欢迎通过 [Issue #35](https://github.com/BeatsAD/quiet-tv/issues/35) 或[新机型适配反馈](https://github.com/BeatsAD/quiet-tv/issues/new?template=device_adaptation.yml)补充样机结果：电视型号、Android／固件版本、Quiet TV 版本与安装包来源、复现步骤，以及手动启动、真实遥控器 HOME、冷启动／重启、待机唤醒、信号源和原桌面恢复的实际结果。未测试项请标为“未验证”；日志只提供相关脱敏片段，不公开 IP、序列号、密钥或完整设备转储。
-
-## 技术实现
-
-实现路径：获取源码 → 用 Codex、TRAE 等 AI 编程工具定制原生桌面 → 构建 APK → ADB 安装试用 → 设置默认 HOME → 遥控器验收。日常使用无需电脑在线。
-
-完整环境、开发者选项、连接授权、实现说明与可复制提示词见[用 AI 编程工具定制与适配的分阶段教程](docs/TECHNICAL_PATH_WITH_CODEX.zh-CN.md)。电脑 ADB 用于安装，Quiet TV 内置 ADB 用于电视端管理，两者分别授权。
 
 ## 文档与参与
 
