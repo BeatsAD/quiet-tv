@@ -34,11 +34,14 @@ final class AdbController implements Closeable {
     Stage stage(){return stage;}
     Failure failure(){return failure;}
     int generation(){return generation.get();}
+    private final CopyOnWriteArrayList<Status> listeners=new CopyOnWriteArrayList<>();
+    void addStatusListener(Status listener){listeners.addIfAbsent(listener);}
+    void removeStatusListener(Status listener){listeners.remove(listener);}
     private void publish(Stage value,String detail){
         if(stage!=value)DiagnosticLog.info("adb.stage",value.name());
         if(value!=Stage.IDLE && diagnosticAttempt!=null)diagnosticAttempt.stage(value.name(),android.os.SystemClock.elapsedRealtime());
         if(value==Stage.CONNECTED)finishDiagnostic(diagnosticGeneration,"SUCCESS","local_shell_user_verified");
-        stage=value;status.changed(detail);
+        stage=value;status.changed(detail);for(Status listener:listeners)listener.changed(detail);
     }
     private synchronized void publish(Stage value,String detail,int attempt){if(!closed && generation.get()==attempt)publish(value,detail);}
     private synchronized void attach(Closeable value,int attempt) throws IOException {
@@ -62,7 +65,6 @@ final class AdbController implements Closeable {
         if(diagnosticAttempt!=null && diagnosticGeneration==attempt)
             diagnosticAttempt.finish(result,reason,System.currentTimeMillis(),android.os.SystemClock.elapsedRealtime());
     }
-    private synchronized DiagnosticOperation diagnosticFor(int attempt){return diagnosticGeneration==attempt?diagnosticAttempt:null;}
     private void failedDiagnostic(int attempt,Exception failure){
         finishDiagnostic(attempt,DiagnosticOperation.failureResult(failure),failure.getClass().getSimpleName());
     }
@@ -153,8 +155,8 @@ final class AdbController implements Closeable {
                         .setCertificate(keys.getCertificate("adb")).build();
                 synchronized(this){if(closed || generation.get()!=attempt){c.close();throw new IOException("连接已取消");}connection=c;}
                 if(closed || generation.get()!=attempt)throw new IOException("连接已取消");
-                publish(Stage.HANDSHAKE,"正在进行 ADB 握手  如电视出现调试授权弹窗，请选择允许",attempt);
-                if(!c.connect(60,TimeUnit.SECONDS,false))throw new SocketTimeoutException("端口已连接，但 ADB 握手或授权超时；没有弹窗不代表已授权");
+                publish(Stage.HANDSHAKE,"正在进行 ADB 握手／等待授权（最多 60 秒）  如出现调试授权弹窗，请选择允许",attempt);
+                handshake(c,relay,timer);
                 stage="本机身份核对";publish(Stage.LOCAL,"正在核对本机身份",attempt);
                 verifyLocalDevice();
                 stage="ADB 身份核对";publish(Stage.SHELL,"正在核对 ADB shell 身份",attempt);
@@ -169,10 +171,10 @@ final class AdbController implements Closeable {
                 stage="前台用户核对";publish(Stage.USER,"正在核对当前用户",attempt);
                 user=currentUser();
                 if(user!=android.os.Process.myUid()/100000)throw new IOException("前台用户已切换，请重新打开应用管理");
-                publish(Stage.CAPABILITIES,"正在核对管理能力",attempt);
+                stage="管理能力核对";publish(Stage.CAPABILITIES,"正在核对管理能力",attempt);
                 String pmHelp="",cmdHelp="";
-                try{pmHelp=shell("pm help 2>&1 || true");}catch(IOException ignored){}
-                try{cmdHelp=shell("cmd package help 2>&1 || true");}catch(IOException ignored){}
+                try{pmHelp=shell("pm help 2>&1 || true");}catch(SocketTimeoutException e){throw e;}catch(IOException ignored){}
+                try{cmdHelp=shell("cmd package help 2>&1 || true");}catch(SocketTimeoutException e){throw e;}catch(IOException ignored){}
                 capabilities=new ShellCapabilities(pmHelp,cmdHelp);
                 host=candidate;connectedPort=port;
                 if(closed || generation.get()!=attempt)throw new IOException("连接已取消");
@@ -184,6 +186,21 @@ final class AdbController implements Closeable {
         if(this.failure==Failure.NONE)this.failure=Failure.PORT;
         DiagnosticLog.error("adb.connection_failed."+this.failure.name(),failure);
         throw new IOException("连接失败（"+stage+"）："+(failure==null?"本机未开放 TCP ADB":(failure.getMessage()==null?failure.getClass().getSimpleName():failure.getMessage())),failure);
+    }
+
+    // libadb's internal wait uses wall time; also bound socket I/O independently of TV clock changes.
+    static void handshake(AdbConnection c,Closeable relay,ScheduledExecutorService timer) throws Exception {
+        try(AdbTimeout timeout=new AdbTimeout(timer,relay,60000)){
+            boolean ready;
+            try{ready=c.connect(60,TimeUnit.SECONDS,false);}
+            catch(Exception e){timeout.close();if(timeout.expired())throw handshakeTimeout();throw e;}
+            timeout.close();
+            if(!ready || timeout.expired())throw handshakeTimeout();
+        }
+    }
+    private static SocketTimeoutException handshakeTimeout(){
+        DiagnosticLog.info("adb.timeout","stage=HANDSHAKE limit_ms=60000");
+        return new SocketTimeoutException("ADB 握手／授权超时（60 秒），已关闭本次连接；请检查网络调试与授权后重试");
     }
 
     // Only after local-device verification, on the existing transport; never grant or change anything.
@@ -237,8 +254,8 @@ final class AdbController implements Closeable {
     String shell(String command) throws Exception {
         int request=generation.get();AdbConnection c=connection;if(c==null)throw new IOException("需要连接 ADB");
         // A timeout closes the transport. Mutating commands are never automatically retried.
-        DiagnosticOperation pending=diagnosticFor(request);
-        ScheduledFuture<?> timeout=timer.schedule(()->{if(pending!=null)pending.finish("TIMEOUT","shell_deadline",System.currentTimeMillis(),android.os.SystemClock.elapsedRealtime());try{c.close();}catch(IOException ignored){}},20,TimeUnit.SECONDS);
+        Closeable active=transport;if(active==null)throw new IOException("ADB 连接已断开，请重新连接");
+        AdbTimeout timeout=new AdbTimeout(timer,active,20000);
         String marker="__QUIET_EXIT_"+UUID.randomUUID().toString().replace("-","")+"=";
         // Android 5 toolbox does not provide printf; echo is a shell builtin there.
         String wrapped="( "+command+" ); quiet_result=$?; echo; echo \""+marker+"$quiet_result\"";
@@ -251,6 +268,8 @@ final class AdbController implements Closeable {
                 String value=output.toString("UTF-8");int position=value.lastIndexOf(marker);
                 if(position>=0 && value.substring(position).endsWith("\n"))break;
             }
+            timeout.close();
+            if(timeout.expired())throw new SocketTimeoutException("ADB 命令响应超时（20 秒），已关闭本次连接，请重新连接");
             String value=output.toString("UTF-8");int position=value.lastIndexOf(marker);
             if(position<0){recordIdentityResult(request,command,"incomplete",null,value);recorded=true;throw new IOException("ADB 结果不完整，请重新连接并查询状态");}
             if(generation.get()!=request)throw new IOException("查询已取消，请重新连接");
@@ -260,9 +279,15 @@ final class AdbController implements Closeable {
             if(exit!=0)throw new CommandFailure(exit,body);
             return body;
         }catch(Exception e){
+            timeout.close();
+            if(timeout.expired()){
+                finishDiagnostic(request,"TIMEOUT","shell_deadline");
+                DiagnosticLog.info("adb.timeout","stage="+stage+" limit_ms=20000");
+                e=new SocketTimeoutException("ADB 命令响应超时（20 秒），已关闭本次连接，请重新连接");
+            }
             if(!recorded)recordIdentityResult(request,command,"failed_"+e.getClass().getSimpleName(),null,output.toString("UTF-8"));
             throw e;
-        }finally{timeout.cancel(false);}
+        }finally{timeout.close();}
     }
 
     static PrivateKey privateKey(KeyStore keys) throws Exception {
