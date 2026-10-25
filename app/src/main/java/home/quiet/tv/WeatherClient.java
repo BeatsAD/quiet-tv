@@ -15,6 +15,8 @@ final class WeatherClient {
     interface Transport { JSONObject get(String base,String path,String key)throws IOException,JSONException; }
     private static volatile long uapiUntil,qweatherUntil;
     private volatile HttpsURLConnection connection;
+    private android.content.res.AssetManager assets;
+    private SSLSocketFactory legacyTls;
     private final WeatherRegions regions;
     private final WeatherConfiguration configuration;
     private final Transport transport;
@@ -24,6 +26,7 @@ final class WeatherClient {
     }
     WeatherClient(Context context){
         this(WeatherRegions.load(context),WeatherConfiguration.load(context),null);
+        assets=context.getAssets();
         try{
             android.content.pm.PackageInfo info=context.getPackageManager().getPackageInfo(context.getPackageName(),android.content.pm.PackageManager.GET_SIGNATURES);
             if(info.signatures!=null&&info.signatures.length>0){
@@ -96,7 +99,13 @@ final class WeatherClient {
     private JSONObject request(String base,String path,String key)throws IOException,JSONException{
         HttpsURLConnection request=(HttpsURLConnection)new URL(base+path).openConnection();connection=request;
         try{
-            if(Build.VERSION.SDK_INT<21)request.setSSLSocketFactory(new Tls12SocketFactory());
+            if(Build.VERSION.SDK_INT<=25){
+                if(legacyTls==null)try(InputStream root=assets.open("certificates/isrg-root-x1.pem")){
+                    SSLSocketFactory factory=WeatherTls.socketFactory(root);
+                    legacyTls=Build.VERSION.SDK_INT<21?new Tls12SocketFactory(factory):factory;
+                }
+                request.setSSLSocketFactory(legacyTls);
+            }
             request.setConnectTimeout(8000);request.setReadTimeout(10000);request.setInstanceFollowRedirects(false);
             request.setRequestProperty("Accept","application/json");request.setRequestProperty("Accept-Encoding","gzip");request.setRequestProperty("User-Agent","QuietTV/"+BuildConfig.VERSION_NAME);
             if(!key.isEmpty()){

@@ -5,6 +5,9 @@
 dist/apk/
 local.properties
 /weather.local.json
+# Production root certificate used by legacy weather HTTPS connections.
+!/app/src/main/assets/certificates/
+!/app/src/main/assets/certificates/isrg-root-x1.pem
 inspection/
 backups/
 evidence/
