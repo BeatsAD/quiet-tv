@@ -11,7 +11,7 @@ import org.json.*;
 
 /** A session-only server: explicit assets, bounded connections, one streamed image at a time. */
 final class WallpaperUploadServer extends NanoHTTPD {
-    static final long MAX_UPLOAD=20L*1024*1024;
+    static final long MAX_UPLOAD=60L*1024*1024;
     static final long IDLE_MS=10L*60*1000;
     interface Assets { InputStream open(String name) throws IOException; }
     interface Active { boolean valid(); }
@@ -93,7 +93,7 @@ final class WallpaperUploadServer extends NanoHTTPD {
             String name=session.getHeaders().get("x-wallpaper-name");
             if(name==null || name.length()>1024)return error(Response.Status.BAD_REQUEST,"无效的文件名称 / Invalid file name");
             name=URLDecoder.decode(name,"UTF-8");
-            long deadline=System.nanoTime()+(video?300000000000L:60000000000L);
+            long deadline=System.nanoTime()+(video?600000000000L:60000000000L);
             Active active=()->!closed && System.nanoTime()<deadline;
             String result=video?importer.acceptVideo(session.getInputStream(),length,name,active):importer.accept(session.getInputStream(),length,name,active);
             return secure(newFixedLengthResponse(Response.Status.CREATED,"application/json; charset=utf-8",result));

@@ -277,8 +277,22 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
         else if(homeState.roleAvailable)requestRole();else withConnection(this::setDefault);
     }
     private void finishAutomatic(){
-        try{DesktopRoutes routes=new DesktopRoutes(this);routes.direct();store.baseline(homeState.actual,new HomeGuardState(this).selected());String boot=home.presets.vendorBoot()==null?"":routes.configureVendor();store.put("status","direct-configured");openHome("系统 HOME 已设置，原桌面保留；实际场景待验证"+(boot.isEmpty()?"":"；"+boot));}
-        catch(Exception failure){notice="配置记录未完成："+failure.getMessage();render();}
+        try{
+            DesktopRoutes routes=new DesktopRoutes(this);routes.direct();HomeGuardState guard=new HomeGuardState(this);
+            store.baseline(homeState.actual,guard.selected());store.put("status","direct-configured");
+            if(BuildConfig.LEGACY_19 || !guard.validSelection()){openHome("系统 HOME 已设置；开机补偿未配置，实际场景待验证");return;}
+            if(HomeGuardRecovery.configurationProblem(this).isEmpty()){HomeGuardRecovery.request(this,"直接 HOME 配置完成");openHome("系统 HOME 已设置，开机补偿已配置；实际场景待验证");return;}
+            notice="系统 HOME 已设置，继续配置开机补偿。";
+            withConnection(this::configureDirectRecovery);
+        }catch(Exception failure){notice="配置记录未完成："+failure.getMessage();render();}
+    }
+    private void configureDirectRecovery(){
+        SetupOperations.Ticket task=begin("正在配置直接 HOME 的开机补偿…");
+        worker.execute(()->{try{
+            HomeGuardRecovery.configureAdb(this,adb,task);task.check();
+            if(home.presets.vendorBoot()!=null)new DesktopRoutes(this).configureVendor();
+            ui(task,()->{busy=false;openHome("系统 HOME 已设置，补偿权限已配置；服务绑定和实际场景待验证");});
+        }catch(Exception failure){ui(task,()->{busy=false;notice="系统 HOME 已设置；开机补偿未全部完成："+failure.getMessage();render();});}});
     }
     private void requestRole(){if(busy)return;try{home.remember(homeState);roleCancelled=false;Intent request=home.request();roleResultExpected="android.app.role.action.REQUEST_ROLE".equals(request.getAction());roleInFlight=true;startActivityForResult(request,40);}catch(Exception e){autoRequested=false;roleInFlight=false;notice="系统入口不可用，未启用中转："+e.getMessage();render();}}
     @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==40){roleInFlight=false;roleAccepted=roleResultExpected && result==RESULT_OK;roleCheckPending=autoRequested;roleCancelled=roleResultExpected && result!=RESULT_OK;if(roleCancelled){autoRequested=false;roleCheckPending=false;notice="已取消默认桌面设置，未启用中转。";}else notice="";}}

@@ -35,17 +35,18 @@ final class DesktopRoutes {
     void direct(){
         if(!BuildConfig.DECLARES_HOME)throw new IllegalStateException("此兼容包只能使用原桌面中转");
         // Only an explicit configuration changes the chosen route; opening settings never does.
-        new HomeProxy(context).pause();prefs.edit().putBoolean("observeHome",false).putString("relaySource","").apply();state.configure();
+        new HomeProxy(context).pause();prefs.edit().putBoolean("observeHome",true).putString("relaySource","").apply();state.configure();
         SharedPreferences.Editor edit=edit();if(!"DIRECT".equals(home()))edit.remove("routeTest_home").remove("routeTest_wake");
-        edit.putString("routeHome","DIRECT").putBoolean("observeHome",false).putBoolean("configured",true).apply();
+        edit.putString("routeHome","DIRECT").putBoolean("observeHome",true).putBoolean("configured",true).apply();
         HomeGuardRecovery.cancel();HomeGuardService.cancelPending();
-        state.status("系统 HOME 已设置，实际场景待验证");
+        HomeGuardRecovery.request(context,"直接 HOME 开机补偿");
+        state.status("系统 HOME 已设置，开机补偿待核对");
     }
     void observe(){SharedPreferences.Editor edit=edit();if(!"RELAY".equals(home()))edit.remove("routeTest_home").remove("routeTest_wake");edit.putString("routeHome","RELAY").putString("relaySource","OBSERVER").putBoolean("observeHome",true).apply();}
     void proxy(){
         edit().putString("routeHome","RELAY").putString("relaySource","PROXY").putBoolean("observeHome",false).putBoolean("configured",true)
                 .remove("routeTest_home").remove("routeTest_wake").commit();
-        HomeGuardRecovery.cancel();HomeGuardService.cancelPending();
+        HomeGuardRecovery.cancel();HomeGuardService.cancelPending();HomeGuardSync.pause(context);
     }
     boolean proxySelected(){return "PROXY".equals(prefs.getString("relaySource",""));}
     void resume(){
@@ -53,7 +54,8 @@ final class DesktopRoutes {
 
         prefs.edit().putString("mode","AUTO").putBoolean("configured",true).apply();
         if(!"DIRECT".equals(home())){state.enable();return;}
-        state.status("系统直接启动，中转按场景配置");
+        prefs.edit().putBoolean("observeHome",true).apply();HomeGuardRecovery.request(context,"恢复开机补偿");
+        state.status("系统直接启动，开机补偿待核对");
     }
     String home(){return current()?prefs.getString("routeHome",state.enabled()?"RELAY":"UNKNOWN"):"UNKNOWN";}
     String homeLabel(){if("RELAY".equals(home()) && proxySelected())return "HOME 代理中转";return "DIRECT".equals(home())?"系统直接启动":"RELAY".equals(home())?"原主页中转":"待检测";}
@@ -90,6 +92,7 @@ final class DesktopRoutes {
                     .put("evidenceId",recorded?prefs.getString("routeTestEvidence_"+scene,""):""));
         }
         return snapshot.put("sceneEvidence",evidence).put("vendorBootProblem",vendorProblem())
+                .put("syncRecovery",HomeGuardSync.summary(context)).put("syncRecoveryReady",HomeGuardSync.ready(context)).put("keepAdb",HomeGuardAdb.enabled(context))
                 .put("observationReady",state.ready() && state.serviceEnabled() && HomeGuardService.connected());
     }
     private JSONObject bridge(){return rules.vendorBoot();}

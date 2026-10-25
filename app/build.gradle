@@ -20,11 +20,12 @@ android {
         manifestPlaceholders = [leanbackRequired: !legacy, homeGuardAvailable: !legacy]
         buildConfigField 'boolean', 'LEGACY_19', legacy.toString()
         buildConfigField 'boolean', 'DECLARES_HOME', (homeMode == 'standard').toString()
+        resValue 'string', 'home_guard_account_type', launcherId + '.guard'
         buildConfigField 'String', 'UPDATE_COMPATIBILITY', '"' + compatibility + '"'
         buildConfigField 'String', 'UPDATE_ABI', '"' + providers.gradleProperty('quietAbi').getOrElse('universal') + '"'
         targetSdk 36
-        versionCode providers.gradleProperty('quietBuildNumber').getOrElse('63').toInteger()
-        versionName '1.2.4'
+        versionCode providers.gradleProperty('quietBuildNumber').getOrElse('68').toInteger()
+        versionName '1.2.5'
     }
     buildFeatures { buildConfig true }
     // Keep historical source media and superseded generated QR PNGs out of APK assets.
@@ -69,6 +70,8 @@ android {
     compileOptions { sourceCompatibility JavaVersion.VERSION_11; targetCompatibility JavaVersion.VERSION_11 }
 }
 dependencies {
+    // 1.8 retains Android 5.0 support; legacy19 keeps the platform player.
+    if (!legacy) implementation 'androidx.media3:media3-exoplayer:1.8.1'
     if (legacy) implementation 'androidx.multidex:multidex:2.0.1'
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.json:json:20240303'

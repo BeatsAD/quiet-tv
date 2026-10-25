@@ -31,13 +31,16 @@ public final class HomeGuardSetupReceiver extends BroadcastReceiver {
             if(!state.validSelection())throw new IllegalStateException("请在电视选择原桌面，或指定本机检测到的 home 组件");
             if(state.helperActive())throw new IllegalStateException("请先暂停独立中转助手");
             state.enable();HomeGuardRecovery.configureGranted(context);
+            if(intent.hasExtra("keep_adb") && !HomeGuardAdb.setEnabled(context,intent.getBooleanExtra("keep_adb",false)))throw new IllegalStateException("调试恢复选项未保存");
             String problem=HomeGuardRecovery.configurationProblem(context);
             JSONObject result=new JSONObject();
             result.put("configured",problem.isEmpty());result.put("enabled",state.enabled());
             result.put("accessibilityAllowed",state.serviceEnabled());result.put("accessibilityBound",HomeGuardService.connected());
             result.put("usageRequired",HomeGuardService.usageRequired());result.put("usageAllowed",HomeGuardService.usageAllowed(context));
             result.put("notificationSupported",HomeGuardRecovery.notificationSupported(context));
+            result.put("syncRecoveryReady",HomeGuardSync.ready(context));
             result.put("notificationAllowed",HomeGuardRecovery.notificationAllowed(context));result.put("notificationBound",HomeGuardRevivalListener.connected());
+            result.put("syncSupported",HomeGuardSync.supported(context));result.put("syncReady",HomeGuardSync.ready(context));result.put("syncStatus",HomeGuardSync.summary(context));result.put("keepAdb",HomeGuardAdb.enabled(context));
             result.put("overlayAllowed",Build.VERSION.SDK_INT<23 || Settings.canDrawOverlays(context));
             result.put("problem",problem);
             result.put("desktopRoutes",new DesktopRoutes(context).snapshot());setResultData(result.toString());

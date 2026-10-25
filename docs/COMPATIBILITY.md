@@ -2,6 +2,10 @@
 
 [中文首页](../README.md) · [English home](../README.en.md) · [安装指南](INSTALL.zh-CN.md)
 
+## 1.2.5 待发布候选
+
+本地候选补齐开机/待机守护、海信 ADB 身份、图标完整绘制、海尔设置与小米信号源路由；静态图上传放宽至60 MB，动态视频放宽至200 MB与60 FPS，标准档使用 Media3，安卓4.4保留系统播放器。各项厂商行为及最终 APK 升级保留仍待目标电视验收。已发布下载仍为1.2.4。
+
 ## 当前测试版 / Current test release
 
 [1.2.4 测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.2.4)提供安卓5+ ARM32／64／通用包（构建64–66）及安卓4.4兼容包（67），详见[选包与安装](INSTALL.zh-CN.md#下载安装与试用)。四包同源同版本同签名；旧系统不提供无线配对、桌面守护或HOME代理。
@@ -65,16 +69,17 @@ Both layouts share the native Home header with the preview. Only Desktop shows t
 
 ### 动态壁纸开发源码 / Video wallpaper source
 
-默认关闭，图片和 MP4 共用上传入口，使用系统 MediaPlayer 和固定背景 SurfaceView。源码构建不代表已发布的安装包包含此功能。
+默认关闭，图片和 MP4／MOV／MKV／WebM 共用上传入口。单视频 200 MB、最高 60 FPS；总容量和剩余空间检查仍保留。源码构建不代表已发布的安装包包含此功能。
 
 | 能力 | Android 4.4 | Android 5+ |
 | --- | --- | --- |
-| 上传、预览、静音循环、关闭恢复、退出释放 | 共用实现 | 共用实现 |
-| 输入上限 | H.264 8bit SDR、1080p30 内 | 按解码能力，最高 4K30；HEVC Main 8bit SDR 可选 |
+| 上传、预览、静音循环、关闭恢复、退出释放 | 共用流程 | 共用流程 |
+| 播放路径 | 系统 MediaPlayer + TextureView，无 Media3 | Media3 1.8.1 + SurfaceView，12 MiB 缓冲目标，禁用音频轨，可用解码器回退 |
+| 输入上限 | SDR、8bit、1080p、60 FPS 内，依系统解码器 | SDR、8bit、4K、60 FPS 内，依实际编码／分辨率／帧率组合 |
 | 4K 封面 | 本批不开放 4K | API 27+ 缩放取帧，旧 API 可用占位图 |
 | 厂商硬解、实际输出、长期性能、屏保与待机 | 待对应设备验收 | 待对应设备验收 |
 
-不接收 HDR／10bit／60 FPS。SurfaceView 保留部分电视独立于 UI 分辨率的视频输出路径；不能仅凭面板或素材标签确认原生 4K。4K 不可用时需另传低规格文件，不自动在电视转码。详见[使用指南](USAGE.zh-CN.md)。
+不接收 HDR／10bit。手机本机预览与电视首帧验证分别判断；播放错误区分读取、格式、解码、超时及输出失败。上述新范围尚待厂商真机验收；SurfaceView 保留部分电视独立于 UI 分辨率的视频输出路径；不能仅凭面板或素材标签确认原生 4K。4K 不可用时需另传低规格文件，不自动在电视转码。详见[使用指南](USAGE.zh-CN.md)。
 
 ### 每日壁纸开发源码 / Daily wallpaper source
 
@@ -155,7 +160,9 @@ The published b24 universal APK passed its optimized build, full Lint (0 errors,
 
 ## 信号源兼容
 
-当前源码新增小米 MediaTek 输入直切（尚未发布）：只有本机已注册的系统输入及可调用的小米系统播放器同时存在时，HDMI HW5／HW6／HW7 分别使用源编号 23／24／25，AV HW2 使用 2，数字／模拟电视 HW0／HW1 使用各自播放器入口。型号修正优先，保留 MiTV-ANTL0 和 MiTV-MFFU1 的特定映射，并按上游记录处理 MiTV-MFZP0 的 HW4／HW5／HW6→23／24／25，避免通用编号误切；其他硬件编号和提供方继续使用标准路径，不按品牌补造端口。播放器缺失、禁用、未导出或权限不足时保留原有回退，调用异常记录异常类型。依据为 [Aerial 输入路由](https://github.com/pengchujin/aerial-tv/blob/e0173e672192d7fb2f0a2eb5510d8400253b1edf/app/src/main/java/app/orchard/tv/system/SystemState.kt)、[CleanYourTV 小米 Android 14 记录](https://github.com/Gathin23/cleanyourtv/blob/538d2606a6edcf2850b1257efb23526c72a6c44a/docs/devices/xiaomi-mitv-mftr0-freeguy.txt)和[端口映射修复](https://github.com/Gathin23/cleanyourtv/pull/722)。小米 S85 Mini LED／澎湃 3／Android 14 的输入列表、真实画面、声音及实体遥控切换仍待目标电视验收，不能将上游其他型号结果视为本机通过。安卓4.4档仍使用系统设置／遥控器。
+当前开发源码的小米 HDMI 直切采用分层规则（尚未发布）：先用已实测的特殊映射，再从输入原始标签提取 HDMI 端口，通过 `mitv.common.ConfigurationManager.getInstance().queryTvConfigByKey("hdmiN_order")` 读取固件源编号；类或方法缺失、访问受限、查询异常或返回值不是正整数字符串时，再回退原有型号／固件及通用规则。固件读取不限定型号或固件版本，但只处理本机已注册、硬件 ID 为 `/HW数字` 的 HDMI 输入，实际启动仍要求系统输入及可调用的小米系统播放器；不补造端口，不尝试轮流切换编号。
+
+保留 MiTV-ANTL0、MiTV-MFFU1、MiTV-MFZP0，以及 MiTV4-ANSM0／22.11.18.3386 的已实测特殊映射。其中最后一项将 `/HW7` 显示为 HDMI 1、使用源编号 23，并过滤已确认的 `/HDMI300004` 重复条目；这些特殊映射不会被固件查询覆盖。标签修正和重复条目过滤继续独立处理，读取固件编号不等于自动识别全部物理接口。AV、DP、USB-C 及电视调谐器保留各自既有规则。依据为 [Aerial 分层输入路由](https://github.com/pengchujin/aerial-tv/blob/f1c8ea979a9128cebc46c646bb8efba1644e7b26/app/src/main/java/app/orchard/tv/system/SystemState.kt#L653-L703)、[小米 Android 6 编号差异记录](https://github.com/pengchujin/aerial-tv/blob/f1c8ea979a9128cebc46c646bb8efba1644e7b26/docs/devices/xiaomi-android6.md#L13-L19)及 [CleanYourTV 端口映射记录](https://github.com/Gathin23/cleanyourtv/pull/722)。标准档 API21+ 与酷开 API26+ 包名档位共用此代码；安卓4.4档仍使用系统设置／遥控器。厂商接口可访问性、真实画面／声音及实体遥控切换仍待目标电视验收，上游实测不代表 Quiet TV 真机通过。
 
 1.1.2 标准包已包含原厂信号源面板回退；安卓4.4兼容包仍使用系统设置／遥控器。Android 标准 TV Input 列表为空或服务不可用，并不证明电视没有输入接口。标准路径继续读取本机输入；回退按实际安装的系统组件、启用状态、导出状态和调用权限检测，不按品牌名称套用固定 HDMI 数量，也不自动修改系统组件或权限。
 

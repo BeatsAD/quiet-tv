@@ -51,11 +51,14 @@ final class AppArtwork {
     private static Bitmap render(Drawable art,boolean banner,int outputWidth){
         float ratio=outputWidth/(float)WIDTH;int outputHeight=Math.round(HEIGHT*ratio);
         int limitWidth=banner?outputWidth:Math.round(108*ratio),limitHeight=banner?outputHeight:Math.round(108*ratio);
-        int width=art==null?1:Math.max(1,art.getIntrinsicWidth()),height=art==null?1:Math.max(1,art.getIntrinsicHeight());
+        int nativeWidth=art==null?1:Math.max(1,art.getIntrinsicWidth()),nativeHeight=art==null?1:Math.max(1,art.getIntrinsicHeight());
+        int width=nativeWidth,height=nativeHeight;
         float scale=Math.min(limitWidth/(float)width,limitHeight/(float)height);
         width=Math.max(1,Math.round(width*scale));height=Math.max(1,Math.round(height*scale));
         Bitmap source=Bitmap.createBitmap(width,height,Bitmap.Config.ARGB_8888);
-        if(art!=null){Rect bounds=new Rect(art.getBounds());try{art.setBounds(0,0,width,height);art.draw(new Canvas(source));}finally{art.setBounds(bounds);}}
+        // Changing bounds alone does not scale fixed-size layers, insets or bitmap gravity.
+        // Scale their original coordinate space instead, without allocating a full-size bitmap.
+        if(art!=null){Rect bounds=new Rect(art.getBounds());try{Canvas drawing=new Canvas(source);drawing.scale(width/(float)nativeWidth,height/(float)nativeHeight);art.setBounds(0,0,nativeWidth,nativeHeight);art.draw(drawing);}finally{art.setBounds(bounds);}}
         Bitmap result=Bitmap.createBitmap(outputWidth,outputHeight,Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(result);
         canvas.drawColor(background(source,banner));
         canvas.drawBitmap(source,(outputWidth-width)/2f,(outputHeight-height)/2f,new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG));

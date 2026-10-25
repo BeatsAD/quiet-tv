@@ -22,6 +22,7 @@ import java.util.Locale;
 final class SystemSettingsRouter {
     private static final String XIAOMI="com.xiaomi.mitv.settings";
     private static final ComponentName XGIMI=new ComponentName("com.android.newsettings","com.xgimi.newsettings.SettingService");
+    private static final ComponentName HAIER=new ComponentName("com.haier.tv.menusetting.ui","com.haier.tv.menusetting.ui.SettingsService");
     private final Context context;
     private final PackageManager pm;
     SystemSettingsRouter(Context context){this.context=context;pm=context.getPackageManager();}
@@ -58,8 +59,8 @@ final class SystemSettingsRouter {
                 intents.add(new Intent(Intent.ACTION_VIEW,Uri.parse(page)));
             }
             intents.add(new Intent(XIAOMI+".SETTINGS").setComponent(new ComponentName(XIAOMI,XIAOMI+".entry.MainActivity")));
-            // Haier's standard SETTINGS action can lead to a broken Bluetooth page (#458).
-            intents.add(activity("com.haier.tv.menusetting","com.haier.tv.menusetting.RootActivity"));
+            // Haier's full settings is an overlay service; RootActivity opens the source menu.
+            intents.add(new Intent("com.haier.settings.intent.action.SettingsService").setComponent(HAIER).putExtra("command",0));
             intents.add(activity("com.tcl.settings","com.tcl.settings.ui.MainActivity"));
             intents.add(activity("com.pptv.setting","com.pptv.setting.root.SettingsActivity"));
             intents.add(activity("com.helios.setting","com.helios.activity.StartActivity"));
@@ -87,7 +88,7 @@ final class SystemSettingsRouter {
         for(Intent intent:candidates(action,ethernet)){
             String route="attempt="+diagnostic.id+" request="+action+" candidate="+(++candidate)+" "+DiagnosticLog.intent(intent);
             try{
-                boolean service=XGIMI.equals(intent.getComponent());
+                boolean service=XGIMI.equals(intent.getComponent()) || HAIER.equals(intent.getComponent());
                 ResolveInfo resolved=service?pm.resolveService(intent,0):pm.resolveActivity(intent,0);
                 ComponentInfo info=resolved==null?null:service?resolved.serviceInfo:resolved.activityInfo;
                 if(info==null){DiagnosticLog.info("settings.route",route+" result=unresolved");continue;}
@@ -120,6 +121,9 @@ final class SystemSettingsRouter {
         return false;
     }
     private String rejection(ComponentInfo info,String permission){
+        // Also reject these when an OEM registers them for the standard SETTINGS action.
+        if(("com.haier.tv.menusetting".equals(info.packageName) && "com.haier.tv.menusetting.RootActivity".equals(info.name))
+            || ("com.haier.bluetooth.settings".equals(info.packageName) && "com.haier.bluetooth.settings.SettingsActivity".equals(info.name)))return "not_full_settings";
         if((info.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0)return "not_system";
         if(!info.exported)return "not_exported";
         if(info.name.contains("CTSDummy") || "com.android.internal.app.ResolverActivity".equals(info.name) || "com.android.internal.app.ChooserActivity".equals(info.name))return "resolver_or_dummy";
