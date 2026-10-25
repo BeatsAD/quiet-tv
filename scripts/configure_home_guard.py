@@ -73,6 +73,24 @@ def configure(args, adb):
         raise ValueError("当前用户上的 Quiet TV 未安装、被隐藏或已停用")
     if "home.quiet.tv.HomeGuardSetupReceiver" not in package:
         raise ValueError("已安装 APK 不包含电脑守护配置入口；请先核对并更新到包含本修复的版本")
+    if args.pause:
+        command = ["am", "broadcast", "--include-stopped-packages", "--user", args.user,
+                   "-a", args.package + ".CONFIGURE_HOME_GUARD", "-n", args.package + "/home.quiet.tv.HomeGuardSetupReceiver",
+                   "--ei", "user", args.user, "--ez", "pause", "true"]
+        if not args.apply:
+            print("仅预览，未修改电视：shell " + " ".join(shlex.quote(str(value)) for value in command))
+            return
+        descriptor = os.open(args.record, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            json.dump({"serial": args.serial, "user": args.user, "package_before": package, "plan": [command]}, handle, ensure_ascii=False, indent=2)
+        if adb.current_user() != args.user:
+            raise ValueError("前台用户已改变，未暂停")
+        output = adb.shell(*command)
+        print(output)
+        if not re.search(r"\bresult=-1\b", output):
+            raise ValueError("应用未确认暂停；已安装 APK 可能不支持该入口")
+        print("中转已暂停；系统默认 HOME 保持原状，原桌面保护不解除。")
+        return
     pm_help = adb.shell("pm", "help")
     ops_help = adb.shell("appops", "help")
     if "--user" not in command_signature(pm_help, "grant") or "--user" not in command_signature(ops_help, "set"):
@@ -137,12 +155,15 @@ def main():
     parser.add_argument("--home", help="本机实际检测到的原主页组件；多候选时指定")
     parser.add_argument("--adb", default="adb")
     parser.add_argument("--apply", action="store_true", help="明确执行首次授权并启用守护")
+    parser.add_argument("--pause", action="store_true", help="暂停全部中转，不修改系统 HOME 或授予权限")
     parser.add_argument("--record", type=Path, help="新的本机私有授权前记录，不覆盖")
     args = parser.parse_args()
     if args.user < 0 or (args.home and not re.fullmatch(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+/[A-Za-z0-9_.$]+", args.home)):
         parser.error("用户或原主页组件格式无效")
     if args.apply and not args.record:
         parser.error("执行配置必须使用 --record 保存原始状态")
+    if args.pause and args.home:
+        parser.error("暂停不能同时选择原主页")
     try:
         configure(args, ComputerAdb(args.adb, args.serial))
     except (OSError, ValueError, subprocess.TimeoutExpired) as error:

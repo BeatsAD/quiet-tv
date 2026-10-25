@@ -36,6 +36,14 @@
         <activity android:name=".HomeSortActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".DesktopSettingsActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".HomeGuardActivity" android:exported="false" android:enabled="${homeGuardAvailable}" android:screenOrientation="landscape" />
+        <!-- No firmware is opted in by default. Only a verified profile may enable this entry. -->
+        <activity android:name=".VendorBootActivity" android:enabled="false" android:exported="true"
+            android:noHistory="true" android:excludeFromRecents="true" android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="com.skyworth.noriceguide.show" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
         <service android:name=".HomeGuardService" android:exported="true" android:directBootAware="true" android:enabled="${homeGuardAvailable}"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" android:label="@string/home_guard_name">
             <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
@@ -69,11 +77,6 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.HOME" />
-                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

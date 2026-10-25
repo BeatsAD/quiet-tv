@@ -13,7 +13,7 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
     private final ManagementUi ui;
     final ScrollView view;
     private HomeGuardState state;
-    private DesktopSettingsRow homeRow,accessibilityRow,notificationRow,guardRow;
+    private DesktopSettingsRow routeRow,homeRow,accessibilityRow,notificationRow,bridgeRow,guardRow;
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private AdbController adb;
     private AdbConnectionPanel connection;
@@ -28,18 +28,20 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
     private String resumeFocus;
     private final Runnable update=this::refreshUi;
     HomeGuardPanel(ManagementUi ui,View back,boolean headerActions){
-        this.ui=ui;this.back=back;this.headerActions=headerActions;state=new HomeGuardState(ui);state.configure();
+        this.ui=ui;this.back=back;this.headerActions=headerActions;state=new HomeGuardState(ui);
         adb=new AdbController(ui,value->ui.runOnUiThread(()->{if(resumed)guardRow.description(value);}));
         connection=new AdbConnectionPanel(ui,adb,worker);
         view=new ScrollView(ui);view.setFocusable(false);view.setVerticalScrollBarEnabled(false);
         LinearLayout body=ui.column();view.addView(body,new ScrollView.LayoutParams(-1,-2));
-        LinearLayout heading=ui.row();heading.addView(ui.muted("当电视回到原厂桌面时，尝试返回 Quiet TV。",14),new LinearLayout.LayoutParams(0,-2,1));
+        LinearLayout heading=ui.row();heading.addView(ui.muted("优先系统直接启动，必要时保留原桌面中转。",14),new LinearLayout.LayoutParams(0,-2,1));
         body.addView(heading,new LinearLayout.LayoutParams(-1,headerActions?-2:ui.px(38)));ui.gap(body,22);
         LinearLayout group=ui.listGroup();body.addView(group);
+        routeRow=setting("启动方式","desktop","desktop-routes");routeRow.tail("arrow");routeRow.setOnClickListener(v->showRoutes());addSetting(group,routeRow);
         homeRow=setting("原桌面","desktop","guard-home");homeRow.tail("arrow");homeRow.setOnClickListener(v->showHomes());addSetting(group,homeRow);
         accessibilityRow=setting("无障碍权限","tools","guard-accessibility");accessibilityRow.tail("arrow");accessibilityRow.setOnClickListener(v->openAccessibility());addSetting(group,accessibilityRow);
         notificationRow=setting("通知恢复","tools","guard-notification");notificationRow.tail("arrow");notificationRow.setOnClickListener(v->openNotification());addSetting(group,notificationRow);
-        guardRow=setting("桌面守护","shield","guard-enabled");guardRow.checked(false);guardRow.setOnClickListener(v->toggleGuard());addSetting(group,guardRow);
+        bridgeRow=setting("开机跳板","tools","vendor-boot");bridgeRow.checked(false);bridgeRow.setOnClickListener(v->toggleVendor());addSetting(group,bridgeRow);
+        guardRow=setting("自动中转","shield","guard-enabled");guardRow.checked(false);guardRow.setOnClickListener(v->toggleGuard());addSetting(group,guardRow);
         LinearLayout actions=headerActions?ui.header:heading;
         more=ui.button("更多操作",this::showMore);more.setId(View.generateViewId());more.setTag("guard-more");actions.addView(more,new LinearLayout.LayoutParams(-2,-1));
     }
@@ -48,7 +50,7 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
         group.addView(row,new LinearLayout.LayoutParams(-1,ui.px(80)));
     }
     void resume(){
-        if(resumed)return;resumed=true;state.configure();state.preferences.registerOnSharedPreferenceChangeListener(this);HomeGuardRecovery.request(ui,"设置返回");refreshUi();
+        if(resumed)return;resumed=true;state.preferences.registerOnSharedPreferenceChangeListener(this);new DesktopRoutes(ui).reconcileVendor();HomeGuardRecovery.request(ui,"设置返回");refreshUi();
         view.postDelayed(bindingRefresh,1800);
     }
     void pause(){
@@ -63,6 +65,7 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
     @Override public void onSharedPreferenceChanged(SharedPreferences preferences,String key){view.removeCallbacks(update);view.post(update);}
     private void refreshUi(){
         View previous=ui.getCurrentFocus();
+        DesktopRoutes routes=new DesktopRoutes(ui);routeRow.value(routes.homeLabel());routeRow.description((BuildConfig.DECLARES_HOME?"标准包":"无 HOME 兼容包")+"  开机："+routes.bootLabel()+"  唤醒："+routes.wakeLabel());
         boolean supported=state.supported(),valid=state.validSelection(),authorized=state.serviceEnabled();
         List<HomeGuardState.Candidate> candidates=state.candidates();
         HomeGuardState.Candidate selected=null;
@@ -74,20 +77,22 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
         boolean notification=HomeGuardRecovery.notificationAllowed(ui);
         notificationRow.value(!HomeGuardRecovery.notificationSupported(ui)?"此设备不可用":!notification?"未授权":HomeGuardRevivalListener.connected()?"已连接":"等待绑定");
         notificationRow.description("用于系统清理后的恢复，不读取通知内容。");notificationRow.setEnabled(supported);
+        accessibilityRow.setVisibility(state.enabled()?View.VISIBLE:View.GONE);notificationRow.setVisibility(state.enabled()?View.VISIBLE:View.GONE);
+        bridgeRow.checked(routes.vendorReady());bridgeRow.description(routes.vendorReady()?"已配置，重启和断电开机待验证":routes.vendorProblem());bridgeRow.setEnabled(supported);
         String problem=state.enableProblem(),summary=state.summary();
-        guardRow.checked(state.enabled());guardRow.description(state.enabled()?summary:!problem.isEmpty()?problem:"未启用".equals(summary)||"已暂停".equals(summary)?"配置已就绪，打开右侧开关即可启用。":summary);
+        guardRow.checked(state.automatic());guardRow.description("OFF".equals(state.preferences.getString("mode","AUTO"))?"已暂停，中转入口不会自动恢复":!state.automatic()?"尚未配置，请先选择启动方式":state.enabled()?summary:"系统直接启动；中转按场景配置");
         guardRow.setEnabled(supported);
         wireFocus();
         View focus=resumeFocus!=null?ui.root.findViewWithTag(resumeFocus):previous;resumeFocus=null;
         if(focus==null||!focus.isShown()||!focus.isEnabled())focus=preferredFocus();
         if(focus!=ui.getCurrentFocus())focus.requestFocus();
     }
-    private View preferredFocus(){if(state.enabled()&&guardRow.isEnabled())return guardRow;if(!state.validSelection()&&homeRow.isEnabled())return homeRow;if(!state.serviceEnabled()&&accessibilityRow.isEnabled())return accessibilityRow;return guardRow.isEnabled()?guardRow:more;}
+    private View preferredFocus(){return routeRow;}
     private void wireFocus(){
         View previous=headerActions?more:back;
-        View[] rows=headerActions?new View[]{homeRow,accessibilityRow,notificationRow,guardRow}:new View[]{more,homeRow,accessibilityRow,notificationRow,guardRow};
+        View[] rows=headerActions?new View[]{routeRow,homeRow,accessibilityRow,notificationRow,bridgeRow,guardRow}:new View[]{more,routeRow,homeRow,accessibilityRow,notificationRow,bridgeRow,guardRow};
         for(View row:rows){
-            if(!row.isEnabled())continue;
+            if(!row.isEnabled() || row.getVisibility()!=View.VISIBLE)continue;
             previous.setNextFocusDownId(row.getId());row.setNextFocusUpId(previous.getId());row.setNextFocusLeftId(row.getId());row.setNextFocusRightId(row.getId());previous=row;
         }
         previous.setNextFocusDownId(previous.getId());
@@ -125,9 +130,35 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
         },"连接并配置自动恢复");
     }
     private void toggleGuard(){
-        if(state.enabled())state.pause("已暂停");
-        else{String problem=state.enable();if(!problem.isEmpty())ui.message(problem);}
+        if(state.automatic())state.pause("已暂停");
+        else{new DesktopRoutes(ui).resume();if(state.enabled()){String problem=state.enableProblem();if(!problem.isEmpty())ui.message(problem);}}
         refreshUi();
+    }
+    private void toggleVendor(){
+        DesktopRoutes routes=new DesktopRoutes(ui);
+        if(routes.vendorReady())DesktopRoutes.disableVendor(ui);
+        else{String problem=routes.configureVendor();if(!problem.isEmpty())ui.message(problem);}
+        refreshUi();
+    }
+    private void showRoutes(){
+        ManagementUi.Sheet sheet=ui.new Sheet("桌面配置");DesktopRoutes routes=new DesktopRoutes(ui);
+        sheet.text(routes.details());sheet.text("自动配置保留原桌面。暂停中转不改变系统默认 HOME；恢复原桌面需单独操作。");
+        Button auto=sheet.option("自动配置桌面",()->{sheet.dialog.dismiss();ui.startActivity(new Intent(ui,SetupActivity.class).putExtra("autoConfigure",true));});
+        sheet.option("使用原主页中转",()->{sheet.dialog.dismiss();String problem=state.enable();refreshUi();if(!problem.isEmpty())ui.message(problem);});
+        sheet.option("记录实际验证结果",()->{sheet.dialog.dismiss();showScenes();});
+        sheet.option("恢复原桌面",()->{sheet.dialog.dismiss();if(!BuildConfig.DECLARES_HOME)openOriginal();else ui.startActivity(new Intent(ui,SetupActivity.class).putExtra("restore",true));});
+        sheet.action("返回",sheet.dialog::dismiss);showSheet(sheet,auto,routeRow);
+    }
+    private void showScenes(){
+        ManagementUi.Sheet sheet=ui.new Sheet("实际验证结果");sheet.text("请实际操作后记录。手动打开不能代替遥控器 HOME、重启、断电开机或待机唤醒。");
+        String[] scenes={"home","reboot","coldBoot","wake"},labels={"实体 HOME","重启","断电开机","待机唤醒"};Button first=null;
+        for(int i=0;i<scenes.length;i++){final String scene=scenes[i],label=labels[i];Button option=sheet.option(label+"  "+new DesktopRoutes(ui).test(scene),()->{sheet.dialog.dismiss();showScene(scene,label);});if(first==null)first=option;}
+        sheet.action("返回",sheet.dialog::dismiss);showSheet(sheet,first,routeRow);
+    }
+    private void showScene(String scene,String label){
+        ManagementUi.Sheet sheet=ui.new Sheet(label);Button first=null;
+        for(String result:new String[]{"通过","失败","待验证"}){Button option=sheet.option(result,()->{new DesktopRoutes(ui).observation(scene,result);sheet.dialog.dismiss();showScenes();});if(first==null)first=option;}
+        sheet.action("返回",sheet.dialog::dismiss);showSheet(sheet,first,routeRow);
     }
     private void showHomes(){
         List<HomeGuardState.Candidate> candidates=state.candidates();

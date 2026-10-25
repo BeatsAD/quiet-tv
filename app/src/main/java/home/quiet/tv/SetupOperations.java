@@ -28,7 +28,7 @@ final class SetupOperations {
         try{
             if(!Arrays.asList("KEEP","DISABLE","UNINSTALL").contains(choice))throw new IOException("原桌面操作选择无效");
             ticket.check();HomeController.State current=home.inspect(adb);
-            if(!"KEEP".equals(choice) && original!=null && new HomeGuardState(context).protects(original.pkg))throw new IOException("桌面守护（实验）依赖此原桌面，请保留");
+            if(!"KEEP".equals(choice) && original!=null && new HomeGuardState(context).protects(original.pkg,home.presets))throw new IOException("此原桌面必须保留，不能禁用或卸载");
             if(!current.isOwn(context) || !current.ownUsable)throw new IOException("默认桌面已改变或未确认，请返回第一屏");
             // Choices may be made before authorization. Validate the entire frozen selection before the first write.
             if(!selected.isEmpty() || !"KEEP".equals(choice)){
@@ -90,6 +90,7 @@ final class SetupOperations {
     void completeGuard() throws Exception {
         HomeGuardState guard=new HomeGuardState(context);
         if(!guard.compatibleReady())throw new IOException("兼容守护尚未连接");
+        HomeController.State current=home.inspect(null);store.baseline(current.known?current.actual:"",guard.selected());
         // No package operations and no assertion that system HOME points to Quiet TV.
         store.put("status","guard-configured");
     }
@@ -99,7 +100,7 @@ final class SetupOperations {
         try{
             new HomeGuardState(context).pause("恢复原桌面，守护已暂停");
             ticket.check();adb.validateUser();String original=store.originalHome();
-            if(original.isEmpty() || !original.equals(home.presets.home()) || !home.component(original,false))throw new IOException("原桌面记录缺失或当前固件不匹配");
+            if(original.isEmpty() || !home.component(original,false))throw new IOException("原桌面记录缺失或组件不可用");
             String pkg=android.content.ComponentName.unflattenFromString(original).getPackageName();AppRepository.App app=repository.find(adb,pkg);
             if(app==null || !app.metadataKnown)throw new IOException("系统安装包或原桌面元数据缺失，无法恢复");
             store.begin(id,new JSONObject().put("user",adb.user).put("original",state(app)).put("choice","RESTORE_HOME"));begun=true;

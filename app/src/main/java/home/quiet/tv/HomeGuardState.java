@@ -46,15 +46,20 @@ final class HomeGuardState {
     static boolean interactive(Context context){PowerManager power=(PowerManager)context.getSystemService(Context.POWER_SERVICE);return power!=null && (Build.VERSION.SDK_INT>=20?power.isInteractive():power.isScreenOn());}
     static boolean canShow(Context context){KeyguardManager keyguard=(KeyguardManager)context.getSystemService(Context.KEYGUARD_SERVICE);return unlocked(context) && interactive(context) && keyguard!=null && !keyguard.isKeyguardLocked();}
     boolean supported(){return HomeGuardPolicy.supported(Build.MANUFACTURER,Build.BRAND,Build.VERSION.SDK_INT,BuildConfig.LEGACY_19);}
-    boolean enabled(){return supported() && preferences.getBoolean("configured",false) && "AUTO".equals(preferences.getString("mode","AUTO"));}
+    boolean automatic(){return supported() && preferences.getBoolean("configured",false) && "AUTO".equals(preferences.getString("mode","AUTO"));}
+    boolean enabled(){return automatic() && preferences.getBoolean("observeHome",true);}
     String selected(){return preferences.getString("home","");}
-    boolean protects(String pkg){ComponentName name=ComponentName.unflattenFromString(selected());return enabled() && name!=null && name.getPackageName().equals(pkg);}
+    boolean protects(String pkg){return protects(pkg,SetupPresets.load(context));}
+    boolean protects(String pkg,SetupPresets rules){
+        ComponentName name=ComponentName.unflattenFromString(selected());boolean selected=name!=null && name.getPackageName().equals(pkg);
+        return DesktopRoutePolicy.preserve(rules.protectedHomePackage(pkg) || !BuildConfig.DECLARES_HOME && selected,selected && selected().equals(rules.home()) && rules.homeAllows("disableVerified"),selected,enabled());
+    }
     // Persist disabled mode before canceling scheduled recovery.
     @android.annotation.SuppressLint("ApplySharedPref")
-    void pause(String reason){DiagnosticLog.info("home_guard.pause",reason);preferences.edit().putString("mode","OFF").putBoolean("enabled",false).putString("status",reason).commit();HomeGuardRecovery.cancel();HomeGuardService.cancelPending();}
+    void pause(String reason){DiagnosticLog.info("home_guard.pause",reason);preferences.edit().putString("mode","OFF").putBoolean("enabled",false).putString("status",reason).commit();HomeGuardRecovery.cancel();HomeGuardService.cancelPending();DesktopRoutes.disableVendor(context);}
     // Persist the selected HOME and firmware before subsequent recovery requests.
     @android.annotation.SuppressLint("ApplySharedPref")
-    void select(ComponentName name){HomeGuardRecovery.cancel();HomeGuardService.cancelPending();preferences.edit().putBoolean("configured",true).putString("home",name.flattenToString()).putString("firmware",Build.FINGERPRINT).commit();}
+    void select(ComponentName name){HomeGuardRecovery.cancel();HomeGuardService.cancelPending();preferences.edit().putBoolean("configured",true).putString("home",name.flattenToString()).putString("firmware",Build.FINGERPRINT).commit();new DesktopRoutes(context).reconcileVendor();}
     void configure(){
         if(!supported() || !unlocked(context))return;
         preferences.edit().putBoolean("configured",true).apply();
@@ -106,7 +111,8 @@ final class HomeGuardState {
     }
     // Persist enabled mode before requesting recovery.
     @android.annotation.SuppressLint("ApplySharedPref")
-    String enable(){preferences.edit().putString("mode","AUTO").putBoolean("configured",true).commit();configure();HomeGuardRecovery.request(context,"用户启用");return enableProblem();}
+    String enable(){preferences.edit().putString("mode","AUTO").putBoolean("configured",true).commit();configure();new DesktopRoutes(context).observe();HomeGuardRecovery.request(context,"用户启用");return enableProblem();}
+    // A boot-only entry does not establish that pressing HOME can be redirected.
     boolean compatibleReady(){return ready() && serviceEnabled() && HomeGuardService.connected();}
     String summary(){
         if(!enabled())return preferences.getString("status","未配置");

@@ -21,7 +21,8 @@ final class SetupStore {
     private void write(JSONObject root) throws Exception {
         FileOutputStream out=file.startWrite();try{out.write(root.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));file.finishWrite(out);}catch(Exception e){file.failWrite(out);throw e;}
     }
-    void baseline(String previousHome,String originalHome) throws Exception {synchronized(LOCK){JSONObject record=get();if(!record.has("baseline"))put("baseline",new JSONObject().put("previousHome",previousHome).put("originalHome",originalHome).put("time",System.currentTimeMillis()));}}
+    void baseline(String previousHome,String originalHome) throws Exception {synchronized(LOCK){JSONObject record=get();if(!record.has("baseline"))put("baseline",new JSONObject().put("previousHome",previousHome).put("originalHome",originalHome).put("time",System.currentTimeMillis()));
+        else if(record.getJSONObject("baseline").optString("originalHome").isEmpty() && !originalHome.isEmpty())put("baseline",record.getJSONObject("baseline").put("originalHome",originalHome));}}
     String originalHome() throws Exception {JSONObject baseline=get().optJSONObject("baseline");return baseline==null?"":baseline.optString("originalHome");}
     boolean shouldOffer(Context context) throws Exception {
         synchronized(LOCK){JSONObject record=get();if(record.has("status"))return false;

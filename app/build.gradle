@@ -2,6 +2,9 @@ plugins { id 'com.android.application' }
 def compatibility = providers.gradleProperty('quietCompatibility').getOrElse('standard')
 if (!(compatibility in ['standard', 'legacy19'])) throw new GradleException('Unsupported quietCompatibility')
 def legacy = compatibility == 'legacy19'
+def homeMode = providers.gradleProperty('quietHomeMode').getOrElse('standard')
+if (!(homeMode in ['standard', 'relay'])) throw new GradleException('Unsupported quietHomeMode')
+if (legacy && homeMode != 'standard') throw new GradleException('Android 4.4 does not support the relay package')
 def launcherId = providers.gradleProperty('quietApplicationId').getOrElse('home.quiet.tv')
 if (!(launcherId in ['home.quiet.tv', 'com.coocaa.quiettv'])) throw new GradleException('Unsupported quietApplicationId')
 def minimumSdk = providers.gradleProperty('quietMinSdk').getOrElse(legacy ? '19' : '21').toInteger()
@@ -16,6 +19,7 @@ android {
         if (legacy) multiDexEnabled true
         manifestPlaceholders = [leanbackRequired: !legacy, homeGuardAvailable: !legacy]
         buildConfigField 'boolean', 'LEGACY_19', legacy.toString()
+        buildConfigField 'boolean', 'DECLARES_HOME', (homeMode == 'standard').toString()
         targetSdk 36
         versionCode providers.gradleProperty('quietBuildNumber').getOrElse('51').toInteger()
         versionName '1.2.1'
@@ -49,7 +53,9 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
-    if (legacy) ['debug', 'benchmark', 'release'].each { name -> sourceSets.getByName(name).manifest.srcFile('src/legacy19/AndroidManifest.xml') }
+    ['debug', 'benchmark', 'release'].each { name ->
+        sourceSets.getByName(name).manifest.srcFile(legacy ? 'src/legacy19/AndroidManifest.xml' : homeMode == 'standard' ? 'src/home/AndroidManifest.xml' : 'src/relay/AndroidManifest.xml')
+    }
     def selectedAbi = providers.gradleProperty('quietAbi').getOrElse('universal')
     if (selectedAbi != 'universal') {
         if (!(selectedAbi in ['arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64'])) throw new GradleException('Unsupported quietAbi')
@@ -115,6 +121,6 @@ tasks.named('preBuild').configure { dependsOn 'bundleWeatherConfiguration' }
 // Otherwise a previously packaged Manifest can survive a standard/legacy19 switch.
 tasks.configureEach {
     if (name in ['packageDebug', 'packageBenchmark', 'packageRelease']) {
-        inputs.property('quietPackageProfile', "${compatibility}:${minimumSdk}:${launcherId}")
+        inputs.property('quietPackageProfile', "${compatibility}:${minimumSdk}:${launcherId}:${homeMode}")
     }
 }
