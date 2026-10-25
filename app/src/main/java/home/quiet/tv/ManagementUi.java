@@ -25,6 +25,8 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     private Button managementMoreButton;
     private PopupWindow managementMorePopup;
     private DiagnosticLogPanel diagnosticPanel;
+    private UpdateBadgeView updateBadge;
+    private final UpdateRepository.Listener updateListener=()->{if(updateBadge!=null)updateBadge.available(UpdateRepository.get(this).available!=null);};
     int px(float value){return Math.round(value*unit);}
     @Override public void onCreate(Bundle state){
         super.onCreate(state);BackNavigation.install(this,this::handleBack);unit=getResources().getDisplayMetrics().widthPixels/960f;
@@ -47,8 +49,8 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     }
     boolean loadWallpaper(){return true;}
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);managementEntry=true;}
-    @Override protected void onResume(){super.onResume();if(managementSession!=null)managementSession.resume();if(managementEntry && managementPage>=0){managementEntry=false;managementTab().requestFocus();}}
-    @Override protected void onStop(){if(diagnosticPanel!=null)diagnosticPanel.close();if(managementMorePopup!=null)managementMorePopup.dismiss();if(managementConnection!=null)managementConnection.suspend();if(managementSession!=null)managementSession.suspend();super.onStop();}
+    @Override protected void onResume(){super.onResume();UpdateRepository.get(this).add(updateListener);UpdateRepository.get(this).foreground();if(managementSession!=null)managementSession.resume();if(managementEntry && managementPage>=0){managementEntry=false;managementTab().requestFocus();}}
+    @Override protected void onStop(){UpdateRepository.get(this).remove(updateListener);if(diagnosticPanel!=null)diagnosticPanel.close();if(managementMorePopup!=null)managementMorePopup.dismiss();if(managementConnection!=null)managementConnection.suspend();if(managementSession!=null)managementSession.suspend();super.onStop();}
     @Override protected void onDestroy(){if(diagnosticPanel!=null)diagnosticPanel.destroy();if(managementSession!=null)managementSession.close();super.onDestroy();}
     void managementConnected(){}
     void connectionPanel(){
@@ -92,6 +94,8 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
         Button more=iconText("更多",R.drawable.ic_manage_more,this::managementMore),about=iconText("关于",R.drawable.ic_about,()->startActivity(new Intent(this,AboutActivity.class)));
         managementMoreButton=more;
         marginAdd(header,more,-2,30,8);marginAdd(header,about,-2,30,8);
+        updateBadge=new UpdateBadgeView(this,about,unit);stage.addView(updateBadge,new FrameLayout.LayoutParams(-1,-1));
+        about.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->updateBadge.invalidate());
         View[] actions={header.getChildAt(0),managementStatus,more,about};
         for(View action:actions)if(action.getId()==View.NO_ID)action.setId(View.generateViewId());
         for(int i=0;i<actions.length;i++){View action=actions[i];action.setNextFocusLeftId(actions[Math.max(0,i-1)].getId());action.setNextFocusRightId(actions[Math.min(actions.length-1,i+1)].getId());action.setNextFocusDownId(managementTab().getId());}

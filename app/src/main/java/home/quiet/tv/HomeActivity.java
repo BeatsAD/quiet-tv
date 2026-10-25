@@ -172,6 +172,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             homeDrawPending=false;
             // This callback precedes drawing; it does not establish a frame presented by the TV.
             homeResumeEvent("home.first_draw","evidence=on_draw_callback_only");
+            root.post(()->{if(resumed)UpdateRepository.get(this).foreground();});
         });
         setContentView(root);
         wallpapers = new WallpaperController(this, root, unit, chinese);
@@ -227,6 +228,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private void updateClock(){homeHeader.updateClock(fixedGreeting);}
 
     private void updateNetwork() {
+        if(resumed&&!homeDrawPending)root.post(()->{if(resumed)UpdateRepository.get(this).foreground();});
         if(wallpapers!=null)wallpapers.environmentChanged();
         if(network.getVisibility()!=View.VISIBLE)return;
         ConnectivityManager cm=(ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE);

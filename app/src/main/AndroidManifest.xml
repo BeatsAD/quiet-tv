@@ -10,6 +10,7 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.READ_TV_LISTINGS" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
@@ -21,6 +22,7 @@
     <!-- A HOME and application manager must enumerate installed apps, including those without launcher entries. -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
     <queries>
+        <intent><action android:name="android.intent.action.VIEW" /><data android:mimeType="application/vnd.android.package-archive" /></intent>
         <package android:name="com.xiaomi.mitv.settings" />
         <package android:name="home.quiet.tv.xiaomihelper" />
         <package android:name="com.ccos.tv.homepage" />
@@ -30,6 +32,9 @@
         <intent><action android:name="android.intent.action.VIEW" /><data android:scheme="content" /></intent>
     </queries>
     <application android:name=".QuietApplication" android:label="Quiet TV" android:theme="@style/AppTheme" android:icon="@drawable/launcher_icon" android:banner="@drawable/launcher_banner" android:allowBackup="false" android:enableOnBackInvokedCallback="true" android:supportsRtl="true">
+        <provider android:name=".UpdateFileProvider" android:authorities="${applicationId}.updates" android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/update_paths" />
+        </provider>
         <activity android:name=".AboutActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".WeatherSettingsActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".DockEditorActivity" android:exported="false" android:screenOrientation="landscape" />

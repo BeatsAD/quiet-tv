@@ -20,6 +20,8 @@ android {
         manifestPlaceholders = [leanbackRequired: !legacy, homeGuardAvailable: !legacy]
         buildConfigField 'boolean', 'LEGACY_19', legacy.toString()
         buildConfigField 'boolean', 'DECLARES_HOME', (homeMode == 'standard').toString()
+        buildConfigField 'String', 'UPDATE_COMPATIBILITY', '"' + compatibility + '"'
+        buildConfigField 'String', 'UPDATE_ABI', '"' + providers.gradleProperty('quietAbi').getOrElse('universal') + '"'
         targetSdk 36
         versionCode providers.gradleProperty('quietBuildNumber').getOrElse('51').toInteger()
         versionName '1.2.1'
@@ -37,8 +39,9 @@ android {
         'home/quiet/tv/DiagnosticsDownloadServer.java', 'home/quiet/tv/DiagnosticsRecorder.java',
         'home/quiet/tv/DiagnosticsSnapshot.java'
     buildTypes {
-        debug { debuggable true }
+        debug { debuggable true; buildConfigField 'String', 'UPDATE_CHANNEL', launcherId == 'com.coocaa.quiettv' ? '"experimental"' : '"test"' }
         benchmark {
+            buildConfigField 'String', 'UPDATE_CHANNEL', launcherId == 'com.coocaa.quiettv' ? '"experimental"' : '"test"'
             debuggable false
             minifyEnabled true
             shrinkResources true
@@ -48,6 +51,7 @@ android {
         }
         // Formal releases require an explicitly configured persistent signing key.
         release {
+            buildConfigField 'String', 'UPDATE_CHANNEL', '"stable"'
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
