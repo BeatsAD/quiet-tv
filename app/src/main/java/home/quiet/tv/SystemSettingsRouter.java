@@ -66,7 +66,8 @@ final class SystemSettingsRouter {
 
     @SuppressWarnings("deprecation")
     boolean open(String action){
-        DiagnosticLog.info("settings.begin","action="+action);
+        DiagnosticOperation diagnostic=new DiagnosticOperation("settings",System.currentTimeMillis(),android.os.SystemClock.elapsedRealtime(),DiagnosticLog::info);
+        DiagnosticLog.info("settings.requested","attempt="+diagnostic.id+" action="+action);
         boolean ethernet=false;
         if(Settings.ACTION_WIFI_SETTINGS.equals(action)){
             ConnectivityManager manager=(ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);
@@ -75,9 +76,10 @@ final class SystemSettingsRouter {
             DiagnosticLog.info("settings.network","service="+(manager!=null)+" active="+(active!=null)+" connected="+(active!=null && active.isConnected())+" type="+(active==null?-1:active.getType()));
         }
         DiagnosticLog.info("settings.request","action="+action+" ethernet="+ethernet);
+        diagnostic.stage("ROUTING",android.os.SystemClock.elapsedRealtime());
         HashSet<String> attempted=new HashSet<>();int candidate=0;
         for(Intent intent:candidates(action,ethernet)){
-            String route="request="+action+" candidate="+(++candidate)+" "+DiagnosticLog.intent(intent);
+            String route="attempt="+diagnostic.id+" request="+action+" candidate="+(++candidate)+" "+DiagnosticLog.intent(intent);
             try{
                 boolean service=XGIMI.equals(intent.getComponent());
                 ResolveInfo resolved=service?pm.resolveService(intent,0):pm.resolveActivity(intent,0);
@@ -99,12 +101,16 @@ final class SystemSettingsRouter {
                     context.startActivity(launch);
                 }
                 DiagnosticLog.info("settings.dispatch",route+" type="+(service?"service":"activity")+" result=dispatched_unverified");
+                boolean systemFallback=!Settings.ACTION_SETTINGS.equals(action) && (Settings.ACTION_SETTINGS.equals(intent.getAction())
+                        || (XIAOMI+".entry.MainActivity").equals(info.name));
+                diagnostic.finish("DISPATCHED_UNVERIFIED",systemFallback?"system_settings_fallback":"candidate_dispatched",System.currentTimeMillis(),android.os.SystemClock.elapsedRealtime());
                 return true;
             }catch(RuntimeException failure){
                 DiagnosticLog.error("settings.route.failed",route,failure);
             }
         }
         DiagnosticLog.info("settings.unavailable",action);
+        diagnostic.finish("UNAVAILABLE","no_usable_candidate",System.currentTimeMillis(),android.os.SystemClock.elapsedRealtime());
         return false;
     }
     private String rejection(ComponentInfo info,String permission){

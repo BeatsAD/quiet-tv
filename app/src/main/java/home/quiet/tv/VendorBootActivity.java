@@ -8,7 +8,9 @@ public final class VendorBootActivity extends Activity {
     @Override public void onCreate(Bundle saved){
         super.onCreate(saved);
         DesktopRoutes routes=new DesktopRoutes(this);routes.reconcileVendor();
-        if(routes.acceptVendor(getIntent()))HomeGuardRecovery.launchVendor(this);
+        boolean accepted=routes.acceptVendor(getIntent());
+        DiagnosticLog.info("home_guard.vendor_entry","accepted="+accepted+" ready="+routes.vendorReady()+" problem="+routes.vendorProblem());
+        if(accepted)HomeGuardRecovery.launchVendor(this);
         finish();
     }
 }
