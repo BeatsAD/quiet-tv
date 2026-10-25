@@ -15,6 +15,9 @@ public final class HomeGuardSetupReceiver extends BroadcastReceiver {
         try{
             if(!state.supported() || !HomeGuardState.unlocked(context))throw new IllegalStateException("系统档位不支持或尚未解锁");
             if(intent.getIntExtra("user",-1)!=android.os.Process.myUid()/100000)throw new IllegalStateException("目标用户不一致");
+            if(intent.getBooleanExtra("pause",false)){
+                state.pause("电脑暂停中转");setResultData(new DesktopRoutes(context).snapshot().toString());setResultCode(Activity.RESULT_OK);return;
+            }
             if(!HomeGuardRecovery.writeAllowed(context))throw new IllegalStateException("请先通过电脑授予写安全设置权限");
             if(!intent.getBooleanExtra("enable",false))throw new IllegalStateException("未明确请求启用守护");
             // Validate the exact on-device candidate before changing a paused configuration.
@@ -36,7 +39,8 @@ public final class HomeGuardSetupReceiver extends BroadcastReceiver {
             result.put("notificationSupported",HomeGuardRecovery.notificationSupported(context));
             result.put("notificationAllowed",HomeGuardRecovery.notificationAllowed(context));result.put("notificationBound",HomeGuardRevivalListener.connected());
             result.put("overlayAllowed",Build.VERSION.SDK_INT<23 || Settings.canDrawOverlays(context));
-            result.put("problem",problem);setResultData(result.toString());
+            result.put("problem",problem);
+            result.put("desktopRoutes",new DesktopRoutes(context).snapshot());setResultData(result.toString());
             if(problem.isEmpty())setResultCode(Activity.RESULT_OK);
             DiagnosticLog.info("home_guard.computer_setup",problem.isEmpty()?"权限已配置，接管待验证":"部分权限未配置");
         }catch(Exception failure){setResultData("配置未完成："+failure.getMessage());}

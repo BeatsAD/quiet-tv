@@ -74,7 +74,7 @@ final class BootAppStore {
             return target();
         }
     }
-    private String bootId(){
+    String bootId(){
         if(Build.VERSION.SDK_INT>=24){
             try{int count=Settings.Global.getInt(context.getContentResolver(),"boot_count",-1);if(count>=0)return "count:"+count;}
             catch(SecurityException ignored){}

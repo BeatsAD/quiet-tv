@@ -115,7 +115,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         settleReason=reason;transitionUntil=SystemClock.uptimeMillis()+HomeGuardPolicy.SETTLE_MS;handler.postDelayed(handover,HomeGuardPolicy.SETTLE_MS);
     }
     @Override public void onSharedPreferenceChanged(SharedPreferences preferences,String key){
-        if("mode".equals(key) || "home".equals(key) || "firmware".equals(key) || "configured".equals(key)){
+        if("mode".equals(key) || "home".equals(key) || "firmware".equals(key) || "configured".equals(key) || "observeHome".equals(key)){
             cancel();policy.clear();lastPackage="";allowStock=false;
             if(state.enabled())schedule("配置恢复");refreshUsageWatch();
         }

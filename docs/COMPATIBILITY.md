@@ -21,6 +21,10 @@ Android 5 使用旧版网络状态接口和安装时权限；频道权限或 TV 
 
 源码兼容处理包括旧系统网络广播与字体回退、系统 HOME 入口检测、旧遥控器及新版系统返回导航，以及按本机实际命令能力开放的应用管理。Android 版本符合最低要求不等于厂商固件全部功能已通过验收。
 
+桌面自动配置优先系统 HOME，确认不能切换时才回退原桌面中转；取消、断连和结果未知不触发回退。自动配置保留原桌面，危险固件及未验收原主页受执行层保护，暂停中转不解除保护。厂商开机跳板默认禁用，当前没有可自动启用的固件规则，不能把创维动作套用到 TCL。
+
+构建参数 `quietHomeMode` 默认为 `standard`，维持 HOME 声明和原构建命令；API21+ 可显式选择 `relay`，最终 Manifest 不声明 HOME，保留 LAUNCHER／LEANBACK 入口并共用原桌面中转。安卓4.4拒绝该组合。本地编译与合并清单不代表 TCL p331 可以安装，也不证明实体 HOME、开机或待机已通过；本轮没有电视安装或兼容包归档交付。详见[桌面配置](SETUP.md#无-home-兼容形态本地开发未交付)。
+
 Source includes legacy networking/font fallbacks, detected HOME settings, Back handling and capability-based package operations. Meeting the minimum Android version does not establish vendor-firmware compatibility.
 
 ## 已验证与待验收 / Evidence boundaries

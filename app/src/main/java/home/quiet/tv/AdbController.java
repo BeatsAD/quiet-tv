@@ -20,6 +20,10 @@ import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 
 /** A foreground-owned ADB client with serialized connection attempts restricted to this device's addresses. */
 final class AdbController implements Closeable {
+    /** A complete shell response with a nonzero exit is distinct from transport loss/cancellation. */
+    static final class CommandFailure extends IOException {
+        CommandFailure(int exit,String body){super("命令失败（"+exit+"）："+body);}
+    }
     interface Status { void changed(String value); }
     enum Stage { IDLE, KEYS, PAIRING, PORT, HANDSHAKE, LOCAL, SHELL, USER, CAPABILITIES, CONNECTED }
     enum Failure { NONE, KEYS, PORT, HANDSHAKE, LOCAL, SHELL, USER, CAPABILITIES }
@@ -219,7 +223,7 @@ final class AdbController implements Closeable {
             int exit=Integer.parseInt(value.substring(position+marker.length()).trim());
             String body=value.substring(0,position).trim();
             recordIdentityResult(request,command,"complete",exit,body);recorded=true;
-            if(exit!=0)throw new IOException("命令失败（"+exit+"）："+body);
+            if(exit!=0)throw new CommandFailure(exit,body);
             return body;
         }catch(Exception e){
             if(!recorded)recordIdentityResult(request,command,"failed_"+e.getClass().getSimpleName(),null,output.toString("UTF-8"));

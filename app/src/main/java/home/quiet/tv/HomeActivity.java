@@ -267,6 +267,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         homeResumeStarted=SystemClock.uptimeMillis();++homeResumeSequence;homeDrawPending=true;
         homeResumeEvent("home.resume.begin","sincePauseMs="+(homePausedAt==0?-1:homeResumeStarted-homePausedAt));
         super.onResume(); resumed=true;
+        new DesktopRoutes(this).reconcileVendor();
         if(!systemEntryPending.isEmpty()){systemEntryLifecycle(systemEntryDispatched?"resume_return_unverified":"resume_before_dispatch");systemEntryPending="";}
         BootAppLifecycle.visible(this);
         if(!HomeGuardService.connected())HomeGuardRecovery.request(this,"桌面恢复");

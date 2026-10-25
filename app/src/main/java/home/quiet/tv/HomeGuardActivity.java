@@ -8,7 +8,7 @@ import android.widget.*;
 public final class HomeGuardActivity extends ManagementUi {
     private HomeGuardPanel panel;
     @Override public void onCreate(Bundle saved){
-        super.onCreate(saved);((TextView)header.getChildAt(1)).setText("桌面守护（实验）");
+        super.onCreate(saved);((TextView)header.getChildAt(1)).setText("桌面配置");
         View back=header.getChildAt(0);back.setId(View.generateViewId());
         panel=new HomeGuardPanel(this,back,true);panel.restoreState(saved);
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,0,1);p.topMargin=px(18);root.addView(panel.view,p);

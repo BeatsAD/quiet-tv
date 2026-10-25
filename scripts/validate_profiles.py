@@ -27,6 +27,16 @@ for device in data['devices']:
             assert app.get('purpose') and app.get('impact') and app.get('source', '').startswith('https://'), 'Boot ads require purpose, impact and source'
     home = device.get('home', {})
     assert not home.get('uninstallVerified') or home.get('restoreInstallVerified'), 'HOME uninstall requires verified recovery'
+    assert not home.get('preserveOriginal') or not (home.get('disableVerified') or home.get('uninstallVerified')), 'Protected HOME cannot be disabled or uninstalled'
+    for package in home.get('requiredPackages', []):
+        assert re.fullmatch(r'[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+', package), 'Invalid required HOME package'
+    boot = home.get('vendorBoot')
+    if boot is not None:
+        assert device.get('brand') and device.get('model') and home.get('component'), 'Vendor boot requires exact firmware and HOME identity'
+        assert home.get('preserveOriginal') is True and boot.get('verified') is True and boot.get('afterUnlock') is True, 'Vendor boot requires preserving the original and real post-unlock evidence'
+        assert boot.get('action') == 'com.skyworth.noriceguide.show', 'Only implemented vendor entries are accepted'
+        assert re.fullmatch(r'[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+', boot.get('systemPackage', '')), 'Invalid vendor system package'
+        assert type(boot.get('versionCode')) is int and boot['versionCode'] >= 0 and boot.get('source', '').startswith('https://'), 'Vendor version and evidence required'
 for reference in data.get('references', []):
     assert all(reference.get(k) for k in ['model', 'os', 'source', 'limitations'])
     assert not {'fingerprint', 'apps', 'home'} & reference.keys(), 'References cannot contain executable rules'
