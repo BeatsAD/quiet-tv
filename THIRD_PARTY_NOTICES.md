@@ -60,7 +60,7 @@ Quiet TV 基于该项目开发，面向国内电视机的适配与应用升级�
 ## 电视端 ADB 与证书依赖
 
 - [libadb-android 3.1.1](https://github.com/MuntashirAkon/libadb-android/tree/3.1.1)：采用其 Apache-2.0 许可选项，保留继承代码的 BSD-3-Clause 和 MIT 声明。许可文本随 APK 保存在 `assets/licenses/libadb-*.txt`。
-- [Bouncy Castle 1.86](https://github.com/bcgit/bc-java/tree/r1rv86)：bcprov、bcpkix 及 bcutil 的 jdk15to18 版本，用于独立密钥的自签证书和库内部 RSA 公钥编码，许可见 `assets/licenses/bouncycastle-LICENSE.md`。此版本为当前源码依赖；历史发布包的依赖不会随源码维护改变。
+- [Bouncy Castle 1.86](https://github.com/bcgit/bc-java/tree/r1rv86)：bcprov、bcpkix 及 bcutil 的 jdk15to18 版本，用于独立密钥的自签证书和库内部 RSA 公钥编码；安卓4.4档另使用同版本 bctls 提供每日壁纸的纯 Java TLS／JSSE 实现，不包含原生库。许可见 `assets/licenses/bouncycastle-LICENSE.md`。此版本为当前源码依赖；历史发布包的依赖不会随源码维护改变。
 - `1.1.0 / b4` 候选接入无线配对，包含 [spake2-android 2.2.1](https://github.com/MuntashirAkon/spake2-java/tree/2.2.1) 的未修改原生库，采用 LGPL-3.0；版权归 Muntashir Al-Islam 等上游作者。LGPL 与 GPL 文本见 `assets/licenses/spake2-*.txt`。相同版本的完整库源码及构建脚本可从该标签取得；本项目通过 Gradle 引用，保留独立共享库及源码重建／替换路径。上游 Ed25519 实现来源与 CC0 说明见其 README。
 - [Conscrypt 2.7.0](https://github.com/google/conscrypt/tree/2.7.0) 提供 TLS 1.3 与公开密钥导出接口，采用 Apache-2.0；其及内含原生代码的声明随 APK 保存为 `assets/licenses/conscrypt-LICENSE.txt`、`conscrypt-NOTICE.txt`。历史 TCP 版本未包含以上无线依赖。
 
@@ -75,6 +75,7 @@ Quiet TV 基于该项目开发，面向国内电视机的适配与应用升级�
 - 必应保留接口返回的图片标题、版权及来源链接，来源见 [Bing 首页说明](https://support.microsoft.com/en-us/topic/explore-the-homepage-bab2022c-cdb4-4d1f-80e2-c8f5c55712c7)。接口可访问不表示所有图片获得再分发授权，在线图片不作为应用内置资源分发。
 - 历史版本曾采用[搏天随机壁纸接口](https://api.btstu.cn/doc/sjbz.php)。当前不再请求该服务；旧缓存仅用于升级期间保留背景，不作为内置资源分发。图片权利仍归原权利人。
 - 历史 Android 7.1 及以下版本曾对 `api.btstu.cn`、`img.btstu.cn` 补充证书信任；当前已移除上述网络和证书补充逻辑。
+- 安卓4.4档的必应连接使用应用内 TLS 实现，并在系统信任根基础上补充官方 [DigiCert Global Root G2](https://knowledge.digicert.com/general-information/digicert-trusted-root-authority-certificates)。公开证书为 `app/src/main/assets/certificates/digicert-global-root-g2.pem`，DER SHA-256 为 `cb3ccbb76031e5e0138f8dd39a23f9de47ffc35e43c1144cea27d46a5ab1cb5f`。不修改系统证书库、全局安全提供方或默认域名校验，不要求 root；Android 5+ 的壁纸连接继续使用系统默认 TLS。
 
 ## 旧版 Android 天气 HTTPS 兼容
 
