@@ -37,6 +37,7 @@ public final class HomeGuardSetupReceiver extends BroadcastReceiver {
             result.put("accessibilityAllowed",state.serviceEnabled());result.put("accessibilityBound",HomeGuardService.connected());
             result.put("usageRequired",HomeGuardService.usageRequired());result.put("usageAllowed",HomeGuardService.usageAllowed(context));
             result.put("notificationSupported",HomeGuardRecovery.notificationSupported(context));
+            result.put("syncRecoveryReady",HomeGuardSync.ready(context));
             result.put("notificationAllowed",HomeGuardRecovery.notificationAllowed(context));result.put("notificationBound",HomeGuardRevivalListener.connected());
             result.put("overlayAllowed",Build.VERSION.SDK_INT<23 || Settings.canDrawOverlays(context));
             result.put("problem",problem);

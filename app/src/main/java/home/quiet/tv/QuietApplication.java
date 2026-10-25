@@ -8,6 +8,7 @@ import android.os.Bundle;
 public class QuietApplication extends Application {
     @Override public void onCreate(){
         super.onCreate();DiagnosticLog.init(this);
+        HomeGuardRecovery.request(this,"进程启动");
         registerActivityLifecycleCallbacks(new ActivityLifecycleCallbacks(){
             public void onActivityCreated(Activity activity,Bundle state){DiagnosticLog.info("page.create",activity.getClass().getSimpleName());}
             public void onActivityResumed(Activity activity){DiagnosticLog.info("page.resume",activity.getClass().getSimpleName());}

@@ -28,6 +28,53 @@ def command_signature(help_text, name):
     return ""
 
 
+def identity_uid(output):
+    value = output.strip()
+    if re.fullmatch(r"[0-9]{1,6}", value):
+        return int(value)
+    match = re.fullmatch(r"uid=([0-9]{1,6})\([^\r\n)]*\)(?:[ \t]+[^\r\n]*)?", value)
+    return int(match[1]) if match else -1
+
+
+def verify_identity(adb, sdk):
+    try:
+        output = adb.shell("id", "-u")
+    except ValueError:
+        output = adb.shell("id")
+    uid = identity_uid(output)
+    if uid == 2000:
+        return "shell"
+    identity = adb.shell("id")
+    if uid < 0:
+        uid = identity_uid(identity)
+    if uid == 2000:
+        return "shell"
+    # Match the submitted production VIDAA firmware, not arbitrary root/engineering ADB.
+    if (uid == 0 and sdk == 22 and identity_uid(identity) == 0
+            and re.search(r"\bcontext=u:r:hshell:s0\s*$", identity)
+            and adb.shell("getprop", "ro.product.brand").lower() == "hisense"
+            and adb.shell("getprop", "ro.product.manufacturer").lower() == "hisense"
+            and adb.shell("getprop", "ro.product.model") == "VIDAA_TV"):
+        fingerprint = adb.shell("getprop", "ro.build.fingerprint")
+        if (fingerprint.startswith("Hisense/VIDAA_TV/MSD6A828:5.1.1/LVY48C/")
+                and fingerprint.endswith(":user/release-keys")
+                and adb.shell("getprop", "ro.secure") == "1"
+                and adb.shell("getprop", "ro.debuggable") == "0"):
+            return "hisense_hshell"
+    raise ValueError("ADB 身份不受支持；仅接受普通 shell 或已匹配的海信 VIDAA 工厂接口")
+
+
+def user_options(help_text, operation, sdk, user):
+    signature = command_signature(help_text, operation)
+    if not signature:
+        raise ValueError("本机帮助未确认授权命令，未修改权限")
+    if "--user" in signature:
+        return ["--user", user]
+    if sdk <= 23 and user == 0:
+        return []  # Old tools operate on the verified owner user only.
+    raise ValueError("本机命令不能明确作用于目标用户，未修改权限")
+
+
 class ComputerAdb:
     def __init__(self, executable, serial):
         self.executable, self.serial = executable, serial
@@ -60,11 +107,12 @@ class ComputerAdb:
 
 
 def configure(args, adb):
-    if adb.run("get-state") != "device" or adb.shell("id", "-u") != "2000":
-        raise ValueError("需要已授权的普通 ADB shell；端口连通或 root 调试模式不能代替")
+    if adb.run("get-state") != "device":
+        raise ValueError("需要已授权的 ADB 连接")
+    sdk = int(adb.shell("getprop", "ro.build.version.sdk"))
+    profile = verify_identity(adb, sdk)
     if adb.current_user() != args.user:
         raise ValueError("指定用户不是当前前台用户")
-    sdk = int(adb.shell("getprop", "ro.build.version.sdk"))
     if sdk < 21:
         raise ValueError("Android 4.4 档位未开放桌面守护")
     package = adb.shell("dumpsys", "package", args.package)
@@ -93,13 +141,14 @@ def configure(args, adb):
         return
     pm_help = adb.shell("pm", "help")
     ops_help = adb.shell("appops", "help")
-    if "--user" not in command_signature(pm_help, "grant") or "--user" not in command_signature(ops_help, "set"):
-        raise ValueError("本机帮助未确认授权命令支持目标用户，未修改权限")
-    plan = [["pm", "grant", "--user", args.user, args.package, "android.permission.WRITE_SECURE_SETTINGS"]]
+    pm_user = user_options(pm_help, "grant", sdk, args.user)
+    ops_user = user_options(ops_help, "set", sdk, args.user)
+    plan = [["pm", "grant", *pm_user, args.package, "android.permission.WRITE_SECURE_SETTINGS"]]
     if sdk >= 23:
-        plan.append(["appops", "set", "--user", args.user, args.package, "SYSTEM_ALERT_WINDOW", "allow"])
+        plan.append(["appops", "set", *ops_user, args.package, "WRITE_SETTINGS", "allow"])
+        plan.append(["appops", "set", *ops_user, args.package, "SYSTEM_ALERT_WINDOW", "allow"])
     if sdk <= 23:
-        plan.append(["appops", "set", "--user", args.user, args.package, "GET_USAGE_STATS", "allow"])
+        plan.append(["appops", "set", *ops_user, args.package, "GET_USAGE_STATS", "allow"])
     # Old firmware has no cmd. Its notification list is merged by the app with its granted permission.
     if sdk >= 27:
         try:
@@ -121,11 +170,11 @@ def configure(args, adb):
             print("shell " + " ".join(shlex.quote(str(value)) for value in command))
         return
     # Save original settings and grant state before the first write, without replacing any baseline.
-    record = {"serial": args.serial, "user": args.user, "package": args.package, "sdk": sdk,
+    record = {"serial": args.serial, "user": args.user, "package": args.package, "sdk": sdk, "identity_profile": profile,
               "package_before": package, "plan": plan,
               "accessibility_before": adb.shell("settings", "--user", args.user, "get", "secure", "enabled_accessibility_services"),
               "notification_before": adb.shell("settings", "--user", args.user, "get", "secure", "enabled_notification_listeners"),
-              "appops_before": adb.shell("appops", "get", "--user", args.user, args.package)}
+              "appops_before": adb.shell("appops", "get", *ops_user, args.package)}
     descriptor = os.open(args.record, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
         json.dump(record, handle, ensure_ascii=False, indent=2)
@@ -138,6 +187,8 @@ def configure(args, adb):
         except ValueError as error:
             if command[0] == "appops" and "GET_USAGE_STATS" in command and "Unknown operation" in str(error):
                 output = adb.shell(*(value if value != "GET_USAGE_STATS" else "android:get_usage_stats" for value in command))
+            elif command[:2] == ["cmd", "notification"] and re.search(r"(?i)securityexception|unknown command|not allowed", str(error)):
+                output = "通知授权不可用，继续核对应用内同步恢复"
             else:
                 raise
         if command is broadcast:

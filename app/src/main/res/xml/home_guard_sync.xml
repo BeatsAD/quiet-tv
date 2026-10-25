@@ -1,0 +1,8 @@
+<!-- SettingsProvider emits upload-only changes; this binding only revives the process, and transfers no data. -->
+<sync-adapter xmlns:android="http://schemas.android.com/apk/res/android"
+    android:contentAuthority="settings"
+    android:accountType="@string/home_guard_account_type"
+    android:userVisible="false"
+    android:supportsUploading="true"
+    android:allowParallelSyncs="false"
+    android:isAlwaysSyncable="true" />

@@ -22,9 +22,16 @@ final class ShellCapabilities {
     private static String command(String pm,String cmd,String name){
         return scoped(cmd,name)?"cmd package "+name:scoped(pm,name)?"pm "+name:"";
     }
-    private static boolean scoped(String help,String name){
+    static String userOption(String help,String name,int sdk,int user) throws java.io.IOException {
+        String signature=signature(help,name);
+        if(signature.contains("--user"))return " --user "+user;
+        if(!signature.isEmpty() && sdk<=23 && user==0)return "";
+        throw new java.io.IOException("此授权命令无法核对目标用户");
+    }
+    private static boolean scoped(String help,String name){return signature(help,name).contains("--user");}
+    private static String signature(String help,String name){
         Matcher match=Pattern.compile("(?m)^([ \\t]*)(?:pm[ \\t]+)?"+Pattern.quote(name)+"(?=[ \\t]|$)([^\\r\\n]*)").matcher(help);
-        if(!match.find())return false;
+        if(!match.find())return "";
         StringBuilder signature=new StringBuilder(match.group(2));int indent=match.group(1).length();
         for(String line:help.substring(match.end()).split("\\r?\\n")){
             if(line.trim().isEmpty())continue;
@@ -32,6 +39,6 @@ final class ShellCapabilities {
             if(width<=indent)break;
             signature.append(' ').append(line.trim());
         }
-        return signature.toString().contains("--user");
+        return name+" "+signature;
     }
 }
