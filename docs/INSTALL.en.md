@@ -4,7 +4,7 @@
 
 ## Requirements
 
-The current public release is [1.2.4 test builds](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.2.4). Installing a published APK needs no JDK, Gradle or full Android SDK.
+The [installation page](https://beatsad.github.io/quiet-tv/) and [latest release index](https://beatsad.github.io/quiet-tv/latest.json) automatically track published builds, including prereleases. Choose the latest APK compatible with the TV's system, supported ABIs and upgrade conditions. Android 4.4 / API19–20 needs the compatibility profile; API21+ needs an applicable standard build. Verify the actual APK metadata and read the [compatibility](COMPATIBILITY.md) limits. Historical downloads keep their links. Installing a published APK needs no JDK, Gradle or full Android SDK.
 
 Standard requires Android 5 / API21+ and provides ARM32, ARM64 and universal fallback APKs. Android 4.4 / API19 uses a separate compatibility APK with no native libraries, traditional TCP ADB, no six-digit pairing or desktop guard, and system settings/the remote for inputs. All use targetSdk36 and package `home.quiet.tv`. Minimum API support does not establish firmware compatibility.
 
@@ -51,35 +51,26 @@ The minimum defaults to API19. Build and Lint with `./gradlew :app:assembleDebug
 
 ## Download and try
 
-Choose one complete APK from the [1.2.4 release](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.2.4):
+Use the [installation page](https://beatsad.github.io/quiet-tv/) or [latest release index](https://beatsad.github.io/quiet-tv/latest.json) to choose the latest compatible APK, including test builds. Each asset provides its actual `url`, size in `bytes`, and `sha256`; do not reconstruct a filename or download URL from an older document.
 
-| System | Architecture | Internal build | Download | Size |
-| --- | --- | --- | --- | --- |
-| Android 5+ | ARM32 | 64 | [QuietTV_1.2.4_Android5plus_ARM32_Test.apk](https://github.com/BeatsAD/quiet-tv/releases/download/v1.2.4/QuietTV_1.2.4_Android5plus_ARM32_Test.apk) | 3.74 MiB |
-| Android 5+ | ARM64 | 65 | [QuietTV_1.2.4_Android5plus_ARM64_Test.apk](https://github.com/BeatsAD/quiet-tv/releases/download/v1.2.4/QuietTV_1.2.4_Android5plus_ARM64_Test.apk) | 3.87 MiB |
-| Android 5+ | Universal | 66 | [QuietTV_1.2.4_Android5plus_Universal_Test.apk](https://github.com/BeatsAD/quiet-tv/releases/download/v1.2.4/QuietTV_1.2.4_Android5plus_Universal_Test.apk) | 7.04 MiB |
-| Android 4.4 | No native libraries | 67 | [QuietTV_1.2.4_Android4.4_Test.apk](https://github.com/BeatsAD/quiet-tv/releases/download/v1.2.4/QuietTV_1.2.4_Android4.4_Test.apk) | 3.95 MiB |
-
-Choose by OS-supported ABIs; a 64-bit processor may run a 32-bit OS. Prefer a matching single-architecture APK, or the Android 5+ universal fallback when uncertain. Install one per device; the largest build number is not a universal recommendation.
-
-GitHub uses English download filenames and Chinese labels. New releases upload APKs only. Compare the file's SHA-256 with its asset `digest` in the [GitHub release API](https://api.github.com/repos/BeatsAD/quiet-tv/releases/tags/v1.2.4); no separate checksum download is required. For example:
+Calculate the downloaded file's SHA-256 and compare it with the selected asset. Set `APK_PATH` to the actual downloaded file:
 
 ```sh
-shasum -a 256 QuietTV_1.2.4_Android5plus_ARM32_Test.apk
+shasum -a 256 "$APK_PATH"
 ```
 
-Historical assets, links and checksum files remain unchanged. Check the actual package, version, build number, minSdk, ABI and signer before installation. Updates require the same package/signer and a higher internal versionCode. A higher-build universal APK cannot be replaced with a lower-build ARM APK. Retain the installation if no compatible upgrade exists; do not uninstall, clear data or force a downgrade.
+Historical releases may also provide a matching `.apk.sha256`. A missing standalone checksum file is not a reason to select an older version. Verify the actual package, signer, increasing versionCode, system and data compatibility before upgrading; do not uninstall or clear data to bypass a mismatch. [Historical releases](https://github.com/BeatsAD/quiet-tv/releases) remain unchanged.
 
 Where supported, install through the TV's file manager and confirm source authorization in system settings. For computer ADB, use the TV's actual debugging entry and approve the computer. Network ADB requires a reachable shared LAN; enabling USB debugging alone does not establish network access. See [connection and authorization, Chinese](TECHNICAL_PATH_WITH_CODEX.zh-CN.md#二连接电视读取真实设备能力).
 
-Read the current user and command help first; verify `--user` support and set `TV_SERIAL` and `TV_USER` to the actual target. The following address and user 0 are examples:
+Read the current user and command help first; verify `--user` support and set `TV_SERIAL` and `TV_USER` to the actual target. Set `APK_PATH` to the actual downloaded and verified APK. The following address and user 0 are examples:
 
 ```sh
 TV_SERIAL=192.0.2.10:5555
 TV_USER=0
 adb connect "$TV_SERIAL"
 adb -s "$TV_SERIAL" shell am get-current-user
-adb -s "$TV_SERIAL" install -r --user "$TV_USER" QuietTV_1.2.4_Android5plus_ARM32_Test.apk
+adb -s "$TV_SERIAL" install -r --user "$TV_USER" "$APK_PATH"
 adb -s "$TV_SERIAL" shell am start --user "$TV_USER" -n home.quiet.tv/.HomeActivity
 ```
 

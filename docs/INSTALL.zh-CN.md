@@ -4,7 +4,7 @@
 
 ## 普通用户安装
 
-当前公开版本为 [1.2.4 测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.2.4)。使用已发布 APK 不需要 JDK、Gradle 或完整 Android SDK。可阅读[Agent 安装与恢复说明](AGENT_INSTALL.zh-CN.md)，或按下方“下载、安装与试用”操作。
+当前公开版本与下载地址由[最新版索引](https://beatsad.github.io/quiet-tv/latest.json)自动维护，包含测试版；也可直接使用[安装页](https://beatsad.github.io/quiet-tv/)。使用已发布 APK 不需要 JDK、Gradle 或完整 Android SDK。可阅读[Agent 安装与恢复说明](AGENT_INSTALL.zh-CN.md)，或按下方“下载、安装与试用”操作。
 
 ## 环境
 
@@ -53,35 +53,26 @@ python3 scripts/build_apk.py --build-number "$LEGACY_BUILD_NUMBER" --compatibili
 
 ## 下载、安装与试用
 
-从 [1.2.4 发布页](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.2.4)选择一个完整 APK：
+从[安装页](https://beatsad.github.io/quiet-tv/)或[最新版索引](https://beatsad.github.io/quiet-tv/latest.json)按系统、架构及升级条件选择最新适配 APK，包含测试版。索引中的 `url` 是真实附件地址，`bytes` 为大小，`sha256` 为校验值；不要根据旧文档或文件命名猜测当前包名和下载链接。
 
-| 系统 | 架构 | 内部构建号 | 下载 | 大小 |
-| --- | --- | --- | --- | --- |
-| 安卓5+ | ARM32 | 64 | [QuietTV_1.2.4_安卓5+_ARM32_测试.apk](https://github.com/BeatsAD/quiet-tv/releases/download/v1.2.4/QuietTV_1.2.4_Android5plus_ARM32_Test.apk) | 3.74 MiB |
-| 安卓5+ | ARM64 | 65 | [QuietTV_1.2.4_安卓5+_ARM64_测试.apk](https://github.com/BeatsAD/quiet-tv/releases/download/v1.2.4/QuietTV_1.2.4_Android5plus_ARM64_Test.apk) | 3.87 MiB |
-| 安卓5+ | 通用 | 66 | [QuietTV_1.2.4_安卓5+_通用_测试.apk](https://github.com/BeatsAD/quiet-tv/releases/download/v1.2.4/QuietTV_1.2.4_Android5plus_Universal_Test.apk) | 7.04 MiB |
-| 安卓4.4 | 无原生库 | 67 | [QuietTV_1.2.4_安卓4.4_测试.apk](https://github.com/BeatsAD/quiet-tv/releases/download/v1.2.4/QuietTV_1.2.4_Android4.4_Test.apk) | 3.95 MiB |
-
-以电视操作系统支持的架构为准；64位处理器可能运行32位系统。优先选择匹配的单架构包，无法确认时用安卓5+通用备用包。每台设备只安装一个，不能将构建号最大的包当作所有设备的推荐包。
-
-GitHub 使用英文实际下载名和中文显示名。新发布仅上传 APK，SHA-256 可从 [GitHub 发布 API](https://api.github.com/repos/BeatsAD/quiet-tv/releases/tags/v1.2.4) 对应附件的 `digest` 核对；不要求下载独立校验文件。计算下载文件的值，例如：
+下载后计算文件 SHA-256，与所选附件记录逐字核对，例如将变量设为本次实际下载的文件路径：
 
 ```sh
-shasum -a 256 QuietTV_1.2.4_Android5plus_ARM32_Test.apk
+shasum -a 256 "$APK_PATH"
 ```
 
-历史版本的附件、链接和校验文件保留。安装前核对实际 APK 的包名、版本、构建号、最低 API、架构及签名。更新需相同包名和签名、内部构建号更高；同批通用包切换到较低构建号单架构包不满足升级条件。没有合适更新包时保留现状，不卸载、清数据或强制降级。
+历史附件有同名 `.apk.sha256` 时也可使用；缺少独立校验文件不代表没有新版。跨档位覆盖仍需核对实际包名、签名、递增构建号、系统及数据兼容条件，不卸载或清数据解决不匹配。所有[历史下载](https://github.com/BeatsAD/quiet-tv/releases)及原校验文件保留。
 
 电视支持时可通过文件管理器手动安装，来源授权由用户在系统设置中确认。通过电脑 ADB 安装时，先开启电视实际提供的调试入口，电脑与电视处于同一可互访局域网，并在电视上确认电脑授权。仅开启 USB 调试不保证网络 ADB 可用，详见[连接与授权](TECHNICAL_PATH_WITH_CODEX.zh-CN.md#二连接电视读取真实设备能力)。
 
-先读取设备当前用户及命令帮助，核对 `--user` 支持；将 `TV_SERIAL`、`TV_USER` 设为实际目标地址和用户编号。下例地址为占位，用户0仅为示例：
+先读取设备当前用户及命令帮助，核对 `--user` 支持；将 `TV_SERIAL`、`TV_USER` 设为实际目标地址和用户编号。将 `APK_PATH` 设为本次实际下载且已校验的 APK 路径。下例地址为占位，用户0仅为示例：
 
 ```sh
 TV_SERIAL=192.0.2.10:5555
 TV_USER=0
 adb connect "$TV_SERIAL"
 adb -s "$TV_SERIAL" shell am get-current-user
-adb -s "$TV_SERIAL" install -r --user "$TV_USER" QuietTV_1.2.4_Android5plus_ARM32_Test.apk
+adb -s "$TV_SERIAL" install -r --user "$TV_USER" "$APK_PATH"
 adb -s "$TV_SERIAL" shell am start --user "$TV_USER" -n home.quiet.tv/.HomeActivity
 ```
 

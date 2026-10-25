@@ -20,6 +20,24 @@ Quiet TV 在首页前台显示后检查已签名的公开版本清单，成功�
 
 ## 本地生成清单
 
+### 外部 Agent 与安装页的最新版入口
+
+安装站点另提供 `https://beatsad.github.io/quiet-tv/latest.json` 与 `agent.md`。`scripts/build_install_guide.py` 在部署时实时读取 GitHub 的完整公开 Release 列表，包含测试版、排除草稿，按数字软件版本排序，只保留真实上传的主程序 APK 及其下载地址、大小和 SHA-256。历史档位保留为适配候选；全局最新软件版本不代表适配每台电视。全部撤回后索引的 `latestVersion` 为 `null`、`releases` 为空，停止提供安装请求。索引不推断 APK 的实际构建号、签名或架构，也不重签、修改电视端 `updates.json`。
+
+Release 发布、编辑、转正式或撤回后，工作流自动请求从 `main` 重新部署安装站点；此路径兼容 Pages 仅允许 `main` 部署的环境规则。更新规范、站点脚本或签名清单合入 `main` 时同样自动部署。普通新版本不需要修改网页、提示词或固定链接。发布操作须保留原有审核授权；用仓库 `GITHUB_TOKEN` 发布 Release 不会触发普通工作流事件，发布者使用该方式时须显式执行 `gh workflow run pages.yml --ref main --repo BeatsAD/quiet-tv`。自动部署完成前站点仍为上次成功版本；失败时检查 Pages 工作流并修复后重跑，不把失败视为上线成功。
+
+安装页打开和复制时用 `no-store` 与自动时间参数读取索引，复制内容携带本次版本及独立读取地址，减少浏览器与 AI 网页读取缓存的影响。固定文字请求也要求 Agent 自动附加时间参数直接读取，无需用户维护版本号。第三方工具不执行读取、网络不可达或站点部署失败时仍须报告失败，不能承诺任何网络与任意工具下都实时可用。
+
+本地检查（仅生成文件，不部署）：
+
+```sh
+python3 scripts/build_install_guide.py --output output/install-guide
+```
+
+`--releases /绝对路径/releases.json` 可改用保存的 GitHub API 响应进行离线检查。生成失败不会清理或替换已上线站点；Pages 上传与部署仅发生在构建成功后。
+
+### 电视端签名清单
+
 从不可变 APK 归档及其 JSON 生成。版本说明文件仅保留本地，例如：
 
 ```json

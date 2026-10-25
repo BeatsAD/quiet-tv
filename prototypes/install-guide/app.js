@@ -9,17 +9,22 @@ const brands = {
 };
 let brand = 'sony';
 let toastTimer;
+let releaseIndex;
+let requestTime;
+let releaseMessage = '正在获取最新安装信息…';
 const guideUrl = 'https://raw.githubusercontent.com/BeatsAD/quiet-tv/main/docs/AGENT_INSTALL.zh-CN.md';
 function update() {
-  $('#install-prompt').textContent = `请通过我的电脑，帮我在电视上安装或更新 Quiet TV。
+  $('#install-prompt').textContent = releaseIndex ? `请通过我的电脑，帮我在电视上安装或更新 Quiet TV 最新适配版。
 
-请先完整读取并遵循操作说明：
-${guideUrl}
+请先用本机终端读取并遵循完整操作说明及实时选包信息：
+https://beatsad.github.io/quiet-tv/agent.md?check=${requestTime}
+https://beatsad.github.io/quiet-tv/latest.json?check=${requestTime}
 
-从官方 Releases（含预发布／测试版）选择适配电视的最新主程序。安装前告知目标版本，安装后核对实际版本和 SHA-256，不自动改装历史包。
+安装页本次查得的最新主程序为 ${releaseIndex.latestVersion}，发布页：${releaseIndex.releases[0].url}
+按电视实际系统、架构及覆盖升级条件选包，包含测试版。下载地址与 SHA-256 以最新版索引的实际附件为准；不要用旧的发布列表摘要否定此版本或改装旧版。安装前告知目标版本，安装后核对实际版本和 SHA-256。
 
 先发现电视并让我确认目标。已有安装则保留数据更新；首次安装先试用，再让我选择是否设置默认桌面及管理应用。
-需要授权或选择时等待我确认；无法读取说明、确认版本或完成操作时，停止相关修改，显示具体错误、当前状态和下一步，不猜测执行。`;
+需要授权或选择时等待我确认；无法读取说明、确认版本或完成操作时，停止相关修改，显示具体错误、当前状态和下一步，不猜测执行。` : releaseMessage;
   $('#restore-prompt').textContent = `请通过我的电脑，帮我恢复电视原来的桌面。
 
 请先完整读取并遵循操作说明：
@@ -27,6 +32,39 @@ ${guideUrl}
 
 确认目标电视后，根据本机记录恢复，保留 Quiet TV 和应用数据。
 失败时显示具体错误、当前状态和下一步；记录缺失或无法读取说明时先告诉我，不猜测执行。`;
+}
+async function refreshRelease() {
+  const button = $('[data-copy="install"]');
+  button.disabled = true;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  try {
+    releaseIndex = null;
+    releaseMessage = '正在获取最新安装信息…';
+    update();
+    const stamp = Date.now();
+    const response = await fetch('latest.json?check=' + stamp, { cache: 'no-store', signal: controller.signal });
+    if (!response.ok) throw new Error('版本索引 HTTP ' + response.status);
+    const data = await response.json();
+    if (data.schemaVersion !== 1 || !/^\d+\.\d+\.\d+$/.test(data.latestVersion)
+        || !Array.isArray(data.releases) || data.releases[0]?.versionName !== data.latestVersion
+        || !data.releases[0].url.startsWith('https://github.com/BeatsAD/quiet-tv/releases/tag/')) {
+      throw new Error('版本索引无效');
+    }
+    releaseIndex = data;
+    requestTime = stamp;
+    update();
+    $('#release-link').href = data.releases[0].url;
+  } catch (error) {
+    releaseIndex = null;
+    releaseMessage = '暂时无法获取最新安装信息。点击“复制安装请求”重试。';
+    update();
+    $('#release-link').href = 'https://github.com/BeatsAD/quiet-tv/releases';
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+    button.disabled = false;
+  }
 }
 function wireTabs(selector, activate) {
   const tabs = [...document.querySelectorAll(selector)];
@@ -65,10 +103,27 @@ function toast(message) {
 }
 document.querySelectorAll('[data-copy]').forEach(button => button.addEventListener('click', async () => {
   const pre = button.dataset.copy === 'install' ? $('#install-prompt') : $('#restore-prompt');
+  const refresh = button.dataset.copy === 'install' ? refreshRelease() : null;
   try {
-    await navigator.clipboard.writeText(pre.textContent);
+    if (refresh && typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
+      // Start the write during the click; WebKit permits the data to arrive later.
+      const content = refresh.then(() => new Blob([pre.textContent], { type: 'text/plain' }));
+      content.catch(() => {}); // The clipboard may reject before consuming its data.
+      await navigator.clipboard.write([new ClipboardItem({ 'text/plain': content })]);
+    } else {
+      if (refresh) await refresh;
+      await navigator.clipboard.writeText(pre.textContent);
+    }
     toast('已复制，发送给电脑上的 Agent 即可。');
   } catch {
+    if (refresh) {
+      try {
+        await refresh;
+      } catch {
+        toast('暂时无法获取最新版，请稍后重试。');
+        return;
+      }
+    }
     if (button.dataset.copy === 'restore') previewRequest();
     const selection = window.getSelection();
     const range = document.createRange();
@@ -92,3 +147,4 @@ $('#faq-dialog').addEventListener('click', event => {
   if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) event.target.close();
 });
 update();
+refreshRelease().catch(() => {});
