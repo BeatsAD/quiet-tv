@@ -123,6 +123,14 @@ python3 scripts/build_apk.py --batch --build-number "$FIRST_BUILD_NUMBER" --vari
 - 构建、归档、安装、已安装包哈希核对、遥控器及功能验收分别记录。源码提交、工作区状态和历史验证不能证明当前设备已安装或已通过验收。
 - CI 检查源码，不安装设备或发布 APK；设备升级及发布按明确授权执行。
 
+## GitHub Release 内容与确认
+
+- 正文只设“下载与选包”“更新功能”“修复内容”。选包表提供系统、架构与 APK 直接下载链接；后两部分分别只写相对上一发布版本的新增或改进、实际修复，不重复全部已有功能。无对应内容时可省略该部分，送审时须明确说明。
+- 必要兼容差异、升级限制及未验收范围写入选包表备注或表后简短提示，不另设“档位差异与升级”“验证情况”等模块。详细构建、签名和验证记录保留本地。
+- 后续发布附件只上传安装包，不再上传独立的 `.apk.sha256`，也不要求用户配套下载校验文件。本地构建与不可变归档仍须生成、保留同名 SHA-256 文件和元数据；发布后核对 GitHub 提供的 APK 校验值及重新下载文件与本地归档一致。[GitHub 附件校验说明](https://github.blog/changelog/2025-06-03-releases-now-expose-digests-for-release-assets/)。GitHub 自动附带的源码下载链接仍会显示。
+- 每次新建或更新 Release，必须先向用户提供本批完整正文预览，并逐项确认“更新功能”“修复内容”的具体文案，同时备齐标题、附件清单、版本、构建号、大小、SHA-256、源码基线、签名和验证结果。用户明确同意本批文案及材料可上传更新后，才允许创建发布标签、Release（含草稿）、上传附件、发布或修改线上正文；此前版本的确认、一般发布意向及本规则修改均不算本批确认。确认后文案或附件发生实质变更须重新送审，未获确认时继续完成本地准备。
+- 历史 Release、附件、标签、链接和本地校验记录保持原样，不追溯删除已有校验附件。完整发布边界以 [AGENTS.md](../AGENTS.md#github-release-审核与发布) 为准。
+
 ## 1.1.2 发布与 GitHub 文件名例外
 
 [Quiet TV 1.1.2 测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.2) 已发布，同一 Release 集中标准档 34 与安卓 4.4 档 35。两档共用生产输入，源码基线见发布标签；均为 benchmark 优化测试签名包。
@@ -160,3 +168,5 @@ The default package policy is recorded; batch-wide source checks, complete nativ
 **The main-app build script implements the naming above, matching checksums, actual APK metadata validation and build-number checks across registered local worktree archives.** Remote releases, unregistered archives, helpers and formal-release acceptance require separate checks. Preserve historical files, checksums, tags and links. Archives require matching checksum and metadata records, including the actual package, SDKs, ABI, signing identity, source and acceptance scope. Same-name/different-byte replacement is forbidden.
 
 Recommend downloads per system profile. In-place upgrades require matching package/signature, a strictly higher delivery build number and compatible system/ABI. Check data compatibility when switching profiles; different package IDs or signing identities need an explicit migration plan. CI, source checks and archive metadata do not establish device installation or acceptance. Device operations and publication require authorization.
+
+Future GitHub Release bodies use only “下载与选包” (downloads and package selection), “更新功能” (new or improved features since the previous release), and “修复内容” (fixes in this release). Empty change sections may be omitted publicly but must be identified during review. Keep essential compatibility, upgrade and acceptance limits near the download table; retain detailed validation records locally. Upload APKs only, retaining checksum files and metadata locally; compare GitHub digests and re-downloaded APKs with the archive after publication. Preserve historical assets. Before every Release creation or update, show the full body and obtain the user's explicit approval of that batch's feature and fix wording and release materials. Until approval, prepare locally only; do not create tags or Releases (including drafts), upload assets, publish or edit the live body. Prior approvals or this policy change do not approve a new batch; substantive wording or asset changes require renewed approval.
