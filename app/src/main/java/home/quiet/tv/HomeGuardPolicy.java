@@ -12,6 +12,10 @@ final class HomeGuardPolicy {
 
     static boolean supported(String manufacturer,String brand,int sdk,boolean legacy){return !legacy && sdk>=21;}
     static boolean usageFallback(int sdk,boolean legacy){return !legacy && sdk>=21 && sdk<=23;}
+    static boolean bootRecheck(long uptime){return uptime>=0 && uptime<BOOT_WINDOW_MS;}
+    static boolean recheckTarget(String selected,String front,long at,long now){
+        return !selected.isEmpty() && selected.equals(front) && at>0 && now>=at && now-at<=BOOT_WINDOW_MS;
+    }
     static boolean vendorHome(String category){
         return "android.intent.category.HOME.CC".equals(category)
             || "android.intent.category.HOME.CC_MAIN".equals(category)

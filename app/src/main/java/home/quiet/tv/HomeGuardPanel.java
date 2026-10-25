@@ -76,7 +76,7 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
         accessibilityRow.value(authorized?"已开启":"未开启");accessibilityRow.description(authorized?"已获得识别原桌面所需的权限。":"在系统设置中开启后，请返回此页。");accessibilityRow.setEnabled(supported);
         boolean notification=HomeGuardRecovery.notificationAllowed(ui);
         notificationRow.value(!HomeGuardRecovery.notificationSupported(ui)?"此设备不可用":!notification?"未授权":HomeGuardRevivalListener.connected()?"已连接":"等待绑定");
-        notificationRow.description("用于系统清理后的恢复，不读取通知内容。");notificationRow.setEnabled(supported);
+        notificationRow.description(HomeGuardSync.ready(ui)?"系统同步恢复已配置，不传输数据；通知恢复可同时使用。":"用于系统清理后的恢复；通知不可用时可配置系统同步恢复。");notificationRow.setEnabled(supported);
         accessibilityRow.setVisibility(state.enabled()?View.VISIBLE:View.GONE);notificationRow.setVisibility(state.enabled()?View.VISIBLE:View.GONE);
         bridgeRow.checked(routes.vendorReady());bridgeRow.description(routes.vendorReady()?"已配置，重启和断电开机待验证":routes.vendorProblem());bridgeRow.setEnabled(supported);
         String problem=state.enableProblem(),summary=state.summary();

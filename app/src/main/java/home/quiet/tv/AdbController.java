@@ -160,13 +160,20 @@ final class AdbController implements Closeable {
                 stage="本机身份核对";publish(Stage.LOCAL,"正在核对本机身份",attempt);
                 verifyLocalDevice();
                 stage="ADB 身份核对";publish(Stage.SHELL,"正在核对 ADB shell 身份",attempt);
-                String uid;
-                try{uid=shell("id -u").trim();}
-                catch(Exception e){identityContext(attempt);throw e;}
-                DiagnosticLog.info("adb.identity","attempt="+diagnosticId(attempt)+" generation="+attempt+" expected_uid=2000 accepted="+"2000".equals(uid));
-                if(!uid.equals("2000")){
+                String output;
+                try{output=shell("id -u");}catch(CommandFailure unsupported){output=shell("id");}
+                int uid=AdbIdentity.uid(output);String identity="",secure="",debuggable="";
+                if(uid<0 || uid==0){
+                    identity=shell("id");if(uid<0)uid=AdbIdentity.uid(identity);
+                    if(uid==0){secure=shell("getprop ro.secure");debuggable=shell("getprop ro.debuggable");}
+                }
+                boolean accepted=AdbIdentity.accepted(uid,Build.BRAND,Build.MANUFACTURER,Build.MODEL,Build.FINGERPRINT,
+                        Build.VERSION.SDK_INT,identity,secure,debuggable);
+                DiagnosticLog.info("adb.identity","attempt="+diagnosticId(attempt)+" generation="+attempt+" uid="+uid
+                        +" profile="+(accepted && uid==0?"hisense_hshell":"shell")+" accepted="+accepted);
+                if(!accepted){
                     identityContext(attempt);
-                    throw new IOException("adbd 未提供 shell 身份（uid 2000）；工厂／root 调试模式不能用于当前应用管理");
+                    throw new IOException("ADB 身份不受支持；仅接受普通 shell 或已匹配的海信 VIDAA 工厂接口");
                 }
                 stage="前台用户核对";publish(Stage.USER,"正在核对当前用户",attempt);
                 user=currentUser();
