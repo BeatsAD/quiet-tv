@@ -1,16 +1,24 @@
 package home.quiet.tv;
 
 import java.util.LinkedHashSet;
+import java.util.Locale;
 
 /** Fresh home events are immediate; lifecycle recovery has a separate, bounded settle path. */
 final class HomeGuardPolicy {
     static final long SETTLE_MS=1500, MAX_AGE_MS=3000, BOOT_WINDOW_MS=180000;
     static final long USAGE_POLL_MS=1000, USAGE_LOOKBACK_MS=10000;
+    static final long BOOT_RECHECK_FIRST_MS=30000, BOOT_RECHECK_SECOND_MS=45000, DEAF_CHECK_MS=20000;
     private String window="";
     private long arrived,usageTakenAt=Long.MIN_VALUE;
     private boolean consumed,unknownUsed;
 
     static boolean supported(String manufacturer,String brand,int sdk,boolean legacy){return !legacy && sdk>=21;}
+    static boolean xiaomi(String manufacturer,String brand){
+        for(String name:(manufacturer+" "+brand).toLowerCase(Locale.ROOT).split("\\s+"))
+            if("xiaomi".equals(name) || "redmi".equals(name))return true;
+        return false;
+    }
+    static boolean xiaomiRecovery(String manufacturer,String brand,int sdk,boolean legacy){return supported(manufacturer,brand,sdk,legacy) && xiaomi(manufacturer,brand);}
     static boolean usageFallback(int sdk,boolean legacy){return !legacy && sdk>=21 && sdk<=23;}
     static boolean vendorHome(String category){
         return "android.intent.category.HOME.CC".equals(category)
@@ -65,6 +73,8 @@ final class HomeGuardPolicy {
     }
     void ignoreUsageThrough(long now){usageTakenAt=Math.max(usageTakenAt,now);}
     boolean unknown(){return window.isEmpty();}
+    // A second boot check may answer a previously consumed home window, but never another app.
+    boolean bootRecheck(String selected,boolean allowUnknown){return window.isEmpty()?allowUnknown:!selected.isEmpty() && window.equals(selected);}
     void confirmed(){unknownUsed=true;}
     void clear(){window="";arrived=0;consumed=false;}
 }

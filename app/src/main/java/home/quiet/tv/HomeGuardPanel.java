@@ -71,9 +71,10 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
         HomeGuardState.Candidate selected=null;
         if(valid)for(HomeGuardState.Candidate candidate:candidates)if(candidate.component.flattenToString().equals(state.selected())){selected=candidate;break;}
         homeRow.value(selected!=null?selected.label:state.selected().isEmpty()?"未选择":"已失效");
-        homeRow.description(!supported?"当前设备未开放此实验功能":candidates.isEmpty()?"未检测到可用的原桌面，请在更多操作中重新检测。":!state.selected().isEmpty()&&!valid?"原桌面或固件已变化，请重新选择。":selected==null?"先选择电视自带的桌面，作为识别目标。":"已选为识别目标，授权完成后自动守护。");
+        homeRow.description(!supported?"当前设备未开放此实验功能":candidates.isEmpty()?"未检测到可用的原桌面，请在更多操作中重新检测。":!state.selected().isEmpty()&&!valid?"原桌面不可用，请重新选择。":selected==null?"先选择电视自带的桌面，作为识别目标。":"已选为识别目标，授权完成后自动守护。");
         homeRow.setEnabled(supported&&!candidates.isEmpty());
-        accessibilityRow.value(authorized?"已开启":"未开启");accessibilityRow.description(authorized?"已获得识别原桌面所需的权限。":"在系统设置中开启后，请返回此页。");accessibilityRow.setEnabled(supported);
+        boolean xiaomiLegacy=HomeGuardPolicy.xiaomiRecovery(android.os.Build.MANUFACTURER,android.os.Build.BRAND,android.os.Build.VERSION.SDK_INT,BuildConfig.LEGACY_19) && android.os.Build.VERSION.SDK_INT<=23;
+        accessibilityRow.value(authorized?"已开启":"未开启");accessibilityRow.description(authorized?xiaomiLegacy?"识别异常时会短暂重启无障碍，其他无障碍服务也会短暂中断。":"已获得识别原桌面所需的权限。":"在系统设置中开启后，请返回此页。");accessibilityRow.setEnabled(supported);
         boolean notification=HomeGuardRecovery.notificationAllowed(ui);
         notificationRow.value(!HomeGuardRecovery.notificationSupported(ui)?"此设备不可用":!notification?"未授权":HomeGuardRevivalListener.connected()?"已连接":"等待绑定");
         notificationRow.description("用于系统清理后的恢复，不读取通知内容。");notificationRow.setEnabled(supported);

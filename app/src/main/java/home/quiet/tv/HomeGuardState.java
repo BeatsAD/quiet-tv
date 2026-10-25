@@ -108,7 +108,9 @@ final class HomeGuardState {
         }catch(PackageManager.NameNotFoundException|SecurityException ignored){}return selected;
     }
     boolean validSelection(){
-        if(!unlocked(context) || !Build.FINGERPRINT.equals(preferences.getString("firmware","")))return false;
+        // Observer recovery follows the installed HOME component across firmware updates.
+        // Firmware-specific vendor entry points and the optional proxy keep their own checks.
+        if(!unlocked(context))return false;
         for(Candidate home:candidates())if(home.component.flattenToString().equals(selected()))return true;return false;
     }
     boolean ready(){return enabled() && validSelection() && !helperActive();}

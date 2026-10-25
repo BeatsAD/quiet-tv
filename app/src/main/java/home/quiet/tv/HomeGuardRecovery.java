@@ -13,6 +13,7 @@ final class HomeGuardRecovery {
     private static final Handler handler=new Handler(Looper.getMainLooper());
     private static Runnable check,readd,confirmation;
     private static boolean recovering;
+    private static boolean accessibilityRestarted;
     private static long requestedAt;
     private static String requestedHome="";
     private static DiagnosticOperation handoverDiagnostic;
@@ -101,22 +102,37 @@ final class HomeGuardRecovery {
         if(!desired.equals(current) && !Settings.Secure.putString(c.getContentResolver(),Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,desired))throw new IllegalStateException();
         if(!Settings.Secure.putInt(c.getContentResolver(),Settings.Secure.ACCESSIBILITY_ENABLED,1))throw new IllegalStateException();
     }
+    // Aerial's Android 6 Xiaomi recovery: a bound but silent service needs the global switch.
+    // Restore it even if the guard is paused meanwhile, so other accessibility services recover.
+    static boolean restartSilentAccessibility(Context c){
+        if(accessibilityRestarted || !HomeGuardPolicy.xiaomiRecovery(Build.MANUFACTURER,Build.BRAND,Build.VERSION.SDK_INT,BuildConfig.LEGACY_19)
+                || Build.VERSION.SDK_INT>23 || !new HomeGuardState(c).ready() || !HomeGuardState.canShow(c) || !writeAllowed(c))return false;
+        if(Settings.Secure.getInt(c.getContentResolver(),Settings.Secure.ACCESSIBILITY_ENABLED,0)!=1)return false;
+        try{
+            if(!Settings.Secure.putInt(c.getContentResolver(),Settings.Secure.ACCESSIBILITY_ENABLED,0))return false;
+            accessibilityRestarted=true;
+            handler.postDelayed(()->{
+                try{if(!Settings.Secure.putInt(c.getContentResolver(),Settings.Secure.ACCESSIBILITY_ENABLED,1))throw new IllegalStateException();
+                    DiagnosticLog.info("home_guard.accessibility_restart","restored=true");}
+                catch(SecurityException|IllegalStateException failure){DiagnosticLog.error("home_guard.accessibility_restart.failed",failure);}
+            },HomeGuardPolicy.SETTLE_MS);
+            DiagnosticLog.info("home_guard.accessibility_restart","reason=no_window_events once_per_process=true");return true;
+        }catch(SecurityException|IllegalStateException failure){DiagnosticLog.error("home_guard.accessibility_restart.failed",failure);return false;}
+    }
     static void noteRevival(Context c){
-        HomeGuardState state=new HomeGuardState(c);if(!state.enabled())return;
-        long now=SystemClock.elapsedRealtime(),start=state.preferences.getLong("revivalStart",-1);
-        int boot=Build.VERSION.SDK_INT>=24?Settings.Global.getInt(c.getContentResolver(),"boot_count",-1):-1;
-        boolean same=boot<0 || boot==state.preferences.getInt("revivalBoot",-2);
-        int count=same && start>=0 && now>=start && now-start<600000?state.preferences.getInt("revivalCount",0):0;
-        state.preferences.edit().putLong("revivalStart",count==0?now:start).putInt("revivalCount",count+1).putInt("revivalBoot",boot).apply();
+        HomeGuardState state=new HomeGuardState(c);if(!state.enabled() || !HomeGuardState.interactive(c))return;
+        // Android 5/6 has no boot_count. A wall-clock event before this boot cannot suppress it.
+        long now=System.currentTimeMillis(),start=state.preferences.getLong("revivalWallStart",-1);
+        boolean same=start>=now-SystemClock.elapsedRealtime() && start<=now;
+        int count=same && now-start<600000?state.preferences.getInt("revivalCount",0):0;
+        state.preferences.edit().putLong("revivalWallStart",count==0?now:start).putInt("revivalCount",count+1).apply();
     }
     static boolean unknownAllowed(Context c){
-        HomeGuardState state=new HomeGuardState(c);long now=SystemClock.elapsedRealtime();
-        int boot=Build.VERSION.SDK_INT>=24?Settings.Global.getInt(c.getContentResolver(),"boot_count",-1):-1;
-        boolean same=boot<0 || boot==state.preferences.getInt("revivalBoot",-2);
-        if(same && now>=state.preferences.getLong("revivalStart",Long.MAX_VALUE) && now-state.preferences.getLong("revivalStart",0)<600000 && state.preferences.getInt("revivalCount",0)>=3)return false;
-        if(now<HomeGuardPolicy.BOOT_WINDOW_MS)return true;
-        return state.preferences.getBoolean("homeInFront",false) && same && state.preferences.getInt("revivalCount",0)>0
-            && now-state.preferences.getLong("revivalStart",0)>=0 && now-state.preferences.getLong("revivalStart",0)<60000;
+        HomeGuardState state=new HomeGuardState(c);long now=System.currentTimeMillis(),uptime=SystemClock.elapsedRealtime();
+        long start=state.preferences.getLong("revivalWallStart",-1);boolean same=start>=now-uptime && start<=now;
+        if(same && now-start<600000 && state.preferences.getInt("revivalCount",0)>=3)return false;
+        if(uptime<HomeGuardPolicy.BOOT_WINDOW_MS)return true;
+        return state.preferences.getBoolean("homeInFront",false) && same && state.preferences.getInt("revivalCount",0)>0 && now-start<60000;
     }
     static void launch(Context c,String reason){
         HomeGuardState state=new HomeGuardState(c);DiagnosticOperation trace=diagnostic(reason,state);
