@@ -35,6 +35,7 @@ final class DiagnosticDeviceSnapshot {
             snapshot.line("本应用连接",controller.connected()?"已连接，已通过本机、shell 和用户核对":state.connection.name());
             snapshot.line("连接说明",state.detail);
             snapshot.line("连接阶段",controller.stage().name());snapshot.line("最近失败阶段",controller.failure().name());
+            snapshot.text.append("连接尝试及最终结果：\n").append(controller.connectionDiagnostics()).append('\n');
             snapshot.line("自动连接",state.paused?"已暂停":"已开启");
             snapshot.line("身份查询范围","当前会话最近一次连接尝试的历史结果；导出不执行 ADB 查询，跨进程结果见历史事件");
             String identity=controller.identityDiagnostics();

@@ -15,6 +15,28 @@ final class HomeGuardRecovery {
     private static boolean recovering;
     private static long requestedAt;
     private static String requestedHome="";
+    private static DiagnosticOperation handoverDiagnostic;
+    private static boolean pendingVisibilityEvidence;
+    private static String lastAccessibilityDecision="",lastUsageDecision="",lastAccessibilityObservation="",lastUsageObservation="";
+    // Only exact stock-home matches, and only decision changes. Never log the foreground app stream.
+    static void observed(String source,String decision,long age){
+        String previous="usage".equals(source)?lastUsageDecision:lastAccessibilityDecision;
+        if(previous.equals(decision))return;
+        String id=DiagnosticOperation.nextId(System.currentTimeMillis());
+        if("usage".equals(source)){lastUsageDecision=decision;lastUsageObservation=id;}
+        else{lastAccessibilityDecision=decision;lastAccessibilityObservation=id;}
+        DiagnosticLog.info("home_guard.observation","observation="+id+" source="+source+" target=selected_home decision="+decision+" ageMs="+age);
+    }
+    private static DiagnosticOperation diagnostic(String source,HomeGuardState state){
+        DiagnosticOperation trace=new DiagnosticOperation("home_guard.handover",System.currentTimeMillis(),SystemClock.elapsedRealtime(),DiagnosticLog::info);
+        String observation="原主页事件".equals(source)?lastAccessibilityObservation:"用量统计原主页".equals(source)?lastUsageObservation:"";
+        DiagnosticLog.info("home_guard.source","attempt="+trace.id+" source="+source+" observation="+observation+" target="+state.selected());
+        trace.stage("ELIGIBILITY",SystemClock.elapsedRealtime());return trace;
+    }
+    private static void finishDiagnostic(DiagnosticOperation trace,String result,String reason){
+        if(trace!=null)trace.finish(result,reason,System.currentTimeMillis(),SystemClock.elapsedRealtime());
+    }
+    static String lastDiagnosticAttempt(){return handoverDiagnostic==null?"":handoverDiagnostic.id;}
     static final String TAG="QuietTVGuard";
     static String guard(Context c){return new ComponentName(c,HomeGuardService.class).flattenToString();}
     static String listener(Context c){return new ComponentName(c,HomeGuardRevivalListener.class).flattenToString();}
@@ -39,6 +61,8 @@ final class HomeGuardRecovery {
     }
     static void cancel(){
         if(Looper.myLooper()!=Looper.getMainLooper()){handler.post(HomeGuardRecovery::cancel);return;}
+        finishDiagnostic(handoverDiagnostic,"CANCELLED","pending_recovery_cancelled");
+        pendingVisibilityEvidence=false;
         if(check!=null)handler.removeCallbacks(check);if(readd!=null)handler.removeCallbacks(readd);if(confirmation!=null)handler.removeCallbacks(confirmation);
         check=null;readd=null;confirmation=null;recovering=false;requestedAt=0;requestedHome="";
     }
@@ -95,22 +119,25 @@ final class HomeGuardRecovery {
             && now-state.preferences.getLong("revivalStart",0)>=0 && now-state.preferences.getLong("revivalStart",0)<60000;
     }
     static void launch(Context c,String reason){
-        HomeGuardState state=new HomeGuardState(c);if(!state.ready() || !HomeGuardState.canShow(c))return;
-        launch(c,reason,state);
+        HomeGuardState state=new HomeGuardState(c);DiagnosticOperation trace=diagnostic(reason,state);
+        if(!state.ready()){finishDiagnostic(trace,"SKIPPED",!state.enabled()?"disabled_or_paused":!state.validSelection()?"invalid_home_or_firmware":"helper_active");return;}
+        if(!HomeGuardState.canShow(c)){finishDiagnostic(trace,"SKIPPED","screen_or_unlock_unavailable");return;}
+        launch(c,reason,state,trace);
     }
     static void launchVendor(Context c){
-        HomeGuardState state=new HomeGuardState(c);
-        if(!new DesktopRoutes(c).vendorReady() || !HomeGuardState.canShow(c))return;
-        launch(c,"厂商开机入口",state);
+        HomeGuardState state=new HomeGuardState(c);DiagnosticOperation trace=diagnostic("vendor_boot",state);
+        if(!new DesktopRoutes(c).vendorReady() || !HomeGuardState.canShow(c)){finishDiagnostic(trace,"SKIPPED","vendor_or_screen_unavailable");return;}
+        launch(c,"厂商开机入口",state,trace);
     }
-    private static void launch(Context c,String reason,HomeGuardState state){
-        if(requestedAt!=0)return;
+    private static void launch(Context c,String reason,HomeGuardState state,DiagnosticOperation trace){
+        if(requestedAt!=0){finishDiagnostic(trace,"SKIPPED","request_pending");return;}
+        handoverDiagnostic=trace;pendingVisibilityEvidence=true;trace.stage("LAUNCH_REQUEST",SystemClock.elapsedRealtime());
         HomeGuardService.homeRequested();
         requestedAt=SystemClock.uptimeMillis();requestedHome=state.selected();state.status("已请求接管，等待桌面显示");Log.i(TAG,"home requested: "+reason+" uptime="+requestedAt);
-        confirmation=()->{confirmation=null;requestedAt=0;requestedHome="";if(new HomeGuardState(c).automatic())new HomeGuardState(c).status("未确认进入桌面，请检查系统限制");};
+        confirmation=()->{finishDiagnostic(trace,"TIMEOUT","no_visibility_callback_5000ms");confirmation=null;requestedAt=0;requestedHome="";if(new HomeGuardState(c).automatic())new HomeGuardState(c).status("未确认进入桌面，请检查系统限制");};
         handler.postDelayed(confirmation,5000);
-        try{c.startActivity(HomeController.launchIntent(c));}
-        catch(ActivityNotFoundException|SecurityException failure){handler.removeCallbacks(confirmation);confirmation=null;requestedAt=0;requestedHome="";state.status("系统拒绝启动桌面");}
+        try{c.startActivity(HomeController.launchIntent(c));trace.stage("DISPATCHED_UNVERIFIED",SystemClock.elapsedRealtime());}
+        catch(ActivityNotFoundException|SecurityException failure){finishDiagnostic(trace,"FAILED",failure.getClass().getSimpleName());pendingVisibilityEvidence=false;handler.removeCallbacks(confirmation);confirmation=null;requestedAt=0;requestedHome="";state.status("系统拒绝启动桌面");}
     }
     static void visible(Context c){
         HomeGuardState state=new HomeGuardState(c);if(!state.automatic())return;
@@ -120,9 +147,11 @@ final class HomeGuardRecovery {
         state.status("已进入 Quiet TV");
         if(requestedAt!=0){
             long elapsed=SystemClock.uptimeMillis()-requestedAt;boolean same=requestedHome.equals(state.selected());
+            finishDiagnostic(handoverDiagnostic,same?"VISIBILITY_CALLBACK":"CANCELLED",same?"home_callback_not_screen_proof":"target_changed");
+            pendingVisibilityEvidence=false;
             if(confirmation!=null)handler.removeCallbacks(confirmation);confirmation=null;requestedAt=0;requestedHome="";
             if(same){state.status("已进入 Quiet TV");Log.i(TAG,"home visible after "+elapsed+"ms");}
-        }
+        }else if(pendingVisibilityEvidence && handoverDiagnostic!=null){pendingVisibilityEvidence=false;DiagnosticLog.info("home_guard.visibility","attempt="+handoverDiagnostic.id+" result=callback_without_pending_request causalityVerified=false screenVerified=false");}
     }
     static void leftHome(Context c){
         if(HomeGuardState.canShow(c))new HomeGuardState(c).preferences.edit().putBoolean("homeInFront",false).apply();

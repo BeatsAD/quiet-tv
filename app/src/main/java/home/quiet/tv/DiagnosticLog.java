@@ -108,8 +108,8 @@ final class DiagnosticLog {
             if(log.journal==null)throw new IOException("Diagnostic log incomplete",log.storageError);
             log.reportDropped();File file=new File(context.getCacheDir(),"diagnostic-export.txt");
             String header="Quiet TV 诊断日志\n生成时间："+new SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z",Locale.ROOT).format(new Date())
-                +"\n"+snapshot+"\n桌面配置："+new DesktopRoutes(context).snapshot()
-                +"\n本进程写入失败："+log.failedWrites+"  队列丢弃："+log.droppedTotal.get()+"\n范围：Quiet TV 自身关键事件及错误，包含首页恢复、窗口焦点、每次恢复的首次视图树绘制回调，以及三项系统入口的确认键和路由结果，不含完整系统日志或其他应用操作。绘制回调和窗口焦点不证明画面已经上屏；跳转记录不证明系统页面正常显示或物理信号已切换。\n时间字段为 Unix 毫秒；首页事件的 uptimeMs、elapsedMs 使用不含深度休眠的单调时钟；容量轮转会覆盖较早日志，进程停止期间不记录，异常终止可能丢失末尾记录。\n请检查内容后私下分享。\n\n[历史事件]\n";
+                +"\n"+snapshot+"\n桌面配置："+new DesktopRoutes(context,false).snapshot()
+                +"\n本进程写入失败："+log.failedWrites+"  队列丢弃："+log.droppedTotal.get()+"\n范围：Quiet TV 自身关键事件及错误，包含首页恢复、窗口焦点、每次恢复的首次视图树绘制回调，以及系统设置路由、ADB 连接尝试和原主页中转结果，不含完整系统日志或其他应用操作。attempt 关联一次操作，RUNNING 表示导出时尚未结束；设置 DISPATCHED_UNVERIFIED 仅为请求已发出，中转 VISIBILITY_CALLBACK 仅为收到首页回报，都不证明电视已上屏。场景 source=user 为用户确认，不是自动验收。绘制回调和窗口焦点不证明画面已经上屏；跳转记录不证明系统页面正常显示或物理信号已切换。\n时间字段为 Unix 毫秒；首页事件的 uptimeMs、elapsedMs 使用不含深度休眠的单调时钟；连接和中转耗时使用包含深度休眠的 elapsedRealtime。容量轮转会覆盖较早日志，进程停止期间不记录，异常终止可能丢失末尾记录；没有结果事件不能直接判为超时或成功。\n请检查内容后私下分享。\n\n[历史事件]\n";
             byte[] headerBytes=header.getBytes(StandardCharsets.UTF_8);
             if(headerBytes.length>32768)throw new IOException("Diagnostic snapshot exceeds limit");
             try(OutputStream output=new FileOutputStream(file)){output.write(headerBytes);log.journal.copyTo(output);}

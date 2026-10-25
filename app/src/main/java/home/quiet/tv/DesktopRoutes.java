@@ -12,8 +12,9 @@ final class DesktopRoutes {
     private final HomeGuardState state;
     private final SharedPreferences prefs;
     private final SetupPresets rules;
-    DesktopRoutes(Context supplied){
-        context=supplied.getApplicationContext();state=new HomeGuardState(context);prefs=state.preferences;rules=SetupPresets.load(context);
+    DesktopRoutes(Context supplied){this(supplied,true);}
+    DesktopRoutes(Context supplied,boolean migrate){
+        context=supplied.getApplicationContext();state=new HomeGuardState(context,migrate);prefs=state.preferences;rules=SetupPresets.load(context);
     }
     private long version(String pkg){
         try{PackageInfo info=context.getPackageManager().getPackageInfo(pkg,0);return Build.VERSION.SDK_INT>=28?info.getLongVersionCode():info.versionCode;}
@@ -53,8 +54,12 @@ final class DesktopRoutes {
     void observation(String scene,String result){
         if(!java.util.Arrays.asList("home","reboot","coldBoot","wake").contains(scene)
                 || !java.util.Arrays.asList("通过","失败","待验证").contains(result))throw new IllegalArgumentException("验证记录无效");
-        edit().putString("routeTest_"+scene,result).putLong("routeTestAt_"+scene,System.currentTimeMillis()).apply();
-        DiagnosticLog.info("desktop.scene",scene+" user="+result);
+        long at=System.currentTimeMillis();
+        DiagnosticOperation trace=new DiagnosticOperation("desktop.scene",at,SystemClock.elapsedRealtime(),DiagnosticLog::info);
+        String lastHandover=HomeGuardRecovery.lastDiagnosticAttempt();
+        edit().putString("routeTest_"+scene,result).putLong("routeTestAt_"+scene,at).putString("routeTestEvidence_"+scene,trace.id).apply();
+        DiagnosticLog.info("desktop.scene","attempt="+trace.id+" scene="+scene+" source=user result="+result+" lastHandoverAttempt="+lastHandover);
+        trace.finish("USER_REPORTED","scene_"+scene,System.currentTimeMillis(),SystemClock.elapsedRealtime());
     }
     String details(){return "HOME："+homeLabel()+"  "+test("home")+"\n重启："+bootLabel()+"  "+test("reboot")
             +"\n断电开机："+bootLabel()+"  "+test("coldBoot")+"\n待机唤醒："+wakeLabel()+"  "+test("wake");}
@@ -67,7 +72,15 @@ final class DesktopRoutes {
         try{HomeController.State actual=new HomeController(context).inspect(null);snapshot.put("systemHome",actual.resolved)
                 .put("systemHomeKnown",actual.known).put("entryUsable",actual.ownUsable);}
         catch(Exception failure){snapshot.put("systemHomeKnown",false);}
-        return snapshot.put("observationReady",state.ready() && state.serviceEnabled() && HomeGuardService.connected());
+        JSONObject evidence=new JSONObject();
+        for(String scene:new String[]{"home","reboot","coldBoot","wake"}){
+            boolean recorded=current() && prefs.contains("routeTest_"+scene);
+            evidence.put(scene,new JSONObject().put("result",test(scene)).put("source",recorded?"user":"unverified")
+                    .put("recordedAt",recorded?prefs.getLong("routeTestAt_"+scene,0):0)
+                    .put("evidenceId",recorded?prefs.getString("routeTestEvidence_"+scene,""):""));
+        }
+        return snapshot.put("sceneEvidence",evidence).put("vendorBootProblem",vendorProblem())
+                .put("observationReady",state.ready() && state.serviceEnabled() && HomeGuardService.connected());
     }
     private JSONObject bridge(){return rules.vendorBoot();}
     String vendorProblem(){
