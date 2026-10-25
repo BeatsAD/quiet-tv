@@ -35,7 +35,17 @@ final class DiagnosticLog {
         });
     }
     static void info(String event,String detail){DiagnosticLog log=instance;if(log!=null)log.enqueue("INFO",event,detail);}
-    static void error(String event,Throwable error){DiagnosticLog log=instance;if(log!=null)log.enqueue("ERROR",event,trace(error));}
+    static void error(String event,Throwable error){
+        DiagnosticLog log=instance;if(log==null)return;
+        if(event.startsWith("weather.")||event.startsWith("wallpaper.daily."))log.enqueue("ERROR",event+".reason",NetworkDiagnostics.failureDetails(error)
+            +(error instanceof WeatherClient.ApiException?" status="+((WeatherClient.ApiException)error).status:""));
+        log.enqueue("ERROR",event,trace(error));
+    }
+    static void networkTls(String event,javax.net.ssl.SSLSocketFactory factory){
+        DiagnosticLog log=instance;if(log==null)return;
+        try{log.enqueue("INFO",event,NetworkDiagnostics.tlsDetails(factory));}
+        catch(IOException|RuntimeException e){log.enqueue("INFO",event,"probe_failed "+NetworkDiagnostics.failureDetails(e));}
+    }
     // Exception messages can include input, URLs and credentials: keep only types and bounded frames.
     private static String trace(Throwable error){
         StringBuilder text=new StringBuilder();
