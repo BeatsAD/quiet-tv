@@ -35,6 +35,12 @@ final class SystemSettingsRouter {
     List<Intent> candidates(String action){return candidates(action,false);}
     List<Intent> candidates(String action,boolean ethernet){
         ArrayList<Intent> intents=new ArrayList<>();
+        if(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS.equals(action)){
+            intents.add(new Intent(action));
+            // Some MiTV firmware has no exported developer page or standard SETTINGS handler.
+            intents.addAll(candidates(Settings.ACTION_SETTINGS,ethernet));
+            return intents;
+        }
         boolean network=Settings.ACTION_WIFI_SETTINGS.equals(action),settings=Settings.ACTION_SETTINGS.equals(action);
         if(network||settings){
             String page=network?"Settings://com.xgimi.settings.net/wifi_misckey":"Settings://com.xgimi.misckey.main/mainPage";

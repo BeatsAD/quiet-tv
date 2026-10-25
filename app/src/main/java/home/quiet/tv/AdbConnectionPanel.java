@@ -34,6 +34,11 @@ final class AdbConnectionPanel {
         LocalAdbDiscovery discovery;
         Button settings,connect;
         boolean wireless,working,complete,advanced;
+        int connectionRequest;
+        final AdbController.Status progress=value->{
+            int request=adb.generation();
+            ui.runOnUiThread(()->{if(working && attempt.active() && request==connectionRequest && request==adb.generation() && !ui.isFinishing() && !ui.isDestroyed())status.setText(value);});
+        };
         Panel(Runnable connected,String label){this.connected=connected;continuation=label;port.setInputType(2);pairPort.setInputType(2);code.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD);port.setTag("connection-port");pairPort.setTag("pairing-port");code.setTag("pairing-code");if(setup!=null || ui instanceof BootAdActivity){remoteInput(port);remoteInput(pairPort);remoteInput(code);}code.setSaveEnabled(false);code.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(6)});}
         // Native EditText consumes D-pad vertical keys, trapping focus above the action row.
         void remoteInput(EditText field){
@@ -54,7 +59,7 @@ final class AdbConnectionPanel {
             if(setup!=null){LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-2,-1);sp.rightMargin=ui.px(10);sheet.actions.addView(settings,sp);sheet.actions.addView(connect,new LinearLayout.LayoutParams(-2,-1));}
             sheet.dialog.setOnDismissListener(dialog->{if(!complete)cancel();});body(session!=null && AdbController.pairingAvailable() && "tls".equals(ui.getSharedPreferences("adb",0).getString("lastTransport","tcp")));sheet.show(connect);
         }
-        void openSettings(){sheet.dialog.dismiss();if(!new SystemSettingsRouter(ui).open(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))ui.message("未找到可用的开发者设置，请使用电视系统提供的调试入口。");}
+        void openSettings(){sheet.dialog.dismiss();if(!new SystemSettingsRouter(ui).open(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))ui.message("未找到可用的开发者选项或系统设置，请从电视原桌面进入设置并开启调试。");}
         void settingsGuide(){
             guide=setup.setupSheet("在电视系统设置中操作");guide.text("在电视系统提供的开发者选项或厂商调试入口中开启网络 / ADB 调试；工厂菜单的 ADBD 开关不保证可以连接。");guide.action("打开开发者选项",()->{guide.dialog.dismiss();openSettings();});Button back=guide.action("返回连接",guide.dialog::dismiss);guide.show(back);
         }
@@ -87,14 +92,15 @@ final class AdbConnectionPanel {
             int pairingPort=needsPair?parse(pairPort):-1;if(needsPair && pairingPort<0)return;
             if(wireless)ui.getSharedPreferences("adb",0).edit().putString("tlsPort",String.valueOf(connectionPort)).apply();else ui.getSharedPreferences("adb",0).edit().putInt("port",connectionPort).apply();
             final int request=session!=null?session.beginManual(wireless):adb.prepare();
-            working=true;if(setup!=null)connect.setText("正在连接…");if(discovery!=null)discovery.close();settings.setEnabled(false);connect.setEnabled(false);port.setEnabled(false);pairPort.setEnabled(false);code.setEnabled(false);code.setText("");status.setText(needsPair?"正在配对，取消会关闭连接…":"正在连接并核对本机身份…");
+            connectionRequest=request;working=true;adb.addStatusListener(progress);if(setup!=null)connect.setText("正在连接…");if(discovery!=null)discovery.close();settings.setEnabled(false);connect.setEnabled(false);port.setEnabled(false);pairPort.setEnabled(false);code.setEnabled(false);code.setText("");status.setText("等待连接任务开始…");
             if(setup!=null){android.view.View cancel=sheet.dialog.getWindow().getDecorView().findViewWithTag("close-dialog");if(cancel!=null)cancel.requestFocus();}
             worker.execute(()->{try{
                 attempt.check();if(needsPair){adb.pair(pairingPort,secret,request);attempt.check();}adb.connect(connectionPort,request);attempt.check();
-                ui.runOnUiThread(()->{if(!attempt.active() || ui.isFinishing() || ui.isDestroyed())return;if(request!=adb.generation() || !adb.connected()){working=false;status.setText("连接已取消，请重新连接");settings.setEnabled(true);connect.setEnabled(true);port.setEnabled(true);pairPort.setEnabled(true);code.setEnabled(true);return;}complete=true;if(session!=null)session.manualConnected(wireless);sheet.dialog.dismiss();panel=null;connected.run();});
-            }catch(Exception e){ui.runOnUiThread(()->{if(!attempt.active() || ui.isFinishing() || ui.isDestroyed())return;working=false;if(session!=null)session.manualFailed(e.getMessage()==null?"连接失败":e.getMessage());if(setup!=null)connect.setText(continuation);status.setText(ui.getString(R.string.adb_connection_failed,e.getMessage()));settings.setEnabled(true);connect.setEnabled(true);port.setEnabled(true);pairPort.setEnabled(true);code.setEnabled(true);});}});
+                ui.runOnUiThread(()->{if(!attempt.active() || ui.isFinishing() || ui.isDestroyed())return;finishWorking();if(request!=adb.generation() || !adb.connected()){status.setText("连接已取消，请重新连接");return;}complete=true;if(session!=null)session.manualConnected(wireless);sheet.dialog.dismiss();panel=null;connected.run();});
+            }catch(Exception e){ui.runOnUiThread(()->{if(!attempt.active() || ui.isFinishing() || ui.isDestroyed())return;finishWorking();String reason=e.getMessage()==null?"连接失败":e.getMessage();if(session!=null)session.manualFailed(reason);status.setText(ui.getString(R.string.adb_connection_failed,reason));});}});
         }
+        void finishWorking(){working=false;adb.removeStatusListener(progress);if(setup!=null)connect.setText(continuation);settings.setEnabled(true);connect.setEnabled(true);port.setEnabled(true);pairPort.setEnabled(true);code.setEnabled(true);}
         void cancel(){cancel(true);}
-        void cancel(boolean release){if(!attempt.active())return;attempt.cancel();if(discovery!=null)discovery.close();if(guide!=null)guide.dialog.dismiss();code.setText("");if(!complete && release){if(session!=null)session.cancelManual();else adb.disconnect();}if(sheet.dialog.isShowing())sheet.dialog.dismiss();}
+        void cancel(boolean release){if(!attempt.active())return;attempt.cancel();working=false;adb.removeStatusListener(progress);if(discovery!=null)discovery.close();if(guide!=null)guide.dialog.dismiss();code.setText("");if(!complete && release){if(session!=null)session.cancelManual();else adb.disconnect();}if(sheet.dialog.isShowing())sheet.dialog.dismiss();}
     }
 }
