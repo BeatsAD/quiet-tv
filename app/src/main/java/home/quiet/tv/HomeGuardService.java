@@ -18,6 +18,12 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     private boolean registered,allowStock;
     private long transitionUntil;
     private String lastPackage="",settleReason="";
+    private final BroadcastReceiver packageChanges=new BroadcastReceiver(){
+        @Override public void onReceive(Context context,Intent intent){
+            ComponentName selected=state==null?null:ComponentName.unflattenFromString(state.selected());
+            if(selected!=null && intent.getData()!=null && selected.getPackageName().equals(intent.getData().getSchemeSpecificPart()))state.invalidateEventHome();
+        }
+    };
     private final Runnable usageCheck=new Runnable(){
         // Shared with API19; the usage service exists on API21, before its public constant in API22.
         @android.annotation.SuppressLint({"ObsoleteSdkInt","InlinedApi"})
@@ -107,7 +113,9 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         BootAppLifecycle.observe(this);
         state.preferences.registerOnSharedPreferenceChangeListener(this);
         if(!registered){IntentFilter filter=new IntentFilter(Intent.ACTION_SCREEN_OFF);filter.addAction(Intent.ACTION_SCREEN_ON);filter.addAction(Intent.ACTION_USER_PRESENT);filter.addAction(Intent.ACTION_CLOSE_SYSTEM_DIALOGS);
-            if(Build.VERSION.SDK_INT>=24)filter.addAction(Intent.ACTION_USER_UNLOCKED);androidx.core.content.ContextCompat.registerReceiver(this,lifecycle,filter,androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);registered=true;}
+            if(Build.VERSION.SDK_INT>=24)filter.addAction(Intent.ACTION_USER_UNLOCKED);androidx.core.content.ContextCompat.registerReceiver(this,lifecycle,filter,androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
+            IntentFilter packages=new IntentFilter(Intent.ACTION_PACKAGE_CHANGED);packages.addAction(Intent.ACTION_PACKAGE_REPLACED);packages.addAction(Intent.ACTION_PACKAGE_REMOVED);packages.addAction(Intent.ACTION_PACKAGE_ADDED);packages.addDataScheme("package");
+            androidx.core.content.ContextCompat.registerReceiver(this,packageChanges,packages,androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);registered=true;}
         refreshUsageWatch();
         if(state.enabled())state.status("守护已连接，等待原主页");
         if(SystemClock.elapsedRealtime()<HomeGuardPolicy.BOOT_WINDOW_MS || HomeGuardRecovery.unknownAllowed(this))schedule("服务连接");
@@ -124,6 +132,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     }
     @Override public void onSharedPreferenceChanged(SharedPreferences preferences,String key){
         if("mode".equals(key) || "home".equals(key) || "firmware".equals(key) || "configured".equals(key) || "observeHome".equals(key)){
+            if("home".equals(key) || "firmware".equals(key))state.invalidateEventHome();
             cancel();policy.clear();lastPackage="";allowStock=false;
             if(state.enabled())schedule("配置恢复");refreshUsageWatch();
         }
@@ -140,11 +149,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     }
     @Override public void onAccessibilityEvent(AccessibilityEvent event){
         if(event==null || event.getEventType()!=AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || state==null)return;
-        if(!state.enabled() || !HomeGuardState.canShow(this)){
-            if(HomeGuardPolicy.matches(state.eventHome(),event.getPackageName()==null?null:event.getPackageName().toString(),event.getClassName()==null?null:event.getClassName().toString()))
-                HomeGuardRecovery.observed("accessibility",!state.enabled()?"disabled_or_paused":"screen_or_unlock_unavailable",SystemClock.uptimeMillis()-event.getEventTime());
-            cancel();return;
-        }
+        if(!state.enabled() || !HomeGuardState.canShow(this)){cancel();return;}
         String pkg=event.getPackageName()==null?null:event.getPackageName().toString(),cls=event.getClassName()==null?null:event.getClassName().toString();
         if(pkg==null || cls==null || !activity(pkg,cls))return;
         long now=SystemClock.uptimeMillis(),age=now-event.getEventTime();
@@ -176,6 +181,6 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     @Override public void onDestroy(){
         cancel();handler.removeCallbacks(usageCheck);if(instance==this)instance=null;
         if(state!=null)state.preferences.unregisterOnSharedPreferenceChangeListener(this);
-        if(registered)unregisterReceiver(lifecycle);super.onDestroy();
+        if(registered){unregisterReceiver(lifecycle);unregisterReceiver(packageChanges);}super.onDestroy();
     }
 }

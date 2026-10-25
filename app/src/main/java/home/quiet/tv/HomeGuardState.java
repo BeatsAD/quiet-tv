@@ -13,6 +13,15 @@ final class HomeGuardState {
     final SharedPreferences preferences;
     private final Context context;
     private final PackageManager pm;
+    private final TargetCache eventHomeCache=new TargetCache(this::resolveEventHome);
+    static final class TargetCache {
+        interface Resolver {String resolve(String selected);}
+        private final Resolver resolver;
+        private String selected,value;
+        TargetCache(Resolver resolver){this.resolver=resolver;}
+        String get(String target){if(!target.equals(selected)){String resolved=resolver.resolve(target);selected=target;value=resolved;}return value;}
+        void invalidate(){selected=null;value=null;}
+    }
     static final class Candidate {
         final ComponentName component;final String label;
         Candidate(ComponentName component,String label){this.component=component;this.label=label;}
@@ -90,11 +99,13 @@ final class HomeGuardState {
             ComponentName name=new ComponentName(info.packageName,info.name);homes.put(name.flattenToString(),new Candidate(name,info.loadLabel(pm).toString()));
         }
     }
-    String eventHome(){
-        ComponentName name=ComponentName.unflattenFromString(selected());if(name==null)return "";
+    String eventHome(){return eventHomeCache.get(selected());}
+    void invalidateEventHome(){eventHomeCache.invalidate();}
+    private String resolveEventHome(String selected){
+        ComponentName name=ComponentName.unflattenFromString(selected);if(name==null)return "";
         try{ActivityInfo info=pm.getActivityInfo(name,0);String target=info.targetActivity;
             if(target!=null)return new ComponentName(name.getPackageName(),target.startsWith(".")?name.getPackageName()+target:target).flattenToString();
-        }catch(PackageManager.NameNotFoundException|SecurityException ignored){}return selected();
+        }catch(PackageManager.NameNotFoundException|SecurityException ignored){}return selected;
     }
     boolean validSelection(){
         if(!unlocked(context) || !Build.FINGERPRINT.equals(preferences.getString("firmware","")))return false;

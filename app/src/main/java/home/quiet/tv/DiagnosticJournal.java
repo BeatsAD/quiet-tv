@@ -2,6 +2,7 @@ package home.quiet.tv;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.regex.Pattern;
 
 /** Two fixed files, at most 2 MiB total; rotation never enumerates or deletes files. */
@@ -40,6 +41,18 @@ final class DiagnosticJournal {
         if(entry.length==0||entry.length>MAX_ENTRY_BYTES)throw new IOException("Diagnostic entry exceeds limit");
         if(files[active].length()+entry.length>SEGMENT_BYTES)rotate(1-active);
         try(OutputStream output=new FileOutputStream(files[active],true)){output.write(entry);}
+    }
+    /** One open/write/close per segment for the records already waiting in the bounded queue. */
+    void appendBatch(List<byte[]> entries) throws IOException {
+        for(byte[] entry:entries)if(entry.length==0 || entry.length>MAX_ENTRY_BYTES)throw new IOException("Diagnostic entry exceeds limit");
+        OutputStream output=null;long length=files[active].length();
+        try{
+            for(byte[] entry:entries){
+                if(length+entry.length>SEGMENT_BYTES){if(output!=null){output.close();output=null;}rotate(1-active);length=files[active].length();}
+                if(output==null)output=new BufferedOutputStream(new FileOutputStream(files[active],true));
+                output.write(entry);length+=entry.length;
+            }
+        }finally{if(output!=null)output.close();}
     }
     void copyTo(OutputStream output) throws IOException {copy(files[1-active],output);copy(files[active],output);}
     private void copy(File file,OutputStream output) throws IOException {
