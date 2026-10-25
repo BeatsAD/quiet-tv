@@ -5,7 +5,7 @@ import android.content.pm.*;
 import android.os.Build;
 import android.provider.Settings;
 import org.json.JSONObject;
-import java.util.Arrays;
+import java.util.*;
 
 /** Read-only state at export time, separate from the bounded historical event journal. */
 final class DiagnosticDeviceSnapshot {
@@ -21,6 +21,7 @@ final class DiagnosticDeviceSnapshot {
         snapshot.section("调试设置入口",snapshot::debugSettings);
         snapshot.section("系统默认桌面",snapshot::home);
         snapshot.section("原桌面记录",snapshot::original);
+        snapshot.section("HOME 候选与状态",snapshot::homeCandidates);
         snapshot.section("桌面守护",snapshot::guard);
         return snapshot.text.toString();
     }
@@ -35,6 +36,10 @@ final class DiagnosticDeviceSnapshot {
             snapshot.line("连接说明",state.detail);
             snapshot.line("连接阶段",controller.stage().name());snapshot.line("最近失败阶段",controller.failure().name());
             snapshot.line("自动连接",state.paused?"已暂停":"已开启");
+            snapshot.line("身份查询范围","当前会话最近一次连接尝试的历史结果；导出不执行 ADB 查询，跨进程结果见历史事件");
+            String identity=controller.identityDiagnostics();
+            if(identity.isEmpty())snapshot.line("ADB 身份查询结果","本次会话尚无结果，可能尚未通过本机核对");
+            else snapshot.text.append(identity);
             if(controller.connected()){
                 snapshot.line("已核对 Android 用户",Integer.toString(controller.user));
                 snapshot.line("当前连接端口",Integer.toString(controller.connectedPort()));
@@ -88,20 +93,50 @@ final class DiagnosticDeviceSnapshot {
         line("说明","系统默认 HOME 与当前前台应用、桌面守护接管是不同状态");
     }
     private void original() throws Exception {
+        SetupPresets presets=SetupPresets.load(context);
+        line("当前固件预设匹配",yes(presets.matched()));line("当前预设原桌面组件",presets.home());
+        line("记录含义","切换前 HOME 是历史解析；原桌面是经机型预设核实的恢复目标，两者分别记录");
         JSONObject baseline=new SetupStore(context).get().optJSONObject("baseline");
         line("记录来源","本 Android 用户、当前固件的首次设置基线");
         if(baseline==null){line("原桌面","未记录，不能由其他桌面候选推定");return;}
         line("切换前 HOME（历史记录）",baseline.optString("previousHome"));
+        component("切换前 HOME 的当前状态",baseline.optString("previousHome"));
         component("原桌面",baseline.optString("originalHome"));
+    }
+    private void homeCandidates(){
+        HomeGuardState guard=new HomeGuardState(context,false);
+        Set<String> eligible=new HashSet<>();for(HomeGuardState.Candidate candidate:guard.candidates())eligible.add(candidate.component.flattenToString());
+        Map<String,String> homes=new LinkedHashMap<>();
+        homeCandidates(homes,Intent.CATEGORY_HOME);
+        if(HomeGuardRecovery.knownPrivateHome())for(String category:new String[]{"android.intent.category.HOME.CC","android.intent.category.HOME.CC_MAIN","smartdevice.intent.category.LITE_HOME"})homeCandidates(homes,category);
+        line("查询范围","当前用户可见的 HOME 声明，含禁用或保留的未安装记录；不代表页面可启动");
+        line("HOME 候选总数",Integer.toString(homes.size()));line("守护可选候选总数",Integer.toString(eligible.size()));
+        int shown=0;
+        for(Map.Entry<String,String> home:homes.entrySet()){
+            if(shown>=8)break;
+            String label="候选 "+(++shown);component(label,home.getKey());
+            line(label+"声明类别",home.getValue());line(label+"可供守护选择",yes(eligible.contains(home.getKey())));
+        }
+        line("未展开候选数",Integer.toString(homes.size()-shown));
+        line("守护筛选规则","排除本应用、非系统应用、禁用应用或组件、android 包及 FallbackHome；有效选择还需固件一致");
+    }
+    private void homeCandidates(Map<String,String> homes,String category){
+        for(ResolveInfo value:pm.queryIntentActivities(new Intent(Intent.ACTION_MAIN).addCategory(category),HomeController.METADATA)){
+            ActivityInfo info=value.activityInfo;if(info==null)continue;
+            String name=new ComponentName(info.packageName,info.name).flattenToString(),previous=homes.get(name);
+            homes.put(name,previous==null?category:previous+"  "+category);
+        }
     }
     private void guard() throws Exception {
         // Diagnostics must not perform preference migrations or request recovery.
         HomeGuardState state=new HomeGuardState(context,false);
         line("系统档位支持",yes(state.supported()));
         line("已配置",yes(state.preferences.getBoolean("configured",false)));
-        line("用户模式",state.preferences.getString("mode","未记录"));line("有效启用",yes(state.enabled()));
+        line("用户模式",state.preferences.getString("mode","未记录"));line("配置开关启用",yes(state.enabled()));
+        line("无障碍守护就绪",yes(state.compatibleReady()));
         component("守护目标桌面",state.selected());
         line("目标与固件有效",yes(state.validSelection()));
+        line("记录固件与当前一致",yes(Build.FINGERPRINT.equals(state.preferences.getString("firmware",""))));
         line("无障碍设置授权",yes(state.serviceEnabled()));line("无障碍服务已连接",yes(HomeGuardService.connected()));
         line("独立中转助手占用",yes(state.helperActive()));
         line("兼容检测所需用量权限",HomeGuardService.usageRequired()?yes(HomeGuardService.usageAllowed(context)):"本档位不需要");
@@ -110,7 +145,7 @@ final class DiagnosticDeviceSnapshot {
         line("通知访问授权",yes(HomeGuardRecovery.notificationAllowed(context)));
         line("系统已解锁",yes(HomeGuardState.unlocked(context)));line("屏幕交互中",yes(HomeGuardState.interactive(context)));
         String problem=state.enableProblem();
-        line("当前守护结论",!state.enabled()?"未有效启用，不执行守护":!problem.isEmpty()?problem
+        line("当前守护结论",!state.enabled()?"配置开关未开启，不执行守护":!problem.isEmpty()?problem
             :!HomeGuardService.connected()?"等待系统绑定无障碍":"无障碍服务已连接，守护已启用");
         line("最近记录状态（历史记录）",state.preferences.getString("status","未记录"));
     }
@@ -125,6 +160,12 @@ final class DiagnosticDeviceSnapshot {
             int app=pm.getApplicationEnabledSetting(name.getPackageName()),activity=pm.getComponentEnabledSetting(name);
             boolean enabled=(app==0?info.applicationInfo.enabled:app==1)&&(activity==0?info.enabled:activity==1);
             line(label+"状态",installed?(enabled?"已安装，已启用":"已安装，已禁用"):"当前用户未安装");
+            line(label+"系统应用",yes((info.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)!=0));
+            line(label+"导出",yes(info.exported));line(label+"组件所需权限",info.permission==null?"无":info.permission);
+            line(label+"本应用具备组件权限",yes(info.permission==null || pm.checkPermission(info.permission,context.getPackageName())==PackageManager.PERMISSION_GRANTED));
+            line(label+"应用启用设置原值",Integer.toString(app));line(label+"组件启用设置原值",Integer.toString(activity));
+            line(label+" ApplicationInfo.enabled",yes(info.applicationInfo.enabled));line(label+" ActivityInfo.enabled",yes(info.enabled));
+            line(label+"别名目标",info.targetActivity==null?"非别名":info.targetActivity);
         }catch(PackageManager.NameNotFoundException e){line(label+"状态","当前包管理器未找到，卸载或不可见原因未确认");}
         catch(SecurityException e){line(label+"状态","无法读取：权限受限");}
     }
