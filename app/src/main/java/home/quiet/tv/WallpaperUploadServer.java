@@ -11,7 +11,7 @@ import org.json.*;
 
 /** A session-only server: explicit assets, bounded connections, one streamed image at a time. */
 final class WallpaperUploadServer extends NanoHTTPD {
-    static final long MAX_UPLOAD=20L*1024*1024;
+    static final long MAX_UPLOAD=60L*1024*1024;
     static final long IDLE_MS=10L*60*1000;
     interface Assets { InputStream open(String name) throws IOException; }
     interface Active { boolean valid(); }
