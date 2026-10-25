@@ -25,6 +25,18 @@ Source includes legacy networking/font fallbacks, detected HOME settings, Back h
 
 ## 已验证与待验收 / Evidence boundaries
 
+### 旧系统天气证书兼容（开发源码） / Legacy weather certificates
+
+针对 Android 5.1 小米盒子天气刷新时的 `SSLHandshakeException`／`CertificateException`，天气客户端在 API19–25 上将随包的 ISRG Root X1 根证书加入当前连接的信任集合。和风及 UAPI 共用该处理，保留原有系统根证书、证书链、有效期及域名校验，不写入系统 CA 库，也不改变其他网络功能的 TLS 设置。证书来源与指纹见[第三方说明](../THIRD_PARTY_NOTICES.md#旧版-android-天气-https-兼容)。
+
+| 档位 / Profile | 共同功能及差异 / Behavior | 本轮验证 / Validation |
+| --- | --- | --- |
+| 标准 API21+ | API21–25 的天气连接补充根证书；API26+ 使用系统默认信任 | 编译与 Lint 通过（0 错误）；21 项天气及 TLS 单元测试通过。 |
+| 安卓4.4 / legacy19 | 相同根证书补充，并沿用 TLS 1.2 设置 | 编译与 Lint 通过（0 错误）；相同 21 项测试通过；API19 运行待验收。 |
+| 酷开 API26+ 独立包名 | 共用天气代码，继续使用系统默认信任 | 编译与 Lint 通过（0 错误）；酷开固件运行待验收。 |
+
+TLS 测试通过离线握手复现缺根证书时失败、补充后成功，并检查系统原有证书信任、未知 CA、过期叶证书和错误域名。测试运行于电脑 JVM，不代表 Android 固件已验收。现有 API22 ARM64 镜像因本机模拟器程序不支持而未能启动；本次未安装实体电视、未验证覆盖升级数据保留，也未归档或发布 APK。当前开发修复不能视作已发布的 1.2.1 安装包已包含。
+
 ### 桌面布局与实时预览开发源码 / Desktop layouts and live preview
 
 顶部标签替代原侧栏，仅“桌面显示”提供固定首页预览；天气设置和桌面守护使用完整内容区。经典布局、艺术画廊居中及问候语、时间、日期、天气、三个快捷按钮的独立显隐共用同一套原生代码。日期首次继承旧时间日期开关状态；已有问候语、天气、快捷按钮及应用封面配置继续复用。

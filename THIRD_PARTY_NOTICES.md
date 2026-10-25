@@ -74,7 +74,12 @@ Quiet TV 基于该项目开发，面向国内电视机的适配与应用升级�
 
 - 必应保留接口返回的图片标题、版权及来源链接，来源见 [Bing 首页说明](https://support.microsoft.com/en-us/topic/explore-the-homepage-bab2022c-cdb4-4d1f-80e2-c8f5c55712c7)。接口可访问不表示所有图片获得再分发授权，在线图片不作为应用内置资源分发。
 - 历史版本曾采用[搏天随机壁纸接口](https://api.btstu.cn/doc/sjbz.php)。当前不再请求该服务；旧缓存仅用于升级期间保留背景，不作为内置资源分发。图片权利仍归原权利人。
-- 历史 Android 7.1 及以下版本曾仅对 `api.btstu.cn`、`img.btstu.cn` 请求补充官方 [ISRG Root X1](https://letsencrypt.org/certificates/) 根证书，保留系统信任及正常域名校验，不修改设备证书库。证书文件为 `app/src/main/assets/certificates/isrg-root-x1.pem`，DER SHA-256 为 `96bcec06264976f37460779acf28c5a7cfe8a3c0aae11a8ffcee05c0bddf08c6`。当前已移除上述网络和证书补充逻辑，保留历史证书文件，不再加载；该证书不是私钥。
+- 历史 Android 7.1 及以下版本曾对 `api.btstu.cn`、`img.btstu.cn` 补充证书信任；当前已移除上述网络和证书补充逻辑。
+
+## 旧版 Android 天气 HTTPS 兼容
+
+- Android 4.4 至 7.1（API19–25）的天气连接在系统信任根基础上补充官方 [ISRG Root X1](https://letsencrypt.org/certificates/)，用于和风及 UAPI 请求，保留证书链、有效期及域名校验，不修改设备证书库或应用全局 TLS 设置。Android 8 及以上继续使用系统默认信任；Android 4.4 同时沿用 TLS 1.2 兼容设置。
+- 证书文件为 `app/src/main/assets/certificates/isrg-root-x1.pem`，DER SHA-256 为 `96bcec06264976f37460779acf28c5a7cfe8a3c0aae11a8ffcee05c0bddf08c6`。该文件是公开根证书，不含私钥；不固定天气服务的叶证书，服务正常续期仍由证书链校验。
 
 ## 壁纸局域网上传
 
