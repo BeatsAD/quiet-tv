@@ -44,6 +44,8 @@ jobs:
             base=HEAD^
           fi
           python3 scripts/check_contribution.py --base "$base"
+      - name: Verify signed update feed
+        run: python3 scripts/build_update_manifest.py --verify updates/updates.json
       - name: Validate firmware policy profiles
         if: steps.scope.outputs.android == 'true'
         run: python3 scripts/validate_profiles.py

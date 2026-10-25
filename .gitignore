@@ -140,3 +140,7 @@ __pycache__/
 !/skills/quiet-tv-switch/references/operations.md
 /skills/quiet-tv-switch/scripts/*
 !/skills/quiet-tv-switch/scripts/inspect_tv.py
+
+# Signed public application-update input and its offline release tooling.
+!/scripts/build_update_manifest.py
+!/docs/UPDATES.md
