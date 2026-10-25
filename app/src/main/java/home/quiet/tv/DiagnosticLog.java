@@ -29,7 +29,16 @@ final class DiagnosticLog {
         info("process.start","version="+BuildConfig.VERSION_NAME+" build="+BuildConfig.VERSION_CODE+" api="+Build.VERSION.SDK_INT);
         Thread.UncaughtExceptionHandler previous=Thread.getDefaultUncaughtExceptionHandler();
         Thread.setDefaultUncaughtExceptionHandler((thread,error)->{
-            try{Future<?> saved=instance.enqueue("ERROR","process.uncaught",trace(error));if(saved!=null)saved.get(500,TimeUnit.MILLISECONDS);}
+            try{
+                String crash=Long.toHexString(System.currentTimeMillis())+"-"+thread.getId();
+                List<String> parts=crashTrace(error);
+                Future<?> saved=instance.enqueue("ERROR","process.uncaught","crash="+crash+" parts="+parts.size()+" type="+bounded(error.getClass().getName(),96));
+                for(int i=0;i<parts.size();i++){
+                    Future<?> next=instance.enqueue("ERROR","process.uncaught.stack","crash="+crash+" part="+(i+1)+"/"+parts.size()+" "+parts.get(i));
+                    if(next!=null)saved=next;
+                }
+                if(saved!=null)saved.get(500,TimeUnit.MILLISECONDS);
+            }
             catch(Exception ignored){}
             finally{if(previous!=null)previous.uncaughtException(thread,error);else{android.os.Process.killProcess(android.os.Process.myPid());System.exit(10);}}
         });
@@ -62,6 +71,25 @@ final class DiagnosticLog {
         }
         return text.toString();
     }
+    // Keep deeper call sites, including obfuscated frames, without exception messages or unbounded entries.
+    static List<String> crashTrace(Throwable error){
+        List<String> parts=new ArrayList<>();
+        for(int cause=0;error!=null&&cause<3;cause++,error=error.getCause()){
+            StackTraceElement[] frames=error.getStackTrace();int count=Math.min(24,frames.length);
+            for(int start=0;start<Math.max(1,count);start+=3){
+                int end=Math.min(start+3,count);
+                StringBuilder part=new StringBuilder("cause="+cause+" type="+bounded(error.getClass().getName(),96)+" frameCount="+frames.length+" firstFrame="+start);
+                for(int i=start;i<end;i++)part.append(" <- ").append(bounded(frames[i].toString(),200));
+                if(end==count){
+                    part.append(" omittedFrames=").append(frames.length-count);
+                    if(cause==2&&error.getCause()!=null)part.append(" causesTruncated=true");
+                }
+                parts.add(part.toString());
+            }
+        }
+        return parts;
+    }
+    private static String bounded(String value,int limit){return value.length()>limit?value.substring(0,limit-3)+"...":value;}
     private Future<?> enqueue(String level,String event,String detail){
         byte[] entry=DiagnosticJournal.entry(System.currentTimeMillis()+" "+level+" "+event+" "+detail);
         try{return worker.submit(()->{
