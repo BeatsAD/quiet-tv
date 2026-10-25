@@ -35,7 +35,7 @@ For immutable archives, configure `sdk.dir` in local.properties and run:
 python3 scripts/build_apk.py --build-number "$STANDARD_BUILD_NUMBER" --summary "Describe this build's changes"
 ```
 
-The published standard archive is `dist/apk/QuietTV_1.1.2-34_安卓5及以上_测试版.apk`; new builds use the requested number and also produce matching `.apk.sha256` and `.json` files. Choose a higher unused `--build-number` for every new delivery; the filename includes the actual APK versionCode. Historical archives keep their original names. Options include `--variant benchmark --abi armeabi-v7a` and `--min-sdk 21` (default), `23`, `26` or `31`; actual single-ABI packages receive an ABI label. See [versioning](VERSIONING.md). These commands never install to a TV.
+The published standard archive is `dist/apk/QuietTV_1.1.2-34_安卓5及以上_测试版.apk`; new builds use the requested number and also produce matching `.apk.sha256` and `.json` files. Choose a higher unused `--build-number` for every new delivery. Local archive names retain the actual APK versionCode; public names omit it and are recorded in `public_apk`, without creating additional copies. New names use short system labels such as `安卓5+`, explicit ARM32/ARM64 or `通用` architecture labels (omitted only for native-library-free APKs), and the `测试` status. Historical archives keep their original names. Options include `--variant benchmark --abi armeabi-v7a` and `--min-sdk 21` (default), `23`, `26` or `31`. See [versioning](VERSIONING.md). These commands never install to a TV.
 
 ## Android 4.4 / API19
 

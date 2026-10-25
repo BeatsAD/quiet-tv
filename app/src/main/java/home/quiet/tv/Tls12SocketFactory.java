@@ -4,12 +4,14 @@ import java.io.IOException;
 import java.net.InetAddress;
 import javax.net.ssl.*;
 
-/** Enable TLS 1.2 on Android 4.4 without changing trust or hostname verification. */
+/** Enable TLS 1.2 on Android 4.4; wallpaper may also opt into TLS 1.1. */
 final class Tls12SocketFactory extends SSLSocketFactory{
     private final SSLSocketFactory delegate;
-    Tls12SocketFactory(SSLSocketFactory delegate){this.delegate=delegate;}
-    Tls12SocketFactory()throws IOException{try{SSLContext context=SSLContext.getInstance("TLS");context.init(null,null,null);delegate=context.getSocketFactory();}catch(java.security.GeneralSecurityException e){throw new IOException(e);}}
-    private java.net.Socket configure(java.net.Socket socket){if(socket instanceof SSLSocket)((SSLSocket)socket).setEnabledProtocols(new String[]{"TLSv1.2"});return socket;}
+    private final boolean allowTls11;
+    Tls12SocketFactory(SSLSocketFactory delegate){this.delegate=delegate;allowTls11=false;}
+    Tls12SocketFactory()throws IOException{this(false);}
+    Tls12SocketFactory(boolean allowTls11)throws IOException{this.allowTls11=allowTls11;try{SSLContext context=SSLContext.getInstance("TLS");context.init(null,null,null);delegate=context.getSocketFactory();}catch(java.security.GeneralSecurityException e){throw new IOException(e);}}
+    private java.net.Socket configure(java.net.Socket socket){if(socket instanceof SSLSocket)((SSLSocket)socket).setEnabledProtocols(allowTls11?new String[]{"TLSv1.2","TLSv1.1"}:new String[]{"TLSv1.2"});return socket;}
     @Override public String[] getDefaultCipherSuites(){return delegate.getDefaultCipherSuites();}
     @Override public String[] getSupportedCipherSuites(){return delegate.getSupportedCipherSuites();}
     @Override public java.net.Socket createSocket()throws IOException{return configure(delegate.createSocket());}

@@ -13,6 +13,15 @@ final class HomeGuardState {
     final SharedPreferences preferences;
     private final Context context;
     private final PackageManager pm;
+    private final TargetCache eventHomeCache=new TargetCache(this::resolveEventHome);
+    static final class TargetCache {
+        interface Resolver {String resolve(String selected);}
+        private final Resolver resolver;
+        private String selected,value;
+        TargetCache(Resolver resolver){this.resolver=resolver;}
+        String get(String target){if(!target.equals(selected)){String resolved=resolver.resolve(target);selected=target;value=resolved;}return value;}
+        void invalidate(){selected=null;value=null;}
+    }
     static final class Candidate {
         final ComponentName component;final String label;
         Candidate(ComponentName component,String label){this.component=component;this.label=label;}
@@ -46,15 +55,20 @@ final class HomeGuardState {
     static boolean interactive(Context context){PowerManager power=(PowerManager)context.getSystemService(Context.POWER_SERVICE);return power!=null && (Build.VERSION.SDK_INT>=20?power.isInteractive():power.isScreenOn());}
     static boolean canShow(Context context){KeyguardManager keyguard=(KeyguardManager)context.getSystemService(Context.KEYGUARD_SERVICE);return unlocked(context) && interactive(context) && keyguard!=null && !keyguard.isKeyguardLocked();}
     boolean supported(){return HomeGuardPolicy.supported(Build.MANUFACTURER,Build.BRAND,Build.VERSION.SDK_INT,BuildConfig.LEGACY_19);}
-    boolean enabled(){return supported() && preferences.getBoolean("configured",false) && "AUTO".equals(preferences.getString("mode","AUTO"));}
+    boolean automatic(){return supported() && preferences.getBoolean("configured",false) && "AUTO".equals(preferences.getString("mode","AUTO"));}
+    boolean enabled(){return automatic() && preferences.getBoolean("observeHome",true);}
     String selected(){return preferences.getString("home","");}
-    boolean protects(String pkg){ComponentName name=ComponentName.unflattenFromString(selected());return enabled() && name!=null && name.getPackageName().equals(pkg);}
+    boolean protects(String pkg){return protects(pkg,SetupPresets.load(context));}
+    boolean protects(String pkg,SetupPresets rules){
+        ComponentName name=ComponentName.unflattenFromString(selected()),fallback=ComponentName.unflattenFromString(preferences.getString("proxyOriginal",""));boolean selected=name!=null && name.getPackageName().equals(pkg);
+        return DesktopRoutePolicy.preserve(rules.protectedHomePackage(pkg) || fallback!=null && fallback.getPackageName().equals(pkg) || !BuildConfig.DECLARES_HOME && selected,selected && selected().equals(rules.home()) && rules.homeAllows("disableVerified"),selected,enabled());
+    }
     // Persist disabled mode before canceling scheduled recovery.
     @android.annotation.SuppressLint("ApplySharedPref")
-    void pause(String reason){DiagnosticLog.info("home_guard.pause",reason);preferences.edit().putString("mode","OFF").putBoolean("enabled",false).putString("status",reason).commit();HomeGuardRecovery.cancel();HomeGuardService.cancelPending();}
+    void pause(String reason){DiagnosticLog.info("home_guard.pause",reason);preferences.edit().putString("mode","OFF").putBoolean("enabled",false).putString("status",reason).commit();HomeGuardRecovery.cancel();HomeGuardService.cancelPending();DesktopRoutes.disableVendor(context);if(!new HomeProxy(context).pause())status(reason+"；代理暂停回执待确认，主程序启动入口已关闭");}
     // Persist the selected HOME and firmware before subsequent recovery requests.
     @android.annotation.SuppressLint("ApplySharedPref")
-    void select(ComponentName name){HomeGuardRecovery.cancel();HomeGuardService.cancelPending();preferences.edit().putBoolean("configured",true).putString("home",name.flattenToString()).putString("firmware",Build.FINGERPRINT).commit();}
+    void select(ComponentName name){if(!name.flattenToString().equals(selected()))new HomeProxy(context).pause();HomeGuardRecovery.cancel();HomeGuardService.cancelPending();preferences.edit().putBoolean("configured",true).putString("home",name.flattenToString()).putString("firmware",Build.FINGERPRINT).commit();new DesktopRoutes(context).reconcileVendor();}
     void configure(){
         if(!supported() || !unlocked(context))return;
         preferences.edit().putBoolean("configured",true).apply();
@@ -85,11 +99,13 @@ final class HomeGuardState {
             ComponentName name=new ComponentName(info.packageName,info.name);homes.put(name.flattenToString(),new Candidate(name,info.loadLabel(pm).toString()));
         }
     }
-    String eventHome(){
-        ComponentName name=ComponentName.unflattenFromString(selected());if(name==null)return "";
+    String eventHome(){return eventHomeCache.get(selected());}
+    void invalidateEventHome(){eventHomeCache.invalidate();}
+    private String resolveEventHome(String selected){
+        ComponentName name=ComponentName.unflattenFromString(selected);if(name==null)return "";
         try{ActivityInfo info=pm.getActivityInfo(name,0);String target=info.targetActivity;
             if(target!=null)return new ComponentName(name.getPackageName(),target.startsWith(".")?name.getPackageName()+target:target).flattenToString();
-        }catch(PackageManager.NameNotFoundException|SecurityException ignored){}return selected();
+        }catch(PackageManager.NameNotFoundException|SecurityException ignored){}return selected;
     }
     boolean validSelection(){
         if(!unlocked(context) || !Build.FINGERPRINT.equals(preferences.getString("firmware","")))return false;
@@ -106,8 +122,9 @@ final class HomeGuardState {
     }
     // Persist enabled mode before requesting recovery.
     @android.annotation.SuppressLint("ApplySharedPref")
-    String enable(){preferences.edit().putString("mode","AUTO").putBoolean("configured",true).commit();configure();HomeGuardRecovery.request(context,"用户启用");return enableProblem();}
-    boolean compatibleReady(){return ready() && serviceEnabled() && HomeGuardService.connected();}
+    String enable(){if(new DesktopRoutes(context).proxySelected() && !new HomeProxy(context).pause())return "代理暂停回执待确认，请先恢复原桌面";preferences.edit().putString("mode","AUTO").putBoolean("configured",true).commit();configure();new DesktopRoutes(context).observe();HomeGuardRecovery.request(context,"用户启用");return enableProblem();}
+    // A boot-only entry does not establish that pressing HOME can be redirected.
+    boolean compatibleReady(){return new HomeProxy(context).ready() || ready() && serviceEnabled() && HomeGuardService.connected();}
     String summary(){
         if(!enabled())return preferences.getString("status","未配置");
         String problem=enableProblem();if(!problem.isEmpty())return problem;

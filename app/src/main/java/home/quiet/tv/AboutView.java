@@ -21,12 +21,13 @@ final class AboutView extends FrameLayout {
     private final Typeface font;
     private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Shader glow,shade;
-    private final View back,license,upstream,recovery;
+    private final View back,license,upstream,recovery,update;
+    private boolean updateAvailable;
     private final TextView recoveryValue;
     private final ChildModePolicy.TriplePress recoveryPress=new ChildModePolicy.TriplePress();
     private final FrameLayout artboard;
 
-    AboutView(Context context,CharSequence name,String version,boolean debug,Runnable exit,Runnable licenses,Runnable source) {
+    AboutView(Context context,CharSequence name,String version,String channelName,Runnable exit,Runnable licenses,Runnable source,Runnable check) {
         super(context);setBackgroundColor(0xff020405);setTag("about-native");
         font=android.os.Build.VERSION.SDK_INT>=26?Typeface.createFromAsset(context.getAssets(),"fonts/outfit.ttf"):Typeface.create("sans-serif",Typeface.NORMAL);
         glow=new RadialGradient(0,0,1,new int[]{0xff244c87,0xff112846,0xff070e18,0xff020405},new float[]{0,.29f,.58f,.85f},Shader.TileMode.CLAMP);
@@ -38,6 +39,8 @@ final class AboutView extends FrameLayout {
                 paint.setShader(glow);canvas.drawRect(0,0,1920,1080,paint);
                 paint.setShader(shade);canvas.drawRect(0,0,1920,1080,paint);paint.setShader(null);
                 super.dispatchDraw(canvas);
+                if(updateAvailable && update!=null){paint.setColor(0xffd9363e);canvas.drawCircle(update.getRight()-2,update.getTop()+2,9,paint);}
+
             }
         };
         artboard.setClipChildren(false);artboard.setPivotX(0);artboard.setPivotY(0);
@@ -51,8 +54,10 @@ final class AboutView extends FrameLayout {
         TextView titleView=label(title,104,500,0xfff2f4f8,136,515,626,120,"app-name");UiCompat.letterSpacing(titleView,-3f/104);
         TextView installed=label("版本 "+version,26,400,0xfff2f4f8,136,658,500,45,"version-name");
         int channelX=136+(int)Math.ceil(installed.getPaint().measureText(installed.getText().toString()))+16;
-        TextView channel=label(debug?"测试版":"正式版",19,400,0xffacc0db,channelX,658,87,45,"version-channel");
+        TextView channel=label(channelName,19,400,0xffacc0db,channelX,658,87,45,"version-channel");
         channel.setGravity(Gravity.CENTER);channel.setBackground(surface(0x08ffffff,8,0x26ffffff));
+        TextView checkText=label("检查更新",23,400,0xffeff0f4,136,750,188,64,null);checkText.setGravity(Gravity.CENTER);
+        update=action(checkText,"check-update",136,750,188,64,check);update.setBackground(ControlStyle.action(1,32,0x08ffffff,0x26ffffff));
         label("开源项目",29,500,0xfff2f4f8,782,298,600,41,null);
         label("github.com/BeatsAD/quiet-tv",27,400,0xffdbe5f4,782,360,600,50,"source-address");
         ImageView project=code("project-qr",1576,250,208);project.setImageResource(R.drawable.ic_about_source);
@@ -119,11 +124,14 @@ final class AboutView extends FrameLayout {
         String value=new ChildModeStore(getContext()).recovery();recoveryValue.setText(value.isEmpty()?"尚未设置家长密码":value);recoveryValue.setVisibility(View.VISIBLE);
     }
     void hideRecovery(){press(false);recoveryPress.clear();recoveryValue.setText("");recoveryValue.setVisibility(View.INVISIBLE);}
+    void updateAvailable(boolean value){updateAvailable=value;update.setContentDescription(value?"检查更新，有新版本":"检查更新");artboard.invalidate();}
+    void focusUpdate(){update.requestFocus();}
     void focusLicense(){license.requestFocus();}
     void move(int key) {
         View active=artboard.findFocus(),next=null;
-        if(active==back && (key==KeyEvent.KEYCODE_DPAD_DOWN||key==KeyEvent.KEYCODE_DPAD_RIGHT))next=license;
-        else if(active==license){if(key==KeyEvent.KEYCODE_DPAD_RIGHT)next=upstream;else if(key==KeyEvent.KEYCODE_DPAD_UP||key==KeyEvent.KEYCODE_DPAD_LEFT)next=back;}
+        if(active==back && (key==KeyEvent.KEYCODE_DPAD_DOWN||key==KeyEvent.KEYCODE_DPAD_RIGHT))next=update;
+        else if(active==update){if(key==KeyEvent.KEYCODE_DPAD_UP)next=back;else if(key==KeyEvent.KEYCODE_DPAD_RIGHT||key==KeyEvent.KEYCODE_DPAD_DOWN)next=license;}
+        else if(active==license){if(key==KeyEvent.KEYCODE_DPAD_RIGHT)next=upstream;else if(key==KeyEvent.KEYCODE_DPAD_UP||key==KeyEvent.KEYCODE_DPAD_LEFT)next=update;}
         else if(active==upstream){if(key==KeyEvent.KEYCODE_DPAD_LEFT)next=license;else if(key==KeyEvent.KEYCODE_DPAD_UP)next=back;else if(key==KeyEvent.KEYCODE_DPAD_RIGHT)next=recovery;}
         else if(active==recovery){if(key==KeyEvent.KEYCODE_DPAD_LEFT)next=upstream;else if(key==KeyEvent.KEYCODE_DPAD_UP)next=back;}
         if(next!=null)next.requestFocus();

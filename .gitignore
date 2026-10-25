@@ -5,6 +5,10 @@
 dist/apk/
 local.properties
 /weather.local.json
+# Production root certificates for legacy weather and wallpaper HTTPS connections.
+!/app/src/main/assets/certificates/
+!/app/src/main/assets/certificates/isrg-root-x1.pem
+!/app/src/main/assets/certificates/digicert-global-root-g2.pem
 inspection/
 backups/
 evidence/
@@ -136,3 +140,11 @@ __pycache__/
 !/skills/quiet-tv-switch/references/operations.md
 /skills/quiet-tv-switch/scripts/*
 !/skills/quiet-tv-switch/scripts/inspect_tv.py
+
+# Signed public application-update input and its offline release tooling.
+!/scripts/build_update_manifest.py
+!/docs/UPDATES.md
+
+# Local HOME proxy verification fixtures.
+/home-proxy/src/test/
+/home-proxy/src/androidTest/

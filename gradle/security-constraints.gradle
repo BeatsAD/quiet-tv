@@ -4,6 +4,7 @@ def minimumVersions = [
     'org.bouncycastle:bcprov-jdk15to18': '1.86',
     'org.bouncycastle:bcpkix-jdk15to18': '1.86',
     'org.bouncycastle:bcutil-jdk15to18': '1.86',
+    'org.bouncycastle:bctls-jdk15to18': '1.86',
     'org.bouncycastle:bcprov-jdk18on': '1.85',
     'org.bouncycastle:bcpkix-jdk18on': '1.85',
     'org.bouncycastle:bcutil-jdk18on': '1.85',

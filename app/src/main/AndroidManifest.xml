@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+    <permission android:name="${applicationId}.permission.HOME_PROXY" android:protectionLevel="signature" />
+    <uses-permission android:name="${applicationId}.permission.HOME_PROXY" />
     <uses-feature android:name="android.software.leanback" android:required="${leanbackRequired}" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-feature android:name="android.hardware.wifi" android:required="false" />
@@ -10,6 +12,7 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.READ_TV_LISTINGS" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
@@ -21,21 +24,38 @@
     <!-- A HOME and application manager must enumerate installed apps, including those without launcher entries. -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
     <queries>
+        <intent><action android:name="android.intent.action.VIEW" /><data android:mimeType="application/vnd.android.package-archive" /></intent>
         <package android:name="com.xiaomi.mitv.settings" />
         <package android:name="home.quiet.tv.xiaomihelper" />
         <package android:name="com.ccos.tv.homepage" />
+        <package android:name="home.quiet.tv.proxy" />
         <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LEANBACK_LAUNCHER" /></intent>
         <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent>
         <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.APPSTORE_LAUNCHER" /></intent>
         <intent><action android:name="android.intent.action.VIEW" /><data android:scheme="content" /></intent>
     </queries>
     <application android:name=".QuietApplication" android:label="Quiet TV" android:theme="@style/AppTheme" android:icon="@drawable/launcher_icon" android:banner="@drawable/launcher_banner" android:allowBackup="false" android:enableOnBackInvokedCallback="true" android:supportsRtl="true">
+        <provider android:name=".UpdateFileProvider" android:authorities="${applicationId}.updates" android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/update_paths" />
+        </provider>
         <activity android:name=".AboutActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".WeatherSettingsActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".DockEditorActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".HomeSortActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".DesktopSettingsActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".HomeGuardActivity" android:exported="false" android:enabled="${homeGuardAvailable}" android:screenOrientation="landscape" />
+        <activity android:name=".HomeProxyEntryActivity" android:exported="true" android:enabled="${homeGuardAvailable}"
+            android:launchMode="singleTask" android:taskAffinity="${applicationId}.proxyEntry"
+            android:permission="${applicationId}.permission.HOME_PROXY" android:noHistory="true"
+            android:excludeFromRecents="true" android:theme="@android:style/Theme.NoDisplay" />
+        <!-- No firmware is opted in by default. Only a verified profile may enable this entry. -->
+        <activity android:name=".VendorBootActivity" android:enabled="false" android:exported="true"
+            android:noHistory="true" android:excludeFromRecents="true" android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="com.skyworth.noriceguide.show" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
         <service android:name=".HomeGuardService" android:exported="true" android:directBootAware="true" android:enabled="${homeGuardAvailable}"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" android:label="@string/home_guard_name">
             <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
@@ -69,11 +89,6 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.HOME" />
-                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

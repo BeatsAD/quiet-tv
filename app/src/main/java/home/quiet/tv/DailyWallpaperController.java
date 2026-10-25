@@ -35,7 +35,7 @@ final class DailyWallpaperController {
     private boolean active,busy;
     private String pendingSource,message="",messageSource="";
 
-    DailyWallpaperController(Context context,WallpaperStore store,boolean chinese,Runnable changed){this.context=context.getApplicationContext();this.store=store;this.chinese=chinese;this.changed=changed;client=new DailyWallpaperClient();}
+    DailyWallpaperController(Context context,WallpaperStore store,boolean chinese,Runnable changed){this.context=context.getApplicationContext();this.store=store;this.chinese=chinese;this.changed=changed;client=new DailyWallpaperClient(this.context);}
     private String tr(String zh,String en){return chinese?zh:en;}
     static String today(){return new SimpleDateFormat("yyyy-MM-dd",Locale.US).format(new Date());}
     boolean busy(){return busy;}

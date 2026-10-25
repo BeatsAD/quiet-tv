@@ -45,7 +45,7 @@ public final class DesktopSettingsActivity extends ManagementUi implements Share
         ((TextView)header.getChildAt(1)).setText(tr("桌面设置","Desktop Settings"));
         LinearLayout navigation=row();LinearLayout.LayoutParams np=new LinearLayout.LayoutParams(-1,px(44));np.topMargin=px(22);root.addView(navigation,np);
         tab(navigation,"desktop",tr("桌面显示","Desktop"));tab(navigation,"weather",tr("天气设置","Weather"));
-        if(!BuildConfig.LEGACY_19)tab(navigation,"guard",tr("桌面守护","Guard"));
+        if(!BuildConfig.LEGACY_19)tab(navigation,"guard",tr("桌面配置","Home setup"));
         View line=new View(this);line.setBackgroundColor(0x18ffffff);root.addView(line,new LinearLayout.LayoutParams(-1,px(1)));
         content=new FrameLayout(this);LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,0,1);cp.topMargin=px(18);root.addView(content,cp);
         makeDesktop();

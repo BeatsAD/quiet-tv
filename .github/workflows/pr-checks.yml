@@ -44,6 +44,8 @@ jobs:
             base=HEAD^
           fi
           python3 scripts/check_contribution.py --base "$base"
+      - name: Verify signed update feed
+        run: python3 scripts/build_update_manifest.py --verify updates/updates.json
       - name: Validate firmware policy profiles
         if: steps.scope.outputs.android == 'true'
         run: python3 scripts/validate_profiles.py
@@ -62,6 +64,9 @@ jobs:
       - name: Build and lint Android 4.4 compatibility source
         if: steps.scope.outputs.android == 'true'
         run: ./gradlew :app:assembleDebug :app:lintDebug -PquietCompatibility=legacy19 -PquietBuildRoot="$PWD/output/ci-legacy19" --console=plain
+      - name: Build and lint optional HOME proxy and relay launcher
+        if: steps.scope.outputs.android == 'true'
+        run: ./gradlew :app:assembleDebug :app:lintDebug :home-proxy:assembleDebug :home-proxy:lintDebug -PquietHomeProxy=true -PquietHomeMode=relay -PquietBuildRoot="$PWD/output/ci-home-proxy" --console=plain
       - name: Build and lint optional Xiaomi helper
         if: steps.scope.outputs.android == 'true'
         run: ./gradlew :xiaomi-home-helper:assembleDebug :xiaomi-home-helper:lintDebug -PquietXiaomiHelper=true --console=plain

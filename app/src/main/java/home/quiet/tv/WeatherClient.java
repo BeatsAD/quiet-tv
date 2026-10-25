@@ -15,6 +15,9 @@ final class WeatherClient {
     interface Transport { JSONObject get(String base,String path,String key)throws IOException,JSONException; }
     private static volatile long uapiUntil,qweatherUntil;
     private volatile HttpsURLConnection connection;
+    private android.content.res.AssetManager assets;
+    private SSLSocketFactory legacyTls;
+    private boolean tlsLogged;
     private final WeatherRegions regions;
     private final WeatherConfiguration configuration;
     private final Transport transport;
@@ -24,6 +27,7 @@ final class WeatherClient {
     }
     WeatherClient(Context context){
         this(WeatherRegions.load(context),WeatherConfiguration.load(context),null);
+        assets=context.getAssets();
         try{
             android.content.pm.PackageInfo info=context.getPackageManager().getPackageInfo(context.getPackageName(),android.content.pm.PackageManager.GET_SIGNATURES);
             if(info.signatures!=null&&info.signatures.length>0){
@@ -90,13 +94,28 @@ final class WeatherClient {
     private JSONObject get(boolean qweather,String path)throws IOException,JSONException{
         checkInterrupted();long remaining=(qweather?qweatherUntil:uapiUntil)-System.nanoTime()/1000000L;
         if(remaining>0)throw new ApiException(429,remaining);
+        String provider=qweather?"qweather":"uapi";
+        String stage=path.startsWith("/geo/")?"city_lookup":path.startsWith("/misc/district")?"region_lookup":"weather_current";
         try{return transport.get(qweather?"https://"+configuration.host:"https://uapis.cn/api/v1",path,qweather?configuration.key:"");}
-        catch(ApiException e){if(e.status==429){long until=System.nanoTime()/1000000L+Math.max(WeatherData.REFRESH_MS,e.retryAfterMs);if(qweather)qweatherUntil=until;else uapiUntil=until;}throw e;}
+        catch(IOException|JSONException e){
+            DiagnosticLog.info("weather.request.failed","provider="+provider+" stage="+stage+" "+NetworkDiagnostics.failureDetails(e)
+                +(e instanceof ApiException?" http="+((ApiException)e).status:""));
+            if(e instanceof ApiException){ApiException api=(ApiException)e;if(api.status==429){long until=System.nanoTime()/1000000L+Math.max(WeatherData.REFRESH_MS,api.retryAfterMs);if(qweather)qweatherUntil=until;else uapiUntil=until;}}
+            throw e;
+        }
     }
     private JSONObject request(String base,String path,String key)throws IOException,JSONException{
         HttpsURLConnection request=(HttpsURLConnection)new URL(base+path).openConnection();connection=request;
+        String stage="tls_setup";int status=0;
         try{
-            if(Build.VERSION.SDK_INT<21)request.setSSLSocketFactory(new Tls12SocketFactory());
+            if(Build.VERSION.SDK_INT<=25){
+                if(legacyTls==null)try(InputStream root=assets.open("certificates/isrg-root-x1.pem")){
+                    SSLSocketFactory factory=WeatherTls.socketFactory(root);
+                    legacyTls=Build.VERSION.SDK_INT<21?new Tls12SocketFactory(factory):factory;
+                }
+                request.setSSLSocketFactory(legacyTls);
+            }
+            if(!tlsLogged){DiagnosticLog.networkTls("weather.tls",request.getSSLSocketFactory());tlsLogged=true;}
             request.setConnectTimeout(8000);request.setReadTimeout(10000);request.setInstanceFollowRedirects(false);
             request.setRequestProperty("Accept","application/json");request.setRequestProperty("Accept-Encoding","gzip");request.setRequestProperty("User-Agent","QuietTV/"+BuildConfig.VERSION_NAME);
             if(!key.isEmpty()){
@@ -104,13 +123,18 @@ final class WeatherClient {
                 request.setRequestProperty("X-Android-Package-Name",BuildConfig.APPLICATION_ID);
                 if(!certificate.isEmpty())request.setRequestProperty("X-Android-Cert",certificate);
             }
-            int status=request.getResponseCode();
+            stage="connect";status=request.getResponseCode();stage="response";
             if(status!=200){
                 long retry=0;try{retry=Math.min(86400,Math.max(0,Long.parseLong(request.getHeaderField("Retry-After"))))*1000L;}catch(NumberFormatException ignored){}
                 if(retry==0)retry=Math.min(86400000,Math.max(0,request.getHeaderFieldDate("Retry-After",0)-System.currentTimeMillis()));
                 throw new ApiException(status,retry);
             }
+            stage="read";
             try(InputStream raw=request.getInputStream();InputStream input="gzip".equalsIgnoreCase(request.getContentEncoding())?new GZIPInputStream(raw):raw){return readJson(input);}
+        }catch(IOException|JSONException e){
+            DiagnosticLog.info("weather.transport.failed","provider="+(key.isEmpty()?"uapi":"qweather")+" stage="+(e instanceof JSONException?"parse":stage)
+                +" "+NetworkDiagnostics.failureDetails(e)+(status>0?" http="+status:""));
+            throw e;
         }finally{request.disconnect();if(connection==request)connection=null;}
     }
     static JSONObject readJson(InputStream input)throws IOException,JSONException{

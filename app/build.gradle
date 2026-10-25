@@ -2,6 +2,9 @@ plugins { id 'com.android.application' }
 def compatibility = providers.gradleProperty('quietCompatibility').getOrElse('standard')
 if (!(compatibility in ['standard', 'legacy19'])) throw new GradleException('Unsupported quietCompatibility')
 def legacy = compatibility == 'legacy19'
+def homeMode = providers.gradleProperty('quietHomeMode').getOrElse('standard')
+if (!(homeMode in ['standard', 'relay'])) throw new GradleException('Unsupported quietHomeMode')
+if (legacy && homeMode != 'standard') throw new GradleException('Android 4.4 does not support the relay package')
 def launcherId = providers.gradleProperty('quietApplicationId').getOrElse('home.quiet.tv')
 if (!(launcherId in ['home.quiet.tv', 'com.coocaa.quiettv'])) throw new GradleException('Unsupported quietApplicationId')
 def minimumSdk = providers.gradleProperty('quietMinSdk').getOrElse(legacy ? '19' : '21').toInteger()
@@ -16,9 +19,12 @@ android {
         if (legacy) multiDexEnabled true
         manifestPlaceholders = [leanbackRequired: !legacy, homeGuardAvailable: !legacy]
         buildConfigField 'boolean', 'LEGACY_19', legacy.toString()
+        buildConfigField 'boolean', 'DECLARES_HOME', (homeMode == 'standard').toString()
+        buildConfigField 'String', 'UPDATE_COMPATIBILITY', '"' + compatibility + '"'
+        buildConfigField 'String', 'UPDATE_ABI', '"' + providers.gradleProperty('quietAbi').getOrElse('universal') + '"'
         targetSdk 36
-        versionCode providers.gradleProperty('quietBuildNumber').getOrElse('51').toInteger()
-        versionName '1.2.1'
+        versionCode providers.gradleProperty('quietBuildNumber').getOrElse('63').toInteger()
+        versionName '1.2.4'
     }
     buildFeatures { buildConfig true }
     // Keep historical source media and superseded generated QR PNGs out of APK assets.
@@ -28,13 +34,15 @@ android {
             'wechat.png', 'qq-group.png'])
     }
     sourceSets.main.java.srcDir(legacy ? 'src/legacy19/java' : 'src/standard/java')
+    sourceSets.main.java.srcDir('../home-proxy/src/contract/java')
     // Former clones may retain these local-only files; never compile the retired recorder.
     sourceSets.main.java.exclude 'home/quiet/tv/DiagnosticText.java', 'home/quiet/tv/DiagnosticsActivity.java',
         'home/quiet/tv/DiagnosticsDownloadServer.java', 'home/quiet/tv/DiagnosticsRecorder.java',
         'home/quiet/tv/DiagnosticsSnapshot.java'
     buildTypes {
-        debug { debuggable true }
+        debug { debuggable true; buildConfigField 'String', 'UPDATE_CHANNEL', launcherId == 'com.coocaa.quiettv' ? '"experimental"' : '"test"' }
         benchmark {
+            buildConfigField 'String', 'UPDATE_CHANNEL', launcherId == 'com.coocaa.quiettv' ? '"experimental"' : '"test"'
             debuggable false
             minifyEnabled true
             shrinkResources true
@@ -44,12 +52,15 @@ android {
         }
         // Formal releases require an explicitly configured persistent signing key.
         release {
+            buildConfigField 'String', 'UPDATE_CHANNEL', '"stable"'
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
-    if (legacy) ['debug', 'benchmark', 'release'].each { name -> sourceSets.getByName(name).manifest.srcFile('src/legacy19/AndroidManifest.xml') }
+    ['debug', 'benchmark', 'release'].each { name ->
+        sourceSets.getByName(name).manifest.srcFile(legacy ? 'src/legacy19/AndroidManifest.xml' : homeMode == 'standard' ? 'src/home/AndroidManifest.xml' : 'src/relay/AndroidManifest.xml')
+    }
     def selectedAbi = providers.gradleProperty('quietAbi').getOrElse('universal')
     if (selectedAbi != 'universal') {
         if (!(selectedAbi in ['arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64'])) throw new GradleException('Unsupported quietAbi')
@@ -70,6 +81,7 @@ dependencies {
         if (legacy) exclude group: 'com.github.MuntashirAkon.spake2-java', module: 'spake2-android'
     }
     if (!legacy) implementation 'org.conscrypt:conscrypt-android:2.7.0'
+    if (legacy) implementation 'org.bouncycastle:bctls-jdk15to18:1.86'
     implementation 'org.bouncycastle:bcpkix-jdk15to18:1.86'
 }
 
@@ -114,6 +126,6 @@ tasks.named('preBuild').configure { dependsOn 'bundleWeatherConfiguration' }
 // Otherwise a previously packaged Manifest can survive a standard/legacy19 switch.
 tasks.configureEach {
     if (name in ['packageDebug', 'packageBenchmark', 'packageRelease']) {
-        inputs.property('quietPackageProfile', "${compatibility}:${minimumSdk}:${launcherId}")
+        inputs.property('quietPackageProfile', "${compatibility}:${minimumSdk}:${launcherId}:${homeMode}")
     }
 }

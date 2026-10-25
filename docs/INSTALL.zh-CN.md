@@ -39,7 +39,7 @@ sdk.dir=/absolute/path/to/your/android-sdk
 python3 scripts/build_apk.py --build-number "$STANDARD_BUILD_NUMBER" --summary "说明本次构建的修改"
 ```
 
-本批已发布标准版归档为 `dist/apk/QuietTV_1.1.2-34_安卓5及以上_测试版.apk`；新构建按实际构建号生成文件，同时输出 `.apk.sha256` 和 `.json`。每个新交付包使用更高且未占用的 `--build-number`，文件名中的构建号与实际 APK 的 versionCode 一致；历史归档保留原样。可选 `--variant benchmark --abi armeabi-v7a` 及 `--min-sdk 21`（默认）/ `23` / `26` / `31`；实际单架构包自动增加架构标记，详见[版本规则](VERSIONING.md)。这些命令不会安装或修改电视。
+本批已发布标准版归档为 `dist/apk/QuietTV_1.1.2-34_安卓5及以上_测试版.apk`；新构建按实际构建号生成本地归档，同时输出 `.apk.sha256` 和 `.json`。每个新交付包使用更高且未占用的 `--build-number`，本地归档名中的构建号与 APK 内部 versionCode 一致；公开下载名省略构建号，由 JSON 的 `public_apk` 记录，不额外生成副本。新名称使用 `安卓5+` 等简短系统标签，按实际内容标明 `ARM32`、`ARM64` 或 `通用`，无原生库时省略架构，状态使用 `测试`。历史归档保留原样。可选 `--variant benchmark --abi armeabi-v7a` 及 `--min-sdk 21`（默认）/ `23` / `26` / `31`，详见[版本规则](VERSIONING.md)。这些命令不会安装或修改电视。
 
 ## Android 4.4 / API19
 
