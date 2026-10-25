@@ -1,4 +1,5 @@
 <resources>
+    <string name="home_guard_account_name">Quiet TV 桌面守护</string>
     <string name="home_guard_name">桌面守护（实验）</string>
     <string name="home_guard_revival_name">桌面守护自动恢复</string>
     <string name="home_guard_description">识别原主页并自动返回 Quiet TV，不读取屏幕内容。完成配置后自动运行，可在 Quiet TV 中暂停。</string>

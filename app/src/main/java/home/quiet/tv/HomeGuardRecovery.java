@@ -14,6 +14,8 @@ final class HomeGuardRecovery {
     private static Runnable check,readd,confirmation;
     private static boolean recovering;
     private static boolean accessibilityRestarted;
+    private static boolean revivalNoted,restoredInStandby;
+    private static long restoredAt=-1;
     private static long requestedAt;
     private static String requestedHome="";
     private static DiagnosticOperation handoverDiagnostic;
@@ -64,6 +66,8 @@ final class HomeGuardRecovery {
         if(Looper.myLooper()!=Looper.getMainLooper()){handler.post(HomeGuardRecovery::cancel);return;}
         finishDiagnostic(handoverDiagnostic,"CANCELLED","pending_recovery_cancelled");
         pendingVisibilityEvidence=false;
+        restoredInStandby=false;
+        restoredAt=-1;
         if(check!=null)handler.removeCallbacks(check);if(readd!=null)handler.removeCallbacks(readd);if(confirmation!=null)handler.removeCallbacks(confirmation);
         check=null;readd=null;confirmation=null;recovering=false;requestedAt=0;requestedHome="";
     }
@@ -97,11 +101,14 @@ final class HomeGuardRecovery {
         handler.postDelayed(check,5000);Log.i(TAG,"recovery requested: "+reason);
     }
     private static void restoreEntry(Context c){
+        boolean missing=!new HomeGuardState(c).serviceEnabled();
         String current=Settings.Secure.getString(c.getContentResolver(),Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
         String desired=HomeGuardPolicy.services(current,guard(c),true);
         if(!desired.equals(current) && !Settings.Secure.putString(c.getContentResolver(),Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,desired))throw new IllegalStateException();
         if(!Settings.Secure.putInt(c.getContentResolver(),Settings.Secure.ACCESSIBILITY_ENABLED,1))throw new IllegalStateException();
+        if(missing)recovered(c);
     }
+    static void recovered(Context c){restoredAt=SystemClock.elapsedRealtime();if(!HomeGuardState.interactive(c))restoredInStandby=true;}
     // Aerial's Android 6 Xiaomi recovery: a bound but silent service needs the global switch.
     // Restore it even if the guard is paused meanwhile, so other accessibility services recover.
     static boolean restartSilentAccessibility(Context c){
@@ -120,7 +127,10 @@ final class HomeGuardRecovery {
         }catch(SecurityException|IllegalStateException failure){DiagnosticLog.error("home_guard.accessibility_restart.failed",failure);return false;}
     }
     static void noteRevival(Context c){
-        HomeGuardState state=new HomeGuardState(c);if(!state.enabled() || !HomeGuardState.interactive(c))return;
+        HomeGuardState state=new HomeGuardState(c);if(!state.enabled())return;
+        long updated=0;try{updated=c.getPackageManager().getPackageInfo(c.getPackageName(),0).lastUpdateTime;}catch(PackageManager.NameNotFoundException ignored){}
+        if(!HomeGuardPolicy.countRevival(HomeGuardState.interactive(c),SystemClock.elapsedRealtime(),revivalNoted,System.currentTimeMillis()-updated))return;
+        revivalNoted=true;
         // Android 5/6 has no boot_count. A wall-clock event before this boot cannot suppress it.
         long now=System.currentTimeMillis(),start=state.preferences.getLong("revivalWallStart",-1);
         boolean same=start>=now-SystemClock.elapsedRealtime() && start<=now;
@@ -130,9 +140,9 @@ final class HomeGuardRecovery {
     static boolean unknownAllowed(Context c){
         HomeGuardState state=new HomeGuardState(c);long now=System.currentTimeMillis(),uptime=SystemClock.elapsedRealtime();
         long start=state.preferences.getLong("revivalWallStart",-1);boolean same=start>=now-uptime && start<=now;
-        if(same && now-start<600000 && state.preferences.getInt("revivalCount",0)>=3)return false;
+        if(!restoredInStandby && same && now-start<600000 && state.preferences.getInt("revivalCount",0)>=3)return false;
         if(uptime<HomeGuardPolicy.BOOT_WINDOW_MS)return true;
-        return state.preferences.getBoolean("homeInFront",false) && same && state.preferences.getInt("revivalCount",0)>0 && now-start<60000;
+        return state.preferences.getBoolean("homeInFront",false) && (restoredInStandby || restoredAt>=0 && uptime>=restoredAt && uptime-restoredAt<60000 || same && state.preferences.getInt("revivalCount",0)>0 && now-start<60000);
     }
     static void launch(Context c,String reason){
         HomeGuardState state=new HomeGuardState(c);DiagnosticOperation trace=diagnostic(reason,state);
@@ -156,6 +166,8 @@ final class HomeGuardRecovery {
         catch(ActivityNotFoundException|SecurityException failure){finishDiagnostic(trace,"FAILED",failure.getClass().getSimpleName());pendingVisibilityEvidence=false;handler.removeCallbacks(confirmation);confirmation=null;requestedAt=0;requestedHome="";state.status("系统拒绝启动桌面");}
     }
     static void visible(Context c){
+        restoredInStandby=false;
+        restoredAt=-1;
         HomeGuardState state=new HomeGuardState(c);if(!state.automatic())return;
         state.preferences.edit().putBoolean("homeInFront",true).apply();
         HomeGuardService.homeVisible();
@@ -176,6 +188,7 @@ final class HomeGuardRecovery {
         HomeGuardState state=new HomeGuardState(c);
         if(!state.ready())throw new java.io.IOException(state.enableProblem());
         if(!writeAllowed(c))throw new java.io.IOException("写安全设置权限未授予");
+        HomeGuardSync.ensure(c);HomeGuardAdb.watch(c);
         if(Build.VERSION.SDK_INT<27 && notificationSupported(c) && !notificationAllowed(c)){
             String current=Settings.Secure.getString(c.getContentResolver(),"enabled_notification_listeners");
             String desired=HomeGuardPolicy.services(current,listener(c),true);
@@ -189,7 +202,8 @@ final class HomeGuardRecovery {
         if(!new HomeGuardState(c).serviceEnabled())return "无障碍权限未开启";
         if(HomeGuardService.usageRequired() && !HomeGuardService.usageAllowed(c))return "旧系统兼容检测未授权";
         if(Build.VERSION.SDK_INT>=23 && !Settings.canDrawOverlays(c))return "后台启动权限未确认";
-        if(notificationSupported(c) && !notificationAllowed(c))return "通知访问未授予";
+        if(notificationSupported(c) && !notificationAllowed(c) && !HomeGuardSync.ready(c))return "通知访问未授予";
+        if(!notificationSupported(c) && HomeGuardSync.supported(c) && !HomeGuardSync.ready(c))return "同步恢复："+HomeGuardSync.summary(c);
         return "";
     }
     /** Called only from the foreground setup's already-authorized local ADB worker. */
@@ -202,7 +216,7 @@ final class HomeGuardRecovery {
         task.check();adb.validateUser();if(!new HomeGuardState(c).ready())throw new java.io.IOException("守护已暂停或配置已改变");
         // These grants are independent: unsupported notification commands do not undo accessibility.
         String note="";
-        if(!notificationSupported(c))note="此设备不支持通知恢复";
+        if(!notificationSupported(c) && !HomeGuardSync.supported(c))note="此设备不支持通知恢复";
         else if(Build.VERSION.SDK_INT>=27 && !notificationAllowed(c)){
             String help="";try{help=adb.shell("cmd notification help 2>&1 || true");}catch(java.io.IOException unsupported){note="此系统需手动授权通知访问";}
             if(help.contains("allow_listener") && help.contains("user_id")){
@@ -230,6 +244,7 @@ final class HomeGuardRecovery {
         }
         task.check();if(!new HomeGuardState(c).ready())throw new java.io.IOException("守护已暂停或配置已改变");
         configureGranted(c);
+        if(HomeGuardSync.ready(c) && ("此系统需手动授权通知访问".equals(note) || "通知访问未授予".equals(note)))note="";
         if(note.isEmpty())note=configurationProblem(c);
         if(!note.isEmpty())throw new java.io.IOException(note+"；已完成的授权保留");
     }

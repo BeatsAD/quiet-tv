@@ -146,6 +146,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     @Override protected void onServiceConnected(){
         super.onServiceConnected();DiagnosticLog.info("home_guard.service","connected");instance=this;state=new HomeGuardState(this);
         BootAppLifecycle.observe(this);
+        HomeGuardAdb.watch(this);
         state.preferences.registerOnSharedPreferenceChangeListener(this);
         if(!registered){IntentFilter filter=new IntentFilter(Intent.ACTION_SCREEN_OFF);filter.addAction(Intent.ACTION_SCREEN_ON);filter.addAction(Intent.ACTION_USER_PRESENT);filter.addAction(Intent.ACTION_CLOSE_SYSTEM_DIALOGS);
             if(Build.VERSION.SDK_INT>=24)filter.addAction(Intent.ACTION_USER_UNLOCKED);androidx.core.content.ContextCompat.registerReceiver(this,lifecycle,filter,androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);

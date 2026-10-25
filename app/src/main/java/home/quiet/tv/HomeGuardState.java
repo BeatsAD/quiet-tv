@@ -65,7 +65,7 @@ final class HomeGuardState {
     }
     // Persist disabled mode before canceling scheduled recovery.
     @android.annotation.SuppressLint("ApplySharedPref")
-    void pause(String reason){DiagnosticLog.info("home_guard.pause",reason);preferences.edit().putString("mode","OFF").putBoolean("enabled",false).putString("status",reason).commit();HomeGuardRecovery.cancel();HomeGuardService.cancelPending();DesktopRoutes.disableVendor(context);if(!new HomeProxy(context).pause())status(reason+"；代理暂停回执待确认，主程序启动入口已关闭");}
+    void pause(String reason){DiagnosticLog.info("home_guard.pause",reason);preferences.edit().putString("mode","OFF").putBoolean("enabled",false).putString("status",reason).commit();HomeGuardSync.refresh(context);HomeGuardRecovery.cancel();HomeGuardService.cancelPending();DesktopRoutes.disableVendor(context);if(!new HomeProxy(context).pause())status(reason+"；代理暂停回执待确认，主程序启动入口已关闭");}
     // Persist the selected HOME and firmware before subsequent recovery requests.
     @android.annotation.SuppressLint("ApplySharedPref")
     void select(ComponentName name){if(!name.flattenToString().equals(selected()))new HomeProxy(context).pause();HomeGuardRecovery.cancel();HomeGuardService.cancelPending();preferences.edit().putBoolean("configured",true).putString("home",name.flattenToString()).putString("firmware",Build.FINGERPRINT).commit();new DesktopRoutes(context).reconcileVendor();}
@@ -124,7 +124,7 @@ final class HomeGuardState {
     }
     // Persist enabled mode before requesting recovery.
     @android.annotation.SuppressLint("ApplySharedPref")
-    String enable(){if(new DesktopRoutes(context).proxySelected() && !new HomeProxy(context).pause())return "代理暂停回执待确认，请先恢复原桌面";preferences.edit().putString("mode","AUTO").putBoolean("configured",true).commit();configure();new DesktopRoutes(context).observe();HomeGuardRecovery.request(context,"用户启用");return enableProblem();}
+    String enable(){if(new DesktopRoutes(context).proxySelected() && !new HomeProxy(context).pause())return "代理暂停回执待确认，请先恢复原桌面";preferences.edit().putString("mode","AUTO").putBoolean("configured",true).commit();configure();new DesktopRoutes(context).observe();HomeGuardSync.refresh(context);HomeGuardAdb.ensure(context);HomeGuardRecovery.request(context,"用户启用");return enableProblem();}
     // A boot-only entry does not establish that pressing HOME can be redirected.
     boolean compatibleReady(){return new HomeProxy(context).ready() || ready() && serviceEnabled() && HomeGuardService.connected();}
     String summary(){

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<account-authenticator xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accountType="@string/home_guard_account_type"
+    android:icon="@drawable/launcher_icon" android:smallIcon="@drawable/launcher_icon"
+    android:label="@string/home_guard_account_name" />

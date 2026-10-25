@@ -20,6 +20,7 @@ final class HomeGuardPolicy {
     }
     static boolean xiaomiRecovery(String manufacturer,String brand,int sdk,boolean legacy){return supported(manufacturer,brand,sdk,legacy) && xiaomi(manufacturer,brand);}
     static boolean usageFallback(int sdk,boolean legacy){return !legacy && sdk>=21 && sdk<=23;}
+    static boolean countRevival(boolean interactive,long uptime,boolean alreadyNoted,long sinceUpdate){return interactive && uptime>=120000 && !alreadyNoted && (sinceUpdate<0 || sinceUpdate>=120000);}
     static boolean vendorHome(String category){
         return "android.intent.category.HOME.CC".equals(category)
             || "android.intent.category.HOME.CC_MAIN".equals(category)

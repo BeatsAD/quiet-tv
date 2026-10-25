@@ -15,6 +15,7 @@ android {
     compileSdk 36
     defaultConfig {
         applicationId launcherId
+        resValue 'string', 'home_guard_account_type', launcherId + '.guard'
         minSdk minimumSdk
         if (legacy) multiDexEnabled true
         manifestPlaceholders = [leanbackRequired: !legacy, homeGuardAvailable: !legacy]

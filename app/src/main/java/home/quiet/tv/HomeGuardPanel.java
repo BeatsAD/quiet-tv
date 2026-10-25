@@ -13,7 +13,7 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
     private final ManagementUi ui;
     final ScrollView view;
     private HomeGuardState state;
-    private DesktopSettingsRow routeRow,homeRow,accessibilityRow,notificationRow,bridgeRow,guardRow;
+    private DesktopSettingsRow routeRow,homeRow,accessibilityRow,notificationRow,syncRow,keepAdbRow,bridgeRow,guardRow;
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private AdbController adb;
     private AdbConnectionPanel connection;
@@ -40,6 +40,8 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
         homeRow=setting("原桌面","desktop","guard-home");homeRow.tail("arrow");homeRow.setOnClickListener(v->showHomes());addSetting(group,homeRow);
         accessibilityRow=setting("无障碍权限","tools","guard-accessibility");accessibilityRow.tail("arrow");accessibilityRow.setOnClickListener(v->openAccessibility());addSetting(group,accessibilityRow);
         notificationRow=setting("通知恢复","tools","guard-notification");notificationRow.tail("arrow");notificationRow.setOnClickListener(v->openNotification());addSetting(group,notificationRow);
+        syncRow=setting("同步恢复","tools","guard-sync");syncRow.tail("arrow");syncRow.setOnClickListener(v->showSync());addSetting(group,syncRow);
+        keepAdbRow=setting("保持 ADB 调试","tools","guard-keep-adb");keepAdbRow.checked(false);keepAdbRow.setOnClickListener(v->toggleKeepAdb());addSetting(group,keepAdbRow);
         bridgeRow=setting("开机跳板","tools","vendor-boot");bridgeRow.checked(false);bridgeRow.setOnClickListener(v->toggleVendor());addSetting(group,bridgeRow);
         guardRow=setting("自动中转","shield","guard-enabled");guardRow.checked(false);guardRow.setOnClickListener(v->toggleGuard());addSetting(group,guardRow);
         LinearLayout actions=headerActions?ui.header:heading;
@@ -77,8 +79,12 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
         accessibilityRow.value(authorized?"已开启":"未开启");accessibilityRow.description(authorized?xiaomiLegacy?"识别异常时会短暂重启无障碍，其他无障碍服务也会短暂中断。":"已获得识别原桌面所需的权限。":"在系统设置中开启后，请返回此页。");accessibilityRow.setEnabled(supported);
         boolean notification=HomeGuardRecovery.notificationAllowed(ui);
         notificationRow.value(!HomeGuardRecovery.notificationSupported(ui)?"此设备不可用":!notification?"未授权":HomeGuardRevivalListener.connected()?"已连接":"等待绑定");
-        notificationRow.description("用于系统清理后的恢复，不读取通知内容。");notificationRow.setEnabled(supported);
+        notificationRow.description("用于系统清理后的恢复，不读取通知内容。");notificationRow.setEnabled(supported && HomeGuardRecovery.notificationSupported(ui));
         accessibilityRow.setVisibility(state.enabled()?View.VISIBLE:View.GONE);notificationRow.setVisibility(state.enabled()?View.VISIBLE:View.GONE);
+        syncRow.setVisibility(state.enabled() && HomeGuardSync.supported(ui)?View.VISIBLE:View.GONE);syncRow.value(HomeGuardSync.summary(ui));
+        syncRow.description("本地账号用于系统唤醒，不同步数据。");
+        keepAdbRow.setVisibility(HomeGuardSync.supported(ui)?View.VISIBLE:View.GONE);keepAdbRow.checked(HomeGuardAdb.enabled(ui));keepAdbRow.setEnabled(state.enabled());
+        keepAdbRow.description(HomeGuardRecovery.writeAllowed(ui)?"开启后尝试恢复被系统关闭的调试，暂停中转时停止恢复。":"需先配置自动恢复，授予写安全设置权限。");
         bridgeRow.checked(routes.vendorReady());bridgeRow.description(routes.vendorReady()?"已配置，重启和断电开机待验证":routes.vendorProblem());bridgeRow.setEnabled(supported);
         String problem=state.enableProblem(),summary=state.summary();
         guardRow.checked(state.automatic());guardRow.description("OFF".equals(state.preferences.getString("mode","AUTO"))?"已暂停，中转入口不会自动恢复":!state.automatic()?"尚未配置，请先选择启动方式":state.enabled()?summary:routes.proxySelected()?new HomeProxy(ui).problem():"系统直接启动；中转按场景配置");
@@ -91,7 +97,7 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
     private View preferredFocus(){return routeRow;}
     private void wireFocus(){
         View previous=headerActions?more:back;
-        View[] rows=headerActions?new View[]{routeRow,homeRow,accessibilityRow,notificationRow,bridgeRow,guardRow}:new View[]{more,routeRow,homeRow,accessibilityRow,notificationRow,bridgeRow,guardRow};
+        View[] rows=headerActions?new View[]{routeRow,homeRow,accessibilityRow,notificationRow,syncRow,keepAdbRow,bridgeRow,guardRow}:new View[]{more,routeRow,homeRow,accessibilityRow,notificationRow,syncRow,keepAdbRow,bridgeRow,guardRow};
         for(View row:rows){
             if(!row.isEnabled() || row.getVisibility()!=View.VISIBLE)continue;
             previous.setNextFocusDownId(row.getId());row.setNextFocusUpId(previous.getId());row.setNextFocusLeftId(row.getId());row.setNextFocusRightId(row.getId());previous=row;
@@ -109,6 +115,19 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
     private void openNotification(){
         resumeFocus="guard-notification";
         if(!ExternalActivityLauncher.open(ui,"guard.notification",new Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))){resumeFocus=null;ui.message("通知访问设置暂时无法打开，可通过更多操作配置自动恢复。");}
+    }
+    private void showSync(){
+        ManagementUi.Sheet sheet=ui.new Sheet("同步恢复");
+        sheet.text(HomeGuardSync.summary(ui));sheet.text("系统账号中会出现“Quiet TV 桌面守护”，它不登录或传输数据。系统自动同步需保持开启；暂停中转会停止本账号的同步恢复，卸载后账号由系统移除。");
+        Button settings=sheet.option("系统同步设置",()->{sheet.dialog.dismiss();if(!ExternalActivityLauncher.open(ui,"guard.sync_settings",new Intent(Settings.ACTION_SYNC_SETTINGS)))ui.message("系统同步设置暂时无法打开。");});
+        sheet.action("返回",sheet.dialog::dismiss);showSheet(sheet,settings,syncRow);
+    }
+    private void toggleKeepAdb(){
+        if(HomeGuardAdb.enabled(ui)){if(!HomeGuardAdb.setEnabled(ui,false))ui.message("设置未保存，请重试。");refreshUi();return;}
+        if(!HomeGuardRecovery.writeAllowed(ui)){ui.message("请先通过更多操作配置自动恢复。");return;}
+        ManagementUi.Sheet sheet=ui.new Sheet("保持 ADB 调试");
+        sheet.text("开启后，Quiet TV 会尝试恢复被系统关闭的 ADB 调试。关闭此选项或暂停中转后停止恢复，不会自动关闭现有调试连接。");
+        Button enable=sheet.option("开启",()->{if(HomeGuardAdb.setEnabled(ui,true))sheet.dialog.dismiss();else ui.message("设置未保存，请重试。");});sheet.action("取消",sheet.dialog::dismiss);showSheet(sheet,enable,keepAdbRow);
     }
     private void configureRecovery(){
         if(configuring)return;
