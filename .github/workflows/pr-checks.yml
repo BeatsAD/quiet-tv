@@ -46,6 +46,13 @@ jobs:
           python3 scripts/check_contribution.py --base "$base"
       - name: Verify signed update feed
         run: python3 scripts/build_update_manifest.py --verify updates/updates.json
+      - name: Check installation site and latest release index
+        if: steps.scope.outputs.install == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          node --check prototypes/install-guide/app.js
+          python3 scripts/build_install_guide.py --output "$RUNNER_TEMP/quiet-tv-install-check"
       - name: Validate firmware policy profiles
         if: steps.scope.outputs.android == 'true'
         run: python3 scripts/validate_profiles.py

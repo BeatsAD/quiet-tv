@@ -56,7 +56,7 @@
 
 ### 2. 使用安装指令
 
-打开[安装指引](https://beatsad.github.io/quiet-tv/?v=d8ae60b)，选择电视品牌，复制生成的指令，交给电脑上的 AI 工具执行。
+打开[安装指引](https://beatsad.github.io/quiet-tv/)，选择电视品牌，复制生成的指令，交给电脑上的 AI 工具执行。页面会自动读取[最新版索引](https://beatsad.github.io/quiet-tv/latest.json)，无需填写版本号或随新版本修改指令。
 
 ### 3. 手动安装 APK
 

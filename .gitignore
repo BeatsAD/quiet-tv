@@ -143,6 +143,7 @@ __pycache__/
 
 # Signed public application-update input and its offline release tooling.
 !/scripts/build_update_manifest.py
+!/scripts/build_install_guide.py
 !/docs/UPDATES.md
 
 # Local HOME proxy verification fixtures.

@@ -51,12 +51,12 @@
           <div id="agent-panel" class="method-panel" role="tabpanel" aria-labelledby="method-agent">
             <p class="agent-description">复制后发给 Codex、Claude Code、豆包、WorkBuddy、TRAE 等电脑端 Agent。</p>
             <pre id="install-prompt" class="install-request" aria-label="安装请求" tabindex="0"></pre>
-            <button class="primary copy" data-copy="install"><svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="7" y="6" width="10" height="12" rx="2"/><path d="M12 6V4a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h2"/></svg><span>复制安装请求</span><span class="button-arrow" aria-hidden="true">↗</span></button>
+            <button class="primary copy" data-copy="install" disabled><svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="7" y="6" width="10" height="12" rx="2"/><path d="M12 6V4a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h2"/></svg><span>复制安装请求</span><span class="button-arrow" aria-hidden="true">↗</span></button>
           </div>
           <div id="manual-panel" class="method-panel" role="tabpanel" aria-labelledby="method-manual" hidden>
-            <div class="result-heading"><div><h2>按系统选择安装包</h2><p>下载 APK 与同名 SHA-256 校验文件</p></div></div>
+            <div class="result-heading"><div><h2>按系统选择安装包</h2><p>下载 APK 并核对 SHA-256</p></div></div>
             <div class="manual-content"><div class="download-row"><strong>安卓 4.4</strong><span>兼容档位</span></div><div class="download-row"><strong>安卓 5 及以上</strong><span>标准档位</span></div><p>覆盖安装前，核对包名、签名与构建号。首次打开可选择「暂不设置，临时使用」。</p><a class="guide-link" href="https://github.com/BeatsAD/quiet-tv/blob/main/docs/INSTALL.zh-CN.md" target="_blank" rel="noreferrer">逐步安装指南 <span aria-hidden="true">↗</span></a></div>
-            <a class="primary" href="https://github.com/BeatsAD/quiet-tv/releases" target="_blank" rel="noreferrer">查看安装包 <span class="button-arrow" aria-hidden="true">↗</span></a>
+            <a class="primary" id="release-link" href="https://github.com/BeatsAD/quiet-tv/releases" target="_blank" rel="noreferrer">查看安装包 <span class="button-arrow" aria-hidden="true">↗</span></a>
           </div>
           <div id="restore-panel" class="method-panel" role="tabpanel" aria-labelledby="method-restore" hidden>
             <div class="result-heading"><div><h2>回到原来的桌面</h2><p>也可使用「应用管理 → 更多」中的恢复入口。</p></div></div>

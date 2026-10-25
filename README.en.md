@@ -10,18 +10,15 @@ Keep favorite apps on the home screen, open them with a remote, choose inputs, p
 
 [Open the installation guide (Chinese)](https://beatsad.github.io/quiet-tv/) to choose your TV brand, copy an Agent installation request, or find manual installation and recovery instructions.
 
-[Download 1.1.2 test builds](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.2)  [Install](docs/INSTALL.en.md)  [Usage](docs/USAGE.en.md)  [Compatibility](docs/COMPATIBILITY.md)
+[Download the latest compatible build](https://beatsad.github.io/quiet-tv/)  [Install](docs/INSTALL.en.md)  [Usage](docs/USAGE.en.md)  [Compatibility](docs/COMPATIBILITY.md)
 
 ## Download
 
-| TV system | Version 1.1.2 APK | Checksum |
-| --- | --- | --- |
-| Android 4.4 | [Compatibility test build 35, about 4.67 MiB](https://github.com/BeatsAD/quiet-tv/releases/download/v1.1.2/QuietTV_1.1.2-35_Android4.4_Test.apk) | [SHA-256](https://github.com/BeatsAD/quiet-tv/releases/download/v1.1.2/QuietTV_1.1.2-35_Android4.4_Test.apk.sha256) |
-| Android 5.0 and later | [Standard test build 34, about 8.94 MiB](https://github.com/BeatsAD/quiet-tv/releases/download/v1.1.2/QuietTV_1.1.2-34_Android5plus_Test.apk) | [SHA-256](https://github.com/BeatsAD/quiet-tv/releases/download/v1.1.2/QuietTV_1.1.2-34_Android5plus_Test.apk.sha256) |
+The [installation page](https://beatsad.github.io/quiet-tv/), [Agent guide](https://beatsad.github.io/quiet-tv/agent.md), and [latest release index](https://beatsad.github.io/quiet-tv/latest.json) update automatically from published releases, including test builds. Users do not need to maintain a version number or edit the installation request for each release.
 
-**Choose by Android version, rather than the highest build number.** Both share the main features, application ID and historical test signer, and replace each other. Android 4.4 uses TCP ADB and system settings or the remote for inputs, without six-digit pairing. The standard APK includes ARM32, ARM64, x86 and x86_64; the compatibility APK has no native libraries.
+**Choose the latest build compatible with the TV's Android version, supported ABIs, package, signer and upgrade conditions.** Use an Android 4.4 compatibility APK for API19–20 or an applicable standard APK for API21+. Inspect the actual APK metadata; a larger build number or a 64-bit processor alone does not establish compatibility.
 
-GitHub downloads use English filenames with Chinese display labels; local Chinese archives are retained. Choose the `.apk.sha256` matching the downloaded APK. See [release notes and validation limits](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.2). Both are optimized test builds; no stable release is available. [Historical releases](https://github.com/BeatsAD/quiet-tv/releases) remain unchanged.
+Use the index's actual download URL and SHA-256, or a matching checksum attachment for historical builds. Read the selected release's validation limits. [Historical releases](https://github.com/BeatsAD/quiet-tv/releases) remain unchanged.
 
 ## Screenshots
 

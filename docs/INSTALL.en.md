@@ -4,7 +4,7 @@
 
 ## Requirements
 
-Current [1.1.2 test downloads](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.2) include standard build 34 for Android 5.0 / API21+ and legacy19 build 35 for Android 4.4 / API19; both target API36. Choose by system, not the largest build number. They share main features; standard includes four ABIs, while legacy has no native libraries, uses TCP ADB without six-digit pairing, and opens system settings for inputs. See [compatibility](COMPATIBILITY.md) for validation limits. Historical downloads keep their links.
+The [installation page](https://beatsad.github.io/quiet-tv/) and [latest release index](https://beatsad.github.io/quiet-tv/latest.json) automatically track published builds, including prereleases. Choose the latest APK compatible with the TV's system, supported ABIs and upgrade conditions. Android 4.4 / API19–20 needs the compatibility profile; API21+ needs an applicable standard build. Verify the actual APK metadata and read the [compatibility](COMPATIBILITY.md) limits. Historical downloads keep their links.
 
 Install Git, Python 3, JDK 17 or 21, Android SDK platform 36, build-tools 36.0.0 and platform-tools. Builds need no TV, device configuration, private tests or recovery records.
 
@@ -35,7 +35,7 @@ For immutable archives, configure `sdk.dir` in local.properties and run:
 python3 scripts/build_apk.py --build-number "$STANDARD_BUILD_NUMBER" --summary "Describe this build's changes"
 ```
 
-The published standard archive is `dist/apk/QuietTV_1.1.2-34_安卓5及以上_测试版.apk`; new builds use the requested number and also produce matching `.apk.sha256` and `.json` files. Choose a higher unused `--build-number` for every new delivery. Local archive names retain the actual APK versionCode; public names omit it and are recorded in `public_apk`, without creating additional copies. New names use short system labels such as `安卓5+`, explicit ARM32/ARM64 or `通用` architecture labels (omitted only for native-library-free APKs), and the `测试` status. Historical archives keep their original names. Options include `--variant benchmark --abi armeabi-v7a` and `--min-sdk 21` (default), `23`, `26` or `31`. See [versioning](VERSIONING.md). These commands never install to a TV.
+A historical 1.1.2 standard archive example is `dist/apk/QuietTV_1.1.2-34_安卓5及以上_测试版.apk`; new builds use the requested number and also produce matching `.apk.sha256` and `.json` files. Choose a higher unused `--build-number` for every new delivery. Local archive names retain the actual APK versionCode; public names omit it and are recorded in `public_apk`, without creating additional copies. New names use short system labels such as `安卓5+`, explicit ARM32/ARM64 or `通用` architecture labels (omitted only for native-library-free APKs), and the `测试` status. Historical archives keep their original names. Options include `--variant benchmark --abi armeabi-v7a` and `--min-sdk 21` (default), `23`, `26` or `31`. See [versioning](VERSIONING.md). These commands never install to a TV.
 
 ## Android 4.4 / API19
 
@@ -45,7 +45,7 @@ Build and archive the separate compatibility profile. First set `LEGACY_BUILD_NU
 python3 scripts/build_apk.py --build-number "$LEGACY_BUILD_NUMBER" --compatibility legacy19 --variant benchmark --summary "Android 4.4 compatibility candidate"
 ```
 
-The published legacy archive is `dist/apk/QuietTV_1.1.2-35_安卓4.4_测试版.apk`. The profile defaults to API19; lowering the standard profile's minimum alone is rejected. For build and Lint, run `./gradlew :app:assembleDebug :app:lintDebug -PquietCompatibility=legacy19 --console=plain`.
+A historical 1.1.2 legacy archive example is `dist/apk/QuietTV_1.1.2-35_安卓4.4_测试版.apk`. The profile defaults to API19; lowering the standard profile's minimum alone is rejected. For build and Lint, run `./gradlew :app:assembleDebug :app:lintDebug -PquietCompatibility=legacy19 --console=plain`.
 
 The legacy profile retains the launcher, Dock, wallpaper, app list, native About and offline licenses, with traditional TCP ADB only. Six-digit pairing is absent. Inputs open system settings with a prompt to use the remote input key; vendor-specific direct switching needs separate adaptation. The APK contains no native libraries. ARM32 runtime, real HOME, network changes and reboot/wake still require target hardware validation. Debug uses legacy MultiDex startup support.
 
@@ -53,20 +53,15 @@ Both profiles share the application ID and test key and replace each other. Pres
 
 ## Download and try
 
-Choose the APK and matching `.apk.sha256` from [1.1.2 Releases](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.2):
+Use the [installation page](https://beatsad.github.io/quiet-tv/) or [latest release index](https://beatsad.github.io/quiet-tv/latest.json) to choose the latest compatible APK, including test builds. Each asset provides its actual `url`, size in `bytes`, and `sha256`; do not reconstruct a filename or download URL from an older document.
 
-| System | Actual GitHub filename | Size |
-| --- | --- | --- |
-| Android 4.4 | `QuietTV_1.1.2-35_Android4.4_Test.apk` | 4,900,169 bytes, about 4.67 MiB |
-| Android 5+ | `QuietTV_1.1.2-34_Android5plus_Test.apk` | 9,370,356 bytes, about 8.94 MiB |
-
-English download filenames and Chinese display labels are a GitHub-specific exception; local Chinese archives remain unchanged. Use the checksum named after the actual English APK, rather than the retained original-Chinese-name record. Put both files together, for example:
+Calculate the downloaded file's SHA-256 and compare it with the selected asset. Set `APK_PATH` to the actual downloaded file:
 
 ```sh
-shasum -a 256 -c QuietTV_1.1.2-34_Android5plus_Test.apk.sha256
+shasum -a 256 "$APK_PATH"
 ```
 
-For Android 4.4 substitute `QuietTV_1.1.2-35_Android4.4_Test.apk.sha256`. Both share the historical b26/b30 test signer and replace each other. Switching profiles still requires compatible signatures, increasing build numbers, system support and data compatibility. [Historical releases](https://github.com/BeatsAD/quiet-tv/releases) remain unchanged.
+Historical releases may also provide a matching `.apk.sha256`. A missing standalone checksum file is not a reason to select an older version. Verify the actual package, signer, increasing versionCode, system and data compatibility before upgrading; do not uninstall or clear data to bypass a mismatch. [Historical releases](https://github.com/BeatsAD/quiet-tv/releases) remain unchanged.
 
 Enable supported debugging on your TV and authorize the computer. Replace the documentation-only address below. The example installs a locally built Debug APK; for a downloaded APK, substitute its actual file path:
 

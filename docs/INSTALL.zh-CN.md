@@ -8,7 +8,7 @@
 
 ## 环境
 
-当前版本为 [1.1.2 测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.2)：标准包为构建号 34，最低 Android 5.0 / API21；`legacy19` 兼容包为构建号 35，最低 Android 4.4 / API19，均为 targetSdk36。按系统选包，不按构建号大小选包。两档主要功能相同；标准包包含四种 CPU 架构，兼容包不含原生库，不提供六位码配对，信号源通过系统设置或遥控器进入。构建、下载与设备验收范围见[兼容说明](COMPATIBILITY.md)。历史包保留原链接。
+当前公开版本与下载地址由[最新版索引](https://beatsad.github.io/quiet-tv/latest.json)自动维护，包含测试版；可直接使用[安装页](https://beatsad.github.io/quiet-tv/)。安卓4.4／API19–20 使用适配兼容包，安卓5／API21 及以上按系统支持的 ABI 选择适配标准包；具体最低 API、包名和签名从实际 APK 核对。按系统与升级条件选最新适配包，不按构建号大小统一选包。构建、下载与设备验收范围见[兼容说明](COMPATIBILITY.md)。历史包保留原链接。
 
 需要 Git、Python 3、JDK 17 或 21、Android SDK platform 36、build-tools 36.0.0 和 platform-tools。构建无需设备配置、备份、私有测试目录或电视连接。
 
@@ -39,7 +39,7 @@ sdk.dir=/absolute/path/to/your/android-sdk
 python3 scripts/build_apk.py --build-number "$STANDARD_BUILD_NUMBER" --summary "说明本次构建的修改"
 ```
 
-本批已发布标准版归档为 `dist/apk/QuietTV_1.1.2-34_安卓5及以上_测试版.apk`；新构建按实际构建号生成本地归档，同时输出 `.apk.sha256` 和 `.json`。每个新交付包使用更高且未占用的 `--build-number`，本地归档名中的构建号与 APK 内部 versionCode 一致；公开下载名省略构建号，由 JSON 的 `public_apk` 记录，不额外生成副本。新名称使用 `安卓5+` 等简短系统标签，按实际内容标明 `ARM32`、`ARM64` 或 `通用`，无原生库时省略架构，状态使用 `测试`。历史归档保留原样。可选 `--variant benchmark --abi armeabi-v7a` 及 `--min-sdk 21`（默认）/ `23` / `26` / `31`，详见[版本规则](VERSIONING.md)。这些命令不会安装或修改电视。
+历史 1.1.2 标准版归档示例为 `dist/apk/QuietTV_1.1.2-34_安卓5及以上_测试版.apk`；新构建按实际构建号生成本地归档，同时输出 `.apk.sha256` 和 `.json`。每个新交付包使用更高且未占用的 `--build-number`，本地归档名中的构建号与 APK 内部 versionCode 一致；公开下载名省略构建号，由 JSON 的 `public_apk` 记录，不额外生成副本。新名称使用 `安卓5+` 等简短系统标签，按实际内容标明 `ARM32`、`ARM64` 或 `通用`，无原生库时省略架构，状态使用 `测试`。历史归档保留原样。可选 `--variant benchmark --abi armeabi-v7a` 及 `--min-sdk 21`（默认）/ `23` / `26` / `31`，详见[版本规则](VERSIONING.md)。这些命令不会安装或修改电视。
 
 ## Android 4.4 / API19
 
@@ -49,7 +49,7 @@ python3 scripts/build_apk.py --build-number "$STANDARD_BUILD_NUMBER" --summary "
 python3 scripts/build_apk.py --build-number "$LEGACY_BUILD_NUMBER" --compatibility legacy19 --variant benchmark --summary "Android 4.4 兼容测试版"
 ```
 
-本批已发布兼容包归档为 `dist/apk/QuietTV_1.1.2-35_安卓4.4_测试版.apk`。不另传 `--min-sdk` 时自动选择 API19；标准档不能用降低数字的方式生成 API19 包。直接构建与 Lint 可执行 `./gradlew :app:assembleDebug :app:lintDebug -PquietCompatibility=legacy19 --console=plain`。
+历史 1.1.2 兼容包归档示例为 `dist/apk/QuietTV_1.1.2-35_安卓4.4_测试版.apk`。不另传 `--min-sdk` 时自动选择 API19；标准档不能用降低数字的方式生成 API19 包。直接构建与 Lint 可执行 `./gradlew :app:assembleDebug :app:lintDebug -PquietCompatibility=legacy19 --console=plain`。
 
 兼容版保留核心桌面、Dock、壁纸、应用列表、关于与离线许可证，使用传统 TCP ADB；不提供六位码配对。信号源按钮打开系统设置并提示使用遥控器信号源键，厂商直切需单独适配。APK 不含原生库；ARM32 运行、真实 HOME、网络切换和重启唤醒仍需目标电视验证。Debug 采用旧版 MultiDex 启动支持。
 
@@ -57,20 +57,15 @@ python3 scripts/build_apk.py --build-number "$LEGACY_BUILD_NUMBER" --compatibili
 
 ## 下载、安装与试用
 
-从 [1.1.2 Releases](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.2) 按系统选择：
+从[安装页](https://beatsad.github.io/quiet-tv/)或[最新版索引](https://beatsad.github.io/quiet-tv/latest.json)按系统、架构及升级条件选择最新适配 APK，包含测试版。索引中的 `url` 是真实附件地址，`bytes` 为大小，`sha256` 为校验值；不要根据旧文档或文件命名猜测当前包名和下载链接。
 
-| 系统 | GitHub 实际下载文件名 | 大小 |
-| --- | --- | --- |
-| 安卓 4.4 | `QuietTV_1.1.2-35_Android4.4_Test.apk` | 4,900,169 字节，约 4.67 MiB |
-| 安卓 5 及以上 | `QuietTV_1.1.2-34_Android5plus_Test.apk` | 9,370,356 字节，约 8.94 MiB |
-
-GitHub 附件用英文下载名和中文标签，本地中文归档保留。选择 APK 与实际英文名同名的 `.apk.sha256`，放在同一目录；不要用标为“原中文文件名校验记录”的历史记录检查英文名文件。例如安卓 5 及以上：
+下载后计算文件 SHA-256，与所选附件记录逐字核对，例如将变量设为本次实际下载的文件路径：
 
 ```sh
-shasum -a 256 -c QuietTV_1.1.2-34_Android5plus_Test.apk.sha256
+shasum -a 256 "$APK_PATH"
 ```
 
-安卓 4.4 改用 `QuietTV_1.1.2-35_Android4.4_Test.apk.sha256`。两档使用与历史 b26／b30 相同的测试签名，不能并存；跨档位覆盖仍需满足签名、递增构建号、系统与数据兼容条件。所有[历史下载](https://github.com/BeatsAD/quiet-tv/releases)及其原校验文件保留。
+历史附件有同名 `.apk.sha256` 时也可使用；缺少独立校验文件不代表没有新版。跨档位覆盖仍需核对实际包名、签名、递增构建号、系统及数据兼容条件，不卸载或清数据解决不匹配。所有[历史下载](https://github.com/BeatsAD/quiet-tv/releases)及原校验文件保留。
 
 先在电视“设置 → 系统／设备偏好设置 → 关于”中找到 Build／编译版本号，通常连续按遥控器确定约 7 次可开启“开发者选项”，再进入该页面开启实际支持的 USB／ADB 调试。网络连接还需核对网络调试开关、地址和端口；仅开启 USB 调试不保证网络 ADB 可用。详细菜单位置、开启和授权步骤见[技术路径文档第二节](TECHNICAL_PATH_WITH_CODEX.zh-CN.md#二连接电视读取真实设备能力)。
 
