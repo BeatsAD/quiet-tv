@@ -30,12 +30,14 @@ final class VendorTvInputs {
         List<Source> sources=skyworth(false);
         if(sources.isEmpty())sources=skyworth(true);
         if(sources.isEmpty())sources=konka();
+        DiagnosticLog.info("input.vendor.enumeration","count="+sources.size());
         return sources;
     }
     private boolean provider(String authority,boolean write){
         ProviderInfo info=context.getPackageManager().resolveContentProvider(authority,0);
-        return info!=null && TvInputController.enabledSystem(context,info) && info.exported
-            && permitted(info.readPermission) && (!write||permitted(info.writePermission));
+        String reason=info==null?"missing":!TvInputController.enabledSystem(context,info)?"not_enabled_system":!info.exported?"not_exported":!permitted(info.readPermission)?"read_permission_denied":write&&!permitted(info.writePermission)?"write_permission_denied":"ready";
+        DiagnosticLog.info("input.vendor.provider","authority="+authority+" write="+write+" result="+reason);
+        return "ready".equals(reason);
     }
     private boolean permitted(String permission){return permission==null || context.getPackageManager().checkPermission(permission,context.getPackageName())==PackageManager.PERMISSION_GRANTED;}
     private List<Source> skyworth(boolean sdk){
@@ -45,7 +47,7 @@ final class VendorTvInputs {
             if(!provider(authority,false) || (sdk?!TvInputController.canOpen(context,SKY_PLAYER):!provider(SKY_SDK,true)))return sources;
             String[] columns=sdk?new String[]{"sourceName","sourceIndex","displayName","signalState"}:new String[]{"sourceName","sourceIndex","displayName"};
             try(Cursor cursor=context.getContentResolver().query(Uri.parse("content://"+authority+"/system/source_list"),columns,null,null,null)){
-                if(cursor==null)return sources;
+                if(cursor==null){DiagnosticLog.info("input.vendor.query","provider="+authority+" result=null_cursor");return sources;}
                 int name=cursor.getColumnIndexOrThrow("sourceName"),index=cursor.getColumnIndexOrThrow("sourceIndex"),display=cursor.getColumnIndexOrThrow("displayName");
                 HashSet<String> seen=new HashSet<>();
                 while(cursor.moveToNext()){
@@ -64,7 +66,7 @@ final class VendorTvInputs {
     }
     private List<Source> konka(){
         ArrayList<Source> sources=new ArrayList<>();
-        if(!TvInputController.canOpen(context,KONKA_PLAYER))return sources;
+        if(!TvInputController.canOpen(context,KONKA_PLAYER)){DiagnosticLog.info("input.konka.enumeration","result=player_unavailable");return sources;}
         try{
             Class<?> managerClass=Class.forName("com.konka.android.tv.KKCommonManager");
             Object manager=managerClass.getMethod("getInstance",Context.class).invoke(null,context.getApplicationContext());
@@ -87,7 +89,7 @@ final class VendorTvInputs {
     boolean open(Source source){
         try{
             if(source.intent!=null){
-                if(!TvInputController.canOpen(context,source.intent.getComponent()))return false;
+                if(!TvInputController.canOpen(context,source.intent.getComponent())){DiagnosticLog.info("input.vendor.request",DiagnosticLog.intent(source.intent)+" result=not_callable");return false;}
                 context.startActivity(new Intent(source.intent).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
                 DiagnosticLog.info("input.vendor.dispatch",source.intent.getComponent().flattenToShortString());return true;
             }
