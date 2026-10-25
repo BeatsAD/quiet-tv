@@ -102,19 +102,28 @@ function toast(message) {
   toastTimer = setTimeout(() => $('#toast').hidden = true, 3500);
 }
 document.querySelectorAll('[data-copy]').forEach(button => button.addEventListener('click', async () => {
-  if (button.dataset.copy === 'install') {
-    try {
-      await refreshRelease();
-    } catch {
-      toast('暂时无法获取最新版，请稍后重试。');
-      return;
-    }
-  }
   const pre = button.dataset.copy === 'install' ? $('#install-prompt') : $('#restore-prompt');
+  const refresh = button.dataset.copy === 'install' ? refreshRelease() : null;
   try {
-    await navigator.clipboard.writeText(pre.textContent);
+    if (refresh && typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
+      // Start the write during the click; WebKit permits the data to arrive later.
+      const content = refresh.then(() => new Blob([pre.textContent], { type: 'text/plain' }));
+      content.catch(() => {}); // The clipboard may reject before consuming its data.
+      await navigator.clipboard.write([new ClipboardItem({ 'text/plain': content })]);
+    } else {
+      if (refresh) await refresh;
+      await navigator.clipboard.writeText(pre.textContent);
+    }
     toast('已复制，发送给电脑上的 Agent 即可。');
   } catch {
+    if (refresh) {
+      try {
+        await refresh;
+      } catch {
+        toast('暂时无法获取最新版，请稍后重试。');
+        return;
+      }
+    }
     if (button.dataset.copy === 'restore') previewRequest();
     const selection = window.getSelection();
     const range = document.createRange();
