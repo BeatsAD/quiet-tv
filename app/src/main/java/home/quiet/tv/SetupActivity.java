@@ -77,13 +77,13 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
                 if(autoRequested && roleCheckPending){
                     autoRequested=false;roleCheckPending=false;
                     if(state.isOwn(this)){finishAutomatic();return;}
-                    if(roleAccepted && state.known){withConnection(this::configureGuard);return;}
+                    if(roleAccepted && state.known){withConnection(this::configureRelay);return;}
                     notice="默认桌面选择已取消或结果未确认，未启用中转。";render();return;
                 }
                 if(roleInFlight){render();return;}
                 if(launchAuto){launchAuto=false;autoConfigure();return;}
                 if(!recovery && !roleCancelled && !state.isOwn(this) && new HomeGuardState(this).compatibleReady()){
-                    try{new SetupOperations(this).completeGuard();openHome("兼容守护已配置，系统默认桌面保持原状");return;}
+                    try{new SetupOperations(this).completeGuard();openHome("桌面中转已配置，原桌面保留");return;}
                     catch(Exception failure){notice="兼容配置未完成："+failure.getMessage();}
                 }
                 for(AppRepository.App app:apps)if(canRecommend(app) && !choices.containsKey(app.pkg))choices.put(app.pkg,true);
@@ -271,8 +271,9 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
         if("OFF".equals(new HomeGuardState(this).preferences.getString("mode","AUTO"))){notice="中转已暂停，请在桌面配置中明确重新启用后再自动选配。";render();return;}
         originalChoice="KEEP";originalTouched=true;persist();if(!recordAvailable)return;
         autoRequested=true;
-        if(!BuildConfig.DECLARES_HOME){autoRequested=false;withConnection(this::configureGuard);}
+        if(!BuildConfig.DECLARES_HOME){autoRequested=false;withConnection(this::configureRelay);}
         else if(homeState.isOwn(this)){autoRequested=false;finishAutomatic();}
+        else if(homeState.isProxy(this) && new HomeProxy(this).ready()){autoRequested=false;openHome("HOME 代理已就绪，原桌面保留");}
         else if(homeState.roleAvailable)requestRole();else withConnection(this::setDefault);
     }
     private void finishAutomatic(){
@@ -282,8 +283,17 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
     private void requestRole(){if(busy)return;try{home.remember(homeState);roleCancelled=false;Intent request=home.request();roleResultExpected="android.app.role.action.REQUEST_ROLE".equals(request.getAction());roleInFlight=true;startActivityForResult(request,40);}catch(Exception e){autoRequested=false;roleInFlight=false;notice="系统入口不可用，未启用中转："+e.getMessage();render();}}
     @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==40){roleInFlight=false;roleAccepted=roleResultExpected && result==RESULT_OK;roleCheckPending=autoRequested;roleCancelled=roleResultExpected && result!=RESULT_OK;if(roleCancelled){autoRequested=false;roleCheckPending=false;notice="已取消默认桌面设置，未启用中转。";}else notice="";}}
     private void withConnection(Runnable next){if(busy)return;if(adb.connected())next.run();else connection.show(()->{if(active)next.run();},screen==1 && !recovery?("UNINSTALL".equals(originalChoice)?"连接并卸载原桌面":"连接并应用设置"):"连接并继续");}
+    private void configureRelay(){
+        if(busy)return;
+        SetupOperations.Ticket task=begin("正在检查 HOME 代理与原桌面回退…");
+        worker.execute(()->{try{
+            boolean proxy=new HomeProxy(this).configure(adb,task);task.check();
+            ui(task,()->{busy=false;if(proxy)openHome("HOME 代理已配置，原桌面保留；开机与实体 HOME 待验证");else configureGuard();});
+        }catch(Exception failure){ui(task,()->{busy=false;notice="中转配置未确认："+failure.getMessage();render();});}});
+    }
     private void configureGuard(){
         if(busy)return;
+        if(new DesktopRoutes(this).proxySelected() && !new HomeProxy(this).pause()){notice="代理暂停回执待确认，请先恢复原桌面";render();return;}
         HomeGuardState guard=new HomeGuardState(this);guard.configure();
         new DesktopRoutes(this).observe();
         if(!guard.enabled()){notice="守护已停用，请在守护设置中开启。";render();return;}
@@ -299,7 +309,7 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
         SetupOperations.Ticket task=begin("正在设置并核对默认桌面…");worker.execute(()->{try{task.check();home.switchToOwn(adb);task.check();ui(task,()->{busy=false;roleCancelled=false;notice="";if(autoRequested){autoRequested=false;finishAutomatic();}else{new DesktopRoutes(this).direct();refresh();}});}catch(Exception e){
             DesktopRoutePolicy.Result result=e instanceof HomeController.SwitchFailure?((HomeController.SwitchFailure)e).result:DesktopRoutePolicy.Result.UNKNOWN;
             boolean fallback=!BuildConfig.LEGACY_19 && DesktopRoutePolicy.fallback(result,task.active(),adb.connected(),"OFF".equals(new HomeGuardState(this).preferences.getString("mode","AUTO")));
-            ui(task,()->{busy=false;autoRequested=false;notice="默认桌面未确认："+e.getMessage();if(fallback)configureGuard();else render();});
+            ui(task,()->{busy=false;autoRequested=false;notice="默认桌面未确认："+e.getMessage();if(fallback)configureRelay();else render();});
         }});
     }
     private void confirm(){

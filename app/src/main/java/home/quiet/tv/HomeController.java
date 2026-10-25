@@ -19,6 +19,7 @@ final class HomeController {
         String actual="",original="",reason="默认桌面状态未确认",resolved="";
         final List<String> claimants=new ArrayList<>();
         boolean known,ownUsable,roleAvailable,connected;
+        boolean isProxy(Context context){return known && new HomeProxy(context).isComponent(actual);}
         boolean isOwn(Context context){return BuildConfig.DECLARES_HOME && known && actual.equals(new ComponentName(context,HomeActivity.class).flattenToString());}
     }
     private final Context context;
@@ -71,7 +72,7 @@ final class HomeController {
         }
         if(state.known){
             String label="其他桌面";try{label=pm.getActivityInfo(ComponentName.unflattenFromString(state.actual),0).loadLabel(pm).toString();}catch(PackageManager.NameNotFoundException ignored){}
-            state.reason=state.isOwn(context)?"系统 HOME 已指向 Quiet TV":"当前系统 HOME："+label;
+            state.reason=state.isProxy(context)?"系统 HOME 已指向 Quiet TV 中转助手":state.isOwn(context)?"系统 HOME 已指向 Quiet TV":"当前系统 HOME："+label;
         }
         String conflict=homeProblem(state.resolved);
         if(!conflict.isEmpty())state.reason=conflict;
@@ -101,17 +102,19 @@ final class HomeController {
             :"当前固件未提供默认桌面设置入口或 ADB 切换命令；可临时使用 Quiet TV，请保留原桌面";
     }
     Intent request(){if(!BuildConfig.DECLARES_HOME)throw new IllegalStateException("此兼容包不声明 HOME，请使用原桌面中转");Intent intent=requestIntent();if(intent==null)throw new IllegalStateException("系统默认桌面入口不可用");return intent;}
-    void remember(State state) throws Exception {new SetupStore(context).baseline(state.known?state.actual:"",!state.original.isEmpty()?state.original:state.known && !state.isOwn(context)?state.actual:"");}
+    void remember(State state) throws Exception {new SetupStore(context).baseline(state.known?state.actual:"",!state.original.isEmpty()?state.original:state.known && !state.isOwn(context) && !state.isProxy(context)?state.actual:"");}
     void switchToOwn(AdbController adb) throws Exception {
         if(!BuildConfig.DECLARES_HOME)throw new SwitchFailure(DesktopRoutePolicy.Result.UNSUPPORTED,"此兼容包使用原桌面中转，不设置默认 HOME");
-        State before=inspect(adb);if(!before.ownUsable)throw new IOException("Quiet TV HOME 组件不可用");remember(before);
-        if(before.isOwn(context))return;
+        switchTo(adb,new ComponentName(context,HomeActivity.class).flattenToString());
+    }
+    void switchTo(AdbController adb,String desired) throws Exception {
+        State before=inspect(adb);if(!component(desired,true))throw new IOException("目标 HOME 组件不可用");remember(before);
+        if(before.known && desired.equals(before.actual))return;
         adb.validateUser();if(adb.capabilities.home.isEmpty())throw new SwitchFailure(before.roleAvailable?DesktopRoutePolicy.Result.UNKNOWN:DesktopRoutePolicy.Result.UNSUPPORTED,unavailableSwitchReason(before.roleAvailable,true,""));SetupStore store=new SetupStore(context);
-        String desired=new ComponentName(context,HomeActivity.class).flattenToString();
         int attempt=adb.generation();
         store.homeSwitch(before.actual,desired,adb.user,"running",before.resolved);
         try{
-            State after=setOwnAndVerify(adb);
+            State after=setAndVerify(adb,desired);
             store.homeSwitch(before.actual,desired,adb.user,"complete",after.actual);
         }catch(Exception failure){
             String observed="未确认",status="incomplete";
@@ -139,12 +142,15 @@ final class HomeController {
     /** Reapply even when resolution is ours: changing HOME candidates clears the saved preference. */
     State setOwnAndVerify(AdbController adb) throws Exception {
         if(!BuildConfig.DECLARES_HOME)throw new IOException("此兼容包不声明 HOME");
-        if(!component(new ComponentName(context,HomeActivity.class).flattenToString(),true))throw new IOException("Quiet TV HOME 组件不可用");
+        return setAndVerify(adb,new ComponentName(context,HomeActivity.class).flattenToString());
+    }
+    State setAndVerify(AdbController adb,String desired) throws Exception {
+        if(!component(desired,true))throw new IOException("目标 HOME 组件不可用");
         adb.validateUser();
         if(adb.capabilities.home.isEmpty())throw new IOException("当前系统未提供可核对的桌面切换命令");
-        adb.shell(adb.capabilities.home+" --user "+adb.user+" "+new ComponentName(context,HomeActivity.class).flattenToString());
+        adb.shell(adb.capabilities.home+" --user "+adb.user+" "+desired);
         State after=inspect(adb);
-        if(!after.isOwn(context))throw new SwitchFailure(after.known?DesktopRoutePolicy.Result.RETAINED:DesktopRoutePolicy.Result.UNKNOWN,"未设为系统 HOME："+after.reason);
+        if(!after.known || !desired.equals(after.actual))throw new SwitchFailure(after.known?DesktopRoutePolicy.Result.RETAINED:DesktopRoutePolicy.Result.UNKNOWN,"未设为目标 HOME："+after.reason);
         return after;
     }
     void switchToOriginal(AdbController adb,String original) throws Exception {
