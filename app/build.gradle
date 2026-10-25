@@ -34,6 +34,7 @@ android {
             'wechat.png', 'qq-group.png'])
     }
     sourceSets.main.java.srcDir(legacy ? 'src/legacy19/java' : 'src/standard/java')
+    sourceSets.main.java.srcDir('../home-proxy/src/contract/java')
     // Former clones may retain these local-only files; never compile the retired recorder.
     sourceSets.main.java.exclude 'home/quiet/tv/DiagnosticText.java', 'home/quiet/tv/DiagnosticsActivity.java',
         'home/quiet/tv/DiagnosticsDownloadServer.java', 'home/quiet/tv/DiagnosticsRecorder.java',

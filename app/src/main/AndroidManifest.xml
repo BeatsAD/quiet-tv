@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+    <permission android:name="${applicationId}.permission.HOME_PROXY" android:protectionLevel="signature" />
+    <uses-permission android:name="${applicationId}.permission.HOME_PROXY" />
     <uses-feature android:name="android.software.leanback" android:required="${leanbackRequired}" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-feature android:name="android.hardware.wifi" android:required="false" />
@@ -26,6 +28,7 @@
         <package android:name="com.xiaomi.mitv.settings" />
         <package android:name="home.quiet.tv.xiaomihelper" />
         <package android:name="com.ccos.tv.homepage" />
+        <package android:name="home.quiet.tv.proxy" />
         <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LEANBACK_LAUNCHER" /></intent>
         <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent>
         <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.APPSTORE_LAUNCHER" /></intent>
@@ -41,6 +44,10 @@
         <activity android:name=".HomeSortActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".DesktopSettingsActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".HomeGuardActivity" android:exported="false" android:enabled="${homeGuardAvailable}" android:screenOrientation="landscape" />
+        <activity android:name=".HomeProxyEntryActivity" android:exported="true" android:enabled="${homeGuardAvailable}"
+            android:launchMode="singleTask" android:taskAffinity="${applicationId}.proxyEntry"
+            android:permission="${applicationId}.permission.HOME_PROXY" android:noHistory="true"
+            android:excludeFromRecents="true" android:theme="@android:style/Theme.NoDisplay" />
         <!-- No firmware is opted in by default. Only a verified profile may enable this entry. -->
         <activity android:name=".VendorBootActivity" android:enabled="false" android:exported="true"
             android:noHistory="true" android:excludeFromRecents="true" android:theme="@android:style/Theme.NoDisplay">

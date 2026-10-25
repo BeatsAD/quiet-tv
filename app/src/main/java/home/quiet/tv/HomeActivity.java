@@ -270,10 +270,11 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         homeResumeEvent("home.resume.begin","sincePauseMs="+(homePausedAt==0?-1:homeResumeStarted-homePausedAt));
         super.onResume(); resumed=true;
         new DesktopRoutes(this).reconcileVendor();
+        if(!new HomeProxy(this).allowed(getIntent())){new HomeProxy(this).original(this);finish();}
         if(!systemEntryPending.isEmpty()){systemEntryLifecycle(systemEntryDispatched?"resume_return_unverified":"resume_before_dispatch");systemEntryPending="";}
         BootAppLifecycle.visible(this);
         if(!HomeGuardService.connected())HomeGuardRecovery.request(this,"桌面恢复");
-        getWindow().getDecorView().post(()->{if(resumed && hasWindowFocus()){HomeGuardRecovery.visible(this);launchBootApp();}});
+        getWindow().getDecorView().post(()->{if(resumed && hasWindowFocus()){new HomeProxy(this).visible(this);if(!isFinishing()){HomeGuardRecovery.visible(this);launchBootApp();}}});
         IntentFilter time=new IntentFilter(Intent.ACTION_TIME_TICK);time.addAction(Intent.ACTION_TIME_CHANGED);time.addAction(Intent.ACTION_TIMEZONE_CHANGED);
         registerReceiver(timeReceiver,time);
         if(Build.VERSION.SDK_INT>=24)stopNetworkCallback=Api24.observe(this);
@@ -295,13 +296,13 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     @Override public void onWindowFocusChanged(boolean focused){
         homeResumeEvent("home.window_focus","focused="+focused);
-        super.onWindowFocusChanged(focused);systemEntryLifecycle("window_focus="+focused);if(focused && resumed && systemEntryDispatched)systemEntryPending="";if(focused && resumed){HomeGuardRecovery.visible(this);launchBootApp();}
+        super.onWindowFocusChanged(focused);systemEntryLifecycle("window_focus="+focused);if(focused && resumed && systemEntryDispatched)systemEntryPending="";if(focused && resumed){new HomeProxy(this).visible(this);if(!isFinishing()){HomeGuardRecovery.visible(this);launchBootApp();}}
     }
 
     void checkBootApp(){getWindow().getDecorView().post(this::launchBootApp);}
 
     private void launchBootApp(){
-        if(!resumed || !hasWindowFocus() || !HomeGuardState.canShow(this))return;
+        if(isFinishing() || !resumed || !hasWindowFocus() || !HomeGuardState.canShow(this))return;
         BootAppStore store=new BootAppStore(this);String pkg=store.consume();if(pkg.isEmpty())return;
         leaveHome(()->{try{
             Intent intent=store.launchIntent(pkg);
@@ -314,6 +315,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     @Override protected void onPause() {
+        if(!HomeGuardState.canShow(this))new HomeProxy(this).defer(getIntent());
         homePausedAt=SystemClock.uptimeMillis();homeResumeEvent("home.pause","");homeDrawPending=false;
         systemEntryLifecycle("pause");
         BootAppLifecycle.left(this);
@@ -330,6 +332,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     @Override protected void onDestroy(){BootAppLifecycle.destroyed(this);unregisterReceiver(packageReceiver);loader.shutdownNow();wallpapers.destroy();weather.destroy();super.onDestroy();}
     @Override protected void onNewIntent(Intent intent){
         super.onNewIntent(intent);setIntent(intent);
+        if(!new HomeProxy(this).allowed(intent)){new HomeProxy(this).original(this);finish();return;}
+        getWindow().getDecorView().post(()->{if(resumed && hasWindowFocus())new HomeProxy(this).visible(this);});
         if(isHomeIntent(intent))resetHomeFocus();else if(ready)focusCurrent(false);
     }
 

@@ -17,6 +17,7 @@ COMPATIBILITY = ('standard', 'legacy19')
 def source_digest():
     paths = [p for source in ('main', 'standard', 'legacy19', 'home', 'relay')
              for p in (ROOT / 'app/src' / source).rglob('*') if p.is_file()]
+    paths += [p for p in (ROOT / 'home-proxy/src/contract/java').rglob('*') if p.is_file()]
     paths += [ROOT / name for name in ['app/build.gradle', 'app/proguard-rules.pro', 'build.gradle', 'settings.gradle',
               'gradle.properties', 'gradle/security-constraints.gradle', 'scripts/bundle_about.py', 'scripts/build_apk.py',
               'prototypes/about/index.html', 'prototypes/about/styles.css', 'prototypes/about/app.js',

@@ -92,7 +92,7 @@ final class SetupOperations {
         if(!guard.compatibleReady())throw new IOException("兼容守护尚未连接");
         HomeController.State current=home.inspect(null);store.baseline(current.known?current.actual:"",guard.selected());
         // No package operations and no assertion that system HOME points to Quiet TV.
-        store.put("status","guard-configured");
+        store.put("status",new HomeProxy(context).ready()?"proxy-configured":"guard-configured");
     }
     void restore(AdbController adb,Ticket ticket,Progress progress) throws Exception {
         AppOperations.begin();

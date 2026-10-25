@@ -2,6 +2,8 @@ pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal()
 dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral(); maven { url 'https://jitpack.io'; content { includeGroup 'com.github.MuntashirAkon'; includeGroup 'com.github.MuntashirAkon.spake2-java' } } } }
 rootProject.name = 'QuietTV'
 include ':app'
+// Optional signed HOME relay. The main application never installs it on a device.
+if (providers.gradleProperty('quietHomeProxy').getOrElse('false') == 'true') include ':home-proxy'
 // The Android 8 Coocaa shim is built only when explicitly requested.
 if (providers.gradleProperty('quietCoocaaShim').getOrElse('false') == 'true') include ':coocaa-home-shim'
 // Experimental, independent Xiaomi Android 6 homepage redirect, never included by default.

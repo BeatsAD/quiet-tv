@@ -144,3 +144,7 @@ __pycache__/
 # Signed public application-update input and its offline release tooling.
 !/scripts/build_update_manifest.py
 !/docs/UPDATES.md
+
+# Local HOME proxy verification fixtures.
+/home-proxy/src/test/
+/home-proxy/src/androidTest/

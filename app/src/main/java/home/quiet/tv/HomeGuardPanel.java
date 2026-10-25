@@ -80,7 +80,7 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
         accessibilityRow.setVisibility(state.enabled()?View.VISIBLE:View.GONE);notificationRow.setVisibility(state.enabled()?View.VISIBLE:View.GONE);
         bridgeRow.checked(routes.vendorReady());bridgeRow.description(routes.vendorReady()?"已配置，重启和断电开机待验证":routes.vendorProblem());bridgeRow.setEnabled(supported);
         String problem=state.enableProblem(),summary=state.summary();
-        guardRow.checked(state.automatic());guardRow.description("OFF".equals(state.preferences.getString("mode","AUTO"))?"已暂停，中转入口不会自动恢复":!state.automatic()?"尚未配置，请先选择启动方式":state.enabled()?summary:"系统直接启动；中转按场景配置");
+        guardRow.checked(state.automatic());guardRow.description("OFF".equals(state.preferences.getString("mode","AUTO"))?"已暂停，中转入口不会自动恢复":!state.automatic()?"尚未配置，请先选择启动方式":state.enabled()?summary:routes.proxySelected()?new HomeProxy(ui).problem():"系统直接启动；中转按场景配置");
         guardRow.setEnabled(supported);
         wireFocus();
         View focus=resumeFocus!=null?ui.root.findViewWithTag(resumeFocus):previous;resumeFocus=null;
@@ -131,7 +131,7 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
     }
     private void toggleGuard(){
         if(state.automatic())state.pause("已暂停");
-        else{new DesktopRoutes(ui).resume();if(state.enabled()){String problem=state.enableProblem();if(!problem.isEmpty())ui.message(problem);}}
+        else{new DesktopRoutes(ui).resume();if(!state.automatic())ui.message(state.preferences.getString("status","重新启用未完成"));if(state.enabled()){String problem=state.enableProblem();if(!problem.isEmpty())ui.message(problem);}}
         refreshUi();
     }
     private void toggleVendor(){
@@ -143,10 +143,14 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
     private void showRoutes(){
         ManagementUi.Sheet sheet=ui.new Sheet("桌面配置");DesktopRoutes routes=new DesktopRoutes(ui);
         sheet.text(routes.details());sheet.text("自动配置保留原桌面。暂停中转不改变系统默认 HOME；恢复原桌面需单独操作。");
-        Button auto=sheet.option("自动配置桌面",()->{sheet.dialog.dismiss();ui.startActivity(new Intent(ui,SetupActivity.class).putExtra("autoConfigure",true));});
+        boolean paused="OFF".equals(state.preferences.getString("mode","AUTO"));
+        Button auto=sheet.option(paused?"重新启用并自动配置":"自动配置桌面",()->{
+            if(paused && !state.preferences.edit().putString("mode","AUTO").putBoolean("configured",false).commit()){ui.message("重新启用未保存");return;}
+            sheet.dialog.dismiss();ui.startActivity(new Intent(ui,SetupActivity.class).putExtra("autoConfigure",true));
+        });
         sheet.option("使用原主页中转",()->{sheet.dialog.dismiss();String problem=state.enable();refreshUi();if(!problem.isEmpty())ui.message(problem);});
         sheet.option("记录实际验证结果",()->{sheet.dialog.dismiss();showScenes();});
-        sheet.option("恢复原桌面",()->{sheet.dialog.dismiss();if(!BuildConfig.DECLARES_HOME)openOriginal();else ui.startActivity(new Intent(ui,SetupActivity.class).putExtra("restore",true));});
+        sheet.option("恢复原桌面",()->{sheet.dialog.dismiss();if(!BuildConfig.DECLARES_HOME && !routes.proxySelected())openOriginal();else ui.startActivity(new Intent(ui,SetupActivity.class).putExtra("restore",true));});
         sheet.action("返回",sheet.dialog::dismiss);showSheet(sheet,auto,routeRow);
     }
     private void showScenes(){

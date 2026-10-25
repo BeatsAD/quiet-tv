@@ -1,0 +1,21 @@
+plugins { id 'com.android.application' }
+def launcherId = providers.gradleProperty('quietApplicationId').getOrElse('home.quiet.tv')
+if (!(launcherId in ['home.quiet.tv', 'com.coocaa.quiettv'])) throw new GradleException('Unsupported quietApplicationId')
+if (providers.gradleProperty('quietCompatibility').getOrElse('standard') == 'legacy19') throw new GradleException('HOME proxy requires Android 5+')
+android {
+    namespace 'home.quiet.proxy'
+    compileSdk 36
+    defaultConfig {
+        applicationId 'home.quiet.tv.proxy'
+        minSdk 21
+        targetSdk 36
+        versionCode 1
+        versionName '1.0.0'
+        manifestPlaceholders = [quietLauncherPackage: launcherId]
+        buildConfigField 'String', 'TARGET_PACKAGE', '"' + launcherId + '"'
+    }
+    buildFeatures { buildConfig true }
+    sourceSets.main.java.srcDir('src/contract/java')
+    compileOptions { sourceCompatibility JavaVersion.VERSION_11; targetCompatibility JavaVersion.VERSION_11 }
+}
+dependencies { testImplementation 'junit:junit:4.13.2' }

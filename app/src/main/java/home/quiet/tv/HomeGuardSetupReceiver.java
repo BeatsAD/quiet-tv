@@ -16,7 +16,7 @@ public final class HomeGuardSetupReceiver extends BroadcastReceiver {
             if(!state.supported() || !HomeGuardState.unlocked(context))throw new IllegalStateException("系统档位不支持或尚未解锁");
             if(intent.getIntExtra("user",-1)!=android.os.Process.myUid()/100000)throw new IllegalStateException("目标用户不一致");
             if(intent.getBooleanExtra("pause",false)){
-                state.pause("电脑暂停中转");setResultData(new DesktopRoutes(context).snapshot().toString());setResultCode(Activity.RESULT_OK);return;
+                state.pause("电脑暂停中转");setResultData(new DesktopRoutes(context).snapshot().toString());if(!state.preferences.getBoolean("proxyPausePending",false))setResultCode(Activity.RESULT_OK);return;
             }
             if(!HomeGuardRecovery.writeAllowed(context))throw new IllegalStateException("请先通过电脑授予写安全设置权限");
             if(!intent.getBooleanExtra("enable",false))throw new IllegalStateException("未明确请求启用守护");

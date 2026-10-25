@@ -4,6 +4,7 @@ import android.content.*;
 import android.content.pm.*;
 import android.os.*;
 import org.json.*;
+import home.quiet.proxy.ProxyContract;
 
 /** One plan in the existing device-protected preferences. No device mutation during detection. */
 final class DesktopRoutes {
@@ -23,9 +24,9 @@ final class DesktopRoutes {
     private String revision(){
         ComponentName home=ComponentName.unflattenFromString(state.selected());JSONObject boot=bridge();
         return Build.FINGERPRINT+":"+BuildConfig.VERSION_CODE+":"+BuildConfig.DECLARES_HOME+":"+state.selected()+":"+(home==null?-1:version(home.getPackageName()))
-                +":"+(boot==null?-1:version(boot.optString("systemPackage")));
+                +":"+(boot==null?-1:version(boot.optString("systemPackage")))+":"+version(ProxyContract.PACKAGE);
     }
-    private boolean current(){return revision().equals(prefs.getString("routeRevision",""));}
+    boolean current(){return revision().equals(prefs.getString("routeRevision",""));}
     private SharedPreferences.Editor edit(){
         SharedPreferences.Editor edit=prefs.edit();
         if(!current())for(String scene:new String[]{"home","reboot","coldBoot","wake"})edit.remove("routeTest_"+scene);
@@ -34,20 +35,28 @@ final class DesktopRoutes {
     void direct(){
         if(!BuildConfig.DECLARES_HOME)throw new IllegalStateException("此兼容包只能使用原桌面中转");
         // Only an explicit configuration changes the chosen route; opening settings never does.
-        prefs.edit().putBoolean("observeHome",false).apply();state.configure();
+        new HomeProxy(context).pause();prefs.edit().putBoolean("observeHome",false).putString("relaySource","").apply();state.configure();
         SharedPreferences.Editor edit=edit();if(!"DIRECT".equals(home()))edit.remove("routeTest_home").remove("routeTest_wake");
         edit.putString("routeHome","DIRECT").putBoolean("observeHome",false).putBoolean("configured",true).apply();
         HomeGuardRecovery.cancel();HomeGuardService.cancelPending();
         state.status("系统 HOME 已设置，实际场景待验证");
     }
-    void observe(){SharedPreferences.Editor edit=edit();if(!"RELAY".equals(home()))edit.remove("routeTest_home").remove("routeTest_wake");edit.putString("routeHome","RELAY").putBoolean("observeHome",true).apply();}
+    void observe(){SharedPreferences.Editor edit=edit();if(!"RELAY".equals(home()))edit.remove("routeTest_home").remove("routeTest_wake");edit.putString("routeHome","RELAY").putString("relaySource","OBSERVER").putBoolean("observeHome",true).apply();}
+    void proxy(){
+        edit().putString("routeHome","RELAY").putString("relaySource","PROXY").putBoolean("observeHome",false).putBoolean("configured",true)
+                .remove("routeTest_home").remove("routeTest_wake").commit();
+        HomeGuardRecovery.cancel();HomeGuardService.cancelPending();
+    }
+    boolean proxySelected(){return "PROXY".equals(prefs.getString("relaySource",""));}
     void resume(){
+        if(proxySelected()){String problem=new HomeProxy(context).resume();if(!problem.isEmpty())state.status(problem);return;}
+
         prefs.edit().putString("mode","AUTO").putBoolean("configured",true).apply();
         if(!"DIRECT".equals(home())){state.enable();return;}
         state.status("系统直接启动，中转按场景配置");
     }
     String home(){return current()?prefs.getString("routeHome",state.enabled()?"RELAY":"UNKNOWN"):"UNKNOWN";}
-    String homeLabel(){return "DIRECT".equals(home())?"系统直接启动":"RELAY".equals(home())?"原主页中转":"待检测";}
+    String homeLabel(){if("RELAY".equals(home()) && proxySelected())return "HOME 代理中转";return "DIRECT".equals(home())?"系统直接启动":"RELAY".equals(home())?"原主页中转":"待检测";}
     String bootLabel(){return vendorReady()?"厂商开机中转":state.enabled()?"守护开机补偿":"待验证";}
     String wakeLabel(){return state.enabled()?"原主页中转":"待验证";}
     String test(String scene){return current()?prefs.getString("routeTest_"+scene,"待验证"):"待验证";}
@@ -65,7 +74,8 @@ final class DesktopRoutes {
             +"\n断电开机："+bootLabel()+"  "+test("coldBoot")+"\n待机唤醒："+wakeLabel()+"  "+test("wake");}
     JSONObject snapshot() throws JSONException {
         JSONObject snapshot=new JSONObject().put("packageMode",BuildConfig.DECLARES_HOME?"standard":"relay")
-                .put("homeRoute",home()).put("bootRoute",vendorReady()?"VENDOR":state.enabled()?"GUARD":"UNKNOWN")
+                .put("homeRoute",home()).put("relaySource",prefs.getString("relaySource","UNKNOWN")).put("proxyReady",new HomeProxy(context).ready())
+                .put("proxyPausePending",prefs.getBoolean("proxyPausePending",false)).put("proxyVisibleAt",current() && prefs.getLong("proxyVisibleEpoch",-1)==prefs.getLong("proxyEpoch",-2)?prefs.getLong("proxyVisibleAt",0):0).put("bootRoute",vendorReady()?"VENDOR":state.enabled()?"GUARD":"UNKNOWN")
                 .put("wakeRoute",state.enabled()?"GUARD":"UNKNOWN").put("paused","OFF".equals(prefs.getString("mode","AUTO"))).put("automatic",state.automatic())
                 .put("vendorBootEnabled",vendorReady()).put("scenes",new JSONObject().put("home",test("home"))
                 .put("reboot",test("reboot")).put("coldBoot",test("coldBoot")).put("wake",test("wake")));
