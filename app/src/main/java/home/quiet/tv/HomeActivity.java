@@ -69,6 +69,10 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private String systemEntryPending="";
     private long systemEntryStarted;
     private boolean systemEntryDispatched;
+    private final String homeInstance=Integer.toHexString(System.identityHashCode(this));
+    private int homeResumeSequence;
+    private long homeResumeStarted,homePausedAt;
+    private boolean homeDrawPending;
     private Typeface outfit;
     private boolean chinese = true, fixedGreeting = false, ready = false, resumed = false, requestedLocation = false;
     private float unit;
@@ -163,6 +167,12 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private void makeScene() {
         root = new FrameLayout(this); root.setBackgroundColor(Color.BLACK); root.setClipChildren(false);
+        root.getViewTreeObserver().addOnDrawListener(()->{
+            if(!homeDrawPending || !resumed)return;
+            homeDrawPending=false;
+            // This callback precedes drawing; it does not establish a frame presented by the TV.
+            homeResumeEvent("home.first_draw","evidence=on_draw_callback_only");
+        });
         setContentView(root);
         wallpapers = new WallpaperController(this, root, unit, chinese);
         list = new RecyclerView(this){
@@ -254,6 +264,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     @Override protected void onResume() {
+        homeResumeStarted=SystemClock.uptimeMillis();++homeResumeSequence;homeDrawPending=true;
+        homeResumeEvent("home.resume.begin","sincePauseMs="+(homePausedAt==0?-1:homeResumeStarted-homePausedAt));
         super.onResume(); resumed=true;
         if(!systemEntryPending.isEmpty()){systemEntryLifecycle(systemEntryDispatched?"resume_return_unverified":"resume_before_dispatch");systemEntryPending="";}
         BootAppLifecycle.visible(this);
@@ -267,9 +279,19 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         wallpapers.resume();weather.resume();
         loadApps();if(ready)focusCurrent(false);
         if(tvInputs!=null)main.post(tvInputs::openPending);
+        homeResumeEvent("home.resume.end","");
+    }
+
+    private void homeResumeEvent(String event,String detail){
+        long now=SystemClock.uptimeMillis();
+        DiagnosticLog.info(event,"instance="+homeInstance+" resume="+homeResumeSequence+" uptimeMs="+now
+            +" elapsedMs="+(homeResumeSequence==0?-1:now-homeResumeStarted)+" resumed="+resumed+" windowFocus="+hasWindowFocus()
+            +" ready="+ready+" loadingApps="+loadingApps+" drawPending="+homeDrawPending
+            +" size="+(root==null?"0x0":root.getWidth()+"x"+root.getHeight())+(detail.isEmpty()?"":" "+detail));
     }
 
     @Override public void onWindowFocusChanged(boolean focused){
+        homeResumeEvent("home.window_focus","focused="+focused);
         super.onWindowFocusChanged(focused);systemEntryLifecycle("window_focus="+focused);if(focused && resumed && systemEntryDispatched)systemEntryPending="";if(focused && resumed){HomeGuardRecovery.visible(this);launchBootApp();}
     }
 
@@ -289,6 +311,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     @Override protected void onPause() {
+        homePausedAt=SystemClock.uptimeMillis();homeResumeEvent("home.pause","");homeDrawPending=false;
         systemEntryLifecycle("pause");
         BootAppLifecycle.left(this);
         if(dockPress!=null)dockPress.cancel();updateDock(false);
