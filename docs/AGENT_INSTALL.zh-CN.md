@@ -14,7 +14,7 @@
 请先完整读取并遵循操作说明：
 https://raw.githubusercontent.com/BeatsAD/quiet-tv/main/docs/AGENT_INSTALL.zh-CN.md
 
-从官方 Releases（含预发布／测试版）选择适配电视的最新主程序。安装前告知目标版本，安装后核对实际版本和 SHA-256，不自动改装历史包。
+请用本机终端实时请求 https://api.github.com/repos/BeatsAD/quiet-tv/releases?per_page=100 ，保留预发布／测试版，按适配条件选择最新主程序，不以搜索摘要或网页读取工具的缓存结果判断最新版本。若我指定版本，另查 /releases/tags/v<版本号>；列表未出现该版本不代表未发布。读取结果矛盾时重新请求并显示 HTTP 状态与原始版本列表，不改装旧版。安装前告知目标版本，安装后核对实际版本和 SHA-256。
 
 先发现电视并让我确认目标。已有安装则保留数据更新；首次安装先试用，再让我选择是否设置默认桌面及管理应用。
 需要授权或选择时等待我确认；无法读取说明、确认版本或完成操作时，停止相关修改，显示具体错误、当前状态和下一步，不猜测执行。
@@ -22,14 +22,25 @@ https://raw.githubusercontent.com/BeatsAD/quiet-tv/main/docs/AGENT_INSTALL.zh-CN
 
 ## 版本选择：包含预发布，避免误装历史包
 
-默认安装适配目标电视的最新已发布主程序，包含预发布／测试版；每次执行都须实时查询发布列表及实际附件。下表为截至 **2026-10-25** 核对的 [1.2.0 测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.2.0)附件快照，供核对名称与档位，不替代实时选包：
+默认安装适配目标电视的最新已发布主程序，包含预发布／测试版；每次执行都须通过本机终端实时查询发布列表及实际附件。本文不固定默认版本或历史附件表。架构专用包只有在实际发布为附件后才可选择；不能根据开发方案、构建脚本、本地候选包或命名规律编造下载地址。
 
-| 电视系统 | APK（另下载同名 `.apk.sha256`） | 软件版本与构建号 |
-| --- | --- | --- |
-| 安卓 4.4 / API19–20 | [安卓 4.4 包](https://github.com/BeatsAD/quiet-tv/releases/download/v1.2.0/QuietTV_1.2.0-44_Android4.4_Test.apk) | `versionName=1.2.0`  `versionCode=44` |
-| 安卓 5 及以上 / API21+ | [标准通用包](https://github.com/BeatsAD/quiet-tv/releases/download/v1.2.0/QuietTV_1.2.0-43_Android5plus_Test.apk) | `versionName=1.2.0`  `versionCode=43` |
+网页读取工具显示“已读取”不能证明返回的是实时响应；例如只看到“共 6 个 Release，最新 1.1.2”时，不能据此断言用户指定的 1.2.4 不存在。先直接请求 GitHub API，保留 HTTP 状态、响应日期及原始 JSON。以下为只读查询示例，不连接或修改电视：
 
-本次核查时，该 Release 只有上述两个主程序 APK 及其同名校验文件。架构专用包只有在实际发布为附件后才可选择；不能根据开发方案、构建脚本、本地候选包或命名规律编造下载地址。后续有更新的适配附件时，以实时发布信息为准。
+```sh
+curl --fail-with-body --location --max-time 30 --include \
+  -H 'Accept: application/vnd.github+json' -H 'Cache-Control: no-cache' \
+  'https://api.github.com/repos/BeatsAD/quiet-tv/releases?per_page=100'
+```
+
+用户指定版本而列表未找到时，再请求该标签的独立接口；例如指定 1.2.4 时：
+
+```sh
+curl --fail-with-body --location --max-time 30 --include \
+  -H 'Accept: application/vnd.github+json' -H 'Cache-Control: no-cache' \
+  'https://api.github.com/repos/BeatsAD/quiet-tv/releases/tags/v1.2.4'
+```
+
+若结果仍与用户提供的发布链接矛盾，给请求 URL 加入本次实际时间的 `check` 查询参数后重新读取，避免复用旧 URL 的读取缓存；列表已有参数时用 `&check=<本次时间>`，标签接口用 `?check=<本次时间>`。核对原始 JSON 的 `tag_name`、`draft`、`prerelease` 及 `assets`，从附件的 `browser_download_url` 取实际地址，以 `digest` 中的 SHA-256 核对下载。不能仅凭列表缺项、网页摘要或 `/latest` 的 404 判断指定版本未发布。直接标签接口返回 404 时报告该次请求结果；403、429、超时或无终端权限时报告无法确认，不改选历史版本，也不把访问失败解释成版本不存在。
 
 - 读取[完整发布列表](https://github.com/BeatsAD/quiet-tv/releases)；使用 API 时读取 `https://api.github.com/repos/BeatsAD/quiet-tv/releases`，有下一页则继续读取。排除草稿，保留 `prerelease=true`，结合软件版本、实际附件及兼容信息选包。不能仅依赖 `/releases/latest` 或 `/releases/latest/download/...`：它们不包含预发布；仓库只有预发布时，前者返回 404 不代表没有新版本。
 - 若有更新的适配版本，以实时发布列表为准；按系统、架构和已有安装选包，不跨档比较最大构建号。1.1.2、1.1.0、b26、b30 等历史包不作为当前默认下载，搜索摘要、本机缓存和已有 APK 不作为“最新”的依据。用户明确指定历史版本时，另行说明版本差异与升级限制。
