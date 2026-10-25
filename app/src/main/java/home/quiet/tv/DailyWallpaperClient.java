@@ -73,7 +73,7 @@ final class DailyWallpaperClient {
             if(Thread.currentThread().isInterrupted())throw new InterruptedIOException();
             HttpsURLConnection request=(HttpsURLConnection)url.openConnection();connection=request;
             try{
-                if(Build.VERSION.SDK_INT<21)request.setSSLSocketFactory(new Tls12SocketFactory());
+                if(Build.VERSION.SDK_INT<21)request.setSSLSocketFactory(new Tls12SocketFactory(true));
                 request.setConnectTimeout(8000);request.setReadTimeout(10000);request.setInstanceFollowRedirects(false);
                 request.setRequestProperty("Accept",accept);request.setRequestProperty("User-Agent","QuietTV/"+BuildConfig.VERSION_NAME);
                 int status=request.getResponseCode();
