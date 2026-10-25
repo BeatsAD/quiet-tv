@@ -12,6 +12,9 @@ final class DailyWallpaperClient {
     static final long MAX_IMAGE_BYTES=8L*1024*1024;
     static final String BING_URL="https://cn.bing.com/HPImageArchive.aspx?format=js&idx=0&n=8&mkt=zh-CN";
     private volatile HttpsURLConnection connection;
+    private final android.content.Context context;
+    private SSLSocketFactory legacyTls;
+    DailyWallpaperClient(android.content.Context context){this.context=context;}
     static final class Unavailable extends IOException {
         Unavailable(){super("No recent Bing image is available as wallpaper");}
     }
@@ -73,7 +76,16 @@ final class DailyWallpaperClient {
             if(Thread.currentThread().isInterrupted())throw new InterruptedIOException();
             HttpsURLConnection request=(HttpsURLConnection)url.openConnection();connection=request;
             try{
-                if(Build.VERSION.SDK_INT<21)request.setSSLSocketFactory(new Tls12SocketFactory());
+                if(Build.VERSION.SDK_INT<21){
+                    if(legacyTls==null){
+                        try(InputStream root=context.getAssets().open("certificates/digicert-global-root-g2.pem")){legacyTls=WallpaperTls.socketFactory(root);}
+                        try(SSLSocket socket=(SSLSocket)legacyTls.createSocket()){
+                            DiagnosticLog.info("wallpaper.daily.tls","enabled="+java.util.Arrays.toString(socket.getEnabledProtocols())
+                                +" supported="+java.util.Arrays.toString(socket.getSupportedProtocols())+" ciphers="+socket.getEnabledCipherSuites().length);
+                        }
+                    }
+                    request.setSSLSocketFactory(legacyTls);
+                }
                 request.setConnectTimeout(8000);request.setReadTimeout(10000);request.setInstanceFollowRedirects(false);
                 request.setRequestProperty("Accept",accept);request.setRequestProperty("User-Agent","QuietTV/"+BuildConfig.VERSION_NAME);
                 int status=request.getResponseCode();
@@ -95,6 +107,11 @@ final class DailyWallpaperClient {
                     if(total==0)throw new IOException("Empty wallpaper response");
                 }
                 return;
+            }catch(IOException e){
+                DiagnosticLog.info("wallpaper.daily.network_failed","host="+url.getHost()+" kind="+(e instanceof HttpFailure||e instanceof Limited?"http":WallpaperTls.failureCode(e))
+                    +(e instanceof HttpFailure?" status="+((HttpFailure)e).status:e instanceof Limited?" status=429":"")
+                    +" tls="+(Build.VERSION.SDK_INT<21?"app":"system"));
+                throw e;
             }finally{request.disconnect();if(connection==request)connection=null;}
         }
         throw new IOException("Too many wallpaper redirects");
