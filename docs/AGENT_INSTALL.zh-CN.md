@@ -22,14 +22,16 @@ https://raw.githubusercontent.com/BeatsAD/quiet-tv/main/docs/AGENT_INSTALL.zh-CN
 
 ## 版本选择：包含预发布，避免误装历史包
 
-默认安装适配目标电视的最新已发布主程序，包含预发布／测试版；每次执行都须实时查询发布列表及实际附件。下表为截至 **2026-10-25** 核对的 [1.2.0 测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.2.0)附件快照，供核对名称与档位，不替代实时选包：
+默认安装适配目标电视的最新已发布主程序，包含预发布／测试版；每次执行都须实时查询发布列表及实际附件。下表为2026-10-25核对的 [1.2.4 测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.2.4)附件快照，不替代实时选包：
 
-| 电视系统 | APK（另下载同名 `.apk.sha256`） | 软件版本与构建号 |
+| 电视系统 | APK | 软件版本与构建号 |
 | --- | --- | --- |
-| 安卓 4.4 / API19–20 | [安卓 4.4 包](https://github.com/BeatsAD/quiet-tv/releases/download/v1.2.0/QuietTV_1.2.0-44_Android4.4_Test.apk) | `versionName=1.2.0`  `versionCode=44` |
-| 安卓 5 及以上 / API21+ | [标准通用包](https://github.com/BeatsAD/quiet-tv/releases/download/v1.2.0/QuietTV_1.2.0-43_Android5plus_Test.apk) | `versionName=1.2.0`  `versionCode=43` |
+| 安卓5+ / API21+ | [ARM32包](https://github.com/BeatsAD/quiet-tv/releases/download/v1.2.4/QuietTV_1.2.4_Android5plus_ARM32_Test.apk) | `versionName=1.2.4`  `versionCode=64` |
+| 安卓5+ / API21+ | [ARM64包](https://github.com/BeatsAD/quiet-tv/releases/download/v1.2.4/QuietTV_1.2.4_Android5plus_ARM64_Test.apk) | `versionName=1.2.4`  `versionCode=65` |
+| 安卓5+ / API21+ | [通用备用包](https://github.com/BeatsAD/quiet-tv/releases/download/v1.2.4/QuietTV_1.2.4_Android5plus_Universal_Test.apk) | `versionName=1.2.4`  `versionCode=66` |
+| 安卓4.4 / API19–20 | [安卓4.4兼容包](https://github.com/BeatsAD/quiet-tv/releases/download/v1.2.4/QuietTV_1.2.4_Android4.4_Test.apk) | `versionName=1.2.4`  `versionCode=67` |
 
-本次核查时，该 Release 只有上述两个主程序 APK 及其同名校验文件。架构专用包只有在实际发布为附件后才可选择；不能根据开发方案、构建脚本、本地候选包或命名规律编造下载地址。后续有更新的适配附件时，以实时发布信息为准。
+本版只上传四个主程序 APK，SHA-256 使用 GitHub 对应附件的 `digest`，不要求独立校验文件。只使用实时查询到的实际附件地址，不从本地候选、脚本或命名规律编造下载链接。
 
 - 每次读取[完整发布列表](https://github.com/BeatsAD/quiet-tv/releases)及实际附件；API 使用 `https://api.github.com/repos/BeatsAD/quiet-tv/releases`，有下一页则继续读取。排除草稿，保留预发布；不能仅依赖不包含预发布的 `/releases/latest` 或 `/releases/latest/download/...`，404 不代表没有适配版本。
 - 按系统、架构和已有安装选择最新适配发布，不跨档比较最大构建号，不将搜索摘要、本机缓存或历史版本当作最新。用户明确指定历史版本时说明差异；文档中的旧链接以实时 Release 为准。读取或下载失败时停止安装并报告，不自动退回历史包，不以源码构建或未发布本地候选替代公开附件。
