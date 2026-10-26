@@ -72,10 +72,15 @@ final class HomeGuardState {
     void configure(){
         if(!supported() || !unlocked(context))return;
         preferences.edit().putBoolean("configured",true).apply();
-        if(!selected().isEmpty())return;
+        if(validSelection())return;
         List<Candidate> homes=candidates();ResolveInfo resolved=pm.resolveActivity(HomeController.homeIntent(),PackageManager.MATCH_DEFAULT_ONLY);
         if(resolved!=null && resolved.activityInfo!=null){ComponentName actual=new ComponentName(resolved.activityInfo.packageName,resolved.activityInfo.name);
             for(Candidate home:homes)if(home.component.equals(actual)){select(actual);return;}}
+        // Reuse a verified local identity before asking the user to distinguish system components.
+        SetupPresets presets=SetupPresets.load(context);
+        String original="";try{original=new SetupStore(context).originalHome();}catch(Exception unavailable){DiagnosticLog.info("home_guard.selection","original_record_unavailable");}
+        for(String saved:new String[]{original,presets.home()})
+            for(Candidate home:homes)if(home.component.flattenToString().equals(saved)){select(home.component);return;}
         if(homes.size()==1)select(homes.get(0).component);
     }
     void status(String text){if(!text.equals(preferences.getString("status",""))){preferences.edit().putString("status",text).apply();DiagnosticLog.info("home_guard.status",text);}}

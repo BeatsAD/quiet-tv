@@ -70,6 +70,29 @@ final class DesktopRoutes {
     String homeLabel(){if(state.directHomeConfigured())return "直接 HOME 按键补偿";if("RELAY".equals(home()) && proxySelected())return "HOME 代理中转";return "DIRECT".equals(home())?"系统直接启动":"RELAY".equals(home())?"原主页中转":"待检测";}
     String bootLabel(){return vendorReady()?"厂商开机中转":state.observationReady()?"守护开机补偿":state.enabled()?"守护待就绪":"待验证";}
     String wakeLabel(){return state.observationReady()?"原主页中转":state.enabled()?"守护待就绪":"待验证";}
+    /** Configuration checks never infer physical HOME, power-on or panel-display success. */
+    String configurationProblem(){
+        if(!state.automatic())return "自动配置尚未启用";
+        if(!current())return "设备或启动配置已变化";
+        try{
+            JSONObject takeover=new SetupStore(context).get().optJSONObject("takeover");
+            if(takeover!=null && !java.util.Arrays.asList("applied","restored","rolled-back").contains(takeover.optString("state")))return "上次桌面切换未完成，请先恢复原桌面";
+        }catch(Exception unavailable){return "配置记录无法读取";}
+        if(prefs.getBoolean("proxyPausePending",false))return "代理暂停回执待确认";
+        if(proxySelected()){
+            HomeProxy proxy=new HomeProxy(context);if(proxy.ready())return "";
+            String problem=proxy.problem();return problem.isEmpty()?"HOME 代理尚未就绪":problem;
+        }
+        if("DIRECT".equals(home())){
+            try{if(!new HomeController(context).inspect(null).isOwn(context))return "系统默认桌面已变化";}
+            catch(Exception unavailable){return "无法核对系统默认桌面";}
+            if(!state.enabled())return "";
+        }else if(!"RELAY".equals(home()))return "启动方式尚未确认";
+        String problem=state.enableProblem();if(!problem.isEmpty())return problem;
+        if(state.directHomeSelected())return HomeGuardService.connected()?"":"等待系统连接无障碍";
+        problem=HomeGuardRecovery.configurationProblem(context);if(!problem.isEmpty())return problem;
+        return state.observationReady()?"":"等待系统连接桌面服务";
+    }
     String test(String scene){return current()?prefs.getString("routeTest_"+scene,"待验证"):"待验证";}
     void observation(String scene,String result){
         if(!java.util.Arrays.asList("home","reboot","coldBoot","wake").contains(scene)
