@@ -14,7 +14,7 @@ final class WeatherClient {
     static final String SOURCE_URL="https://dev.qweather.com/docs/";
     interface Transport { JSONObject get(String base,String path,String key)throws IOException,JSONException; }
     private static volatile long uapiUntil,qweatherUntil;
-    private volatile HttpsURLConnection connection;
+    private final NetworkRequest requests=new NetworkRequest();
     private android.content.res.AssetManager assets;
     private SSLSocketFactory legacyTls;
     private boolean tlsLogged;
@@ -105,9 +105,10 @@ final class WeatherClient {
         }
     }
     private JSONObject request(String base,String path,String key)throws IOException,JSONException{
-        HttpsURLConnection request=(HttpsURLConnection)new URL(base+path).openConnection();connection=request;
+        HttpsURLConnection request=(HttpsURLConnection)new URL(base+path).openConnection();NetworkRequest.Handle handle=requests.begin(request);
         String stage="tls_setup";int status=0;
         try{
+            checkInterrupted();
             if(Build.VERSION.SDK_INT<=25){
                 if(legacyTls==null)try(InputStream root=assets.open("certificates/isrg-root-x1.pem")){
                     SSLSocketFactory factory=WeatherTls.socketFactory(root);
@@ -135,7 +136,7 @@ final class WeatherClient {
             DiagnosticLog.info("weather.transport.failed","provider="+(key.isEmpty()?"uapi":"qweather")+" stage="+(e instanceof JSONException?"parse":stage)
                 +" "+NetworkDiagnostics.failureDetails(e)+(status>0?" http="+status:""));
             throw e;
-        }finally{request.disconnect();if(connection==request)connection=null;}
+        }finally{requests.finish(handle);}
     }
     static JSONObject readJson(InputStream input)throws IOException,JSONException{
         try(ByteArrayOutputStream out=new ByteArrayOutputStream()){
@@ -144,5 +145,5 @@ final class WeatherClient {
         }
     }
     private String certificate="";
-    void cancel(){HttpsURLConnection active=connection;if(active!=null)active.disconnect();}
+    void cancel(){requests.cancel();}
 }

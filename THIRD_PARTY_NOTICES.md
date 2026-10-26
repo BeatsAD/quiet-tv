@@ -49,7 +49,7 @@ VIDAA 原主页缺少窗口事件、酷开 AI 与松下系无 HOME 声明组件�
 
 ## coocaa-home-shim（可选独立助手）
 
-- 来源：[VincentYe123/coocaa-home-shim](https://github.com/VincentYe123/coocaa-home-shim/tree/281a6a1362a9e30faaeb2169b75ba701dd0b1a03)，固定提交 `281a6a1362a9e30faaeb2169b75ba701dd0b1a03`。
+- 来源：[VincentYe123/coocaa-home-shim](https://github.com/VincentYe123/coocaa-home-shim/tree/281a6a1362a9e30faaeb2169b75ba701dd0b1a03)，基于提交 `281a6a1362a9e30faaeb2169b75ba701dd0b1a03`，同步 [v2.1](https://github.com/VincentYe123/coocaa-home-shim/releases/tag/v2.1) 的开机主页属性恢复。
 - Copyright (c) 2026 VincentYe123，MIT；[完整许可证](coocaa-home-shim/LICENSE)随助手 APK 打包。
 - 移植仅调整 Quiet TV 目标组件、构建配置及外部调用入口；保留上游主页中转、原桌面回退和短时开机处理。该助手不包含在普通 Quiet TV APK 内。
 - [构建、安装和恢复说明](coocaa-home-shim/README.md)；Quiet TV 移植尚未经过真实酷开电视验收。

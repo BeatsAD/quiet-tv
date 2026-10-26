@@ -56,3 +56,5 @@ Skill 由独立本地技能包交付，不属于 APK，也不参与主应用构�
 用户检查后私下发送报告和相关证据。没有复现成功、缺少连接或没有明显报错，也要记录缺失项并交付现象报告。AI输出是排查结论，不代表已修复。
 
 电脑采集不依赖诊断页面保持打开；只要电脑和 ADB 连接仍正常，Quiet TV 退出后仍可继续采集系统日志。Logcat不等于每次遥控器按键记录，不能读取其他应用的私有日志；固件权限和日志缓冲区会影响完整性。收集方式应依据设备帮助以及 Android 官方 [ADB](https://developer.android.com/tools/adb) 和 [Logcat](https://developer.android.com/tools/logcat) 文档。
+
+MiBOX3直接HOME补偿开发日志增加 `home_guard.key_observed`，记录实际投递到无障碍的标准HOME按下/松开、keyCode/scanCode、单调时间、过滤请求与拒绝原因；`home_guard.home_trigger` 通过 observation 关联后续启动 attempt。广播、启动请求和首页生命周期回报均不等于实体键上屏成功。服务未连接或系统未投递时可能没有该事件，不能据此认定用户没按键；不记录任意文本输入。具体配置见[配置说明](SETUP.md#mibox3-直接-home-按键补偿本地开发未交付)。

@@ -20,7 +20,7 @@ final class HomeGuardAdb {
     static boolean enabled(Context c){return new HomeGuardState(c,false).preferences.getBoolean("keepAdb",false);}
     // The opt-in/out must survive a firmware kill immediately after the click.
     @android.annotation.SuppressLint("ApplySharedPref")
-    static boolean setEnabled(Context c,boolean enabled){boolean saved=new HomeGuardState(c).preferences.edit().putBoolean("keepAdb",enabled).commit();if(saved && enabled){watch(c);ensure(c);}return saved;}
+    static boolean setEnabled(Context c,boolean enabled){boolean saved=new HomeGuardState(c).preferences.edit().putBoolean("keepAdb",enabled).commit();if(saved){HomeGuardSync.refresh(c);if(enabled){watch(c);ensure(c);}}return saved;}
     static void watch(Context c){
         if(!supported(c) || watching)return;
         Context app=c.getApplicationContext();watching=true;
@@ -28,14 +28,15 @@ final class HomeGuardAdb {
             @Override public void onChange(boolean self){ensure(app);}
         });ensure(app);
     }
-    private static boolean allowed(Context c){return supported(c) && HomeGuardState.unlocked(c) && enabled(c) && new HomeGuardState(c).ready() && HomeGuardRecovery.writeAllowed(c);}
+    static boolean ready(Context c){return HomeGuardPolicy.keepAdbReady(supported(c),HomeGuardState.unlocked(c),enabled(c),new HomeGuardState(c,false).automatic(),HomeGuardRecovery.writeAllowed(c));}
+    static String summary(Context c){return !enabled(c)?"未开启":!new HomeGuardState(c,false).automatic()?"已暂停":!HomeGuardRecovery.writeAllowed(c)?"缺少写安全设置权限":ready(c)?"调试设置恢复已启用，端口持续可用性待验证":"当前不可用";}
     static void ensure(Context c){
-        if(!allowed(c))return;
+        if(!ready(c))return;
         again.set(true);if(!pending.compareAndSet(false,true))return;
         Context app=c.getApplicationContext();worker.execute(()->{again.set(false);try{restore(app);}finally{pending.set(false);if(again.getAndSet(false))ensure(app);}});
     }
     private static void restore(Context c){
-        if(!allowed(c))return;
+        if(!ready(c))return;
         try{
             if(Settings.Global.getInt(c.getContentResolver(),Settings.Global.ADB_ENABLED,0)==0){
                 boolean restored=Settings.Global.putInt(c.getContentResolver(),Settings.Global.ADB_ENABLED,1);
@@ -47,7 +48,7 @@ final class HomeGuardAdb {
             probed=true;
             try(Socket socket=new Socket()){socket.connect(new InetSocketAddress("127.0.0.1",port),400);return;}
             catch(java.io.IOException closed){/* Configured port did not answer. */}
-            if(!allowed(c))return;
+            if(!ready(c))return;
             if(!Settings.Global.putInt(c.getContentResolver(),Settings.Global.ADB_ENABLED,0))return;
             try{Thread.sleep(1000);}catch(InterruptedException interrupted){Thread.currentThread().interrupt();}
             finally{Settings.Global.putInt(c.getContentResolver(),Settings.Global.ADB_ENABLED,1);}

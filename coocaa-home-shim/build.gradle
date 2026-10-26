@@ -13,8 +13,8 @@ android {
         // Below 26 so the boot watch may run as a plain background service on Android 8.
         minSdk 21
         targetSdk 25
-        versionCode 11
-        versionName '2.0'
+        versionCode 12
+        versionName '2.1.0'
         manifestPlaceholders = [quietLauncherPackage: launcherId]
         buildConfigField 'String', 'LAUNCHER_PACKAGE', '"' + launcherId + '"'
     }

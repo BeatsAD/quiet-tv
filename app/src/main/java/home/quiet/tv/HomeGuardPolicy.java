@@ -5,6 +5,7 @@ import java.util.Locale;
 
 /** Fresh home events are immediate; lifecycle recovery has a separate, bounded settle path. */
 final class HomeGuardPolicy {
+    static boolean keepAdbReady(boolean supported,boolean unlocked,boolean selected,boolean automatic,boolean writeAllowed){return supported && unlocked && selected && automatic && writeAllowed;}
     static final long SETTLE_MS=1500, MAX_AGE_MS=3000, BOOT_WINDOW_MS=180000;
     static final long USAGE_POLL_MS=1000, USAGE_LOOKBACK_MS=10000;
     static final long BOOT_RECHECK_FIRST_MS=30000, BOOT_RECHECK_SECOND_MS=45000, DEAF_CHECK_MS=20000;
@@ -13,6 +14,11 @@ final class HomeGuardPolicy {
     private boolean consumed,unknownUsed;
 
     static boolean supported(String manufacturer,String brand,int sdk,boolean legacy){return !legacy && sdk>=21;}
+    static boolean coocaa(String manufacturer,String brand){
+        for(String name:(manufacturer+" "+brand).toLowerCase(Locale.ROOT).split("\\s+"))
+            if("skyworth".equals(name) || "coocaa".equals(name))return true;
+        return false;
+    }
     static boolean xiaomi(String manufacturer,String brand){
         for(String name:(manufacturer+" "+brand).toLowerCase(Locale.ROOT).split("\\s+"))
             if("xiaomi".equals(name) || "redmi".equals(name))return true;
@@ -33,7 +39,19 @@ final class HomeGuardPolicy {
         return usageFallback(sdk,legacy,selected) || xiaomiRecovery(manufacturer,brand,sdk,legacy);
     }
     static boolean filterHome(boolean xiaomi,boolean enabled,boolean canShow,int sdk,boolean defaultHome,boolean homeResumed){
-        return xiaomi && enabled && canShow && sdk>=21 && (homeResumed || sdk<=30 && !defaultHome);
+        return filterHome(xiaomi,enabled,canShow,sdk,defaultHome,homeResumed,false);
+    }
+    static boolean filterHome(boolean xiaomi,boolean enabled,boolean canShow,int sdk,boolean defaultHome,boolean homeResumed,boolean directHomeReady){
+        return xiaomi && enabled && canShow && sdk>=21 && (directHomeReady || homeResumed || sdk<=30 && !defaultHome);
+    }
+    static boolean directHomeDevice(String manufacturer,String brand,String model,String device,int sdk,boolean legacy){
+        return !legacy && sdk==22 && xiaomi(manufacturer,brand) && "MiBOX3".equals(model) && "JurassicPark".equals(device);
+    }
+    static boolean directHomeConfigured(boolean enabled,boolean optedIn,boolean current,String route){
+        return enabled && optedIn && current && "DIRECT".equals(route);
+    }
+    static boolean homeActionReady(boolean observerReady,boolean directConfigured,boolean ownHomeUsable,boolean helperActive){
+        return !helperActive && (directConfigured?ownHomeUsable:observerReady);
     }
     static boolean handoverBlocked(boolean pending,boolean homeResumed){return pending || homeResumed;}
     static boolean bootRecheck(long uptime){return uptime>=0 && uptime<BOOT_WINDOW_MS;}

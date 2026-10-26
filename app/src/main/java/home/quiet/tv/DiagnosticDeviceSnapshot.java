@@ -24,6 +24,7 @@ final class DiagnosticDeviceSnapshot {
         snapshot.section("HOME 候选与状态",snapshot::homeCandidates);
         snapshot.section("厂商私有启动路由",snapshot::privateHome);
         snapshot.section("桌面守护",snapshot::guard);
+        if(LegacyHomeKeyService.supported())snapshot.section("安卓4.4主页键修复",snapshot::legacyHomeKey);
         snapshot.section("开机接收组件",snapshot::bootReceiver);
         snapshot.section("厂商后台管理组件",snapshot::backgroundManagers);
         snapshot.section("本应用进程退出历史",snapshot::processExits);
@@ -150,6 +151,10 @@ final class DiagnosticDeviceSnapshot {
         line("守护筛选规则","排除本应用、非系统应用、禁用应用或组件、android 包及 FallbackHome；固件变化会重置场景验证，专项入口另核对固件");
     }
     private void privateHome(){
+        if(HomeGuardRecovery.knownPrivateHome()){
+            for(String key:CoocaaHomeRoutes.KEYS){String value=CoocaaHomeRoutes.read(key);line(key,value==null?"无法读取":value.isEmpty()?"空值":value);}
+            line("酷开路由范围","只读属性；候选须另核对本机已安装的系统组件，不代表实体 HOME、开机或唤醒通过");
+        }
         // Keep optional router discovery separate from existing HOME candidate diagnostics.
         Map<String,String> routers=new LinkedHashMap<>();homeCandidates(routers,"android.intent.category.HOME.JM");
         line("HOME.JM 可见声明数",Integer.toString(routers.size()));
@@ -164,6 +169,15 @@ final class DiagnosticDeviceSnapshot {
             homes.put(name,previous==null?category:previous+"  "+category);
         }
     }
+    private void legacyHomeKey(){
+        line("匹配平台","Hisense VIDAA_TV  Hi3751  API19");
+        line("服务组件启用原值",Integer.toString(pm.getComponentEnabledSetting(new ComponentName(context,LegacyHomeKeyService.class))));
+        line("默认 HOME 为本应用",yes(LegacyHomeKeyService.defaultHome(context)));
+        line("无障碍授权",yes(LegacyHomeKeyService.authorized(context)));
+        line("服务已连接",yes(LegacyHomeKeyService.connected()));
+        line("按键过滤请求",yes(LegacyHomeKeyService.filtering()));
+        line("验证范围","只处理 HOME；不依赖桌面守护、不读取窗口内容。授权、连接、请求过滤和实体 HOME 效果分别判断，实际效果待用户验证。");
+    }
     private void guard() throws Exception {
         // Diagnostics must not perform preference migrations or request recovery.
         HomeGuardState state=new HomeGuardState(context,false);
@@ -176,8 +190,11 @@ final class DiagnosticDeviceSnapshot {
         line("记录固件与当前一致",yes(Build.FINGERPRINT.equals(state.preferences.getString("firmware",""))));
         line("无障碍设置授权",yes(state.serviceEnabled()));line("无障碍服务已连接",yes(HomeGuardService.connected()));
         String configurationProblem=HomeGuardRecovery.configurationProblem(context);
-        line("完整配置缺项",configurationProblem.isEmpty()?"未检测到缺项，场景效果仍待验证":configurationProblem);
+        line("完整配置缺项",!state.enabled()?"当前未使用守护中转":configurationProblem.isEmpty()?"未检测到缺项，场景效果仍待验证":configurationProblem);
+        line("保持 ADB 调试",HomeGuardAdb.summary(context));
         line("厂商自启动配置（历史记录）",state.preferences.getString("vendorAutoStartStatus","未配置或未记录"));
+        line("直接 HOME 按键补偿已配置",yes(state.directHomeConfigured()));line("显式 HOME 接管条件有效",yes(state.homeActionReady()));
+        line("HOME 按键过滤能力",HomeGuardService.connected()?yes(HomeGuardService.keyFilterCapable()):"服务未连接，未读取");
         line("HOME 按键过滤请求",yes(HomeGuardService.keyFiltering()));line("首页生命周期前台",yes(HomeGuardService.homeResumed()));
         line("独立中转助手占用",yes(state.helperActive()));
         line("兼容检测所需用量权限",HomeGuardService.usageRequired(context)?yes(HomeGuardService.usageAllowed(context)):"本档位不需要");
@@ -187,7 +204,7 @@ final class DiagnosticDeviceSnapshot {
         line("系统已解锁",yes(HomeGuardState.unlocked(context)));line("屏幕交互中",yes(HomeGuardState.interactive(context)));
         String problem=state.enableProblem();
         line("当前守护结论",!state.enabled()?"配置开关未开启，不执行守护":!problem.isEmpty()?problem
-            :!HomeGuardService.connected()?"等待系统绑定无障碍":"无障碍服务已连接，守护已启用");
+            :!HomeGuardService.connected()?"等待系统绑定无障碍":state.summary());
         line("最近记录状态（历史记录）",state.preferences.getString("status","未记录"));
     }
     private void bootReceiver() throws PackageManager.NameNotFoundException {

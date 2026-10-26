@@ -9,19 +9,29 @@ import re
 import shlex
 import subprocess
 import sys
+import uuid
+
+ERROR_OUTPUT = re.compile(r"(?im)^\s*(?:error:|exception|securityexception|failure|bad argument:|operation not allowed:|unknown (?:command|operation|op)\b|invalid operation)")
+
+
+class CommandFailure(ValueError):
+    def __init__(self, exit_code, output):
+        self.exit, self.output = exit_code, output
+        super().__init__(f"命令失败（{exit_code}）：{output}")
 
 
 def command_signature(help_text, name):
     lines = help_text.splitlines()
     for index, line in enumerate(lines):
-        if not re.match(r"^\s*(?:pm\s+|appops\s+)?" + re.escape(name) + r"(?:\s|$)", line):
+        if not re.match(r"^\s*(?:(?i:usage):\s*)?(?:(?:pm|appops)\s+)?" + re.escape(name) + r"(?:\s|$)", line):
             continue
         indent = len(line) - len(line.lstrip())
         entry = [line.strip()]
         for following in lines[index + 1:]:
             if not following.strip():
                 continue
-            if len(following) - len(following.lstrip()) <= indent:
+            if (len(following) - len(following.lstrip()) <= indent
+                    or re.fullmatch(r"(?:(?i:usage):\s*)?(?:(?:pm|appops)\s+)?[a-z][a-z0-9-]*(?:\s.*)?", following.strip())):
                 break
             entry.append(following.strip())
         return " ".join(entry)
@@ -107,18 +117,50 @@ class ComputerAdb:
     def __init__(self, executable, serial):
         self.executable, self.serial = executable, serial
 
+    def _result(self, *arguments):
+        return subprocess.run([self.executable, "-s", self.serial, *arguments],
+                              capture_output=True, text=True, encoding="utf-8",
+                              errors="replace", timeout=20, check=False)
+
     def run(self, *arguments):
-        result = subprocess.run([self.executable, "-s", self.serial, *arguments],
-                                capture_output=True, text=True, encoding="utf-8",
-                                errors="replace", timeout=20, check=False)
+        result = self._result(*arguments)
         output = (result.stdout + "\n" + result.stderr).strip()
-        if result.returncode or re.search(r"(?im)^\s*(?:error:|exception|securityexception|failure|unknown (?:command|operation|op)\b|invalid operation)", output):
+        if result.returncode or ERROR_OUTPUT.search(output):
             raise ValueError(output or "ADB 命令失败，状态未确认")
         return output
 
     def shell(self, *arguments):
         # adb joins shell arguments; quote for Android's POSIX shell, including on Windows hosts.
-        return self.run("shell", " ".join(shlex.quote(str(value)) for value in arguments))
+        command = " ".join(shlex.quote(str(value)) for value in arguments)
+        marker = "__QUIET_GUARD_EXIT_" + uuid.uuid4().hex + "="
+        result = self._result("shell", "( " + command + " ); quiet_guard_status=$?; echo; echo \"" + marker + "$quiet_guard_status\"")
+        output = (result.stdout + "\n" + result.stderr).strip()
+        if result.returncode:
+            raise ValueError(output or "ADB 传输失败，状态未确认")
+        status = re.search(r"(?:^|\n)" + re.escape(marker) + r"([0-9]+)\s*$", output)
+        if status is None:
+            raise ValueError("ADB 结果不完整，停止后续操作；请重新查询状态")
+        body, exit_code = output[:status.start()].strip(), int(status[1])
+        if exit_code or ERROR_OUTPUT.search(body):
+            raise CommandFailure(exit_code, body)
+        return body
+
+    def permission_help(self, tool):
+        operation = {"pm": "grant", "appops": "set"}[tool]
+        for arguments in ((tool, "help"), (tool,)):
+            failure = None
+            try:
+                output = self.shell(*arguments)
+            except CommandFailure as error:
+                failure, output = error, error.output
+            if command_signature(output, operation):
+                return output
+            if len(arguments) == 2 and re.search(r"(?i)\bunknown command\b[^\r\n]*\bhelp\b", output):
+                continue
+            if failure is not None:
+                raise failure
+            break
+        raise ValueError("系统帮助未确认 " + tool + " " + operation + " 命令")
 
     def current_user(self):
         try:
@@ -132,6 +174,102 @@ class ComputerAdb:
         if len(users) != 1:
             raise ValueError("无法唯一核对前台用户；请先在电视打开 Quiet TV")
         return int(users.pop())
+
+
+HISENSE_REFRESH_PACKAGE = "com.hisense.vidaaassistant"
+HISENSE_REFRESH_FINGERPRINT = "Hisense/VIDAA_TV/MSD6A828:5.1.1/LVY48C/01.02.40.01:user/release-keys"
+
+
+def hisense_refresh_supported(adb, sdk, user, brand, manufacturer):
+    return (sdk == 22 and user == 0 and brand.lower() == "hisense" and manufacturer.lower() == "hisense"
+            and adb.shell("getprop", "ro.build.fingerprint") == HISENSE_REFRESH_FINGERPRINT)
+
+
+def hisense_hidden(dump):
+    rows = re.findall(r"(?m)^\s*User 0:([^\r\n]+)", dump)
+    if (len(rows) != 1 or not re.search(r"\binstalled=true\b", rows[0])
+            or not re.search(r"\benabled=[01]\b", rows[0])):
+        raise ValueError("上游刷新包未安装、已禁用或当前用户状态不明，未修改厂商包")
+    state = re.search(r"\bhidden=(true|false)\b", rows[0])
+    if state is None:
+        raise ValueError("上游刷新包隐藏状态不明，未修改厂商包")
+    return state[1] == "true"
+
+
+def repair_hisense_accessibility(adb, package, pm_help, record):
+    """Explicit Aerial #285 workaround; restore the verified hidden baseline even on failure."""
+    own = package + "/home.quiet.tv.HomeGuardService"
+
+    def check():
+        if adb.current_user() != 0:
+            raise ValueError("前台用户已改变，停止海信恢复；保留恢复记录")
+
+    def run(*command):
+        try:
+            output = adb.shell(*command)
+        except (ValueError, subprocess.TimeoutExpired) as error:
+            record({"command": command, "status": "failed", "exit": getattr(error, "exit", None), "output": str(error)})
+            raise
+        record({"command": command, "output": output})
+        return output
+
+    def get(key):
+        return run("settings", "--user", 0, "get", "secure", key).strip()
+
+    def accepted():
+        current = get("enabled_accessibility_services")
+        entries = [canonical_home(entry) for entry in current.split(":")]
+        return get("accessibility_enabled") == "1" and own in entries
+
+    def write():
+        check()
+        current = get("enabled_accessibility_services")
+        entries = [entry for entry in current.split(":") if entry and entry != "null" and canonical_home(entry) != own]
+        entries.append(own)
+        run("settings", "--user", 0, "put", "secure", "enabled_accessibility_services", ":".join(dict.fromkeys(entries)))
+        check()
+        run("settings", "--user", 0, "put", "secure", "accessibility_enabled", 1)
+
+    check()
+    if accepted():
+        return
+    write()
+    if accepted():
+        return
+    if get("accessibility_enabled") != "0":
+        raise ValueError("无障碍配置读回不一致，未修改厂商包")
+    check()
+    before = run("dumpsys", "package", HISENSE_REFRESH_PACKAGE)
+    if not hisense_hidden(before):
+        raise ValueError("固件未接受无障碍设置；上游刷新包原本未隐藏，未修改厂商包")
+    unhide = ["pm", "unhide", *user_options(pm_help, "unhide", 22, 0), HISENSE_REFRESH_PACKAGE]
+    hide = ["pm", "hide", *user_options(pm_help, "hide", 22, 0), HISENSE_REFRESH_PACKAGE]
+    check()
+    record({"hisense_refresh": "unhide_pending", "package": HISENSE_REFRESH_PACKAGE, "hidden_before": True,
+            "package_before": before, "restore_command": hide})
+    failure = None
+    try:
+        run(*unhide)
+        if hisense_hidden(run("dumpsys", "package", HISENSE_REFRESH_PACKAGE)):
+            raise ValueError("刷新包未解除隐藏")
+        write()
+        if not accepted():
+            raise ValueError("包状态刷新后固件仍未接受无障碍设置")
+    except (ValueError, subprocess.TimeoutExpired) as error:
+        failure = error
+    finally:
+        try:
+            check()
+            run(*hide)
+            if not hisense_hidden(run("dumpsys", "package", HISENSE_REFRESH_PACKAGE)):
+                raise ValueError("刷新包恢复隐藏未读回")
+            record({"hisense_refresh": "restored", "hidden_after": True})
+        except (ValueError, subprocess.TimeoutExpired) as restore:
+            raise ValueError("刷新包恢复隐藏未确认，请保留恢复记录并重新连接；原错误：" + str(failure or "无")) from restore
+    if failure is not None:
+        raise failure
+    if not accepted():
+        raise ValueError("恢复包隐藏状态后无障碍设置未保持，守护未确认")
 
 
 def configure(args, adb):
@@ -167,9 +305,12 @@ def configure(args, adb):
             raise ValueError("应用未确认暂停；已安装 APK 可能不支持该入口")
         print("中转已暂停；系统默认 HOME 保持原状，原桌面保护不解除。")
         return
+    direct_home = getattr(args, "direct_home", False)
+    if direct_home and args.home:
+        raise ValueError("直接 HOME 补偿不能同时指定原桌面")
     selected = canonical_home(args.home or "")
     inspection = None
-    if args.apply:
+    if args.apply or direct_home:
         # New APKs answer without changing preferences or enabling the guard. Old APKs
         # reject inspect before the explicit enable branch; retain their existing setup path.
         output = adb.shell("am", "broadcast", "--include-stopped-packages", "--user", args.user,
@@ -180,13 +321,19 @@ def configure(args, adb):
         if inspection and inspection.get("schemaVersion") == 1:
             if inspection.get("package") != args.package or not inspection.get("supported"):
                 raise ValueError("应用身份或守护能力不匹配，未修改权限")
-            homes = inspection.get("candidates", [])
-            resolved = inspection.get("resolvedHome", "")
-            selected = selected or inspection.get("selected") or (resolved if resolved in homes else "") or (homes[0] if len(homes) == 1 else "")
-            if not selected or selected not in homes:
-                raise ValueError("原主页未唯一确定或已失效，请使用 --home 指定本机候选；未修改权限")
-    pm_help = adb.shell("pm", "help")
-    ops_help = adb.shell("appops", "help")
+            if direct_home:
+                if not inspection.get("directHomeAvailable"):
+                    raise ValueError("本机设备或系统 HOME 不适用直接按键补偿；未修改权限")
+            else:
+                homes = inspection.get("candidates", [])
+                resolved = inspection.get("resolvedHome", "")
+                selected = selected or inspection.get("selected") or (resolved if resolved in homes else "") or (homes[0] if len(homes) == 1 else "")
+                if not selected or selected not in homes:
+                    raise ValueError("原主页未唯一确定或已失效，请使用 --home 指定本机候选；未修改权限")
+        elif direct_home:
+            raise ValueError("已安装 APK 未提供直接 HOME 能力核对；未修改权限")
+    pm_help = adb.permission_help("pm")
+    ops_help = adb.permission_help("appops")
     pm_user = user_options(pm_help, "grant", sdk, args.user)
     ops_user = user_options(ops_help, "set", sdk, args.user)
     ops_get_user = user_options(ops_help, "get", sdk, args.user)
@@ -195,12 +342,13 @@ def configure(args, adb):
         plan.append(["appops", "set", *ops_user, args.package, "WRITE_SETTINGS", "allow"])
         plan.append(["appops", "set", *ops_user, args.package, "SYSTEM_ALERT_WINDOW", "allow"])
     vendor = " ".join(adb.shell("getprop", key) for key in ("ro.product.manufacturer", "ro.product.brand")).lower().split()
-    if (sdk <= 23 or "xiaomi" in vendor or "redmi" in vendor or selected.startswith("com.jamdeo.tv.vod/")
+    if not direct_home and (sdk <= 23 or "xiaomi" in vendor or "redmi" in vendor or selected.startswith("com.jamdeo.tv.vod/")
             or sdk == 25 and selected.startswith("com.amazon.tv.launcher/")):
         plan.append(["appops", "set", *ops_user, args.package, "GET_USAGE_STATS", "allow"])
     vendor_before = {}
     brand = adb.shell("getprop", "ro.product.brand")
     manufacturer = adb.shell("getprop", "ro.product.manufacturer")
+    hisense = hisense_refresh_supported(adb, sdk, args.user, brand, manufacturer)
     if re.search(r"\b(?:tcl|ffalcon|iffalcon)\b", brand + " " + manufacturer, re.I):
         # TCL's process-start gate is independent of accessibility. Probe names rather than
         # hard-coding numeric app-op IDs shared with unrelated Android permissions.
@@ -226,20 +374,26 @@ def configure(args, adb):
     broadcast = ["am", "broadcast", "--include-stopped-packages", "--user", args.user, "-a", args.package + ".CONFIGURE_HOME_GUARD",
                  "-n", args.package + "/home.quiet.tv.HomeGuardSetupReceiver", "--ei", "user", args.user,
                  "--ez", "enable", "true"]
+    if direct_home:
+        broadcast += ["--ez", "direct_home", "true"]
     if selected:
         broadcast += ["--es", "home", selected]
     plan.append(broadcast)
     if not args.apply:
         print("仅预览，未修改电视。确认原主页及授权范围后，使用 --apply --record <新的私有记录路径> 执行：")
-        if not selected:
+        if not selected and not direct_home:
             print("执行时先核对应用所选原主页；VIDAA 原主页可能还需要 GET_USAGE_STATS。")
+        if hisense:
+            print("若无障碍写入被固件丢弃，仅对原本隐藏的 com.hisense.vidaaassistant 临时 unhide，恢复无障碍后还原 hide；原桌面保留。")
         for command in plan:
             print("shell " + " ".join(shlex.quote(str(value)) for value in command))
         return
     # Save original settings and grant state before the first write, without replacing any baseline.
     record = {"serial": args.serial, "user": args.user, "package": args.package, "sdk": sdk, "identity_profile": profile,
               "tcl_appops_before": vendor_before, "inspection": inspection,
+              "hisense_refresh_fingerprint": HISENSE_REFRESH_FINGERPRINT if hisense else None,
               "package_before": package, "plan": plan,
+              "accessibility_enabled_before": adb.shell("settings", "--user", args.user, "get", "secure", "accessibility_enabled"),
               "accessibility_before": adb.shell("settings", "--user", args.user, "get", "secure", "enabled_accessibility_services"),
               "notification_before": adb.shell("settings", "--user", args.user, "get", "secure", "enabled_notification_listeners"),
               "appops_before": adb.shell("appops", "get", *ops_get_user, args.package)}
@@ -250,24 +404,48 @@ def configure(args, adb):
     results_path = args.record.with_name(args.record.name + ".results.jsonl")
     descriptor = os.open(results_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     os.close(descriptor)
+    def record_result(value):
+        with results_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(value, ensure_ascii=False) + "\n")
+
     for command in plan:
         if adb.current_user() != args.user:
             raise ValueError("前台用户已改变，停止后续配置；已完成的授权保留")
         try:
-            output = adb.shell(*command)
-        except ValueError as error:
-            if command[0] == "appops" and "GET_USAGE_STATS" in command and "Unknown operation" in str(error):
-                output = adb.shell(*(value if value != "GET_USAGE_STATS" else "android:get_usage_stats" for value in command))
-            elif command[:2] == ["cmd", "notification"] and re.search(r"(?i)securityexception|unknown command|not allowed", str(error)):
-                output = "通知授权不可用，继续核对应用内同步恢复"
-            else:
-                raise
+            try:
+                output = adb.shell(*command)
+            except CommandFailure as error:
+                if command[0] == "appops" and "GET_USAGE_STATS" in command and "Unknown operation" in error.output:
+                    output = adb.shell(*(value if value != "GET_USAGE_STATS" else "android:get_usage_stats" for value in command))
+                elif command[:2] == ["cmd", "notification"] and re.search(r"(?i)securityexception|unknown command|not allowed", error.output):
+                    output = "通知授权不可用，继续核对应用内同步恢复"
+                else:
+                    raise
+        except (ValueError, subprocess.TimeoutExpired) as error:
+            detail = "ADB 命令超时，结果未确认" if isinstance(error, subprocess.TimeoutExpired) else str(error)
+            with results_path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps({"command": command, "status": "failed", "exit": getattr(error, "exit", None), "output": detail}, ensure_ascii=False) + "\n")
+            raise ValueError("配置步骤失败（" + " ".join(map(str, command)) + "）：" + detail
+                             + "；已完成的授权保留") from error
         with results_path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps({"command": command, "output": output}, ensure_ascii=False) + "\n")
         if command is broadcast:
             print(output)
+            confirmed = broadcast_data(output)
+            if (hisense and confirmed and confirmed.get("problem") == "无障碍权限未开启"
+                    and confirmed.get("enabled") and not confirmed.get("accessibilityAllowed")):
+                repair_hisense_accessibility(adb, args.package, pm_help, record_result)
+                if adb.current_user() != args.user:
+                    raise ValueError("前台用户已改变，停止后续配置；已完成的授权保留")
+                output = adb.shell(*broadcast)
+                record_result({"command": broadcast, "after_hisense_refresh": True, "output": output})
+                print(output)
             if not re.search(r"\bresult=-1\b", output):
                 raise ValueError("应用未确认全部权限配置完成；已完成的授权保留，请检查上方结果")
+            if direct_home:
+                confirmed = broadcast_data(output)
+                if not confirmed or not confirmed.get("directHomeConfigured"):
+                    raise ValueError("直接 HOME 路线未读回确认；已完成的授权保留")
         if command[:2] == ["appops", "set"] and command[-2] in vendor_before:
             operation = command[-2]
             if adb.current_user() != args.user:
@@ -286,6 +464,7 @@ def main():
     parser.add_argument("--serial", required=True, help="本次明确选定且已授权的电视")
     parser.add_argument("--user", type=int, required=True, help="已经核对的前台用户，不预设 0")
     parser.add_argument("--package", choices=["home.quiet.tv", "com.coocaa.quiettv", "com.ts.launcher"], default="home.quiet.tv")
+    parser.add_argument("--direct-home", action="store_true", help="配置已核对的 MiBOX3 直接 HOME 按键补偿，不要求原桌面")
     parser.add_argument("--home", help="本机实际检测到的原主页组件；多候选时指定")
     parser.add_argument("--adb", default="adb")
     parser.add_argument("--apply", action="store_true", help="明确执行首次授权并启用守护")
@@ -296,8 +475,10 @@ def main():
         parser.error("用户或原主页组件格式无效")
     if args.apply and not args.record:
         parser.error("执行配置必须使用 --record 保存原始状态")
-    if args.pause and args.home:
-        parser.error("暂停不能同时选择原主页")
+    if args.pause and (args.home or args.direct_home):
+        parser.error("暂停不能同时选择原主页或直接 HOME 补偿")
+    if args.direct_home and args.home:
+        parser.error("直接 HOME 补偿不能同时指定原主页")
     try:
         configure(args, ComputerAdb(args.adb, args.serial))
     except (OSError, ValueError, subprocess.TimeoutExpired) as error:

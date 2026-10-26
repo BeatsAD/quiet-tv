@@ -18,11 +18,11 @@ final class HomeTakeover {
     boolean pending() throws Exception {JSONObject record=store.get().optJSONObject("takeover");return record!=null && !"restored".equals(record.optString("state")) && !"rolled-back".equals(record.optString("state"));}
     boolean applied(AdbController adb,SetupOperations.Ticket task) throws Exception {
         JSONObject record=store.get().optJSONObject("takeover");if(record==null || !"applied".equals(record.optString("state")))return false;
-        validate(record,adb);HomeTakeoverPlan.Port port=port(adb,task);JSONArray steps=record.getJSONArray("steps");
-        for(int i=0;i<steps.length();i++){JSONObject step=steps.getJSONObject(i);if(!step.getString("after").equals(port.read(step)))return false;}
-        return true;
+        validate(record,adb);return HomeTakeoverPlan.applied(record,port(adb,task));
     }
-    JSONObject inspect(AdbController adb) throws Exception {
+    boolean keepAdbAvailable(AdbController adb){return home.presets.homeAllows("keepAdb") && HomeGuardAdb.supported(context) && Build.VERSION.SDK_INT<=29 && adb.user==0 && HomeTakeoverPlan.adbPort(Integer.toString(adb.connectedPort()));}
+    JSONObject inspect(AdbController adb) throws Exception {return inspect(adb,false);}
+    JSONObject inspect(AdbController adb,boolean keepAdb) throws Exception {
         if(!BuildConfig.DECLARES_HOME || BuildConfig.LEGACY_19 || pending())return null;
         adb.validateUser();HomeController.State current=home.inspect(adb);
         if(!current.ownUsable || adb.capabilities.home.isEmpty() || adb.capabilities.resolve.isEmpty())return null;
@@ -56,7 +56,7 @@ final class HomeTakeover {
             if(home.presets.protectedHomePackage(old.pkg) || new HomeGuardState(context).helperActive())return null;
             if(Settings.Global.getInt(context.getContentResolver(),Settings.Global.DEVICE_PROVISIONED,0)!=1)return null;
             List<String> packages=HomeTakeoverPlan.competitors(old.pkg,claims(HomeTakeoverPlan.SETUP));
-            boolean verifiedProfile=home.presets.homeAllows("disableVerified") && original.equals(home.presets.home());
+            boolean verifiedProfile=home.presets.homeAllows("disableVerified") && home.presets.homeIdentityMatches(old.versionCode,adb.user) && original.equals(home.presets.home());
             if(packages.isEmpty() && verifiedProfile)packages=Collections.singletonList(old.pkg);
             if(packages.isEmpty() || !adb.capabilities.disable || !adb.capabilities.enable)return null;
             for(String pkg:packages){
@@ -67,9 +67,26 @@ final class HomeTakeover {
             }
             recipe=verifiedProfile?"verified-profile":"google-home";title="尝试直接接管桌面";
         }
+        if(keepAdb){
+            if(!keepAdbAvailable(adb) || !"verified-profile".equals(recipe))throw new IOException("当前直接接管方案未开放 ADB 常开");
+            if(!"1".equals(adb.shell("settings get global adb_enabled").trim()))throw new IOException("系统调试开关未确认开启，不能配置常开");
+            JSONArray combined=new JSONArray();
+            if(!HomeGuardRecovery.writeAllowed(context)){
+                String help=ShellCapabilities.permissionHelp("pm",adb::shell);
+                String grantUser=ShellCapabilities.userOption(help,"grant",Build.VERSION.SDK_INT,adb.user);
+                String revokeUser=ShellCapabilities.userOption(help,"revoke",Build.VERSION.SDK_INT,adb.user);
+                combined.put(step("permission",HomeTakeoverPlan.WRITE_SECURE,"denied","granted").put("grantUser",grantUser).put("revokeUser",revokeUser));
+            }
+            String before=adb.shell("getprop "+HomeTakeoverPlan.ADB_PORT).trim();
+            if(!HomeTakeoverPlan.adbPortState(before))throw new IOException("原 ADB 端口属性无法核对，未修改");
+            combined.put(step("property",HomeTakeoverPlan.ADB_PORT,before,Integer.toString(adb.connectedPort())));
+            combined.put(step("preference","keepAdb",Boolean.toString(HomeGuardAdb.enabled(context)),"true"));
+            for(int i=0;i<steps.length();i++)combined.put(steps.getJSONObject(i));
+            steps=combined;
+        }
         steps.put(step("home",own,current.known?current.actual:original,own).put("observed",current.actual).put("restore",original));
         return new JSONObject().put("recipe",recipe).put("title",title).put("original",original).put("user",adb.user)
-                .put("fingerprint",Build.FINGERPRINT).put("target",own).put("state","proposed").put("steps",steps);
+                .put("fingerprint",Build.FINGERPRINT).put("target",own).put("keepAdb",keepAdb).put("state","proposed").put("steps",steps);
     }
     private boolean claims(String pkg){return !context.getPackageManager().queryIntentActivities(HomeController.homeIntent().setPackage(pkg),0).isEmpty();}
     private boolean hasJm(){
@@ -85,7 +102,8 @@ final class HomeTakeover {
         for(int i=0;i<steps.length();i++){JSONObject step=steps.getJSONObject(i);if("package".equals(step.getString("kind")))text.append("禁用 ").append(step.getString("key")).append('\n');}
         if(text.length()==0)text.append("保留原桌面，修正固件的主页启动目标。\n");
         else text.append("按以上顺序处理，再绑定 Quiet TV；保留应用和数据。原桌面提供的专用遥控键或语音入口可能受影响，需一并验收。\n");
-        return text+"方案来自上游实测，本机实体 HOME、重启和唤醒仍需验收。失败时尝试恢复，连接中断可在“恢复原桌面”继续恢复。";
+        if(plan.optBoolean("keepAdb"))for(int i=0;i<steps.length();i++){JSONObject step=steps.getJSONObject(i);if(HomeTakeoverPlan.ADB_PORT.equals(step.getString("key")))text.append("选择保持 ADB 时，将保留当前 TCP 端口 ").append(step.getString("after")).append("，授权调试设置恢复；无需开启无障碍中转。\n");}
+        return text+"方案依据上游或同固件用户反馈；本机实体 HOME、重启和唤醒仍需验收。失败时尝试恢复，连接中断可在“恢复原桌面”继续恢复。";
     }
     void apply(AdbController adb,JSONObject confirmed,SetupOperations.Ticket task) throws Exception {
         AppOperations.begin();
@@ -93,7 +111,7 @@ final class HomeTakeover {
         boolean configured=guard.preferences.getBoolean("configured",false),observe=guard.preferences.getBoolean("observeHome",true),paused=false;
         int generation=adb.generation();
         try{
-            task.check();JSONObject fresh=inspect(adb);
+            task.check();JSONObject fresh=inspect(adb,confirmed.optBoolean("keepAdb"));
             if(fresh==null || !fresh.toString().equals(confirmed.toString()))throw new IOException("接管方案或状态已变化，请重新检测");
             if(guard.helperActive())throw new IOException("请先暂停独立中转助手");
             store.baseline(home.inspect(adb).actual,confirmed.getString("original"));
@@ -107,6 +125,7 @@ final class HomeTakeover {
                 if(!guard.preferences.edit().putString("mode",previousMode).putBoolean("configured",configured)
                         .putBoolean("observeHome",observe).putString("status",previousStatus).commit())throw new IOException("中转原状态保存失败");
                 if("AUTO".equals(previousMode) && configured){
+                    HomeGuardSync.refresh(context);HomeGuardAdb.ensure(context);
                     if(new DesktopRoutes(context).proxySelected()){
                         String problem=new HomeProxy(context).resume();if(!problem.isEmpty())throw new IOException(problem);
                     }else if(observe)HomeGuardRecovery.request(context,"接管失败后恢复原中转");
@@ -135,7 +154,10 @@ final class HomeTakeover {
             public String read(JSONObject step) throws Exception {
                 check();String key=step.getString("key"),kind=step.getString("kind");
                 if("home".equals(kind))return home.inspect(adb).actual;
-                if("property".equals(kind) && HomeTakeoverPlan.property(key) && adb.user==0)return adb.shell("getprop "+key).trim();
+                boolean adbPlan=home.presets.homeAllows("keepAdb") && adb.user==0 && HomeGuardAdb.supported(context) && Build.VERSION.SDK_INT<=29;
+                if("property".equals(kind) && (HomeTakeoverPlan.property(key) || adbPlan && HomeTakeoverPlan.ADB_PORT.equals(key)) && adb.user==0)return adb.shell("getprop "+key).trim();
+                if(adbPlan && "permission".equals(kind) && HomeTakeoverPlan.WRITE_SECURE.equals(key))return HomeGuardRecovery.writeAllowed(context)?"granted":"denied";
+                if(adbPlan && "preference".equals(kind) && "keepAdb".equals(key))return Boolean.toString(HomeGuardAdb.enabled(context));
                 if("package".equals(kind) && HomeTakeoverPlan.packageName(key) && (HomeTakeoverPlan.GOOGLE.equals(key) || HomeTakeoverPlan.CLASSIC.equals(key) || HomeTakeoverPlan.SETUP.equals(key)
                         || home.presets.homeAllows("disableVerified") && home.presets.home().startsWith(key+"/"))){
                     AppRepository.App app=apps.find(adb,key);
@@ -149,7 +171,14 @@ final class HomeTakeover {
                 if("home".equals(kind)){
                     if(!home.component(value,true))throw new IOException("恢复目标 HOME 不可用");home.setAndVerify(adb,value);
                 }else if("property".equals(kind)){
-                    if(!validPropertyValue(value))throw new IOException("主页属性值无效");adb.shell("setprop "+key+" '"+value+"'");
+                    if(!(HomeTakeoverPlan.ADB_PORT.equals(key)?HomeTakeoverPlan.adbPortState(value):validPropertyValue(value)))throw new IOException("系统属性值无效");adb.shell("setprop "+key+" '"+value+"'");
+                }else if("permission".equals(kind)){
+                    if(!"granted".equals(value) && !"denied".equals(value))throw new IOException("授权状态无效");
+                    String operation="granted".equals(value)?"grant":"revoke";
+                    String user=ShellCapabilities.userOption(ShellCapabilities.permissionHelp("pm",adb::shell),operation,Build.VERSION.SDK_INT,adb.user);
+                    adb.shell("pm "+operation+user+" "+context.getPackageName()+" "+HomeTakeoverPlan.WRITE_SECURE);
+                }else if("preference".equals(kind)){
+                    if(!"true".equals(value) && !"false".equals(value) || !HomeGuardAdb.setEnabled(context,Boolean.parseBoolean(value)))throw new IOException("ADB 保持设置未保存");
                 }else{
                     String command="3".equals(value)?adb.capabilities.disableCommand:"0".equals(value)?adb.capabilities.defaultStateCommand:"1".equals(value)?adb.capabilities.enableCommand:"";
                     if(command.isEmpty())throw new IOException("缺少可核对的恢复命令");adb.shell(command+" --user "+adb.user+" "+key);

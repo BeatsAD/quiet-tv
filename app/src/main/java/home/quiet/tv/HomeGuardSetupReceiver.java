@@ -21,6 +21,7 @@ public final class HomeGuardSetupReceiver extends BroadcastReceiver {
                 String resolvedHome=resolved==null || resolved.activityInfo==null?"":new ComponentName(resolved.activityInfo.packageName,resolved.activityInfo.name).flattenToString();
                 setResultData(new JSONObject().put("schemaVersion",1).put("package",context.getPackageName())
                     .put("supported",state.supported()).put("selected",state.selected()).put("candidates",candidates).put("resolvedHome",resolvedHome)
+                    .put("directHomeAvailable",state.directHomeAvailable()).put("directHomeConfigured",state.directHomeConfigured())
                     .put("usageRequired",HomeGuardService.usageRequired(context)).put("accessibilityAllowed",state.serviceEnabled())
                     .put("accessibilityBound",HomeGuardService.connected()).put("physicalHomeVerified",false).toString());
                 setResultCode(Activity.RESULT_OK);return;
@@ -32,22 +33,29 @@ public final class HomeGuardSetupReceiver extends BroadcastReceiver {
             }
             if(!HomeGuardRecovery.writeAllowed(context))throw new IllegalStateException("请先通过电脑授予写安全设置权限");
             if(!intent.getBooleanExtra("enable",false))throw new IllegalStateException("未明确请求启用守护");
-            // Validate the exact on-device candidate before changing a paused configuration.
+            boolean direct=intent.getBooleanExtra("direct_home",false);
             String home=intent.getStringExtra("home");
-            if(home!=null){
-                ComponentName selected=ComponentName.unflattenFromString(home);boolean found=false;
-                for(HomeGuardState.Candidate candidate:state.candidates())if(candidate.component.equals(selected)){found=true;break;}
-                if(!found)throw new IllegalStateException("原主页不是本机有效候选");
-                state.select(selected);
-            }else state.configure();
-            if(!state.validSelection())throw new IllegalStateException("请在电视选择原桌面，或指定本机检测到的 home 组件");
-            if(state.helperActive())throw new IllegalStateException("请先暂停独立中转助手");
-            state.enable();HomeGuardRecovery.configureGranted(context);
+            if(direct){
+                if(home!=null || !state.directHomeAvailable())throw new IllegalStateException("当前设备或系统 HOME 不适用直接按键补偿");
+                state.preferences.edit().putString("mode","AUTO").apply();new DesktopRoutes(context).direct();
+            }else{
+                // Original-window observation still requires a real, installed stock HOME.
+                if(home!=null){
+                    ComponentName selected=ComponentName.unflattenFromString(home);boolean found=false;
+                    for(HomeGuardState.Candidate candidate:state.candidates())if(candidate.component.equals(selected)){found=true;break;}
+                    if(!found)throw new IllegalStateException("原主页不是本机有效候选");
+                    state.select(selected);
+                }else state.configure();
+                if(!state.validSelection())throw new IllegalStateException("请在电视选择原桌面，或指定本机检测到的 home 组件");
+                if(state.helperActive())throw new IllegalStateException("请先暂停独立中转助手");
+                state.enable();
+            }
+            HomeGuardRecovery.configureGranted(context);
             if(intent.hasExtra("keep_adb") && !HomeGuardAdb.setEnabled(context,intent.getBooleanExtra("keep_adb",false)))throw new IllegalStateException("调试恢复选项未保存");
             String problem=HomeGuardRecovery.configurationProblem(context);
             JSONObject result=new JSONObject();
             result.put("configured",problem.isEmpty());result.put("enabled",state.enabled());
-            result.put("physicalHomeVerified",false);
+            result.put("physicalHomeVerified",false);result.put("directHomeConfigured",state.directHomeConfigured());
             result.put("accessibilityAllowed",state.serviceEnabled());result.put("accessibilityBound",HomeGuardService.connected());
             result.put("usageRequired",HomeGuardService.usageRequired(context));result.put("usageAllowed",HomeGuardService.usageAllowed(context));
             result.put("notificationSupported",HomeGuardRecovery.notificationSupported(context));

@@ -17,10 +17,11 @@ final class UpdateTransfer {
     interface Clock {long now();}
     private static final ScheduledExecutorService WATCHDOG=Executors.newSingleThreadScheduledExecutor(r->{Thread t=new Thread(r,"QuietTV-update-timeout");t.setDaemon(true);return t;});
     private final Connection factory;private final Clock clock;
-    private volatile boolean cancelled;private volatile HttpURLConnection active;
+    private volatile boolean cancelled,expired;private volatile HttpURLConnection active;
     UpdateTransfer(Connection factory){this(factory,()->System.nanoTime()/1000000);}
     UpdateTransfer(Connection factory,Clock clock){this.factory=factory;this.clock=clock;}
     void cancel(){cancelled=true;HttpURLConnection request=active;if(request!=null)request.disconnect();}
+    private void expire(){expired=true;HttpURLConnection request=active;if(request!=null)request.disconnect();}
     private void alive()throws InterruptedIOException{if(cancelled||Thread.currentThread().isInterrupted())throw new InterruptedIOException("Update cancelled");}
     static List<Integer> sources(int ignoredPreference){
         // Preserve the agreed priority even when an older client remembered another source.
@@ -30,6 +31,8 @@ final class UpdateTransfer {
         for(String root:new String[]{"ghfast.top","gh-proxy.com","v4.gh-proxy.org"})if(host.equals(root)||host.endsWith("."+root))return true;return false;
     }
     static String address(int source,String origin){return source<0?PAGES:SOURCES[source]+origin;}
+    static String sourceName(int source){return source<0?"github_pages":source==SOURCES.length-1?"github_direct":SOURCES[source].substring(8,SOURCES[source].length()-1);}
+    private static void failed(int source,String stage,IOException error){DiagnosticLog.info("update.source.failed","source="+sourceName(source)+" "+UpdateFailure.details(stage,error));}
     static boolean allowed(URL url){
         String host=url.getHost().toLowerCase(Locale.ROOT);
         if(!"https".equals(url.getProtocol())||url.getUserInfo()!=null||(url.getPort()!=-1&&url.getPort()!=443)||url.getRef()!=null)return false;
@@ -55,7 +58,7 @@ final class UpdateTransfer {
             try{
                 int status=request.getResponseCode();
                 if(status==301||status==302||status==303||status==307||status==308){String next=request.getHeaderField("Location");if(next==null)throw new IOException("Missing redirect");url=new URL(url,next);request.disconnect();continue;}
-                if(status!=200&&status!=206&&status!=416)throw new IOException("Update HTTP "+status);
+                if(status!=200&&status!=206&&status!=416)throw new UpdateFailure.HttpException(status);
                 String encoding=request.getHeaderField("Content-Encoding");if(encoding!=null&&!encoding.equalsIgnoreCase("identity"))throw new IOException("Encoded update body");
                 if(status==416)return new Response(request,new ByteArrayInputStream(new byte[0]),status);
                 InputStream stream=request.getInputStream();int first=stream.read();alive();
@@ -68,7 +71,8 @@ final class UpdateTransfer {
     }
     interface ManifestConsumer {long verified(byte[] data,int source)throws IOException;}
     void manifest(int preferred,ManifestConsumer consumer)throws IOException{
-        ScheduledFuture<?> deadline=WATCHDOG.schedule(this::cancel,40000,TimeUnit.MILLISECONDS);
+        // A deadline stops further requests; only explicit cancellation discards a verified result.
+        ScheduledFuture<?> deadline=WATCHDOG.schedule(this::expire,40000,TimeUnit.MILLISECONDS);
         try{
             long end=clock.now()+40000;List<Integer> order=sources(preferred);
             // Both GitHub-hosted fallbacks follow every mirror, with Raw last.
@@ -76,20 +80,24 @@ final class UpdateTransfer {
             IOException last=null;byte[] best=null;long revision=-1;int bestSource=-1,verified=0;
             String nonce="?quietCheck="+System.currentTimeMillis();
             for(int source:order){
-                alive();if(clock.now()>=end)break;
+                alive();if(expired||clock.now()>=end)break;String stage="connect";
                 try(Response response=connect(address(source,RAW)+nonce,0,end-clock.now(),true)){
-                    if(response.status!=200)throw new IOException("Partial update manifest");
+                    if(response.status!=200)throw new UpdateFailure.HttpException(response.status);
+                    stage="read";
                     ByteArrayOutputStream output=new ByteArrayOutputStream();byte[] buffer=new byte[4096];int count;
-                    while((count=response.input.read(buffer))!=-1){alive();if(clock.now()>=end)throw new SocketTimeoutException();if(output.size()+count>UpdateManifest.MAX_BYTES)throw new IOException("Update manifest too large");output.write(buffer,0,count);}
-                    byte[] bytes=output.toByteArray();long candidate=consumer.verified(bytes,source);verified++;
+                    while((count=response.input.read(buffer))!=-1){alive();if(expired||clock.now()>=end)throw new SocketTimeoutException();if(output.size()+count>UpdateManifest.MAX_BYTES)throw new IOException("Update manifest too large");output.write(buffer,0,count);}
+                    stage="verify";byte[] bytes=output.toByteArray();long candidate;
+                    try{candidate=consumer.verified(bytes,source);}catch(IOException e){throw new UpdateFailure.ManifestException(e);}verified++;
+                    DiagnosticLog.info("update.source.verified","source="+sourceName(source)+" revision="+candidate);
                     if(candidate>revision){best=bytes;revision=candidate;bestSource=source;}
                     // Compare two independently fetched signed manifests instead of accepting a stale first reply.
                     if(verified>=2)break;
-                }catch(IOException e){last=e;}
+                }catch(IOException e){last=e;failed(source,stage,e);}
             }
             alive();if(best!=null){consumer.verified(best,bestSource);return;}
+            if(expired||clock.now()>=end){SocketTimeoutException timeout=new SocketTimeoutException("Update check timed out");timeout.initCause(last);throw timeout;}
             throw new IOException("All update manifest sources failed",last);
-        }finally{deadline.cancel(false);}
+        }finally{deadline.cancel(false);active=null;}
     }
     int download(String origin,long total,String sha,File target,int preferred,Progress progress)throws IOException{
         IOException last=null;List<Integer> order=sources(preferred);
@@ -120,9 +128,10 @@ final class UpdateTransfer {
                     file.getFD().sync();
                 }
                 if(received!=expected||target.length()!=total)throw new IOException("Incomplete APK");
-            }catch(IOException e){alive();last=e;continue;}
+            }catch(IOException e){alive();last=e;failed(source,"download",e);continue;}
             try{verify(target,total,sha);return source;}
             catch(IntegrityException corrupt){
+                failed(source,"integrity",corrupt);
                 // Another mirror can retry the same signed artifact; never resume a corrupt complete file.
                 if(index+1==order.size())throw corrupt;last=corrupt;
                 try(RandomAccessFile file=new RandomAccessFile(target,"rw")){file.setLength(0);}

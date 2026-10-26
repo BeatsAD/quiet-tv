@@ -58,6 +58,7 @@ final class SetupPresets {
     }
     String purpose(String pkg){JSONObject value=app(pkg);return value==null?"用途待确认":value.optString("purpose","用途待确认");}
     String home(){JSONObject value=device==null?null:device.optJSONObject("home");return value==null?"":value.optString("component");}
+    boolean homeIdentityMatches(long version,int user){JSONObject value=device==null?null:device.optJSONObject("home");return value!=null && (!value.has("versionCode") || value.optLong("versionCode",-1)==version) && (!value.has("user") || value.optInt("user",-1)==user);}
     boolean homeAllows(String capability){JSONObject value=device==null?null:device.optJSONObject("home");return value!=null && value.optBoolean(capability)
             && !(value.optBoolean("preserveOriginal") && ("disableVerified".equals(capability) || "uninstallVerified".equals(capability)));}
     boolean protectedHomePackage(String pkg){
@@ -71,6 +72,9 @@ final class SetupPresets {
     JSONObject vendorBoot(){JSONObject home=device==null?null:device.optJSONObject("home");return home==null?null:home.optJSONObject("vendorBoot");}
     static void validateHome(JSONObject device) throws JSONException {
         JSONObject home=device.optJSONObject("home");if(home==null)return;
+        if(home.has("versionCode") && (!(home.opt("versionCode") instanceof Integer || home.opt("versionCode") instanceof Long) || home.optLong("versionCode",-1)<0))throw new JSONException("原桌面版本必须为非负整数");
+        if(home.has("user") && (!(home.opt("user") instanceof Integer) || home.optInt("user",-1)<0))throw new JSONException("原桌面规则用户无效");
+        if(home.optBoolean("keepAdb") && (device.optString("brand").isEmpty() || device.optString("model").isEmpty() || !home.has("versionCode") || !home.optBoolean("disableVerified")))throw new JSONException("ADB 常开方案必须限定机型、原桌面版本及直接接管规则");
         if(home.optBoolean("preserveOriginal") && (home.optBoolean("disableVerified") || home.optBoolean("uninstallVerified")))throw new JSONException("必须保留的原桌面不能开放禁用或卸载");
         JSONArray required=home.optJSONArray("requiredPackages");
         if(required!=null)for(int i=0;i<required.length();i++)if(!required.getString(i).matches("[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+"))throw new JSONException("原桌面依赖包名无效");
