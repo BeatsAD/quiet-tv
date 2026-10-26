@@ -22,7 +22,11 @@ final class DiagnosticDeviceSnapshot {
         snapshot.section("系统默认桌面",snapshot::home);
         snapshot.section("原桌面记录",snapshot::original);
         snapshot.section("HOME 候选与状态",snapshot::homeCandidates);
+        snapshot.section("厂商私有启动路由",snapshot::privateHome);
         snapshot.section("桌面守护",snapshot::guard);
+        snapshot.section("开机接收组件",snapshot::bootReceiver);
+        snapshot.section("厂商后台管理组件",snapshot::backgroundManagers);
+        snapshot.section("本应用进程退出历史",snapshot::processExits);
         return snapshot.text.toString();
     }
     // Called on the main thread: AdbSession's displayed state is main-thread owned.
@@ -145,6 +149,14 @@ final class DiagnosticDeviceSnapshot {
         line("未展开候选数",Integer.toString(homes.size()-shown));
         line("守护筛选规则","排除本应用、非系统应用、禁用应用或组件、android 包及 FallbackHome；固件变化会重置场景验证，专项入口另核对固件");
     }
+    private void privateHome(){
+        // Keep optional router discovery separate from existing HOME candidate diagnostics.
+        Map<String,String> routers=new LinkedHashMap<>();homeCandidates(routers,"android.intent.category.HOME.JM");
+        line("HOME.JM 可见声明数",Integer.toString(routers.size()));
+        int shown=0;for(String router:routers.keySet()){if(shown>=4)break;component("私有路由 "+(++shown),router);}
+        line("未展开路由数",Integer.toString(routers.size()-shown));
+        line("判断范围","当前用户可见声明，含禁用或保留的未安装记录；仅用于诊断，不自动加入守护。声明不证明实体按键或开机实际路径，无可见声明不证明没有私有路由。");
+    }
     private void homeCandidates(Map<String,String> homes,String category){
         for(ResolveInfo value:pm.queryIntentActivities(new Intent(Intent.ACTION_MAIN).addCategory(category),HomeController.METADATA)){
             ActivityInfo info=value.activityInfo;if(info==null)continue;
@@ -177,6 +189,42 @@ final class DiagnosticDeviceSnapshot {
         line("当前守护结论",!state.enabled()?"配置开关未开启，不执行守护":!problem.isEmpty()?problem
             :!HomeGuardService.connected()?"等待系统绑定无障碍":"无障碍服务已连接，守护已启用");
         line("最近记录状态（历史记录）",state.preferences.getString("status","未记录"));
+    }
+    private void bootReceiver() throws PackageManager.NameNotFoundException {
+        ComponentName name=new ComponentName(context,HomeGuardBootReceiver.class);
+        ActivityInfo info=pm.getReceiverInfo(name,HomeController.METADATA);
+        line("守护档位支持",yes(!BuildConfig.LEGACY_19));
+        line("接收组件",name.flattenToString());
+        line("应用启用设置原值",Integer.toString(pm.getApplicationEnabledSetting(context.getPackageName())));
+        line("组件启用设置原值",Integer.toString(pm.getComponentEnabledSetting(name)));
+        line("ApplicationInfo.enabled",yes(info.applicationInfo.enabled));line("ReceiverInfo.enabled",yes(info.enabled));
+        line("应用停止状态",yes((info.applicationInfo.flags&ApplicationInfo.FLAG_STOPPED)!=0));
+        line("说明","只读当前用户的组件状态；启用不证明收到开机广播。API19 档默认关闭守护组件，不应当作厂商禁用。");
+    }
+    private void backgroundManagers(){
+        int found=0;
+        for(String pkg:new String[]{"com.tcl.guard","com.tcl.tvweishi","com.tcl.appstatecontroller","com.tcl.providers.config"}){
+            try{
+                PackageInfo info=pm.getPackageInfo(pkg,HomeController.METADATA);
+                line(pkg,"版本 "+info.versionName+"  构建号 "+info.versionCode+"  当前用户安装 "+yes((info.applicationInfo.flags&ApplicationInfo.FLAG_INSTALLED)!=0));
+                line(pkg+"启用设置",Integer.toString(pm.getApplicationEnabledSetting(pkg)));found++;
+            }catch(PackageManager.NameNotFoundException ignored){/* Missing or invisible; never infer protection. */}
+        }
+        line("可见组件数",Integer.toString(found));
+        line("判断范围","包存在及自启动授权不证明后台清理豁免；包不可见不证明没有厂商清理。未读取或修改厂商白名单、数据库或系统组件。");
+    }
+    private void processExits() throws JSONException {
+        if(Build.VERSION.SDK_INT<30){line("采集状态","当前系统无标准进程退出历史接口，需结合电脑日志");return;}
+        android.app.ActivityManager manager=(android.app.ActivityManager)context.getSystemService(Context.ACTIVITY_SERVICE);
+        if(manager==null){line("采集状态","系统未提供 ActivityManager");return;}
+        line("低内存退出原因支持",yes(android.app.ActivityManager.isLowMemoryKillReportSupported()));
+        JSONArray records=new JSONArray();
+        for(android.app.ApplicationExitInfo info:manager.getHistoricalProcessExitReasons(context.getPackageName(),0,5)){
+            records.put(new JSONObject().put("timestampMs",info.getTimestamp()).put("pid",info.getPid())
+                .put("reason",info.getReason()).put("status",info.getStatus()).put("importance",info.getImportance()));
+        }
+        text.append("退出历史 JSON：").append(records).append('\n');
+        line("判断范围","仅本应用最近最多5条系统历史；空列表不证明未退出。原因码和信号不能单独认定厂商清理；未读取堆栈、描述或其他应用历史，需按时间对齐复现。");
     }
     private void component(String label,String flattened){
         line(label+"组件",flattened);ComponentName name=ComponentName.unflattenFromString(flattened);
