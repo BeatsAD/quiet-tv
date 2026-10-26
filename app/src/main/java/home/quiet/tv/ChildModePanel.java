@@ -23,27 +23,60 @@ final class ChildModePanel extends ManagementPanel {
     private View first;
     private String selected="",query="";
     private boolean authorized,loading,returning;
+    private FrameLayout gate;
+    private LinearLayout manager;
+    private Button unlockButton,managementAction;
+    private ChildModeUnlock unlock;
+    private android.os.Parcelable listState;
+    private int loadGeneration;
     private ChildModeUi visual;
     ChildModePanel(AppManagementActivity activity){super(activity);}
     @Override public void onCreate(Bundle state){
         super.onCreate(state);store=new ChildModeStore(this);visual=new ChildModeUi(activity);
-        LinearLayout body=managementContent();count=managementHint("请输入家长密码");managementInfo.addView(count,new LinearLayout.LayoutParams(-1,-1));
-        LinearLayout panels=row();panels.setGravity(Gravity.TOP);body.addView(panels,new LinearLayout.LayoutParams(-1,-1));
+        if(state!=null){selected=state.getString("selected","");query=state.getString("query","");listState=state.getParcelable("list-state");}
+        LinearLayout body=managementContent();count=managementHint("");managementInfo.addView(count,new LinearLayout.LayoutParams(-1,-1));
+        gate=new FrameLayout(activity);body.addView(gate,new LinearLayout.LayoutParams(-1,0,1));
+        manager=column();body.addView(manager,new LinearLayout.LayoutParams(-1,0,1));
+        LinearLayout actions=row();manager.addView(actions,new LinearLayout.LayoutParams(-1,px(32)));
+        for(Button action:new Button[]{button("搜索应用",this::search),button("修改家长密码",()->{if(authorized)ChildModeAuth.change(activity,()->feedback("家长密码已修改"));}),button("计时服务",()->{if(authorized)permission();})}){
+            if(managementAction==null)managementAction=action;LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-2,-1);ap.rightMargin=px(10);actions.addView(action,ap);action.setNextFocusUpId(managementTab().getId());
+            action.setOnKeyListener((v,key,event)->{if(key!=KeyEvent.KEYCODE_DPAD_UP&&key!=KeyEvent.KEYCODE_DPAD_DOWN)return false;if(event.getAction()==KeyEvent.ACTION_DOWN){if(key==KeyEvent.KEYCODE_DPAD_UP)managementTab().requestFocus();else list.requestFocus();}return true;});
+        }
+        LinearLayout panels=row();panels.setGravity(Gravity.TOP);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,0,1);lp.topMargin=px(8);manager.addView(panels,lp);
         list=new RecyclerView(this);list.setLayoutManager(new LinearLayoutManager(this));cards=new Cards();list.setAdapter(cards);list.setItemAnimator(null);list.setClipToPadding(false);list.setPadding(visual.p(5),visual.p(5),visual.p(5),visual.p(5));panels.addView(list,new LinearLayout.LayoutParams(0,-1,40));
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setClipToPadding(false);scroll.setBackground(visual.shape(0x06ffffff,0x15ffffff,31.68f,1));
         details=column();details.setClipToPadding(false);details.setClipChildren(false);details.setPadding(visual.p(58.6f),visual.p(47.08f),visual.p(58.6f),visual.p(47.08f));scroll.addView(details);
         LinearLayout.LayoutParams dp=new LinearLayout.LayoutParams(0,-1,57);dp.leftMargin=px(28);panels.addView(scroll,dp);
+        locked();
     }
     @Override protected void onResume(){super.onResume();if(authorized)load();}
-    @Override void focusManagementContent(){if(!authorized)ChildModeAuth.show(activity,()->{authorized=true;list.requestFocus();load();});else list.requestFocus();}
-    @Override protected void onPause(){authorized=false;ChildModeAuth.dismiss(activity);if(editing!=null)editing.dismiss();int removed=visible.size();visible.clear();cards.notifyItemRangeRemoved(0,removed);details.removeAllViews();count.setText("请输入家长密码");super.onPause();}
-    @Override protected void onDestroy(){worker.shutdownNow();super.onDestroy();}
+    @Override void focusManagementContent(){if(unlock!=null)unlock.focus();else if(!authorized)unlockButton.requestFocus();else managementAction.requestFocus();}
+    private void locked(){
+        if(unlock!=null){unlock.close();unlock=null;}gate.removeAllViews();manager.setVisibility(View.GONE);gate.setVisibility(View.VISIBLE);count.setText("家长管理已锁定");
+        LinearLayout card=column();card.setGravity(Gravity.CENTER);card.addView(center("儿童模式",24));gap(card,12);TextView hint=center("验证家长身份后管理应用",13);hint.setTextColor(MUTED);card.addView(hint);gap(card,22);
+        unlockButton=button(store.configured()?"家长解锁":"设置家长密码",this::authenticate);unlockButton.setTag("child-unlock");card.addView(unlockButton,new LinearLayout.LayoutParams(px(170),px(40)));unlockButton.setNextFocusUpId(managementTab().getId());
+        gate.addView(card,new FrameLayout.LayoutParams(-1,-2,Gravity.CENTER));
+    }
+    private void authenticate(){
+        if(!showing||authorized||unlock!=null)return;gate.removeAllViews();count.setText("家长验证");
+        unlock=new ChildModeUnlock(activity,()->showing&&!authorized,()->{
+            unlock.close();unlock=null;authorized=true;gate.removeAllViews();gate.setVisibility(View.GONE);manager.setVisibility(View.VISIBLE);count.setText("正在读取应用…");managementAction.requestFocus();load();
+        },()->{locked();managementTab().requestFocus();});
+        gate.addView(unlock.view,new FrameLayout.LayoutParams(px(570),-2,Gravity.CENTER));unlock.focus();
+    }
+    @Override protected void onPause(){
+        if(authorized)listState=list.getLayoutManager().onSaveInstanceState();authorized=false;manager.setVisibility(View.GONE);loadGeneration++;loading=false;ChildModeAuth.dismiss(activity);if(editing!=null)editing.dismiss();
+        int removed=visible.size();visible.clear();cards.notifyItemRangeRemoved(0,removed);details.removeAllViews();first=null;returning=false;locked();super.onPause();
+    }
+    @Override protected void onDestroy(){if(unlock!=null)unlock.close();worker.shutdownNow();super.onDestroy();}
+    @Override protected void onSaveInstanceState(Bundle state){state.putString("selected",selected);state.putString("query",query);state.putParcelable("list-state",authorized?list.getLayoutManager().onSaveInstanceState():listState);super.onSaveInstanceState(state);}
+    @Override public void handleBack(){if(unlock!=null){locked();managementTab().requestFocus();}else if(!managementTabFocused())managementTab().requestFocus();else super.handleBack();}
     private void load(){
-        if(!authorized || loading)return;loading=true;
+        if(!authorized || loading)return;loading=true;int request=++loadGeneration;
         worker.execute(()->{ArrayList<ResolveInfo> found=new ArrayList<>();String failure=null;
             try{for(ResolveInfo info:new HomeAppCatalog(this).launchable().values())if(store.eligible(info.activityInfo.packageName))found.add(info);Collections.sort(found,(a,b)->java.text.Collator.getInstance(Locale.SIMPLIFIED_CHINESE).compare(a.loadLabel(getPackageManager()).toString(),b.loadLabel(getPackageManager()).toString()));}
             catch(RuntimeException e){failure="无法读取应用列表";}
-            final String problem=failure;runOnUiThread(()->{loading=false;if(isDestroyed() || !authorized)return;if(problem!=null){message(problem);return;}apps.clear();apps.addAll(found);filter();});
+            final String problem=failure;runOnUiThread(()->{if(request!=loadGeneration||isDestroyed()||!authorized||!showing)return;loading=false;if(problem!=null){message(problem);return;}apps.clear();apps.addAll(found);filter();});
         });
     }
     // Catalog reloads and searches can replace the entire ordered list.
@@ -52,6 +85,7 @@ final class ChildModePanel extends ManagementPanel {
         boolean listFocused=list.hasFocus();visible.clear();for(ResolveInfo info:apps)if((info.loadLabel(getPackageManager())+" "+info.activityInfo.packageName).toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT)))visible.add(info);
         boolean found=false;for(ResolveInfo info:visible)if(info.activityInfo.packageName.equals(selected))found=true;
         if(!found)selected=visible.isEmpty()?"":visible.get(0).activityInfo.packageName;count.setText(getString(R.string.child_management_app_count,visible.size()));cards.notifyDataSetChanged();render();
+        if(listState!=null){list.getLayoutManager().onRestoreInstanceState(listState);listState=null;}
         if(listFocused)list.post(()->{if(managementTabFocused() || !authorized)return;for(int i=0;i<visible.size();i++)if(visible.get(i).activityInfo.packageName.equals(selected)){list.scrollToPosition(i);RecyclerView.ViewHolder holder=list.findViewHolderForAdapterPosition(i);if(holder!=null)holder.itemView.requestFocus();break;}});
     }
     private ResolveInfo current(){for(ResolveInfo info:visible)if(selected.equals(info.activityInfo.packageName))return info;return null;}
@@ -101,7 +135,7 @@ final class ChildModePanel extends ManagementPanel {
     private void show(Sheet sheet,View focus){editing=sheet.dialog;sheet.dialog.setOnDismissListener(d->{if(editing==sheet.dialog)editing=null;});sheet.show(focus);}
     private void permission(){Sheet sheet=new Sheet("开启计时服务");sheet.text(store.fault().isEmpty()?"需在无障碍设置开启“儿童模式计时”。到时限制的效果仍需在本机验证。":store.fault());sheet.action("取消",sheet.dialog::dismiss);Button open=sheet.action("去开启",()->{sheet.dialog.dismiss();try{startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));}catch(ActivityNotFoundException e){message("当前电视没有可用的无障碍设置入口");}});show(sheet,open);}
     private void search(){
-        if(!authorized){ChildModeAuth.show(activity,()->{authorized=true;load();});return;}
+        if(!authorized)return;
         Sheet sheet=new Sheet("搜索应用");EditText input=input(query,"应用名称或包名");input.setId(View.generateViewId());input.setContentDescription("应用名称或包名");input.setPadding(px(14),0,px(14),0);input.setGravity(Gravity.CENTER_VERTICAL);input.setIncludeFontPadding(false);
         input.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH|android.view.inputmethod.EditorInfo.IME_FLAG_NO_EXTRACT_UI);sheet.body.addView(input,new LinearLayout.LayoutParams(-1,px(44)));
         android.view.inputmethod.InputMethodManager keyboard=(android.view.inputmethod.InputMethodManager)getSystemService(INPUT_METHOD_SERVICE);
@@ -116,12 +150,11 @@ final class ChildModePanel extends ManagementPanel {
         Window window=sheet.dialog.getWindow();window.setGravity(Gravity.TOP|Gravity.CENTER_HORIZONTAL);WindowManager.LayoutParams position=window.getAttributes();position.y=px(16);window.setAttributes(position);
         show(sheet,input);sheet.dialog.setOnDismissListener(d->{keyboard.hideSoftInputFromWindow(input.getWindowToken(),0);if(editing==sheet.dialog)editing=null;});
     }
-    @Override void managementMore(){if(!authorized){ChildModeAuth.show(activity,()->{authorized=true;load();managementMore();});return;}Sheet sheet=new Sheet("更多");sheet.option("搜索应用",R.drawable.ic_manage_search,()->{sheet.dialog.dismiss();search();});Button password=sheet.option("修改家长密码",()->{sheet.dialog.dismiss();ChildModeAuth.change(activity,()->feedback("家长密码已修改"));});sheet.option("计时服务",()->{sheet.dialog.dismiss();permission();});sheet.action("关闭",sheet.dialog::dismiss);show(sheet,password);}
     static String describeTime(ChildModePolicy.Rule r){long minutes=r.limit/ChildModePolicy.MINUTE;return !r.limited()?"不限制":(r.mode==ChildModePolicy.DAILY?"每日 ":"单次 ")+(minutes>=60?minutes/60+" 小时"+(minutes%60==0?"":" "+minutes%60+" 分钟"):minutes+" 分钟");}
     static String summary(ChildModePolicy.Rule r){return (r.hidden?"已隐藏  ":"")+(r.locked?"已上锁":r.limited() && r.remaining()==0?"额度已用完":describeTime(r));}
     @android.annotation.SuppressLint("RestrictedApi")
-    @Override public boolean dispatchKeyEvent(KeyEvent event){int key=event.getKeyCode();if(event.getAction()==KeyEvent.ACTION_DOWN && list.hasFocus() && key==KeyEvent.KEYCODE_DPAD_RIGHT && first!=null){first.requestFocus();return true;}
-        if(event.getAction()==KeyEvent.ACTION_DOWN && list.hasFocus() && key==KeyEvent.KEYCODE_DPAD_UP){RecyclerView.ViewHolder holder=list.findContainingViewHolder(getCurrentFocus());if(holder==null || holder.getBindingAdapterPosition()==0){managementTab().requestFocus();return true;}}
+    @Override public boolean dispatchKeyEvent(KeyEvent event){if(unlock!=null&&gate.hasFocus()&&unlock.dispatchKeyEvent(event))return true;int key=event.getKeyCode();if(event.getAction()==KeyEvent.ACTION_DOWN && list.hasFocus() && key==KeyEvent.KEYCODE_DPAD_RIGHT && first!=null){first.requestFocus();return true;}
+        if(event.getAction()==KeyEvent.ACTION_DOWN && list.hasFocus() && key==KeyEvent.KEYCODE_DPAD_UP){RecyclerView.ViewHolder holder=list.findContainingViewHolder(getCurrentFocus());if(holder==null || holder.getBindingAdapterPosition()==0){managementAction.requestFocus();return true;}}
         if(key==KeyEvent.KEYCODE_DPAD_LEFT){if(event.getAction()==KeyEvent.ACTION_DOWN && getCurrentFocus()==first){returning=true;return true;}if(returning){if(event.getAction()==KeyEvent.ACTION_UP){returning=false;list.requestFocus();}return true;}}return false;}
     private final class Cards extends RecyclerView.Adapter<Cards.Holder>{
         final class Holder extends RecyclerView.ViewHolder{final LinearLayout box;final ImageView icon,hidden,policy;final TextView title,state;Holder(LinearLayout box,ImageView icon,TextView title,TextView state,ImageView hidden,ImageView policy){super(box);this.box=box;this.icon=icon;this.title=title;this.state=state;this.hidden=hidden;this.policy=policy;}}
