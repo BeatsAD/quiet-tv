@@ -105,7 +105,7 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
         if(original!=null && new HomeGuardState(this).protects(original.pkg))return false;
         if(!recordAvailable || homeState==null || !homeState.isOwn(this) || !homeState.ownUsable || original==null || !original.metadataKnown || !original.installed || !original.enabled)return false;
         if(adb.connected() && (!adb.capabilities.supports("DISABLE".equals(action)?AppOperations.Action.DISABLE:AppOperations.Action.UNINSTALL) || ("DISABLE".equals(action) && original.enabledSetting==0 && !adb.capabilities.defaultState)))return false;
-        return home.presets.homeAllows("DISABLE".equals(action)?"disableVerified":"uninstallVerified") && (!"UNINSTALL".equals(action) || home.presets.homeAllows("restoreInstallVerified"));
+        return home.presets.homeIdentityMatches(original.versionCode,android.os.Process.myUid()/100000) && home.presets.homeAllows("DISABLE".equals(action)?"disableVerified":"uninstallVerified") && (!"UNINSTALL".equals(action) || home.presets.homeAllows("restoreInstallVerified"));
     }
     private String originalReason(String action){
         if("KEEP".equals(action))return original==null?"保持原桌面当前状态":!original.installed?"保持原桌面当前未安装状态":!original.enabled?"保持原桌面当前已禁用状态":"保持原桌面当前状态";
@@ -114,6 +114,7 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
         if(homeState==null || !homeState.isOwn(this))return "请先将 Quiet TV 设为实际默认桌面";
         if(!homeState.ownUsable)return "Quiet TV 桌面组件不可用";
         if(original==null || !original.metadataKnown)return "原桌面身份未确认";
+        if(home.presets.homeAllows("disableVerified") && !home.presets.homeIdentityMatches(original.versionCode,android.os.Process.myUid()/100000))return "原桌面版本或用户与已验证规则不符";
         if("UNINSTALL".equals(action) && (!home.presets.homeAllows("uninstallVerified") || !home.presets.homeAllows("restoreInstallVerified")))return "当前设备尚未开放原桌面卸载";
         if(!original.installed)return "原桌面未安装，保持当前状态";
         if(!original.enabled)return "DISABLE".equals(action)?"原桌面已禁用，无需重复禁用":"原桌面已禁用，当前流程不执行卸载";
@@ -278,8 +279,12 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
         if("OFF".equals(new HomeGuardState(this).preferences.getString("mode","AUTO"))){notice="中转已暂停，请在桌面配置中明确重新启用后再自动选配。";render();return;}
         originalChoice="KEEP";originalTouched=true;persist();if(!recordAvailable)return;
         HomeGuardState guard=new HomeGuardState(this);DesktopRoutes routes=new DesktopRoutes(this);
-        if(routes.configurationProblem().isEmpty()){openHome("桌面配置已核对，无需重复设置");return;}
+        if(routes.configurationProblem().isEmpty()){
+            if(HomeGuardAdb.ready(this)){HomeGuardSync.refresh(this);HomeGuardAdb.ensure(this);}
+            openHome("桌面配置已核对，无需重复设置");return;
+        }
         if(takeoverPending){withConnection(()->offerTakeover(this::finishDirect));return;}
+        if(verifiedDisabledHome()){finishAutomatic();return;}
         // Repair the selected route; a routine check never upgrades it to a different mechanism.
         if(guard.automatic() && "RELAY".equals(guard.preferences.getString("routeHome","")) && !routes.proxySelected()){
             prepareOriginal(this::configureGuard);return;
@@ -291,7 +296,16 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
         else if(homeState.isProxy(this) && new HomeProxy(this).ready()){autoRequested=false;openHome("HOME 代理已就绪，原桌面保留");}
         else if(homeState.roleAvailable)requestRole();else withConnection(this::setDefault);
     }
+    private boolean verifiedDisabledHome(){
+        return !BuildConfig.LEGACY_19 && home.presets.homeAllows("keepAdb") && !takeoverPending && homeState!=null && homeState.isOwn(this)
+                && original!=null && original.installed && original.enabledSetting==3 && home.presets.homeAllows("disableVerified")
+                && home.presets.homeIdentityMatches(original.versionCode,android.os.Process.myUid()/100000) && homeState.original.equals(home.presets.home());
+    }
     private void finishAutomatic(){
+        if(verifiedDisabledHome()){
+            // Adopt the observed direct route without inventing a pre-disable transaction baseline.
+            new DesktopRoutes(this).directOnly();openHome("系统直接启动已确认，保留原桌面当前禁用状态");return;
+        }
         // An already selected system HOME needs no ADB inspection for optional takeover recipes.
         if(takeoverPending){withConnection(()->offerTakeover(this::finishDirect));return;}
         finishDirect();
@@ -404,19 +418,25 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
                 }else{notice="上次直接接管尚未恢复，请先使用“恢复原桌面”核对和恢复。";render();}});return;
             }
             JSONObject plan=takeover.inspect(adb);task.check();
+            JSONObject adbChoice=null;String adbProblem="";
+            if(plan!=null && takeover.keepAdbAvailable(adb))try{adbChoice=takeover.inspect(adb,true);}
+            catch(Exception unavailable){adbProblem="保持 ADB 暂不可用："+unavailable.getMessage();}
+            task.check();final JSONObject withAdb=adbChoice;final String keepProblem=adbProblem;
             ui(task,()->{busy=false;if(plan==null){fallback.run();return;}
                 try{
-                    offeringTakeover=true;Sheet sheet=setupSheet(plan.getString("title"));sheet.text(takeover.description(plan));
+                    offeringTakeover=true;Sheet sheet=setupSheet(plan.getString("title"));sheet.text(takeover.description(withAdb==null?plan:withAdb));
+                    if(!keepProblem.isEmpty())sheet.text(keepProblem);
                     sheet.dialog.setOnDismissListener(dialog->offeringTakeover=false);
                     Button cancel=sheet.action("保留原桌面并继续",()->{sheet.dialog.dismiss();fallback.run();});
-                    sheet.action("应用方案",()->{sheet.dialog.dismiss();applyTakeover(plan);});sheet.show(cancel);
+                    sheet.action(withAdb==null?"应用方案":"仅直接接管",()->{sheet.dialog.dismiss();applyTakeover(plan);});
+                    if(withAdb!=null)sheet.action("接管并保持 ADB",()->{sheet.dialog.dismiss();applyTakeover(withAdb);});sheet.show(cancel);
                 }catch(Exception failure){offeringTakeover=false;notice=failure.getMessage();render();}
             });
         }catch(Exception failure){ui(task,()->{busy=false;notice="接管检测未完成："+failure.getMessage();render();});}});
     }
     private void applyTakeover(JSONObject plan){
         SetupOperations.Ticket task=begin("正在应用并核对直接接管方案…");
-        worker.execute(()->{try{new HomeTakeover(this).apply(adb,plan,task);ui(task,()->{busy=false;openHome("直接接管已配置，实体 HOME、开机和唤醒待验证");});}
+        worker.execute(()->{try{new HomeTakeover(this).apply(adb,plan,task);ui(task,()->{busy=false;openHome(plan.optBoolean("keepAdb")?"直接接管与 ADB 保持已配置，重启后效果待验证":"直接接管已配置，实体 HOME、开机和唤醒待验证");});}
             catch(Exception failure){ui(task,()->{busy=false;notice="直接接管未完成："+failure.getMessage()+"；请重新检测，必要时恢复原桌面。";refresh();});}});
     }
     private void confirm(){

@@ -30,11 +30,12 @@ final class HomeGuardSync {
         HomeGuardState state=new HomeGuardState(c);Account own=account(c);
         try{
             boolean exists=false;for(Account value:AccountManager.get(c).getAccountsByType(own.type))if(own.equals(value)){exists=true;break;}
-            if(!state.enabled()){
+            boolean keepAdb=HomeGuardAdb.ready(c);
+            if(!state.enabled() && !keepAdb){
                 if(exists)pause(c);
                 status(state,"已暂停");return;
             }
-            if(!state.recoveryReady()){status(state,"原主页或中转条件不可用");return;}
+            if(!state.recoveryReady() && !keepAdb){status(state,"原主页或中转条件不可用");return;}
             if(!HomeGuardRecovery.writeAllowed(c)){status(state,"写安全设置权限未授予");return;}
             if(!exists && !AccountManager.get(c).addAccountExplicitly(own,null,null)){status(state,"同步恢复账号未能创建");return;}
             if(ContentResolver.getIsSyncable(own,AUTHORITY)<=0)ContentResolver.setIsSyncable(own,AUTHORITY,1);
@@ -45,14 +46,15 @@ final class HomeGuardSync {
     private static void status(HomeGuardState state,String text){if(!text.equals(state.preferences.getString("syncRecoveryStatus","")))state.preferences.edit().putString("syncRecoveryStatus",text).apply();}
     static String summary(Context c){return new HomeGuardState(c,false).preferences.getString("syncRecoveryStatus","尚未配置");}
     static boolean ready(Context c){
-        if(!supported(c) || !HomeGuardState.unlocked(c) || !new HomeGuardState(c,false).recoveryReady() || !HomeGuardRecovery.writeAllowed(c))return false;
+        if(!supported(c) || !HomeGuardState.unlocked(c) || !(new HomeGuardState(c,false).recoveryReady() || HomeGuardAdb.ready(c)) || !HomeGuardRecovery.writeAllowed(c))return false;
         try{Account own=account(c);return ContentResolver.getMasterSyncAutomatically() && ContentResolver.getIsSyncable(own,AUTHORITY)>0 && ContentResolver.getSyncAutomatically(own,AUTHORITY);}
         catch(SecurityException|IllegalArgumentException failure){return false;}
     }
     static void perform(Context c,Account account,String authority){
         if(!supported(c) || !HomeGuardState.unlocked(c) || !AUTHORITY.equals(authority) || !account(c).equals(account))return;
-        HomeGuardState state=new HomeGuardState(c);if(!state.recoveryReady()){if(!state.enabled())refresh(c);return;}
-        DiagnosticLog.info("home_guard.sync.callback","local_only=true");HomeGuardAdb.ensure(c);
+        HomeGuardState state=new HomeGuardState(c);HomeGuardAdb.ensure(c);
+        if(!state.recoveryReady()){if(!state.enabled() && !HomeGuardAdb.ready(c))refresh(c);return;}
+        DiagnosticLog.info("home_guard.sync.callback","local_only=true");
         if(!HomeGuardService.connected() || !HomeGuardState.interactive(c))HomeGuardRecovery.recovered(c);
         if(HomeGuardService.connected())return;
         boolean missing=!state.serviceEnabled();

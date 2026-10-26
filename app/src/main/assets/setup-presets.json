@@ -232,6 +232,21 @@
         "uninstallVerified": false,
         "restoreInstallVerified": false
       }
+    },
+    {
+      "brand": "xiaomi",
+      "model": "MiTV-MFTP0",
+      "fingerprint": "xiaomi/alita/alita:9/PPR2.180905.006.A1/6129:user/release-keys",
+      "home": {
+        "component": "com.mitv.tvhome/com.mitv.tvhome.MainActivityUserMode",
+        "versionCode": 1621,
+        "user": 0,
+        "disableVerified": true,
+        "uninstallVerified": false,
+        "restoreInstallVerified": false,
+        "keepAdb": true,
+        "evidence": "2026-10-26 用户报告禁用原桌面并保持 ADB 后可用；日志确认 enabled=3、HOME 指向 Quiet TV、ADB 已连接。各实体场景未分别记录。"
+      }
     }
   ],
   "references": [

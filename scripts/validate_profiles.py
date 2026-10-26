@@ -26,6 +26,12 @@ for device in data['devices']:
             assert not app.get('recommendDisable'), 'Boot ads must not be preselected by first setup'
             assert app.get('purpose') and app.get('impact') and app.get('source', '').startswith('https://'), 'Boot ads require purpose, impact and source'
     home = device.get('home', {})
+    if 'versionCode' in home:
+        assert type(home['versionCode']) is int and home['versionCode'] >= 0, 'HOME versionCode must be a nonnegative integer'
+    if 'user' in home:
+        assert type(home['user']) is int and home['user'] >= 0, 'Invalid HOME user'
+    if home.get('keepAdb'):
+        assert device.get('brand') and device.get('model') and 'versionCode' in home and home.get('disableVerified'), 'Persistent ADB requires an exact direct-takeover profile and HOME version'
     assert not home.get('uninstallVerified') or home.get('restoreInstallVerified'), 'HOME uninstall requires verified recovery'
     assert not home.get('preserveOriginal') or not (home.get('disableVerified') or home.get('uninstallVerified')), 'Protected HOME cannot be disabled or uninstalled'
     for package in home.get('requiredPackages', []):
