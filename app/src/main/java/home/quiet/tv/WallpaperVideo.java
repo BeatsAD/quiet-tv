@@ -12,7 +12,7 @@ import org.json.*;
 final class WallpaperVideo {
     static final long MAX_UPLOAD=200L*1024*1024;
     static final class Info {
-        int width,height,rotation;long durationMs;float fps;String mime;
+        int width,height,rotation;long durationMs;float fps,pixelRatio=1f;String mime;
     }
     static String capabilities() {
         try{return new JSONObject().put("purpose","wallpaper").put("imageMaxBytes",WallpaperUploadServer.MAX_UPLOAD)
@@ -34,6 +34,8 @@ final class WallpaperVideo {
             if(format==null)throw invalid();
             Info info=new Info();info.mime=format.getString(MediaFormat.KEY_MIME);
             info.width=format.getInteger(MediaFormat.KEY_WIDTH);info.height=format.getInteger(MediaFormat.KEY_HEIGHT);
+            if(format.containsKey("sar-width")&&format.containsKey("sar-height")){int sw=format.getInteger("sar-width"),sh=format.getInteger("sar-height");if(sw>0&&sh>0)info.pixelRatio=sw/(float)sh;}
+            else info.pixelRatio=VideoGeometry.pixelRatio(file,1f);
             info.durationMs=Long.parseLong(metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION));
             String rotation=metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION);info.rotation=rotation==null?0:Integer.parseInt(rotation);
             if(info.width<=0||info.height<=0||Math.max(info.width,info.height)>3840||Math.min(info.width,info.height)>2160||info.durationMs<=0||info.rotation%90!=0)throw invalid();
@@ -95,16 +97,24 @@ final class WallpaperVideo {
         int ue() throws IOException {int zeros=0;while(read(1)==0){if(++zeros>20)throw invalid();}return (1<<zeros)-1+read(zeros);}
     }
     static void poster(File video,File output,Info info) {
-        if(Build.VERSION.SDK_INT<27&&(Math.max(info.width,info.height)>1920||Math.min(info.width,info.height)>1080))return;
         MediaMetadataRetriever retriever=new MediaMetadataRetriever();Bitmap frame=null,small=null;
         try{
             retriever.setDataSource(video.getPath());int width=info.rotation%180==0?info.width:info.height,height=info.rotation%180==0?info.height:info.width;
             float scale=Math.min(1f,640f/Math.max(width,height));int w=Math.max(1,Math.round(width*scale)),h=Math.max(1,Math.round(height*scale));
             frame=Build.VERSION.SDK_INT>=27?Api27.frame(retriever,w,h):retriever.getFrameAtTime(0,MediaMetadataRetriever.OPTION_CLOSEST_SYNC);
-            if(frame==null)return;small=Bitmap.createScaledBitmap(frame,w,h,true);
+            if(frame==null)frame=Build.VERSION.SDK_INT>=27?retriever.getScaledFrameAtTime(-1,MediaMetadataRetriever.OPTION_CLOSEST_SYNC,w,h):retriever.getFrameAtTime(-1);
+            if(frame==null)return;
+            // The retriever may already rotate the frame. Preserve its actual aspect instead of stretching it.
+            scale=Math.min(1f,640f/Math.max(frame.getWidth(),frame.getHeight()));
+            w=Math.max(1,Math.round(frame.getWidth()*scale));h=Math.max(1,Math.round(frame.getHeight()*scale));
+            if(info.pixelRatio!=1f){float aspect=VideoGeometry.aspect(info.width,info.height,info.pixelRatio,info.rotation);w=aspect>=1?640:Math.max(1,Math.round(640*aspect));h=aspect>=1?Math.max(1,Math.round(640/aspect)):640;}
+            small=Bitmap.createScaledBitmap(frame,w,h,true);
             try(FileOutputStream stream=new FileOutputStream(output)){if(!small.compress(Bitmap.CompressFormat.JPEG,85,stream))throw new IOException();stream.getFD().sync();}
         }catch(IOException|RuntimeException|OutOfMemoryError ignored){if(output.isFile()&&!output.delete())android.util.Log.w("QuietTV","Incomplete video poster retained");}
         finally{if(small!=null&&small!=frame)small.recycle();if(frame!=null)frame.recycle();try{retriever.release();}catch(IOException ignored){}}
+    }
+    static void poster(File video,File output,WallpaperCatalog.Entry entry){
+        Info info=new Info();info.width=entry.width;info.height=entry.height;info.rotation=entry.rotation;info.pixelRatio=entry.pixelRatio;poster(video,output,info);
     }
     @TargetApi(21) private static final class Api21 {
         static boolean hasHevc(){return legacyDecoder("video/hevc");}
@@ -113,9 +123,13 @@ final class WallpaperVideo {
                 if(codec.isEncoder())continue;
                 if((Math.max(info.width,info.height)>1920||Math.min(info.width,info.height)>1080)&&((Build.VERSION.SDK_INT>=29&&!Api29.hardware(codec))||codec.getName().startsWith("OMX.google.")||codec.getName().startsWith("c2.android.")))continue;
                 try{MediaCodecInfo.VideoCapabilities video=codec.getCapabilitiesForType(info.mime).getVideoCapabilities();
-                    if(video!=null&&video.areSizeAndRateSupported(info.width,info.height,info.fps))return true;
+                    if(video!=null&&(fits(video,info.width,info.height,info.fps)
+                            ||(Math.max(info.width,info.height)<=1920&&Math.min(info.width,info.height)<=1080&&fits(video,info.height,info.width,info.fps))))return true;
                 }catch(IllegalArgumentException ignored){}
             }return false;
+        }
+        private static boolean fits(MediaCodecInfo.VideoCapabilities video,int width,int height,float fps){
+            try{return video.areSizeAndRateSupported(width,height,fps);}catch(IllegalArgumentException unsupported){return false;}
         }
     }
     @TargetApi(27) private static final class Api27 {static Bitmap frame(MediaMetadataRetriever r,int w,int h){return r.getScaledFrameAtTime(0,MediaMetadataRetriever.OPTION_CLOSEST_SYNC,w,h);}}

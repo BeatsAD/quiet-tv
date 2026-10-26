@@ -165,11 +165,7 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
         managementPage=selected;managementTabs[page]=tab;styleManagementTab(tab,false);tab.setSelected(page==selected);tab.setFocusableInTouchMode(true);tab.setId(View.generateViewId());tab.setTag("management-tab-"+page);
         if(back.getId()==View.NO_ID)back.setId(View.generateViewId());tab.setNextFocusUpId(back.getId());
         if(page==selected)back.setNextFocusDownId(tab.getId());
-        tab.setOnClickListener(v->{if(page==selected){tab.requestFocus();return;}leaveManagement(()->{
-            Class<?>[] pages={AppManagementActivity.class,DockEditorActivity.class,HomeSortActivity.class,ChildModeActivity.class};
-            startActivity(new Intent(this,pages[page]).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));
-            if(selected!=0)finish();
-        });});
+        tab.setOnClickListener(v->selectManagementPage(page));
         tab.setOnKeyListener((v,key,event)->{
             if(key!=KeyEvent.KEYCODE_DPAD_LEFT && key!=KeyEvent.KEYCODE_DPAD_RIGHT && key!=KeyEvent.KEYCODE_DPAD_DOWN)return false;
             if(event.getAction()==KeyEvent.ACTION_UP)return true;
@@ -177,6 +173,15 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
             else{int next=Math.max(0,Math.min(managementTabs.length-1,page+(key==KeyEvent.KEYCODE_DPAD_RIGHT?1:-1)));if(next!=page)managementTabs[next].performClick();}
             return true;
         });
+    }
+    void selectManagementPage(int page){
+        Class<?>[] pages={AppManagementActivity.class,DockEditorActivity.class,HomeSortActivity.class,ChildModeActivity.class};
+        startActivity(new Intent(this,pages[page]));
+    }
+    void managementPageSelected(int page){
+        managementPage=page;
+        for(int i=0;i<managementTabs.length;i++)managementTabs[i].setSelected(i==page);
+        for(int i=0;i<header.getChildCount();i++)header.getChildAt(i).setNextFocusDownId(managementTab().getId());
     }
     ImageView icon(android.graphics.drawable.Drawable art,int size){ImageView image=new ImageView(this);image.setScaleType(ImageView.ScaleType.FIT_CENTER);image.setBackground(surface(0x08ffffff,0x08ffffff,0,size*.24f));UiCompat.clipOutline(image);image.setImageDrawable(art);image.setLayoutParams(new LinearLayout.LayoutParams(px(size),px(size)));return image;}
     EditText input(String text,String hint){EditText edit=new EditText(this);edit.setText(text);edit.setHint(hint);edit.setSingleLine(true);edit.setTextColor(TEXT);edit.setHintTextColor(MUTED);edit.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(14));edit.setPadding(px(14),px(10),px(14),px(10));edit.setBackground(focusSurface(10));return edit;}

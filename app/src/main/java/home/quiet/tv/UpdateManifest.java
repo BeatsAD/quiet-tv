@@ -98,6 +98,18 @@ final class UpdateManifest {
         }
         return best;
     }
+    String unavailableReason(Device device){
+        List<Artifact> candidates=new ArrayList<>();
+        for(Release release:releases)if(compare(release.version,device.version)>0)candidates.addAll(release.artifacts);
+        if(candidates.isEmpty())return "";
+        for(Iterator<Artifact> it=candidates.iterator();it.hasNext();){Artifact a=it.next();if(!a.pkg.equals(device.pkg))it.remove();}if(candidates.isEmpty())return "新版尚未提供当前包名的安装包";
+        for(Iterator<Artifact> it=candidates.iterator();it.hasNext();){Artifact a=it.next();if(!a.compatibility.equals(device.compatibility)||!a.homeMode.equals(device.homeMode))it.remove();}if(candidates.isEmpty())return "新版尚未提供当前系统档位或桌面形态的安装包";
+        for(Iterator<Artifact> it=candidates.iterator();it.hasNext();){Artifact a=it.next();if(!a.release.channel.equals(device.channel)&&!("test".equals(device.channel)&&"stable".equals(a.release.channel)))it.remove();}if(candidates.isEmpty())return "新版与当前安装包的更新渠道不同";
+        for(Iterator<Artifact> it=candidates.iterator();it.hasNext();){Artifact a=it.next();if(!new HashSet<>(a.signers).equals(new HashSet<>(device.signers)))it.remove();}if(candidates.isEmpty())return "新版与当前安装包签名不同，无法直接覆盖更新";
+        for(Iterator<Artifact> it=candidates.iterator();it.hasNext();){Artifact a=it.next();if(a.minSdk>device.sdk)it.remove();}if(candidates.isEmpty())return "新版暂不支持当前安卓版本";
+        for(Iterator<Artifact> it=candidates.iterator();it.hasNext();){Artifact a=it.next();if(a.code<=device.code)it.remove();}if(candidates.isEmpty())return "新版构建号不高于当前安装包，无法覆盖更新";
+        return "新版尚未提供适合当前架构的安装包";
+    }
     private static List<String> strings(JSONArray values)throws JSONException,IOException{
         List<String> result=new ArrayList<>();for(int n=0;n<values.length();n++){String value=values.getString(n);if(value.trim().isEmpty()||value.length()>2000)throw new IOException("Invalid update text");result.add(value);}return Collections.unmodifiableList(result);
     }

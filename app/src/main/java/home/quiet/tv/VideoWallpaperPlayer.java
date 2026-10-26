@@ -15,7 +15,7 @@ import java.util.concurrent.TimeUnit;
 /** One playback Looper owns the decoder; surfaces are retired after their decoder. */
 final class VideoWallpaperPlayer {
     interface Listener {void ready();void failed(Failure reason);void stopped();}
-    interface PlaybackEvents {void ready();void failed(Failure reason);}
+    interface PlaybackEvents {void ready();void failed(Failure reason);void size(int width,int height,float pixelRatio);}
     enum Failure {
         UNSUPPORTED,DECODE,FILE,TIMEOUT,OUTPUT,UNKNOWN;
         String message(boolean chinese){
@@ -74,9 +74,8 @@ final class VideoWallpaperPlayer {
     private boolean current(Target candidate){return candidate==target&&candidate.request==generation&&!candidate.retired&&enabled&&!destroyed;}
     private void layout(){
         if(entry==null||target==null||host.getWidth()==0||host.getHeight()==0)return;
-        int w=entry.rotation%180==0?entry.width:entry.height,h=entry.rotation%180==0?entry.height:entry.width;
-        float videoAspect=w/(float)h,viewAspect=host.getWidth()/(float)host.getHeight();
-        if(!BuildConfig.LEGACY_19){
+        float videoAspect=target.aspect,viewAspect=host.getWidth()/(float)host.getHeight();
+        if(!target.textureOutput){
             int width=host.getWidth(),height=host.getHeight();
             FrameLayout.LayoutParams params=(FrameLayout.LayoutParams)target.view.getLayoutParams();
             int croppedWidth=Math.round(width*Math.max(1f,videoAspect/viewAspect)),croppedHeight=Math.round(height*Math.max(1f,viewAspect/videoAspect));
@@ -96,21 +95,26 @@ final class VideoWallpaperPlayer {
         if(destroyed||!enabled||screenOff||entry==null||target!=null)return;
         Target next=new Target(++generation);target=next;
         frame.addView(next.view,new FrameLayout.LayoutParams(-1,-1,Gravity.CENTER));layout();
-        next.view.post(()->{if(BuildConfig.LEGACY_19&&current(next)&&!next.view.isHardwareAccelerated())fail(next.request,Failure.OUTPUT);});
+        next.view.post(()->{if(next.textureOutput&&current(next)&&!next.view.isHardwareAccelerated())fail(next.request,Failure.OUTPUT);});
         main.postDelayed(timeout,8000);
     }
     private final class Target implements TextureView.SurfaceTextureListener,SurfaceHolder.Callback {
         final int request;
         final View view;
+        final boolean textureOutput;
         volatile boolean retired,released;
         volatile SurfaceTexture texture;
         volatile Surface surface;
         boolean started,updated;
         int unappliedRotation;
+        float aspect;
         final float[] transform=new float[16];
         Target(int request){
-            this.request=request;
-            if(BuildConfig.LEGACY_19){TextureView textureView=new TextureView(activity);textureView.setSurfaceTextureListener(this);view=textureView;}
+            this.request=request;aspect=VideoGeometry.aspect(entry.width,entry.height,entry.pixelRatio,entry.rotation);
+            // On old native-window paths, rotate explicitly in a viewport-sized texture.
+            textureOutput=BuildConfig.LEGACY_19||VideoGeometry.manualRotation(Build.VERSION.SDK_INT,entry.rotation);
+            if(!BuildConfig.LEGACY_19&&textureOutput)unappliedRotation=entry.rotation;
+            if(textureOutput){TextureView textureView=new TextureView(activity);textureView.setSurfaceTextureListener(this);view=textureView;}
             else{SurfaceView surfaceView=new SurfaceView(activity);surfaceView.getHolder().addCallback(this);view=surfaceView;}
             view.setKeepScreenOn(false);view.setFocusable(false);view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         }
@@ -146,7 +150,7 @@ final class VideoWallpaperPlayer {
         }
         @Override public void onSurfaceTextureUpdated(SurfaceTexture texture){
             if(this.texture!=texture||!current(this))return;
-            if(entry.rotation!=0){
+            if(BuildConfig.LEGACY_19&&entry.rotation!=0){
                 texture.getTransformMatrix(transform);
                 // Producers may apply metadata rotation after their first update, or omit it entirely.
                 int rotation=(entry.rotation%180!=0?Math.abs(transform[0])>.001f:transform[0]>0)?entry.rotation:0;
@@ -165,11 +169,12 @@ final class VideoWallpaperPlayer {
             if(next.request!=generation||next.retired)return;
             releasePlayer();if(next.request!=generation||next.retired)return;
             try{
-                ownsOutput=BuildConfig.LEGACY_19;output=ownsOutput?new Surface(next.texture):next.surface;playerTarget=next;
+                ownsOutput=next.textureOutput;output=ownsOutput?new Surface(next.texture):next.surface;playerTarget=next;
                 if(output==null||!output.isValid()){main.post(()->fail(next.request,Failure.OUTPUT));return;}
                 player=new WallpaperPlayback(activity,worker,output,file,selected,new PlaybackEvents(){
-                    @Override public void ready(){main.post(()->{if(current(next)){next.started=true;if(!BuildConfig.LEGACY_19)next.updated=true;firstFrame(next);}});}
+                    @Override public void ready(){main.post(()->{if(current(next)){next.started=true;if(!next.textureOutput)next.updated=true;firstFrame(next);}});}
                     @Override public void failed(Failure reason){main.post(()->fail(next.request,reason));}
+                    @Override public void size(int width,int height,float pixelRatio){main.post(()->{if(current(next)&&width>0&&height>0){next.aspect=VideoGeometry.aspect(width,height,pixelRatio,0);layout();}});}
                 });
                 player.prepare();
             }catch(IOException|RuntimeException e){DiagnosticLog.error("wallpaper.video.prepare_failed",e);main.post(()->fail(next.request,e instanceof IOException?Failure.FILE:Failure.DECODE));}

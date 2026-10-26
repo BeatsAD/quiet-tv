@@ -2,17 +2,19 @@
 
 [中文首页](../README.md) · [English home](../README.en.md) · [安装指南](INSTALL.zh-CN.md)
 
-## 1.2.5 待发布候选
+## 当前源码中的本地修复（尚未发布）
 
-本地候选补齐开机/待机守护、海信 ADB 身份、图标完整绘制、海尔设置与小米信号源路由；静态图上传放宽至60 MB，动态视频放宽至200 MB与60 FPS，标准档使用 Media3，安卓4.4保留系统播放器。各项厂商行为及最终 APK 升级保留仍待目标电视验收。已发布下载仍为1.2.4。
+当前本地源码修复动态壁纸播放、封面与比例处理：安卓4.4不再通过取消音轨实现静音；播放器输出尺寸、旋转与像素比例参与等比裁剪；API21–26的90°／270°视频使用纹理层统一旋转；缺失封面可在后台补生成。更新查询比较两个来源的已验签清单，保留较高revision，并区分无更新与安装包不匹配。应用管理的四个标签共用一个窗口和ADB会话，保留内容与排序保存，离开儿童模式仍清除鉴权。
+
+这些修复尚未发布。旧版客户端不会因本地源码变化自动获得修复，需在后续获批版本交付后覆盖更新。模拟器验证不代替厂商电视、用户原始视频及最终交付APK验收。
 
 ## 当前测试版 / Current test release
 
-[1.2.4 测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.2.4)提供安卓5+ ARM32／64／通用包（构建64–66）及安卓4.4兼容包（67），详见[选包与安装](INSTALL.zh-CN.md#下载安装与试用)。四包同源同版本同签名；旧系统不提供无线配对、桌面守护或HOME代理。
+[1.2.5 测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.2.5)提供安卓5+ ARM32／64／通用包（构建68–70）及安卓4.4兼容包（71），详见[选包与安装](INSTALL.zh-CN.md#下载安装与试用)。四包同源同版本同签名；旧系统不提供无线配对、桌面守护或HOME代理。
 
-本次在 Sony BRAVIA VH1 / Android 12 上保留数据从1.2.4／63更新到公开ARM32包64，实际安装APK哈希一致、原HOME和应用数据目录保持，并采集[当前界面](assets/README.md#124-索尼真机截图--sony-captures)。仅核对现有页面与可见配置；全部数据、完整功能、实体HOME、重启和待机唤醒未作全面验收。安卓4.4及其他厂商仍需各自真机验收。
+历史1.2.4验证曾在 Sony BRAVIA VH1 / Android 12 上保留数据从1.2.4／63更新到公开ARM32包64，实际安装APK哈希一致、原HOME和应用数据目录保持，并采集[当时界面](assets/README.md#124-索尼真机截图--sony-captures)。仅核对现有页面与可见配置；全部数据、完整功能、实体HOME、重启和待机唤醒未作全面验收。安卓4.4及其他厂商仍需各自真机验收。
 
-Version 1.2.4 has standard ARM32/ARM64/universal and Android 4.4 profiles. Sony build 64 installation and page captures do not establish complete feature, data-retention, physical HOME, reboot/wake or other-device acceptance. The following sections retain historical development and validation records; older artifacts are not current download recommendations.
+Version 1.2.5 has standard ARM32/ARM64/universal and Android 4.4 profiles. Historical Sony build 64 installation and page captures do not establish complete feature, data-retention, physical HOME, reboot/wake or other-device acceptance. The following sections retain historical development and validation records; older artifacts are not current download recommendations.
 
 ## 源码与下载 / Source and download
 
@@ -74,9 +76,9 @@ Both layouts share the native Home header with the preview. Only Desktop shows t
 | 能力 | Android 4.4 | Android 5+ |
 | --- | --- | --- |
 | 上传、预览、静音循环、关闭恢复、退出释放 | 共用流程 | 共用流程 |
-| 播放路径 | 系统 MediaPlayer + TextureView，无 Media3 | Media3 1.8.1 + SurfaceView，12 MiB 缓冲目标，禁用音频轨，可用解码器回退 |
+| 播放路径 | 系统 MediaPlayer + TextureView，无 Media3 | Media3 1.8.1 + SurfaceView；API21–26的90°／270°视频采用TextureView手动旋转。12 MiB缓冲目标，禁用音频轨，可用解码器回退 |
 | 输入上限 | SDR、8bit、1080p、60 FPS 内，依系统解码器 | SDR、8bit、4K、60 FPS 内，依实际编码／分辨率／帧率组合 |
-| 4K 封面 | 本批不开放 4K | API 27+ 缩放取帧，旧 API 可用占位图 |
+| 4K 封面 | 本批不开放 4K | API27+缩放取帧；API21–26尝试系统取帧后缩小至最长640像素，失败保留占位图 |
 | 厂商硬解、实际输出、长期性能、屏保与待机 | 待对应设备验收 | 待对应设备验收 |
 
 不接收 HDR／10bit。手机本机预览与电视首帧验证分别判断；播放错误区分读取、格式、解码、超时及输出失败。上述新范围尚待厂商真机验收；SurfaceView 保留部分电视独立于 UI 分辨率的视频输出路径；不能仅凭面板或素材标签确认原生 4K。4K 不可用时需另传低规格文件，不自动在电视转码。详见[使用指南](USAGE.zh-CN.md)。

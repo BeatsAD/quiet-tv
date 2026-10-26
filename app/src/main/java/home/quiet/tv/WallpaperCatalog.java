@@ -40,13 +40,16 @@ final class WallpaperCatalog {
         final long bytes;
         final String kind,videoMime;
         final long durationMs;
-        final float fps;
+        final float fps,pixelRatio;
         final int rotation;
         Entry(String id, String name, int width, int height, long bytes) {
             this(id,name,width,height,bytes,"image","",0,0,0);
         }
         Entry(String id,String name,int width,int height,long bytes,String kind,String mime,long duration,float fps,int rotation){
-            this.id=id;this.name=name;this.width=width;this.height=height;this.bytes=bytes;this.kind=kind;videoMime=mime;durationMs=duration;this.fps=fps;this.rotation=rotation;
+            this(id,name,width,height,bytes,kind,mime,duration,fps,rotation,1f);
+        }
+        Entry(String id,String name,int width,int height,long bytes,String kind,String mime,long duration,float fps,int rotation,float pixelRatio){
+            this.id=id;this.name=name;this.width=width;this.height=height;this.bytes=bytes;this.kind=kind;videoMime=mime;durationMs=duration;this.fps=fps;this.rotation=rotation;this.pixelRatio=pixelRatio;
         }
         boolean video(){return "video".equals(kind);}
         boolean custom() { return id.startsWith("user-"); }
@@ -130,7 +133,7 @@ final class WallpaperCatalog {
         JSONObject result=new JSONObject().put("version",2).put("current",current).put("rotating",rotating);
         result.put("lastVideo",lastVideo).put("staticBeforeVideo",staticBeforeVideo).put("rotationBeforeVideo",rotationBeforeVideo);
         JSONArray user=new JSONArray();
-        for (Entry e:custom) user.put(new JSONObject().put("id",e.id).put("name",e.name).put("width",e.width).put("height",e.height).put("bytes",e.bytes).put("kind",e.kind).put("mime",e.videoMime).put("durationMs",e.durationMs).put("fps",e.fps).put("rotation",e.rotation));
+        for (Entry e:custom) user.put(new JSONObject().put("id",e.id).put("name",e.name).put("width",e.width).put("height",e.height).put("bytes",e.bytes).put("kind",e.kind).put("mime",e.videoMime).put("durationMs",e.durationMs).put("fps",e.fps).put("rotation",e.rotation).put("pixelRatio",e.pixelRatio));
         JSONObject images=new JSONObject();for(DailyImage image:dailyImages.values())images.put(image.source,image.json());
         return result.put("custom",user).put("daily",new JSONObject().put("source",dailySource).put("lastLocal",lastLocal).put("images",images));
     }
@@ -144,7 +147,7 @@ final class WallpaperCatalog {
             JSONObject e=users.getJSONObject(i); String id=e.getString("id");
             if(!id.matches("user-[a-f0-9-]{36}") || result.find(id)!=null) continue;
             String kind=e.optString("kind","image");if(!"image".equals(kind)&&!"video".equals(kind))continue;
-            Entry entry=new Entry(id,e.getString("name"),e.getInt("width"),e.getInt("height"),e.getLong("bytes"),kind,e.optString("mime"),e.optLong("durationMs"),(float)e.optDouble("fps",0),e.optInt("rotation"));
+            Entry entry=new Entry(id,e.getString("name"),e.getInt("width"),e.getInt("height"),e.getLong("bytes"),kind,e.optString("mime"),e.optLong("durationMs"),(float)e.optDouble("fps",0),e.optInt("rotation"),(float)e.optDouble("pixelRatio",1));
             if(result.count(entry.video())<(entry.video()?MAX_VIDEOS:MAX_CUSTOM))result.custom.add(entry);
         }
         JSONObject daily=json.optJSONObject("daily");

@@ -43,7 +43,7 @@ final class UpdateTransfer {
             HttpURLConnection request=factory.open(url);active=request;
             request.setConnectTimeout(remaining);request.setReadTimeout(remaining);request.setInstanceFollowRedirects(false);
             request.setRequestProperty("User-Agent","QuietTV-Update/1");request.setRequestProperty("Accept-Encoding","identity");
-            if(fresh)request.setRequestProperty("Cache-Control","no-cache");if(offset>0)request.setRequestProperty("Range","bytes="+offset+"-");
+            if(fresh){request.setUseCaches(false);request.setRequestProperty("Cache-Control","no-cache, no-store");}if(offset>0)request.setRequestProperty("Range","bytes="+offset+"-");
             ScheduledFuture<?> timeout=WATCHDOG.schedule(request::disconnect,remaining,TimeUnit.MILLISECONDS);
             try{
                 int status=request.getResponseCode();
@@ -59,20 +59,28 @@ final class UpdateTransfer {
         }
         throw new IOException("Too many update redirects");
     }
-    interface ManifestConsumer {void verified(byte[] data,int source)throws IOException;}
+    interface ManifestConsumer {long verified(byte[] data,int source)throws IOException;}
     void manifest(int preferred,ManifestConsumer consumer)throws IOException{
         ScheduledFuture<?> deadline=WATCHDOG.schedule(this::cancel,40000,TimeUnit.MILLISECONDS);
         try{
-        long end=clock.now()+40000;List<Integer> order=new ArrayList<>();order.add(-1);order.addAll(sources(preferred));IOException last=null;
-        for(int source:order){alive();if(clock.now()>=end)break;
-            try(Response response=connect(address(source,RAW),0,end-clock.now(),true)){
-                if(response.status!=200)throw new IOException("Partial update manifest");
-                ByteArrayOutputStream output=new ByteArrayOutputStream();byte[] buffer=new byte[4096];int count;
-                while((count=response.input.read(buffer))!=-1){alive();if(clock.now()>=end)throw new SocketTimeoutException();if(output.size()+count>UpdateManifest.MAX_BYTES)throw new IOException("Update manifest too large");output.write(buffer,0,count);}
-                consumer.verified(output.toByteArray(),source);return;
-            }catch(IOException e){last=e;}
-        }
-        alive();throw new IOException("All update manifest sources failed",last);
+            long end=clock.now()+40000;List<Integer> order=new ArrayList<>();order.add(-1);order.add(SOURCES.length-1);
+            for(int source:sources(preferred))if(!order.contains(source))order.add(source);
+            IOException last=null;byte[] best=null;long revision=-1;int bestSource=-1,verified=0;
+            String nonce="?quietCheck="+System.currentTimeMillis();
+            for(int source:order){
+                alive();if(clock.now()>=end)break;
+                try(Response response=connect(address(source,RAW)+nonce,0,end-clock.now(),true)){
+                    if(response.status!=200)throw new IOException("Partial update manifest");
+                    ByteArrayOutputStream output=new ByteArrayOutputStream();byte[] buffer=new byte[4096];int count;
+                    while((count=response.input.read(buffer))!=-1){alive();if(clock.now()>=end)throw new SocketTimeoutException();if(output.size()+count>UpdateManifest.MAX_BYTES)throw new IOException("Update manifest too large");output.write(buffer,0,count);}
+                    byte[] bytes=output.toByteArray();long candidate=consumer.verified(bytes,source);verified++;
+                    if(candidate>revision){best=bytes;revision=candidate;bestSource=source;}
+                    // Compare independently hosted Pages and Raw, instead of accepting a valid but stale first reply.
+                    if(verified>=2)break;
+                }catch(IOException e){last=e;}
+            }
+            alive();if(best!=null){consumer.verified(best,bestSource);return;}
+            throw new IOException("All update manifest sources failed",last);
         }finally{deadline.cancel(false);}
     }
     int download(String origin,long total,String sha,File target,int preferred,Progress progress)throws IOException{
