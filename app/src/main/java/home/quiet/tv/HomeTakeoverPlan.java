@@ -8,6 +8,9 @@ import org.json.*;
 final class HomeTakeoverPlan {
     static final String GOOGLE="com.google.android.apps.tv.launcherx", SETUP="com.google.android.tungsten.setupwraith";
     static final String CLASSIC="com.google.android.tvlauncher", JM="persist.sys.home.selectpkg", VIDAA="persist.vt.use_home_pkg";
+    static final String ADB_PORT="persist.adb.tcp.port", WRITE_SECURE="android.permission.WRITE_SECURE_SETTINGS";
+    static boolean adbPort(String value){try{return value.matches("[0-9]{1,5}") && Integer.parseInt(value)>0 && Integer.parseInt(value)<=65535;}catch(NumberFormatException invalid){return false;}}
+    static boolean adbPortState(String value){return value.isEmpty() || "-1".equals(value) || "0".equals(value) || adbPort(value);}
     interface Port {
         void check() throws Exception;
         boolean rollbackAllowed();
@@ -21,6 +24,14 @@ final class HomeTakeoverPlan {
     }
     static boolean property(String value){return JM.equals(value) || VIDAA.equals(value);}
     static boolean packageName(String value){return value!=null && value.matches("[A-Za-z][A-Za-z0-9_]*(?:\\.[A-Za-z0-9_]+)+");}
+    static boolean applied(JSONObject journal,Port port) throws Exception {
+        JSONArray steps=journal.getJSONArray("steps");
+        for(int i=0;i<steps.length();i++){JSONObject step=steps.getJSONObject(i);
+            // Turning off optional ADB recovery does not invalidate the completed HOME transaction.
+            if(!"preference".equals(step.getString("kind")) && !step.getString("after").equals(port.read(step)))return false;
+        }
+        return true;
+    }
     static void apply(JSONObject journal,Port port) throws Exception {
         JSONArray steps=journal.getJSONArray("steps");
         port.check();
@@ -55,8 +66,10 @@ final class HomeTakeoverPlan {
     private static void restore(JSONObject journal,Port port,boolean original) throws Exception {
         JSONArray steps=journal.getJSONArray("steps");
         // Restore the real launcher before a competing recovery HOME, then restore the preference.
-        for(int i=steps.length()-1;i>=0;i--){JSONObject step=steps.getJSONObject(i);if(!"home".equals(step.getString("kind")))restoreStep(step,port,original);}
+        for(int i=steps.length()-1;i>=0;i--){JSONObject step=steps.getJSONObject(i);String kind=step.getString("kind");if(!"home".equals(kind) && !"permission".equals(kind))restoreStep(step,port,original);}
         for(int i=0;i<steps.length();i++){JSONObject step=steps.getJSONObject(i);if("home".equals(step.getString("kind")))restoreStep(step,port,original);}
+        // Revoking a development permission may stop this process: restore HOME first.
+        for(int i=steps.length()-1;i>=0;i--){JSONObject step=steps.getJSONObject(i);if("permission".equals(step.getString("kind")))restoreStep(step,port,original);}
         journal.put("state",original?"restored":"rolled-back");port.save(journal);
     }
     private static void restoreStep(JSONObject step,Port port,boolean original) throws Exception {

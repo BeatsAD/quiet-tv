@@ -176,7 +176,8 @@ final class DiagnosticDeviceSnapshot {
         line("记录固件与当前一致",yes(Build.FINGERPRINT.equals(state.preferences.getString("firmware",""))));
         line("无障碍设置授权",yes(state.serviceEnabled()));line("无障碍服务已连接",yes(HomeGuardService.connected()));
         String configurationProblem=HomeGuardRecovery.configurationProblem(context);
-        line("完整配置缺项",configurationProblem.isEmpty()?"未检测到缺项，场景效果仍待验证":configurationProblem);
+        line("完整配置缺项",!state.enabled()?"当前未使用守护中转":configurationProblem.isEmpty()?"未检测到缺项，场景效果仍待验证":configurationProblem);
+        line("保持 ADB 调试",HomeGuardAdb.summary(context));
         line("厂商自启动配置（历史记录）",state.preferences.getString("vendorAutoStartStatus","未配置或未记录"));
         line("直接 HOME 按键补偿已配置",yes(state.directHomeConfigured()));line("显式 HOME 接管条件有效",yes(state.homeActionReady()));
         line("HOME 按键过滤能力",HomeGuardService.connected()?yes(HomeGuardService.keyFilterCapable()):"服务未连接，未读取");

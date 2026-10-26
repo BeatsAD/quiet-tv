@@ -50,6 +50,7 @@ final class DesktopRoutes {
                 .putBoolean("configured",true).putBoolean("observeHome",false).putBoolean("directHomeKeys",false)
                 .remove("routeTest_home").remove("routeTest_reboot").remove("routeTest_coldBoot").remove("routeTest_wake").apply();
         state.status("直接接管已配置，实体 HOME、开机与唤醒待验证");
+        HomeGuardSync.refresh(context);HomeGuardAdb.ensure(context);
     }
     void observe(){SharedPreferences.Editor edit=edit();if(!"RELAY".equals(home()))edit.remove("routeTest_home").remove("routeTest_wake");edit.putString("routeHome","RELAY").putString("relaySource","OBSERVER").putBoolean("observeHome",true).putBoolean("directHomeKeys",false).apply();}
     void proxy(){
@@ -109,8 +110,9 @@ final class DesktopRoutes {
                 .put("usageObserverBound",HomeGuardUsageService.connected()).put("tclPolicyStatus",prefs.getString("tclPolicyStatus","未配置"))
                 .put("accessibilityAllowed",state.serviceEnabled()).put("accessibilityBound",HomeGuardService.connected())
                 .put("usageRequired",HomeGuardService.usageRequired(context)).put("usageAllowed",HomeGuardService.usageAllowed(context))
-                .put("configurationProblem",HomeGuardRecovery.configurationProblem(context))
+                .put("configurationProblem",state.enabled()?HomeGuardRecovery.configurationProblem(context):"")
                 .put("syncRecovery",HomeGuardSync.summary(context)).put("syncRecoveryReady",HomeGuardSync.ready(context)).put("keepAdb",HomeGuardAdb.enabled(context))
+                .put("keepAdbReady",HomeGuardAdb.ready(context)).put("keepAdbStatus",HomeGuardAdb.summary(context))
                 .put("observationReady",state.observationReady()).put("directHomeConfigured",state.directHomeConfigured())
                 .put("homeActionReady",state.homeActionReady()).put("homeActionChannelBound",HomeGuardService.connected())
                 .put("homeKeyFilterCapable",HomeGuardService.connected()?(Object)HomeGuardService.keyFilterCapable():JSONObject.NULL);

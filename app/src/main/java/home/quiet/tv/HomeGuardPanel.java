@@ -82,10 +82,10 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
         notificationRow.value(!HomeGuardRecovery.notificationSupported(ui)?"此设备不可用":!notification?"未授权":HomeGuardRevivalListener.connected()?"已连接":"等待绑定");
         notificationRow.description("用于系统清理后的恢复，不读取通知内容。");notificationRow.setEnabled(supported && HomeGuardRecovery.notificationSupported(ui));
         accessibilityRow.setVisibility(state.enabled()?View.VISIBLE:View.GONE);notificationRow.setVisibility(state.enabled()?View.VISIBLE:View.GONE);
-        syncRow.setVisibility(state.enabled() && HomeGuardSync.supported(ui)?View.VISIBLE:View.GONE);syncRow.value(HomeGuardSync.summary(ui));
+        syncRow.setVisibility((state.enabled() || HomeGuardAdb.enabled(ui)) && HomeGuardSync.supported(ui)?View.VISIBLE:View.GONE);syncRow.value(HomeGuardSync.summary(ui));
         syncRow.description("本地账号用于系统唤醒，不同步数据。");
-        keepAdbRow.setVisibility(HomeGuardAdb.supported(ui)?View.VISIBLE:View.GONE);keepAdbRow.checked(HomeGuardAdb.enabled(ui));keepAdbRow.setEnabled(state.enabled());
-        keepAdbRow.description(HomeGuardRecovery.writeAllowed(ui)?"开启后尝试恢复被系统关闭的调试，暂停中转时停止恢复。":"需先配置自动恢复，授予写安全设置权限。");
+        keepAdbRow.setVisibility(HomeGuardAdb.supported(ui)?View.VISIBLE:View.GONE);keepAdbRow.checked(HomeGuardAdb.enabled(ui));keepAdbRow.setEnabled(HomeGuardAdb.enabled(ui) || state.automatic());
+        keepAdbRow.description(HomeGuardAdb.enabled(ui)?HomeGuardAdb.summary(ui):HomeGuardRecovery.writeAllowed(ui)?"直接启动或中转均可保持调试，暂停自动恢复时停止。":"需先授予写安全设置权限。");
         String vendorProblem=routes.vendorProblem();
         bridgeRow.checked(routes.vendorReady());bridgeRow.description(routes.vendorReady()?"已启用，重启和断电开机待验证":vendorProblem.isEmpty()?"可启用创维／酷开开机入口，实际效果待验证":vendorProblem);bridgeRow.setEnabled(supported);
         String problem=state.enableProblem(),summary=state.summary();
