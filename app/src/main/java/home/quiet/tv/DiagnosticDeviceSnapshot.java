@@ -178,6 +178,8 @@ final class DiagnosticDeviceSnapshot {
         String configurationProblem=HomeGuardRecovery.configurationProblem(context);
         line("完整配置缺项",configurationProblem.isEmpty()?"未检测到缺项，场景效果仍待验证":configurationProblem);
         line("厂商自启动配置（历史记录）",state.preferences.getString("vendorAutoStartStatus","未配置或未记录"));
+        line("直接 HOME 按键补偿已配置",yes(state.directHomeConfigured()));line("显式 HOME 接管条件有效",yes(state.homeActionReady()));
+        line("HOME 按键过滤能力",HomeGuardService.connected()?yes(HomeGuardService.keyFilterCapable()):"服务未连接，未读取");
         line("HOME 按键过滤请求",yes(HomeGuardService.keyFiltering()));line("首页生命周期前台",yes(HomeGuardService.homeResumed()));
         line("独立中转助手占用",yes(state.helperActive()));
         line("兼容检测所需用量权限",HomeGuardService.usageRequired(context)?yes(HomeGuardService.usageAllowed(context)):"本档位不需要");
@@ -187,7 +189,7 @@ final class DiagnosticDeviceSnapshot {
         line("系统已解锁",yes(HomeGuardState.unlocked(context)));line("屏幕交互中",yes(HomeGuardState.interactive(context)));
         String problem=state.enableProblem();
         line("当前守护结论",!state.enabled()?"配置开关未开启，不执行守护":!problem.isEmpty()?problem
-            :!HomeGuardService.connected()?"等待系统绑定无障碍":"无障碍服务已连接，守护已启用");
+            :!HomeGuardService.connected()?"等待系统绑定无障碍":state.summary());
         line("最近记录状态（历史记录）",state.preferences.getString("status","未记录"));
     }
     private void bootReceiver() throws PackageManager.NameNotFoundException {

@@ -167,9 +167,12 @@ def configure(args, adb):
             raise ValueError("应用未确认暂停；已安装 APK 可能不支持该入口")
         print("中转已暂停；系统默认 HOME 保持原状，原桌面保护不解除。")
         return
+    direct_home = getattr(args, "direct_home", False)
+    if direct_home and args.home:
+        raise ValueError("直接 HOME 补偿不能同时指定原桌面")
     selected = canonical_home(args.home or "")
     inspection = None
-    if args.apply:
+    if args.apply or direct_home:
         # New APKs answer without changing preferences or enabling the guard. Old APKs
         # reject inspect before the explicit enable branch; retain their existing setup path.
         output = adb.shell("am", "broadcast", "--include-stopped-packages", "--user", args.user,
@@ -180,11 +183,17 @@ def configure(args, adb):
         if inspection and inspection.get("schemaVersion") == 1:
             if inspection.get("package") != args.package or not inspection.get("supported"):
                 raise ValueError("应用身份或守护能力不匹配，未修改权限")
-            homes = inspection.get("candidates", [])
-            resolved = inspection.get("resolvedHome", "")
-            selected = selected or inspection.get("selected") or (resolved if resolved in homes else "") or (homes[0] if len(homes) == 1 else "")
-            if not selected or selected not in homes:
-                raise ValueError("原主页未唯一确定或已失效，请使用 --home 指定本机候选；未修改权限")
+            if direct_home:
+                if not inspection.get("directHomeAvailable"):
+                    raise ValueError("本机设备或系统 HOME 不适用直接按键补偿；未修改权限")
+            else:
+                homes = inspection.get("candidates", [])
+                resolved = inspection.get("resolvedHome", "")
+                selected = selected or inspection.get("selected") or (resolved if resolved in homes else "") or (homes[0] if len(homes) == 1 else "")
+                if not selected or selected not in homes:
+                    raise ValueError("原主页未唯一确定或已失效，请使用 --home 指定本机候选；未修改权限")
+        elif direct_home:
+            raise ValueError("已安装 APK 未提供直接 HOME 能力核对；未修改权限")
     pm_help = adb.shell("pm", "help")
     ops_help = adb.shell("appops", "help")
     pm_user = user_options(pm_help, "grant", sdk, args.user)
@@ -195,7 +204,7 @@ def configure(args, adb):
         plan.append(["appops", "set", *ops_user, args.package, "WRITE_SETTINGS", "allow"])
         plan.append(["appops", "set", *ops_user, args.package, "SYSTEM_ALERT_WINDOW", "allow"])
     vendor = " ".join(adb.shell("getprop", key) for key in ("ro.product.manufacturer", "ro.product.brand")).lower().split()
-    if (sdk <= 23 or "xiaomi" in vendor or "redmi" in vendor or selected.startswith("com.jamdeo.tv.vod/")
+    if not direct_home and (sdk <= 23 or "xiaomi" in vendor or "redmi" in vendor or selected.startswith("com.jamdeo.tv.vod/")
             or sdk == 25 and selected.startswith("com.amazon.tv.launcher/")):
         plan.append(["appops", "set", *ops_user, args.package, "GET_USAGE_STATS", "allow"])
     vendor_before = {}
@@ -226,12 +235,14 @@ def configure(args, adb):
     broadcast = ["am", "broadcast", "--include-stopped-packages", "--user", args.user, "-a", args.package + ".CONFIGURE_HOME_GUARD",
                  "-n", args.package + "/home.quiet.tv.HomeGuardSetupReceiver", "--ei", "user", args.user,
                  "--ez", "enable", "true"]
+    if direct_home:
+        broadcast += ["--ez", "direct_home", "true"]
     if selected:
         broadcast += ["--es", "home", selected]
     plan.append(broadcast)
     if not args.apply:
         print("仅预览，未修改电视。确认原主页及授权范围后，使用 --apply --record <新的私有记录路径> 执行：")
-        if not selected:
+        if not selected and not direct_home:
             print("执行时先核对应用所选原主页；VIDAA 原主页可能还需要 GET_USAGE_STATS。")
         for command in plan:
             print("shell " + " ".join(shlex.quote(str(value)) for value in command))
@@ -268,6 +279,10 @@ def configure(args, adb):
             print(output)
             if not re.search(r"\bresult=-1\b", output):
                 raise ValueError("应用未确认全部权限配置完成；已完成的授权保留，请检查上方结果")
+            if direct_home:
+                confirmed = broadcast_data(output)
+                if not confirmed or not confirmed.get("directHomeConfigured"):
+                    raise ValueError("直接 HOME 路线未读回确认；已完成的授权保留")
         if command[:2] == ["appops", "set"] and command[-2] in vendor_before:
             operation = command[-2]
             if adb.current_user() != args.user:
@@ -286,6 +301,7 @@ def main():
     parser.add_argument("--serial", required=True, help="本次明确选定且已授权的电视")
     parser.add_argument("--user", type=int, required=True, help="已经核对的前台用户，不预设 0")
     parser.add_argument("--package", choices=["home.quiet.tv", "com.coocaa.quiettv", "com.ts.launcher"], default="home.quiet.tv")
+    parser.add_argument("--direct-home", action="store_true", help="配置已核对的 MiBOX3 直接 HOME 按键补偿，不要求原桌面")
     parser.add_argument("--home", help="本机实际检测到的原主页组件；多候选时指定")
     parser.add_argument("--adb", default="adb")
     parser.add_argument("--apply", action="store_true", help="明确执行首次授权并启用守护")
@@ -296,8 +312,10 @@ def main():
         parser.error("用户或原主页组件格式无效")
     if args.apply and not args.record:
         parser.error("执行配置必须使用 --record 保存原始状态")
-    if args.pause and args.home:
-        parser.error("暂停不能同时选择原主页")
+    if args.pause and (args.home or args.direct_home):
+        parser.error("暂停不能同时选择原主页或直接 HOME 补偿")
+    if args.direct_home and args.home:
+        parser.error("直接 HOME 补偿不能同时指定原主页")
     try:
         configure(args, ComputerAdb(args.adb, args.serial))
     except (OSError, ValueError, subprocess.TimeoutExpired) as error:

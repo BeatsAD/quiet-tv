@@ -73,11 +73,11 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
         HomeGuardState.Candidate selected=null;
         if(valid)for(HomeGuardState.Candidate candidate:candidates)if(candidate.component.flattenToString().equals(state.selected())){selected=candidate;break;}
         homeRow.value(selected!=null?selected.label:state.selected().isEmpty()?"未选择":"已失效");
-        homeRow.description(!supported?"当前设备未开放此实验功能":candidates.isEmpty()?"未检测到可用的原桌面，请在更多操作中重新检测。":!state.selected().isEmpty()&&!valid?"原桌面不可用，请重新选择。":selected==null?"先选择电视自带的桌面，作为识别目标。":"已选为识别目标，授权完成后自动守护。");
+        homeRow.description(state.directHomeSelected()?"已选择直接 HOME 按键补偿，此路线不依赖原桌面。":!supported?"当前设备未开放此实验功能":candidates.isEmpty()?"未检测到可用的原桌面，请在更多操作中重新检测。":!state.selected().isEmpty()&&!valid?"原桌面不可用，请重新选择。":selected==null?"先选择电视自带的桌面，作为识别目标。":"已选为识别目标，授权完成后自动守护。");
         homeRow.setEnabled(supported&&!candidates.isEmpty());
         boolean xiaomiLegacy=HomeGuardPolicy.xiaomiRecovery(android.os.Build.MANUFACTURER,android.os.Build.BRAND,android.os.Build.VERSION.SDK_INT,BuildConfig.LEGACY_19) && android.os.Build.VERSION.SDK_INT<=23;
         boolean bound=HomeGuardService.connected();
-        accessibilityRow.value(!authorized?"未授权":bound?"已连接":"已授权，等待连接");accessibilityRow.description(authorized?xiaomiLegacy?"识别异常时会短暂重启无障碍，其他无障碍服务也会短暂中断。":bound?"服务已连接，实体 HOME 效果仍需验证。":"系统尚未连接服务，请返回本页核对。":"在系统设置中开启后，请返回此页。");accessibilityRow.setEnabled(supported);
+        accessibilityRow.value(!authorized?"未授权":bound?"已连接":"已授权，等待连接");accessibilityRow.description(authorized?xiaomiLegacy && !state.directHomeSelected()?"识别异常时会短暂重启无障碍，其他无障碍服务也会短暂中断。":bound?"服务已连接，实体 HOME 效果仍需验证。":"系统尚未连接服务，请返回本页核对。":"在系统设置中开启后，请返回此页。");accessibilityRow.setEnabled(supported);
         boolean notification=HomeGuardRecovery.notificationAllowed(ui);
         notificationRow.value(!HomeGuardRecovery.notificationSupported(ui)?"此设备不可用":!notification?"未授权":HomeGuardRevivalListener.connected()?"已连接":"等待绑定");
         notificationRow.description("用于系统清理后的恢复，不读取通知内容。");notificationRow.setEnabled(supported && HomeGuardRecovery.notificationSupported(ui));
@@ -170,6 +170,10 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
         Button auto=sheet.option(paused?"重新启用并自动配置":"自动配置桌面",()->{
             if(paused && !state.preferences.edit().putString("mode","AUTO").putBoolean("configured",false).commit()){ui.message("重新启用未保存");return;}
             sheet.dialog.dismiss();ui.startActivity(new Intent(ui,SetupActivity.class).putExtra("autoConfigure",true));
+        });
+        if(state.directHomeAvailable())sheet.option("启用 HOME 按键补偿",()->{
+            sheet.dialog.dismiss();state.preferences.edit().putString("mode","AUTO").apply();routes.direct();refreshUi();
+            if(!state.serviceEnabled())openAccessibility();else ui.message(state.summary());
         });
         sheet.option("使用原主页中转",()->{sheet.dialog.dismiss();String problem=state.enable();refreshUi();if(!problem.isEmpty())ui.message(problem);});
         sheet.option("记录实际验证结果",()->{sheet.dialog.dismiss();showScenes();});

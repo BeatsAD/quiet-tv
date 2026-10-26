@@ -28,7 +28,7 @@ final class HomeGuardAdb {
             @Override public void onChange(boolean self){ensure(app);}
         });ensure(app);
     }
-    private static boolean allowed(Context c){return supported(c) && HomeGuardState.unlocked(c) && enabled(c) && new HomeGuardState(c).ready() && HomeGuardRecovery.writeAllowed(c);}
+    private static boolean allowed(Context c){return supported(c) && HomeGuardState.unlocked(c) && enabled(c) && new HomeGuardState(c).recoveryReady() && HomeGuardRecovery.writeAllowed(c);}
     static void ensure(Context c){
         if(!allowed(c))return;
         again.set(true);if(!pending.compareAndSet(false,true))return;

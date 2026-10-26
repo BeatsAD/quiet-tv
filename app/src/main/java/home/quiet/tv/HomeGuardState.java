@@ -121,9 +121,39 @@ final class HomeGuardState {
         for(Candidate home:candidates())if(home.component.flattenToString().equals(selected()))return true;return false;
     }
     boolean ready(){return enabled() && validSelection() && !helperActive();}
+    boolean directHomeAvailable(){
+        if(!BuildConfig.DECLARES_HOME || !HomeGuardPolicy.directHomeDevice(Build.MANUFACTURER,Build.BRAND,Build.MODEL,Build.DEVICE,Build.VERSION.SDK_INT,BuildConfig.LEGACY_19)
+                || !unlocked(context) || helperActive() || preferences.getBoolean("proxyPausePending",false)
+                || "PROXY".equals(preferences.getString("relaySource","")))return false;
+        try{
+            ResolveInfo resolved=pm.resolveActivity(HomeController.homeIntent(),PackageManager.MATCH_DEFAULT_ONLY);
+            ActivityInfo home=resolved==null?null:resolved.activityInfo;
+            return home!=null && context.getPackageName().equals(home.packageName) && HomeActivity.class.getName().equals(home.name)
+                    && home.exported && home.enabled && home.applicationInfo.enabled && (home.applicationInfo.flags&ApplicationInfo.FLAG_INSTALLED)!=0;
+        }catch(SecurityException unavailable){return false;}
+    }
+    boolean directHomeSelected(){return preferences.getBoolean("directHomeKeys",false) && "DIRECT".equals(preferences.getString("routeHome",""));}
+    boolean directHomeConfigured(){
+        return HomeGuardPolicy.directHomeConfigured(enabled(),preferences.getBoolean("directHomeKeys",false),
+                new DesktopRoutes(context,false).current(),preferences.getString("routeHome",""));
+    }
+    boolean directHomeReady(){return directHomeConfigured() && directHomeAvailable();}
+    // This broader gate is only for an explicit HOME action or restoring its service, never a window observation.
+    boolean homeActionReady(){return HomeGuardPolicy.homeActionReady(!directHomeSelected() && ready(),directHomeConfigured(),directHomeAvailable(),helperActive());}
+    boolean recoveryReady(){return directHomeSelected()?directHomeReady():ready();}
+    String homeActionProblem(){
+        if(!enabled())return "disabled_or_paused";
+        if(helperActive())return "helper_active";
+        if(directHomeSelected())return directHomeReady()?"":"direct_home_changed";
+        return ready()?"":"invalid_home_or_firmware";
+    }
     String enableProblem(){
         if(!supported())return "此系统档位未开放桌面守护";
         if(!unlocked(context))return "等待系统解锁";
+        if(directHomeSelected()){
+            if(!directHomeConfigured() || !directHomeAvailable())return "直接 HOME 身份已变化，请重新检测";
+            return serviceEnabled()?"":"请开启无障碍以接收 HOME";
+        }
         if(!validSelection())return "请选择本机检测到的原主页";
         if(helperActive())return "请先暂停独立中转助手";
         if(!serviceEnabled() && !HomeGuardUsageService.connected())return "等待无障碍授权或绑定";
@@ -138,6 +168,7 @@ final class HomeGuardState {
     String summary(){
         if(!enabled())return preferences.getString("status","未配置");
         String problem=enableProblem();if(!problem.isEmpty())return problem;
+        if(directHomeReady())return !HomeGuardService.connected()?"等待系统连接无障碍":"HOME 按键补偿已连接，实体效果待验证";
         if(!HomeGuardService.connected() && !HomeGuardUsageService.connected())return "等待系统绑定无障碍";
         if(HomeGuardService.usageRequired(context) && !HomeGuardService.usageAllowed(context))return "无障碍已连接  兼容检测未授权，可通过电脑配置";
         return "守护已连接";

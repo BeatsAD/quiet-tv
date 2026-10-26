@@ -38,7 +38,19 @@ final class HomeGuardPolicy {
         return usageFallback(sdk,legacy,selected) || xiaomiRecovery(manufacturer,brand,sdk,legacy);
     }
     static boolean filterHome(boolean xiaomi,boolean enabled,boolean canShow,int sdk,boolean defaultHome,boolean homeResumed){
-        return xiaomi && enabled && canShow && sdk>=21 && (homeResumed || sdk<=30 && !defaultHome);
+        return filterHome(xiaomi,enabled,canShow,sdk,defaultHome,homeResumed,false);
+    }
+    static boolean filterHome(boolean xiaomi,boolean enabled,boolean canShow,int sdk,boolean defaultHome,boolean homeResumed,boolean directHomeReady){
+        return xiaomi && enabled && canShow && sdk>=21 && (directHomeReady || homeResumed || sdk<=30 && !defaultHome);
+    }
+    static boolean directHomeDevice(String manufacturer,String brand,String model,String device,int sdk,boolean legacy){
+        return !legacy && sdk==22 && xiaomi(manufacturer,brand) && "MiBOX3".equals(model) && "JurassicPark".equals(device);
+    }
+    static boolean directHomeConfigured(boolean enabled,boolean optedIn,boolean current,String route){
+        return enabled && optedIn && current && "DIRECT".equals(route);
+    }
+    static boolean homeActionReady(boolean observerReady,boolean directConfigured,boolean ownHomeUsable,boolean helperActive){
+        return !helperActive && (directConfigured?ownHomeUsable:observerReady);
     }
     static boolean handoverBlocked(boolean pending,boolean homeResumed){return pending || homeResumed;}
     static boolean bootRecheck(long uptime){return uptime>=0 && uptime<BOOT_WINDOW_MS;}
