@@ -88,7 +88,8 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
                 if(roleInFlight){render();return;}
                 if(launchTakeover){launchTakeover=false;withConnection(()->offerTakeover(()->openHome("未应用额外接管方案，保持当前配置")));return;}
                 if(launchAuto){launchAuto=false;autoConfigure();return;}
-                if(!recovery && !takeoverPending && !roleCancelled && !state.isOwn(this) && new HomeGuardState(this).compatibleReady()
+                // A selected relay can still be needed when the system HOME already points here.
+                if(!recovery && !takeoverPending && !roleCancelled && (!state.isOwn(this) || "RELAY".equals(new DesktopRoutes(this).home())) && new HomeGuardState(this).compatibleReady()
                         && (!automaticEntry || new DesktopRoutes(this).configurationProblem().isEmpty())){
                     try{new SetupOperations(this).completeGuard();openHome("桌面中转已配置，原桌面保留");return;}
                     catch(Exception failure){notice="兼容配置未完成："+failure.getMessage();}
