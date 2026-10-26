@@ -115,7 +115,7 @@ final class WallpaperStore {
         if(!active.valid())throw new IOException("上传会话已结束 / Session ended");
         String id="user-"+UUID.randomUUID(),name=filename.replaceAll("[\\p{Cntrl}/\\\\]"," ").replaceFirst("(?i)\\.(mp4|mov|mkv|webm)$", "").trim();
         if(name.isEmpty())name="动态壁纸 / Video wallpaper";if(name.length()>48)name=name.substring(0,48);
-        WallpaperCatalog.Entry entry=new WallpaperCatalog.Entry(id,name,info.width,info.height,bytes,"video",info.mime,info.durationMs,info.fps,info.rotation);
+        WallpaperCatalog.Entry entry=new WallpaperCatalog.Entry(id,name,info.width,info.height,bytes,"video",info.mime,info.durationMs,info.fps,info.rotation,info.pixelRatio);
         File destination=mediaFile(id,true);if(!ready.renameTo(destination))throw new IOException("无法保存视频 / Unable to save video");
         if(poster.isFile()&&!poster.renameTo(poster(id)))throw new IOException("无法保存视频封面 / Unable to save poster");
         WallpaperCatalog next=catalog.copy();next.add(entry);

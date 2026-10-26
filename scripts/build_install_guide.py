@@ -11,6 +11,7 @@ import shutil
 import time
 from urllib.parse import urljoin
 from urllib.request import Request, urlopen
+from build_update_manifest import verify_feed
 
 ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY = 'https://github.com/BeatsAD/quiet-tv'
@@ -37,7 +38,7 @@ def fetch_releases():
         page += 1
 
 
-def release_index(releases):
+def release_index(releases, profiles=None):
     records = []
     for release in releases:
         # Older published tags carry a build suffix; keep their real tag and URLs.
@@ -55,9 +56,15 @@ def release_index(releases):
             digest = asset.get('digest') or ''
             if digest and not re.fullmatch(r'sha256:[a-f0-9]{64}', digest):
                 raise ValueError('APK 附件 SHA-256 格式无效')
-            assets.append({'name': asset['name'], 'label': asset.get('label'),
+            entry = {'name': asset['name'], 'label': asset.get('label'),
                            'bytes': asset['size'], 'sha256': digest[7:] if digest else None,
-                           'url': asset['browser_download_url']})
+                           'url': asset['browser_download_url'], 'homeMode': 'unknown'}
+            profile = (profiles or {}).get(entry['url'])
+            if profile:
+                if profile['bytes'] != entry['bytes'] or (entry['sha256'] and profile['sha256'] != entry['sha256']):
+                    raise ValueError('公开附件与签名配置不一致：' + asset['name'])
+                entry.update({key: profile[key] for key in ('homeMode', 'packageName', 'compatibility', 'minSdk', 'abis', 'versionCode', 'signerSha256', 'sha256')})
+            assets.append(entry)
         if not assets:
             continue
         records.append({'versionName': match[1], 'tag': release['tag_name'],
@@ -69,12 +76,20 @@ def release_index(releases):
 
 
 def build_site(output, releases):
-    index = release_index(releases)
+    feed = verify_feed(ROOT / 'updates/updates.json')
+    profiles = {artifact['url']: artifact for release in feed['releases'] for artifact in release['artifacts']}
+    index = release_index(releases, profiles)
     source = ROOT / 'prototypes/install-guide'
     output.mkdir(parents=True, exist_ok=True)
     for name in ('styles.css', 'app.js', 'assets/icon.svg', 'assets/home.jpg'):
         (output / name).parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source / name, output / name)
+    index['tools'] = {}
+    (output / 'tools').mkdir(exist_ok=True)
+    for name in ('install_tcl.py', 'tcl_cast.py', 'configure_home_guard.py'):
+        data = (ROOT / 'scripts' / name).read_bytes()
+        (output / 'tools' / name).write_bytes(data)
+        index['tools'][name] = {'url': SITE + 'tools/' + name, 'sha256': hashlib.sha256(data).hexdigest()}
     html = (source / 'index.html').read_text()
     digest = hashlib.sha256((source / 'app.js').read_bytes()).hexdigest()[:12]
     html = re.sub(r'app\.js(?:\?v=[a-z0-9]+)?', 'app.js?v=' + digest, html)
@@ -84,14 +99,15 @@ def build_site(output, releases):
     guide = (ROOT / 'docs/AGENT_INSTALL.zh-CN.md').read_text()
     # The same complete operating rules serve Raw and Pages; resolve relative links.
     guide = re.sub(r'\]\(([^\s)]+)\)', lambda match: '](' + urljoin(REPOSITORY + '/blob/main/docs/', match[1]) + ')', guide)
-    summary = ['# Quiet TV 最新发布', '', '核对时间：' + index['checkedAt'], '']
+    summary = ['# Quiet TV 最新发布', '', '核对时间：' + index['checkedAt'], '',
+               '安装工具及 SHA-256：' + SITE + 'latest.json 的 tools 字段；同一目录下载三项工具后再执行。', '']
     if index['releases']:
         latest = index['releases'][0]
         summary.extend([f"最新主程序版本：{latest['versionName']}  标签：{latest['tag']}",
                         '', '发布页：' + latest['url'], '', '完整适配候选与 SHA-256：' + SITE + 'latest.json',
                         '', '以下附件名称和地址由已公开 Release 自动生成，按电视系统、架构与覆盖升级条件选一个包：', ''])
         for asset in latest['assets']:
-            summary.extend([asset['name'], asset['url'], 'SHA-256：' + (asset['sha256'] or '未提供，须另行核对'), ''])
+            summary.extend([asset['name'], asset['url'], 'HOME 形态：' + asset['homeMode'], 'SHA-256：' + (asset['sha256'] or '未提供，须另行核对'), ''])
     else:
         summary.extend(['当前没有已公开且含主程序 APK 的发布，请停止安装，不使用历史缓存。', ''])
     (output / 'agent.md').write_text('\n'.join(summary) + '\n---\n\n' + guide)

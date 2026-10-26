@@ -53,11 +53,10 @@ final class HomeGuardState {
         UserManager user=(UserManager)context.getSystemService(Context.USER_SERVICE);return user!=null && user.isUserUnlocked();
     }
     static boolean interactive(Context context){PowerManager power=(PowerManager)context.getSystemService(Context.POWER_SERVICE);return power!=null && (Build.VERSION.SDK_INT>=20?power.isInteractive():power.isScreenOn());}
-    static boolean canShow(Context context){KeyguardManager keyguard=(KeyguardManager)context.getSystemService(Context.KEYGUARD_SERVICE);return unlocked(context) && interactive(context) && keyguard!=null && !keyguard.isKeyguardLocked();}
+    static boolean canShow(Context context){KeyguardManager keyguard=(KeyguardManager)context.getSystemService(Context.KEYGUARD_SERVICE);return !BootAppLifecycle.dreaming() && unlocked(context) && interactive(context) && keyguard!=null && !keyguard.isKeyguardLocked();}
     boolean supported(){return HomeGuardPolicy.supported(Build.MANUFACTURER,Build.BRAND,Build.VERSION.SDK_INT,BuildConfig.LEGACY_19);}
     boolean automatic(){return supported() && preferences.getBoolean("configured",false) && "AUTO".equals(preferences.getString("mode","AUTO"));}
-    boolean enabled(){return automatic() && ("DIRECT".equals(preferences.getString("routeHome",""))
-            || preferences.getBoolean("observeHome",true));}
+    boolean enabled(){return automatic() && preferences.getBoolean("observeHome",true);}
     String selected(){return preferences.getString("home","");}
     boolean protects(String pkg){return protects(pkg,SetupPresets.load(context));}
     boolean protects(String pkg,SetupPresets rules){
@@ -66,7 +65,7 @@ final class HomeGuardState {
     }
     // Persist disabled mode before canceling scheduled recovery.
     @android.annotation.SuppressLint("ApplySharedPref")
-    void pause(String reason){DiagnosticLog.info("home_guard.pause",reason);preferences.edit().putString("mode","OFF").putBoolean("enabled",false).putString("status",reason).commit();HomeGuardRecovery.cancel();HomeGuardService.cancelPending();HomeGuardSync.pause(context);DesktopRoutes.disableVendor(context);if(!new HomeProxy(context).pause())status(reason+"；代理暂停回执待确认，主程序启动入口已关闭");}
+    void pause(String reason){DiagnosticLog.info("home_guard.pause",reason);preferences.edit().putString("mode","OFF").putBoolean("enabled",false).putString("status",reason).commit();HomeGuardRecovery.cancel();HomeGuardService.cancelPending();HomeGuardSync.pause(context);HomeGuardUsageService.pause(context);DesktopRoutes.disableVendor(context);if(!new HomeProxy(context).pause())status(reason+"；代理暂停回执待确认，主程序启动入口已关闭");}
     // Persist the selected HOME and firmware before subsequent recovery requests.
     @android.annotation.SuppressLint("ApplySharedPref")
     void select(ComponentName name){if(!name.flattenToString().equals(selected()))new HomeProxy(context).pause();HomeGuardRecovery.cancel();HomeGuardService.cancelPending();preferences.edit().putBoolean("configured",true).putString("home",name.flattenToString()).putString("firmware",Build.FINGERPRINT).commit();new DesktopRoutes(context).reconcileVendor();}
@@ -91,6 +90,13 @@ final class HomeGuardState {
         Map<String,Candidate> homes=new LinkedHashMap<>();collect(homes,pm.queryIntentActivities(HomeController.homeIntent(),0));
         if(HomeGuardRecovery.knownPrivateHome())for(String category:new String[]{"android.intent.category.HOME.CC","android.intent.category.HOME.CC_MAIN","smartdevice.intent.category.LITE_HOME"})
             collect(homes,pm.queryIntentActivities(new Intent(Intent.ACTION_MAIN).addCategory(category),0));
+        // These firmware activities omit HOME intent filters. Never infer a target from brand alone.
+        for(String component:new String[]{"com.skyworth.panasonichome/com.skyworth.panasonichome.MainActivity",
+                "com.coocaa.aigc.home/com.coocaa.aigc.home.home.rootpage.HomeActivity"}){
+            try{ResolveInfo value=new ResolveInfo();value.activityInfo=pm.getActivityInfo(ComponentName.unflattenFromString(component),0);
+                collect(homes,Collections.singletonList(value));}
+            catch(PackageManager.NameNotFoundException|SecurityException ignored){}
+        }
         return new ArrayList<>(homes.values());
     }
     private void collect(Map<String,Candidate> homes,List<ResolveInfo> values){
@@ -120,20 +126,21 @@ final class HomeGuardState {
         if(!unlocked(context))return "等待系统解锁";
         if(!validSelection())return "请选择本机检测到的原主页";
         if(helperActive())return "请先暂停独立中转助手";
-        if(!serviceEnabled())return "等待无障碍授权或绑定";
+        if(!serviceEnabled() && !HomeGuardUsageService.connected())return "等待无障碍授权或绑定";
         return "";
     }
     // Persist enabled mode before requesting recovery.
     @android.annotation.SuppressLint("ApplySharedPref")
     String enable(){if(new DesktopRoutes(context).proxySelected() && !new HomeProxy(context).pause())return "代理暂停回执待确认，请先恢复原桌面";preferences.edit().putString("mode","AUTO").putBoolean("configured",true).commit();configure();new DesktopRoutes(context).observe();HomeGuardSync.refresh(context);HomeGuardAdb.ensure(context);HomeGuardRecovery.request(context,"用户启用");return enableProblem();}
     // A boot-only entry does not establish that pressing HOME can be redirected.
-    boolean compatibleReady(){return new HomeProxy(context).ready() || ready() && serviceEnabled() && HomeGuardService.connected();}
+    boolean observationReady(){return ready() && (serviceEnabled() && HomeGuardService.connected() || HomeGuardUsageService.connected());}
+    boolean compatibleReady(){return new HomeProxy(context).ready() || observationReady();}
     String summary(){
         if(!enabled())return preferences.getString("status","未配置");
         String problem=enableProblem();if(!problem.isEmpty())return problem;
-        if(!HomeGuardService.connected())return "等待系统绑定无障碍";
-        if(HomeGuardService.usageRequired() && !HomeGuardService.usageAllowed(context))return "无障碍已连接  兼容检测未授权，可通过电脑配置";
-        return preferences.getString("status","守护就绪，等待原主页");
+        if(!HomeGuardService.connected() && !HomeGuardUsageService.connected())return "等待系统绑定无障碍";
+        if(HomeGuardService.usageRequired(context) && !HomeGuardService.usageAllowed(context))return "无障碍已连接  兼容检测未授权，可通过电脑配置";
+        return "守护已连接";
     }
     boolean helperActive(){
         String enabled=Settings.Secure.getString(context.getContentResolver(),Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);

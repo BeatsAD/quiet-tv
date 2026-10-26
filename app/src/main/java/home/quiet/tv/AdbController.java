@@ -169,11 +169,20 @@ final class AdbController implements Closeable {
                 }
                 boolean accepted=AdbIdentity.accepted(uid,Build.BRAND,Build.MANUFACTURER,Build.MODEL,Build.FINGERPRINT,
                         Build.VERSION.SDK_INT,identity,secure,debuggable);
+                boolean jmFactory=false;
+                if(!accepted && uid==0 && Build.VERSION.SDK_INT==33 && "t950s_be311".equals(Build.MODEL)){
+                    boolean systemRouter=false;
+                    try{android.content.pm.ApplicationInfo router=context.getPackageManager().getApplicationInfo("com.jm.jmlauncher",0);
+                        systemRouter=router.enabled && (router.flags&android.content.pm.ApplicationInfo.FLAG_SYSTEM)!=0;
+                    }catch(android.content.pm.PackageManager.NameNotFoundException ignored){}
+                    jmFactory=AdbIdentity.jmFactory(uid,Build.VERSION.SDK_INT,Build.MODEL,shell("getprop ro.board.platform"),shell("getprop ro.jm.model.name"),systemRouter);
+                    accepted=jmFactory;
+                }
                 DiagnosticLog.info("adb.identity","attempt="+diagnosticId(attempt)+" generation="+attempt+" uid="+uid
-                        +" profile="+(accepted && uid==0?"hisense_hshell":"shell")+" accepted="+accepted);
+                        +" profile="+(jmFactory?"jm_factory":accepted && uid==0?"hisense_hshell":"shell")+" accepted="+accepted);
                 if(!accepted){
                     identityContext(attempt);
-                    throw new IOException("ADB 身份不受支持；仅接受普通 shell 或已匹配的海信 VIDAA 工厂接口");
+                    throw new IOException("ADB 身份不受支持；仅接受普通 shell 或已匹配的工厂接口");
                 }
                 stage="前台用户核对";publish(Stage.USER,"正在核对当前用户",attempt);
                 user=currentUser();

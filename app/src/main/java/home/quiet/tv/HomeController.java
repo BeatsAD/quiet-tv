@@ -51,7 +51,8 @@ final class HomeController {
         State state=new State();state.ownUsable=ownEntryUsable();
         if(component(presets.home(),false))state.original=presets.home();
         if(state.original.isEmpty()){
-            String saved=new SetupStore(context).originalHome();if(component(saved,false))state.original=saved;
+            SetupStore store=new SetupStore(context);org.json.JSONObject takeover=store.get().optJSONObject("takeover");
+            String saved=takeover==null?store.originalHome():takeover.optString("original");if(component(saved,false))state.original=saved;
         }
         state.roleAvailable=BuildConfig.DECLARES_HOME && requestIntent()!=null;
         state.connected=adb!=null && adb.connected();
@@ -158,5 +159,8 @@ final class HomeController {
         if(!original.equals(new SetupStore(context).originalHome()) || !component(original,true))throw new IOException("原桌面组件不可用或记录不匹配");
         adb.validateUser();if(adb.capabilities.home.isEmpty())throw new IOException("当前系统未提供可核对的桌面切换命令，请使用系统默认桌面设置");adb.shell(adb.capabilities.home+" --user "+adb.user+" "+original);
         State after=inspect(adb);if(!after.known || !after.actual.equals(original))throw new IOException("原桌面默认状态未确认");
+        // A verified restore ends the pinned proxy route; a later explicit setup may choose the new identity.
+        if(!new HomeGuardState(context,false).preferences.edit().putString("relaySource","").remove("proxyPackage")
+                .putBoolean("proxyPausePending",false).commit())throw new IOException("原桌面已恢复，代理来源记录未清除");
     }
 }

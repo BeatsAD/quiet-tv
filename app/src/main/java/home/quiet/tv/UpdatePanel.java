@@ -45,7 +45,10 @@ final class UpdatePanel {
             if(!updates.checkError.isEmpty()){
                 begin("error",updates.checkError);Button retry=button("重试",this::check);
                 if(updates.available!=null)button("查看已缓存更新",()->{if(updates.ready)ready();else details();});else button("关闭",this::dismiss);show(retry);
-            }else if(updates.available==null){begin("current","暂无可用更新");show(button("关闭",this::dismiss));}
+            }else if(updates.available==null){
+                boolean incompatible=!updates.unavailableReason.isEmpty();begin("current",incompatible?"发现新版，暂无匹配安装包":"暂无可用更新");
+                if(incompatible)box.addView(text(updates.unavailableReason,25,0xffb5c0cf));show(button("关闭",this::dismiss));
+            }
             else if(updates.ready)ready();else details();
         }else if(mode.equals("download")){
             if(updates.downloading){heading.setText(updates.verifying?"正在校验安装包":"正在下载更新");

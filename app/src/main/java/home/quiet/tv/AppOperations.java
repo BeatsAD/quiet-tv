@@ -23,7 +23,7 @@ final class AppOperations {
     AppOperations(Context context,SetupPresets presets){this.context=context;repository=new AppRepository(context);this.presets=presets;}
     String protection(AppRepository.App app){
         if(app.pkg.equals(context.getPackageName()) || app.pkg.equals("home.quiet.tv.test"))return "Quiet TV 与管理验证组件只读";
-        if(home.quiet.proxy.ProxyContract.PACKAGE.equals(app.pkg))return "HOME 代理请先恢复系统原桌面，再通过系统设置处理";
+        if(home.quiet.proxy.ProxyContract.isPackage(app.pkg))return "HOME 代理请先恢复系统原桌面，再通过系统设置处理";
         if(new HomeGuardState(context).protects(app.pkg,presets))return "此原桌面或依赖必须保留";
         if(app.system && presets.app(app.pkg)==null)return "关键组件或用途未确认的预装包只读";
         if(isHome(app.pkg))return "桌面组件请通过首次设置与恢复原桌面处理";
@@ -73,7 +73,7 @@ final class AppOperations {
         adb.validateUser();
         AppRepository.App before=repository.find(adb,confirmed.pkg);
         if(before==null || before.installed!=confirmed.installed || before.enabled!=confirmed.enabled || before.system!=confirmed.system || !before.version.equals(confirmed.version) || before.versionCode!=confirmed.versionCode || before.enabledSetting!=confirmed.enabledSetting)throw new IOException("应用状态已变化，请刷新后重新确认");
-        if((action==Action.DISABLE || action==Action.UNINSTALL) && home.quiet.proxy.ProxyContract.PACKAGE.equals(before.pkg))throw new IOException("请先恢复原桌面，不能直接停用 HOME 代理");
+        if((action==Action.DISABLE || action==Action.UNINSTALL) && home.quiet.proxy.ProxyContract.isPackage(before.pkg))throw new IOException("请先恢复原桌面，不能直接停用 HOME 代理");
         if((action==Action.DISABLE || action==Action.UNINSTALL) && new HomeGuardState(context).protects(before.pkg,presets))throw new IOException("此原桌面或依赖必须保留，不能禁用或卸载");
         if(original){
             HomeController home=new HomeController(context,presets);String target=new SetupStore(context).originalHome();

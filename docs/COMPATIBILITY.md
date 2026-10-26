@@ -2,17 +2,21 @@
 
 [中文首页](../README.md) · [English home](../README.en.md) · [安装指南](INSTALL.zh-CN.md)
 
-## 1.2.5 待发布候选
+## 当前源码中的本地修复（尚未发布）
 
-本地候选补齐开机/待机守护、海信 ADB 身份、图标完整绘制、海尔设置与小米信号源路由；静态图上传放宽至60 MB，动态视频放宽至200 MB与60 FPS，标准档使用 Media3，安卓4.4保留系统播放器。各项厂商行为及最终 APK 升级保留仍待目标电视验收。已发布下载仍为1.2.4。
+桌面兼容开发补齐 VIDAA `com.jamdeo.tv.vod` 原主页在新安卓上的获准用量检测、酷开 AI 与松下系无 HOME 声明系统组件发现、TCL 命名自启动权限读回及 Direct Boot 等待解锁入口。无障碍授权、服务连接与实体场景验证分别显示和记录。适配以实际组件和能力为依据，未增加整品牌系统包操作规则；源码检查通过不代表目标电视已验收。电脑诊断技能及后续日志案例登记独立交付，详见[设置说明](SETUP.md)与[排查说明](AGENT_DIAGNOSE.zh-CN.md)。
+
+当前本地源码修复动态壁纸播放、封面与比例处理：安卓4.4不再通过取消音轨实现静音；播放器输出尺寸、旋转与像素比例参与等比裁剪；API21–26的90°／270°视频使用纹理层统一旋转；缺失封面可在后台补生成。更新查询比较两个来源的已验签清单，保留较高revision，并区分无更新与安装包不匹配。应用管理的四个标签共用一个窗口和ADB会话，保留内容与排序保存。儿童管理在内容区主动解锁，切换标签与按下进入内容均不弹出验证窗口；离开后清空输入、取消未完成验证并重新锁定，重新解锁保留应用选择与列表位置。
+
+这些修复尚未发布。旧版客户端不会因本地源码变化自动获得修复，需在后续获批版本交付后覆盖更新。模拟器验证不代替厂商电视、用户原始视频及最终交付APK验收。
 
 ## 当前测试版 / Current test release
 
-[1.2.4 测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.2.4)提供安卓5+ ARM32／64／通用包（构建64–66）及安卓4.4兼容包（67），详见[选包与安装](INSTALL.zh-CN.md#下载安装与试用)。四包同源同版本同签名；旧系统不提供无线配对、桌面守护或HOME代理。
+[1.2.5 测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.2.5)提供安卓5+ ARM32／64／通用包（构建68–70）及安卓4.4兼容包（71），详见[选包与安装](INSTALL.zh-CN.md#下载安装与试用)。四包同源同版本同签名；旧系统不提供无线配对、桌面守护或HOME代理。
 
-本次在 Sony BRAVIA VH1 / Android 12 上保留数据从1.2.4／63更新到公开ARM32包64，实际安装APK哈希一致、原HOME和应用数据目录保持，并采集[当前界面](assets/README.md#124-索尼真机截图--sony-captures)。仅核对现有页面与可见配置；全部数据、完整功能、实体HOME、重启和待机唤醒未作全面验收。安卓4.4及其他厂商仍需各自真机验收。
+历史1.2.4验证曾在 Sony BRAVIA VH1 / Android 12 上保留数据从1.2.4／63更新到公开ARM32包64，实际安装APK哈希一致、原HOME和应用数据目录保持，并采集[当时界面](assets/README.md#124-索尼真机截图--sony-captures)。仅核对现有页面与可见配置；全部数据、完整功能、实体HOME、重启和待机唤醒未作全面验收。安卓4.4及其他厂商仍需各自真机验收。
 
-Version 1.2.4 has standard ARM32/ARM64/universal and Android 4.4 profiles. Sony build 64 installation and page captures do not establish complete feature, data-retention, physical HOME, reboot/wake or other-device acceptance. The following sections retain historical development and validation records; older artifacts are not current download recommendations.
+Version 1.2.5 has standard ARM32/ARM64/universal and Android 4.4 profiles. Historical Sony build 64 installation and page captures do not establish complete feature, data-retention, physical HOME, reboot/wake or other-device acceptance. The following sections retain historical development and validation records; older artifacts are not current download recommendations.
 
 ## 源码与下载 / Source and download
 
@@ -74,9 +78,9 @@ Both layouts share the native Home header with the preview. Only Desktop shows t
 | 能力 | Android 4.4 | Android 5+ |
 | --- | --- | --- |
 | 上传、预览、静音循环、关闭恢复、退出释放 | 共用流程 | 共用流程 |
-| 播放路径 | 系统 MediaPlayer + TextureView，无 Media3 | Media3 1.8.1 + SurfaceView，12 MiB 缓冲目标，禁用音频轨，可用解码器回退 |
+| 播放路径 | 系统 MediaPlayer + TextureView，无 Media3 | Media3 1.8.1 + SurfaceView；API21–26的90°／270°视频采用TextureView手动旋转。12 MiB缓冲目标，禁用音频轨，可用解码器回退 |
 | 输入上限 | SDR、8bit、1080p、60 FPS 内，依系统解码器 | SDR、8bit、4K、60 FPS 内，依实际编码／分辨率／帧率组合 |
-| 4K 封面 | 本批不开放 4K | API 27+ 缩放取帧，旧 API 可用占位图 |
+| 4K 封面 | 本批不开放 4K | API27+缩放取帧；API21–26尝试系统取帧后缩小至最长640像素，失败保留占位图 |
 | 厂商硬解、实际输出、长期性能、屏保与待机 | 待对应设备验收 | 待对应设备验收 |
 
 不接收 HDR／10bit。手机本机预览与电视首帧验证分别判断；播放错误区分读取、格式、解码、超时及输出失败。上述新范围尚待厂商真机验收；SurfaceView 保留部分电视独立于 UI 分辨率的视频输出路径；不能仅凭面板或素材标签确认原生 4K。4K 不可用时需另传低规格文件，不自动在电视转码。详见[使用指南](USAGE.zh-CN.md)。
@@ -186,6 +190,15 @@ System-panel fallback is included in the published 1.1.2 standard APK; legacy19 
 
 ## 上游兼容线索与 Quiet TV 状态
 
+TCL／雷鸟的安装受限方案于 2026-10-26 补充：先以品牌发现候选，结合实际安装错误判断，不要求先提供完整固件号。固件缺失不阻止显示方案，但必须记为未确认；执行前仍核对本机安装器、ADB 用户及恢复条件，按[Agent 安装说明的 TCL 分支](AGENT_INSTALL.zh-CN.md#tcl雷鸟安装受限候选方案)取得本次授权。此补充不开放应用内未知固件的系统包操作规则。
+
+| 范围 | 上游依据与方案 | Quiet TV 状态及后续验证 |
+| --- | --- | --- |
+| TCL／雷鸟，无 HOME relay 安装及守护 | [Aerial TCL 记录](https://github.com/pengchujin/aerial-tv/blob/main/docs/devices/tcl-mt5879-cn.md)：不声明 HOME 的 guard 包、多屏互动推送及当贝／电视端回退，后续配置守护 | 复用现有 relay 与守护，接入 T-Cast 安装、电视端回退、原 AI 指令的签名配置选包及工具下载；默认不停用安装器。没有已发布 relay 时明确报告，不用普通包替代。安装、服务绑定、实体 HOME、重启和待机行为仍需目标固件验收 |
+| TCL／雷鸟，出现明确 LauncherStrategy 安装拒绝 | cleanyourtv 社区 [#683](https://github.com/Gathin23/cleanyourtv/issues/683) 在 `t982_ar31a8`、Android 11、`RQ3A.210705.001.2024111116` 上报告：临时停用 `com.android.packageinstaller`、安装 HOME 包、立即恢复，再设置 HOME；维护者将该办法列为官方项目范围之外 | 已实现 [TCL 安装助手](../scripts/install_tcl.py)：预览、实际错误识别、明确选择后临时处理安装器、异常恢复、独立恢复入口及安装后 APK 校验。按品牌进入检测，无固件号也可检查；不按品牌自动停用。离线模拟不计为 Quiet TV 真机通过，目标固件的安装、恢复及 HOME／电源行为仍待验证 |
+
+上游报告使用另一个包名 `local.quiettv.launcher`，不是本项目的 `home.quiet.tv`。临时安装器方案不适用于所有校验失败；只有通用错误码或解析期证书拒绝时不能直接套用停用操作。relay 安装通道与临时停用方案分别判断，不因一条失败自动扩大系统修改。源码及工具完成不等于对应 APK 已发布或目标电视已验收。
+
 以下记录来自 Aerial 的源码和用户反馈，调查日期 2026-10-22。它们不授予系统包操作权限，也不计入 Quiet TV 已验收机型。完整原始日志、设备资料和过程记录保留本地；公开反馈只保留脱敏必要信息。
 
 | 范围 | 上游记录与方案 | Quiet TV 状态及验收重点 |
@@ -260,6 +273,18 @@ System-panel fallback is included in the published 1.1.2 standard APK; legacy19 
 
 ## HOME 代理适用边界
 
-可选 HOME 助手接入两路线自动选配：主程序直接 HOME 优先，明确失败后尝试同签名代理，再回退原主页识别。助手本身声明 HOME，无 HOME 主程序并不保证助手也能安装；包名允许名单、开机强制组件及后台限制仍需按固件验收，不根据小米、创维、TCL 或雷鸟品牌作成功承诺。当前不收录这些品牌的代理验收规则，也不自动替换 `com.ts.launcher` 等外部同名应用。
+可选 HOME 助手接入两路线自动选配：主程序直接 HOME 优先，明确失败后尝试同签名代理，再回退原主页识别。助手本身声明 HOME，无 HOME 主程序并不保证助手也能安装；包名允许名单、开机强制组件及后台限制仍需按固件验收，不根据小米、创维、TCL 或雷鸟品牌作成功承诺。小米／Redmi 当前优先采用主程序 `com.ts.launcher` 改名路线，不限制机型或固件入口；普通 `home.quiet.tv` 包保留历史代理，旧代理保持原包名。改名主程序与同名助手互斥，不自动迁移。适用入口覆盖所有小米／Redmi 机型不等于全机型验收；当前没有本项目该身份助手的厂商真机验收，不自动替换外部同名应用。
 
 代理保持原桌面和必要依赖，支持独立原桌面回退、全局暂停、来源一致的恢复启用与实际 HOME 恢复。开机跳板仍默认关闭；代理前台回执不能作为重启、断电开机、待机唤醒或实体 HOME 的通过证据。安卓5及以上的标准/无 HOME 形态可使用，安卓4.4保留原有流程。构建方式和故障回退限制见 [HOME 助手说明](../home-proxy/README.md)。
+
+
+| HOME 助手构建 | 选择范围 | 共同能力及差异 |
+| --- | --- | --- |
+| 主程序 `com.ts.launcher` | Android 5+ 小米／Redmi，显式改名构建，不限型号/固件入口 | 主程序直接参与 HOME，保留窗口、按键及开机恢复；不搭配 HOME 助手，逐机验证 |
+| 历史助手 `com.ts.launcher` | 普通主程序已部署的旧代理路线 | 保留旧配置，不自动替换为改名主程序；与同名主程序互斥 |
+| `home.quiet.tv.proxy` | 其他品牌，以及已配置此身份的小米旧代理 | 同上；不自动迁移已建立的系统 HOME |
+| 安卓4.4 | 保留现有流程 | 现有 HOME 助手最低 API21，此档不提供代理 |
+
+诊断导出提供固定字段的设备统计 JSON、助手包名、实际 HOME 和分场景用户结果，用于汇总设备型号、固件与兼容情况；只读本机，不自动上传。厂商界面版本不一定等于 Android 固件显示版本，缺失时保留空值并请反馈者补充，不按商品名推断已支持。
+
+小米改名主程序的本地开发修复包含按需 HOME 短按接管、长按/双按最近任务、开机前台证据复查及多入口去重。新安卓小米前台查询需授权，持续轮询仍限安卓5／6；其他品牌与安卓4.4维持原有范围。实体键、重启、待机及固件后台限制尚未验收，详见[配置说明](SETUP.md#小米主程序-home-与重启恢复本地开发未交付)。

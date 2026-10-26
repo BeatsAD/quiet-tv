@@ -15,25 +15,33 @@ final class HomeProxy {
     private final HomeGuardState state;
     private final SharedPreferences prefs;
     HomeProxy(Context c){context=c.getApplicationContext();state=new HomeGuardState(context,false);prefs=state.preferences;}
-    String component(){return new ComponentName(ProxyContract.PACKAGE,ProxyContract.HOME).flattenToString();}
-    boolean isComponent(String name){return component().equals(name) && available();}
+    String packageName(){return ProxyContract.packageFor(HomeGuardPolicy.xiaomi(Build.MANUFACTURER,Build.BRAND),
+            selected() || prefs.getBoolean("proxyPausePending",false),prefs.getString("proxyPackage",""));}
+    String component(){return new ComponentName(packageName(),ProxyContract.HOME).flattenToString();}
+    boolean isComponent(String name){
+        ComponentName target=ComponentName.unflattenFromString(name);
+        return target!=null && ProxyContract.HOME.equals(target.getClassName()) && ProxyContract.isPackage(target.getPackageName()) && available(target.getPackageName());
+    }
     boolean available(){
-        if(BuildConfig.LEGACY_19 || Build.VERSION.SDK_INT<21)return false;
+        return available(packageName());
+    }
+    private boolean available(String name){
+        if(BuildConfig.LEGACY_19 || Build.VERSION.SDK_INT<21 || context.getPackageName().equals(name))return false;
         PackageManager pm=context.getPackageManager();
         try{
-            PackageInfo pkg=pm.getPackageInfo(ProxyContract.PACKAGE,0);
-            ProviderInfo provider=pm.resolveContentProvider(ProxyContract.PACKAGE+".control",0);
+            PackageInfo pkg=pm.getPackageInfo(name,0);
+            ProviderInfo provider=pm.resolveContentProvider(name+".control",0);
             return pkg.applicationInfo!=null && pkg.applicationInfo.enabled
-                    && pm.checkSignatures(context.getPackageName(),ProxyContract.PACKAGE)==PackageManager.SIGNATURE_MATCH
-                    && provider!=null && provider.exported && provider.enabled && ProxyContract.PACKAGE.equals(provider.packageName)
+                    && pm.checkSignatures(context.getPackageName(),name)==PackageManager.SIGNATURE_MATCH
+                    && provider!=null && provider.exported && provider.enabled && name.equals(provider.packageName)
                     && (context.getPackageName()+".permission.HOME_PROXY").equals(provider.readPermission)
-                    && new HomeController(context).component(component(),true);
+                    && new HomeController(context).component(new ComponentName(name,ProxyContract.HOME).flattenToString(),true);
         }catch(PackageManager.NameNotFoundException|SecurityException failure){return false;}
     }
     private Bundle call(String action,Bundle values) throws IOException {
         if(!available())throw new IOException("未安装匹配签名的 HOME 中转助手");
         try{
-            Bundle result=context.getContentResolver().call(Uri.parse("content://"+ProxyContract.PACKAGE+".control"),action,null,values);
+            Bundle result=context.getContentResolver().call(Uri.parse("content://"+packageName()+".control"),action,null,values);
             if(result==null || result.getInt("protocol")!=ProxyContract.VERSION || !context.getPackageName().equals(result.getString("target")))throw new IOException("HOME 代理协议或目标不匹配");
             return result;
         }catch(RuntimeException failure){throw new IOException("HOME 代理通信未完成",failure);}
@@ -54,7 +62,7 @@ final class HomeProxy {
         if(!active())return false;
         try{Bundle result=status();return result.getBoolean("valid") && ProxyContract.TARGET.equals(result.getString("mode"))
                 && result.getLong(ProxyContract.EPOCH)==prefs.getLong("proxyEpoch",-1)
-                && new HomeController(context).inspect(null).isProxy(context);}
+                && component().equals(new HomeController(context).inspect(null).actual);}
         catch(Exception failure){return false;}
     }
     String problem(){
@@ -72,7 +80,9 @@ final class HomeProxy {
     }}
     /** Returns false only when no helper was eligible. A changed/unknown HOME never falls through. */
     boolean configure(AdbController adb,SetupOperations.Ticket task) throws Exception {
-        if(!available())return false;
+        boolean eligible=available();
+        DiagnosticLog.info("home_proxy.configure","package="+packageName()+" available="+eligible+" xiaomi="+HomeGuardPolicy.xiaomi(Build.MANUFACTURER,Build.BRAND));
+        if(!eligible)return false;
         try{status();}catch(IOException incompatible){return false;}
         HomeController home=new HomeController(context);task.check();state.configure();
         if(!state.validSelection() || state.helperActive())return false;
@@ -86,7 +96,7 @@ final class HomeProxy {
             epoch=nextEpoch();Bundle data=values(epoch);data.putString(ProxyContract.ORIGINAL,state.selected());
             Bundle prepared=call(ProxyContract.PREPARE,data);
             if(!prepared.getBoolean("valid") || epoch!=prepared.getLong(ProxyContract.EPOCH) || !ProxyContract.STOCK.equals(prepared.getString("mode")))throw new IOException("代理原桌面回退未准备好");
-            if(!prefs.edit().putString("proxyOriginal",state.selected()).putString("proxyFirmware",Build.FINGERPRINT).commit())throw new IOException("代理回退记录未保存");
+            if(!prefs.edit().putString("proxyPackage",packageName()).putString("proxyOriginal",state.selected()).putString("proxyFirmware",Build.FINGERPRINT).commit())throw new IOException("代理回退记录未保存");
         }
         try{
             task.check();home.switchTo(adb,component());task.check();
@@ -97,8 +107,9 @@ final class HomeProxy {
                 if(!ProxyContract.TARGET.equals(enabled.getString("mode")) || !ready())throw new IOException("代理启用未确认");
                 prefs.edit().putBoolean("proxyPausePending",false).commit();state.status("HOME 代理已配置，等待实际 HOME 进入桌面");
             }
-            task.check();new SetupStore(context).put("status","proxy-configured");return true;
+            task.check();new SetupStore(context).put("status","proxy-configured");DiagnosticLog.info("home_proxy.configure.result","package="+packageName()+" result=RESOLVED screenVerified=false");return true;
         }catch(Exception failure){
+            DiagnosticLog.error("home_proxy.configure.failed","package="+packageName(),failure);
             pause();
             // Roll back only through the same still-authorized connection. Otherwise the helper stays ORIGINAL.
             if(task.active() && adb.connected() && adb.generation()==generation){
@@ -112,7 +123,7 @@ final class HomeProxy {
     }
     String resume(){synchronized(LOCK){
         try{
-            if(!localIdentity() || !new HomeController(context).inspect(null).isProxy(context))throw new IOException("代理或系统 HOME 已变化，请重新自动配置");
+            if(!localIdentity() || !component().equals(new HomeController(context).inspect(null).actual))throw new IOException("代理或系统 HOME 已变化，请重新自动配置");
             long epoch=nextEpoch();Bundle data=values(epoch);data.putString(ProxyContract.ORIGINAL,state.selected());call(ProxyContract.PREPARE,data);
             prefs.edit().putString("mode","AUTO").putBoolean("configured",true).commit();new DesktopRoutes(context).proxy();
             call(ProxyContract.ENABLE,values(epoch));if(!ready())throw new IOException("HOME 代理未就绪");return "";
@@ -155,7 +166,8 @@ final class HomeProxy {
             caller.startActivity(new Intent(Intent.ACTION_MAIN).setComponent(ComponentName.unflattenFromString(original)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));return;
         }catch(ActivityNotFoundException|SecurityException ignored){}
         // The helper owns the independent recovery screen and retains its own original baseline.
-        try{caller.startActivity(new Intent(Intent.ACTION_MAIN).setComponent(new ComponentName(ProxyContract.PACKAGE,ProxyContract.HOME)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));}
+        if(!available()){state.status("匹配的 HOME 助手不可用，请通过系统设置恢复");return;}
+        try{caller.startActivity(new Intent(Intent.ACTION_MAIN).setComponent(new ComponentName(packageName(),ProxyContract.HOME)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));}
         catch(ActivityNotFoundException|SecurityException failure){state.status("原桌面不可用，请通过系统设置恢复");}
     }
 }

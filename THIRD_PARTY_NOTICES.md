@@ -1,5 +1,17 @@
 # 第三方项目与资源说明
 
+## 桌面接管机制参考
+
+新增 HOME 事务、厂商属性路由、TCL 策略编辑及 Fire OS 观察入口按 Quiet TV 现有结构独立实现，没有引入这些项目的运行库或整套守护。相关系统行为与故障证据参考：
+
+- [Free My TV：JM 私有 HOME 路由实测](https://github.com/simbasjungles/free-my-tv/pull/230)，及其 `90908dc5bce178feb52e9868947cc039c64730fc` 的 HOME 管理行为。
+- [Aerial：Hisense VIDAA 设备记录](https://github.com/pengchujin/aerial-tv/blob/ae01e48f4f932c60bc84a59a95f449d4d767dff2/docs/devices/hisense-vidaa.md)，区分标准 HOME、私有属性和冷启动。
+- [dumbtv](https://github.com/humblemuzzu/dumbtv/tree/225bb00cc80228d69a793c3be49c0c8c8afa533a)：Google TV 竞争 HOME 顺序、Fire OS 6 用量观察与任务恢复。
+- [TCL Guard Manager](https://github.com/eliotcougar/tcl-guard-manager/tree/49a1fa63a4bcfeebd2c64d2b347c13d01c431e11)：TCL Provider 字段、开机组件及不同策略版本的有效性限制。
+- [UnitedU](https://github.com/GordonWang1878/UnitedU-launcher/blob/fd0bdc330395abd30616d8d328bb913f41dc651a/app/src/main/java/com/uniteduone/launcher/HomeKeyPolicy.kt)：系统屏保放行及同次 HOME 按键配对的故障分析。
+
+上游报告的验证范围属于原项目和对应设备，不构成 Quiet TV 在其他固件上的验收结论。已有直接引用代码和资源继续保留各节原有许可声明。
+
 ## tv-vibehack
 
 - 原项目：[Gathin23/tv-vibehack](https://github.com/Gathin23/tv-vibehack)
@@ -11,6 +23,8 @@
 Quiet TV 基于该项目开发，面向国内电视机的适配与应用升级改造，独立维护。原作者版权、MIT 授权条件与免责声明予以保留。上游许可快照放在 Android assets 中，后续构建 APK 时会随应用打包。
 
 ## Aerial 桌面守护（实验）参考
+
+VIDAA 原主页缺少窗口事件、酷开 AI 与松下系无 HOME 声明组件的处理，另参考 [Aerial 固定提交 2d6d468](https://github.com/pengchujin/aerial-tv/blob/2d6d468b6b65095b3f4691a8f9bc1514972feefd/app/src/main/java/app/orchard/tv/guard/HomeGuardService.kt)。本项目按已选系统组件启用获准用量检测，保留精确主页、其他前台应用、暂停与息屏边界；上游线索不作为本项目真机通过记录。MIT 版权与完整许可继续随包保留。
 
 - 来源：[pengchujin/aerial-tv](https://github.com/pengchujin/aerial-tv/tree/da9cedc2c5887a46d62b1f54699567a5deac5c2a)，固定提交 `da9cedc2c5887a46d62b1f54699567a5deac5c2a`。
 - Copyright (c) 2026 pengchujin，MIT；[完整许可证](app/src/main/assets/licenses/aerial-MIT.txt)随主程序打包。
@@ -28,6 +42,10 @@ Quiet TV 基于该项目开发，面向国内电视机的适配与应用升级�
 
 - Android 5+ 使用 [AndroidX Media3 ExoPlayer 1.8.1](https://developer.android.com/jetpack/androidx/releases/media3#1.8.1)，Apache-2.0，版权归 The Android Open Source Project 等贡献者；完整许可沿用 APK 中的 `assets/licenses/libadb-Apache-2.0.txt`。固定此兼容版本以保留 Android 5.0 支持，不引入额外 FFmpeg 解码库；Android 4.4 不包含 Media3，继续使用系统 MediaPlayer。
 - 播放器缓冲上限、关闭音频轨、首帧通知和退出释放的设计参考 [Aerial f1c8ea97](https://github.com/pengchujin/aerial-tv/tree/f1c8ea979a9128cebc46c646bb8efba1644e7b26) 的 `LiveWallpaper.kt`、`VideoSaver.kt` 和 `ScreensaverVideos.kt`，按本项目 Java、局域网上传及双系统档位实现。Aerial 的 MIT 版权和完整许可继续随包保留；未引入其在线航拍下载、缓存或屏保功能。
+
+## TCL 电脑安装通道
+
+电脑侧 TCL 安装通道参考 [Aerial 的 tcast-push.py](https://github.com/pengchujin/aerial-tv/blob/main/tools/tcast-push.py) 及 TCL MT5879 记录，按本项目目标包、私有 APK 校验和 ADB 用户边界实现。`scripts/tcl_cast.py` 保留 Copyright (c) 2026 pengchujin 及完整 MIT 许可。推送不包含远程截图、按键、屏保接管或系统包精简；上游机型的结果不计为 Quiet TV 真机验收。
 
 ## coocaa-home-shim（可选独立助手）
 

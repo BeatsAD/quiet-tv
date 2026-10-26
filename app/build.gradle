@@ -6,7 +6,9 @@ def homeMode = providers.gradleProperty('quietHomeMode').getOrElse('standard')
 if (!(homeMode in ['standard', 'relay'])) throw new GradleException('Unsupported quietHomeMode')
 if (legacy && homeMode != 'standard') throw new GradleException('Android 4.4 does not support the relay package')
 def launcherId = providers.gradleProperty('quietApplicationId').getOrElse('home.quiet.tv')
-if (!(launcherId in ['home.quiet.tv', 'com.coocaa.quiettv'])) throw new GradleException('Unsupported quietApplicationId')
+if (!(launcherId in ['home.quiet.tv', 'com.coocaa.quiettv', 'com.ts.launcher'])) throw new GradleException('Unsupported quietApplicationId')
+if (launcherId == 'com.ts.launcher' && (legacy || homeMode != 'standard')) throw new GradleException('Xiaomi main application requires Android 5+ and standard HOME mode')
+if (launcherId == 'com.ts.launcher' && providers.gradleProperty('quietHomeProxy').getOrElse('false') == 'true') throw new GradleException('Xiaomi main application owns HOME; do not build a HOME proxy with it')
 def minimumSdk = providers.gradleProperty('quietMinSdk').getOrElse(legacy ? '19' : '21').toInteger()
 if ((legacy && minimumSdk != 19) || (!legacy && minimumSdk < 21)) throw new GradleException('Minimum SDK does not match compatibility profile')
 if (launcherId == 'com.coocaa.quiettv' && minimumSdk < 26) throw new GradleException('Coocaa applicationId requires quietMinSdk=26 or newer')
@@ -24,8 +26,8 @@ android {
         buildConfigField 'String', 'UPDATE_COMPATIBILITY', '"' + compatibility + '"'
         buildConfigField 'String', 'UPDATE_ABI', '"' + providers.gradleProperty('quietAbi').getOrElse('universal') + '"'
         targetSdk 36
-        versionCode providers.gradleProperty('quietBuildNumber').getOrElse('68').toInteger()
-        versionName '1.2.5'
+        versionCode providers.gradleProperty('quietBuildNumber').getOrElse('76').toInteger()
+        versionName '1.3.0'
     }
     buildFeatures { buildConfig true }
     // Keep historical source media and superseded generated QR PNGs out of APK assets.
@@ -41,9 +43,9 @@ android {
         'home/quiet/tv/DiagnosticsDownloadServer.java', 'home/quiet/tv/DiagnosticsRecorder.java',
         'home/quiet/tv/DiagnosticsSnapshot.java'
     buildTypes {
-        debug { debuggable true; buildConfigField 'String', 'UPDATE_CHANNEL', launcherId == 'com.coocaa.quiettv' ? '"experimental"' : '"test"' }
+        debug { debuggable true; buildConfigField 'String', 'UPDATE_CHANNEL', launcherId == 'com.coocaa.quiettv' || homeMode == 'relay' ? '"experimental"' : '"test"' }
         benchmark {
-            buildConfigField 'String', 'UPDATE_CHANNEL', launcherId == 'com.coocaa.quiettv' ? '"experimental"' : '"test"'
+            buildConfigField 'String', 'UPDATE_CHANNEL', launcherId == 'com.coocaa.quiettv' || homeMode == 'relay' ? '"experimental"' : '"test"'
             debuggable false
             minifyEnabled true
             shrinkResources true

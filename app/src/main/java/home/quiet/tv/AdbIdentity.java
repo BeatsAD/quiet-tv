@@ -23,4 +23,8 @@ final class AdbIdentity {
                 && "1".equals(secure.trim()) && "0".equals(debuggable.trim());
     }
     private AdbIdentity(){}
+    static boolean jmFactory(int uid,int sdk,String model,String platform,String jmModel,boolean systemRouter){
+        return uid==0 && sdk==33 && "t950s_be311".equals(model) && "txhd2".equals(platform.trim())
+                && "C201_PRO".equals(jmModel.trim()) && systemRouter;
+    }
 }

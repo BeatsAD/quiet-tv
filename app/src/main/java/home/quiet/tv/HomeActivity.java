@@ -51,6 +51,10 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private String orderSignature="";
     private final HashMap<String,App> artworkCache = new HashMap<>();
     private boolean appsDirty = true, loadingApps;
+    private boolean waitingForUnlock,unlockRecreateRequested;
+    private final BroadcastReceiver unlockReceiver=new BroadcastReceiver(){
+        @Override public void onReceive(Context context,Intent intent){resumeAfterUnlock();}
+    };
     private FrameLayout root;
     private RecyclerView list;
     private GridLayoutManager layout;
@@ -63,7 +67,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private TextView weatherText;
     private DesktopSettingsStore desktopSettings;
     private View timeRow, topButtons;
-    private boolean rightButtonsVisible=true;
+    private boolean rightButtonsVisible=true,homeAppsVisible=true;
     private TextView clock, date, greeting, heroTitle, network, inputButton;
     private PopupWindow inputPopup;
     private String systemEntryPending="";
@@ -106,6 +110,16 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN
                 | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         if(Build.VERSION.SDK_INT>=21)getWindow().setNavigationBarColor(Color.BLACK);
+        // A Direct Boot HOME must not open credential-protected preferences, media or databases.
+        // Recreate after unlock so the normal lifecycle initializes every desktop dependency once.
+        if(Build.VERSION.SDK_INT>=24 && !HomeGuardState.unlocked(this)){
+            waitingForUnlock=true;
+            DiagnosticLog.info("home.locked_wait","credential_storage_not_opened");
+            TextView waiting=new TextView(this);waiting.setText("等待系统解锁");waiting.setTextColor(Color.WHITE);
+            waiting.setBackgroundColor(Color.BLACK);waiting.setGravity(Gravity.CENTER);setContentView(waiting);
+            androidx.core.content.ContextCompat.registerReceiver(this,unlockReceiver,new IntentFilter(Intent.ACTION_USER_UNLOCKED),androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
+            resumeAfterUnlock();return;
+        }
         try {
             config = new JSONObject(readAsset("launcher.json"));
             chinese = !"en".equals(config.optString("language", "zh"));
@@ -126,6 +140,13 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             if(new SetupStore(this).shouldOffer(this))main.post(()->{if(!isFinishing() && !isDestroyed())leaveHome(()->startActivity(new Intent(this,SetupActivity.class)));});
         }catch(Exception e){Log.w(TAG,"Setup state unavailable; retaining home",e);DiagnosticLog.error("home.setup_state.failed",e);}});
     }
+
+    private void resumeAfterUnlock(){
+        if(waitingForUnlock && !unlockRecreateRequested && HomeGuardState.unlocked(this) && !isFinishing()){
+            unlockRecreateRequested=true;recreate();
+        }
+    }
+    boolean desktopInitialized(){return !waitingForUnlock;}
 
     private String readAsset(String name) throws IOException {
         try (InputStream input = getAssets().open(name); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
@@ -208,7 +229,10 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private void applyDesktopSettings(){
         homeHeader.apply();
-        if(heroTitle!=null)heroTitle.setVisibility(desktopSettings.showAppTitle()?View.VISIBLE:View.GONE);
+        boolean showApps=desktopSettings.showHomeApps();
+        if(homeAppsVisible!=showApps){homeAppsVisible=showApps;appsDirty=true;row=0;column=0;activePackage="";}
+        if(heroTitle!=null)heroTitle.setVisibility(homeAppsVisible&&desktopSettings.showAppTitle()?View.VISIBLE:View.GONE);
+        if(dockBand!=null){dockBand.setVisibility(homeAppsVisible?View.VISIBLE:View.GONE);dockBand.setBackground(desktopSettings.showDockBackground()&&!(dock.size()==1&&ADD_DOCK_ENTRY.equals(dock.get(0).pkg))?new DockBackdropDrawable(wallpapers,dockBand,root,unit):null);}
         TextView previous=visiblePills.isEmpty()?null:visiblePills.get(topColumn);
         boolean[] shown={desktopSettings.showInput(),desktopSettings.showNetwork(),desktopSettings.showSettings()};
         visiblePills.clear();
@@ -266,6 +290,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     @Override protected void onResume() {
+        if(waitingForUnlock){super.onResume();resumeAfterUnlock();return;}
         homeResumeStarted=SystemClock.uptimeMillis();++homeResumeSequence;homeDrawPending=true;
         homeResumeEvent("home.resume.begin","sincePauseMs="+(homePausedAt==0?-1:homeResumeStarted-homePausedAt));
         super.onResume(); resumed=true;
@@ -295,6 +320,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     @Override public void onWindowFocusChanged(boolean focused){
+        if(waitingForUnlock){super.onWindowFocusChanged(focused);return;}
         homeResumeEvent("home.window_focus","focused="+focused);
         super.onWindowFocusChanged(focused);systemEntryLifecycle("window_focus="+focused);if(focused && resumed && systemEntryDispatched)systemEntryPending="";if(focused && resumed){new HomeProxy(this).visible(this);if(!isFinishing()){HomeGuardRecovery.visible(this);launchBootApp();}}
     }
@@ -315,6 +341,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     @Override protected void onPause() {
+        if(waitingForUnlock){super.onPause();return;}
         if(!HomeGuardState.canShow(this))new HomeProxy(this).defer(getIntent());
         homePausedAt=SystemClock.uptimeMillis();homeResumeEvent("home.pause","");homeDrawPending=false;
         systemEntryLifecycle("pause");
@@ -329,9 +356,13 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         super.onPause();
     }
 
-    @Override protected void onDestroy(){BootAppLifecycle.destroyed(this);unregisterReceiver(packageReceiver);loader.shutdownNow();wallpapers.destroy();weather.destroy();super.onDestroy();}
+    @Override protected void onDestroy(){
+        if(waitingForUnlock){unregisterReceiver(unlockReceiver);loader.shutdownNow();super.onDestroy();return;}
+        BootAppLifecycle.destroyed(this);unregisterReceiver(packageReceiver);loader.shutdownNow();wallpapers.destroy();weather.destroy();super.onDestroy();
+    }
     @Override protected void onNewIntent(Intent intent){
         super.onNewIntent(intent);setIntent(intent);
+        if(waitingForUnlock){resumeAfterUnlock();return;}
         if(!new HomeProxy(this).allowed(intent)){new HomeProxy(this).original(this);finish();return;}
         getWindow().getDecorView().post(()->{if(resumed && hasWindowFocus())new HomeProxy(this).visible(this);});
         if(isHomeIntent(intent))resetHomeFocus();else if(ready)focusCurrent(false);
@@ -361,6 +392,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         loadingApps = true; appsDirty = false;
         dockPackages.clear();dockPackages.addAll(new DockStore(this).load());
         final ArrayList<String> pinned=new ArrayList<>(dockPackages);
+        final boolean requestedHomeApps=homeAppsVisible;
         loader.execute(()->{
             try {
             PackageManager pm=getPackageManager();
@@ -390,6 +422,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             ArrayList<String> gridOrder=new HomeOrderStore(this).order(defaults);
             main.post(()->{
                 if(isDestroyed())return;
+                if(requestedHomeApps!=homeAppsVisible){loadingApps=false;appsDirty=true;if(resumed)loadApps();return;}
                 if(requestedCover!=AppCoverStore.get(this).revision()){loadingApps=false;appsDirty=true;if(resumed)loadApps();return;}
                 orderSignature=requestedOrder;childRevision=requestedChild;coverRevision=requestedCover;
                 if(!requestedOrder.equals(new HomeOrderStore(this).signature()))appsDirty=true;
@@ -397,6 +430,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 for(String pkg:pinned)for(App app:found)if(pkg.equals(app.pkg))dock.add(app);
                 HashMap<String,App> byId=new HashMap<>();for(App app:found)byId.put(app.pkg,app);
                 for(String id:gridOrder)apps.add(byId.get(id));
+                // A display-only projection: never save these temporary entries into the grid order.
+                if(!homeAppsVisible)for(App app:dock)if(!apps.contains(app))apps.add(app);
                 if(dock.isEmpty()){App empty=new App();empty.pkg=ADD_DOCK_ENTRY;empty.label=tr("添加常用应用","Add favorite apps");empty.color=0xff666972;dock.add(empty);}
                 if(row>=0){
                     if(!activePackage.isEmpty()) {
@@ -429,7 +464,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     private int gridRows(){return (apps.size()+APP_COLUMNS-1)/APP_COLUMNS;}
-    private int maxColumn(int r){if(r<0)return visiblePills.size()-1;if(r==0)return Math.max(0,dock.size()-1);return Math.min(APP_COLUMNS-1,apps.size()-(r-1)*APP_COLUMNS-1);}
+    private int maxColumn(int r){if(r<0)return visiblePills.size()-1;if(r==0)return homeAppsVisible?Math.max(0,dock.size()-1):0;return Math.min(APP_COLUMNS-1,apps.size()-(r-1)*APP_COLUMNS-1);}
 
     private void saveFocus(){if(row>=0)getPreferences(0).edit().putInt("row",row).putInt("column",column).putString("package",activePackage).apply();}
 
@@ -438,6 +473,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     // Public Activity override; AndroidX core marks its inherited bridge class library-only.
     @android.annotation.SuppressLint("RestrictedApi")
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
+        if(waitingForUnlock)return super.dispatchKeyEvent(event);
         int key=event.getKeyCode();
         if(event.getAction()==KeyEvent.ACTION_DOWN && hasWindowFocus() && systemEntryDispatched && !systemEntryPending.isEmpty()){systemEntryLifecycle("next_home_key");systemEntryPending="";}
         boolean confirm=key==KeyEvent.KEYCODE_DPAD_CENTER || key==KeyEvent.KEYCODE_ENTER || key==KeyEvent.KEYCODE_NUMPAD_ENTER;
@@ -473,11 +509,12 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private void focusCurrent(boolean animate) {
         if(!ready)return;
-        if(row<0){
+        if(row<0||row==0&&!homeAppsVisible){
             updateDock(animate);
             if(selected!=null){Tile previous=selected;selected=null;previous.invalidate();if(!dockTiles.contains(previous))previous.animate().scaleX(1).scaleY(1).translationX(0).translationY(0).setDuration(240).setInterpolator(FOCUS_MOTION);}
             if(scrollAnimation!=null)scrollAnimation.cancel();
             list.stopScroll();scrollTarget=0;layout.scrollToPositionWithOffset(0,0);
+            if(row==0){activePackage="";saveFocus();}
             list.post(()->updateHeaderFocus());Log.i(TAG,"Focus top="+topColumn);return;
         }
         int position=row==0?0:2+(row-1)*APP_COLUMNS;
@@ -532,7 +569,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
 
-    private App currentApp(){if(row==0)return dock.isEmpty()?null:dock.get(Math.min(column,dock.size()-1));int n=(row-1)*APP_COLUMNS+column;return n>=0&&n<apps.size()?apps.get(n):null;}
+    private App currentApp(){if(row==0)return !homeAppsVisible||dock.isEmpty()?null:dock.get(Math.min(column,dock.size()-1));int n=(row-1)*APP_COLUMNS+column;return n>=0&&n<apps.size()?apps.get(n):null;}
 
     private void leaveHome(Runnable launch){wallpapers.beforeLeave(()->{if(resumed&&!isFinishing()&&!isDestroyed())launch.run();});}
     private void launchSelected(){
@@ -559,7 +596,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private void updateDock(boolean animate) {
         if(dockTiles.isEmpty()||dockBand==null||dockBand.getWidth()==0)return;
-        int focus=row==0?Math.min(column,dockTiles.size()-1):-1;
+        int focus=row==0&&homeAppsVisible?Math.min(column,dockTiles.size()-1):-1;
         if(animate&&focus==dockFocus)return;
         Tile first=dockTiles.get(0);if(first.getWidth()==0)return;
         if(dockPress!=null)dockPress.cancel();dockFocus=focus;
@@ -579,7 +616,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private void pressDock(boolean pressed) {
         if(dockPress!=null)dockPress.cancel();
-        if(row!=0||dockTiles.isEmpty())return;
+        if(row!=0||!homeAppsVisible||dockTiles.isEmpty())return;
         Tile item=dockTiles.get(Math.min(column,dockTiles.size()-1));item.animate().cancel();float from=item.getScaleX(),target=(item.emptyDock()?1.035f:DockMotion.scale(column,column))*(pressed?.98f:1);
         dockPress=ValueAnimator.ofFloat(from,target);dockPress.setDuration(pressed?80:120);dockPress.setInterpolator(FOCUS_MOTION);
         dockPress.addUpdateListener(a->{float value=(float)a.getAnimatedValue();item.setScaleX(value);item.setScaleY(value);});dockPress.start();
@@ -600,7 +637,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             View view;
             if(type==0){
                 FrameLayout header=new FrameLayout(HomeActivity.this);header.setClipChildren(false);header.setLayoutParams(new RecyclerView.LayoutParams(-1,px(HOME_HEADER_HEIGHT)));
-                heroTitle=text("",40,400,0xfff1f2f6);heroTitle.setVisibility(desktopSettings.showAppTitle()?View.VISIBLE:View.GONE);place(header,heroTitle,820,56,2,HOME_TITLE_TOP);
+                heroTitle=text("",40,400,0xfff1f2f6);heroTitle.setVisibility(homeAppsVisible&&desktopSettings.showAppTitle()?View.VISIBLE:View.GONE);place(header,heroTitle,820,56,2,HOME_TITLE_TOP);
                 FrameLayout band=new FrameLayout(HomeActivity.this);dockBand=band;
                 wallpapers.observeDock(HomeActivity.this::invalidateDockBackdrop);
                 band.setClipChildren(false);place(header,band,-1,dockHeight+2*dockPadding,0,HOME_DOCK_TOP);
@@ -620,7 +657,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 FrameLayout band=(FrameLayout)holder.itemView.getTag();if(dockPress!=null)dockPress.cancel();for(Tile old:dockTiles)old.animate().cancel();band.removeAllViews();dockTiles.clear();dockFocus=-2;
                 boolean empty=dock.size()==1&&ADD_DOCK_ENTRY.equals(dock.get(0).pkg);
                 float width=empty?176:dockWidth,height=empty?112:dockHeight;
-                band.setBackground(empty?null:new DockBackdropDrawable(wallpapers,band,root,unit));
+                band.setVisibility(homeAppsVisible?View.VISIBLE:View.GONE);band.setBackground(empty||!desktopSettings.showDockBackground()?null:new DockBackdropDrawable(wallpapers,band,root,unit));
                 FrameLayout.LayoutParams bandParams=(FrameLayout.LayoutParams)band.getLayoutParams();
                 bandParams.width=px(2*dockPadding+dock.size()*width+Math.max(0,dock.size()-1)*dockGap);bandParams.height=px(height+2*dockPadding);
                 bandParams.gravity=Gravity.TOP|(empty?Gravity.START:Gravity.CENTER_HORIZONTAL);bandParams.leftMargin=empty?-px(dockPadding):0;band.setLayoutParams(bandParams);

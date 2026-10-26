@@ -29,7 +29,7 @@ final class UpdateRepository {
     UpdateManifest.Artifact available;
     boolean checking,downloading,verifying,ready,switching;
     long received,total;
-    String checkError="",downloadError="";
+    String checkError="",downloadError="",unavailableReason="";
     private UpdateRepository(Context context){
         this.context=context;prefs=context.getSharedPreferences("application-updates",0);
         directory=new File(context.getFilesDir(),"updates");cache=new File(context.getFilesDir(),"update-manifest.json");
@@ -53,7 +53,7 @@ final class UpdateRepository {
         try{
             UpdateManifest.Device device=UpdateInstaller.device(context);UpdateManifest.Artifact selected=manifest==null?null:manifest.select(device);
             boolean changed=available==null?selected!=null:selected==null||!available.sha256.equals(selected.sha256);
-            available=selected;if(changed){ready=false;received=0;downloadError="";}
+            available=selected;unavailableReason=manifest==null||selected!=null?"":manifest.unavailableReason(device);if(changed){ready=false;received=0;downloadError="";}
             String installedTarget=prefs.getString("pendingVersion","");long installedCode=prefs.getLong("pendingCode",0);
             if(!installedTarget.isEmpty()&&device.code>=installedCode&&UpdateManifest.compare(device.version,installedTarget)>=0)prefs.edit().remove("pendingVersion").remove("pendingCode").apply();
             // A partial file of the right length still needs full validation on the worker.
@@ -62,7 +62,7 @@ final class UpdateRepository {
                 worker.execute(()->{boolean valid=false;try{UpdateInstaller.validate(context,candidate,file(candidate));valid=true;}catch(IOException|RuntimeException failure){DiagnosticLog.info("update.cached_apk.failed",failure.getClass().getSimpleName()+" "+failure.getMessage());}
                     final boolean checked=valid;main.post(()->{verifying=false;if(available!=null&&available.sha256.equals(candidate.sha256)){ready=checked;if(!checked)prefs.edit().remove("readyHash").apply();}notifyChanged();});});
             }
-        }catch(IOException e){available=null;ready=false;}
+        }catch(IOException e){available=null;ready=false;checkError="无法读取本机安装信息，请重试";}
     }
     void check(boolean manual){
         if(checking||downloading)return;
@@ -73,7 +73,7 @@ final class UpdateRepository {
             final UpdateManifest[] found={null};final byte[][] envelope={null};final int[] source={-1};String error="";
             try{
                 if(key==null)throw new IOException("Update key unavailable");
-                transfer.manifest(prefs.getInt("manifestSource",-1),(bytes,index)->{found[0]=UpdateManifest.verify(bytes,key,prefs.getLong("revision",0));envelope[0]=bytes;source[0]=index;});
+                transfer.manifest(prefs.getInt("manifestSource",-1),(bytes,index)->{found[0]=UpdateManifest.verify(bytes,key,prefs.getLong("revision",0));envelope[0]=bytes;source[0]=index;return found[0].revision;});
                 if(generation!=checkGeneration)return;
                 // Cache and its preference revision are written only after verification and cancellation checks.
                 synchronized(this){if(generation!=checkGeneration)return;try(FileOutputStream out=new FileOutputStream(cache)){out.write(envelope[0]);out.getFD().sync();}}

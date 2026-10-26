@@ -26,7 +26,7 @@ final class HomePreviewView extends FrameLayout {
     private final boolean chinese,fixedGreeting;
     private final Handler main=new Handler(Looper.getMainLooper());
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
-    private boolean active;
+    private boolean active,hasDockApps;
     private volatile int generation;
     private final Runnable tick=new Runnable(){public void run(){if(active){refresh();main.postDelayed(this,60000-System.currentTimeMillis()%60000);}}};
     private final BroadcastReceiver changes=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent i){refresh();}};
@@ -45,7 +45,9 @@ final class HomePreviewView extends FrameLayout {
     @Override protected void onMeasure(int width,int height){int w=MeasureSpec.getSize(width);setMeasuredDimension(w,Math.round(w*540f/960f));scene.measure(MeasureSpec.makeMeasureSpec(960,MeasureSpec.EXACTLY),MeasureSpec.makeMeasureSpec(540,MeasureSpec.EXACTLY));}
     @Override protected void onSizeChanged(int w,int h,int ow,int oh){scene.setScaleX(w/960f);scene.setScaleY(w/960f);if(active&&w>0)loadLocalScene();}
     void refresh(){
-        title.setVisibility(new DesktopSettingsStore(getContext()).showAppTitle()?VISIBLE:GONE);header.updateClock(fixedGreeting);WeatherStore weather=new WeatherStore(getContext());WeatherData data=weather.enabled()?weather.cached(chinese):null;header.weather(data!=null&&data.usable(System.currentTimeMillis())?data:null);
+        DesktopSettingsStore settings=new DesktopSettingsStore(getContext());
+        title.setVisibility(settings.showHomeApps()&&settings.showAppTitle()?VISIBLE:GONE);band.setVisibility(settings.showHomeApps()?VISIBLE:GONE);band.setBackground(hasDockApps&&settings.showDockBackground()?dockSurface:null);
+        header.updateClock(fixedGreeting);WeatherStore weather=new WeatherStore(getContext());WeatherData data=weather.enabled()?weather.cached(chinese):null;header.weather(data!=null&&data.usable(System.currentTimeMillis())?data:null);
         android.net.ConnectivityManager manager=(android.net.ConnectivityManager)getContext().getSystemService(Context.CONNECTIVITY_SERVICE);android.net.NetworkInfo network=manager==null?null:manager.getActiveNetworkInfo();
         TextView pill=header.pills.get(1);boolean connected=network!=null&&network.isConnected();int icon=R.drawable.ic_wifi_off;String label=chinese?"Wi-Fi 未连接":"Wi-Fi offline";
         if(connected){if(network.getType()==ConnectivityManager.TYPE_ETHERNET){icon=R.drawable.ic_ethernet;label=chinese?"有线网络":"Ethernet";}else{icon=R.drawable.ic_wifi;label=chinese?"Wi-Fi 已连接":"Wi-Fi connected";
@@ -73,10 +75,11 @@ final class HomePreviewView extends FrameLayout {
                 dockBackground=blurred;wallpaper.setImageBitmap(image);shade.setVisibility(image==null?GONE:VISIBLE);ambient.setVisibility(image==null?VISIBLE:GONE);band.removeAllViews();
                 title.setText(names.isEmpty()?chinese?"添加常用应用":"Add favorite apps":names.get(0));
                 int color=art.isEmpty()?0xff666972:HomeActivity.sampleColor(art.get(0));ambient.setColor(color);
-                boolean empty=art.isEmpty();int count=empty?1:art.size();band.setBackground(empty?null:dockSurface);
+                boolean empty=art.isEmpty();hasDockApps=!empty;int count=empty?1:art.size();
                 float cardWidth=(864-36-4*18)/5f,cardHeight=cardWidth*203/360;
                 FrameLayout.LayoutParams bandParams=(FrameLayout.LayoutParams)band.getLayoutParams();bandParams.height=Math.round(cardHeight+36);bandParams.width=Math.round(36+count*cardWidth+Math.max(0,count-1)*18);bandParams.leftMargin=Math.round((960-bandParams.width)/2f);band.setLayoutParams(bandParams);
                 for(int i=0;i<count;i++){View card;if(empty)card=emptyCard();else{ImageView imageCard=new ImageView(context);imageCard.setImageBitmap(art.get(i));imageCard.setScaleType(ImageView.ScaleType.FIT_XY);GradientDrawable outline=new GradientDrawable();outline.setColor(Color.TRANSPARENT);outline.setCornerRadius(11);imageCard.setBackground(outline);UiCompat.clipOutline(imageCard);card=imageCard;}FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(Math.round(cardWidth),Math.round(cardHeight));p.leftMargin=Math.round(18+i*(cardWidth+18));p.topMargin=18;band.addView(card,p);}
+                refresh();
             });
         });
     }

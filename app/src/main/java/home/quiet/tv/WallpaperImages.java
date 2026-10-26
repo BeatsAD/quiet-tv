@@ -8,7 +8,12 @@ import java.io.*;
 final class WallpaperImages {
     private WallpaperImages() {}
     static InputStream open(Context context,WallpaperStore store,WallpaperCatalog.Entry entry) throws IOException {
-        if(entry.video())return entry.custom()?new FileInputStream(store.poster(entry.id)):context.getAssets().open("wallpapers/"+entry.id+".jpg");
+        if(entry.video()){
+            if(!entry.custom())return context.getAssets().open("wallpapers/"+entry.id+".jpg");
+            File poster=store.poster(entry.id);
+            if((!poster.isFile()||poster.length()==0)&&android.os.Looper.myLooper()!=android.os.Looper.getMainLooper())WallpaperVideo.poster(store.file(entry.id),poster,entry);
+            return new FileInputStream(poster);
+        }
         if(WallpaperCatalog.DAILY.equals(entry.id)){
             WallpaperCatalog state=store.snapshot();WallpaperCatalog.DailyImage image=state.dailyImages.get(state.dailySource);
             if(store.cached(image))return new FileInputStream(store.dailyFile(image.source,image.slot));

@@ -17,7 +17,6 @@ final class WallpaperPlayback {
         this.activity=activity;this.file=file;this.entry=entry;
         player.setSurface(surface);player.setScreenOnWhilePlaying(false);player.setVolume(0,0);player.setLooping(true);
         player.setOnPreparedListener(p->{try{
-            for(int n=0;n<p.getTrackInfo().length;n++)if(p.getTrackInfo()[n].getTrackType()==MediaPlayer.TrackInfo.MEDIA_TRACK_TYPE_AUDIO)p.deselectTrack(n);
             p.start();events.ready();
         }catch(RuntimeException e){DiagnosticLog.error("wallpaper.video.start_failed",e);events.failed(VideoWallpaperPlayer.Failure.DECODE);}});
         player.setOnErrorListener((p,what,extra)->{

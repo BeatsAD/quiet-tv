@@ -4,7 +4,6 @@ import android.content.*;
 import android.content.pm.*;
 import android.os.*;
 import org.json.*;
-import home.quiet.proxy.ProxyContract;
 
 /** One plan in the existing device-protected preferences. No device mutation during detection. */
 final class DesktopRoutes {
@@ -23,8 +22,9 @@ final class DesktopRoutes {
     }
     private String revision(){
         ComponentName home=ComponentName.unflattenFromString(state.selected());JSONObject boot=bridge();
+        String proxy=new HomeProxy(context).packageName();
         return Build.FINGERPRINT+":"+BuildConfig.VERSION_CODE+":"+BuildConfig.DECLARES_HOME+":"+state.selected()+":"+(home==null?-1:version(home.getPackageName()))
-                +":"+(boot==null?-1:version(boot.optString("systemPackage")))+":"+version(ProxyContract.PACKAGE);
+                +":"+(boot==null?-1:version(boot.optString("systemPackage")))+":"+proxy+":"+version(proxy);
     }
     boolean current(){return revision().equals(prefs.getString("routeRevision",""));}
     private SharedPreferences.Editor edit(){
@@ -42,11 +42,19 @@ final class DesktopRoutes {
         HomeGuardRecovery.request(context,"直接 HOME 开机补偿");
         state.status("系统 HOME 已设置，开机补偿待核对");
     }
+    void directOnly(){
+        if(!BuildConfig.DECLARES_HOME)throw new IllegalStateException("此兼容包只能使用原桌面中转");
+        HomeGuardRecovery.cancel();HomeGuardService.cancelPending();HomeGuardSync.pause(context);HomeGuardUsageService.pause(context);
+        edit().putString("routeHome","DIRECT").putString("relaySource","").putString("mode","AUTO")
+                .putBoolean("configured",true).putBoolean("observeHome",false)
+                .remove("routeTest_home").remove("routeTest_reboot").remove("routeTest_coldBoot").remove("routeTest_wake").apply();
+        state.status("直接接管已配置，实体 HOME、开机与唤醒待验证");
+    }
     void observe(){SharedPreferences.Editor edit=edit();if(!"RELAY".equals(home()))edit.remove("routeTest_home").remove("routeTest_wake");edit.putString("routeHome","RELAY").putString("relaySource","OBSERVER").putBoolean("observeHome",true).apply();}
     void proxy(){
         edit().putString("routeHome","RELAY").putString("relaySource","PROXY").putBoolean("observeHome",false).putBoolean("configured",true)
                 .remove("routeTest_home").remove("routeTest_wake").commit();
-        HomeGuardRecovery.cancel();HomeGuardService.cancelPending();HomeGuardSync.pause(context);
+        HomeGuardRecovery.cancel();HomeGuardService.cancelPending();HomeGuardSync.pause(context);HomeGuardUsageService.pause(context);
     }
     boolean proxySelected(){return "PROXY".equals(prefs.getString("relaySource",""));}
     void resume(){
@@ -59,8 +67,8 @@ final class DesktopRoutes {
     }
     String home(){return current()?prefs.getString("routeHome",state.enabled()?"RELAY":"UNKNOWN"):"UNKNOWN";}
     String homeLabel(){if("RELAY".equals(home()) && proxySelected())return "HOME 代理中转";return "DIRECT".equals(home())?"系统直接启动":"RELAY".equals(home())?"原主页中转":"待检测";}
-    String bootLabel(){return vendorReady()?"厂商开机中转":state.enabled()?"守护开机补偿":"待验证";}
-    String wakeLabel(){return state.enabled()?"原主页中转":"待验证";}
+    String bootLabel(){return vendorReady()?"厂商开机中转":state.observationReady()?"守护开机补偿":state.enabled()?"守护待就绪":"待验证";}
+    String wakeLabel(){return state.observationReady()?"原主页中转":state.enabled()?"守护待就绪":"待验证";}
     String test(String scene){return current()?prefs.getString("routeTest_"+scene,"待验证"):"待验证";}
     void observation(String scene,String result){
         if(!java.util.Arrays.asList("home","reboot","coldBoot","wake").contains(scene)
@@ -76,7 +84,8 @@ final class DesktopRoutes {
             +"\n断电开机："+bootLabel()+"  "+test("coldBoot")+"\n待机唤醒："+wakeLabel()+"  "+test("wake");}
     JSONObject snapshot() throws JSONException {
         JSONObject snapshot=new JSONObject().put("packageMode",BuildConfig.DECLARES_HOME?"standard":"relay")
-                .put("homeRoute",home()).put("relaySource",prefs.getString("relaySource","UNKNOWN")).put("proxyReady",new HomeProxy(context).ready())
+                .put("homeRoute",home()).put("relaySource",prefs.getString("relaySource","UNKNOWN")).put("proxyPackage",new HomeProxy(context).packageName())
+                .put("proxyAvailable",new HomeProxy(context).available()).put("proxyReady",new HomeProxy(context).ready())
                 .put("proxyPausePending",prefs.getBoolean("proxyPausePending",false)).put("proxyVisibleAt",current() && prefs.getLong("proxyVisibleEpoch",-1)==prefs.getLong("proxyEpoch",-2)?prefs.getLong("proxyVisibleAt",0):0).put("bootRoute",vendorReady()?"VENDOR":state.enabled()?"GUARD":"UNKNOWN")
                 .put("wakeRoute",state.enabled()?"GUARD":"UNKNOWN").put("paused","OFF".equals(prefs.getString("mode","AUTO"))).put("automatic",state.automatic())
                 .put("vendorBootEnabled",vendorReady()).put("scenes",new JSONObject().put("home",test("home"))
@@ -91,9 +100,17 @@ final class DesktopRoutes {
                     .put("recordedAt",recorded?prefs.getLong("routeTestAt_"+scene,0):0)
                     .put("evidenceId",recorded?prefs.getString("routeTestEvidence_"+scene,""):""));
         }
+        try{JSONObject takeover=new SetupStore(context).get().optJSONObject("takeover");
+            if(takeover!=null)snapshot.put("takeover",new JSONObject().put("recipe",takeover.optString("recipe")).put("state",takeover.optString("state"))
+                    .put("steps",takeover.optJSONArray("steps")).put("deviceAcceptance","separate_scene_evidence"));
+        }catch(Exception unavailable){snapshot.put("takeoverRecord","unreadable");}
         return snapshot.put("sceneEvidence",evidence).put("vendorBootProblem",vendorProblem())
+                .put("usageObserverBound",HomeGuardUsageService.connected()).put("tclPolicyStatus",prefs.getString("tclPolicyStatus","未配置"))
+                .put("accessibilityAllowed",state.serviceEnabled()).put("accessibilityBound",HomeGuardService.connected())
+                .put("usageRequired",HomeGuardService.usageRequired(context)).put("usageAllowed",HomeGuardService.usageAllowed(context))
+                .put("configurationProblem",HomeGuardRecovery.configurationProblem(context))
                 .put("syncRecovery",HomeGuardSync.summary(context)).put("syncRecoveryReady",HomeGuardSync.ready(context)).put("keepAdb",HomeGuardAdb.enabled(context))
-                .put("observationReady",state.ready() && state.serviceEnabled() && HomeGuardService.connected());
+                .put("observationReady",state.observationReady());
     }
     private JSONObject bridge(){return rules.vendorBoot();}
     String vendorProblem(){
