@@ -186,6 +186,14 @@ System-panel fallback is included in the published 1.1.2 standard APK; legacy19 
 
 ## 上游兼容线索与 Quiet TV 状态
 
+TCL／雷鸟的安装受限方案于 2026-10-26 补充：先以品牌发现候选，结合实际安装错误判断，不要求先提供完整固件号。固件缺失不阻止显示方案，但必须记为未确认；执行前仍核对本机安装器、ADB 用户及恢复条件，按[Agent 安装说明的 TCL 分支](AGENT_INSTALL.zh-CN.md#tcl雷鸟安装受限候选方案)取得本次授权。此补充不开放应用内未知固件的系统包操作规则。
+
+| 范围 | 上游依据与方案 | Quiet TV 状态及后续验证 |
+| --- | --- | --- |
+| TCL／雷鸟，出现明确 LauncherStrategy 安装拒绝 | cleanyourtv 社区 [#683](https://github.com/Gathin23/cleanyourtv/issues/683) 在 `t982_ar31a8`、Android 11、`RQ3A.210705.001.2024111116` 上报告：临时停用 `com.android.packageinstaller`、安装 HOME 包、立即恢复，再设置 HOME；维护者将该办法列为官方项目范围之外 | 已补充可选 Agent 指引；不按品牌自动停用，不计为 Quiet TV 真机通过。后续诊断补齐固件显示版本、构建号、指纹及错误链，分别记录安装器原状态恢复、APK 核对、实体 HOME、重启、冷启动与待机唤醒 |
+
+上游报告使用另一个包名 `local.quiettv.launcher`，不是本项目的 `home.quiet.tv`。临时安装器方案不适用于所有校验失败；只有通用错误码或解析期证书拒绝时继续取证，不能直接套用。Aerial 无 HOME guard 包及其安装渠道也不等于本项目已发布 APK 的能力。
+
 以下记录来自 Aerial 的源码和用户反馈，调查日期 2026-10-22。它们不授予系统包操作权限，也不计入 Quiet TV 已验收机型。完整原始日志、设备资料和过程记录保留本地；公开反馈只保留脱敏必要信息。
 
 | 范围 | 上游记录与方案 | Quiet TV 状态及验收重点 |
