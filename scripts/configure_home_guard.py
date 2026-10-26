@@ -9,19 +9,29 @@ import re
 import shlex
 import subprocess
 import sys
+import uuid
+
+ERROR_OUTPUT = re.compile(r"(?im)^\s*(?:error:|exception|securityexception|failure|bad argument:|operation not allowed:|unknown (?:command|operation|op)\b|invalid operation)")
+
+
+class CommandFailure(ValueError):
+    def __init__(self, exit_code, output):
+        self.exit, self.output = exit_code, output
+        super().__init__(f"命令失败（{exit_code}）：{output}")
 
 
 def command_signature(help_text, name):
     lines = help_text.splitlines()
     for index, line in enumerate(lines):
-        if not re.match(r"^\s*(?:pm\s+|appops\s+)?" + re.escape(name) + r"(?:\s|$)", line):
+        if not re.match(r"^\s*(?:(?i:usage):\s*)?(?:(?:pm|appops)\s+)?" + re.escape(name) + r"(?:\s|$)", line):
             continue
         indent = len(line) - len(line.lstrip())
         entry = [line.strip()]
         for following in lines[index + 1:]:
             if not following.strip():
                 continue
-            if len(following) - len(following.lstrip()) <= indent:
+            if (len(following) - len(following.lstrip()) <= indent
+                    or re.fullmatch(r"(?:(?i:usage):\s*)?(?:(?:pm|appops)\s+)?[a-z][a-z0-9-]*(?:\s.*)?", following.strip())):
                 break
             entry.append(following.strip())
         return " ".join(entry)
@@ -107,18 +117,50 @@ class ComputerAdb:
     def __init__(self, executable, serial):
         self.executable, self.serial = executable, serial
 
+    def _result(self, *arguments):
+        return subprocess.run([self.executable, "-s", self.serial, *arguments],
+                              capture_output=True, text=True, encoding="utf-8",
+                              errors="replace", timeout=20, check=False)
+
     def run(self, *arguments):
-        result = subprocess.run([self.executable, "-s", self.serial, *arguments],
-                                capture_output=True, text=True, encoding="utf-8",
-                                errors="replace", timeout=20, check=False)
+        result = self._result(*arguments)
         output = (result.stdout + "\n" + result.stderr).strip()
-        if result.returncode or re.search(r"(?im)^\s*(?:error:|exception|securityexception|failure|unknown (?:command|operation|op)\b|invalid operation)", output):
+        if result.returncode or ERROR_OUTPUT.search(output):
             raise ValueError(output or "ADB 命令失败，状态未确认")
         return output
 
     def shell(self, *arguments):
         # adb joins shell arguments; quote for Android's POSIX shell, including on Windows hosts.
-        return self.run("shell", " ".join(shlex.quote(str(value)) for value in arguments))
+        command = " ".join(shlex.quote(str(value)) for value in arguments)
+        marker = "__QUIET_GUARD_EXIT_" + uuid.uuid4().hex + "="
+        result = self._result("shell", "( " + command + " ); quiet_guard_status=$?; echo; echo \"" + marker + "$quiet_guard_status\"")
+        output = (result.stdout + "\n" + result.stderr).strip()
+        if result.returncode:
+            raise ValueError(output or "ADB 传输失败，状态未确认")
+        status = re.search(r"(?:^|\n)" + re.escape(marker) + r"([0-9]+)\s*$", output)
+        if status is None:
+            raise ValueError("ADB 结果不完整，停止后续操作；请重新查询状态")
+        body, exit_code = output[:status.start()].strip(), int(status[1])
+        if exit_code or ERROR_OUTPUT.search(body):
+            raise CommandFailure(exit_code, body)
+        return body
+
+    def permission_help(self, tool):
+        operation = {"pm": "grant", "appops": "set"}[tool]
+        for arguments in ((tool, "help"), (tool,)):
+            failure = None
+            try:
+                output = self.shell(*arguments)
+            except CommandFailure as error:
+                failure, output = error, error.output
+            if command_signature(output, operation):
+                return output
+            if len(arguments) == 2 and re.search(r"(?i)\bunknown command\b[^\r\n]*\bhelp\b", output):
+                continue
+            if failure is not None:
+                raise failure
+            break
+        raise ValueError("系统帮助未确认 " + tool + " " + operation + " 命令")
 
     def current_user(self):
         try:
@@ -194,8 +236,8 @@ def configure(args, adb):
                     raise ValueError("原主页未唯一确定或已失效，请使用 --home 指定本机候选；未修改权限")
         elif direct_home:
             raise ValueError("已安装 APK 未提供直接 HOME 能力核对；未修改权限")
-    pm_help = adb.shell("pm", "help")
-    ops_help = adb.shell("appops", "help")
+    pm_help = adb.permission_help("pm")
+    ops_help = adb.permission_help("appops")
     pm_user = user_options(pm_help, "grant", sdk, args.user)
     ops_user = user_options(ops_help, "set", sdk, args.user)
     ops_get_user = user_options(ops_help, "get", sdk, args.user)
@@ -265,14 +307,21 @@ def configure(args, adb):
         if adb.current_user() != args.user:
             raise ValueError("前台用户已改变，停止后续配置；已完成的授权保留")
         try:
-            output = adb.shell(*command)
-        except ValueError as error:
-            if command[0] == "appops" and "GET_USAGE_STATS" in command and "Unknown operation" in str(error):
-                output = adb.shell(*(value if value != "GET_USAGE_STATS" else "android:get_usage_stats" for value in command))
-            elif command[:2] == ["cmd", "notification"] and re.search(r"(?i)securityexception|unknown command|not allowed", str(error)):
-                output = "通知授权不可用，继续核对应用内同步恢复"
-            else:
-                raise
+            try:
+                output = adb.shell(*command)
+            except CommandFailure as error:
+                if command[0] == "appops" and "GET_USAGE_STATS" in command and "Unknown operation" in error.output:
+                    output = adb.shell(*(value if value != "GET_USAGE_STATS" else "android:get_usage_stats" for value in command))
+                elif command[:2] == ["cmd", "notification"] and re.search(r"(?i)securityexception|unknown command|not allowed", error.output):
+                    output = "通知授权不可用，继续核对应用内同步恢复"
+                else:
+                    raise
+        except (ValueError, subprocess.TimeoutExpired) as error:
+            detail = "ADB 命令超时，结果未确认" if isinstance(error, subprocess.TimeoutExpired) else str(error)
+            with results_path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps({"command": command, "status": "failed", "exit": getattr(error, "exit", None), "output": detail}, ensure_ascii=False) + "\n")
+            raise ValueError("配置步骤失败（" + " ".join(map(str, command)) + "）：" + detail
+                             + "；已完成的授权保留") from error
         with results_path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps({"command": command, "output": output}, ensure_ascii=False) + "\n")
         if command is broadcast:

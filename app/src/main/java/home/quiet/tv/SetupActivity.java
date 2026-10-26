@@ -293,7 +293,7 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
             }
             if(BuildConfig.LEGACY_19 || !guard.validSelection()){openHome("系统 HOME 已设置；开机补偿未配置，实际场景待验证");return;}
             routes.configureAvailableVendor();
-            if(HomeGuardRecovery.configurationProblem(this).isEmpty()){HomeGuardRecovery.request(this,"直接 HOME 配置完成");openHome("系统 HOME 已设置，开机补偿已配置；实际场景待验证");return;}
+            if(HomeGuardRecovery.configurationProblem(this).isEmpty()){HomeGuardRecovery.request(this,"直接 HOME 配置完成");openHome("系统 HOME 已设置，"+HomeGuardRecovery.configuredSummary(this));return;}
             notice="系统 HOME 已设置，继续配置开机补偿。";
             withConnection(this::configureDirectRecovery);
         }catch(Exception failure){notice="配置记录未完成："+failure.getMessage();render();}
@@ -303,7 +303,7 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
         worker.execute(()->{try{
             HomeGuardRecovery.configureAdb(this,adb,task);task.check();
             new DesktopRoutes(this).configureAvailableVendor();
-            ui(task,()->{busy=false;openHome("系统 HOME 已设置，补偿权限已配置；服务绑定和实际场景待验证");});
+            ui(task,()->{busy=false;openHome("系统 HOME 已设置，"+HomeGuardRecovery.configuredSummary(this));});
         }catch(Exception failure){ui(task,()->{busy=false;notice="系统 HOME 已设置；开机补偿未全部完成："+failure.getMessage();render();});}});
     }
     private void requestRole(){if(busy)return;try{home.remember(homeState);roleCancelled=false;Intent request=home.request();roleResultExpected="android.app.role.action.REQUEST_ROLE".equals(request.getAction());roleInFlight=true;startActivityForResult(request,40);}catch(Exception e){autoRequested=false;roleInFlight=false;notice="系统入口不可用，未启用中转："+e.getMessage();render();}}
