@@ -64,6 +64,32 @@ Agent 直接使用固定请求时，须通过本机终端读取 `latest.json`，
 
 这是电脑 ADB 的可选安装操作，不是应用内系统包管理规则。只对本机确认承担该校验路径的 `com.android.packageinstaller` 开放一次临时处理，不扩展为其他系统包的禁用资格，不改动原桌面或固件预设。
 
+实际执行入口为 [TCL 安装助手](../scripts/install_tcl.py)，不是手工照抄上游命令。脚本默认只读预览；`--apply` 才执行一次普通安装，只有同时提供 `--allow-temporary-installer-disable` 且本次安装日志确认本包遭遇 TCL 桌面校验时，才临时处理安装器并重试一次。使用现有 Android build-tools 的 `aapt2`、`apksigner` 核对 APK；找不到时通过同名参数指定，不自动安装 SDK。普通包及无 HOME 的 relay 包沿用同一实际包名核验，不自动改包或替换包。
+
+下列变量由 Agent 从本次已确认的设备、用户、实际 APK 和可信发布校验值填写，记录目录必须全新且位于电脑私有位置。预览、执行使用不同目录，不覆盖已有记录：
+
+```sh
+python3 scripts/install_tcl.py --serial "$TV_SERIAL" --user "$TV_USER" \
+  --apk "$APK_PATH" --sha256 "$EXPECTED_SHA256" --record "$NEW_PREVIEW_DIR"
+```
+
+用户授权安装及临时处理安装器后执行：
+
+```sh
+python3 scripts/install_tcl.py --serial "$TV_SERIAL" --user "$TV_USER" \
+  --apk "$APK_PATH" --sha256 "$EXPECTED_SHA256" --record "$NEW_INSTALL_DIR" \
+  --apply --allow-temporary-installer-disable
+```
+
+如果记录中存在“安装器恢复待确认”，先用同一设备及记录用户执行恢复预览；核对后加 `--apply`。恢复入口只处理记录中的安装器，不重放安装，不修改 HOME：
+
+```sh
+python3 scripts/install_tcl.py --serial "$TV_SERIAL" --user "$TV_USER" \
+  --restore-record "$INSTALL_RECORD_DIR/record.jsonl"
+```
+
+记录目录保留 `record.jsonl`、可取得的安装前 APK 和安装后核验 APK。日志只引用本次脚本标记之后且包含本项目包名的校验信息；历史或其他应用错误不触发停用。进程被强杀或断连无法保证即时恢复，必须保留记录并优先走恢复入口。
+
 1. **先说明并取得本次授权**：向用户展示本机匹配的错误、所选 APK，以及“临时停用安装器 → 安装一次 → 无论成败立即恢复”的流程。告知窗口内系统安装界面及校验可能不可用，恢复前不重启、不切换 HOME。普通安装请求不自动授权停用系统安装器；已有明确授权则不重复询问。
 2. **核对恢复条件**：电脑 ADB 已授权、目标及前台用户已确认；APK 已按通用规则核验。保存安装器在目标用户下的原始启用值与相关组件状态，以及原 HOME 基线，核对固件支持指定用户的停用与原状态恢复命令。原始 `enabled=0` 使用支持的 `pm default-state --user` 恢复，`enabled=1` 使用 `pm enable --user` 恢复；不能把两者混为一谈。安装器已被禁用、原状态或恢复方法不明时先报告，不将其当成本次可停用对象。
 3. **仅执行一次安装窗口**：每条 ADB 命令显式指定同一设备及已核对用户。用已验证的 `pm disable-user --user` 临时停用该安装器并读回；只有停用确认成功后才对已核验的 Quiet TV APK 保留数据安装一次。无论停用读回、安装、取消或超时发生何种结果，都先检查并恢复本次涉及的安装器原状态，读回确认后再启动应用或进行其他修改；执行工具须使用 `finally` 或等效的退出清理安排恢复，不以安装成功为恢复条件。
@@ -72,7 +98,7 @@ Agent 直接使用固定请求时，须通过本机终端读取 `latest.json`，
 
 交付时分别记录“品牌候选匹配、错误依据、固件信息完整度、安装结果、安装器原状态与恢复读回、已安装包校验、HOME 及电源验收”。具体设备验证完成前，一律标为“候选方案，Quiet TV 真机待验证”，后续固件日志作为补充证据；一次成功不升级为整个 TCL 品牌支持。
 
-Aerial 的另一条路线是[不声明 HOME 的 guard 包、电视端安装渠道及守护接管](https://github.com/pengchujin/aerial-tv/blob/main/docs/devices/tcl-mt5879-cn.md)。这不是本项目已发布主程序的无 HOME 安装能力；本次补充不自动重打包、修改 APK、部署守护或配置多屏互动。临时安装方案不适用或失败时保留现场，说明剩余限制。
+Aerial 的另一条路线是[不声明 HOME 的 guard 包、电视端安装渠道及守护接管](https://github.com/pengchujin/aerial-tv/blob/main/docs/devices/tcl-mt5879-cn.md)。本项目开发源码已有 `quietHomeMode=relay` 的无 HOME 构建模式及独立守护配置；这不代表当前已发布附件提供该包。TCL 助手先复用现有 APK，未自动构建 relay、部署守护或配置多屏互动。临时安装方案不适用或失败时保留现场，说明剩余限制。
 
 ## 已有安装：只更新
 

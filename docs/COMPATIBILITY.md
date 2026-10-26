@@ -190,7 +190,7 @@ TCL／雷鸟的安装受限方案于 2026-10-26 补充：先以品牌发现候�
 
 | 范围 | 上游依据与方案 | Quiet TV 状态及后续验证 |
 | --- | --- | --- |
-| TCL／雷鸟，出现明确 LauncherStrategy 安装拒绝 | cleanyourtv 社区 [#683](https://github.com/Gathin23/cleanyourtv/issues/683) 在 `t982_ar31a8`、Android 11、`RQ3A.210705.001.2024111116` 上报告：临时停用 `com.android.packageinstaller`、安装 HOME 包、立即恢复，再设置 HOME；维护者将该办法列为官方项目范围之外 | 已补充可选 Agent 指引；不按品牌自动停用，不计为 Quiet TV 真机通过。后续诊断补齐固件显示版本、构建号、指纹及错误链，分别记录安装器原状态恢复、APK 核对、实体 HOME、重启、冷启动与待机唤醒 |
+| TCL／雷鸟，出现明确 LauncherStrategy 安装拒绝 | cleanyourtv 社区 [#683](https://github.com/Gathin23/cleanyourtv/issues/683) 在 `t982_ar31a8`、Android 11、`RQ3A.210705.001.2024111116` 上报告：临时停用 `com.android.packageinstaller`、安装 HOME 包、立即恢复，再设置 HOME；维护者将该办法列为官方项目范围之外 | 已实现 [TCL 安装助手](../scripts/install_tcl.py)：预览、实际错误识别、明确选择后临时处理安装器、异常恢复、独立恢复入口及安装后 APK 校验。按品牌进入检测，无固件号也可检查；不按品牌自动停用。离线模拟不计为 Quiet TV 真机通过，目标固件的安装、恢复及 HOME／电源行为仍待验证 |
 
 上游报告使用另一个包名 `local.quiettv.launcher`，不是本项目的 `home.quiet.tv`。临时安装器方案不适用于所有校验失败；只有通用错误码或解析期证书拒绝时继续取证，不能直接套用。Aerial 无 HOME guard 包及其安装渠道也不等于本项目已发布 APK 的能力。
 

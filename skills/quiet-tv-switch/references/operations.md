@@ -47,6 +47,12 @@ adb -s "$TV_SERIAL" shell am start --user "$TV_USER" -n home.quiet.tv/.HomeActiv
 
 安装后拉取实际 `pm path` 返回的 APK，计算 SHA-256 与选定包比较。多 APK／split 安装需逐个核对其来源，不能将单一 base.apk 哈希当成完整 split 集合证明。安装或校验异常时保留原桌面。
 
+## TCL／雷鸟安装校验拒绝
+
+使用项目源码的 `scripts/install_tcl.py` 实际执行兼容流程。独立安装 skill、没有项目源码时，从[官方脚本地址](https://raw.githubusercontent.com/BeatsAD/quiet-tv/main/scripts/install_tcl.py)取得脚本并保存在电脑私有目录；读取失败时报告未能取得工具，不假装已执行。规则及参数见[官方 Agent 安装说明](https://github.com/BeatsAD/quiet-tv/blob/main/docs/AGENT_INSTALL.zh-CN.md#tcl雷鸟安装受限候选方案)。按 TCL／雷鸟品牌进入检测，固件号可后续补充；`--apply` 授权安装，`--allow-temporary-installer-disable` 是用户明确同意一次临时安装器处理后的独立参数，不从普通安装请求推定。脚本需要同一实际目标、用户、已核验 APK、可信 SHA-256 和全新私有记录目录。
+
+默认预览不修改电视；执行时正常安装失败后，仅根据本次日志中本包的 LauncherStrategy 拦截判断是否重试。临时停用无论成败均通过 `finally` 恢复原启用值，并读回；恢复待确认时优先用 `--restore-record`，不重放安装。APK 校验成功与实体 HOME、重启及待机验收仍分开。脚本不更改原桌面、不清数据、不操作其他系统包；不要改用上游报告中另一个 QuietTV 的包名。
+
 ## HOME 切换与失败诊断
 
 优先引导系统选择或 Quiet TV“首次设置”。使用 ADB 时必须先核对目标用户未改变、Quiet TV 的组件已安装且启用，并且是当前用户 HOME 候选。只有帮助明确支持对应语法才运行：
