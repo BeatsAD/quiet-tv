@@ -232,9 +232,14 @@ final class HomeGuardRecovery {
         request(c,"授权配置完成");
     }
     static String configurationProblem(Context c){
+        String problem=permissionProblem(c);if(!problem.isEmpty())return problem;
+        if(!new HomeGuardState(c,false).serviceEnabled() && !HomeGuardUsageService.connected())return "无障碍权限未开启";
+        return "";
+    }
+    // Recovery is posted to the main thread; grant completion must not race service restoration.
+    private static String permissionProblem(Context c){
         if(!writeAllowed(c))return "写安全设置权限未授予";
         if(!systemWriteAllowed(c))return "写系统设置权限未授予";
-        if(!new HomeGuardState(c,false).serviceEnabled() && !HomeGuardUsageService.connected())return "无障碍权限未开启";
         if(HomeGuardService.usageRequired(c) && !HomeGuardService.usageAllowed(c))return "桌面前台检测未授权";
         if(Build.VERSION.SDK_INT>=23 && !Settings.canDrawOverlays(c))return "后台启动权限未确认";
         if(notificationSupported(c) && !notificationAllowed(c) && !HomeGuardSync.ready(c))return "通知访问未授予";
@@ -245,14 +250,23 @@ final class HomeGuardRecovery {
     // Already runs on the ADB worker; keep completed grants durable before continuing/canceling.
     @android.annotation.SuppressLint("ApplySharedPref")
     static void configureAdb(Context c,AdbController adb,SetupOperations.Ticket task) throws Exception {
+        String step="守护条件核对";
+        try{
         HomeGuardState state=new HomeGuardState(c);state.configure();if(!state.ready())throw new java.io.IOException(state.enableProblem());
+        step="当前用户核对";
         task.check();adb.validateUser();String pkg=c.getPackageName(),user=Integer.toString(adb.user);
+        step="开机接收组件核对";
         repairBootReceiver(c,adb,task);
-        String pmUser=writeAllowed(c)?"":ShellCapabilities.userOption(adb.shell("pm help"),"grant",Build.VERSION.SDK_INT,adb.user);
-        String opsUser=systemWriteAllowed(c) && (!HomeGuardService.usageRequired(c) || HomeGuardService.usageAllowed(c)) && (Build.VERSION.SDK_INT<23 || Settings.canDrawOverlays(c))?""
-                :ShellCapabilities.userOption(adb.shell("appops help"),"set",Build.VERSION.SDK_INT,adb.user);
+        step="写安全设置命令检测";
+        String pmUser=writeAllowed(c)?"":ShellCapabilities.userOption(ShellCapabilities.permissionHelp("pm",adb::shell),"grant",Build.VERSION.SDK_INT,adb.user);
+        step="写安全设置授权";
         if(!writeAllowed(c)){adb.shell("pm grant"+pmUser+" "+pkg+" android.permission.WRITE_SECURE_SETTINGS");if(!writeAllowed(c))throw new java.io.IOException("写安全设置权限未授予");
         state.preferences.edit().putBoolean("grantedWrite",true).commit();}
+        step="应用操作授权命令检测";
+        task.check();adb.validateUser();
+        String opsUser=systemWriteAllowed(c) && (!HomeGuardService.usageRequired(c) || HomeGuardService.usageAllowed(c)) && (Build.VERSION.SDK_INT<23 || Settings.canDrawOverlays(c))?""
+                :ShellCapabilities.userOption(ShellCapabilities.permissionHelp("appops",adb::shell),"set",Build.VERSION.SDK_INT,adb.user);
+        step="通知恢复授权";
         task.check();adb.validateUser();if(!new HomeGuardState(c).ready())throw new java.io.IOException("守护已暂停或配置已改变");
         // These grants are independent: unsupported notification commands do not undo accessibility.
         String note="";
@@ -268,10 +282,12 @@ final class HomeGuardRecovery {
         }
         task.check();adb.validateUser();if(!new HomeGuardState(c).ready())throw new java.io.IOException("守护已暂停或配置已改变");
         if(Build.VERSION.SDK_INT>=23 && !Settings.canDrawOverlays(c)){
+            step="后台启动授权";
             adb.shell("appops set"+opsUser+" "+pkg+" SYSTEM_ALERT_WINDOW allow");
             if(Settings.canDrawOverlays(c))state.preferences.edit().putBoolean("grantedOverlay",true).commit();else note="后台启动权限未确认";
         }
         if(HomeGuardService.usageRequired(c) && !HomeGuardService.usageAllowed(c)){
+            step="桌面前台检测授权";
             task.check();adb.validateUser();
             String output;
             try{output=adb.shell("appops set"+opsUser+" "+pkg+" GET_USAGE_STATS allow");}
@@ -286,15 +302,27 @@ final class HomeGuardRecovery {
         }
         task.check();if(!new HomeGuardState(c).ready())throw new java.io.IOException("守护已暂停或配置已改变");
         if(!systemWriteAllowed(c) && Build.VERSION.SDK_INT>=23){
+            step="写系统设置授权";
             task.check();adb.validateUser();adb.shell("appops set"+opsUser+" "+pkg+" WRITE_SETTINGS allow");
             if(!systemWriteAllowed(c))note="写系统设置权限未授予";
         }
-        configureVendorAdb(c,adb,task);
+        step="厂商启动配置";configureVendorAdb(c,adb,task);
         if(HomeGuardAppOps.tcl(Build.MANUFACTURER,Build.BRAND))TclHomePolicy.configure(c,adb,task);
-        configureGranted(c);
+        step="守护恢复配置";configureGranted(c);
+        step="补偿配置读回";
         if(HomeGuardSync.ready(c) && (note.equals("此设备不支持通知恢复") || note.equals("此系统需手动授权通知访问") || note.equals("通知访问未授予")))note="";
-        if(note.isEmpty())note=configurationProblem(c);
-        if(!note.isEmpty())throw new java.io.IOException(note+"；已完成的授权保留");
+        if(note.isEmpty())note=permissionProblem(c);
+        if(!note.isEmpty())throw new java.io.IOException(note);
+        DiagnosticLog.info("home_guard.configure","result=permissions_ready serviceBound="+HomeGuardService.connected()+" observationReady="+new HomeGuardState(c,false).observationReady()+" syncReady="+HomeGuardSync.ready(c)+" scenesVerified=false");
+        }catch(Exception failure){
+            String detail=DiagnosticJournal.clean(failure.getMessage()==null?failure.getClass().getSimpleName():failure.getMessage());
+            if(detail.length()>240)detail=detail.substring(0,240);
+            DiagnosticLog.info("home_guard.configure","step="+step+" result=failed exit="+(failure instanceof AdbController.CommandFailure?((AdbController.CommandFailure)failure).exit:"unknown")+" error="+detail);
+            throw new java.io.IOException(step+"未完成："+detail+"；已完成的授权保留",failure);
+        }
+    }
+    static String configuredSummary(Context c){
+        return new HomeGuardState(c,false).observationReady()?"补偿权限已配置，守护已连接；开机和唤醒待验证":"补偿权限已配置，等待守护连接；开机和唤醒待验证";
     }
     private static void repairBootReceiver(Context c,AdbController adb,SetupOperations.Ticket task) throws Exception {
         if(BuildConfig.LEGACY_19 || Build.VERSION.SDK_INT<21)return;
