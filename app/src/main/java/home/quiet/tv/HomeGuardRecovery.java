@@ -1,6 +1,7 @@
 package home.quiet.tv;
 
 import android.Manifest;
+import android.app.PendingIntent;
 import android.content.*;
 import android.content.pm.PackageManager;
 import android.os.*;
@@ -181,8 +182,23 @@ final class HomeGuardRecovery {
         requestedAt=SystemClock.uptimeMillis();requestedHome=state.selected();state.status("已请求接管，等待桌面显示");Log.i(TAG,"home requested: "+reason+" uptime="+requestedAt);
         confirmation=()->{finishDiagnostic(trace,"TIMEOUT","no_visibility_callback_5000ms");confirmation=null;requestedAt=0;requestedHome="";if(new HomeGuardState(c).automatic())new HomeGuardState(c).status("未确认进入桌面，请检查系统限制");};
         handler.postDelayed(confirmation,5000);
-        try{if(!resumeOwnFireTask(c,state.selected()))c.startActivity(HomeController.launchIntent(c));trace.stage("DISPATCHED_UNVERIFIED",SystemClock.elapsedRealtime());}
+        try{if(!resumeOwnFireTask(c,state.selected()))startHome(c);trace.stage("DISPATCHED_UNVERIFIED",SystemClock.elapsedRealtime());}
         catch(ActivityNotFoundException|SecurityException failure){finishDiagnostic(trace,"FAILED",failure.getClass().getSimpleName());pendingVisibilityEvidence=false;handler.removeCallbacks(confirmation);confirmation=null;requestedAt=0;requestedHome="";state.status("系统拒绝启动桌面");}
+    }
+    private static void startHome(Context c){
+        Intent intent=HomeController.launchIntent(c);
+        if(Build.VERSION.SDK_INT<=23 && HomeGuardPolicy.xiaomiRecovery(Build.MANUFACTURER,Build.BRAND,Build.VERSION.SDK_INT,BuildConfig.LEGACY_19)){
+            // Android 5/6 defers an ordinary startActivity for five seconds after HOME.
+            // PendingIntent dispatch uses the system caller for the app-switch check.
+            // Keep the destination explicit and the token single-use; eligibility is checked above.
+            int flags=PendingIntent.FLAG_ONE_SHOT|PendingIntent.FLAG_UPDATE_CURRENT;
+            if(Build.VERSION.SDK_INT>=23)flags|=PendingIntent.FLAG_IMMUTABLE;
+            try{
+                PendingIntent.getActivity(c,0,intent,flags).send();
+                DiagnosticLog.info("home_guard.dispatch","route=pending_intent screenVerified=false");return;
+            }catch(PendingIntent.CanceledException unavailable){DiagnosticLog.info("home_guard.dispatch","pending_intent_cancelled fallback=activity");}
+        }
+        c.startActivity(intent);
     }
     private static boolean resumeOwnFireTask(Context c,String selected){
         if(Build.VERSION.SDK_INT<23 || !HomeGuardPolicy.fireHome(Build.VERSION.SDK_INT,selected))return false;
