@@ -20,6 +20,13 @@ final class HomeGuardPolicy {
     }
     static boolean xiaomiRecovery(String manufacturer,String brand,int sdk,boolean legacy){return supported(manufacturer,brand,sdk,legacy) && xiaomi(manufacturer,brand);}
     static boolean usageFallback(int sdk,boolean legacy){return !legacy && sdk>=21 && sdk<=23;}
+    static boolean usageEvidence(String manufacturer,String brand,int sdk,boolean legacy){
+        return usageFallback(sdk,legacy) || xiaomiRecovery(manufacturer,brand,sdk,legacy);
+    }
+    static boolean filterHome(boolean xiaomi,boolean enabled,boolean canShow,int sdk,boolean defaultHome,boolean homeResumed){
+        return xiaomi && enabled && canShow && sdk>=21 && (homeResumed || sdk<=30 && !defaultHome);
+    }
+    static boolean handoverBlocked(boolean pending,boolean homeResumed){return pending || homeResumed;}
     static boolean bootRecheck(long uptime){return uptime>=0 && uptime<BOOT_WINDOW_MS;}
     static boolean recheckTarget(String selected,String front,long at,long now){
         return !selected.isEmpty() && selected.equals(front) && at>0 && now>=at && now-at<=BOOT_WINDOW_MS;

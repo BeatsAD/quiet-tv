@@ -26,7 +26,7 @@ final class HomeProxy {
         return available(packageName());
     }
     private boolean available(String name){
-        if(BuildConfig.LEGACY_19 || Build.VERSION.SDK_INT<21)return false;
+        if(BuildConfig.LEGACY_19 || Build.VERSION.SDK_INT<21 || context.getPackageName().equals(name))return false;
         PackageManager pm=context.getPackageManager();
         try{
             PackageInfo pkg=pm.getPackageInfo(name,0);

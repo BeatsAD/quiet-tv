@@ -159,6 +159,7 @@ final class DiagnosticDeviceSnapshot {
         line("目标与固件有效",yes(state.validSelection()));
         line("记录固件与当前一致",yes(Build.FINGERPRINT.equals(state.preferences.getString("firmware",""))));
         line("无障碍设置授权",yes(state.serviceEnabled()));line("无障碍服务已连接",yes(HomeGuardService.connected()));
+        line("HOME 按键过滤请求",yes(HomeGuardService.keyFiltering()));line("首页生命周期前台",yes(HomeGuardService.homeResumed()));
         line("独立中转助手占用",yes(state.helperActive()));
         line("兼容检测所需用量权限",HomeGuardService.usageRequired()?yes(HomeGuardService.usageAllowed(context)):"本档位不需要");
         line("恢复所需写安全设置权限",yes(HomeGuardRecovery.writeAllowed(context)));

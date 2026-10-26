@@ -19,7 +19,8 @@ public final class HomeGuardBootReceiver extends BroadcastReceiver {
         new Handler(Looper.getMainLooper()).postDelayed(()->{
             try{
                 if(HomeGuardService.connected())HomeGuardService.lifecycle("开机完成");
-                else if(HomeGuardRecovery.unknownAllowed(c))HomeGuardRecovery.launch(c,"开机兜底");
+                else if(HomeGuardRecovery.unknownAllowed(c) && (!HomeGuardPolicy.xiaomi(Build.MANUFACTURER,Build.BRAND)
+                        || HomeGuardService.bootHomeObserved(c)))HomeGuardRecovery.launch(c,"开机兜底");
             }finally{pending.finish();}
         },HomeGuardPolicy.SETTLE_MS);
     }
