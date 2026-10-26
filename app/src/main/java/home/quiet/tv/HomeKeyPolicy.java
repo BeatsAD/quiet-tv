@@ -4,6 +4,9 @@ package home.quiet.tv;
 final class HomeKeyPolicy {
     static final int NONE=0,HOME=1,RECENTS=2;
     private long pressedAt=-1,lastRelease=-1;
+    private long passedDown=-1;
+    void pass(long downTime){passedDown=downTime;}
+    boolean passed(long downTime){return downTime>0 && passedDown==downTime;}
     boolean pressed(){return pressedAt>=0;}
     void down(long at){if(!pressed())pressedAt=at;}
     int up(long at,boolean cancelled,long hold,long twice){

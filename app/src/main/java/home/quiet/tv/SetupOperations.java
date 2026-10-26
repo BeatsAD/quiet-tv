@@ -95,6 +95,8 @@ final class SetupOperations {
         store.put("status",new HomeProxy(context).ready()?"proxy-configured":"guard-configured");
     }
     void restore(AdbController adb,Ticket ticket,Progress progress) throws Exception {
+        HomeTakeover takeover=new HomeTakeover(context);
+        if(takeover.pending()){progress.changed("正在恢复直接接管前的桌面状态");takeover.restore(adb,ticket);return;}
         AppOperations.begin();
         String id=UUID.randomUUID().toString();boolean begun=false;
         try{

@@ -164,7 +164,7 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
     }
     private void showRoutes(){
         ManagementUi.Sheet sheet=ui.new Sheet("桌面配置");DesktopRoutes routes=new DesktopRoutes(ui);
-        sheet.text(routes.details());sheet.text("自动配置保留原桌面。暂停中转不改变系统默认 HOME；恢复原桌面需单独操作。");
+        sheet.text(routes.details());sheet.text("自动配置优先直接接管；需要禁用原桌面时会列出方案供确认。暂停中转不改变默认 HOME，恢复原桌面需单独操作。");
         boolean paused="OFF".equals(state.preferences.getString("mode","AUTO"));
         Button auto=sheet.option(paused?"重新启用并自动配置":"自动配置桌面",()->{
             if(paused && !state.preferences.edit().putString("mode","AUTO").putBoolean("configured",false).commit()){ui.message("重新启用未保存");return;}

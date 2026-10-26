@@ -30,7 +30,7 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
     private AppRepository.App original;
     private String originalChoice="KEEP",notice="",progress="正在检查设备能力…";
     private boolean refreshAfterConnection,originalTouched,busy,active,recovery,roleCancelled,roleResultExpected,recordAvailable=true;
-    private boolean autoRequested,roleInFlight,roleCheckPending,roleAccepted,launchAuto;
+    private boolean autoRequested,roleInFlight,roleCheckPending,roleAccepted,launchAuto,offeringTakeover,takeoverPending;
     private int screen;
     private LinearLayout page,steps;
     private SetupFocus focusOutline;
@@ -68,21 +68,23 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
     private void ui(SetupOperations.Ticket task,Runnable action){runOnUiThread(()->{if(valid(task))action.run();});}
     private SetupOperations.Ticket begin(String text){if(ticket!=null)ticket.cancel();ticket=new SetupOperations.Ticket();busy=true;progress=text;render();return ticket;}
     private void refresh(){
+        if(offeringTakeover)return;
         SetupOperations.Ticket task=begin("正在检查设备能力与应用状态…");
         worker.execute(()->{try{
-            task.check();HomeController.State state=home.inspect(adb);List<AppRepository.App> loaded=repository.load(adb);task.check();
+            task.check();HomeController.State state=home.inspect(adb);List<AppRepository.App> loaded=repository.load(adb);boolean pending=new HomeTakeover(this).pending();task.check();
             ui(task,()->{homeState=state;apps.clear();apps.addAll(loaded);original=null;
+                takeoverPending=pending;
                 for(AppRepository.App app:apps)if(!state.original.isEmpty() && state.original.startsWith(app.pkg+"/"))original=app;
                 screen=state.isOwn(this) && !roleCancelled?1:0;busy=false;
                 if(autoRequested && roleCheckPending){
                     autoRequested=false;roleCheckPending=false;
                     if(state.isOwn(this)){finishAutomatic();return;}
-                    if(roleAccepted && state.known){withConnection(this::configureRelay);return;}
+                    if(roleAccepted && state.known){withConnection(this::setDefault);return;}
                     notice="默认桌面选择已取消或结果未确认，未启用中转。";render();return;
                 }
                 if(roleInFlight){render();return;}
                 if(launchAuto){launchAuto=false;autoConfigure();return;}
-                if(!recovery && !roleCancelled && !state.isOwn(this) && new HomeGuardState(this).compatibleReady()){
+                if(!recovery && !takeoverPending && !roleCancelled && !state.isOwn(this) && new HomeGuardState(this).compatibleReady()){
                     try{new SetupOperations(this).completeGuard();openHome("桌面中转已配置，原桌面保留");return;}
                     catch(Exception failure){notice="兼容配置未完成："+failure.getMessage();}
                 }
@@ -277,6 +279,10 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
         else if(homeState.roleAvailable)requestRole();else withConnection(this::setDefault);
     }
     private void finishAutomatic(){
+        if(BuildConfig.LEGACY_19){finishDirect();return;}
+        withConnection(()->offerTakeover(this::finishDirect));
+    }
+    private void finishDirect(){
         try{
             DesktopRoutes routes=new DesktopRoutes(this);routes.direct();HomeGuardState guard=new HomeGuardState(this);
             store.baseline(homeState.actual,guard.selected());store.put("status","direct-configured");
@@ -320,11 +326,38 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
     }
     private void setDefault(){
         if(busy)return;
-        SetupOperations.Ticket task=begin("正在设置并核对默认桌面…");worker.execute(()->{try{task.check();home.switchToOwn(adb);task.check();ui(task,()->{busy=false;roleCancelled=false;notice="";if(autoRequested){autoRequested=false;finishAutomatic();}else{new DesktopRoutes(this).direct();refresh();}});}catch(Exception e){
+        SetupOperations.Ticket task=begin("正在设置并核对默认桌面…");worker.execute(()->{try{task.check();home.switchToOwn(adb);task.check();ui(task,()->{busy=false;roleCancelled=false;notice="";if(autoRequested){autoRequested=false;finishAutomatic();}else offerTakeover(()->{new DesktopRoutes(this).direct();refresh();});});}catch(Exception e){
             DesktopRoutePolicy.Result result=e instanceof HomeController.SwitchFailure?((HomeController.SwitchFailure)e).result:DesktopRoutePolicy.Result.UNKNOWN;
             boolean fallback=!BuildConfig.LEGACY_19 && DesktopRoutePolicy.fallback(result,task.active(),adb.connected(),"OFF".equals(new HomeGuardState(this).preferences.getString("mode","AUTO")));
-            ui(task,()->{busy=false;autoRequested=false;notice="默认桌面未确认："+e.getMessage();if(fallback)configureRelay();else render();});
+            ui(task,()->{busy=false;autoRequested=false;notice="默认桌面未确认："+e.getMessage();if(fallback)offerTakeover(this::configureRelay);else render();});
         }});
+    }
+    private void offerTakeover(Runnable fallback){
+        if(busy)return;SetupOperations.Ticket task=begin("正在检测直接接管能力…");
+        worker.execute(()->{try{
+            HomeTakeover takeover=new HomeTakeover(this);
+            if(takeover.pending()){
+                boolean applied=takeover.applied(adb,task);
+                ui(task,()->{busy=false;if(applied){
+                    DesktopRoutes routes=new DesktopRoutes(this);if(!"DIRECT".equals(routes.home()) || new HomeGuardState(this).enabled())routes.directOnly();
+                    openHome("直接接管已配置；实体 HOME、开机和唤醒待验证");
+                }else{notice="上次直接接管尚未恢复，请先使用“恢复原桌面”核对和恢复。";render();}});return;
+            }
+            JSONObject plan=takeover.inspect(adb);task.check();
+            ui(task,()->{busy=false;if(plan==null){fallback.run();return;}
+                try{
+                    offeringTakeover=true;Sheet sheet=setupSheet(plan.getString("title"));sheet.text(takeover.description(plan));
+                    sheet.dialog.setOnDismissListener(dialog->offeringTakeover=false);
+                    Button cancel=sheet.action("暂不处理",()->{sheet.dialog.dismiss();notice="未执行直接接管，可继续使用原桌面中转。";render();});
+                    sheet.action("应用方案",()->{sheet.dialog.dismiss();applyTakeover(plan);});sheet.show(cancel);
+                }catch(Exception failure){offeringTakeover=false;notice=failure.getMessage();render();}
+            });
+        }catch(Exception failure){ui(task,()->{busy=false;notice="接管检测未完成："+failure.getMessage();render();});}});
+    }
+    private void applyTakeover(JSONObject plan){
+        SetupOperations.Ticket task=begin("正在应用并核对直接接管方案…");
+        worker.execute(()->{try{new HomeTakeover(this).apply(adb,plan,task);ui(task,()->{busy=false;openHome("直接接管已配置，实体 HOME、开机和唤醒待验证");});}
+            catch(Exception failure){ui(task,()->{busy=false;notice="直接接管未完成："+failure.getMessage()+"；请重新检测，必要时恢复原桌面。";refresh();});}});
     }
     private void confirm(){
         if(busy)return;final ArrayList<AppRepository.App> frozen=selected();final AppRepository.App old=original;final String choice=originalChoice;
@@ -342,7 +375,7 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
         body.addView(label(original==null?"原桌面身份未确认":original.label+" · "+original.state(),18));gap(body,16);body.addView(muted("先恢复可用，再切回默认桌面；其他预装应用保持当前状态。恢复安装不会恢复已删除的数据。",13));gap(body,24);
         if(!adb.connected())action(body,"连接后核对恢复能力","primary",()->withConnection(this::refresh),true);
         else{
-            boolean available=original!=null && original.metadataKnown && original.verified && (original.installed?(original.enabled||home.presets.homeAllows("disableVerified")):(original.recoverable&&home.presets.homeAllows("restoreInstallVerified")));
+            boolean available=takeoverPending || original!=null && original.metadataKnown && original.verified && (original.installed?(original.enabled||home.presets.homeAllows("disableVerified")):(original.recoverable&&home.presets.homeAllows("restoreInstallVerified")));
             String text=original==null?"无法确认原桌面":!original.installed?"恢复安装并切回":!original.enabled?"启用并切回":"切回原桌面";
             action(body,text,"primary",this::restore,available);if(!available)body.addView(muted("当前固件未验收恢复能力，或原桌面安装包／组件缺失。",12));
         }

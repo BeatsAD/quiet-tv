@@ -23,8 +23,9 @@ final class HomeGuardPolicy {
     static boolean usageFallback(int sdk,boolean legacy,String selected){
         // VIDAA's launcher may omit accessibility window events, including on newer Android.
         // Selection is separately checked against an installed system activity before acting.
-        return usageFallback(sdk,legacy) || !legacy && sdk>=21 && selected.startsWith("com.jamdeo.tv.vod/");
+        return usageFallback(sdk,legacy) || !legacy && sdk>=21 && (selected.startsWith("com.jamdeo.tv.vod/") || fireHome(sdk,selected));
     }
+    static boolean fireHome(int sdk,String selected){return sdk==25 && selected.startsWith("com.amazon.tv.launcher/");}
     static boolean usageEvidence(String manufacturer,String brand,int sdk,boolean legacy){
         return usageFallback(sdk,legacy) || xiaomiRecovery(manufacturer,brand,sdk,legacy);
     }
