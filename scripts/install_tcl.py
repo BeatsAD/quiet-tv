@@ -10,6 +10,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import time
 import uuid
 import zipfile
 
@@ -19,6 +20,29 @@ PROPERTIES = ("ro.product.brand", "ro.product.manufacturer", "ro.product.model",
               "ro.product.device", "ro.build.version.sdk", "ro.product.cpu.abilist",
               "ro.product.cpu.abi", "ro.build.display.id", "ro.build.id",
               "ro.build.fingerprint", "ro.serialno")
+
+
+def manifest_home_mode(tree):
+    """Read Activity intent filters, excluding package-visibility queries mentioning HOME."""
+    stack, application, activity = [], False, False
+    for line in tree.splitlines():
+        element = re.match(r"(\s*)E: ([\w-]+)(?:\s|$)", line)
+        if element:
+            depth = len(element[1])
+            while stack and stack[-1][0] >= depth:
+                stack.pop()
+            stack.append((depth, element[2]))
+            names = [item[1] for item in stack]
+            application |= element[2] == 'application'
+            activity |= element[2] in ('activity', 'activity-alias') and 'application' in names
+        elif re.search(r'A: (?:android|http://schemas.android.com/apk/res/android):name[^=]*="android.intent.category.HOME"', line):
+            names = [item[1] for item in stack]
+            if (len(names) >= 4 and names[-3] in ("activity", "activity-alias")
+                    and names[-2:] == ["intent-filter", "category"] and "application" in names):
+                return "standard"
+    if not application or not activity:
+        raise ValueError('无法从 APK 清单确认主程序 Activity，HOME 形态未确认')
+    return "relay"
 
 
 def digest(path):
@@ -93,13 +117,12 @@ def sdk_tool(name, explicit=None):
     found = shutil.which(name)
     if found:
         return found
-    sdk = os.environ.get("ANDROID_HOME") or os.environ.get("ANDROID_SDK_ROOT")
-    if not sdk:
-        local = Path(__file__).resolve().parents[1] / "local.properties"
-        if local.exists():
-            match = re.search(r"(?m)^sdk.dir=(.+)$", local.read_text())
-            sdk = match[1] if match else None
-    if sdk:
+    roots = [os.environ.get("ANDROID_HOME"), os.environ.get("ANDROID_SDK_ROOT")]
+    local = Path(__file__).resolve().parents[1] / "local.properties"
+    if local.exists():
+        match = re.search(r"(?m)^sdk.dir=(.+)$", local.read_text())
+        roots.append(match[1] if match else None)
+    for sdk in filter(None, roots):
         suffix = ".bat" if os.name == "nt" and name == "apksigner" else ".exe" if os.name == "nt" else ""
         candidates = sorted((Path(sdk) / "build-tools").glob("*/" + name + suffix),
                             key=lambda path: [int(n) for n in re.findall(r"\d+", path.parent.name)])
@@ -118,7 +141,7 @@ class ApkTools:
                                           encoding="utf-8", errors="replace", timeout=60, check=False))
         badging = run(self.aapt2, "dump", "badging", str(apk))
         package = re.search(r"^package: name='([^']+)' versionCode='(\d+)' versionName='([^']+)'", badging, re.M)
-        minimum = re.search(r"^sdkVersion:'(\d+)'", badging, re.M)
+        minimum = re.search(r"^(?:sdkVersion|minSdkVersion):'(\d+)'", badging, re.M)
         if not package or not minimum:
             raise ValueError("APK 包名、版本或最低 API 无法核对")
         signature = run(self.apksigner, "verify", "--min-sdk-version", minimum[1], "--print-certs", str(apk))
@@ -128,8 +151,10 @@ class ApkTools:
         with zipfile.ZipFile(apk) as archive:
             abis = sorted({name.split('/')[1] for name in archive.namelist()
                            if name.startswith("lib/") and name.endswith(".so")})
+        tree = run(self.aapt2, "dump", "xmltree", str(apk), "--file", "AndroidManifest.xml")
         return {"package": package[1], "version_code": int(package[2]), "version_name": package[3],
-                "min_sdk": int(minimum[1]), "signers": signers, "abis": abis, "sha256": digest(apk)}
+                "min_sdk": int(minimum[1]), "signers": signers, "abis": abis, "sha256": digest(apk),
+                "home_mode": manifest_home_mode(tree)}
 
 
 class Journal:
@@ -206,6 +231,48 @@ def temporary_install(adb, args, before, journal):
         journal.event("installer_restored", after=after)
 
 
+def manual_relay_install(adb, args, metadata, journal):
+    """Stage a new file, then wait for the viewer's TV-side installer; never click unknown UI."""
+    remote = "/sdcard/Download/QuietTV-relay-" + uuid.uuid4().hex + ".apk"
+    exists = adb.shell("sh", "-c", f"if [ -e {shlex.quote(remote)} ]; then echo EXISTS; else echo NEW; fi")
+    if exists != "NEW":
+        raise ValueError("电视端目标文件状态未确认，未覆盖")
+    adb.run("push", str(args.apk), remote, timeout=120)
+    journal.event("manual_apk_staged", path=remote)
+    try:
+        adb.shell("content", "call", "--user", args.user, "--uri", "content://media", "--method", "scan_volume", "--arg", "external_primary")
+    except ValueError as error:
+        journal.event("manual_media_scan_unavailable", error=str(error))
+    market = adb.shell("dumpsys", "package", "com.dangbeimarket")
+    if usable(user_state(market, args.user)):
+        try:
+            adb.shell("am", "start", "--user", args.user, "-n", "com.dangbeimarket/.ui.apkmanager.ApkManagerActivity")
+        except ValueError as error:
+            journal.event("manual_market_unavailable", error=str(error))
+    print("请在电视当贝的安装包管理或文件管理器打开：" + remote + "；确认安装 Quiet TV。", flush=True)
+    deadline = time.monotonic() + args.install_timeout
+    while time.monotonic() < deadline:
+        package = adb.shell("dumpsys", "package", PACKAGE)
+        if (usable(user_state(package, args.user))
+                and re.search(r"\bversionCode=" + str(metadata["version_code"]) + r"\b", package)):
+            return
+        time.sleep(2)
+    raise ValueError("电视端安装未确认。暂存 APK 已保留；完成后可重新运行工具核验，不要清数据或反复安装")
+
+
+def relay_install(adb, args, metadata, journal):
+    try:
+        import tcl_cast
+    except ImportError as error:
+        raise ValueError("缺少同目录的 tcl_cast.py，请按 tools 索引核对工具文件") from error
+    try:
+        tcl_cast.install(adb, args, args.apk, metadata, journal)
+    except tcl_cast.Unavailable as error:
+        journal.event("tcast_unavailable", error=str(error))
+        print(str(error) + "，转入电视端手动安装。", flush=True)
+        manual_relay_install(adb, args, metadata, journal)
+
+
 def install(args, adb, tools, journal):
     device = adb.identity()
     if not re.search(r"\b(?:tcl|ffalcon|iffalcon)\b", device["ro.product.brand"] + " " + device["ro.product.manufacturer"], re.I):
@@ -224,10 +291,17 @@ def install(args, adb, tools, journal):
     abis = (device["ro.product.cpu.abilist"] or device["ro.product.cpu.abi"]).split(',')
     if apk["abis"] and not set(apk["abis"]).intersection(abis):
         raise ValueError("APK 原生库架构不匹配")
+    relay = tools.inspect(args.relay_apk) if args.relay_apk else None
+    if relay and (relay["package"] != PACKAGE or relay["sha256"] != args.relay_sha256
+                  or relay["home_mode"] != "relay" or relay["signers"] != apk["signers"]
+                  or relay["version_name"] != apk["version_name"] or relay["min_sdk"] > int(device["ro.build.version.sdk"])
+                  or relay["abis"] and not set(relay["abis"]).intersection(abis)):
+        raise ValueError("relay 候选的形态、版本、签名、校验值或系统架构不匹配")
     package_before = adb.shell("dumpsys", "package", PACKAGE)
     state = user_state(package_before, args.user)
     if state and not usable(state):
         raise ValueError("Quiet TV 在该用户上被停用、隐藏或未安装；不自动恢复")
+    installed, already_same = None, False
     if state:
         old = journal.directory / "installed-before.apk"
         pull_apk(adb, args.user, old)
@@ -237,9 +311,13 @@ def install(args, adb, tools, journal):
             raise ValueError("已安装包签名不符或需要降级，未执行安装")
         if installed["version_code"] == apk["version_code"]:
             if installed["sha256"] == apk["sha256"]:
-                print("已安装相同 APK，无需重装。")
-                return
-            raise ValueError("相同构建号但文件不同，未覆盖安装")
+                already_same = True
+            else:
+                raise ValueError("相同构建号但文件不同，未覆盖安装")
+        if installed["home_mode"] != apk["home_mode"]:
+            raise ValueError("已有安装与所选包 HOME 形态不同，需单独确认迁移，不自动覆盖")
+        if relay and (installed["home_mode"] != "relay" or relay["version_code"] <= installed["version_code"]):
+            raise ValueError("不自动将已有普通 HOME 包迁移到 relay，或覆盖低构建号 relay")
     elif re.search(r"(?m)^\s*User \d+:", package_before):
         raise ValueError("其他用户仍有 Quiet TV，不当作全新安装")
     installer_dump = adb.shell("dumpsys", "package", INSTALLER)
@@ -256,6 +334,8 @@ def install(args, adb, tools, journal):
     journal.event("baseline", serial=args.serial, user=args.user, device=device, apk=apk,
                   installer_before=before, installer_dump=installer_dump,
                   package_before=package_before, home_before=home_before)
+    if relay:
+        journal.event("relay_candidate", apk=relay)
     if not args.apply:
         print("仅预览，未修改电视。品牌候选匹配；安装器临时处理" + ("已明确允许" if args.allow_temporary_installer_disable else "未授权") + "。")
         print("APK、设备、固件及恢复基线：" + str(journal.path))
@@ -266,24 +346,25 @@ def install(args, adb, tools, journal):
     adb.shell("log", "-p", "i", "-t", "QuietTVInstall", marker)
     journal.event("normal_install_started")
     try:
-        output = adb.run("install", "-r", "--user", args.user, str(args.apk), timeout=180)
+        output = "Success" if already_same else adb.run("install", "-r", "--user", args.user, str(args.apk), timeout=180)
         if not re.search(r"(?m)^Success\s*$", output):
             raise ValueError(output or "安装结果未确认")
     except ValueError as error:
         journal.event("normal_install_failed", error=str(error))
-        if "INSTALL_FAILED_VERIFICATION_FAILURE" not in str(error):
+        rejection = str(error)
+        if not any(reason in rejection for reason in ("INSTALL_FAILED_VERIFICATION_FAILURE", "disable install launcher app not signature by tcl", "install apk has be disabled from pm")):
             raise
-        logs = adb.run("logcat", "-d", "-v", "brief", "-s", "QuietTVInstall:I", "verifier:V",
-                       "System.err:W", "PackageManager:I", "*:S")
-        journal.event("verification_evidence", logs=logs)
-        if not launcher_rejection(logs, marker):
-            raise ValueError("未找到本次 Quiet TV 的 TCL LauncherStrategy 拒绝证据，未停用安装器") from error
-        if not args.allow_temporary_installer_disable:
-            raise ValueError("已识别 TCL 桌面校验拦截；需明确授权 --allow-temporary-installer-disable 才可临时处理安装器") from error
-        current = user_state(adb.shell("dumpsys", "package", INSTALLER), args.user)
-        if current != before or adb.current_user() != args.user:
-            raise ValueError("安装器状态或前台用户已变化，未停用")
-        temporary_install(adb, args, before, journal)
+        if relay or apk["home_mode"] == "relay":
+            if relay:
+                args.apk, args.sha256, apk = args.relay_apk, args.relay_sha256, relay
+            if digest(args.apk) != args.sha256 or adb.current_user() != args.user:
+                raise ValueError("relay 文件或当前用户已改变，未推送")
+            journal.event("relay_install_started", apk=apk)
+            relay_install(adb, args, apk, journal)
+        else:
+            if "INSTALL_FAILED_VERIFICATION_FAILURE" not in rejection:
+                raise ValueError("此固件需已发布的 relay 包；未临时停用安装器") from error
+            temporary_fallback(adb, args, before, journal, error, marker)
     installed_apk = journal.directory / "installed-after.apk"
     pull_apk(adb, args.user, installed_apk)
     actual = tools.inspect(installed_apk)
@@ -291,7 +372,25 @@ def install(args, adb, tools, journal):
         journal.event("installed_apk_mismatch", actual=actual)
         raise ValueError("已安装 APK 校验不符，未启动或切换 HOME")
     journal.event("installed_apk_verified", actual=actual)
-    print("安装及已安装 APK 校验完成。未启动应用、未修改 HOME；实体 HOME、重启和待机唤醒未验证。")
+    if apk["home_mode"] == "relay":
+        print("relay 安装已核验。系统 HOME 保留原桌面；试用后按用户选择运行现有 configure_home_guard.py 配置守护。")
+    else:
+        print("安装及已安装 APK 校验完成。未启动应用、未修改 HOME；实体 HOME、重启和待机唤醒未验证。")
+
+
+def temporary_fallback(adb, args, before, journal, error, marker):
+    # Kept as a separately opted-in community alternative, never selected after a push refusal.
+    logs = adb.run("logcat", "-d", "-v", "brief", "-s", "QuietTVInstall:I", "verifier:V",
+                   "System.err:W", "PackageManager:I", "*:S")
+    journal.event("verification_evidence", logs=logs)
+    if not launcher_rejection(logs, marker):
+        raise ValueError("未找到本次 Quiet TV 的 TCL LauncherStrategy 拒绝证据，未停用安装器") from error
+    if not args.allow_temporary_installer_disable:
+        raise ValueError("已识别 TCL 桌面校验拦截；需明确授权 --allow-temporary-installer-disable 才可临时处理安装器") from error
+    current = user_state(adb.shell("dumpsys", "package", INSTALLER), args.user)
+    if current != before or adb.current_user() != args.user:
+        raise ValueError("安装器状态或前台用户已变化，未停用")
+    temporary_install(adb, args, before, journal)
 
 
 def recover(args, adb):
@@ -341,6 +440,10 @@ def main():
     parser.add_argument("--user", type=int, required=True)
     parser.add_argument("--adb", default="adb")
     parser.add_argument("--apk", type=Path)
+    parser.add_argument("--relay-apk", type=Path, help="普通包被 TCL 拒绝时使用的同版本、同签名无 HOME 候选")
+    parser.add_argument("--relay-sha256", type=str.lower)
+    parser.add_argument("--tcast-host", help="USB 目标的电视 IP；网络 ADB 必须与其地址相同")
+    parser.add_argument("--install-timeout", type=int, default=180)
     parser.add_argument("--sha256", type=str.lower, help="可信发布来源给出的 APK SHA-256")
     parser.add_argument("--aapt2")
     parser.add_argument("--apksigner")
@@ -352,8 +455,12 @@ def main():
     args = parser.parse_args()
     if args.user < 0:
         parser.error("用户不能为负数")
+    if not 1 <= args.install_timeout <= 600:
+        parser.error("安装等待时间应为1至600秒")
+    if bool(args.relay_apk) != bool(args.relay_sha256) or (args.relay_sha256 and not re.fullmatch(r"[a-f0-9]{64}", args.relay_sha256)):
+        parser.error("relay 候选必须同时指定文件及完整 SHA-256")
     if args.restore_record:
-        if args.apk or args.sha256 or args.record or args.allow_temporary_installer_disable:
+        if args.apk or args.sha256 or args.record or args.relay_apk or args.tcast_host or args.allow_temporary_installer_disable:
             parser.error("恢复模式不能同时安装或停用安装器")
     elif not (args.apk and args.record and args.sha256 and re.fullmatch(r"[a-f0-9]{64}", args.sha256)):
         parser.error("安装预览或执行均需 --apk、--sha256 和新的 --record 目录")

@@ -7,6 +7,9 @@ on:
       - prototypes/install-guide/**
       - docs/AGENT_INSTALL.zh-CN.md
       - scripts/build_install_guide.py
+      - scripts/install_tcl.py
+      - scripts/tcl_cast.py
+      - scripts/configure_home_guard.py
       - updates/updates.json
       - .github/workflows/pages.yml
   release:

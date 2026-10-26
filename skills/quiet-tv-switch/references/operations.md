@@ -49,7 +49,13 @@ adb -s "$TV_SERIAL" shell am start --user "$TV_USER" -n home.quiet.tv/.HomeActiv
 
 ## TCL／雷鸟安装校验拒绝
 
-使用项目源码的 `scripts/install_tcl.py` 实际执行兼容流程。独立安装 skill、没有项目源码时，从[官方脚本地址](https://raw.githubusercontent.com/BeatsAD/quiet-tv/main/scripts/install_tcl.py)取得脚本并保存在电脑私有目录；读取失败时报告未能取得工具，不假装已执行。规则及参数见[官方 Agent 安装说明](https://github.com/BeatsAD/quiet-tv/blob/main/docs/AGENT_INSTALL.zh-CN.md#tcl雷鸟安装受限候选方案)。按 TCL／雷鸟品牌进入检测，固件号可后续补充；`--apply` 授权安装，`--allow-temporary-installer-disable` 是用户明确同意一次临时安装器处理后的独立参数，不从普通安装请求推定。脚本需要同一实际目标、用户、已核验 APK、可信 SHA-256 和全新私有记录目录。
+用户仍使用原安装请求。先读实时 `latest.json` 的附件 `homeMode`，按当前安装形态、系统、ABI、签名和递增构建号选择已发布包。首次普通包被拒绝时优先使用 relay；已装 relay 只更新相同形态。缺少已发布 relay 时报告，不自动构建、改包或以普通包替代。
+
+使用项目源码的 `scripts/install_tcl.py`、`scripts/tcl_cast.py`；独立 skill 从[最新版索引](https://beatsad.github.io/quiet-tv/latest.json)的 `tools` 字段下载安装、推送及守护配置三项工具到同一私有目录并校验各自 SHA-256。规则及参数见[官方 Agent 安装说明](https://github.com/BeatsAD/quiet-tv/blob/main/docs/AGENT_INSTALL.zh-CN.md#tcl雷鸟安装受限候选方案)。读取失败时报告未取得工具，不假装执行。以 `--relay-apk`、`--relay-sha256` 传入同版本同签名候选，或直接为已装 relay 传入其更新包；默认预览，`--apply` 才执行。
+
+relay 通过多屏互动推送，电视用户确认同意后安装；电脑只在环回提供该 APK，只清理本次创建的 ADB reverse。多屏不可用时转当贝／电视文件管理器；拒绝或结果不明时停止。安装后核对实际 APK，先试用，再询问是否以现有桌面守护接管，使用 `configure_home_guard.py` 完成首次授权。保留原 HOME，不接管屏保，不开 ADB 常驻，按实际支持的 TCL AppOps 放行自启动；未知固件仍须实体 HOME、重启及待机唤醒验证。
+
+临时停用系统安装器是独立替代方案，仅用户明确同意后提供 `--allow-temporary-installer-disable`；不从普通安装请求推定，也不在多屏互动被拒绝后自动使用。脚本始终使用同一目标、已核对用户、已核验 APK 和全新私有记录目录。
 
 默认预览不修改电视；执行时正常安装失败后，仅根据本次日志中本包的 LauncherStrategy 拦截判断是否重试。临时停用无论成败均通过 `finally` 恢复原启用值，并读回；恢复待确认时优先用 `--restore-record`，不重放安装。APK 校验成功与实体 HOME、重启及待机验收仍分开。脚本不更改原桌面、不清数据、不操作其他系统包；不要改用上游报告中另一个 QuietTV 的包名。
 

@@ -54,7 +54,28 @@ Agent 直接使用固定请求时，须通过本机终端读取 `latest.json`，
 
 依据是 cleanyourtv 社区 [#683](https://github.com/Gathin23/cleanyourtv/issues/683)：`t982_ar31a8`、Android 11、固件 `RQ3A.210705.001.2024111116` 上报告了可逆的安装办法。该 Issue 的维护者将绕过安装限制列为项目范围之外，未集成到官方安装脚本；报告中的 `local.quiettv.launcher` 不是本项目的 `home.quiet.tv`，其成功记录不计入 Quiet TV 验收。
 
-### 识别实际失败
+### 默认路线：relay 包与现有桌面守护
+
+用户继续使用本页开头的原安装请求，无需更换指令或手工填写命令。Agent 识别为 TCL／雷鸟且安装受限时，优先走已发布 relay 包的多屏互动／电视端安装路线；临时停用安装器保留为用户单独选择的替代办法，不自动串联尝试。
+
+1. **选包**：从实时 `latest.json` 的 `releases[].assets[]` 读取 `homeMode=relay`、实际 URL、SHA-256、版本、最低 API、ABI 和签名等配置。`homeMode` 来自与附件匹配的签名更新清单；`unknown` 表示历史附件尚未确认，须读取实际 APK。不能根据品牌或文件名中的“实验”推断；APK 查询声明也可能包含 HOME，必须检查 Activity 的 intent-filter。relay 复用现有主程序与守护，包名仍为 `home.quiet.tv`，不登记为系统 HOME 候选。
+2. **保护更新**：首次安装可先尝试普通包，同时准备同版本同签名的 relay 候选；已装 relay 的更新只选符合升级条件的 relay 包。已有普通 HOME 包不自动覆盖为 relay，以免移除当前 HOME 入口；需要迁移时先另行说明。本次发布没有适配 relay 附件时，明确报告缺少可用包，不拿普通包冒充，也不自动重打包、改签名或退回旧版。
+3. **取得工具**：从同一次 `latest.json` 的 `tools` 字段下载 `install_tcl.py`、`tcl_cast.py`、`configure_home_guard.py` 到同一私有目录，并逐文件核对所列 SHA-256。安装站点构建同时输出这三项工具；缺项、下载失败或校验不符就停止依赖步骤，不让用户改用一串手工命令。源码工作区可直接使用对应 `scripts/` 文件。
+4. **安装**：确认目标、电脑 ADB 授权、用户、APK 和记录位置后，先运行下面的预览；预览通过再加 `--apply`。普通包被本机 TCL 校验拒绝时，工具改用核验过的 relay；直接指定 relay 时也先尝试普通 ADB 安装。失败后使用目标电视的系统多屏互动，通过6553端口推送和仅绑定电脑 `127.0.0.1` 的 APK 服务、以及本次新建的 ADB reverse 下载；不公开电脑目录，不覆盖已有转发。电视出现提示时让用户选择“同意”。用户拒绝、已发起后的断连或结果不明时停止，不自动换渠道重装。
+5. **电视端回退**：多屏互动不存在、端口不可用或目标用户不适用时，工具将 relay APK 暂存到电视 Download 的唯一新路径，尝试打开当前用户的当贝安装包管理，并等待电视端安装。让用户在当贝或文件管理器选择该文件并确认；不按固定坐标点击，不删除旧文件。超时标为未确认，保留暂存文件及记录；后续可重新核验已经安装的同一 APK，不强制重装。
+6. **试用及守护**：安装后拉回实际 APK 核对版本、HOME 形态及 SHA-256，再打开 Quiet TV 试用。用户同意兼容接管后，复用[电脑守护配置](SETUP.md#通过电脑配置守护)，运行 `configure_home_guard.py` 的预览及 `--apply`。该工具检测 TCL 实际支持的自启动／关联启动 AppOps 并保存原值，不硬编码操作数字。保留原系统 HOME、其他无障碍服务和用户的暂停状态；首次启用需明确同意，普通安装或只更新不自动开启已暂停守护。服务配置、绑定、实体 HOME、重启、冷启动和待机唤醒分别验收，不顺带接管系统屏保或保持 ADB 常开。
+
+首次安装的预览示例，变量由 Agent 从本次实际数据填写；只有普通包与 relay 候选都已核验时才提供两组 APK 参数。已装 relay 的更新直接将 `--apk` 指向相应 relay，不同时提供普通包：
+
+```sh
+python3 scripts/install_tcl.py --serial "$TV_SERIAL" --user "$TV_USER" \
+  --apk "$APK_PATH" --sha256 "$EXPECTED_SHA256" \
+  --relay-apk "$RELAY_APK_PATH" --relay-sha256 "$RELAY_SHA256" --record "$NEW_PREVIEW_DIR"
+```
+
+执行时使用全新记录目录并加 `--apply`，无需 `--allow-temporary-installer-disable`。网络 ADB 自动沿用该目标 IP；USB ADB 由 Agent 读取电视地址并用 `--tcast-host` 指定，脚本会与目标实际网卡地址核对。电脑 ADB 不可用时，本工具不能完成安装后核验或守护配置；可说明电视允许的手动安装路径，不能将“APK 能装”说成“已完成桌面接管”。
+
+### 识别实际失败（临时停用安装器的独立方案）
 
 - 普通安装返回 `INSTALL_FAILED_VERIFICATION_FAILURE` 时保留输出，并采集该次安装前后的系统日志。若出现 `com.android.packageinstaller.verifier.strategy.LauncherStrategy`、`fetch signature info from :com.tcl.cyberui`、`The installing app not support tcl ui tab !` 或同类明确桌面校验信息，可向用户提供下方临时安装方案。仅有通用错误码时继续只读取证，不推定同一原因。
 - Android 版本过低、架构不匹配、空间不足、签名冲突和降级仍按各自错误处理。旧固件的 `INSTALL_PARSE_FAILED_INCONSISTENT_CERTIFICATES`／`disable install launcher app not signature by tcl` 是另一类解析期限制，不能据此套用本分支。
@@ -98,7 +119,7 @@ python3 scripts/install_tcl.py --serial "$TV_SERIAL" --user "$TV_USER" \
 
 交付时分别记录“品牌候选匹配、错误依据、固件信息完整度、安装结果、安装器原状态与恢复读回、已安装包校验、HOME 及电源验收”。具体设备验证完成前，一律标为“候选方案，Quiet TV 真机待验证”，后续固件日志作为补充证据；一次成功不升级为整个 TCL 品牌支持。
 
-Aerial 的另一条路线是[不声明 HOME 的 guard 包、电视端安装渠道及守护接管](https://github.com/pengchujin/aerial-tv/blob/main/docs/devices/tcl-mt5879-cn.md)。本项目开发源码已有 `quietHomeMode=relay` 的无 HOME 构建模式及独立守护配置；这不代表当前已发布附件提供该包。TCL 助手先复用现有 APK，未自动构建 relay、部署守护或配置多屏互动。临时安装方案不适用或失败时保留现场，说明剩余限制。
+默认 relay 路线参考 [Aerial 的 TCL 安装实现](https://github.com/pengchujin/aerial-tv/blob/main/docs/devices/tcl-mt5879-cn.md)，复用本项目 `quietHomeMode=relay` 及现有守护。工具代码、索引支持和具体 relay APK 是否已发布须分别确认；源码存在不等于用户的当前发布已提供对应包。两条路线均不适用时保留现场，说明剩余限制。
 
 ## 已有安装：只更新
 

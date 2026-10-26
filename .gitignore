@@ -52,6 +52,7 @@ __pycache__/
 !/scripts/check_contribution.py
 !/scripts/configure_home_guard.py
 !/scripts/install_tcl.py
+!/scripts/tcl_cast.py
 !/scripts/validate_profiles.py
 !/scripts/restore_local_development.py
 /build-and-install.command

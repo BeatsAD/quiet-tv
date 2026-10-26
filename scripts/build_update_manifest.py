@@ -45,7 +45,7 @@ def artifact(receipt, url, channel, version):
     sdk = next(line[8:] for line in (ROOT / 'local.properties').read_text().splitlines() if line.startswith('sdk.dir='))
     aapt = sorted((Path(sdk) / 'build-tools').glob('*/aapt2'))[-1]
     tree = subprocess.check_output([str(aapt), 'dump', 'xmltree', str(apk), '--file', 'AndroidManifest.xml'], text=True)
-    home_mode = 'standard' if 'android.intent.category.HOME' in tree else 'relay'
+    home_mode = build_apk.manifest_home_mode(tree)
     if record.get('home_mode', home_mode) != home_mode:
         raise ValueError('归档 HOME 形态不一致')
     return {
