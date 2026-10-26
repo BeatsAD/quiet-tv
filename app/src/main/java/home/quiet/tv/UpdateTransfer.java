@@ -22,7 +22,13 @@ final class UpdateTransfer {
     UpdateTransfer(Connection factory,Clock clock){this.factory=factory;this.clock=clock;}
     void cancel(){cancelled=true;HttpURLConnection request=active;if(request!=null)request.disconnect();}
     private void alive()throws InterruptedIOException{if(cancelled||Thread.currentThread().isInterrupted())throw new InterruptedIOException("Update cancelled");}
-    static List<Integer> sources(int preferred){List<Integer> result=new ArrayList<>();if(preferred>=0&&preferred<SOURCES.length)result.add(preferred);for(int n=0;n<SOURCES.length;n++)if(!result.contains(n))result.add(n);return result;}
+    static List<Integer> sources(int preferred){
+        List<Integer> result=new ArrayList<>();int direct=SOURCES.length-1;
+        // A remembered direct success must never take priority over mirrors.
+        if(preferred>=0&&preferred<direct)result.add(preferred);
+        for(int n=0;n<direct;n++)if(!result.contains(n))result.add(n);
+        result.add(direct);return result;
+    }
     static String address(int source,String origin){return source<0?PAGES:SOURCES[source]+origin;}
     static boolean allowed(URL url){
         String host=url.getHost().toLowerCase(Locale.ROOT);
@@ -63,8 +69,9 @@ final class UpdateTransfer {
     void manifest(int preferred,ManifestConsumer consumer)throws IOException{
         ScheduledFuture<?> deadline=WATCHDOG.schedule(this::cancel,40000,TimeUnit.MILLISECONDS);
         try{
-            long end=clock.now()+40000;List<Integer> order=new ArrayList<>();order.add(-1);order.add(SOURCES.length-1);
-            for(int source:sources(preferred))if(!order.contains(source))order.add(source);
+            long end=clock.now()+40000;List<Integer> order=sources(preferred);
+            // Both GitHub-hosted fallbacks follow every mirror, with Raw last.
+            order.add(order.size()-1,-1);
             IOException last=null;byte[] best=null;long revision=-1;int bestSource=-1,verified=0;
             String nonce="?quietCheck="+System.currentTimeMillis();
             for(int source:order){
@@ -75,7 +82,7 @@ final class UpdateTransfer {
                     while((count=response.input.read(buffer))!=-1){alive();if(clock.now()>=end)throw new SocketTimeoutException();if(output.size()+count>UpdateManifest.MAX_BYTES)throw new IOException("Update manifest too large");output.write(buffer,0,count);}
                     byte[] bytes=output.toByteArray();long candidate=consumer.verified(bytes,source);verified++;
                     if(candidate>revision){best=bytes;revision=candidate;bestSource=source;}
-                    // Compare independently hosted Pages and Raw, instead of accepting a valid but stale first reply.
+                    // Compare two independently fetched signed manifests instead of accepting a stale first reply.
                     if(verified>=2)break;
                 }catch(IOException e){last=e;}
             }
