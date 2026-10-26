@@ -26,8 +26,8 @@ android {
         buildConfigField 'String', 'UPDATE_COMPATIBILITY', '"' + compatibility + '"'
         buildConfigField 'String', 'UPDATE_ABI', '"' + providers.gradleProperty('quietAbi').getOrElse('universal') + '"'
         targetSdk 36
-        versionCode providers.gradleProperty('quietBuildNumber').getOrElse('68').toInteger()
-        versionName '1.2.5'
+        versionCode providers.gradleProperty('quietBuildNumber').getOrElse('72').toInteger()
+        versionName '1.3.0'
     }
     buildFeatures { buildConfig true }
     // Keep historical source media and superseded generated QR PNGs out of APK assets.

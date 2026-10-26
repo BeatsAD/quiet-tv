@@ -104,13 +104,13 @@ def archive_apk(summary, built_at=None, output_dir=None, abi='universal', archiv
         raise ValueError('归档仅支持三段版本号及正整数构建号的 Quiet TV 主程序')
     if compatibility not in COMPATIBILITY or (compatibility == 'legacy19' and min_sdk != 19) or (compatibility == 'standard' and min_sdk < 21):
         raise ValueError('兼容档位与 APK 最低系统不符')
-    system = {19: '安卓4.4', 21: '安卓5+', 23: '安卓6+', 26: '安卓8+', 31: '安卓12+'}[min_sdk]
+    system = {19: '安卓4.4', 21: '安卓5及以上', 23: '安卓6及以上', 26: '安卓8及以上', 31: '安卓12及以上'}[min_sdk]
     abi_names = {'armeabi-v7a': 'ARM32', 'arm64-v8a': 'ARM64', 'x86': 'x86', 'x86_64': 'x86_64'}
-    architecture = abi_names[packaged_abis[0]] if len(packaged_abis) == 1 else ('通用' if packaged_abis else '')
+    architecture = abi_names[packaged_abis[0]] if len(packaged_abis) == 1 else ''
     suffix = '_' + architecture if architecture else ''
-    status = '实验' if home_mode == 'relay' else '测试'
-    public_name = f"QuietTV_{actual['version_name']}_{system}{suffix}_{status}.apk"
+    status = '实验版' if home_mode == 'relay' else '测试版'
     name = f"QuietTV_{actual['version_name']}-{actual['version_code']}_{system}{suffix}_{status}.apk"
+    public_name = name
     destination = Path(archive_dir or ROOT / 'dist/apk') / name
     receipt = destination.with_suffix('.json')
     checksum = destination.with_name(destination.name + '.sha256')
