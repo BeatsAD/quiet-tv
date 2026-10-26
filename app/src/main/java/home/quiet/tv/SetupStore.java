@@ -23,7 +23,11 @@ final class SetupStore {
     }
     void baseline(String previousHome,String originalHome) throws Exception {synchronized(LOCK){JSONObject record=get();if(!record.has("baseline"))put("baseline",new JSONObject().put("previousHome",previousHome).put("originalHome",originalHome).put("time",System.currentTimeMillis()));
         else if(record.getJSONObject("baseline").optString("originalHome").isEmpty() && !originalHome.isEmpty())put("baseline",record.getJSONObject("baseline").put("originalHome",originalHome));}}
-    String originalHome() throws Exception {JSONObject baseline=get().optJSONObject("baseline");return baseline==null?"":baseline.optString("originalHome");}
+    String originalHome() throws Exception {
+        JSONObject record=get(),takeover=record.optJSONObject("takeover");
+        if(takeover!=null && !takeover.optString("original").isEmpty())return takeover.getString("original");
+        JSONObject baseline=record.optJSONObject("baseline");return baseline==null?"":baseline.optString("originalHome");
+    }
     boolean shouldOffer(Context context) throws Exception {
         synchronized(LOCK){JSONObject record=get();if(record.has("status"))return false;
             android.content.pm.PackageInfo info=context.getPackageManager().getPackageInfo(context.getPackageName(),0);

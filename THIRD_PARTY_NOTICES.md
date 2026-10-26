@@ -1,5 +1,17 @@
 # 第三方项目与资源说明
 
+## 桌面接管机制参考
+
+新增 HOME 事务、厂商属性路由、TCL 策略编辑及 Fire OS 观察入口按 Quiet TV 现有结构独立实现，没有引入这些项目的运行库或整套守护。相关系统行为与故障证据参考：
+
+- [Free My TV：JM 私有 HOME 路由实测](https://github.com/simbasjungles/free-my-tv/pull/230)，及其 `90908dc5bce178feb52e9868947cc039c64730fc` 的 HOME 管理行为。
+- [Aerial：Hisense VIDAA 设备记录](https://github.com/pengchujin/aerial-tv/blob/ae01e48f4f932c60bc84a59a95f449d4d767dff2/docs/devices/hisense-vidaa.md)，区分标准 HOME、私有属性和冷启动。
+- [dumbtv](https://github.com/humblemuzzu/dumbtv/tree/225bb00cc80228d69a793c3be49c0c8c8afa533a)：Google TV 竞争 HOME 顺序、Fire OS 6 用量观察与任务恢复。
+- [TCL Guard Manager](https://github.com/eliotcougar/tcl-guard-manager/tree/49a1fa63a4bcfeebd2c64d2b347c13d01c431e11)：TCL Provider 字段、开机组件及不同策略版本的有效性限制。
+- [UnitedU](https://github.com/GordonWang1878/UnitedU-launcher/blob/fd0bdc330395abd30616d8d328bb913f41dc651a/app/src/main/java/com/uniteduone/launcher/HomeKeyPolicy.kt)：系统屏保放行及同次 HOME 按键配对的故障分析。
+
+上游报告的验证范围属于原项目和对应设备，不构成 Quiet TV 在其他固件上的验收结论。已有直接引用代码和资源继续保留各节原有许可声明。
+
 ## tv-vibehack
 
 - 原项目：[Gathin23/tv-vibehack](https://github.com/Gathin23/tv-vibehack)

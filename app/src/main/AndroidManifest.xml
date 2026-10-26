@@ -67,6 +67,7 @@
             <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
             <meta-data android:name="android.accessibilityservice" android:resource="@xml/home_guard" />
         </service>
+        <service android:name=".HomeGuardUsageService" android:exported="false" android:enabled="${homeGuardAvailable}" />
         <service android:name=".HomeGuardRevivalListener" android:exported="true" android:directBootAware="true"
             android:enabled="${homeGuardAvailable}" android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" android:label="@string/home_guard_revival_name">
             <intent-filter><action android:name="android.service.notification.NotificationListenerService" /></intent-filter>

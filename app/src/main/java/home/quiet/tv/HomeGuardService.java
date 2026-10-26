@@ -37,7 +37,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     private void updateKeyFilter(){
         AccessibilityServiceInfo info=getServiceInfo();if(info==null)return;
         int flag=AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS;
-        boolean wanted=filterHome();int flags=wanted?info.flags|flag:info.flags&~flag;
+        boolean wanted=filterHome() || homeKeys.pressed();int flags=wanted?info.flags|flag:info.flags&~flag;
         if(flags!=info.flags){info.flags=flags;setServiceInfo(info);DiagnosticLog.info("home_guard.key_filter","enabled="+wanted);}
         keyFiltering=wanted;
         if(!wanted)homeKeys.reset();
@@ -45,12 +45,14 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     @Override protected boolean onKeyEvent(KeyEvent event){
         // Every other key passes through, including volume, directions and power.
         if(event.getKeyCode()!=KeyEvent.KEYCODE_HOME)return false;
-        if(!homeKeys.pressed() && !filterHome())return false;
+        if(event.getAction()==KeyEvent.ACTION_DOWN && homeKeys.passed(event.getDownTime()))return false;
+        if(!homeKeys.pressed() && !filterHome()){if(event.getAction()==KeyEvent.ACTION_DOWN)homeKeys.pass(event.getDownTime());return false;}
         if(event.getAction()==KeyEvent.ACTION_DOWN){homeKeys.down(event.getDownTime());return true;}
         if(event.getAction()!=KeyEvent.ACTION_UP)return homeKeys.pressed();
         if(!homeKeys.pressed())return false;
         int action=homeKeys.up(event.getEventTime(),event.isCanceled() || !usable() || !HomeGuardState.canShow(this),
                 ViewConfiguration.getLongPressTimeout(),ViewConfiguration.getDoubleTapTimeout());
+        updateKeyFilter();
         if(action==HomeKeyPolicy.RECENTS){cancel();performGlobalAction(GLOBAL_ACTION_RECENTS);}
         else if(action==HomeKeyPolicy.HOME){
             allowStock=false;cancel();policy.clear();transitionUntil=0;
@@ -122,7 +124,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     @android.annotation.SuppressLint({"ObsoleteSdkInt","InlinedApi"})
     private UsageEvents.Event latestUsage(){return latestUsage(this,HomeGuardPolicy.bootRecheck(SystemClock.elapsedRealtime())?HomeGuardPolicy.BOOT_WINDOW_MS:HomeGuardPolicy.USAGE_LOOKBACK_MS);}
     @android.annotation.SuppressLint({"ObsoleteSdkInt","InlinedApi"})
-    private static UsageEvents.Event latestUsage(Context context,long lookback){
+    static UsageEvents.Event latestUsage(Context context,long lookback){
         if(Build.VERSION.SDK_INT<21 || !usageAllowed(context))return null;
         long now=System.currentTimeMillis();UsageEvents.Event latest=null;
         try{
@@ -209,6 +211,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         if(SystemClock.elapsedRealtime()<HomeGuardPolicy.BOOT_WINDOW_MS || HomeGuardRecovery.unknownAllowed(this))schedule("服务连接");
     }
     static boolean connected(){return instance!=null;}
+    static void dreamChanged(){HomeGuardService service=instance;if(service!=null){service.cancel();service.policy.ignoreUsageThrough(System.currentTimeMillis());service.updateKeyFilter();service.refreshUsageWatch();}}
     static boolean keyFiltering(){HomeGuardService service=instance;return service!=null && service.keyFiltering;}
     static boolean homeResumed(){return homeResumed;}
     static void homeResumed(boolean value){
@@ -217,8 +220,8 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     }
     static void cancelPending(){HomeGuardService service=instance;if(service!=null){Runnable cancel=()->{service.cancel();service.cancelRecoveryChecks();};if(Looper.myLooper()==Looper.getMainLooper())cancel.run();else service.handler.post(cancel);}}
     static void lifecycle(String reason){HomeGuardService service=instance;if(service!=null){service.schedule(reason);service.refreshUsageWatch();service.scheduleBootRechecks();service.scheduleSilentCheck();}}
-    static void allowOriginal(){HomeGuardService service=instance;if(service!=null){service.allowStock=true;service.cancel();}}
-    static void homeVisible(){HomeGuardService service=instance;if(service!=null){service.allowStock=false;service.lastActivity=new ComponentName(service,HomeActivity.class).flattenToString();service.lastActivityAt=System.currentTimeMillis();service.policy.confirmed();service.cancel();}}
+    static void allowOriginal(){HomeGuardUsageService.allowOriginal();HomeGuardService service=instance;if(service!=null){service.allowStock=true;service.cancel();}}
+    static void homeVisible(){HomeGuardUsageService.visible();HomeGuardService service=instance;if(service!=null){service.allowStock=false;service.lastActivity=new ComponentName(service,HomeActivity.class).flattenToString();service.lastActivityAt=System.currentTimeMillis();service.policy.confirmed();service.cancel();}}
     private void cancel(){handler.removeCallbacks(handover);handler.removeCallbacks(homeKeyHandover);}
     private void schedule(String reason){
         cancel();if(state==null || !state.enabled())return;

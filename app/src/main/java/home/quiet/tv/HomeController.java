@@ -51,7 +51,8 @@ final class HomeController {
         State state=new State();state.ownUsable=ownEntryUsable();
         if(component(presets.home(),false))state.original=presets.home();
         if(state.original.isEmpty()){
-            String saved=new SetupStore(context).originalHome();if(component(saved,false))state.original=saved;
+            SetupStore store=new SetupStore(context);org.json.JSONObject takeover=store.get().optJSONObject("takeover");
+            String saved=takeover==null?store.originalHome():takeover.optString("original");if(component(saved,false))state.original=saved;
         }
         state.roleAvailable=BuildConfig.DECLARES_HOME && requestIntent()!=null;
         state.connected=adb!=null && adb.connected();

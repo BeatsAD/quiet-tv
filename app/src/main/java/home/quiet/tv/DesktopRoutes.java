@@ -42,11 +42,19 @@ final class DesktopRoutes {
         HomeGuardRecovery.request(context,"直接 HOME 开机补偿");
         state.status("系统 HOME 已设置，开机补偿待核对");
     }
+    void directOnly(){
+        if(!BuildConfig.DECLARES_HOME)throw new IllegalStateException("此兼容包只能使用原桌面中转");
+        HomeGuardRecovery.cancel();HomeGuardService.cancelPending();HomeGuardSync.pause(context);HomeGuardUsageService.pause(context);
+        edit().putString("routeHome","DIRECT").putString("relaySource","").putString("mode","AUTO")
+                .putBoolean("configured",true).putBoolean("observeHome",false)
+                .remove("routeTest_home").remove("routeTest_reboot").remove("routeTest_coldBoot").remove("routeTest_wake").apply();
+        state.status("直接接管已配置，实体 HOME、开机与唤醒待验证");
+    }
     void observe(){SharedPreferences.Editor edit=edit();if(!"RELAY".equals(home()))edit.remove("routeTest_home").remove("routeTest_wake");edit.putString("routeHome","RELAY").putString("relaySource","OBSERVER").putBoolean("observeHome",true).apply();}
     void proxy(){
         edit().putString("routeHome","RELAY").putString("relaySource","PROXY").putBoolean("observeHome",false).putBoolean("configured",true)
                 .remove("routeTest_home").remove("routeTest_wake").commit();
-        HomeGuardRecovery.cancel();HomeGuardService.cancelPending();HomeGuardSync.pause(context);
+        HomeGuardRecovery.cancel();HomeGuardService.cancelPending();HomeGuardSync.pause(context);HomeGuardUsageService.pause(context);
     }
     boolean proxySelected(){return "PROXY".equals(prefs.getString("relaySource",""));}
     void resume(){
@@ -92,7 +100,12 @@ final class DesktopRoutes {
                     .put("recordedAt",recorded?prefs.getLong("routeTestAt_"+scene,0):0)
                     .put("evidenceId",recorded?prefs.getString("routeTestEvidence_"+scene,""):""));
         }
+        try{JSONObject takeover=new SetupStore(context).get().optJSONObject("takeover");
+            if(takeover!=null)snapshot.put("takeover",new JSONObject().put("recipe",takeover.optString("recipe")).put("state",takeover.optString("state"))
+                    .put("steps",takeover.optJSONArray("steps")).put("deviceAcceptance","separate_scene_evidence"));
+        }catch(Exception unavailable){snapshot.put("takeoverRecord","unreadable");}
         return snapshot.put("sceneEvidence",evidence).put("vendorBootProblem",vendorProblem())
+                .put("usageObserverBound",HomeGuardUsageService.connected()).put("tclPolicyStatus",prefs.getString("tclPolicyStatus","未配置"))
                 .put("accessibilityAllowed",state.serviceEnabled()).put("accessibilityBound",HomeGuardService.connected())
                 .put("usageRequired",HomeGuardService.usageRequired(context)).put("usageAllowed",HomeGuardService.usageAllowed(context))
                 .put("configurationProblem",HomeGuardRecovery.configurationProblem(context))
