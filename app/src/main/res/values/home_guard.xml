@@ -1,4 +1,6 @@
 <resources>
+    <string name="legacy_home_key_name">Quiet TV 主页键修复</string>
+    <string name="legacy_home_key_description">仅适用于海信 Hi3751 安卓4.4。将 HOME 按键交给 Quiet TV，不读取屏幕内容。可在系统无障碍设置中关闭。</string>
     <string name="home_guard_account_name">Quiet TV 桌面守护</string>
     <string name="home_guard_name">桌面守护（实验）</string>
     <string name="home_guard_revival_name">桌面守护自动恢复</string>

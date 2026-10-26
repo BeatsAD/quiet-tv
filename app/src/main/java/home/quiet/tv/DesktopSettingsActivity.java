@@ -24,7 +24,7 @@ public final class DesktopSettingsActivity extends ManagementUi implements Share
     private FrameLayout content;
     private LinearLayout desktop;
     private ScrollView desktopScroll;
-    private DesktopSettingsRow greeting;
+    private DesktopSettingsRow greeting,legacyHomeKey;
     private Button back,classic,gallery;
     private final LinkedHashMap<String,Button> tabs=new LinkedHashMap<>();
     private final Map<String,DisplayChoice> choices=new LinkedHashMap<>();
@@ -40,7 +40,7 @@ public final class DesktopSettingsActivity extends ManagementUi implements Share
             byte[] bytes=new byte[4096];int count;while((count=input.read(bytes))!=-1)out.write(bytes,0,count);
             JSONObject config=new JSONObject(out.toString("UTF-8"));chinese=!"en".equals(config.optString("language","zh"));fixedGreeting="home".equals(config.optString("greeting"));
         }catch(java.io.IOException|org.json.JSONException e){throw new IllegalStateException("Invalid bundled launcher configuration",e);}
-        desktopStore=new DesktopSettingsStore(this);weatherStore=new WeatherStore(this);
+        desktopStore=new DesktopSettingsStore(this);weatherStore=new WeatherStore(this);LegacyHomeKeyService.prepare(this);
         back=(Button)header.getChildAt(0);back.setId(View.generateViewId());back.setTag("back");back.setContentDescription(tr("返回","Back"));
         ((TextView)header.getChildAt(1)).setText(tr("桌面设置","Desktop Settings"));
         LinearLayout navigation=row();LinearLayout.LayoutParams np=new LinearLayout.LayoutParams(-1,px(44));np.topMargin=px(22);root.addView(navigation,np);
@@ -83,6 +83,15 @@ public final class DesktopSettingsActivity extends ManagementUi implements Share
         gap(controls,16);controls.addView(desktopLabel(tr("首页应用","Home apps")));LinearLayout homeApps=row();controls.addView(homeApps,new LinearLayout.LayoutParams(-1,px(38)));choice(homeApps,"home-apps",tr("首屏应用","Home apps"));choice(homeApps,"dock-background",tr("Dock 背景","Dock background"));
         gap(controls,16);controls.addView(desktopLabel(tr("第二屏应用","Second-screen apps")));LinearLayout allApps=row();controls.addView(allApps,new LinearLayout.LayoutParams(-1,px(38)));choice(allApps,"all-apps-names",tr("应用名称","App names"));
         gap(controls,16);controls.addView(desktopLabel(tr("快捷按钮","Quick buttons")));LinearLayout shortcuts=row();controls.addView(shortcuts,new LinearLayout.LayoutParams(-1,px(38)));choice(shortcuts,"input",tr("信号源","Inputs"));choice(shortcuts,"network",tr("网络","Network"));choice(shortcuts,"settings",tr("设置","Settings"));
+        if(LegacyHomeKeyService.supported()){
+            gap(controls,16);controls.addView(desktopLabel(tr("遥控器","Remote")));
+            legacyHomeKey=setting(tr("主页键修复","HOME key repair"),"tools","legacy-home-key");legacyHomeKey.compact();legacyHomeKey.tail("arrow");
+            legacyHomeKey.setOnClickListener(v->{
+                message(tr("在无障碍设置中开启“Quiet TV 主页键修复”，然后按实体主页键验证。","Enable Quiet TV HOME key repair in Accessibility, then test the remote HOME key."));
+                if(!ExternalActivityLauncher.open(this,"legacy_home_key.settings",new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)))message(tr("无法打开系统无障碍设置","Cannot open Accessibility settings"));
+            });
+            LinearLayout group=group();group.addView(legacyHomeKey,new LinearLayout.LayoutParams(-1,px(44)));controls.addView(group,new LinearLayout.LayoutParams(-1,-2));
+        }
         LinearLayout right=column();right.setGravity(Gravity.TOP);right.setPadding(0,px(1),0,0);LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(0,-1,1);rp.leftMargin=px(24);desktop.addView(right,rp);
         right.addView(desktopLabel(tr("首页实时预览","Live Home preview")));gap(right,8);
         preview=new HomePreviewView(this,chinese,fixedGreeting);preview.setBackground(surface(0xff0e0f13,0xff0e0f13,0x26ffffff,10));UiCompat.clipOutline(preview);right.addView(preview,new LinearLayout.LayoutParams(-1,-2));
@@ -93,6 +102,11 @@ public final class DesktopSettingsActivity extends ManagementUi implements Share
     private void wireDesktop(){
         View[][] rows={{classic,gallery},{choices.get("greeting"),choices.get("time"),choices.get("app-title")},{choices.get("date"),choices.get("weather")},{greeting},{choices.get("home-apps"),choices.get("dock-background")},{choices.get("all-apps-names")},{choices.get("input"),choices.get("network"),choices.get("settings")}};
         for(int r=0;r<rows.length;r++)for(int c=0;c<rows[r].length;c++){View v=rows[r][c];v.setNextFocusLeftId(rows[r][Math.max(0,c-1)].getId());v.setNextFocusRightId(rows[r][Math.min(rows[r].length-1,c+1)].getId());v.setNextFocusUpId(r==0?tabs.get("desktop").getId():rows[r-1][Math.min(c,rows[r-1].length-1)].getId());v.setNextFocusDownId(r==rows.length-1?v.getId():rows[r+1][Math.min(c,rows[r+1].length-1)].getId());}
+        if(legacyHomeKey!=null){
+            View[] shortcuts=rows[rows.length-1];for(View v:shortcuts)v.setNextFocusDownId(legacyHomeKey.getId());
+            legacyHomeKey.setNextFocusUpId(shortcuts[0].getId());legacyHomeKey.setNextFocusDownId(legacyHomeKey.getId());
+            legacyHomeKey.setNextFocusLeftId(legacyHomeKey.getId());legacyHomeKey.setNextFocusRightId(legacyHomeKey.getId());
+        }
     }
     private final class DisplayChoice extends Button implements Checkable {
         private boolean checked;
@@ -106,6 +120,9 @@ public final class DesktopSettingsActivity extends ManagementUi implements Share
         classic.setSelected("classic".equals(desktopStore.layout()));gallery.setSelected("gallery".equals(desktopStore.layout()));
         boolean[] checked={desktopStore.greetingEnabled(),desktopStore.showTime(),desktopStore.showAppTitle(),desktopStore.showDate(),weatherStore.enabled(),desktopStore.showHomeApps(),desktopStore.showDockBackground(),desktopStore.showAllAppsNames(),desktopStore.showInput(),desktopStore.showNetwork(),desktopStore.showSettings()};int i=0;for(DisplayChoice b:choices.values())b.setChecked(checked[i++]);
         String text=desktopStore.greetingText(fixedGreeting?tr("欢迎回家","Welcome home"):"");greeting.value(!desktopStore.greetingEnabled()?(desktopStore.avatarEnabled()?tr("仅头像","Avatar only"):tr("已关闭","Off")):text.isEmpty()?tr("跟随时间","By time"):text);
+        if(legacyHomeKey!=null)legacyHomeKey.value(!LegacyHomeKeyService.defaultHome(this)?tr("未设默认桌面","Set default Home first")
+                :!LegacyHomeKeyService.authorized(this)?tr("待开启","Off"):!LegacyHomeKeyService.connected()?tr("等待连接","Connecting")
+                :!LegacyHomeKeyService.filtering()?tr("按键过滤不可用","Key filter unavailable"):tr("已连接，待实测","Connected, test HOME"));
         if(preview!=null&&"desktop".equals(selectedSection))preview.refresh();
     }
     private View activeView(){return "desktop".equals(selectedSection)?desktopScroll:"weather".equals(selectedSection)?weather.view:guard.view;}
