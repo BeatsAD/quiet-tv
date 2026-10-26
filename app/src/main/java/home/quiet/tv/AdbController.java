@@ -22,7 +22,9 @@ import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 final class AdbController implements Closeable {
     /** A complete shell response with a nonzero exit is distinct from transport loss/cancellation. */
     static final class CommandFailure extends IOException {
-        CommandFailure(int exit,String body){super("命令失败（"+exit+"）："+body);}
+        final int exit;
+        final String output;
+        CommandFailure(int exit,String body){super("命令失败（"+exit+"）："+body);this.exit=exit;this.output=body;}
     }
     interface Status { void changed(String value); }
     enum Stage { IDLE, KEYS, PAIRING, PORT, HANDSHAKE, LOCAL, SHELL, USER, CAPABILITIES, CONNECTED }
