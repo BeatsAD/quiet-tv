@@ -11,7 +11,7 @@ public class QuietApplication extends Application {
         HomeGuardRecovery.request(this,"进程启动");
         registerActivityLifecycleCallbacks(new ActivityLifecycleCallbacks(){
             public void onActivityCreated(Activity activity,Bundle state){DiagnosticLog.info("page.create",activity.getClass().getSimpleName());}
-            public void onActivityResumed(Activity activity){DiagnosticLog.info("page.resume",activity.getClass().getSimpleName());if(activity instanceof HomeActivity)HomeGuardService.homeResumed(true);}
+            public void onActivityResumed(Activity activity){DiagnosticLog.info("page.resume",activity.getClass().getSimpleName());if(activity instanceof HomeActivity)HomeGuardService.homeResumed(((HomeActivity)activity).desktopInitialized());}
             public void onActivityPaused(Activity activity){DiagnosticLog.info("page.pause",activity.getClass().getSimpleName());if(activity instanceof HomeActivity)HomeGuardService.homeResumed(false);}
             public void onActivityStarted(Activity activity){}
             public void onActivityStopped(Activity activity){}

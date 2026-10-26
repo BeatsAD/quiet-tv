@@ -68,6 +68,9 @@ final class DiagnosticDeviceSnapshot {
         deviceField(info,"abis","CPU 架构",abis);
         deviceField(info,"appVersion","Quiet TV 版本",BuildConfig.VERSION_NAME);deviceField(info,"appBuild","Quiet TV 构建号",BuildConfig.VERSION_CODE);
         deviceField(info,"appPackage","Quiet TV 包名",context.getPackageName());
+        deviceField(info,"declaresHome","安装包声明 HOME",BuildConfig.DECLARES_HOME);
+        deviceField(info,"androidUser","当前进程 Android 用户",android.os.Process.myUid()/100000);
+        deviceField(info,"targetSdk","安装包目标 API",context.getApplicationInfo().targetSdkVersion);
         deviceField(info,"compatibility","兼容档位",BuildConfig.LEGACY_19?"legacy19":"com.coocaa.quiettv".equals(context.getPackageName())?"coocaa":"standard");
         deviceField(info,"minSdk","安装包最低 API",Build.VERSION.SDK_INT>=24?context.getApplicationInfo().minSdkVersion:null);
         deviceField(info,"homeProxyPackage","HOME 兼容助手包名",new HomeProxy(context).packageName());
@@ -130,6 +133,7 @@ final class DiagnosticDeviceSnapshot {
         Map<String,String> homes=new LinkedHashMap<>();
         homeCandidates(homes,Intent.CATEGORY_HOME);
         if(HomeGuardRecovery.knownPrivateHome())for(String category:new String[]{"android.intent.category.HOME.CC","android.intent.category.HOME.CC_MAIN","smartdevice.intent.category.LITE_HOME"})homeCandidates(homes,category);
+        for(String candidate:eligible)if(!homes.containsKey(candidate))homes.put(candidate,"已核对的系统私有组件，无标准 HOME 声明");
         line("查询范围","当前用户可见的 HOME 声明，含禁用或保留的未安装记录；不代表页面可启动");
         line("HOME 候选总数",Integer.toString(homes.size()));line("守护可选候选总数",Integer.toString(eligible.size()));
         int shown=0;
@@ -139,7 +143,7 @@ final class DiagnosticDeviceSnapshot {
             line(label+"声明类别",home.getValue());line(label+"可供守护选择",yes(eligible.contains(home.getKey())));
         }
         line("未展开候选数",Integer.toString(homes.size()-shown));
-        line("守护筛选规则","排除本应用、非系统应用、禁用应用或组件、android 包及 FallbackHome；有效选择还需固件一致");
+        line("守护筛选规则","排除本应用、非系统应用、禁用应用或组件、android 包及 FallbackHome；固件变化会重置场景验证，专项入口另核对固件");
     }
     private void homeCandidates(Map<String,String> homes,String category){
         for(ResolveInfo value:pm.queryIntentActivities(new Intent(Intent.ACTION_MAIN).addCategory(category),HomeController.METADATA)){
@@ -156,12 +160,15 @@ final class DiagnosticDeviceSnapshot {
         line("用户模式",state.preferences.getString("mode","未记录"));line("配置开关启用",yes(state.enabled()));
         line("无障碍守护就绪",yes(state.compatibleReady()));
         component("守护目标桌面",state.selected());
-        line("目标与固件有效",yes(state.validSelection()));
+        line("目标组件仍有效",yes(state.validSelection()));
         line("记录固件与当前一致",yes(Build.FINGERPRINT.equals(state.preferences.getString("firmware",""))));
         line("无障碍设置授权",yes(state.serviceEnabled()));line("无障碍服务已连接",yes(HomeGuardService.connected()));
+        String configurationProblem=HomeGuardRecovery.configurationProblem(context);
+        line("完整配置缺项",configurationProblem.isEmpty()?"未检测到缺项，场景效果仍待验证":configurationProblem);
+        line("厂商自启动配置（历史记录）",state.preferences.getString("vendorAutoStartStatus","未配置或未记录"));
         line("HOME 按键过滤请求",yes(HomeGuardService.keyFiltering()));line("首页生命周期前台",yes(HomeGuardService.homeResumed()));
         line("独立中转助手占用",yes(state.helperActive()));
-        line("兼容检测所需用量权限",HomeGuardService.usageRequired()?yes(HomeGuardService.usageAllowed(context)):"本档位不需要");
+        line("兼容检测所需用量权限",HomeGuardService.usageRequired(context)?yes(HomeGuardService.usageAllowed(context)):"本档位不需要");
         line("恢复所需写安全设置权限",yes(HomeGuardRecovery.writeAllowed(context)));
         line("通知辅助恢复支持",yes(HomeGuardRecovery.notificationSupported(context)));
         line("通知访问授权",yes(HomeGuardRecovery.notificationAllowed(context)));

@@ -138,16 +138,17 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         }catch(SecurityException|IllegalStateException failure){return null;}
         return latest;
     }
-    static boolean usageRequired(){return HomeGuardPolicy.usageEvidence(Build.MANUFACTURER,Build.BRAND,Build.VERSION.SDK_INT,BuildConfig.LEGACY_19);}
+    static boolean usageRequired(Context c){return HomeGuardPolicy.usageEvidence(Build.MANUFACTURER,Build.BRAND,Build.VERSION.SDK_INT,BuildConfig.LEGACY_19,new HomeGuardState(c,false).selected());}
     static boolean usageAllowed(Context c){
-        if(!usageRequired())return false;
+        if(!usageRequired(c))return false;
         AppOpsManager manager=(AppOpsManager)c.getSystemService(Context.APP_OPS_SERVICE);
         try{return manager!=null && manager.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS,android.os.Process.myUid(),c.getPackageName())==AppOpsManager.MODE_ALLOWED;}
         catch(SecurityException failure){return false;}
     }
     private boolean watchUsage(){return state!=null && state.enabled() && HomeGuardState.canShow(this)
-            && HomeGuardPolicy.usageFallback(Build.VERSION.SDK_INT,BuildConfig.LEGACY_19) && usageAllowed(this);}
+            && HomeGuardPolicy.usageFallback(Build.VERSION.SDK_INT,BuildConfig.LEGACY_19,state.selected()) && usageAllowed(this);}
     static boolean bootHomeObserved(Context context){
+        if(Build.VERSION.SDK_INT<21)return false;
         HomeGuardState state=new HomeGuardState(context,false);UsageEvents.Event latest=latestUsage(context,HomeGuardPolicy.BOOT_WINDOW_MS);
         return latest!=null && HomeGuardPolicy.matches(state.eventHome(),latest.getPackageName(),latest.getClassName());
     }
@@ -164,7 +165,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         HomeGuardRecovery.launch(this,"HOME 动作");
     };
     private final Runnable handover=()->{
-        if(!usable() || !HomeGuardState.canShow(this) || allowStock){DiagnosticLog.info("home_guard.settle","source="+settleReason+" decision=conditions_unavailable allowOriginal="+allowStock);return;}
+        if(Build.VERSION.SDK_INT<21 || !usable() || !HomeGuardState.canShow(this) || allowStock){DiagnosticLog.info("home_guard.settle","source="+settleReason+" decision=conditions_unavailable allowOriginal="+allowStock);return;}
         UsageEvents.Event latest=latestUsage();
         boolean fresh=latest!=null && latest.getTimeStamp()>=lastActivityAt && latest.getPackageName()!=null && latest.getClassName()!=null;
         if(fresh)

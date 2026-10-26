@@ -43,9 +43,9 @@ final class HomeGuardSync {
         }catch(SecurityException|IllegalArgumentException failure){status(state,"系统不允许配置同步恢复");DiagnosticLog.error("home_guard.sync.setup_failed",failure);}
     }
     private static void status(HomeGuardState state,String text){if(!text.equals(state.preferences.getString("syncRecoveryStatus","")))state.preferences.edit().putString("syncRecoveryStatus",text).apply();}
-    static String summary(Context c){return new HomeGuardState(c).preferences.getString("syncRecoveryStatus","尚未配置");}
+    static String summary(Context c){return new HomeGuardState(c,false).preferences.getString("syncRecoveryStatus","尚未配置");}
     static boolean ready(Context c){
-        if(!supported(c) || !HomeGuardState.unlocked(c) || !new HomeGuardState(c).ready() || !HomeGuardRecovery.writeAllowed(c))return false;
+        if(!supported(c) || !HomeGuardState.unlocked(c) || !new HomeGuardState(c,false).ready() || !HomeGuardRecovery.writeAllowed(c))return false;
         try{Account own=account(c);return ContentResolver.getMasterSyncAutomatically() && ContentResolver.getIsSyncable(own,AUTHORITY)>0 && ContentResolver.getSyncAutomatically(own,AUTHORITY);}
         catch(SecurityException|IllegalArgumentException failure){return false;}
     }

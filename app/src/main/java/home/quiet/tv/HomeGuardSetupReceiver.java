@@ -11,10 +11,22 @@ public final class HomeGuardSetupReceiver extends BroadcastReceiver {
     @Override public void onReceive(Context context,Intent intent){
         setResultCode(Activity.RESULT_CANCELED);
         if(intent==null || !(context.getPackageName()+".CONFIGURE_HOME_GUARD").equals(intent.getAction()))return;
-        HomeGuardState state=new HomeGuardState(context);
+        HomeGuardState state=new HomeGuardState(context,false);
         try{
-            if(!state.supported() || !HomeGuardState.unlocked(context))throw new IllegalStateException("系统档位不支持或尚未解锁");
             if(intent.getIntExtra("user",-1)!=android.os.Process.myUid()/100000)throw new IllegalStateException("目标用户不一致");
+            if(intent.getBooleanExtra("inspect",false)){
+                org.json.JSONArray candidates=new org.json.JSONArray();
+                for(HomeGuardState.Candidate candidate:state.candidates())candidates.put(candidate.component.flattenToString());
+                android.content.pm.ResolveInfo resolved=context.getPackageManager().resolveActivity(HomeController.homeIntent(),android.content.pm.PackageManager.MATCH_DEFAULT_ONLY);
+                String resolvedHome=resolved==null || resolved.activityInfo==null?"":new ComponentName(resolved.activityInfo.packageName,resolved.activityInfo.name).flattenToString();
+                setResultData(new JSONObject().put("schemaVersion",1).put("package",context.getPackageName())
+                    .put("supported",state.supported()).put("selected",state.selected()).put("candidates",candidates).put("resolvedHome",resolvedHome)
+                    .put("usageRequired",HomeGuardService.usageRequired(context)).put("accessibilityAllowed",state.serviceEnabled())
+                    .put("accessibilityBound",HomeGuardService.connected()).put("physicalHomeVerified",false).toString());
+                setResultCode(Activity.RESULT_OK);return;
+            }
+            if(!state.supported() || !HomeGuardState.unlocked(context))throw new IllegalStateException("系统档位不支持或尚未解锁");
+            state=new HomeGuardState(context);
             if(intent.getBooleanExtra("pause",false)){
                 state.pause("电脑暂停中转");setResultData(new DesktopRoutes(context).snapshot().toString());if(!state.preferences.getBoolean("proxyPausePending",false))setResultCode(Activity.RESULT_OK);return;
             }
@@ -35,8 +47,9 @@ public final class HomeGuardSetupReceiver extends BroadcastReceiver {
             String problem=HomeGuardRecovery.configurationProblem(context);
             JSONObject result=new JSONObject();
             result.put("configured",problem.isEmpty());result.put("enabled",state.enabled());
+            result.put("physicalHomeVerified",false);
             result.put("accessibilityAllowed",state.serviceEnabled());result.put("accessibilityBound",HomeGuardService.connected());
-            result.put("usageRequired",HomeGuardService.usageRequired());result.put("usageAllowed",HomeGuardService.usageAllowed(context));
+            result.put("usageRequired",HomeGuardService.usageRequired(context));result.put("usageAllowed",HomeGuardService.usageAllowed(context));
             result.put("notificationSupported",HomeGuardRecovery.notificationSupported(context));
             result.put("syncRecoveryReady",HomeGuardSync.ready(context));
             result.put("notificationAllowed",HomeGuardRecovery.notificationAllowed(context));result.put("notificationBound",HomeGuardRevivalListener.connected());
