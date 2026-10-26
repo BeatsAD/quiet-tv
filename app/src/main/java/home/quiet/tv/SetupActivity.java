@@ -330,10 +330,11 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
                 routes.directOnly();openHome("系统默认桌面已配置");return;
             }
             routes.configureAvailableVendor();
-            if(HomeGuardRecovery.configurationProblem(this).isEmpty()){HomeGuardRecovery.request(this,"直接 HOME 配置完成");openHome("系统 HOME 已设置，"+HomeGuardRecovery.configuredSummary(this));return;}
+            if(HomeGuardRecovery.configurationProblem(this).isEmpty() && !HisenseGuardRefresh.needsShell(this)){HomeGuardRecovery.request(this,"直接 HOME 配置完成");openHome("系统 HOME 已设置，"+HomeGuardRecovery.configuredSummary(this));return;}
             notice="系统默认桌面已设置，正在补齐开机恢复配置。";
             if(HomeGuardRecovery.writeAllowed(this) && HomeGuardRecovery.systemWriteAllowed(this)
-                    && !HomeGuardAppOps.tcl(Build.MANUFACTURER,Build.BRAND)){
+                    && !HomeGuardAppOps.tcl(Build.MANUFACTURER,Build.BRAND)
+                    && !HisenseGuardRefresh.needsShell(this)){
                 HomeGuardRecovery.configureGranted(this);
                 if(HomeGuardRecovery.configurationProblem(this).isEmpty()){openHome("桌面配置已完成");return;}
             }
@@ -379,7 +380,8 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
         if(!guard.enabled()){notice="自动恢复已暂停，请先开启桌面开关。";render();return;}
         // Local restoration runs on the main thread so its settings writes precede the check.
         if(HomeGuardRecovery.writeAllowed(this) && HomeGuardRecovery.systemWriteAllowed(this)
-                && !HomeGuardAppOps.tcl(Build.MANUFACTURER,Build.BRAND)){
+                && !HomeGuardAppOps.tcl(Build.MANUFACTURER,Build.BRAND)
+                && !HisenseGuardRefresh.needsShell(this)){
             try{
                 HomeGuardRecovery.configureGranted(this);
                 if(HomeGuardRecovery.configurationProblem(this).isEmpty()){

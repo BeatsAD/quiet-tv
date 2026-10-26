@@ -86,7 +86,7 @@ final class HomeGuardRecovery {
         if(!writeAllowed(c) || !systemWriteAllowed(c)){state.status(state.enableProblem().isEmpty()?"等待系统绑定无障碍":state.enableProblem());return;}
         recovering=true;
         try{restoreEntry(c);}
-        catch(SecurityException|IllegalStateException failure){recovering=false;state.status("无法恢复无障碍配置");Log.w(TAG,"restore unavailable");return;}
+        catch(SecurityException|IllegalStateException failure){recovering=false;state.status(HisenseGuardRefresh.supported()?"固件未接受无障碍配置，请连接 ADB 修复":"无法恢复无障碍配置");Log.w(TAG,"restore unavailable");return;}
         check=()->{
             check=null;HomeGuardState now=new HomeGuardState(c);
             if(!now.recoveryReady() || !writeAllowed(c)){recovering=false;return;}
@@ -125,6 +125,7 @@ final class HomeGuardRecovery {
         String desired=HomeGuardPolicy.services(current,guard(c),true);
         if(!desired.equals(current) && !Settings.Secure.putString(c.getContentResolver(),Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,desired))throw new IllegalStateException();
         if(!Settings.Secure.putInt(c.getContentResolver(),Settings.Secure.ACCESSIBILITY_ENABLED,1))throw new IllegalStateException();
+        if(HisenseGuardRefresh.supported() && !new HomeGuardState(c,false).serviceEnabled())throw new IllegalStateException("固件未接受无障碍配置，请连接 ADB 修复");
         if(missing)recovered(c);
     }
     static void recovered(Context c){restoredAt=SystemClock.elapsedRealtime();if(!HomeGuardState.interactive(c))restoredInStandby=true;}
@@ -336,6 +337,7 @@ final class HomeGuardRecovery {
         }
         step="厂商启动配置";configureVendorAdb(c,adb,task);
         if(HomeGuardAppOps.tcl(Build.MANUFACTURER,Build.BRAND))TclHomePolicy.configure(c,adb,task);
+        step="海信无障碍配置读回与刷新";HisenseGuardRefresh.configure(c,adb,task);
         step="守护恢复配置";configureGranted(c);
         step="补偿配置读回";
         if(HomeGuardSync.ready(c) && (note.equals("此设备不支持通知恢复") || note.equals("此系统需手动授权通知访问") || note.equals("通知访问未授予")))note="";
