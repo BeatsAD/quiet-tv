@@ -4,7 +4,7 @@ import android.content.*;
 import android.content.pm.*;
 import android.os.Build;
 import android.provider.Settings;
-import org.json.JSONObject;
+import org.json.*;
 import java.util.*;
 
 /** Read-only state at export time, separate from the bounded historical event journal. */
@@ -55,14 +55,34 @@ final class DiagnosticDeviceSnapshot {
         return snapshot.text.toString();
     }
     @android.annotation.SuppressLint("ObsoleteSdkInt") // Shared with the API19 build.
-    private void device(){
-        line("品牌",Build.BRAND);line("制造商",Build.MANUFACTURER);line("型号",Build.MODEL);
-        line("Android 版本",Build.VERSION.RELEASE);line("Android API",Integer.toString(Build.VERSION.SDK_INT));
-        line("固件显示版本",Build.DISPLAY);line("系统构建号",Build.ID);line("固件指纹",Build.FINGERPRINT);
-        line("CPU 架构",Build.VERSION.SDK_INT>=21?Arrays.toString(Build.SUPPORTED_ABIS):Build.CPU_ABI);
-        line("Quiet TV 版本",BuildConfig.VERSION_NAME);line("Quiet TV 构建号",Integer.toString(BuildConfig.VERSION_CODE));
-        line("Quiet TV 包名",context.getPackageName());line("兼容档位",BuildConfig.LEGACY_19?"API19 兼容档位":"com.coocaa.quiettv".equals(context.getPackageName())?"酷开档位":"标准档位");
-        line("安装包最低 API",Build.VERSION.SDK_INT>=24?Integer.toString(context.getApplicationInfo().minSdkVersion):"当前系统不支持直接读取安装包最低 API");
+    private void device() throws JSONException {
+        JSONObject info=new JSONObject().put("schemaVersion",1);
+        deviceField(info,"brand","品牌",Build.BRAND);deviceField(info,"manufacturer","制造商",Build.MANUFACTURER);deviceField(info,"model","型号",Build.MODEL);
+        deviceField(info,"device","设备代号",Build.DEVICE);deviceField(info,"product","产品代号",Build.PRODUCT);
+        deviceField(info,"hardware","硬件平台",Build.HARDWARE);deviceField(info,"board","主板代号",Build.BOARD);
+        deviceField(info,"androidVersion","Android 版本",Build.VERSION.RELEASE);deviceField(info,"sdk","Android API",Build.VERSION.SDK_INT);
+        deviceField(info,"display","固件显示版本",Build.DISPLAY);deviceField(info,"buildId","系统构建号",Build.ID);
+        deviceField(info,"incremental","系统增量版本",Build.VERSION.INCREMENTAL);deviceField(info,"fingerprint","固件指纹",Build.FINGERPRINT);
+        deviceField(info,"securityPatch","安全补丁日期",Build.VERSION.SDK_INT>=23?Build.VERSION.SECURITY_PATCH:null);
+        JSONArray abis=new JSONArray();for(String abi:Build.VERSION.SDK_INT>=21?Build.SUPPORTED_ABIS:new String[]{Build.CPU_ABI})abis.put(deviceValue(abi));
+        deviceField(info,"abis","CPU 架构",abis);
+        deviceField(info,"appVersion","Quiet TV 版本",BuildConfig.VERSION_NAME);deviceField(info,"appBuild","Quiet TV 构建号",BuildConfig.VERSION_CODE);
+        deviceField(info,"appPackage","Quiet TV 包名",context.getPackageName());
+        deviceField(info,"compatibility","兼容档位",BuildConfig.LEGACY_19?"legacy19":"com.coocaa.quiettv".equals(context.getPackageName())?"coocaa":"standard");
+        deviceField(info,"minSdk","安装包最低 API",Build.VERSION.SDK_INT>=24?context.getApplicationInfo().minSdkVersion:null);
+        deviceField(info,"homeProxyPackage","HOME 兼容助手包名",new HomeProxy(context).packageName());
+        line("设备信息范围","系统 Build 字段；未读取用户设置的设备名称、序列号、Android ID、MAC 或账号。厂商界面的商品名及 HyperOS/MIUI 名称可能未包含在系统版本字段中，缺失值为 null，不能据此推定版本。");
+        text.append("\n[设备统计 JSON]\n").append(info).append('\n');
+    }
+    // These allowlisted Build values include dotted firmware versions; IP redaction would corrupt them.
+    static String deviceValue(String value){
+        if(value==null)return "";
+        return value.substring(0,Math.min(value.length(),512)).replaceAll("[\\p{Cntrl}]"," ").trim();
+    }
+    private void deviceField(JSONObject info,String key,String label,Object value) throws JSONException {
+        if(value instanceof String){value=deviceValue((String)value);if(((String)value).isEmpty() || "unknown".equalsIgnoreCase((String)value))value=null;}
+        info.put(key,value==null?JSONObject.NULL:value);
+        text.append(label).append("：").append(value==null?"未提供或当前系统不支持读取":value).append('\n');
     }
     private void debugSettings(){
         setting("USB 调试开关",Settings.Global.ADB_ENABLED);

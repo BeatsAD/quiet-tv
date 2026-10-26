@@ -70,6 +70,8 @@ QuietTV_<版本号>_<适用系统>[_<架构>]_<状态>.apk
 
 小米助手包名为 `home.quiet.tv.xiaomihelper`，当前实验范围仅为 MiTV4-ANSM0 / Android 6（API23），配套 `home.quiet.tv`。当前模块版本为 `0.1 / 1`，尚未适配三段版本号和统一归档规则，下次交付前须同步适配；构建、暂停与验收范围见[小米助手说明](../xiaomi-home-helper/README.md)。
 
+HOME 中转助手有默认身份 `home.quiet.tv.proxy` 和小米／Redmi 兼容身份 `com.ts.launcher`，通过 `quietProxyApplicationId` 选择，共用源码，最低 API21；主程序仍用原包名，不通过改名迁移配置。两个身份各自核对真实包名、签名、版本和配套目标，安装前检查同名外部应用占用。此助手与上文旧无障碍小米助手是不同模块；构建及范围见 [HOME 助手说明](../home-proxy/README.md)。
+
 ### 命名示例
 
 以下仅展示格式，不代表已分配构建号、构建、发布或完成设备验收：

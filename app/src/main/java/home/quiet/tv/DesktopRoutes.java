@@ -4,7 +4,6 @@ import android.content.*;
 import android.content.pm.*;
 import android.os.*;
 import org.json.*;
-import home.quiet.proxy.ProxyContract;
 
 /** One plan in the existing device-protected preferences. No device mutation during detection. */
 final class DesktopRoutes {
@@ -23,8 +22,9 @@ final class DesktopRoutes {
     }
     private String revision(){
         ComponentName home=ComponentName.unflattenFromString(state.selected());JSONObject boot=bridge();
+        String proxy=new HomeProxy(context).packageName();
         return Build.FINGERPRINT+":"+BuildConfig.VERSION_CODE+":"+BuildConfig.DECLARES_HOME+":"+state.selected()+":"+(home==null?-1:version(home.getPackageName()))
-                +":"+(boot==null?-1:version(boot.optString("systemPackage")))+":"+version(ProxyContract.PACKAGE);
+                +":"+(boot==null?-1:version(boot.optString("systemPackage")))+":"+proxy+":"+version(proxy);
     }
     boolean current(){return revision().equals(prefs.getString("routeRevision",""));}
     private SharedPreferences.Editor edit(){
@@ -76,7 +76,8 @@ final class DesktopRoutes {
             +"\n断电开机："+bootLabel()+"  "+test("coldBoot")+"\n待机唤醒："+wakeLabel()+"  "+test("wake");}
     JSONObject snapshot() throws JSONException {
         JSONObject snapshot=new JSONObject().put("packageMode",BuildConfig.DECLARES_HOME?"standard":"relay")
-                .put("homeRoute",home()).put("relaySource",prefs.getString("relaySource","UNKNOWN")).put("proxyReady",new HomeProxy(context).ready())
+                .put("homeRoute",home()).put("relaySource",prefs.getString("relaySource","UNKNOWN")).put("proxyPackage",new HomeProxy(context).packageName())
+                .put("proxyAvailable",new HomeProxy(context).available()).put("proxyReady",new HomeProxy(context).ready())
                 .put("proxyPausePending",prefs.getBoolean("proxyPausePending",false)).put("proxyVisibleAt",current() && prefs.getLong("proxyVisibleEpoch",-1)==prefs.getLong("proxyEpoch",-2)?prefs.getLong("proxyVisibleAt",0):0).put("bootRoute",vendorReady()?"VENDOR":state.enabled()?"GUARD":"UNKNOWN")
                 .put("wakeRoute",state.enabled()?"GUARD":"UNKNOWN").put("paused","OFF".equals(prefs.getString("mode","AUTO"))).put("automatic",state.automatic())
                 .put("vendorBootEnabled",vendorReady()).put("scenes",new JSONObject().put("home",test("home"))
