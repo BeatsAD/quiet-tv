@@ -151,6 +151,10 @@ final class DiagnosticDeviceSnapshot {
         line("守护筛选规则","排除本应用、非系统应用、禁用应用或组件、android 包及 FallbackHome；固件变化会重置场景验证，专项入口另核对固件");
     }
     private void privateHome(){
+        if(HomeGuardRecovery.knownPrivateHome()){
+            for(String key:CoocaaHomeRoutes.KEYS){String value=CoocaaHomeRoutes.read(key);line(key,value==null?"无法读取":value.isEmpty()?"空值":value);}
+            line("酷开路由范围","只读属性；候选须另核对本机已安装的系统组件，不代表实体 HOME、开机或唤醒通过");
+        }
         // Keep optional router discovery separate from existing HOME candidate diagnostics.
         Map<String,String> routers=new LinkedHashMap<>();homeCandidates(routers,"android.intent.category.HOME.JM");
         line("HOME.JM 可见声明数",Integer.toString(routers.size()));

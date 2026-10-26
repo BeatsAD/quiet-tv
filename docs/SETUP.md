@@ -19,6 +19,8 @@
 
 本地开发更新：无障碍权限区分未授权、已授权等待连接和已连接；界面当前状态与日志中的历史状态分开。原主页为本机有效系统组件 `com.jamdeo.tv.vod/...` 时，标准档在较新安卓上也启用获准后的用量统计补偿，仍只响应精确主页且服从暂停、息屏和其他前台应用。额外检测两个不声明 HOME 的系统组件：`com.skyworth.panasonichome/com.skyworth.panasonichome.MainActivity`、`com.coocaa.aigc.home/com.coocaa.aigc.home.home.rootpage.HomeActivity`。仅加入候选，不按品牌直接选配或开放系统包操作；多候选仍需用户选择。
 
+酷开原主页还会从 `persist.service.model.pkg/cls`、`persist.service.homepage.pkg/cls` 读取，并核对本机已安装且启用的系统组件；属性不可读时额外核对已知的 `com.tianci.movieplatform/com.coocaa.homepage.vast.HomePageActivity`。属性包名和 Activity 的 Java 命名空间可以不同。只有有效目标唯一时才自动选择；冲突时保留选择步骤。系统 HOME 已指向 Quiet TV 也不代表酷开实体 HOME 接管完成，检测到私有主页后仍继续配置原主页中转和必要授权，不自动禁用原桌面或改写主页属性。
+
 电脑配置在执行授权前向新版应用只读核对候选与已选目标；旧包不支持查询时保留兼容配置入口，需明确核对原主页。TCL 的电脑与内置 ADB 配置均按命名 AppOp 探测自启动权限，写入后必须读回对应操作的 `allow`，不使用跨固件不稳定的数字 ID；不支持的操作跳过，拒绝或无法读回时停止并保留已完成授权。电脑记录额外保存 `.results.jsonl` 回执。读回只证明当前值，重启保持需另测。
 
 旧安卓的补偿配置支持帮助命令返回非零但包含有效用法的情况，以及旧版 `appops` 的帮助入口和输出格式；这只适用于只读能力检测，实际授权失败、断线或超时仍停止，不自动重放写操作。电脑脚本也核对远端命令退出码，不能以旧 ADB 的电脑端退出码代替。配置失败会标明步骤，已完成的授权保留；应用再次配置先读回已有权限，只补缺项。权限已配置、守护已连接和开机／唤醒已验证分别判断，配置成功不代表厂商真机验收通过。

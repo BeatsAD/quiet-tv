@@ -81,6 +81,9 @@ final class HomeGuardState {
         String original="";try{original=new SetupStore(context).originalHome();}catch(Exception unavailable){DiagnosticLog.info("home_guard.selection","original_record_unavailable");}
         for(String saved:new String[]{original,presets.home()})
             for(Candidate home:homes)if(home.component.flattenToString().equals(saved)){select(home.component);return;}
+        List<String> available=new ArrayList<>();for(Candidate home:homes)available.add(home.component.flattenToString());
+        String privateHome=HomeGuardRecovery.knownPrivateHome()?CoocaaHomeRoutes.unique(CoocaaHomeRoutes.targets(CoocaaHomeRoutes::read),available):"";
+        if(!privateHome.isEmpty()){select(ComponentName.unflattenFromString(privateHome));return;}
         if(homes.size()==1)select(homes.get(0).component);
     }
     void status(String text){if(!text.equals(preferences.getString("status",""))){preferences.edit().putString("status",text).apply();DiagnosticLog.info("home_guard.status",text);}}
@@ -102,7 +105,20 @@ final class HomeGuardState {
                 collect(homes,Collections.singletonList(value));}
             catch(PackageManager.NameNotFoundException|SecurityException ignored){}
         }
+        if(HomeGuardRecovery.knownPrivateHome()){
+            List<String> routes=CoocaaHomeRoutes.targets(CoocaaHomeRoutes::read);routes.add(CoocaaHomeRoutes.STOCK);
+            for(String route:routes)try{
+                ResolveInfo value=new ResolveInfo();value.activityInfo=pm.getActivityInfo(ComponentName.unflattenFromString(route),0);
+                collect(homes,Collections.singletonList(value));
+            }catch(PackageManager.NameNotFoundException|SecurityException ignored){}
+        }
         return new ArrayList<>(homes.values());
+    }
+    boolean privateHomeAvailable(){
+        if(!HomeGuardRecovery.knownPrivateHome())return false;
+        List<String> routes=CoocaaHomeRoutes.targets(CoocaaHomeRoutes::read);routes.add(CoocaaHomeRoutes.STOCK);
+        for(Candidate home:candidates())if(routes.contains(home.component.flattenToString()))return true;
+        return false;
     }
     private void collect(Map<String,Candidate> homes,List<ResolveInfo> values){
         for(ResolveInfo value:values){ActivityInfo info=value.activityInfo;

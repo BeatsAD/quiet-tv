@@ -313,6 +313,8 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
     private void finishDirect(){
         try{
             DesktopRoutes routes=new DesktopRoutes(this);HomeGuardState guard=new HomeGuardState(this);
+            // Android HOME resolution does not establish Coocaa's physical Home route.
+            if(guard.privateHomeAvailable()){prepareOriginal(this::configureGuard);return;}
             if(routes.current() && "DIRECT".equals(routes.home()) && !guard.enabled() && !guard.directHomeAvailable()){
                 openHome("桌面配置已核对");return;
             }

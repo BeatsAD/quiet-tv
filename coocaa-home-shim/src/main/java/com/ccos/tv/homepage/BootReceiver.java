@@ -30,6 +30,16 @@ public class BootReceiver extends BroadcastReceiver {
         String action = intent.getAction();
         boolean boot = Intent.ACTION_LOCKED_BOOT_COMPLETED.equals(action) || Intent.ACTION_BOOT_COMPLETED.equals(action);
         if (!boot) return;
+        // Upstream 2.1: some boots leave home[0] / home[1] instead of a component.
+        setProp("persist.service.homepage.pkg", "com.ccos.tv.homepage");
+        setProp("persist.service.homepage.cls", "com.ccos.tv.homepage.LaunchActivity");
         context.startService(new Intent(context, BootWatchService.class));
+    }
+    private static void setProp(String key,String value) {
+        try {
+            Class.forName("android.os.SystemProperties").getMethod("set",String.class,String.class).invoke(null,key,value);
+        } catch (ReflectiveOperationException | RuntimeException failure) {
+            android.util.Log.w("QuietTVShim", "Homepage property restore failed: " + key);
+        }
     }
 }

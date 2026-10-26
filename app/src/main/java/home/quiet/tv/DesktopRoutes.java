@@ -87,7 +87,7 @@ final class DesktopRoutes {
         if("DIRECT".equals(home())){
             try{if(!new HomeController(context).inspect(null).isOwn(context))return "系统默认桌面已变化";}
             catch(Exception unavailable){return "无法核对系统默认桌面";}
-            if(!state.enabled())return "";
+            if(!state.enabled())return state.privateHomeAvailable()?"酷开私有主页尚未配置中转":"";
         }else if(!"RELAY".equals(home()))return "启动方式尚未确认";
         String problem=state.enableProblem();if(!problem.isEmpty())return problem;
         if(state.directHomeSelected())return HomeGuardService.connected()?"":"等待系统连接无障碍";
