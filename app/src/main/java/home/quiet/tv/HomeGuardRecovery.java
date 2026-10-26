@@ -174,7 +174,9 @@ final class HomeGuardRecovery {
         launch(c,"厂商开机入口",state,trace);
     }
     private static void launch(Context c,String reason,HomeGuardState state,DiagnosticOperation trace){
-        if(requestedAt!=0){finishDiagnostic(trace,"SKIPPED","request_pending");return;}
+        if(HomeGuardPolicy.handoverBlocked(requestedAt!=0,HomeGuardService.homeResumed())){
+            finishDiagnostic(trace,"SKIPPED",requestedAt!=0?"request_pending":"home_already_resumed");return;
+        }
         handoverDiagnostic=trace;pendingVisibilityEvidence=true;trace.stage("LAUNCH_REQUEST",SystemClock.elapsedRealtime());
         HomeGuardService.homeRequested();
         requestedAt=SystemClock.uptimeMillis();requestedHome=state.selected();state.status("已请求接管，等待桌面显示");Log.i(TAG,"home requested: "+reason+" uptime="+requestedAt);
@@ -222,7 +224,7 @@ final class HomeGuardRecovery {
         if(!writeAllowed(c))return "写安全设置权限未授予";
         if(!systemWriteAllowed(c))return "写系统设置权限未授予";
         if(!new HomeGuardState(c).serviceEnabled())return "无障碍权限未开启";
-        if(HomeGuardService.usageRequired() && !HomeGuardService.usageAllowed(c))return "旧系统兼容检测未授权";
+        if(HomeGuardService.usageRequired() && !HomeGuardService.usageAllowed(c))return "桌面前台检测未授权";
         if(Build.VERSION.SDK_INT>=23 && !Settings.canDrawOverlays(c))return "后台启动权限未确认";
         if(notificationSupported(c) && !notificationAllowed(c) && !HomeGuardSync.ready(c))return "通知访问未授予";
         if(!notificationSupported(c) && HomeGuardSync.supported(c) && !HomeGuardSync.ready(c))return "同步恢复："+HomeGuardSync.summary(c);
@@ -268,7 +270,7 @@ final class HomeGuardRecovery {
             if(output.contains("Unknown operation")){
                 task.check();adb.validateUser();adb.shell("appops set"+opsUser+" "+pkg+" android:get_usage_stats allow");
             }
-            if(!HomeGuardService.usageAllowed(c))note="旧系统兼容检测未授权";
+            if(!HomeGuardService.usageAllowed(c))note="桌面前台检测未授权";
         }
         task.check();if(!new HomeGuardState(c).ready())throw new java.io.IOException("守护已暂停或配置已改变");
         if(!systemWriteAllowed(c) && Build.VERSION.SDK_INT>=23){

@@ -147,7 +147,8 @@ def configure(args, adb):
     if sdk >= 23:
         plan.append(["appops", "set", *ops_user, args.package, "WRITE_SETTINGS", "allow"])
         plan.append(["appops", "set", *ops_user, args.package, "SYSTEM_ALERT_WINDOW", "allow"])
-    if sdk <= 23:
+    vendor = " ".join(adb.shell("getprop", key) for key in ("ro.product.manufacturer", "ro.product.brand")).lower().split()
+    if sdk <= 23 or "xiaomi" in vendor or "redmi" in vendor:
         plan.append(["appops", "set", *ops_user, args.package, "GET_USAGE_STATS", "allow"])
     # Old firmware has no cmd. Its notification list is merged by the app with its granted permission.
     if sdk >= 27:
@@ -202,7 +203,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--serial", required=True, help="本次明确选定且已授权的电视")
     parser.add_argument("--user", type=int, required=True, help="已经核对的前台用户，不预设 0")
-    parser.add_argument("--package", choices=["home.quiet.tv", "com.coocaa.quiettv"], default="home.quiet.tv")
+    parser.add_argument("--package", choices=["home.quiet.tv", "com.coocaa.quiettv", "com.ts.launcher"], default="home.quiet.tv")
     parser.add_argument("--home", help="本机实际检测到的原主页组件；多候选时指定")
     parser.add_argument("--adb", default="adb")
     parser.add_argument("--apply", action="store_true", help="明确执行首次授权并启用守护")

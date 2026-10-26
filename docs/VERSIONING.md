@@ -70,7 +70,9 @@ QuietTV_<版本号>_<适用系统>[_<架构>]_<状态>.apk
 
 小米助手包名为 `home.quiet.tv.xiaomihelper`，当前实验范围仅为 MiTV4-ANSM0 / Android 6（API23），配套 `home.quiet.tv`。当前模块版本为 `0.1 / 1`，尚未适配三段版本号和统一归档规则，下次交付前须同步适配；构建、暂停与验收范围见[小米助手说明](../xiaomi-home-helper/README.md)。
 
-HOME 中转助手有默认身份 `home.quiet.tv.proxy` 和小米／Redmi 兼容身份 `com.ts.launcher`，通过 `quietProxyApplicationId` 选择，共用源码，最低 API21；主程序仍用原包名，不通过改名迁移配置。两个身份各自核对真实包名、签名、版本和配套目标，安装前检查同名外部应用占用。此助手与上文旧无障碍小米助手是不同模块；构建及范围见 [HOME 助手说明](../home-proxy/README.md)。
+HOME 中转助手有默认身份 `home.quiet.tv.proxy` 和小米／Redmi 兼容身份 `com.ts.launcher`，通过 `quietProxyApplicationId` 选择，共用源码，最低 API21；普通主程序保留原包名；小米当前优先路线另以 `quietApplicationId=com.ts.launcher` 构建主程序，与同名助手互斥。两条路线不自动迁移配置。两个身份各自核对真实包名、签名、版本和配套目标，安装前检查同名外部应用占用。此助手与上文旧无障碍小米助手是不同模块；构建及范围见 [HOME 助手说明](../home-proxy/README.md)。
+
+小米改名主程序属于独立包名，最低 API21，仅提供标准 HOME 形态，共用主线代码。已有 `com.ts.launcher` 主程序可在同签名、递增构建号时验证覆盖升级；普通主程序或同名助手不属于可直接覆盖的数据基线。现有主程序归档脚本与公开更新清单只覆盖原有身份，交付此身份前须另核对归档、版本和更新配套；本轮不打包交付。
 
 ### 命名示例
 
