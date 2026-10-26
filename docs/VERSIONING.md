@@ -36,6 +36,8 @@ QuietTV_<版本号>-<构建号>_<适用系统>[_<单架构标记>]_<发布状态
 | `安卓4.4` | `legacy19`，minSdk19，`home.quiet.tv` | 安卓4.4兼容包，功能有所裁减 |
 | `安卓5及以上` | `standard`，minSdk21，`home.quiet.tv` | 安卓5.0及以上优先选择的标准包 |
 | `酷开安卓8` | 专用包名 `com.coocaa.quiettv`，minSdk26 | 已确认适配条件的固件专项验证，不按品牌推定兼容 |
+| `酷开安卓5+` | 专用包名 `com.coocaa.quiettv`，standard，minSdk21 | 源码允许构建，跳板与守护按本机能力配置，真机待验收 |
+| `酷开安卓4.4` | 专用包名 `com.coocaa.quiettv`，legacy19，minSdk19 | 使用API19裁减功能，不包含守护、跳板或独立酷开助手 |
 
 同一标准包可覆盖多个安卓大版本，仅在存在实际兼容差异时新增档位。其他最低 API 的标签同步变化：minSdk23 为 `安卓6及以上`，minSdk26 为 `安卓8及以上`，minSdk31 为 `安卓12及以上`。最低 API 满足不代表目标电视的 HOME、遥控器、输入源及重启唤醒已通过验收。
 

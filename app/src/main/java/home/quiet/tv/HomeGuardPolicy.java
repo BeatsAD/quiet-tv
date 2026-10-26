@@ -13,6 +13,11 @@ final class HomeGuardPolicy {
     private boolean consumed,unknownUsed;
 
     static boolean supported(String manufacturer,String brand,int sdk,boolean legacy){return !legacy && sdk>=21;}
+    static boolean coocaa(String manufacturer,String brand){
+        for(String name:(manufacturer+" "+brand).toLowerCase(Locale.ROOT).split("\\s+"))
+            if("skyworth".equals(name) || "coocaa".equals(name))return true;
+        return false;
+    }
     static boolean xiaomi(String manufacturer,String brand){
         for(String name:(manufacturer+" "+brand).toLowerCase(Locale.ROOT).split("\\s+"))
             if("xiaomi".equals(name) || "redmi".equals(name))return true;

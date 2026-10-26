@@ -44,9 +44,7 @@ final class HomeGuardRecovery {
     static String guard(Context c){return new ComponentName(c,HomeGuardService.class).flattenToString();}
     static String listener(Context c){return new ComponentName(c,HomeGuardRevivalListener.class).flattenToString();}
     static boolean knownPrivateHome(){
-        String vendor=(Build.MANUFACTURER+" "+Build.BRAND).toLowerCase(Locale.ROOT);
-        for(String token:vendor.split("\\s+"))if(token.equals("skyworth") || token.equals("coocaa"))return true;
-        return false;
+        return HomeGuardPolicy.coocaa(Build.MANUFACTURER,Build.BRAND);
     }
     static boolean writeAllowed(Context c){return c.checkCallingOrSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS)==PackageManager.PERMISSION_GRANTED;}
     static boolean systemWriteAllowed(Context c){return Build.VERSION.SDK_INT>=23?Settings.System.canWrite(c)
