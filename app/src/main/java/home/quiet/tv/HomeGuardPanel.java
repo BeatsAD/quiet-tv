@@ -86,7 +86,8 @@ final class HomeGuardPanel implements SharedPreferences.OnSharedPreferenceChange
         syncRow.description("本地账号用于系统唤醒，不同步数据。");
         keepAdbRow.setVisibility(HomeGuardAdb.supported(ui)?View.VISIBLE:View.GONE);keepAdbRow.checked(HomeGuardAdb.enabled(ui));keepAdbRow.setEnabled(state.enabled());
         keepAdbRow.description(HomeGuardRecovery.writeAllowed(ui)?"开启后尝试恢复被系统关闭的调试，暂停中转时停止恢复。":"需先配置自动恢复，授予写安全设置权限。");
-        bridgeRow.checked(routes.vendorReady());bridgeRow.description(routes.vendorReady()?"已配置，重启和断电开机待验证":routes.vendorProblem());bridgeRow.setEnabled(supported);
+        String vendorProblem=routes.vendorProblem();
+        bridgeRow.checked(routes.vendorReady());bridgeRow.description(routes.vendorReady()?"已启用，重启和断电开机待验证":vendorProblem.isEmpty()?"可启用创维／酷开开机入口，实际效果待验证":vendorProblem);bridgeRow.setEnabled(supported);
         String problem=state.enableProblem(),summary=state.summary();
         guardRow.checked(state.automatic());guardRow.description("OFF".equals(state.preferences.getString("mode","AUTO"))?"已暂停，中转入口不会自动恢复":!state.automatic()?"尚未配置，请先选择启动方式":state.enabled()?summary:routes.proxySelected()?new HomeProxy(ui).problem():"系统直接启动；中转按场景配置");
         guardRow.setEnabled(supported);

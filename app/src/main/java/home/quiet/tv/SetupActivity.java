@@ -287,6 +287,7 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
             DesktopRoutes routes=new DesktopRoutes(this);routes.direct();HomeGuardState guard=new HomeGuardState(this);
             store.baseline(homeState.actual,guard.selected());store.put("status","direct-configured");
             if(BuildConfig.LEGACY_19 || !guard.validSelection()){openHome("系统 HOME 已设置；开机补偿未配置，实际场景待验证");return;}
+            routes.configureAvailableVendor();
             if(HomeGuardRecovery.configurationProblem(this).isEmpty()){HomeGuardRecovery.request(this,"直接 HOME 配置完成");openHome("系统 HOME 已设置，开机补偿已配置；实际场景待验证");return;}
             notice="系统 HOME 已设置，继续配置开机补偿。";
             withConnection(this::configureDirectRecovery);
@@ -296,7 +297,7 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
         SetupOperations.Ticket task=begin("正在配置直接 HOME 的开机补偿…");
         worker.execute(()->{try{
             HomeGuardRecovery.configureAdb(this,adb,task);task.check();
-            if(home.presets.vendorBoot()!=null)new DesktopRoutes(this).configureVendor();
+            new DesktopRoutes(this).configureAvailableVendor();
             ui(task,()->{busy=false;openHome("系统 HOME 已设置，补偿权限已配置；服务绑定和实际场景待验证");});
         }catch(Exception failure){ui(task,()->{busy=false;notice="系统 HOME 已设置；开机补偿未全部完成："+failure.getMessage();render();});}});
     }
@@ -318,8 +319,8 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
         new DesktopRoutes(this).observe();
         if(!guard.enabled()){notice="守护已停用，请在守护设置中开启。";render();return;}
         SetupOperations.Ticket task=begin("正在配置自动守护…");worker.execute(()->{try{
-            HomeGuardRecovery.configureAdb(this,adb,task);
-            if(home.presets.vendorBoot()!=null)new DesktopRoutes(this).configureVendor();
+            HomeGuardRecovery.configureAdb(this,adb,task);task.check();
+            new DesktopRoutes(this).configureAvailableVendor();
             ui(task,()->{busy=false;notice="权限已配置，等待系统绑定后自动完成";refresh();
                 page.postDelayed(()->{if(active && !busy)refresh();},1800);});
         }catch(Exception failure){ui(task,()->{busy=false;notice="兼容配置未全部完成："+failure.getMessage();render();});}});

@@ -88,7 +88,7 @@ final class DesktopRoutes {
                 .put("proxyAvailable",new HomeProxy(context).available()).put("proxyReady",new HomeProxy(context).ready())
                 .put("proxyPausePending",prefs.getBoolean("proxyPausePending",false)).put("proxyVisibleAt",current() && prefs.getLong("proxyVisibleEpoch",-1)==prefs.getLong("proxyEpoch",-2)?prefs.getLong("proxyVisibleAt",0):0).put("bootRoute",vendorReady()?"VENDOR":state.enabled()?"GUARD":"UNKNOWN")
                 .put("wakeRoute",state.enabled()?"GUARD":"UNKNOWN").put("paused","OFF".equals(prefs.getString("mode","AUTO"))).put("automatic",state.automatic())
-                .put("vendorBootEnabled",vendorReady()).put("scenes",new JSONObject().put("home",test("home"))
+                .put("vendorBootEnabled",vendorReady()).put("vendorBootBasis",bridge()!=null?"verified_profile":DesktopRoutePolicy.bridgeCandidate(Build.MANUFACTURER,Build.BRAND,Build.VERSION.SDK_INT,BuildConfig.LEGACY_19)?"runtime_candidate_unverified":"unavailable").put("scenes",new JSONObject().put("home",test("home"))
                 .put("reboot",test("reboot")).put("coldBoot",test("coldBoot")).put("wake",test("wake")));
         try{HomeController.State actual=new HomeController(context).inspect(null);snapshot.put("systemHome",actual.resolved)
                 .put("systemHomeKnown",actual.known).put("entryUsable",actual.ownUsable);}
@@ -116,15 +116,19 @@ final class DesktopRoutes {
     String vendorProblem(){
         if(!state.supported())return "此系统档位未开放开机跳板";
         if(!HomeGuardState.unlocked(context))return "等待系统解锁";
-        JSONObject rule=bridge();if(rule==null)return "未匹配已验证的固件入口，跳板保持关闭";
+        JSONObject rule=bridge();
+        if(rule==null && !DesktopRoutePolicy.bridgeCandidate(Build.MANUFACTURER,Build.BRAND,Build.VERSION.SDK_INT,BuildConfig.LEGACY_19))return "此设备不在创维／酷开开机跳板适用范围";
         if(state.helperActive())return "请先暂停独立中转助手";
         if(!state.validSelection())return "请选择可用的原桌面";
-        if(!state.selected().equals(rules.home()))return "原桌面与开机适配不一致";
         try{
-            PackageInfo info=context.getPackageManager().getPackageInfo(rule.getString("systemPackage"),0);
-            long version=Build.VERSION.SDK_INT>=28?info.getLongVersionCode():info.versionCode;
-            if(info.applicationInfo==null || !info.applicationInfo.enabled || (info.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0
-                    || version!=rule.getLong("versionCode"))return "厂商组件已变化，跳板保持关闭";
+            // An available runtime candidate is not firmware acceptance. Exact profiles retain their checks.
+            if(rule!=null){
+                if(!state.selected().equals(rules.home()))return "原桌面与开机适配不一致";
+                PackageInfo info=context.getPackageManager().getPackageInfo(rule.getString("systemPackage"),0);
+                long version=Build.VERSION.SDK_INT>=28?info.getLongVersionCode():info.versionCode;
+                if(info.applicationInfo==null || !info.applicationInfo.enabled || (info.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0
+                        || version!=rule.getLong("versionCode"))return "厂商组件已变化，跳板保持关闭";
+            }
             ComponentName own=new ComponentName(context,VendorBootActivity.class);
             for(ResolveInfo match:context.getPackageManager().queryIntentActivities(new Intent(VENDOR_ACTION),PackageManager.MATCH_DEFAULT_ONLY)){
                 if(match.activityInfo==null || !own.equals(new ComponentName(match.activityInfo.packageName,match.activityInfo.name)))
@@ -135,18 +139,20 @@ final class DesktopRoutes {
     }
     boolean vendorReady(){return state.automatic() && current() && prefs.getBoolean("vendorBoot",false)
             && context.getPackageManager().getComponentEnabledSetting(new ComponentName(context,VendorBootActivity.class))==PackageManager.COMPONENT_ENABLED_STATE_ENABLED
-            && prefs.getString("vendorFirmware","").equals(Build.FINGERPRINT) && vendorProblem().isEmpty();}
+            && prefs.getString("vendorFirmware","").equals(Build.FINGERPRINT)
+            && prefs.getString("vendorRevision","").equals(revision()) && vendorProblem().isEmpty();}
     void reconcileVendor(){if(prefs.getBoolean("vendorBoot",false) && !vendorReady())disableVendor(context);}
     String configureVendor(){
         if(!state.automatic()){disableVendor(context);return "中转已暂停，跳板保持关闭";}
         String problem=vendorProblem();if(!problem.isEmpty()){disableVendor(context);return problem;}
         SharedPreferences.Editor edit=edit();if(!vendorReady())edit.remove("routeTest_reboot").remove("routeTest_coldBoot");
-        if(!edit.putBoolean("vendorBoot",true).putString("vendorFirmware",Build.FINGERPRINT).commit())return "开机配置未保存";
+        if(!edit.putBoolean("vendorBoot",true).putString("vendorFirmware",Build.FINGERPRINT).putString("vendorRevision",revision()).commit())return "开机配置未保存";
         try{setVendorComponent(context,true);}
         catch(RuntimeException failure){disableVendor(context);return "系统未允许启用开机跳板";}
         if(!vendorReady()){disableVendor(context);return "配置已暂停或身份已变化，跳板保持关闭";}
         return "";
     }
+    void configureAvailableVendor(){if(vendorProblem().isEmpty()){String problem=configureVendor();if(!problem.isEmpty())state.status(problem);}}
     static void setVendorComponent(Context context,boolean enabled){
         context.getPackageManager().setComponentEnabledSetting(new ComponentName(context,VendorBootActivity.class),
                 enabled?PackageManager.COMPONENT_ENABLED_STATE_ENABLED:PackageManager.COMPONENT_ENABLED_STATE_DISABLED,PackageManager.DONT_KILL_APP);

@@ -11,7 +11,7 @@ if (launcherId == 'com.ts.launcher' && (legacy || homeMode != 'standard')) throw
 if (launcherId == 'com.ts.launcher' && providers.gradleProperty('quietHomeProxy').getOrElse('false') == 'true') throw new GradleException('Xiaomi main application owns HOME; do not build a HOME proxy with it')
 def minimumSdk = providers.gradleProperty('quietMinSdk').getOrElse(legacy ? '19' : '21').toInteger()
 if ((legacy && minimumSdk != 19) || (!legacy && minimumSdk < 21)) throw new GradleException('Minimum SDK does not match compatibility profile')
-if (launcherId == 'com.coocaa.quiettv' && minimumSdk < 26) throw new GradleException('Coocaa applicationId requires quietMinSdk=26 or newer')
+// The vendor package name does not require Android 8. Keep API19 on the legacy source set.
 android {
     namespace 'home.quiet.tv'
     compileSdk 36

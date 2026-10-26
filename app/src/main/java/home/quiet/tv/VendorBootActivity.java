@@ -3,7 +3,7 @@ package home.quiet.tv;
 import android.app.Activity;
 import android.os.Bundle;
 
-/** Disabled unless an exact, verified firmware profile is selected. No grants or external targets. */
+/** Enabled by foreground setup on an eligible TV. No grants or external targets. */
 public final class VendorBootActivity extends Activity {
     @Override public void onCreate(Bundle saved){
         super.onCreate(saved);

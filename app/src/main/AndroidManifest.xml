@@ -54,7 +54,7 @@
             android:launchMode="singleTask" android:taskAffinity="${applicationId}.proxyEntry"
             android:permission="${applicationId}.permission.HOME_PROXY" android:noHistory="true"
             android:excludeFromRecents="true" android:theme="@android:style/Theme.NoDisplay" />
-        <!-- No firmware is opted in by default. Only a verified profile may enable this entry. -->
+        <!-- Foreground setup enables this entry on eligible Skyworth/Coocaa TVs; opening settings does not. -->
         <activity android:name=".VendorBootActivity" android:enabled="false" android:exported="true"
             android:noHistory="true" android:excludeFromRecents="true" android:theme="@android:style/Theme.NoDisplay">
             <intent-filter>
