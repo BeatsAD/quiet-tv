@@ -247,6 +247,21 @@
         "keepAdb": true,
         "evidence": "2026-10-26 用户报告禁用原桌面并保持 ADB 后可用；日志确认 enabled=3、HOME 指向 Quiet TV、ADB 已连接。各实体场景未分别记录。"
       }
+    },
+    {
+      "brand": "Xiaomi",
+      "model": "MiTV4-ANSM0",
+      "fingerprint": "Xiaomi/xmen/xmen:6.0.1/MHC19J/2035:user/release-keys",
+      "home": {
+        "component": "com.mitv.tvhome/com.mitv.tvhome.MainActivityUserMode",
+        "versionCode": 1621,
+        "user": 0,
+        "disableVerified": true,
+        "uninstallVerified": false,
+        "restoreInstallVerified": false,
+        "keepAdb": true,
+        "evidence": "2026-10-26 用户明确要求在此机型及固件试用禁用原桌面并保持 ADB 的直接接管方案。诊断确认原桌面构建号 1621、用户 0、ADB 已连接，HOME 后约 5 秒才由守护返回 Quiet TV；本机禁用、恢复、实体 HOME、开机及待机效果尚未验证。"
+      }
     }
   ],
   "references": [
