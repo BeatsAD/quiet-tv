@@ -9,6 +9,9 @@ final class DesktopRoutePolicy {
     static boolean preserve(boolean explicit,boolean disableVerified,boolean selected,boolean observing){
         return explicit || selected && (observing || !disableVerified);
     }
+    static boolean bridgeCandidate(String manufacturer,String brand,int sdk,boolean legacy){
+        return HomeGuardPolicy.supported(manufacturer,brand,sdk,legacy) && HomeGuardPolicy.coocaa(manufacturer,brand);
+    }
     static boolean bridgeAllowed(boolean enabled,boolean matched,boolean canShow,boolean otherHelper,
                                  long uptime,boolean consumed){
         return enabled && matched && canShow && !otherHelper && uptime>=0

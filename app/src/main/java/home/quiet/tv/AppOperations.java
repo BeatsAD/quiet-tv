@@ -80,6 +80,7 @@ final class AppOperations {
             if(!before.metadataKnown || !target.equals(presets.home()) || !target.startsWith(before.pkg+"/") || !home.component(target,false))throw new IOException("原桌面身份未确认");
             if(action==Action.DISABLE && before.enabledSetting==0 && !adb.capabilities.defaultState)throw new IOException("当前系统无法精确恢复原桌面的默认启用状态，不执行禁用");
             if(action==Action.DISABLE || action==Action.UNINSTALL){
+                if(!presets.homeIdentityMatches(before.versionCode,adb.user))throw new IOException("原桌面版本或用户与已验证规则不符");
                 if(!home.inspect(adb).isOwn(context))throw new IOException("Quiet TV 尚未成为实际默认桌面");
                 if(!presets.homeAllows(action==Action.DISABLE?"disableVerified":"uninstallVerified"))throw new IOException("当前机型的此项原桌面操作尚未验收");
                 if(action==Action.UNINSTALL && !presets.homeAllows("restoreInstallVerified"))throw new IOException("当前机型的原桌面恢复安装尚未验收");

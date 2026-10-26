@@ -36,7 +36,7 @@ final class UpdateRepository {
         worker.execute(()->{try{
             key=read(context.getAssets().open("updates/public-key.der"),4096);
             if(cache.isFile()){manifest=UpdateManifest.verify(read(new FileInputStream(cache),UpdateManifest.MAX_BYTES),key,prefs.getLong("revision",0));prefs.edit().putLong("revision",manifest.revision).apply();}
-        }catch(IOException e){DiagnosticLog.info("update.cache.unavailable","no_verified_cache");}
+        }catch(IOException e){DiagnosticLog.info("update.cache.unavailable",UpdateFailure.details("cache_read",e));}
             main.post(()->{reconcile();notifyChanged();});
         });
     }
@@ -59,7 +59,7 @@ final class UpdateRepository {
             // A partial file of the right length still needs full validation on the worker.
             if(!downloading&&!verifying&&available!=null&&!ready&&available.sha256.equals(prefs.getString("readyHash",""))&&file().isFile()){
                 final UpdateManifest.Artifact candidate=available;verifying=true;
-                worker.execute(()->{boolean valid=false;try{UpdateInstaller.validate(context,candidate,file(candidate));valid=true;}catch(IOException|RuntimeException failure){DiagnosticLog.info("update.cached_apk.failed",failure.getClass().getSimpleName()+" "+failure.getMessage());}
+                worker.execute(()->{boolean valid=false;try{UpdateInstaller.validate(context,candidate,file(candidate));valid=true;}catch(IOException|RuntimeException failure){DiagnosticLog.info("update.cached_apk.failed",UpdateFailure.details("cached_apk",failure));}
                     final boolean checked=valid;main.post(()->{verifying=false;if(available!=null&&available.sha256.equals(candidate.sha256)){ready=checked;if(!checked)prefs.edit().remove("readyHash").apply();}notifyChanged();});});
             }
         }catch(IOException e){available=null;ready=false;checkError="无法读取本机安装信息，请重试";}
@@ -70,14 +70,16 @@ final class UpdateRepository {
         checking=true;checkError="";int generation=++checkGeneration;
         UpdateTransfer transfer=newTransfer();checkTransfer=transfer;notifyChanged();
         worker.execute(()->{
-            final UpdateManifest[] found={null};final byte[][] envelope={null};final int[] source={-1};String error="";
+            final UpdateManifest[] found={null};final byte[][] envelope={null};final int[] source={-1};String error="",stage="key";
             try{
                 if(key==null)throw new IOException("Update key unavailable");
+                stage="manifest";
                 transfer.manifest(prefs.getInt("manifestSource",-1),(bytes,index)->{found[0]=UpdateManifest.verify(bytes,key,prefs.getLong("revision",0));envelope[0]=bytes;source[0]=index;return found[0].revision;});
                 if(generation!=checkGeneration)return;
                 // Cache and its preference revision are written only after verification and cancellation checks.
+                stage="cache";
                 synchronized(this){if(generation!=checkGeneration)return;try(FileOutputStream out=new FileOutputStream(cache)){out.write(envelope[0]);out.getFD().sync();}}
-            }catch(IOException|RuntimeException e){error="暂时无法检查更新";DiagnosticLog.info("update.check.failed",e.getClass().getSimpleName());}
+            }catch(IOException|RuntimeException e){error=UpdateFailure.message(stage,e);DiagnosticLog.info("update.check.failed",UpdateFailure.details(stage,e));}
             final String failure=error;
             main.post(()->{if(generation!=checkGeneration)return;checking=false;checkTransfer=null;checkError=failure;
                 if(failure.isEmpty()){manifest=found[0];prefs.edit().putLong("revision",manifest.revision).putLong("success",now()).remove("failure").putInt("manifestSource",source[0]).apply();reconcile();}
@@ -100,7 +102,7 @@ final class UpdateRepository {
                 if(generation!=downloadGeneration)return;validating=true;UpdateInstaller.validate(context,target,file(target));
             }catch(IOException|RuntimeException e){error=(validating||e instanceof UpdateTransfer.IntegrityException)?"安装包校验失败":"更新下载失败";
                 if(file(target).isFile()&&file(target).length()==target.bytes)try(RandomAccessFile invalid=new RandomAccessFile(file(target),"rw")){invalid.setLength(0);}catch(IOException ignored){}
-                DiagnosticLog.info("update.download.failed",e.getClass().getSimpleName()+" "+e.getMessage());}
+                DiagnosticLog.info("update.download.failed",UpdateFailure.details(validating?"apk_verify":"download",e));}
             final String failure=error;final int successfulSource=source;
             main.post(()->{if(generation!=downloadGeneration)return;downloading=false;verifying=false;switching=false;downloadTransfer=null;downloadError=failure;ready=failure.isEmpty();
                 if(ready)prefs.edit().putInt("apkSource",successfulSource).putString("readyHash",target.sha256).apply();else prefs.edit().remove("readyHash").apply();notifyChanged();});
@@ -118,7 +120,7 @@ final class UpdateRepository {
     void dispatched(){if(available!=null)prefs.edit().putString("pendingVersion",available.version()).putLong("pendingCode",available.code).apply();}
     private UpdateTransfer newTransfer(){return new UpdateTransfer(url->{
         HttpsURLConnection request=(HttpsURLConnection)url.openConnection();
-        if(Build.VERSION.SDK_INT<21){if(legacyTls==null)legacyTls=UpdateTls.create(context);request.setSSLSocketFactory(legacyTls);}
+        if(Build.VERSION.SDK_INT<=25){if(legacyTls==null)legacyTls=UpdateTls.create(context);request.setSSLSocketFactory(legacyTls);}
         return request;
     });}
     private static byte[] read(InputStream input,int limit)throws IOException{try(InputStream in=input;ByteArrayOutputStream out=new ByteArrayOutputStream()){byte[] buffer=new byte[4096];int n;while((n=in.read(buffer))!=-1){if(out.size()+n>limit)throw new IOException("Update cache too large");out.write(buffer,0,n);}return out.toByteArray();}}

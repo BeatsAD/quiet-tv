@@ -120,6 +120,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             androidx.core.content.ContextCompat.registerReceiver(this,unlockReceiver,new IntentFilter(Intent.ACTION_USER_UNLOCKED),androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
             resumeAfterUnlock();return;
         }
+        LegacyHomeKeyService.prepare(this);
         try {
             config = new JSONObject(readAsset("launcher.json"));
             chinese = !"en".equals(config.optString("language", "zh"));

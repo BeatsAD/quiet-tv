@@ -22,6 +22,28 @@ final class ShellCapabilities {
     private static String command(String pm,String cmd,String name){
         return scoped(cmd,name)?"cmd package "+name:scoped(pm,name)?"pm "+name:"";
     }
+    interface Query {String run(String command) throws Exception;}
+    /** Only help probes accept nonzero exits with a usable signature; writes remain strict. */
+    static String permissionHelp(String tool,Query query) throws Exception {
+        String operation;
+        if("pm".equals(tool))operation="grant";
+        else if("appops".equals(tool))operation="set";
+        else throw new IllegalArgumentException("Unsupported permission tool");
+        String output="";
+        for(String probe:new String[]{tool+" help",tool}){
+            AdbController.CommandFailure failure=null;
+            try{output=query.run(probe);}catch(AdbController.CommandFailure refused){failure=refused;output=refused.output;}
+            boolean usable=!signature(output,operation).isEmpty();
+            DiagnosticLog.info("home_guard.help","tool="+tool+" probe="+(probe.equals(tool)?"usage":"help")
+                    +" exit="+(failure==null?0:failure.exit)+" usable="+usable);
+            if(usable)return output;
+            // Old appops recognizes no help subcommand. Retry only this read-only syntax case.
+            if(probe.endsWith(" help") && Pattern.compile("(?is).*\\bunknown command\\b[^\\r\\n]*\\bhelp\\b.*").matcher(output).matches())continue;
+            if(failure!=null)throw failure;
+            break;
+        }
+        throw new java.io.IOException("系统帮助未确认 "+tool+" "+operation+" 命令");
+    }
     static String userOption(String help,String name,int sdk,int user) throws java.io.IOException {
         String signature=signature(help,name);
         if(signature.contains("--user"))return " --user "+user;
@@ -30,13 +52,13 @@ final class ShellCapabilities {
     }
     private static boolean scoped(String help,String name){return signature(help,name).contains("--user");}
     private static String signature(String help,String name){
-        Matcher match=Pattern.compile("(?m)^([ \\t]*)(?:pm[ \\t]+)?"+Pattern.quote(name)+"(?=[ \\t]|$)([^\\r\\n]*)").matcher(help);
+        Matcher match=Pattern.compile("(?m)^([ \\t]*)(?:(?i:usage):[ \\t]*)?(?:(?:pm|appops)[ \\t]+)?"+Pattern.quote(name)+"(?=[ \\t]|$)([^\\r\\n]*)").matcher(help);
         if(!match.find())return "";
         StringBuilder signature=new StringBuilder(match.group(2));int indent=match.group(1).length();
         for(String line:help.substring(match.end()).split("\\r?\\n")){
             if(line.trim().isEmpty())continue;
             int width=0;while(width<line.length() && Character.isWhitespace(line.charAt(width)))width++;
-            if(width<=indent)break;
+            if(width<=indent || line.trim().matches("(?:(?i:usage):\\s*)?(?:(?:pm|appops)\\s+)?[a-z][a-z0-9-]*(?:\\s.*)?"))break;
             signature.append(' ').append(line.trim());
         }
         return name+" "+signature;
