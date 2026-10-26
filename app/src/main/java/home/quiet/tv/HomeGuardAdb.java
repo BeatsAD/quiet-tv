@@ -17,7 +17,7 @@ final class HomeGuardAdb {
     private static final AtomicBoolean pending=new AtomicBoolean(),again=new AtomicBoolean();
     private static boolean watching,probed;
     static boolean supported(Context c){return HomeGuardPolicy.xiaomiRecovery(Build.MANUFACTURER,Build.BRAND,Build.VERSION.SDK_INT,BuildConfig.LEGACY_19);}
-    static boolean enabled(Context c){return new HomeGuardState(c).preferences.getBoolean("keepAdb",false);}
+    static boolean enabled(Context c){return new HomeGuardState(c,false).preferences.getBoolean("keepAdb",false);}
     // The opt-in/out must survive a firmware kill immediately after the click.
     @android.annotation.SuppressLint("ApplySharedPref")
     static boolean setEnabled(Context c,boolean enabled){boolean saved=new HomeGuardState(c).preferences.edit().putBoolean("keepAdb",enabled).commit();if(saved && enabled){watch(c);ensure(c);}return saved;}

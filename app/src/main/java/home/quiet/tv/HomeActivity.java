@@ -51,6 +51,10 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private String orderSignature="";
     private final HashMap<String,App> artworkCache = new HashMap<>();
     private boolean appsDirty = true, loadingApps;
+    private boolean waitingForUnlock,unlockRecreateRequested;
+    private final BroadcastReceiver unlockReceiver=new BroadcastReceiver(){
+        @Override public void onReceive(Context context,Intent intent){resumeAfterUnlock();}
+    };
     private FrameLayout root;
     private RecyclerView list;
     private GridLayoutManager layout;
@@ -106,6 +110,16 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN
                 | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         if(Build.VERSION.SDK_INT>=21)getWindow().setNavigationBarColor(Color.BLACK);
+        // A Direct Boot HOME must not open credential-protected preferences, media or databases.
+        // Recreate after unlock so the normal lifecycle initializes every desktop dependency once.
+        if(Build.VERSION.SDK_INT>=24 && !HomeGuardState.unlocked(this)){
+            waitingForUnlock=true;
+            DiagnosticLog.info("home.locked_wait","credential_storage_not_opened");
+            TextView waiting=new TextView(this);waiting.setText("等待系统解锁");waiting.setTextColor(Color.WHITE);
+            waiting.setBackgroundColor(Color.BLACK);waiting.setGravity(Gravity.CENTER);setContentView(waiting);
+            androidx.core.content.ContextCompat.registerReceiver(this,unlockReceiver,new IntentFilter(Intent.ACTION_USER_UNLOCKED),androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
+            resumeAfterUnlock();return;
+        }
         try {
             config = new JSONObject(readAsset("launcher.json"));
             chinese = !"en".equals(config.optString("language", "zh"));
@@ -126,6 +140,13 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             if(new SetupStore(this).shouldOffer(this))main.post(()->{if(!isFinishing() && !isDestroyed())leaveHome(()->startActivity(new Intent(this,SetupActivity.class)));});
         }catch(Exception e){Log.w(TAG,"Setup state unavailable; retaining home",e);DiagnosticLog.error("home.setup_state.failed",e);}});
     }
+
+    private void resumeAfterUnlock(){
+        if(waitingForUnlock && !unlockRecreateRequested && HomeGuardState.unlocked(this) && !isFinishing()){
+            unlockRecreateRequested=true;recreate();
+        }
+    }
+    boolean desktopInitialized(){return !waitingForUnlock;}
 
     private String readAsset(String name) throws IOException {
         try (InputStream input = getAssets().open(name); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
@@ -269,6 +290,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     @Override protected void onResume() {
+        if(waitingForUnlock){super.onResume();resumeAfterUnlock();return;}
         homeResumeStarted=SystemClock.uptimeMillis();++homeResumeSequence;homeDrawPending=true;
         homeResumeEvent("home.resume.begin","sincePauseMs="+(homePausedAt==0?-1:homeResumeStarted-homePausedAt));
         super.onResume(); resumed=true;
@@ -298,6 +320,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     @Override public void onWindowFocusChanged(boolean focused){
+        if(waitingForUnlock){super.onWindowFocusChanged(focused);return;}
         homeResumeEvent("home.window_focus","focused="+focused);
         super.onWindowFocusChanged(focused);systemEntryLifecycle("window_focus="+focused);if(focused && resumed && systemEntryDispatched)systemEntryPending="";if(focused && resumed){new HomeProxy(this).visible(this);if(!isFinishing()){HomeGuardRecovery.visible(this);launchBootApp();}}
     }
@@ -318,6 +341,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     @Override protected void onPause() {
+        if(waitingForUnlock){super.onPause();return;}
         if(!HomeGuardState.canShow(this))new HomeProxy(this).defer(getIntent());
         homePausedAt=SystemClock.uptimeMillis();homeResumeEvent("home.pause","");homeDrawPending=false;
         systemEntryLifecycle("pause");
@@ -332,9 +356,13 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         super.onPause();
     }
 
-    @Override protected void onDestroy(){BootAppLifecycle.destroyed(this);unregisterReceiver(packageReceiver);loader.shutdownNow();wallpapers.destroy();weather.destroy();super.onDestroy();}
+    @Override protected void onDestroy(){
+        if(waitingForUnlock){unregisterReceiver(unlockReceiver);loader.shutdownNow();super.onDestroy();return;}
+        BootAppLifecycle.destroyed(this);unregisterReceiver(packageReceiver);loader.shutdownNow();wallpapers.destroy();weather.destroy();super.onDestroy();
+    }
     @Override protected void onNewIntent(Intent intent){
         super.onNewIntent(intent);setIntent(intent);
+        if(waitingForUnlock){resumeAfterUnlock();return;}
         if(!new HomeProxy(this).allowed(intent)){new HomeProxy(this).original(this);finish();return;}
         getWindow().getDecorView().post(()->{if(resumed && hasWindowFocus())new HomeProxy(this).visible(this);});
         if(isHomeIntent(intent))resetHomeFocus();else if(ready)focusCurrent(false);
@@ -445,6 +473,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     // Public Activity override; AndroidX core marks its inherited bridge class library-only.
     @android.annotation.SuppressLint("RestrictedApi")
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
+        if(waitingForUnlock)return super.dispatchKeyEvent(event);
         int key=event.getKeyCode();
         if(event.getAction()==KeyEvent.ACTION_DOWN && hasWindowFocus() && systemEntryDispatched && !systemEntryPending.isEmpty()){systemEntryLifecycle("next_home_key");systemEntryPending="";}
         boolean confirm=key==KeyEvent.KEYCODE_DPAD_CENTER || key==KeyEvent.KEYCODE_ENTER || key==KeyEvent.KEYCODE_NUMPAD_ENTER;

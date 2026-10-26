@@ -12,6 +12,8 @@ Quiet TV 基于该项目开发，面向国内电视机的适配与应用升级�
 
 ## Aerial 桌面守护（实验）参考
 
+VIDAA 原主页缺少窗口事件、酷开 AI 与松下系无 HOME 声明组件的处理，另参考 [Aerial 固定提交 2d6d468](https://github.com/pengchujin/aerial-tv/blob/2d6d468b6b65095b3f4691a8f9bc1514972feefd/app/src/main/java/app/orchard/tv/guard/HomeGuardService.kt)。本项目按已选系统组件启用获准用量检测，保留精确主页、其他前台应用、暂停与息屏边界；上游线索不作为本项目真机通过记录。MIT 版权与完整许可继续随包保留。
+
 - 来源：[pengchujin/aerial-tv](https://github.com/pengchujin/aerial-tv/tree/da9cedc2c5887a46d62b1f54699567a5deac5c2a)，固定提交 `da9cedc2c5887a46d62b1f54699567a5deac5c2a`。
 - Copyright (c) 2026 pengchujin，MIT；[完整许可证](app/src/main/assets/licenses/aerial-MIT.txt)随主程序打包。
 - 参考原主页窗口识别及酷开私有 HOME 类别，后续恢复机制固定参考提交 [bd30a9f9fbbcbb8e8ff02963dc265714e7a67a8e](https://github.com/pengchujin/aerial-tv/tree/bd30a9f9fbbcbb8e8ff02963dc265714e7a67a8e)。在现有 Java 结构实现自动策略、普通主页快速接管、开机稳定期复核、通知监听恢复与有限重绑。MIT 版权和许可继续随包保留。旧安卓 UsageStats 前台检测与电脑首次授权路径固定参考提交 [bc89bc51a382899d3233f7d0b87db54a5d408348](https://github.com/pengchujin/aerial-tv/tree/bc89bc51a382899d3233f7d0b87db54a5d408348)，按本项目精确原主页、暂停与启动确认策略实现。电脑端独立连接与保留原桌面的边界同时对照 [cleanyourtv 小米记录](https://github.com/Gathin23/cleanyourtv/blob/eb0131a32fd8567086f39002f1782f7c1b078ca6/docs/devices/xiaomi-mitv4-ansm0.md)。本轮恢复参考 Aerial 1.49 的固定提交 [f1c8ea979a9128cebc46c646bb8efba1644e7b26](https://github.com/pengchujin/aerial-tv/tree/f1c8ea979a9128cebc46c646bb8efba1644e7b26) 中 HomeGuardService.kt、GuardSetup.kt、BootReceiver.kt 和 RevivalSync.kt，按现有 Java 结构实现直接 HOME 补偿、30／45秒开机复查和本地系统同步恢复。通用无事件恢复仅重绑本应用条目，未引入厂商属性写入和全局按键过滤。MIT 版权与许可继续保留。上游机型反馈不等于 Quiet TV 真机验收。

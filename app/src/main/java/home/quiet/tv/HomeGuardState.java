@@ -91,6 +91,13 @@ final class HomeGuardState {
         Map<String,Candidate> homes=new LinkedHashMap<>();collect(homes,pm.queryIntentActivities(HomeController.homeIntent(),0));
         if(HomeGuardRecovery.knownPrivateHome())for(String category:new String[]{"android.intent.category.HOME.CC","android.intent.category.HOME.CC_MAIN","smartdevice.intent.category.LITE_HOME"})
             collect(homes,pm.queryIntentActivities(new Intent(Intent.ACTION_MAIN).addCategory(category),0));
+        // These firmware activities omit HOME intent filters. Never infer a target from brand alone.
+        for(String component:new String[]{"com.skyworth.panasonichome/com.skyworth.panasonichome.MainActivity",
+                "com.coocaa.aigc.home/com.coocaa.aigc.home.home.rootpage.HomeActivity"}){
+            try{ResolveInfo value=new ResolveInfo();value.activityInfo=pm.getActivityInfo(ComponentName.unflattenFromString(component),0);
+                collect(homes,Collections.singletonList(value));}
+            catch(PackageManager.NameNotFoundException|SecurityException ignored){}
+        }
         return new ArrayList<>(homes.values());
     }
     private void collect(Map<String,Candidate> homes,List<ResolveInfo> values){
@@ -127,13 +134,14 @@ final class HomeGuardState {
     @android.annotation.SuppressLint("ApplySharedPref")
     String enable(){if(new DesktopRoutes(context).proxySelected() && !new HomeProxy(context).pause())return "代理暂停回执待确认，请先恢复原桌面";preferences.edit().putString("mode","AUTO").putBoolean("configured",true).commit();configure();new DesktopRoutes(context).observe();HomeGuardSync.refresh(context);HomeGuardAdb.ensure(context);HomeGuardRecovery.request(context,"用户启用");return enableProblem();}
     // A boot-only entry does not establish that pressing HOME can be redirected.
-    boolean compatibleReady(){return new HomeProxy(context).ready() || ready() && serviceEnabled() && HomeGuardService.connected();}
+    boolean observationReady(){return ready() && serviceEnabled() && HomeGuardService.connected();}
+    boolean compatibleReady(){return new HomeProxy(context).ready() || observationReady();}
     String summary(){
         if(!enabled())return preferences.getString("status","未配置");
         String problem=enableProblem();if(!problem.isEmpty())return problem;
         if(!HomeGuardService.connected())return "等待系统绑定无障碍";
-        if(HomeGuardService.usageRequired() && !HomeGuardService.usageAllowed(context))return "无障碍已连接  兼容检测未授权，可通过电脑配置";
-        return preferences.getString("status","守护就绪，等待原主页");
+        if(HomeGuardService.usageRequired(context) && !HomeGuardService.usageAllowed(context))return "无障碍已连接  兼容检测未授权，可通过电脑配置";
+        return "守护已连接";
     }
     boolean helperActive(){
         String enabled=Settings.Secure.getString(context.getContentResolver(),Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);

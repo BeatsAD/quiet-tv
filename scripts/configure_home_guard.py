@@ -75,6 +75,34 @@ def user_options(help_text, operation, sdk, user):
     raise ValueError("本机命令不能明确作用于目标用户，未修改权限")
 
 
+def broadcast_data(output):
+    match = re.search(r'\bdata=(.*?)(?:, extras:.*)?$', output.strip())
+    if not match:
+        return None
+    value = match[1]
+    try:
+        if value.startswith('"') and value.endswith('"'):
+            try:
+                value = json.loads(value)
+            except ValueError:
+                value = value[1:-1]
+        result = json.loads(value)
+        return result if isinstance(result, dict) else None
+    except ValueError:
+        return None
+
+
+def appop_allowed(output, operation):
+    return bool(re.search(r'(?m)^\s*' + re.escape(operation) + r':\s*allow(?:[;\s]|$)', output))
+
+
+def canonical_home(value):
+    if not value or "/" not in value:
+        return value
+    package, activity = value.split("/", 1)
+    return package + "/" + (package + activity if activity.startswith(".") else activity)
+
+
 class ComputerAdb:
     def __init__(self, executable, serial):
         self.executable, self.serial = executable, serial
@@ -84,7 +112,7 @@ class ComputerAdb:
                                 capture_output=True, text=True, encoding="utf-8",
                                 errors="replace", timeout=20, check=False)
         output = (result.stdout + "\n" + result.stderr).strip()
-        if result.returncode or re.search(r"(?im)^\s*(?:error:|exception|securityexception|failure|unknown (?:command|operation))", output):
+        if result.returncode or re.search(r"(?im)^\s*(?:error:|exception|securityexception|failure|unknown (?:command|operation|op)\b|invalid operation)", output):
             raise ValueError(output or "ADB 命令失败，状态未确认")
         return output
 
@@ -139,16 +167,35 @@ def configure(args, adb):
             raise ValueError("应用未确认暂停；已安装 APK 可能不支持该入口")
         print("中转已暂停；系统默认 HOME 保持原状，原桌面保护不解除。")
         return
+    selected = canonical_home(args.home or "")
+    inspection = None
+    if args.apply:
+        # New APKs answer without changing preferences or enabling the guard. Old APKs
+        # reject inspect before the explicit enable branch; retain their existing setup path.
+        output = adb.shell("am", "broadcast", "--include-stopped-packages", "--user", args.user,
+                           "-a", args.package + ".CONFIGURE_HOME_GUARD",
+                           "-n", args.package + "/home.quiet.tv.HomeGuardSetupReceiver",
+                           "--ei", "user", args.user, "--ez", "inspect", "true")
+        inspection = broadcast_data(output)
+        if inspection and inspection.get("schemaVersion") == 1:
+            if inspection.get("package") != args.package or not inspection.get("supported"):
+                raise ValueError("应用身份或守护能力不匹配，未修改权限")
+            homes = inspection.get("candidates", [])
+            resolved = inspection.get("resolvedHome", "")
+            selected = selected or inspection.get("selected") or (resolved if resolved in homes else "") or (homes[0] if len(homes) == 1 else "")
+            if not selected or selected not in homes:
+                raise ValueError("原主页未唯一确定或已失效，请使用 --home 指定本机候选；未修改权限")
     pm_help = adb.shell("pm", "help")
     ops_help = adb.shell("appops", "help")
     pm_user = user_options(pm_help, "grant", sdk, args.user)
     ops_user = user_options(ops_help, "set", sdk, args.user)
+    ops_get_user = user_options(ops_help, "get", sdk, args.user)
     plan = [["pm", "grant", *pm_user, args.package, "android.permission.WRITE_SECURE_SETTINGS"]]
     if sdk >= 23:
         plan.append(["appops", "set", *ops_user, args.package, "WRITE_SETTINGS", "allow"])
         plan.append(["appops", "set", *ops_user, args.package, "SYSTEM_ALERT_WINDOW", "allow"])
     vendor = " ".join(adb.shell("getprop", key) for key in ("ro.product.manufacturer", "ro.product.brand")).lower().split()
-    if sdk <= 23 or "xiaomi" in vendor or "redmi" in vendor:
+    if sdk <= 23 or "xiaomi" in vendor or "redmi" in vendor or selected.startswith("com.jamdeo.tv.vod/"):
         plan.append(["appops", "set", *ops_user, args.package, "GET_USAGE_STATS", "allow"])
     vendor_before = {}
     brand = adb.shell("getprop", "ro.product.brand")
@@ -158,7 +205,7 @@ def configure(args, adb):
         # hard-coding numeric app-op IDs shared with unrelated Android permissions.
         for operation in ("APP_AUTO_START", "AUTO_START", "APP_ASSOC_START"):
             try:
-                vendor_before[operation] = adb.shell("appops", "get", *ops_user, args.package, operation)
+                vendor_before[operation] = adb.shell("appops", "get", *ops_get_user, args.package, operation)
             except ValueError as error:
                 if re.search(r"unknown (?:operation|op)|invalid operation", str(error), re.I):
                     continue
@@ -178,25 +225,30 @@ def configure(args, adb):
     broadcast = ["am", "broadcast", "--include-stopped-packages", "--user", args.user, "-a", args.package + ".CONFIGURE_HOME_GUARD",
                  "-n", args.package + "/home.quiet.tv.HomeGuardSetupReceiver", "--ei", "user", args.user,
                  "--ez", "enable", "true"]
-    if args.home:
-        broadcast += ["--es", "home", args.home]
+    if selected:
+        broadcast += ["--es", "home", selected]
     plan.append(broadcast)
     if not args.apply:
         print("仅预览，未修改电视。确认原主页及授权范围后，使用 --apply --record <新的私有记录路径> 执行：")
+        if not selected:
+            print("执行时先核对应用所选原主页；VIDAA 原主页可能还需要 GET_USAGE_STATS。")
         for command in plan:
             print("shell " + " ".join(shlex.quote(str(value)) for value in command))
         return
     # Save original settings and grant state before the first write, without replacing any baseline.
     record = {"serial": args.serial, "user": args.user, "package": args.package, "sdk": sdk, "identity_profile": profile,
-              "tcl_appops_before": vendor_before,
+              "tcl_appops_before": vendor_before, "inspection": inspection,
               "package_before": package, "plan": plan,
               "accessibility_before": adb.shell("settings", "--user", args.user, "get", "secure", "enabled_accessibility_services"),
               "notification_before": adb.shell("settings", "--user", args.user, "get", "secure", "enabled_notification_listeners"),
-              "appops_before": adb.shell("appops", "get", *ops_user, args.package)}
+              "appops_before": adb.shell("appops", "get", *ops_get_user, args.package)}
     descriptor = os.open(args.record, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
         json.dump(record, handle, ensure_ascii=False, indent=2)
         handle.write("\n")
+    results_path = args.record.with_name(args.record.name + ".results.jsonl")
+    descriptor = os.open(results_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    os.close(descriptor)
     for command in plan:
         if adb.current_user() != args.user:
             raise ValueError("前台用户已改变，停止后续配置；已完成的授权保留")
@@ -209,10 +261,22 @@ def configure(args, adb):
                 output = "通知授权不可用，继续核对应用内同步恢复"
             else:
                 raise
+        with results_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps({"command": command, "output": output}, ensure_ascii=False) + "\n")
         if command is broadcast:
             print(output)
             if not re.search(r"\bresult=-1\b", output):
                 raise ValueError("应用未确认全部权限配置完成；已完成的授权保留，请检查上方结果")
+        if command[:2] == ["appops", "set"] and command[-2] in vendor_before:
+            operation = command[-2]
+            if adb.current_user() != args.user:
+                raise ValueError("前台用户已改变，停止后续配置；已完成的授权保留")
+            after = adb.shell("appops", "get", *ops_get_user, args.package, operation)
+            with results_path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps({"operation": operation, "readback": after,
+                                         "allowed": appop_allowed(after, operation)}, ensure_ascii=False) + "\n")
+            if not appop_allowed(after, operation):
+                raise ValueError("厂商自启动权限未读回 allow：" + operation + "；已完成的授权保留")
     print("权限已配置；实际绑定、实体 HOME、冷启动及待机唤醒仍需逐项验证。")
 
 

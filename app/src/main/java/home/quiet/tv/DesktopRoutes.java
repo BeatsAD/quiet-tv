@@ -59,8 +59,8 @@ final class DesktopRoutes {
     }
     String home(){return current()?prefs.getString("routeHome",state.enabled()?"RELAY":"UNKNOWN"):"UNKNOWN";}
     String homeLabel(){if("RELAY".equals(home()) && proxySelected())return "HOME 代理中转";return "DIRECT".equals(home())?"系统直接启动":"RELAY".equals(home())?"原主页中转":"待检测";}
-    String bootLabel(){return vendorReady()?"厂商开机中转":state.enabled()?"守护开机补偿":"待验证";}
-    String wakeLabel(){return state.enabled()?"原主页中转":"待验证";}
+    String bootLabel(){return vendorReady()?"厂商开机中转":state.observationReady()?"守护开机补偿":state.enabled()?"守护待就绪":"待验证";}
+    String wakeLabel(){return state.observationReady()?"原主页中转":state.enabled()?"守护待就绪":"待验证";}
     String test(String scene){return current()?prefs.getString("routeTest_"+scene,"待验证"):"待验证";}
     void observation(String scene,String result){
         if(!java.util.Arrays.asList("home","reboot","coldBoot","wake").contains(scene)
@@ -93,8 +93,11 @@ final class DesktopRoutes {
                     .put("evidenceId",recorded?prefs.getString("routeTestEvidence_"+scene,""):""));
         }
         return snapshot.put("sceneEvidence",evidence).put("vendorBootProblem",vendorProblem())
+                .put("accessibilityAllowed",state.serviceEnabled()).put("accessibilityBound",HomeGuardService.connected())
+                .put("usageRequired",HomeGuardService.usageRequired(context)).put("usageAllowed",HomeGuardService.usageAllowed(context))
+                .put("configurationProblem",HomeGuardRecovery.configurationProblem(context))
                 .put("syncRecovery",HomeGuardSync.summary(context)).put("syncRecoveryReady",HomeGuardSync.ready(context)).put("keepAdb",HomeGuardAdb.enabled(context))
-                .put("observationReady",state.ready() && state.serviceEnabled() && HomeGuardService.connected());
+                .put("observationReady",state.observationReady());
     }
     private JSONObject bridge(){return rules.vendorBoot();}
     String vendorProblem(){
