@@ -46,7 +46,17 @@ final class AppListPanel extends ManagementPanel {
         coverUploads=new AppCoverUploadPanel(activity);session=managementSession;adb=session.adb;
         LinearLayout body=managementContent(),filters=managementInfo;
         for(int i=0;i<FILTERS.length;i++){final int chosen=i;Button option=button(FILTERS[i],()->{filter=chosen;applyFilter();});option.setId(View.generateViewId());styleManagementTab(option,true);
-            option.setOnKeyListener((v,key,event)->{if(key==KeyEvent.KEYCODE_DPAD_DOWN){if(event.getAction()==KeyEvent.ACTION_DOWN)focusList();return true;}return false;});
+            option.setOnKeyListener((v,key,event)->{
+                if(key!=KeyEvent.KEYCODE_DPAD_LEFT&&key!=KeyEvent.KEYCODE_DPAD_RIGHT&&key!=KeyEvent.KEYCODE_DPAD_UP&&key!=KeyEvent.KEYCODE_DPAD_DOWN)return false;
+                if(event.getAction()==KeyEvent.ACTION_UP)return true;
+                if(key==KeyEvent.KEYCODE_DPAD_DOWN)focusList();
+                else if(key==KeyEvent.KEYCODE_DPAD_UP)managementTab().requestFocus();
+                else{
+                    int next=Math.max(0,Math.min(filterButtons.size()-1,chosen+(key==KeyEvent.KEYCODE_DPAD_RIGHT?1:-1)));
+                    if(next!=chosen){Button target=filterButtons.get(next);target.requestFocus();target.performClick();}
+                }
+                return true;
+            });
             option.setNextFocusUpId(managementTab().getId());filterButtons.add(option);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,-1);if(i>0)p.leftMargin=px(10);filters.addView(option,p);}
         for(int i=0;i<filterButtons.size();i++){Button b=filterButtons.get(i);if(i>0)b.setNextFocusLeftId(filterButtons.get(i-1).getId());if(i+1<filterButtons.size())b.setNextFocusRightId(filterButtons.get(i+1).getId());}
         count=managementHint("正在读取应用…");count.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);count.setPadding(px(16),0,0,0);filters.addView(count,new LinearLayout.LayoutParams(0,-1,1));
