@@ -24,18 +24,18 @@ final class ChildModeUnlock {
 
     ChildModeUnlock(AppManagementActivity activity,Active active,Runnable authorized,Runnable cancel){
         this.activity=activity;this.active=active;this.authorized=authorized;store=new ChildModeStore(activity);
-        view=activity.column();view.setPadding(p(22),p(16),p(22),p(16));view.setBackground(activity.surface(0xff20232a,0xff171a20,0x26ffffff,14));
-        LinearLayout content=activity.row(),fields=activity.column(),pad=activity.column();content.setGravity(Gravity.CENTER_VERTICAL);view.addView(content);
-        content.addView(fields,new LinearLayout.LayoutParams(0,-2,1));LinearLayout.LayoutParams padLayout=new LinearLayout.LayoutParams(p(210),-2);padLayout.leftMargin=p(20);content.addView(pad,padLayout);
-        title=activity.center("",20);fields.addView(title,new LinearLayout.LayoutParams(-1,p(28)));
+        view=activity.column();view.setPadding(p(22),p(12),p(22),p(12));view.setBackground(activity.surface(0xff20232a,0xff171a20,0x26ffffff,14));
+        LinearLayout fields=view,pad=activity.column();
+        title=activity.center("",20);fields.addView(title,new LinearLayout.LayoutParams(-1,p(26)));
         pin=activity.input("","输入 6 位数字");pin.setId(View.generateViewId());pin.setTag("child-pin");pin.setGravity(Gravity.CENTER);
         pin.setInputType(InputType.TYPE_CLASS_NUMBER|InputType.TYPE_NUMBER_VARIATION_PASSWORD);pin.setFilters(new InputFilter[]{new InputFilter.LengthFilter(6),android.text.method.DigitsKeyListener.getInstance("0123456789")});
         if(android.os.Build.VERSION.SDK_INT>=21)pin.setShowSoftInputOnFocus(false);
-        LinearLayout.LayoutParams pp=new LinearLayout.LayoutParams(-1,p(36));pp.topMargin=p(8);fields.addView(pin,pp);
-        error=activity.muted("",11);error.setGravity(Gravity.CENTER);error.setTextColor(0xffe3aba1);error.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);fields.addView(error,new LinearLayout.LayoutParams(-1,p(22)));
+        LinearLayout.LayoutParams pp=new LinearLayout.LayoutParams(-1,p(34));pp.topMargin=p(8);fields.addView(pin,pp);
+        error=activity.muted("",11);error.setGravity(Gravity.CENTER);error.setTextColor(0xffe3aba1);error.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);fields.addView(error,new LinearLayout.LayoutParams(-1,p(18)));
         pin.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int start,int count,int after){}public void onTextChanged(CharSequence s,int start,int before,int count){}public void afterTextChanged(Editable value){if(!busy)error.setText("");}});
+        LinearLayout.LayoutParams padLayout=new LinearLayout.LayoutParams(-1,-2);padLayout.topMargin=p(4);fields.addView(pad,padLayout);
         for(int row=0;row<4;row++){
-            LinearLayout line=activity.row();LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,p(36));if(row>0)lp.topMargin=p(6);pad.addView(line,lp);
+            LinearLayout line=activity.row();LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,p(32));if(row>0)lp.topMargin=p(6);pad.addView(line,lp);
             for(int column=0;column<3;column++){
                 final int index=row*3+column;String label=index<9?String.valueOf(index+1):index==9?"清空":index==10?"0":"退格";
                 Button key=activity.button(label,()->enter(index));key.setId(View.generateViewId());key.setTag("child-key-"+label);key.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,p(14));key.setPadding(0,0,0,0);
@@ -50,11 +50,20 @@ final class ChildModeUnlock {
                 });
             }
         }
-        LinearLayout actions=activity.row();LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,p(34));ap.topMargin=p(3);fields.addView(actions,ap);
+        LinearLayout actions=activity.row();LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,p(34));ap.topMargin=p(8);fields.addView(actions,ap);
         Button back=activity.button("取消",cancel);back.setTag("child-auth-cancel");back.setId(View.generateViewId());actions.addView(back,new LinearLayout.LayoutParams(0,-1,1));
         confirm=activity.button("",this::submit);confirm.setTag("child-auth-confirm");confirm.setId(View.generateViewId());LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,-1,1);cp.leftMargin=p(8);actions.addView(confirm,cp);
         back.setNextFocusUpId(keys[9].getId());confirm.setNextFocusUpId(keys[11].getId());
-        recover=activity.button("忘记密码",()->mode(2));recover.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,p(11));recover.setBackground(activity.focusSurface(6));LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-2,p(27));rp.gravity=Gravity.CENTER_HORIZONTAL;rp.topMargin=p(4);fields.addView(recover,rp);
+        recover=activity.button("忘记密码",()->{mode(2);focus();});recover.setId(View.generateViewId());recover.setTag("child-auth-recover");recover.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,p(11));recover.setBackground(activity.focusSurface(6));LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-2,p(27));rp.gravity=Gravity.CENTER_HORIZONTAL;rp.topMargin=p(4);fields.addView(recover,rp);
+        // Explicit routes keep every action reachable without relying on spatial focus search.
+        for(Button action:new Button[]{back,confirm,recover})action.setOnKeyListener((v,code,event)->{
+            if(code<KeyEvent.KEYCODE_DPAD_UP||code>KeyEvent.KEYCODE_DPAD_RIGHT)return false;
+            if(event.getAction()==KeyEvent.ACTION_DOWN){
+                if(code==KeyEvent.KEYCODE_DPAD_UP){if(v==recover)confirm.requestFocus();else keys[v==back?9:11].requestFocus();}
+                else if(code==KeyEvent.KEYCODE_DPAD_DOWN){if(recover.getVisibility()==View.VISIBLE)recover.requestFocus();}
+                else if(v!=recover){if(code==KeyEvent.KEYCODE_DPAD_LEFT)back.requestFocus();else confirm.requestFocus();}
+            }return true;
+        });
         pin.setOnKeyListener((v,code,event)->{
             if(code==KeyEvent.KEYCODE_DPAD_UP||code==KeyEvent.KEYCODE_DPAD_DOWN){if(event.getAction()==KeyEvent.ACTION_DOWN){if(code==KeyEvent.KEYCODE_DPAD_UP)activity.managementTab().requestFocus();else keys[1].requestFocus();}return true;}
             return code==KeyEvent.KEYCODE_DPAD_LEFT||code==KeyEvent.KEYCODE_DPAD_RIGHT;

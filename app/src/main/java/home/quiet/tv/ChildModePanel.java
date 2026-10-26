@@ -62,7 +62,7 @@ final class ChildModePanel extends ManagementPanel {
         unlock=new ChildModeUnlock(activity,()->showing&&!authorized,()->{
             unlock.close();unlock=null;authorized=true;gate.removeAllViews();gate.setVisibility(View.GONE);manager.setVisibility(View.VISIBLE);count.setText("正在读取应用…");managementAction.requestFocus();load();
         },()->{locked();managementTab().requestFocus();});
-        gate.addView(unlock.view,new FrameLayout.LayoutParams(px(570),-2,Gravity.CENTER));unlock.focus();
+        gate.addView(unlock.view,new FrameLayout.LayoutParams(px(330),-2,Gravity.CENTER));unlock.focus();
     }
     @Override protected void onPause(){
         if(authorized)listState=list.getLayoutManager().onSaveInstanceState();authorized=false;manager.setVisibility(View.GONE);loadGeneration++;loading=false;ChildModeAuth.dismiss(activity);if(editing!=null)editing.dismiss();
