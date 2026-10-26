@@ -29,6 +29,10 @@ Quiet TV 基于该项目开发，面向国内电视机的适配与应用升级�
 - Android 5+ 使用 [AndroidX Media3 ExoPlayer 1.8.1](https://developer.android.com/jetpack/androidx/releases/media3#1.8.1)，Apache-2.0，版权归 The Android Open Source Project 等贡献者；完整许可沿用 APK 中的 `assets/licenses/libadb-Apache-2.0.txt`。固定此兼容版本以保留 Android 5.0 支持，不引入额外 FFmpeg 解码库；Android 4.4 不包含 Media3，继续使用系统 MediaPlayer。
 - 播放器缓冲上限、关闭音频轨、首帧通知和退出释放的设计参考 [Aerial f1c8ea97](https://github.com/pengchujin/aerial-tv/tree/f1c8ea979a9128cebc46c646bb8efba1644e7b26) 的 `LiveWallpaper.kt`、`VideoSaver.kt` 和 `ScreensaverVideos.kt`，按本项目 Java、局域网上传及双系统档位实现。Aerial 的 MIT 版权和完整许可继续随包保留；未引入其在线航拍下载、缓存或屏保功能。
 
+## TCL 电脑安装通道
+
+电脑侧 TCL 安装通道参考 [Aerial 的 tcast-push.py](https://github.com/pengchujin/aerial-tv/blob/main/tools/tcast-push.py) 及 TCL MT5879 记录，按本项目目标包、私有 APK 校验和 ADB 用户边界实现。`scripts/tcl_cast.py` 保留 Copyright (c) 2026 pengchujin 及完整 MIT 许可。推送不包含远程截图、按键、屏保接管或系统包精简；上游机型的结果不计为 Quiet TV 真机验收。
+
 ## coocaa-home-shim（可选独立助手）
 
 - 来源：[VincentYe123/coocaa-home-shim](https://github.com/VincentYe123/coocaa-home-shim/tree/281a6a1362a9e30faaeb2169b75ba701dd0b1a03)，固定提交 `281a6a1362a9e30faaeb2169b75ba701dd0b1a03`。

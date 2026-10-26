@@ -41,6 +41,8 @@ final class DesktopSettingsStore {
     }
     boolean showTime(){return preferences.getBoolean("show-time",true);}
     boolean showAppTitle(){return preferences.getBoolean("show-app-title",true);}
+    boolean showHomeApps(){return preferences.getBoolean("show-home-apps",true);}
+    boolean showDockBackground(){return preferences.getBoolean("show-dock-background",true);}
     boolean showAllAppsNames(){return preferences.getBoolean("show-all-apps-names",true);}
     boolean showButtons(){return preferences.getBoolean("show-buttons",true);}
     boolean showInput(){return preferences.getBoolean("show-input",showButtons());}
@@ -51,6 +53,8 @@ final class DesktopSettingsStore {
     void showSettings(boolean show){preferences.edit().putBoolean("show-settings",show).apply();DiagnosticLog.info("desktop.setting","show-settings="+show);}
     void showTime(boolean show){preferences.edit().putBoolean("show-time",show).apply();DiagnosticLog.info("desktop.setting","show-time="+show);}
     void showAppTitle(boolean show){preferences.edit().putBoolean("show-app-title",show).apply();DiagnosticLog.info("desktop.setting","show-app-title="+show);}
+    void showHomeApps(boolean show){preferences.edit().putBoolean("show-home-apps",show).apply();DiagnosticLog.info("desktop.setting","show-home-apps="+show);}
+    void showDockBackground(boolean show){preferences.edit().putBoolean("show-dock-background",show).apply();DiagnosticLog.info("desktop.setting","show-dock-background="+show);}
     void showAllAppsNames(boolean show){preferences.edit().putBoolean("show-all-apps-names",show).apply();DiagnosticLog.info("desktop.setting","show-all-apps-names="+show);}
     void showButtons(boolean show){preferences.edit().putBoolean("show-buttons",show).apply();DiagnosticLog.info("desktop.setting","show-buttons="+show);}
 }
