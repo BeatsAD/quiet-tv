@@ -150,6 +150,22 @@ def configure(args, adb):
     vendor = " ".join(adb.shell("getprop", key) for key in ("ro.product.manufacturer", "ro.product.brand")).lower().split()
     if sdk <= 23 or "xiaomi" in vendor or "redmi" in vendor:
         plan.append(["appops", "set", *ops_user, args.package, "GET_USAGE_STATS", "allow"])
+    vendor_before = {}
+    brand = adb.shell("getprop", "ro.product.brand")
+    manufacturer = adb.shell("getprop", "ro.product.manufacturer")
+    if re.search(r"\b(?:tcl|ffalcon|iffalcon)\b", brand + " " + manufacturer, re.I):
+        # TCL's process-start gate is independent of accessibility. Probe names rather than
+        # hard-coding numeric app-op IDs shared with unrelated Android permissions.
+        for operation in ("APP_AUTO_START", "AUTO_START", "APP_ASSOC_START"):
+            try:
+                vendor_before[operation] = adb.shell("appops", "get", *ops_user, args.package, operation)
+            except ValueError as error:
+                if re.search(r"unknown (?:operation|op)|invalid operation", str(error), re.I):
+                    continue
+                raise
+            plan.append(["appops", "set", *ops_user, args.package, operation, "allow"])
+        if vendor_before and command_signature(ops_help, "write-settings"):
+            plan.append(["appops", "write-settings"])
     # Old firmware has no cmd. Its notification list is merged by the app with its granted permission.
     if sdk >= 27:
         try:
@@ -172,6 +188,7 @@ def configure(args, adb):
         return
     # Save original settings and grant state before the first write, without replacing any baseline.
     record = {"serial": args.serial, "user": args.user, "package": args.package, "sdk": sdk, "identity_profile": profile,
+              "tcl_appops_before": vendor_before,
               "package_before": package, "plan": plan,
               "accessibility_before": adb.shell("settings", "--user", args.user, "get", "secure", "enabled_accessibility_services"),
               "notification_before": adb.shell("settings", "--user", args.user, "get", "secure", "enabled_notification_listeners"),

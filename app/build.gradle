@@ -43,9 +43,9 @@ android {
         'home/quiet/tv/DiagnosticsDownloadServer.java', 'home/quiet/tv/DiagnosticsRecorder.java',
         'home/quiet/tv/DiagnosticsSnapshot.java'
     buildTypes {
-        debug { debuggable true; buildConfigField 'String', 'UPDATE_CHANNEL', launcherId == 'com.coocaa.quiettv' ? '"experimental"' : '"test"' }
+        debug { debuggable true; buildConfigField 'String', 'UPDATE_CHANNEL', launcherId == 'com.coocaa.quiettv' || homeMode == 'relay' ? '"experimental"' : '"test"' }
         benchmark {
-            buildConfigField 'String', 'UPDATE_CHANNEL', launcherId == 'com.coocaa.quiettv' ? '"experimental"' : '"test"'
+            buildConfigField 'String', 'UPDATE_CHANNEL', launcherId == 'com.coocaa.quiettv' || homeMode == 'relay' ? '"experimental"' : '"test"'
             debuggable false
             minifyEnabled true
             shrinkResources true
