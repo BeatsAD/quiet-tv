@@ -94,6 +94,11 @@
         </receiver>
         <activity android:name=".ChildModeActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".ChildBlockActivity" android:exported="false" android:launchMode="singleTop" android:excludeFromRecents="true" android:screenOrientation="landscape" />
+        <service android:name=".LegacyHomeKeyService" android:exported="true" android:enabled="false"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" android:label="@string/legacy_home_key_name">
+            <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/legacy_home_key" />
+        </service>
         <service android:name=".ChildUsageService" android:exported="true" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" android:label="@string/child_usage_name">
             <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
             <meta-data android:name="android.accessibilityservice" android:resource="@xml/child_usage" />

@@ -24,6 +24,7 @@ final class DiagnosticDeviceSnapshot {
         snapshot.section("HOME 候选与状态",snapshot::homeCandidates);
         snapshot.section("厂商私有启动路由",snapshot::privateHome);
         snapshot.section("桌面守护",snapshot::guard);
+        if(LegacyHomeKeyService.supported())snapshot.section("安卓4.4主页键修复",snapshot::legacyHomeKey);
         snapshot.section("开机接收组件",snapshot::bootReceiver);
         snapshot.section("厂商后台管理组件",snapshot::backgroundManagers);
         snapshot.section("本应用进程退出历史",snapshot::processExits);
@@ -163,6 +164,15 @@ final class DiagnosticDeviceSnapshot {
             String name=new ComponentName(info.packageName,info.name).flattenToString(),previous=homes.get(name);
             homes.put(name,previous==null?category:previous+"  "+category);
         }
+    }
+    private void legacyHomeKey(){
+        line("匹配平台","Hisense VIDAA_TV  Hi3751  API19");
+        line("服务组件启用原值",Integer.toString(pm.getComponentEnabledSetting(new ComponentName(context,LegacyHomeKeyService.class))));
+        line("默认 HOME 为本应用",yes(LegacyHomeKeyService.defaultHome(context)));
+        line("无障碍授权",yes(LegacyHomeKeyService.authorized(context)));
+        line("服务已连接",yes(LegacyHomeKeyService.connected()));
+        line("按键过滤请求",yes(LegacyHomeKeyService.filtering()));
+        line("验证范围","只处理 HOME；不依赖桌面守护、不读取窗口内容。授权、连接、请求过滤和实体 HOME 效果分别判断，实际效果待用户验证。");
     }
     private void guard() throws Exception {
         // Diagnostics must not perform preference migrations or request recovery.
