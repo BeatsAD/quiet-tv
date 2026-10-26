@@ -176,6 +176,102 @@ class ComputerAdb:
         return int(users.pop())
 
 
+HISENSE_REFRESH_PACKAGE = "com.hisense.vidaaassistant"
+HISENSE_REFRESH_FINGERPRINT = "Hisense/VIDAA_TV/MSD6A828:5.1.1/LVY48C/01.02.40.01:user/release-keys"
+
+
+def hisense_refresh_supported(adb, sdk, user, brand, manufacturer):
+    return (sdk == 22 and user == 0 and brand.lower() == "hisense" and manufacturer.lower() == "hisense"
+            and adb.shell("getprop", "ro.build.fingerprint") == HISENSE_REFRESH_FINGERPRINT)
+
+
+def hisense_hidden(dump):
+    rows = re.findall(r"(?m)^\s*User 0:([^\r\n]+)", dump)
+    if (len(rows) != 1 or not re.search(r"\binstalled=true\b", rows[0])
+            or not re.search(r"\benabled=[01]\b", rows[0])):
+        raise ValueError("上游刷新包未安装、已禁用或当前用户状态不明，未修改厂商包")
+    state = re.search(r"\bhidden=(true|false)\b", rows[0])
+    if state is None:
+        raise ValueError("上游刷新包隐藏状态不明，未修改厂商包")
+    return state[1] == "true"
+
+
+def repair_hisense_accessibility(adb, package, pm_help, record):
+    """Explicit Aerial #285 workaround; restore the verified hidden baseline even on failure."""
+    own = package + "/home.quiet.tv.HomeGuardService"
+
+    def check():
+        if adb.current_user() != 0:
+            raise ValueError("前台用户已改变，停止海信恢复；保留恢复记录")
+
+    def run(*command):
+        try:
+            output = adb.shell(*command)
+        except (ValueError, subprocess.TimeoutExpired) as error:
+            record({"command": command, "status": "failed", "exit": getattr(error, "exit", None), "output": str(error)})
+            raise
+        record({"command": command, "output": output})
+        return output
+
+    def get(key):
+        return run("settings", "--user", 0, "get", "secure", key).strip()
+
+    def accepted():
+        current = get("enabled_accessibility_services")
+        entries = [canonical_home(entry) for entry in current.split(":")]
+        return get("accessibility_enabled") == "1" and own in entries
+
+    def write():
+        check()
+        current = get("enabled_accessibility_services")
+        entries = [entry for entry in current.split(":") if entry and entry != "null" and canonical_home(entry) != own]
+        entries.append(own)
+        run("settings", "--user", 0, "put", "secure", "enabled_accessibility_services", ":".join(dict.fromkeys(entries)))
+        check()
+        run("settings", "--user", 0, "put", "secure", "accessibility_enabled", 1)
+
+    check()
+    if accepted():
+        return
+    write()
+    if accepted():
+        return
+    if get("accessibility_enabled") != "0":
+        raise ValueError("无障碍配置读回不一致，未修改厂商包")
+    check()
+    before = run("dumpsys", "package", HISENSE_REFRESH_PACKAGE)
+    if not hisense_hidden(before):
+        raise ValueError("固件未接受无障碍设置；上游刷新包原本未隐藏，未修改厂商包")
+    unhide = ["pm", "unhide", *user_options(pm_help, "unhide", 22, 0), HISENSE_REFRESH_PACKAGE]
+    hide = ["pm", "hide", *user_options(pm_help, "hide", 22, 0), HISENSE_REFRESH_PACKAGE]
+    check()
+    record({"hisense_refresh": "unhide_pending", "package": HISENSE_REFRESH_PACKAGE, "hidden_before": True,
+            "package_before": before, "restore_command": hide})
+    failure = None
+    try:
+        run(*unhide)
+        if hisense_hidden(run("dumpsys", "package", HISENSE_REFRESH_PACKAGE)):
+            raise ValueError("刷新包未解除隐藏")
+        write()
+        if not accepted():
+            raise ValueError("包状态刷新后固件仍未接受无障碍设置")
+    except (ValueError, subprocess.TimeoutExpired) as error:
+        failure = error
+    finally:
+        try:
+            check()
+            run(*hide)
+            if not hisense_hidden(run("dumpsys", "package", HISENSE_REFRESH_PACKAGE)):
+                raise ValueError("刷新包恢复隐藏未读回")
+            record({"hisense_refresh": "restored", "hidden_after": True})
+        except (ValueError, subprocess.TimeoutExpired) as restore:
+            raise ValueError("刷新包恢复隐藏未确认，请保留恢复记录并重新连接；原错误：" + str(failure or "无")) from restore
+    if failure is not None:
+        raise failure
+    if not accepted():
+        raise ValueError("恢复包隐藏状态后无障碍设置未保持，守护未确认")
+
+
 def configure(args, adb):
     if adb.run("get-state") != "device":
         raise ValueError("需要已授权的 ADB 连接")
@@ -252,6 +348,7 @@ def configure(args, adb):
     vendor_before = {}
     brand = adb.shell("getprop", "ro.product.brand")
     manufacturer = adb.shell("getprop", "ro.product.manufacturer")
+    hisense = hisense_refresh_supported(adb, sdk, args.user, brand, manufacturer)
     if re.search(r"\b(?:tcl|ffalcon|iffalcon)\b", brand + " " + manufacturer, re.I):
         # TCL's process-start gate is independent of accessibility. Probe names rather than
         # hard-coding numeric app-op IDs shared with unrelated Android permissions.
@@ -286,13 +383,17 @@ def configure(args, adb):
         print("仅预览，未修改电视。确认原主页及授权范围后，使用 --apply --record <新的私有记录路径> 执行：")
         if not selected and not direct_home:
             print("执行时先核对应用所选原主页；VIDAA 原主页可能还需要 GET_USAGE_STATS。")
+        if hisense:
+            print("若无障碍写入被固件丢弃，仅对原本隐藏的 com.hisense.vidaaassistant 临时 unhide，恢复无障碍后还原 hide；原桌面保留。")
         for command in plan:
             print("shell " + " ".join(shlex.quote(str(value)) for value in command))
         return
     # Save original settings and grant state before the first write, without replacing any baseline.
     record = {"serial": args.serial, "user": args.user, "package": args.package, "sdk": sdk, "identity_profile": profile,
               "tcl_appops_before": vendor_before, "inspection": inspection,
+              "hisense_refresh_fingerprint": HISENSE_REFRESH_FINGERPRINT if hisense else None,
               "package_before": package, "plan": plan,
+              "accessibility_enabled_before": adb.shell("settings", "--user", args.user, "get", "secure", "accessibility_enabled"),
               "accessibility_before": adb.shell("settings", "--user", args.user, "get", "secure", "enabled_accessibility_services"),
               "notification_before": adb.shell("settings", "--user", args.user, "get", "secure", "enabled_notification_listeners"),
               "appops_before": adb.shell("appops", "get", *ops_get_user, args.package)}
@@ -303,6 +404,10 @@ def configure(args, adb):
     results_path = args.record.with_name(args.record.name + ".results.jsonl")
     descriptor = os.open(results_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     os.close(descriptor)
+    def record_result(value):
+        with results_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(value, ensure_ascii=False) + "\n")
+
     for command in plan:
         if adb.current_user() != args.user:
             raise ValueError("前台用户已改变，停止后续配置；已完成的授权保留")
@@ -326,6 +431,15 @@ def configure(args, adb):
             handle.write(json.dumps({"command": command, "output": output}, ensure_ascii=False) + "\n")
         if command is broadcast:
             print(output)
+            confirmed = broadcast_data(output)
+            if (hisense and confirmed and confirmed.get("problem") == "无障碍权限未开启"
+                    and confirmed.get("enabled") and not confirmed.get("accessibilityAllowed")):
+                repair_hisense_accessibility(adb, args.package, pm_help, record_result)
+                if adb.current_user() != args.user:
+                    raise ValueError("前台用户已改变，停止后续配置；已完成的授权保留")
+                output = adb.shell(*broadcast)
+                record_result({"command": broadcast, "after_hisense_refresh": True, "output": output})
+                print(output)
             if not re.search(r"\bresult=-1\b", output):
                 raise ValueError("应用未确认全部权限配置完成；已完成的授权保留，请检查上方结果")
             if direct_home:
