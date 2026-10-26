@@ -9,7 +9,7 @@ import java.util.regex.*;
 
 /** One source at a time; only verified Content-Range responses may append. */
 final class UpdateTransfer {
-    static final String[] SOURCES={"https://ghfast.top/","https://gh-proxy.com/","https://gh.llkk.cc/",""};
+    static final String[] SOURCES={"https://ghfast.top/","https://gh-proxy.com/","https://v4.gh-proxy.org/",""};
     static final String PAGES="https://beatsad.github.io/quiet-tv/updates.json";
     static final String RAW="https://raw.githubusercontent.com/BeatsAD/quiet-tv/main/updates/updates.json";
     interface Connection {HttpURLConnection open(URL url)throws IOException;}
@@ -22,19 +22,19 @@ final class UpdateTransfer {
     UpdateTransfer(Connection factory,Clock clock){this.factory=factory;this.clock=clock;}
     void cancel(){cancelled=true;HttpURLConnection request=active;if(request!=null)request.disconnect();}
     private void alive()throws InterruptedIOException{if(cancelled||Thread.currentThread().isInterrupted())throw new InterruptedIOException("Update cancelled");}
-    static List<Integer> sources(int preferred){
-        List<Integer> result=new ArrayList<>();int direct=SOURCES.length-1;
-        // A remembered direct success must never take priority over mirrors.
-        if(preferred>=0&&preferred<direct)result.add(preferred);
-        for(int n=0;n<direct;n++)if(!result.contains(n))result.add(n);
-        result.add(direct);return result;
+    static List<Integer> sources(int ignoredPreference){
+        // Preserve the agreed priority even when an older client remembered another source.
+        List<Integer> result=new ArrayList<>();for(int n=0;n<SOURCES.length;n++)result.add(n);return result;
+    }
+    private static boolean mirrorHost(String host){
+        for(String root:new String[]{"ghfast.top","gh-proxy.com","v4.gh-proxy.org"})if(host.equals(root)||host.endsWith("."+root))return true;return false;
     }
     static String address(int source,String origin){return source<0?PAGES:SOURCES[source]+origin;}
     static boolean allowed(URL url){
         String host=url.getHost().toLowerCase(Locale.ROOT);
         if(!"https".equals(url.getProtocol())||url.getUserInfo()!=null||(url.getPort()!=-1&&url.getPort()!=443)||url.getRef()!=null)return false;
         if(Arrays.asList("github.com","raw.githubusercontent.com","release-assets.githubusercontent.com","objects.githubusercontent.com","beatsad.github.io").contains(host))return true;
-        for(String root:new String[]{"ghfast.top","gh-proxy.com","gh.llkk.cc"})if(host.equals(root)||host.endsWith("."+root))return true;return false;
+        return mirrorHost(host);
     }
     static final class Response implements Closeable{
         final HttpURLConnection request;final InputStream input;final int status;
@@ -42,9 +42,10 @@ final class UpdateTransfer {
         public void close()throws IOException{try{input.close();}finally{request.disconnect();}}
     }
     private Response connect(String address,long offset,long budget,boolean fresh)throws IOException{
-        long end=clock.now()+Math.min(8000,budget);URL url=new URL(address);
+        long end=clock.now()+Math.min(8000,budget);URL url=new URL(address);boolean mirrored=mirrorHost(url.getHost().toLowerCase(Locale.ROOT));
         for(int redirect=0;redirect<=4;redirect++){
             alive();if(!allowed(url))throw new IOException("Unapproved update endpoint");
+            if(mirrored&&!mirrorHost(url.getHost().toLowerCase(Locale.ROOT)))throw new IOException("Mirror redirected to origin before fallback");
             int remaining=(int)Math.max(1,end-clock.now());if(clock.now()>=end)throw new SocketTimeoutException();
             HttpURLConnection request=factory.open(url);active=request;
             request.setConnectTimeout(remaining);request.setReadTimeout(remaining);request.setInstanceFollowRedirects(false);
@@ -94,7 +95,10 @@ final class UpdateTransfer {
         IOException last=null;List<Integer> order=sources(preferred);
         for(int index=0;index<order.size();index++){
             alive();int source=order.get(index);long offset=target.isFile()?target.length():0;
-            if(offset==total){verify(target,total,sha);return source;}
+            if(offset==total){
+                try{verify(target,total,sha);return source;}
+                catch(IntegrityException corrupt){try(RandomAccessFile file=new RandomAccessFile(target,"rw")){file.setLength(0);}offset=0;}
+            }
             if(offset>total)try(RandomAccessFile file=new RandomAccessFile(target,"rw")){file.setLength(0);offset=0;}
             if(index>0)progress.changed(offset,total,true);
             try(Response response=connect(address(source,origin),offset,8000,false)){
@@ -117,8 +121,12 @@ final class UpdateTransfer {
                 }
                 if(received!=expected||target.length()!=total)throw new IOException("Incomplete APK");
             }catch(IOException e){alive();last=e;continue;}
-            // Integrity failure ends this task instead of silently downloading more untrusted files.
-            verify(target,total,sha);return source;
+            try{verify(target,total,sha);return source;}
+            catch(IntegrityException corrupt){
+                // Another mirror can retry the same signed artifact; never resume a corrupt complete file.
+                if(index+1==order.size())throw corrupt;last=corrupt;
+                try(RandomAccessFile file=new RandomAccessFile(target,"rw")){file.setLength(0);}
+            }
         }
         alive();throw new IOException("All APK sources failed",last);
     }
