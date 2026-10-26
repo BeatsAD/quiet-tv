@@ -279,6 +279,7 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
         else if(homeState.roleAvailable)requestRole();else withConnection(this::setDefault);
     }
     private void finishAutomatic(){
+        if(new HomeGuardState(this).directHomeAvailable()){finishDirect();return;}
         if(BuildConfig.LEGACY_19){finishDirect();return;}
         withConnection(()->offerTakeover(this::finishDirect));
     }
@@ -286,6 +287,10 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
         try{
             DesktopRoutes routes=new DesktopRoutes(this);routes.direct();HomeGuardState guard=new HomeGuardState(this);
             store.baseline(homeState.actual,guard.selected());store.put("status","direct-configured");
+            if(guard.directHomeReady()){
+                cancel();startActivity(new Intent(this,HomeGuardActivity.class));
+                Toast.makeText(this,guard.serviceEnabled()?"请核对无障碍连接并测试实体 HOME":"请开启无障碍以接收 HOME",Toast.LENGTH_LONG).show();finish();return;
+            }
             if(BuildConfig.LEGACY_19 || !guard.validSelection()){openHome("系统 HOME 已设置；开机补偿未配置，实际场景待验证");return;}
             routes.configureAvailableVendor();
             if(HomeGuardRecovery.configurationProblem(this).isEmpty()){HomeGuardRecovery.request(this,"直接 HOME 配置完成");openHome("系统 HOME 已设置，开机补偿已配置；实际场景待验证");return;}
