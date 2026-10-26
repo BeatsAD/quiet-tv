@@ -11,7 +11,7 @@ import javax.net.ssl.*;
 final class DailyWallpaperClient {
     static final long MAX_IMAGE_BYTES=8L*1024*1024;
     static final String BING_URL="https://cn.bing.com/HPImageArchive.aspx?format=js&idx=0&n=8&mkt=zh-CN";
-    private volatile HttpsURLConnection connection;
+    private final NetworkRequest requests=new NetworkRequest();
     private final android.content.Context context;
     private SSLSocketFactory legacyTls;
     DailyWallpaperClient(android.content.Context context){this.context=context;}
@@ -74,8 +74,9 @@ final class DailyWallpaperClient {
         URL url=https(address);
         for(int redirects=0;redirects<=3;redirects++){
             if(Thread.currentThread().isInterrupted())throw new InterruptedIOException();
-            HttpsURLConnection request=(HttpsURLConnection)url.openConnection();connection=request;
+            HttpsURLConnection request=(HttpsURLConnection)url.openConnection();NetworkRequest.Handle handle=requests.begin(request);
             try{
+                if(Thread.currentThread().isInterrupted())throw new InterruptedIOException();
                 if(Build.VERSION.SDK_INT<21){
                     if(legacyTls==null){
                         try(InputStream root=context.getAssets().open("certificates/digicert-global-root-g2.pem")){legacyTls=WallpaperTls.socketFactory(root);}
@@ -112,9 +113,9 @@ final class DailyWallpaperClient {
                     +(e instanceof HttpFailure?" status="+((HttpFailure)e).status:e instanceof Limited?" status=429":"")
                     +" tls="+(Build.VERSION.SDK_INT<21?"app":"system"));
                 throw e;
-            }finally{request.disconnect();if(connection==request)connection=null;}
+            }finally{requests.finish(handle);}
         }
         throw new IOException("Too many wallpaper redirects");
     }
-    void cancel(){HttpsURLConnection active=connection;if(active!=null)active.disconnect();}
+    void cancel(){requests.cancel();}
 }
