@@ -34,6 +34,7 @@ __pycache__/
 # Bundled region data and the phone picker are public production inputs.
 !/app/src/main/assets/weather/
 !/app/src/main/assets/weather/regions.json
+!/app/src/main/assets/weather/places.json
 !/app/src/main/assets/weather-input/
 !/app/src/main/assets/weather-input/*
 !/app/src/main/assets/licenses/china-regions-WTFPL.txt
