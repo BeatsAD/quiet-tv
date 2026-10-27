@@ -63,6 +63,7 @@ final class BootAppStore {
     }
     String consume(){
         synchronized(BootAppStore.class){
+            if(target().isEmpty())return "";
             String boot=bootId();
             if(!syncBoot(boot))return "";
             boolean reboot=!boot.equals(preferences.getString("handled-boot",""));
