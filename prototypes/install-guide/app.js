@@ -13,10 +13,20 @@ let releaseIndex;
 let releaseMessage = '正在获取最新安装信息…';
 const guideUrl = 'https://raw.githubusercontent.com/BeatsAD/quiet-tv/main/docs/AGENT_INSTALL.zh-CN.md';
 function update() {
-  $('#install-prompt').textContent = releaseIndex ? `请通过我的电脑，按照官方说明安装或更新 Quiet TV 最新适配版（含测试版）：
-${guideUrl}
+  const takeover = $('[name="install-goal"]:checked').value === 'takeover';
+  const keep = $('#keep-adb');
+  keep.disabled = !takeover;
+  if (!takeover) keep.checked = false;
+  const target = $('#tv-address').value.trim() || '未填写，请先让我确认目标电视';
+  $('#install-prompt').textContent = releaseIndex ? `请通过我的电脑安装或更新 Quiet TV 最新适配版（含测试版）。
+电视地址或 ADB 标识：${target}
+安装目标：${takeover ? '接管桌面，系统 HOME 不适用时允许配置兼容守护；保留原桌面。' : '仅安装试用，保留当前桌面和守护选择。'}
+保持 ADB：${takeover && keep.checked ? '要，开启适用设备的调试设置恢复。' : '不新增开启，保留已有选择。'}
 
-先确认目标电视，保留已有数据。首次安装先试用，设置默认桌面前征求我同意；遇到问题直接在对话中说明。` : releaseMessage;
+请先完整读取官方说明，按统一安装入口执行：
+${guideUrl}
+亲自在电脑上运行命令并保存恢复记录；需要电视授权或实体按键时提醒我。已明确选择接管的必要配置直接完成，不重复询问；仅更新不重新开启已暂停守护。
+最后原样贴出系统 HOME、无障碍配置，以及实体主页键后的焦点输出；失败时显示卡住的步骤、命令和原始错误。重启测试另行征得我同意。` : releaseMessage;
   $('#restore-prompt').textContent = `请通过我的电脑，帮我恢复电视原来的桌面。
 
 请先完整读取并遵循操作说明：
@@ -82,6 +92,10 @@ wireTabs('[data-brand]', tab => {
   $('#brand-note').textContent = note;
   $('#brand-panel').setAttribute('aria-labelledby', tab.id);
   update();
+});
+document.querySelectorAll('[name="install-goal"], #keep-adb, #tv-address').forEach(input => {
+  input.addEventListener('input', update);
+  input.addEventListener('change', update);
 });
 wireTabs('[data-method]', tab => {
   ['agent', 'manual', 'restore'].forEach(method => $('#' + method + '-panel').hidden = tab.dataset.method !== method);
