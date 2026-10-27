@@ -104,10 +104,17 @@ tasks.named('preBuild').configure { dependsOn 'bundleAbout' }
 
 // Credentials are opt-in build inputs outside Git, never generated Java constants.
 def weatherAssets = layout.buildDirectory.dir('generated/weatherAssets')
-def weatherConfigPath = providers.gradleProperty('quietWeatherConfig').orElse(providers.environmentVariable('QUIETTV_WEATHER_CONFIG'))
+def localBuildProperties = new Properties()
+def localBuildPropertiesFile = rootProject.file('local.properties')
+if (localBuildPropertiesFile.isFile()) localBuildPropertiesFile.withReader('UTF-8') { localBuildProperties.load(it) }
+def localWeatherConfig = localBuildProperties.getProperty('quietWeatherConfig', '').trim()
+def weatherConfigPath = providers.gradleProperty('quietWeatherConfig')
+    .orElse(providers.environmentVariable('QUIETTV_WEATHER_CONFIG'))
+    .orElse(providers.provider { localWeatherConfig.isEmpty() ? null : localWeatherConfig })
 android.sourceSets.main.assets.srcDir(weatherAssets)
 tasks.register('bundleWeatherConfiguration') {
-    def configuration = weatherConfigPath.isPresent() ? file(weatherConfigPath.get()) : null
+    def configuredPath = weatherConfigPath.orNull?.trim()
+    def configuration = configuredPath ? file(configuredPath) : null
     if (configuration != null) inputs.file(configuration).withPropertyName('privateWeatherConfiguration')
     inputs.property('weatherConfigured', configuration != null)
     outputs.file(weatherAssets.map { it.file('weather-config.json') })
