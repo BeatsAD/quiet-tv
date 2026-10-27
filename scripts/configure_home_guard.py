@@ -117,16 +117,16 @@ class ComputerAdb:
     def __init__(self, executable, serial):
         self.executable, self.serial = executable, serial
 
-    def _result(self, *arguments):
+    def _result(self, *arguments, timeout=20):
         return subprocess.run([self.executable, "-s", self.serial, *arguments],
                               capture_output=True, text=True, encoding="utf-8",
-                              errors="replace", timeout=20, check=False)
+                              errors="replace", timeout=timeout, check=False)
 
-    def run(self, *arguments):
-        result = self._result(*arguments)
+    def run(self, *arguments, timeout=20):
+        result = self._result(*arguments, timeout=timeout)
         output = (result.stdout + "\n" + result.stderr).strip()
         if result.returncode or ERROR_OUTPUT.search(output):
-            raise ValueError(output or "ADB 命令失败，状态未确认")
+            raise CommandFailure(result.returncode, output or "ADB 命令失败，状态未确认")
         return output
 
     def shell(self, *arguments):
@@ -281,6 +281,13 @@ def configure(args, adb):
         raise ValueError("指定用户不是当前前台用户")
     if sdk < 21:
         raise ValueError("Android 4.4 档位未开放桌面守护")
+    keep_adb = getattr(args, "keep_adb", None)
+    if args.pause and keep_adb is not None:
+        raise ValueError("暂停不能同时修改 ADB 保持选项")
+    if keep_adb:
+        vendor = " ".join(adb.shell("getprop", key) for key in ("ro.product.manufacturer", "ro.product.brand")).lower().split()
+        if not set(vendor).intersection(("xiaomi", "redmi")):
+            raise ValueError("当前 ADB 设置恢复只支持小米／Redmi，未修改权限")
     package = adb.shell("dumpsys", "package", args.package)
     user_state = re.search(r"(?m)^\s*User " + str(args.user) + r":([^\n]+)", package)
     if not user_state or not re.search(r"\binstalled=true\b", user_state[1]) or re.search(r"\b(?:hidden|suspended)=true\b|\benabled=[2-9]\b", user_state[1]):
@@ -378,6 +385,8 @@ def configure(args, adb):
         broadcast += ["--ez", "direct_home", "true"]
     if selected:
         broadcast += ["--es", "home", selected]
+    if keep_adb is not None:
+        broadcast += ["--ez", "keep_adb", str(keep_adb).lower()]
     plan.append(broadcast)
     if not args.apply:
         print("仅预览，未修改电视。确认原主页及授权范围后，使用 --apply --record <新的私有记录路径> 执行：")
@@ -442,6 +451,9 @@ def configure(args, adb):
                 print(output)
             if not re.search(r"\bresult=-1\b", output):
                 raise ValueError("应用未确认全部权限配置完成；已完成的授权保留，请检查上方结果")
+            confirmed = broadcast_data(output)
+            if keep_adb is not None and (not confirmed or confirmed.get("keepAdb") is not keep_adb):
+                raise ValueError("应用未读回确认 ADB 保持选项；已完成的授权保留")
             if direct_home:
                 confirmed = broadcast_data(output)
                 if not confirmed or not confirmed.get("directHomeConfigured"):
@@ -469,6 +481,11 @@ def main():
     parser.add_argument("--adb", default="adb")
     parser.add_argument("--apply", action="store_true", help="明确执行首次授权并启用守护")
     parser.add_argument("--pause", action="store_true", help="暂停全部中转，不修改系统 HOME 或授予权限")
+    adb_choice = parser.add_mutually_exclusive_group()
+    adb_choice.add_argument("--keep-adb", dest="keep_adb", action="store_const", const=True, default=None,
+                            help="明确开启小米／Redmi ADB 设置恢复，端口持续可用性另行验收")
+    adb_choice.add_argument("--no-keep-adb", dest="keep_adb", action="store_const", const=False,
+                            help="明确关闭 ADB 设置恢复；省略两项则保持原选择")
     parser.add_argument("--record", type=Path, help="新的本机私有授权前记录，不覆盖")
     args = parser.parse_args()
     if args.user < 0 or (args.home and not re.fullmatch(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+/[A-Za-z0-9_.$]+", args.home)):
@@ -477,6 +494,8 @@ def main():
         parser.error("执行配置必须使用 --record 保存原始状态")
     if args.pause and (args.home or args.direct_home):
         parser.error("暂停不能同时选择原主页或直接 HOME 补偿")
+    if args.pause and args.keep_adb is not None:
+        parser.error("暂停不能同时修改 ADB 保持选项")
     if args.direct_home and args.home:
         parser.error("直接 HOME 补偿不能同时指定原主页")
     try:
