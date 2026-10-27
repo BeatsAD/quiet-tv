@@ -45,12 +45,28 @@ final class UpdateInstaller {
         if(!abis.equals(new HashSet<>(artifact.abis)))throw new IOException("APK ABI mismatch");
     }
     static boolean permitted(Activity activity){try{return Build.VERSION.SDK_INT<26||activity.getPackageManager().canRequestPackageInstalls();}catch(RuntimeException failure){DiagnosticLog.error("update.permission.failed",failure);return false;}}
+    static File prepare(Context context,UpdateManifest.Artifact artifact,File source)throws IOException{
+        if(Build.VERSION.SDK_INT>=24)return source;
+        // Android 4.4-6 installers accept file://, but cannot read our private files directory.
+        // App-specific external cache needs no storage permission on these supported APIs.
+        File cache=context.getExternalCacheDir();if(cache==null)throw new IOException("Installer storage unavailable");
+        File directory=new File(cache,"update-install");
+        if(!directory.isDirectory()&&!directory.mkdirs())throw new IOException("Installer directory unavailable");
+        File target=new File(directory,artifact.sha256+".apk");
+        try(InputStream input=new FileInputStream(source);FileOutputStream output=new FileOutputStream(target)){
+            byte[] buffer=new byte[32768];int count;while((count=input.read(buffer))!=-1)output.write(buffer,0,count);
+            output.getFD().sync();
+        }
+        // The installer must receive the same bytes that passed metadata and signer validation.
+        UpdateTransfer.verify(target,artifact.bytes,artifact.sha256);return target;
+    }
     static boolean launch(Activity activity,File file){
         try{
-            Uri uri=FileProvider.getUriForFile(activity,activity.getPackageName()+".updates",file);
+            boolean legacy=Build.VERSION.SDK_INT<24;
+            Uri uri=legacy?Uri.fromFile(file):FileProvider.getUriForFile(activity,activity.getPackageName()+".updates",file);
             // ACTION_VIEW always delegates confirmation to the platform installer. No unattended sessions.
             Intent intent=new Intent(Intent.ACTION_VIEW).setDataAndType(uri,"application/vnd.android.package-archive");
-            intent.setClipData(ClipData.newRawUri("Quiet TV update",uri));intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            if(!legacy){intent.setClipData(ClipData.newRawUri("Quiet TV update",uri));intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);}
             return ExternalActivityLauncher.open(activity,"update.install",intent);
         }catch(RuntimeException e){DiagnosticLog.error("update.install.failed",e);return false;}
     }

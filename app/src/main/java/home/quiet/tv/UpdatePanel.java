@@ -103,10 +103,11 @@ final class UpdatePanel {
     private void dispatchInstall(){
         begin("verify","正在核对安装包");show(null);
         updates.install((file,error)->{if(closed||activity.isFinishing())return;if(file==null){begin("error",error);show(button("关闭",this::dismiss));return;}
-            if(UpdateInstaller.launch(activity,file)){updates.dispatched();dismiss();}else restricted();});
+            if(UpdateInstaller.launch(activity,file)){updates.dispatched();dismiss();}else restricted("无法打开系统安装器");});
     }
-    private void restricted(){
-        begin("guide","通过电脑更新");box.addView(text("可在电脑上通过 Agent 协助更新，保留已有应用和配置。",25,0xffb5c0cf));gap(18);
+    private void restricted(){restricted("");}
+    private void restricted(String reason){
+        begin("guide",reason.isEmpty()?"通过电脑更新":reason);box.addView(text("可在电脑上通过 Agent 协助更新，保留已有应用和配置。",25,0xffb5c0cf));gap(18);
         try{
             int size=192;com.google.zxing.common.BitMatrix matrix=new com.google.zxing.qrcode.QRCodeWriter().encode("https://beatsad.github.io/quiet-tv/",com.google.zxing.BarcodeFormat.QR_CODE,size,size,Collections.singletonMap(com.google.zxing.EncodeHintType.MARGIN,2));
             int[] pixels=new int[size*size];for(int y=0;y<size;y++)for(int x=0;x<size;x++)pixels[y*size+x]=matrix.get(x,y)?Color.BLACK:Color.WHITE;
