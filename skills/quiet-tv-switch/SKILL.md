@@ -31,6 +31,8 @@ description: 引导普通用户在自己的 Android 电视上安装 Quiet TV、�
 
 识别到海信／VIDAA Android 电视开机先进入聚好看／原厂首页、实体 HOME 回原桌面或历史停用后黑屏时，必须读取并执行当前 Agent 安装说明的[海信开机接管排查](https://raw.githubusercontent.com/BeatsAD/quiet-tv/main/docs/AGENT_INSTALL.zh-CN.md#海信开机接管排查)。用户无需改写原安装请求。先区分 HOME 优先级／默认选择、厂商显式路由、API24+ 解锁前组件及存储、守护配置和启动广告；证据不足不能直接判定“权限不足，无法改造”。该分支是候选诊断路线，不自动安装实验助手、停用原桌面或替换动画；沿用已有授权、固件资格和恢复要求。
 
+已有安装且用户要求开机进入 Quiet TV 时，按上述安装说明调用 `configure_boot_home.py` 的预览及 `--apply`；安装入口的 `takeover` 已自动接入。脚本实际设置默认 HOME，并在检测条件匹配时修正海信主页属性，保存逐步恢复记录；不止输出诊断建议。下载与恢复参数见[操作参考](references/operations.md#开机进入-quiet-tv)。
+
 ### 只读助手
 
 相对路径以本 skill 所在目录为基准；换成当前主机的 Python 命令和实际路径。`TV_SERIAL` 必须来自用户选定的目标电视，`PRIVATE_RECORD` 是仓库外的新 JSON 文件路径。

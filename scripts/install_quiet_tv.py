@@ -12,8 +12,9 @@ from types import SimpleNamespace
 from urllib.request import Request, urlopen
 import zipfile
 import configure_home_guard as guard
+import configure_boot_home as boot
 import install_tcl as tcl
-from verify_install import HOME, HOME_ARGS, collect, component, help_text, resolver
+from verify_install import HOME, collect, component, help_text, resolver
 
 INDEX = "https://beatsad.github.io/quiet-tv/latest.json"
 RELEASES = "https://github.com/BeatsAD/quiet-tv/releases/download/"
@@ -134,31 +135,6 @@ def unchanged_user(adb, user):
         raise ValueError("前台用户已变化，停止后续修改；已完成步骤保留在记录中")
 
 
-def set_home(adb, sdk, user, journal):
-    # Read back every attempted change. Unsupported or rejected native HOME does not bar guard setup.
-    for tool in (("cmd", "package"), ("pm",)):
-        try:
-            usage = help_text(adb, *tool)
-            query = "query-activities"
-            candidates = adb.shell(*tool, query, "--brief", *guard.user_options(usage, query, sdk, user), *HOME_ARGS)
-            if HOME not in [guard.canonical_home(line.strip()) for line in candidates.splitlines()]:
-                continue
-            options = guard.user_options(usage, "set-home-activity", sdk, user)
-        except ValueError:
-            continue
-        unchanged_user(adb, user)
-        command = [*tool, "set-home-activity", *options, HOME]
-        try:
-            output = adb.shell(*command)
-            journal.event("set_home", command=command, output=output)
-        except ValueError as error:
-            journal.event("set_home_rejected", command=command, error=str(error))
-            print("系统 HOME 设置受限：" + str(error), flush=True)
-        return component(adb.shell(*resolver(adb, sdk, user))) == HOME
-    journal.event("set_home_unavailable")
-    return False
-
-
 def run_install(args, adb, tools, journal):
     if adb.run("get-state") != "device":
         raise ValueError("需要用户已选定并授权的 ADB 目标；本工具不扫描或自动连接电视")
@@ -225,6 +201,11 @@ def run_install(args, adb, tools, journal):
     install_options = guard.user_options(pm_help, "install", sdk, args.user)
     print("计划：" + ("沿用相同 APK" if same else "保留数据安装") + "；目标=" + args.goal + "；ADB 设置恢复=" + str(keep_adb), flush=True)
     if not args.apply:
+        if same and metadata["home_mode"] == "standard" and args.goal == "takeover":
+            try:
+                boot.configure(adb, args.user, tools, apk_path, journal)
+            except boot.NoNativeRoute as error:
+                print("标准开机 HOME 路线不可用：" + str(error) + "；执行时评估兼容守护。", flush=True)
         print("仅预览，未修改电视。核对目标和授权后，以新的 --record 目录加 --apply 执行。", flush=True)
         return
     unchanged_user(adb, args.user)
@@ -281,9 +262,14 @@ def run_install(args, adb, tools, journal):
             raise ValueError("安装／启动后 HOME 与原配置不同，结果需核对；未重新配置或自动恢复")
         print("安装核验完成，未主动配置 HOME 或守护；原 HOME 读回" + ("一致。" if original and after_home else "未确认。"), flush=True)
         return
-    native = component(adb.shell(*resolver(adb, sdk, args.user))) == HOME
-    if not native and metadata["home_mode"] == "standard":
-        native = set_home(adb, sdk, args.user, journal)
+    native = False
+    if metadata["home_mode"] == "standard":
+        try:
+            boot.configure(adb, args.user, tools, actual_path, journal, apply=True)
+            native = True
+        except boot.NoNativeRoute as error:
+            journal.event("boot_native_unavailable", error=str(error))
+            print("标准开机 HOME 路线不可用：" + str(error) + "；继续已有兼容守护。", flush=True)
     if not native or keep_adb:
         if sdk < 21:
             raise ValueError("Android 4.4 无兼容守护且默认 HOME 未确认，不能报告接管完成")

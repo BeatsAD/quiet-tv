@@ -52,6 +52,7 @@ __pycache__/
 !/scripts/bundle_about.py
 !/scripts/check_contribution.py
 !/scripts/configure_home_guard.py
+!/scripts/configure_boot_home.py
 !/scripts/install_quiet_tv.py
 !/scripts/verify_install.py
 !/scripts/install_tcl.py

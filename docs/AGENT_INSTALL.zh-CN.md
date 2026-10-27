@@ -47,7 +47,7 @@ Agent 直接使用固定请求时，须通过本机终端读取 `latest.json`，
 
 ## 统一安装入口
 
-本地源码使用 [install_quiet_tv.py](../scripts/install_quiet_tv.py)，独立 Agent 从本次实时 `latest.json` 的 `tools` 字段取得 `install_quiet_tv.py`、`verify_install.py`、`install_tcl.py`、`tcl_cast.py`、`configure_home_guard.py`，下载至同一私有目录并逐文件核对 SHA-256。工具缺项或校验不符时停止，不从不明来源补脚本。站点部署前，公开索引可能尚未含新入口，应明确说明差异；不能据本地代码宣称已经上线。
+本地源码使用 [install_quiet_tv.py](../scripts/install_quiet_tv.py)，独立 Agent 从本次实时 `latest.json` 的 `tools` 字段取得 `install_quiet_tv.py`、`verify_install.py`、`install_tcl.py`、`tcl_cast.py`、`configure_home_guard.py`、`configure_boot_home.py`，下载至同一私有目录并逐文件核对 SHA-256。工具缺项或校验不符时停止，不从不明来源补脚本。站点部署前，公开索引可能尚未含新入口，应明确说明差异；不能据本地代码宣称已经上线。
 
 Agent 先按下文确认电视、完成电脑 ADB 连接／授权并核对前台用户；安装入口不扫描、不自动选择设备、不默认端口或用户。准备现有官方 Platform-Tools、Python 3.9+、Android build-tools 的 `aapt2`／`apksigner` 及其 Java 运行环境，工具缺失时明确说明并按主机环境准备，不要求用户猜路径，不构建源码替代公开包。可用 `--adb`、`--aapt2`、`--apksigner` 指定现有工具。
 
@@ -98,6 +98,38 @@ python3 scripts/install_quiet_tv.py --serial "$TV_SERIAL" --user "$TV_USER" \
 ## 海信开机接管排查
 
 识别到海信／VIDAA Android 电视，且出现“开机先进入聚好看或原厂首页”“实体 HOME 返回原桌面”“停用原桌面后黑屏”时，Agent 必须进入本分支，再决定接管路线。用户继续使用原安装请求，无需另外指定“优先级”或“开机解锁”。非 Android 电视不适用。先完成已授权的只读检查，不因一次 HOME 设置失败、黑屏或 ADB 身份特殊，就直接结论为“权限不足、系统必须依赖原桌面、无法改造”。有明确权限拒绝时保留原始错误，但只据此说明该操作受限。
+
+### AI 实际调用的开机桌面脚本
+
+可执行入口为 [configure_boot_home.py](../scripts/configure_boot_home.py)。它已接入 `install_quiet_tv.py --goal takeover`：安装并核验主程序后，标准 HOME 包自动进入开机配置；无标准 HOME 路线时继续现有兼容守护。`trial`、`update` 和只读验收不会调用写入路径。独立 Agent 必须从同一次 `latest.json.tools` 下载并校验全部六项工具，不能只复制本文或只下载一个脚本。
+
+已有 Quiet TV、只需配置开机桌面时，AI 先执行预览，再在已有开机接管授权内以新记录目录加 `--apply` 执行，不要求用户另写命令：
+
+```sh
+python3 scripts/configure_boot_home.py --serial "$TV_SERIAL" --user "$TV_USER" \
+  --record "$NEW_PREVIEW_DIR"
+python3 scripts/configure_boot_home.py --serial "$TV_SERIAL" --user "$TV_USER" \
+  --record "$NEW_APPLY_DIR" --apply
+```
+
+脚本拉取实际已安装 APK 并检查签名、包名、系统档位和 HOME 声明；API24+ 另核对 `HomeActivity` 的 `directBootAware`，缺失时停止配置并提示选择支持该能力的适配发布包，不凭最新源码假定旧 APK 支持。声明存在不证明解锁前存储访问正确，仍需启动实测。单独配置不下载安装包，不重复更新主程序，也不新建常驻电脑进程。
+
+脚本实际执行并读回系统默认 HOME；当设备品牌为海信／VIDAA、目标为用户0、本机存在启用的系统包 `com.jamdeo.tv.vod` 且它是 HOME 候选、`persist.vt.use_home_pkg` 当前值确为该包或 Quiet TV 时，复用项目现有海信路由，将该属性指向 Quiet TV。属性缺失、值不明、非系统包或非主用户时不试写，仅报告标准 HOME 的配置范围；不能把标准 HOME 成功说成厂商开机路由已修复。属性已匹配目标时不重复写。保留原桌面、应用数据、其他系统包及开机动画，不提升 HOME 优先级或冒用原厂包名。
+
+每次使用全新电脑私有记录目录，写入前保存设备／固件／用户、实际 APK 校验值、原 HOME、包状态及属性原值；逐步记录待执行、命令结果及读回值。执行中断、权限拒绝或读回不符时停止后续修改，显示实际错误，不自动重试、重启或扩大到禁用原桌面。仅 HOME 查询／设置能力缺失或目标不在候选中的已知无写入结果，才允许安装入口继续独立守护方案；已经尝试写入后失败，先处理记录中的未完成变更。
+
+撤销本脚本实际尝试过的变更时，AI 使用该次 `record.jsonl`，先预览，再按已有恢复授权加 `--apply`：
+
+```sh
+python3 scripts/configure_boot_home.py --serial "$TV_SERIAL" --user "$TV_USER" \
+  --restore-record "$OLD_RECORD_DIR/record.jsonl" --record "$NEW_RESTORE_PREVIEW_DIR"
+python3 scripts/configure_boot_home.py --serial "$TV_SERIAL" --user "$TV_USER" \
+  --restore-record "$OLD_RECORD_DIR/record.jsonl" --record "$NEW_RESTORE_APPLY_DIR" --apply
+```
+
+恢复重新核对目标、用户和固件，拒绝覆盖其他操作已经改变的现场；只恢复本次 HOME／海信属性原值，不执行记录中的任意 shell，不撤销安装或其他守护权限。原 HOME 已经是 Quiet TV 时，撤销仍恢复到该次操作前的状态，不冒称恢复原厂。需要恢复整个安装流程时，仍结合原安装与守护记录按下方“请求恢复原桌面”处理。
+
+脚本返回成功只表示配置已写入并读回。AI 必须继续按本页授权要求让用户核验实体 HOME、普通重启、断电开机及待机唤醒，记录首屏和最终页面；不把守护延迟跳转描述为“开机立即进入新桌面”。站点工具更新后即可配置已具备能力的主程序，但不能让旧 APK 自动获得缺少的 Direct Boot 或厂商能力。
 
 ### 线索来源与适用边界
 
