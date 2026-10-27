@@ -218,10 +218,10 @@ def run_install(args, adb, tools, journal):
     journal.event("apk_verified", apk=metadata)
     vendor = (device["ro.product.brand"] + " " + device["ro.product.manufacturer"]).lower().split()
     is_tcl = bool(set(vendor).intersection(("tcl", "ffalcon", "iffalcon")))
-    keep_adb = args.keep_adb and sdk >= 21 and bool(set(vendor).intersection(("xiaomi", "redmi")))
+    keep_adb = args.keep_adb and sdk >= 21
     if args.keep_adb and not keep_adb:
         journal.event("keep_adb_unsupported")
-        print("保持 ADB：当前系统或品牌未支持，继续独立的安装／桌面配置，不宣称已开启。", flush=True)
+        print("保持 ADB：当前档位未支持；独立安装／HOME 步骤继续，整体常开目标仍未完成。", flush=True)
     if args.goal == "takeover":
         if not original or "ResolverActivity" in original or not tcl.usable(tcl.user_state(stock_dump, args.user)):
             raise ValueError("原桌面或恢复基线未确认；请先确认原主页，未执行安装及接管")
@@ -303,11 +303,13 @@ def run_install(args, adb, tools, journal):
         if sdk < 21:
             raise ValueError("Android 4.4 无兼容守护且默认 HOME 未确认，不能报告接管完成")
         guard_args = SimpleNamespace(serial=args.serial, user=args.user, package=tcl.PACKAGE,
-            adb=args.adb, apply=True, pause=False, direct_home=False,
-            home=original if original != HOME else None, keep_adb=True if keep_adb else None,
+            adb=args.adb, apply=True, pause=False, direct_home=False, adb_only=native,
+            home=original if not native and original != HOME else None, keep_adb=True if keep_adb else None,
             record=journal.directory / "guard-before.json")
         guard.configure(guard_args, adb)
     journal.event("desktop_configured", route="native" if native else "guard", keep_adb_requested=keep_adb)
+    if args.keep_adb and not keep_adb:
+        raise ValueError("安装／桌面步骤已执行，但当前档位不支持 ADB 保持，未满足重启常开目标")
     print("桌面配置已执行；实体 HOME、开机、唤醒和 ADB 重连等待分别验收。", flush=True)
 
 

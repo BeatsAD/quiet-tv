@@ -16,12 +16,12 @@ final class HomeGuardAdb {
     private static final ExecutorService worker=new ThreadPoolExecutor(0,1,5,TimeUnit.SECONDS,new LinkedBlockingQueue<>());
     private static final AtomicBoolean pending=new AtomicBoolean(),again=new AtomicBoolean();
     private static boolean watching,probed;
-    static boolean supported(Context c){return HomeGuardPolicy.xiaomiRecovery(Build.MANUFACTURER,Build.BRAND,Build.VERSION.SDK_INT,BuildConfig.LEGACY_19);}
+    static boolean supported(Context c){return HomeGuardPolicy.supported(Build.MANUFACTURER,Build.BRAND,Build.VERSION.SDK_INT,BuildConfig.LEGACY_19);}
     static boolean enabled(Context c){return new HomeGuardState(c,false).preferences.getBoolean("keepAdb",false);}
-    static boolean portSupported(Context c){return HomeGuardPolicy.keepAdbPort(supported(c),Build.VERSION.SDK_INT,1);}
+    static boolean portSupported(Context c){return HomeGuardPolicy.keepAdbPort(HomeGuardPolicy.xiaomiRecovery(Build.MANUFACTURER,Build.BRAND,Build.VERSION.SDK_INT,BuildConfig.LEGACY_19),Build.VERSION.SDK_INT,1);}
     static int port(Context c){return c.getSharedPreferences("adb",0).getInt("port",0);}
     @android.annotation.SuppressLint("ApplySharedPref")
-    static boolean setPort(Context c,int port){return HomeGuardPolicy.keepAdbPort(supported(c),Build.VERSION.SDK_INT,port)
+    static boolean setPort(Context c,int port){return HomeGuardPolicy.keepAdbPort(portSupported(c),Build.VERSION.SDK_INT,port)
         && c.getSharedPreferences("adb",0).edit().putInt("port",port).commit();}
     // The opt-in/out must survive a firmware kill immediately after the click.
     @android.annotation.SuppressLint("ApplySharedPref")
@@ -33,8 +33,26 @@ final class HomeGuardAdb {
             @Override public void onChange(boolean self){ensure(app);}
         });ensure(app);
     }
-    static boolean ready(Context c){return HomeGuardPolicy.keepAdbReady(supported(c),HomeGuardState.unlocked(c),enabled(c),new HomeGuardState(c,false).automatic(),HomeGuardRecovery.writeAllowed(c));}
-    static String summary(Context c){return !enabled(c)?"未开启":!new HomeGuardState(c,false).automatic()?"已暂停":!HomeGuardRecovery.writeAllowed(c)?"缺少写安全设置权限":ready(c)?"调试设置恢复已启用，端口持续可用性待验证":"当前不可用";}
+    static boolean ready(Context c){return HomeGuardPolicy.keepAdbReady(supported(c),enabled(c),HomeGuardRecovery.writeAllowed(c));}
+    static Boolean settingEnabled(Context c){try{return Settings.Global.getInt(c.getContentResolver(),Settings.Global.ADB_ENABLED,0)==1;}catch(SecurityException unavailable){return null;}}
+    static org.json.JSONObject snapshot(Context c) throws org.json.JSONException {
+        Boolean actual=settingEnabled(c);
+        return new org.json.JSONObject().put("supported",supported(c)).put("selected",enabled(c)).put("ready",ready(c))
+            .put("settingEnabled",actual==null?org.json.JSONObject.NULL:actual).put("rebootVerified",false);
+    }
+    static String summary(Context c){return !enabled(c)?"未开启":!supported(c)?"当前档位不支持":!HomeGuardRecovery.writeAllowed(c)?"缺少写安全设置权限":Boolean.TRUE.equals(settingEnabled(c))?"调试开关已开启，重启后连接待验证":"调试开关恢复未确认";}
+    // Run the bounded settings write before a boot broadcast or setup reply completes.
+    // The preference is device-protected; HOME pause and user unlock do not gate ADB recovery.
+    static boolean restoreSetting(Context c){
+        if(!ready(c))return false;
+        try{
+            if(Boolean.TRUE.equals(settingEnabled(c)))return true;
+            boolean written=Settings.Global.putInt(c.getContentResolver(),Settings.Global.ADB_ENABLED,1);
+            boolean confirmed=Boolean.TRUE.equals(settingEnabled(c));
+            DiagnosticLog.info("home_guard.adb.restore","written="+written+" readback="+confirmed);
+            return written && confirmed;
+        }catch(SecurityException|IllegalStateException failure){DiagnosticLog.error("home_guard.adb.restore_failed",failure);return false;}
+    }
     static void ensure(Context c){
         if(!ready(c))return;
         again.set(true);if(!pending.compareAndSet(false,true))return;
@@ -43,11 +61,9 @@ final class HomeGuardAdb {
     private static void restore(Context c){
         if(!ready(c))return;
         try{
-            if(Settings.Global.getInt(c.getContentResolver(),Settings.Global.ADB_ENABLED,0)==0){
-                boolean restored=Settings.Global.putInt(c.getContentResolver(),Settings.Global.ADB_ENABLED,1);
-                DiagnosticLog.info("home_guard.adb.restore","restored="+restored);return;
-            }
+            if(!restoreSetting(c))return;
             // An observed/configured TCP port is required; USB-only and modern wireless ADB stay alone.
+            if(!portSupported(c) || !HomeGuardState.unlocked(c))return;
             int port=port(c);
             if(probed || Build.VERSION.SDK_INT>=30 || SystemClock.elapsedRealtime()>=HomeGuardPolicy.BOOT_WINDOW_MS || port<=0 || port>65535)return;
             probed=true;

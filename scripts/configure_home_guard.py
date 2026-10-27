@@ -288,6 +288,64 @@ def repair_hisense_accessibility(adb, package, pm_help, record):
         raise ValueError("恢复包隐藏状态后无障碍设置未保持，守护未确认")
 
 
+def confirm_adb(adb, args, confirmed):
+    if not confirmed or confirmed.get("keepAdb") is not args.keep_adb:
+        raise ValueError("应用未读回确认 ADB 保持选项；已完成的授权保留")
+    if args.keep_adb:
+        status = confirmed.get("adb", {})
+        if not all(status.get(key) is True for key in ("supported", "selected", "ready", "settingEnabled")):
+            raise ValueError("ADB 常开配置未确认，不能仅凭偏好已保存报告完成")
+        if adb.current_user() != args.user or adb.shell("settings", "get", "global", "adb_enabled") != "1":
+            raise ValueError("ADB 调试开关未读回为开启，或前台用户已变化")
+
+
+def configure_adb_only(args, adb, sdk, package, inspection, port):
+    """Keep maintenance access without enabling or changing any HOME guard route."""
+    if not inspection.get("adbOnlySupported"):
+        raise ValueError("已安装 APK 不支持独立 ADB 保持；需更新 APK，不改桌面路线")
+    options = user_options(adb.permission_help("pm"), "grant", sdk, args.user)
+    broadcast = ["am", "broadcast", "--include-stopped-packages", "--user", args.user,
+                 "-a", args.package + ".CONFIGURE_HOME_GUARD", "-n", args.package + "/home.quiet.tv.HomeGuardSetupReceiver",
+                 "--ei", "user", args.user, "--ez", "adb_only", "true", "--ez", "keep_adb", str(args.keep_adb).lower()]
+    if port is not None:
+        broadcast += ["--ei", "adb_port", port]
+    plan = [["pm", "grant", *options, args.package, "android.permission.WRITE_SECURE_SETTINGS"], broadcast]
+    print("计划：独立配置 ADB 保持，保留桌面路线及暂停选择。")
+    if not args.apply:
+        for command in plan:
+            print("shell " + " ".join(shlex.quote(str(value)) for value in command))
+        return
+    before = {"serial": args.serial, "user": args.user, "package_before": package, "inspection": inspection,
+              "adb_enabled_before": adb.shell("settings", "get", "global", "adb_enabled"), "plan": plan}
+    descriptor = os.open(args.record, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+        json.dump(before, handle, ensure_ascii=False, indent=2)
+        handle.flush(); os.fsync(handle.fileno())
+    results = args.record.with_name(args.record.name + ".results.jsonl")
+    descriptor = os.open(results, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+        for command in plan:
+            if adb.current_user() != args.user:
+                raise ValueError("前台用户已改变，停止 ADB 配置")
+            handle.write(json.dumps({"attempt": command}, ensure_ascii=False) + "\n")
+            handle.flush(); os.fsync(handle.fileno())
+            try:
+                output = adb.shell(*command)
+            except (ValueError, OSError, subprocess.TimeoutExpired) as error:
+                handle.write(json.dumps({"command": command, "error": str(error)}, ensure_ascii=False) + "\n")
+                raise
+            handle.write(json.dumps({"command": command, "output": output}, ensure_ascii=False) + "\n")
+            if command is broadcast:
+                print(output)
+                if not re.search(r"\bresult=-1\b", output):
+                    raise ValueError("应用未确认独立 ADB 配置；已完成的授权保留")
+                confirmed = broadcast_data(output)
+                confirm_adb(adb, args, confirmed)
+                if port is not None and (confirmed.get("adbPort") != port or confirmed.get("adbPortSupported") is not True):
+                    raise ValueError("ADB 恢复端口未读回确认")
+    print("ADB 保持选项已读回；未改变桌面路线。重启后实际连接尚未验收。")
+
+
 def configure(args, adb):
     if adb.run("get-state") != "device":
         raise ValueError("需要已授权的 ADB 连接")
@@ -296,14 +354,13 @@ def configure(args, adb):
     if adb.current_user() != args.user:
         raise ValueError("指定用户不是当前前台用户")
     if sdk < 21:
-        raise ValueError("Android 4.4 档位未开放桌面守护")
+        raise ValueError("Android 4.4 档位未开放桌面守护及 ADB 开关恢复")
     keep_adb = getattr(args, "keep_adb", None)
+    adb_only = getattr(args, "adb_only", False)
+    if adb_only and (keep_adb is None or args.pause or args.home or getattr(args, "direct_home", False)):
+        raise ValueError("独立 ADB 配置需明确保持选项，不能同时修改桌面路线或暂停")
     if args.pause and keep_adb is not None:
         raise ValueError("暂停不能同时修改 ADB 保持选项")
-    if keep_adb:
-        vendor = " ".join(adb.shell("getprop", key) for key in ("ro.product.manufacturer", "ro.product.brand")).lower().split()
-        if not set(vendor).intersection(("xiaomi", "redmi")):
-            raise ValueError("当前 ADB 设置恢复只支持小米／Redmi，未修改权限")
     package = adb.shell("dumpsys", "package", args.package)
     user_state = re.search(r"(?m)^\s*User " + str(args.user) + r":([^\n]+)", package)
     if not user_state or not re.search(r"\binstalled=true\b", user_state[1]) or re.search(r"\b(?:hidden|suspended)=true\b|\benabled=[2-9]\b", user_state[1]):
@@ -334,7 +391,7 @@ def configure(args, adb):
     port_candidate = legacy_tcp_port(args.serial, sdk) if keep_adb else None
     selected = canonical_home(args.home or "")
     inspection = None
-    if args.apply or direct_home:
+    if args.apply or direct_home or keep_adb is not None:
         # New APKs answer without changing preferences or enabling the guard. Old APKs
         # reject inspect before the explicit enable branch; retain their existing setup path.
         output = adb.shell("am", "broadcast", "--include-stopped-packages", "--user", args.user,
@@ -342,10 +399,14 @@ def configure(args, adb):
                            "-n", args.package + "/home.quiet.tv.HomeGuardSetupReceiver",
                            "--ei", "user", args.user, "--ez", "inspect", "true")
         inspection = broadcast_data(output)
-        if inspection and inspection.get("schemaVersion") == 1:
+        if re.search(r"\bresult=-1\b", output) and inspection and inspection.get("schemaVersion") == 1:
             if inspection.get("package") != args.package or not inspection.get("supported"):
                 raise ValueError("应用身份或守护能力不匹配，未修改权限")
-            if direct_home:
+            if keep_adb and inspection.get("adb", {}).get("supported") is not True:
+                raise ValueError("已安装 APK 未确认 ADB 保持能力；需更新或核对档位，未修改权限")
+            if adb_only:
+                pass  # No stock HOME selection is needed to keep maintenance access.
+            elif direct_home:
                 if not inspection.get("directHomeAvailable"):
                     raise ValueError("本机设备或系统 HOME 不适用直接按键补偿；未修改权限")
             else:
@@ -354,15 +415,17 @@ def configure(args, adb):
                 selected = selected or inspection.get("selected") or (resolved if resolved in homes else "") or (homes[0] if len(homes) == 1 else "")
                 if not selected or selected not in homes:
                     raise ValueError("原主页未唯一确定或已失效，请使用 --home 指定本机候选；未修改权限")
-        elif direct_home:
-            raise ValueError("已安装 APK 未提供直接 HOME 能力核对；未修改权限")
+        elif direct_home or keep_adb is not None:
+            raise ValueError("已安装 APK 未提供所需 HOME／ADB 能力核对；未修改权限")
     port_to_write = port_candidate if inspection and inspection.get("adbPortSupported") is True else None
     if keep_adb and port_candidate and not args.apply:
         print("已识别传统 TCP 端口 " + str(port_candidate) + "；执行时核对 APK 端口保存能力。")
     if keep_adb and args.apply and port_candidate and port_to_write is None:
-        print("ADB 端口恢复未配置：已安装 APK 不支持电脑保存端口，需要包含该修复的新包；继续配置已有调试设置恢复。")
+        print("本机/API 或 APK 未确认传统 TCP 端口恢复能力；仅配置调试开关恢复，网络常开仍需验证。")
     elif keep_adb and args.apply and port_candidate is None:
         print("未取得适用的传统 TCP 端口（USB、未知标识或 Android11+）；不猜测端口，仅配置调试设置恢复。")
+    if adb_only:
+        return configure_adb_only(args, adb, sdk, package, inspection, port_to_write)
     pm_help = adb.permission_help("pm")
     ops_help = adb.permission_help("appops")
     pm_user = user_options(pm_help, "grant", sdk, args.user)
@@ -429,6 +492,7 @@ def configure(args, adb):
               "hisense_refresh_fingerprint": HISENSE_REFRESH_FINGERPRINT if hisense else None,
               "package_before": package, "plan": plan,
               "adb_port_candidate": port_candidate, "adb_port_to_write": port_to_write,
+              "adb_enabled_before": adb.shell("settings", "get", "global", "adb_enabled"),
               "accessibility_enabled_before": adb.shell("settings", "--user", args.user, "get", "secure", "accessibility_enabled"),
               "accessibility_before": adb.shell("settings", "--user", args.user, "get", "secure", "enabled_accessibility_services"),
               "notification_before": adb.shell("settings", "--user", args.user, "get", "secure", "enabled_notification_listeners"),
@@ -479,8 +543,8 @@ def configure(args, adb):
             if not re.search(r"\bresult=-1\b", output):
                 raise ValueError("应用未确认全部权限配置完成；已完成的授权保留，请检查上方结果")
             confirmed = broadcast_data(output)
-            if keep_adb is not None and (not confirmed or confirmed.get("keepAdb") is not keep_adb):
-                raise ValueError("应用未读回确认 ADB 保持选项；已完成的授权保留")
+            if keep_adb is not None:
+                confirm_adb(adb, args, confirmed)
             if port_to_write is not None and (not confirmed or confirmed.get("adbPort") != port_to_write
                     or confirmed.get("adbPortSupported") is not True):
                 raise ValueError("ADB 恢复端口未读回确认；已完成的授权保留")
@@ -511,11 +575,12 @@ def main():
     parser.add_argument("--direct-home", action="store_true", help="配置已核对的 MiBOX3 直接 HOME 按键补偿，不要求原桌面")
     parser.add_argument("--home", help="本机实际检测到的原主页组件；多候选时指定")
     parser.add_argument("--adb", default="adb")
-    parser.add_argument("--apply", action="store_true", help="明确执行首次授权并启用守护")
+    parser.add_argument("--apply", action="store_true", help="执行所选授权配置；--adb-only 不启用守护")
     parser.add_argument("--pause", action="store_true", help="暂停全部中转，不修改系统 HOME 或授予权限")
+    parser.add_argument("--adb-only", action="store_true", help="独立配置 ADB 保持，不启用守护或改变桌面路线")
     adb_choice = parser.add_mutually_exclusive_group()
     adb_choice.add_argument("--keep-adb", dest="keep_adb", action="store_const", const=True, default=None,
-                            help="明确开启小米／Redmi ADB 设置恢复，端口持续可用性另行验收")
+                            help="明确开启支持档位的 ADB 设置恢复，重启后实际连接另行验收")
     adb_choice.add_argument("--no-keep-adb", dest="keep_adb", action="store_const", const=False,
                             help="明确关闭 ADB 设置恢复；省略两项则保持原选择")
     parser.add_argument("--record", type=Path, help="新的本机私有授权前记录，不覆盖")

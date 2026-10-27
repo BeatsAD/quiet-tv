@@ -221,14 +221,12 @@ def run(args, adb, journal):
         if routes.get("proxyReady"):
             raise ValueError("当前使用独立 HOME 代理，请沿用原代理安装记录修复，不自动改为内置守护")
         own = args.package + "/home.quiet.tv.HomeActivity"
-        if (snapshot.get("systemHome") == own and not snapshot.get("guardConfigured")
-                and not snapshot.get("keepAdb") and not snapshot.get("directHomeConfigured")):
-            print("系统 HOME 已指向 Quiet TV，无已配置的守护需要修复；请继续实体验收。")
-            return
+        adb_only = (snapshot.get("systemHome") == own and not snapshot.get("guardConfigured")
+                    and not snapshot.get("directHomeConfigured"))
         repair = SimpleNamespace(serial=args.serial, user=args.user, package=args.package, adb=args.adb,
             apply=args.apply, pause=False, direct_home=snapshot.get("directHomeConfigured", False),
-            home=None if snapshot.get("directHomeConfigured") else snapshot.get("originalHome") or None,
-            keep_adb=None, record=journal.directory / "guard-before.json")
+            home=None if adb_only or snapshot.get("directHomeConfigured") else snapshot.get("originalHome") or None,
+            keep_adb=True, adb_only=adb_only, record=journal.directory / "guard-before.json")
         guard.configure(repair, adb)
         print("配置流程结束；实体 HOME、重启、冷启动、待机唤醒须分别验收。")
 

@@ -135,7 +135,7 @@ final class DesktopRoutes {
                 .put("usageRequired",HomeGuardService.usageRequired(context)).put("usageAllowed",HomeGuardService.usageAllowed(context))
                 .put("configurationProblem",state.enabled()?HomeGuardRecovery.configurationProblem(context):"")
                 .put("syncRecovery",HomeGuardSync.summary(context)).put("syncRecoveryReady",HomeGuardSync.ready(context)).put("keepAdb",HomeGuardAdb.enabled(context))
-                .put("keepAdbReady",HomeGuardAdb.ready(context)).put("keepAdbStatus",HomeGuardAdb.summary(context))
+                .put("keepAdbReady",HomeGuardAdb.ready(context)).put("keepAdbStatus",HomeGuardAdb.summary(context)).put("adb",HomeGuardAdb.snapshot(context))
                 .put("observationReady",state.observationReady()).put("directHomeConfigured",state.directHomeConfigured())
                 .put("homeActionReady",state.homeActionReady()).put("homeActionChannelBound",HomeGuardService.connected())
                 .put("homeKeyFilterCapable",HomeGuardService.connected()?(Object)HomeGuardService.keyFilterCapable():JSONObject.NULL);

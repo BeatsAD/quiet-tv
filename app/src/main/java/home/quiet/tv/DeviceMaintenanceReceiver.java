@@ -39,7 +39,7 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
                 .put("originalHome",original).put("originalUsable",new HomeController(context).component(original,true))
                 .put("paused","OFF".equals(guard.preferences.getString("mode","AUTO"))).put("guardSupported",guard.supported())
                 .put("guardConfigured",guard.preferences.getBoolean("configured",false))
-                .put("directHomeConfigured",guard.directHomeConfigured()).put("keepAdb",HomeGuardAdb.enabled(context));
+                .put("directHomeConfigured",guard.directHomeConfigured()).put("keepAdb",HomeGuardAdb.enabled(context)).put("adb",HomeGuardAdb.snapshot(context));
         JSONObject originalState=new SetupStore(context).get().optJSONObject("originalState");
         if(originalState!=null)value.put("originalState",originalState);
         JSONObject takeover=new SetupStore(context).get().optJSONObject("takeover");
