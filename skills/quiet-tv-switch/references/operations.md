@@ -61,7 +61,7 @@ relay 通过多屏互动推送，电视用户确认同意后安装；电脑只�
 
 ## HOME 切换与失败诊断
 
-优先引导系统选择或 Quiet TV“首次设置”。使用 ADB 时必须先核对目标用户未改变、Quiet TV 的组件已安装且启用，并且是当前用户 HOME 候选。只有帮助明确支持对应语法才运行：
+先读取当前 HOME 和所选方案；已完成的直接 HOME、代理或中转继续沿用，不为结束安装重复配置或要求用户完成向导。需要配置时使用系统选择或“应用管理 → 更多 → 桌面配置”（旧版“首次设置”）。使用 ADB 时必须先核对目标用户未改变、Quiet TV 的组件已安装且启用，并且是当前用户 HOME 候选。只有帮助明确支持对应语法才运行：
 
 ```sh
 adb -s "$TV_SERIAL" shell cmd package set-home-activity --user "$TV_USER" home.quiet.tv/.HomeActivity
@@ -104,6 +104,6 @@ adb -s "$TV_SERIAL" shell pm enable --user "$TV_USER" "$ORIGINAL_PACKAGE"
 
 ## 电脑首次配置兼容守护
 
-按[首次设置说明](../../../docs/SETUP.md#通过电脑配置守护开发源码尚未发布)使用 `scripts/configure_home_guard.py`。这是独立的可选配置：电脑 ADB shell 已授权时，不要求 Quiet TV 内置 ADB 认证或系统默认 HOME 设置成功。只读排查、普通安装和仅更新不授权运行 `--apply`；明确授权守护配置后可执行，且该参数会主动启用守护。核对实际 APK 包含受系统权限保护的 `HomeGuardSetupReceiver`，历史包不自动获得此能力。
+按[桌面配置说明](../../../docs/SETUP.md#通过电脑配置守护开发源码尚未发布)使用 `scripts/configure_home_guard.py`。这是独立的可选配置：电脑 ADB shell 已授权时，不要求 Quiet TV 内置 ADB 认证或系统默认 HOME 设置成功。只读排查、普通安装和仅更新不授权运行 `--apply`；明确授权守护配置后可执行，且该参数会主动启用守护。核对实际 APK 包含受系统权限保护的 `HomeGuardSetupReceiver`，历史包不自动获得此能力。
 
 先预览，再以已核对的 `--serial`、`--user` 和新的私有 `--record` 文件执行，必要时指定实际 `--home`。只配置本应用的写安全设置、无障碍、适用的后台启动、通知及安卓5／6用量统计权限；保留原桌面和其他服务，不导入电脑密钥、不禁用系统包、不开启 ADB 常开。失败保留已完成的授权，核对实际状态后再处理，不自动回滚。权限已配置不等于服务绑定或真实接管；实体 HOME、冷启动、待机与 HDMI 分别验收。低内存固件通知恢复不可用时单独报告。

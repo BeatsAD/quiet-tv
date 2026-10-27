@@ -1,6 +1,6 @@
 # 使用 Agent 排查 Quiet TV 问题
 
-[首页](../README.md)  [首次设置与恢复](SETUP.md)  [Agent 安装与恢复](AGENT_INSTALL.zh-CN.md)
+[首页](../README.md)  [桌面配置与恢复](SETUP.md)  [Agent 安装与恢复](AGENT_INSTALL.zh-CN.md)
 
 开发源码支持从“更多 → 诊断日志”扫码下载 Quiet TV 自身的关键事件和错误，无需 ADB。该日志不包含完整系统日志或其他应用内部操作。涉及厂商主页、进程被杀或应用无法打开等问题时，使用下述电脑侧 Agent 进一步采集只读现场。已发布旧安装包不会随源码变化自动更新。
 

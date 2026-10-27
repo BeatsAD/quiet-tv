@@ -137,9 +137,6 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         IntentFilter packages=new IntentFilter(Intent.ACTION_PACKAGE_ADDED);packages.addAction(Intent.ACTION_PACKAGE_REMOVED);packages.addAction(Intent.ACTION_PACKAGE_CHANGED);packages.addDataScheme("package");
         registerReceiver(packageReceiver,packages);
         loadApps();
-        loader.execute(()->{try{
-            if(new SetupStore(this).shouldOffer(this))main.post(()->{if(!isFinishing() && !isDestroyed())leaveHome(()->startActivity(new Intent(this,SetupActivity.class)));});
-        }catch(Exception e){Log.w(TAG,"Setup state unavailable; retaining home",e);DiagnosticLog.error("home.setup_state.failed",e);}});
     }
 
     private void resumeAfterUnlock(){

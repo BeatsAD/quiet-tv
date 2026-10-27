@@ -95,7 +95,7 @@
 | 浏览全部文档与目录职责 | [文档索引](docs/README.md) |
 | 安装桌面、更新 APK 或切回原桌面 | [安装指南](docs/INSTALL.zh-CN.md) |
 | 调整常用应用、壁纸和遥控器操作 | [使用指南](docs/USAGE.zh-CN.md) |
-| 完成首次设置或恢复原桌面 | [首次设置与恢复](docs/SETUP.md) |
+| 按需配置桌面或恢复原桌面 | [桌面配置与恢复](docs/SETUP.md) |
 | 了解机型适配与已验证功能 | [兼容性](docs/COMPATIBILITY.md) · [验收记录](docs/COMPATIBILITY.md) |
 | 开发、构建或贡献代码 | [贡献指南](CONTRIBUTING.md) · [版本与安装包规则](docs/VERSIONING.md) |
 | 了解安全与仓库设置 | [安全政策](SECURITY.md) · [贡献指南](CONTRIBUTING.md) |

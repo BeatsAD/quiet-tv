@@ -77,7 +77,7 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     }
     void managementMoreOptions(LinearLayout menu){
         managementMoreOption(menu,"开机广告",()->startActivity(new Intent(this,BootAdActivity.class)));
-        managementMoreOption(menu,"首次设置",()->startActivity(new Intent(this,SetupActivity.class)));
+        managementMoreOption(menu,"桌面配置",()->startActivity(new Intent(this,SetupActivity.class)));
         managementMoreOption(menu,"恢复原桌面",()->startActivity(new Intent(this,SetupActivity.class).putExtra("restore",true)));
         managementMoreOption(menu,"诊断日志",this::diagnosticLog);
     }
