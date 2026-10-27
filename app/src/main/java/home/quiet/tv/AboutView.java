@@ -16,11 +16,10 @@ import android.widget.TextView;
 import java.io.IOException;
 import java.io.InputStream;
 
-/** Native 1920 x 1080 artboard matching prototypes/about. All images exist before the first draw. */
+/** Native version-update content. Images exist before the first draw. */
 final class AboutView extends FrameLayout {
     private final Typeface font;
     private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Shader glow,shade;
     private final View license,upstream,recovery,update;
     private boolean updateAvailable;
     private final TextView recoveryValue;
@@ -29,17 +28,11 @@ final class AboutView extends FrameLayout {
     private final Runnable exit;
 
     AboutView(Context context,CharSequence name,String version,String channelName,Runnable exit,Runnable licenses,Runnable source,Runnable check) {
-        super(context);setBackgroundColor(0xff020405);setTag("about-native");
+        super(context);setBackgroundColor(Color.TRANSPARENT);setTag("about-native");
         this.exit=exit;
         font=android.os.Build.VERSION.SDK_INT>=26?Typeface.createFromAsset(context.getAssets(),"fonts/outfit.ttf"):Typeface.create("sans-serif",Typeface.NORMAL);
-        glow=new RadialGradient(0,0,1,new int[]{0xff244c87,0xff112846,0xff070e18,0xff020405},new float[]{0,.29f,.58f,.85f},Shader.TileMode.CLAMP);
-        Matrix matrix=new Matrix();matrix.setScale(1497.6f*(float)Math.sqrt(2),810*(float)Math.sqrt(2));matrix.postTranslate(422.4f,270);glow.setLocalMatrix(matrix);
-        // CSS linear-gradient(100deg, #02070b08, #04070bb8), on the same artboard.
-        shade=new LinearGradient(-63,357,1983,723,0x0802070b,0xb804070b,Shader.TileMode.CLAMP);
         artboard=new FrameLayout(context) {
             @Override protected void dispatchDraw(Canvas canvas) {
-                paint.setShader(glow);canvas.drawRect(0,0,1920,1080,paint);
-                paint.setShader(shade);canvas.drawRect(0,0,1920,1080,paint);paint.setShader(null);
                 super.dispatchDraw(canvas);
                 if(updateAvailable && update!=null){paint.setColor(0xffd9363e);canvas.drawCircle(update.getRight()-2,update.getTop()+2,9,paint);}
 
@@ -58,14 +51,11 @@ final class AboutView extends FrameLayout {
         update=action(checkText,"check-update",136,750,188,64,check);update.setBackground(ControlStyle.action(1,32,0x08ffffff,0x26ffffff));
         label("开源项目",29,500,0xfff2f4f8,782,298,600,41,null);
         label("github.com/BeatsAD/quiet-tv",27,400,0xffdbe5f4,782,360,600,50,"source-address");
-        ImageView project=code("project-qr",1576,250,208);project.setImageResource(R.drawable.ic_about_source);
         line(492);
         label("联系开发者",29,500,0xfff2f4f8,782,563,600,41,null);
         label("WenBin AI LAB",27,400,0xffc4d1e3,782,625,600,34,null);
         label("wenbinailab@gmail.com",24,400,0xff9eafc7,782,674,600,45,"developer-email");
-        code("wechat-qr",1394,528,184).setImageBitmap(image("about/assets/wechat.webp"));
         code("official-qr",1600,528,184).setImageBitmap(image("about/assets/qq-group.webp"));
-        label("微信",21,400,0xff9eafc7,1394,725,184,30,null).setGravity(Gravity.CENTER);
         label("扫码进 QQ交流群",21,400,0xff9eafc7,1600,725,184,30,null).setGravity(Gravity.CENTER);
         line(790);
         label("开源许可与致谢",23,500,0xffb9c8dc,782,819,1002,33,null);
