@@ -2,6 +2,7 @@
 """Preview or explicitly configure Quiet TV guard through an already-authorized computer ADB."""
 
 import argparse
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -111,6 +112,21 @@ def canonical_home(value):
         return value
     package, activity = value.split("/", 1)
     return package + "/" + (package + activity if activity.startswith(".") else activity)
+
+
+def legacy_tcp_port(serial, sdk):
+    if not 21 <= sdk < 30:
+        return None
+    host, separator, port = serial.rpartition(":")
+    if not separator or not port.isdecimal():
+        return None
+    try:
+        address = ipaddress.ip_address(host[1:-1] if host.startswith("[") and host.endswith("]") else host)
+    except ValueError:
+        return None
+    if address.version == 6 and not (host.startswith("[") and host.endswith("]")):
+        return None
+    return int(port) if 0 < int(port) <= 65535 else None
 
 
 class ComputerAdb:
@@ -315,6 +331,7 @@ def configure(args, adb):
     direct_home = getattr(args, "direct_home", False)
     if direct_home and args.home:
         raise ValueError("直接 HOME 补偿不能同时指定原桌面")
+    port_candidate = legacy_tcp_port(args.serial, sdk) if keep_adb else None
     selected = canonical_home(args.home or "")
     inspection = None
     if args.apply or direct_home:
@@ -339,6 +356,13 @@ def configure(args, adb):
                     raise ValueError("原主页未唯一确定或已失效，请使用 --home 指定本机候选；未修改权限")
         elif direct_home:
             raise ValueError("已安装 APK 未提供直接 HOME 能力核对；未修改权限")
+    port_to_write = port_candidate if inspection and inspection.get("adbPortSupported") is True else None
+    if keep_adb and port_candidate and not args.apply:
+        print("已识别传统 TCP 端口 " + str(port_candidate) + "；执行时核对 APK 端口保存能力。")
+    if keep_adb and args.apply and port_candidate and port_to_write is None:
+        print("ADB 端口恢复未配置：已安装 APK 不支持电脑保存端口，需要包含该修复的新包；继续配置已有调试设置恢复。")
+    elif keep_adb and args.apply and port_candidate is None:
+        print("未取得适用的传统 TCP 端口（USB、未知标识或 Android11+）；不猜测端口，仅配置调试设置恢复。")
     pm_help = adb.permission_help("pm")
     ops_help = adb.permission_help("appops")
     pm_user = user_options(pm_help, "grant", sdk, args.user)
@@ -387,6 +411,8 @@ def configure(args, adb):
         broadcast += ["--es", "home", selected]
     if keep_adb is not None:
         broadcast += ["--ez", "keep_adb", str(keep_adb).lower()]
+    if port_to_write is not None:
+        broadcast += ["--ei", "adb_port", port_to_write]
     plan.append(broadcast)
     if not args.apply:
         print("仅预览，未修改电视。确认原主页及授权范围后，使用 --apply --record <新的私有记录路径> 执行：")
@@ -402,6 +428,7 @@ def configure(args, adb):
               "tcl_appops_before": vendor_before, "inspection": inspection,
               "hisense_refresh_fingerprint": HISENSE_REFRESH_FINGERPRINT if hisense else None,
               "package_before": package, "plan": plan,
+              "adb_port_candidate": port_candidate, "adb_port_to_write": port_to_write,
               "accessibility_enabled_before": adb.shell("settings", "--user", args.user, "get", "secure", "accessibility_enabled"),
               "accessibility_before": adb.shell("settings", "--user", args.user, "get", "secure", "enabled_accessibility_services"),
               "notification_before": adb.shell("settings", "--user", args.user, "get", "secure", "enabled_notification_listeners"),
@@ -454,6 +481,11 @@ def configure(args, adb):
             confirmed = broadcast_data(output)
             if keep_adb is not None and (not confirmed or confirmed.get("keepAdb") is not keep_adb):
                 raise ValueError("应用未读回确认 ADB 保持选项；已完成的授权保留")
+            if port_to_write is not None and (not confirmed or confirmed.get("adbPort") != port_to_write
+                    or confirmed.get("adbPortSupported") is not True):
+                raise ValueError("ADB 恢复端口未读回确认；已完成的授权保留")
+            if port_to_write is not None:
+                print("ADB 恢复端口已保存并读回：" + str(port_to_write) + "；重启／唤醒后的网络重连仍待验收。")
             if direct_home:
                 confirmed = broadcast_data(output)
                 if not confirmed or not confirmed.get("directHomeConfigured"):

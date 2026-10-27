@@ -18,6 +18,11 @@ final class HomeGuardAdb {
     private static boolean watching,probed;
     static boolean supported(Context c){return HomeGuardPolicy.xiaomiRecovery(Build.MANUFACTURER,Build.BRAND,Build.VERSION.SDK_INT,BuildConfig.LEGACY_19);}
     static boolean enabled(Context c){return new HomeGuardState(c,false).preferences.getBoolean("keepAdb",false);}
+    static boolean portSupported(Context c){return HomeGuardPolicy.keepAdbPort(supported(c),Build.VERSION.SDK_INT,1);}
+    static int port(Context c){return c.getSharedPreferences("adb",0).getInt("port",0);}
+    @android.annotation.SuppressLint("ApplySharedPref")
+    static boolean setPort(Context c,int port){return HomeGuardPolicy.keepAdbPort(supported(c),Build.VERSION.SDK_INT,port)
+        && c.getSharedPreferences("adb",0).edit().putInt("port",port).commit();}
     // The opt-in/out must survive a firmware kill immediately after the click.
     @android.annotation.SuppressLint("ApplySharedPref")
     static boolean setEnabled(Context c,boolean enabled){boolean saved=new HomeGuardState(c).preferences.edit().putBoolean("keepAdb",enabled).commit();if(saved){HomeGuardSync.refresh(c);if(enabled){watch(c);ensure(c);}}return saved;}
@@ -43,7 +48,7 @@ final class HomeGuardAdb {
                 DiagnosticLog.info("home_guard.adb.restore","restored="+restored);return;
             }
             // An observed/configured TCP port is required; USB-only and modern wireless ADB stay alone.
-            SharedPreferences adb=c.getSharedPreferences("adb",0);int port=adb.getInt("port",0);
+            int port=port(c);
             if(probed || Build.VERSION.SDK_INT>=30 || SystemClock.elapsedRealtime()>=HomeGuardPolicy.BOOT_WINDOW_MS || port<=0 || port>65535)return;
             probed=true;
             try(Socket socket=new Socket()){socket.connect(new InetSocketAddress("127.0.0.1",port),400);return;}

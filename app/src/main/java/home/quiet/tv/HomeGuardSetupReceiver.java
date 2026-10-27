@@ -23,10 +23,15 @@ public final class HomeGuardSetupReceiver extends BroadcastReceiver {
                     .put("supported",state.supported()).put("selected",state.selected()).put("candidates",candidates).put("resolvedHome",resolvedHome)
                     .put("directHomeAvailable",state.directHomeAvailable()).put("directHomeConfigured",state.directHomeConfigured())
                     .put("usageRequired",HomeGuardService.usageRequired(context)).put("accessibilityAllowed",state.serviceEnabled())
-                    .put("accessibilityBound",HomeGuardService.connected()).put("physicalHomeVerified",false).toString());
+                    .put("accessibilityBound",HomeGuardService.connected()).put("physicalHomeVerified",false)
+                    .put("adbPortSupported",HomeGuardAdb.portSupported(context)).put("adbPort",HomeGuardAdb.port(context)).toString());
                 setResultCode(Activity.RESULT_OK);return;
             }
             if(!state.supported() || !HomeGuardState.unlocked(context))throw new IllegalStateException("系统档位不支持或尚未解锁");
+            int adbPort=intent.getIntExtra("adb_port",0);
+            if(intent.hasExtra("adb_port") && (!intent.getBooleanExtra("keep_adb",false)
+                    || !HomeGuardPolicy.keepAdbPort(HomeGuardAdb.supported(context),Build.VERSION.SDK_INT,adbPort)))
+                throw new IllegalStateException("仅在明确保持 ADB 时保存已确认的传统 TCP 端口");
             state=new HomeGuardState(context);
             if(intent.getBooleanExtra("pause",false)){
                 state.pause("电脑暂停中转");setResultData(new DesktopRoutes(context).snapshot().toString());if(!state.preferences.getBoolean("proxyPausePending",false))setResultCode(Activity.RESULT_OK);return;
@@ -37,7 +42,6 @@ public final class HomeGuardSetupReceiver extends BroadcastReceiver {
             String home=intent.getStringExtra("home");
             if(direct){
                 if(home!=null || !state.directHomeAvailable())throw new IllegalStateException("当前设备或系统 HOME 不适用直接按键补偿");
-                state.preferences.edit().putString("mode","AUTO").apply();new DesktopRoutes(context).direct();
             }else{
                 // Original-window observation still requires a real, installed stock HOME.
                 if(home!=null){
@@ -48,8 +52,10 @@ public final class HomeGuardSetupReceiver extends BroadcastReceiver {
                 }else state.configure();
                 if(!state.validSelection())throw new IllegalStateException("请在电视选择原桌面，或指定本机检测到的 home 组件");
                 if(state.helperActive())throw new IllegalStateException("请先暂停独立中转助手");
-                state.enable();
             }
+            if(intent.hasExtra("adb_port") && !HomeGuardAdb.setPort(context,adbPort))throw new IllegalStateException("ADB 恢复端口未保存");
+            if(direct){state.preferences.edit().putString("mode","AUTO").apply();new DesktopRoutes(context).direct();}
+            else state.enable();
             HomeGuardRecovery.configureGranted(context);
             if(intent.hasExtra("keep_adb") && !HomeGuardAdb.setEnabled(context,intent.getBooleanExtra("keep_adb",false)))throw new IllegalStateException("调试恢复选项未保存");
             String problem=HomeGuardRecovery.configurationProblem(context);
@@ -62,6 +68,7 @@ public final class HomeGuardSetupReceiver extends BroadcastReceiver {
             result.put("syncRecoveryReady",HomeGuardSync.ready(context));
             result.put("notificationAllowed",HomeGuardRecovery.notificationAllowed(context));result.put("notificationBound",HomeGuardRevivalListener.connected());
             result.put("syncSupported",HomeGuardSync.supported(context));result.put("syncReady",HomeGuardSync.ready(context));result.put("syncStatus",HomeGuardSync.summary(context));result.put("keepAdb",HomeGuardAdb.enabled(context));
+            result.put("adbPortSupported",HomeGuardAdb.portSupported(context));result.put("adbPort",HomeGuardAdb.port(context));
             result.put("overlayAllowed",Build.VERSION.SDK_INT<23 || Settings.canDrawOverlays(context));
             result.put("problem",problem);
             result.put("desktopRoutes",new DesktopRoutes(context).snapshot());setResultData(result.toString());
