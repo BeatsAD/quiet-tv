@@ -64,14 +64,15 @@ final class VideoWallpaperPlayer {
     }
     boolean requested(String id){return enabled&&entry!=null&&entry.id.equals(id);}
     boolean ready(){return rendered;}
-    boolean visible(){return frame.getVisibility()==View.VISIBLE;}
-    void stop(){enabled=false;release();frame.setVisibility(View.GONE);entry=null;listener=null;}
+    boolean visible(){return enabled&&frame.getVisibility()==View.VISIBLE;}
+    void stop(){enabled=false;release();if(target==null)frame.setVisibility(View.GONE);entry=null;listener=null;}
     void destroy(){
-        if(destroyed)return;stop();destroyed=true;activity.unregisterReceiver(screen);main.removeCallbacksAndMessages(null);
+        if(destroyed)return;destroyed=true;stop();activity.unregisterReceiver(screen);main.removeCallbacksAndMessages(null);
         // Drain Media3's queued release callbacks before retiring their application Looper.
         worker.post(()->{releasePlayer();worker.post(playback::quitSafely);});
     }
-    private boolean current(Target candidate){return candidate==target&&candidate.request==generation&&!candidate.retired&&enabled&&!destroyed;}
+    private boolean current(Target candidate){return candidate==target&&candidate.request==generation&&!candidate.retired&&enabled&&!screenOff&&!destroyed;}
+    private boolean current(Target candidate,int request){return candidate.request==request&&current(candidate);}
     private void layout(){
         if(entry==null||target==null||host.getWidth()==0||host.getHeight()==0)return;
         float videoAspect=target.aspect,viewAspect=host.getWidth()/(float)host.getHeight();
@@ -92,20 +93,30 @@ final class VideoWallpaperPlayer {
         ((TextureView)target.view).setTransform(crop);
     }
     private void start(){
-        if(destroyed||!enabled||screenOff||entry==null||target!=null)return;
+        if(destroyed||!enabled||screenOff||entry==null)return;
+        boolean textureOutput=BuildConfig.LEGACY_19||VideoGeometry.manualRotation(Build.VERSION.SDK_INT,entry.rotation);
+        if(target!=null){
+            if(target.preparing||target.textureOutput)return;
+            if(!target.textureOutput&&!textureOutput){
+                target.aspect=VideoGeometry.aspect(entry.width,entry.height,entry.pixelRatio,entry.rotation);layout();
+                if(target.surface!=null&&target.surface.isValid())begin(target,entry);
+                main.removeCallbacks(timeout);main.postDelayed(timeout,8000);return;
+            }
+            Target old=target;target=null;old.retired=true;frame.removeView(old.view);retire(old);
+        }
         Target next=new Target(++generation);target=next;
         frame.addView(next.view,new FrameLayout.LayoutParams(-1,-1,Gravity.CENTER));layout();
         next.view.post(()->{if(next.textureOutput&&current(next)&&!next.view.isHardwareAccelerated())fail(next.request,Failure.OUTPUT);});
         main.postDelayed(timeout,8000);
     }
     private final class Target implements TextureView.SurfaceTextureListener,SurfaceHolder.Callback {
-        final int request;
+        int request;
         final View view;
         final boolean textureOutput;
         volatile boolean retired,released;
         volatile SurfaceTexture texture;
         volatile Surface surface;
-        boolean started,updated;
+        boolean preparing,started,updated;
         int unappliedRotation;
         float aspect;
         final float[] transform=new float[16];
@@ -141,7 +152,7 @@ final class VideoWallpaperPlayer {
             detached();return false;
         }
         private void detached(){
-            if(current(this)){
+            if(this==target){
                 ++generation;target=null;rendered=false;main.removeCallbacks(timeout);
                 if(listener!=null)listener.stopped();
                 main.post(()->{frame.removeView(view);start();});
@@ -163,27 +174,30 @@ final class VideoWallpaperPlayer {
         }
     }
     private void begin(Target next,WallpaperCatalog.Entry selected){
+        if(!current(next)||next.preparing)return;
+        next.preparing=true;final int request=next.request;
         File file=selected.custom()?WallpaperStore.get(activity).file(selected.id):null;
         Log.i(TAG,"prepare request="+next.request);DiagnosticLog.info("wallpaper.video.prepare","mime="+selected.videoMime+" size="+selected.width+"x"+selected.height+" fps="+selected.fps+" backend="+(BuildConfig.LEGACY_19?"platform":"media3"));
         worker.post(()->{
-            if(next.request!=generation||next.retired)return;
-            releasePlayer();if(next.request!=generation||next.retired)return;
+            if(request!=generation||next.retired)return;
+            releasePlayer();if(request!=generation||next.retired)return;
             try{
                 ownsOutput=next.textureOutput;output=ownsOutput?new Surface(next.texture):next.surface;playerTarget=next;
-                if(output==null||!output.isValid()){main.post(()->fail(next.request,Failure.OUTPUT));return;}
+                if(output==null||!output.isValid()){main.post(()->fail(request,Failure.OUTPUT));return;}
                 player=new WallpaperPlayback(activity,worker,output,file,selected,new PlaybackEvents(){
-                    @Override public void ready(){main.post(()->{if(current(next)){next.started=true;if(!next.textureOutput)next.updated=true;firstFrame(next);}});}
-                    @Override public void failed(Failure reason){main.post(()->fail(next.request,reason));}
-                    @Override public void size(int width,int height,float pixelRatio){main.post(()->{if(current(next)&&width>0&&height>0){next.aspect=VideoGeometry.aspect(width,height,pixelRatio,0);layout();}});}
+                    @Override public void ready(){main.post(()->{if(current(next,request)){next.started=true;if(!next.textureOutput)next.updated=true;firstFrame(next);}});}
+                    @Override public void failed(Failure reason){main.post(()->fail(request,reason));}
+                    @Override public void size(int width,int height,float pixelRatio){main.post(()->{if(current(next,request)&&width>0&&height>0){next.aspect=VideoGeometry.aspect(width,height,pixelRatio,0);layout();}});}
                 });
                 player.prepare();
-            }catch(IOException|RuntimeException e){DiagnosticLog.error("wallpaper.video.prepare_failed",e);main.post(()->fail(next.request,e instanceof IOException?Failure.FILE:Failure.DECODE));}
+            }catch(IOException|RuntimeException e){DiagnosticLog.error("wallpaper.video.prepare_failed",e);main.post(()->fail(request,e instanceof IOException?Failure.FILE:Failure.DECODE));}
         });
     }
     private void firstFrame(Target next){
         if(!current(next)||!next.started||!next.updated||rendered)return;
         rendered=true;main.removeCallbacks(timeout);Log.i(TAG,"texture updated request="+next.request);DiagnosticLog.info("wallpaper.video.rendered","first frame");
-        main.post(()->{if(current(next)&&rendered&&listener!=null)listener.ready();});
+        final int request=next.request;
+        main.post(()->{if(current(next,request)&&rendered&&listener!=null)listener.ready();});
     }
     private void fail(int request,Failure reason){
         if(request!=generation||!enabled||destroyed)return;
@@ -193,7 +207,14 @@ final class VideoWallpaperPlayer {
     private void release(){
         ++generation;main.removeCallbacks(timeout);rendered=false;
         if(listener!=null)listener.stopped();
-        Target old=target;target=null;
+        Target old=target;
+        if(old!=null&&!old.textureOutput&&!destroyed){
+            // Keep the native output attached under the opaque cover while retiring only the decoder.
+            // Removing/readding SurfaceView also changes the window's transparent region.
+            old.request=generation;old.preparing=false;old.started=false;old.updated=false;
+            worker.post(this::releasePlayer);return;
+        }
+        target=null;
         if(old!=null){old.retired=true;frame.removeView(old.view);retire(old);}
         else worker.post(this::releasePlayer);
     }
