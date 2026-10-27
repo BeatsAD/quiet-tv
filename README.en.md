@@ -57,7 +57,7 @@ Original captures from Quiet TV 1.2.4 on a Sony BRAVIA VH1 / Android 12. See [mo
 
 Open All Apps → 应用管理 for 应用列表 (App list), 首页应用 (Favorites), 应用排序 (Order) and 儿童模式 (Child mode). Everyday customization needs no ADB; package changes require separate authorization. Disabling retains data, while uninstalling removes current-user app data. Boot-ad actions depend on verified adaptation rules; unmatched devices are view-only. See [app management](docs/APP_MANAGEMENT.md).
 
-The signed update feed is live. Automatic checks run every 24 hours while Home is in the foreground; manual checks are under App Management → About → Check for updates. Older versions without this feature need a manual installation first. A higher build of the same software version is not offered as an update. See [in-app updates](docs/UPDATES.md).
+The signed update feed is live. Automatic checks run every 24 hours while Home is in the foreground; current source provides manual checks under App Management → Version updates → Check for updates (About in older APKs). Older versions without this feature need a manual installation first. A higher build of the same software version is not offered as an update. See [in-app updates](docs/UPDATES.md).
 
 ## Install and try it
 

@@ -21,14 +21,16 @@ final class AboutView extends FrameLayout {
     private final Typeface font;
     private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Shader glow,shade;
-    private final View back,license,upstream,recovery,update;
+    private final View license,upstream,recovery,update;
     private boolean updateAvailable;
     private final TextView recoveryValue;
     private final ChildModePolicy.TriplePress recoveryPress=new ChildModePolicy.TriplePress();
     private final FrameLayout artboard;
+    private final Runnable exit;
 
     AboutView(Context context,CharSequence name,String version,String channelName,Runnable exit,Runnable licenses,Runnable source,Runnable check) {
         super(context);setBackgroundColor(0xff020405);setTag("about-native");
+        this.exit=exit;
         font=android.os.Build.VERSION.SDK_INT>=26?Typeface.createFromAsset(context.getAssets(),"fonts/outfit.ttf"):Typeface.create("sans-serif",Typeface.NORMAL);
         glow=new RadialGradient(0,0,1,new int[]{0xff244c87,0xff112846,0xff070e18,0xff020405},new float[]{0,.29f,.58f,.85f},Shader.TileMode.CLAMP);
         Matrix matrix=new Matrix();matrix.setScale(1497.6f*(float)Math.sqrt(2),810*(float)Math.sqrt(2));matrix.postTranslate(422.4f,270);glow.setLocalMatrix(matrix);
@@ -45,10 +47,6 @@ final class AboutView extends FrameLayout {
         };
         artboard.setClipChildren(false);artboard.setPivotX(0);artboard.setPivotY(0);
         addView(artboard,new LayoutParams(1920,1080));
-        ImageView arrow=new ImageView(context);arrow.setImageResource(R.drawable.ic_about_back);arrow.setPadding(17,17,17,17);
-        arrow.setBackground(surface(0x0affffff,32,0x25ffffff));arrow.setContentDescription("返回桌面");
-        back=action(arrow,"back-home",100,70,64,64,exit);
-        label("关于",38,500,0xfff2f4f8,188,75,160,54,null);
         ImageView brand=new ImageView(context);brand.setImageResource(R.drawable.launcher_icon);put(brand,136,315,160,160);
         SpannableString title=new SpannableString(name+".");title.setSpan(new ForegroundColorSpan(0xff89b8f5),title.length()-1,title.length(),Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         TextView titleView=label(title,104,500,0xfff2f4f8,136,515,626,120,"app-name");UiCompat.letterSpacing(titleView,-3f/104);
@@ -83,7 +81,6 @@ final class AboutView extends FrameLayout {
         recovery.setOnFocusChangeListener((view,focused)->{if(!focused)recoveryPress.clear();artboard.invalidate();});
         recoveryValue=label("",21,400,0xffdbe5f4,recoveryX+104,863,220,41,"recovery-value");
         recoveryValue.setVisibility(View.INVISIBLE);
-        back.requestFocus();
     }
 
     private GradientDrawable surface(int color,float radius,int stroke) {
@@ -99,7 +96,7 @@ final class AboutView extends FrameLayout {
     }
     private View action(View view,String tag,int x,int y,int w,int h,Runnable run) {
         if(view.getParent()==null)put(view,x,y,w,h);
-        view.setBackground(ControlStyle.action(2,"back-home".equals(tag)?16:5,"back-home".equals(tag)?0x0affffff:Color.TRANSPARENT,0));
+        view.setBackground(ControlStyle.action(2,5,Color.TRANSPARENT,0));
         view.setTag(tag);view.setFocusable(true);view.setFocusableInTouchMode(true);view.setOnClickListener(v->run.run());
         view.setOnFocusChangeListener((v,focused)->artboard.invalidate());return view;
     }
@@ -116,8 +113,8 @@ final class AboutView extends FrameLayout {
     }
     private void line(int y){View line=new View(getContext());line.setBackgroundColor(0x25ffffff);put(line,782,y,1002,1);}
     @Override protected void onSizeChanged(int w,int h,int oldw,int oldh) {
-        float scale=Math.min(w/1920f,h/1080f);artboard.setScaleX(scale);artboard.setScaleY(scale);
-        artboard.setTranslationX((w-1920*scale)/2);artboard.setTranslationY((h-1080*scale)/2);
+        float height=720,scale=Math.min(w/1920f,h/height);artboard.setScaleX(scale);artboard.setScaleY(scale);
+        artboard.setTranslationX((w-1920*scale)/2);artboard.setTranslationY((h-height*scale)/2-220*scale);
     }
     private void revealRecovery(){
         if(!recoveryPress.press(android.os.SystemClock.elapsedRealtime()))return;
@@ -129,11 +126,10 @@ final class AboutView extends FrameLayout {
     void focusLicense(){license.requestFocus();}
     void move(int key) {
         View active=artboard.findFocus(),next=null;
-        if(active==back && (key==KeyEvent.KEYCODE_DPAD_DOWN||key==KeyEvent.KEYCODE_DPAD_RIGHT))next=update;
-        else if(active==update){if(key==KeyEvent.KEYCODE_DPAD_UP)next=back;else if(key==KeyEvent.KEYCODE_DPAD_RIGHT||key==KeyEvent.KEYCODE_DPAD_DOWN)next=license;}
+        if(active==update){if(key==KeyEvent.KEYCODE_DPAD_UP){exit.run();return;}else if(key==KeyEvent.KEYCODE_DPAD_RIGHT||key==KeyEvent.KEYCODE_DPAD_DOWN)next=license;}
         else if(active==license){if(key==KeyEvent.KEYCODE_DPAD_RIGHT)next=upstream;else if(key==KeyEvent.KEYCODE_DPAD_UP||key==KeyEvent.KEYCODE_DPAD_LEFT)next=update;}
-        else if(active==upstream){if(key==KeyEvent.KEYCODE_DPAD_LEFT)next=license;else if(key==KeyEvent.KEYCODE_DPAD_UP)next=back;else if(key==KeyEvent.KEYCODE_DPAD_RIGHT)next=recovery;}
-        else if(active==recovery){if(key==KeyEvent.KEYCODE_DPAD_LEFT)next=upstream;else if(key==KeyEvent.KEYCODE_DPAD_UP)next=back;}
+        else if(active==upstream){if(key==KeyEvent.KEYCODE_DPAD_LEFT)next=license;else if(key==KeyEvent.KEYCODE_DPAD_UP){exit.run();return;}else if(key==KeyEvent.KEYCODE_DPAD_RIGHT)next=recovery;}
+        else if(active==recovery){if(key==KeyEvent.KEYCODE_DPAD_LEFT)next=upstream;else if(key==KeyEvent.KEYCODE_DPAD_UP){exit.run();return;}}
         if(next!=null)next.requestFocus();
     }
     void press(boolean pressed){View view=artboard.findFocus();if(view!=null)view.setPressed(pressed);}
