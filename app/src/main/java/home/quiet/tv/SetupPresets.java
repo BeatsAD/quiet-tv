@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 
 /** Rules annotate discovered packages; they never manufacture a device's app inventory. */
 final class SetupPresets {
+    private static SetupPresets bundled;
     private final JSONObject device;
     SetupPresets(String source,String brand,String model,String firmware) throws JSONException {
         JSONObject root=new JSONObject(source);JSONObject match=null;
@@ -27,10 +28,13 @@ final class SetupPresets {
         }
         device=match;
     }
-    static SetupPresets load(Context context) {
+    static synchronized SetupPresets load(Context context) {
+        // Bundled assets and Build identity are fixed for this process; live package state is not cached.
+        if(bundled!=null)return bundled;
         try(InputStream in=context.getAssets().open("setup-presets.json");ByteArrayOutputStream out=new ByteArrayOutputStream()){
             byte[] buffer=new byte[4096];int size;while((size=in.read(buffer))!=-1)out.write(buffer,0,size);
-            return new SetupPresets(out.toString("UTF-8"),Build.BRAND,Build.MODEL,Build.FINGERPRINT);
+            bundled=new SetupPresets(out.toString("UTF-8"),Build.BRAND,Build.MODEL,Build.FINGERPRINT);
+            return bundled;
         }catch(Exception e){throw new IllegalStateException("设备规则无法读取",e);}
     }
     JSONObject app(String pkg){

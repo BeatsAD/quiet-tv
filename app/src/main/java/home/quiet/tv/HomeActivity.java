@@ -81,8 +81,16 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private int homeResumeSequence;
     private long homeResumeStarted,homePausedAt;
     private boolean homeDrawPending;
+    private boolean homeReadyDrawn;
+    private static int observedInputKinds;
     private Typeface outfit;
     private boolean chinese = true, fixedGreeting = false, ready = false, resumed = false, requestedLocation = false;
+    private final Runnable checkHomeUpdates=()->{
+        if(!resumed || !ready || !homeReadyDrawn)return;
+        long started=SystemClock.uptimeMillis();
+        UpdateRepository.get(this).foreground();
+        DiagnosticLog.info("home.update.foreground","elapsedMs="+(SystemClock.uptimeMillis()-started));
+    };
     private float unit;
     private int row = 0, column = 0, topColumn = 0, restoreColumn = 0;
     private int scrollTarget = RecyclerView.NO_POSITION;
@@ -190,11 +198,13 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private void makeScene() {
         root = new FrameLayout(this); root.setBackgroundColor(Color.BLACK); root.setClipChildren(false);
         root.getViewTreeObserver().addOnDrawListener(()->{
-            if(!homeDrawPending || !resumed)return;
-            homeDrawPending=false;
-            // This callback precedes drawing; it does not establish a frame presented by the TV.
-            homeResumeEvent("home.first_draw","evidence=on_draw_callback_only");
-            root.post(()->{if(resumed)UpdateRepository.get(this).foreground();});
+            if(!resumed)return;
+            if(homeDrawPending){
+                homeDrawPending=false;
+                // This callback precedes drawing; it does not establish a frame presented by the TV.
+                homeResumeEvent("home.first_draw","evidence=on_draw_callback_only");
+            }
+            if(ready && !homeReadyDrawn){homeReadyDrawn=true;scheduleHomeUpdate();}
         });
         setContentView(root);
         wallpapers = new WallpaperController(this, root, unit, chinese);
@@ -233,7 +243,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         boolean showApps=desktopSettings.showHomeApps();
         if(homeAppsVisible!=showApps){homeAppsVisible=showApps;row=0;column=0;activePackage="";}
         if(heroTitle!=null)heroTitle.setVisibility(homeAppsVisible&&desktopSettings.showAppTitle()?View.VISIBLE:View.GONE);
-        if(dockBand!=null){dockBand.setVisibility(homeAppsVisible?View.VISIBLE:View.GONE);dockBand.setBackground(desktopSettings.showDockBackground()&&!(dock.size()==1&&ADD_DOCK_ENTRY.equals(dock.get(0).pkg))?new DockBackdropDrawable(wallpapers,dockBand,root,unit):null);}
+        applyDockAppearance();
         TextView previous=visiblePills.isEmpty()?null:visiblePills.get(topColumn);
         boolean[] shown={desktopSettings.showInput(),desktopSettings.showNetwork(),desktopSettings.showSettings()};
         visiblePills.clear();
@@ -252,8 +262,13 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private void setPillIcon(TextView pill,int resource){homeHeader.setPillIcon(pill,resource);}
     private void updateClock(){homeHeader.updateClock(fixedGreeting);}
 
+    private void scheduleHomeUpdate(){
+        if(!resumed || !ready || !homeReadyDrawn)return;
+        root.removeCallbacks(checkHomeUpdates);root.post(checkHomeUpdates);
+    }
+
     private void updateNetwork() {
-        if(resumed&&!homeDrawPending)root.post(()->{if(resumed)UpdateRepository.get(this).foreground();});
+        scheduleHomeUpdate();
         if(wallpapers!=null)wallpapers.environmentChanged();
         if(network.getVisibility()!=View.VISIBLE)return;
         ConnectivityManager cm=(ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE);
@@ -292,7 +307,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     @Override protected void onResume() {
         if(waitingForUnlock){super.onResume();resumeAfterUnlock();return;}
-        homeResumeStarted=SystemClock.uptimeMillis();++homeResumeSequence;homeDrawPending=true;
+        homeResumeStarted=SystemClock.uptimeMillis();++homeResumeSequence;homeDrawPending=true;homeReadyDrawn=false;
         homeResumeEvent("home.resume.begin","sincePauseMs="+(homePausedAt==0?-1:homeResumeStarted-homePausedAt));
         super.onResume(); resumed=true;
         new DesktopRoutes(this).reconcileVendor();
@@ -322,15 +337,22 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     @Override public void onWindowFocusChanged(boolean focused){
         if(waitingForUnlock){super.onWindowFocusChanged(focused);return;}
+        long started=SystemClock.uptimeMillis();
         homeResumeEvent("home.window_focus","focused="+focused);
-        super.onWindowFocusChanged(focused);systemEntryLifecycle("window_focus="+focused);if(focused && resumed && systemEntryDispatched)systemEntryPending="";if(focused && resumed){new HomeProxy(this).visible(this);if(!isFinishing()){HomeGuardRecovery.visible(this);launchBootApp();}}
+        try{
+            super.onWindowFocusChanged(focused);systemEntryLifecycle("window_focus="+focused);if(focused && resumed && systemEntryDispatched)systemEntryPending="";if(focused && resumed){new HomeProxy(this).visible(this);if(!isFinishing()){HomeGuardRecovery.visible(this);launchBootApp();}}
+        }finally{homeResumeEvent("home.window_focus.end","focused="+focused+" callbackMs="+(SystemClock.uptimeMillis()-started));}
     }
 
     void checkBootApp(){getWindow().getDecorView().post(this::launchBootApp);}
 
     private void launchBootApp(){
+        BootAppStore store=new BootAppStore(this);if(store.target().isEmpty())return;
+        long started=SystemClock.uptimeMillis();
         if(isFinishing() || !resumed || !hasWindowFocus() || !HomeGuardState.canShow(this))return;
-        BootAppStore store=new BootAppStore(this);String pkg=store.consume();if(pkg.isEmpty())return;
+        String pkg=store.consume();
+        DiagnosticLog.info("home.autostart.check","elapsedMs="+(SystemClock.uptimeMillis()-started)+" consumed="+!pkg.isEmpty());
+        if(pkg.isEmpty())return;
         leaveHome(()->{try{
             Intent intent=store.launchIntent(pkg);
             if(intent==null){Log.i(BootAppStore.TAG,"target unavailable");wallpapers.resume();Toast.makeText(this,tr("自启应用不可用，请在应用管理中重新设置","Startup app unavailable"),Toast.LENGTH_LONG).show();return;}
@@ -344,6 +366,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     @Override protected void onPause() {
         if(waitingForUnlock){super.onPause();return;}
         cancelFocusRestore("pause");
+        root.removeCallbacks(checkHomeUpdates);homeReadyDrawn=false;
         if(!HomeGuardState.canShow(this))new HomeProxy(this).defer(getIntent());
         homePausedAt=SystemClock.uptimeMillis();homeResumeEvent("home.pause","");homeDrawPending=false;
         systemEntryLifecycle("pause");
@@ -398,8 +421,10 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         final List<String> pinned=requested.pinned;
         loader.execute(()->{
             try {
+            final long workerStarted=SystemClock.uptimeMillis();
             PackageManager pm=getPackageManager();
             ArrayList<HomeAppCatalog.Entry> catalog=new HomeAppCatalog(this).load(pinned);
+            final long catalogLoadedAt=SystemClock.uptimeMillis();
             ArrayList<App> found=new ArrayList<>();
             HashMap<String,App> freshCache=new HashMap<>();
             for(HomeAppCatalog.Entry entry:catalog) {
@@ -410,7 +435,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 key += ":cover:"+AppCoverStore.get(this).key(info.activityInfo.packageName);
                 App cached=artworkCache.get(key);
                 if(cached!=null){found.add(cached);freshCache.put(key,cached);continue;}
-                App app=new App();app.pkg=info.activityInfo.packageName;app.label=info.loadLabel(pm).toString();app.artworkKey=key;
+                App app=new App();app.pkg=info.activityInfo.packageName;app.label=entry.label;app.artworkKey=key;
                 app.component=new ComponentName(app.pkg,info.activityInfo.name);
                 app.banner=AppArtwork.load(this,info);app.color=sampleColor(app.banner);found.add(app);freshCache.put(key,app);
             }
@@ -423,8 +448,10 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             managementApp.banner=HomeEntryArtwork.render(this,managementApp.label,false);managementApp.color=HomeEntryArtwork.MANAGEMENT_COLOR;found.add(2,managementApp);
             ArrayList<String> defaults=new ArrayList<>();for(App app:found)if(!pinned.contains(app.pkg))defaults.add(app.pkg);
             ArrayList<String> gridOrder=new HomeOrderStore(this).order(defaults);
+            final long preparedAt=SystemClock.uptimeMillis();
             main.post(()->{
                 if(isDestroyed())return;
+                long applyStarted=SystemClock.uptimeMillis();
                 if(!catalogRefresh.finish(catalogInput())){
                     DiagnosticLog.info("home.catalog.stale","request="+sequence+" elapsedMs="+(SystemClock.uptimeMillis()-started));
                     if(resumed)loadApps("changed_during_load");return;
@@ -465,7 +492,10 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 }
                 boolean first=!ready;ready=true;
                 if(resumed&&(first||dockChanged||gridChanged))focusCurrent(false);
-                DiagnosticLog.info("home.catalog.applied","request="+sequence+" elapsedMs="+(SystemClock.uptimeMillis()-started)+" dockChanged="+dockChanged+" gridChanged="+gridChanged);
+                long appliedAt=SystemClock.uptimeMillis();
+                DiagnosticLog.info("home.catalog.applied","request="+sequence+" elapsedMs="+(appliedAt-started)
+                    +" workerQueueMs="+(workerStarted-started)+" catalogMs="+(catalogLoadedAt-workerStarted)+" prepareMs="+(preparedAt-catalogLoadedAt)
+                    +" queueMs="+(applyStarted-preparedAt)+" applyMs="+(appliedAt-applyStarted)+" dockChanged="+dockChanged+" gridChanged="+gridChanged);
                 Log.i(TAG,"Loaded dock="+dock.size()+" apps="+apps.size());
             });
             } catch (RuntimeException e) {
@@ -500,6 +530,14 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
         if(waitingForUnlock)return super.dispatchKeyEvent(event);
         int key=event.getKeyCode();
+        int kind=key==KeyEvent.KEYCODE_DPAD_LEFT || key==KeyEvent.KEYCODE_DPAD_RIGHT || key==KeyEvent.KEYCODE_DPAD_UP || key==KeyEvent.KEYCODE_DPAD_DOWN?1
+            :key==KeyEvent.KEYCODE_DPAD_CENTER || key==KeyEvent.KEYCODE_ENTER || key==KeyEvent.KEYCODE_NUMPAD_ENTER?2
+            :key==KeyEvent.KEYCODE_VOLUME_UP || key==KeyEvent.KEYCODE_VOLUME_DOWN || key==KeyEvent.KEYCODE_VOLUME_MUTE?4:0;
+        if(kind!=0 && event.getAction()==KeyEvent.ACTION_DOWN && event.getRepeatCount()==0 && (observedInputKinds&kind)==0){
+            observedInputKinds|=kind;long received=SystemClock.uptimeMillis();
+            DiagnosticLog.info("home.input.first","instance="+homeInstance+" resume="+homeResumeSequence+" kind="+kind+" key="+key+" eventUptimeMs="+event.getEventTime()+" receivedUptimeMs="+received
+                +" ageMs="+Math.max(0,received-event.getEventTime())+" ready="+ready+" resumed="+resumed+" windowFocus="+hasWindowFocus());
+        }
         if(event.getAction()==KeyEvent.ACTION_DOWN && hasWindowFocus() && systemEntryDispatched && !systemEntryPending.isEmpty()){systemEntryLifecycle("next_home_key");systemEntryPending="";}
         boolean confirm=key==KeyEvent.KEYCODE_DPAD_CENTER || key==KeyEvent.KEYCODE_ENTER || key==KeyEvent.KEYCODE_NUMPAD_ENTER;
         if(confirm && (!ready || row<0) && event.getRepeatCount()==0)
@@ -509,7 +547,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         if(key==KeyEvent.KEYCODE_BACK && row>0){if(event.getAction()==KeyEvent.ACTION_UP)handleBack();return true;}
         if(key==KeyEvent.KEYCODE_DPAD_LEFT || key==KeyEvent.KEYCODE_DPAD_RIGHT || key==KeyEvent.KEYCODE_DPAD_UP || key==KeyEvent.KEYCODE_DPAD_DOWN){
             if(event.getAction()==KeyEvent.ACTION_UP)return true;
-            int previousRow=row,previousTop=topColumn;
+            int previousRow=row,previousTop=topColumn,previousColumn=column;
             if(row<0){
                 if(key==KeyEvent.KEYCODE_DPAD_LEFT)topColumn=Math.max(0,topColumn-1);
                 if(key==KeyEvent.KEYCODE_DPAD_RIGHT)topColumn=Math.min(visiblePills.size()-1,topColumn+1);
@@ -520,6 +558,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 if(key==KeyEvent.KEYCODE_DPAD_UP){if(row==0){if(rightButtonsVisible){restoreColumn=column;row=-1;}}else{row--;column=Math.min(row==0?restoreColumn:column,maxColumn(row));}}
                 if(key==KeyEvent.KEYCODE_DPAD_DOWN && row<gridRows()){if(row==0)restoreColumn=column;row++;column=Math.min(column,maxColumn(row));}
             }
+            if(previousRow==row && previousTop==topColumn && previousColumn==column)return true;
             if((previousRow<0 || row<0) && (previousRow!=row || previousTop!=topColumn))
                 DiagnosticLog.info("home.action.focus","entry="+topEntry()+" row="+row+" key="+key);
             focusCurrent(true);return true;
@@ -685,9 +724,18 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         for(TextView pill:pills){boolean focused=visible && visiblePills.indexOf(pill)==topColumn;pill.setActivated(focused);if(!focused)pill.setPressed(false);}
     }
 
+    private void applyDockAppearance(){
+        if(dockBand==null)return;
+        // Zero items means the catalog has not been applied, not the loaded add-card state.
+        boolean show=homeAppsVisible && !dock.isEmpty() && dockBand.getChildCount()>0;
+        boolean addOnly=dock.size()==1 && ADD_DOCK_ENTRY.equals(dock.get(0).pkg);
+        dockBand.setVisibility(show?View.VISIBLE:View.GONE);
+        dockBand.setBackground(show && !addOnly && desktopSettings.showDockBackground()?new DockBackdropDrawable(wallpapers,dockBand,root,unit):null);
+    }
+
     private final class DockBand extends FrameLayout {
         boolean restoreLayout;
-        DockBand(){super(HomeActivity.this);}
+        DockBand(){super(HomeActivity.this);setVisibility(View.GONE);}
         @Override protected void onLayout(boolean changed,int left,int top,int right,int bottom){
             super.onLayout(changed,left,top,right,bottom);
             if(restoreLayout&&dockBand==this){restoreLayout=false;updateDock(false);}
@@ -727,11 +775,11 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 band.removeAllViews();dockTiles.clear();dockFocus=-2;band.restoreLayout=true;
                 boolean empty=dock.size()==1&&ADD_DOCK_ENTRY.equals(dock.get(0).pkg);
                 float width=empty?176:dockWidth,height=empty?112:dockHeight;
-                band.setVisibility(homeAppsVisible?View.VISIBLE:View.GONE);band.setBackground(empty||!desktopSettings.showDockBackground()?null:new DockBackdropDrawable(wallpapers,band,root,unit));
                 FrameLayout.LayoutParams bandParams=(FrameLayout.LayoutParams)band.getLayoutParams();
                 bandParams.width=px(2*dockPadding+dock.size()*width+Math.max(0,dock.size()-1)*dockGap);bandParams.height=px(height+2*dockPadding);
                 bandParams.gravity=Gravity.TOP|(empty?Gravity.START:Gravity.CENTER_HORIZONTAL);bandParams.leftMargin=empty?-px(dockPadding):0;band.setLayoutParams(bandParams);
                 for(int n=0;n<dock.size();n++){Tile tile=new Tile();tile.bind(dock.get(n));dockTiles.add(tile);place(band,tile,width,height,dockPadding+n*(width+dockGap),dockPadding);}
+                applyDockAppearance();
                 if(!dock.isEmpty()){App app=dock.get(Math.min(Math.max(column,0),dock.size()-1));heroTitle.setText(empty?tr("常用应用","Favorite apps"):app.label);}
             }else if(position>=2)((Tile)holder.itemView).bind(apps.get(position-2));
         }

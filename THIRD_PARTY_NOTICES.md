@@ -108,7 +108,7 @@ VIDAA 原主页缺少窗口事件、酷开 AI 与松下系无 HOME 声明组件�
 
 ## 旧版 Android 天气 HTTPS 兼容
 
-- Android 4.4 至 7.1（API19–25）的天气连接在系统信任根基础上补充官方 [ISRG Root X1](https://letsencrypt.org/certificates/)，用于和风及 UAPI 请求，保留证书链、有效期及域名校验，不修改设备证书库或应用全局 TLS 设置。Android 8 及以上继续使用系统默认信任；Android 4.4 同时沿用 TLS 1.2 兼容设置。
+- Android 4.4 至 7.1（API19–25）的天气连接在系统信任根基础上补充官方 [ISRG Root X1](https://letsencrypt.org/certificates/)，用于天气源 HTTPS 请求，保留证书链、有效期及域名校验，不修改设备证书库或应用全局 TLS 设置。Android 8 及以上继续使用系统默认信任；Android 4.4 同时沿用 TLS 1.2 兼容设置。
 - 证书文件为 `app/src/main/assets/certificates/isrg-root-x1.pem`，DER SHA-256 为 `96bcec06264976f37460779acf28c5a7cfe8a3c0aae11a8ffcee05c0bddf08c6`。该文件是公开根证书，不含私钥；不固定天气服务的叶证书，服务正常续期仍由证书链校验。
 
 ## 壁纸局域网上传
@@ -132,4 +132,8 @@ The wallpaper settings and upload dialog use raster exports of Lucide 0.468.0 ic
 
 省市区县选择及本地模糊查询使用 [modood/Administrative-divisions-of-China](https://github.com/modood/Administrative-divisions-of-China/tree/c49d495b40ac73eb1a66f6eeae5f8fd10696f035) 的 `dist/pca-code.json`，固定提交 `c49d495b40ac73eb1a66f6eeae5f8fd10696f035`。原始 JSON 保存在 `app/src/main/assets/weather/regions.json`，完整 WTFPL 2.0 许可随包保存在 [china-regions-WTFPL.txt](app/src/main/assets/licenses/china-regions-WTFPL.txt)。数据快照包含中国大陆 31 个省级单位，不包含港澳台完整区划；行政区调整可能晚于实际生效时间。未收录地区不冒充已支持，不以相近区县替代。
 
-天气数据不属于以上地区数据许可。和风天气通过开发者独立配置的 Host 和凭据请求，来源标注要求见[官方说明](https://dev.qweather.com/docs/terms/attribution/)；当前界面将来源署名与官网入口集中放在“天气设置 → 服务说明”中，首页保留天气主信息。失败时尝试 UAPI，显示实际成功来源。私有凭据不提交源码，查询地区和出口 IP 会被实际请求的服务接收。
+天气数据不属于以上地区数据许可。和风天气通过开发者独立配置的 Host 和凭据请求，来源标注要求见[官方说明](https://dev.qweather.com/docs/terms/attribution/)；当前界面将来源署名与官网入口集中放在“天气设置 → 服务说明”中，首页保留天气主信息。自动模式失败时按配置顺序尝试可用来源，显示实际成功来源。私有凭据不提交源码，查询地区和出口 IP 会被实际请求的服务接收。
+
+补充地点保存在 [places.json](app/src/main/assets/weather/places.json)。长岛的参考坐标根据 [GeoNames 地名数据](https://www.geonames.org/advanced-search.html?country=CN&q=Dao+Xian&startRow=0) 中 Changdao / 长岛县的坐标舍入到两位小数，依 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 使用；别名为本项目维护。该点接近原县城，不代表所有岛屿的中心或气象观测站。联网补充地点由 UAPI 返回，不缓存和风 GeoAPI 响应建立索引。
+
+新增天气源 [Open-Meteo](https://open-meteo.com/) 的数据依 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 使用；天气码由本项目转换为中文/英文和原生图标，当前天气为模型估算。免费托管 API 仅限[非商业使用](https://open-meteo.com/en/terms)，默认关闭，需用户启用；数据许可不等于免费服务的商业使用授权。[OpenWeather](https://openweathermap.org/api/current) 使用开发者可选配置的独立凭据及对应服务条款。天气设置显示实际成功来源并链接其官网；未直接复制上述开源天气应用代码。

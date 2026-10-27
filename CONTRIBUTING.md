@@ -65,10 +65,14 @@ Only core source, required resources, build inputs, essential guides, licenses a
 Maintainer development stays local by default; “merge into main” means local integration. Only explicit GitHub synchronization authorization starts the push/PR/remote-merge workflow; a request limited to pushing or opening a PR does not authorize merging or APK publication. For remote contributions, start from current main and submit a scoped PR, normally through a Fork. Preserve user data, stage explicit paths, and report actual checks separately from hardware acceptance. Protected remote main requires the `Validate` check, resolved discussions and Squash merge. Keep CODEOWNERS, templates, Discussions and confidential security reporting. CI never operates a TV or publishes an APK.
 
 
-### 可选和风天气配置 / Optional QWeather configuration
+### 可选天气源配置 / Optional weather configuration
 
-全新克隆不需要天气密钥即可构建，缺少配置时使用 UAPI。要以和风为主源，在仓库外保存仅当前用户可读的 UTF-8 JSON 文件，包含 `qweatherHost`（控制台提供的纯域名）及 `qweatherApiKey`（API KEY）。构建时通过环境变量 `QUIETTV_WEATHER_CONFIG` 或 Gradle 属性 `-PquietWeatherConfig=/绝对路径/weather.local.json` 传入文件路径。禁止在命令行、源码、日志或提交中填写密钥值。
+全新克隆不需要天气密钥即可构建，缺少配置时使用 UAPI。要以和风为主源，在仓库外保存仅当前用户可读的 UTF-8 JSON 文件，可选包含 `qweatherHost`（控制台提供的纯域名）及 `qweatherApiKey`（API KEY），两者须同时填写；也可独立配置 `openWeatherApiKey`（OpenWeather API KEY）。未配置来源会在设置中标记“未配置”，不进入自动切换链。构建时通过环境变量 `QUIETTV_WEATHER_CONFIG` 或 Gradle 属性 `-PquietWeatherConfig=/绝对路径/weather.local.json` 传入文件路径。禁止在命令行、源码、日志或提交中填写密钥值。
+
+也可在已忽略的 `local.properties` 中设置 `quietWeatherConfig=/绝对路径/weather.local.json`，让本机 Gradle 及现有打包脚本自动读取。配置优先级为 Gradle 属性、环境变量、本地路径；传入空属性 `-PquietWeatherConfig=` 可明确构建不含密钥的版本，并清空本次生成资产中的旧凭据。新克隆没有本地配置时仍可独立构建。
 
 `bundleWeatherConfiguration` 仅将配置写入忽略的构建 assets；没有配置时写入空配置，防止复用先前构建的凭据。私有配置不会进入手机选城接口。APK 内置 Key 可以被提取，公开分发前应配置 Android 包名/签名和 API 权限限制，并按开发者账号的合计免费额度控制用量；本地限流不能代替服务端账号配额。
 
 地区库和手机网页是已提交的生产输入，不需要在线下载。测试仅使用合成凭据；真实接口联调单独记录结果，不记录认证头。
+
+Open-Meteo uses its public HTTPS endpoint without credentials and is disabled until explicitly enabled for non-commercial use. Its current-condition values come from weather models. Each provider keeps separate 429 cooldowns. Manual provider selection never changes the weather provider on failure. Online place search uses UAPI independently of weather source selection; no QWeather GeoAPI response is stored as a place index. Mainland selection, supplemental aliases, online search, source selection and failover share the same code across standard, legacy19 and Coocaa profiles. TV and operator-network acceptance remains separate from JVM tests and compilation.

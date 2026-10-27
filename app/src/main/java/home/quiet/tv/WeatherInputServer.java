@@ -11,11 +11,14 @@ import org.json.*;
 /** LAN-only city selection. The phone never receives weather credentials or writes preferences. */
 final class WeatherInputServer extends NanoHTTPD {
     interface Assets { InputStream open(String name)throws IOException; }
+    interface Search { List<WeatherRegions.Region> find(String query)throws IOException,JSONException; }
     interface Receiver { boolean accept(WeatherRegions.Region region)throws IOException; }
     private final String host,token,code;
     private final Assets assets;
     private final WeatherRegions regions;
     private final Receiver receiver;
+    private final Search search;
+    private final Map<String,WeatherRegions.Region> offered=new LinkedHashMap<>();
     private final Set<ClientHandler> clients=new HashSet<>();
     private volatile boolean closed,draining;
     private volatile long touched=System.nanoTime();
@@ -23,7 +26,10 @@ final class WeatherInputServer extends NanoHTTPD {
     private int failures;
     private long blockedUntil;
     WeatherInputServer(String host,Assets assets,WeatherRegions regions,Receiver receiver){
-        super(host,0);this.host=host;this.assets=assets;this.regions=regions;this.receiver=receiver;
+        this(host,assets,regions,null,receiver);
+    }
+    WeatherInputServer(String host,Assets assets,WeatherRegions regions,Search search,Receiver receiver){
+        super(host,0);this.search=search;this.host=host;this.assets=assets;this.regions=regions;this.receiver=receiver;
         SecureRandom random=new SecureRandom();byte[] bytes=new byte[16];random.nextBytes(bytes);StringBuilder value=new StringBuilder();for(byte b:bytes)value.append(String.format(Locale.ROOT,"%02x",b&255));token=value.toString();code=String.format(Locale.ROOT,"%06d",random.nextInt(1000000));
         setAsyncRunner(new AsyncRunner(){
             @Override public void exec(ClientHandler client){synchronized(clients){if(closed||clients.size()>=4){client.close();return;}clients.add(client);}Thread thread=new Thread(client,"weather-input-http");thread.setDaemon(true);thread.start();}
@@ -54,8 +60,13 @@ final class WeatherInputServer extends NanoHTTPD {
                     String query=session.getParms().get(route.equals("search")?"q":"parent");if(query==null)query="";
                     if(query.length()>60)return error(Response.Status.BAD_REQUEST,"查询文字过长 / Query too long");
                     List<WeatherRegions.Region> matches=route.equals("search")?regions.search(query,40):regions.children(query);
+                    if(route.equals("search")&&"1".equals(session.getParms().get("online"))&&search!=null){
+                        LinkedHashMap<String,WeatherRegions.Region> merged=new LinkedHashMap<>();for(WeatherRegions.Region region:matches)merged.put(region.code,region);
+                        for(WeatherRegions.Region region:search.find(query))merged.put(region.code,region);
+                        matches=new ArrayList<>(merged.values());synchronized(offered){for(WeatherRegions.Region region:matches){offered.put(region.code,region);if(offered.size()>200)offered.remove(offered.keySet().iterator().next());}}
+                    }
                     touched=System.nanoTime();return json(Response.Status.OK,new JSONObject().put("results",regions.items(matches)));
-                }catch(JSONException e){return error(Response.Status.INTERNAL_ERROR,"地区列表不可用 / Regions unavailable");}
+                }catch(IOException|JSONException e){return error(Response.Status.INTERNAL_ERROR,"联网搜索暂不可用，请重试或使用本地搜索 / Online search unavailable");}
             }
             if(!authorized&&!uri.equals("/")&&!uri.equals("/app.js")&&!uri.equals("/styles.css")&&!uri.equals("/weather.css"))return error(Response.Status.NOT_FOUND,"Not found");
             String file,mime;
@@ -68,7 +79,8 @@ final class WeatherInputServer extends NanoHTTPD {
         String type=session.getHeaders().get("content-type");if(type==null||!type.split(";",2)[0].trim().equalsIgnoreCase("application/json"))return error(Response.Status.BAD_REQUEST,"JSON required");
         try{
             JSONObject body=new JSONObject(read(session,128));Object selected=body.opt("code");
-            WeatherRegions.Region region=selected instanceof String?regions.find((String)selected):null;
+            WeatherRegions.Region region; synchronized(offered){region=selected instanceof String?offered.get((String)selected):null;}
+            if(region==null&&selected instanceof String)region=regions.find((String)selected);
             if(body.length()!=1||region==null||region.level==0)return error(Response.Status.BAD_REQUEST,"请选择城市或区县 / Select a city or district");
             synchronized(this){
                 if(closed||received||expired())return error(Response.Status.GONE,"会话已结束 / Session ended");

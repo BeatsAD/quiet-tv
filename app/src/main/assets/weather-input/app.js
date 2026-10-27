@@ -12,9 +12,9 @@ if (english) {
   $('connect').querySelector('button').textContent = 'Connect to TV';$('search').querySelector('button').textContent = 'Search';
   $('query').placeholder = 'For example: 武汉';$('send').textContent = 'Send to TV';document.querySelector('.hint').textContent = 'After sending, select Save on your TV.';
 }
-async function request(path, options) {
+async function request(path, options, timeoutMs = 8000) {
   let response, data;
-  const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 8000);
+  const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {response = await fetch(path, Object.assign({cache: 'no-store', signal: controller.signal}, options));data = await response.json();}
   catch (error) {throw new Error(tr('连接中断，请查看电视并重新连接。', 'Connection interrupted. Check your TV and reconnect.'));}
   finally {clearTimeout(timeout);}
@@ -36,6 +36,9 @@ function options(select, items, placeholder) {
 async function children(parent) {return (await request(base + 'children?parent=' + encodeURIComponent(parent))).results;}
 async function syncSelectors(region) {
   const cityRequest = ++cityVersion, districtRequest = ++districtVersion;
+  if (!region.provinceCode || !region.cityCode) {
+    $('province').value = '';options($('city'), [], tr('选择城市', 'City'));options($('district'), [], tr('选择区县', 'District'));return;
+  }
   $('province').value = region.provinceCode;
   try {
     const cities = await children(region.provinceCode);
@@ -67,20 +70,20 @@ $('city').addEventListener('change', async () => {
   catch (error) {if (version === districtVersion) $('status').textContent = error.message;}
 });
 $('district').addEventListener('change', () => {++districtVersion;choose(records.get($('district').value) || records.get($('city').value) || null);});
-async function search() {
+async function search(online = false) {
   clearTimeout(timer);const version = ++searchVersion, query = $('query').value.trim();$('results').replaceChildren();if (!query) return;
   try {
-    const data = await request(base + 'search?q=' + encodeURIComponent(query));if (version !== searchVersion) return;
+    const data = await request(base + 'search?q=' + encodeURIComponent(query) + (online ? '&online=1' : ''), undefined, online ? 22000 : 8000);if (version !== searchVersion) return;
     data.results.forEach(region => {
       const button = document.createElement('button');button.type = 'button';button.textContent = region.name;button.setAttribute('aria-pressed', String(selected?.code === region.code));
       if (region.area) {const area = document.createElement('small');area.textContent = region.area;button.append(area);}
       button.addEventListener('click', () => {choose(region);syncSelectors(region);$('results').querySelectorAll('button').forEach(item => item.setAttribute('aria-pressed', String(item === button)));});$('results').append(button);
     });
-    $('status').textContent = data.results.length ? '' : tr('未找到地区，请换个关键词。', 'No regions found. Try another keyword.');
+    $('status').textContent = data.results.length ? '' : (online ? tr('未找到地点，请换个关键词。', 'No places found. Try another keyword.') : tr('未找到本地地点，点击搜索联网查找。', 'No local places. Tap Search to look online.'));
   } catch (error) {if (version === searchVersion) $('status').textContent = error.message;}
 }
 $('query').addEventListener('input', () => {++searchVersion;clearTimeout(timer);timer = setTimeout(search, 180);});
-$('search').addEventListener('submit', event => {event.preventDefault();search();});
+$('search').addEventListener('submit', event => {event.preventDefault();search(true);});
 $('send').addEventListener('click', async () => {
   if (!selected) return;$('send').disabled = true;
   try {await request(base + 'select', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({code: selected.code})});$('editor').hidden = true;$('status').textContent = tr('地区已发送到电视\n请用遥控器选择“保存”。', 'Location sent to your TV.\nSelect Save with your remote.');}
