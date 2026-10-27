@@ -106,7 +106,7 @@
         <activity android:name=".AppManagementActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".BootAdActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".SetupActivity" android:exported="false" android:screenOrientation="landscape" />
-        <activity android:name=".HomeActivity" android:exported="true" android:directBootAware="true" android:launchMode="singleTask" android:excludeFromRecents="true" android:screenOrientation="landscape">
+        <activity android:name=".HomeActivity" android:theme="@style/HomeTheme" android:exported="true" android:directBootAware="true" android:launchMode="singleTask" android:excludeFromRecents="true" android:screenOrientation="landscape">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

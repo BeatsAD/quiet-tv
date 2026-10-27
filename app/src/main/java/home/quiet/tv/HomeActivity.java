@@ -127,8 +127,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         if(Build.VERSION.SDK_INT>=24 && !HomeGuardState.unlocked(this)){
             waitingForUnlock=true;
             DiagnosticLog.info("home.locked_wait","credential_storage_not_opened");
-            TextView waiting=new TextView(this);waiting.setText("等待系统解锁");waiting.setTextColor(Color.WHITE);
-            waiting.setBackgroundColor(Color.BLACK);waiting.setGravity(Gravity.CENTER);setContentView(waiting);
+            // Match the starting window while user storage is unavailable; no settings or media reads.
+            View waiting=new View(this);waiting.setBackgroundResource(R.drawable.home_startup_background);setContentView(waiting);
             androidx.core.content.ContextCompat.registerReceiver(this,unlockReceiver,new IntentFilter(Intent.ACTION_USER_UNLOCKED),androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
             resumeAfterUnlock();return;
         }
