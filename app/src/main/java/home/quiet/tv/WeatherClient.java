@@ -56,8 +56,8 @@ final class WeatherClient {
         IOException io=null;JSONException json=null;long retry=Long.MAX_VALUE;boolean nonLimited=false;
         for(String provider:order){
             if(!available(provider)||("auto".equals(mode)&&"openmeteo".equals(provider)&&!meteoFallback))continue;
-            // UAPI cannot represent a free coordinate or a supplemental weather place.
-            if("uapi".equals(provider)&&selected.adcode.isEmpty()&&ip==null&&!selected.code.startsWith("point:"))continue;
+            // Only automatic system location may resolve coordinates to a UAPI district.
+            if("uapi".equals(provider)&&selected.adcode.isEmpty()&&ip==null&&!"system".equals(source))continue;
             try{
                 if("uapi".equals(provider)){
                     if(ip!=null)return ip;
