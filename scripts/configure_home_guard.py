@@ -308,7 +308,7 @@ def configure(args, adb):
     user_state = re.search(r"(?m)^\s*User " + str(args.user) + r":([^\n]+)", package)
     if not user_state or not re.search(r"\binstalled=true\b", user_state[1]) or re.search(r"\b(?:hidden|suspended)=true\b|\benabled=[2-9]\b", user_state[1]):
         raise ValueError("当前用户上的 Quiet TV 未安装、被隐藏或已停用")
-    if "home.quiet.tv.HomeGuardSetupReceiver" not in package:
+    if not re.search(r"(?<![\w.$])home\.quiet\.tv(?:\.|/\.)HomeGuardSetupReceiver(?![\w.$])", package):
         raise ValueError("已安装 APK 不包含电脑守护配置入口；请先核对并更新到包含本修复的版本")
     if args.pause:
         command = ["am", "broadcast", "--include-stopped-packages", "--user", args.user,
