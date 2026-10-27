@@ -1,0 +1,19 @@
+[
+  {
+    "id": "place:changdao",
+    "name": "长岛",
+    "cityCode": "370600",
+    "latitude": 37.92,
+    "longitude": 120.74,
+    "aliases": [
+      "长岛县",
+      "长岛综合试验区",
+      "长岛海洋生态文明综合试验区"
+    ],
+    "coordinateSource": "https://www.geonames.org/advanced-search.html?country=CN&q=Dao+Xian&startRow=0",
+    "note": "Rounded reference point near the former county seat, not a weather observation station or the centre of every island. GeoNames CC BY 4.0.",
+    "legacyCodes": [
+      "370634"
+    ]
+  }
+]

@@ -113,14 +113,17 @@ tasks.register('bundleWeatherConfiguration') {
     outputs.file(weatherAssets.map { it.file('weather-config.json') })
     doLast {
         def values = configuration == null ? [:] : new groovy.json.JsonSlurper().parse(configuration)
-        if (configuration != null && (!(values.qweatherHost instanceof String) || !(values.qweatherApiKey instanceof String)
-                || !(values.qweatherHost ==~ /[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*\.qweatherapi\.com/)
-                || !(values.qweatherApiKey ==~ /[a-fA-F0-9]{32}/))) {
+        def host = values.containsKey('qweatherHost') ? values.qweatherHost : ''
+        def key = values.containsKey('qweatherApiKey') ? values.qweatherApiKey : ''
+        def openWeatherKey = values.containsKey('openWeatherApiKey') ? values.openWeatherApiKey : ''
+        if (!(host instanceof String) || !(key instanceof String) || !(openWeatherKey instanceof String)
+                || ((!host.isEmpty() || !key.isEmpty()) && (!(host ==~ /[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*\.qweatherapi\.com/) || !(key ==~ /[a-fA-F0-9]{32}/)))
+                || (!openWeatherKey.isEmpty() && !(openWeatherKey ==~ /[a-fA-F0-9]{32}/))) {
             throw new GradleException('Invalid private weather configuration')
         }
         def output = weatherAssets.get().file('weather-config.json').asFile
         output.parentFile.mkdirs()
-        output.text = groovy.json.JsonOutput.toJson(configuration == null ? [:] : [qweatherHost: values.qweatherHost, qweatherApiKey: values.qweatherApiKey])
+        output.text = groovy.json.JsonOutput.toJson(configuration == null ? [:] : [qweatherHost: host, qweatherApiKey: key, openWeatherApiKey: openWeatherKey])
         output.setReadable(false, false)
         output.setReadable(true, true)
     }

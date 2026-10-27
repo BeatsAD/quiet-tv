@@ -62,9 +62,15 @@ final class WeatherController {
     private void fetch(int version,String selected,String adcode,android.location.Location location){
         request=worker.submit(()->{
             try{
-                WeatherData result=location==null?client.weather(adcode,adcode.isEmpty()?"ip":"manual",chinese)
-                    :client.locatedWeather(location.getLatitude(),location.getLongitude(),chinese);
-                main.post(()->{if(!accept(version,selected))return;loading=false;data=result;store.save(chinese,result);nextAttempt=0;rateLimited=false;error="";render();schedule(WeatherData.REFRESH_MS);});
+                WeatherRegions.Region place=store.automatic()?null:store.selected();
+                if(!store.automatic()&&place==null)throw new WeatherClient.ApiException(404,0);
+                if(place!=null&&!place.located())try{place=client.resolve(place);}catch(java.io.IOException|org.json.JSONException e){if(Thread.currentThread().isInterrupted())return;}
+                final WeatherRegions.Region resolved=place;
+                WeatherData result=location==null?client.weather(place,store.provider(),store.meteoFallback(),adcode.isEmpty()?"ip":"manual",chinese)
+                    :client.locatedWeather(location.getLatitude(),location.getLongitude(),store.provider(),store.meteoFallback(),chinese);
+                main.post(()->{if(!accept(version,selected))return;loading=false;data=result;
+                    if(resolved!=null&&resolved.located()){store.select(resolved);key=store.key(chinese);}
+                    store.save(chinese,result);nextAttempt=0;rateLimited=false;error="";render();schedule(WeatherData.REFRESH_MS);});
             }catch(java.io.IOException|org.json.JSONException e){
                 DiagnosticLog.error("weather.refresh.failed",e);
                 main.post(()->{
@@ -72,7 +78,8 @@ final class WeatherController {
                     long delay=5*60*1000L;
                     error=tr("天气暂不可用","Weather unavailable");
                     if(e instanceof WeatherClient.ApiException){WeatherClient.ApiException api=(WeatherClient.ApiException)e;
-                        if(api.status==404)error=tr("请设置天气城市","Choose a weather city");
+                        if(api.status==404)error=tr("此来源暂不支持该地点，请更换地点或天气来源","This source cannot resolve the place. Choose another place or source.");
+                        if(api.status==503)error=tr("所选天气源未配置，请切换来源","The selected source is not configured. Choose another source.");
                         if(api.status==429){rateLimited=true;delay=Math.max(WeatherData.REFRESH_MS,api.retryAfterMs);error=tr("天气更新受限，请稍后再试","Weather refresh limited. Try later.");}
                     }
                     nextAttempt=SystemClock.elapsedRealtime()+delay;render();schedule(delay);
