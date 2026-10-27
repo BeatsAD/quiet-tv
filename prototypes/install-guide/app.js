@@ -9,43 +9,21 @@ const brands = {
 };
 let brand = 'sony';
 let toastTimer;
-let releaseIndex;
-let releaseMessage = '正在获取最新安装信息…';
 const guideUrl = 'https://raw.githubusercontent.com/BeatsAD/quiet-tv/main/docs/AGENT_INSTALL.zh-CN.md';
 function update() {
-  const takeover = $('[name="install-goal"]:checked').value === 'takeover';
-  const keep = $('#keep-adb');
-  keep.disabled = !takeover;
-  if (!takeover) keep.checked = false;
-  const target = $('#tv-address').value.trim() || '未填写，请先让我确认目标电视';
-  $('#install-prompt').textContent = releaseIndex ? `请通过我的电脑安装或更新 Quiet TV 最新适配版（含测试版）。
-电视地址或 ADB 标识：${target}
-安装目标：${takeover ? '接管桌面，系统 HOME 不适用时允许配置兼容守护；保留原桌面。' : '仅安装试用，保留当前桌面和守护选择。'}
-保持 ADB：${takeover && keep.checked ? '要，开启适用设备的调试设置恢复。' : '不新增开启，保留已有选择。'}
-
-请先完整读取官方说明，按统一安装入口执行：
+  $('#install-prompt').textContent = `请通过我的电脑安装或更新 Quiet TV 最新适配版，自动接管桌面并保持 ADB 常开。
+先完整阅读并执行官方说明：
 ${guideUrl}
-亲自在电脑上运行命令并保存恢复记录；需要电视授权或实体按键时提醒我。已明确选择接管的必要配置直接完成，不重复询问；仅更新不重新开启已暂停守护。
-最后原样贴出系统 HOME、无障碍配置，以及实体主页键后的焦点输出；失败时显示卡住的步骤、命令和原始错误。重启测试另行征得我同意。` : releaseMessage;
-  $('#restore-prompt').textContent = `请通过我的电脑，帮我恢复电视原来的桌面。
-
-请先完整读取并遵循操作说明：
-${guideUrl}
-
-确认目标电视后，根据本机记录恢复，保留 Quiet TV 和应用数据。
-失败时显示具体错误、当前状态和下一步；记录缺失或无法读取说明时先告诉我，不猜测执行。`;
+需要我操作电视时提醒我，最后给出实际验收结果。`;
+  $('#restore-prompt').textContent = `请通过我的电脑恢复电视原来的桌面，保留应用和数据。
+先完整阅读并执行官方说明：
+${guideUrl}`;
 }
 async function refreshRelease() {
-  const button = $('[data-copy="install"]');
-  button.disabled = true;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10000);
   try {
-    releaseIndex = null;
-    releaseMessage = '正在获取最新安装信息…';
-    update();
-    const stamp = Date.now();
-    const response = await fetch('latest.json?check=' + stamp, { cache: 'no-store', signal: controller.signal });
+    const response = await fetch('latest.json?check=' + Date.now(), { cache: 'no-store', signal: controller.signal });
     if (!response.ok) throw new Error('版本索引 HTTP ' + response.status);
     const data = await response.json();
     if (data.schemaVersion !== 1 || !/^\d+\.\d+\.\d+$/.test(data.latestVersion)
@@ -53,20 +31,14 @@ async function refreshRelease() {
         || !data.releases[0].url.startsWith('https://github.com/BeatsAD/quiet-tv/releases/tag/')) {
       throw new Error('版本索引无效');
     }
-    releaseIndex = data;
-    update();
     $('#release-link').href = data.releases[0].url;
-  } catch (error) {
-    releaseIndex = null;
-    releaseMessage = '暂时无法获取最新安装信息。点击“复制安装请求”重试。';
-    update();
+  } catch {
     $('#release-link').href = 'https://github.com/BeatsAD/quiet-tv/releases';
-    throw error;
   } finally {
     clearTimeout(timeout);
-    button.disabled = false;
   }
 }
+
 function wireTabs(selector, activate) {
   const tabs = [...document.querySelectorAll(selector)];
   tabs.forEach((tab, index) => {
@@ -93,10 +65,6 @@ wireTabs('[data-brand]', tab => {
   $('#brand-panel').setAttribute('aria-labelledby', tab.id);
   update();
 });
-document.querySelectorAll('[name="install-goal"], #keep-adb, #tv-address').forEach(input => {
-  input.addEventListener('input', update);
-  input.addEventListener('change', update);
-});
 wireTabs('[data-method]', tab => {
   ['agent', 'manual', 'restore'].forEach(method => $('#' + method + '-panel').hidden = tab.dataset.method !== method);
 });
@@ -108,27 +76,10 @@ function toast(message) {
 }
 document.querySelectorAll('[data-copy]').forEach(button => button.addEventListener('click', async () => {
   const pre = button.dataset.copy === 'install' ? $('#install-prompt') : $('#restore-prompt');
-  const refresh = button.dataset.copy === 'install' ? refreshRelease() : null;
   try {
-    if (refresh && typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
-      // Start the write during the click; WebKit permits the data to arrive later.
-      const content = refresh.then(() => new Blob([pre.textContent], { type: 'text/plain' }));
-      content.catch(() => {}); // The clipboard may reject before consuming its data.
-      await navigator.clipboard.write([new ClipboardItem({ 'text/plain': content })]);
-    } else {
-      if (refresh) await refresh;
-      await navigator.clipboard.writeText(pre.textContent);
-    }
-    toast('已复制，发送给电脑上的 Agent 即可。');
+    await navigator.clipboard.writeText(pre.textContent);
+    toast('已复制，发送给电脑端 AI 助手即可。');
   } catch {
-    if (refresh) {
-      try {
-        await refresh;
-      } catch {
-        toast('暂时无法获取最新版，请稍后重试。');
-        return;
-      }
-    }
     if (button.dataset.copy === 'restore') previewRequest();
     const selection = window.getSelection();
     const range = document.createRange();
@@ -152,4 +103,4 @@ $('#faq-dialog').addEventListener('click', event => {
   if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) event.target.close();
 });
 update();
-refreshRelease().catch(() => {});
+refreshRelease();

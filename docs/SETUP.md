@@ -200,6 +200,8 @@ Android 5／6 标准档以及上文限定的 VIDAA、Fire OS 6 路径获准后�
 
 ### 一键安装与 ADB 选择
 
-电脑安装统一使用 [Agent 安装说明](AGENT_INSTALL.zh-CN.md#统一安装入口)及 `scripts/install_quiet_tv.py`，复用当前守护接收器，不要求再走内置 ADB 或设置向导。选择 `takeover` 才配置接管；`trial`、`update` 保留已有守护和 ADB 选择。当前公开包是否具备接收器，以实际 APK 核验为准，本文不把源码存在当作已发布或真机验收。
+电脑安装统一使用 [Agent 安装说明](AGENT_INSTALL.zh-CN.md#统一安装入口)及 `scripts/install_quiet_tv.py`，复用当前守护接收器，不要求再走内置 ADB 或设置向导。固定简短请求默认执行 `takeover` 并要求保持 ADB；用户明确仅试用或只更新时使用 `trial`／`update`，保留已有守护和 ADB 选择。当前公开包是否具备接收器，以实际 APK 核验为准，本文不把源码存在当作已发布或真机验收。
 
 直接运行 `configure_home_guard.py` 时可显式添加 `--keep-adb`（小米／Redmi）或 `--no-keep-adb`；省略两项保持原选择。参数传给已有 `HomeGuardSetupReceiver` 的 `keep_adb` 字段，并核对应用读回。权限配置和调试设置恢复均不证明 TCP 端口持续可用，Android11+不套用5555。只读验收使用 `verify_install.py`，不注入按键、不启动应用、不重启。
+
+电脑端已授权的安卓5～10传统网络连接会自动识别实际端口，新配置接收器先保存到已有 `adb.port`，再开启 ADB 恢复。能力查询与结果均返回 `adbPortSupported`／`adbPort`，电脑记录保存原值并核对读回。USB／未知标识和安卓11+无线调试不猜端口；旧 APK 未提供新接口时明确报告端口恢复未配置，需后续新包，本地脚本更新不等于已升级电视。
