@@ -530,6 +530,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
         if(waitingForUnlock)return super.dispatchKeyEvent(event);
         int key=event.getKeyCode();
+        if(event.getAction()==KeyEvent.ACTION_DOWN && HomeGuardService.navigationKey(key))HomeGuardService.bootSourceUserAction(this);
         int kind=key==KeyEvent.KEYCODE_DPAD_LEFT || key==KeyEvent.KEYCODE_DPAD_RIGHT || key==KeyEvent.KEYCODE_DPAD_UP || key==KeyEvent.KEYCODE_DPAD_DOWN?1
             :key==KeyEvent.KEYCODE_DPAD_CENTER || key==KeyEvent.KEYCODE_ENTER || key==KeyEvent.KEYCODE_NUMPAD_ENTER?2
             :key==KeyEvent.KEYCODE_VOLUME_UP || key==KeyEvent.KEYCODE_VOLUME_DOWN || key==KeyEvent.KEYCODE_VOLUME_MUTE?4:0;
@@ -667,7 +668,11 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private App currentApp(){if(row==0)return !homeAppsVisible||dock.isEmpty()?null:dock.get(Math.min(column,dock.size()-1));int n=(row-1)*APP_COLUMNS+column;return n>=0&&n<apps.size()?apps.get(n):null;}
 
-    private void leaveHome(Runnable launch){wallpapers.beforeLeave(()->{if(resumed&&!isFinishing()&&!isDestroyed())launch.run();});}
+    @Override public boolean dispatchTouchEvent(MotionEvent event){
+        if(!waitingForUnlock && event.getActionMasked()==MotionEvent.ACTION_DOWN)HomeGuardService.bootSourceUserAction(this);
+        return super.dispatchTouchEvent(event);
+    }
+    private void leaveHome(Runnable launch){HomeGuardService.bootSourceUserAction(this);wallpapers.beforeLeave(()->{if(resumed&&!isFinishing()&&!isDestroyed())launch.run();});}
     private void launchSelected(){
         App app=currentApp();if(app==null)return;saveFocus();
         if(WALLPAPER_ENTRY.equals(app.pkg)){wallpapers.showPicker();return;}
@@ -850,6 +855,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
     private void systemEntryResult(boolean dispatched){
         systemEntryDispatched=dispatched;
+        if(dispatched && systemEntryPending.startsWith("input."))HomeGuardService.inputSelected(this);
         systemEntryLifecycle(dispatched?"dispatched_unverified":"not_dispatched");
         if(!dispatched)systemEntryPending="";
     }
@@ -861,6 +867,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     private void showInputs(){
+        HomeGuardService.bootSourceUserAction(this);
         DiagnosticLog.info("input.request","api="+Build.VERSION.SDK_INT+" standardSupported="+(Build.VERSION.SDK_INT>=21));
         if(Build.VERSION.SDK_INT>=21){if(tvInputs==null)tvInputs=new TvInputs();tvInputs.show();return;}
         Toast.makeText(this,tr("请在电视系统设置中选择信号源，或使用遥控器信号源键","Select an input in TV settings or use the remote input key"),Toast.LENGTH_LONG).show();

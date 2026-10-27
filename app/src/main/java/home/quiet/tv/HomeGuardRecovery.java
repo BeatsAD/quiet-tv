@@ -42,6 +42,7 @@ final class HomeGuardRecovery {
         if(trace!=null)trace.finish(result,reason,System.currentTimeMillis(),SystemClock.elapsedRealtime());
     }
     static String lastDiagnosticAttempt(){return handoverDiagnostic==null?"":handoverDiagnostic.id;}
+    static boolean handoverPending(){return requestedAt!=0;}
     static final String TAG="QuietTVGuard";
     static String guard(Context c){return new ComponentName(c,HomeGuardService.class).flattenToString();}
     static String listener(Context c){return new ComponentName(c,HomeGuardRevivalListener.class).flattenToString();}
