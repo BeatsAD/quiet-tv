@@ -12,6 +12,7 @@ from types import SimpleNamespace
 from urllib.request import Request, urlopen
 import zipfile
 import configure_home_guard as guard
+import device_maintenance as maintenance
 import install_tcl as tcl
 from verify_install import HOME, HOME_ARGS, collect, component, help_text, resolver
 
@@ -120,7 +121,10 @@ class RecordedAdb(guard.ComputerAdb):
         try:
             return super().shell(*arguments)
         except (ValueError, OSError, subprocess.TimeoutExpired) as error:
-            self.failed(("shell", shlex.join([str(value) for value in arguments])), error)
+            if maintenance.is_help_result(arguments, error):
+                self.journal.event("help_result", command=list(arguments), exit=error.exit, output=error.output)
+            else:
+                self.failed(("shell", shlex.join([str(value) for value in arguments])), error)
             raise
 
     def failed(self, arguments, error):
@@ -281,6 +285,17 @@ def run_install(args, adb, tools, journal):
             raise ValueError("安装／启动后 HOME 与原配置不同，结果需核对；未重新配置或自动恢复")
         print("安装核验完成，未主动配置 HOME 或守护；原 HOME 读回" + ("一致。" if original and after_home else "未确认。"), flush=True)
         return
+    installed_dump = adb.shell("dumpsys", "package", tcl.PACKAGE)
+    if "DeviceMaintenanceReceiver" in installed_dump:
+        baseline = maintenance.inspect(adb, tcl.PACKAGE, args.user)
+        if not baseline.get("originalHome") and original != HOME:
+            unchanged_user(adb, args.user)
+            baseline = maintenance.remember_home(adb, tcl.PACKAGE, args.user, original)
+        journal.event("app_recovery_baseline", snapshot=baseline)
+        if not baseline.get("originalHome"):
+            print("应用内原桌面记录缺失，请保留历史电脑安装记录用于恢复。", flush=True)
+    else:
+        print("旧 APK 无电脑维护接口；恢复依赖电脑记录，新功能需更新 APK。", flush=True)
     native = component(adb.shell(*resolver(adb, sdk, args.user))) == HOME
     if not native and metadata["home_mode"] == "standard":
         native = set_home(adb, sdk, args.user, journal)
