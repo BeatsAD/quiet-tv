@@ -27,7 +27,7 @@ QuietTV_<版本号>-<构建号>_<适用系统>[_<单架构标记>]_<发布状态
 - 构建号与实际 APK 的 `versionCode` 一致，只使用不带前导零的正整数，例如 `31`，不使用 `b31`、`Build31`、`RC31`。
 - 主程序各系统档位、架构和构建类型共用递增交付序列；交付不同内容的新包时分配新号，不回退、复用或因版本变化归零。日常编译不必每次加号，同一归档原字节重发不分配新号。
 - 交付前核对源码配置、历史归档和远程发布中的已用号。文件名中的软件版本及构建号、APK 内部版本和归档记录必须对应，不能通过改名冒充新版本；安装时核对 APK 内部构建号。
-- 主程序版本配置在 `app/build.gradle`，当前开发版本为 `1.2.7`（待发布候选），默认开发构建号为 `84`；交付时用 Gradle 参数 `quietBuildNumber` 分别指定递增构建号。1.1.2 已发布：标准档为 `1.1.2 / 34`，兼容档为 `1.1.2 / 35`，历史附件保持原样。standard 与 legacy19 均为 targetSdk36；本页示例不预占构建号。助手版本独立配置在 `coocaa-home-shim/build.gradle` 和 `xiaomi-home-helper/build.gradle`。
+- 主程序版本配置在 `app/build.gradle`，当前开发版本为 `1.2.9`（待发布候选），默认开发构建号为 `95`；交付时用 Gradle 参数 `quietBuildNumber` 分别指定递增构建号。1.1.2 已发布：标准档为 `1.1.2 / 34`，兼容档为 `1.1.2 / 35`，历史附件保持原样。standard 与 legacy19 均为 targetSdk36；本页示例不预占构建号。助手版本独立配置在 `coocaa-home-shim/build.gradle` 和 `xiaomi-home-helper/build.gradle`。
 
 ### 安卓档位与架构
 
@@ -80,19 +80,19 @@ HOME 中转助手有默认身份 `home.quiet.tv.proxy` 和小米／Redmi 兼容�
 
 ### 命名示例
 
-以下仅展示格式，不代表已分配构建号、构建、发布或完成设备验收：
+下方 1.2.9 为本批候选命名，其他名称仅作格式示例；构建、发布和验收状态以对应归档记录为准：
 
 ```text
-QuietTV_1.2.7-84_安卓5及以上_ARM32_测试版.apk
-QuietTV_1.2.7-85_安卓5及以上_ARM64_测试版.apk
-QuietTV_1.2.7-86_安卓5及以上_测试版.apk
-QuietTV_1.2.7-87_安卓4.4_测试版.apk
+QuietTV_1.2.9-95_安卓5及以上_ARM32_测试版.apk
+QuietTV_1.2.9-96_安卓5及以上_ARM64_测试版.apk
+QuietTV_1.2.9-97_安卓5及以上_测试版.apk
+QuietTV_1.2.9-98_安卓4.4_测试版.apk
 QuietTV_1.1.1-33_酷开安卓8_实验版.apk
 QuietTV_1.1.1-35_安卓5及以上_正式版.apk
 QuietTV助手_2.0.1-12_酷开安卓8配套酷开桌面_实验版.apk
 ```
 
-本批候选使用 1.2.7，按 ARM32、ARM64、通用和安卓4.4顺序分配 84–87。若 GitHub 需要英文实际下载名，使用本批审核确认的映射，如 `安卓5及以上` 对应 `Android5plus`，状态对应 `Test`、`Experimental`、`Release`；保留实际构建号，通用架构不额外加标记。上传前核对实际下载名、校验文件中的文件名及字节。
+本批候选使用 1.2.9，按 ARM32、ARM64、通用和安卓4.4顺序分配 95–98；1.2.8 的90–93已发布，94已用于本地候选，不复用。若 GitHub 需要英文实际下载名，使用本批审核确认的映射，如 `安卓5及以上` 对应 `Android5plus`，状态对应 `Test`、`Experimental`、`Release`；保留实际构建号，通用架构不额外加标记。上传前核对实际下载名、校验文件中的文件名及字节。
 
 ## 构建与归档
 
@@ -100,7 +100,7 @@ QuietTV助手_2.0.1-12_酷开安卓8配套酷开桌面_实验版.apk
 
 按[安装指南](INSTALL.zh-CN.md)配置 SDK，现有脚本读取 `local.properties` 的 `sdk.dir`：
 
-以下命令只构建一个通用包，当前不会自动生成默认三包或完成整批验收。
+以下命令只构建一个通用包；默认整批四包使用后文的 `--batch`。单包和整批构建均不代替功能及设备验收。
 
 ```sh
 python3 scripts/build_apk.py --build-number "$STANDARD_BUILD_NUMBER" --variant benchmark --summary "说明本次更新内容"
@@ -175,10 +175,10 @@ System labels are `安卓4.4` (legacy19, API19), `安卓5及以上` (standard, A
 
 Future standard deliveries default to three standalone APKs: ARM32, ARM64 and a universal fallback containing all four native-library ABIs. Each device installs one APK. All three share the source commit, production inputs, software version, feature configuration and signing certificate; assign increasing build numbers in ARM32, ARM64, universal order. Keep one legacy19 APK while it has no native-library or actual ABI differences; determine the Coocaa package set per delivery. Select by the ABIs supported by the operating system, and use the universal fallback when uncertain. In-place switches still require a higher build number; do not uninstall, clear data or force a downgrade to switch to a lower-numbered package.
 
-The default package policy is recorded; batch-wide source checks, complete native-library checks, batch receipts and first-batch acceptance remain pending. The current script builds one APK per invocation with `--abi`. Complete and record implementation and acceptance before treating the three-package delivery as ready.
+The script supports a fixed-source four-APK batch with `--batch`, including complete native-library checks and batch receipts. Without `--batch`, each invocation builds one standalone APK. Functional, upgrade-data and physical-device acceptance remain separate requirements.
 
 **The main-app build script implements the naming above, matching checksums, actual APK metadata validation and build-number checks across registered local worktree archives.** Remote releases, unregistered archives, helpers and formal-release acceptance require separate checks. Preserve historical files, checksums, tags and links. Archives require matching checksum and metadata records, including the actual package, SDKs, ABI, signing identity, source and acceptance scope. Same-name/different-byte replacement is forbidden.
 
 Recommend downloads per system profile. In-place upgrades require matching package/signature, a strictly higher delivery build number and compatible system/ABI. Check data compatibility when switching profiles; different package IDs or signing identities need an explicit migration plan. CI, source checks and archive metadata do not establish device installation or acceptance. Device operations and publication require authorization.
 
-Future GitHub Release bodies use only “下载与选包” (downloads and package selection), “更新功能” (new or improved features since the previous release), and “修复内容” (fixes in this release). Empty change sections may be omitted publicly but must be identified during review. Keep essential compatibility, upgrade and acceptance limits near the download table; retain detailed validation records locally. Upload APKs only, retaining checksum files and metadata locally; compare GitHub digests and re-downloaded APKs with the archive after publication. Preserve historical assets. Before every Release creation or update, show the full body and obtain the user's explicit approval of that batch's feature and fix wording and release materials. Until approval, prepare locally only; do not create tags or Releases (including drafts), upload assets, publish or edit the live body. Prior approvals or this policy change do not approve a new batch; substantive wording or asset changes require renewed approval.
+Future GitHub Release bodies use only “新增功能” (new or improved features since the previous release) and “问题修复” (fixes in this release). Keep download mappings, build metadata, compatibility and validation records in the local review materials, outside the public Release body. Upload APKs only, retaining checksum files and metadata locally; compare GitHub digests and re-downloaded APKs with the archive after publication. Preserve historical assets. Before every Release creation or update, show the full body and obtain the user's explicit approval of that batch's feature and fix wording and release materials. Until approval, prepare locally only; do not create tags or Releases (including drafts), upload assets, publish or edit the live body. Prior approvals or this policy change do not approve a new batch; substantive wording or asset changes require renewed approval.
