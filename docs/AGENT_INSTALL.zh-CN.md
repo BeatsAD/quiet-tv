@@ -32,14 +32,14 @@ Agent 直接使用固定请求时，须通过本机终端读取 `latest.json`，
 - 以最新版索引的实际附件为选包入口；需要核对 GitHub 原始发布详情时，读取[完整发布列表](https://github.com/BeatsAD/quiet-tv/releases)及实际附件，API 使用 `https://api.github.com/repos/BeatsAD/quiet-tv/releases`，有下一页则继续读取。排除草稿，保留预发布；不能仅依赖不包含预发布的 `/releases/latest` 或 `/releases/latest/download/...`，404 不代表没有适配版本。
 - 按系统、架构和已有安装选择最新适配发布，不跨档比较最大构建号，不将搜索摘要、本机缓存或历史版本当作最新。用户明确指定历史版本时说明差异；文档中的旧链接以实时 Release 为准。读取或下载失败时停止安装并报告，不自动退回历史包，不以源码构建或未发布本地候选替代公开附件。
 
-后续公开名采用如 `QuietTV_1.2.4_安卓5+_通用_测试.apk` 的简短格式，不含构建号；安装时从实际 APK 核对构建号。历史附件保持原名，始终使用实时附件中的实际下载地址，不按命名规律拼接历史链接。
+后续安装包命名按[版本规则](VERSIONING.md)，包含实际软件版本和构建号；历史附件保持原名。安装时仍从实际 APK 核对版本及构建号，始终使用实时附件中的实际下载地址，不按命名规律拼接链接。
 
 ## 分包选择与覆盖升级
 
 已有安装先按下方“已有安装：只更新”核对升级条件；首次安装按设备系统与架构选择。仅使用最新适配发布的实际附件：
 
 - 以系统支持的 ABI 为准，64位处理器可能运行32位系统，不按处理器名称或电视品牌推断；无法确认时标明未确认。
-- 有对应的适配附件时，系统支持 ARM64 则优先选 ARM64，否则按支持情况选 ARM32；架构不明确或没有合适专用包时选满足条件的通用包，只发布通用包时直接使用。三者为替代选项，每台设备只安装一个完整 APK，不为使用较小的包而退回旧版本或低构建号。
+- 有对应的适配附件时，系统支持 ARM64 则优先选 ARM64，否则按支持情况选 ARM32；架构不明确或没有合适专用包时选满足条件的通用包，只发布通用包时直接使用。ABI 未读到时仍标记未确认，脚本仅接受无原生库的包或实际包含 ARM32、ARM64、x86、x86_64 的完整通用备用包，不猜测单架构；安装器拒绝时保留错误并停止。三者为替代选项，每台设备只安装一个完整 APK，不为使用较小的包而退回旧版本或低构建号。
 - 普通主程序包名为 `home.quiet.tv`。安卓4.4兼容档目前无原生库，使用一个兼容包；酷开专用包及助手另核对实际适配条件，不按品牌自动替代普通主程序。
 
 ## 统一安装入口
@@ -72,7 +72,7 @@ python3 scripts/install_quiet_tv.py --serial "$TV_SERIAL" --user "$TV_USER" \
   --verify-only --physical-home --record "$NEW_ACCEPTANCE_DIR"
 ```
 
-也可直接运行 [verify_install.py](../scripts/verify_install.py)，使用相同的 `--serial`、`--user`、`--physical-home` 和 `--record` 参数。HOME 查询按本机帮助选择 `cmd package resolve-activity` 或旧系统 `pm resolve-activity`，作用于已核对用户；无障碍配置查询 `settings --user <用户> get secure enabled_accessibility_services`，焦点查询 `dumpsys window | grep mCurrentFocus`，同时记录安装版本及无障碍绑定转储。绑定只依据 bound-services 区段，不把 enabled 列表或标签计数当成运行证据；无法识别的转储记为未知。
+也可直接运行 [verify_install.py](../scripts/verify_install.py)，使用相同的 `--serial`、`--user`、`--physical-home` 和 `--record` 参数。HOME 查询按本机帮助选择 `cmd package resolve-activity` 或旧系统 `pm resolve-activity`，作用于已核对用户；无障碍配置查询 `settings --user <用户> get secure enabled_accessibility_services`，焦点查询 `dumpsys window | grep mCurrentFocus`，同时记录安装版本及无障碍绑定转储。绑定只依据目标用户的 bound-services 区段及完整服务组件，不把其他用户、enabled 列表或标签计数当成运行证据。焦点必须能唯一对应目标用户的窗口；多屏有多个目标焦点、缺少用户范围或无法识别的转储均记为未知，原始输出保留。
 
 安装入口退出 `0` 仅表示该次安装／配置流程执行完成，不代表实体 HOME 或开机验收通过。只读验收退出 `0` 表示声明的实体 HOME 后已查询到 Quiet TV 首页焦点，`1` 表示失败，`2` 表示实体 HOME 尚待确认。用户画面、系统默认 HOME、守护绑定、实体按键、重启、断电冷启动和待机唤醒分别报告。守护中转时系统 HOME 可以保留原桌面；只有前台应用包名不足以证明首页，更不能证明开机直达。所有电源测试均需相应授权，本入口不执行。
 

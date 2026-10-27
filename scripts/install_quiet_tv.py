@@ -39,7 +39,7 @@ def choose(index, sdk, abis, installed=None, mode="standard", version=None):
             if (asset.get("packageName") != tcl.PACKAGE or asset.get("compatibility") != compatibility
                     or asset.get("homeMode") != mode or not isinstance(asset.get("minSdk"), int)
                     or asset["minSdk"] > sdk or not isinstance(asset.get("abis"), list)
-                    or asset["abis"] and not set(asset["abis"]).intersection(abis)):
+                    or not tcl.compatible_abis(asset["abis"], abis)):
                 continue
             if (not isinstance(asset.get("versionCode"), int) or asset["versionCode"] <= 0
                     or not re.fullmatch(r"[a-f0-9]{64}", asset.get("sha256") or "")
@@ -84,7 +84,7 @@ def pull(adb, sdk, user, destination, pm_help):
 
 def check_apk(metadata, sha256, sdk, abis, installed=None, asset=None):
     if (metadata["package"] != tcl.PACKAGE or metadata["sha256"] != sha256
-            or metadata["min_sdk"] > sdk or metadata["abis"] and not set(metadata["abis"]).intersection(abis)):
+            or metadata["min_sdk"] > sdk or not tcl.compatible_abis(metadata["abis"], abis)):
         raise ValueError("APK 包名、校验值、系统或架构不符")
     if asset:
         fields = {"version_name": "versionName", "version_code": "versionCode", "min_sdk": "minSdk",
@@ -167,6 +167,9 @@ def run_install(args, adb, tools, journal):
     identity = guard.verify_identity(adb, sdk)
     device = {name: adb.shell("getprop", name) for name in tcl.PROPERTIES}
     abis = [abi for abi in (device["ro.product.cpu.abilist"] or device["ro.product.cpu.abi"]).split(",") if abi]
+    if not abis:
+        journal.event("device_abis_unknown", fallback="universal")
+        print("设备 ABI 未确认，仅选择完整通用备用包；实际兼容性仍须由安装器及安装后核验确认。", flush=True)
     pm_help = help_text(adb, "pm")
     try:
         home_before = adb.shell(*resolver(adb, sdk, args.user))
@@ -262,6 +265,7 @@ def run_install(args, adb, tools, journal):
         raise ValueError("已安装 APK 与目标文件不一致，未启动或配置桌面")
     journal.event("installed_apk_verified", actual=actual)
     # Baseline exists before the first launch, which can trigger app recovery of existing settings.
+    unchanged_user(adb, args.user)
     output = adb.shell("am", "start", "--user", args.user, "-W", "-n", HOME)
     journal.event("launch", output=output)
     if "Status: ok" not in output:

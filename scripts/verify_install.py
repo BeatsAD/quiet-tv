@@ -37,8 +37,15 @@ def component(output):
     return canonical_home(entries[0]) if len(entries) == 1 else ""
 
 
-def bound_guard(output):
+def bound_guard(output, user=None):
     # Only a bound-services section counts. Enabled/installed entries and labels do not.
+    if user is not None:
+        states = list(re.finditer(r"(?mi)^\s*User state\b[^\r\n]*?\b(?:userId|id)=(\d+)\b", output))
+        current = [output[match.start():states[index + 1].start() if index + 1 < len(states) else len(output)]
+                   for index, match in enumerate(states) if int(match[1]) == user]
+        if len(current) != 1:
+            return None
+        output = current[0]
     sections = []
     for match in re.finditer(r"(?i)\bbound\s*services\s*[:=]\s*([\[{])", output):
         opening, depth = match[1], 1
@@ -53,7 +60,8 @@ def bound_guard(output):
                     break
     if not sections:
         return None
-    return any(GUARD in text or PACKAGE + "/.HomeGuardService" in text for text in sections)
+    service = r"(?<![\w.])home\.quiet\.tv/(?:home\.quiet\.tv\.|\.)HomeGuardService(?=[\s,}\]])"
+    return any(re.search(service, text) for text in sections)
 
 
 def capture(adb, label, command, journal):
@@ -105,11 +113,13 @@ def collect(adb, user, journal, physical_home=False):
         return text if item.get("exit") == 0 and not ERROR_OUTPUT.search(text + "\n" + item.get("stderr", "")) else ""
 
     focus = output("当前焦点")
-    focused = bool(re.search(r"\bhome\.quiet\.tv/(?:home\.quiet\.tv\.|\.)HomeActivity(?=[\s}])", focus))
+    windows = re.findall(r"(?m)^\s*mCurrentFocus\s*=\s*Window\{[^\r\n}]*?\bu(\d+)\s+([\w.]+/[\w.$]+)(?=[\s}])", focus)
+    target = [canonical_home(activity) for owner, activity in windows if int(owner) == user]
+    focused = target[0] == HOME if len(target) == 1 else None
     services = [canonical_home(entry) for entry in output("无障碍配置").strip().split(":")]
     result = {"systemHome": component(output("系统 HOME")) or None,
               "accessibilityEnabled": GUARD in services if output("无障碍配置") else None,
-              "accessibilityBound": bound_guard(output("无障碍绑定")),
+              "accessibilityBound": bound_guard(output("无障碍绑定"), user=user),
               "homeFocused": focused if focus else None,
               "physicalHome": focused if physical_home and focus else None,
               "reboot": "未执行", "coldBoot": "未执行", "standbyWake": "未执行"}
