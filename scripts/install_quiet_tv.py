@@ -302,8 +302,13 @@ def main():
     parser.add_argument("--user", type=int, required=True, help="已核对的前台用户")
     parser.add_argument("--adb", default="adb")
     parser.add_argument("--record", type=Path, required=True, help="全新私有记录目录，不覆盖历史基线")
-    parser.add_argument("--goal", choices=("trial", "takeover", "update"), default="trial")
-    parser.add_argument("--keep-adb", action="store_true", help="明确要求开启适用设备的 ADB 设置恢复")
+    parser.add_argument("--goal", choices=("trial", "takeover", "update"),
+                        help="默认 takeover；只读验收默认 trial，仅更新或试用须明确指定")
+    adb_choice = parser.add_mutually_exclusive_group()
+    adb_choice.add_argument("--keep-adb", dest="keep_adb", action="store_const", const=True, default=None,
+                            help="开启适用设备的 ADB 设置恢复；takeover 默认开启")
+    adb_choice.add_argument("--no-keep-adb", dest="keep_adb", action="store_const", const=False,
+                            help="仅配置桌面，保留已有 ADB 选择")
     parser.add_argument("--apply", action="store_true", help="执行本次目标；省略时只读预览")
     parser.add_argument("--apk", type=Path, help="Agent 已核验发布来源的本地 APK；省略时按实时索引选择")
     parser.add_argument("--sha256", type=str.lower, help="本地 APK 的可信发布校验值，必须与 --apk 一起给出")
@@ -313,6 +318,10 @@ def main():
     parser.add_argument("--verify-only", action="store_true", help="只采集原始验收输出，不启动应用或配置设备")
     parser.add_argument("--physical-home", action="store_true", help="用户刚按过实体 HOME；仅用于 --verify-only")
     args = parser.parse_args()
+    if args.goal is None:
+        args.goal = "trial" if args.verify_only else "takeover"
+    if args.keep_adb is None:
+        args.keep_adb = args.goal == "takeover" and not args.verify_only
     if args.user < 0 or bool(args.apk) != bool(args.sha256) or args.sha256 and not re.fullmatch(r"[a-f0-9]{64}", args.sha256):
         parser.error("用户无效，或本地 APK 未同时提供完整 SHA-256")
     if args.keep_adb and args.goal != "takeover":
