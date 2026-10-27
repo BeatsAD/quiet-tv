@@ -111,7 +111,7 @@ class RecordedAdb(guard.ComputerAdb):
 
     def run(self, *arguments, timeout=20):
         try:
-            return super().run(*arguments, timeout=timeout)
+            return super().run(*map(str, arguments), timeout=timeout)
         except (ValueError, OSError, subprocess.TimeoutExpired) as error:
             self.failed(arguments, error)
             raise
