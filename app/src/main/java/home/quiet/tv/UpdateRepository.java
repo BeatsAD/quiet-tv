@@ -113,8 +113,13 @@ final class UpdateRepository {
     private File file(UpdateManifest.Artifact target){return new File(directory,target.sha256+".apk");}
     void install(ActivityResult callback){
         if(!ready||available==null||verifying){callback.checked(null,"更新状态已变化，请重新检查");return;}UpdateManifest.Artifact target=available;verifying=true;notifyChanged();
-        worker.execute(()->{String error="";try{UpdateInstaller.validate(context,target,file(target));}catch(IOException|RuntimeException e){error="安装包校验失败，请重新下载";}
-            final String failure=error;main.post(()->{verifying=false;if(!failure.isEmpty()){ready=false;prefs.edit().remove("readyHash").apply();}notifyChanged();callback.checked(failure.isEmpty()?file(target):null,failure);});});
+        worker.execute(()->{String error="",stage="verify";File prepared=null;
+            String detail="version="+target.version()+" build="+target.code+" api="+Build.VERSION.SDK_INT+" route="+(Build.VERSION.SDK_INT<24?"legacy_file":"content");
+            DiagnosticLog.info("update.install.prepare",detail);
+            try{UpdateInstaller.validate(context,target,file(target));stage="prepare";prepared=UpdateInstaller.prepare(context,target,file(target));}
+            catch(IOException|RuntimeException e){error=stage.equals("verify")?"安装包校验失败，请重新下载":"无法准备安装文件，请检查可用存储后重试";DiagnosticLog.error("update.install.prepare_failed",detail+" stage="+stage,e);}
+            final String failure=error;final File installFile=prepared;final boolean invalid=stage.equals("verify")&&!failure.isEmpty();
+            main.post(()->{verifying=false;if(invalid){ready=false;prefs.edit().remove("readyHash").apply();}notifyChanged();callback.checked(failure.isEmpty()?installFile:null,failure);});});
     }
     interface ActivityResult {void checked(File file,String error);}
     void dispatched(){if(available!=null)prefs.edit().putString("pendingVersion",available.version()).putLong("pendingCode",available.code).apply();}

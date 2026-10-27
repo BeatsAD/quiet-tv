@@ -86,7 +86,7 @@ def build_site(output, releases):
         shutil.copyfile(source / name, output / name)
     index['tools'] = {}
     (output / 'tools').mkdir(exist_ok=True)
-    for name in ('install_tcl.py', 'tcl_cast.py', 'configure_home_guard.py'):
+    for name in ('install_quiet_tv.py', 'verify_install.py', 'install_tcl.py', 'tcl_cast.py', 'configure_home_guard.py'):
         data = (ROOT / 'scripts' / name).read_bytes()
         (output / 'tools' / name).write_bytes(data)
         index['tools'][name] = {'url': SITE + 'tools/' + name, 'sha256': hashlib.sha256(data).hexdigest()}
@@ -100,7 +100,7 @@ def build_site(output, releases):
     # The same complete operating rules serve Raw and Pages; resolve relative links.
     guide = re.sub(r'\]\(([^\s)]+)\)', lambda match: '](' + urljoin(REPOSITORY + '/blob/main/docs/', match[1]) + ')', guide)
     summary = ['# Quiet TV 最新发布', '', '核对时间：' + index['checkedAt'], '',
-               '安装工具及 SHA-256：' + SITE + 'latest.json 的 tools 字段；同一目录下载三项工具后再执行。', '']
+               '安装工具及 SHA-256：' + SITE + 'latest.json 的 tools 字段；同一目录下载全部五项工具后再执行。', '']
     if index['releases']:
         latest = index['releases'][0]
         summary.extend([f"最新主程序版本：{latest['versionName']}  标签：{latest['tag']}",

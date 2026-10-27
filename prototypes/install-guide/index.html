@@ -50,12 +50,20 @@
           </div>
           <div id="agent-panel" class="method-panel" role="tabpanel" aria-labelledby="method-agent">
             <p class="agent-description">复制后发给 Codex、Claude Code、豆包、WorkBuddy、TRAE 等电脑端 Agent。</p>
+            <div class="install-options">
+              <div class="field"><label for="tv-address">电视地址或 ADB 标识（可稍后确认）</label><input id="tv-address" type="text" autocomplete="off" spellcheck="false" placeholder="填写电视显示的 IP:端口或 USB 标识"></div>
+              <fieldset class="install-goal"><legend>安装目标</legend><div class="goal-options">
+                <label class="goal"><input type="radio" name="install-goal" value="trial" checked><span class="radio-draw" aria-hidden="true"></span><span><strong>仅安装试用</strong><small>保留当前桌面配置</small></span></label>
+                <label class="goal"><input type="radio" name="install-goal" value="takeover"><span class="radio-draw" aria-hidden="true"></span><span><strong>安装并接管桌面</strong><small>必要时配置兼容守护</small></span></label>
+              </div></fieldset>
+              <label class="keep-adb"><input id="keep-adb" type="checkbox" disabled><span>开启 ADB 调试恢复<small>适用小米／Redmi，需选择接管桌面。已有选择在更新时保留。</small></span></label>
+            </div>
             <pre id="install-prompt" class="install-request" aria-label="安装请求" tabindex="0"></pre>
             <button class="primary copy" data-copy="install" disabled><svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="7" y="6" width="10" height="12" rx="2"/><path d="M12 6V4a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h2"/></svg><span>复制安装请求</span><span class="button-arrow" aria-hidden="true">↗</span></button>
           </div>
           <div id="manual-panel" class="method-panel" role="tabpanel" aria-labelledby="method-manual" hidden>
             <div class="result-heading"><div><h2>按系统选择安装包</h2><p>下载 APK 并核对 SHA-256</p></div></div>
-            <div class="manual-content"><div class="download-row"><strong>安卓 4.4</strong><span>兼容档位</span></div><div class="download-row"><strong>安卓 5 及以上</strong><span>标准档位</span></div><p>覆盖安装前，核对包名、签名与构建号。首次打开可选择「暂不设置，临时使用」。</p><a class="guide-link" href="https://github.com/BeatsAD/quiet-tv/blob/main/docs/INSTALL.zh-CN.md" target="_blank" rel="noreferrer">逐步安装指南 <span aria-hidden="true">↗</span></a></div>
+            <div class="manual-content"><div class="download-row"><strong>安卓 4.4</strong><span>兼容档位</span></div><div class="download-row"><strong>安卓 5 及以上</strong><span>标准档位</span></div><p>覆盖安装前，核对包名、签名与构建号。安装后先试用；已完成桌面配置的可直接使用，应用管理和恢复按需打开。</p><a class="guide-link" href="https://github.com/BeatsAD/quiet-tv/blob/main/docs/INSTALL.zh-CN.md" target="_blank" rel="noreferrer">逐步安装指南 <span aria-hidden="true">↗</span></a></div>
             <a class="primary" id="release-link" href="https://github.com/BeatsAD/quiet-tv/releases" target="_blank" rel="noreferrer">查看安装包 <span class="button-arrow" aria-hidden="true">↗</span></a>
           </div>
           <div id="restore-panel" class="method-panel" role="tabpanel" aria-labelledby="method-restore" hidden>

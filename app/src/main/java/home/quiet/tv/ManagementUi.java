@@ -16,7 +16,7 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     LinearLayout root,header,managementInfo;
     FrameLayout stage;
     float unit;
-    private final Button[] managementTabs=new Button[4];
+    private final Button[] managementTabs=new Button[6];
     private int managementPage=-1;
     private boolean managementEntry=true;
     AdbSession managementSession;
@@ -24,7 +24,6 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     private Button managementStatus;
     private Button managementMoreButton;
     private PopupWindow managementMorePopup;
-    private DiagnosticLogPanel diagnosticPanel;
     private UpdateBadgeView updateBadge;
     private final UpdateRepository.Listener updateListener=()->{if(updateBadge!=null)updateBadge.available(UpdateRepository.get(this).available!=null);};
     int px(float value){return Math.round(value*unit);}
@@ -50,8 +49,8 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     boolean loadWallpaper(){return true;}
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);managementEntry=true;}
     @Override protected void onResume(){super.onResume();UpdateRepository.get(this).add(updateListener);UpdateRepository.get(this).foreground();if(managementSession!=null)managementSession.resume();if(managementEntry && managementPage>=0){managementEntry=false;managementTab().requestFocus();}}
-    @Override protected void onStop(){UpdateRepository.get(this).remove(updateListener);if(diagnosticPanel!=null)diagnosticPanel.close();if(managementMorePopup!=null)managementMorePopup.dismiss();if(managementConnection!=null)managementConnection.suspend();if(managementSession!=null)managementSession.suspend();super.onStop();}
-    @Override protected void onDestroy(){if(diagnosticPanel!=null)diagnosticPanel.destroy();if(managementSession!=null)managementSession.close();super.onDestroy();}
+    @Override protected void onStop(){UpdateRepository.get(this).remove(updateListener);if(managementMorePopup!=null)managementMorePopup.dismiss();if(managementConnection!=null)managementConnection.suspend();if(managementSession!=null)managementSession.suspend();super.onStop();}
+    @Override protected void onDestroy(){if(managementSession!=null)managementSession.close();super.onDestroy();}
     void managementConnected(){}
     void connectionPanel(){
         AdbController adb=managementSession.adb;
@@ -77,12 +76,9 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     }
     void managementMoreOptions(LinearLayout menu){
         managementMoreOption(menu,"开机广告",()->startActivity(new Intent(this,BootAdActivity.class)));
-        managementMoreOption(menu,"首次设置",()->startActivity(new Intent(this,SetupActivity.class)));
+        managementMoreOption(menu,"桌面配置",()->startActivity(new Intent(this,SetupActivity.class)));
         managementMoreOption(menu,"恢复原桌面",()->startActivity(new Intent(this,SetupActivity.class).putExtra("restore",true)));
-        managementMoreOption(menu,"诊断日志",this::diagnosticLog);
     }
-    void diagnosticClosed(){if(managementMoreButton!=null)managementMoreButton.requestFocus();}
-    private void diagnosticLog(){if(diagnosticPanel==null)diagnosticPanel=new DiagnosticLogPanel(this);diagnosticPanel.show();}
     void managementMoreOption(LinearLayout menu,String title,Runnable action){
         Button choice=button(title,()->{managementMorePopup.dismiss();action.run();});choice.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(15));choice.setTextColor(0xffeeeeef);
         choice.setPadding(px(16),0,px(12),0);choice.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);choice.setFocusableInTouchMode(true);
@@ -91,12 +87,12 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     }
     private void managementHeader(){
         managementStatus=button("ADB 检测中",this::connectionPanel);managementStatus.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(12));managementStatus.setPadding(px(12),0,px(12),0);header.addView(managementStatus,new LinearLayout.LayoutParams(-2,px(30)));
-        Button more=iconText("更多",R.drawable.ic_manage_more,this::managementMore),about=iconText("关于",R.drawable.ic_about,()->startActivity(new Intent(this,AboutActivity.class)));
+        Button more=iconText("更多",R.drawable.ic_manage_more,this::managementMore);
         managementMoreButton=more;
-        marginAdd(header,more,-2,30,8);marginAdd(header,about,-2,30,8);
-        updateBadge=new UpdateBadgeView(this,about,unit);stage.addView(updateBadge,new FrameLayout.LayoutParams(-1,-1));
-        about.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->updateBadge.invalidate());
-        View[] actions={header.getChildAt(0),managementStatus,more,about};
+        marginAdd(header,more,-2,30,8);
+        updateBadge=new UpdateBadgeView(this,managementTabs[4],unit);stage.addView(updateBadge,new FrameLayout.LayoutParams(-1,-1));
+        managementTabs[4].addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->updateBadge.invalidate());
+        View[] actions={header.getChildAt(0),managementStatus,more};
         for(View action:actions)if(action.getId()==View.NO_ID)action.setId(View.generateViewId());
         for(int i=0;i<actions.length;i++){View action=actions[i];action.setNextFocusLeftId(actions[Math.max(0,i-1)].getId());action.setNextFocusRightId(actions[Math.min(actions.length-1,i+1)].getId());action.setNextFocusDownId(managementTab().getId());}
         managementSession=new AdbSession(this,new AdbSession.Listener(){
@@ -152,7 +148,7 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     TextView managementHint(String text){TextView hint=muted(text,11);hint.setSingleLine();hint.setEllipsize(android.text.TextUtils.TruncateAt.END);return hint;}
     LinearLayout toolbar(int selected){
         LinearLayout tools=row();LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,px(54));p.topMargin=px(22);root.addView(tools,p);
-        String[] titles={"应用列表","首页应用","应用排序","儿童模式"};
+        String[] titles={"应用列表","首页应用","应用排序","儿童模式","版本更新","诊断日志"};
         for(int i=0;i<titles.length;i++){
             Button tab=button(titles[i],()->{});managementTab(tab,i,selected,header.getChildAt(0));
             LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(-2,px(36));tp.rightMargin=px(12);tools.addView(tab,tp);

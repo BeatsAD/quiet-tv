@@ -155,7 +155,7 @@ Ethernet has been checked. Wi-Fi names depend on location permission and the sys
 
 ## Updates and recovery
 
-Open App Management → About → Check for updates to check manually. Automatic checks run every 24 hours while Home is in the foreground. The signed 1.2.4 feed is live. A matching newer software version shows a badge; after choosing Download, available sources are tried and the APK hash, package, version, system, architecture and signer are verified before user-confirmed installation.
+Current source provides App Management → 版本更新 (Version updates) → Check for updates. Older APKs may still use About. Automatic checks run every 24 hours while Home is in the foreground. The signed 1.2.4 feed is live. A matching newer software version shows a badge; after choosing Download, available sources are tried and the APK hash, package, version, system, architecture and signer are verified before user-confirmed installation.
 
 A higher build of the same software version is not offered as an update. Versions without the entry need [manual installation](INSTALL.en.md). Installation restrictions or missing compatible packages do not trigger uninstalling, clearing data or forced downgrades. See [in-app updates](UPDATES.md).
 

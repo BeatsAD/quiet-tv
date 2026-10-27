@@ -75,7 +75,7 @@ final class ChildModeUnlock {
         generation++;mode=next;busy=false;enable(true);pin.setText("");error.setText("");
         title.setText(next==0?"家长验证":next==2?"使用恢复码":"设置家长密码");confirm.setText(next==0?"解锁":next==2?"确认恢复码":"设置密码");
         pin.setContentDescription(next==2?"恢复码":"家长密码");recover.setVisibility(next==0?View.VISIBLE:View.GONE);
-        if(next==2)error.setText("恢复码可在关于页面查看");
+        if(next==2)error.setText("恢复码可在版本更新页面查看");
     }
     void focus(){if(busy)activity.managementTab().requestFocus();else pin.requestFocus();}
     private void enter(int index){

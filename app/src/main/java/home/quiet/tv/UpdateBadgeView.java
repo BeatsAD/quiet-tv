@@ -4,12 +4,12 @@ import android.content.Context;
 import android.graphics.*;
 import android.view.View;
 
-/** Non-interactive header overlay, so the existing about button keeps its focus identity. */
+/** Non-interactive overlay anchored to the version-update tab. */
 final class UpdateBadgeView extends View {
     private final View anchor;private final float unit;private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
     private boolean available;
     UpdateBadgeView(Context context,View anchor,float unit){super(context);this.anchor=anchor;this.unit=unit;setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);setFocusable(false);setClickable(false);}
-    void available(boolean value){available=value;anchor.setContentDescription(value?"关于，有新版本":"关于");invalidate();}
+    void available(boolean value){available=value;anchor.setContentDescription(value?"版本更新，有新版本":"版本更新");invalidate();}
     @Override protected void onDraw(Canvas canvas){
         super.onDraw(canvas);if(!available||anchor.getWidth()==0)return;
         int[] button=new int[2],overlay=new int[2];anchor.getLocationInWindow(button);getLocationInWindow(overlay);

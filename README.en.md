@@ -57,13 +57,13 @@ Original captures from Quiet TV 1.2.4 on a Sony BRAVIA VH1 / Android 12. See [mo
 
 Open All Apps → 应用管理 for 应用列表 (App list), 首页应用 (Favorites), 应用排序 (Order) and 儿童模式 (Child mode). Everyday customization needs no ADB; package changes require separate authorization. Disabling retains data, while uninstalling removes current-user app data. Boot-ad actions depend on verified adaptation rules; unmatched devices are view-only. See [app management](docs/APP_MANAGEMENT.md).
 
-The signed update feed is live. Automatic checks run every 24 hours while Home is in the foreground; manual checks are under App Management → About → Check for updates. Older versions without this feature need a manual installation first. A higher build of the same software version is not offered as an update. See [in-app updates](docs/UPDATES.md).
+The signed update feed is live. Automatic checks run every 24 hours while Home is in the foreground; current source provides manual checks under App Management → Version updates → Check for updates (About in older APKs). Older versions without this feature need a manual installation first. A higher build of the same software version is not offered as an update. See [in-app updates](docs/UPDATES.md).
 
 ## Install and try it
 
 1. Confirm Android support, choose the matching APK above, and [verify its checksum](docs/INSTALL.en.md#download-and-try).
 2. Follow [installation](docs/INSTALL.en.md), or use the [computer Agent instructions, Chinese](docs/AGENT_INSTALL.zh-CN.md).
-3. On first launch choose temporary use to check navigation, apps and system entries while keeping the stock launcher.
+3. Current source opens Home without an automatic setup wizard. Check navigation, apps and system entries; keep any desktop configuration already completed by the AI tool. Older APKs may still offer temporary use.
 4. Set HOME only when ready. Read back the component, then separately verify the physical Home button, reboot and standby wake. Recovery is under 应用管理 → 更多; see [setup](docs/SETUP.md).
 
 Updates need matching package/signature and an increasing build number. Do not uninstall to resolve signing mismatches. Keep backups and recovery records locally, and never reuse another TV's debloating list.
@@ -113,7 +113,7 @@ See the [Codex implementation and adaptation guide, Chinese](docs/TECHNICAL_PATH
 | Browse documentation and repository layout | [Documentation index](docs/README.md) |
 | Install, update, or switch back to my original launcher | [Installation guide](docs/INSTALL.en.md) |
 | Configure favorites, wallpaper, or remote navigation | [Usage guide](docs/USAGE.en.md) |
-| Complete first setup or restore the original launcher | [First setup and recovery, Chinese](docs/SETUP.md) |
+| Configure HOME on request or restore the original launcher | [Home setup and recovery, Chinese](docs/SETUP.md) |
 | Check device support and validated behavior | [Compatibility](docs/COMPATIBILITY.md) · [Verification record](docs/COMPATIBILITY.md) |
 | Build or contribute | [Contributing](CONTRIBUTING.md) · [Version and APK rules](docs/VERSIONING.md) |
 | Review security and repository settings | [Security policy](SECURITY.md) · [Contributing](CONTRIBUTING.md) |

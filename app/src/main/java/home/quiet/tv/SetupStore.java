@@ -28,15 +28,6 @@ final class SetupStore {
         if(takeover!=null && !takeover.optString("original").isEmpty())return takeover.getString("original");
         JSONObject baseline=record.optJSONObject("baseline");return baseline==null?"":baseline.optString("originalHome");
     }
-    boolean shouldOffer(Context context) throws Exception {
-        synchronized(LOCK){JSONObject record=get();if(record.has("status"))return false;
-            android.content.pm.PackageInfo info=context.getPackageManager().getPackageInfo(context.getPackageName(),0);
-            // A fresh launch can write HomeActivity preferences while showing a system permission dialog.
-            boolean upgraded=info.lastUpdateTime>info.firstInstallTime;
-            if(upgraded){put("status","legacy");return false;}
-            put("status","pending");return true;
-        }
-    }
     void begin(String id,JSONObject baseline) throws Exception {put("run",new JSONObject().put("id",id).put("state","running").put("baseline",baseline).put("results",new JSONArray()));}
     void result(String id,String pkg,String action,String result) throws Exception {synchronized(LOCK){JSONObject run=get().optJSONObject("run");if(run==null || !id.equals(run.optString("id")))throw new IOException("设置任务已改变");run.getJSONArray("results").put(new JSONObject().put("package",pkg).put("action",action).put("result",result));put("run",run);}}
     void end(String id,String state) throws Exception {synchronized(LOCK){JSONObject run=get().optJSONObject("run");if(run!=null && id.equals(run.optString("id"))){run.put("state",state);put("run",run);}}}

@@ -49,6 +49,16 @@ def digest(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def compatible_abis(packaged, supported):
+    supported = {abi.strip() for abi in supported if abi.strip()}
+    if not packaged:
+        return True
+    if supported:
+        return bool(set(packaged).intersection(supported))
+    # Unknown device ABI: only accept the complete universal backup, never guess a single ABI.
+    return {"armeabi-v7a", "arm64-v8a", "x86", "x86_64"}.issubset(packaged)
+
+
 def checked(result):
     output = (result.stdout + "\n" + result.stderr).strip()
     if result.returncode or re.search(r"(?im)^\s*(?:error:|failure\b|exception|securityexception|unknown command)", output):
@@ -289,13 +299,13 @@ def install(args, adb, tools, journal):
     if apk["min_sdk"] > int(device["ro.build.version.sdk"]):
         raise ValueError("APK 最低 API 高于电视系统")
     abis = (device["ro.product.cpu.abilist"] or device["ro.product.cpu.abi"]).split(',')
-    if apk["abis"] and not set(apk["abis"]).intersection(abis):
+    if not compatible_abis(apk["abis"], abis):
         raise ValueError("APK 原生库架构不匹配")
     relay = tools.inspect(args.relay_apk) if args.relay_apk else None
     if relay and (relay["package"] != PACKAGE or relay["sha256"] != args.relay_sha256
                   or relay["home_mode"] != "relay" or relay["signers"] != apk["signers"]
                   or relay["version_name"] != apk["version_name"] or relay["min_sdk"] > int(device["ro.build.version.sdk"])
-                  or relay["abis"] and not set(relay["abis"]).intersection(abis)):
+                  or not compatible_abis(relay["abis"], abis)):
         raise ValueError("relay 候选的形态、版本、签名、校验值或系统架构不匹配")
     package_before = adb.shell("dumpsys", "package", PACKAGE)
     state = user_state(package_before, args.user)

@@ -53,7 +53,7 @@ adb -s "$TV_SERIAL" shell am start --user "$TV_USER" -n home.quiet.tv/.HomeActiv
 
 使用项目源码的 `scripts/install_tcl.py`、`scripts/tcl_cast.py`；独立 skill 从[最新版索引](https://beatsad.github.io/quiet-tv/latest.json)的 `tools` 字段下载安装、推送及守护配置三项工具到同一私有目录并校验各自 SHA-256。规则及参数见[官方 Agent 安装说明](https://github.com/BeatsAD/quiet-tv/blob/main/docs/AGENT_INSTALL.zh-CN.md#tcl雷鸟安装受限候选方案)。读取失败时报告未取得工具，不假装执行。以 `--relay-apk`、`--relay-sha256` 传入同版本同签名候选，或直接为已装 relay 传入其更新包；默认预览，`--apply` 才执行。
 
-relay 通过多屏互动推送，电视用户确认同意后安装；电脑只在环回提供该 APK，只清理本次创建的 ADB reverse。多屏不可用时转当贝／电视文件管理器；拒绝或结果不明时停止。安装后核对实际 APK，先试用，再询问是否以现有桌面守护接管，使用 `configure_home_guard.py` 完成首次授权。保留原 HOME，不接管屏保，不开 ADB 常驻，按实际支持的 TCL AppOps 放行自启动；未知固件仍须实体 HOME、重启及待机唤醒验证。
+relay 通过多屏互动推送，电视用户确认同意后安装；电脑只在环回提供该 APK，只清理本次创建的 ADB reverse。多屏不可用时转当贝／电视文件管理器；拒绝或结果不明时停止。安装后核对实际 APK，按用户已选目标继续；已明确选择接管时无需再询问，使用 `configure_home_guard.py` 完成首次授权。保留原 HOME，不接管屏保，不开 ADB 常驻，按实际支持的 TCL AppOps 放行自启动；未知固件仍须实体 HOME、重启及待机唤醒验证。
 
 临时停用系统安装器是独立替代方案，仅用户明确同意后提供 `--allow-temporary-installer-disable`；不从普通安装请求推定，也不在多屏互动被拒绝后自动使用。脚本始终使用同一目标、已核对用户、已核验 APK 和全新私有记录目录。
 
@@ -61,7 +61,7 @@ relay 通过多屏互动推送，电视用户确认同意后安装；电脑只�
 
 ## HOME 切换与失败诊断
 
-优先引导系统选择或 Quiet TV“首次设置”。使用 ADB 时必须先核对目标用户未改变、Quiet TV 的组件已安装且启用，并且是当前用户 HOME 候选。只有帮助明确支持对应语法才运行：
+先读取当前 HOME 和所选方案；已完成的直接 HOME、代理或中转继续沿用，不为结束安装重复配置或要求用户完成向导。需要配置时使用系统选择或“应用管理 → 更多 → 桌面配置”（旧版“首次设置”）。使用 ADB 时必须先核对目标用户未改变、Quiet TV 的组件已安装且启用，并且是当前用户 HOME 候选。只有帮助明确支持对应语法才运行：
 
 ```sh
 adb -s "$TV_SERIAL" shell cmd package set-home-activity --user "$TV_USER" home.quiet.tv/.HomeActivity
@@ -104,6 +104,12 @@ adb -s "$TV_SERIAL" shell pm enable --user "$TV_USER" "$ORIGINAL_PACKAGE"
 
 ## 电脑首次配置兼容守护
 
-按[首次设置说明](../../../docs/SETUP.md#通过电脑配置守护开发源码尚未发布)使用 `scripts/configure_home_guard.py`。这是独立的可选配置：电脑 ADB shell 已授权时，不要求 Quiet TV 内置 ADB 认证或系统默认 HOME 设置成功。只读排查、普通安装和仅更新不授权运行 `--apply`；明确授权守护配置后可执行，且该参数会主动启用守护。核对实际 APK 包含受系统权限保护的 `HomeGuardSetupReceiver`，历史包不自动获得此能力。
+按[桌面配置说明](../../../docs/SETUP.md#通过电脑配置守护)使用 `scripts/configure_home_guard.py`。这是独立的可选配置：电脑 ADB shell 已授权时，不要求 Quiet TV 内置 ADB 认证或系统默认 HOME 设置成功。只读排查、普通安装和仅更新不授权运行 `--apply`；明确授权守护配置后可执行，且该参数会主动启用守护。核对实际 APK 包含受系统权限保护的 `HomeGuardSetupReceiver`，历史包不自动获得此能力。
 
-先预览，再以已核对的 `--serial`、`--user` 和新的私有 `--record` 文件执行，必要时指定实际 `--home`。只配置本应用的写安全设置、无障碍、适用的后台启动、通知及安卓5／6用量统计权限；保留原桌面和其他服务，不导入电脑密钥、不禁用系统包、不开启 ADB 常开。失败保留已完成的授权，核对实际状态后再处理，不自动回滚。权限已配置不等于服务绑定或真实接管；实体 HOME、冷启动、待机与 HDMI 分别验收。低内存固件通知恢复不可用时单独报告。
+先预览，再以已核对的 `--serial`、`--user` 和新的私有 `--record` 文件执行，必要时指定实际 `--home`。只配置本应用的写安全设置、无障碍、适用的后台启动、通知及安卓5／6用量统计权限；保留原桌面和其他服务，不导入电脑密钥、不禁用系统包、仅在明确选择时开启适用的 ADB 设置恢复。失败保留已完成的授权，核对实际状态后再处理，不自动回滚。权限已配置不等于服务绑定或真实接管；实体 HOME、冷启动、待机与 HDMI 分别验收。低内存固件通知恢复不可用时单独报告。
+
+## 统一安装及原始验收
+
+优先按官方 Agent 安装说明使用 `install_quiet_tv.py`。独立下载时从同次 `latest.json` 的 `tools` 取得并核验全部五项工具：安装入口、只读验收、TCL 安装、多屏推送和守护配置；仅下载一项不能运行。明确区分 `trial`、`takeover`、`update`，接管目标包含必要守护授权，不反复询问；仅更新不开启已暂停守护。用户明确选择保持 ADB 才传 `--keep-adb`，当前仅小米／Redmi 安卓5及以上支持，其他机型报告限制。
+
+用户实际按实体 HOME 后，单独执行 `--verify-only --physical-home`，原样展示 HOME、无障碍配置及焦点查询的标准输出、标准错误和退出状态。此参数不代替实体按键或可见画面反馈。安装入口不重启、不注入 HOME；电源和 ADB 重连验收分别授权、分别报告。保留已有私有恢复记录，按记录恢复，不套用出厂默认值。

@@ -26,7 +26,7 @@ final class AppOperations {
         if(home.quiet.proxy.ProxyContract.isPackage(app.pkg))return "HOME 代理请先恢复系统原桌面，再通过系统设置处理";
         if(new HomeGuardState(context).protects(app.pkg,presets))return "此原桌面或依赖必须保留";
         if(app.system && presets.app(app.pkg)==null)return "关键组件或用途未确认的预装包只读";
-        if(isHome(app.pkg))return "桌面组件请通过首次设置与恢复原桌面处理";
+        if(isHome(app.pkg))return "桌面组件请通过桌面配置与恢复原桌面处理";
         return "";
     }
     private boolean isHome(String pkg){

@@ -7,8 +7,8 @@ import android.widget.*;
 
 /** One window, header and ADB session; tabs retain their content instead of launching Activities. */
 public class AppManagementActivity extends ManagementUi {
-    private final ManagementPanel[] panels=new ManagementPanel[4];
-    private final Bundle[] savedPanels=new Bundle[4];
+    private final ManagementPanel[] panels=new ManagementPanel[6];
+    private final Bundle[] savedPanels=new Bundle[6];
     private FrameLayout panelHost;
     private ManagementPanel current;
     private int page=-1;
@@ -17,7 +17,7 @@ public class AppManagementActivity extends ManagementUi {
     @Override public void onCreate(Bundle saved){
         super.onCreate(saved);toolbar(saved==null?initialPage():saved.getInt("management-page",initialPage()));
         panelHost=new FrameLayout(this);root.addView(panelHost,new LinearLayout.LayoutParams(-1,0,1));
-        if(saved!=null)for(int i=0;i<4;i++)savedPanels[i]=saved.getBundle("panel-"+i);
+        if(saved!=null)for(int i=0;i<panels.length;i++)savedPanels[i]=saved.getBundle("panel-"+i);
         selectManagementPage(saved==null?initialPage():saved.getInt("management-page",initialPage()));
     }
     void attachPanel(View view){panelHost.addView(view,new FrameLayout.LayoutParams(-1,-1));}
@@ -31,7 +31,7 @@ public class AppManagementActivity extends ManagementUi {
         if(current!=null){if(resumed){current.onPause();current.onStop();}current.pageRoot.setVisibility(View.GONE);}
         page=next;managementPageSelected(next);
         if(panels[next]==null){
-            panels[next]=next==0?new AppListPanel(this):next==1?new DockEditorPanel(this):next==2?new HomeSortPanel(this):new ChildModePanel(this);
+            panels[next]=next==0?new AppListPanel(this):next==1?new DockEditorPanel(this):next==2?new HomeSortPanel(this):next==3?new ChildModePanel(this):next==4?new VersionUpdatePanel(this):new DiagnosticLogPanel(this);
             current=panels[next];current.onCreate(savedPanels[next]);
         }else current=panels[next];
         current.pageRoot.setVisibility(View.VISIBLE);managementTab().requestFocus();
@@ -44,7 +44,7 @@ public class AppManagementActivity extends ManagementUi {
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);selectManagementPage(initialPage());}
     @Override protected void onSaveInstanceState(Bundle saved){
         super.onSaveInstanceState(saved);saved.putInt("management-page",page);
-        for(int i=0;i<4;i++){Bundle state=savedPanels[i];if(panels[i]!=null){state=new Bundle();panels[i].onSaveInstanceState(state);}if(state!=null)saved.putBundle("panel-"+i,state);}
+        for(int i=0;i<panels.length;i++){Bundle state=savedPanels[i];if(panels[i]!=null){state=new Bundle();panels[i].onSaveInstanceState(state);}if(state!=null)saved.putBundle("panel-"+i,state);}
     }
     @Override void focusManagementContent(){if(current!=null)current.focusManagementContent();}
     @Override void managementConnected(){for(ManagementPanel panel:panels)if(panel!=null)panel.managementConnected();}

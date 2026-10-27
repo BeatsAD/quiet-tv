@@ -9,7 +9,7 @@
 - [用 AI 编程工具实现电视桌面：技术与操作流程（含分阶段提示词）](TECHNICAL_PATH_WITH_CODEX.zh-CN.md)
 - 使用：[中文](USAGE.zh-CN.md) / [English](USAGE.en.md)
 - [兼容范围 / Compatibility](COMPATIBILITY.md)
-- [首次设置与恢复 / Setup and recovery](SETUP.md)
+- [桌面配置与恢复 / Setup and recovery](SETUP.md)
 - [应用管理 / App management](APP_MANAGEMENT.md)
 - [版本、签名与归档 / Versioning and archives](VERSIONING.md)
 - [第三方许可 / Third-party notices](../THIRD_PARTY_NOTICES.md) · [素材来源 / Image provenance](assets/README.md)
