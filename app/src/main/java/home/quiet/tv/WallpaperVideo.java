@@ -52,13 +52,15 @@ final class WallpaperVideo {
             if(info.fps<=0)info.fps=sampled;
             if((Float.isNaN(info.fps)||Float.isInfinite(info.fps))||info.fps<=0||info.fps>60.1f||sampled>60.5f)throw new IOException("请使用不超过 60 FPS 的视频 / Use video up to 60 FPS");
             if(format.containsKey("crypto-key"))throw invalid();
-            if(Build.VERSION.SDK_INT>=21){if(!Api21.supports(info))throw new IOException("电视解码器不支持此规格，请使用较低规格的 H.264 视频 / Decoder does not support this video; use a lower H.264 resolution");}
+            DiagnosticLog.info("wallpaper.video.inspect","mime="+info.mime+" size="+info.width+"x"+info.height+" fps="+info.fps+" sampledFps="+sampled+" rotation="+info.rotation+" durationMs="+info.durationMs+" bytes="+file.length());
+            if(Build.VERSION.SDK_INT>=21){if(!Api21.supports(info))throw new IOException("电视未报告支持此规格："+specification(info)+"，请尝试 1080p 30 FPS H.264 视频 / TV decoder does not report support for "+specification(info)+"; try 1080p 30 FPS H.264");}
             else if(!legacyDecoder(info.mime))throw invalid();
             return info;
         }catch(IOException e){if(e.getMessage()!=null&&e.getMessage().contains(" / "))throw e;throw invalid();}catch(RuntimeException e){throw invalid();}
         finally{extractor.release();try{metadata.release();}catch(IOException ignored){}}
     }
     private static Number number(MediaFormat format,String key){try{return format.getInteger(key);}catch(ClassCastException e){return format.getFloat(key);}}
+    private static String specification(Info info){String codec="video/avc".equals(info.mime)?"H.264":"video/hevc".equals(info.mime)?"HEVC":info.mime;return codec+" "+info.width+"x"+info.height+" "+info.fps+" FPS";}
     private static IOException invalid(){return new IOException("视频无法解析，请使用 MP4、MOV、MKV 或 WebM / Unable to read video; use MP4, MOV, MKV or WebM");}
     private static boolean legacyDecoder(String mime){
         for(int n=0;n<MediaCodecList.getCodecCount();n++){MediaCodecInfo codec=MediaCodecList.getCodecInfoAt(n);if(!codec.isEncoder())for(String type:codec.getSupportedTypes())if(mime.equals(type))return true;}return false;
@@ -118,18 +120,43 @@ final class WallpaperVideo {
     }
     @TargetApi(21) private static final class Api21 {
         static boolean hasHevc(){return legacyDecoder("video/hevc");}
-        static boolean supports(Info info){
-            for(MediaCodecInfo codec:new MediaCodecList(MediaCodecList.REGULAR_CODECS).getCodecInfos()){
-                if(codec.isEncoder())continue;
-                if((Math.max(info.width,info.height)>1920||Math.min(info.width,info.height)>1080)&&((Build.VERSION.SDK_INT>=29&&!Api29.hardware(codec))||codec.getName().startsWith("OMX.google.")||codec.getName().startsWith("c2.android.")))continue;
-                try{MediaCodecInfo.VideoCapabilities video=codec.getCapabilitiesForType(info.mime).getVideoCapabilities();
-                    if(video!=null&&(fits(video,info.width,info.height,info.fps)
-                            ||(Math.max(info.width,info.height)<=1920&&Math.min(info.width,info.height)<=1080&&fits(video,info.height,info.width,info.fps))))return true;
-                }catch(IllegalArgumentException ignored){}
-            }return false;
+        static boolean supports(Info info)throws IOException{
+            boolean queryFailed=false;int matching=0,eligible=0;
+            MediaCodecInfo[] codecs;
+            try{codecs=new MediaCodecList(MediaCodecList.REGULAR_CODECS).getCodecInfos();}
+            catch(RuntimeException failure){DiagnosticLog.error("wallpaper.video.codec_query_failed",failure);throw unavailable();}
+            for(MediaCodecInfo codec:codecs){
+                try{
+                    if(codec.isEncoder())continue;
+                    boolean matches=false;for(String type:codec.getSupportedTypes())if(info.mime.equalsIgnoreCase(type)){matches=true;break;}
+                    if(!matches)continue;matching++;
+                    if((Math.max(info.width,info.height)>1920||Math.min(info.width,info.height)>1080)&&((Build.VERSION.SDK_INT>=29&&!Api29.hardware(codec))||codec.getName().startsWith("OMX.google.")||codec.getName().startsWith("c2.android."))){
+                        DiagnosticLog.info("wallpaper.video.codec_skipped","codec="+codec.getName()+" reason=software_above_1080p");continue;
+                    }
+                    eligible++;MediaCodecInfo.VideoCapabilities video=codec.getCapabilitiesForType(info.mime).getVideoCapabilities();
+                    if(video==null){queryFailed=true;DiagnosticLog.info("wallpaper.video.codec_query_failed","codec="+codec.getName()+" reason=missing_video_capabilities");continue;}
+                    boolean supported=fits(video,info.width,info.height,info.fps,codec.getName());
+                    if(!supported&&Math.max(info.width,info.height)<=1920&&Math.min(info.width,info.height)<=1080)supported=fits(video,info.height,info.width,info.fps,codec.getName());
+                    if(supported){DiagnosticLog.info("wallpaper.video.codec_check","result=supported codec="+codec.getName()+" evidence=declared_capabilities_only");return true;}
+                }catch(RuntimeException failure){queryFailed=true;DiagnosticLog.error("wallpaper.video.codec_query_failed","codec="+codec.getName(),failure);}
+            }
+            DiagnosticLog.info("wallpaper.video.codec_check","result="+(queryFailed?"unknown":"unsupported")+" matching="+matching+" eligible="+eligible);
+            if(queryFailed)throw unavailable();
+            return false;
         }
-        private static boolean fits(MediaCodecInfo.VideoCapabilities video,int width,int height,float fps){
-            try{return video.areSizeAndRateSupported(width,height,fps);}catch(IllegalArgumentException unsupported){return false;}
+        private static IOException unavailable(){return new IOException("无法确认电视解码能力，请导出诊断日志 / Unable to query TV decoder capabilities; export diagnostics");}
+        private static boolean fits(MediaCodecInfo.VideoCapabilities video,int width,int height,float fps,String codec){
+            // Match Media3 1.8.1: check aligned coded dimensions and floor the signaled rate.
+            int wa=video.getWidthAlignment(),ha=video.getHeightAlignment();
+            int alignedWidth=((width+wa-1)/wa)*wa,alignedHeight=((height+ha-1)/ha)*ha;
+            double checkedFps=Math.floor(fps);
+            boolean supported=fps<1?video.isSizeSupported(alignedWidth,alignedHeight):video.areSizeAndRateSupported(alignedWidth,alignedHeight,checkedFps);
+            String detail="codec="+codec+" size="+width+"x"+height+" aligned="+alignedWidth+"x"+alignedHeight+" alignment="+wa+"x"+ha+" fps="+fps+" checkedFps="+checkedFps+" result="+supported;
+            // Optional diagnostic ranges must not override a successful size/rate query.
+            try{detail+=" widths="+video.getSupportedWidths()+" heights="+video.getSupportedHeights()+" frameRates="+video.getSupportedFrameRates();}
+            catch(RuntimeException failure){DiagnosticLog.error("wallpaper.video.codec_details_failed","codec="+codec,failure);}
+            DiagnosticLog.info("wallpaper.video.codec_size_rate",detail);
+            return supported;
         }
     }
     @TargetApi(27) private static final class Api27 {static Bitmap frame(MediaMetadataRetriever r,int w,int h){return r.getScaledFrameAtTime(0,MediaMetadataRetriever.OPTION_CLOSEST_SYNC,w,h);}}
