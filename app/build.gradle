@@ -26,7 +26,7 @@ android {
         buildConfigField 'String', 'UPDATE_COMPATIBILITY', '"' + compatibility + '"'
         buildConfigField 'String', 'UPDATE_ABI', '"' + providers.gradleProperty('quietAbi').getOrElse('universal') + '"'
         targetSdk 36
-        versionCode providers.gradleProperty('quietBuildNumber').getOrElse('95').toInteger()
+        versionCode providers.gradleProperty('quietBuildNumber').getOrElse('101').toInteger()
         versionName '1.2.9'
     }
     buildFeatures { buildConfig true }
