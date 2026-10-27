@@ -6,6 +6,7 @@ import java.util.Locale;
 /** Fresh home events are immediate; lifecycle recovery has a separate, bounded settle path. */
 final class HomeGuardPolicy {
     static boolean keepAdbReady(boolean supported,boolean unlocked,boolean selected,boolean automatic,boolean writeAllowed){return supported && unlocked && selected && automatic && writeAllowed;}
+    static boolean keepAdbPort(boolean supported,int sdk,int port){return supported && sdk>=21 && sdk<30 && port>0 && port<=65535;}
     static final long SETTLE_MS=1500, MAX_AGE_MS=3000, BOOT_WINDOW_MS=180000;
     static final long USAGE_POLL_MS=1000, USAGE_LOOKBACK_MS=10000;
     static final long BOOT_RECHECK_FIRST_MS=30000, BOOT_RECHECK_SECOND_MS=45000, DEAF_CHECK_MS=20000;
