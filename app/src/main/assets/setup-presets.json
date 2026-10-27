@@ -262,6 +262,21 @@
         "keepAdb": true,
         "evidence": "2026-10-26 用户明确要求在此机型及固件试用禁用原桌面并保持 ADB 的直接接管方案。诊断确认原桌面构建号 1621、用户 0、ADB 已连接，HOME 后约 5 秒才由守护返回 Quiet TV；本机禁用、恢复、实体 HOME、开机及待机效果尚未验证。"
       }
+    },
+    {
+      "brand": "Xiaomi",
+      "model": "MiTV-AZFU0",
+      "fingerprint": "Xiaomi/darkknight/darkknight:14/UD2A.240505.001.W1/OS2.0.23.0.UZFAABX:user/release-keys",
+      "home": {
+        "component": "com.mitv.tvhome/com.mitv.tvhome.MainActivityUserMode",
+        "versionCode": 919,
+        "user": 0,
+        "disableVerified": true,
+        "uninstallVerified": false,
+        "restoreInstallVerified": false,
+        "directTakeover": true,
+        "evidence": "2026-10-27 用户明确要求禁用原桌面，由系统直接启动 Quiet TV，不经过原桌面中转或系统选择框。诊断确认原桌面构建号 919、用户 0、Quiet TV 声明 HOME、ADB 已连接且提供 HOME 切换命令；禁用、恢复、实体 HOME、重启、冷启动及唤醒尚待本机验证。"
+      }
     }
   ],
   "references": [
