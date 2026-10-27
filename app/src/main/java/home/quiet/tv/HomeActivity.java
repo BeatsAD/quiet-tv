@@ -243,7 +243,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         boolean showApps=desktopSettings.showHomeApps();
         if(homeAppsVisible!=showApps){homeAppsVisible=showApps;row=0;column=0;activePackage="";}
         if(heroTitle!=null)heroTitle.setVisibility(homeAppsVisible&&desktopSettings.showAppTitle()?View.VISIBLE:View.GONE);
-        if(dockBand!=null){dockBand.setVisibility(homeAppsVisible?View.VISIBLE:View.GONE);dockBand.setBackground(desktopSettings.showDockBackground()&&!(dock.size()==1&&ADD_DOCK_ENTRY.equals(dock.get(0).pkg))?new DockBackdropDrawable(wallpapers,dockBand,root,unit):null);}
+        applyDockAppearance();
         TextView previous=visiblePills.isEmpty()?null:visiblePills.get(topColumn);
         boolean[] shown={desktopSettings.showInput(),desktopSettings.showNetwork(),desktopSettings.showSettings()};
         visiblePills.clear();
@@ -724,9 +724,18 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         for(TextView pill:pills){boolean focused=visible && visiblePills.indexOf(pill)==topColumn;pill.setActivated(focused);if(!focused)pill.setPressed(false);}
     }
 
+    private void applyDockAppearance(){
+        if(dockBand==null)return;
+        // Zero items means the catalog has not been applied, not the loaded add-card state.
+        boolean show=homeAppsVisible && !dock.isEmpty() && dockBand.getChildCount()>0;
+        boolean addOnly=dock.size()==1 && ADD_DOCK_ENTRY.equals(dock.get(0).pkg);
+        dockBand.setVisibility(show?View.VISIBLE:View.GONE);
+        dockBand.setBackground(show && !addOnly && desktopSettings.showDockBackground()?new DockBackdropDrawable(wallpapers,dockBand,root,unit):null);
+    }
+
     private final class DockBand extends FrameLayout {
         boolean restoreLayout;
-        DockBand(){super(HomeActivity.this);}
+        DockBand(){super(HomeActivity.this);setVisibility(View.GONE);}
         @Override protected void onLayout(boolean changed,int left,int top,int right,int bottom){
             super.onLayout(changed,left,top,right,bottom);
             if(restoreLayout&&dockBand==this){restoreLayout=false;updateDock(false);}
@@ -766,11 +775,11 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 band.removeAllViews();dockTiles.clear();dockFocus=-2;band.restoreLayout=true;
                 boolean empty=dock.size()==1&&ADD_DOCK_ENTRY.equals(dock.get(0).pkg);
                 float width=empty?176:dockWidth,height=empty?112:dockHeight;
-                band.setVisibility(homeAppsVisible?View.VISIBLE:View.GONE);band.setBackground(empty||!desktopSettings.showDockBackground()?null:new DockBackdropDrawable(wallpapers,band,root,unit));
                 FrameLayout.LayoutParams bandParams=(FrameLayout.LayoutParams)band.getLayoutParams();
                 bandParams.width=px(2*dockPadding+dock.size()*width+Math.max(0,dock.size()-1)*dockGap);bandParams.height=px(height+2*dockPadding);
                 bandParams.gravity=Gravity.TOP|(empty?Gravity.START:Gravity.CENTER_HORIZONTAL);bandParams.leftMargin=empty?-px(dockPadding):0;band.setLayoutParams(bandParams);
                 for(int n=0;n<dock.size();n++){Tile tile=new Tile();tile.bind(dock.get(n));dockTiles.add(tile);place(band,tile,width,height,dockPadding+n*(width+dockGap),dockPadding);}
+                applyDockAppearance();
                 if(!dock.isEmpty()){App app=dock.get(Math.min(Math.max(column,0),dock.size()-1));heroTitle.setText(empty?tr("常用应用","Favorite apps"):app.label);}
             }else if(position>=2)((Tile)holder.itemView).bind(apps.get(position-2));
         }
