@@ -78,7 +78,7 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
             ui(task,()->{homeState=state;apps.clear();apps.addAll(loaded);original=null;
                 takeoverPending=pending;
                 for(AppRepository.App app:apps)if(!state.original.isEmpty() && state.original.startsWith(app.pkg+"/"))original=app;
-                screen=state.isOwn(this) && !roleCancelled?1:0;busy=false;
+                screen=state.isOwn(this) && !roleCancelled && (!home.presets.homeAllows("directTakeover") || verifiedDisabledHome())?1:0;busy=false;
                 if(autoRequested && roleCheckPending){
                     autoRequested=false;roleCheckPending=false;
                     if(state.isOwn(this)){finishAutomatic();return;}
@@ -89,7 +89,7 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
                 if(launchTakeover){launchTakeover=false;withConnection(()->offerTakeover(()->openHome("未应用额外接管方案，保持当前配置")));return;}
                 if(launchAuto){launchAuto=false;autoConfigure();return;}
                 // A selected relay can still be needed when the system HOME already points here.
-                if(!recovery && !takeoverPending && !roleCancelled && (!state.isOwn(this) || "RELAY".equals(new DesktopRoutes(this).home())) && new HomeGuardState(this).compatibleReady()
+                if(!recovery && !home.presets.homeAllows("directTakeover") && !takeoverPending && !roleCancelled && (!state.isOwn(this) || "RELAY".equals(new DesktopRoutes(this).home())) && new HomeGuardState(this).compatibleReady()
                         && (!automaticEntry || new DesktopRoutes(this).configurationProblem().isEmpty())){
                     try{new SetupOperations(this).completeGuard();openHome("桌面中转已配置，原桌面保留");return;}
                     catch(Exception failure){notice="兼容配置未完成："+failure.getMessage();}
@@ -234,14 +234,15 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
     }
     private void renderDefault(LinearLayout body){
         boolean own=homeState!=null && homeState.isOwn(this),usable=recordAvailable && homeState!=null && homeState.ownUsable;
+        boolean direct=home.presets.homeAllows("directTakeover"),complete=own && (!direct || verifiedDisabledHome());
         String switchReason=BuildConfig.DECLARES_HOME?HomeController.unavailableSwitchReason(homeState!=null && homeState.roleAvailable,adb.connected(),adb.capabilities.home):"此兼容包不声明 HOME，保留原桌面并配置中转";
         LinearLayout split=row();split.setGravity(Gravity.CENTER_VERTICAL);body.addView(split,new LinearLayout.LayoutParams(-1,0,1));
         LinearLayout copy=column();copy.setGravity(Gravity.CENTER_VERTICAL);split.addView(copy,new LinearLayout.LayoutParams(0,-1,47));
-        copy.addView(muted("01 / 桌面配置",10));gap(copy,20);TextView title=label(!BuildConfig.DECLARES_HOME?"保留原桌面中转":own?"系统 HOME 已设置":"设为默认桌面",38);title.setTag("setup-title");copy.addView(title,new LinearLayout.LayoutParams(-1,px(58)));gap(copy,18);copy.addView(muted("请按遥控器 HOME，并重启电视确认。",13));gap(copy,30);
-        Button primary=setupButton(own?"管理预装应用":"自动配置桌面","primary",()->{if(own){screen=1;render();}else autoConfigure();},true);enable(primary,usable);buttonIcon(primary,R.drawable.ic_setup_home);copy.addView(primary,new LinearLayout.LayoutParams(-2,px(40)));
-        if(!own && homeState!=null && homeState.roleAvailable){gap(copy,10);Button adbButton=textButton("通过 ADB 设置","adb",()->withConnection(this::setDefault));enable(adbButton,switchReason.isEmpty());copy.addView(adbButton,new LinearLayout.LayoutParams(-2,px(30)));}
+        copy.addView(muted("01 / 桌面配置",10));gap(copy,20);TextView title=label(!BuildConfig.DECLARES_HOME?"保留原桌面中转":direct && !complete?"直接接管桌面":own?"系统 HOME 已设置":"设为默认桌面",38);title.setTag("setup-title");copy.addView(title,new LinearLayout.LayoutParams(-1,px(58)));gap(copy,18);copy.addView(muted("请按遥控器 HOME，并重启电视确认。",13));gap(copy,30);
+        Button primary=setupButton(complete?"管理预装应用":direct?"直接接管桌面":"自动配置桌面","primary",()->{if(complete){screen=1;render();}else autoConfigure();},true);enable(primary,usable);buttonIcon(primary,R.drawable.ic_setup_home);copy.addView(primary,new LinearLayout.LayoutParams(-2,px(40)));
+        if(!direct && !own && homeState!=null && homeState.roleAvailable){gap(copy,10);Button adbButton=textButton("通过 ADB 设置","adb",()->withConnection(this::setDefault));enable(adbButton,switchReason.isEmpty());copy.addView(adbButton,new LinearLayout.LayoutParams(-2,px(30)));}
         if(!own && !switchReason.isEmpty()){gap(copy,10);copy.addView(muted(switchReason,11),new LinearLayout.LayoutParams(-1,-2));}
-        if(!BuildConfig.LEGACY_19){gap(copy,8);copy.addView(textButton("使用原桌面中转","home-guard",()->withConnection(this::configureGuard)),new LinearLayout.LayoutParams(-2,px(30)));
+        if(!BuildConfig.LEGACY_19){gap(copy,8);if(!direct)copy.addView(textButton("使用原桌面中转","home-guard",()->withConnection(this::configureGuard)),new LinearLayout.LayoutParams(-2,px(30)));
             copy.addView(textButton("查看桌面配置与授权","guard-settings",()->startActivity(new Intent(this,HomeGuardActivity.class))),new LinearLayout.LayoutParams(-2,px(30)));}
         if(!notice.isEmpty() || !usable){gap(copy,8);copy.addView(textButton("重新检测","refresh",()->{roleCancelled=false;refresh();}),new LinearLayout.LayoutParams(-2,px(30)));}
         View spacing=new View(this);split.addView(spacing,new LinearLayout.LayoutParams(0,1,5));
@@ -279,6 +280,8 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
         if(busy || homeState==null || !recordAvailable)return;
         if("OFF".equals(new HomeGuardState(this).preferences.getString("mode","AUTO"))){notice="中转已暂停，请在桌面配置中明确重新启用后再自动选配。";render();return;}
         originalChoice="KEEP";originalTouched=true;persist();if(!recordAvailable)return;
+        // Explicit setup on this firmware replaces an observer route without opening a HOME chooser.
+        if(home.presets.homeAllows("directTakeover")){withConnection(this::configureDirectTakeover);return;}
         HomeGuardState guard=new HomeGuardState(this);DesktopRoutes routes=new DesktopRoutes(this);
         if(routes.configurationProblem().isEmpty()){
             if(HomeGuardAdb.ready(this)){HomeGuardSync.refresh(this);HomeGuardAdb.ensure(this);}
@@ -298,9 +301,33 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
         else if(homeState.roleAvailable)requestRole();else withConnection(this::setDefault);
     }
     private boolean verifiedDisabledHome(){
-        return !BuildConfig.LEGACY_19 && home.presets.homeAllows("keepAdb") && !takeoverPending && homeState!=null && homeState.isOwn(this)
+        return !BuildConfig.LEGACY_19 && (home.presets.homeAllows("keepAdb") || home.presets.homeAllows("directTakeover")) && !takeoverPending && homeState!=null && homeState.isOwn(this)
                 && original!=null && original.installed && original.enabledSetting==3 && home.presets.homeAllows("disableVerified")
                 && home.presets.homeIdentityMatches(original.versionCode,android.os.Process.myUid()/100000) && homeState.original.equals(home.presets.home());
+    }
+    private void configureDirectTakeover(){
+        if(busy)return;
+        SetupOperations.Ticket task=begin("正在直接接管并核对系统桌面…");
+        worker.execute(()->{try{
+            task.check();adb.validateUser();HomeController.State current=home.inspect(adb);
+            ComponentName stock=ComponentName.unflattenFromString(home.presets.home());
+            AppRepository.App installed=stock==null?null:repository.find(adb,stock.getPackageName());
+            if(!BuildConfig.DECLARES_HOME || BuildConfig.LEGACY_19 || installed==null || !installed.installed || !installed.system || !installed.verified
+                    || !home.presets.directTakeover(installed.versionCode,adb.user) || !current.original.equals(home.presets.home()))throw new java.io.IOException("原桌面、版本或用户与直接接管规则不一致");
+            HomeTakeover takeover=new HomeTakeover(this);
+            if(takeover.pending()){
+                if(!takeover.applied(adb,task))throw new java.io.IOException("上次接管未完成，请先恢复原桌面");
+            }else if(installed.enabledSetting==3){
+                // Reuse a disabled launcher without inventing its original enable-state baseline.
+                home.setOwnAndVerify(adb);task.check();
+            }else{
+                JSONObject plan=takeover.inspect(adb);task.check();
+                if(plan==null)throw new java.io.IOException("当前设备未提供可核对的直接接管操作");
+                takeover.apply(adb,plan,task);
+            }
+            task.check();new DesktopRoutes(this).directOnly();
+            ui(task,()->{busy=false;openHome("系统直接启动已配置，请验证 HOME、重启和唤醒");});
+        }catch(Exception failure){ui(task,()->{busy=false;notice="直接接管未完成："+failure.getMessage();render();});}});
     }
     private void finishAutomatic(){
         if(verifiedDisabledHome()){
@@ -405,6 +432,7 @@ public final class SetupActivity extends ManagementUi implements SharedPreferenc
     }
     private void setDefault(){
         if(busy)return;
+        if(home.presets.homeAllows("directTakeover")){configureDirectTakeover();return;}
         SetupOperations.Ticket task=begin("正在设置并核对默认桌面…");worker.execute(()->{try{task.check();home.switchToOwn(adb);task.check();ui(task,()->{busy=false;roleCancelled=false;notice="";if(autoRequested){autoRequested=false;finishAutomatic();}else offerTakeover(()->{new DesktopRoutes(this).direct();refresh();});});}catch(Exception e){
             DesktopRoutePolicy.Result result=e instanceof HomeController.SwitchFailure?((HomeController.SwitchFailure)e).result:DesktopRoutePolicy.Result.UNKNOWN;
             boolean fallback=!BuildConfig.LEGACY_19 && DesktopRoutePolicy.fallback(result,task.active(),adb.connected(),"OFF".equals(new HomeGuardState(this).preferences.getString("mode","AUTO")));
