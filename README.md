@@ -8,7 +8,18 @@
 
 把常用应用放在首页，用遥控器直接打开，方便地切换信号源、调整壁纸和管理应用。桌面没有广告和推荐信息流，无需注册账号。采用 Android 原生界面，无需 root 或刷机。
 
-[下载最新适配版](https://beatsad.github.io/quiet-tv/)  [安装方式](#安装方式)  [使用指南](docs/USAGE.zh-CN.md)  [兼容范围](docs/COMPATIBILITY.md)
+<p align="center">
+  <a href="https://beatsad.github.io/quiet-tv/"><img alt="下载 APK" src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD%20APK-34a853?style=for-the-badge&amp;logo=android&amp;logoColor=white"></a>
+  <a href="#安装方式"><img alt="安装指南" src="https://img.shields.io/badge/%E5%AE%89%E8%A3%85%E6%8C%87%E5%8D%97-1f6feb?style=for-the-badge"></a>
+  <a href="docs/USAGE.zh-CN.md"><img alt="使用指南" src="https://img.shields.io/badge/%E4%BD%BF%E7%94%A8%E6%8C%87%E5%8D%97-d97757?style=for-the-badge"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/BeatsAD/quiet-tv/releases"><img alt="最新版本" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fbeatsad.github.io%2Fquiet-tv%2Flatest.json&amp;query=%24.latestVersion&amp;prefix=v&amp;label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC&amp;style=flat-square&amp;color=2997ff"></a>
+  <a href="LICENSE"><img alt="许可证 MIT" src="https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF%E8%AF%81-MIT-555555?style=flat-square"></a>
+  <a href="docs/COMPATIBILITY.md"><img alt="标准版 Android 5.0+" src="https://img.shields.io/badge/%E6%A0%87%E5%87%86%E7%89%88-Android%205.0%2B-3ddc84?style=flat-square&amp;logo=android&amp;logoColor=white"></a>
+  <a href="docs/COMPATIBILITY.md"><img alt="兼容版 Android 4.4" src="https://img.shields.io/badge/%E5%85%BC%E5%AE%B9%E7%89%88-Android%204.4-f5a623?style=flat-square&amp;logo=android&amp;logoColor=white"></a>
+</p>
 
 ## 界面
 
