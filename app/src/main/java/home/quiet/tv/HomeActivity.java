@@ -805,7 +805,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     private final class Tile extends View {
-        App app;final Paint paint=new Paint(3);final Path clip=new Path();final RectF imageRect=new RectF();Shader highlight;
+        App app;final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);final Path clip=new Path();final RectF imageRect=new RectF();Shader highlight;
+        private BitmapShader artwork;private final Matrix artworkMatrix=new Matrix();
         final int[] location=new int[2],origin=new int[2];
         final boolean showLabel;
         final android.text.TextPaint labelPaint=new android.text.TextPaint(Paint.ANTI_ALIAS_FLAG);
@@ -816,24 +817,32 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             labelPaint.setTextSize(px(14));labelPaint.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));
             labelPaint.setColor(0xfff1f2f6);labelPaint.setTextAlign(Paint.Align.CENTER);labelPaint.setShadowLayer(px(1),0,px(1),0x99000000);
             setOnClickListener(v->{if(app!=null){for(int n=0;n<dock.size();n++)if(dock.get(n).pkg.equals(app.pkg)){row=0;column=n;}for(int n=0;n<apps.size();n++)if(apps.get(n).pkg.equals(app.pkg)){row=1+n/APP_COLUMNS;column=n%APP_COLUMNS;}focusCurrent(true);launchSelected();}});}
-        void bind(App value){if(app!=null && visibleTiles.get(app.pkg)==this)visibleTiles.remove(app.pkg);transformTile(this,1,0,0,false,0);app=value;visibleTiles.put(app.pkg,this);setContentDescription(app.label);updateLabel();invalidate();}
+        void bind(App value){if(app!=null && visibleTiles.get(app.pkg)==this)visibleTiles.remove(app.pkg);transformTile(this,1,0,0,false,0);app=value;artwork=emptyDock()?null:new BitmapShader(app.banner,Shader.TileMode.CLAMP,Shader.TileMode.CLAMP);updateArtwork();visibleTiles.put(app.pkg,this);setContentDescription(app.label);updateLabel();invalidate();}
         boolean emptyDock(){return app!=null&&ADD_DOCK_ENTRY.equals(app.pkg);}
         float imageHeight(){return emptyDock()?getHeight():getWidth()*203f/360f;}
-        @Override protected void onSizeChanged(int w,int h,int oldw,int oldh){super.onSizeChanged(w,h,oldw,oldh);highlight=new LinearGradient(0,0,w,imageHeight(),new int[]{0x30ffffff,0x09ffffff},null,Shader.TileMode.CLAMP);updateLabel();}
+        @Override protected void onSizeChanged(int w,int h,int oldw,int oldh){super.onSizeChanged(w,h,oldw,oldh);highlight=new LinearGradient(0,0,w,imageHeight(),new int[]{0x30ffffff,0x09ffffff},null,Shader.TileMode.CLAMP);updateArtwork();updateLabel();}
+        private void updateArtwork(){
+            if(artwork==null)return;
+            artworkMatrix.setScale(getWidth()/(float)app.banner.getWidth(),imageHeight()/app.banner.getHeight());artwork.setLocalMatrix(artworkMatrix);
+        }
         private void updateLabel(){
             if(!showLabel || app==null)return;
             label=android.text.TextUtils.ellipsize(app.label,labelPaint,Math.max(0,getWidth()-px(8)),android.text.TextUtils.TruncateAt.END).toString();
             Paint.FontMetrics metrics=labelPaint.getFontMetrics();
             labelBaseline=imageHeight()+px(APP_LABEL_GAP)+(px(APP_LABEL_HEIGHT)-metrics.bottom-metrics.top)/2;
         }
-        @Override protected void onDraw(Canvas c){super.onDraw(c);if(app==null)return;float h=imageHeight(),radius=px(emptyDock()?16:11);RectF rect=imageRect;rect.set(0,0,getWidth(),h);clip.reset();clip.addRoundRect(rect,radius,radius,Path.Direction.CW);c.save();c.clipPath(clip);
-            if(emptyDock())drawEmptyDock(c,rect);
-            else{paint.setColor(0xff191a20);c.drawRect(rect,paint);c.drawBitmap(app.banner,null,rect,paint);}
+        @Override protected void onDraw(Canvas c){super.onDraw(c);if(app==null)return;float h=imageHeight(),radius=px(emptyDock()?16:11);RectF rect=imageRect;rect.set(0,0,getWidth(),h);
+            if(emptyDock()){clip.reset();clip.addRoundRect(rect,radius,radius,Path.Direction.CW);c.save();c.clipPath(clip);drawEmptyDock(c,rect);}
+            else{
+                // Paint anti-aliasing does not control clipPath edges on older TV renderers.
+                paint.setColor(0xff191a20);c.drawRoundRect(rect,radius,radius,paint);
+                paint.setShader(artwork);c.drawRoundRect(rect,radius,radius,paint);paint.setShader(null);
+            }
             if(selected==this && row>=0){
-                if(!emptyDock()){paint.setShader(highlight);c.drawRect(rect,paint);paint.setShader(null);}
+                if(!emptyDock()){paint.setShader(highlight);c.drawRoundRect(rect,radius,radius,paint);paint.setShader(null);}
                 float stroke=px(emptyDock()?1.5f:FOCUS_STROKE),inset=stroke/2f;rect.inset(inset,inset);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(stroke);paint.setColor(Color.WHITE);c.drawRoundRect(rect,Math.max(0,radius-inset),Math.max(0,radius-inset),paint);paint.setStyle(Paint.Style.FILL);
             }
-            c.restore();
+            if(emptyDock())c.restore();
             if(showLabel&&desktopSettings.showAllAppsNames())c.drawText(label,getWidth()/2f,labelBaseline,labelPaint);
         }
         private void drawEmptyDock(Canvas canvas,RectF rect){
