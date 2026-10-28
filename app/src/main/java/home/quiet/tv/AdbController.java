@@ -18,7 +18,7 @@ import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 
-/** A foreground-owned ADB client with serialized connection attempts restricted to this device's addresses. */
+/** An owner-managed ADB client with serialized connection attempts restricted to this device's addresses. */
 final class AdbController implements Closeable {
     /** A complete shell response with a nonzero exit is distinct from transport loss/cancellation. */
     static final class CommandFailure extends IOException {
@@ -92,7 +92,7 @@ final class AdbController implements Closeable {
         int actual=currentUser();
         synchronized(this){
             if(generation.get()!=request)throw new IOException("查询已取消，请重新连接");
-            if(actual!=expectedUser || expectedUser!=android.os.Process.myUid()/100000){disconnect();throw new IOException("当前用户已改变，请重新连接");}
+            if(actual!=expectedUser || expectedUser!=android.os.Process.myUid()/100000){failure=Failure.USER;disconnect();throw new IOException("当前用户已改变，请重新连接");}
         }
     }
     private int currentUser() throws Exception {

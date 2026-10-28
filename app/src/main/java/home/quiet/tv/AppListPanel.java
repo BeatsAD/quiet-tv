@@ -1,6 +1,7 @@
 package home.quiet.tv;
 
 import android.content.*;
+import android.graphics.drawable.GradientDrawable;
 import android.os.*;
 import android.provider.Settings;
 import android.text.SpannableString;
@@ -16,12 +17,22 @@ import java.util.concurrent.*;
 final class AppListPanel extends ManagementPanel {
     @Override boolean useSettingListStyle(){return false;}
     private static final String[] FILTERS={"全部","用户应用","预装应用","已禁用","可恢复"};
-    private final ExecutorService worker=Executors.newSingleThreadExecutor();
+    private final ManagementAdb session;
+    private final ExecutorService worker;
     private final ArrayList<AppRepository.App> all=new ArrayList<>(),filtered=new ArrayList<>();
     private AppRepository repository;
     private AdbController adb;
     private Button managementConnection;
-    private boolean connecting,mutating;
+    private GradientDrawable connectionDot;
+    private boolean connecting,manualConnection;
+    private final ManagementAdb.Listener connectionChanged=this::managementConnectionChanged;
+    private void managementConnectionChanged(){
+        if(!active)return;
+        updateManagementConnection();dirty=true;
+        if(connecting){renderDetails();return;}
+        if(busy)refreshAfterConnection=true;else refresh();
+        if(manualConnection){manualConnection=false;if(!adb.connected())message(session.detail());}
+    }
     private AppOperations operations;
     private final ArrayList<Button> filterButtons=new ArrayList<>();
     private AppCoverUploadPanel coverUploads;
@@ -40,10 +51,10 @@ final class AppListPanel extends ManagementPanel {
             dirty=true;if(active && !intent.getBooleanExtra(Intent.EXTRA_REPLACING,false))refresh();
         }
     };
-    AppListPanel(AppManagementActivity activity){super(activity);}
+    AppListPanel(AppManagementActivity activity){super(activity);session=ManagementAdb.get(activity);worker=session.worker;}
     @Override public void onCreate(Bundle state){
         super.onCreate(state);repository=new AppRepository(this);operations=new AppOperations(this);
-        adb=new AdbController(this,value->ui(this::updateManagementConnection));
+        adb=session.adb;
         coverUploads=new AppCoverUploadPanel(activity);
         LinearLayout body=managementContent(),filters=managementInfo;
         for(int i=0;i<FILTERS.length;i++){final int chosen=i;Button option=button(FILTERS[i],()->{filter=chosen;applyFilter();});option.setId(androidx.core.view.ViewCompat.generateViewId());styleManagementTab(option,true);
@@ -63,6 +74,8 @@ final class AppListPanel extends ManagementPanel {
         for(int i=0;i<filterButtons.size();i++){Button b=filterButtons.get(i);if(i>0)b.setNextFocusLeftId(filterButtons.get(i-1).getId());if(i+1<filterButtons.size())b.setNextFocusRightId(filterButtons.get(i+1).getId());}
         filters.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));
         managementConnection=button("ADB 未连接",this::connectManagement);styleManagementTab(managementConnection,true);
+        connectionDot=new GradientDrawable();connectionDot.setShape(GradientDrawable.OVAL);connectionDot.setBounds(0,0,px(5),px(5));
+        managementConnection.setCompoundDrawables(connectionDot,null,null,null);managementConnection.setCompoundDrawablePadding(px(6));
         managementConnection.setOnKeyListener((v,key,event)->{
             if(key==KeyEvent.KEYCODE_DPAD_LEFT){if(event.getAction()==KeyEvent.ACTION_DOWN)filterButtons.get(filterButtons.size()-1).requestFocus();return true;}return false;
         });
@@ -78,16 +91,20 @@ final class AppListPanel extends ManagementPanel {
     }
     private void ui(Runnable action){runOnUiThread(()->{if(!isDestroyed() && !isFinishing())action.run();});}
     private void updateManagementConnection(){
-        if(managementConnection==null)return;boolean connected=!connecting && adb.connected();
+        if(managementConnection==null)return;connecting=session.state()==AdbConnectionKeeper.State.CONNECTING;boolean connected=session.state()==AdbConnectionKeeper.State.CONNECTED;
         managementConnection.setText(connecting?"ADB 连接中…":connected?"ADB 已连接":"ADB 未连接");
+        int color=connecting?0xffe5b384:connected?0xff64c49a:MUTED;
+        connectionDot.setColor(color);
+        managementConnection.setTextColor(color);
+        managementConnection.setContentDescription(managementConnection.getText()+"  "+session.detail());
         managementConnection.setEnabled(!busy && !connecting);
     }
     @Override void managementConnected(){dirty=true;if(active){if(busy)refreshAfterConnection=true;else refresh();}}
     @Override void managementMoreOptions(LinearLayout menu){managementMoreOption(menu,"开机自启",this::bootAppPanel);managementMoreOption(menu,"操作记录",()->{try{Sheet sheet=new Sheet("操作记录");sheet.text(operations.history());sheet.action("关闭",sheet.dialog::dismiss);sheet.show(null);}catch(Exception e){message(e.getMessage());}});super.managementMoreOptions(menu);}
-    @Override protected void onResume(){super.onResume();active=true;if(!adb.connected() && getSharedPreferences("adb",0).getBoolean("dailyManagement",false))connectManagement();else if(dirty)refresh();else renderDetails();}
+    @Override protected void onResume(){super.onResume();active=true;session.addListener(connectionChanged);session.request();if(dirty)refresh();else renderDetails();}
     @Override void focusManagementContent(){filterButtons.get(filter).requestFocus();}
-    @Override protected void onStop(){active=false;refreshAfterConnection=false;refreshGeneration++;if(!mutating)adb.disconnect();dirty=true;if(reading){reading=false;busy=false;}coverUploads.close();super.onStop();}
-    @Override protected void onDestroy(){unregisterReceiver(packagesChanged);coverUploads.destroy();if(!mutating)adb.close();worker.shutdown();super.onDestroy();}
+    @Override protected void onStop(){active=false;session.removeListener(connectionChanged);manualConnection=false;refreshAfterConnection=false;refreshGeneration++;dirty=true;if(reading){reading=false;busy=false;}coverUploads.close();super.onStop();}
+    @Override protected void onDestroy(){session.removeListener(connectionChanged);unregisterReceiver(packagesChanged);coverUploads.destroy();super.onDestroy();}
     @Override protected void onSaveInstanceState(Bundle state){state.putString("selected",selected);state.putInt("filter",filter);super.onSaveInstanceState(state);}
     private void refresh(){
         if(!active){dirty=true;return;}
@@ -148,24 +165,16 @@ final class AppListPanel extends ManagementPanel {
     }
     private void connectManagement(){
         if(busy || connecting || !active)return;
-        connecting=true;busy=true;renderDetails();
-        final int request=adb.prepare();
-        worker.execute(()->{
-            String failure=null;
-            try{adb.connect(getSharedPreferences("adb",0).getInt("port",5555),request);getSharedPreferences("adb",0).edit().putBoolean("dailyManagement",true).apply();}
-            catch(Exception e){failure=e.getMessage();}
-            String error=failure;ui(()->{connecting=false;busy=false;dirty=true;if(active){refresh();if(error!=null)message("应用管理未连接。请让 AI 检查本机 TCP ADB 与授权后重试。\n"+error);}});
-        });
+        manualConnection=!adb.connected();session.request();updateManagementConnection();
     }
     private void confirmOperation(AppRepository.App app,AppOperations.Action action){
         Sheet sheet=new Sheet(action.label+"应用？");sheet.text(app.label+"\n"+operations.explanation(app,action));
         Button cancel=sheet.action("取消",sheet.dialog::dismiss);
         sheet.action("确认"+action.label,()->{
-            sheet.dialog.dismiss();if(busy)return;busy=true;mutating=true;renderDetails();
+            sheet.dialog.dismiss();if(busy)return;busy=true;renderDetails();
             worker.execute(()->{
                 String result;
                 try{result=new AppOperations(this).perform(adb,app,action);}catch(Exception e){result=e.getMessage()==null?"操作未完成":e.getMessage();}
-                mutating=false;if(!active)adb.disconnect();if(isDestroyed())adb.close();
                 String outcome=result;ui(()->{busy=false;dirty=true;if(active){refresh();message(outcome);}});
             });
         });sheet.show(cancel);
