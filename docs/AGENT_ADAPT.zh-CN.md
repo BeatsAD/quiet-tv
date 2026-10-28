@@ -6,7 +6,7 @@
 
 ## 工具与授权
 
-从同一次实时 [latest.json](https://beatsad.github.io/quiet-tv/latest.json) 的 `tools` 下载全部八项 Python 工具到同一私有目录，逐个核对 SHA-256；源码工作区直接使用 `scripts/`。缺项时报告站点尚未部署，旧 APK 缺接口时报告需要包含该功能的新包。维护能力由 `inspect.capabilities` 返回，不能绕过缺失的接收器改写应用私有文件。
+从同一次实时 [latest.json](https://beatsad.github.io/quiet-tv/latest.json) 的 `tools` 下载全部十一项工具与规则到同一私有目录，逐个核对 SHA-256；源码工作区直接使用 `scripts/`。缺项时报告站点尚未部署，旧 APK 缺接口时报告需要包含该功能的新包。维护能力由 `inspect.capabilities` 返回，不能绕过缺失的接收器改写应用私有文件。
 
 每次明确目标 `--serial`、当前 `--user` 和实际 `--package`，记录目录的父目录须存在且目录本身必须全新。下方命令是不同操作的示例，不连续执行，不把示例变量或设备值照抄为真实参数。Windows 使用对应终端变量语法。
 
@@ -92,6 +92,8 @@ JSON 格式（示意值不能直接用于设备）：
 
 ## 交付状态
 
-本文件、站点 `adapt.md`、工具包和安装 skill 共用同一流程。站点构建会发布八项工具的真实 SHA-256，维护和自检脚本变更会触发 Pages。源码修改、工具上线、APK 发布和真机验收分别记录；站点上线不能让旧 APK 获得新接口。TCL relay 继续核对实际 APK 中不声明 HOME、包名、版本、架构和签名；没有已发布的匹配 relay 时不假装存在下载包。
+本文件、站点 `adapt.md`、工具包和安装 skill 共用同一流程。站点构建会发布十一项工具与规则的真实 SHA-256，维护和自检脚本变更会触发 Pages。源码修改、工具上线、APK 发布和真机验收分别记录；站点上线不能让旧 APK 获得新接口。TCL relay 继续核对实际 APK 中不声明 HOME、包名、版本、架构和签名；没有已发布的匹配 relay 时不假装存在下载包。
 
 本流程参考 [Aerial 适配指南](https://github.com/pengchujin/aerial-tv/blob/main/site/adapt.md) 的检测、修复、复测方式，执行使用 Quiet TV 自有接口和恢复记录。
+
+机型规则已迁入电脑工具目录，专项接管、规则下发、TCL 策略、HOME 代理和旧记录恢复按[电脑 AI 适配规则与恢复](DEVICE_ADAPTATION.zh-CN.md)执行。先检查 APK 能力，再选有限路线；普通接管不默认禁用原桌面。

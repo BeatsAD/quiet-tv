@@ -85,7 +85,7 @@ final class DesktopRoutes {
             String problem=proxy.problem();return problem.isEmpty()?"HOME 代理尚未就绪":problem;
         }
         if("DIRECT".equals(home())){
-            try{if(!new HomeController(context).inspect(null).isOwn(context))return "系统默认桌面已变化";}
+            try{if(!new HomeController(context).inspect().isOwn(context))return "系统默认桌面已变化";}
             catch(Exception unavailable){return "无法核对系统默认桌面";}
             if(!state.enabled())return state.privateHomeAvailable()?"酷开私有主页尚未配置中转":"";
         }else if(!"RELAY".equals(home()))return "启动方式尚未确认";
@@ -115,7 +115,7 @@ final class DesktopRoutes {
                 .put("wakeRoute",state.enabled()?"GUARD":"UNKNOWN").put("paused","OFF".equals(prefs.getString("mode","AUTO"))).put("automatic",state.automatic())
                 .put("vendorBootEnabled",vendorReady()).put("vendorBootBasis",bridge()!=null?"verified_profile":DesktopRoutePolicy.bridgeCandidate(Build.MANUFACTURER,Build.BRAND,Build.VERSION.SDK_INT,BuildConfig.LEGACY_19)?"runtime_candidate_unverified":"unavailable").put("scenes",new JSONObject().put("home",test("home"))
                 .put("reboot",test("reboot")).put("coldBoot",test("coldBoot")).put("wake",test("wake")));
-        try{HomeController.State actual=new HomeController(context).inspect(null);snapshot.put("systemHome",actual.resolved)
+        try{HomeController.State actual=new HomeController(context).inspect();snapshot.put("systemHome",actual.resolved)
                 .put("systemHomeKnown",actual.known).put("entryUsable",actual.ownUsable);}
         catch(Exception failure){snapshot.put("systemHomeKnown",false);}
         JSONObject evidence=new JSONObject();

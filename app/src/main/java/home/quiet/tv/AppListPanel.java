@@ -77,7 +77,7 @@ final class AppListPanel extends ManagementPanel {
     private void refresh(){
         if(!active){dirty=true;return;}
         if(busy)return;busy=true;reading=true;final int run=++refreshGeneration;count.setText("正在读取应用…");renderDetails();
-        worker.execute(()->{if(run!=refreshGeneration)return;try{List<AppRepository.App> values=repository.load(null);ui(()->{if(!active || run!=refreshGeneration)return;reading=false;busy=false;dirty=false;all.clear();all.addAll(values);applyFilter();if(refreshAfterConnection){refreshAfterConnection=false;refresh();}});}catch(Exception e){ui(()->{if(!active || run!=refreshGeneration)return;reading=false;busy=false;loadFailure(e);});}});
+        worker.execute(()->{if(run!=refreshGeneration)return;try{List<AppRepository.App> values=repository.load();ui(()->{if(!active || run!=refreshGeneration)return;reading=false;busy=false;dirty=false;all.clear();all.addAll(values);applyFilter();if(refreshAfterConnection){refreshAfterConnection=false;refresh();}});}catch(Exception e){ui(()->{if(!active || run!=refreshGeneration)return;reading=false;busy=false;loadFailure(e);});}});
     }
     private void loadFailure(Exception e){count.setText("读取失败，请稍后重试");renderDetails();message(e.getMessage()==null?e.toString():e.getMessage());}
     // Each repository snapshot replaces app metadata as well as list membership/order.

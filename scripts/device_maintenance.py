@@ -103,8 +103,12 @@ def read_disable_record(path, args, snapshot):
     if not all(key in plan["before"] for key in ("enabled", "versionCode")):
         raise ValueError("恢复记录缺少原启用值或版本")
     if (plan.get("serial") != args.serial or plan.get("target") != args.target
-            or not all(plan["scope"].get(key) == snapshot.get(key) for key in ("package", "user", "fingerprint", "appVersion"))):
-        raise ValueError("恢复记录的设备、用户、固件或应用版本不符")
+            or not all(plan["scope"].get(key) == snapshot.get(key) for key in ("package", "user", "fingerprint"))):
+        raise ValueError("恢复记录的设备、用户或固件不符")
+    old_app = plan["scope"].get("app", {})
+    if (not old_app.get("canManage") or old_app.get("package") != args.target
+            or old_app.get("system") != snapshot.get("app", {}).get("system")):
+        raise ValueError("原记录缺少此包的管理资格或包类型已改变")
     if not any(item.get("event") == "app_attempt" and item.get("action") == "disable" for item in events):
         raise ValueError("记录只有预览，没有实际禁用尝试")
     return plan
@@ -112,7 +116,7 @@ def read_disable_record(path, args, snapshot):
 
 def manage_app(args, adb, journal, sdk, snapshot):
     app = snapshot.get("app", {})
-    if not app.get("canManage") or not app.get("installed"):
+    if (args.action == "disable" and not app.get("canManage")) or not app.get("installed"):
         raise ValueError("本机规则不允许管理此应用：" + app.get("reason", "用途或恢复资格未确认"))
     before = package_state(adb, args.target, args.user)
     if (before["versionCode"] != app["versionCode"] or before["enabled"] != app["enabledSetting"]
@@ -245,7 +249,9 @@ def restore_takeover(args, adb, journal, sdk, snapshot):
         actual = read(step)
         if step["kind"] == "home":
             allowed = {original, own, step["before"], step.get("observed", "")}
-            if actual and actual not in allowed and actual.split("/")[0] not in known_packages:
+            # Enabling the recorded HOME packages may clear Android's preferred activity.
+            chooser = actual.startswith("android/") and actual.endswith("ResolverActivity")
+            if actual and actual not in allowed and actual.split("/")[0] not in known_packages and not chooser:
                 raise ValueError("当前 HOME 已被其他操作改变")
         elif actual not in (desired, step["after"]):
             raise ValueError("状态被其他操作改变，停止覆盖：" + step["key"])
@@ -321,7 +327,7 @@ def restore_home(args, adb, journal, sdk, snapshot):
     if not original or not snapshot.get("originalUsable"):
         raise ValueError("缺少可用的原桌面记录；请按原安装／接管记录恢复应用状态后再继续，不猜原桌面")
     proxy = snapshot.get("proxy", {})
-    recorded_proxy = proxy.get("selected") and proxy.get("available") and proxy.get("component") == current
+    recorded_proxy = (proxy.get("selected") or proxy.get("pending") or proxy.get("pausePending")) and proxy.get("available") and proxy.get("component") == current
     if current not in (own, original) and not recorded_proxy:
         raise ValueError("当前 HOME 不是本次 Quiet TV 路线，需先核对其他桌面改动")
     mutation = None if current == original else command(adb, sdk, args.user, "set-home-activity", original)

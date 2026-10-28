@@ -63,8 +63,8 @@ def main():
     project_changes = {name for name in changed if not name.endswith('.md')}
     flags = {
         'install': any(name.startswith('prototypes/install-guide/') or name in (
-            'docs/AGENT_INSTALL.zh-CN.md', 'docs/AGENT_ADAPT.zh-CN.md', 'scripts/build_install_guide.py',
-            'scripts/configure_boot_home.py', 'scripts/device_maintenance.py', 'scripts/device_selftest.py', '.github/workflows/pages.yml')
+            'docs/AGENT_INSTALL.zh-CN.md', 'docs/AGENT_ADAPT.zh-CN.md', 'docs/DEVICE_ADAPTATION.zh-CN.md', 'scripts/build_install_guide.py',
+            'scripts/configure_boot_home.py', 'scripts/device_adaptation.py', 'scripts/vendor_adaptation.py', 'scripts/device-presets.json', 'scripts/device_maintenance.py', 'scripts/device_selftest.py', '.github/workflows/pages.yml')
                        for name in changed),
         'android': tooling or any(name.startswith(('app/', 'gradle/', 'coocaa-home-shim/', 'xiaomi-home-helper/', 'home-proxy/'))
                                  or name in ('build.gradle', 'settings.gradle', 'gradle.properties',
