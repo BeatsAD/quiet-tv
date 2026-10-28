@@ -82,7 +82,8 @@ final class WallpaperController {
         WallpaperBackdropCache.Picture cached=WallpaperCatalog.DEFAULT.equals(id)?null:backdropCache.read(WallpaperBackdropCache.key(store,id,screen.widthPixels,screen.heightPixels));
         if(cached!=null){
             restoredCover=cached.image;
-            current.setImageBitmap(cached.image);currentBlur=cached.blur;shown=id;shownKey=store.imageKey(id);ambient.setVisibility(View.INVISIBLE);
+            // The cached cover is a startup placeholder, not the full-resolution static image.
+            current.setImageBitmap(cached.image);currentBlur=cached.blur;shown=id;ambient.setVisibility(View.INVISIBLE);
             WallpaperCatalog.Entry selected=store.snapshot().find(id);
             if(selected!=null&&selected.video()){posterId=id;poster=cached.image;posterBlur=cached.blur;}
             // Install before the window's first draw; the regular cover takes over immediately.

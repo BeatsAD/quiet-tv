@@ -1,7 +1,6 @@
 package home.quiet.tv;
 
 import android.content.*;
-import android.graphics.drawable.GradientDrawable;
 import android.os.*;
 import android.provider.Settings;
 import android.text.SpannableString;
@@ -22,7 +21,6 @@ final class AppListPanel extends ManagementPanel {
     private AppRepository repository;
     private AdbController adb;
     private Button managementConnection;
-    private GradientDrawable connectionDot;
     private boolean connecting,mutating;
     private AppOperations operations;
     private final ArrayList<Button> filterButtons=new ArrayList<>();
@@ -65,8 +63,6 @@ final class AppListPanel extends ManagementPanel {
         for(int i=0;i<filterButtons.size();i++){Button b=filterButtons.get(i);if(i>0)b.setNextFocusLeftId(filterButtons.get(i-1).getId());if(i+1<filterButtons.size())b.setNextFocusRightId(filterButtons.get(i+1).getId());}
         filters.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));
         managementConnection=button("ADB 未连接",this::connectManagement);styleManagementTab(managementConnection,true);
-        connectionDot=new GradientDrawable();connectionDot.setShape(GradientDrawable.OVAL);connectionDot.setBounds(0,0,px(5),px(5));
-        managementConnection.setCompoundDrawables(connectionDot,null,null,null);managementConnection.setCompoundDrawablePadding(px(6));
         managementConnection.setOnKeyListener((v,key,event)->{
             if(key==KeyEvent.KEYCODE_DPAD_LEFT){if(event.getAction()==KeyEvent.ACTION_DOWN)filterButtons.get(filterButtons.size()-1).requestFocus();return true;}return false;
         });
@@ -84,7 +80,6 @@ final class AppListPanel extends ManagementPanel {
     private void updateManagementConnection(){
         if(managementConnection==null)return;boolean connected=!connecting && adb.connected();
         managementConnection.setText(connecting?"ADB 连接中…":connected?"ADB 已连接":"ADB 未连接");
-        connectionDot.setColor(connecting?0xffe5b384:connected?0xff64c49a:MUTED);
         managementConnection.setEnabled(!busy && !connecting);
     }
     @Override void managementConnected(){dirty=true;if(active){if(busy)refreshAfterConnection=true;else refresh();}}
