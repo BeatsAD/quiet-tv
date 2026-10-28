@@ -17,7 +17,7 @@ STOCK = 'com.jamdeo.tv.vod'
 
 
 class NoNativeRoute(ValueError):
-    """No supported native route was found before any device write."""
+    """No native route is available, with no change made or HOME confirmed unchanged."""
 
 
 def direct_boot_home(tree):
@@ -173,6 +173,10 @@ def apply_plan(adb, plan, setter, journal):
         actual = read_step(adb, step, device)
         journal.event('boot_write_result', index=index, output=output, actual=actual)
         if actual != step['after']:
+            if (plan['route'] == 'native-home' and len(plan['steps']) == 1
+                    and step['kind'] == 'home' and actual == step['before']):
+                check_device(adb, device)
+                raise NoNativeRoute('系统仍保留原默认 HOME，且未修改厂商属性，可评估兼容守护')
             raise ValueError('开机路由写入未读回，停止后续操作；用 --restore-record 核对恢复')
     check_device(adb, device)
     if component(adb.shell(*resolver(adb, device['sdk'], device['user']))) != HOME:
