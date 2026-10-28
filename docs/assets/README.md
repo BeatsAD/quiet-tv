@@ -5,7 +5,7 @@
 | [quiet-tv-icon.svg](quiet-tv-icon.svg) | 按用户选定的方案 1「Q 字电视」重建的矢量图标 / Vector reconstruction of selected concept 1 | 深蓝底、雾白 Q 形屏幕、浅蓝尾部；与 Android `launcher_icon.xml` 和关于页内联 SVG 保持相同几何与配色 / Shared geometry and palette across Android and About |
 | [home.png](home.png) | 本地 `evidence/public-showcase-20261019/home.png` | Sony KD-65X9000H，2026-10-19，1920×1080，原始 ADB 截图，逐字节复制 / Original ADB capture, copied unchanged |
 | [wallpaper-settings.png](wallpaper-settings.png) | 本地 `evidence/public-showcase-20261019/wallpaper-settings.png` | 同机型与日期，原始 ADB 截图，逐字节复制 / Same device and date, copied unchanged |
-| [cover.png](cover.png) | 内置 imagegen 工具 / Built-in imagegen | AI 生成的项目品牌插画；不作为设备验证证据 / AI brand illustration, not hardware evidence |
+| [cover.png](cover.png) | 内置 imagegen 工具，参考原封面重新构图 / Built-in imagegen, recomposed from the original cover | 2172×724，3:1 横幅；保留标题、副标题与深蓝客厅电视场景；AI 品牌插画，不作为设备验证证据 / 2172×724, 3:1 banner retaining the title, subtitle and dark blue living-room TV scene; AI brand illustration, not hardware evidence |
 | [contact-16x9.png](contact-16x9.png) | 作者提供的联系方式图，经内置 imagegen 横版重排 / Author-provided contact card, recomposed with built-in imagegen | 1920×1080；微信、公众号、小红书二维码解析结果与原图一致，抖音码待平台内扫码确认 / Matching decoded links for WeChat, Official Account, and Xiaohongshu; Douyin code requires an in-app scan |
 
 历史 `home.png` 与 `wallpaper-settings.png` 来自电视当时安装的 1.1.0 / b15 开发版本，不代表后续公开测试包。截图是开发过程的历史状态，不证明其他机型兼容。没有对实际界面、文字、应用卡片做合成或重绘。第三方应用图标及风景壁纸属于各自权利人，见[资源说明](../../THIRD_PARTY_NOTICES.md)。完整本地备份和证据目录没有上传。
