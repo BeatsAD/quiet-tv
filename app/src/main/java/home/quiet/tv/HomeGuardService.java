@@ -47,6 +47,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         if(!wanted)homeKeys.reset();
     }
     @Override protected boolean onKeyEvent(KeyEvent event){
+        DiagnosticLog.navigationKey("existing_accessibility_callback",event);
         if(event.getAction()==KeyEvent.ACTION_DOWN && navigationKey(event.getKeyCode()))stopBootSource("remote_navigation");
         // Every other key passes through, including volume, directions and power.
         if(event.getKeyCode()!=KeyEvent.KEYCODE_HOME)return false;

@@ -58,5 +58,9 @@ public class AppManagementActivity extends ManagementUi {
     @Override boolean useSettingListStyle(){return current==null||current.useSettingListStyle();}
     @Override public void handleBack(){if(current==null)super.handleBack();else current.handleBack();}
     @android.annotation.SuppressLint("RestrictedApi")
-    @Override public boolean dispatchKeyEvent(KeyEvent event){return current!=null&&current.dispatchKeyEvent(event)||super.dispatchKeyEvent(event);}
+    @Override public boolean dispatchKeyEvent(KeyEvent event){
+        boolean handled=current!=null&&current.dispatchKeyEvent(event);
+        if(handled)DiagnosticLog.navigationKey("quiet_tv_management",event);
+        return handled||super.dispatchKeyEvent(event);
+    }
 }

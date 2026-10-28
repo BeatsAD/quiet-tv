@@ -43,7 +43,7 @@ final class DiagnosticLogPanel extends ManagementPanel {
         retry.setNextFocusUpId(managementTab().getId());
         retry.setOnKeyListener((view,key,event)->{if(key!=KeyEvent.KEYCODE_DPAD_UP)return false;if(event.getAction()==KeyEvent.ACTION_DOWN)managementTab().requestFocus();return true;});
     }
-    @Override protected void onResume(){super.onResume();androidx.core.content.ContextCompat.registerReceiver(owner,screen,new IntentFilter(Intent.ACTION_SCREEN_OFF),androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);registered=true;start();}
+    @Override protected void onResume(){super.onResume();androidx.core.content.ContextCompat.registerReceiver(owner,screen,new IntentFilter(Intent.ACTION_SCREEN_OFF),androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);registered=true;SettingsPageCapture.stopCurrent("export");start();}
     @Override protected void onPause(){super.onPause();stopServer();if(registered){owner.unregisterReceiver(screen);registered=false;}}
     @Override void focusManagementContent(){if(retry.isEnabled())retry.requestFocus();}
     @Override public void handleBack(){if(!managementTabFocused())managementTab().requestFocus();else super.handleBack();}

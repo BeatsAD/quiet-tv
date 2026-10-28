@@ -51,6 +51,8 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     @Override protected void onStop(){UpdateRepository.get(this).remove(updateListener);if(managementMorePopup!=null)managementMorePopup.dismiss();super.onStop();}
     @Override protected void onDestroy(){super.onDestroy();}
     void managementConnected(){}
+    @android.annotation.SuppressLint("RestrictedApi")
+    @Override public boolean dispatchKeyEvent(KeyEvent event){DiagnosticLog.navigationKey("quiet_tv_management",event);return super.dispatchKeyEvent(event);}
     void connectionPanel(){startActivity(new Intent(this,MaintenanceHelpActivity.class));}
     void managementMore(){
         LinearLayout menu=column();menu.setPadding(px(7),px(7),px(7),px(7));menu.setBackgroundDrawable(surface(0xfa25262e,0xfa25262e,0,18));

@@ -546,6 +546,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     // Public Activity override; AndroidX core marks its inherited bridge class library-only.
     @android.annotation.SuppressLint("RestrictedApi")
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
+        DiagnosticLog.navigationKey("quiet_tv_home",event);
         if(waitingForUnlock)return super.dispatchKeyEvent(event);
         int key=event.getKeyCode();
         if(event.getAction()==KeyEvent.ACTION_DOWN && HomeGuardService.navigationKey(key))HomeGuardService.bootSourceUserAction(this);

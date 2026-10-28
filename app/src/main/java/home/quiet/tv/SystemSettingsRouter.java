@@ -12,6 +12,7 @@ import android.content.pm.ServiceInfo;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
+import android.os.Build;
 import android.provider.Settings;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -23,6 +24,7 @@ final class SystemSettingsRouter {
     private static final String XIAOMI="com.xiaomi.mitv.settings";
     private static final ComponentName XGIMI=new ComponentName("com.android.newsettings","com.xgimi.newsettings.SettingService");
     private static final ComponentName HAIER=new ComponentName("com.haier.tv.menusetting.ui","com.haier.tv.menusetting.ui.SettingsService");
+    private static final ComponentName HISENSE=new ComponentName("com.android.tv.settings","com.hisense.systemsettings.MainActivity");
     private final Context context;
     private final PackageManager pm;
     SystemSettingsRouter(Context context){this.context=context;pm=context.getPackageManager();}
@@ -31,6 +33,7 @@ final class SystemSettingsRouter {
         return "xiaomi".equalsIgnoreCase(manufacturer) || "xiaomi".equalsIgnoreCase(brand)
             || model.toLowerCase(Locale.ROOT).startsWith("mitv");
     }
+    private static boolean hisense(){return "Hisense".equalsIgnoreCase(Build.MANUFACTURER)||"Hisense".equalsIgnoreCase(Build.BRAND);}
     private static Intent activity(String pkg,String name){return new Intent(Intent.ACTION_MAIN).setComponent(new ComponentName(pkg,name));}
 
     List<Intent> candidates(String action){return candidates(action,false);}
@@ -43,6 +46,12 @@ final class SystemSettingsRouter {
             return intents;
         }
         boolean network=Settings.ACTION_WIFI_SETTINGS.equals(action),settings=Settings.ACTION_SETTINGS.equals(action);
+        if(network && hisense()){
+            intents.add(new Intent(action).setPackage(HISENSE.getPackageName()));
+            intents.add(new Intent(Settings.ACTION_WIRELESS_SETTINGS).setPackage(HISENSE.getPackageName()));
+            // Submitted VIDAA firmware exposes the OEM settings root in this same package.
+            intents.add(new Intent(Settings.ACTION_SETTINGS).setComponent(HISENSE));
+        }
         if(network||settings){
             String page=network?"Settings://com.xgimi.settings.net/wifi_misckey":"Settings://com.xgimi.misckey.main/mainPage";
             intents.add(new Intent("com.xgimi.settings.SETTINGS").setComponent(XGIMI)
@@ -92,6 +101,8 @@ final class SystemSettingsRouter {
                 ResolveInfo resolved=service?pm.resolveService(intent,0):pm.resolveActivity(intent,0);
                 ComponentInfo info=resolved==null?null:service?resolved.serviceInfo:resolved.activityInfo;
                 if(info==null){DiagnosticLog.info("settings.route",route+" result=unresolved");continue;}
+                if(Settings.ACTION_WIFI_SETTINGS.equals(action) && hisense() && HISENSE.getPackageName().equals(intent.getPackage())
+                    && !info.name.startsWith("com.hisense.")){DiagnosticLog.info("settings.route",route+" result=not_hisense_network");continue;}
                 String rejection=rejection(info,service?((ServiceInfo)info).permission:((ActivityInfo)info).permission);
                 route+=" resolved="+new ComponentName(info.packageName,info.name).flattenToShortString();
                 if(!rejection.isEmpty()){DiagnosticLog.info("settings.route",route+" result="+rejection);continue;}
@@ -108,6 +119,7 @@ final class SystemSettingsRouter {
                     context.startActivity(launch);
                 }
                 DiagnosticLog.info("settings.dispatch",route+" type="+(service?"service":"activity")+" result=dispatched_unverified");
+                try{SettingsPageCapture.observe(context);}catch(RuntimeException unavailable){DiagnosticLog.error("settings.capture.unavailable",unavailable);}
                 boolean systemFallback=!Settings.ACTION_SETTINGS.equals(action) && (Settings.ACTION_SETTINGS.equals(intent.getAction())
                         || (XIAOMI+".entry.MainActivity").equals(info.name));
                 diagnostic.finish("DISPATCHED_UNVERIFIED",systemFallback?"system_settings_fallback":"candidate_dispatched",System.currentTimeMillis(),android.os.SystemClock.elapsedRealtime());

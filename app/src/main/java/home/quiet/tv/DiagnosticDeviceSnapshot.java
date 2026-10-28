@@ -19,6 +19,7 @@ final class DiagnosticDeviceSnapshot {
         snapshot.section("设备与软件",snapshot::device);
         snapshot.text.append("\n[ADB 与调试接口]\n").append(adb);
         snapshot.section("调试设置入口",snapshot::debugSettings);
+        snapshot.section("系统设置页面采集",()->snapshot.text.append(SettingsPageCapture.summary()).append('\n'));
         snapshot.section("系统默认桌面",snapshot::home);
         snapshot.section("原桌面记录",snapshot::original);
         snapshot.section("HOME 候选与状态",snapshot::homeCandidates);

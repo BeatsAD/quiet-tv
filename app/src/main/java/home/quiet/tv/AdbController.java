@@ -256,6 +256,14 @@ final class AdbController implements Closeable {
     }
 
     String shell(String command) throws Exception {
+        return shell(command,0);
+    }
+    // Raw dumps stay in memory. identityResult already refuses these commands' output.
+    String diagnosticShell(String command) throws Exception {
+        if(!Arrays.asList("dumpsys activity activities","dumpsys window windows","dumpsys activity top").contains(command))throw new IllegalArgumentException("Unsupported diagnostic query");
+        return shell(command,512*1024);
+    }
+    private String shell(String command,int maximumBytes) throws Exception {
         int request=generation.get();AdbConnection c=connection;if(c==null)throw new IOException("需要连接 ADB");
         // A timeout closes the transport. Mutating commands are never automatically retried.
         Closeable active=transport;if(active==null)throw new IOException("ADB 连接已断开，请重新连接");
@@ -268,7 +276,9 @@ final class AdbController implements Closeable {
             byte[] buffer=new byte[8192];int size;
             while(true){
                 try{size=input.read(buffer);}catch(IOException e){if(!output.toString("UTF-8").contains(marker))throw e;break;}
-                if(size<0)break;output.write(buffer,0,size);
+                if(size<0)break;
+                if(maximumBytes>0 && output.size()+size>maximumBytes)throw new IOException("Diagnostic output exceeds limit");
+                output.write(buffer,0,size);
                 String value=output.toString("UTF-8");int position=value.lastIndexOf(marker);
                 if(position>=0 && value.substring(position).endsWith("\n"))break;
             }
