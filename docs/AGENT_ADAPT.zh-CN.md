@@ -34,7 +34,7 @@ python3 device_selftest.py --serial "$TV_SERIAL" --user "$TV_USER" --record "$AF
 - [规则与历史配置](DEVICE_ADAPTATION.zh-CN.md)：命中专项固件、代理或旧记录时读取。
 - [恢复原桌面](agent/restore.md)：仅在明确恢复请求时进入。
 
-所有执行通过[任务记录工具](agent/session.md)分配新记录目录。中断先 `resume`，不重放历史命令。新 APK 接口尚未发布，先检查能力；旧包缺接口时只执行其支持的系统检查或既有流程，不改写私有文件。
+所有执行通过[任务记录工具](agent/session.md)分配新记录目录。中断先 `resume`，不重放历史命令。1.3.0 已提供配套 APK，仍须先检查实际接口与能力；旧包缺接口时只执行其支持的系统检查或既有流程，不改写私有文件。
 
 ## 交付状态
 
