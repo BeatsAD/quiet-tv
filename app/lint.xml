@@ -1,7 +1,6 @@
 <lint>
   <issue id="all">
     <ignore path="src/main/java/home/quiet/tv/AdbConnectionPanel.java" />
-    <ignore path="src/main/java/home/quiet/tv/AdbController.java" />
     <ignore path="src/main/java/home/quiet/tv/AdbSession.java" />
     <ignore path="src/main/java/home/quiet/tv/AdbState.java" />
     <ignore path="src/main/java/home/quiet/tv/AdbStateReader.java" />
@@ -16,11 +15,9 @@
     <ignore path="src/main/java/home/quiet/tv/HomeGuardPanel.java" />
     <ignore path="src/main/java/home/quiet/tv/HomeTakeover.java" />
     <ignore path="src/main/java/home/quiet/tv/LocalAdbDiscovery.java" />
-    <ignore path="src/main/java/home/quiet/tv/PairingTransport.java" />
     <ignore path="src/main/java/home/quiet/tv/SetupActivity.java" />
     <ignore path="src/main/java/home/quiet/tv/SetupFocus.java" />
     <ignore path="src/main/java/home/quiet/tv/SetupOperations.java" />
-    <ignore path="src/main/java/home/quiet/tv/ShellCapabilities.java" />
     <ignore path="src/main/java/home/quiet/tv/TclHomePolicy.java" />
     <ignore path="src/main/java/home/quiet/tv/WirelessPairing.java" />
   </issue>

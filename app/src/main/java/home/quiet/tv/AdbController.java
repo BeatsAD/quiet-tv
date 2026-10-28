@@ -2,12 +2,12 @@ package home.quiet.tv;
 
 import android.content.Context;
 import android.os.Build;
-import android.util.AtomicFile;
+import androidx.core.util.AtomicFile;
 import io.github.muntashirakon.adb.AdbConnection;
 import io.github.muntashirakon.adb.AdbStream;
 import java.io.*;
 import java.net.*;
-import java.nio.charset.StandardCharsets;
+
 import java.security.*;
 import java.security.cert.X509Certificate;
 import java.math.BigInteger;
@@ -130,7 +130,7 @@ final class AdbController implements Closeable {
             if(closed || generation.get()!=attempt)throw new IOException("连接已取消");
             publish(Stage.PORT,"连接中  "+candidate+":"+port,attempt);
             // One actual daemon connection, with a bounded connect and cancellation support.
-            Socket socket=new Socket();attach(socket,attempt);
+            Socket socket=new Socket();attach(socket::close,attempt);
             if(closed || generation.get()!=attempt)throw new IOException("连接已取消");
             try{socket.connect(new InetSocketAddress(candidate,port),2000);}
             catch(IOException e){socket.close();transport=null;if(closed || generation.get()!=attempt)throw new IOException("连接已取消",e);failure=e;continue;}
@@ -233,7 +233,7 @@ final class AdbController implements Closeable {
 
     private void verifyLocalDevice() throws Exception {
         String localBoot;
-        try(BufferedReader input=new BufferedReader(new InputStreamReader(new FileInputStream("/proc/sys/kernel/random/boot_id"),StandardCharsets.UTF_8))){String value=input.readLine();localBoot=value==null?"":value.trim();}
+        try(BufferedReader input=new BufferedReader(new InputStreamReader(new FileInputStream("/proc/sys/kernel/random/boot_id"),Charsets.UTF_8))){String value=input.readLine();localBoot=value==null?"":value.trim();}
         catch(IOException unavailable){
             // Older SELinux policies hide boot_id from apps. A fresh local-file challenge still
             // rejects accidentally forwarded connections to another device; no model-name fallback.
@@ -242,7 +242,7 @@ final class AdbController implements Closeable {
             File marker=File.createTempFile("quiet-adb-probe-",".txt",directory);
             try{
                 String challenge=UUID.randomUUID().toString()+UUID.randomUUID().toString();
-                try(FileOutputStream out=new FileOutputStream(marker)){out.write(challenge.getBytes(StandardCharsets.UTF_8));out.getFD().sync();}
+                try(FileOutputStream out=new FileOutputStream(marker)){out.write(challenge.getBytes(Charsets.UTF_8));out.getFD().sync();}
                 String path="'"+marker.getAbsolutePath().replace("'","'\\''")+"'";
                 if(!challenge.equals(shell("cat "+path).trim()))throw new IOException("连接目标不是当前电视，已停止");
             }finally{
