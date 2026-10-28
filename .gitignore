@@ -166,3 +166,7 @@ __pycache__/
 !/docs/assets/sort-1.2.4.png
 !/docs/assets/child-auth-1.2.4.png
 !/docs/assets/update-1.2.4.png
+
+# Computer adaptation guide and acceptance tool shipped with the installation site.
+!/docs/AGENT_ADAPT.zh-CN.md
+!/scripts/device_selftest.py

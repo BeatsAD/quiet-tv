@@ -47,7 +47,7 @@ Agent 直接使用固定请求时，须通过本机终端读取 `latest.json`，
 
 ## 统一安装入口
 
-本地源码使用 [install_quiet_tv.py](../scripts/install_quiet_tv.py)，独立 Agent 从本次实时 `latest.json` 的 `tools` 字段取得 `install_quiet_tv.py`、`verify_install.py`、`install_tcl.py`、`tcl_cast.py`、`configure_home_guard.py`、`device_maintenance.py`，下载至同一私有目录并逐文件核对 SHA-256。工具缺项或校验不符时停止，不从不明来源补脚本。站点部署前，公开索引可能尚未含新入口，应明确说明差异；不能据本地代码宣称已经上线。
+本地源码使用 [install_quiet_tv.py](../scripts/install_quiet_tv.py)，独立 Agent 从本次实时 `latest.json` 的 `tools` 字段取得 `install_quiet_tv.py`、`verify_install.py`、`install_tcl.py`、`tcl_cast.py`、`configure_home_guard.py`、`device_maintenance.py`、`device_selftest.py`，下载至同一私有目录并逐文件核对 SHA-256。工具缺项或校验不符时停止，不从不明来源补脚本。站点部署前，公开索引可能尚未含新入口，应明确说明差异；不能据本地代码宣称已经上线。
 
 Agent 先按下文确认电视、完成电脑 ADB 连接／授权并核对前台用户；安装入口不扫描、不自动选择设备、不默认端口或用户。准备现有官方 Platform-Tools、Python 3.9+、Android build-tools 的 `aapt2`／`apksigner` 及其 Java 运行环境，工具缺失时明确说明并按主机环境准备，不要求用户猜路径，不构建源码替代公开包。可用 `--adb`、`--aapt2`、`--apksigner` 指定现有工具。
 
@@ -110,7 +110,7 @@ python3 scripts/install_quiet_tv.py --serial "$TV_SERIAL" --user "$TV_USER" \
 3. **取得工具**：从同一次 `latest.json` 的 `tools` 字段下载本节所需的 `install_tcl.py`、`tcl_cast.py`、`configure_home_guard.py`、`device_maintenance.py` 到同一私有目录，并逐文件核对所列 SHA-256。安装站点构建同时输出这些工具；缺项、下载失败或校验不符就停止依赖步骤，不让用户改用一串手工命令。源码工作区可直接使用对应 `scripts/` 文件。
 4. **安装**：确认目标、电脑 ADB 授权、用户、APK 和记录位置后，先运行下面的预览；预览通过再加 `--apply`。普通包被本机 TCL 校验拒绝时，工具改用核验过的 relay；直接指定 relay 时也先尝试普通 ADB 安装。失败后使用目标电视的系统多屏互动，通过6553端口推送和仅绑定电脑 `127.0.0.1` 的 APK 服务、以及本次新建的 ADB reverse 下载；不公开电脑目录，不覆盖已有转发。电视出现提示时让用户选择“同意”。用户拒绝、已发起后的断连或结果不明时停止，不自动换渠道重装。
 5. **电视端回退**：多屏互动不存在、端口不可用或目标用户不适用时，工具将 relay APK 暂存到电视 Download 的唯一新路径，尝试打开当前用户的当贝安装包管理，并等待电视端安装。让用户在当贝或文件管理器选择该文件并确认；不按固定坐标点击，不删除旧文件。超时标为未确认，保留暂存文件及记录；后续可重新核验已经安装的同一 APK，不强制重装。
-6. **试用及守护**：安装后拉回实际 APK 核对版本、HOME 形态及 SHA-256，再打开 Quiet TV 试用。用户同意兼容接管后，复用[电脑守护配置](SETUP.md#通过电脑配置守护)，运行 `configure_home_guard.py` 的预览及 `--apply`。该工具检测 TCL 实际支持的自启动／关联启动 AppOps 并保存原值，不硬编码操作数字。保留原系统 HOME、其他无障碍服务和用户的暂停状态；首次启用需明确同意，普通安装或只更新不自动开启已暂停守护。服务配置、绑定、实体 HOME、重启、冷启动和待机唤醒分别验收，不顺带接管系统屏保；本页默认请求已授权 ADB 常开，须同时配置并核对，用户仅要求试用／更新时保留原选择。
+6. **试用及守护**：安装后拉回实际 APK 核对版本、HOME 形态及 SHA-256，再打开 Quiet TV 试用。用户同意兼容接管后，复用[电脑守护配置](SETUP.md#桌面守护实验)，运行 `configure_home_guard.py` 的预览及 `--apply`。该工具检测 TCL 实际支持的自启动／关联启动 AppOps 并保存原值，不硬编码操作数字。保留原系统 HOME、其他无障碍服务和用户的暂停状态；首次启用需明确同意，普通安装或只更新不自动开启已暂停守护。服务配置、绑定、实体 HOME、重启、冷启动和待机唤醒分别验收，不顺带接管系统屏保；本页默认请求已授权 ADB 常开，须同时配置并核对，用户仅要求试用／更新时保留原选择。
 
 首次安装的预览示例，变量由 Agent 从本次实际数据填写；只有普通包与 relay 候选都已核验时才提供两组 APK 参数。已装 relay 的更新直接将 `--apk` 指向相应 relay，不同时提供普通包：
 
@@ -249,7 +249,7 @@ https://raw.githubusercontent.com/BeatsAD/quiet-tv/main/docs/AGENT_INSTALL.zh-CN
 
 仅当用户明确请求自动接管桌面或另行授权兼容守护，且实际安装包包含相应组件时，才配置兼容守护的无障碍、通知访问及写安全设置能力；使用实际包名和已核对用户。首次权限配置不等于开机验收。新开发版进入配置后默认为自动，后续重启无需重复确认；系统 HOME 仍属原桌面时不得报告默认 HOME 已修改，不因守护可运行而禁用原桌面。用户明确暂停后不得重启、重绑或更新替其打开。历史安装包不因本文更新而获得该能力。
 
-本修复提供[电脑配置脚本及步骤](SETUP.md#通过电脑配置守护)：电脑 ADB 已授权即可完成首次配置，无需等待 Quiet TV 内置 ADB 认证成功。预览后，在已有守护配置授权范围内使用 `--apply`；该参数明确启用守护，含主动暂停的配置也会开启，不在只读诊断、仅试用或仅更新时执行。先核对指定电视、前台用户、原主页及实际 APK 的 `HomeGuardSetupReceiver`；旧 1.2.0 包缺少入口时先说明版本差异，未获更新授权不自行安装。脚本保留原桌面与其他服务，权限写入、服务绑定、事件可用及实体接管分别确认。Android 5／6补偿需用量统计授权；Android 4.4不开放。端口连通、ADB 开关开启、内置握手超时均不能单独证明电脑 ADB 授权状态或固件封锁。
+本修复提供[电脑配置脚本及步骤](SETUP.md#桌面守护实验)：电脑 ADB 已授权即可完成首次配置，无需等待 Quiet TV 内置 ADB 认证成功。预览后，在已有守护配置授权范围内使用 `--apply`；该参数明确启用守护，含主动暂停的配置也会开启，不在只读诊断、仅试用或仅更新时执行。先核对指定电视、前台用户、原主页及实际 APK 的 `HomeGuardSetupReceiver`；旧 1.2.0 包缺少入口时先说明版本差异，未获更新授权不自行安装。脚本保留原桌面与其他服务，权限写入、服务绑定、事件可用及实体接管分别确认。Android 5／6补偿需用量统计授权；Android 4.4不开放。端口连通、ADB 开关开启、内置握手超时均不能单独证明电脑 ADB 授权状态或固件封锁。
 
 
 ## ADB 常开与重启验收
@@ -278,7 +278,7 @@ python3 device_maintenance.py repair --serial "$TV_SERIAL" --user "$TV_USER" --r
 python3 device_maintenance.py restore --serial "$TV_SERIAL" --user "$TV_USER" --record "$NEW_RECORD_DIR"
 ```
 
-上述三行是不同操作示例，不连续执行；除 inspect 外默认预览。已有明确修复／恢复授权时，在检查计划后用新目录加 `--apply` 执行，不反复询问同一授权。repair 复用已配置的守护并按默认维护目标开启 ADB 保持；主动暂停的接管仅在用户要求恢复后加 `--resume`。独立代理路线不自动改成内置守护。原桌面已禁用、组件不可用或固件／用户变化时，按原接管记录先恢复原组件状态；工具不猜测、不盲目启用。
+上述三行是不同操作示例，不连续执行；除 inspect 外默认预览。已有明确修复／恢复授权时，在检查计划后用新目录加 `--apply` 执行，不反复询问同一授权。repair 复用已配置的守护并按默认维护目标开启 ADB 保持；主动暂停的接管仅在用户要求恢复后加 `--resume`。独立代理路线不自动改成内置守护。restore 自动读取并核对历史专项接管记录，按原顺序恢复对应包状态、属性和 HOME，保留已选择的 ADB 保持。记录缺失、版本或固件／用户变化时停止，不猜测原值。
 
 单个应用禁用先预览：
 
@@ -297,3 +297,6 @@ python3 device_maintenance.py restore-app --target "$APP_PACKAGE" --from-record 
 核对后用新目录加 `--apply`。只恢复记录中的原始启用值，不能把默认启用值 0 一律改成 1。预览记录不算已执行，设备、用户、固件或版本变化时停止；中断后先读现状，不重放。所有记录留在电脑私有目录，反馈前脱敏。
 
 维护完成后按本页验收要求分别验证实体 HOME、重启、冷启动、待机唤醒及播放／HDMI 不被打断。配置返回成功不等于这些场景通过。采用 Aerial 的 [安装](https://aerial.qust.me/agent.md)／[适配](https://aerial.qust.me/adapt.md)流程组织方式，执行仍使用 Quiet TV 的包校验、权限及固件规则；不运行 Aerial 安装脚本替换本项目配置。
+
+
+统一自检、本机信号源配置、同签名 HOME 代理修复和专项恢复详见[电脑适配与维护](AGENT_ADAPT.zh-CN.md)。修复前后使用 `device_selftest.py` 的同机报告对比；默认只读，主动 HOME、信号源、待机和重启场景必须明确选择并加 `--apply`。网络 ADB 必须记录重启后的实际重连结果，不能把调试开关值当作完成。

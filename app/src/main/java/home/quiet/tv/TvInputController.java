@@ -93,6 +93,30 @@ final class TvInputController {
     private final PackageManager pm;
     TvInputController(Context context){this.context=context;pm=context.getPackageManager();}
 
+    List<TvInputInfo> rawInputs(){
+        TvInputManager manager=(TvInputManager)context.getSystemService(Context.TV_INPUT_SERVICE);
+        if(manager==null)throw new IllegalStateException("系统信号源服务不可用");
+        return manager.getTvInputList();
+    }
+    TvInputInfo findInput(String id){for(TvInputInfo input:rawInputs())if(input.getId().equals(id))return input;return null;}
+    TvInputInfo mappedInput(TvInputInfo input){
+        String target=new DeviceInputProfile(context).target(input.getId());
+        if(target.equals(input.getId()))return input;
+        TvInputInfo mapped=findInput(target);
+        return mapped!=null && mapped.isPassthroughInput() && enabledSystem(context,mapped.getServiceInfo())?mapped:null;
+    }
+    JSONObject maintenanceInputs() throws Exception {
+        JSONArray values=new JSONArray();DeviceInputProfile profile=new DeviceInputProfile(context);
+        for(TvInputInfo input:rawInputs()){
+            boolean shown=input.getParentId()==null && (Build.VERSION.SDK_INT<24 || !input.isHidden(context))
+                && !hiddenInput(Build.MODEL,input.getServiceInfo().packageName,input.getId(),Build.DISPLAY) && !profile.hidden(input.getId());
+            values.put(new JSONObject().put("id",input.getId()).put("label",inputLabel(input)).put("firmwareLabel",input.loadLabel(context).toString())
+                .put("shown",shown).put("passthrough",input.isPassthroughInput()).put("type",input.getType()).put("target",profile.target(input.getId()))
+                .put("system",enabledSystem(context,input.getServiceInfo())));
+        }
+        return new JSONObject().put("supported",true).put("sources",values).put("configuration",profile.snapshot());
+    }
+
     Snapshot inspect(){
         Snapshot result=new Snapshot();int reported=0,filtered=0;
         try{
@@ -101,7 +125,7 @@ final class TvInputController {
             else{
                 for(TvInputInfo input:manager.getTvInputList()){
                     reported++;
-                    if(input.getParentId()==null && (Build.VERSION.SDK_INT<24 || !input.isHidden(context)) && !hiddenInput(Build.MODEL,input.getServiceInfo().packageName,input.getId(),Build.DISPLAY)){
+                    if(input.getParentId()==null && (Build.VERSION.SDK_INT<24 || !input.isHidden(context)) && !hiddenInput(Build.MODEL,input.getServiceInfo().packageName,input.getId(),Build.DISPLAY) && !new DeviceInputProfile(context).hidden(input.getId())){
                         result.inputs.add(input);
                         if(result.inputs.size()<=8)DiagnosticLog.info("input.enumeration.item","index="+(result.inputs.size()-1)+" service="+new ComponentName(input.getServiceInfo().packageName,input.getServiceInfo().name).flattenToShortString()+" type="+input.getType()+" passthrough="+input.isPassthroughInput());
                     }else filtered++;
@@ -261,13 +285,14 @@ final class TvInputController {
         if((service.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0)return null;
         return correction(Build.MODEL,service.packageName,input.getType(),input.getId(),Build.DISPLAY);
     }
-    String inputLabel(TvInputInfo input){Route route=correction(input);return route==null?input.loadLabel(context).toString():route.label;}
+    String inputLabel(TvInputInfo input){String custom=new DeviceInputProfile(context).label(input.getId());if(!custom.isEmpty())return custom;Route route=correction(input);return route==null?input.loadLabel(context).toString():route.label;}
     boolean openKnownInput(TvInputInfo input){
         android.content.pm.ServiceInfo service=input.getServiceInfo();
         if((service.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0)return false;
         String label=null;
         if(input.getType()==TvInputInfo.TYPE_HDMI)try{CharSequence value=input.loadLabel(context);if(value!=null)label=value.toString();}catch(RuntimeException unavailable){DiagnosticLog.error("input.xiaomi.label.failed",unavailable);}
-        Route route=xiaomiRoute(Build.MODEL,service.packageName,input.getType(),input.getId(),Build.DISPLAY,label);if(route==null){DiagnosticLog.info("input.xiaomi.route","provider="+service.packageName+" type="+input.getType()+" result=no_known_route");return false;}
+        Integer custom=new DeviceInputProfile(context).xiaomi(input.getId());
+        Route route=custom==null?xiaomiRoute(Build.MODEL,service.packageName,input.getType(),input.getId(),Build.DISPLAY,label):new Route(null,custom);if(route==null){DiagnosticLog.info("input.xiaomi.route","provider="+service.packageName+" type="+input.getType()+" result=no_known_route");return false;}
         ComponentName target=new ComponentName("com.xiaomi.mitv.tvplayer","com.xiaomi.mitv.tvplayer."+route.activity);
         try{
             android.content.pm.ActivityInfo activity=pm.getActivityInfo(target,0);

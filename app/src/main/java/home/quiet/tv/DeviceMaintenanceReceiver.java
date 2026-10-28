@@ -46,6 +46,10 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
         if(takeover!=null && !"restored".equals(takeover.optString("state")) && !"rolled-back".equals(takeover.optString("state")))
             value.put("takeoverRecord",takeover);
         if(!BuildConfig.LEGACY_19)value.put("routes",new DesktopRoutes(context,false).snapshot());
+        value.put("capabilities",new org.json.JSONArray().put("input-profile-v1").put("takeover-restore-v1").put("proxy-repair-v1"));
+        HomeProxy proxy=new HomeProxy(context);
+        value.put("proxy",new JSONObject().put("selected","PROXY".equals(guard.preferences.getString("relaySource","")))
+            .put("available",proxy.available()).put("component",proxy.component()).put("ready",proxy.ready()));
         return value;
     }
     @android.annotation.SuppressLint("ApplySharedPref") // A successful reply requires durable restoration state.
@@ -71,9 +75,26 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
                 if(!home.known || !home.actual.equals(original(context)))throw new IllegalStateException("原桌面尚未恢复");
                 if(!new HomeGuardState(context).preferences.edit().putString("relaySource","").remove("proxyPackage").putBoolean("proxyPausePending",false).commit())
                     throw new IllegalStateException("恢复状态未保存");
-            }else if(!"inspect".equals(operation))throw new IllegalArgumentException("不支持的维护操作");
+            }else if("profile_set".equals(operation) || "profile_reset".equals(operation)){
+                new DeviceInputProfile(context).save(intent.getStringExtra("profile_json"),intent.getStringExtra("revision"),"profile_reset".equals(operation));
+            }else if("input_open".equals(operation)){
+                DeviceInputProfile.request(context,intent.getStringExtra("source"));
+            }else if("proxy_repair".equals(operation)){
+                HomeGuardState state=new HomeGuardState(context,false);
+                if(!"PROXY".equals(state.preferences.getString("relaySource","")))throw new IllegalStateException("当前未选择 HOME 代理");
+                if("OFF".equals(state.preferences.getString("mode","AUTO")) && !intent.getBooleanExtra("resume",false))throw new IllegalStateException("接管已暂停，需要明确恢复");
+                String problem=new HomeProxy(context).resume();if(!problem.isEmpty())throw new IllegalStateException(problem);
+            }else if("takeover_preference".equals(operation)){
+                new ComputerRestorePlan(context).preference(intent.getStringExtra("revision"),intent.getIntExtra("index",-1));
+            }else if("takeover_finish".equals(operation)){
+                if(!"OFF".equals(new HomeGuardState(context,false).preferences.getString("mode","AUTO")))throw new IllegalStateException("恢复前必须暂停接管");
+                new ComputerRestorePlan(context).finish(intent.getStringExtra("revision"),intent.getStringExtra("proof"));
+            }else if(!java.util.Arrays.asList("inspect","input_list","profile_get","takeover_plan").contains(operation))throw new IllegalArgumentException("不支持的维护操作");
             JSONObject result=snapshot(context);String pkg=intent.getStringExtra("target_package");
             if(pkg!=null)result.put("app",app(context,pkg));
+            if(operation.startsWith("profile_") || "input_open".equals(operation))result.put("inputProfile",new DeviceInputProfile(context).snapshot());
+            if("input_list".equals(operation))result.put("inputs",Build.VERSION.SDK_INT>=21?new TvInputController(context).maintenanceInputs():new JSONObject().put("supported",false));
+            if("takeover_plan".equals(operation))result.put("restorePlan",new ComputerRestorePlan(context).plan());
             setResultData(result.toString());setResultCode(Activity.RESULT_OK);
         }catch(Exception failure){setResultData("维护未完成："+failure.getMessage());}
     }

@@ -153,10 +153,12 @@ class ComputerAdb:
         output = (result.stdout + "\n" + result.stderr).strip()
         if result.returncode:
             raise ValueError(output or "ADB 传输失败，状态未确认")
-        status = re.search(r"(?:^|\n)" + re.escape(marker) + r"([0-9]+)\s*$", output)
+        stdout = result.stdout.strip()
+        status = re.search(r"(?:^|\n)" + re.escape(marker) + r"([0-9]+)\s*$", stdout)
         if status is None:
             raise ValueError("ADB 结果不完整，停止后续操作；请重新查询状态")
-        body, exit_code = output[:status.start()].strip(), int(status[1])
+        body = (stdout[:status.start()].strip() + "\n" + result.stderr).strip()
+        exit_code = int(status[1])
         if exit_code or ERROR_OUTPUT.search(body):
             raise CommandFailure(exit_code, body)
         return body

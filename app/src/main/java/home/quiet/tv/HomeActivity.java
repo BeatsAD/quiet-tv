@@ -324,6 +324,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         wallpapers.resume();weather.resume();
         loadApps("resume");if(ready)focusCurrent(false);
         if(tvInputs!=null)main.post(tvInputs::openPending);
+        main.post(this::openMaintenanceInput);
         homeResumeEvent("home.resume.end","");
     }
 
@@ -333,6 +334,17 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             +" elapsedMs="+(homeResumeSequence==0?-1:now-homeResumeStarted)+" resumed="+resumed+" windowFocus="+hasWindowFocus()
             +" ready="+ready+" loadingApps="+catalogRefresh.loading()+" drawPending="+homeDrawPending
             +" size="+(root==null?"0x0":root.getWidth()+"x"+root.getHeight())+(detail.isEmpty()?"":" "+detail));
+    }
+
+    private void openMaintenanceInput(){
+        if(!resumed || Build.VERSION.SDK_INT<21)return;
+        String id=DeviceInputProfile.consume();if(id.isEmpty())return;
+        try{
+            TvInputInfo input=new TvInputController(this).findInput(id);
+            if(input==null){DeviceInputProfile.dispatched(false);return;}
+            if(tvInputs==null)tvInputs=new TvInputs();
+            leaveSystemEntry("input.maintenance",()->{boolean opened=tvInputs.launchInput(input);DeviceInputProfile.dispatched(opened);systemEntryResult(opened);});
+        }catch(RuntimeException failure){DeviceInputProfile.dispatched(false);DiagnosticLog.error("input.maintenance.failed",failure);}
     }
 
     @Override public void onWindowFocusChanged(boolean focused){
@@ -392,6 +404,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         if(!new HomeProxy(this).allowed(intent)){new HomeProxy(this).original(this);finish();return;}
         getWindow().getDecorView().post(()->{if(resumed && hasWindowFocus())new HomeProxy(this).visible(this);});
         if(isHomeIntent(intent))resetHomeFocus();else if(ready)focusCurrent(false);
+        main.post(this::openMaintenanceInput);
     }
 
     private boolean isHomeIntent(Intent intent){return Intent.ACTION_MAIN.equals(intent.getAction()) && intent.hasCategory(Intent.CATEGORY_HOME);}
@@ -995,6 +1008,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         private void openInput(TvInputInfo info){leaveSystemEntry("input.standard",()->{DiagnosticLog.info("input.select","provider="+info.getServiceInfo().packageName+" type="+info.getType()+" passthrough="+info.isPassthroughInput());boolean opened=launchInput(info);systemEntryResult(opened);if(!opened)wallpapers.resume();});}
         private boolean launchInput(TvInputInfo info){
             TvInputController controller=new TvInputController(HomeActivity.this);
+            info=controller.mappedInput(info);
+            if(info==null){offerSystemInputs();return false;}
             if(controller.openKnownInput(info))return true;
             // Native DTV players do not need an Android channel database or READ_TV_LISTINGS.
             if(info.getType()==TvInputInfo.TYPE_TUNER && controller.openFallbackInput(info))return true;
@@ -1032,6 +1047,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         }
 
         private String inputName(TvInputInfo info){
+            String custom=new DeviceInputProfile(HomeActivity.this).label(info.getId());if(!custom.isEmpty())return custom;
             if(!info.isPassthroughInput())return tr("电视直播","Live TV");
             if(info.getType()==TvInputInfo.TYPE_HDMI || info.getType()==TvInputInfo.TYPE_DISPLAY_PORT)return new TvInputController(HomeActivity.this).inputLabel(info);
             if(info.getType()==TvInputInfo.TYPE_COMPOSITE)return "AV";

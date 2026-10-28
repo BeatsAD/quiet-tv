@@ -37,7 +37,7 @@ class RecordedAdb(guard.ComputerAdb):
         return output
 
 
-def inspect(adb, package, user, operation="inspect", target=None, home=None):
+def inspect(adb, package, user, operation="inspect", target=None, home=None, extras=None):
     arguments = ["am", "broadcast", "--include-stopped-packages", "--user", user,
                  "-a", package + ".DEVICE_MAINTENANCE", "-n", package + "/home.quiet.tv.DeviceMaintenanceReceiver",
                  "--ei", "user", user, "--es", "operation", operation]
@@ -45,6 +45,9 @@ def inspect(adb, package, user, operation="inspect", target=None, home=None):
         arguments += ["--es", "target_package", target]
     if home:
         arguments += ["--es", "home", home]
+    for key, value in (extras or {}).items():
+        arguments += ["--ez" if isinstance(value, bool) else "--ei" if isinstance(value, int) else "--es", key,
+                      str(value).lower() if isinstance(value, bool) else value]
     output = adb.shell(*arguments)
     result = guard.broadcast_data(output)
     if (not re.search(r"\bresult=-1\b", output) or not result or result.get("schemaVersion") != 1
@@ -162,15 +165,164 @@ def manage_app(args, adb, journal, sdk, snapshot):
     print("已读回确认应用状态；安装及数据保留。")
 
 
+def restore_takeover(args, adb, journal, sdk, snapshot):
+    plan = inspect(adb, args.package, args.user, "takeover_plan")["restorePlan"]
+    steps = plan["steps"]
+    if not isinstance(steps, list) or not 0 < len(steps) <= 16:
+        raise ValueError("专项恢复步骤无效")
+    allowed_properties = {"persist.sys.home.selectpkg", "persist.vt.use_home_pkg", "persist.adb.tcp.port"}
+    original = guard.canonical_home(plan["original"])
+    if not original or original.split("/")[0] == args.package:
+        raise ValueError("原桌面恢复目标无效")
+    own = args.package + "/home.quiet.tv.HomeActivity"
+    known_packages = {"com.google.android.apps.tv.launcherx", "com.google.android.tvlauncher", "com.google.android.tungsten.setupwraith", original.split("/")[0]}
+    prepared = {}
+    for step in steps:
+        kind, key = step["kind"], step["key"]
+        desired = step.get("restore", step["before"]) if kind == "home" else step["before"]
+        if kind == "package":
+            if key not in known_packages or desired not in ("0", "1") or step["after"] != "3":
+                raise ValueError("包恢复步骤无效")
+            prepared[step["index"]] = command(adb, sdk, args.user, "default-state" if desired == "0" else "enable", key)
+        elif kind == "property":
+            if key not in allowed_properties or args.user != 0 or not re.fullmatch(r"[A-Za-z0-9_.-]*", desired):
+                raise ValueError("属性恢复步骤无效")
+            prepared[step["index"]] = ["setprop", key, desired]
+        elif kind == "permission":
+            if key != "android.permission.WRITE_SECURE_SETTINGS" or desired != "denied":
+                raise ValueError("权限恢复步骤无效")
+            options = guard.user_options(adb.permission_help("pm"), "revoke", sdk, args.user)
+            prepared[step["index"]] = ["pm", "revoke", *options, args.package, key]
+        elif kind == "preference":
+            if key != "keepAdb" or desired not in ("true", "false"):
+                raise ValueError("偏好恢复步骤无效")
+        elif kind == "home":
+            if desired != original or key != own:
+                raise ValueError("HOME 恢复步骤无效")
+            prepared[step["index"]] = command(adb, sdk, args.user, "set-home-activity", original)
+        else:
+            raise ValueError("未知专项恢复步骤")
+    journal.event("takeover_restore_plan", scope=snapshot, plan=plan, commands=prepared)
+    print(json.dumps(plan, ensure_ascii=False, indent=2))
+    if not args.apply:
+        print("仅预览：按原记录恢复；当前 ADB 保持已开启时保留对应授权、端口和选项。")
+        return
+    fresh = inspect(adb, args.package, args.user, "takeover_plan")
+    if not same_scope(snapshot, fresh) or fresh["restorePlan"] != plan:
+        raise ValueError("执行前专项记录或设备状态已变化")
+    unchanged_user(adb, args.user)
+    if not inspect(adb, args.package, args.user, "pause").get("paused"):
+        raise ValueError("暂停接管未确认")
+    ordered = [x for x in reversed(steps) if x["kind"] not in ("home", "permission")]
+    ordered += [x for x in steps if x["kind"] == "home"]
+    ordered += [x for x in reversed(steps) if x["kind"] == "permission"]
+
+    def read(step):
+        kind, key = step["kind"], step["key"]
+        if kind == "property":
+            return adb.shell("getprop", key).strip()
+        if kind == "home":
+            return component(adb.shell(*resolver(adb, sdk, args.user)))
+        if kind == "package":
+            state = package_state(adb, key, args.user)
+            if state["installed"] != "true" or state["versionCode"] != step["versionCode"]:
+                raise ValueError("原包安装状态或版本已变化")
+            return str(state["enabled"])
+        state = inspect(adb, args.package, args.user)
+        if kind == "permission":
+            if "permissionGranted" not in state.get("adb", {}):
+                raise ValueError("应用缺少权限读回能力")
+            return "granted" if state["adb"]["permissionGranted"] else "denied"
+        return str(state["keepAdb"]).lower()
+
+    proof = {}
+    for step in ordered:
+        unchanged_user(adb, args.user)
+        current_plan = inspect(adb, args.package, args.user, "takeover_plan")["restorePlan"]
+        if current_plan != plan:
+            raise ValueError("恢复期间专项记录、版本或 ADB 选择已变化")
+        desired = step.get("restore", step["before"]) if step["kind"] == "home" else step["before"]
+        actual = read(step)
+        if step["kind"] == "home":
+            allowed = {original, own, step["before"], step.get("observed", "")}
+            if actual and actual not in allowed and actual.split("/")[0] not in known_packages:
+                raise ValueError("当前 HOME 已被其他操作改变")
+        elif actual not in (desired, step["after"]):
+            raise ValueError("状态被其他操作改变，停止覆盖：" + step["key"])
+        if actual != desired or step["kind"] == "home":
+            journal.event("takeover_restore_attempt", step=step, actual=actual, desired=desired)
+            failure = None
+            try:
+                if step["kind"] == "preference":
+                    inspect(adb, args.package, args.user, "takeover_preference", extras={"revision":plan["revision"], "index":step["index"]})
+                else:
+                    adb.shell(*prepared[step["index"]])
+            except ValueError as error:
+                failure = error
+            after = read(step)
+            journal.event("takeover_restore_result", index=step["index"], actual=after, error=str(failure) if failure else None)
+            if after != desired or failure:
+                raise ValueError("恢复未确认；保留记录，不重复修改：" + step["key"])
+        proof[str(step["index"])] = desired
+    for step in ordered:
+        unchanged_user(adb, args.user)
+        if read(step) != proof[str(step["index"])]:
+            raise ValueError("最终恢复状态再次变化，未完成确认")
+    inspect(adb, args.package, args.user, "takeover_finish", extras={"revision":plan["revision"], "proof":json.dumps(proof)})
+    inspect(adb, args.package, args.user, "finish_restore")
+    print("专项原桌面恢复已读回；保留已选择的 ADB 保持。实体 HOME、重启及唤醒待验收。")
+
+
+def input_action(args, adb, journal, snapshot):
+    operation = args.action.replace("-", "_")
+    before = inspect(adb, args.package, args.user, "profile_get")
+    if not same_scope(snapshot, before):
+        raise ValueError("读取配置时设备、用户或桌面状态已变化")
+    profile = before["inputProfile"]
+    journal.event("profile_before", scope=before, configuration=profile)
+    if args.action in ("input-list", "profile-get"):
+        print(json.dumps(inspect(adb, args.package, args.user, operation), ensure_ascii=False, indent=2))
+        return
+    extras = {"revision":profile["revision"]}
+    desired = None
+    if args.action == "profile-set":
+        text = args.profile.read_text(encoding="utf-8")
+        desired = json.loads(text)
+        if not isinstance(desired, dict) or desired.get("fingerprint") != snapshot["fingerprint"] or len(text) > 8192:
+            raise ValueError("配置必须是当前固件的 JSON 对象，且不超过 8192 字符")
+        extras["profile_json"] = text
+    elif args.action == "input-open":
+        extras["source"] = args.source
+    journal.event("input_plan", operation=operation, extras=extras)
+    print(json.dumps({"operation":operation, "parameters":extras}, ensure_ascii=False, indent=2))
+    if not args.apply:
+        print("仅预览；输入测试会切换画面，配置修改只影响本机信号源。")
+        return
+    unchanged_user(adb, args.user)
+    fresh = inspect(adb, args.package, args.user, "profile_get")
+    if not same_scope(before, fresh) or fresh["inputProfile"]["revision"] != profile["revision"]:
+        raise ValueError("执行前设备或本机配置已改变")
+    result = inspect(adb, args.package, args.user, operation, extras=extras)
+    journal.event("input_result", result=result)
+    saved = result["inputProfile"]["profile"]
+    if args.action == "profile-set" and saved != desired or args.action == "profile-reset" and saved:
+        raise ValueError("本机配置读回不匹配")
+    print(json.dumps(result["inputProfile"], ensure_ascii=False, indent=2))
+    if args.action == "input-open":
+        print("已提交画面切换请求；请核对 lastInput 回执和实际画面，不能把请求当作切换成功。")
+
+
 def restore_home(args, adb, journal, sdk, snapshot):
     if snapshot.get("takeoverRecord"):
-        raise ValueError("存在历史专项接管记录，已保存在维护快照；需按记录逐项恢复系统属性及原桌面，不能只切换 HOME 后宣布完成")
+        return restore_takeover(args, adb, journal, sdk, snapshot)
     original = guard.canonical_home(snapshot.get("originalHome", ""))
     own = args.package + "/home.quiet.tv.HomeActivity"
     current = component(adb.shell(*resolver(adb, sdk, args.user)))
     if not original or not snapshot.get("originalUsable"):
         raise ValueError("缺少可用的原桌面记录；请按原安装／接管记录恢复应用状态后再继续，不猜原桌面")
-    if current not in (own, original) and not snapshot.get("routes", {}).get("proxyReady"):
+    proxy = snapshot.get("proxy", {})
+    recorded_proxy = proxy.get("selected") and proxy.get("available") and proxy.get("component") == current
+    if current not in (own, original) and not recorded_proxy:
         raise ValueError("当前 HOME 不是本次 Quiet TV 路线，需先核对其他桌面改动")
     mutation = None if current == original else command(adb, sdk, args.user, "set-home-activity", original)
     journal.event("restore_plan", before=snapshot, command=mutation)
@@ -204,6 +356,8 @@ def run(args, adb, journal):
     journal.event("maintenance_before", serial=args.serial, snapshot=snapshot)
     if args.action == "inspect":
         print(json.dumps(snapshot, ensure_ascii=False, indent=2))
+    elif args.action.startswith(("input-", "profile-")):
+        input_action(args, adb, journal, snapshot)
     elif args.action in ("disable", "restore-app"):
         manage_app(args, adb, journal, sdk, snapshot)
     elif args.action == "restore":
@@ -218,8 +372,20 @@ def run(args, adb, journal):
         if snapshot.get("paused") and not args.resume:
             raise ValueError("接管已被主动暂停；只有用户要求恢复时才使用 --resume")
         routes = snapshot.get("routes", {})
-        if routes.get("proxyReady"):
-            raise ValueError("当前使用独立 HOME 代理，请沿用原代理安装记录修复，不自动改为内置守护")
+        if snapshot.get("proxy", {}).get("selected") or routes.get("relaySource") == "PROXY":
+            if args.apply:
+                unchanged_user(adb, args.user)
+                result = inspect(adb, args.package, args.user, "proxy_repair", extras={"resume":args.resume})
+                journal.event("proxy_repair", result=result)
+                if not result.get("proxy", {}).get("ready"):
+                    raise ValueError("原 HOME 代理修复未确认")
+            else:
+                print("计划：修复已选择的同签名 HOME 代理，不切换为内置中转。")
+            repair = SimpleNamespace(serial=args.serial, user=args.user, package=args.package, adb=args.adb,
+                apply=args.apply, pause=False, direct_home=False, home=None, keep_adb=True, adb_only=True,
+                record=journal.directory / "adb-before.json")
+            guard.configure(repair, adb)
+            return
         own = args.package + "/home.quiet.tv.HomeActivity"
         adb_only = (snapshot.get("systemHome") == own and not snapshot.get("guardConfigured")
                     and not snapshot.get("directHomeConfigured"))
@@ -233,11 +399,13 @@ def run(args, adb, journal):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("inspect", "repair", "pause", "restore", "disable", "restore-app"))
+    parser.add_argument("action", choices=("inspect", "repair", "pause", "restore", "disable", "restore-app", "input-list", "input-open", "profile-get", "profile-set", "profile-reset"))
     parser.add_argument("--serial", required=True)
     parser.add_argument("--user", required=True, type=int)
     parser.add_argument("--package", default=tcl.PACKAGE, choices=(tcl.PACKAGE, "com.ts.launcher", "com.coocaa.quiettv"))
     parser.add_argument("--target", help="本次明确选择的一个应用包名")
+    parser.add_argument("--profile", type=Path, help="当前固件的本机信号源配置 JSON")
+    parser.add_argument("--source", help="input-list 返回的完整信号源 ID")
     parser.add_argument("--from-record", type=Path, help="禁用时保存的原始 record.jsonl")
     parser.add_argument("--record", required=True, type=Path, help="全新的电脑私有记录目录")
     parser.add_argument("--apply", action="store_true")
@@ -252,12 +420,16 @@ def main():
         parser.error("恢复需要禁用时的 --from-record")
     if args.resume and args.action != "repair" or args.apply and args.action == "inspect":
         parser.error("inspect 只读；--resume 仅用于 repair")
+    if args.action == "profile-set" and not args.profile or args.action == "input-open" and not args.source:
+        parser.error("profile-set 需要 --profile；input-open 需要 --source")
+    if args.apply and args.action in ("input-list", "profile-get"):
+        parser.error("读取信号源和配置不使用 --apply")
     journal = None
     try:
         journal = tcl.Journal(args.record)
         run(args, RecordedAdb(args.adb, args.serial, journal), journal)
         return 0
-    except (ValueError, OSError, subprocess.TimeoutExpired) as error:
+    except (ValueError, KeyError, TypeError, OSError, subprocess.TimeoutExpired) as error:
         if journal:
             journal.event("failed", error=str(error))
         print("维护未完成：" + str(error), file=sys.stderr)

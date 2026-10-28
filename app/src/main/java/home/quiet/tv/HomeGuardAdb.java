@@ -38,6 +38,7 @@ final class HomeGuardAdb {
     static org.json.JSONObject snapshot(Context c) throws org.json.JSONException {
         Boolean actual=settingEnabled(c);
         return new org.json.JSONObject().put("supported",supported(c)).put("selected",enabled(c)).put("ready",ready(c))
+            .put("permissionGranted",HomeGuardRecovery.writeAllowed(c))
             .put("settingEnabled",actual==null?org.json.JSONObject.NULL:actual).put("rebootVerified",false);
     }
     static String summary(Context c){return !enabled(c)?"未开启":!supported(c)?"当前档位不支持":!HomeGuardRecovery.writeAllowed(c)?"缺少写安全设置权限":Boolean.TRUE.equals(settingEnabled(c))?"调试开关已开启，重启后连接待验证":"调试开关恢复未确认";}

@@ -49,7 +49,7 @@ Skill 由独立本地技能包交付，不属于 APK，也不参与主应用构�
 - 应用导出的诊断补充自身开机接收组件状态、可见 TCL 管理组件版本，以及 Android 11+ 最近最多5条自身进程退出记录。自启动授权、组件启用和后台清理豁免分别判断；退出原因码、信号或空历史都不足以确认厂商清理。旧系统明确记录接口不可用。该历史接口见 [Android ActivityManager 文档](https://developer.android.com/reference/android/app/ActivityManager#getHistoricalProcessExitReasons(java.lang.String,int,int))。
 - 后续每个场景单独记录默认 HOME 是否保持、首次可见页面、最终页面、原桌面闪回、切换耗时和待机时长；恢复原桌面单独验收。新版技能提供结构化场景模板，随每次证据提交追加保存。上游报告、自动化测试、设备日志与用户观察保留各自来源，不自动生成固件执行规则或“已解决”状态。
 
-应用开发源码已补充可恢复的 Google HOME 顺序处理、JM/VIDAA 私有路由、TCL 自身后台策略和 Fire OS 6 替代观察入口，适用条件和用户操作见[直接接管与固件专项](SETUP.md#直接接管与固件专项开发源码尚未交付)。新日志中的 `takeover` 是操作及读回记录，`usageObserverBound` 是替代观察服务状态，`tclPolicyStatus` 是策略读取/写回结果；三者都不能替代实体场景验收。`incomplete` 表示需核对恢复，`rolled-back` 表示本次失败后恢复了操作前状态，`restored` 表示明确恢复原桌面。
+应用开发源码已补充可恢复的 Google HOME 顺序处理、JM/VIDAA 私有路由、TCL 自身后台策略和 Fire OS 6 替代观察入口，适用条件和用户操作见[直接接管与固件专项](AGENT_ADAPT.zh-CN.md#原桌面与-home-代理恢复)。新日志中的 `takeover` 是操作及读回记录，`usageObserverBound` 是替代观察服务状态，`tclPolicyStatus` 是策略读取/写回结果；三者都不能替代实体场景验收。`incomplete` 表示需核对恢复，`rolled-back` 表示本次失败后恢复了操作前状态，`restored` 表示明确恢复原桌面。
 
 电脑诊断与案例登记仍然只读，不会因为识别到适用方案而自动执行。固件全局调度参数、透明覆盖窗口、root 修改系统启动文件不作为通用修复。上游实测、源码已实现、自动化通过、系统读回与 Quiet TV 对应固件实测分别注明；不能将“上游已解决”误写为“未知方案”，也不能直接扩展为所有机型支持。
 
@@ -57,4 +57,6 @@ Skill 由独立本地技能包交付，不属于 APK，也不参与主应用构�
 
 电脑采集不依赖诊断页面保持打开；只要电脑和 ADB 连接仍正常，Quiet TV 退出后仍可继续采集系统日志。Logcat不等于每次遥控器按键记录，不能读取其他应用的私有日志；固件权限和日志缓冲区会影响完整性。收集方式应依据设备帮助以及 Android 官方 [ADB](https://developer.android.com/tools/adb) 和 [Logcat](https://developer.android.com/tools/logcat) 文档。
 
-MiBOX3直接HOME补偿开发日志增加 `home_guard.key_observed`，记录实际投递到无障碍的标准HOME按下/松开、keyCode/scanCode、单调时间、过滤请求与拒绝原因；`home_guard.home_trigger` 通过 observation 关联后续启动 attempt。广播、启动请求和首页生命周期回报均不等于实体键上屏成功。服务未连接或系统未投递时可能没有该事件，不能据此认定用户没按键；不记录任意文本输入。具体配置见[配置说明](SETUP.md#mibox3-直接-home-按键补偿本地开发未交付)。
+MiBOX3直接HOME补偿开发日志增加 `home_guard.key_observed`，记录实际投递到无障碍的标准HOME按下/松开、keyCode/scanCode、单调时间、过滤请求与拒绝原因；`home_guard.home_trigger` 通过 observation 关联后续启动 attempt。广播、启动请求和首页生命周期回报均不等于实体键上屏成功。服务未连接或系统未投递时可能没有该事件，不能据此认定用户没按键；不记录任意文本输入。具体配置见[配置说明](SETUP.md#桌面守护实验)。
+
+需要统一只读快照时使用[适配指南](AGENT_ADAPT.zh-CN.md)中的 `device_selftest.py` 默认模式；不要为排查自动开启主动场景。用户明确要求修复后沿用该指南的预览、执行和复测流程。
