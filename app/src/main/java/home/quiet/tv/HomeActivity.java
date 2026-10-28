@@ -305,6 +305,13 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         if(requestCode==102 && tvInputs!=null){if(results.length>0 && results[0]==PackageManager.PERMISSION_GRANTED)tvInputs.openPending();else tvInputs.pendingTvInput=null;}
     }
 
+    @Override protected void onRestart() {
+        super.onRestart();
+        // API28 releases the window Surface when stopped, but an unchanged visible window
+        // can resume without relayout. Re-submit its attributes to restore that Surface.
+        if(Build.VERSION.SDK_INT==28)getWindow().setAttributes(getWindow().getAttributes());
+    }
+
     @Override protected void onResume() {
         if(waitingForUnlock){super.onResume();resumeAfterUnlock();return;}
         homeResumeStarted=SystemClock.uptimeMillis();++homeResumeSequence;homeDrawPending=true;homeReadyDrawn=false;
