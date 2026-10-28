@@ -4,11 +4,11 @@
 
 本页承接 [AGENTS.md](../AGENTS.md) 的安装包规则，适用于后续交付。历史安装包、校验记录、发布标签和下载链接保留原样。
 
-TCL 等受限固件可另行交付主程序 relay 实验档，复用公共代码及桌面守护，不声明 HOME。`scripts/build_apk.py --home-mode relay` 显式传入并核验真实清单，记录 `home_mode=relay` 与构建参数；安卓4.4不提供此档。文件名沿用系统／架构规则、状态用“实验版”，如 `QuietTV_<版本号>-<构建号>_安卓5及以上_实验版.apk`。普通包与 relay 同版本、同源码及签名，但构建号各自占用同一递增序列，不能同名覆盖。relay 不加入默认四包批次，按实际授权单独构建；发布前仍须完成本批审核与适用验证。签名更新清单和安装索引明确记录 HOME 形态，不从“实验”字样推断；已装 relay 仅匹配 relay 更新。
+TCL 等受限固件可另行交付主程序 relay 实验档，复用公共代码及桌面守护，不声明 HOME。`scripts/build_apk.py --home-mode relay` 显式传入并核验真实清单，记录 `home_mode=relay` 与构建参数；安卓4.4不提供此档。文件名沿用系统／架构规则、状态用“实验版”，如 `QuietTV_<版本号>-<构建号>_安卓5及以上_实验版.apk`。普通包与 relay 同版本、同源码及签名，但构建号各自占用同一递增序列，不能同名覆盖。relay 不加入默认批次，按实际授权单独构建；发布前仍须完成本批审核与适用验证。签名更新清单和安装索引明确记录 HOME 形态，不从“实验”字样推断；已装 relay 仅匹配 relay 更新。
 
 **实施状态：主程序归档脚本已适配版本号与数字构建号、完整中文系统标签、实际单架构标记及“测试版／实验版”状态。归档名与 JSON 的 `public_apk` 均遵循本次命名规则，通用架构或不含原生库时省略架构标记。实际版本、签名、同名 SHA-256 文件及已登记 worktree 的构建号检查保留。助手及正式版流程仍需单独验证。**
 
-**分包实施状态：标准版已确定采用 ARM32、ARM64、通用备用三个包的默认交付策略。脚本新增 `--batch`，按固定提交依次构建标准三包及一个安卓4.4包，核对版本、签名、生产输入、递增构建号，以及单架构包与通用包的原生库名称和字节一致性，并生成批次清单。首批最终 APK 的功能、升级保留和厂商真机验收仍须单独记录；批次清单不代表设备验收。**
+**分包实施状态：1.3.0 已无原生库，使用 `--batch --universal-only` 构建标准通用包和安卓4.4包。存在原生库架构差异时，使用 `--batch` 构建标准 ARM32、ARM64、通用及安卓4.4四包。两种模式均固定源码并核对版本、签名、生产输入和递增构建号；四包模式另核对各架构原生库完整性。最终 APK 的功能、升级保留和厂商真机验收仍须单独记录，批次清单不代表设备验收。**
 
 ## 命名与签名
 
@@ -47,7 +47,7 @@ QuietTV_<版本号>-<构建号>_<适用系统>[_<单架构标记>]_<发布状态
 
 | 档位 | 默认交付范围 |
 | --- | --- |
-| 标准版 `home.quiet.tv` | ARM32、ARM64、通用备用三个完整 APK；通用包保留 ARM32、ARM64、x86、x86_64 四种原生库架构 |
+| 标准版 `home.quiet.tv` | 有原生库时提供 ARM32、ARM64、通用备用三包；无原生库且无架构差异时只提供一个通用包。1.3.0 使用通用包 |
 | 安卓4.4兼容版 | 无原生库或无实际架构差异时保留一个包，不生成内容相同的架构副本 |
 | 酷开专用版 | 按实际交付需求确定架构范围，保留专用包名与兼容条件，不默认扩展整套包 |
 
@@ -100,7 +100,7 @@ QuietTV助手_2.0.1-12_酷开安卓8配套酷开桌面_实验版.apk
 
 按[安装指南](INSTALL.zh-CN.md)配置 SDK，现有脚本读取 `local.properties` 的 `sdk.dir`：
 
-以下命令只构建一个通用包；默认整批四包使用后文的 `--batch`。单包和整批构建均不代替功能及设备验收。
+以下命令只构建一个通用包；整批模式见后文的 `--batch` 和 `--universal-only`。单包和整批构建均不代替功能及设备验收。
 
 ```sh
 python3 scripts/build_apk.py --build-number "$STANDARD_BUILD_NUMBER" --variant benchmark --summary "说明本次更新内容"
@@ -123,7 +123,15 @@ python3 scripts/build_apk.py --build-number "$STANDARD_BUILD_NUMBER" --variant b
 python3 scripts/build_apk.py --batch --build-number "$FIRST_BUILD_NUMBER" --variant benchmark --summary "说明本次更新内容"
 ```
 
-整批依次分配 ARM32、ARM64、通用及安卓4.4四个构建号；除每包归档外生成 `QuietTV_<版本号>-<起始号>-<末尾号>_batch.json`，记录共同源码、签名、各包元数据及原生库 SHA-256。构建失败时保留已归档包及占用号，不自动清理、覆盖或复用。
+1.3.0 已移除应用内 ADB 原生依赖，标准版无原生库，因此本批使用两包模式：
+
+```sh
+python3 scripts/build_apk.py --batch --universal-only --build-number "$FIRST_BUILD_NUMBER" --variant benchmark --summary "说明本次更新内容"
+```
+
+两包模式依次构建标准通用包、安卓4.4包，分配两个递增构建号，并强制检查两个 APK 均无原生库。若重新引入原生库，改用原四包模式。113–116 已用于本地构建核对并保留记录，本批两包使用 117–118；最终发布与验收以归档材料为准。
+
+原四包模式依次分配 ARM32、ARM64、通用及安卓4.4四个构建号；除每包归档外生成 `QuietTV_<版本号>-<起始号>-<末尾号>_batch.json`，记录共同源码、签名、各包元数据及原生库 SHA-256。构建失败时保留已归档包及占用号，不自动清理、覆盖或复用。
 
 主程序脚本核对实际包名、版本、最低及目标 API、签名、架构、生产输入指纹与不可覆盖归档，检查所有已登记 worktree 的归档构建号；不自动联网查询远程 Release 或扫描未登记目录，交付者仍须补齐这两项核对。助手配套归档和正式签名流程另行验证。
 
@@ -173,9 +181,9 @@ Future downloads and local immutable archives use `QuietTV_<version>-<numeric bu
 
 System labels are `安卓4.4` (legacy19, API19), `安卓5及以上` (standard, API21), and `酷开安卓8` (experimental vendor package, API26). Other minimum APIs require matching labels. Omit the architecture marker for multi-ABI and native-library-free APKs. Use ARM32, ARM64, x86 or x86_64 only for actual single-ABI builds. Universal architecture does not imply compatibility with every OS or TV. Status is `测试版` (test), `实验版` (experimental), or `正式版` (formally signed release with agreed acceptance completed). If GitHub needs English download names, use the approved system/architecture/status mapping (for example, Android5plus and Test) with the actual build number, with the Chinese name as the display label; verify actual download names and bytes before upload.
 
-Future standard deliveries default to three standalone APKs: ARM32, ARM64 and a universal fallback containing all four native-library ABIs. Each device installs one APK. All three share the source commit, production inputs, software version, feature configuration and signing certificate; assign increasing build numbers in ARM32, ARM64, universal order. Keep one legacy19 APK while it has no native-library or actual ABI differences; determine the Coocaa package set per delivery. Select by the ABIs supported by the operating system, and use the universal fallback when uncertain. In-place switches still require a higher build number; do not uninstall, clear data or force a downgrade to switch to a lower-numbered package.
+When native libraries require ABI-specific packages, standard deliveries provide three standalone APKs: ARM32, ARM64 and a universal fallback containing all four native-library ABIs. Each device installs one APK. All three share the source commit, production inputs, software version, feature configuration and signing certificate; assign increasing build numbers in ARM32, ARM64, universal order. Keep one legacy19 APK while it has no native-library or actual ABI differences; determine the Coocaa package set per delivery. Select by the ABIs supported by the operating system, and use the universal fallback when uncertain. In-place switches still require a higher build number; do not uninstall, clear data or force a downgrade to switch to a lower-numbered package.
 
-The script supports a fixed-source four-APK batch with `--batch`, including complete native-library checks and batch receipts. Without `--batch`, each invocation builds one standalone APK. Functional, upgrade-data and physical-device acceptance remain separate requirements.
+For 1.3.0, both profiles have no native libraries: use `--batch --universal-only` for one standard universal APK and one legacy19 APK. This mode rejects any native libraries. The script also supports a fixed-source four-APK batch with `--batch`, including complete native-library checks and batch receipts. Without `--batch`, each invocation builds one standalone APK. Functional, upgrade-data and physical-device acceptance remain separate requirements.
 
 **The main-app build script implements the naming above, matching checksums, actual APK metadata validation and build-number checks across registered local worktree archives.** Remote releases, unregistered archives, helpers and formal-release acceptance require separate checks. Preserve historical files, checksums, tags and links. Archives require matching checksum and metadata records, including the actual package, SDKs, ABI, signing identity, source and acceptance scope. Same-name/different-byte replacement is forbidden.
 

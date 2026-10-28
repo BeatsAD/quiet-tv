@@ -197,10 +197,12 @@ def verify_batch(apks):
             raise ValueError(f'批次 {field} 不一致')
     expected = [('standard', 'armeabi-v7a'), ('standard', 'arm64-v8a'),
                 ('standard', 'universal'), ('legacy19', 'universal')]
+    if len(records) == 2:
+        expected = [('standard', 'universal'), ('legacy19', 'universal')]
     if [(record['compatibility'], record['abi']) for record in records] != expected:
-        raise ValueError('批次必须依次包含标准 ARM32、ARM64、通用及安卓4.4包')
+        raise ValueError('批次须为标准三架构加安卓4.4，或无原生库的标准通用加安卓4.4')
     numbers = [int(record['version_code']) for record in records]
-    if numbers != list(range(numbers[0], numbers[0] + 4)):
+    if numbers != list(range(numbers[0], numbers[0] + len(records))):
         raise ValueError('批次构建号必须依次递增')
     libraries = []
     for path in apks:
@@ -208,18 +210,21 @@ def verify_batch(apks):
             libraries.append({name: hashlib.sha256(archive.read(name)).hexdigest()
                               for name in archive.namelist()
                               if name.startswith('lib/') and name.endswith('.so')})
-    universal = libraries[2]
-    if {name.split('/')[1] for name in universal} != set(ABIS[1:]):
+    if len(records) == 2 and any(libraries):
+        raise ValueError('两包模式仅适用于标准版和安卓4.4均无原生库')
+    universal = libraries[2] if len(records) == 4 else {}
+    # Pure-Java standard packages have no architecture-specific payload.
+    if universal and {name.split('/')[1] for name in universal} != set(ABIS[1:]):
         raise ValueError('通用包必须包含全部四种原生库架构')
     names_by_abi = [{name.split('/', 2)[2] for name in universal if name.split('/')[1] == abi}
                     for abi in ABIS[1:]]
-    if not names_by_abi[0] or any(names != names_by_abi[0] for names in names_by_abi):
+    if universal and (not names_by_abi[0] or any(names != names_by_abi[0] for names in names_by_abi)):
         raise ValueError('通用包各架构的原生库不完整')
-    for index, abi in enumerate(('armeabi-v7a', 'arm64-v8a')):
+    for index, abi in enumerate(('armeabi-v7a', 'arm64-v8a') if len(records) == 4 else ()):
         matching = {name: digest for name, digest in universal.items() if name.split('/')[1] == abi}
         if libraries[index] != matching:
             raise ValueError(f'{abi} 单架构包与通用包的原生库不一致')
-    if libraries[3]:
+    if libraries[-1]:
         raise ValueError('安卓4.4包不应包含原生库')
     return {'version_name': records[0]['version_name'],
             'source_commit': records[0]['workspace_commit_at_archive'],
@@ -229,7 +234,7 @@ def verify_batch(apks):
             'validation_scope': '整批构建、版本、签名、架构及原生库一致性；功能、升级数据及真机验收另行记录'}
 
 
-def build_batch(summary, first_build_number, variant='benchmark'):
+def build_batch(summary, first_build_number, variant='benchmark', universal_only=False):
     if not isinstance(first_build_number, int) or first_build_number < 1:
         raise ValueError('整批构建必须指定起始正整数构建号')
     used = used_build_numbers()
@@ -240,8 +245,10 @@ def build_batch(summary, first_build_number, variant='benchmark'):
     commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
     before = source_digest()
     apks = []
-    for offset, (profile, abi) in enumerate((('standard', 'armeabi-v7a'), ('standard', 'arm64-v8a'),
-                                            ('standard', 'universal'), ('legacy19', 'universal'))):
+    plan = [('standard', 'universal'), ('legacy19', 'universal')] if universal_only else [
+        ('standard', 'armeabi-v7a'), ('standard', 'arm64-v8a'),
+        ('standard', 'universal'), ('legacy19', 'universal')]
+    for offset, (profile, abi) in enumerate(plan):
         if (source_digest() != before or
                 subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip() != commit):
             raise RuntimeError('批次源码基线改变，停止后续构建与批次归档')
@@ -251,7 +258,7 @@ def build_batch(summary, first_build_number, variant='benchmark'):
             subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip() != commit):
         raise RuntimeError('批次源码基线改变，不生成批次清单')
     record = verify_batch(apks)
-    manifest = ROOT / 'dist/apk' / f"QuietTV_{record['version_name']}-{first_build_number}-{first_build_number + 3}_batch.json"
+    manifest = ROOT / 'dist/apk' / f"QuietTV_{record['version_name']}-{first_build_number}-{first_build_number + len(apks) - 1}_batch.json"
     with manifest.open('x', encoding='utf-8') as output:
         output.write(json.dumps(record, ensure_ascii=False, indent=2) + '\n')
     print(f'批次清单：{manifest}')
@@ -278,12 +285,15 @@ if __name__ == '__main__':
     parser.add_argument('--min-sdk', choices=[19,21,23,26,31], type=int, help='defaults to 19 for legacy19 and 21 for standard')
     parser.add_argument('--build-number', type=int, help='Positive delivery number; first number for --batch')
     parser.add_argument('--batch', action='store_true', help='Build standard ARM32, ARM64, universal and one legacy19 APK')
+    parser.add_argument('--universal-only', action='store_true', help='With --batch, build standard universal + legacy19; both must have no native libraries')
     args = parser.parse_args()
     if not args.summary.strip():
         parser.error('--summary 不能为空')
+    if args.universal_only and not args.batch:
+        parser.error('--universal-only 必须配合 --batch')
     if args.batch:
         if args.abi != 'universal' or args.min_sdk is not None or args.compatibility != 'standard' or args.home_mode != 'standard':
-            parser.error('--batch 固定四包配置，不能同时指定 ABI、最低 API 或兼容档位')
-        build_batch(args.summary.strip(), args.build_number, args.variant)
+            parser.error('--batch 固定各档位配置，不能同时指定 ABI、最低 API 或兼容档位')
+        build_batch(args.summary.strip(), args.build_number, args.variant, args.universal_only)
     else:
         build_apk(args.summary.strip(), args.variant, args.abi, args.min_sdk, args.compatibility, args.build_number, args.home_mode)
