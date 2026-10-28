@@ -22,21 +22,28 @@ Use the index's actual download URL and SHA-256, or a matching checksum attachme
 
 ## Screenshots
 
-**Favorite apps, time, weather and shortcuts on your home screen.**
-
-![Quiet TV 1.2.4 home](docs/assets/home-1.2.4.png)
-
-**Five-column All Apps with automatically saved ordering.**
-
-![Quiet TV 1.2.4 All Apps](docs/assets/all-apps-1.2.4.png)
-
-**Classic and Art Gallery layouts with a live preview.**
-
-![Quiet TV 1.2.4 desktop settings](docs/assets/desktop-settings-1.2.4.png)
-
-**Daily wallpaper, uploaded photos and your own video loops.**
-
-![Quiet TV 1.2.4 wallpaper settings](docs/assets/wallpaper-1.2.4.png)
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <p><strong>Favorite apps, time, weather and shortcuts on your home screen.</strong></p>
+      <img src="docs/assets/home-1.2.4.png" alt="Quiet TV 1.2.4 home" width="100%">
+    </td>
+    <td width="50%" valign="top">
+      <p><strong>Five-column All Apps with automatically saved ordering.</strong></p>
+      <img src="docs/assets/all-apps-1.2.4.png" alt="Quiet TV 1.2.4 All Apps" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <p><strong>Classic and Art Gallery layouts with a live preview.</strong></p>
+      <img src="docs/assets/desktop-settings-1.2.4.png" alt="Quiet TV 1.2.4 desktop settings" width="100%">
+    </td>
+    <td width="50%" valign="top">
+      <p><strong>Daily wallpaper, uploaded photos and your own video loops.</strong></p>
+      <img src="docs/assets/wallpaper-1.2.4.png" alt="Quiet TV 1.2.4 wallpaper settings" width="100%">
+    </td>
+  </tr>
+</table>
 
 Original captures from Quiet TV 1.2.4 on a Sony BRAVIA VH1 / Android 12. See [more interfaces](docs/USAGE.en.md) and [capture provenance](docs/assets/README.md). These images show this TV's actual interface, not compatibility with every model.
 
@@ -144,7 +151,7 @@ Native source is in `app/`, build and device tools in `scripts/`, and `prototype
 
 ## Credits and license
 
-Quiet TV is based on [Gathin23/tv-vibehack](https://github.com/Gathin23/tv-vibehack). Thank you to **Gathin** for the original work. This project is independently maintained and is not officially affiliated with the upstream project or TV and application brands.
+Quiet TV is based on [Gathin23/cleanyourtv](https://github.com/Gathin23/cleanyourtv). Thank you to **Gathin** for the original work. This project is independently maintained and is not officially affiliated with the upstream project or TV and application brands.
 
 Code is licensed under [MIT](LICENSE), preserving the original copyright and complete license. Fonts, wallpaper, and third-party application artwork have their own terms; see [third-party notices](THIRD_PARTY_NOTICES.md).
 
