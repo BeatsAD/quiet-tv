@@ -176,3 +176,8 @@ __pycache__/
 !/scripts/device_selftest.py
 
 !/docs/DEVICE_ADAPTATION.zh-CN.md
+
+# Unified Agent entry, task guides and resumable computer-side runner.
+!/docs/AGENT.md
+!/docs/agent/
+!/scripts/agent_session.py

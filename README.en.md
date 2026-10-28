@@ -64,7 +64,7 @@ The signed update feed is live. Automatic checks run every 24 hours while Home i
 ## Install and try it
 
 1. Confirm Android support, choose the matching APK above, and [verify its checksum](docs/INSTALL.en.md#download-and-try).
-2. Follow [installation](docs/INSTALL.en.md), or use the [computer Agent instructions, Chinese](docs/AGENT_INSTALL.zh-CN.md).
+2. Follow [installation](docs/INSTALL.en.md), or use the [computer Agent instructions, Chinese](docs/AGENT.md).
 3. Current source opens Home without an automatic setup wizard. Check navigation, apps and system entries; keep any desktop configuration already completed by the AI tool. Older APKs may still offer temporary use.
 4. Set HOME only when ready. Read back the component, then separately verify the physical Home button, reboot and standby wake. Recovery in current source is under 应用管理 → 更多 → 帮助与恢复 (Help and recovery); see [setup](docs/SETUP.md).
 

@@ -9,9 +9,9 @@ from pathlib import Path
 import re
 import shutil
 import time
-from urllib.parse import urljoin
 from urllib.request import Request, urlopen
 from build_update_manifest import verify_feed
+from agent_session import TOOLS, GUIDES
 
 ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY = 'https://github.com/BeatsAD/quiet-tv'
@@ -86,7 +86,7 @@ def build_site(output, releases):
         shutil.copyfile(source / name, output / name)
     index['tools'] = {}
     (output / 'tools').mkdir(exist_ok=True)
-    for name in ('install_quiet_tv.py', 'verify_install.py', 'install_tcl.py', 'tcl_cast.py', 'configure_home_guard.py', 'configure_boot_home.py', 'device_maintenance.py', 'device_selftest.py', 'device_adaptation.py', 'vendor_adaptation.py', 'device-presets.json'):
+    for name in TOOLS:
         data = (ROOT / 'scripts' / name).read_bytes()
         (output / 'tools' / name).write_bytes(data)
         index['tools'][name] = {'url': SITE + 'tools/' + name, 'sha256': hashlib.sha256(data).hexdigest()}
@@ -95,25 +95,33 @@ def build_site(output, releases):
     html = re.sub(r'app\.js(?:\?v=[a-z0-9]+)?', 'app.js?v=' + digest, html)
     (output / 'index.html').write_text(html)
     shutil.copyfile(ROOT / 'updates/updates.json', output / 'updates.json')
+    index['guides'] = {}
+    by_source = {str((ROOT / source).resolve()): destination for destination, source in GUIDES.items()}
+    for destination, source in GUIDES.items():
+        source_path = ROOT / source
+        def link(match):
+            target = match[1]
+            if target.startswith(('https:', 'http:', '#')):
+                return match[0]
+            path, marker, fragment = target.partition('#')
+            resolved = (source_path.parent / path).resolve()
+            known = by_source.get(str(resolved))
+            if known:
+                relative = os.path.relpath(output / known, (output / destination).parent)
+                return '](' + relative.replace(os.sep, '/') + marker + fragment + ')'
+            repository_path = resolved.relative_to(ROOT).as_posix()
+            return '](' + REPOSITORY + '/blob/main/' + repository_path + marker + fragment + ')'
+        content = re.sub(r'\]\(([^\s)]+)\)', link, source_path.read_text())
+        if destination == 'agent.md' and len(content) > 2500:
+            raise ValueError('统一入口超过 2500 字符；请将专项内容放入按需说明')
+        path = output / destination
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
+        index['guides'][destination] = {'url': SITE + destination,
+                                       'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}
+    # Existing shared links remain usable; only maintenance.md is advertised.
+    shutil.copyfile(output / 'maintenance.md', output / 'adapt.md')
     (output / 'latest.json').write_text(json.dumps(index, ensure_ascii=False, indent=2) + '\n')
-    guide = (ROOT / 'docs/AGENT_INSTALL.zh-CN.md').read_text()
-    # The same complete operating rules serve Raw and Pages; resolve relative links.
-    guide = re.sub(r'\]\(([^\s)]+)\)', lambda match: '](' + urljoin(REPOSITORY + '/blob/main/docs/', match[1]) + ')', guide)
-    summary = ['# Quiet TV 最新发布', '', '核对时间：' + index['checkedAt'], '',
-               '安装工具及 SHA-256：' + SITE + 'latest.json 的 tools 字段；同一目录下载全部十一项工具与规则后再执行。', '']
-    if index['releases']:
-        latest = index['releases'][0]
-        summary.extend([f"最新主程序版本：{latest['versionName']}  标签：{latest['tag']}",
-                        '', '发布页：' + latest['url'], '', '完整适配候选与 SHA-256：' + SITE + 'latest.json',
-                        '', '以下附件名称和地址由已公开 Release 自动生成，按电视系统、架构与覆盖升级条件选一个包：', ''])
-        for asset in latest['assets']:
-            summary.extend([asset['name'], asset['url'], 'HOME 形态：' + asset['homeMode'], 'SHA-256：' + (asset['sha256'] or '未提供，须另行核对'), ''])
-    else:
-        summary.extend(['当前没有已公开且含主程序 APK 的发布，请停止安装，不使用历史缓存。', ''])
-    (output / 'agent.md').write_text('\n'.join(summary) + '\n---\n\n' + guide)
-    adapt = (ROOT / 'docs/AGENT_ADAPT.zh-CN.md').read_text()
-    adapt = re.sub(r'\]\(([^\s)]+)\)', lambda match: '](' + urljoin(REPOSITORY + '/blob/main/docs/', match[1]) + ')', adapt)
-    (output / 'adapt.md').write_text(adapt)
     return index
 
 
