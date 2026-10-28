@@ -99,7 +99,7 @@ final class GreetingInputServer extends NanoHTTPD {
         int length;try{length=Integer.parseInt(session.getHeaders().get("content-length"));}catch(NumberFormatException e){throw new IOException("Length required");}
         if(length>limit)throw new BodyTooLarge();if(length<=0)throw new IOException("Empty body");
         byte[] bytes=new byte[length];new DataInputStream(session.getInputStream()).readFully(bytes);
-        return StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT).onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(bytes)).toString();
+        return Charsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT).onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(bytes)).toString();
     }
     private static final class BodyTooLarge extends IOException {}
     private Response json(Response.Status status,String key,Object value){try{return secure(newFixedLengthResponse(status,"application/json; charset=utf-8",new JSONObject().put(key,value).toString()));}catch(JSONException e){throw new IllegalStateException(e);}}

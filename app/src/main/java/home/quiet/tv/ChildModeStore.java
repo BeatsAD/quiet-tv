@@ -14,7 +14,7 @@ final class ChildModeStore {
     boolean configured(){return !preferences.getString("credential","").isEmpty();}
     String credential(){return preferences.getString("credential","");}
     String recovery(){return preferences.getString("recovery","");}
-    boolean verifyRecovery(String value){return ChildModeCredentials.numeric(value) && !recovery().isEmpty() && java.security.MessageDigest.isEqual(value.getBytes(java.nio.charset.StandardCharsets.US_ASCII),recovery().getBytes(java.nio.charset.StandardCharsets.US_ASCII));}
+    boolean verifyRecovery(String value){return ChildModeCredentials.numeric(value) && !recovery().isEmpty() && java.security.MessageDigest.isEqual(value.getBytes(home.quiet.tv.Charsets.US_ASCII),recovery().getBytes(home.quiet.tv.Charsets.US_ASCII));}
     boolean saveCredential(String prepared,String pin){
         synchronized(LOCK){SharedPreferences.Editor editor=preferences.edit().putString("credential",prepared).remove("failures").remove("retryAfter");
             if(recovery().isEmpty())editor.putString("recovery",ChildModeCredentials.recovery(pin));
@@ -50,7 +50,7 @@ final class ChildModeStore {
         if(pkg.equals(context.getPackageName()) || pkg.startsWith("home.quiet.tv."))return false;
         PackageManager pm=context.getPackageManager();
         for(ResolveInfo home:pm.queryIntentActivities(HomeController.homeIntent(),0))if(home.activityInfo!=null && pkg.equals(home.activityInfo.packageName))return false;
-        try{ApplicationInfo info=pm.getApplicationInfo(pkg,0);if(!info.enabled || (info.flags&ApplicationInfo.FLAG_INSTALLED)==0)return false;
+        try{ApplicationInfo info=pm.getApplicationInfo(pkg,0);if(!info.enabled || !AppAvailability.installed(pm,info))return false;
             for(String action:new String[]{android.provider.Settings.ACTION_SETTINGS,android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS,android.provider.Settings.ACTION_INPUT_METHOD_SETTINGS})for(ResolveInfo setting:pm.queryIntentActivities(new Intent(action),0))if(setting.activityInfo!=null && pkg.equals(setting.activityInfo.packageName))return false;
             return !new HomeGuardState(context).protects(pkg);
         }catch(PackageManager.NameNotFoundException e){return false;}

@@ -32,7 +32,7 @@ abstract class ManagementPanel extends ContextWrapper {
     void managementMoreOption(LinearLayout menu,String title,Runnable action){activity.managementMoreOption(menu,title,action);}
     void connectionPanel(){activity.defaultConnectionPanel();}
     boolean useSettingListStyle(){return true;}
-    boolean isDestroyed(){return activity.isDestroyed();}
+    boolean isDestroyed(){return UiCompat.destroyed(activity);}
     boolean isFinishing(){return activity.isFinishing();}
     void finish(){activity.finish();}
     void runOnUiThread(Runnable action){activity.runOnUiThread(action);}

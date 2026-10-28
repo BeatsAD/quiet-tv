@@ -3,7 +3,7 @@ package home.quiet.tv;
 import fi.iki.elonen.NanoHTTPD;
 import java.io.*;
 import java.security.SecureRandom;
-import java.nio.charset.StandardCharsets;
+import home.quiet.tv.Charsets;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -69,10 +69,10 @@ final class DiagnosticDownloadServer extends NanoHTTPD {
                 }
                 if(route.isEmpty()){
                     if(!file.isFile()||file.length()>MAX_EXPORT_BYTES)throw new IOException("Export unavailable");
-                    String html=new String(bytes,StandardCharsets.UTF_8).replace("__FILE_NAME__",FILE_NAME)
+                    String html=new String(bytes,Charsets.UTF_8).replace("__FILE_NAME__",FILE_NAME)
                         .replace("__FILE_SIZE__",fileSize(file.length()))
                         .replace("__GENERATED_AT__",new SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z",Locale.ROOT).format(new Date(file.lastModified())));
-                    bytes=html.getBytes(StandardCharsets.UTF_8);
+                    bytes=html.getBytes(Charsets.UTF_8);
                 }
                 return fixed(Response.Status.OK,route.isEmpty()?"text/html; charset=utf-8":"text/css; charset=utf-8",bytes);
             }
@@ -80,7 +80,7 @@ final class DiagnosticDownloadServer extends NanoHTTPD {
         }catch(IOException e){DiagnosticLog.error("diagnostic.download_failed",e);return text(Response.Status.INTERNAL_ERROR,"无法读取日志，请在电视上重试。");}
     }
     static String fileSize(long bytes){return bytes<1024?bytes+" 字节":String.format(Locale.ROOT,"%.1f %s（%d 字节）",bytes/(bytes<1048576?1024.0:1048576.0),bytes<1048576?"KB":"MB",bytes);}
-    private Response text(Response.Status status,String text){return fixed(status,"text/plain; charset=utf-8",text.getBytes(StandardCharsets.UTF_8));}
+    private Response text(Response.Status status,String text){return fixed(status,"text/plain; charset=utf-8",text.getBytes(Charsets.UTF_8));}
     private Response fixed(Response.Status status,String mime,byte[] bytes){
         Response response=newFixedLengthResponse(status,mime,new ByteArrayInputStream(bytes),bytes.length);
         return secure(response);

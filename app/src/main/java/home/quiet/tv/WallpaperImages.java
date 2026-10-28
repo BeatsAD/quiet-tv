@@ -38,7 +38,7 @@ final class WallpaperImages {
     static int importLimit(Context context){
         android.util.DisplayMetrics screen=context.getResources().getDisplayMetrics();
         android.app.ActivityManager memory=(android.app.ActivityManager)context.getSystemService(Context.ACTIVITY_SERVICE);
-        return importLimit(screen.widthPixels,screen.heightPixels,memory==null || memory.isLowRamDevice(),memory==null?0:memory.getMemoryClass());
+        return importLimit(screen.widthPixels,screen.heightPixels,memory==null || UiCompat.lowRam(memory),memory==null?0:memory.getMemoryClass());
     }
     static int importLimit(int width,int height,boolean lowRam,int memoryMb){
         int maximum=lowRam || memoryMb<256?1920:3840;

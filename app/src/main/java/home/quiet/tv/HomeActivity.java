@@ -197,7 +197,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private void makeScene() {
         root = new FrameLayout(this); root.setBackgroundColor(Color.BLACK); root.setClipChildren(false);
-        root.getViewTreeObserver().addOnDrawListener(()->{
+        UiCompat.onDraw(root,()->{
             if(!resumed)return;
             if(homeDrawPending){
                 homeDrawPending=false;
@@ -463,7 +463,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             ArrayList<String> gridOrder=new HomeOrderStore(this).order(defaults);
             final long preparedAt=SystemClock.uptimeMillis();
             main.post(()->{
-                if(isDestroyed())return;
+                if(UiCompat.destroyed(this))return;
                 long applyStarted=SystemClock.uptimeMillis();
                 if(!catalogRefresh.finish(catalogInput())){
                     DiagnosticLog.info("home.catalog.stale","request="+sequence+" elapsedMs="+(SystemClock.uptimeMillis()-started));
@@ -652,7 +652,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         final int generation=focusGeneration;
         focusRestore=()->{
             if(generation!=focusGeneration)return true;
-            if(!resumed||isDestroyed()){cancelFocusRestore("inactive");return true;}
+            if(!resumed||UiCompat.destroyed(this)){cancelFocusRestore("inactive");return true;}
             if(list.hasPendingAdapterUpdates()||list.isLayoutRequested())return true;
             if(row<0||row==0&&!homeAppsVisible){
                 cancelFocusRestore("superseded");clearSelected(animate);updateDock(animate);updateHeaderFocus();return true;
@@ -660,7 +660,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             App app=currentApp();if(app==null){cancelFocusRestore("no_app");return true;}
             Tile tile=row==0&&column<dockTiles.size()?dockTiles.get(column):null;
             if(row>0){RecyclerView.ViewHolder holder=list.findViewHolderForAdapterPosition(2+(row-1)*APP_COLUMNS+column);tile=holder!=null?(Tile)holder.itemView:null;}
-            if(tile==null||!tile.isAttachedToWindow()){
+            if(tile==null||!androidx.core.view.ViewCompat.isAttachedToWindow(tile)){
                 if(scrollAnimation==null||!scrollAnimation.isRunning())cancelFocusRestore("tile_unavailable");
                 return true;
             }
@@ -685,7 +685,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         if(!waitingForUnlock && event.getActionMasked()==MotionEvent.ACTION_DOWN)HomeGuardService.bootSourceUserAction(this);
         return super.dispatchTouchEvent(event);
     }
-    private void leaveHome(Runnable launch){HomeGuardService.bootSourceUserAction(this);wallpapers.beforeLeave(()->{if(resumed&&!isFinishing()&&!isDestroyed())launch.run();});}
+    private void leaveHome(Runnable launch){HomeGuardService.bootSourceUserAction(this);wallpapers.beforeLeave(()->{if(resumed&&!isFinishing()&&!UiCompat.destroyed(this))launch.run();});}
     private void launchSelected(){
         App app=currentApp();if(app==null)return;saveFocus();
         if(WALLPAPER_ENTRY.equals(app.pkg)){wallpapers.showPicker();return;}
@@ -748,7 +748,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         boolean show=homeAppsVisible && !dock.isEmpty() && dockBand.getChildCount()>0;
         boolean addOnly=dock.size()==1 && ADD_DOCK_ENTRY.equals(dock.get(0).pkg);
         dockBand.setVisibility(show?View.VISIBLE:View.GONE);
-        dockBand.setBackground(show && !addOnly && desktopSettings.showDockBackground()?new DockBackdropDrawable(wallpapers,dockBand,root,unit):null);
+        dockBand.setBackgroundDrawable(show && !addOnly && desktopSettings.showDockBackground()?new DockBackdropDrawable(wallpapers,dockBand,root,unit):null);
     }
 
     private final class DockBand extends FrameLayout {
@@ -916,7 +916,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 int br=b.getType()==TvInputInfo.TYPE_HDMI?0:b.isPassthroughInput()?1:2;
                 return ar==br?inputName(a).compareTo(inputName(b)):Integer.compare(ar,br);
             });
-            LinearLayout menu=new LinearLayout(HomeActivity.this);menu.setOrientation(LinearLayout.VERTICAL);menu.setPadding(px(7),px(7),px(7),px(7));menu.setBackground(surface(0xfa25262e,18));
+            LinearLayout menu=new LinearLayout(HomeActivity.this);menu.setOrientation(LinearLayout.VERTICAL);menu.setPadding(px(7),px(7),px(7),px(7));menu.setBackgroundDrawable(surface(0xfa25262e,18));
             ArrayList<TextView> choices=new ArrayList<>();HashSet<String> tuners=new HashSet<>();
             for(TvInputInfo info:inputs){
                 if(!info.isPassthroughInput() && !tuners.add("live"))continue;
@@ -942,7 +942,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         }
 
         private void addInputChoice(LinearLayout menu,ArrayList<TextView> choices,String title,Runnable action){
-            TextView choice=text(title,15,400,0xffeeeeef);choice.setPadding(px(16),0,px(12),0);choice.setGravity(Gravity.CENTER_VERTICAL);choice.setFocusable(true);choice.setFocusableInTouchMode(true);choice.setBackground(ControlStyle.listRow(unit,11));
+            TextView choice=text(title,15,400,0xffeeeeef);choice.setPadding(px(16),0,px(12),0);choice.setGravity(Gravity.CENTER_VERTICAL);choice.setFocusable(true);choice.setFocusableInTouchMode(true);choice.setBackgroundDrawable(ControlStyle.listRow(unit,11));
             final int choiceIndex=choices.size();choice.setOnClickListener(v->{DiagnosticLog.info("input.menu.select","index="+choiceIndex);inputPopup.dismiss();action.run();});
             choices.add(choice);menu.addView(choice,new LinearLayout.LayoutParams(-1,px(40)));
         }

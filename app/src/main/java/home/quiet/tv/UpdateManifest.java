@@ -10,6 +10,7 @@ import java.util.*;
 
 /** Signed public release data. No download decision is made from a filename. */
 final class UpdateManifest {
+    private static boolean sameProfile(String a,String b){return a.equals(b)||((a.equals("legacy14")||a.equals("legacy19"))&&(b.equals("legacy14")||b.equals("legacy19")));}
     static final int MAX_BYTES=256*1024;
     static final String REPOSITORY="https://github.com/BeatsAD/quiet-tv/";
     final long revision;
@@ -37,11 +38,12 @@ final class UpdateManifest {
             compatibility=json.getString("compatibility");homeMode=json.getString("homeMode");sha256=json.getString("sha256");url=json.getString("url");
             code=json.getLong("versionCode");bytes=json.getLong("bytes");minSdk=json.getInt("minSdk");
             abis=strings(json.getJSONArray("abis"));signers=strings(json.getJSONArray("signerSha256"));
-            if(id.isEmpty()||batch.isEmpty()||code<1||bytes<1||minSdk<19||!sha256.matches("[a-f0-9]{64}")||signers.isEmpty())throw new IOException("Invalid APK metadata");
+            if(id.isEmpty()||batch.isEmpty()||code<1||bytes<1||minSdk<14||!sha256.matches("[a-f0-9]{64}")||signers.isEmpty())throw new IOException("Invalid APK metadata");
             for(String signer:signers)if(!signer.matches("[a-f0-9]{64}"))throw new IOException("Invalid APK signer");
-            if(!Arrays.asList("home.quiet.tv","com.coocaa.quiettv").contains(pkg)||!Arrays.asList("standard","legacy19").contains(compatibility)
+            if(!Arrays.asList("home.quiet.tv","com.coocaa.quiettv").contains(pkg)||!Arrays.asList("standard","legacy14","legacy19").contains(compatibility)
                     ||!Arrays.asList("standard","relay").contains(homeMode))throw new IOException("Unknown APK profile");
-            if(("legacy19".equals(compatibility)&&(minSdk!=19||!homeMode.equals("standard")||!abis.isEmpty()))
+            if(("legacy14".equals(compatibility)&&(minSdk!=14||!homeMode.equals("standard")||!abis.isEmpty()))
+                    ||("legacy19".equals(compatibility)&&(minSdk!=19||!homeMode.equals("standard")||!abis.isEmpty()))
                     ||("standard".equals(compatibility)&&minSdk<21))throw new IOException("Inconsistent APK profile");
             for(String abi:abis)if(!Arrays.asList("armeabi-v7a","arm64-v8a","x86","x86_64").contains(abi))throw new IOException("Unknown ABI");
             if(!url.startsWith(REPOSITORY+"releases/download/"))throw new IOException("APK outside release repository");
@@ -50,7 +52,7 @@ final class UpdateManifest {
         }
         String version(){return release.version;}
         boolean matches(Device device){
-            return pkg.equals(device.pkg)&&compatibility.equals(device.compatibility)&&homeMode.equals(device.homeMode)&&minSdk<=device.sdk
+            return pkg.equals(device.pkg)&&sameProfile(compatibility,device.compatibility)&&homeMode.equals(device.homeMode)&&minSdk<=device.sdk
                     &&(release.channel.equals(device.channel)||("test".equals(device.channel)&&"stable".equals(release.channel)))
                     &&new HashSet<>(signers).equals(new HashSet<>(device.signers))&&code>device.code&&compare(version(),device.version)>0
                     &&(abis.isEmpty()||!Collections.disjoint(abis,device.abis))
@@ -81,12 +83,12 @@ final class UpdateManifest {
     static UpdateManifest verify(byte[] envelope,byte[] publicKey,long minimumRevision)throws IOException{
         if(envelope.length>MAX_BYTES)throw new IOException("Update manifest too large");
         try{
-            JSONObject json=new JSONObject(new String(envelope,java.nio.charset.StandardCharsets.UTF_8));
+            JSONObject json=new JSONObject(new String(envelope,home.quiet.tv.Charsets.UTF_8));
             if(!"quiettv-update-1".equals(json.getString("keyId")))throw new IOException("Unknown update signing key");
             byte[] payload=Base64.decode(json.getString("payload")),signed=Base64.decode(json.getString("signature"));
             Signature verifier=Signature.getInstance("SHA256withRSA");verifier.initVerify(KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(publicKey)));verifier.update(payload);
             if(!verifier.verify(signed))throw new IOException("Update signature verification failed");
-            UpdateManifest result=new UpdateManifest(new JSONObject(new String(payload,java.nio.charset.StandardCharsets.UTF_8)));
+            UpdateManifest result=new UpdateManifest(new JSONObject(new String(payload,home.quiet.tv.Charsets.UTF_8)));
             if(result.revision<minimumRevision)throw new IOException("Stale update manifest");return result;
         }catch(JSONException|GeneralSecurityException e){throw new IOException("Invalid signed update manifest",e);}
         catch(RuntimeException e){throw new IOException("Invalid signed update manifest",e);}
@@ -103,7 +105,7 @@ final class UpdateManifest {
         for(Release release:releases)if(compare(release.version,device.version)>0)candidates.addAll(release.artifacts);
         if(candidates.isEmpty())return "";
         for(Iterator<Artifact> it=candidates.iterator();it.hasNext();){Artifact a=it.next();if(!a.pkg.equals(device.pkg))it.remove();}if(candidates.isEmpty())return "新版尚未提供当前包名的安装包";
-        for(Iterator<Artifact> it=candidates.iterator();it.hasNext();){Artifact a=it.next();if(!a.compatibility.equals(device.compatibility)||!a.homeMode.equals(device.homeMode))it.remove();}if(candidates.isEmpty())return "新版尚未提供当前系统档位或桌面形态的安装包";
+        for(Iterator<Artifact> it=candidates.iterator();it.hasNext();){Artifact a=it.next();if(!sameProfile(a.compatibility,device.compatibility)||!a.homeMode.equals(device.homeMode))it.remove();}if(candidates.isEmpty())return "新版尚未提供当前系统档位或桌面形态的安装包";
         for(Iterator<Artifact> it=candidates.iterator();it.hasNext();){Artifact a=it.next();if(!a.release.channel.equals(device.channel)&&!("test".equals(device.channel)&&"stable".equals(a.release.channel)))it.remove();}if(candidates.isEmpty())return "新版与当前安装包的更新渠道不同";
         for(Iterator<Artifact> it=candidates.iterator();it.hasNext();){Artifact a=it.next();if(!new HashSet<>(a.signers).equals(new HashSet<>(device.signers)))it.remove();}if(candidates.isEmpty())return "新版与当前安装包签名不同，无法直接覆盖更新";
         for(Iterator<Artifact> it=candidates.iterator();it.hasNext();){Artifact a=it.next();if(a.minSdk>device.sdk)it.remove();}if(candidates.isEmpty())return "新版暂不支持当前安卓版本";

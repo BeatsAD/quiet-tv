@@ -7,7 +7,7 @@ import android.os.Handler;
 import android.view.Surface;
 import java.io.*;
 
-/** Android 4.4 backend. Media3 is absent from this profile's dependency graph. */
+/** Android 4.x backend. Media3 is absent from this profile's dependency graph. */
 final class WallpaperPlayback {
     private final MediaPlayer player=new MediaPlayer();
     private final Activity activity;

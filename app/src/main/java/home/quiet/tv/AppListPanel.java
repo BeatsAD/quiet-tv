@@ -47,7 +47,7 @@ final class AppListPanel extends ManagementPanel {
         adb=new AdbController(this,value->{});
         coverUploads=new AppCoverUploadPanel(activity);
         LinearLayout body=managementContent(),filters=managementInfo;
-        for(int i=0;i<FILTERS.length;i++){final int chosen=i;Button option=button(FILTERS[i],()->{filter=chosen;applyFilter();});option.setId(View.generateViewId());styleManagementTab(option,true);
+        for(int i=0;i<FILTERS.length;i++){final int chosen=i;Button option=button(FILTERS[i],()->{filter=chosen;applyFilter();});option.setId(androidx.core.view.ViewCompat.generateViewId());styleManagementTab(option,true);
             option.setOnKeyListener((v,key,event)->{
                 if(key!=KeyEvent.KEYCODE_DPAD_LEFT&&key!=KeyEvent.KEYCODE_DPAD_RIGHT&&key!=KeyEvent.KEYCODE_DPAD_UP&&key!=KeyEvent.KEYCODE_DPAD_DOWN)return false;
                 if(event.getAction()==KeyEvent.ACTION_UP)return true;
@@ -67,7 +67,7 @@ final class AppListPanel extends ManagementPanel {
         LinearLayout panels=row();panels.setGravity(Gravity.TOP);body.addView(panels,new LinearLayout.LayoutParams(-1,-1));
         LinearLayout left=column();panels.addView(left,new LinearLayout.LayoutParams(0,-1,40));
         list=new RecyclerView(this);list.setLayoutManager(new LinearLayoutManager(this));adapter=new AppAdapter();list.setAdapter(adapter);list.setItemAnimator(null);list.setClipToPadding(false);list.setPadding(px(2),px(2),px(2),px(2));left.addView(list,new LinearLayout.LayoutParams(-1,0,1));
-        ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setClipToPadding(false);scroll.setBackground(surface(0x12ffffff,0x06ffffff,0x1cffffff,20));details=column();details.setGravity(Gravity.CENTER_HORIZONTAL);details.setPadding(px(25),px(27),px(25),px(22));scroll.addView(details);
+        ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setClipToPadding(false);scroll.setBackgroundDrawable(surface(0x12ffffff,0x06ffffff,0x1cffffff,20));details=column();details.setGravity(Gravity.CENTER_HORIZONTAL);details.setPadding(px(25),px(27),px(25),px(22));scroll.addView(details);
         LinearLayout.LayoutParams dp=new LinearLayout.LayoutParams(0,-1,57);dp.leftMargin=px(28);panels.addView(scroll,dp);
         if(state!=null){selected=state.getString("selected","");filter=Math.max(0,Math.min(FILTERS.length-1,state.getInt("filter",0)));}
         IntentFilter packages=new IntentFilter(Intent.ACTION_PACKAGE_ADDED);packages.addAction(Intent.ACTION_PACKAGE_REMOVED);packages.addAction(Intent.ACTION_PACKAGE_CHANGED);packages.addDataScheme("package");registerReceiver(packagesChanged,packages);
@@ -187,7 +187,7 @@ final class AppListPanel extends ManagementPanel {
     }
     private void protectionNote(String reason,boolean readOnly){TextView note=center(reason,12);note.setTextColor(0xffb9bec8);details.addView(note);if(readOnly){gap(details,8);details.addView(center("为保证电视正常使用，此应用仅供查看。",11));}}
     private void addAction(LinearLayout row,Button action){
-        action.setSingleLine();action.setPadding(px(10),0,px(10),0);action.setId(View.generateViewId());
+        action.setSingleLine();action.setPadding(px(10),0,px(10),0);action.setId(androidx.core.view.ViewCompat.generateViewId());
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,-1);if(row.getChildCount()>0)p.leftMargin=px(6);row.addView(action,p);
         if(action.isEnabled()&&firstAction==null)firstAction=action;
     }
@@ -213,7 +213,7 @@ final class AppListPanel extends ManagementPanel {
     private final class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
         final class Holder extends RecyclerView.ViewHolder {final LinearLayout box;final ImageView icon;final TextView title,summary;final ImageView marker;Holder(LinearLayout box,ImageView icon,TextView title,TextView summary,ImageView marker){super(box);this.box=box;this.icon=icon;this.title=title;this.summary=summary;this.marker=marker;}}
         @Override public Holder onCreateViewHolder(ViewGroup parent,int type){
-            LinearLayout box=row();box.setPadding(px(12),px(8),px(12),px(8));focusable(box,12);box.setBackground(listSurface());box.setClickable(true);box.setDescendantFocusability(android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS);
+            LinearLayout box=row();box.setPadding(px(12),px(8),px(12),px(8));focusable(box,12);box.setBackgroundDrawable(listSurface());box.setClickable(true);box.setDescendantFocusability(android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS);
             RecyclerView.LayoutParams p=new RecyclerView.LayoutParams(-1,px(60));p.bottomMargin=px(6);box.setLayoutParams(p);ImageView art=icon(null,39);box.addView(art);
             LinearLayout copy=column();copy.setGravity(Gravity.CENTER_VERTICAL);LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,-1,1);cp.leftMargin=px(14);box.addView(copy,cp);
             TextView title=label("",15);title.setSingleLine();title.setEllipsize(android.text.TextUtils.TruncateAt.END);copy.addView(title);gap(copy,5);TextView summary=muted("",10);copy.addView(summary);ImageView marker=icon(UiCompat.drawable(activity,R.drawable.ic_manage_apps),14);marker.setAlpha(.6f);box.addView(marker);return new Holder(box,art,title,summary,marker);

@@ -78,6 +78,9 @@ def release_index(releases, profiles=None):
 def build_site(output, releases):
     feed = verify_feed(ROOT / 'updates/updates.json')
     profiles = {artifact['url']: artifact for release in feed['releases'] for artifact in release['artifacts']}
+    modern_feed = ROOT / 'updates/updates-v2.json'
+    if modern_feed.is_file():
+        profiles.update({a['url']: a for r in verify_feed(modern_feed)['releases'] for a in r['artifacts']})
     index = release_index(releases, profiles)
     source = ROOT / 'prototypes/install-guide'
     output.mkdir(parents=True, exist_ok=True)
@@ -95,6 +98,8 @@ def build_site(output, releases):
     html = re.sub(r'app\.js(?:\?v=[a-z0-9]+)?', 'app.js?v=' + digest, html)
     (output / 'index.html').write_text(html)
     shutil.copyfile(ROOT / 'updates/updates.json', output / 'updates.json')
+    if modern_feed.is_file():
+        shutil.copyfile(modern_feed, output / 'updates-v2.json')
     index['guides'] = {}
     by_source = {str((ROOT / source).resolve()): destination for destination, source in GUIDES.items()}
     for destination, source in GUIDES.items():

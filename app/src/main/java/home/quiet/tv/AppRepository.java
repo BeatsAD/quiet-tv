@@ -61,7 +61,7 @@ final class AppRepository {
                 ApplicationInfo ai=info.applicationInfo;app.label=ai.loadLabel(pm).toString();app.icon=ai.icon==0?UiCompat.drawable(context,R.drawable.ic_manage_apps):ai.loadIcon(pm);app.version=info.versionName==null?String.valueOf(android.os.Build.VERSION.SDK_INT>=28?info.getLongVersionCode():info.versionCode):info.versionName;
                 app.metadataKnown=true;app.apkSizeBytes=apkSize(ai);
                 app.versionCode=android.os.Build.VERSION.SDK_INT>=28?info.getLongVersionCode():info.versionCode;
-                app.system=(ai.flags&(ApplicationInfo.FLAG_SYSTEM|ApplicationInfo.FLAG_UPDATED_SYSTEM_APP))!=0;app.installed=(ai.flags&ApplicationInfo.FLAG_INSTALLED)!=0;app.enabled=ai.enabled;
+                app.system=(ai.flags&(ApplicationInfo.FLAG_SYSTEM|ApplicationInfo.FLAG_UPDATED_SYSTEM_APP))!=0;app.installed=AppAvailability.installed(pm,ai);app.enabled=ai.enabled;
                 try{app.enabledSetting=pm.getApplicationEnabledSetting(app.pkg);}catch(IllegalArgumentException ignored){}
                 app.recoverable=app.system && ai.sourceDir!=null && new java.io.File(ai.sourceDir).isFile();
             }

@@ -19,7 +19,7 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
         if(ai==null)throw new IllegalStateException("应用信息不可用");
         AppRepository.App app=new AppRepository.App();app.pkg=pkg;app.metadataKnown=true;
         app.system=(ai.flags&(ApplicationInfo.FLAG_SYSTEM|ApplicationInfo.FLAG_UPDATED_SYSTEM_APP))!=0;
-        app.installed=(ai.flags&ApplicationInfo.FLAG_INSTALLED)!=0;app.enabled=ai.enabled;
+        app.installed=AppAvailability.installed(pm,ai);app.enabled=ai.enabled;
         app.versionCode=Build.VERSION.SDK_INT>=28?info.getLongVersionCode():info.versionCode;
         app.enabledSetting=pm.getApplicationEnabledSetting(pkg);
         SetupPresets rules=SetupPresets.load(context);String reason=new AppOperations(context,rules).protection(app);

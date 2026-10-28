@@ -34,7 +34,7 @@ final class HomeController {
     private boolean ownEntryUsable(){
         if(BuildConfig.DECLARES_HOME)return component(new ComponentName(context,HomeActivity.class).flattenToString(),true);
         try{ActivityInfo info=pm.getActivityInfo(new ComponentName(context,HomeActivity.class),0);
-            return info.exported && info.enabled && info.applicationInfo.enabled && (info.applicationInfo.flags&ApplicationInfo.FLAG_INSTALLED)!=0;
+            return info.exported && info.enabled && info.applicationInfo.enabled && AppAvailability.installed(pm,info.applicationInfo);
         }catch(PackageManager.NameNotFoundException|SecurityException failure){return false;}
     }
     boolean component(String flattened,boolean requireEnabled){
@@ -42,7 +42,7 @@ final class HomeController {
         try{
             ActivityInfo activity=pm.getActivityInfo(name,METADATA);
             if(!activity.exported)return false;
-            if(requireEnabled && (!activity.enabled || !activity.applicationInfo.enabled || (activity.applicationInfo.flags&ApplicationInfo.FLAG_INSTALLED)==0))return false;
+            if(requireEnabled && (!activity.enabled || !activity.applicationInfo.enabled || !AppAvailability.installed(pm,activity.applicationInfo)))return false;
             for(ResolveInfo candidate:pm.queryIntentActivities(homeIntent().setPackage(name.getPackageName()),requireEnabled?0:METADATA))
                 if(candidate.activityInfo!=null && name.equals(new ComponentName(candidate.activityInfo.packageName,candidate.activityInfo.name)))return true;
         }catch(PackageManager.NameNotFoundException|SecurityException ignored){}return false;

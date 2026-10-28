@@ -1,7 +1,7 @@
 package home.quiet.tv;
 
 import java.io.*;
-import java.nio.charset.StandardCharsets;
+import home.quiet.tv.Charsets;
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -34,7 +34,7 @@ final class DiagnosticJournal {
         }
     }
     private void rotate(int slot) throws IOException {
-        try(OutputStream output=new FileOutputStream(files[slot])){output.write((PREFIX+(++sequence)+"\n").getBytes(StandardCharsets.UTF_8));}
+        try(OutputStream output=new FileOutputStream(files[slot])){output.write((PREFIX+(++sequence)+"\n").getBytes(Charsets.UTF_8));}
         active=slot;
     }
     void append(byte[] entry) throws IOException {
@@ -69,5 +69,5 @@ final class DiagnosticJournal {
         value=URL.matcher(value).replaceAll("[url]");value=IP.matcher(value).replaceAll("[ip]");
         value=EMAIL.matcher(value).replaceAll("[email]");return SECRET.matcher(value).replaceAll("$1[redacted]");
     }
-    static byte[] entry(String text){return (clean(text)+"\n").getBytes(StandardCharsets.UTF_8);}
+    static byte[] entry(String text){return (clean(text)+"\n").getBytes(Charsets.UTF_8);}
 }

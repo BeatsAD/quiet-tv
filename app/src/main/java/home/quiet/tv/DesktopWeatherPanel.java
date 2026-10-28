@@ -36,7 +36,7 @@ final class DesktopWeatherPanel {
         refresh=ui.setting(tr("刷新天气","Refresh weather"),"refresh","refresh");refresh.tail("refresh");refresh.setOnClickListener(v->{if(store.enabled())controller.refresh(true);});ui.addSetting(group,refresh);
         ui.gap(body,16);LinearLayout secondary=ui.group();body.addView(secondary);
         service=ui.setting(tr("服务说明","Service information"),"info","service");service.tail("arrow");service.setOnClickListener(v->serviceInformation());secondary.addView(service,new LinearLayout.LayoutParams(-1,ui.px(56)));
-        status=ui.muted("",12);status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,-2);sp.topMargin=ui.px(12);body.addView(status,sp);
+        status=ui.muted("",12);androidx.core.view.ViewCompat.setAccessibilityLiveRegion(status,androidx.core.view.ViewCompat.ACCESSIBILITY_LIVE_REGION_POLITE);LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,-2);sp.topMargin=ui.px(12);body.addView(status,sp);
         render(store.cached(ui.chinese()),"",false);
     }
     private String tr(String zh,String en){return ui.tr(zh,en);}

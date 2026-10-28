@@ -28,7 +28,7 @@ public class AppManagementActivity extends ManagementUi {
         if(current!=null){current.leaveManagement(()->showPage(next));return;}showPage(next);
     }
     private void showPage(int next){
-        if(isFinishing()||isDestroyed())return;
+        if(isFinishing()||UiCompat.destroyed(this))return;
         if(current!=null){if(resumed){current.onPause();current.onStop();}current.pageRoot.setVisibility(View.GONE);}
         page=next;managementPageSelected(next);
         if(panels[next]==null){
