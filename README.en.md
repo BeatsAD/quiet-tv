@@ -33,6 +33,8 @@ The [installation page (Chinese)](https://beatsad.github.io/quiet-tv/), [Agent g
 
 **Choose the latest build compatible with the TV's Android version, supported ABIs, package, signer and upgrade conditions.** Use an Android 4.4 compatibility APK for API19–20 or an applicable standard APK for API21+. Inspect the actual APK metadata; a larger build number or a 64-bit processor alone does not establish compatibility.
 
+The 1.3.0 test release provides two APKs: a universal Android 5.0+ build (117) and an Android 4.4 compatibility build (118). Neither contains native libraries, so separate ARM32 and ARM64 downloads are unnecessary; choose by Android version.
+
 Use the index's actual download URL and SHA-256, or a matching checksum attachment for historical builds. Read the selected release's validation limits. [Historical releases](https://github.com/BeatsAD/quiet-tv/releases) remain unchanged.
 
 ## Screenshots
@@ -70,8 +72,6 @@ Use the index's actual download URL and SHA-256, or a matching checksum attachme
   </tr>
 </table>
 
-Original captures of the published Quiet TV 1.3.0 test build (117) on an Android TV / Android 13 emulator. See [more interfaces](docs/USAGE.en.md) and [capture provenance](docs/assets/README.md).
-
 ## Features
 
 These core features describe the 1.3.0 test release. Use the live release index and choose a build compatible with the TV's system and installed package.
@@ -89,16 +89,16 @@ These core features describe the 1.3.0 test release. Use the live release index 
 | In-app updates | Check versions, download from multiple sources, verify integrity and signing, then confirm installation. |
 | Remote and local use | Arrows, OK and Back; no cloud account, with preferences stored on the TV. |
 
-Open All Apps → 应用管理 for App list, Favorites, Order, Child mode, Version updates and Diagnostic logs. Everyday customization needs no ADB. Current source removes local ADB connection and system-disable controls from the TV; computer AI handles explicitly requested system maintenance using matching rules and recovery records. See [app management](docs/APP_MANAGEMENT.md).
+Open All Apps → 应用管理 for App list, Favorites, Order, Child mode, Version updates and Diagnostic logs. Everyday customization needs no ADB. In 1.3.0, ADB connections and system-disable controls move to computer AI tools, which handle explicitly requested system maintenance using matching rules and recovery records. See [app management](docs/APP_MANAGEMENT.md).
 
-The signed update feed is live. Automatic checks run every 24 hours while Home is in the foreground; current source provides manual checks under App Management → Version updates → Check for updates (About in older APKs). Older versions without this feature need a manual installation first. A higher build of the same software version is not offered as an update. See [in-app updates](docs/UPDATES.md).
+The signed update feed is live. Automatic checks run every 24 hours while Home is in the foreground; 1.3.0 provides manual checks under App Management → Version updates → Check for updates (About in older APKs). Older versions without this feature need a manual installation first. A higher build of the same software version is not offered as an update. See [in-app updates](docs/UPDATES.md).
 
 ## Install and try it
 
 1. Confirm Android support, choose the matching APK above, and [verify its checksum](docs/INSTALL.en.md#download-and-try).
 2. Follow [installation](docs/INSTALL.en.md), or use the [computer Agent instructions, Chinese](docs/AGENT.md).
-3. Current source opens Home without an automatic setup wizard. Check navigation, apps and system entries; keep any desktop configuration already completed by the AI tool. Older APKs may still offer temporary use.
-4. Set HOME only when ready. Read back the component, then separately verify the physical Home button, reboot and standby wake. Recovery in current source is under 应用管理 → 更多 → 帮助与恢复 (Help and recovery); see [setup](docs/SETUP.md).
+3. Version 1.3.0 opens Home without an automatic setup wizard. Check navigation, apps and system entries; keep any desktop configuration already completed by the AI tool.
+4. Use the computer AI workflow to configure HOME when ready. Read back the component, then separately verify the physical Home button, reboot and standby wake. Recovery in 1.3.0 is under 应用管理 → 更多 → 帮助与恢复 (Help and recovery); see [setup](docs/SETUP.md).
 
 Updates need matching package/signature and an increasing build number. Do not uninstall to resolve signing mismatches. Keep backups and recovery records locally, and never reuse another TV's debloating list.
 
@@ -106,12 +106,11 @@ Updates need matching package/signature and an increasing build number. Do not u
 
 | System or device | Scope |
 | --- | --- |
-| Sony / Android 12 | Published 1.2.4 / 64 ARM32 APK hash verified after an in-place update; current pages captured. Full feature, physical HOME, reboot and standby acceptance remain pending. |
-| Android 5.0+ TVs | Standard test APK; minimum API support does not establish vendor HOME, ADB, settings or input compatibility. |
-| Android 4.4 | Separate compatibility test APK; physical-TV runtime acceptance for this batch remains pending. |
+| Android 5.0+ TVs | 1.3.0 universal standard test APK (117), minimum API21. |
+| Android 4.4 | 1.3.0 compatibility test APK (118), minimum API19. Physical Android 4.4 acceptance remains pending. |
 | Android 4.0–4.3, Tizen, webOS and other non-Android systems | Unsupported. |
 
-The four published APKs share one source commit, software version and test signer. Sony page captures do not establish complete upgrade-state retention or other-model acceptance. Physical HOME, reboot, standby, playback and input switching need separate checks. ADB connection and pairing now use computer tools and the TV’s actual system authorization; current source has no in-app pairing control.
+The two 1.3.0 APKs share one source baseline, software version and test signer. Emulator checks do not establish vendor-TV compatibility. Physical HOME, cold boot, reboot, standby, playback and input switching need separate target-TV checks. ADB connection and pairing use computer tools and the TV’s actual system authorization; 1.3.0 has no in-app ADB connection or pairing interface.
 
 See [compatibility and historical evidence](docs/COMPATIBILITY.md). Third-party media apps update through their own channels; Quiet TV does not automatically update them.
 
@@ -126,7 +125,7 @@ See [compatibility and historical evidence](docs/COMPATIBILITY.md). Third-party 
 | Default-home status is insufficient | Check default HOME, compatibility guard and proxy status separately. Status text does not establish physical Home-button, reboot or standby behavior. |
 | ADB disabled or inaccessible | Greyed-out USB debugging, missing wireless debugging, or an unavailable pairing code may prevent computer maintenance and ADB-dependent adaptation. Computer tools cannot bypass firmware restrictions or pairing authentication; there is no universal unlock method. |
 
-Current source moves technical configuration to computer AI and keeps Help and recovery on the TV. Historical 1.2.4 APKs retain Desktop Settings → 桌面配置 (Home setup). Compatibility guard and optional HOME proxies depend on firmware, permissions and companion components; Android 4.4 has no standard guard. Physical HOME, reboot, cold boot, standby and HDMI/playback need separate target-TV checks. See [setup and recovery](docs/SETUP.md) and [computer adaptation](docs/AGENT_ADAPT.zh-CN.md).
+Version 1.3.0 moves technical configuration to computer AI and keeps Help and recovery on the TV. Historical 1.2.4 APKs retain Desktop Settings → 桌面配置 (Home setup). Compatibility guard and optional HOME proxies depend on firmware, permissions and companion components; Android 4.4 has no standard guard. Physical HOME, reboot, cold boot, standby and HDMI/playback need separate target-TV checks. See [setup and recovery](docs/SETUP.md) and [computer adaptation](docs/AGENT_ADAPT.zh-CN.md).
 
 The standalone [Xiaomi home helper](xiaomi-home-helper/README.md) remains available as an alternative experiment; disable its accessibility service before enabling the built-in guard. Existing helper settings are not migrated automatically.
 
@@ -138,7 +137,7 @@ Share results in [Issue #35](https://github.com/BeatsAD/quiet-tv/issues/35) or a
 
 Native Android UI → build an APK → install with ADB → configure HOME → refine on real hardware. Daily use does not require an online computer.
 
-See the [Codex implementation and adaptation guide, Chinese](docs/TECHNICAL_PATH_WITH_CODEX.zh-CN.md) for tools, debugging authorization and a reusable prompt. Computer ADB installation and Quiet TV's local management client request separate authorization.
+Use the [unified computer AI guide, Chinese](docs/AGENT.md) for installation, upgrades, adaptation and recovery. The [Codex implementation and adaptation guide, Chinese](docs/TECHNICAL_PATH_WITH_CODEX.zh-CN.md) covers development tools and debugging authorization. The computer obtains the TV's actual ADB authorization; no in-app ADB client is required.
 
 ## Documentation and contributing
 
