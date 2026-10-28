@@ -15,6 +15,10 @@ function update() {
 先完整阅读并执行官方说明：
 ${guideUrl}
 需要我操作电视时提醒我，最后给出实际验收结果。`;
+  $('#maintenance-prompt').textContent = `请通过我的电脑检查并修复 Quiet TV，沿用已有接管方案，保持 ADB 常开。
+先完整阅读官方适配说明：
+https://raw.githubusercontent.com/BeatsAD/quiet-tv/main/docs/AGENT_ADAPT.zh-CN.md
+需要切换画面、待机或重启时提醒我，最后给出修复前后的验收结果。`;
   $('#restore-prompt').textContent = `请通过我的电脑恢复电视原来的桌面，保留应用和数据。
 先完整阅读并执行官方说明：
 ${guideUrl}`;
@@ -66,7 +70,7 @@ wireTabs('[data-brand]', tab => {
   update();
 });
 wireTabs('[data-method]', tab => {
-  ['agent', 'manual', 'restore'].forEach(method => $('#' + method + '-panel').hidden = tab.dataset.method !== method);
+  ['agent', 'manual', 'maintenance', 'restore'].forEach(method => $('#' + method + '-panel').hidden = tab.dataset.method !== method);
 });
 function toast(message) {
   clearTimeout(toastTimer);
@@ -75,7 +79,7 @@ function toast(message) {
   toastTimer = setTimeout(() => $('#toast').hidden = true, 3500);
 }
 document.querySelectorAll('[data-copy]').forEach(button => button.addEventListener('click', async () => {
-  const pre = button.dataset.copy === 'install' ? $('#install-prompt') : $('#restore-prompt');
+  const pre = $('#' + button.dataset.copy + '-prompt');
   try {
     await navigator.clipboard.writeText(pre.textContent);
     toast('已复制，发送给电脑端 AI 助手即可。');

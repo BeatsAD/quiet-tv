@@ -4,7 +4,7 @@ import json
 import re
 from pathlib import Path
 
-source = Path(__file__).resolve().parents[1] / 'app/src/main/assets/setup-presets.json'
+source = Path(__file__).resolve().parents[1] / 'scripts/device-presets.json'
 data = json.loads(source.read_text())
 assert data['schema'] == 1
 seen = set()
@@ -33,6 +33,11 @@ for device in data['devices']:
     if home.get('keepAdb'):
         assert device.get('brand') and device.get('model') and 'versionCode' in home and home.get('disableVerified'), 'Persistent ADB requires an exact direct-takeover profile and HOME version'
     assert not home.get('uninstallVerified') or home.get('restoreInstallVerified'), 'HOME uninstall requires verified recovery'
+    if home.get('directTakeover'):
+        assert device.get('brand') and device.get('model') and home.get('component'), 'Direct takeover requires an exact device and HOME'
+        assert type(home.get('versionCode')) is int and home['versionCode'] >= 0, 'Direct takeover requires an exact launcher version'
+        assert type(home.get('user')) is int and home['user'] >= 0, 'Direct takeover requires an exact Android user'
+        assert home.get('disableVerified') and not home.get('preserveOriginal'), 'Direct takeover requires a recoverable disable rule'
     assert not home.get('preserveOriginal') or not (home.get('disableVerified') or home.get('uninstallVerified')), 'Protected HOME cannot be disabled or uninstalled'
     for package in home.get('requiredPackages', []):
         assert re.fullmatch(r'[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+', package), 'Invalid required HOME package'
@@ -50,7 +55,7 @@ for reference in data.get('references', []):
 print(f"PASS: {len(data['devices'])} executable firmware profile(s), {len(data.get('references', []))} unverified references; no inherited permissions")
 
 # Opening a known system panel does not grant any package-management permissions.
-panels = json.loads((source.parent / 'tv-input-profiles.json').read_text())
+panels = json.loads((source.parents[1] / 'app/src/main/assets/tv-input-profiles.json').read_text())
 assert panels['schema'] == 1
 components = set()
 for panel in panels['panels']:

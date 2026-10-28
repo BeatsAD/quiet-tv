@@ -2,6 +2,16 @@ package home.quiet.tv;
 
 /** A transport error or cancellation never proves that the firmware refused HOME. */
 final class DesktopRoutePolicy {
+    /** Only our increasing build number may change; firmware, HOME and helper identities must match. */
+    static boolean upgradeCompatible(String previous,String current,String fingerprint,long build){
+        String prefix=fingerprint+":";
+        if(fingerprint.isEmpty() || !previous.startsWith(prefix))return false;
+        int end=previous.indexOf(':',prefix.length());if(end<0)return false;
+        try{
+            long old=Long.parseLong(previous.substring(prefix.length(),end));
+            return old>0 && old<build && current.equals(prefix+build+previous.substring(end));
+        }catch(NumberFormatException invalid){return false;}
+    }
     enum Result { DIRECT, RETAINED, UNSUPPORTED, UNKNOWN, CANCELLED }
     static boolean fallback(Result result,boolean active,boolean connected,boolean paused){
         return active && connected && !paused && (result==Result.RETAINED || result==Result.UNSUPPORTED);

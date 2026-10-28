@@ -13,10 +13,9 @@ abstract class ManagementPanel extends ContextWrapper {
     final float unit;
     final LinearLayout root;
     final FrameLayout stage;
-    final AdbSession managementSession;
     LinearLayout pageRoot,managementInfo;
     boolean showing;
-    ManagementPanel(AppManagementActivity activity){super(activity);this.activity=activity;unit=activity.unit;root=activity.root;stage=activity.stage;managementSession=activity.managementSession;}
+    ManagementPanel(AppManagementActivity activity){super(activity);this.activity=activity;unit=activity.unit;root=activity.root;stage=activity.stage;}
     public void onCreate(Bundle state){}
     protected void onResume(){showing=true;}
     protected void onPause(){showing=false;}

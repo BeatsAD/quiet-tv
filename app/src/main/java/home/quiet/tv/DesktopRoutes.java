@@ -27,6 +27,20 @@ final class DesktopRoutes {
                 +":"+(boot==null?-1:version(boot.optString("systemPackage")))+":"+proxy+":"+version(proxy);
     }
     boolean current(){return revision().equals(prefs.getString("routeRevision",""));}
+    @android.annotation.SuppressLint("ApplySharedPref")
+    void restoreAfterUpgrade(){
+        String previous=prefs.getString("routeRevision",""),current=revision();
+        if(!DesktopRoutePolicy.upgradeCompatible(previous,current,Build.FINGERPRINT,BuildConfig.VERSION_CODE))return;
+        SharedPreferences.Editor edit=prefs.edit().putString("routeRevision",current);
+        if(previous.equals(prefs.getString("vendorRevision","")))edit.putString("vendorRevision",current);
+        // Keep the configured route and pause choice, but do not carry old APK acceptance into this build.
+        for(String scene:new String[]{"home","reboot","coldBoot","wake"})edit.remove("routeTest_"+scene).remove("routeTestAt_"+scene).remove("routeTestEvidence_"+scene);
+        edit.remove("proxyVisibleAt").remove("proxyVisibleEpoch");
+        if(!edit.commit())return;
+        DiagnosticLog.info("home_guard.upgrade","configuration_preserved scenes_require_retest");
+        HomeProxy proxy=new HomeProxy(context);
+        if(proxySelected() && state.automatic() && !proxy.setupPending())proxy.resume();
+    }
     private SharedPreferences.Editor edit(){
         SharedPreferences.Editor edit=prefs.edit();
         if(!current())for(String scene:new String[]{"home","reboot","coldBoot","wake"})edit.remove("routeTest_"+scene);
@@ -85,7 +99,7 @@ final class DesktopRoutes {
             String problem=proxy.problem();return problem.isEmpty()?"HOME 代理尚未就绪":problem;
         }
         if("DIRECT".equals(home())){
-            try{if(!new HomeController(context).inspect(null).isOwn(context))return "系统默认桌面已变化";}
+            try{if(!new HomeController(context).inspect().isOwn(context))return "系统默认桌面已变化";}
             catch(Exception unavailable){return "无法核对系统默认桌面";}
             if(!state.enabled())return state.privateHomeAvailable()?"酷开私有主页尚未配置中转":"";
         }else if(!"RELAY".equals(home()))return "启动方式尚未确认";
@@ -115,7 +129,7 @@ final class DesktopRoutes {
                 .put("wakeRoute",state.enabled()?"GUARD":"UNKNOWN").put("paused","OFF".equals(prefs.getString("mode","AUTO"))).put("automatic",state.automatic())
                 .put("vendorBootEnabled",vendorReady()).put("vendorBootBasis",bridge()!=null?"verified_profile":DesktopRoutePolicy.bridgeCandidate(Build.MANUFACTURER,Build.BRAND,Build.VERSION.SDK_INT,BuildConfig.LEGACY_19)?"runtime_candidate_unverified":"unavailable").put("scenes",new JSONObject().put("home",test("home"))
                 .put("reboot",test("reboot")).put("coldBoot",test("coldBoot")).put("wake",test("wake")));
-        try{HomeController.State actual=new HomeController(context).inspect(null);snapshot.put("systemHome",actual.resolved)
+        try{HomeController.State actual=new HomeController(context).inspect();snapshot.put("systemHome",actual.resolved)
                 .put("systemHomeKnown",actual.known).put("entryUsable",actual.ownUsable);}
         catch(Exception failure){snapshot.put("systemHomeKnown",false);}
         JSONObject evidence=new JSONObject();
@@ -135,7 +149,7 @@ final class DesktopRoutes {
                 .put("usageRequired",HomeGuardService.usageRequired(context)).put("usageAllowed",HomeGuardService.usageAllowed(context))
                 .put("configurationProblem",state.enabled()?HomeGuardRecovery.configurationProblem(context):"")
                 .put("syncRecovery",HomeGuardSync.summary(context)).put("syncRecoveryReady",HomeGuardSync.ready(context)).put("keepAdb",HomeGuardAdb.enabled(context))
-                .put("keepAdbReady",HomeGuardAdb.ready(context)).put("keepAdbStatus",HomeGuardAdb.summary(context))
+                .put("keepAdbReady",HomeGuardAdb.ready(context)).put("keepAdbStatus",HomeGuardAdb.summary(context)).put("adb",HomeGuardAdb.snapshot(context))
                 .put("observationReady",state.observationReady()).put("directHomeConfigured",state.directHomeConfigured())
                 .put("homeActionReady",state.homeActionReady()).put("homeActionChannelBound",HomeGuardService.connected())
                 .put("homeKeyFilterCapable",HomeGuardService.connected()?(Object)HomeGuardService.keyFilterCapable():JSONObject.NULL);

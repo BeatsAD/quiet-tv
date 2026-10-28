@@ -15,11 +15,9 @@ import java.util.concurrent.*;
 
 final class AppListPanel extends ManagementPanel {
     @Override boolean useSettingListStyle(){return false;}
-    private static final String[] FILTERS={"全部","用户应用","预装应用","已禁用","可恢复"};
+    private static final String[] FILTERS={"全部","用户应用","预装应用"};
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private final ArrayList<AppRepository.App> all=new ArrayList<>(),filtered=new ArrayList<>();
-    private AdbController adb;
-    private AdbSession session;
     private AppRepository repository;
     private AppOperations operations;
     private final ArrayList<Button> filterButtons=new ArrayList<>();
@@ -43,7 +41,7 @@ final class AppListPanel extends ManagementPanel {
     AppListPanel(AppManagementActivity activity){super(activity);}
     @Override public void onCreate(Bundle state){
         super.onCreate(state);repository=new AppRepository(this);operations=new AppOperations(this);
-        coverUploads=new AppCoverUploadPanel(activity);session=managementSession;adb=session.adb;
+        coverUploads=new AppCoverUploadPanel(activity);
         LinearLayout body=managementContent(),filters=managementInfo;
         for(int i=0;i<FILTERS.length;i++){final int chosen=i;Button option=button(FILTERS[i],()->{filter=chosen;applyFilter();});option.setId(View.generateViewId());styleManagementTab(option,true);
             option.setOnKeyListener((v,key,event)->{
@@ -65,7 +63,7 @@ final class AppListPanel extends ManagementPanel {
         list=new RecyclerView(this);list.setLayoutManager(new LinearLayoutManager(this));adapter=new AppAdapter();list.setAdapter(adapter);list.setItemAnimator(null);list.setClipToPadding(false);list.setPadding(px(2),px(2),px(2),px(2));left.addView(list,new LinearLayout.LayoutParams(-1,0,1));
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setClipToPadding(false);scroll.setBackground(surface(0x12ffffff,0x06ffffff,0x1cffffff,20));details=column();details.setGravity(Gravity.CENTER_HORIZONTAL);details.setPadding(px(25),px(27),px(25),px(22));scroll.addView(details);
         LinearLayout.LayoutParams dp=new LinearLayout.LayoutParams(0,-1,57);dp.leftMargin=px(28);panels.addView(scroll,dp);
-        if(state!=null){selected=state.getString("selected","");filter=state.getInt("filter",0);}
+        if(state!=null){selected=state.getString("selected","");filter=Math.max(0,Math.min(FILTERS.length-1,state.getInt("filter",0)));}
         IntentFilter packages=new IntentFilter(Intent.ACTION_PACKAGE_ADDED);packages.addAction(Intent.ACTION_PACKAGE_REMOVED);packages.addAction(Intent.ACTION_PACKAGE_CHANGED);packages.addDataScheme("package");registerReceiver(packagesChanged,packages);
     }
     private void ui(Runnable action){runOnUiThread(()->{if(!isDestroyed() && !isFinishing())action.run();});}
@@ -79,9 +77,9 @@ final class AppListPanel extends ManagementPanel {
     private void refresh(){
         if(!active){dirty=true;return;}
         if(busy)return;busy=true;reading=true;final int run=++refreshGeneration;count.setText("正在读取应用…");renderDetails();
-        worker.execute(()->{if(run!=refreshGeneration)return;try{List<AppRepository.App> values=repository.load(adb);ui(()->{if(!active || run!=refreshGeneration)return;reading=false;busy=false;dirty=false;all.clear();all.addAll(values);applyFilter();if(refreshAfterConnection){refreshAfterConnection=false;refresh();}});}catch(Exception e){ui(()->{if(!active || run!=refreshGeneration)return;reading=false;busy=false;adbFailure(e);});}});
+        worker.execute(()->{if(run!=refreshGeneration)return;try{List<AppRepository.App> values=repository.load();ui(()->{if(!active || run!=refreshGeneration)return;reading=false;busy=false;dirty=false;all.clear();all.addAll(values);applyFilter();if(refreshAfterConnection){refreshAfterConnection=false;refresh();}});}catch(Exception e){ui(()->{if(!active || run!=refreshGeneration)return;reading=false;busy=false;loadFailure(e);});}});
     }
-    private void adbFailure(Exception e){session.reportFailure(e.getMessage()==null?"读取失败":e.getMessage());count.setText("读取失败，请重试或检查 ADB 连接");renderDetails();message(e.getMessage()==null?e.toString():e.getMessage());}
+    private void loadFailure(Exception e){count.setText("读取失败，请稍后重试");renderDetails();message(e.getMessage()==null?e.toString():e.getMessage());}
     // Each repository snapshot replaces app metadata as well as list membership/order.
     @android.annotation.SuppressLint("NotifyDataSetChanged")
     private void applyFilter(){
@@ -89,7 +87,7 @@ final class AppListPanel extends ManagementPanel {
         for(AppRepository.App app:all){boolean match=filter==0 || filter==1 && !app.system && app.installed || filter==2 && app.system || filter==3 && app.installed && !app.enabled || filter==4 && app.recoverable;if(match)filtered.add(app);}
         for(int i=0;i<filterButtons.size();i++)filterButtons.get(i).setSelected(i==filter);
         boolean present=false;for(AppRepository.App app:filtered)if(app.pkg.equals(selected))present=true;if(!present)selected=filtered.isEmpty()?"":filtered.get(0).pkg;
-        count.setText(getString(R.string.management_app_count,filtered.size(),!adb.connected()?getString(R.string.management_local_suffix):""));adapter.notifyDataSetChanged();renderDetails();if(listFocused)focusList();
+        count.setText(getString(R.string.management_app_count,filtered.size(),""));adapter.notifyDataSetChanged();renderDetails();if(listFocused)focusList();
     }
     private AppRepository.App current(){for(AppRepository.App app:filtered)if(app.pkg.equals(selected))return app;return null;}
     private CharSequence coloredState(AppRepository.App app,String text){
@@ -118,15 +116,14 @@ final class AppListPanel extends ManagementPanel {
             addAction(actions,button("更换封面",()->coverUploads.show(app.pkg,app.label,()->coverUpdated(app.pkg))));
             Button restore=button("恢复默认",()->restoreCover(app));boolean custom=AppCoverStore.get(this).custom(app.pkg);restore.setEnabled(custom);restore.setFocusable(custom);restore.setAlpha(custom?1f:.4f);addAction(actions,restore);
         }
-        if(protectedReason.isEmpty()){
-            if(!adb.connected())addAction(actions,button("连接后管理",this::connectionPanel));
-            else for(AppOperations.Action action:operations.actions(app)){
-                String text=action==AppOperations.Action.UNINSTALL&&app.system?"为当前用户卸载":action==AppOperations.Action.RESTORE?action.label:action.label+"应用";
-                Button b=button(text,()->confirm(app,action));if(action==AppOperations.Action.UNINSTALL)b.setTextColor(0xffe3aaa6);addAction(actions,b);
-            }
+        if(!app.system && app.installed && protectedReason.isEmpty()){
+            Button uninstall=button("卸载应用",()->{
+                Intent intent=new Intent(Intent.ACTION_DELETE,android.net.Uri.parse("package:"+app.pkg));
+                if(!ExternalActivityLauncher.open(activity,"app.uninstall",intent))message("系统卸载入口不可用。");
+                dirty=true;
+            });addAction(actions,uninstall);
         }
-        gap(details,16);String text=!protectedReason.isEmpty()?protectedReason:adb.connected()&&operations.actions(app).isEmpty()?"当前系统没有已确认可用的应用状态操作。":app.recoverable?"恢复安装不会恢复此前删除的数据。":!adb.connected()?"连接本机 ADB 后，可管理此应用的状态。":"禁用可重新启用  卸载会删除当前用户的应用数据。";
-        TextView hint=center(text,11);hint.setTextColor(MUTED);hint.setLineSpacing(px(4),1);details.addView(hint,new LinearLayout.LayoutParams(-1,-2));
+
     }
     private void bootAppAction(AppRepository.App app){
         BootAppStore store=new BootAppStore(this);boolean chosen=app.pkg.equals(store.target());
@@ -161,18 +158,6 @@ final class AppListPanel extends ManagementPanel {
     private void restoreCover(AppRepository.App app){
         Sheet sheet=new Sheet("恢复默认封面？");sheet.text(app.label+" 将使用应用自带的封面。");sheet.action("取消",sheet.dialog::dismiss);
         sheet.action("恢复默认",()->{sheet.dialog.dismiss();busy=true;renderDetails();worker.execute(()->{String failure=null;try{AppCoverPolicy.require(this,app.pkg);AppCoverStore.get(this).restore(app.pkg);}catch(java.io.IOException e){failure=e.getMessage();}String error=failure;ui(()->{busy=false;coverUpdated(app.pkg);if(error==null)feedback("已恢复默认封面");else message(error);});});});sheet.show(null);
-    }
-    private void confirm(AppRepository.App app,AppOperations.Action action){
-        if(busy)return;Sheet sheet=new Sheet(action.label+"  "+app.label);sheet.text(operations.explanation(app,action));gap(sheet.body,16);TextView meta=center(app.pkg+"\n当前用户 "+adb.user,11);meta.setTextColor(MUTED);sheet.body.addView(meta);
-        Button cancel=sheet.action("取消",sheet.dialog::dismiss);Button confirm=sheet.action("确认"+action.label,()->{sheet.dialog.dismiss();perform(app,action);});if(action==AppOperations.Action.UNINSTALL)confirm.setTextColor(0xffe3aaa6);sheet.show(cancel);
-    }
-    private void perform(AppRepository.App app,AppOperations.Action action){
-        if(busy)return;busy=true;count.setText(getString(R.string.management_action_progress,action.label));renderDetails();
-        worker.execute(()->{try{String result=operations.perform(adb,app,action);ui(()->{busy=false;feedback(result);refresh();focusList();});}catch(Exception e){ui(()->{busy=false;message(e.getMessage());refresh();focusList();});}});
-    }
-    @Override void connectionPanel(){
-        if(busy){message("正在读取或执行操作，请稍候");return;}
-        super.connectionPanel();
     }
     @Override public void handleBack(){if(details.hasFocus())focusList();else super.handleBack();}
     // Public Activity override; AndroidX core marks its inherited bridge class library-only.

@@ -1,5 +1,5 @@
 pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
-dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral(); maven { url 'https://jitpack.io'; content { includeGroup 'com.github.MuntashirAkon'; includeGroup 'com.github.MuntashirAkon.spake2-java' } } } }
+dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
 rootProject.name = 'QuietTV'
 include ':app'
 // Optional signed HOME relay. The main application never installs it on a device.

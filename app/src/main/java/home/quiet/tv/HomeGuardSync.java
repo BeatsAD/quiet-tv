@@ -21,6 +21,7 @@ final class HomeGuardSync {
     }
     static void pause(Context c){
         if(!supported(c) || !HomeGuardState.unlocked(c))return;
+        if(HomeGuardAdb.ready(c)){refresh(c);return;}
         try{Account own=account(c);if(ContentResolver.getSyncAutomatically(own,AUTHORITY))ContentResolver.setSyncAutomatically(own,AUTHORITY,false);ContentResolver.cancelSync(own,AUTHORITY);}
         catch(SecurityException|IllegalArgumentException failure){DiagnosticLog.error("home_guard.sync.pause_failed",failure);}
     }

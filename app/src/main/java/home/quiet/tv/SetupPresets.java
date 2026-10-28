@@ -29,6 +29,15 @@ final class SetupPresets {
         device=match;
     }
     static synchronized SetupPresets load(Context context) {
+        String supplied=context.getSharedPreferences("device-adaptation",Context.MODE_PRIVATE).getString("rules","");
+        if(!supplied.isEmpty())try{
+            SetupPresets selected=new SetupPresets(supplied,Build.BRAND,Build.MODEL,Build.FINGERPRINT);
+            if(selected.matched())return selected;
+        }catch(JSONException invalid){throw new IllegalStateException("本机适配规则无效",invalid);}
+        return legacy(context);
+    }
+    // Frozen pre-migration rules keep existing installations and their restoration journals usable.
+    static synchronized SetupPresets legacy(Context context) {
         // Bundled assets and Build identity are fixed for this process; live package state is not cached.
         if(bundled!=null)return bundled;
         try(InputStream in=context.getAssets().open("setup-presets.json");ByteArrayOutputStream out=new ByteArrayOutputStream()){
@@ -65,6 +74,7 @@ final class SetupPresets {
     boolean homeIdentityMatches(long version,int user){JSONObject value=device==null?null:device.optJSONObject("home");return value!=null && (!value.has("versionCode") || value.optLong("versionCode",-1)==version) && (!value.has("user") || value.optInt("user",-1)==user);}
     boolean homeAllows(String capability){JSONObject value=device==null?null:device.optJSONObject("home");return value!=null && value.optBoolean(capability)
             && !(value.optBoolean("preserveOriginal") && ("disableVerified".equals(capability) || "uninstallVerified".equals(capability)));}
+    boolean directTakeover(long version,int user){return homeAllows("directTakeover") && homeAllows("disableVerified") && homeIdentityMatches(version,user);}
     boolean protectedHomePackage(String pkg){
         JSONObject home=device==null?null:device.optJSONObject("home");if(home==null)return false;
         if(this.home().startsWith(pkg+"/") && (home.optBoolean("preserveOriginal") || !home.optBoolean("disableVerified")))return true;
@@ -78,6 +88,8 @@ final class SetupPresets {
         JSONObject home=device.optJSONObject("home");if(home==null)return;
         if(home.has("versionCode") && (!(home.opt("versionCode") instanceof Integer || home.opt("versionCode") instanceof Long) || home.optLong("versionCode",-1)<0))throw new JSONException("原桌面版本必须为非负整数");
         if(home.has("user") && (!(home.opt("user") instanceof Integer) || home.optInt("user",-1)<0))throw new JSONException("原桌面规则用户无效");
+        if(home.optBoolean("directTakeover") && (device.optString("brand").isEmpty() || device.optString("model").isEmpty() || device.optString("fingerprint").isEmpty()
+                || home.optString("component").isEmpty() || !home.has("versionCode") || !home.has("user") || !home.optBoolean("disableVerified") || home.optBoolean("preserveOriginal")))throw new JSONException("直接接管必须限定机型、固件、原桌面版本和用户");
         if(home.optBoolean("keepAdb") && (device.optString("brand").isEmpty() || device.optString("model").isEmpty() || !home.has("versionCode") || !home.optBoolean("disableVerified")))throw new JSONException("ADB 常开方案必须限定机型、原桌面版本及直接接管规则");
         if(home.optBoolean("preserveOriginal") && (home.optBoolean("disableVerified") || home.optBoolean("uninstallVerified")))throw new JSONException("必须保留的原桌面不能开放禁用或卸载");
         JSONArray required=home.optJSONArray("requiredPackages");

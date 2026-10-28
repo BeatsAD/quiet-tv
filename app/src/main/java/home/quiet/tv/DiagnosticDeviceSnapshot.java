@@ -30,34 +30,8 @@ final class DiagnosticDeviceSnapshot {
         snapshot.section("本应用进程退出历史",snapshot::processExits);
         return snapshot.text.toString();
     }
-    // Called on the main thread: AdbSession's displayed state is main-thread owned.
-    static String adb(Context context,AdbSession session){
-        DiagnosticDeviceSnapshot snapshot=new DiagnosticDeviceSnapshot(context);
-        snapshot.section("连接状态",()->{
-            if(session==null){snapshot.line("本应用 ADB 会话","无活动管理会话，连接状态未确认");return;}
-            AdbState state=session.state();AdbController controller=session.adb;
-            snapshot.line("系统调试观测",state.debug.name());
-            snapshot.line("本应用连接",controller.connected()?"已连接，已通过本机、shell 和用户核对":state.connection.name());
-            snapshot.line("连接说明",state.detail);
-            snapshot.line("连接阶段",controller.stage().name());snapshot.line("最近失败阶段",controller.failure().name());
-            snapshot.text.append("连接尝试及最终结果：\n").append(controller.connectionDiagnostics()).append('\n');
-            snapshot.line("自动连接",state.paused?"已暂停":"已开启");
-            snapshot.line("身份查询范围","当前会话最近一次连接尝试的历史结果；导出不执行 ADB 查询，跨进程结果见历史事件");
-            String identity=controller.identityDiagnostics();
-            if(identity.isEmpty())snapshot.line("ADB 身份查询结果","本次会话尚无结果，可能尚未通过本机核对");
-            else snapshot.text.append(identity);
-            if(controller.connected()){
-                snapshot.line("已核对 Android 用户",Integer.toString(controller.user));
-                snapshot.line("当前连接端口",Integer.toString(controller.connectedPort()));
-                snapshot.line("HOME 查询命令",controller.capabilities.resolve);
-                snapshot.line("HOME 切换命令",controller.capabilities.home);
-            }
-            SharedPreferences preferences=context.getSharedPreferences("adb",0);
-            snapshot.line("最近成功连接方式（历史记录）",preferences.getString("lastTransport","未记录"));
-            snapshot.line("TCP 配置端口（非可达性结论）",Integer.toString(preferences.getInt("port",5555)));
-            snapshot.line("无线配置端口（非可达性结论）",preferences.getString("tlsPort","未记录"));
-        });
-        return snapshot.text.toString();
+    static String adb(Context context){
+        return "配置与维护由电脑 ADB 执行。电脑连接状态需由电脑核对。\n"+HomeGuardAdb.summary(context)+"\n";
     }
     @android.annotation.SuppressLint("ObsoleteSdkInt") // Shared with the API19 build.
     private void device() throws JSONException {
@@ -94,7 +68,7 @@ final class DiagnosticDeviceSnapshot {
     }
     private void debugSettings(){
         setting("USB 调试开关",Settings.Global.ADB_ENABLED);
-        setting("无线调试开关",AdbStateReader.WIFI);
+        setting("无线调试开关","adb_wifi_enabled");
         setting("开发者选项开关",Settings.Global.DEVELOPMENT_SETTINGS_ENABLED);
         entry("开发者设置入口",Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS);
         entry("无线调试设置入口","android.settings.WIRELESS_DEBUGGING_SETTINGS");
@@ -114,7 +88,7 @@ final class DiagnosticDeviceSnapshot {
         line(label,new ComponentName(info.packageName,info.name).flattenToString()+"  "+(usable?"可解析，未启动验证":"不可直接访问"));
     }
     private void home() throws Exception {
-        HomeController.State state=new HomeController(context).inspect(null);
+        HomeController.State state=new HomeController(context).inspect();
         line("检测来源","PackageManager HOME 解析；未发起或新建 ADB 连接");
         line("默认 HOME 结论",state.known?state.reason:"无法确认  "+state.reason);
         line("HOME 原始解析",state.resolved);
