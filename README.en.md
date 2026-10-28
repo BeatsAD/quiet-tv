@@ -24,16 +24,18 @@
   <a href="https://github.com/BeatsAD/quiet-tv/releases"><img alt="Latest release" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fbeatsad.github.io%2Fquiet-tv%2Flatest.json&amp;query=%24.latestVersion&amp;prefix=v&amp;label=Latest%20release&amp;style=flat-square&amp;color=2997ff"></a>
   <a href="LICENSE"><img alt="License MIT" src="https://img.shields.io/badge/License-MIT-555555?style=flat-square"></a>
   <a href="docs/COMPATIBILITY.md"><img alt="Standard Android 5.0+" src="https://img.shields.io/badge/Standard-Android%205.0%2B-3ddc84?style=flat-square&amp;logo=android&amp;logoColor=white"></a>
-  <a href="docs/COMPATIBILITY.md"><img alt="Legacy Android 4.4" src="https://img.shields.io/badge/Legacy-Android%204.4-f5a623?style=flat-square&amp;logo=android&amp;logoColor=white"></a>
+  <a href="docs/COMPATIBILITY.md"><img alt="Legacy test Android 4.0–4.4" src="https://img.shields.io/badge/Legacy%20test-Android%204.0--4.4-f5a623?style=flat-square&amp;logo=android&amp;logoColor=white"></a>
 </p>
 
 ## Download
 
 The [installation page (Chinese)](https://beatsad.github.io/quiet-tv/), [Agent guide](https://beatsad.github.io/quiet-tv/agent.md), and [latest release index](https://beatsad.github.io/quiet-tv/latest.json) update automatically from published releases, including test builds. Users do not need to maintain a version number or edit the installation request for each release.
 
-**Choose the latest build compatible with the TV's Android version, supported ABIs, package, signer and upgrade conditions.** Use an Android 4.4 compatibility APK for API19–20 or an applicable standard APK for API21+. Inspect the actual APK metadata; a larger build number or a 64-bit processor alone does not establish compatibility.
+**Choose the latest build compatible with the TV's Android version, supported ABIs, package, signer and upgrade conditions.** Use the Android 4.0–4.4 compatibility test APK for API14–20 or an applicable standard APK for API21+. Inspect the actual APK metadata; a larger build number or a 64-bit processor alone does not establish compatibility.
 
-The 1.3.0 test release provides two APKs: a universal Android 5.0+ build (117) and an Android 4.4 compatibility build (118). Neither contains native libraries, so separate ARM32 and ARM64 downloads are unnecessary; choose by Android version.
+The cumulative 1.3.0 test release provides two APKs: a universal Android 5.0+ build (130, minimum API21) and an Android 4.0–4.4 compatibility build (131, minimum API14). Neither contains native libraries, so separate ARM32 and ARM64 downloads are unnecessary; choose by Android version. The compatibility build has no standard desktop guard, HOME proxy or standard TV Input list; use system settings or the physical remote for inputs.
+
+If you already have 1.3.0, manually download the matching new APK and install it over the existing app. A higher build of the same software version does not trigger an update prompt. Check the package, signer and increasing build number first; do not uninstall or clear data.
 
 Use the index's actual download URL and SHA-256, or a matching checksum attachment for historical builds. Read the selected release's validation limits. [Historical releases](https://github.com/BeatsAD/quiet-tv/releases) remain unchanged.
 
@@ -82,14 +84,16 @@ These core features describe the 1.3.0 test release. Use the live release index 
 | Personalization | Classic or Art Gallery, custom greetings and avatars, independent information and shortcut visibility. |
 | Weather | Automatic location, manual city selection and phone-assisted city entry. |
 | Wallpapers | Color theme, Bing daily wallpaper, uploaded photos and videos, LAN uploads and long-OK deletion. |
-| App management | Category filters, package details and custom artwork; computer AI tools handle authorized system changes and recovery. |
+| App management | Category filters, package details and custom artwork; local TCP ADB enables disable, re-enable, uninstall and restore-install actions allowed by device rules and firmware capabilities. |
 | Child mode | Hide or lock apps, set per-session or daily limits, and use parent verification and rest reminders. |
 | App autostart | Open a selected app after boot or standby wake enters Quiet TV, without repeating on ordinary HOME returns. |
 | Inputs and home setup | Open supported input/settings routes; computer AI configures HOME or compatibility paths and retains stock-home recovery. |
 | In-app updates | Check versions, download from multiple sources, verify integrity and signing, then confirm installation. |
 | Remote and local use | Arrows, OK and Back; no cloud account, with preferences stored on the TV. |
 
-Open All Apps → 应用管理 for App list, Favorites, Order, Child mode, Version updates and Diagnostic logs. Everyday customization needs no ADB. In 1.3.0, ADB connections and system-disable controls move to computer AI tools, which handle explicitly requested system maintenance using matching rules and recovery records. See [app management](docs/APP_MANAGEMENT.md).
+Open All Apps → 应用管理 for App list, Favorites, Order, Child mode, Version updates and Diagnostic logs. Everyday desktop, ordering, wallpaper, weather and artwork settings need no ADB. Computer AI tools handle initial connection setup, authorization, device adaptation and requested boot-ad maintenance. The TV retains daily management over a configured local TCP ADB connection, with no wireless-pairing interface; a computer connection does not authorize the app. See [app management](docs/APP_MANAGEMENT.md).
+
+This cumulative 1.3.0 release fixes takeover recovery after in-place upgrades and some dynamic-wallpaper compatibility and switching issues. It adds a startup background cache, restores full-resolution static wallpaper loading, and improves card edges, home focus, settings spacing and management-button layout. See the full [1.3.0 release notes](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.3.0).
 
 The signed update feed is live. Automatic checks run every 24 hours while Home is in the foreground; 1.3.0 provides manual checks under App Management → Version updates → Check for updates (About in older APKs). Older versions without this feature need a manual installation first. A higher build of the same software version is not offered as an update. See [in-app updates](docs/UPDATES.md).
 
@@ -106,11 +110,11 @@ Updates need matching package/signature and an increasing build number. Do not u
 
 | System or device | Scope |
 | --- | --- |
-| Android 5.0+ TVs | 1.3.0 universal standard test APK (117), minimum API21. |
-| Android 4.4 | 1.3.0 compatibility test APK (118), minimum API19. Physical Android 4.4 acceptance remains pending. |
-| Android 4.0–4.3, Tizen, webOS and other non-Android systems | Unsupported. |
+| Android 5.0+ TVs | 1.3.0 universal standard test APK (130), minimum API21. |
+| Android 4.0–4.4 | 1.3.0 compatibility test APK (131), minimum API14. Physical Android 4.x runtime and upgrade acceptance remain pending. |
+| Tizen, webOS and other non-Android systems | Unsupported. |
 
-The two 1.3.0 APKs share one source baseline, software version and test signer. Emulator checks do not establish vendor-TV compatibility. Physical HOME, cold boot, reboot, standby, playback and input switching need separate target-TV checks. ADB connection and pairing use computer tools and the TV’s actual system authorization; 1.3.0 has no in-app ADB connection or pairing interface.
+The two 1.3.0 APKs share one source baseline, software version and test signer. Builds, signing and checksum checks passed, as did 12 targeted tests per profile; Lint reported zero errors with warnings remaining. Each APK passed in-place installation, HOME and management-tab checks, and retention checks for selected settings and the wallpaper index on an API26 emulator. Actual API14–19 runtime and in-place upgrades, vendor TVs and long-running playback remain unverified; running the compatibility APK on a newer emulator does not validate Android 4.x. Physical HOME, cold boot, reboot, standby, playback and input switching need separate target-TV checks.
 
 See [compatibility and historical evidence](docs/COMPATIBILITY.md). Third-party media apps update through their own channels; Quiet TV does not automatically update them.
 
@@ -125,7 +129,7 @@ See [compatibility and historical evidence](docs/COMPATIBILITY.md). Third-party 
 | Default-home status is insufficient | Check default HOME, compatibility guard and proxy status separately. Status text does not establish physical Home-button, reboot or standby behavior. |
 | ADB disabled or inaccessible | Greyed-out USB debugging, missing wireless debugging, or an unavailable pairing code may prevent computer maintenance and ADB-dependent adaptation. Computer tools cannot bypass firmware restrictions or pairing authentication; there is no universal unlock method. |
 
-Version 1.3.0 moves technical configuration to computer AI and keeps Help and recovery on the TV. Historical 1.2.4 APKs retain Desktop Settings → 桌面配置 (Home setup). Compatibility guard and optional HOME proxies depend on firmware, permissions and companion components; Android 4.4 has no standard guard. Physical HOME, reboot, cold boot, standby and HDMI/playback need separate target-TV checks. See [setup and recovery](docs/SETUP.md) and [computer adaptation](docs/AGENT_ADAPT.zh-CN.md).
+Version 1.3.0 moves technical configuration to computer AI and keeps Help and recovery on the TV. Historical 1.2.4 APKs retain Desktop Settings → 桌面配置 (Home setup). Compatibility guard and optional HOME proxies depend on firmware, permissions and companion components; Android 4.0–4.4 has no standard guard. Physical HOME, reboot, cold boot, standby and HDMI/playback need separate target-TV checks. See [setup and recovery](docs/SETUP.md) and [computer adaptation](docs/AGENT_ADAPT.zh-CN.md).
 
 The standalone [Xiaomi home helper](xiaomi-home-helper/README.md) remains available as an alternative experiment; disable its accessibility service before enabling the built-in guard. Existing helper settings are not migrated automatically.
 

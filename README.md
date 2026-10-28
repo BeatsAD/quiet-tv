@@ -24,7 +24,7 @@
   <a href="https://github.com/BeatsAD/quiet-tv/releases"><img alt="最新版本" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fbeatsad.github.io%2Fquiet-tv%2Flatest.json&amp;query=%24.latestVersion&amp;prefix=v&amp;label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC&amp;style=flat-square&amp;color=2997ff"></a>
   <a href="LICENSE"><img alt="许可证 MIT" src="https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF%E8%AF%81-MIT-555555?style=flat-square"></a>
   <a href="docs/COMPATIBILITY.md"><img alt="标准版 Android 5.0+" src="https://img.shields.io/badge/%E6%A0%87%E5%87%86%E7%89%88-Android%205.0%2B-3ddc84?style=flat-square&amp;logo=android&amp;logoColor=white"></a>
-  <a href="docs/COMPATIBILITY.md"><img alt="兼容版 Android 4.4" src="https://img.shields.io/badge/%E5%85%BC%E5%AE%B9%E7%89%88-Android%204.4-f5a623?style=flat-square&amp;logo=android&amp;logoColor=white"></a>
+  <a href="docs/COMPATIBILITY.md"><img alt="兼容测试版 Android 4.0–4.4" src="https://img.shields.io/badge/%E5%85%BC%E5%AE%B9%E6%B5%8B%E8%AF%95%E7%89%88-Android%204.0--4.4-f5a623?style=flat-square&amp;logo=android&amp;logoColor=white"></a>
 </p>
 
 ## 界面
@@ -72,14 +72,16 @@
 | 桌面个性化 | 经典／艺术画廊布局，自定义问候语和头像，各项信息与快捷按钮独立显隐。 |
 | 天气 | 自动定位、手动选城和手机扫码选城，首页显示当地天气。 |
 | 壁纸 | 默认颜色主题、必应每日壁纸、自定义图片和视频；同局域网扫码上传，长按确定删除。 |
-| 应用管理 | 分类筛选、应用详情、自定义封面及日常整理；系统禁用与恢复由电脑 AI 按规则处理。 |
+| 应用管理 | 分类筛选、应用详情、自定义封面；本机 TCP ADB 连接后，按规则和固件能力提供禁用、重新启用、卸载与恢复安装。 |
 | 儿童模式 | 隐藏或锁定应用、设置单次或每日使用时长，家长验证与到时休息提醒。 |
 | 应用自启 | 开机或待机唤醒进入 Quiet TV 后启动指定应用，按 HOME 返回不重复启动。 |
 | 信号源与桌面配置 | 按本机能力打开输入和系统设置；电脑 AI 配置默认桌面或兼容接管，保留原桌面恢复路径。 |
 | 应用内更新 | 检查版本、多源下载、完整性与签名校验，由用户确认安装。 |
 | 遥控器与本地使用 | 方向键、确定、返回操作；无需云端账号，个人设置保存在电视。 |
 
-从“全部应用 → 应用管理”进入“应用列表／首页应用／应用排序／儿童模式／版本更新／诊断日志”。日常桌面、排序、壁纸、天气和封面设置无需 ADB；系统禁用与开机广告处理由电脑 AI 在明确选择后按适配规则执行；电视端不提供 ADB 或系统状态修改入口。详见[应用管理](docs/APP_MANAGEMENT.md)。
+从“全部应用 → 应用管理”进入“应用列表／首页应用／应用排序／儿童模式／版本更新／诊断日志”。日常桌面、排序、壁纸、天气和封面设置无需 ADB。首次连接配置、授权、机型适配与开机广告处理由电脑 AI 按需执行；电视端保留已配置的本机 TCP ADB 日常管理，不提供无线配对界面，电脑已连接不代表应用已获授权。详见[应用管理](docs/APP_MANAGEMENT.md)。
+
+本批 1.3.0 累加修复了覆盖升级后的接管恢复、部分动态壁纸兼容及切换问题，增加启动背景缓存并恢复静态壁纸高清加载，改善卡片边缘、首页焦点、设置间距与管理按钮排列。完整内容见 [1.3.0 Release](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.3.0)。
 
 应用内更新清单已上线，首页前台每 24 小时自动检查，1.3.0 可在“应用管理 → 版本更新 → 检查更新”主动查询（旧版入口为“关于”）。旧版没有更新入口时先手动安装；同版本不会因构建号不同重复提示升级。详见[应用内更新](docs/UPDATES.md)。
 
@@ -101,7 +103,11 @@
 
 从 [GitHub Releases](https://github.com/BeatsAD/quiet-tv/releases) 下载适合电视系统和架构的 APK，按[安装指南](docs/INSTALL.zh-CN.md)完成安装和桌面设置。
 
-1.3.0 测试版提供安卓5及以上通用包（117）和安卓4.4兼容包（118），均无原生库，无需区分 ARM32／ARM64；按电视系统选包。
+1.3.0 累加测试版提供安卓5及以上通用包（130，最低 API21）和安卓4.0至4.4统一兼容包（131，最低 API14），均无原生库，无需区分 ARM32／ARM64；按电视系统选包。兼容包不提供标准桌面守护、HOME 代理或标准 TV Input 列表，信号源使用系统设置或实体遥控器。
+
+已安装 1.3.0 的用户需手动下载匹配的新包覆盖安装；同软件版本不会因构建号增加提示更新。先核对包名、签名和递增构建号，不卸载、不清数据。
+
+两包构建、签名及校验通过，标准与兼容档各 12 项定向测试通过，Lint 零错误但仍有警告；API26 模拟器已逐包检查覆盖安装、HOME 与管理标签，以及所选设置和壁纸索引保留。真实 API14–19 运行与覆盖升级、各厂商电视及长期播放仍待验收，较新模拟器运行兼容包不代表真实4.x系统通过。
 
 安装时保留原桌面；不同厂商的桌面切换能力可能有所不同。
 
@@ -116,7 +122,7 @@
 | 默认桌面与实际接管不一致 | 默认 HOME、兼容守护与代理状态需分别核对；状态提示不能代替实体 Home 键、重启和待机后的实际验证。 |
 | ADB 被禁用或入口受限 | USB 调试灰色、无线调试缺失或无法取得配对码时，电脑维护和依赖 ADB 的适配可能不可用；电脑工具不能绕过固件封锁或配对认证，目前没有通用解锁方案。 |
 
-1.3.0 将桌面配置交给电脑 AI，电视端通过“应用管理 → 更多 → 帮助与恢复”暂停接管或恢复原桌面；历史 1.2.4 标准版仍有“桌面配置”入口。兼容守护和可选 HOME 代理属于实验路径，依赖固件、授权与配套组件。安卓4.4不提供桌面守护。实体 HOME、重启、冷启动、待机和 HDMI／播放仍需在目标电视分别验收，详见[配置与暂停](docs/SETUP.md#桌面守护实验)。 电脑端检测、修复、信号源适配及修复前后自检见[适配指南](docs/AGENT_ADAPT.zh-CN.md)。
+1.3.0 将桌面配置交给电脑 AI，电视端通过“应用管理 → 更多 → 帮助与恢复”暂停接管或恢复原桌面；历史 1.2.4 标准版仍有“桌面配置”入口。兼容守护和可选 HOME 代理属于实验路径，依赖固件、授权与配套组件。安卓4.0至4.4不提供标准桌面守护。实体 HOME、重启、冷启动、待机和 HDMI／播放仍需在目标电视分别验收，详见[配置与暂停](docs/SETUP.md#桌面守护实验)。 电脑端检测、修复、信号源适配及修复前后自检见[适配指南](docs/AGENT_ADAPT.zh-CN.md)。
 
 原有[小米主页中转助手](xiaomi-home-helper/README.md)保留为独立实验方案；启用内置守护前先停用它的无障碍服务，不自动迁移或卸载。
 
