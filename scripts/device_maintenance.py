@@ -362,6 +362,20 @@ def run(args, adb, journal):
     journal.event("maintenance_before", serial=args.serial, snapshot=snapshot)
     if args.action == "inspect":
         print(json.dumps(snapshot, ensure_ascii=False, indent=2))
+    elif args.action == "management-config":
+        if "daily-app-management-v1" not in snapshot.get("capabilities", []):
+            raise ValueError("已安装 APK 尚不支持日常应用管理配置")
+        if args.port is None or not 1 <= args.port <= 65535:
+            raise ValueError("需要已核对的本机 TCP ADB 端口 --port")
+        if args.apply:
+            unchanged_user(adb, args.user)
+            result = inspect(adb, args.package, args.user, "management_config", extras={"port": args.port})
+            if result.get("dailyManagement", {}).get("port") != args.port:
+                raise ValueError("应用管理端口保存未确认")
+            journal.event("management_config", result=result)
+            print("已保存本机 TCP 端口；须在电视应用管理连接并确认应用自己的 ADB 授权。端口配置不等于权限已可用。")
+        else:
+            print("仅预览：保存本机 TCP ADB 端口 " + str(args.port) + "，不打开端口、不修改应用。")
     elif args.action.startswith(("input-", "profile-")):
         input_action(args, adb, journal, snapshot)
     elif args.action in ("disable", "restore-app"):
@@ -405,10 +419,11 @@ def run(args, adb, journal):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("inspect", "repair", "pause", "restore", "disable", "restore-app", "input-list", "input-open", "profile-get", "profile-set", "profile-reset"))
+    parser.add_argument("action", choices=("management-config", "inspect", "repair", "pause", "restore", "disable", "restore-app", "input-list", "input-open", "profile-get", "profile-set", "profile-reset"))
     parser.add_argument("--serial", required=True)
     parser.add_argument("--user", required=True, type=int)
     parser.add_argument("--package", default=tcl.PACKAGE, choices=(tcl.PACKAGE, "com.ts.launcher", "com.coocaa.quiettv"))
+    parser.add_argument("--port", type=int, help="management-config 使用的本机 TCP ADB 端口")
     parser.add_argument("--target", help="本次明确选择的一个应用包名")
     parser.add_argument("--profile", type=Path, help="当前固件的本机信号源配置 JSON")
     parser.add_argument("--source", help="input-list 返回的完整信号源 ID")

@@ -117,11 +117,11 @@ VIDAA 原主页缺少窗口事件、酷开 AI 与松下系无 HOME 声明组件�
 - [ZXing Core 3.5.3](https://github.com/zxing/zxing/tree/zxing-3.5.3)：仅用于生成上传地址二维码，Apache-2.0，版权归 ZXing Authors。
 - [AndroidX ExifInterface 1.4.2](https://developer.android.com/jetpack/androidx/releases/exifinterface#1.4.2)：用于读取上传照片方向，Apache-2.0，版权归 The Android Open Source Project。以上 Apache-2.0 文本随 APK 保存在 `assets/licenses/libadb-Apache-2.0.txt`。
 
-## Android 4.4 compatibility profile
+## Android 4.x compatibility profiles
 
-The `legacy19` profile uses AndroidX Activity 1.9.3, RecyclerView 1.3.2 and MultiDex 2.0.1 under Apache-2.0. Their complete license text is included in the offline license assets. It omits Conscrypt and SPAKE2 from its dependency graph; their historical notices remain available in the repository. Bouncy Castle and the existing minimum patched version constraints are retained.
+The `legacy14` profile (API14+) and historical `legacy19` build option use AndroidX Activity 1.8.2, Core/Core KTX 1.12.0, RecyclerView 1.3.2 and MultiDex 2.0.1 under Apache-2.0. Their complete license text is included in the offline license assets. It omits Conscrypt and SPAKE2 from its dependency graph; their historical notices remain available in the repository. Bouncy Castle and the existing minimum patched version constraints are retained.
 
-The wallpaper uploader in `legacy19` uses ZXing Core 3.3.0 and AndroidX ExifInterface 1.3.7 under the same Apache-2.0 license to retain Android 4.4 compatibility. The standard profile retains ZXing Core 3.5.3 and ExifInterface 1.4.2.
+The wallpaper uploader in `legacy14` / `legacy19` uses ZXing Core 3.3.0 and AndroidX ExifInterface 1.3.7 under the same Apache-2.0 license to retain Android 4.0–4.4 compatibility. The standard profile retains ZXing Core 3.5.3 and ExifInterface 1.4.2.
 
 ## Wallpaper interface icons
 
@@ -138,4 +138,4 @@ The wallpaper settings and upload dialog use raster exports of Lucide 0.468.0 ic
 
 新增天气源 [Open-Meteo](https://open-meteo.com/) 的数据依 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 使用；天气码由本项目转换为中文/英文和原生图标，当前天气为模型估算。免费托管 API 仅限[非商业使用](https://open-meteo.com/en/terms)，默认关闭，需用户启用；数据许可不等于免费服务的商业使用授权。[OpenWeather](https://openweathermap.org/api/current) 使用开发者可选配置的独立凭据及对应服务条款。天气设置显示实际成功来源并链接其官网；未直接复制上述开源天气应用代码。
 
-当前主程序由电脑脚本执行 ADB 配置，不再构建 libadb、SPAKE2 或 Conscrypt。签名更新清单保留 Bouncy Castle bcprov；安卓 4.4 的连接级 TLS 保留 BCJSSE 及所需依赖。历史许可证文件保留，避免改变历史发布记录。
+当前开发主程序由电脑脚本执行首次 ADB 配置，日常应用管理使用 libadb-android 3.1.1 的 TCP 通道及 Bouncy Castle bcpkix 1.86 生成并保留本机授权身份，不构建 SPAKE2 或 Conscrypt。签名更新清单保留 Bouncy Castle bcprov；安卓 4.4 的连接级 TLS 保留 BCJSSE 及所需依赖。历史许可证文件保留，避免改变历史发布记录。

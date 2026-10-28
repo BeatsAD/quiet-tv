@@ -18,13 +18,13 @@ final class ControlStyle extends Drawable {
     static Drawable action(float unit,float radius,int color,int border){return new ControlStyle(unit,radius,color,border,false,false);}
     static Drawable listRow(float unit,float radius){return new ControlStyle(unit,radius,0,0,false,true);}
     static void choice(TextView view,float unit,float radius,int color,int border){
-        view.setBackground(new ControlStyle(unit,radius,color,border,true,false));
+        view.setBackgroundDrawable(new ControlStyle(unit,radius,color,border,true,false));
         view.setTextColor(new ColorStateList(new int[][]{{-android.R.attr.state_enabled,android.R.attr.state_selected},{-android.R.attr.state_enabled},{android.R.attr.state_selected},{android.R.attr.state_focused},{}},new int[]{0xff686d76,0xff777d88,0xff191d23,0xfff5f6f8,0xff9298a4}));
     }
     static void dialog(AlertDialog dialog,float unit){
         for(int which:new int[]{AlertDialog.BUTTON_POSITIVE,AlertDialog.BUTTON_NEGATIVE,AlertDialog.BUTTON_NEUTRAL}){
             TextView button=dialog.getButton(which);
-            if(button!=null){button.setBackground(action(unit,24,0xff242a33,0x38ffffff));button.setTextColor(0xffeff0f4);}
+            if(button!=null){button.setBackgroundDrawable(action(unit,24,0xff242a33,0x38ffffff));button.setTextColor(0xffeff0f4);}
         }
         if(dialog.getListView()!=null){dialog.getListView().setDivider(null);dialog.getListView().setSelector(listRow(unit,12));}
     }

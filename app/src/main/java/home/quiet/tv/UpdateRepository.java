@@ -127,6 +127,6 @@ final class UpdateRepository {
         HttpsURLConnection request=(HttpsURLConnection)url.openConnection();
         if(Build.VERSION.SDK_INT<=25){if(legacyTls==null)legacyTls=UpdateTls.create(context);request.setSSLSocketFactory(legacyTls);}
         return request;
-    });}
+    },"legacy14".equals(BuildConfig.UPDATE_COMPATIBILITY));}
     private static byte[] read(InputStream input,int limit)throws IOException{try(InputStream in=input;ByteArrayOutputStream out=new ByteArrayOutputStream()){byte[] buffer=new byte[4096];int n;while((n=in.read(buffer))!=-1){if(out.size()+n>limit)throw new IOException("Update cache too large");out.write(buffer,0,n);}return out.toByteArray();}}
 }

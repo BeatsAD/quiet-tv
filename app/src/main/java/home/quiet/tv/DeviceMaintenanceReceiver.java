@@ -19,7 +19,7 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
         if(ai==null)throw new IllegalStateException("应用信息不可用");
         AppRepository.App app=new AppRepository.App();app.pkg=pkg;app.metadataKnown=true;
         app.system=(ai.flags&(ApplicationInfo.FLAG_SYSTEM|ApplicationInfo.FLAG_UPDATED_SYSTEM_APP))!=0;
-        app.installed=(ai.flags&ApplicationInfo.FLAG_INSTALLED)!=0;app.enabled=ai.enabled;
+        app.installed=AppAvailability.installed(pm,ai);app.enabled=ai.enabled;
         app.versionCode=Build.VERSION.SDK_INT>=28?info.getLongVersionCode():info.versionCode;
         app.enabledSetting=pm.getApplicationEnabledSetting(pkg);
         SetupPresets rules=SetupPresets.load(context);String reason=new AppOperations(context,rules).protection(app);
@@ -49,6 +49,9 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
         if(!BuildConfig.LEGACY_19)value.put("routes",new DesktopRoutes(context,false).snapshot());
         value.put("capabilities",new org.json.JSONArray().put("input-profile-v1").put("takeover-restore-v1").put("proxy-repair-v1").put("adaptation-rules-v1").put("takeover-record-v1"));
         value.put("adaptation",new DeviceAdaptation(context).snapshot());
+        value.getJSONArray("capabilities").put("daily-app-management-v1");
+        android.content.SharedPreferences daily=context.getSharedPreferences("adb",0);
+        value.put("dailyManagement",new JSONObject().put("transport","tcp").put("port",daily.getInt("port",5555)).put("configured",daily.getBoolean("dailyManagement",false)));
         value.getJSONArray("capabilities").put("legacy-records-v1").put("proxy-setup-v1");
         HomeProxy proxy=new HomeProxy(context);
         value.put("proxy",new JSONObject().put("selected","PROXY".equals(guard.preferences.getString("relaySource","")))
@@ -63,7 +66,11 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
             if(intent==null || !(context.getPackageName()+".DEVICE_MAINTENANCE").equals(intent.getAction()))return;
             if(intent.getIntExtra("user",-1)!=android.os.Process.myUid()/100000)throw new IllegalArgumentException("目标用户不一致");
             String operation=intent.getStringExtra("operation");
-            if("rules_set".equals(operation)){
+            if("management_config".equals(operation)){
+                int port=intent.getIntExtra("port",-1);
+                if(port<1 || port>65535)throw new IllegalArgumentException("本机 TCP ADB 端口无效");
+                if(!context.getSharedPreferences("adb",0).edit().putInt("port",port).putBoolean("dailyManagement",true).commit())throw new IllegalStateException("管理配置未保存");
+            }else if("rules_set".equals(operation)){
                 new DeviceAdaptation(context).save(intent.getStringExtra("rules_json"),intent.getStringExtra("revision"));
             }else if("takeover_record".equals(operation)){
                 new ComputerRestorePlan(context).save(intent.getStringExtra("record_json"),intent.getStringExtra("revision"));

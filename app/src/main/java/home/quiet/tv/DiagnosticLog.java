@@ -2,8 +2,9 @@ package home.quiet.tv;
 
 import android.content.Context;
 import android.os.Build;
+import android.view.KeyEvent;
 import java.io.*;
-import java.nio.charset.StandardCharsets;
+import home.quiet.tv.Charsets;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.*;
@@ -11,6 +12,13 @@ import java.util.concurrent.*;
 /** Explicit application events only, with at most 32 queued entries and one idle-expiring worker. */
 final class DiagnosticLog {
     private static volatile DiagnosticLog instance;
+    static boolean navigationKey(int code){return code==KeyEvent.KEYCODE_HOME||code==KeyEvent.KEYCODE_BACK||code==KeyEvent.KEYCODE_MENU
+        ||code>=KeyEvent.KEYCODE_DPAD_UP&&code<=KeyEvent.KEYCODE_DPAD_CENTER||code==KeyEvent.KEYCODE_ENTER||code==KeyEvent.KEYCODE_NUMPAD_ENTER;}
+    static void navigationKey(String source,KeyEvent event){
+        if(event==null||!navigationKey(event.getKeyCode())||event.getRepeatCount()!=0
+            ||event.getAction()!=KeyEvent.ACTION_DOWN&&event.getAction()!=KeyEvent.ACTION_UP)return;
+        info("input.navigation","source="+source+" keyCode="+event.getKeyCode()+" action="+event.getAction()+" eventTime="+event.getEventTime());
+    }
     private final ThreadPoolExecutor worker=new ThreadPoolExecutor(1,1,5,TimeUnit.SECONDS,new ArrayBlockingQueue<>(32),r->{Thread t=new Thread(()->{android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND);r.run();},"quiet-diagnostic-log");t.setDaemon(true);return t;});
     private final DiagnosticEventBuffer buffer=new DiagnosticEventBuffer();
     private boolean drainScheduled;
@@ -113,8 +121,8 @@ final class DiagnosticLog {
             log.flushBuffered(DiagnosticEventBuffer.CAPACITY);File file=new File(context.getCacheDir(),"diagnostic-export.txt");
             String header="Quiet TV 诊断日志\n生成时间："+new SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z",Locale.ROOT).format(new Date())
                 +"\n"+snapshot+"\n桌面配置："+new DesktopRoutes(context,false).snapshot()
-                +"\n本进程写入失败批次："+log.failedWrites+"  队列丢弃："+log.buffer.droppedTotal()+"  重复合并："+log.buffer.suppressedTotal()+"\n范围：Quiet TV 自身关键事件及错误，包含首页恢复、窗口焦点、每次恢复的首次视图树绘制回调，以及系统设置路由、ADB 连接尝试和原主页中转结果，不含完整系统日志或其他应用操作。attempt 关联一次操作，RUNNING 表示导出时尚未结束；设置 DISPATCHED_UNVERIFIED 仅为请求已发出，中转 VISIBILITY_CALLBACK 仅为收到首页回报，都不证明电视已上屏。场景 source=user 为用户确认，不是自动验收。绘制回调和窗口焦点不证明画面已经上屏；跳转记录不证明系统页面正常显示或物理信号已切换。\n时间字段为 Unix 毫秒；首页事件的 uptimeMs、elapsedMs 使用不含深度休眠的单调时钟；连接和中转耗时使用包含深度休眠的 elapsedRealtime。容量轮转会覆盖较早日志，进程停止期间不记录，异常终止可能丢失末尾记录；没有结果事件不能直接判为超时或成功。\n请检查内容后私下分享。\n\n[历史事件]\n";
-            byte[] headerBytes=header.getBytes(StandardCharsets.UTF_8);
+                +"\n本进程写入失败批次："+log.failedWrites+"  队列丢弃："+log.buffer.droppedTotal()+"  重复合并："+log.buffer.suppressedTotal()+"\n范围：Quiet TV 自身关键事件及错误，包含首页恢复、窗口焦点、每次恢复的首次视图树绘制回调，以及系统设置路由、ADB 连接尝试和原主页中转结果。打开系统设置后自动触发的 settings.capture 另记录本机 ADB 可见的前台组件、action、Fragment候选和组件访问状态；input.navigation 仅表示应用或已有无障碍回调实际收到的导航按键，不代表完整实体按键历史。不含原始系统转储、页面文字、Intent数据或extra值，也不包含完整系统日志。attempt 关联一次操作，RUNNING 表示导出时尚未结束；设置 DISPATCHED_UNVERIFIED 仅为请求已发出，中转 VISIBILITY_CALLBACK 仅为收到首页回报，都不证明电视已上屏。场景 source=user 为用户确认，不是自动验收。绘制回调和窗口焦点不证明画面已经上屏；跳转记录不证明系统页面正常显示或物理信号已切换。\n时间字段为 Unix 毫秒；首页事件的 uptimeMs、elapsedMs 使用不含深度休眠的单调时钟；连接和中转耗时使用包含深度休眠的 elapsedRealtime。容量轮转会覆盖较早日志，进程停止期间不记录，异常终止可能丢失末尾记录；没有结果事件不能直接判为超时或成功。\n请检查内容后私下分享。\n\n[历史事件]\n";
+            byte[] headerBytes=header.getBytes(Charsets.UTF_8);
             if(headerBytes.length>32768)throw new IOException("Diagnostic snapshot exceeds limit");
             try(OutputStream output=new FileOutputStream(file)){output.write(headerBytes);log.journal.copyTo(output);}
             return file;

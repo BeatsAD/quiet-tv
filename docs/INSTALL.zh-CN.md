@@ -31,25 +31,27 @@ sdk.dir=/absolute/path/to/your/android-sdk
 
 输出为 `app/build/outputs/apk/debug/app-debug.apk`。Windows 使用 `gradlew.bat`；各主机本地脚本仍需验证。详见[贡献指南](../CONTRIBUTING.md)。
 
-交付归档先配置 `local.properties` 中的 `sdk.dir`，将 `FIRST_BUILD_NUMBER` 设为高于全部已用号的未占用正整数；1.2.4 的 64–67 已发布。整批会依次分配四个数字构建号：
+交付归档先配置 `local.properties` 中的 `sdk.dir`，将 `FIRST_BUILD_NUMBER` 设为高于全部已用号的未占用正整数；已发布及本地候选用号均保留。当前无原生库批次依次分配两个数字构建号：
 
 ```sh
-python3 scripts/build_apk.py --batch --build-number "$FIRST_BUILD_NUMBER" --variant benchmark --summary "说明本次构建的修改"
+python3 scripts/build_apk.py --batch --universal-only --build-number "$FIRST_BUILD_NUMBER" --variant benchmark --summary "说明本次构建的修改"
 ```
 
-脚本按固定提交顺序构建 ARM32、ARM64、通用和安卓4.4包，检查版本、签名和原生库一致性，在 `dist/apk/` 生成不可变 APK、同名 SHA-256、JSON 和批次清单。后续交付名称须包含软件版本、构建号、适用系统和发布状态，历史名称保留；脚本不安装电视或上传发布。`benchmark` 使用测试签名，不是正式包。已发布后交付修改过的内容须增加软件版本号，详见[版本规则](VERSIONING.md)。
+脚本固定源码提交，依次构建标准通用包和安卓4.0至4.4通用包，检查版本、签名及两包均无原生库；存在原生库架构差异时，省略 `--universal-only` 构建标准 ARM32、ARM64、通用及一个 legacy14 包。在 `dist/apk/` 生成不可变 APK、同名 SHA-256、JSON 和批次清单。后续交付名称须包含软件版本、构建号、适用系统和发布状态，历史名称保留；脚本不安装电视或上传发布。`benchmark` 使用测试签名，不是正式包。本轮按维护者要求在1.3.0内累加修复，增加构建号并使用新文件名；已装1.3.0需手动下载覆盖安装，详见[版本规则](VERSIONING.md)。
 
 仅构建标准单包可省略 `--batch`，指定 `--abi armeabi-v7a`、`arm64-v8a` 或 `universal`；最低 API 默认21，可按实际适配选择23、26或31。
 
-## Android 4.4 / API19
+<a id="android-44--api19"></a>
+
+## Android 4.0–4.4 / API14–19
 
 使用独立兼容档位，不能只降低标准版最低 API。`LEGACY_BUILD_NUMBER` 同样须是高于全部已用号的未占用数字：
 
 ```sh
-python3 scripts/build_apk.py --build-number "$LEGACY_BUILD_NUMBER" --compatibility legacy19 --variant benchmark --summary "Android 4.4 兼容测试版"
+python3 scripts/build_apk.py --build-number "$LEGACY_BUILD_NUMBER" --compatibility legacy14 --variant benchmark --summary "Android 4.0–4.4 兼容测试版"
 ```
 
-不另传 `--min-sdk` 时自动选择 API19。构建与 Lint 可用 `./gradlew :app:assembleDebug :app:lintDebug -PquietCompatibility=legacy19 --console=plain`。兼容版保留核心桌面、天气、壁纸、应用管理、儿童模式、关于和离线许可证，使用传统 TCP ADB；API19及厂商真实 HOME、遥控器、网络、重启与唤醒仍需目标电视验收。Debug 采用旧版 MultiDex 启动支持。
+最低 API 固定14，一个 APK 覆盖安卓4.0–4.4。构建与 Lint 可用 `./gradlew :app:assembleDebug :app:lintDebug -PquietCompatibility=legacy14 --console=plain`。兼容版与标准版共用核心桌面、天气、壁纸、应用管理、儿童模式、关于和离线许可证；当前源码保留本机 TCP ADB 日常管理，首次端口配置及授权由电脑完成，不提供应用内无线配对。`legacy19` 固定 API19，仅保留历史构建和升级回归。API14–19实际运行、覆盖升级、实体 HOME、遥控器、网络、重启与唤醒验收仍延期。Debug 采用旧版 MultiDex 启动支持，详见[兼容范围](COMPATIBILITY.md)。
 
 ## 下载、安装与试用
 

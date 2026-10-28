@@ -53,7 +53,7 @@ final class HomeGuardState {
         UserManager user=(UserManager)context.getSystemService(Context.USER_SERVICE);return user!=null && user.isUserUnlocked();
     }
     static boolean interactive(Context context){PowerManager power=(PowerManager)context.getSystemService(Context.POWER_SERVICE);return power!=null && (Build.VERSION.SDK_INT>=20?power.isInteractive():power.isScreenOn());}
-    static boolean canShow(Context context){KeyguardManager keyguard=(KeyguardManager)context.getSystemService(Context.KEYGUARD_SERVICE);return !BootAppLifecycle.dreaming() && unlocked(context) && interactive(context) && keyguard!=null && !keyguard.isKeyguardLocked();}
+    static boolean canShow(Context context){KeyguardManager keyguard=(KeyguardManager)context.getSystemService(Context.KEYGUARD_SERVICE);return !BootAppLifecycle.dreaming() && unlocked(context) && interactive(context) && keyguard!=null && !UiCompat.keyguardLocked(keyguard);}
     boolean supported(){return HomeGuardPolicy.supported(Build.MANUFACTURER,Build.BRAND,Build.VERSION.SDK_INT,BuildConfig.LEGACY_19);}
     boolean automatic(){return supported() && preferences.getBoolean("configured",false) && "AUTO".equals(preferences.getString("mode","AUTO"));}
     boolean enabled(){return automatic() && preferences.getBoolean("observeHome",true);}
@@ -150,7 +150,7 @@ final class HomeGuardState {
             ResolveInfo resolved=pm.resolveActivity(HomeController.homeIntent(),PackageManager.MATCH_DEFAULT_ONLY);
             ActivityInfo home=resolved==null?null:resolved.activityInfo;
             return home!=null && context.getPackageName().equals(home.packageName) && HomeActivity.class.getName().equals(home.name)
-                    && home.exported && home.enabled && home.applicationInfo.enabled && (home.applicationInfo.flags&ApplicationInfo.FLAG_INSTALLED)!=0;
+                    && home.exported && home.enabled && home.applicationInfo.enabled && AppAvailability.installed(context.getPackageManager(),home.applicationInfo);
         }catch(SecurityException unavailable){return false;}
     }
     boolean directHomeSelected(){return preferences.getBoolean("directHomeKeys",false) && "DIRECT".equals(preferences.getString("routeHome",""));}

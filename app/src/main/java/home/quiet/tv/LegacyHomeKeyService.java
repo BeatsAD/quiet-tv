@@ -50,10 +50,10 @@ public final class LegacyHomeKeyService extends AccessibilityService {
         if(!supported() || !filtering || !defaultHome(this))return false;
         PowerManager power=(PowerManager)getSystemService(POWER_SERVICE);
         KeyguardManager keyguard=(KeyguardManager)getSystemService(KEYGUARD_SERVICE);
-        return power!=null && power.isScreenOn() && (keyguard==null || !keyguard.isKeyguardLocked());
+        return power!=null && power.isScreenOn() && (keyguard==null || !UiCompat.keyguardLocked(keyguard));
     }
     @Override protected void onServiceConnected(){
-        super.onServiceConnected();instance=this;
+        super.onServiceConnected();if(Build.VERSION.SDK_INT<19)return;instance=this;
         AccessibilityServiceInfo info=getServiceInfo();
         if(info!=null){
             int flag=AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS;
@@ -80,7 +80,7 @@ public final class LegacyHomeKeyService extends AccessibilityService {
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP);
             ExternalActivityLauncher.open(this,"legacy_home_key.home",home);
         }else if(action==HomeKeyPolicy.RECENTS){
-            boolean accepted=performGlobalAction(GLOBAL_ACTION_RECENTS);
+            boolean accepted=(Build.VERSION.SDK_INT>=19 && performGlobalAction(GLOBAL_ACTION_RECENTS));
             DiagnosticLog.info("legacy_home_key.recents","accepted="+accepted);
         }
         return true;

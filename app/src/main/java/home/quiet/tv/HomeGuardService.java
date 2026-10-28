@@ -36,6 +36,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         return HomeGuardPolicy.filterHome(true,true,true,Build.VERSION.SDK_INT,!homeResumed && defaultHome(),homeResumed,state.directHomeReady());
     }
     private void updateKeyFilter(){
+        if(Build.VERSION.SDK_INT<21)return;
         AccessibilityServiceInfo info=getServiceInfo();if(info==null)return;
         int flag=AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS;
         boolean observe=observeBootSource();
@@ -46,6 +47,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         if(!wanted)homeKeys.reset();
     }
     @Override protected boolean onKeyEvent(KeyEvent event){
+        DiagnosticLog.navigationKey("existing_accessibility_callback",event);
         if(event.getAction()==KeyEvent.ACTION_DOWN && navigationKey(event.getKeyCode()))stopBootSource("remote_navigation");
         // Every other key passes through, including volume, directions and power.
         if(event.getKeyCode()!=KeyEvent.KEYCODE_HOME)return false;
@@ -66,7 +68,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         int action=homeKeys.up(event.getEventTime(),event.isCanceled() || !homeActionUsable() || !HomeGuardState.canShow(this),
                 ViewConfiguration.getLongPressTimeout(),ViewConfiguration.getDoubleTapTimeout());
         updateKeyFilter();
-        if(action==HomeKeyPolicy.RECENTS){cancel();boolean accepted=performGlobalAction(GLOBAL_ACTION_RECENTS);DiagnosticLog.info("home_guard.recents","observation="+homeObservation+" accepted="+accepted);}
+        if(action==HomeKeyPolicy.RECENTS && Build.VERSION.SDK_INT>=21){cancel();boolean accepted=performGlobalAction(GLOBAL_ACTION_RECENTS);DiagnosticLog.info("home_guard.recents","observation="+homeObservation+" accepted="+accepted);}
         else if(action==HomeKeyPolicy.HOME){
             allowStock=false;cancel();policy.clear();transitionUntil=0;
             DiagnosticLog.info("home_guard.home_key","source=filter shortPress=true");HomeGuardRecovery.launchHomeAction(this,"HOME 按键",homeObservation);
@@ -93,6 +95,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         if(!state.preferences.edit().putString("sourceBoot",bootSource.boot).putInt("sourceBootAttempts",bootSource.attempts()).putBoolean("sourceBootStopped",bootSource.stopped()).commit())bootSource.stop();
     }
     private boolean observeBootSource(){
+        if(Build.VERSION.SDK_INT<21)return false;
         if(bootSource==null || !bootSource.active(SystemClock.elapsedRealtime()) || !state.ready())return false;
         AccessibilityServiceInfo info=getServiceInfo();
         return info!=null && (info.getCapabilities()&AccessibilityServiceInfo.CAPABILITY_CAN_REQUEST_FILTER_KEY_EVENTS)!=0;
@@ -219,6 +222,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     }
     static boolean usageRequired(Context c){if(new HomeGuardState(c,false).directHomeReady())return false;return HomeGuardPolicy.usageEvidence(Build.MANUFACTURER,Build.BRAND,Build.VERSION.SDK_INT,BuildConfig.LEGACY_19,new HomeGuardState(c,false).selected());}
     static boolean usageAllowed(Context c){
+        if(Build.VERSION.SDK_INT<21)return false;
         if(!usageRequired(c))return false;
         AppOpsManager manager=(AppOpsManager)c.getSystemService(Context.APP_OPS_SERVICE);
         try{return manager!=null && manager.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS,android.os.Process.myUid(),c.getPackageName())==AppOpsManager.MODE_ALLOWED;}
@@ -293,6 +297,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     static void dreamChanged(){HomeGuardService service=instance;if(service!=null){service.stopBootSource("dream_changed");service.cancel();service.policy.ignoreUsageThrough(System.currentTimeMillis());service.updateKeyFilter();service.refreshUsageWatch();}}
     static boolean keyFiltering(){HomeGuardService service=instance;return service!=null && service.keyFiltering;}
     static boolean keyFilterCapable(){
+        if(Build.VERSION.SDK_INT<21)return false;
         HomeGuardService service=instance;AccessibilityServiceInfo info=service==null?null:service.getServiceInfo();
         return info!=null && (info.getCapabilities()&AccessibilityServiceInfo.CAPABILITY_CAN_REQUEST_FILTER_KEY_EVENTS)!=0;
     }

@@ -12,7 +12,7 @@ from install_tcl import manifest_home_mode
 
 ROOT = Path(__file__).resolve().parents[1]
 ABIS = ('universal', 'arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64')
-COMPATIBILITY = ('standard', 'legacy19')
+COMPATIBILITY = ('standard', 'legacy14', 'legacy19')
 
 
 def source_digest():
@@ -22,6 +22,7 @@ def source_digest():
     paths += [ROOT / name for name in ['app/build.gradle', 'app/proguard-rules.pro', 'build.gradle', 'settings.gradle',
               'gradle.properties', 'gradle/security-constraints.gradle', 'scripts/bundle_about.py', 'scripts/build_apk.py', 'scripts/install_tcl.py',
               'prototypes/about/index.html', 'prototypes/about/styles.css', 'prototypes/about/app.js',
+              'prototypes/about/assets/wechat.png', 'prototypes/about/assets/qq-group.png',
               'prototypes/about/assets/source.svg', 'prototypes/about/assets/wechat.webp', 'prototypes/about/assets/qq-group.webp',
               'LICENSE', 'THIRD_PARTY_NOTICES.md']]
     digest = hashlib.sha256()
@@ -102,9 +103,9 @@ def archive_apk(summary, built_at=None, output_dir=None, abi='universal', archiv
         raise ValueError('APK 实际版本或包名与构建元数据不符')
     if actual['application_id'] != 'home.quiet.tv' or not re.fullmatch(r'\d+\.\d+\.\d+', actual['version_name']) or actual['version_code'] < 1:
         raise ValueError('归档仅支持三段版本号及正整数构建号的 Quiet TV 主程序')
-    if compatibility not in COMPATIBILITY or (compatibility == 'legacy19' and min_sdk != 19) or (compatibility == 'standard' and min_sdk < 21):
+    if compatibility not in COMPATIBILITY or (compatibility == 'legacy14' and min_sdk != 14) or (compatibility == 'legacy19' and min_sdk != 19) or (compatibility == 'standard' and min_sdk < 21):
         raise ValueError('兼容档位与 APK 最低系统不符')
-    system = {19: '安卓4.4', 21: '安卓5及以上', 23: '安卓6及以上', 26: '安卓8及以上', 31: '安卓12及以上'}[min_sdk]
+    system = {14: '安卓4.0至4.4', 19: '安卓4.4', 21: '安卓5及以上', 23: '安卓6及以上', 26: '安卓8及以上', 31: '安卓12及以上'}[min_sdk]
     abi_names = {'armeabi-v7a': 'ARM32', 'arm64-v8a': 'ARM64', 'x86': 'x86', 'x86_64': 'x86_64'}
     architecture = abi_names[packaged_abis[0]] if len(packaged_abis) == 1 else ''
     suffix = '_' + architecture if architecture else ''
@@ -171,8 +172,8 @@ def build_apk(summary, variant='debug', abi='universal', min_sdk=None, compatibi
     if home_mode not in ('standard', 'relay') or (home_mode == 'relay' and compatibility != 'standard'):
         raise ValueError('relay 只适用于安卓5及以上标准代码档位')
     if min_sdk is None:
-        min_sdk = 19 if compatibility == 'legacy19' else 21
-    allowed = (19,) if compatibility == 'legacy19' else (21,23,26,31)
+        min_sdk = 14 if compatibility == 'legacy14' else 19 if compatibility == 'legacy19' else 21
+    allowed = (14,) if compatibility == 'legacy14' else (19,) if compatibility == 'legacy19' else (21,23,26,31)
     if variant not in ('debug', 'benchmark', 'release') or abi not in ABIS or min_sdk not in allowed:
         raise ValueError('不支持的构建类型或 ABI')
     if build_number is not None and (not isinstance(build_number, int) or build_number < 1):
@@ -196,9 +197,9 @@ def verify_batch(apks):
         if any(record[field] != records[0][field] for record in records):
             raise ValueError(f'批次 {field} 不一致')
     expected = [('standard', 'armeabi-v7a'), ('standard', 'arm64-v8a'),
-                ('standard', 'universal'), ('legacy19', 'universal')]
+                ('standard', 'universal'), ('legacy14', 'universal')]
     if len(records) == 2:
-        expected = [('standard', 'universal'), ('legacy19', 'universal')]
+        expected = [('standard', 'universal'), ('legacy14', 'universal')]
     if [(record['compatibility'], record['abi']) for record in records] != expected:
         raise ValueError('批次须为标准三架构加安卓4.4，或无原生库的标准通用加安卓4.4')
     numbers = [int(record['version_code']) for record in records]
@@ -245,9 +246,9 @@ def build_batch(summary, first_build_number, variant='benchmark', universal_only
     commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
     before = source_digest()
     apks = []
-    plan = [('standard', 'universal'), ('legacy19', 'universal')] if universal_only else [
+    plan = [('standard', 'universal'), ('legacy14', 'universal')] if universal_only else [
         ('standard', 'armeabi-v7a'), ('standard', 'arm64-v8a'),
-        ('standard', 'universal'), ('legacy19', 'universal')]
+        ('standard', 'universal'), ('legacy14', 'universal')]
     for offset, (profile, abi) in enumerate(plan):
         if (source_digest() != before or
                 subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip() != commit):
@@ -280,12 +281,12 @@ if __name__ == '__main__':
     parser.add_argument('--summary', required=True)
     parser.add_argument('--variant', choices=['debug', 'benchmark', 'release'], default='debug')
     parser.add_argument('--abi', choices=ABIS, default='universal')
-    parser.add_argument('--compatibility', choices=COMPATIBILITY, default='standard', help='standard: Android 5+; legacy19: Android 4.4 TCP-only')
+    parser.add_argument('--compatibility', choices=COMPATIBILITY, default='standard', help='standard: Android 5+; legacy14: Android 4.0-4.4; legacy19: historical API19 builds')
     parser.add_argument('--home-mode', choices=['standard', 'relay'], default='standard', help='relay: 不声明 HOME，复用现有桌面守护')
-    parser.add_argument('--min-sdk', choices=[19,21,23,26,31], type=int, help='defaults to 19 for legacy19 and 21 for standard')
+    parser.add_argument('--min-sdk', choices=[14,19,21,23,26,31], type=int, help='defaults to 14 for legacy14, 19 for legacy19, 21 for standard')
     parser.add_argument('--build-number', type=int, help='Positive delivery number; first number for --batch')
-    parser.add_argument('--batch', action='store_true', help='Build standard ARM32, ARM64, universal and one legacy19 APK')
-    parser.add_argument('--universal-only', action='store_true', help='With --batch, build standard universal + legacy19; both must have no native libraries')
+    parser.add_argument('--batch', action='store_true', help='Build standard ARM32, ARM64, universal and one legacy14 APK')
+    parser.add_argument('--universal-only', action='store_true', help='With --batch, build standard universal + legacy14; both must have no native libraries')
     args = parser.parse_args()
     if not args.summary.strip():
         parser.error('--summary 不能为空')

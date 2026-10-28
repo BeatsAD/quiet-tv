@@ -38,12 +38,12 @@ final class AppArtwork {
 
     private static Drawable resource(PackageManager pm,ApplicationInfo app,int id){
         if(id==0)return null;
-        try{return pm.getResourcesForApplication(app).getDrawableForDensity(id,android.util.DisplayMetrics.DENSITY_XXXHIGH);}
+        try{return Build.VERSION.SDK_INT>=15?pm.getResourcesForApplication(app).getDrawableForDensity(id,android.util.DisplayMetrics.DENSITY_XXXHIGH):pm.getResourcesForApplication(app).getDrawable(id);}
         catch(PackageManager.NameNotFoundException|android.content.res.Resources.NotFoundException|SecurityException e){return null;}
     }
     private static int width(Context context){
         android.app.ActivityManager memory=(android.app.ActivityManager)context.getSystemService(Context.ACTIVITY_SERVICE);
-        if(memory==null || memory.isLowRamDevice() || memory.getMemoryClass()<256)return WIDTH;
+        if(memory==null || UiCompat.lowRam(memory) || memory.getMemoryClass()<256)return WIDTH;
         return Math.max(WIDTH,Math.min(720,Math.round(WIDTH*context.getResources().getDisplayMetrics().widthPixels/1920f)));
     }
 

@@ -104,7 +104,7 @@ final class WeatherInputServer extends NanoHTTPD {
         int size;try{size=Integer.parseInt(session.getHeaders().get("content-length"));}catch(NumberFormatException e){throw new IOException("Length required");}
         if(size<=0||size>limit)throw new IOException("Invalid body length");
         byte[] bytes=new byte[size];new DataInputStream(session.getInputStream()).readFully(bytes);
-        return StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(bytes)).toString();
+        return Charsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(bytes)).toString();
     }
     private Response error(Response.Status status,String text){try{return json(status,new JSONObject().put("message",text));}catch(JSONException e){throw new IllegalStateException(e);}}
     private Response json(Response.Status status,JSONObject value){return secure(newFixedLengthResponse(status,"application/json; charset=utf-8",value.toString()));}

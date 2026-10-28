@@ -24,7 +24,7 @@ final class ComputerRestorePlan {
             if(!Arrays.asList(HomeTakeoverPlan.GOOGLE,HomeTakeoverPlan.CLASSIC,HomeTakeoverPlan.SETUP).contains(key)
                     && !(rules.homeAllows("disableVerified") && rules.home().startsWith(key+"/") && rules.homeIdentityMatches(step.getLong("versionCode"),record.getInt("user"))))throw new IllegalStateException("原记录的包恢复资格不匹配");
             PackageInfo info=context.getPackageManager().getPackageInfo(key,HomeController.METADATA);
-            if(info.applicationInfo==null || (info.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0 || (info.applicationInfo.flags&ApplicationInfo.FLAG_INSTALLED)==0
+            if(info.applicationInfo==null || (info.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0 || !AppAvailability.installed(context.getPackageManager(),info.applicationInfo)
                     || (Build.VERSION.SDK_INT>=28?info.getLongVersionCode():info.versionCode)!=step.getLong("versionCode") || !step.getString("version").equals(info.versionName==null?String.valueOf(Build.VERSION.SDK_INT>=28?info.getLongVersionCode():info.versionCode):info.versionName))throw new IllegalStateException("原桌面版本或安装状态已改变");
             if(!Arrays.asList("0","1").contains(before) || !"3".equals(after))throw new IllegalStateException("原启用状态无效");
         }else if("property".equals(kind)){

@@ -83,7 +83,7 @@ final class VendorTvInputs {
                 if(labelMethod!=null){Object text=labelMethod.invoke(manager,source);if(text instanceof String && !((String)text).isEmpty())label=(String)text;}
                 sources.add(new Source(label,new Intent("com.konka.tvsettings.intent.action.RootActivity").setComponent(KONKA_PLAYER).putExtra("source",source.ordinal()),null));
             }
-        }catch(ReflectiveOperationException|RuntimeException|LinkageError failure){sources.clear();DiagnosticLog.error("input.konka.enumeration.failed",failure);}
+        }catch(Exception|LinkageError failure){sources.clear();DiagnosticLog.error("input.konka.enumeration.failed",failure);}
         return sources;
     }
     boolean open(Source source){

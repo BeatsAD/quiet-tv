@@ -16,8 +16,8 @@ final class DesktopSettingsRow extends LinearLayout {
     DesktopSettingsRow(ManagementUi ui,String text,String symbol,boolean navigation){
         super(ui);this.ui=ui;setOrientation(HORIZONTAL);setGravity(Gravity.CENTER_VERTICAL);
         setPadding(ui.px(navigation?14:18),0,ui.px(navigation?14:18),0);
-        setId(View.generateViewId());setFocusable(true);setFocusableInTouchMode(true);setClickable(true);
-        setBackground(ui.listSurface());
+        setId(androidx.core.view.ViewCompat.generateViewId());setFocusable(true);setFocusableInTouchMode(true);setClickable(true);
+        setBackgroundDrawable(ui.listSurface());
         start=new ImageView(ui);int resource="shield".equals(symbol)?R.drawable.ic_manage_shield:0;
         if(resource!=0){start.setImageDrawable(UiCompat.drawable(ui,resource));start.setColorFilter(0xffa2a8b3);}else start.setImageDrawable(new Glyph(symbol,0xffa2a8b3));
         LayoutParams ip=new LayoutParams(ui.px(navigation?17:18),ui.px(navigation?17:18));ip.rightMargin=ui.px(13);addView(start,ip);
@@ -27,8 +27,8 @@ final class DesktopSettingsRow extends LinearLayout {
         LayoutParams dp=new LayoutParams(-1,-2);dp.topMargin=ui.px(4);copy.addView(description,dp);
         value=ui.muted("",13);value.setTextColor(0xffa2a8b3);value.setSingleLine(true);value.setMaxWidth(ui.px(300));value.setEllipsize(android.text.TextUtils.TruncateAt.END);addView(value,new LayoutParams(-2,-1));
         end=new ImageView(ui);LayoutParams ep=new LayoutParams(ui.px(18),ui.px(24));ep.leftMargin=ui.px(12);addView(end,ep);end.setVisibility(GONE);
-        for(int i=0;i<getChildCount();i++)getChildAt(i).setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        copy.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+        for(int i=0;i<getChildCount();i++)androidx.core.view.ViewCompat.setImportantForAccessibility(getChildAt(i),androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        androidx.core.view.ViewCompat.setImportantForAccessibility(copy,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
         setContentDescription(text);
     }
     void icon(int resource){start.setImageDrawable(UiCompat.drawable(ui,resource));start.clearColorFilter();}

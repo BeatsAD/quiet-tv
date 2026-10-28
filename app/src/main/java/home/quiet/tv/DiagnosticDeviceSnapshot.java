@@ -19,6 +19,7 @@ final class DiagnosticDeviceSnapshot {
         snapshot.section("设备与软件",snapshot::device);
         snapshot.text.append("\n[ADB 与调试接口]\n").append(adb);
         snapshot.section("调试设置入口",snapshot::debugSettings);
+        snapshot.section("系统设置页面采集",()->snapshot.text.append(SettingsPageCapture.summary()).append('\n'));
         snapshot.section("系统默认桌面",snapshot::home);
         snapshot.section("原桌面记录",snapshot::original);
         snapshot.section("HOME 候选与状态",snapshot::homeCandidates);
@@ -50,7 +51,7 @@ final class DiagnosticDeviceSnapshot {
         deviceField(info,"declaresHome","安装包声明 HOME",BuildConfig.DECLARES_HOME);
         deviceField(info,"androidUser","当前进程 Android 用户",android.os.Process.myUid()/100000);
         deviceField(info,"targetSdk","安装包目标 API",context.getApplicationInfo().targetSdkVersion);
-        deviceField(info,"compatibility","兼容档位",BuildConfig.LEGACY_19?"legacy19":"com.coocaa.quiettv".equals(context.getPackageName())?"coocaa":"standard");
+        deviceField(info,"compatibility","兼容档位",BuildConfig.LEGACY_19?BuildConfig.UPDATE_COMPATIBILITY:"com.coocaa.quiettv".equals(context.getPackageName())?"coocaa":"standard");
         deviceField(info,"minSdk","安装包最低 API",Build.VERSION.SDK_INT>=24?context.getApplicationInfo().minSdkVersion:null);
         deviceField(info,"homeProxyPackage","HOME 兼容助手包名",new HomeProxy(context).packageName());
         line("设备信息范围","系统 Build 字段；未读取用户设置的设备名称、序列号、Android ID、MAC 或账号。厂商界面的商品名及 HyperOS/MIUI 名称可能未包含在系统版本字段中，缺失值为 null，不能据此推定版本。");
@@ -75,7 +76,7 @@ final class DiagnosticDeviceSnapshot {
         line("接口范围","入口可解析不代表页面可正常打开；USB 调试、网络 ADB 和本应用授权分别判断；未检测物理 USB 插口或线缆");
     }
     private void setting(String label,String key){
-        try{int value=Settings.Global.getInt(context.getContentResolver(),key,-1);
+        try{int value=Build.VERSION.SDK_INT>=17?Settings.Global.getInt(context.getContentResolver(),key,-1):Settings.Secure.getInt(context.getContentResolver(),key,-1);
             line(label,value==1?"已观测到开启（系统返回 1）":"无法确认（系统返回 "+value+"，可能被固件隐藏，不能据此判定关闭）");
         }catch(SecurityException e){line(label,"无法读取：权限受限");}
     }
@@ -197,7 +198,7 @@ final class DiagnosticDeviceSnapshot {
         for(String pkg:new String[]{"com.tcl.guard","com.tcl.tvweishi","com.tcl.appstatecontroller","com.tcl.providers.config"}){
             try{
                 PackageInfo info=pm.getPackageInfo(pkg,HomeController.METADATA);
-                line(pkg,"版本 "+info.versionName+"  构建号 "+info.versionCode+"  当前用户安装 "+yes((info.applicationInfo.flags&ApplicationInfo.FLAG_INSTALLED)!=0));
+                line(pkg,"版本 "+info.versionName+"  构建号 "+info.versionCode+"  当前用户安装 "+yes(AppAvailability.installed(pm,info.applicationInfo)));
                 line(pkg+"启用设置",Integer.toString(pm.getApplicationEnabledSetting(pkg)));found++;
             }catch(PackageManager.NameNotFoundException ignored){/* Missing or invisible; never infer protection. */}
         }
@@ -224,7 +225,7 @@ final class DiagnosticDeviceSnapshot {
             ActivityInfo info=pm.getActivityInfo(name,HomeController.METADATA);
             PackageInfo pkg=pm.getPackageInfo(name.getPackageName(),HomeController.METADATA);
             line(label+"名称",info.loadLabel(pm).toString());line(label+"版本",pkg.versionName+"  构建号 "+pkg.versionCode);
-            boolean installed=(info.applicationInfo.flags&ApplicationInfo.FLAG_INSTALLED)!=0;
+            boolean installed=AppAvailability.installed(pm,info.applicationInfo);
             int app=pm.getApplicationEnabledSetting(name.getPackageName()),activity=pm.getComponentEnabledSetting(name);
             boolean enabled=(app==0?info.applicationInfo.enabled:app==1)&&(activity==0?info.enabled:activity==1);
             line(label+"状态",installed?(enabled?"已安装，已启用":"已安装，已禁用"):"当前用户未安装");

@@ -46,9 +46,9 @@ final class AboutView extends FrameLayout {
         TextView installed=label("版本 "+version,26,400,0xfff2f4f8,136,658,500,45,"version-name");
         int channelX=136+(int)Math.ceil(installed.getPaint().measureText(installed.getText().toString()))+16;
         TextView channel=label(channelName,19,400,0xffacc0db,channelX,658,87,45,"version-channel");
-        channel.setGravity(Gravity.CENTER);channel.setBackground(surface(0x08ffffff,8,0x26ffffff));
+        channel.setGravity(Gravity.CENTER);channel.setBackgroundDrawable(surface(0x08ffffff,8,0x26ffffff));
         TextView checkText=label("检查更新",23,400,0xffeff0f4,136,750,188,64,null);checkText.setGravity(Gravity.CENTER);
-        update=action(checkText,"check-update",136,750,188,64,check);update.setBackground(ControlStyle.action(1,32,0x08ffffff,0x26ffffff));
+        update=action(checkText,"check-update",136,750,188,64,check);update.setBackgroundDrawable(ControlStyle.action(1,32,0x08ffffff,0x26ffffff));
         label("开源项目",29,500,0xfff2f4f8,782,298,600,41,null);
         label("github.com/BeatsAD/quiet-tv",27,400,0xffdbe5f4,782,360,600,50,"source-address");
         line(492);
@@ -86,16 +86,16 @@ final class AboutView extends FrameLayout {
     }
     private View action(View view,String tag,int x,int y,int w,int h,Runnable run) {
         if(view.getParent()==null)put(view,x,y,w,h);
-        view.setBackground(ControlStyle.action(2,5,Color.TRANSPARENT,0));
+        view.setBackgroundDrawable(ControlStyle.action(2,5,Color.TRANSPARENT,0));
         view.setTag(tag);view.setFocusable(true);view.setFocusableInTouchMode(true);view.setOnClickListener(v->run.run());
         view.setOnFocusChangeListener((v,focused)->artboard.invalidate());return view;
     }
     private ImageView code(String tag,int x,int y,int size) {
         ImageView view=new ImageView(getContext());view.setTag(tag);view.setContentDescription(tag.equals("project-qr")?"开源项目二维码":tag.equals("wechat-qr")?"微信二维码":"QQ 群二维码");
-        view.setScaleType(ImageView.ScaleType.FIT_CENTER);view.setPadding(4,4,4,4);view.setBackground(surface(Color.WHITE,size==208?14:10,Color.WHITE));UiCompat.clipOutline(view);put(view,x,y,size,size);return view;
+        view.setScaleType(ImageView.ScaleType.FIT_CENTER);view.setPadding(4,4,4,4);view.setBackgroundDrawable(surface(Color.WHITE,size==208?14:10,Color.WHITE));UiCompat.clipOutline(view);put(view,x,y,size,size);return view;
     }
     private Bitmap image(String asset) {
-        try(InputStream stream=getContext().getAssets().open(asset)) {
+        try(InputStream stream=getContext().getAssets().open(android.os.Build.VERSION.SDK_INT<18?asset.replace(".webp",".png"):asset)) {
             BitmapFactory.Options options=new BitmapFactory.Options();options.inScaled=false;
             Bitmap bitmap=BitmapFactory.decodeStream(stream,null,options);
             if(bitmap==null)throw new IllegalStateException("Invalid QR asset: "+asset);return bitmap;
