@@ -2,7 +2,7 @@
 
 ## Android 4.0–4.4 新兼容档位（未发布）
 
-当前新增 `--compatibility legacy14`，固定 minSdk14，输出一个 `安卓4.0至4.4` 通用包；`--batch --universal-only` 使用标准通用包和此兼容包。各包继续使用相同源码与软件版本、递增构建号及真实签名，历史档位和旧文件保持原样。`legacy19` 固定 API19，仅用于历史构建与升级回归，不另加进默认交付批次。新格式示例为 `QuietTV_<版本号>-<构建号>_安卓4.0至4.4_测试版.apk`，不预占版本或构建号。119–122 已用于本轮较早的本地兼容候选，保留记录且不复用；本地验证用标准包和统一兼容包分别使用123、124，后续标准包125也已占用，均未发布。本批1.3.1标准通用包与安卓4.0至4.4兼容包分别分配126、127，尚待构建和APK验证；后续若有构建失败仍保留占用号。构建通过不代替 API14–19 功能、覆盖升级和厂商固件验收。
+当前新增 `--compatibility legacy14`，固定 minSdk14，输出一个 `安卓4.0至4.4` 通用包；`--batch --universal-only` 使用标准通用包和此兼容包。各包继续使用相同源码与软件版本、递增构建号及真实签名，历史档位和旧文件保持原样。`legacy19` 固定 API19，仅用于历史构建与升级回归，不另加进默认交付批次。新格式示例为 `QuietTV_<版本号>-<构建号>_安卓4.0至4.4_测试版.apk`，不预占版本或构建号。119–122 已用于本轮较早的本地兼容候选，保留记录且不复用；本地验证用标准包和统一兼容包分别使用123、124，后续标准包125也已占用，均未发布。本轮按维护者要求保持1.3.0并累加功能与修复。126用于审查回归调试候选，127保留为此前分配号；最终标准通用包与安卓4.0至4.4兼容包分别使用128、129，尚待构建和APK验证。未完成或失败候选的占用号仍保留。构建通过不代替 API14–19 功能、覆盖升级和厂商固件验收。
 
 
 [首页](../README.md)  [安装与构建](INSTALL.zh-CN.md)  [English installation](INSTALL.en.md)
@@ -28,11 +28,11 @@ QuietTV_<版本号>-<构建号>_<适用系统>[_<单架构标记>]_<发布状态
 ### 版本号与构建号
 
 - 版本号与实际 APK 的 `versionName` 一致，新版本使用 `主版本.次版本.修订号`。修复问题增加修订号，新增功能增加次版本，重大不兼容变化增加主版本。
-- 已发布批次后再公开交付修改过的内容，须使用新的软件版本号；同版本各档位、架构仍共用软件版本号。不得在同一公开文件名下替换不同内容。本地尚未发布的候选可保留软件版本号并使用新的递增构建号，不能将其当作已获发布批准。
+- 同版本各档位、架构共用软件版本号。维护者明确要求本轮1.3.0累加功能与修复，使用新的递增构建号及新文件名，不在同一文件名下覆盖不同字节。旧1.3.0客户端按软件版本判断更新，不会提示本轮同版本包，需手动下载后核对包名、签名及递增构建号覆盖安装。公开发布仍须完成本批材料审核。
 - 构建号与实际 APK 的 `versionCode` 一致，只使用不带前导零的正整数，例如 `31`，不使用 `b31`、`Build31`、`RC31`。
 - 主程序各系统档位、架构和构建类型共用递增交付序列；交付不同内容的新包时分配新号，不回退、复用或因版本变化归零。日常编译不必每次加号，同一归档原字节重发不分配新号。
 - 交付前核对源码配置、历史归档和远程发布中的已用号。文件名中的软件版本及构建号、APK 内部版本和归档记录必须对应，不能通过改名冒充新版本；安装时核对 APK 内部构建号。
-- 主程序版本配置在 `app/build.gradle`，当前开发版本为 `1.3.1`（本批测试包尚未发布；1.3.0 已发布标准通用包117、安卓4.4包118），默认开发构建号仍为 `105`，不作为新包交付号；下次交付先核对所有已用号，再用 Gradle 参数 `quietBuildNumber` 分别指定递增构建号。1.1.2 已发布：标准档为 `1.1.2 / 34`，兼容档为 `1.1.2 / 35`，历史附件保持原样。standard、legacy14 与 legacy19 均为 targetSdk36；本页示例不预占构建号。助手版本独立配置在 `coocaa-home-shim/build.gradle` 和 `xiaomi-home-helper/build.gradle`。
+- 主程序版本配置在 `app/build.gradle`，当前开发版本为 `1.3.0`（按维护者要求累加修复；本批128/129尚未发布，原公开包为117/118），默认开发构建号仍为 `105`，不作为新包交付号；下次交付先核对所有已用号，再用 Gradle 参数 `quietBuildNumber` 分别指定递增构建号。1.1.2 已发布：标准档为 `1.1.2 / 34`，兼容档为 `1.1.2 / 35`，历史附件保持原样。standard、legacy14 与 legacy19 均为 targetSdk36；本页示例不预占构建号。助手版本独立配置在 `coocaa-home-shim/build.gradle` 和 `xiaomi-home-helper/build.gradle`。
 
 ### 安卓档位与架构
 
@@ -183,7 +183,7 @@ APK 字节、版本与签名均未变化。该历史批次的实际英文名 `.a
 
 Published 1.1.2 provides standard build 34 (minSdk21) and legacy19 build 35 (minSdk19), both targeting API36. GitHub uses the approved English filenames listed in the installation guide; local Chinese archives are unchanged. The matching checksum must name the actual download. Historical b30 legacy19 and b26 standard downloads keep their original names and tags. At b30 publication, native emulator and physical-TV acceptance were still pending; historical results for other builds do not validate this APK. See [compatibility](COMPATIBILITY.md) for the recorded scope.
 
-Future downloads and local immutable archives use `QuietTV_<version>-<numeric build>_<system>[_<single ABI>]_<status>.apk`; `public_apk` records the same name. The script does not upload APKs. Version and internal build must match the actual APK. Build numbers are positive integers without prefixes or leading zeros and increase across all main-app delivery variants. Changed content delivered after a published batch requires a new software version; never replace different bytes under the same public filename. Re-sending identical archived bytes does not allocate a new number. The helper uses `QuietTV助手`, its own version/build sequence, and an explicit target launcher; its filename retains the actual build number.
+Future downloads and local immutable archives use `QuietTV_<version>-<numeric build>_<system>[_<single ABI>]_<status>.apk`; `public_apk` records the same name. The script does not upload APKs. Version and internal build must match the actual APK. Build numbers are positive integers without prefixes or leading zeros and increase across all main-app delivery variants. For the maintainer-authorized cumulative 1.3.0 batch, retain the software version and increase build numbers with new filenames. Existing 1.3.0 clients do not offer same-version updates; download and install in place manually. Never replace different bytes under the same public filename. Re-sending identical archived bytes does not allocate a new number. The helper uses `QuietTV助手`, its own version/build sequence, and an explicit target launcher; its filename retains the actual build number.
 
 System labels include `安卓4.0至4.4` (legacy14, API14, local development with device checks deferred), historical `安卓4.4` (legacy19, API19), `安卓5及以上` (standard, API21), and `酷开安卓8` (experimental vendor package, API26). Other minimum APIs require matching labels. Omit the architecture marker for multi-ABI and native-library-free APKs. Use ARM32, ARM64, x86 or x86_64 only for actual single-ABI builds. Universal architecture does not imply compatibility with every OS or TV. Status is `测试版` (test), `实验版` (experimental), or `正式版` (formally signed release with agreed acceptance completed). If GitHub needs English download names, use the approved system/architecture/status mapping (for example, Android5plus and Test) with the actual build number, with the Chinese name as the display label; verify actual download names and bytes before upload.
 
