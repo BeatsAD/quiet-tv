@@ -10,7 +10,7 @@
 python3 agent_session.py start --serial "$TV_SERIAL" --user "$TV_USER" --intent setup --session "$NEW_SESSION_DIR" --bundle "$BUNDLE_DIR/latest.json"
 ```
 
-`setup` 对应默认安装/升级/修复请求；`update`、`repair`、`restore`、`inspect` 对应明确目标。意图是任务上下文，不代替具体操作授权。源码工作区使用 `python3 scripts/agent_session.py`，可省略 `--bundle`。已有专用包通过 `--package` 指定实际包名，不能改装普通包。`--adb` 可指定电脑的实际工具路径。
+`setup` 对应默认安装/升级/修复请求；`update`、`trial`、`repair`、`restore`、`inspect` 对应仅更新、仅试用、修复、恢复或只读目标。意图是任务上下文，不代替具体操作授权。源码工作区使用 `python3 scripts/agent_session.py`，可省略 `--bundle`。已有专用包通过 `--package` 指定实际包名，不能改装普通包。`--adb` 可指定电脑的实际工具路径。
 
 新任务目录的父目录须存在，目录本身不得存在。保存 `session.json`、`summary.json`、设备基线以及工具和说明的 SHA-256。初始查询不启动应用；包状态或 HOME 不可读取时记未知，不假装未安装。任务摘要不是应用数据备份，也不替代原始恢复记录。
 
@@ -28,7 +28,7 @@ python3 agent_session.py run --session "$SESSION_DIR" --tool device_selftest
 
 每次启动之前持久保存 `running` 状态、参数、操作前快照和新记录路径，实时显示并保存工具输出。工具退出码为 0 记录为 `returned`，只表示调用成功；不是实体场景验收通过。非零记录为 `failed`，进程意外结束时保留 `running`。原始工具的 `record.jsonl`、权限快照和报告均保存在对应步骤路径，不能覆盖。
 
-目标为 `inspect` 的任务仅允许默认只读自检或维护 `inspect`。其他目标仍须由 Agent 核对授权、预览和现场；本工具不会凭任务名称自动执行任何修改。已有 APK 缺接口时使用连接说明的系统检测，不强行调用维护接口。
+目标为 `inspect` 的任务仅允许默认只读自检或维护 `inspect`。仅更新或仅试用任务调用安装器必须显式保持同名 `--goal`，恢复任务不能调用统一安装器重新安装。其他目标仍须由 Agent 核对授权、预览和现场；本工具不会凭任务名称自动执行任何修改。已有 APK 缺接口时使用连接说明的系统检测，不强行调用维护接口。
 
 ## 中断后继续
 

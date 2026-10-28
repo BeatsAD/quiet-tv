@@ -74,7 +74,7 @@ def bundle_files(bundle=None):
     files = {str(ROOT / name): digest(ROOT / name) for name in TOOLS}
     if bundle:
         bundle = bundle.resolve()
-        index = json.loads(bundle.read_text())
+        index = json.loads(bundle.read_text(encoding='utf-8'))
         if set(index.get('tools', {})) != set(TOOLS) or set(index.get('guides', {})) != set(GUIDES):
             raise ValueError('工具或说明清单不完整，请下载同一次 latest.json 的全部文件')
         for section in ('tools', 'guides'):
@@ -168,6 +168,13 @@ def run_step(directory, state, tool, arguments):
     if state['intent'] == 'inspect' and not (tool == 'device_selftest' and not arguments
             or tool == 'device_maintenance' and arguments == ['inspect']):
         raise ValueError('只读任务只允许默认自检或 inspect；改变目标须明确建立新任务')
+    if tool == 'install_quiet_tv' and state['intent'] in ('update', 'trial', 'restore'):
+        if state['intent'] == 'restore':
+            raise ValueError('恢复任务不能重新安装；按原记录选择恢复工具')
+        goals = [arguments[i + 1] for i, value in enumerate(arguments[:-1]) if value == '--goal']
+        goals += [value.split('=', 1)[1] for value in arguments if value.startswith('--goal=')]
+        if goals != [state['intent']]:
+            raise ValueError('安装目标必须保持任务原有的仅更新或仅试用意图')
     reserved = ('--serial', '--user', '--adb', '--record', '--package')
     # Reject argparse abbreviations too; scope comes only from the confirmed session.
     if any(arg.startswith('--') and any(flag.startswith(arg.split('=')[0]) for flag in reserved)
@@ -225,7 +232,7 @@ def main(argv=None):
     parser.add_argument('--user', type=int)
     parser.add_argument('--package', choices=PACKAGES, default=tcl.PACKAGE)
     parser.add_argument('--adb', default='adb')
-    parser.add_argument('--intent', choices=('setup', 'update', 'repair', 'restore', 'inspect'))
+    parser.add_argument('--intent', choices=('setup', 'update', 'trial', 'repair', 'restore', 'inspect'))
     parser.add_argument('--bundle', type=Path)
     parser.add_argument('--step', type=int)
     parser.add_argument('--note', help='核对的原始记录、现场结果和下一步；不是验收通过标记')
@@ -249,7 +256,7 @@ def main(argv=None):
             summary(directory, state)
             return 0
         with locked(directory):
-            state = json.loads((directory / 'session.json').read_text())
+            state = json.loads((directory / 'session.json').read_text(encoding='utf-8'))
             if state.get('schemaVersion') != 1:
                 raise ValueError('任务记录版本不支持')
             if any(step['status'] == 'running' and alive(step.get('pid')) for step in state['steps']):
