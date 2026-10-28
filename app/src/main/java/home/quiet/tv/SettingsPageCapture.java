@@ -3,13 +3,15 @@ package home.quiet.tv;
 import android.content.*;
 import android.content.pm.*;
 import android.os.*;
+import java.io.File;
 import java.util.*;
 import java.util.concurrent.*;
 
-/** Explicit, read-only, process-owned capture that survives leaving the diagnostics panel. */
+/** Automatic read-only observations after a settings dispatch; no separate user operation. */
 final class SettingsPageCapture {
     private static final long LIMIT_MS=180000,INTERVAL_MS=2000;
     private static SettingsPageCapture current;
+    private static String skipped="";
     private final Context context;
     private final AdbController adb;
     private final ScheduledExecutorService worker=Executors.newSingleThreadScheduledExecutor();
@@ -19,32 +21,36 @@ final class SettingsPageCapture {
     private final Set<String> inspected=new HashSet<>();
     private final Set<String> unavailable=new LinkedHashSet<>();
     private volatile boolean running=true;
-    private String state="正在连接本机 ADB",previous="";
+    private String state="正在核对已有本机 ADB",previous="";
     private int samples,changes,unknown,capturedUser=-1;
     private final Runnable deadline=()->stop("time_limit");
     private SettingsPageCapture(Context context){this.context=context.getApplicationContext();adb=new AdbController(this.context,value->{});}
     static synchronized boolean running(){return current!=null&&current.running;}
-    static synchronized String summary(){return current==null?"本进程未启动设置页面采集；历史结果见 settings.capture 事件，进程终止可能使采集中断。":current.describe();}
-    static synchronized void start(Context context,Runnable ready){
+    static synchronized String summary(){return !skipped.isEmpty()?skipped:current==null?"本进程尚无系统设置页面观察记录；历史结果见 settings.capture 事件。":current.describe();}
+    static synchronized void observe(Context context){
         if(running())return;
-        SettingsPageCapture capture=new SettingsPageCapture(context);current=capture;capture.connect(ready);
+        // Ordinary settings navigation must not create a new key or require a diagnostic setup flow.
+        String reason=!new File(context.getFilesDir(),"local-adb.p12").isFile()?"no_existing_adb_key":
+            !context.getSharedPreferences("adb",0).getBoolean("autoConnect",true)?"adb_paused":
+            "tls".equals(context.getSharedPreferences("adb",0).getString("lastTransport","tcp"))?"tcp_unavailable":"";
+        if(!reason.isEmpty()){skipped="设置页面自动观察未执行："+reason+"；应用自身收到的导航按键仍会记录。";DiagnosticLog.info("settings.capture.skipped","reason="+reason);return;}
+        skipped="";SettingsPageCapture capture=new SettingsPageCapture(context);current=capture;capture.connect();
     }
     static synchronized void stopCurrent(String reason){if(current!=null)current.stop(reason);}
     private synchronized String describe(){return "采集状态："+state+"\n采集编号："+id+"\n采样次数："+samples+"  结构变化："+changes+"  前台未知："+unknown
         +"\nAndroid 用户："+(capturedUser<0?"未确认":Integer.toString(capturedUser))
         +"\n受阻查询："+(unavailable.isEmpty()?"未记录":unavailable)
-        +"\n范围：本机当前 Android 用户，手动开始，最多180秒，每次快照后间隔2秒；仅组件、action、Fragment候选及组件访问状态。不保存原始转储、Intent数据/extra值、页面文字或网络列表。"
+        +"\n范围：打开系统设置后自动观察，最多180秒，每次快照后间隔2秒，导出时结束；仅本机当前用户的组件、action、Fragment候选及组件访问状态。不保存原始转储、Intent数据/extra值、页面文字或网络列表。"
         +"\n限制：采样可能遗漏短暂页面；Fragment候选不证明可见，普通View内部切换可能不可见；未知不代表没有页面。组件可见不证明允许直接启动或真机显示成功。";}
-    private void connect(Runnable ready){
+    private void connect(){
         DiagnosticLog.info("settings.capture.begin","capture="+id+" limitMs="+LIMIT_MS+" intervalMs="+INTERVAL_MS);
         main.postDelayed(deadline,LIMIT_MS);
         final int request=adb.prepare();
         worker.execute(()->{
             try{
                 adb.connect(context.getSharedPreferences("adb",0).getInt("port",5555),request);
-                synchronized(this){if(!running)return;capturedUser=adb.user;state="正在采集，返回诊断日志后停止并生成";
+                synchronized(this){if(!running)return;capturedUser=adb.user;state="正在自动观察设置页面";
                     DiagnosticLog.info("settings.capture.connected","capture="+id+" user="+capturedUser);}
-                main.post(()->{if(running)ready.run();});
                 sample();
             }catch(Exception failure){fail("connect",failure);}
         });
@@ -107,7 +113,7 @@ final class SettingsPageCapture {
     private synchronized void stop(String reason){
         if(!running)return;running=false;
         state=reason.startsWith("connect_")?"连接失败，请检查本机 TCP ADB 与授权":reason.startsWith("snapshot_")?"采集受阻，详见日志":
-            "time_limit".equals(reason)?"已达到3分钟，采集结束":"screen_off".equals(reason)?"息屏后已停止采集":"user_stop".equals(reason)?"已停止采集":"采集已取消";
+            "time_limit".equals(reason)?"观察时限结束":"screen_off".equals(reason)?"息屏后已停止":"export".equals(reason)?"导出时已结束观察":"观察已结束";
         DiagnosticLog.info("settings.capture.result","capture="+id+" reason="+reason+" samples="+samples+" changes="+changes+" unknown="+unknown+" elapsedMs="+(SystemClock.elapsedRealtime()-started));
         main.removeCallbacks(deadline);adb.close();worker.shutdownNow();
     }
