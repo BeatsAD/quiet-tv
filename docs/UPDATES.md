@@ -36,7 +36,7 @@ Quiet TV 在首页前台显示后检查已签名的公开版本清单，成功�
 
 ### 外部 Agent 与安装页的最新版入口
 
-安装站点另提供 `https://beatsad.github.io/quiet-tv/latest.json` 与 `agent.md`。`scripts/build_install_guide.py` 在部署时实时读取 GitHub 的完整公开 Release 列表，包含测试版、排除草稿，按数字软件版本排序，只保留真实上传的主程序 APK 及其下载地址、大小和 SHA-256。历史档位保留为适配候选；全局最新软件版本不代表适配每台电视。全部撤回后索引的 `latestVersion` 为 `null`、`releases` 为空，停止提供安装请求。索引不推断 APK 的实际构建号、签名或架构，也不重签、修改电视端 `updates.json`。
+安装站点另提供 `https://beatsad.github.io/quiet-tv/latest.json` 与 `agent.md`。`scripts/build_install_guide.py` 在部署时实时读取 GitHub 的完整公开 Release 列表，包含测试版、排除草稿，按数字软件版本排序，只保留真实上传的主程序 APK 及其下载地址、大小和 SHA-256。历史档位保留为适配候选；全局最新软件版本不代表适配每台电视。全部撤回后索引的 `latestVersion` 为 `null`、`releases` 为空，停止安装步骤；统一入口仍可用于检查和恢复。索引不推断 APK 的实际构建号、签名或架构，也不重签、修改电视端 `updates.json`。
 
 Release 发布、编辑、转正式或撤回后，工作流自动请求从 `main` 重新部署安装站点；此路径兼容 Pages 仅允许 `main` 部署的环境规则。更新规范、站点脚本或签名清单合入 `main` 时同样自动部署。普通新版本不需要修改网页、提示词或固定链接。发布操作须保留原有审核授权；用仓库 `GITHUB_TOKEN` 发布 Release 不会触发普通工作流事件，发布者使用该方式时须显式执行 `gh workflow run pages.yml --ref main --repo BeatsAD/quiet-tv`。自动部署完成前站点仍为上次成功版本；失败时检查 Pages 工作流并修复后重跑，不把失败视为上线成功。
 
@@ -90,3 +90,5 @@ python3 scripts/build_update_manifest.py --release /绝对路径/本地版本说
 ## 验证范围
 
 自动规则和受控传输测试不能代替真实代理完整下载、电视网络、未知来源授权、实体遥控器及升级保留验证。实际系统安装器样式与能力由电视固件决定。应用被替换时可能退出；再次启动会读取实际版本，不以“安装器已打开”判断更新完成。
+
+统一 `agent.md` 由 `docs/AGENT.md` 生成短入口，不再拼接完整安装长文和附件列表。`latest.json` 的 `tools`、`guides` 提供本次工具、规则和按需说明的实际 URL 与 SHA-256；任务保存这些文件的固定版本，中断后核对现场再继续。维护说明为 `maintenance.md`，旧 `adapt.md` 保留兼容。此索引不改变电视端签名更新清单。

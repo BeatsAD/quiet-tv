@@ -62,7 +62,8 @@ def main():
                   for name in changed)
     project_changes = {name for name in changed if not name.endswith('.md')}
     flags = {
-        'install': any(name.startswith('prototypes/install-guide/') or name in (
+        'install': any(name.startswith(('prototypes/install-guide/', 'docs/agent/')) or name in (
+            'docs/AGENT.md', 'scripts/agent_session.py',
             'docs/AGENT_INSTALL.zh-CN.md', 'docs/AGENT_ADAPT.zh-CN.md', 'docs/DEVICE_ADAPTATION.zh-CN.md', 'scripts/build_install_guide.py',
             'scripts/configure_boot_home.py', 'scripts/device_adaptation.py', 'scripts/vendor_adaptation.py', 'scripts/device-presets.json', 'scripts/device_maintenance.py', 'scripts/device_selftest.py', '.github/workflows/pages.yml')
                        for name in changed),
