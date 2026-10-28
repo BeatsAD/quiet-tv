@@ -111,9 +111,11 @@ def build_site(output, releases):
     else:
         summary.extend(['当前没有已公开且含主程序 APK 的发布，请停止安装，不使用历史缓存。', ''])
     (output / 'agent.md').write_text('\n'.join(summary) + '\n---\n\n' + guide)
-    adapt = (ROOT / 'docs/AGENT_ADAPT.zh-CN.md').read_text()
-    adapt = re.sub(r'\]\(([^\s)]+)\)', lambda match: '](' + urljoin(REPOSITORY + '/blob/main/docs/', match[1]) + ')', adapt)
-    (output / 'adapt.md').write_text(adapt)
+    maintenance = (ROOT / 'docs/AGENT_ADAPT.zh-CN.md').read_text()
+    maintenance = re.sub(r'\]\(([^\s)]+)\)', lambda match: '](' + urljoin(REPOSITORY + '/blob/main/docs/', match[1]) + ')', maintenance)
+    (output / 'maintenance.md').write_text(maintenance)
+    # Keep previously shared links usable without maintaining a second guide.
+    (output / 'adapt.md').write_text(maintenance)
     return index
 
 
