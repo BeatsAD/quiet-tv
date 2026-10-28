@@ -44,7 +44,6 @@ android {
         'home/quiet/tv/DiagnosticsSnapshot.java'
     // Retired configuration tools remain as source history; no APK code or dependencies.
     sourceSets.main.java.exclude 'home/quiet/tv/AdbConnectionPanel.java',
-        'home/quiet/tv/AdbController.java',
         'home/quiet/tv/AdbSession.java',
         'home/quiet/tv/AdbState.java',
         'home/quiet/tv/AdbStateReader.java',
@@ -54,10 +53,8 @@ android {
         'home/quiet/tv/HomeGuardPanel.java',
         'home/quiet/tv/HomeTakeover.java',
         'home/quiet/tv/LocalAdbDiscovery.java',
-        'home/quiet/tv/PairingTransport.java',
         'home/quiet/tv/SetupActivity.java',
         'home/quiet/tv/SetupOperations.java',
-        'home/quiet/tv/ShellCapabilities.java',
         'home/quiet/tv/TclHomePolicy.java',
         'home/quiet/tv/WirelessPairing.java'
     buildTypes {
@@ -105,6 +102,11 @@ dependencies {
     implementation legacy ? 'androidx.activity:activity:1.9.3' : 'androidx.activity:activity:1.10.1'
     if (legacy) implementation 'org.bouncycastle:bctls-jdk15to18:1.86'
     implementation 'org.bouncycastle:bcprov-jdk15to18:1.86'
+    implementation 'org.bouncycastle:bcpkix-jdk15to18:1.86'
+    // Local TCP operations only; first-time pairing remains on the computer.
+    implementation('com.github.MuntashirAkon:libadb-android:3.1.1') {
+        exclude group: 'com.github.MuntashirAkon.spake2-java', module: 'spake2-android'
+    }
 }
 
 // Ship the reviewed About screen and its offline licenses, without preview controls.

@@ -138,4 +138,4 @@ The wallpaper settings and upload dialog use raster exports of Lucide 0.468.0 ic
 
 新增天气源 [Open-Meteo](https://open-meteo.com/) 的数据依 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 使用；天气码由本项目转换为中文/英文和原生图标，当前天气为模型估算。免费托管 API 仅限[非商业使用](https://open-meteo.com/en/terms)，默认关闭，需用户启用；数据许可不等于免费服务的商业使用授权。[OpenWeather](https://openweathermap.org/api/current) 使用开发者可选配置的独立凭据及对应服务条款。天气设置显示实际成功来源并链接其官网；未直接复制上述开源天气应用代码。
 
-当前主程序由电脑脚本执行 ADB 配置，不再构建 libadb、SPAKE2 或 Conscrypt。签名更新清单保留 Bouncy Castle bcprov；安卓 4.4 的连接级 TLS 保留 BCJSSE 及所需依赖。历史许可证文件保留，避免改变历史发布记录。
+当前开发主程序由电脑脚本执行首次 ADB 配置，日常应用管理使用 libadb-android 3.1.1 的 TCP 通道及 Bouncy Castle bcpkix 1.86 生成并保留本机授权身份，不构建 SPAKE2 或 Conscrypt。签名更新清单保留 Bouncy Castle bcprov；安卓 4.4 的连接级 TLS 保留 BCJSSE 及所需依赖。历史许可证文件保留，避免改变历史发布记录。

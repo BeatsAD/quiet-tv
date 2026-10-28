@@ -76,7 +76,6 @@ final class AdbController implements Closeable {
     private final Status status;
     private volatile AdbConnection connection;
     private volatile Closeable transport;
-    private final WirelessPairing pairing=new WirelessPairing();
     private final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor();
     private volatile boolean closed;
     private final java.util.concurrent.atomic.AtomicInteger generation=new java.util.concurrent.atomic.AtomicInteger();
@@ -107,23 +106,10 @@ final class AdbController implements Closeable {
         while(match.find()){int value=Integer.parseInt(match.group(1));if(found>=0 && found!=value)throw new IOException("前台用户状态不唯一");found=value;}
         if(found<0)throw new IOException("无法核对前台用户，请返回 Quiet TV 后重试");return found;
     }
-    static boolean pairingAvailable(){return WirelessPairing.available();}
     static boolean localAddress(InetAddress address){
         if(address==null)return false;if(address.isLoopbackAddress())return true;
         try{for(NetworkInterface nic:Collections.list(NetworkInterface.getNetworkInterfaces()))if(nic.isUp())for(InetAddress local:Collections.list(nic.getInetAddresses()))if(local.equals(address))return true;}catch(SocketException ignored){}return false;
     }
-    void pair(int port,String code) throws Exception {pair(port,code,prepare());}
-    void pair(int port,String code,int attempt) throws Exception {
-        try{pairAttempt(port,code,attempt);}catch(Exception failure){failedDiagnostic(attempt,failure);throw failure;}
-    }
-    private void pairAttempt(int port,String code,int attempt) throws Exception {
-        if(!pairingAvailable())throw new IOException("当前版本或系统不支持无线配对，请使用传统 TCP");
-        if(port<1 || port>65535 || !code.matches("[0-9]{6}"))throw new IOException("请输入有效配对端口及六位配对码");
-        if(closed || generation.get()!=attempt)throw new IOException("配对已取消");
-        publish(Stage.PAIRING,"正在配对",attempt);
-        pairing.start(port,code,loadKeys(),generation,attempt,value->publish(Stage.PAIRING,value,attempt));
-    }
-
     void connect(int port) throws Exception {connect(port,prepare());}
     void connect(int port,int attempt) throws Exception {
         try{connectAttempt(port,attempt);}catch(Exception failure){failedDiagnostic(attempt,failure);throw failure;}
@@ -341,6 +327,6 @@ final class AdbController implements Closeable {
     private static Failure failureFor(Stage stage){
         switch(stage){case KEYS:return Failure.KEYS;case HANDSHAKE:return Failure.HANDSHAKE;case LOCAL:return Failure.LOCAL;case SHELL:return Failure.SHELL;case USER:return Failure.USER;case CAPABILITIES:return Failure.CAPABILITIES;default:return Failure.PORT;}
     }
-    synchronized void disconnect(){finishDiagnostic(diagnosticGeneration,"CANCELLED","disconnect");generation.incrementAndGet();user=-1;capabilities=ShellCapabilities.NONE;pairing.close();Closeable active=transport;transport=null;if(active!=null)try{active.close();}catch(IOException ignored){}AdbConnection c=connection;connection=null;if(c!=null)try{c.close();}catch(IOException ignored){}publish(Stage.IDLE,"未连接");}
+    synchronized void disconnect(){finishDiagnostic(diagnosticGeneration,"CANCELLED","disconnect");generation.incrementAndGet();user=-1;capabilities=ShellCapabilities.NONE;Closeable active=transport;transport=null;if(active!=null)try{active.close();}catch(IOException ignored){}AdbConnection c=connection;connection=null;if(c!=null)try{c.close();}catch(IOException ignored){}publish(Stage.IDLE,"未连接");}
     @Override public void close(){closed=true;disconnect();timer.shutdownNow();}
 }
