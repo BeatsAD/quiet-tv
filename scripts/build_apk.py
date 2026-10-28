@@ -178,8 +178,9 @@ def build_apk(summary, variant='debug', abi='universal', min_sdk=None, compatibi
         raise ValueError('不支持的构建类型或 ABI')
     if build_number is not None and (not isinstance(build_number, int) or build_number < 1):
         raise ValueError('构建号必须为正整数')
-    build_root = ROOT / 'output/candidate-builds' / f'{compatibility}-{home_mode}-{variant}-{abi}-api{min_sdk}'
     before = source_digest()
+    identity = f'b{build_number}' if build_number is not None else before[:12]
+    build_root = ROOT / 'output/candidate-builds' / f'{compatibility}-{home_mode}-{variant}-{abi}-api{min_sdk}-{identity}'
     subprocess.run([str(ROOT / 'gradlew'), ':app:assemble' + variant.capitalize(), '--console=plain',
                     '-PquietBuildRoot=' + str(build_root), '-PquietAbi=' + abi, '-PquietMinSdk='+str(min_sdk),
                     '-PquietCompatibility=' + compatibility, '-PquietHomeMode=' + home_mode]
@@ -201,7 +202,7 @@ def verify_batch(apks):
     if len(records) == 2:
         expected = [('standard', 'universal'), ('legacy14', 'universal')]
     if [(record['compatibility'], record['abi']) for record in records] != expected:
-        raise ValueError('批次须为标准三架构加安卓4.4，或无原生库的标准通用加安卓4.4')
+        raise ValueError('批次须为标准三架构加安卓4.x，或无原生库的标准通用加安卓4.x')
     numbers = [int(record['version_code']) for record in records]
     if numbers != list(range(numbers[0], numbers[0] + len(records))):
         raise ValueError('批次构建号必须依次递增')
@@ -212,7 +213,7 @@ def verify_batch(apks):
                               for name in archive.namelist()
                               if name.startswith('lib/') and name.endswith('.so')})
     if len(records) == 2 and any(libraries):
-        raise ValueError('两包模式仅适用于标准版和安卓4.4均无原生库')
+        raise ValueError('两包模式仅适用于标准版和安卓4.x均无原生库')
     universal = libraries[2] if len(records) == 4 else {}
     # Pure-Java standard packages have no architecture-specific payload.
     if universal and {name.split('/')[1] for name in universal} != set(ABIS[1:]):
@@ -226,7 +227,7 @@ def verify_batch(apks):
         if libraries[index] != matching:
             raise ValueError(f'{abi} 单架构包与通用包的原生库不一致')
     if libraries[-1]:
-        raise ValueError('安卓4.4包不应包含原生库')
+        raise ValueError('安卓4.x包不应包含原生库')
     return {'version_name': records[0]['version_name'],
             'source_commit': records[0]['workspace_commit_at_archive'],
             'production_sources_sha256': records[0]['production_sources_sha256'],
