@@ -398,11 +398,16 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         cancelFocusRestore("destroy");
         BootAppLifecycle.destroyed(this);unregisterReceiver(packageReceiver);loader.shutdownNow();wallpapers.destroy();weather.destroy();super.onDestroy();
     }
+    @Override protected void onStop(){
+        if(!waitingForUnlock){homeResumeEvent("home.stop","");wallpapers.hidden();}
+        super.onStop();
+    }
     @Override protected void onNewIntent(Intent intent){
         super.onNewIntent(intent);setIntent(intent);
         if(waitingForUnlock){resumeAfterUnlock();return;}
         if(!new HomeProxy(this).allowed(intent)){new HomeProxy(this).original(this);finish();return;}
         getWindow().getDecorView().post(()->{if(resumed && hasWindowFocus())new HomeProxy(this).visible(this);});
+        homeResumeEvent("home.new_intent","home="+isHomeIntent(intent));
         if(isHomeIntent(intent))resetHomeFocus();else if(ready)focusCurrent(false);
         main.post(this::openMaintenanceInput);
     }

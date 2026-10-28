@@ -3,6 +3,7 @@ package home.quiet.tv;
 import android.app.Activity;
 import android.content.*;
 import android.graphics.Matrix;
+import android.graphics.Bitmap;
 import android.graphics.SurfaceTexture;
 import android.os.*;
 import android.util.Log;
@@ -14,6 +15,7 @@ import java.util.concurrent.TimeUnit;
 
 /** One playback Looper owns the decoder; surfaces are retired after their decoder. */
 final class VideoWallpaperPlayer {
+    interface Snapshot {void ready(Bitmap image);}
     interface Listener {void ready();void failed(Failure reason);void stopped();}
     interface PlaybackEvents {void ready();void failed(Failure reason);void size(int width,int height,float pixelRatio);}
     enum Failure {
@@ -46,6 +48,7 @@ final class VideoWallpaperPlayer {
     private Listener listener;
     private Target target;
     private boolean enabled,screenOff,rendered,destroyed;
+    private volatile boolean paused;
     private volatile int generation;
     private final Runnable timeout=()->fail(generation,Failure.TIMEOUT);
 
@@ -65,6 +68,32 @@ final class VideoWallpaperPlayer {
     boolean requested(String id){return enabled&&entry!=null&&entry.id.equals(id);}
     boolean ready(){return rendered;}
     boolean visible(){return enabled&&frame.getVisibility()==View.VISIBLE;}
+    void setPaused(boolean value){
+        paused=value;final int request=generation;
+        main.removeCallbacks(timeout);
+        worker.post(()->{if(request==generation&&player!=null)try{player.setPaused(value);}catch(RuntimeException e){main.post(()->fail(request,Failure.DECODE));}});
+        if(!value){start();if(enabled&&!rendered&&!screenOff)main.postDelayed(timeout,8000);}
+    }
+    void snapshot(Snapshot callback){
+        Target captured=target;final int request=generation;
+        if(captured==null||!rendered||!current(captured)||captured.view.getWidth()==0||captured.view.getHeight()==0){callback.ready(null);return;}
+        float scale=Math.min(1f,WallpaperBackdropCache.MAX_EDGE/(float)Math.max(captured.view.getWidth(),captured.view.getHeight()));
+        int width=Math.max(1,Math.round(captured.view.getWidth()*scale)),height=Math.max(1,Math.round(captured.view.getHeight()*scale));
+        if(captured.textureOutput){
+            Bitmap image=null;try{image=((TextureView)captured.view).getBitmap(width,height);}catch(RuntimeException|OutOfMemoryError ignored){}
+            callback.ready(image);return;
+        }
+        if(Build.VERSION.SDK_INT<24){callback.ready(null);return;}
+        Bitmap image;
+        try{image=Bitmap.createBitmap(width,height,Bitmap.Config.ARGB_8888);}catch(OutOfMemoryError e){callback.ready(null);return;}
+        try{Api24.copy((SurfaceView)captured.view,image,main,success->{
+            if(success&&current(captured,request))callback.ready(image);else{image.recycle();callback.ready(null);}
+        });}catch(RuntimeException e){image.recycle();callback.ready(null);}
+    }
+    @android.annotation.TargetApi(24) private static final class Api24 {
+        interface Result {void ready(boolean success);}
+        static void copy(SurfaceView view,Bitmap image,Handler handler,Result result){PixelCopy.request(view,image,status->result.ready(status==PixelCopy.SUCCESS),handler);}
+    }
     void stop(){enabled=false;release();if(target==null)frame.setVisibility(View.GONE);entry=null;listener=null;}
     void destroy(){
         if(destroyed)return;destroyed=true;stop();activity.unregisterReceiver(screen);main.removeCallbacksAndMessages(null);
@@ -93,7 +122,7 @@ final class VideoWallpaperPlayer {
         ((TextureView)target.view).setTransform(crop);
     }
     private void start(){
-        if(destroyed||!enabled||screenOff||entry==null)return;
+        if(destroyed||!enabled||screenOff||paused||entry==null)return;
         boolean textureOutput=BuildConfig.LEGACY_19||VideoGeometry.manualRotation(Build.VERSION.SDK_INT,entry.rotation);
         if(target!=null){
             if(target.preparing||target.textureOutput)return;
@@ -177,7 +206,7 @@ final class VideoWallpaperPlayer {
         if(!current(next)||next.preparing)return;
         next.preparing=true;final int request=next.request;
         File file=selected.custom()?WallpaperStore.get(activity).file(selected.id):null;
-        Log.i(TAG,"prepare request="+next.request);DiagnosticLog.info("wallpaper.video.prepare","mime="+selected.videoMime+" size="+selected.width+"x"+selected.height+" fps="+selected.fps+" backend="+(BuildConfig.LEGACY_19?"platform":"media3"));
+        Log.i(TAG,"prepare request="+next.request);DiagnosticLog.info("wallpaper.video.prepare","request="+next.request+" mime="+selected.videoMime+" size="+selected.width+"x"+selected.height+" fps="+selected.fps+" backend="+(BuildConfig.LEGACY_19?"platform":"media3"));
         worker.post(()->{
             if(request!=generation||next.retired)return;
             releasePlayer();if(request!=generation||next.retired)return;
@@ -189,13 +218,13 @@ final class VideoWallpaperPlayer {
                     @Override public void failed(Failure reason){main.post(()->fail(request,reason));}
                     @Override public void size(int width,int height,float pixelRatio){main.post(()->{if(current(next,request)&&width>0&&height>0){next.aspect=VideoGeometry.aspect(width,height,pixelRatio,0);layout();}});}
                 });
-                player.prepare();
+                player.setPaused(paused);player.prepare();
             }catch(IOException|RuntimeException e){DiagnosticLog.error("wallpaper.video.prepare_failed",e);main.post(()->fail(request,e instanceof IOException?Failure.FILE:Failure.DECODE));}
         });
     }
     private void firstFrame(Target next){
         if(!current(next)||!next.started||!next.updated||rendered)return;
-        rendered=true;main.removeCallbacks(timeout);Log.i(TAG,"texture updated request="+next.request);DiagnosticLog.info("wallpaper.video.rendered","first frame");
+        rendered=true;main.removeCallbacks(timeout);Log.i(TAG,"texture updated request="+next.request);DiagnosticLog.info("wallpaper.video.rendered","first frame request="+next.request);
         final int request=next.request;
         main.post(()->{if(current(next,request)&&rendered&&listener!=null)listener.ready();});
     }

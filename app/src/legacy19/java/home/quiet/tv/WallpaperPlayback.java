@@ -13,11 +13,12 @@ final class WallpaperPlayback {
     private final Activity activity;
     private final File file;
     private final WallpaperCatalog.Entry entry;
+    private boolean prepared,paused;
     WallpaperPlayback(Activity activity,Handler worker,Surface surface,File file,WallpaperCatalog.Entry entry,VideoWallpaperPlayer.PlaybackEvents events){
         this.activity=activity;this.file=file;this.entry=entry;
         player.setSurface(surface);player.setScreenOnWhilePlaying(false);player.setVolume(0,0);player.setLooping(true);
         player.setOnPreparedListener(p->{try{
-            p.start();events.ready();
+            prepared=true;if(!paused)p.start();events.ready();
         }catch(RuntimeException e){DiagnosticLog.error("wallpaper.video.start_failed",e);events.failed(VideoWallpaperPlayer.Failure.DECODE);}});
         player.setOnErrorListener((p,what,extra)->{
             DiagnosticLog.info("wallpaper.video.player_error","what="+what+" extra="+extra);
@@ -33,4 +34,5 @@ final class WallpaperPlayback {
         player.prepareAsync();
     }
     void release(){player.setOnPreparedListener(null);player.setOnErrorListener(null);player.release();}
+    void setPaused(boolean paused){this.paused=paused;if(prepared){if(paused)player.pause();else player.start();}}
 }
