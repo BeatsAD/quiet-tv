@@ -4,13 +4,15 @@ import android.content.*;
 import android.os.*;
 import android.provider.Settings;
 
-/** Boot broadcasts restore configured AUTO mode; they never grant permissions. */
+/** Boot and package replacement resume existing recovery; they never grant permissions. */
 public final class HomeGuardBootReceiver extends BroadcastReceiver {
     @Override public void onReceive(Context supplied,Intent intent){
         String action=intent.getAction();
-        if(!Intent.ACTION_BOOT_COMPLETED.equals(action) && !Intent.ACTION_LOCKED_BOOT_COMPLETED.equals(action))return;
-        DiagnosticLog.info("home_guard.boot","action="+action+" elapsedRealtimeMs="+SystemClock.elapsedRealtime());
-        Context c=supplied.getApplicationContext();HomeGuardAdb.restoreSetting(c);HomeGuardSync.refresh(c);HomeGuardAdb.ensure(c);HomeGuardRecovery.request(c,"开机");
+        boolean updated=Intent.ACTION_MY_PACKAGE_REPLACED.equals(action);
+        if(!updated && !Intent.ACTION_BOOT_COMPLETED.equals(action) && !Intent.ACTION_LOCKED_BOOT_COMPLETED.equals(action))return;
+        DiagnosticLog.info(updated?"home_guard.package_replaced":"home_guard.boot","action="+action+" elapsedRealtimeMs="+SystemClock.elapsedRealtime());
+        Context c=supplied.getApplicationContext();HomeGuardAdb.restoreSetting(c);HomeGuardSync.refresh(c);HomeGuardAdb.ensure(c);HomeGuardRecovery.request(c,updated?"应用升级":"开机");
+        if(updated)return;
         if(!Intent.ACTION_BOOT_COMPLETED.equals(action) || !new HomeGuardState(c).ready())return;
         if(HomeGuardService.connected()){HomeGuardService.lifecycle("开机完成");return;}
         // A receiver has no accessibility binding's activity-start privilege.

@@ -27,6 +27,20 @@ final class DesktopRoutes {
                 +":"+(boot==null?-1:version(boot.optString("systemPackage")))+":"+proxy+":"+version(proxy);
     }
     boolean current(){return revision().equals(prefs.getString("routeRevision",""));}
+    @android.annotation.SuppressLint("ApplySharedPref")
+    void restoreAfterUpgrade(){
+        String previous=prefs.getString("routeRevision",""),current=revision();
+        if(!DesktopRoutePolicy.upgradeCompatible(previous,current,Build.FINGERPRINT,BuildConfig.VERSION_CODE))return;
+        SharedPreferences.Editor edit=prefs.edit().putString("routeRevision",current);
+        if(previous.equals(prefs.getString("vendorRevision","")))edit.putString("vendorRevision",current);
+        // Keep the configured route and pause choice, but do not carry old APK acceptance into this build.
+        for(String scene:new String[]{"home","reboot","coldBoot","wake"})edit.remove("routeTest_"+scene).remove("routeTestAt_"+scene).remove("routeTestEvidence_"+scene);
+        edit.remove("proxyVisibleAt").remove("proxyVisibleEpoch");
+        if(!edit.commit())return;
+        DiagnosticLog.info("home_guard.upgrade","configuration_preserved scenes_require_retest");
+        HomeProxy proxy=new HomeProxy(context);
+        if(proxySelected() && state.automatic() && !proxy.setupPending())proxy.resume();
+    }
     private SharedPreferences.Editor edit(){
         SharedPreferences.Editor edit=prefs.edit();
         if(!current())for(String scene:new String[]{"home","reboot","coldBoot","wake"})edit.remove("routeTest_"+scene);
