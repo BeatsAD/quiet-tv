@@ -1,6 +1,6 @@
 # 电脑 AI 适配规则与恢复
 
-[安装](AGENT_INSTALL.zh-CN.md)  [诊断与验收](AGENT_ADAPT.zh-CN.md)
+[安装](AGENT.md)  [诊断与验收](AGENT_ADAPT.zh-CN.md)
 
 电脑 Agent 负责检测、选择规则、配置与读回；电视保存本机配置，独立运行 HOME、守护、ADB 保持与信号源。电脑断开后不依赖 Agent 在线。新规则可独立于 APK 更新，但 APK 必须已提供所需能力；未知协议或运行行为仍需开发和发布新 APK。
 
@@ -8,7 +8,7 @@
 
 [device-presets.json](../scripts/device-presets.json) 是后续维护的配置规则源，首批完整承接旧规则及参考资料。`devices` 是执行规则，`references` 仅是调查线索，不能因品牌相同转成执行资格。先读取本机品牌、型号、完整指纹、用户、相关包版本和实际能力，再选择规则。
 
-[device_adaptation.py](../scripts/device_adaptation.py) 默认只读。安装页 `latest.json` 同时分发脚本和 JSON 的 SHA-256；独立 Agent 下载全部十一项工具与规则到同一私有目录，并校验实际字节。不从网页摘要、旧缓存或临时生成的命令替代规则。源码工作区使用同目录文件，不联网取得其他规则。
+[device_adaptation.py](../scripts/device_adaptation.py) 默认只读。安装页 `latest.json` 同时分发脚本和 JSON 的 SHA-256；独立 Agent 下载索引列出的全部工具与规则到同一私有目录，并校验实际字节。不从网页摘要、旧缓存或临时生成的命令替代规则。源码工作区使用同目录文件，不联网取得其他规则。
 
 电视只接受当前固件的一条数据规则，不执行下载代码。接口返回 `adaptation-rules-v1`、`takeover-record-v1` 等能力；缺失时报告需要支持它们的 APK，不绕过。固件升级后本机规则标记 `stale`，重新检测；已有恢复记录不自动套到新固件。
 
@@ -47,7 +47,7 @@ python3 scripts/device_adaptation.py --serial "$TV_SERIAL" --user "$TV_USER" --r
 恢复新旧专项记录均使用：
 
 ```sh
-python3 scripts/device_maintenance.py --serial "$TV_SERIAL" --user "$TV_USER" --record "$NEW_RECORD_DIR" --action restore
+python3 scripts/device_maintenance.py restore --serial "$TV_SERIAL" --user "$TV_USER" --record "$NEW_RECORD_DIR"
 ```
 
 预览后加 `--apply`。先恢复原包的默认启用值 `0` 或显式启用值 `1`，再恢复 HOME；中断记录只处理已尝试的步骤。当前已选择 ADB 保持时保留对应设置。原包版本、固件或其他操作改变状态时停止，不能覆盖未知现场。`configure_boot_home.py` 创建的电脑 `boot_plan` 仍按原 `--restore-record` 恢复厂商属性，再完成应用路线恢复。
@@ -75,3 +75,38 @@ python3 scripts/device_maintenance.py --serial "$TV_SERIAL" --user "$TV_USER" --
 修改清单、规则单测、脚本模拟故障、标准版／安卓 4.4／relay 编译和 Lint，只证明相应源码与构建结果。模拟器用于接口、升级记录和恢复验证，不替代厂商实体 HOME、普通重启、冷启动、唤醒、HDMI 与网络 ADB 验收。安装后分别报告这些结果。
 
 本地源码合并不等于工具、规则、站点或 APK 已公开可用；必须完成后续明确授权的发布，新用户才会获得对应版本。
+
+## 电脑维护：检查、修复与恢复
+
+新源码将守护、ADB 和系统应用禁用移出电视日常界面；旧 APK 不随文档更新获得接口。电视端“应用管理 → 更多 → 帮助与恢复”仅提供帮助、暂停接管及系统原桌面恢复入口；布局、天气、应用封面、排序和儿童模式继续在电视操作。恢复基线在安装接管前保存；历史配置缺记录时沿用电脑原记录，不能猜原值。
+
+安装仍使用 `install_quiet_tv.py`。维护使用同一工具目录中的 `device_maintenance.py`，不重新安装、清数据或自动重启。所有命令指定已确认的电视和前台用户，`NEW_RECORD_DIR` 每次取全新的电脑私有目录。
+
+```sh
+python3 device_maintenance.py inspect --serial "$TV_SERIAL" --user "$TV_USER" --record "$NEW_RECORD_DIR"
+python3 device_maintenance.py repair --serial "$TV_SERIAL" --user "$TV_USER" --record "$NEW_RECORD_DIR"
+python3 device_maintenance.py restore --serial "$TV_SERIAL" --user "$TV_USER" --record "$NEW_RECORD_DIR"
+```
+
+上述三行是不同操作示例，不连续执行；除 inspect 外默认预览。已有明确修复／恢复授权时，在检查计划后用新目录加 `--apply` 执行，不反复询问同一授权。repair 复用已配置的守护并按默认维护目标开启 ADB 保持；主动暂停的接管仅在用户要求恢复后加 `--resume`。独立代理路线不自动改成内置守护。restore 自动读取并核对历史专项接管记录，按原顺序恢复对应包状态、属性和 HOME，保留已选择的 ADB 保持。记录缺失、版本或固件／用户变化时停止，不猜测原值。
+
+单个应用禁用先预览：
+
+```sh
+python3 device_maintenance.py disable --target "$APP_PACKAGE" --serial "$TV_SERIAL" --user "$TV_USER" --record "$NEW_RECORD_DIR"
+```
+
+AI 列出返回的名称、用途、影响和恢复方法。只有用户明确选择该应用后才加 `--apply`，每次只处理一个包；失败停止后续修改。工具读取已安装 APK 内的固件规则和保护条件，拒绝原桌面、接管依赖和未确认系统包；无精确恢复命令也不禁用。此入口不卸载、不删除应用数据，不替代专用原桌面接管方案。
+
+恢复该次禁用：
+
+```sh
+python3 device_maintenance.py restore-app --target "$APP_PACKAGE" --from-record "$DISABLE_RECORD/record.jsonl" --serial "$TV_SERIAL" --user "$TV_USER" --record "$NEW_RECORD_DIR"
+```
+
+核对后用新目录加 `--apply`。只恢复记录中的原始启用值，不能把默认启用值 0 一律改成 1。预览记录不算已执行，设备、用户、固件或版本变化时停止；中断后先读现状，不重放。所有记录留在电脑私有目录，反馈前脱敏。
+
+维护完成后按本页验收要求分别验证实体 HOME、重启、冷启动、待机唤醒及播放／HDMI 不被打断。配置返回成功不等于这些场景通过。采用 Aerial 的 [安装](https://aerial.qust.me/agent.md)／[适配](https://aerial.qust.me/adapt.md)流程组织方式，执行仍使用 Quiet TV 的包校验、权限及固件规则；不运行 Aerial 安装脚本替换本项目配置。
+
+
+统一自检、本机信号源配置、同签名 HOME 代理修复和专项恢复详见[电脑适配与维护](AGENT_ADAPT.zh-CN.md)。修复前后使用 `device_selftest.py` 的同机报告对比；默认只读，主动 HOME、信号源、待机和重启场景必须明确选择并加 `--apply`。网络 ADB 必须记录重启后的实际重连结果，不能把调试开关值当作完成。

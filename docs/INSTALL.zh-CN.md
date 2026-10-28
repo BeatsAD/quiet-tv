@@ -4,7 +4,7 @@
 
 ## 普通用户安装
 
-当前公开版本与下载地址由[最新版索引](https://beatsad.github.io/quiet-tv/latest.json)自动维护，包含测试版；也可直接使用[安装页](https://beatsad.github.io/quiet-tv/)。使用已发布 APK 不需要 JDK、Gradle 或完整 Android SDK。可阅读[Agent 安装与恢复说明](AGENT_INSTALL.zh-CN.md)，或按下方“下载、安装与试用”操作。
+当前公开版本与下载地址由[最新版索引](https://beatsad.github.io/quiet-tv/latest.json)自动维护，包含测试版；也可直接使用[安装页](https://beatsad.github.io/quiet-tv/)。使用已发布 APK 不需要 JDK、Gradle 或完整 Android SDK。可阅读[Agent 安装与恢复说明](AGENT.md)，或按下方“下载、安装与试用”操作。
 
 ## 环境
 

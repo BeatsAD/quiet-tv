@@ -9,19 +9,13 @@ const brands = {
 };
 let brand = 'sony';
 let toastTimer;
-const guideUrl = 'https://raw.githubusercontent.com/BeatsAD/quiet-tv/main/docs/AGENT_INSTALL.zh-CN.md';
 function update() {
-  $('#install-prompt').textContent = `请通过我的电脑安装或更新 Quiet TV 最新适配版，自动接管桌面并保持 ADB 常开。
-先完整阅读并执行官方说明：
-${guideUrl}
-需要我操作电视时提醒我，最后给出实际验收结果。`;
-  $('#maintenance-prompt').textContent = `请通过我的电脑检查并修复 Quiet TV，沿用已有接管方案，保持 ADB 常开。
-先完整阅读官方维护说明：
-https://beatsad.github.io/quiet-tv/maintenance.md
-需要切换画面、待机或重启时提醒我，最后给出修复前后的验收结果。`;
-  $('#restore-prompt').textContent = `请通过我的电脑恢复电视原来的桌面，保留应用和数据。
-先完整阅读并执行官方说明：
-${guideUrl}`;
+  $('#install-prompt').textContent = `请通过我的电脑配置和维护 Quiet TV，先读取：
+https://beatsad.github.io/quiet-tv/agent.md
+先检查电视；未安装时安装最新适配版，已有安装时按需升级或修复。
+沿用有效接管方案，保持 ADB 常开，保留应用数据和原桌面恢复记录。
+恢复原桌面仅在我明确要求时执行；需要我操作电视时提醒我。
+若有未完成任务，先读取原记录并核对现状再继续。最后说明完成项、未验证项和恢复方法。`;
 }
 async function refreshRelease() {
   const controller = new AbortController();
@@ -70,7 +64,7 @@ wireTabs('[data-brand]', tab => {
   update();
 });
 wireTabs('[data-method]', tab => {
-  ['agent', 'manual', 'maintenance', 'restore'].forEach(method => $('#' + method + '-panel').hidden = tab.dataset.method !== method);
+  ['agent', 'manual'].forEach(method => $('#' + method + '-panel').hidden = tab.dataset.method !== method);
 });
 function toast(message) {
   clearTimeout(toastTimer);
@@ -84,7 +78,6 @@ document.querySelectorAll('[data-copy]').forEach(button => button.addEventListen
     await navigator.clipboard.writeText(pre.textContent);
     toast('已复制，发送给电脑端 AI 助手即可。');
   } catch {
-    if (button.dataset.copy === 'restore') previewRequest();
     const selection = window.getSelection();
     const range = document.createRange();
     range.selectNodeContents(pre);
@@ -94,11 +87,6 @@ document.querySelectorAll('[data-copy]').forEach(button => button.addEventListen
     toast('已选中文字，请手动复制。');
   }
 }));
-function previewRequest() {
-  if (!$('#request-dialog').open) $('#request-dialog').showModal();
-}
-document.querySelectorAll('[data-preview]').forEach(button => button.addEventListener('click', previewRequest));
-$('#close-request').addEventListener('click', () => $('#request-dialog').close());
 $('#show-faq').addEventListener('click', () => $('#faq-dialog').showModal());
 $('#close-faq').addEventListener('click', () => $('#faq-dialog').close());
 $('#faq-dialog').addEventListener('click', event => {

@@ -5,10 +5,13 @@ on:
     branches: [main]
     paths:
       - prototypes/install-guide/**
+      - docs/AGENT.md
+      - docs/agent/**
       - docs/AGENT_INSTALL.zh-CN.md
       - docs/AGENT_ADAPT.zh-CN.md
       - docs/DEVICE_ADAPTATION.zh-CN.md
       - scripts/build_install_guide.py
+      - scripts/agent_session.py
       - scripts/install_quiet_tv.py
       - scripts/verify_install.py
       - scripts/install_tcl.py
