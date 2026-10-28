@@ -1,12 +1,18 @@
 <p align="center"><img src="docs/assets/cover.png" alt="Quiet TV 项目封面" width="100%"></p>
 
-# Quiet TV
+<h1 align="center">Quiet TV</h1>
 
-**一个简洁、可自定义的 Android 电视桌面。**
+<p align="center"><strong>一个简洁、可自定义的 Android 电视桌面。</strong></p>
 
-[简体中文](README.md)  [English](README.en.md)
+<p align="center">
+  <a href="README.md"><img alt="简体中文" src="https://img.shields.io/badge/%E7%AE%80%E4%BD%93%E4%B8%AD%E6%96%87-1f6feb?style=flat-square"></a>
+  <a href="README.en.md"><img alt="English" src="https://img.shields.io/badge/English-555555?style=flat-square"></a>
+</p>
 
-把常用应用放在首页，用遥控器直接打开，方便地切换信号源、调整壁纸和管理应用。桌面没有广告和推荐信息流，无需注册账号。采用 Android 原生界面，无需 root 或刷机。
+<p align="center">
+  常用应用、信号源、壁纸和应用管理，用遥控器轻松操作。<br>
+  Android 原生界面，无广告、无推荐信息流，无需账号、root 或刷机。
+</p>
 
 <p align="center">
   <a href="https://beatsad.github.io/quiet-tv/"><img alt="下载 APK" src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD%20APK-34a853?style=for-the-badge&amp;logo=android&amp;logoColor=white"></a>

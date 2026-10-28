@@ -1,14 +1,18 @@
 <p align="center"><img src="docs/assets/cover.png" alt="Quiet TV project cover" width="100%"></p>
 
-# Quiet TV
+<h1 align="center">Quiet TV</h1>
 
-**A simple, customizable launcher for Android TVs.**
+<p align="center"><strong>A simple, customizable launcher for Android TVs.</strong></p>
 
-[简体中文](README.md)  [English](README.en.md)
+<p align="center">
+  <a href="README.md"><img alt="简体中文" src="https://img.shields.io/badge/%E7%AE%80%E4%BD%93%E4%B8%AD%E6%96%87-555555?style=flat-square"></a>
+  <a href="README.en.md"><img alt="English" src="https://img.shields.io/badge/English-1f6feb?style=flat-square"></a>
+</p>
 
-Keep favorite apps on the home screen, open them with a remote, choose inputs, personalize wallpapers and manage apps. Quiet TV has no ads, recommendation feed or account requirement. Built with native Android views; no root or firmware flashing is required.
-
-[Open the installation guide (Chinese)](https://beatsad.github.io/quiet-tv/) to choose your TV brand, copy an Agent installation request, or find manual installation and recovery instructions.
+<p align="center">
+  Favorite apps, inputs, wallpapers and app management, all from your remote.<br>
+  Native Android UI. No ads, recommendation feed, account, root or firmware flashing.
+</p>
 
 <p align="center">
   <a href="https://beatsad.github.io/quiet-tv/"><img alt="Download APK" src="https://img.shields.io/badge/Download%20APK-34a853?style=for-the-badge&amp;logo=android&amp;logoColor=white"></a>
@@ -25,7 +29,7 @@ Keep favorite apps on the home screen, open them with a remote, choose inputs, p
 
 ## Download
 
-The [installation page](https://beatsad.github.io/quiet-tv/), [Agent guide](https://beatsad.github.io/quiet-tv/agent.md), and [latest release index](https://beatsad.github.io/quiet-tv/latest.json) update automatically from published releases, including test builds. Users do not need to maintain a version number or edit the installation request for each release.
+The [installation page (Chinese)](https://beatsad.github.io/quiet-tv/), [Agent guide](https://beatsad.github.io/quiet-tv/agent.md), and [latest release index](https://beatsad.github.io/quiet-tv/latest.json) update automatically from published releases, including test builds. Users do not need to maintain a version number or edit the installation request for each release.
 
 **Choose the latest build compatible with the TV's Android version, supported ABIs, package, signer and upgrade conditions.** Use an Android 4.4 compatibility APK for API19–20 or an applicable standard APK for API21+. Inspect the actual APK metadata; a larger build number or a 64-bit processor alone does not establish compatibility.
 
