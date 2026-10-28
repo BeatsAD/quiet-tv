@@ -1,6 +1,6 @@
 # Usage
 
-Screenshots and published downloads remain at 1.2.4. The unpublished 1.2.5 candidate raises photo inputs to 60 MB and videos to 200 MB / 60 FPS and changes the standard player. These new limits still require target-TV acceptance.
+Screenshots retain their historical 1.2.4 provenance; use the [installation page](https://beatsad.github.io/quiet-tv/) for current downloads. Computer AI configuration below describes current source and has not shipped in a new APK. Older APKs retain their own controls and interfaces.
 [简体中文](USAGE.zh-CN.md)  [Home](../README.en.md)
 
 ## Remote navigation
@@ -18,7 +18,7 @@ All Apps and Home order both use five columns. An incomplete last row uses the n
 
 In 1.2.4, the greeting, clock, date, weather, top-right shortcuts and dock scroll out together when entering All Apps, in both Classic and Art Gallery layouts. All Apps uses a smaller top gap and shows a centered, single-line name below every cover; long names end with an ellipsis, and row spacing stays consistent. More apps scroll continuously by row with focus, without scrollbars, an app count or footer labels. Up from the first grid row or Back from the grid restores the original home layout and the dock item selected before entering the grid.
 
-This guide describes published [1.2.4 test builds](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.2.4). Captures come directly from a Sony BRAVIA VH1 / Android 12 running published ARM32 build 64; they do not establish full feature or other-device acceptance. See [capture provenance](assets/README.md).
+Historical screenshots show published [1.2.4 test builds](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.2.4). Captures come directly from a Sony BRAVIA VH1 / Android 12 running published ARM32 build 64; they do not establish full feature or other-device acceptance. See [capture provenance](assets/README.md).
 
 ## App management and Dock
 
@@ -26,14 +26,14 @@ Open 应用管理 (App Management) from All Apps. Management controls in this fi
 
 - 首页应用 (Favorites) supports up to five shortcuts: add, replace, remove, or move left/right. In 1.2.4, each reorder move saves automatically; OK or Back ends moving without undoing saved changes. Editing works without ADB.
 - **Home order**: in 1.2.4, open App management → 应用排序. Press OK to select an entry, then use the arrows to move it. Each position change saves automatically; OK or Back ends moving. There are no save/reset buttons or save-on-exit prompts. Historical APKs retain their version-specific behavior. Wallpaper Settings, Desktop Settings and App Management can all move.
-- Filter all, user, preinstalled, disabled, or restorable packages.
-- The top-right ADB status opens local TCP connection settings (default port 5555). Enable network debugging on the TV and approve QuietTV's independent key. Six-digit wireless pairing is experimental, requires API33+ and actual device support, and is absent from legacy19.
-- Operations affect one package for the current Android user. Disabling retains data; uninstalling removes that user's app data. Preinstalled uninstall leaves the system APK; install-existing is offered only when a system APK is retained and never restores deleted data.
-- Quiet TV, critical components, and unverified system packages are protected from system-state changes. Operation history records configuration states, not user-data backups. Reconnect and refresh after uncertain results; do not repeat uninstall.
+- Current source filters All, User apps and Preinstalled apps, keeping package details and everyday artwork controls.
+- Computer AI handles ADB connection and explicitly requested system changes using device-matched rules. The TV no longer provides local ADB or system-disable controls; older APKs may retain them.
+- App Management → More → Help and recovery pauses takeover or restores the recorded original launcher. Missing records, disabled original launchers or unsupported system selection require computer recovery.
+- Preserve the original launcher and recovery records. Disabling retains data; enabling a package cannot recover data removed by a historical uninstall. Inspect uncertain results before making another change.
 
 Disabled Dock entries retain their order and reappear when enabled. Confirmed uninstalls remove the shortcut. An explicitly empty Dock stays empty across APK updates. See [implementation and hardware evidence](APP_MANAGEMENT.md).
 
-Version 1.2.4 provides 应用列表 → 更换封面 (Change cover). Scan with a phone on the same network, select and crop an image, then confirm on the TV to apply it. 恢复默认 restores the app's current original artwork after confirmation. Recommended: 720 × 406 px; minimum: 360 × 203 px. JPG, PNG or static WebP, up to 2 MB per image. AI can help create a suitable image; no generation service is included. Cover changes work without ADB and retain the original app icon and package-operation protection. Filters stay above the list; ADB, More and About share the top-right row.  See [app covers](APP_MANAGEMENT.md#自定义应用封面) for scope and hardware acceptance limits.
+Version 1.2.4 provides 应用列表 → 更换封面 (Change cover). Scan with a phone on the same network, select and crop an image, then confirm on the TV to apply it. 恢复默认 restores the app's current original artwork after confirmation. Recommended: 720 × 406 px; minimum: 360 × 203 px. JPG, PNG or static WebP, up to 2 MB per image. AI can help create a suitable image; no generation service is included. Cover changes work without ADB and retain the original app icon and package-operation protection. Current source has three filters and a More menu; ADB controls in historical screenshots are not current controls.  See [app covers](APP_MANAGEMENT.md#自定义应用封面) for scope and hardware acceptance limits.
 
 Home ordering works without ADB and leaves Dock independent. In custom order, newly visible apps append at the end; updates and name changes preserve positions. Disabled or pinned apps retain their order records until shown again; uninstalls remove records. Default order puts Desktop Settings, Wallpaper Settings and App Management first, followed by apps sorted by name. Settings stay on the device across normal in-place updates; physical remote, reboot, and upgrade behavior must be accepted on each target TV.
 
@@ -59,7 +59,7 @@ Select an app in App list, choose 设为开机自启 and confirm. One app can be
 
 ## Boot-ad management
 
-Open 应用管理 → 更多 for boot-ad management. Detection and actions depend on matching local rules and actual service states. Restoration uses the recorded original state; unmatched devices stay read-only. No rule has passed Quiet TV hardware acceptance yet, and this does not promise removal of every vendor ad. See [app management](APP_MANAGEMENT.md).
+Current source moves boot-ad maintenance to computer AI. It requires an explicit request, a matching execution rule, original-state records and recovery checks. No Quiet TV boot-ad rule has passed hardware acceptance; no universal ad-removal claim is made. Older APKs may retain their former controls. See [app management](APP_MANAGEMENT.md#开机广告).
 
 ## Language and initial configuration
 
@@ -99,9 +99,9 @@ The upload dialog contains a local address, connection code and QR code, so its 
 
 ## Desktop settings
 
-Open Desktop Settings from All Apps. Version 1.2.4 uses 桌面显示 (Desktop), 天气设置 (Weather) and 桌面配置 (Home setup) tabs across the top. Left/right switches tabs, Down enters the active page, and Up from the first control returns to its tab. Switching pages retains settings and focus. Android 4.4 retains Desktop and Weather; Home setup is unavailable.
+Open Desktop Settings from All Apps. Current source retains Desktop and Weather tabs; computer AI handles technical setup. Historical 1.2.4 standard APKs also have Home setup. Use App Management → More → Help and recovery to pause or restore the original launcher. A pause does not change system HOME, and restoration retains a previously selected ADB-retention preference. See [setup and recovery](SETUP.md).
 
-Desktop places controls on the left and a fixed Home preview on the right. Choose Classic or Gallery, and independently show or hide greeting, time, date, weather, Inputs, Network and Settings. Changes save immediately and update the preview using the current wallpaper, favorites and usable cached weather. The preview cannot receive focus or launch apps and makes no additional weather requests. Weather and Home setup use the full content area without a preview. Home uses the same layout, and switching layouts preserves visibility preferences and greeting text.
+Desktop places controls on the left and a fixed Home preview on the right. Choose Classic or Gallery, and independently show or hide greeting, time, date, weather, Inputs, Network and Settings. Changes save immediately and update the preview using the current wallpaper, favorites and usable cached weather. The preview cannot receive focus or launch apps and makes no additional weather requests. Weather uses the full content area without a preview. Home uses the same layout, and switching layouts preserves visibility preferences and greeting text.
 
 On upgrade, both time and date inherit the old combined preference once; they can then be changed independently. Unset quick-button preferences inherit the old group toggle. Remaining buttons retain their order, align right and are skipped by remote navigation when hidden. Restore them through All Apps → Desktop Settings even when all three are hidden. Version 1.2.4 provides the described layouts, live preview and independent display settings. Normal in-place updates retain preferences; physical remote, restart and upgrade retention still need acceptance on each target TV.
 
