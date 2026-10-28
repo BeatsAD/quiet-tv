@@ -53,14 +53,15 @@ final class WallpaperVideo {
             if((Float.isNaN(info.fps)||Float.isInfinite(info.fps))||info.fps<=0||info.fps>60.1f||sampled>60.5f)throw new IOException("请使用不超过 60 FPS 的视频 / Use video up to 60 FPS");
             if(format.containsKey("crypto-key"))throw invalid();
             DiagnosticLog.info("wallpaper.video.inspect","mime="+info.mime+" size="+info.width+"x"+info.height+" fps="+info.fps+" sampledFps="+sampled+" rotation="+info.rotation+" durationMs="+info.durationMs+" bytes="+file.length());
-            if(Build.VERSION.SDK_INT>=21){if(!Api21.supports(info))throw new IOException("电视未报告支持此规格："+specification(info)+"，请尝试 1080p 30 FPS H.264 视频 / TV decoder does not report support for "+specification(info)+"; try 1080p 30 FPS H.264");}
-            else if(!legacyDecoder(info.mime))throw invalid();
+            // Vendor capability declarations are diagnostic only. The TV's actual preview
+            // decides compatibility, and applying a wallpaper waits for its first frame.
+            if(Build.VERSION.SDK_INT>=21)try{Api21.supports(info);}catch(IOException ignored){}
+            DiagnosticLog.info("wallpaper.video.admission","decision=defer_to_playback");
             return info;
         }catch(IOException e){if(e.getMessage()!=null&&e.getMessage().contains(" / "))throw e;throw invalid();}catch(RuntimeException e){throw invalid();}
         finally{extractor.release();try{metadata.release();}catch(IOException ignored){}}
     }
     private static Number number(MediaFormat format,String key){try{return format.getInteger(key);}catch(ClassCastException e){return format.getFloat(key);}}
-    private static String specification(Info info){String codec="video/avc".equals(info.mime)?"H.264":"video/hevc".equals(info.mime)?"HEVC":info.mime;return codec+" "+info.width+"x"+info.height+" "+info.fps+" FPS";}
     private static IOException invalid(){return new IOException("视频无法解析，请使用 MP4、MOV、MKV 或 WebM / Unable to read video; use MP4, MOV, MKV or WebM");}
     private static boolean legacyDecoder(String mime){
         for(int n=0;n<MediaCodecList.getCodecCount();n++){MediaCodecInfo codec=MediaCodecList.getCodecInfoAt(n);if(!codec.isEncoder())for(String type:codec.getSupportedTypes())if(mime.equals(type))return true;}return false;
