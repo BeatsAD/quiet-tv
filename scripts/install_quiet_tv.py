@@ -12,8 +12,11 @@ from types import SimpleNamespace
 from urllib.request import Request, urlopen
 import zipfile
 import configure_home_guard as guard
+import configure_boot_home as boot
+import device_adaptation as adaptation
+import device_maintenance as maintenance
 import install_tcl as tcl
-from verify_install import HOME, HOME_ARGS, collect, component, help_text, resolver
+from verify_install import HOME, collect, component, help_text, resolver
 
 INDEX = "https://beatsad.github.io/quiet-tv/latest.json"
 RELEASES = "https://github.com/BeatsAD/quiet-tv/releases/download/"
@@ -120,7 +123,10 @@ class RecordedAdb(guard.ComputerAdb):
         try:
             return super().shell(*arguments)
         except (ValueError, OSError, subprocess.TimeoutExpired) as error:
-            self.failed(("shell", shlex.join([str(value) for value in arguments])), error)
+            if maintenance.is_help_result(arguments, error):
+                self.journal.event("help_result", command=list(arguments), exit=error.exit, output=error.output)
+            else:
+                self.failed(("shell", shlex.join([str(value) for value in arguments])), error)
             raise
 
     def failed(self, arguments, error):
@@ -132,31 +138,6 @@ class RecordedAdb(guard.ComputerAdb):
 def unchanged_user(adb, user):
     if adb.current_user() != user:
         raise ValueError("前台用户已变化，停止后续修改；已完成步骤保留在记录中")
-
-
-def set_home(adb, sdk, user, journal):
-    # Read back every attempted change. Unsupported or rejected native HOME does not bar guard setup.
-    for tool in (("cmd", "package"), ("pm",)):
-        try:
-            usage = help_text(adb, *tool)
-            query = "query-activities"
-            candidates = adb.shell(*tool, query, "--brief", *guard.user_options(usage, query, sdk, user), *HOME_ARGS)
-            if HOME not in [guard.canonical_home(line.strip()) for line in candidates.splitlines()]:
-                continue
-            options = guard.user_options(usage, "set-home-activity", sdk, user)
-        except ValueError:
-            continue
-        unchanged_user(adb, user)
-        command = [*tool, "set-home-activity", *options, HOME]
-        try:
-            output = adb.shell(*command)
-            journal.event("set_home", command=command, output=output)
-        except ValueError as error:
-            journal.event("set_home_rejected", command=command, error=str(error))
-            print("系统 HOME 设置受限：" + str(error), flush=True)
-        return component(adb.shell(*resolver(adb, sdk, user))) == HOME
-    journal.event("set_home_unavailable")
-    return False
 
 
 def run_install(args, adb, tools, journal):
@@ -214,10 +195,10 @@ def run_install(args, adb, tools, journal):
     journal.event("apk_verified", apk=metadata)
     vendor = (device["ro.product.brand"] + " " + device["ro.product.manufacturer"]).lower().split()
     is_tcl = bool(set(vendor).intersection(("tcl", "ffalcon", "iffalcon")))
-    keep_adb = args.keep_adb and sdk >= 21 and bool(set(vendor).intersection(("xiaomi", "redmi")))
+    keep_adb = args.keep_adb and sdk >= 21
     if args.keep_adb and not keep_adb:
         journal.event("keep_adb_unsupported")
-        print("保持 ADB：当前系统或品牌未支持，继续独立的安装／桌面配置，不宣称已开启。", flush=True)
+        print("保持 ADB：当前档位未支持；独立安装／HOME 步骤继续，整体常开目标仍未完成。", flush=True)
     if args.goal == "takeover":
         if not original or "ResolverActivity" in original or not tcl.usable(tcl.user_state(stock_dump, args.user)):
             raise ValueError("原桌面或恢复基线未确认；请先确认原主页，未执行安装及接管")
@@ -225,6 +206,16 @@ def run_install(args, adb, tools, journal):
     install_options = guard.user_options(pm_help, "install", sdk, args.user)
     print("计划：" + ("沿用相同 APK" if same else "保留数据安装") + "；目标=" + args.goal + "；ADB 设置恢复=" + str(keep_adb), flush=True)
     if not args.apply:
+        if getattr(args, "adaptation_route", None):
+            if same:
+                adaptation.prepare(adb, args.user, journal, args.adaptation_route)
+            else:
+                print("专项路线=" + args.adaptation_route + "；安装后仍须核对本机规则、原包版本及恢复能力，不匹配则停止。")
+        elif same and metadata["home_mode"] == "standard" and args.goal == "takeover":
+            try:
+                boot.configure(adb, args.user, tools, apk_path, journal)
+            except boot.NoNativeRoute as error:
+                print("标准开机 HOME 路线不可用：" + str(error) + "；执行时评估兼容守护。", flush=True)
         print("仅预览，未修改电视。核对目标和授权后，以新的 --record 目录加 --apply 执行。", flush=True)
         return
     unchanged_user(adb, args.user)
@@ -281,18 +272,48 @@ def run_install(args, adb, tools, journal):
             raise ValueError("安装／启动后 HOME 与原配置不同，结果需核对；未重新配置或自动恢复")
         print("安装核验完成，未主动配置 HOME 或守护；原 HOME 读回" + ("一致。" if original and after_home else "未确认。"), flush=True)
         return
-    native = component(adb.shell(*resolver(adb, sdk, args.user))) == HOME
-    if not native and metadata["home_mode"] == "standard":
-        native = set_home(adb, sdk, args.user, journal)
-    if not native or keep_adb:
+    installed_dump = adb.shell("dumpsys", "package", tcl.PACKAGE)
+    if "DeviceMaintenanceReceiver" in installed_dump:
+        baseline = maintenance.inspect(adb, tcl.PACKAGE, args.user)
+        if not baseline.get("originalHome") and original != HOME:
+            unchanged_user(adb, args.user)
+            baseline = maintenance.remember_home(adb, tcl.PACKAGE, args.user, original)
+        journal.event("app_recovery_baseline", snapshot=baseline)
+        if not baseline.get("originalHome"):
+            print("应用内原桌面记录缺失，请保留历史电脑安装记录用于恢复。", flush=True)
+        if "adaptation-rules-v1" in baseline.get("capabilities", []):
+            adaptation.sync_rules(adb, args.user, journal, apply=True)
+    else:
+        print("旧 APK 无电脑维护接口；恢复依赖电脑记录，新功能需更新 APK。", flush=True)
+    native = False
+    route = getattr(args, "adaptation_route", None)
+    if route:
+        if metadata["home_mode"] != "standard" or sdk < 21:
+            raise ValueError("专项 HOME 路线需要安卓 5 及以上标准 HOME 包")
+        adaptation.prepare(adb, args.user, journal, route)
+        if keep_adb:
+            adaptation.keep_adb(adb, args.user, journal)
+        values = adaptation.prepare(adb, args.user, journal, route)
+        adaptation.apply_plan(adb, *values[:3], values[3], journal)
+        native = True
+    elif metadata["home_mode"] == "standard":
+        try:
+            boot.configure(adb, args.user, tools, actual_path, journal, apply=True)
+            native = True
+        except boot.NoNativeRoute as error:
+            journal.event("boot_native_unavailable", error=str(error))
+            print("标准开机 HOME 路线不可用：" + str(error) + "；继续已有兼容守护。", flush=True)
+    if not native or keep_adb and not route:
         if sdk < 21:
             raise ValueError("Android 4.4 无兼容守护且默认 HOME 未确认，不能报告接管完成")
         guard_args = SimpleNamespace(serial=args.serial, user=args.user, package=tcl.PACKAGE,
-            adb=args.adb, apply=True, pause=False, direct_home=False,
-            home=original if original != HOME else None, keep_adb=True if keep_adb else None,
+            adb=args.adb, apply=True, pause=False, direct_home=False, adb_only=native,
+            home=original if not native and original != HOME else None, keep_adb=True if keep_adb else None,
             record=journal.directory / "guard-before.json")
         guard.configure(guard_args, adb)
     journal.event("desktop_configured", route="native" if native else "guard", keep_adb_requested=keep_adb)
+    if args.keep_adb and not keep_adb:
+        raise ValueError("安装／桌面步骤已执行，但当前档位不支持 ADB 保持，未满足重启常开目标")
     print("桌面配置已执行；实体 HOME、开机、唤醒和 ADB 重连等待分别验收。", flush=True)
 
 
@@ -302,6 +323,8 @@ def main():
     parser.add_argument("--user", type=int, required=True, help="已核对的前台用户")
     parser.add_argument("--adb", default="adb")
     parser.add_argument("--record", type=Path, required=True, help="全新私有记录目录，不覆盖历史基线")
+    parser.add_argument("--adaptation-route", choices=("verified", "google", "jm", "vidaa"),
+                        help="AI 核对影响后明确选择专项路线；默认仍优先普通 HOME 与兼容守护")
     parser.add_argument("--goal", choices=("trial", "takeover", "update"),
                         help="默认 takeover；只读验收默认 trial，仅更新或试用须明确指定")
     adb_choice = parser.add_mutually_exclusive_group()
@@ -322,6 +345,8 @@ def main():
         args.goal = "trial" if args.verify_only else "takeover"
     if args.keep_adb is None:
         args.keep_adb = args.goal == "takeover" and not args.verify_only
+    if args.adaptation_route and (args.goal != "takeover" or args.verify_only):
+        parser.error("专项路线仅用于明确的接管操作")
     if args.user < 0 or bool(args.apk) != bool(args.sha256) or args.sha256 and not re.fullmatch(r"[a-f0-9]{64}", args.sha256):
         parser.error("用户无效，或本地 APK 未同时提供完整 SHA-256")
     if args.keep_adb and args.goal != "takeover":

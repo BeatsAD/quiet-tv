@@ -53,7 +53,7 @@ final class DiagnosticLogPanel extends ManagementPanel {
         String address=WallpaperUploadPanel.lanAddress(owner);
         if(address==null){failure("未连接局域网，请连接 Wi-Fi 或网线后重试");return;}
         host=address;DiagnosticLog.info("diagnostic.export","requested");
-        String adb=DiagnosticDeviceSnapshot.adb(owner,owner.managementSession);
+        String adb=DiagnosticDeviceSnapshot.adb(owner);
         worker.execute(()->{
             DiagnosticDownloadServer candidate=null;
             try{

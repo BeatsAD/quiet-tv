@@ -13,6 +13,7 @@ public class AppManagementActivity extends ManagementUi {
     private ManagementPanel current;
     private int page=-1;
     private boolean resumed;
+    @Override boolean localManagement(){return false;}
     int initialPage(){return 0;}
     @Override public void onCreate(Bundle saved){
         super.onCreate(saved);toolbar(saved==null?initialPage():saved.getInt("management-page",initialPage()));

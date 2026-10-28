@@ -19,7 +19,6 @@ public final class DesktopSettingsActivity extends ManagementUi implements Share
     private WeatherStore weatherStore;
     private GreetingEditorPanel greetingEditor;
     private DesktopWeatherPanel weather;
-    private HomeGuardPanel guard;
     private HomePreviewView preview;
     private FrameLayout content;
     private LinearLayout desktop;
@@ -45,14 +44,12 @@ public final class DesktopSettingsActivity extends ManagementUi implements Share
         ((TextView)header.getChildAt(1)).setText(tr("桌面设置","Desktop Settings"));
         LinearLayout navigation=row();LinearLayout.LayoutParams np=new LinearLayout.LayoutParams(-1,px(44));np.topMargin=px(22);root.addView(navigation,np);
         tab(navigation,"desktop",tr("桌面显示","Desktop"));tab(navigation,"weather",tr("天气设置","Weather"));
-        if(!BuildConfig.LEGACY_19)tab(navigation,"guard",tr("桌面配置","Home setup"));
         View line=new View(this);line.setBackgroundColor(0x18ffffff);root.addView(line,new LinearLayout.LayoutParams(-1,px(1)));
         content=new FrameLayout(this);LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,0,1);cp.topMargin=px(18);root.addView(content,cp);
         makeDesktop();
         if(saved!=null)for(String name:tabs.keySet()){String tag=saved.getString("focus-"+name);if(tag!=null)focusTags.put(name,tag);scrollPositions.put(name,saved.getInt("scroll-"+name));}
         String section=saved==null?getIntent().getStringExtra(SECTION):saved.getString("desktop-section","desktop");
         select(section,false);
-        if(guard!=null)guard.restoreState(saved);
         if(saved!=null)greetingEditor.restoreState(saved);
         final String focused=saved==null?null:saved.getString("focus");
         root.post(()->{View target=focused==null?null:root.findViewWithTag(focused);if(target==null||!target.isShown()||!target.isEnabled())target=tabs.get(selectedSection);target.requestFocus();greetingEditor.restoreFocus();});
@@ -83,15 +80,6 @@ public final class DesktopSettingsActivity extends ManagementUi implements Share
         gap(controls,16);controls.addView(desktopLabel(tr("首页应用","Home apps")));LinearLayout homeApps=row();controls.addView(homeApps,new LinearLayout.LayoutParams(-1,px(38)));choice(homeApps,"home-apps",tr("首屏应用","Home apps"));choice(homeApps,"dock-background",tr("Dock 背景","Dock background"));
         gap(controls,16);controls.addView(desktopLabel(tr("第二屏应用","Second-screen apps")));LinearLayout allApps=row();controls.addView(allApps,new LinearLayout.LayoutParams(-1,px(38)));choice(allApps,"all-apps-names",tr("应用名称","App names"));
         gap(controls,16);controls.addView(desktopLabel(tr("快捷按钮","Quick buttons")));LinearLayout shortcuts=row();controls.addView(shortcuts,new LinearLayout.LayoutParams(-1,px(38)));choice(shortcuts,"input",tr("信号源","Inputs"));choice(shortcuts,"network",tr("网络","Network"));choice(shortcuts,"settings",tr("设置","Settings"));
-        if(LegacyHomeKeyService.supported()){
-            gap(controls,16);controls.addView(desktopLabel(tr("遥控器","Remote")));
-            legacyHomeKey=setting(tr("主页键修复","HOME key repair"),"tools","legacy-home-key");legacyHomeKey.compact();legacyHomeKey.tail("arrow");
-            legacyHomeKey.setOnClickListener(v->{
-                message(tr("在无障碍设置中开启“Quiet TV 主页键修复”，然后按实体主页键验证。","Enable Quiet TV HOME key repair in Accessibility, then test the remote HOME key."));
-                if(!ExternalActivityLauncher.open(this,"legacy_home_key.settings",new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)))message(tr("无法打开系统无障碍设置","Cannot open Accessibility settings"));
-            });
-            LinearLayout group=group();group.addView(legacyHomeKey,new LinearLayout.LayoutParams(-1,px(44)));controls.addView(group,new LinearLayout.LayoutParams(-1,-2));
-        }
         LinearLayout right=column();right.setGravity(Gravity.TOP);right.setPadding(0,px(1),0,0);LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(0,-1,1);rp.leftMargin=px(24);desktop.addView(right,rp);
         right.addView(desktopLabel(tr("首页实时预览","Live Home preview")));gap(right,8);
         preview=new HomePreviewView(this,chinese,fixedGreeting);preview.setBackground(surface(0xff0e0f13,0xff0e0f13,0x26ffffff,10));UiCompat.clipOutline(preview);right.addView(preview,new LinearLayout.LayoutParams(-1,-2));
@@ -125,22 +113,21 @@ public final class DesktopSettingsActivity extends ManagementUi implements Share
                 :!LegacyHomeKeyService.filtering()?tr("按键过滤不可用","Key filter unavailable"):tr("已连接，待实测","Connected, test HOME"));
         if(preview!=null&&"desktop".equals(selectedSection))preview.refresh();
     }
-    private View activeView(){return "desktop".equals(selectedSection)?desktopScroll:"weather".equals(selectedSection)?weather.view:guard.view;}
+    private View activeView(){return "weather".equals(selectedSection)?weather.view:desktopScroll;}
     private void remember(){View focus=getCurrentFocus();if(focus!=null&&focus.getTag() instanceof String&&!String.valueOf(focus.getTag()).startsWith("tab-"))focusTags.put(selectedSection,(String)focus.getTag());View v=activeView();scrollPositions.put(selectedSection,v.getScrollY());}
     private void select(String name,boolean tabFocus){
         if(!tabs.containsKey(name))name="desktop";
-        if(weather!=null)weather.pause();if(guard!=null)guard.pause();if(preview!=null)preview.pause();
-        if(resumed&&desktop!=null&&(!"weather".equals(selectedSection)||weather!=null)&&(!"guard".equals(selectedSection)||guard!=null))remember();
+        if(weather!=null)weather.pause();if(preview!=null)preview.pause();
+        if(resumed&&desktop!=null&&(!"weather".equals(selectedSection)||weather!=null))remember();
         selectedSection=name;
         if("weather".equals(name)&&weather==null){weather=new DesktopWeatherPanel(this);content.addView(weather.view,new FrameLayout.LayoutParams(-1,-1));wireRows(weather.rows(),tabs.get("weather"));}
-        if("guard".equals(name)&&guard==null){guard=new HomeGuardPanel(this,tabs.get("guard"),false);content.addView(guard.view,new FrameLayout.LayoutParams(-1,-1));}
-        desktop.setVisibility("desktop".equals(name)?View.VISIBLE:View.GONE);if(weather!=null)weather.view.setVisibility("weather".equals(name)?View.VISIBLE:View.GONE);if(guard!=null)guard.view.setVisibility("guard".equals(name)?View.VISIBLE:View.GONE);
+        desktop.setVisibility("desktop".equals(name)?View.VISIBLE:View.GONE);if(weather!=null)weather.view.setVisibility("weather".equals(name)?View.VISIBLE:View.GONE);
         for(String key:tabs.keySet())tabs.get(key).setSelected(key.equals(name));
-        if(resumed){if("desktop".equals(name))preview.resume();else if("weather".equals(name))weather.resume();else guard.resume();}
+        if(resumed){if("desktop".equals(name))preview.resume();else if("weather".equals(name))weather.resume();}
         refreshControls();final int scroll=scrollPositions.containsKey(name)?scrollPositions.get(name):0;final View selectedView=activeView();selectedView.post(()->selectedView.scrollTo(0,scroll));
         if(tabFocus)tabs.get(name).requestFocus();back.setNextFocusDownId(tabs.get(name).getId());
     }
-    private void focusContent(){String tag=focusTags.get(selectedSection);View target=tag==null?null:content.findViewWithTag(tag);if(target==null||!target.isShown()||!target.isEnabled())target="desktop".equals(selectedSection)?classic:"weather".equals(selectedSection)?weather.firstRow():guard.firstRow();target.requestFocus();}
+    private void focusContent(){String tag=focusTags.get(selectedSection);View target=tag==null?null:content.findViewWithTag(tag);if(target==null||!target.isShown()||!target.isEnabled())target="weather".equals(selectedSection)?weather.firstRow():classic;target.requestFocus();}
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);select(intent.getStringExtra(SECTION),true);}
     void wireRows(DesktopSettingsRow[] rows,View tab){for(int i=0;i<rows.length;i++){DesktopSettingsRow r=rows[i];r.setNextFocusUpId(i==0?tab.getId():rows[i-1].getId());r.setNextFocusDownId(rows[Math.min(rows.length-1,i+1)].getId());r.setNextFocusLeftId(r.getId());r.setNextFocusRightId(r.getId());}}
     TextView section(String name){TextView label=muted(name,13);label.setLayoutParams(new LinearLayout.LayoutParams(-1,px(30)));return label;}
@@ -148,9 +135,9 @@ public final class DesktopSettingsActivity extends ManagementUi implements Share
     DesktopSettingsRow setting(String label,String icon,String tag){DesktopSettingsRow r=new DesktopSettingsRow(this,label,icon,false);r.setTag(tag);return r;}
     void addSetting(LinearLayout group,DesktopSettingsRow row){group.addView(row,new LinearLayout.LayoutParams(-1,px(60)));}
     @Override public void onSharedPreferenceChanged(SharedPreferences prefs,String key){main.removeCallbacks(changed);main.post(changed);}
-    @Override protected void onResume(){super.onResume();resumed=true;getSharedPreferences("desktop-settings",0).registerOnSharedPreferenceChangeListener(this);getSharedPreferences("weather",0).registerOnSharedPreferenceChangeListener(this);if("desktop".equals(selectedSection))preview.resume();else if("weather".equals(selectedSection))weather.resume();else guard.resume();refreshControls();}
-    @Override protected void onPause(){remember();resumed=false;getSharedPreferences("desktop-settings",0).unregisterOnSharedPreferenceChangeListener(this);getSharedPreferences("weather",0).unregisterOnSharedPreferenceChangeListener(this);main.removeCallbacks(changed);preview.pause();if(weather!=null)weather.pause();if(guard!=null)guard.pause();greetingEditor.pause();super.onPause();}
-    @Override protected void onDestroy(){preview.destroy();if(guard!=null)guard.destroy();if(weather!=null)weather.destroy();greetingEditor.destroy();super.onDestroy();}
-    @Override protected void onSaveInstanceState(Bundle saved){super.onSaveInstanceState(saved);remember();saved.putString("desktop-section",selectedSection);View focus=getCurrentFocus();if(focus!=null&&focus.getTag() instanceof String)saved.putString("focus",(String)focus.getTag());for(String name:tabs.keySet()){saved.putString("focus-"+name,focusTags.get(name));saved.putInt("scroll-"+name,scrollPositions.containsKey(name)?scrollPositions.get(name):0);}if(guard!=null)guard.saveState(saved);greetingEditor.saveState(saved);}
+    @Override protected void onResume(){super.onResume();resumed=true;getSharedPreferences("desktop-settings",0).registerOnSharedPreferenceChangeListener(this);getSharedPreferences("weather",0).registerOnSharedPreferenceChangeListener(this);if("desktop".equals(selectedSection))preview.resume();else if("weather".equals(selectedSection))weather.resume();refreshControls();}
+    @Override protected void onPause(){remember();resumed=false;getSharedPreferences("desktop-settings",0).unregisterOnSharedPreferenceChangeListener(this);getSharedPreferences("weather",0).unregisterOnSharedPreferenceChangeListener(this);main.removeCallbacks(changed);preview.pause();if(weather!=null)weather.pause();greetingEditor.pause();super.onPause();}
+    @Override protected void onDestroy(){preview.destroy();if(weather!=null)weather.destroy();greetingEditor.destroy();super.onDestroy();}
+    @Override protected void onSaveInstanceState(Bundle saved){super.onSaveInstanceState(saved);remember();saved.putString("desktop-section",selectedSection);View focus=getCurrentFocus();if(focus!=null&&focus.getTag() instanceof String)saved.putString("focus",(String)focus.getTag());for(String name:tabs.keySet()){saved.putString("focus-"+name,focusTags.get(name));saved.putInt("scroll-"+name,scrollPositions.containsKey(name)?scrollPositions.get(name):0);}greetingEditor.saveState(saved);}
     @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] results){super.onRequestPermissionsResult(code,permissions,results);if(weather!=null)weather.permissionResult(code);}
 }

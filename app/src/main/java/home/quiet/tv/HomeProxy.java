@@ -25,6 +25,11 @@ final class HomeProxy {
     boolean available(){
         return available(packageName());
     }
+    boolean setupPending(){
+        // Pre-migration releases use proxyPending for a visibility token (String).
+        // The first computer-setup build also used it as Boolean; accept that interrupted setup.
+        return prefs.getBoolean("proxySetupPending",false) || Boolean.TRUE.equals(prefs.getAll().get("proxyPending"));
+    }
     private boolean available(String name){
         if(BuildConfig.LEGACY_19 || Build.VERSION.SDK_INT<21 || context.getPackageName().equals(name))return false;
         PackageManager pm=context.getPackageManager();
@@ -62,7 +67,7 @@ final class HomeProxy {
         if(!active())return false;
         try{Bundle result=status();return result.getBoolean("valid") && ProxyContract.TARGET.equals(result.getString("mode"))
                 && result.getLong(ProxyContract.EPOCH)==prefs.getLong("proxyEpoch",-1)
-                && component().equals(new HomeController(context).inspect(null).actual);}
+                && component().equals(new HomeController(context).inspect().actual);}
         catch(Exception failure){return false;}
     }
     String problem(){
@@ -72,58 +77,33 @@ final class HomeProxy {
     }
     // The durable OFF gate is set by the caller first. Keep the helper enabled while it owns HOME.
     boolean pause(){synchronized(LOCK){
-        if(!available()){prefs.edit().putBoolean("proxyPausePending",selected()).remove("proxyPending").commit();return !selected();}
+        if(!available()){prefs.edit().putBoolean("proxyPausePending",selected()).remove("proxyPending").remove("proxySetupPending").commit();return !selected();}
         try{long epoch=nextEpoch();Bundle result=call(ProxyContract.PAUSE,values(epoch));
             boolean ok=epoch==result.getLong(ProxyContract.EPOCH) && ProxyContract.STOCK.equals(result.getString("mode"));
-            prefs.edit().putBoolean("proxyPausePending",!ok).remove("proxyPending").commit();return ok;
-        }catch(IOException failure){prefs.edit().putBoolean("proxyPausePending",true).remove("proxyPending").commit();return false;}
+            prefs.edit().putBoolean("proxyPausePending",!ok).remove("proxyPending").remove("proxySetupPending").commit();return ok;
+        }catch(IOException failure){prefs.edit().putBoolean("proxyPausePending",true).remove("proxyPending").remove("proxySetupPending").commit();return false;}
     }}
-    /** Returns false only when no helper was eligible. A changed/unknown HOME never falls through. */
-    boolean configure(AdbController adb,SetupOperations.Ticket task) throws Exception {
-        boolean eligible=available();
-        DiagnosticLog.info("home_proxy.configure","package="+packageName()+" available="+eligible+" xiaomi="+HomeGuardPolicy.xiaomi(Build.MANUFACTURER,Build.BRAND));
-        if(!eligible)return false;
-        try{status();}catch(IOException incompatible){return false;}
-        HomeController home=new HomeController(context);task.check();state.configure();
-        if(!state.validSelection() || state.helperActive())return false;
-        HomeController.State before=home.inspect(adb);
-        if(!before.known)throw new IOException("系统 HOME 未确认，不尝试代理切换");
-        home.remember(before);
-        if(!state.selected().equals(new SetupStore(context).originalHome()))throw new IOException("原桌面与恢复基线不一致，请重新核对原桌面");
-        int generation=adb.generation();long epoch;
-        synchronized(LOCK){
-            task.check();if("OFF".equals(prefs.getString("mode","AUTO")))throw new IOException("中转已暂停");
-            epoch=nextEpoch();Bundle data=values(epoch);data.putString(ProxyContract.ORIGINAL,state.selected());
-            Bundle prepared=call(ProxyContract.PREPARE,data);
-            if(!prepared.getBoolean("valid") || epoch!=prepared.getLong(ProxyContract.EPOCH) || !ProxyContract.STOCK.equals(prepared.getString("mode")))throw new IOException("代理原桌面回退未准备好");
-            if(!prefs.edit().putString("proxyPackage",packageName()).putString("proxyOriginal",state.selected()).putString("proxyFirmware",Build.FINGERPRINT).commit())throw new IOException("代理回退记录未保存");
-        }
-        try{
-            task.check();home.switchTo(adb,component());task.check();
-            synchronized(LOCK){
-                if("OFF".equals(prefs.getString("mode","AUTO")) || prefs.getLong("proxyEpoch",-1)!=epoch)throw new IOException("代理配置已暂停或被替代");
-                new DesktopRoutes(context).proxy();
-                Bundle enabled=call(ProxyContract.ENABLE,values(epoch));
-                if(!ProxyContract.TARGET.equals(enabled.getString("mode")) || !ready())throw new IOException("代理启用未确认");
-                prefs.edit().putBoolean("proxyPausePending",false).commit();state.status("HOME 代理已配置，等待实际 HOME 进入桌面");
-            }
-            task.check();new SetupStore(context).put("status","proxy-configured");DiagnosticLog.info("home_proxy.configure.result","package="+packageName()+" result=RESOLVED screenVerified=false");return true;
-        }catch(Exception failure){
-            DiagnosticLog.error("home_proxy.configure.failed","package="+packageName(),failure);
-            pause();
-            // Roll back only through the same still-authorized connection. Otherwise the helper stays ORIGINAL.
-            if(task.active() && adb.connected() && adb.generation()==generation){
-                try{if(!before.actual.equals(home.inspect(adb).actual))home.setAndVerify(adb,before.actual);
-                    if(before.actual.equals(home.inspect(adb).actual) && failure instanceof HomeController.SwitchFailure
-                            && (((HomeController.SwitchFailure)failure).result==DesktopRoutePolicy.Result.RETAINED || ((HomeController.SwitchFailure)failure).result==DesktopRoutePolicy.Result.UNSUPPORTED))return false;
-                }catch(Exception restore){failure.addSuppressed(restore);}
-            }
-            throw failure;
-        }
-    }
+    long prepareComputer(String original) throws Exception {synchronized(LOCK){
+        if(!available() || !new HomeController(context).component(original,true) || !original.equals(new SetupStore(context).originalHome()) || state.helperActive())throw new IOException("代理或恢复基线不可用");
+        state.select(ComponentName.unflattenFromString(original));
+        long epoch=nextEpoch();Bundle data=values(epoch);data.putString(ProxyContract.ORIGINAL,original);
+        Bundle prepared=call(ProxyContract.PREPARE,data);
+        if(!prepared.getBoolean("valid") || epoch!=prepared.getLong(ProxyContract.EPOCH) || !ProxyContract.STOCK.equals(prepared.getString("mode")))throw new IOException("代理原桌面回退未准备好");
+        if(!prefs.edit().putString("proxyPackage",packageName()).putString("proxyOriginal",original).putString("proxyFirmware",Build.FINGERPRINT)
+                .putBoolean("proxySetupPending",true).remove("proxyPending").commit())throw new IOException("代理回退记录未保存");
+        return epoch;
+    }}
+    void finishComputer(long epoch) throws Exception {synchronized(LOCK){
+        if(!setupPending() || prefs.getLong("proxyEpoch",-1)!=epoch || !component().equals(new HomeController(context).inspect().actual))throw new IOException("代理或系统 HOME 已变化");
+        prefs.edit().putString("mode","AUTO").putBoolean("configured",true).commit();new DesktopRoutes(context).proxy();
+        Bundle enabled=call(ProxyContract.ENABLE,values(epoch));
+        if(!ProxyContract.TARGET.equals(enabled.getString("mode")) || !ready())throw new IOException("代理启用未确认");
+        prefs.edit().putBoolean("proxyPausePending",false).remove("proxySetupPending").remove("proxyPending").commit();
+        new SetupStore(context).put("status","proxy-configured");
+    }}
     String resume(){synchronized(LOCK){
         try{
-            if(!localIdentity() || !component().equals(new HomeController(context).inspect(null).actual))throw new IOException("代理或系统 HOME 已变化，请重新自动配置");
+            if(!localIdentity() || !component().equals(new HomeController(context).inspect().actual))throw new IOException("代理或系统 HOME 已变化，请重新自动配置");
             long epoch=nextEpoch();Bundle data=values(epoch);data.putString(ProxyContract.ORIGINAL,state.selected());call(ProxyContract.PREPARE,data);
             prefs.edit().putString("mode","AUTO").putBoolean("configured",true).commit();new DesktopRoutes(context).proxy();
             call(ProxyContract.ENABLE,values(epoch));if(!ready())throw new IOException("HOME 代理未就绪");return "";
@@ -149,7 +129,7 @@ final class HomeProxy {
         Intent intent=activity.getIntent();if(intent==null || !intent.hasExtra(ProxyContract.REQUEST))return;
         if(!allowed(intent)){original(activity);activity.finish();return;}
         String token=intent.getStringExtra(ProxyContract.REQUEST);
-        if(token==null || !token.equals(prefs.getString("proxyPending","")))return;
+        if(token==null || !token.equals(prefs.getAll().get("proxyPending")))return;
         synchronized(LOCK){
             if(!allowed(intent)){original(activity);activity.finish();return;}
             try{Bundle data=values(intent.getLongExtra(ProxyContract.EPOCH,-1));data.putString(ProxyContract.TOKEN,token);call(ProxyContract.ACK,data);

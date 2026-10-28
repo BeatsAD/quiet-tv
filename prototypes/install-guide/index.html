@@ -46,6 +46,7 @@
           <div class="method-tabs" role="tablist" aria-label="安装方式">
             <button id="method-agent" role="tab" aria-selected="true" aria-controls="agent-panel" data-method="agent">AI 安装</button>
             <button id="method-manual" role="tab" aria-selected="false" aria-controls="manual-panel" data-method="manual" tabindex="-1">手动安装</button>
+            <button id="method-maintenance" role="tab" aria-selected="false" aria-controls="maintenance-panel" data-method="maintenance" tabindex="-1">检查修复</button>
             <button id="method-restore" role="tab" aria-selected="false" aria-controls="restore-panel" data-method="restore" tabindex="-1">恢复桌面</button>
           </div>
           <div id="agent-panel" class="method-panel" role="tabpanel" aria-labelledby="method-agent">
@@ -57,6 +58,11 @@
             <div class="result-heading"><div><h2>按系统选择安装包</h2><p>下载 APK 并核对 SHA-256</p></div></div>
             <div class="manual-content"><div class="download-row"><strong>安卓 4.4</strong><span>兼容档位</span></div><div class="download-row"><strong>安卓 5 及以上</strong><span>标准档位</span></div><p>覆盖安装前，核对包名、签名与构建号。安装后先试用；已完成桌面配置的可直接使用，应用管理和恢复按需打开。</p><a class="guide-link" href="https://github.com/BeatsAD/quiet-tv/blob/main/docs/INSTALL.zh-CN.md" target="_blank" rel="noreferrer">逐步安装指南 <span aria-hidden="true">↗</span></a></div>
             <a class="primary" id="release-link" href="https://github.com/BeatsAD/quiet-tv/releases" target="_blank" rel="noreferrer">查看安装包 <span class="button-arrow" aria-hidden="true">↗</span></a>
+          </div>
+          <div id="maintenance-panel" class="method-panel" role="tabpanel" aria-labelledby="method-maintenance" hidden>
+            <p class="agent-description">先检查已装版本；新维护能力需配套 APK，尚未发布。</p>
+            <pre id="maintenance-prompt" class="install-request" aria-label="维护请求" tabindex="0"></pre>
+            <button class="primary copy" data-copy="maintenance">复制维护请求 <span class="button-arrow" aria-hidden="true">↗</span></button>
           </div>
           <div id="restore-panel" class="method-panel" role="tabpanel" aria-labelledby="method-restore" hidden>
             <div class="result-heading"><div><h2>回到原来的桌面</h2><p>也可使用「应用管理 → 更多」中的恢复入口。</p></div></div>

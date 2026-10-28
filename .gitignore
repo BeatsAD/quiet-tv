@@ -52,7 +52,12 @@ __pycache__/
 !/scripts/bundle_about.py
 !/scripts/check_contribution.py
 !/scripts/configure_home_guard.py
+!/scripts/configure_boot_home.py
 !/scripts/install_quiet_tv.py
+!/scripts/device_maintenance.py
+!/scripts/device_adaptation.py
+!/scripts/vendor_adaptation.py
+!/scripts/device-presets.json
 !/scripts/verify_install.py
 !/scripts/install_tcl.py
 !/scripts/tcl_cast.py
@@ -165,3 +170,9 @@ __pycache__/
 !/docs/assets/sort-1.2.4.png
 !/docs/assets/child-auth-1.2.4.png
 !/docs/assets/update-1.2.4.png
+
+# Computer adaptation guide and acceptance tool shipped with the installation site.
+!/docs/AGENT_ADAPT.zh-CN.md
+!/scripts/device_selftest.py
+
+!/docs/DEVICE_ADAPTATION.zh-CN.md

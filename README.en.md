@@ -42,20 +42,22 @@ Original captures from Quiet TV 1.2.4 on a Sony BRAVIA VH1 / Android 12. See [mo
 
 ## Features
 
+The configuration workflow below describes current source. The computer-maintenance migration and upgrade fixes have not shipped in a new APK. Use the live release index for downloads and inspect the installed APK capabilities; updated scripts cannot add missing app interfaces.
+
 | Feature | What it does |
 | --- | --- |
 | Favorites and order | Up to five favorite apps, five-column All Apps and automatically saved ordering. |
 | Personalization | Classic or Art Gallery, custom greetings and avatars, independent information and shortcut visibility. |
 | Weather | Automatic location, manual city selection and phone-assisted city entry. |
 | Wallpapers | Color theme, Bing daily wallpaper, uploaded photos and videos, LAN uploads and long-OK deletion. |
-| App management | Category filters, package details, custom artwork and individually authorized package operations; critical components stay read-only. |
+| App management | Category filters, package details and custom artwork; computer AI tools handle authorized system changes and recovery. |
 | Child mode | Hide or lock apps, set per-session or daily limits, and use parent verification and rest reminders. |
 | App autostart | Open a selected app after boot or standby wake enters Quiet TV, without repeating on ordinary HOME returns. |
-| Inputs and home setup | Open supported input/settings routes, configure HOME or experimental compatibility paths, and retain stock-home recovery. |
+| Inputs and home setup | Open supported input/settings routes; computer AI configures HOME or compatibility paths and retains stock-home recovery. |
 | In-app updates | Check versions, download from multiple sources, verify integrity and signing, then confirm installation. |
 | Remote and local use | Arrows, OK and Back; no cloud account, with preferences stored on the TV. |
 
-Open All Apps → 应用管理 for 应用列表 (App list), 首页应用 (Favorites), 应用排序 (Order) and 儿童模式 (Child mode). Everyday customization needs no ADB; package changes require separate authorization. Disabling retains data, while uninstalling removes current-user app data. Boot-ad actions depend on verified adaptation rules; unmatched devices are view-only. See [app management](docs/APP_MANAGEMENT.md).
+Open All Apps → 应用管理 for App list, Favorites, Order, Child mode, Version updates and Diagnostic logs. Everyday customization needs no ADB. Current source removes local ADB connection and system-disable controls from the TV; computer AI handles explicitly requested system maintenance using matching rules and recovery records. See [app management](docs/APP_MANAGEMENT.md).
 
 The signed update feed is live. Automatic checks run every 24 hours while Home is in the foreground; current source provides manual checks under App Management → Version updates → Check for updates (About in older APKs). Older versions without this feature need a manual installation first. A higher build of the same software version is not offered as an update. See [in-app updates](docs/UPDATES.md).
 
@@ -64,7 +66,7 @@ The signed update feed is live. Automatic checks run every 24 hours while Home i
 1. Confirm Android support, choose the matching APK above, and [verify its checksum](docs/INSTALL.en.md#download-and-try).
 2. Follow [installation](docs/INSTALL.en.md), or use the [computer Agent instructions, Chinese](docs/AGENT_INSTALL.zh-CN.md).
 3. Current source opens Home without an automatic setup wizard. Check navigation, apps and system entries; keep any desktop configuration already completed by the AI tool. Older APKs may still offer temporary use.
-4. Set HOME only when ready. Read back the component, then separately verify the physical Home button, reboot and standby wake. Recovery is under 应用管理 → 更多; see [setup](docs/SETUP.md).
+4. Set HOME only when ready. Read back the component, then separately verify the physical Home button, reboot and standby wake. Recovery in current source is under 应用管理 → 更多 → 帮助与恢复 (Help and recovery); see [setup](docs/SETUP.md).
 
 Updates need matching package/signature and an increasing build number. Do not uninstall to resolve signing mismatches. Keep backups and recovery records locally, and never reuse another TV's debloating list.
 
@@ -77,7 +79,7 @@ Updates need matching package/signature and an increasing build number. Do not u
 | Android 4.4 | Separate compatibility test APK; physical-TV runtime acceptance for this batch remains pending. |
 | Android 4.0–4.3, Tizen, webOS and other non-Android systems | Unsupported. |
 
-The four published APKs share one source commit, software version and test signer. Sony page captures do not establish complete upgrade-state retention or other-model acceptance. Physical HOME, reboot, standby, playback and input switching need separate checks. Six-digit wireless pairing is experimental and requires API33+ and actual device support.
+The four published APKs share one source commit, software version and test signer. Sony page captures do not establish complete upgrade-state retention or other-model acceptance. Physical HOME, reboot, standby, playback and input switching need separate checks. ADB connection and pairing now use computer tools and the TV’s actual system authorization; current source has no in-app pairing control.
 
 See [compatibility and historical evidence](docs/COMPATIBILITY.md). Third-party media apps update through their own channels; Quiet TV does not automatically update them.
 
@@ -90,9 +92,9 @@ See [compatibility and historical evidence](docs/COMPATIBILITY.md). Third-party 
 | Vendor home takeover | Firmware may restore its own launcher at boot or have the Home button start a vendor Activity directly, bypassing standard HOME preferences. Cold boot, reboot, and wake from standby need separate checks. |
 | Default-home command fails | A report includes `cannot be home on user 0`. The installed APK, current user, HOME candidates, and vendor restrictions need investigation; the cause and adaptation remain unconfirmed. |
 | Default-home status is insufficient | Check default HOME, compatibility guard and proxy status separately. Status text does not establish physical Home-button, reboot or standby behavior. |
-| ADB disabled or inaccessible | Greyed-out USB debugging, missing wireless debugging, or an unavailable pairing code may prevent local app management and ADB-dependent adaptation. The built-in ADB client cannot bypass firmware restrictions or pairing authentication; there is no universal unlock method. |
+| ADB disabled or inaccessible | Greyed-out USB debugging, missing wireless debugging, or an unavailable pairing code may prevent computer maintenance and ADB-dependent adaptation. Computer tools cannot bypass firmware restrictions or pairing authentication; there is no universal unlock method. |
 
-Version 1.2.4 standard provides automatic configuration, pause and stock-home recovery under Desktop Settings → 桌面配置 (Home setup). Compatibility guard and optional HOME proxy paths are experimental and depend on firmware, permissions and companion components. Android 4.4 has no desktop guard. Physical Home, reboot, cold boot, standby and HDMI/playback need separate target-TV checks. See [configuration and pause](docs/SETUP.md#桌面守护实验).
+Current source moves technical configuration to computer AI and keeps Help and recovery on the TV. Historical 1.2.4 APKs retain Desktop Settings → 桌面配置 (Home setup). Compatibility guard and optional HOME proxies depend on firmware, permissions and companion components; Android 4.4 has no standard guard. Physical HOME, reboot, cold boot, standby and HDMI/playback need separate target-TV checks. See [setup and recovery](docs/SETUP.md) and [computer adaptation](docs/AGENT_ADAPT.zh-CN.md).
 
 The standalone [Xiaomi home helper](xiaomi-home-helper/README.md) remains available as an alternative experiment; disable its accessibility service before enabling the built-in guard. Existing helper settings are not migrated automatically.
 
