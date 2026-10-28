@@ -16,8 +16,8 @@ function update() {
 ${guideUrl}
 需要我操作电视时提醒我，最后给出实际验收结果。`;
   $('#maintenance-prompt').textContent = `请通过我的电脑检查并修复 Quiet TV，沿用已有接管方案，保持 ADB 常开。
-先完整阅读官方适配说明：
-https://raw.githubusercontent.com/BeatsAD/quiet-tv/main/docs/AGENT_ADAPT.zh-CN.md
+先完整阅读官方维护说明：
+https://beatsad.github.io/quiet-tv/maintenance.md
 需要切换画面、待机或重启时提醒我，最后给出修复前后的验收结果。`;
   $('#restore-prompt').textContent = `请通过我的电脑恢复电视原来的桌面，保留应用和数据。
 先完整阅读并执行官方说明：

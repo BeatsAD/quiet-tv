@@ -1,4 +1,4 @@
-# Quiet TV 电脑适配与维护
+# Quiet TV 电脑维护指南
 
 [安装与更新](AGENT_INSTALL.zh-CN.md)  [只读问题排查](AGENT_DIAGNOSE.zh-CN.md)  [配置与恢复](SETUP.md)
 
@@ -94,7 +94,7 @@ JSON 格式（示意值不能直接用于设备）：
 
 ## 交付状态
 
-本文件、站点 `adapt.md`、工具包和安装 skill 共用同一流程。站点构建会发布十一项工具与规则的真实 SHA-256，维护和自检脚本变更会触发 Pages。源码修改、工具上线、APK 发布和真机验收分别记录；站点上线不能让旧 APK 获得新接口。TCL relay 继续核对实际 APK 中不声明 HOME、包名、版本、架构和签名；没有已发布的匹配 relay 时不假装存在下载包。
+本文件是电脑维护指南的唯一源码，站点生成 `maintenance.md`；旧地址 `adapt.md` 保留同内容兼容，二者不是两套流程。源码文件名保留以兼容已有仓库链接。此指南负责已有安装的适配与维护，不是安装、升级和恢复的统一任务入口。站点构建会发布十一项工具与规则的真实 SHA-256，维护和自检脚本变更会触发 Pages。源码修改、工具上线、APK 发布和真机验收分别记录；站点上线不能让旧 APK 获得新接口。TCL relay 继续核对实际 APK 中不声明 HOME、包名、版本、架构和签名；没有已发布的匹配 relay 时不假装存在下载包。
 
 本流程参考 [Aerial 适配指南](https://github.com/pengchujin/aerial-tv/blob/main/site/adapt.md) 的检测、修复、复测方式，执行使用 Quiet TV 自有接口和恢复记录。
 
