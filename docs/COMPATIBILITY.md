@@ -2,9 +2,9 @@
 
 [中文首页](../README.md) · [English home](../README.en.md) · [安装指南](INSTALL.zh-CN.md)
 
-## Android 4.0–4.4 统一兼容包（本地开发，尚未发布）
+## Android 4.0–4.4 统一兼容包（1.3.0测试版131）
 
-新增 `legacy14` 档位，最低 API14，以一个无原生库的通用 APK 覆盖 Android 4.0–4.4。公共功能与 `standard` 共用代码；标准档仍为 API21，保留原来的 Activity、RecyclerView、ExifInterface、Media3 版本。`legacy19` 参数仅保留用于历史 API19 构建与升级回归，默认批次只生成一个 `legacy14` 旧系统包。
+1.3.0累加测试版提供标准130与兼容131，下载以[实时安装索引](https://beatsad.github.io/quiet-tv/latest.json)为准。`legacy14` 档位最低 API14，以一个无原生库的通用 APK 覆盖 Android 4.0–4.4。公共功能与 `standard` 共用代码；标准档仍为 API21，保留原来的 Activity、RecyclerView、ExifInterface、Media3 版本。`legacy19` 参数仅保留用于历史 API19 构建与升级回归，默认批次只生成一个 `legacy14` 旧系统包。
 
 | 功能 | Android 4.0–4.4 / legacy14 | Android 5+ / standard |
 |---|---|---|
@@ -16,13 +16,13 @@
 
 API14–18 仅为更新安装器交接请求写外部缓存权限，声明以 maxSdkVersion18 限定，标准包不增加该权限。API14/15/16 通过 PackageManager 查询实际安装状态，避免依赖 API17 才定义的 FLAG_INSTALLED。旧系统原子文件迁移保留文件名、JSON 格式和 `.bak` 恢复能力。API14/15 的视频检查不伪造系统没有提供的帧率；可从容器确定时检查帧率，无法确定时记录未知，并由实际播放器确认是否可准备与解码。解码分辨率、格式、后台恢复及物理 HOME 仍以具体固件为准。
 
-更新清单方面，新包支持 `legacy14` 和历史 `legacy19` 之间按最低 SDK、签名及版本选择升级；标准档不会选到旧系统包。`legacy14` 优先读取 `updates-v2.json`，未部署时在原总超时内回退读取 `updates.json`。现有标准版的清单地址和来源顺序不变。发布 API14 包时不得将新档位写进旧 `updates.json`，避免旧客户端整份解析失败；新清单、安装索引和线上部署仍须在获准发布时同步。
+更新清单方面，新包支持 `legacy14` 和历史 `legacy19` 之间按最低 SDK、签名及版本选择升级；标准档不会选到旧系统包。`legacy14` 优先读取 `updates-v2.json`，未部署时在原总超时内回退读取 `updates.json`。现有标准版的清单地址和来源顺序不变。发布 API14 包时不得将新档位写进旧 `updates.json`，避免旧客户端整份解析失败；本批发布同步revision9双清单及安装索引；已安装1.3.0不会提示同版本更新，旧legacy19客户端不能自动选择legacy14，需手动下载匹配新包覆盖安装。
 
 验证结果及限制见本次本地 `output/android4-tests/兼容验证记录.md`（不作为公开构建输入）。API14 Lint 与依赖声明只能证明静态兼容，较新模拟器运行兼容包不能证明真实 4.x 系统或厂商固件通过。
 
 <a id="当前源码中的本地修复尚未发布"></a>
 
-## 当前源码配置方式（本轮迁移尚未随 APK 发布）
+## 当前配置方式（1.3.0累加测试版130/131）
 
 电脑 AI 负责首次安装、规则匹配、端口配置、守护授权及恢复；电视保留日常功能与“应用管理 → 更多 → 帮助与恢复”。当前开发源码已恢复应用列表的本机 TCP ADB 客户端，用于按规则与固件能力禁用、重新启用、卸载及恢复应用，不提供无线配对界面；电脑连接不等于应用已获授权。已发布117/118包尚无这些日常管理按钮。电脑断开后仍由电视运行已配置的守护和 ADB 设置保持；安卓4.0–4.4不提供标准守护或本轮 ADB 保持。规则源为 `scripts/device-presets.json`，APK 内旧规则仅保留升级兼容默认值；新固件必须核对实际能力，未知运行协议仍需修改 APK。详见[规则与恢复](DEVICE_ADAPTATION.zh-CN.md)。
 
