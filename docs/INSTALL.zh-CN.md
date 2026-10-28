@@ -37,7 +37,7 @@ sdk.dir=/absolute/path/to/your/android-sdk
 python3 scripts/build_apk.py --batch --build-number "$FIRST_BUILD_NUMBER" --variant benchmark --summary "说明本次构建的修改"
 ```
 
-脚本按固定提交顺序构建 ARM32、ARM64、通用和安卓4.4包，检查版本、签名和原生库一致性，在 `dist/apk/` 生成不可变 APK、同名 SHA-256、JSON 和批次清单。本地归档名保留构建号，公开名省略构建号；脚本不安装电视或上传发布。`benchmark` 使用测试签名，不是正式包。已发布后交付修改过的内容须增加软件版本号，详见[版本规则](VERSIONING.md)。
+脚本按固定提交顺序构建 ARM32、ARM64、通用和安卓4.4包，检查版本、签名和原生库一致性，在 `dist/apk/` 生成不可变 APK、同名 SHA-256、JSON 和批次清单。后续交付名称须包含软件版本、构建号、适用系统和发布状态，历史名称保留；脚本不安装电视或上传发布。`benchmark` 使用测试签名，不是正式包。已发布后交付修改过的内容须增加软件版本号，详见[版本规则](VERSIONING.md)。
 
 仅构建标准单包可省略 `--batch`，指定 `--abi armeabi-v7a`、`arm64-v8a` 或 `universal`；最低 API 默认21，可按实际适配选择23、26或31。
 
