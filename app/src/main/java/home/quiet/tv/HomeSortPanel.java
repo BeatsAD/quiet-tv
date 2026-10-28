@@ -157,8 +157,8 @@ final class HomeSortPanel extends ManagementPanel {
             RecyclerView.LayoutParams p=new RecyclerView.LayoutParams(-1,-2);p.leftMargin=px(10);p.rightMargin=px(10);p.bottomMargin=px(18);card.setLayoutParams(p);
             FrameLayout art=new FrameLayout(activity){@Override protected void onMeasure(int w,int h){super.onMeasure(w,View.MeasureSpec.makeMeasureSpec(Math.round(View.MeasureSpec.getSize(w)*203f/360f),View.MeasureSpec.EXACTLY));}};
             art.setDuplicateParentStateEnabled(true);art.setPadding(px(3),px(3),px(3),px(3));card.addView(art,new LinearLayout.LayoutParams(-1,-2));
-            ImageView image=new ImageView(activity);image.setBackground(surface(0,0,0,10));UiCompat.clipOutline(image);art.addView(image,new FrameLayout.LayoutParams(-1,-1));
-            TextView badge=center("正在移动",10);badge.setTextColor(0xff22262e);badge.setPadding(px(6),0,px(6),0);badge.setBackground(surface(0xffeff0f4,0xffeff0f4,0,4));
+            ImageView image=new ImageView(activity);image.setBackgroundDrawable(surface(0,0,0,10));UiCompat.clipOutline(image);art.addView(image,new FrameLayout.LayoutParams(-1,-1));
+            TextView badge=center("正在移动",10);badge.setTextColor(0xff22262e);badge.setPadding(px(6),0,px(6),0);badge.setBackgroundDrawable(surface(0xffeff0f4,0xffeff0f4,0,4));
             FrameLayout.LayoutParams bp=new FrameLayout.LayoutParams(-2,px(23),Gravity.TOP|Gravity.END);bp.setMargins(px(7),px(7),px(7),0);art.addView(badge,bp);
             gap(card,8);LinearLayout caption=row();card.addView(caption,new LinearLayout.LayoutParams(-1,px(21)));
             TextView title=label("",13);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);caption.addView(title,new LinearLayout.LayoutParams(0,-1,1));
@@ -170,14 +170,14 @@ final class HomeSortPanel extends ManagementPanel {
             holder.title.setText(entry.label);holder.number.setText(String.format(Locale.ROOT,"%02d",position+1));holder.badge.setVisibility(picked?View.VISIBLE:View.GONE);
             android.graphics.drawable.StateListDrawable background=new android.graphics.drawable.StateListDrawable();
             background.addState(new int[]{android.R.attr.state_focused},surface(0xff3b3e46,0xff1b1d24,TEXT,12));
-            background.addState(new int[]{},surface(0xff373b43,0xff1b1d24,picked?TEXT:0x24ffffff,12));holder.art.setBackground(background);
+            background.addState(new int[]{},surface(0xff373b43,0xff1b1d24,picked?TEXT:0x24ffffff,12));holder.art.setBackgroundDrawable(background);
             holder.card.setContentDescription(entry.label+"，第 "+(position+1)+" 个位置"+(picked?"，正在移动":""));
             holder.card.setOnFocusChangeListener((v,focus)->{if(focus)selected=id;});holder.card.setOnClickListener(v->pick(id));
             FrameLayout.LayoutParams ip=(FrameLayout.LayoutParams)holder.image.getLayoutParams();ip.width=-1;ip.height=-1;ip.gravity=Gravity.CENTER;
             holder.image.setScaleType(ImageView.ScaleType.FIT_XY);
-            holder.image.setBackground(surface(0,0,0,10));
+            holder.image.setBackgroundDrawable(surface(0,0,0,10));
             Bitmap picture=artwork.get(id);int color=picture.getPixel(0,0);
-            holder.image.setBackground(surface(color,color,0,10));holder.image.setScaleType(ImageView.ScaleType.FIT_CENTER);holder.image.setImageBitmap(picture);
+            holder.image.setBackgroundDrawable(surface(color,color,0,10));holder.image.setScaleType(ImageView.ScaleType.FIT_CENTER);holder.image.setImageBitmap(picture);
             holder.image.setLayoutParams(ip);
         }
         @Override public int getItemCount(){return order.size();}

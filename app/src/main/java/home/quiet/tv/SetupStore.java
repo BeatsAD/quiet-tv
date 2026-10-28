@@ -2,7 +2,7 @@ package home.quiet.tv;
 
 import android.content.Context;
 import android.os.Build;
-import android.util.AtomicFile;
+import androidx.core.util.AtomicFile;
 import org.json.*;
 import java.io.*;
 
@@ -19,7 +19,7 @@ final class SetupStore {
     JSONObject get() throws Exception {synchronized(LOCK){JSONObject record=read().optJSONObject(scope);return record==null?new JSONObject():record;}}
     void put(String key,Object value) throws Exception {synchronized(LOCK){JSONObject root=read(),record=root.optJSONObject(scope);if(record==null)record=new JSONObject();record.put(key,value);root.put(scope,record);write(root);}}
     private void write(JSONObject root) throws Exception {
-        FileOutputStream out=file.startWrite();try{out.write(root.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));file.finishWrite(out);}catch(Exception e){file.failWrite(out);throw e;}
+        FileOutputStream out=file.startWrite();try{out.write(root.toString().getBytes(home.quiet.tv.Charsets.UTF_8));file.finishWrite(out);}catch(Exception e){file.failWrite(out);throw e;}
     }
     void baseline(String previousHome,String originalHome) throws Exception {synchronized(LOCK){JSONObject record=get();if(!record.has("baseline"))put("baseline",new JSONObject().put("previousHome",previousHome).put("originalHome",originalHome).put("time",System.currentTimeMillis()));
         else if(record.getJSONObject("baseline").optString("originalHome").isEmpty() && !originalHome.isEmpty())put("baseline",record.getJSONObject("baseline").put("originalHome",originalHome));}}

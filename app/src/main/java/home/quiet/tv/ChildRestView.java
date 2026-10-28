@@ -33,17 +33,17 @@ final class ChildRestView extends FrameLayout {
         accent=theme==2?0xffffc68a:theme==1?0xff287ff2:0xff728964;
         setBackgroundColor(theme==2?0xff25264e:0xfffaf3e4);
         background=new ImageView(ui);background.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        background.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);addView(background,new LayoutParams(-1,-1));
+        androidx.core.view.ViewCompat.setImportantForAccessibility(background,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);addView(background,new LayoutParams(-1,-1));
         content=new FrameLayout(ui);content.setClipChildren(false);content.setClipToPadding(false);addView(content);
         brand=text("Quiet TV",Color.WHITE,true);eyebrow=text("",muted,false);daily(daily);
         title=text(theme==1?"看了这么久，我们休息一下吧":"看了这么久，\n我们休息一下吧",ink,true);
         title.setLineSpacing(0,1.13f);if(Build.VERSION.SDK_INT>=28)title.setFallbackLineSpacing(false);
         note=text(theme==0?"伸个懒腰，和小熊一起放松一下。":theme==1?"让眼睛歇一歇，和小云朵伸个懒腰。":"小小探险家，也需要休息一下。",muted,false);
-        leave=ui.button("好呀，去休息",onLeave);leave.setId(View.generateViewId());leave.setTextColor(theme==2?0xff25264e:Color.WHITE);
-        parent=ui.button("家长授权",onParent);parent.setId(View.generateViewId());parent.setTextColor(new android.content.res.ColorStateList(new int[][]{{android.R.attr.state_focused},{}},new int[]{ManagementUi.TEXT,muted}));
+        leave=ui.button("好呀，去休息",onLeave);leave.setId(androidx.core.view.ViewCompat.generateViewId());leave.setTextColor(theme==2?0xff25264e:Color.WHITE);
+        parent=ui.button("家长授权",onParent);parent.setId(androidx.core.view.ViewCompat.generateViewId());parent.setTextColor(new android.content.res.ColorStateList(new int[][]{{android.R.attr.state_focused},{}},new int[]{ManagementUi.TEXT,muted}));
         leave.setContentDescription("好呀，去休息，返回桌面");parent.setContentDescription("家长授权");
         leave.setSingleLine(true);parent.setSingleLine(true);leave.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
-        leave.setBackground(control(accent));parent.setBackground(control(Color.TRANSPARENT));
+        leave.setBackgroundDrawable(control(accent));parent.setBackgroundDrawable(control(Color.TRANSPARENT));
         Drawable lock=UiCompat.drawable(ui,R.drawable.ic_child_lock).mutate();lock.setColorFilter(muted,PorterDuff.Mode.SRC_IN);parent.setCompoundDrawables(lock,null,null,null);parent.setOnFocusChangeListener((view,focused)->lock.setColorFilter(focused?ManagementUi.TEXT:muted,PorterDuff.Mode.SRC_IN));
         content.addView(leave);content.addView(parent);
         leave.setNextFocusDownId(parent.getId());leave.setNextFocusUpId(parent.getId());leave.setNextFocusLeftId(parent.getId());leave.setNextFocusRightId(parent.getId());
@@ -81,7 +81,7 @@ final class ChildRestView extends FrameLayout {
     }
     private void load(Context context){
         ActivityManager memory=(ActivityManager)context.getSystemService(Context.ACTIVITY_SERVICE);
-        boolean small=Build.VERSION.SDK_INT<=19 || memory!=null && (memory.isLowRamDevice() || memory.getMemoryClass()<=128);
+        boolean small=Build.VERSION.SDK_INT<=19 || memory!=null && (UiCompat.lowRam(memory) || memory.getMemoryClass()<=128);
         loader.execute(()->{
             Bitmap decoded=null;BitmapFactory.Options options=new BitmapFactory.Options();options.inScaled=false;options.inSampleSize=small?2:1;options.inPreferredConfig=Bitmap.Config.ARGB_8888;
             try(InputStream input=context.getAssets().open("child-rest/"+ART[theme]+".webp")){decoded=BitmapFactory.decodeStream(input,null,options);}catch(IOException|OutOfMemoryError ignored){}

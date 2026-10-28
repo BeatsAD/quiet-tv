@@ -2,7 +2,7 @@ package home.quiet.tv;
 
 import android.content.Context;
 import android.graphics.*;
-import android.util.AtomicFile;
+import androidx.core.util.AtomicFile;
 import java.io.*;
 
 /** One bounded, atomically saved cover and its prepared Dock background. */

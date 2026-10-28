@@ -21,6 +21,7 @@ final class WeatherTls {
             roots.setCertificateEntry("isrg-root-x1",CertificateFactory.getInstance("X.509").generateCertificate(root));
             TrustManagerFactory combined=TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
             combined.init(roots);
+            if(android.os.Build.VERSION.SDK_INT<16)return WallpaperTlsProvider.socketFactory(roots);
             SSLContext tls=SSLContext.getInstance("TLS");tls.init(null,combined.getTrustManagers(),null);
             return tls.getSocketFactory();
         }catch(GeneralSecurityException e){throw new IOException("Weather certificate initialization failed",e);}

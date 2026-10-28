@@ -48,8 +48,8 @@ final class WeatherLocationResolver {
         cancel();callback.resolved(location);
     }
     private static boolean fresh(Location location){
-        if(location==null)return false;long age=SystemClock.elapsedRealtimeNanos()-location.getElapsedRealtimeNanos();
-        return age>=0&&age<30*60*1000000000L;
+        if(location==null)return false;long age=android.os.Build.VERSION.SDK_INT>=17?(SystemClock.elapsedRealtimeNanos()-location.getElapsedRealtimeNanos())/1000000L:System.currentTimeMillis()-location.getTime();
+        return age>=0&&age<30*60*1000L;
     }
     // Clear local state before vendor IPC so failed removal and late callbacks cannot finish twice.
     @android.annotation.SuppressLint("MissingPermission")
