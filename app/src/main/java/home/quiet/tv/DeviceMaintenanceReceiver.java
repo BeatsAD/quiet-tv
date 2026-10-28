@@ -53,7 +53,7 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
         HomeProxy proxy=new HomeProxy(context);
         value.put("proxy",new JSONObject().put("selected","PROXY".equals(guard.preferences.getString("relaySource","")))
             .put("available",proxy.available()).put("component",proxy.component()).put("ready",proxy.ready())
-            .put("pending",guard.preferences.getBoolean("proxyPending",false)).put("pausePending",guard.preferences.getBoolean("proxyPausePending",false)));
+            .put("pending",proxy.setupPending()).put("pausePending",guard.preferences.getBoolean("proxyPausePending",false)));
         return value;
     }
     @android.annotation.SuppressLint("ApplySharedPref") // A successful reply requires durable restoration state.
