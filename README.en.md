@@ -40,31 +40,41 @@ Use the index's actual download URL and SHA-256, or a matching checksum attachme
 <table>
   <tr>
     <td width="50%" valign="top">
-      <p><strong>Favorite apps, time, weather and shortcuts on your home screen.</strong></p>
-      <img src="docs/assets/home-1.2.4.png" alt="Quiet TV 1.2.4 home" width="100%">
+      <p><strong>Favorite apps, time and weather at a glance.</strong></p>
+      <img src="docs/assets/home-1.3.0.png" alt="Quiet TV 1.3.0 home apps, time and weather" width="100%">
     </td>
     <td width="50%" valign="top">
-      <p><strong>Five-column All Apps with automatically saved ordering.</strong></p>
-      <img src="docs/assets/all-apps-1.2.4.png" alt="Quiet TV 1.2.4 All Apps" width="100%">
+      <p><strong>Classic and Art Gallery layouts with a live preview.</strong></p>
+      <img src="docs/assets/desktop-settings-1.3.0.png" alt="Quiet TV 1.3.0 desktop customization and live preview" width="100%">
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <p><strong>Classic and Art Gallery layouts with a live preview.</strong></p>
-      <img src="docs/assets/desktop-settings-1.2.4.png" alt="Quiet TV 1.2.4 desktop settings" width="100%">
+      <p><strong>Daily wallpaper, with uploads for your photos and videos.</strong></p>
+      <img src="docs/assets/wallpaper-1.3.0.png" alt="Quiet TV 1.3.0 daily wallpaper and upload entry" width="100%">
     </td>
     <td width="50%" valign="top">
-      <p><strong>Daily wallpaper, uploaded photos and your own video loops.</strong></p>
-      <img src="docs/assets/wallpaper-1.2.4.png" alt="Quiet TV 1.2.4 wallpaper settings" width="100%">
+      <p><strong>Automatic location, city selection and weather sources.</strong></p>
+      <img src="docs/assets/weather-1.3.0.png" alt="Quiet TV 1.3.0 city and weather-source settings" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <p><strong>Filter apps by category and inspect their details.</strong></p>
+      <img src="docs/assets/app-management-1.3.0.png" alt="Quiet TV 1.3.0 app categories and details" width="100%">
+    </td>
+    <td width="50%" valign="top">
+      <p><strong>View the current version and check for app updates.</strong></p>
+      <img src="docs/assets/update-1.3.0.png" alt="Quiet TV 1.3.0 version information and update check" width="100%">
     </td>
   </tr>
 </table>
 
-Original captures from Quiet TV 1.2.4 on a Sony BRAVIA VH1 / Android 12. See [more interfaces](docs/USAGE.en.md) and [capture provenance](docs/assets/README.md). These images show this TV's actual interface, not compatibility with every model.
+Original captures of the published Quiet TV 1.3.0 test build (117) on an Android TV / Android 13 emulator. See [more interfaces](docs/USAGE.en.md) and [capture provenance](docs/assets/README.md).
 
 ## Features
 
-The configuration workflow below describes current source. The computer-maintenance migration and upgrade fixes have not shipped in a new APK. Use the live release index for downloads and inspect the installed APK capabilities; updated scripts cannot add missing app interfaces.
+These core features describe the 1.3.0 test release. Use the live release index and choose a build compatible with the TV's system and installed package.
 
 | Feature | What it does |
 | --- | --- |
