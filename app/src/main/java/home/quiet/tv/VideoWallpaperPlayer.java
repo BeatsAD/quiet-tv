@@ -28,7 +28,7 @@ final class VideoWallpaperPlayer {
                 default:return chinese?"视频播放失败":"Video playback failed";
             }
         }
-        String hint(boolean chinese){return message(chinese)+(this==UNSUPPORTED?(chinese?"，请尝试 H.264 SDR 视频":". Try H.264 SDR video."):(chinese?"，按确定键重试":". Press OK to retry."));}
+        String hint(boolean chinese){return message(chinese)+(this==UNSUPPORTED||this==DECODE||this==TIMEOUT?(chinese?"，请尝试 1080p 30 FPS H.264 SDR 视频":". Try 1080p 30 FPS H.264 SDR video."):(chinese?"，按确定键重试":". Press OK to retry."));}
     }
     private static final String TAG="QuietTVWallpaper";
     private final Activity activity;
