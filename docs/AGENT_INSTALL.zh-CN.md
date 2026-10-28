@@ -107,7 +107,7 @@ python3 scripts/install_quiet_tv.py --serial "$TV_SERIAL" --user "$TV_USER" \
 
 ### AI 实际调用的开机桌面脚本
 
-可执行入口为 [configure_boot_home.py](../scripts/configure_boot_home.py)。它已接入 `install_quiet_tv.py --goal takeover`：安装并核验主程序后，标准 HOME 包自动进入开机配置；无标准 HOME 路线时继续现有兼容守护。`trial`、`update` 和只读验收不会调用写入路径。独立 Agent 必须从同一次 `latest.json.tools` 下载并校验全部十一项工具与规则，不能只复制本文或只下载一个脚本。
+可执行入口为 [configure_boot_home.py](../scripts/configure_boot_home.py)。它已接入 `install_quiet_tv.py --goal takeover`：安装并核验主程序后，标准 HOME 包自动进入开机配置；无标准 HOME 路线时继续现有兼容守护。若仅尝试标准 HOME、读回确认仍为原桌面且设备身份不变，也继续评估兼容守护；读回未知、出现其他 HOME 或涉及厂商属性的部分修改时停止，按记录核对恢复。`trial`、`update` 和只读验收不会调用写入路径。独立 Agent 必须从同一次 `latest.json.tools` 下载并校验全部十一项工具与规则，不能只复制本文或只下载一个脚本。
 
 已有 Quiet TV、只需配置开机桌面时，AI 先执行预览，再在已有开机接管授权内以新记录目录加 `--apply` 执行，不要求用户另写命令：
 
