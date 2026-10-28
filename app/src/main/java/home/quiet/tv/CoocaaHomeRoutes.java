@@ -11,7 +11,7 @@ final class CoocaaHomeRoutes {
     // Null means unreadable, distinct from an empty property. Never writes a vendor route.
     static String read(String key){
         try{return (String)Class.forName("android.os.SystemProperties").getMethod("get",String.class).invoke(null,key);}
-        catch(ReflectiveOperationException|RuntimeException unavailable){return null;}
+        catch(Exception unavailable){return null;}
     }
     static List<String> targets(Properties properties){
         Set<String> targets=new LinkedHashSet<>();

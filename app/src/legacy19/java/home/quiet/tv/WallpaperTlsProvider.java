@@ -5,7 +5,7 @@ import javax.net.ssl.*;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.jsse.provider.BouncyCastleJsseProvider;
 
-/** Pure Java TLS and certificate validation, independent of the API19 crypto engine. */
+/** Pure Java TLS and certificate validation, independent of the API14-19 crypto engine. */
 final class WallpaperTlsProvider {
     static SSLSocketFactory socketFactory(KeyStore roots) throws GeneralSecurityException {
         Provider provider=new BouncyCastleJsseProvider(new BouncyCastleProvider());

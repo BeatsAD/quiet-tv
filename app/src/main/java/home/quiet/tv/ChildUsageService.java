@@ -54,7 +54,7 @@ public final class ChildUsageService extends AccessibilityService {
     static void blockVisible(String pkg){ChildUsageService service=instance;if(service!=null && service.blocking.equals(pkg)){service.handler.removeCallbacks(service.checkBlock);service.blocking="";}}
     private boolean interactive(){
         PowerManager power=(PowerManager)getSystemService(POWER_SERVICE);KeyguardManager keyguard=(KeyguardManager)getSystemService(KEYGUARD_SERVICE);
-        return power!=null && (Build.VERSION.SDK_INT>=20?power.isInteractive():power.isScreenOn()) && (keyguard==null || !keyguard.isKeyguardLocked());
+        return power!=null && (Build.VERSION.SDK_INT>=20?power.isInteractive():power.isScreenOn()) && (keyguard==null || !UiCompat.keyguardLocked(keyguard));
     }
     @Override public void onAccessibilityEvent(AccessibilityEvent event){
         if(store==null || event==null || event.getEventType()!=AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || event.getPackageName()==null || target.isEmpty())return;

@@ -21,7 +21,7 @@ final class UpdatePanel {
     private void begin(String state,String title){
         dismiss();mode=state;dialog=new Dialog(activity);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         box=new LinearLayout(activity);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(px(60),px(48),px(60),px(48));
-        GradientDrawable background=new GradientDrawable();background.setColor(0xff141a23);background.setCornerRadius(px(28));background.setStroke(Math.max(1,px(1)),0x38ffffff);box.setBackground(background);
+        GradientDrawable background=new GradientDrawable();background.setColor(0xff141a23);background.setCornerRadius(px(28));background.setStroke(Math.max(1,px(1)),0x38ffffff);box.setBackgroundDrawable(background);
         box.addView(text("软件更新",20,0xff96a8bf));gap(16);heading=text(title,38,0xfff2f4f8);box.addView(heading);gap(22);
         actions=new LinearLayout(activity);actions.setGravity(Gravity.END);actions.setClipChildren(false);box.setClipChildren(false);
         dialog.setContentView(box);dialog.setCanceledOnTouchOutside(false);
@@ -30,7 +30,7 @@ final class UpdatePanel {
     private Button button(String title,Runnable run){
         Button view=new Button(activity);view.setText(title);view.setAllCaps(false);view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(25));view.setTextColor(0xffeff0f4);
         view.setMinimumHeight(0);view.setMinHeight(0);view.setMinimumWidth(0);view.setMinWidth(0);view.setPadding(px(28),0,px(28),0);view.setFocusableInTouchMode(true);
-        if(Build.VERSION.SDK_INT>=21)view.setStateListAnimator(null);view.setBackground(ControlStyle.action(unit,35,0xff242a33,0x38ffffff));view.setOnClickListener(v->run.run());
+        if(Build.VERSION.SDK_INT>=21)view.setStateListAnimator(null);view.setBackgroundDrawable(ControlStyle.action(unit,35,0xff242a33,0x38ffffff));view.setOnClickListener(v->run.run());
         LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-2,px(70));params.leftMargin=px(20);actions.addView(view,params);return view;
     }
     private void show(Button focus){
@@ -119,7 +119,7 @@ final class UpdatePanel {
     private void back(){if(mode.equals("verify"))return;if(mode.equals("download")){cancelDownload();return;}if(mode.equals("checking"))updates.cancelCheck();if(mode.equals("cancel")){resumeDownload();return;}dismiss();}
     void suspend(){closed=true;if(updates.downloading)updates.cancelDownload();if(mode.equals("checking"))updates.cancelCheck();dismiss();}
     private void dismiss(){if(dialog!=null){dialog.dismiss();dialog=null;}mode="";}
-    private static String system(int sdk){switch(sdk){case 19:return "安卓4.4";case 21:return "安卓5及以上";case 23:return "安卓6及以上";case 26:return "安卓8及以上";case 31:return "安卓12及以上";default:return "安卓兼容版";}}
+    private static String system(int sdk){switch(sdk){case 14:return "安卓4.0至4.4";case 19:return "安卓4.4";case 21:return "安卓5及以上";case 23:return "安卓6及以上";case 26:return "安卓8及以上";case 31:return "安卓12及以上";default:return "安卓兼容版";}}
     static String channel(String value){return "stable".equals(value)?"正式版":"experimental".equals(value)?"实验版":"测试版";}
     private String size(long value){return String.format(Locale.CHINA,"%.1f MB",value/1048576d);}
 }

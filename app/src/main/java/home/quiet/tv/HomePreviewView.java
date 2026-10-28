@@ -31,22 +31,22 @@ final class HomePreviewView extends FrameLayout {
     private final Runnable tick=new Runnable(){public void run(){if(active){refresh();main.postDelayed(this,60000-System.currentTimeMillis()%60000);}}};
     private final BroadcastReceiver changes=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent i){refresh();}};
     HomePreviewView(Context context,boolean chinese,boolean fixedGreeting){
-        super(context);this.chinese=chinese;this.fixedGreeting=fixedGreeting;setTag("home-preview");setFocusable(false);setDescendantFocusability(FOCUS_BLOCK_DESCENDANTS);setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);setClipChildren(true);
+        super(context);this.chinese=chinese;this.fixedGreeting=fixedGreeting;setTag("home-preview");setFocusable(false);setDescendantFocusability(FOCUS_BLOCK_DESCENDANTS);androidx.core.view.ViewCompat.setImportantForAccessibility(this,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);setClipChildren(true);
         scene=new FrameLayout(context);scene.setPivotX(0);scene.setPivotY(0);scene.setBackgroundColor(Color.BLACK);addView(scene,new FrameLayout.LayoutParams(960,540));
         wallpaper=new ImageView(context);wallpaper.setScaleType(ImageView.ScaleType.CENTER_CROP);scene.addView(wallpaper,new FrameLayout.LayoutParams(-1,-1));
-        shade=new View(context);shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x70000000,0x10000000,0xf00a0e15}));scene.addView(shade,new FrameLayout.LayoutParams(-1,-1));
+        shade=new View(context);shade.setBackgroundDrawable(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x70000000,0x10000000,0xf00a0e15}));scene.addView(shade,new FrameLayout.LayoutParams(-1,-1));
         ambient=new WallpaperController.Ambient(context,1);scene.addView(ambient,new FrameLayout.LayoutParams(-1,-1));ambient.setColor(0xff666972);
         typeface=!chinese&&Build.VERSION.SDK_INT>=26?Typeface.createFromAsset(context.getAssets(),"fonts/outfit.ttf"):Typeface.create("sans-serif",Typeface.NORMAL);
         header=new HomeHeaderView(context,1,chinese,typeface);scene.addView(header,new FrameLayout.LayoutParams(-1,-1));
         title=new TextView(context);title.setTextColor(0xfff1f2f6);title.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,40);title.setIncludeFontPadding(false);title.setGravity(Gravity.CENTER_VERTICAL);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);place(title,820,56,50,314);
-        band=new FrameLayout(context);dockSurface=new DockBackdropDrawable(this::drawWallpaper,band,scene,1);band.setBackground(dockSurface);ambient.colorChanged=()->{band.invalidate();for(int i=0;i<band.getChildCount();i++)band.getChildAt(i).invalidate();};place(band,864,114,48,386);refresh();
+        band=new FrameLayout(context);dockSurface=new DockBackdropDrawable(this::drawWallpaper,band,scene,1);band.setBackgroundDrawable(dockSurface);ambient.colorChanged=()->{band.invalidate();for(int i=0;i<band.getChildCount();i++)band.getChildAt(i).invalidate();};place(band,864,114,48,386);refresh();
     }
     private void place(View v,int width,int height,int x,int y){FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(width,height);p.leftMargin=x;p.topMargin=y;scene.addView(v,p);}
     @Override protected void onMeasure(int width,int height){int w=MeasureSpec.getSize(width);setMeasuredDimension(w,Math.round(w*540f/960f));scene.measure(MeasureSpec.makeMeasureSpec(960,MeasureSpec.EXACTLY),MeasureSpec.makeMeasureSpec(540,MeasureSpec.EXACTLY));}
     @Override protected void onSizeChanged(int w,int h,int ow,int oh){scene.setScaleX(w/960f);scene.setScaleY(w/960f);if(active&&w>0)loadLocalScene();}
     void refresh(){
         DesktopSettingsStore settings=new DesktopSettingsStore(getContext());
-        title.setVisibility(settings.showHomeApps()&&settings.showAppTitle()?VISIBLE:GONE);band.setVisibility(settings.showHomeApps()?VISIBLE:GONE);band.setBackground(hasDockApps&&settings.showDockBackground()?dockSurface:null);
+        title.setVisibility(settings.showHomeApps()&&settings.showAppTitle()?VISIBLE:GONE);band.setVisibility(settings.showHomeApps()?VISIBLE:GONE);band.setBackgroundDrawable(hasDockApps&&settings.showDockBackground()?dockSurface:null);
         header.updateClock(fixedGreeting);WeatherStore weather=new WeatherStore(getContext());WeatherData data=weather.enabled()?weather.cached(chinese):null;header.weather(data!=null&&data.usable(System.currentTimeMillis())?data:null);
         android.net.ConnectivityManager manager=(android.net.ConnectivityManager)getContext().getSystemService(Context.CONNECTIVITY_SERVICE);android.net.NetworkInfo network=manager==null?null:manager.getActiveNetworkInfo();
         TextView pill=header.pills.get(1);boolean connected=network!=null&&network.isConnected();int icon=R.drawable.ic_wifi_off;String label=chinese?"Wi-Fi 未连接":"Wi-Fi offline";
@@ -60,7 +60,7 @@ final class HomePreviewView extends FrameLayout {
     private void loadLocalScene(){
         final int request=++generation;final Context context=getContext();
         android.app.ActivityManager memory=(android.app.ActivityManager)context.getSystemService(Context.ACTIVITY_SERVICE);
-        int limit=memory!=null&&memory.isLowRamDevice()?720:1280;
+        int limit=memory!=null&&UiCompat.lowRam(memory)?720:1280;
         final int width=Math.min(limit,Math.max(360,getWidth()));
         worker.execute(()->{
             if(request!=generation)return;
@@ -78,7 +78,7 @@ final class HomePreviewView extends FrameLayout {
                 boolean empty=art.isEmpty();hasDockApps=!empty;int count=empty?1:art.size();
                 float cardWidth=(864-36-4*18)/5f,cardHeight=cardWidth*203/360;
                 FrameLayout.LayoutParams bandParams=(FrameLayout.LayoutParams)band.getLayoutParams();bandParams.height=Math.round(cardHeight+36);bandParams.width=Math.round(36+count*cardWidth+Math.max(0,count-1)*18);bandParams.leftMargin=Math.round((960-bandParams.width)/2f);band.setLayoutParams(bandParams);
-                for(int i=0;i<count;i++){View card;if(empty)card=emptyCard();else{ImageView imageCard=new ImageView(context);imageCard.setImageBitmap(art.get(i));imageCard.setScaleType(ImageView.ScaleType.FIT_XY);GradientDrawable outline=new GradientDrawable();outline.setColor(Color.TRANSPARENT);outline.setCornerRadius(11);imageCard.setBackground(outline);UiCompat.clipOutline(imageCard);card=imageCard;}FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(Math.round(cardWidth),Math.round(cardHeight));p.leftMargin=Math.round(18+i*(cardWidth+18));p.topMargin=18;band.addView(card,p);}
+                for(int i=0;i<count;i++){View card;if(empty)card=emptyCard();else{ImageView imageCard=new ImageView(context);imageCard.setImageBitmap(art.get(i));imageCard.setScaleType(ImageView.ScaleType.FIT_XY);GradientDrawable outline=new GradientDrawable();outline.setColor(Color.TRANSPARENT);outline.setCornerRadius(11);imageCard.setBackgroundDrawable(outline);UiCompat.clipOutline(imageCard);card=imageCard;}FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(Math.round(cardWidth),Math.round(cardHeight));p.leftMargin=Math.round(18+i*(cardWidth+18));p.topMargin=18;band.addView(card,p);}
                 refresh();
             });
         });

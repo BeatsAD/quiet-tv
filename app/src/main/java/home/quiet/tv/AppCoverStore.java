@@ -1,10 +1,10 @@
 package home.quiet.tv;
 
 import android.content.Context;
-import android.util.AtomicFile;
+import androidx.core.util.AtomicFile;
 import android.util.Log;
 import java.io.*;
-import java.nio.charset.StandardCharsets;
+import home.quiet.tv.Charsets;
 import java.util.UUID;
 import org.json.*;
 
@@ -22,7 +22,7 @@ final class AppCoverStore {
         directory=new File(context.getFilesDir(),"app-covers");
         indexFile=new AtomicFile(new File(directory,"index.json"));index=new JSONObject();
         if(indexFile.getBaseFile().exists()||new File(directory,"index.json.bak").exists())try{
-            index=new JSONObject(new String(indexFile.readFully(),StandardCharsets.UTF_8));
+            index=new JSONObject(new String(indexFile.readFully(),Charsets.UTF_8));
         }catch(IOException|JSONException e){Log.w("QuietTV","Cover index unavailable; using original artwork");}
     }
     static boolean packageName(String pkg){return pkg!=null&&pkg.matches("[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+");}
@@ -41,7 +41,7 @@ final class AppCoverStore {
     synchronized long revision(){return index.optLong("revision",0);}
     private void persist(JSONObject next) throws IOException {
         ensureDirectory();FileOutputStream out=null;
-        try{out=indexFile.startWrite();out.write(next.toString().getBytes(StandardCharsets.UTF_8));indexFile.finishWrite(out);index=next;}
+        try{out=indexFile.startWrite();out.write(next.toString().getBytes(Charsets.UTF_8));indexFile.finishWrite(out);index=next;}
         catch(IOException e){if(out!=null)indexFile.failWrite(out);throw e;}
     }
     synchronized void apply(String pkg,File ready) throws IOException {

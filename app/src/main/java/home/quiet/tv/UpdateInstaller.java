@@ -47,8 +47,8 @@ final class UpdateInstaller {
     static boolean permitted(Activity activity){try{return Build.VERSION.SDK_INT<26||activity.getPackageManager().canRequestPackageInstalls();}catch(RuntimeException failure){DiagnosticLog.error("update.permission.failed",failure);return false;}}
     static File prepare(Context context,UpdateManifest.Artifact artifact,File source)throws IOException{
         if(Build.VERSION.SDK_INT>=24)return source;
-        // Android 4.4-6 installers accept file://, but cannot read our private files directory.
-        // App-specific external cache needs no storage permission on these supported APIs.
+        // Android 4.0-6 installers accept file://, but cannot read our private files directory.
+        // API14-18 request storage access in the legacy manifest; API19+ need no permission here.
         File cache=context.getExternalCacheDir();if(cache==null)throw new IOException("Installer storage unavailable");
         File directory=new File(cache,"update-install");
         if(!directory.isDirectory()&&!directory.mkdirs())throw new IOException("Installer directory unavailable");

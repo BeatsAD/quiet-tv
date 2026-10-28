@@ -33,13 +33,13 @@ def read_index():
 
 def choose(index, sdk, abis, installed=None, mode="standard", version=None):
     candidates = []
-    compatibility = "legacy19" if sdk < 21 else "standard"
+    compatibilities = {"legacy14", "legacy19"} if sdk < 21 else {"standard"}
     for release in index["releases"]:
         name = release.get("versionName", "")
         if not re.fullmatch(r"\d+\.\d+\.\d+", name) or version and name != version:
             continue
         for asset in release.get("assets", []):
-            if (asset.get("packageName") != tcl.PACKAGE or asset.get("compatibility") != compatibility
+            if (asset.get("packageName") != tcl.PACKAGE or asset.get("compatibility") not in compatibilities
                     or asset.get("homeMode") != mode or not isinstance(asset.get("minSdk"), int)
                     or asset["minSdk"] > sdk or not isinstance(asset.get("abis"), list)
                     or not tcl.compatible_abis(asset["abis"], abis)):

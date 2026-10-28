@@ -16,10 +16,12 @@ final class UpdateTransfer {
     interface Progress {void changed(long bytes,long total,boolean switching);}
     interface Clock {long now();}
     private static final ScheduledExecutorService WATCHDOG=Executors.newSingleThreadScheduledExecutor(r->{Thread t=new Thread(r,"QuietTV-update-timeout");t.setDaemon(true);return t;});
-    private final Connection factory;private final Clock clock;
+    private final Connection factory;private final Clock clock;private final boolean android4;
     private volatile boolean cancelled,expired;private volatile HttpURLConnection active;
-    UpdateTransfer(Connection factory){this(factory,()->System.nanoTime()/1000000);}
-    UpdateTransfer(Connection factory,Clock clock){this.factory=factory;this.clock=clock;}
+    UpdateTransfer(Connection factory){this(factory,false);}
+    UpdateTransfer(Connection factory,boolean android4){this(factory,()->System.nanoTime()/1000000,android4);}
+    UpdateTransfer(Connection factory,Clock clock){this(factory,clock,false);}
+    UpdateTransfer(Connection factory,Clock clock,boolean android4){this.factory=factory;this.clock=clock;this.android4=android4;}
     void cancel(){cancelled=true;HttpURLConnection request=active;if(request!=null)request.disconnect();}
     private void expire(){expired=true;HttpURLConnection request=active;if(request!=null)request.disconnect();}
     private void alive()throws InterruptedIOException{if(cancelled||Thread.currentThread().isInterrupted())throw new InterruptedIOException("Update cancelled");}
@@ -79,9 +81,12 @@ final class UpdateTransfer {
             order.add(order.size()-1,-1);
             IOException last=null;byte[] best=null;long revision=-1;int bestSource=-1,verified=0;
             String nonce="?quietCheck="+System.currentTimeMillis();
-            for(int source:order){
+            for(int requestIndex=0;requestIndex<order.size()*(android4?2:1);requestIndex++){
+                int source=order.get(requestIndex%order.size());boolean modern=android4&&requestIndex<order.size();
+                String origin=modern?RAW.replace("updates.json","updates-v2.json"):RAW;
+                String endpoint=source<0?(modern?PAGES.replace("updates.json","updates-v2.json"):PAGES):address(source,origin);
                 alive();if(expired||clock.now()>=end)break;String stage="connect";
-                try(Response response=connect(address(source,RAW)+nonce,0,end-clock.now(),true)){
+                try(Response response=connect(endpoint+nonce,0,end-clock.now(),true)){
                     if(response.status!=200)throw new UpdateFailure.HttpException(response.status);
                     stage="read";
                     ByteArrayOutputStream output=new ByteArrayOutputStream();byte[] buffer=new byte[4096];int count;

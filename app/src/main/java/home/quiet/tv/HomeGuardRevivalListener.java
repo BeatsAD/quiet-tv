@@ -6,6 +6,7 @@ import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
 
 /** Only the system binding is used; notifications are never read. */
+@android.annotation.TargetApi(18)
 public final class HomeGuardRevivalListener extends NotificationListenerService {
     private static volatile boolean connected;
     private BroadcastReceiver unlock;

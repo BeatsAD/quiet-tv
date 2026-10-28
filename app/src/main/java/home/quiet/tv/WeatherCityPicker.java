@@ -47,7 +47,7 @@ final class WeatherCityPicker {
     }};
     WeatherCityPicker(DesktopSettingsActivity ui,WeatherStore store,Runnable saved){this.ui=ui;this.store=store;this.saved=saved;regions=WeatherRegions.load(ui);searchClient=new WeatherClient(ui);}
     private String tr(String zh,String en){return ui.tr(zh,en);}
-    private void identify(View view,String tag){view.setId(View.generateViewId());view.setTag(tag);}
+    private void identify(View view,String tag){view.setId(androidx.core.view.ViewCompat.generateViewId());view.setTag(tag);}
     void show(){
         if(editor!=null)return;View origin=ui.getCurrentFocus();province=null;city=null;draft=null;
         editor=ui.new Sheet(tr("选择天气地区","Choose weather location"));
@@ -75,7 +75,7 @@ final class WeatherCityPicker {
         editor.show(provinceButton);editor.dialog.getWindow().setLayout(ui.px(650),-2);
     }
     private Button selector(LinearLayout row,String title,String tag,Runnable action){
-        Button button=ui.button(title,action);identify(button,tag);button.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,ui.px(13));button.setBackground(ui.focusSurface(10));button.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);button.setSingleLine(true);button.setEllipsize(TextUtils.TruncateAt.END);
+        Button button=ui.button(title,action);identify(button,tag);button.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,ui.px(13));button.setBackgroundDrawable(ui.focusSurface(10));button.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);button.setSingleLine(true);button.setEllipsize(TextUtils.TruncateAt.END);
         DesktopSettingsRow.Glyph arrow=new DesktopSettingsRow.Glyph("down",ManagementUi.MUTED);arrow.setBounds(0,0,ui.px(14),ui.px(14));button.setCompoundDrawables(null,null,arrow,null);button.setCompoundDrawablePadding(ui.px(6));
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-1,1);if(row.getChildCount()>0)p.leftMargin=ui.px(8);row.addView(button,p);return button;
     }
@@ -91,11 +91,11 @@ final class WeatherCityPicker {
         draft=region;city=region.level==2?regions.find(region.parent):region;province=city==null?null:regions.find(city.parent);update();
     }
     private void menu(Button anchor,List<WeatherRegions.Region> choices,Selection selected){
-        if(dropdown!=null)dropdown.dismiss();hideKeyboard();LinearLayout list=ui.column();list.setPadding(ui.px(6),ui.px(6),ui.px(6),ui.px(6));list.setBackground(ui.surface(0xfa25262e,0xfa25262e,0,14));
+        if(dropdown!=null)dropdown.dismiss();hideKeyboard();LinearLayout list=ui.column();list.setPadding(ui.px(6),ui.px(6),ui.px(6),ui.px(6));list.setBackgroundDrawable(ui.surface(0xfa25262e,0xfa25262e,0,14));
         ScrollView scroll=new ScrollView(ui);scroll.setFillViewport(false);scroll.addView(list);PopupWindow popup=new PopupWindow(scroll,Math.max(anchor.getWidth(),ui.px(180)),ui.px(Math.min(212,choices.size()*40+12)),true);dropdown=popup;
         popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));popup.setOutsideTouchable(true);if(Build.VERSION.SDK_INT>=21)popup.setElevation(ui.px(14));
         for(WeatherRegions.Region region:choices){
-            Button option=ui.button(region.name,()->{popup.dismiss();selected.accept(region);});option.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);option.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,ui.px(13));option.setSingleLine(true);option.setEllipsize(TextUtils.TruncateAt.END);option.setBackground(ui.listSurface());option.setSelected((draft!=null&&draft.code.equals(region.code))||(city!=null&&city.code.equals(region.code))||(province!=null&&province.code.equals(region.code)));list.addView(option,new LinearLayout.LayoutParams(-1,ui.px(40)));
+            Button option=ui.button(region.name,()->{popup.dismiss();selected.accept(region);});option.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);option.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,ui.px(13));option.setSingleLine(true);option.setEllipsize(TextUtils.TruncateAt.END);option.setBackgroundDrawable(ui.listSurface());option.setSelected((draft!=null&&draft.code.equals(region.code))||(city!=null&&city.code.equals(region.code))||(province!=null&&province.code.equals(region.code)));list.addView(option,new LinearLayout.LayoutParams(-1,ui.px(40)));
         }
         popup.setOnDismissListener(()->{if(dropdown==popup)dropdown=null;anchor.requestFocus();});popup.showAsDropDown(anchor,0,ui.px(6));if(list.getChildCount()>0)list.getChildAt(0).requestFocus();
     }
@@ -120,7 +120,7 @@ final class WeatherCityPicker {
         results.removeAllViews();
         if(matches.isEmpty())results.addView(ui.muted(tr("未找到本地地点，点击搜索联网查找","No local places. Select Search to look online."),12));
         for(WeatherRegions.Region region:matches){
-            Button option=ui.button(region.label(),()->{select(region);hideKeyboard();save.requestFocus();});option.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);option.setSingleLine(true);option.setEllipsize(TextUtils.TruncateAt.END);option.setBackground(ui.listSurface());option.setSelected(draft!=null&&draft.code.equals(region.code));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,ui.px(42));p.topMargin=ui.px(5);results.addView(option,p);
+            Button option=ui.button(region.label(),()->{select(region);hideKeyboard();save.requestFocus();});option.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);option.setSingleLine(true);option.setEllipsize(TextUtils.TruncateAt.END);option.setBackgroundDrawable(ui.listSurface());option.setSelected(draft!=null&&draft.code.equals(region.code));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,ui.px(42));p.topMargin=ui.px(5);results.addView(option,p);
         }
         if(focus&&!matches.isEmpty())results.getChildAt(0).requestFocus();
     }
