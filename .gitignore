@@ -171,6 +171,14 @@ __pycache__/
 !/docs/assets/child-auth-1.2.4.png
 !/docs/assets/update-1.2.4.png
 
+# Original emulator captures for the published 1.3.0 interface documentation.
+!/docs/assets/home-1.3.0.png
+!/docs/assets/desktop-settings-1.3.0.png
+!/docs/assets/wallpaper-1.3.0.png
+!/docs/assets/weather-1.3.0.png
+!/docs/assets/app-management-1.3.0.png
+!/docs/assets/update-1.3.0.png
+
 # Computer adaptation guide and acceptance tool shipped with the installation site.
 !/docs/AGENT_ADAPT.zh-CN.md
 !/scripts/device_selftest.py
