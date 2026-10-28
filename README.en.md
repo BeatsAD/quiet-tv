@@ -10,7 +10,18 @@ Keep favorite apps on the home screen, open them with a remote, choose inputs, p
 
 [Open the installation guide (Chinese)](https://beatsad.github.io/quiet-tv/) to choose your TV brand, copy an Agent installation request, or find manual installation and recovery instructions.
 
-[Download the latest compatible build](https://beatsad.github.io/quiet-tv/)  [Install](docs/INSTALL.en.md)  [Usage](docs/USAGE.en.md)  [Compatibility](docs/COMPATIBILITY.md)
+<p align="center">
+  <a href="https://beatsad.github.io/quiet-tv/"><img alt="Download APK" src="https://img.shields.io/badge/Download%20APK-34a853?style=for-the-badge&amp;logo=android&amp;logoColor=white"></a>
+  <a href="docs/INSTALL.en.md"><img alt="Install guide" src="https://img.shields.io/badge/Install%20guide-1f6feb?style=for-the-badge"></a>
+  <a href="docs/USAGE.en.md"><img alt="Usage guide" src="https://img.shields.io/badge/Usage%20guide-d97757?style=for-the-badge"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/BeatsAD/quiet-tv/releases"><img alt="Latest release" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fbeatsad.github.io%2Fquiet-tv%2Flatest.json&amp;query=%24.latestVersion&amp;prefix=v&amp;label=Latest%20release&amp;style=flat-square&amp;color=2997ff"></a>
+  <a href="LICENSE"><img alt="License MIT" src="https://img.shields.io/badge/License-MIT-555555?style=flat-square"></a>
+  <a href="docs/COMPATIBILITY.md"><img alt="Standard Android 5.0+" src="https://img.shields.io/badge/Standard-Android%205.0%2B-3ddc84?style=flat-square&amp;logo=android&amp;logoColor=white"></a>
+  <a href="docs/COMPATIBILITY.md"><img alt="Legacy Android 4.4" src="https://img.shields.io/badge/Legacy-Android%204.4-f5a623?style=flat-square&amp;logo=android&amp;logoColor=white"></a>
+</p>
 
 ## Download
 
