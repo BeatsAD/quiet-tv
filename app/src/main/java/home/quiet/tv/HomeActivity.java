@@ -570,7 +570,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 if(key==KeyEvent.KEYCODE_DPAD_LEFT)column=Math.max(0,column-1);
                 if(key==KeyEvent.KEYCODE_DPAD_RIGHT)column=Math.min(maxColumn(row),column+1);
                 if(key==KeyEvent.KEYCODE_DPAD_UP){if(row==0){if(rightButtonsVisible){restoreColumn=column;row=-1;}}else{row--;column=Math.min(row==0?restoreColumn:column,maxColumn(row));}}
-                if(key==KeyEvent.KEYCODE_DPAD_DOWN && row<gridRows()){if(row==0)restoreColumn=column;row++;column=Math.min(column,maxColumn(row));}
+                if(key==KeyEvent.KEYCODE_DPAD_DOWN && row<gridRows()){if(row==0){restoreColumn=column;column=0;}row++;column=Math.min(column,maxColumn(row));}
             }
             if(previousRow==row && previousTop==topColumn && previousColumn==column)return true;
             if((previousRow<0 || row<0) && (previousRow!=row || previousTop!=topColumn))
