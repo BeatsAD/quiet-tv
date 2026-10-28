@@ -1,6 +1,7 @@
 package home.quiet.tv;
 
 import android.content.*;
+import android.graphics.drawable.GradientDrawable;
 import android.os.*;
 import android.provider.Settings;
 import android.text.SpannableString;
@@ -21,11 +22,11 @@ final class AppListPanel extends ManagementPanel {
     private AppRepository repository;
     private AdbController adb;
     private Button managementConnection;
+    private GradientDrawable connectionDot;
     private boolean connecting,mutating;
     private AppOperations operations;
     private final ArrayList<Button> filterButtons=new ArrayList<>();
     private AppCoverUploadPanel coverUploads;
-    private TextView count;
     private LinearLayout details;
     private RecyclerView list;
     private AppAdapter adapter;
@@ -44,7 +45,7 @@ final class AppListPanel extends ManagementPanel {
     AppListPanel(AppManagementActivity activity){super(activity);}
     @Override public void onCreate(Bundle state){
         super.onCreate(state);repository=new AppRepository(this);operations=new AppOperations(this);
-        adb=new AdbController(this,value->{});
+        adb=new AdbController(this,value->ui(this::updateManagementConnection));
         coverUploads=new AppCoverUploadPanel(activity);
         LinearLayout body=managementContent(),filters=managementInfo;
         for(int i=0;i<FILTERS.length;i++){final int chosen=i;Button option=button(FILTERS[i],()->{filter=chosen;applyFilter();});option.setId(androidx.core.view.ViewCompat.generateViewId());styleManagementTab(option,true);
@@ -56,14 +57,21 @@ final class AppListPanel extends ManagementPanel {
                 else{
                     int next=Math.max(0,Math.min(filterButtons.size()-1,chosen+(key==KeyEvent.KEYCODE_DPAD_RIGHT?1:-1)));
                     if(next!=chosen){Button target=filterButtons.get(next);target.requestFocus();target.performClick();}
+                    else if(key==KeyEvent.KEYCODE_DPAD_RIGHT)managementConnection.requestFocus();
                 }
                 return true;
             });
             option.setNextFocusUpId(managementTab().getId());filterButtons.add(option);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,-1);if(i>0)p.leftMargin=px(10);filters.addView(option,p);}
         for(int i=0;i<filterButtons.size();i++){Button b=filterButtons.get(i);if(i>0)b.setNextFocusLeftId(filterButtons.get(i-1).getId());if(i+1<filterButtons.size())b.setNextFocusRightId(filterButtons.get(i+1).getId());}
-        managementConnection=button("连接管理",this::connectManagement);styleManagementTab(managementConnection,true);
+        filters.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));
+        managementConnection=button("ADB 未连接",this::connectManagement);styleManagementTab(managementConnection,true);
+        connectionDot=new GradientDrawable();connectionDot.setShape(GradientDrawable.OVAL);connectionDot.setBounds(0,0,px(5),px(5));
+        managementConnection.setCompoundDrawables(connectionDot,null,null,null);managementConnection.setCompoundDrawablePadding(px(6));
+        managementConnection.setOnKeyListener((v,key,event)->{
+            if(key==KeyEvent.KEYCODE_DPAD_LEFT){if(event.getAction()==KeyEvent.ACTION_DOWN)filterButtons.get(filterButtons.size()-1).requestFocus();return true;}return false;
+        });
         LinearLayout.LayoutParams connectionParams=new LinearLayout.LayoutParams(-2,-1);connectionParams.leftMargin=px(10);filters.addView(managementConnection,connectionParams);
-        count=managementHint("正在读取应用…");count.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);count.setPadding(px(16),0,0,0);filters.addView(count,new LinearLayout.LayoutParams(0,-1,1));
+        updateManagementConnection();
         LinearLayout panels=row();panels.setGravity(Gravity.TOP);body.addView(panels,new LinearLayout.LayoutParams(-1,-1));
         LinearLayout left=column();panels.addView(left,new LinearLayout.LayoutParams(0,-1,40));
         list=new RecyclerView(this);list.setLayoutManager(new LinearLayoutManager(this));adapter=new AppAdapter();list.setAdapter(adapter);list.setItemAnimator(null);list.setClipToPadding(false);list.setPadding(px(2),px(2),px(2),px(2));left.addView(list,new LinearLayout.LayoutParams(-1,0,1));
@@ -73,6 +81,12 @@ final class AppListPanel extends ManagementPanel {
         IntentFilter packages=new IntentFilter(Intent.ACTION_PACKAGE_ADDED);packages.addAction(Intent.ACTION_PACKAGE_REMOVED);packages.addAction(Intent.ACTION_PACKAGE_CHANGED);packages.addDataScheme("package");registerReceiver(packagesChanged,packages);
     }
     private void ui(Runnable action){runOnUiThread(()->{if(!isDestroyed() && !isFinishing())action.run();});}
+    private void updateManagementConnection(){
+        if(managementConnection==null)return;boolean connected=!connecting && adb.connected();
+        managementConnection.setText(connecting?"ADB 连接中…":connected?"ADB 已连接":"ADB 未连接");
+        connectionDot.setColor(connecting?0xffe5b384:connected?0xff64c49a:MUTED);
+        managementConnection.setEnabled(!busy && !connecting);
+    }
     @Override void managementConnected(){dirty=true;if(active){if(busy)refreshAfterConnection=true;else refresh();}}
     @Override void managementMoreOptions(LinearLayout menu){managementMoreOption(menu,"开机自启",this::bootAppPanel);managementMoreOption(menu,"操作记录",()->{try{Sheet sheet=new Sheet("操作记录");sheet.text(operations.history());sheet.action("关闭",sheet.dialog::dismiss);sheet.show(null);}catch(Exception e){message(e.getMessage());}});super.managementMoreOptions(menu);}
     @Override protected void onResume(){super.onResume();active=true;if(!adb.connected() && getSharedPreferences("adb",0).getBoolean("dailyManagement",false))connectManagement();else if(dirty)refresh();else renderDetails();}
@@ -82,10 +96,10 @@ final class AppListPanel extends ManagementPanel {
     @Override protected void onSaveInstanceState(Bundle state){state.putString("selected",selected);state.putInt("filter",filter);super.onSaveInstanceState(state);}
     private void refresh(){
         if(!active){dirty=true;return;}
-        if(busy)return;busy=true;reading=true;final int run=++refreshGeneration;count.setText("正在读取应用…");renderDetails();
+        if(busy)return;busy=true;reading=true;final int run=++refreshGeneration;renderDetails();
         worker.execute(()->{if(run!=refreshGeneration)return;try{List<AppRepository.App> values=repository.load(adb);ui(()->{if(!active || run!=refreshGeneration)return;reading=false;busy=false;dirty=false;operations=new AppOperations(this);all.clear();all.addAll(values);applyFilter();if(refreshAfterConnection){refreshAfterConnection=false;refresh();}});}catch(Exception e){ui(()->{if(!active || run!=refreshGeneration)return;reading=false;busy=false;loadFailure(e);});}});
     }
-    private void loadFailure(Exception e){count.setText("读取失败，请稍后重试");renderDetails();message(e.getMessage()==null?e.toString():e.getMessage());}
+    private void loadFailure(Exception e){renderDetails();message(e.getMessage()==null?e.toString():e.getMessage());}
     // Each repository snapshot replaces app metadata as well as list membership/order.
     @android.annotation.SuppressLint("NotifyDataSetChanged")
     private void applyFilter(){
@@ -93,7 +107,7 @@ final class AppListPanel extends ManagementPanel {
         for(AppRepository.App app:all){boolean match=filter==0 || filter==1 && !app.system && app.installed || filter==2 && app.system || filter==3 && app.installed && !app.enabled || filter==4 && app.recoverable && !app.installed;if(match)filtered.add(app);}
         for(int i=0;i<filterButtons.size();i++)filterButtons.get(i).setSelected(i==filter);
         boolean present=false;for(AppRepository.App app:filtered)if(app.pkg.equals(selected))present=true;if(!present)selected=filtered.isEmpty()?"":filtered.get(0).pkg;
-        count.setText(getString(R.string.management_app_count,filtered.size(),""));adapter.notifyDataSetChanged();renderDetails();if(listFocused)focusList();
+        adapter.notifyDataSetChanged();renderDetails();if(listFocused)focusList();
     }
     private AppRepository.App current(){for(AppRepository.App app:filtered)if(app.pkg.equals(selected))return app;return null;}
     private CharSequence coloredState(AppRepository.App app,String text){
@@ -104,19 +118,19 @@ final class AppListPanel extends ManagementPanel {
     }
     private void focusList(){list.post(()->{if(managementTabFocused() || !active)return;for(int i=0;i<filtered.size();i++)if(filtered.get(i).pkg.equals(selected)){final int position=i;list.scrollToPosition(position);list.post(()->{if(managementTabFocused() || !active)return;RecyclerView.ViewHolder holder=list.findViewHolderForAdapterPosition(position);if(holder!=null)holder.itemView.requestFocus();});return;}filterButtons.get(filter).requestFocus();});}
     private void renderDetails(){
-        if(details==null)return;managementConnection.setText(connecting?"正在连接…":adb.connected()?"已连接":"连接管理");managementConnection.setEnabled(!busy && !connecting);details.removeAllViews();firstAction=null;AppRepository.App app=current();
+        if(details==null)return;updateManagementConnection();details.removeAllViews();firstAction=null;AppRepository.App app=current();
         if(app==null){details.setGravity(Gravity.CENTER);details.addView(center(busy?"正在读取应用…":"没有符合条件的应用",20));return;}details.setGravity(Gravity.CENTER_HORIZONTAL);
         details.addView(icon(app.icon,67));gap(details,16);TextView title=center(app.label,26);title.setMaxLines(2);title.setEllipsize(android.text.TextUtils.TruncateAt.END);details.addView(title,new LinearLayout.LayoutParams(-1,-2));
         gap(details,10);TextView state=center("",12);state.setText(coloredState(app,app.state()+"  "+(app.system?"预装应用":"用户应用")));state.setTextColor(0xffaab0b8);details.addView(state);
         String size=app.apkSizeBytes>=0?Formatter.formatShortFileSize(this,app.apkSizeBytes):"大小未知";
         gap(details,20);TextView meta=center(app.pkg+"\n版本 "+app.version+"  "+size,12);meta.setTextColor(MUTED);meta.setLineSpacing(px(5),1);details.addView(meta,new LinearLayout.LayoutParams(-1,-2));
         details.addView(new View(this),new LinearLayout.LayoutParams(1,0,1));gap(details,18);
-        if(!busy)bootAppAction(app);
+        LinearLayout actions=row();actions.setGravity(Gravity.CENTER);details.addView(actions,new LinearLayout.LayoutParams(-1,px(42)));
+        if(!busy)bootAppAction(app,actions);
         String protectedReason=operations.protection(app);
         if(AppCoverPolicy.ownReadOnly(this,app.pkg)){protectionNote(protectedReason,true);return;}
         boolean coverAllowed=AppCoverPolicy.allowed(this,app.pkg);
         if(!coverAllowed&&!protectedReason.isEmpty()){protectionNote(protectedReason,true);return;}
-        LinearLayout actions=row();actions.setGravity(Gravity.CENTER);details.addView(actions,new LinearLayout.LayoutParams(-1,px(42)));
         if(busy){details.addView(center("正在核对实际状态…",12));return;}
         if(coverAllowed){
             addAction(actions,button("更换封面",()->coverUploads.show(app.pkg,app.label,()->coverUpdated(app.pkg))));
@@ -124,8 +138,7 @@ final class AppListPanel extends ManagementPanel {
         }
         List<AppOperations.Action> available=operations.actions(app);
         if(!available.isEmpty()){
-            LinearLayout daily=row();daily.setGravity(Gravity.CENTER);gap(details,10);details.addView(daily,new LinearLayout.LayoutParams(-1,px(42)));
-            for(AppOperations.Action action:available)addAction(daily,button(action.label,()->confirmOperation(app,action)));
+            for(AppOperations.Action action:available)addAction(actions,button(action.label,()->confirmOperation(app,action)));
         }else if(app.system && protectedReason.isEmpty()){
             gap(details,10);details.addView(center(adb.connected()?"本机规则或系统暂不支持此操作":"连接管理后可查看可用操作",11));
         }
@@ -162,17 +175,16 @@ final class AppListPanel extends ManagementPanel {
             });
         });sheet.show(cancel);
     }
-    private void bootAppAction(AppRepository.App app){
+    private void bootAppAction(AppRepository.App app,LinearLayout actions){
         BootAppStore store=new BootAppStore(this);boolean chosen=app.pkg.equals(store.target());
         if(!chosen && (!app.installed || !app.enabled || store.launchIntent(app.pkg)==null))return;
-        LinearLayout row=row();row.setGravity(Gravity.CENTER);details.addView(row,new LinearLayout.LayoutParams(-1,px(38)));
-        addAction(row,button(chosen?"关闭开机自启":"设为开机自启",()->{
+        addAction(actions,button(chosen?"关闭开机自启":"设为开机自启",()->{
             if(chosen){saveBootApp("","");return;}
             Sheet sheet=new Sheet("设为开机自启？");
             sheet.text("开机或待机唤醒进入 Quiet TV 后，将自动打开 "+app.label+"。"+(store.target().isEmpty()?"":"将替换当前自启应用："+store.label()+"。")+"每次仅打开一次，按 Home 返回不重复，儿童模式限制仍然有效。");
             Button cancel=sheet.action("取消",sheet.dialog::dismiss);
             sheet.action("开启",()->{sheet.dialog.dismiss();saveBootApp(app.pkg,app.label);});sheet.show(cancel);
-        }));gap(details,12);
+        }));
     }
     private void saveBootApp(String pkg,String label){
         try{new BootAppStore(this).select(pkg,label);renderDetails();if(firstAction!=null)firstAction.requestFocus();feedback(pkg.isEmpty()?"已关闭开机自启":"已设置，下次开机或待机唤醒生效");}
