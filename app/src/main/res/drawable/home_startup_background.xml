@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Packaged artwork stays available before user storage unlocks. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient android:angle="315" android:startColor="#456788"
+        android:centerColor="#15202C" android:endColor="#000000" />
+</shape>
