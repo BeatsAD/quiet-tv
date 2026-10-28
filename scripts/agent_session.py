@@ -74,7 +74,7 @@ def bundle_files(bundle=None):
     files = {str(ROOT / name): digest(ROOT / name) for name in TOOLS}
     if bundle:
         bundle = bundle.resolve()
-        index = json.loads(bundle.read_text())
+        index = json.loads(bundle.read_text(encoding='utf-8'))
         if set(index.get('tools', {})) != set(TOOLS) or set(index.get('guides', {})) != set(GUIDES):
             raise ValueError('工具或说明清单不完整，请下载同一次 latest.json 的全部文件')
         for section in ('tools', 'guides'):
@@ -256,7 +256,7 @@ def main(argv=None):
             summary(directory, state)
             return 0
         with locked(directory):
-            state = json.loads((directory / 'session.json').read_text())
+            state = json.loads((directory / 'session.json').read_text(encoding='utf-8'))
             if state.get('schemaVersion') != 1:
                 raise ValueError('任务记录版本不支持')
             if any(step['status'] == 'running' and alive(step.get('pid')) for step in state['steps']):
