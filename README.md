@@ -32,31 +32,41 @@
 <table>
   <tr>
     <td width="50%" valign="top">
-      <p><strong>首页放常用应用，时间、天气和快捷按钮按需显示。</strong></p>
-      <img src="docs/assets/home-1.2.4.png" alt="Quiet TV 1.2.4 首页" width="100%">
+      <p><strong>常用应用、时间与天气，首页一目了然。</strong></p>
+      <img src="docs/assets/home-1.3.0.png" alt="Quiet TV 1.3.0 首页应用与时间天气" width="100%">
     </td>
     <td width="50%" valign="top">
-      <p><strong>全部应用五列显示，排序自动保存。</strong></p>
-      <img src="docs/assets/all-apps-1.2.4.png" alt="Quiet TV 1.2.4 全部应用" width="100%">
+      <p><strong>经典布局与艺术画廊，设置实时预览。</strong></p>
+      <img src="docs/assets/desktop-settings-1.3.0.png" alt="Quiet TV 1.3.0 桌面个性化与实时预览" width="100%">
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <p><strong>经典布局与艺术画廊，调整时实时预览。</strong></p>
-      <img src="docs/assets/desktop-settings-1.2.4.png" alt="Quiet TV 1.2.4 桌面设置与首页预览" width="100%">
+      <p><strong>每日壁纸自动更新，也可上传图片和视频。</strong></p>
+      <img src="docs/assets/wallpaper-1.3.0.png" alt="Quiet TV 1.3.0 每日壁纸与上传入口" width="100%">
     </td>
     <td width="50%" valign="top">
-      <p><strong>每日壁纸、自己的图片与视频，都能放到电视上。</strong></p>
-      <img src="docs/assets/wallpaper-1.2.4.png" alt="Quiet TV 1.2.4 壁纸设置" width="100%">
+      <p><strong>自动定位或手动选城，天气来源按需选择。</strong></p>
+      <img src="docs/assets/weather-1.3.0.png" alt="Quiet TV 1.3.0 城市与天气来源设置" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <p><strong>应用分类筛选与详情，集中查看管理。</strong></p>
+      <img src="docs/assets/app-management-1.3.0.png" alt="Quiet TV 1.3.0 应用分类与详情" width="100%">
+    </td>
+    <td width="50%" valign="top">
+      <p><strong>查看当前版本，一键检查应用更新。</strong></p>
+      <img src="docs/assets/update-1.3.0.png" alt="Quiet TV 1.3.0 版本信息与检查更新" width="100%">
     </td>
   </tr>
 </table>
 
-以上为索尼 BRAVIA VH1 / Android 12 上的 1.2.4 真机截图，直接获取原始画面。更多界面见[使用指南](docs/USAGE.zh-CN.md)，版本与来源见[素材说明](docs/assets/README.md)。
+以上为已发布的 1.3.0 测试版（117）在 Android TV / Android 13 模拟器上的原始截图。更多界面见[使用指南](docs/USAGE.zh-CN.md)，版本与来源见[素材说明](docs/assets/README.md)。
 
 ## 功能
 
-以下配置方式描述当前源码；电脑适配迁移与覆盖升级修复尚未随新 APK 发布。下载仍以[实时发布索引](https://beatsad.github.io/quiet-tv/latest.json)为准，旧包按实际入口与接口能力操作，不能仅更新脚本就获得新能力。
+以下为 1.3.0 测试版的核心功能。下载以[实时发布索引](https://beatsad.github.io/quiet-tv/latest.json)为准，按电视系统与实际安装包选择适配版本。
 
 | 功能 | 可以做什么 |
 | --- | --- |

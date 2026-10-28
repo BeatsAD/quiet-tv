@@ -51,3 +51,24 @@ Direct Sony / Android 12 ADB captures, 2026-10-22, at 1920×1080. Installed vers
 | [update-1.2.4.png](update-1.2.4.png) | `3fbdefae79b198d4bfd42a53a7a09e1e1efec01b2e0e02865b5347207b159f64` |
 
 Captured directly from Sony BRAVIA VH1 / Android 12 running the published 1.2.4 / 64 ARM32 APK, verified against its installed-file SHA-256. Original 1920×1080 PNGs are copied unchanged. Existing customization and child rules were retained, and the TV was returned home. Parent verification is blank; the About image contains only already-public project/author QR codes and a recovery-entry button, not a private recovery code. Captures show pages, not full runtime, upgrade-state, physical Home, reboot/wake or other-model acceptance. Older assets remain historical evidence.
+
+## 1.3.0 模拟器截图 / Emulator captures
+
+2026-10-28，通过已运行的 Android TV / Android 13（API33）ARM64 模拟器采集，原始画面均为 1920×1080。安装版本为已发布的 [1.3.0 测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.3.0)标准通用包（构建117，包名 `home.quiet.tv`）；读取已安装 APK，其 SHA-256 为 `6cd523fae03e632eaaf4fa98a5dd8d4034260150afbf9e8069015d57c7751dea`，与公开下载包逐字节一致。
+
+六张图片均通过 ADB `exec-out screencap -p` 直接获取，保留原始 PNG，没有裁切、合成、重绘或修改界面。只浏览页面和筛选应用列表，未安装应用，未修改桌面、壁纸、天气、儿童模式、自启或应用启禁设置；结束后返回原应用管理页面。模拟器已启用硬件键盘和多点触摸，并连接 AndroidWifi，核对了 wlan0 联网。版本页仅含项目已有公开联系信息及入群二维码，没有打开恢复码或上传会话。
+
+| 文件 / File | 对应功能 / Feature | 原始 PNG SHA-256 |
+| --- | --- | --- |
+| [home-1.3.0.png](home-1.3.0.png) | 常用应用、时间与天气 / Home apps, time and weather | `16ab5665b54fb7ef57a72dfd91f886a56ad9de05d7b2d6a35025358b0aa333c3` |
+| [desktop-settings-1.3.0.png](desktop-settings-1.3.0.png) | 布局与实时预览 / Layout and live preview | `5f107114bc208dbecd1ad28f8dec68269cb1d562dfa269a8a530b7d183a5c89b` |
+| [wallpaper-1.3.0.png](wallpaper-1.3.0.png) | 每日壁纸与上传入口 / Daily wallpaper and upload entry | `ed6e6eb4b844da28f7b0fc6456e0e49d506a74a69810278acbc2404771551a6c` |
+| [weather-1.3.0.png](weather-1.3.0.png) | 城市与天气来源 / City and weather sources | `381a7aac4bfadd9dc70a7b35f3e82d498b00c382fba2ed364917aff76a9df5b5` |
+| [app-management-1.3.0.png](app-management-1.3.0.png) | 应用分类和详情 / App categories and details | `a0779f1b55ece43646b23f5a65fdafa40ab860ae3f015f8b44b43fd2d60a3a7f` |
+| [update-1.3.0.png](update-1.3.0.png) | 当前版本与检查更新 / Current version and update check | `520db3e9492d55e825af7f78d5fb7374423278ccfa373d6f4cf8593d42be19d9` |
+
+These original 1920×1080 captures show the published 1.3.0 / 117 universal standard APK running on an Android TV / Android 13 ARM64 emulator. The installed APK matches the public download byte for byte. Pages and app-category filters were viewed without changing app settings or installed packages; the original app-management page was restored. Hardware keyboard, multi-touch, AndroidWifi and wlan0 connectivity were checked. The version page contains only existing public contact information and a group QR code; no private recovery code or upload session was opened.
+
+模拟器截图只展示界面，不代表厂商电视、实体 HOME、冷启动、待机、视频壁纸或完整升级流程已经验收。旧版本截图保留原样；图中第三方应用图标及每日壁纸权利归各自权利人，见[资源说明](../../THIRD_PARTY_NOTICES.md)。
+
+Emulator captures demonstrate displayed interfaces, not vendor-TV, physical Home-button, cold-boot, standby, video-wallpaper or full-upgrade acceptance. Earlier captures remain unchanged. Third-party app artwork and daily wallpaper retain their respective rights; see [third-party notices](../../THIRD_PARTY_NOTICES.md).
