@@ -12,21 +12,28 @@
 
 ## 界面
 
-**首页放常用应用，时间、天气和快捷按钮按需显示。**
-
-![Quiet TV 1.2.4 首页](docs/assets/home-1.2.4.png)
-
-**全部应用五列显示，排序自动保存。**
-
-![Quiet TV 1.2.4 全部应用](docs/assets/all-apps-1.2.4.png)
-
-**经典布局与艺术画廊，调整时实时预览。**
-
-![Quiet TV 1.2.4 桌面设置与首页预览](docs/assets/desktop-settings-1.2.4.png)
-
-**每日壁纸、自己的图片与视频，都能放到电视上。**
-
-![Quiet TV 1.2.4 壁纸设置](docs/assets/wallpaper-1.2.4.png)
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <p><strong>首页放常用应用，时间、天气和快捷按钮按需显示。</strong></p>
+      <img src="docs/assets/home-1.2.4.png" alt="Quiet TV 1.2.4 首页" width="100%">
+    </td>
+    <td width="50%" valign="top">
+      <p><strong>全部应用五列显示，排序自动保存。</strong></p>
+      <img src="docs/assets/all-apps-1.2.4.png" alt="Quiet TV 1.2.4 全部应用" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <p><strong>经典布局与艺术画廊，调整时实时预览。</strong></p>
+      <img src="docs/assets/desktop-settings-1.2.4.png" alt="Quiet TV 1.2.4 桌面设置与首页预览" width="100%">
+    </td>
+    <td width="50%" valign="top">
+      <p><strong>每日壁纸、自己的图片与视频，都能放到电视上。</strong></p>
+      <img src="docs/assets/wallpaper-1.2.4.png" alt="Quiet TV 1.2.4 壁纸设置" width="100%">
+    </td>
+  </tr>
+</table>
 
 以上为索尼 BRAVIA VH1 / Android 12 上的 1.2.4 真机截图，直接获取原始画面。更多界面见[使用指南](docs/USAGE.zh-CN.md)，版本与来源见[素材说明](docs/assets/README.md)。
 
@@ -126,7 +133,7 @@ Debug APK 位于 `app/build/outputs/apk/debug/app-debug.apk`。构建与离线�
 
 ## 致谢与许可
 
-Quiet TV 基于 [Gathin23/tv-vibehack](https://github.com/Gathin23/tv-vibehack) 开发，感谢 **Gathin** 的原始工作。本项目独立维护，与上游及电视、应用品牌方无官方关联。
+Quiet TV 基于 [Gathin23/cleanyourtv](https://github.com/Gathin23/cleanyourtv) 开发，感谢 **Gathin** 的原始工作。本项目独立维护，与上游及电视、应用品牌方无官方关联。
 
 代码采用 [MIT 许可证](LICENSE)，保留原作者版权与完整许可。字体、壁纸和第三方应用素材分别遵循各自授权，详见[第三方项目与资源说明](THIRD_PARTY_NOTICES.md)。
 
