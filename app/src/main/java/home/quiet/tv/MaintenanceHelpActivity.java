@@ -15,7 +15,7 @@ public final class MaintenanceHelpActivity extends ManagementUi {
         Button pause=button("暂停桌面接管",()->confirm(false));body.addView(pause,new LinearLayout.LayoutParams(-1,px(42)));gap(body,12);
         Button restore=button("恢复原桌面",()->confirm(true));body.addView(restore,new LinearLayout.LayoutParams(-1,px(42)));
         gap(body,16);body.addView(muted("恢复时保留应用和数据；需要时请在系统提示中选择原桌面。",13));
-        pause.setId(android.view.View.generateViewId());restore.setId(android.view.View.generateViewId());
+        pause.setId(androidx.core.view.ViewCompat.generateViewId());restore.setId(androidx.core.view.ViewCompat.generateViewId());
         pause.setNextFocusDownId(restore.getId());restore.setNextFocusUpId(pause.getId());pause.requestFocus();
     }
     private void confirm(boolean restore){

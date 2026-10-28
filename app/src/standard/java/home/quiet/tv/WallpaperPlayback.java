@@ -64,6 +64,7 @@ final class WallpaperPlayback {
         });
         player.setMediaItem(MediaItem.fromUri(file!=null?Uri.fromFile(file):Uri.parse("asset:///wallpapers/"+entry.id+".mp4")));
     }
-    void prepare()throws java.io.IOException{player.prepare();player.play();}
+    void prepare()throws java.io.IOException{player.prepare();}
+    void setPaused(boolean paused){player.setPlayWhenReady(!paused);}
     void release(){player.release();}
 }

@@ -44,7 +44,7 @@ final class DockEditorPanel extends ManagementPanel {
         });});
     }
     private void showArtwork(ImageView image,Bitmap picture){
-        int color=picture.getPixel(0,0);image.setBackground(surface(color,color,0,10));image.setImageBitmap(picture);
+        int color=picture.getPixel(0,0);image.setBackgroundDrawable(surface(color,color,0,10));image.setImageBitmap(picture);
     }
     private void render(int focus){
         content.removeAllViews();slots.clear();List<String> values=packages;
@@ -53,13 +53,13 @@ final class DockEditorPanel extends ManagementPanel {
         int width=px((864-(DockStore.CAPACITY-1)*20)/(float)DockStore.CAPACITY),height=Math.round(width*203f/360f);
         for(int i=0;i<DockStore.CAPACITY;i++){
             final int slot=i;boolean occupied=i<values.size();String pkg=occupied?values.get(i):"";ApplicationInfo info=occupied?info(pkg):null;
-            boolean unavailable=occupied && (info==null || !info.enabled || (info.flags&ApplicationInfo.FLAG_INSTALLED)==0);
+            boolean unavailable=occupied && (info==null || !info.enabled || !AppAvailability.installed(getPackageManager(),info));
             LinearLayout card=column();card.setFocusable(true);card.setClickable(true);card.setClipChildren(false);card.setNextFocusUpId(managementTab().getId());card.setOnClickListener(v->edit(slot));card.setContentDescription("位置 "+(i+1)+"  "+(occupied?name(pkg):"添加常用应用")+(moving && slot==movingIndex?"  正在移动":""));slots.add(card);
             LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,-2,1);if(i>0)cp.leftMargin=px(20);cards.addView(card,cp);
             TextView number=muted(String.format(Locale.ROOT,"%02d",i+1),10);card.addView(number);gap(card,10);
-            FrameLayout art=new FrameLayout(this);art.setDuplicateParentStateEnabled(true);art.setBackground(focusSurface(12));art.setPadding(px(3),px(3),px(3),px(3));card.addView(art,new LinearLayout.LayoutParams(-1,height));
+            FrameLayout art=new FrameLayout(this);art.setDuplicateParentStateEnabled(true);art.setBackgroundDrawable(focusSurface(12));art.setPadding(px(3),px(3),px(3),px(3));card.addView(art,new LinearLayout.LayoutParams(-1,height));
             ImageView image=new ImageView(this);image.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            if(occupied){image.setBackground(surface(AppArtwork.NEUTRAL,AppArtwork.NEUTRAL,0,10));UiCompat.clipOutline(image);image.setScaleType(ImageView.ScaleType.FIT_CENTER);art.addView(image,new FrameLayout.LayoutParams(-1,-1));loadArtwork(image,pkg,info);}
+            if(occupied){image.setBackgroundDrawable(surface(AppArtwork.NEUTRAL,AppArtwork.NEUTRAL,0,10));UiCompat.clipOutline(image);image.setScaleType(ImageView.ScaleType.FIT_CENTER);art.addView(image,new FrameLayout.LayoutParams(-1,-1));loadArtwork(image,pkg,info);}
             else{image.setImageDrawable(UiCompat.drawable(this,R.drawable.ic_manage_plus));art.addView(image,new FrameLayout.LayoutParams(px(28),px(28),Gravity.CENTER));}
             if(unavailable || occupied && new ChildModeStore(this).hidden(pkg)){ColorMatrix matrix=new ColorMatrix();matrix.setSaturation(0);image.setColorFilter(new ColorMatrixColorFilter(matrix));image.setAlpha(.45f);}
             gap(card,16);TextView title=center(occupied?name(pkg):"添加常用应用",13);title.setSingleLine();title.setEllipsize(android.text.TextUtils.TruncateAt.END);if(!occupied)title.setTextColor(MUTED);card.addView(title,new LinearLayout.LayoutParams(-1,px(20)));

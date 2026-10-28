@@ -28,7 +28,7 @@ public class AppManagementActivity extends ManagementUi {
         if(current!=null){current.leaveManagement(()->showPage(next));return;}showPage(next);
     }
     private void showPage(int next){
-        if(isFinishing()||isDestroyed())return;
+        if(isFinishing()||UiCompat.destroyed(this))return;
         if(current!=null){if(resumed){current.onPause();current.onStop();}current.pageRoot.setVisibility(View.GONE);}
         page=next;managementPageSelected(next);
         if(panels[next]==null){
@@ -58,5 +58,9 @@ public class AppManagementActivity extends ManagementUi {
     @Override boolean useSettingListStyle(){return current==null||current.useSettingListStyle();}
     @Override public void handleBack(){if(current==null)super.handleBack();else current.handleBack();}
     @android.annotation.SuppressLint("RestrictedApi")
-    @Override public boolean dispatchKeyEvent(KeyEvent event){return current!=null&&current.dispatchKeyEvent(event)||super.dispatchKeyEvent(event);}
+    @Override public boolean dispatchKeyEvent(KeyEvent event){
+        boolean handled=current!=null&&current.dispatchKeyEvent(event);
+        if(handled)DiagnosticLog.navigationKey("quiet_tv_management",event);
+        return handled||super.dispatchKeyEvent(event);
+    }
 }

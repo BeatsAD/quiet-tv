@@ -1,0 +1,24 @@
+<lint>
+  <issue id="all">
+    <ignore path="src/main/java/home/quiet/tv/AdbConnectionPanel.java" />
+    <ignore path="src/main/java/home/quiet/tv/AdbSession.java" />
+    <ignore path="src/main/java/home/quiet/tv/AdbState.java" />
+    <ignore path="src/main/java/home/quiet/tv/AdbStateReader.java" />
+    <ignore path="src/main/java/home/quiet/tv/BootAdActivity.java" />
+    <ignore path="src/main/java/home/quiet/tv/BootAdOperations.java" />
+    <ignore path="src/main/java/home/quiet/tv/DiagnosticText.java" />
+    <ignore path="src/main/java/home/quiet/tv/DiagnosticsActivity.java" />
+    <ignore path="src/main/java/home/quiet/tv/DiagnosticsDownloadServer.java" />
+    <ignore path="src/main/java/home/quiet/tv/DiagnosticsRecorder.java" />
+    <ignore path="src/main/java/home/quiet/tv/DiagnosticsSnapshot.java" />
+    <ignore path="src/main/java/home/quiet/tv/HomeGuardActivity.java" />
+    <ignore path="src/main/java/home/quiet/tv/HomeGuardPanel.java" />
+    <ignore path="src/main/java/home/quiet/tv/HomeTakeover.java" />
+    <ignore path="src/main/java/home/quiet/tv/LocalAdbDiscovery.java" />
+    <ignore path="src/main/java/home/quiet/tv/SetupActivity.java" />
+    <ignore path="src/main/java/home/quiet/tv/SetupFocus.java" />
+    <ignore path="src/main/java/home/quiet/tv/SetupOperations.java" />
+    <ignore path="src/main/java/home/quiet/tv/TclHomePolicy.java" />
+    <ignore path="src/main/java/home/quiet/tv/WirelessPairing.java" />
+  </issue>
+</lint>

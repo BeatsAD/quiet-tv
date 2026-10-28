@@ -16,7 +16,7 @@ final class GreetingAvatarView extends View {
     private int generation;
     private boolean failed,enabled;
     Runnable changed;
-    GreetingAvatarView(Context context){super(context);setFocusable(false);setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);}
+    GreetingAvatarView(Context context){super(context);setFocusable(false);androidx.core.view.ViewCompat.setImportantForAccessibility(this,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);}
     void show(File file,boolean show){
         source=file;enabled=show;String next=file==null?"":file.getPath();
         if(!key.equals(next)){

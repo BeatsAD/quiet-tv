@@ -3,7 +3,7 @@ package home.quiet.tv;
 import fi.iki.elonen.NanoHTTPD;
 import java.io.*;
 import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
+import home.quiet.tv.Charsets;
 import java.security.SecureRandom;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -107,7 +107,7 @@ final class WallpaperUploadServer extends NanoHTTPD {
         byte[] code=new byte[6];
         try {new DataInputStream(session.getInputStream()).readFully(code);}
         catch(IOException e){return error(Response.Status.BAD_REQUEST,"连接码传输未完成，请重试 / Incomplete connection code");}
-        if(!connectionCode.equals(new String(code,StandardCharsets.US_ASCII))){
+        if(!connectionCode.equals(new String(code,Charsets.US_ASCII))){
             if(++failedConnections>=5){blockedUntil=now+30000000000L;failedConnections=0;return error(Response.Status.FORBIDDEN,"尝试过于频繁，请稍等 30 秒后重试 / Too many attempts. Wait 30 seconds.");}
             return error(Response.Status.FORBIDDEN,"连接码不正确，请查看电视后重试 / Incorrect code. Check your TV.");
         }

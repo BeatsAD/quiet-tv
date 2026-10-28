@@ -61,6 +61,8 @@ def bundle(output):
     shutil.copyfile(prototype / 'assets/source.svg', output / 'assets/source.svg')
     shutil.copyfile(prototype / 'assets/wechat.webp', output / 'assets/wechat.webp')
     shutil.copyfile(prototype / 'assets/qq-group.webp', output / 'assets/qq-group.webp')
+    shutil.copyfile(prototype / 'assets/wechat.png', output / 'assets/wechat.png')
+    shutil.copyfile(prototype / 'assets/qq-group.png', output / 'assets/qq-group.png')
     # Remove only the obsolete generated contact sheet from earlier builds.
     if (output / 'contact.png').is_file():
         (output / 'contact.png').unlink()
@@ -71,7 +73,7 @@ def bundle(output):
     text = ''.join('<h2>' + escape(path.name) + '</h2><pre>' + escape(path.read_text()) + '</pre>' for path in notices if path.is_file())
     license_page = ('<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8">'
                     '<meta name="viewport" content="width=device-width, initial-scale=1">'
-                    '<title>开源许可</title><style>body{margin:5vw;background:#0b121c;color:#dbe5f4;font:1.25vw/1.7 sans-serif}a{color:inherit;display:inline-block;padding:6px 12px;border-radius:20px}a:focus{background:#353a43;outline:2px solid white;outline-offset:3px;box-shadow:0 0 0 3px #101116}a:active{background:#262b33}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:1.05vw/1.7 monospace}h1{font-size:2vw}h2{font-size:1.4vw}</style></head>'
+                    '<title>开源许可</title><style>body{margin:32px;margin:5vw;background:#0b121c;color:#dbe5f4;font:16px/1.7 sans-serif;font:1.25vw/1.7 sans-serif}a{color:inherit;display:inline-block;padding:6px 12px;border-radius:20px}a:focus{background:#353a43;outline:2px solid white;outline-offset:3px;box-shadow:0 0 0 3px #101116}a:active{background:#262b33}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.7 monospace;font:1.05vw/1.7 monospace}h1{font-size:2vw}h2{font-size:1.4vw}</style></head>'
                     '<body><a href="index.html" autofocus>← 返回版本更新</a><h1>开源许可与致谢</h1>' + text + '</body></html>')
     (output / 'license.html').write_text(license_page)
     print(f'About screen and complete offline licenses bundled: {output}')

@@ -44,7 +44,7 @@ final class HomeHeaderView extends FrameLayout {
         String[] titles={tr("信号源","Inputs"),tr("网络","Network"),tr("设置","Settings")};int[] icons={R.drawable.ic_input,R.drawable.ic_ethernet,R.drawable.ic_settings};
         for(int i=0;i<3;i++){
             TextView pill=text("",14,400,0xffededf1);pill.setGravity(Gravity.CENTER);pill.setContentDescription(titles[i]);
-            pill.setBackground(ControlStyle.action(unit,100,0x550b2538,0));
+            pill.setBackgroundDrawable(ControlStyle.action(unit,100,0x550b2538,0));
             setPillIcon(pill,icons[i]);pills.add(pill);FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(px(36),px(36));p.leftMargin=px(i*48);buttons.addView(pill,p);
         }
         avatar.changed=this::apply;apply();

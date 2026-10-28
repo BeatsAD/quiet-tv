@@ -137,6 +137,9 @@ def main():
         if args.revision <= previous['revision']:
             parser.error('新清单 revision 必须高于目标文件现有 revision')
     text = generate(args.release, args.revision, args.key)
+    manifest = json.loads(base64.b64decode(json.loads(text)['payload']))
+    if args.output.name == 'updates.json' and any(a['minSdk'] < 19 for r in manifest['releases'] for a in r['artifacts']):
+        parser.error('API14 安装包必须写入 updates-v2.json；updates.json 保留给旧客户端')
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(text)
     print('已生成本地签名清单，未执行上传或发布：' + str(args.output))

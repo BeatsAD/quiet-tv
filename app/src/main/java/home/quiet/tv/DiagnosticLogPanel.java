@@ -39,11 +39,11 @@ final class DiagnosticLogPanel extends ManagementPanel {
         LinearLayout box=owner.column();box.setGravity(Gravity.CENTER);pageRoot.addView(box,new LinearLayout.LayoutParams(-1,-2));
         content=owner.column();content.setGravity(Gravity.CENTER);box.addView(content,new LinearLayout.LayoutParams(-1,owner.px(226)));
         LinearLayout actions=owner.row();actions.setGravity(Gravity.CENTER);LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,owner.px(36));ap.topMargin=owner.px(18);box.addView(actions,ap);
-        retry=owner.button("重新生成",this::start);retry.setId(View.generateViewId());retry.setFocusableInTouchMode(true);actions.addView(retry,new LinearLayout.LayoutParams(owner.px(110),-1));
+        retry=owner.button("重新生成",this::start);retry.setId(androidx.core.view.ViewCompat.generateViewId());retry.setFocusableInTouchMode(true);actions.addView(retry,new LinearLayout.LayoutParams(owner.px(110),-1));
         retry.setNextFocusUpId(managementTab().getId());
         retry.setOnKeyListener((view,key,event)->{if(key!=KeyEvent.KEYCODE_DPAD_UP)return false;if(event.getAction()==KeyEvent.ACTION_DOWN)managementTab().requestFocus();return true;});
     }
-    @Override protected void onResume(){super.onResume();androidx.core.content.ContextCompat.registerReceiver(owner,screen,new IntentFilter(Intent.ACTION_SCREEN_OFF),androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);registered=true;start();}
+    @Override protected void onResume(){super.onResume();androidx.core.content.ContextCompat.registerReceiver(owner,screen,new IntentFilter(Intent.ACTION_SCREEN_OFF),androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);registered=true;SettingsPageCapture.stopCurrent("export");start();}
     @Override protected void onPause(){super.onPause();stopServer();if(registered){owner.unregisterReceiver(screen);registered=false;}}
     @Override void focusManagementContent(){if(retry.isEnabled())retry.requestFocus();}
     @Override public void handleBack(){if(!managementTabFocused())managementTab().requestFocus();else super.handleBack();}
@@ -67,7 +67,7 @@ final class DiagnosticLogPanel extends ManagementPanel {
                 main.post(()->{
                     if(!showing||attempt!=generation){image.recycle();return;}
                     server=ready;if(preparing==ready)preparing=null;bitmap=image;content.removeAllViews();
-                    qr=new ImageView(owner);qr.setContentDescription("日志下载二维码");qr.setImageBitmap(image);qr.setScaleType(ImageView.ScaleType.FIT_CENTER);qr.setPadding(owner.px(6),owner.px(6),owner.px(6),owner.px(6));qr.setBackground(owner.surface(Color.WHITE,Color.WHITE,0,8));content.addView(qr,new LinearLayout.LayoutParams(owner.px(158),owner.px(158)));
+                    qr=new ImageView(owner);qr.setContentDescription("日志下载二维码");qr.setImageBitmap(image);qr.setScaleType(ImageView.ScaleType.FIT_CENTER);qr.setPadding(owner.px(6),owner.px(6),owner.px(6),owner.px(6));qr.setBackgroundDrawable(owner.surface(Color.WHITE,Color.WHITE,0,8));content.addView(qr,new LinearLayout.LayoutParams(owner.px(158),owner.px(158)));
                     TextView scan=owner.center("手机扫码下载日志",14);LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,-2);sp.topMargin=owner.px(15);content.addView(scan,sp);
                     TextView hint=owner.center("手机与电视需连接同一局域网",11);hint.setTextColor(0xffaab3c0);LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,-2);hp.topMargin=owner.px(6);content.addView(hint,hp);retry.setEnabled(true);main.postDelayed(check,2000);
                 });

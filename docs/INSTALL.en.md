@@ -29,13 +29,13 @@ sdk.dir=/absolute/path/to/your/android-sdk
 
 Output: `app/build/outputs/apk/debug/app-debug.apk`. Use `gradlew.bat` on Windows; host-specific scripts need validation. See [Contributing](../CONTRIBUTING.md).
 
-For immutable delivery archives, configure `sdk.dir` in `local.properties`. Set `FIRST_BUILD_NUMBER` to an unused positive integer above every allocated number; 64–67 belong to published 1.2.4. A batch allocates four consecutive numbers:
+For immutable delivery archives, configure `sdk.dir` in `local.properties`. Set `FIRST_BUILD_NUMBER` to an unused positive integer above every allocated number; published and local candidate numbers remain occupied. The current native-library-free batch allocates two consecutive numbers:
 
 ```sh
-python3 scripts/build_apk.py --batch --build-number "$FIRST_BUILD_NUMBER" --variant benchmark --summary "Describe this build's changes"
+python3 scripts/build_apk.py --batch --universal-only --build-number "$FIRST_BUILD_NUMBER" --variant benchmark --summary "Describe this build's changes"
 ```
 
-The script pins a commit and builds standard ARM32, ARM64, universal and Android 4.4 in that order, checking version, signing and native libraries. `dist/apk/` retains the immutable APKs, SHA-256 files, JSON and batch manifest. Future APK names include the software version, build number, applicable system and release status; historical names remain unchanged. The script neither installs nor publishes. `benchmark` uses a test signer, not a stable release key. Modified content delivered after a public release needs a new software version; see [versioning](VERSIONING.md).
+The script pins a commit and builds one standard universal APK and one Android 4.0–4.4 APK in that order, checking version, signing and the absence of native libraries. When native libraries require separate ABIs, omit `--universal-only` for standard ARM32, ARM64, universal and one legacy14 APK. `dist/apk/` retains the immutable APKs, SHA-256 files, JSON and batch manifest. Future APK names include the software version, build number, applicable system and release status; historical names remain unchanged. The script neither installs nor publishes. `benchmark` uses a test signer, not a stable release key. Modified content delivered after a public release needs a new software version; see [versioning](VERSIONING.md).
 
 For one standard APK, omit `--batch` and choose `--abi armeabi-v7a`, `arm64-v8a` or `universal`. The default minimum API is 21; 23, 26 and 31 are available for actual compatibility requirements.
 
@@ -43,15 +43,17 @@ For one standard APK, omit `--batch` and choose `--abi armeabi-v7a`, `arm64-v8a`
 
 For a matching package and signer with an increasing build number, the new source preserves the configured route, pause choice and ADB-retention preference only when firmware, HOME declaration, original launcher and companion identity/version are unchanged. Active HOME proxies renegotiate the target version; incomplete setup and paused guards are not automatically enabled. Previous physical-scene acceptance is reset for retesting. Keep the original recovery records and check HOME, guard, ADB and recovery after the update; an enabled debugging setting does not prove network ADB survives reboot. See [upgrade rules](DEVICE_ADAPTATION.zh-CN.md) and [Agent update checks](AGENT_INSTALL.zh-CN.md#已有安装覆盖校验与仅更新).
 
-## Android 4.4 / API19
+<a id="android-44--api19"></a>
+
+## Android 4.0–4.4 / API14–19
 
 Use the separate profile; lowering the standard minimum alone is rejected. `LEGACY_BUILD_NUMBER` must also be unused and above every allocated number:
 
 ```sh
-python3 scripts/build_apk.py --build-number "$LEGACY_BUILD_NUMBER" --compatibility legacy19 --variant benchmark --summary "Android 4.4 compatibility candidate"
+python3 scripts/build_apk.py --build-number "$LEGACY_BUILD_NUMBER" --compatibility legacy14 --variant benchmark --summary "Android 4.0–4.4 compatibility candidate"
 ```
 
-The minimum defaults to API19. Build and Lint with `./gradlew :app:assembleDebug :app:lintDebug -PquietCompatibility=legacy19 --console=plain`. The profile retains the core launcher, weather, wallpapers, app management, child mode, About and offline licenses. Computer ADB uses only the debugging transport actually provided by the firmware; current source has no in-app ADB client. Actual API19 runtime, remote navigation, HOME, networking, reboot and wake need target-TV checks. Debug uses legacy MultiDex startup support.
+The minimum is fixed at API14. Build and Lint with `./gradlew :app:assembleDebug :app:lintDebug -PquietCompatibility=legacy14 --console=plain`. One APK covers Android 4.0–4.4 and shares the core launcher, weather, wallpapers, app management, child mode, About and offline licenses with standard. Current source includes traditional local TCP ADB for daily app operations; initial port setup and authorization remain on the computer, without in-app wireless pairing. The historical `legacy19` profile remains available for API19 build and upgrade regression checks. Actual API14–19 runtime, upgrades, remote navigation, HOME, networking, reboot and wake remain deferred for target-device checks. Debug uses legacy MultiDex startup support. See [compatibility](COMPATIBILITY.md).
 
 ## Download and try
 

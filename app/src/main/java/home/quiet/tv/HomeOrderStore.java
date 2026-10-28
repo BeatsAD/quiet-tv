@@ -29,7 +29,7 @@ final class HomeOrderStore {
             if(!custom())return new ArrayList<>(defaults);
             ArrayList<String> saved=load(),known=new ArrayList<>(saved);
             for(Iterator<String> items=known.iterator();items.hasNext();){String id=items.next();if(id.startsWith("quiet:"))continue;
-                try{if((context.getPackageManager().getApplicationInfo(id,0).flags&ApplicationInfo.FLAG_INSTALLED)==0)items.remove();}
+                try{if(!AppAvailability.installed(context.getPackageManager(),context.getPackageManager().getApplicationInfo(id,0)))items.remove();}
                 catch(PackageManager.NameNotFoundException e){items.remove();}
             }
             addNewEntries(known,defaults);

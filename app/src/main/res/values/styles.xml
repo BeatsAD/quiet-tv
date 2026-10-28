@@ -1,11 +1,11 @@
 <resources>
-    <style name="AppTheme" parent="android:style/Theme.Holo.NoActionBar">
-        <item name="android:fontFamily">sans</item>
+    <style name="AppBaseTheme" parent="android:style/Theme.Holo.NoActionBar">
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:windowFullscreen">true</item>
         <item name="android:windowBackground">#000000</item>
         <item name="android:windowNoTitle">true</item>
     </style>
+    <style name="AppTheme" parent="AppBaseTheme" />
     <style name="HomeTheme" parent="AppTheme">
         <item name="android:windowBackground">@drawable/home_startup_background</item>
     </style>

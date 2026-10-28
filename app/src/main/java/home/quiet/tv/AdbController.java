@@ -2,12 +2,12 @@ package home.quiet.tv;
 
 import android.content.Context;
 import android.os.Build;
-import android.util.AtomicFile;
+import androidx.core.util.AtomicFile;
 import io.github.muntashirakon.adb.AdbConnection;
 import io.github.muntashirakon.adb.AdbStream;
 import java.io.*;
 import java.net.*;
-import java.nio.charset.StandardCharsets;
+
 import java.security.*;
 import java.security.cert.X509Certificate;
 import java.math.BigInteger;
@@ -76,7 +76,6 @@ final class AdbController implements Closeable {
     private final Status status;
     private volatile AdbConnection connection;
     private volatile Closeable transport;
-    private final WirelessPairing pairing=new WirelessPairing();
     private final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor();
     private volatile boolean closed;
     private final java.util.concurrent.atomic.AtomicInteger generation=new java.util.concurrent.atomic.AtomicInteger();
@@ -107,23 +106,10 @@ final class AdbController implements Closeable {
         while(match.find()){int value=Integer.parseInt(match.group(1));if(found>=0 && found!=value)throw new IOException("前台用户状态不唯一");found=value;}
         if(found<0)throw new IOException("无法核对前台用户，请返回 Quiet TV 后重试");return found;
     }
-    static boolean pairingAvailable(){return WirelessPairing.available();}
     static boolean localAddress(InetAddress address){
         if(address==null)return false;if(address.isLoopbackAddress())return true;
         try{for(NetworkInterface nic:Collections.list(NetworkInterface.getNetworkInterfaces()))if(nic.isUp())for(InetAddress local:Collections.list(nic.getInetAddresses()))if(local.equals(address))return true;}catch(SocketException ignored){}return false;
     }
-    void pair(int port,String code) throws Exception {pair(port,code,prepare());}
-    void pair(int port,String code,int attempt) throws Exception {
-        try{pairAttempt(port,code,attempt);}catch(Exception failure){failedDiagnostic(attempt,failure);throw failure;}
-    }
-    private void pairAttempt(int port,String code,int attempt) throws Exception {
-        if(!pairingAvailable())throw new IOException("当前版本或系统不支持无线配对，请使用传统 TCP");
-        if(port<1 || port>65535 || !code.matches("[0-9]{6}"))throw new IOException("请输入有效配对端口及六位配对码");
-        if(closed || generation.get()!=attempt)throw new IOException("配对已取消");
-        publish(Stage.PAIRING,"正在配对",attempt);
-        pairing.start(port,code,loadKeys(),generation,attempt,value->publish(Stage.PAIRING,value,attempt));
-    }
-
     void connect(int port) throws Exception {connect(port,prepare());}
     void connect(int port,int attempt) throws Exception {
         try{connectAttempt(port,attempt);}catch(Exception failure){failedDiagnostic(attempt,failure);throw failure;}
@@ -144,7 +130,7 @@ final class AdbController implements Closeable {
             if(closed || generation.get()!=attempt)throw new IOException("连接已取消");
             publish(Stage.PORT,"连接中  "+candidate+":"+port,attempt);
             // One actual daemon connection, with a bounded connect and cancellation support.
-            Socket socket=new Socket();attach(socket,attempt);
+            Socket socket=new Socket();attach(socket::close,attempt);
             if(closed || generation.get()!=attempt)throw new IOException("连接已取消");
             try{socket.connect(new InetSocketAddress(candidate,port),2000);}
             catch(IOException e){socket.close();transport=null;if(closed || generation.get()!=attempt)throw new IOException("连接已取消",e);failure=e;continue;}
@@ -247,7 +233,7 @@ final class AdbController implements Closeable {
 
     private void verifyLocalDevice() throws Exception {
         String localBoot;
-        try(BufferedReader input=new BufferedReader(new InputStreamReader(new FileInputStream("/proc/sys/kernel/random/boot_id"),StandardCharsets.UTF_8))){String value=input.readLine();localBoot=value==null?"":value.trim();}
+        try(BufferedReader input=new BufferedReader(new InputStreamReader(new FileInputStream("/proc/sys/kernel/random/boot_id"),Charsets.UTF_8))){String value=input.readLine();localBoot=value==null?"":value.trim();}
         catch(IOException unavailable){
             // Older SELinux policies hide boot_id from apps. A fresh local-file challenge still
             // rejects accidentally forwarded connections to another device; no model-name fallback.
@@ -256,7 +242,7 @@ final class AdbController implements Closeable {
             File marker=File.createTempFile("quiet-adb-probe-",".txt",directory);
             try{
                 String challenge=UUID.randomUUID().toString()+UUID.randomUUID().toString();
-                try(FileOutputStream out=new FileOutputStream(marker)){out.write(challenge.getBytes(StandardCharsets.UTF_8));out.getFD().sync();}
+                try(FileOutputStream out=new FileOutputStream(marker)){out.write(challenge.getBytes(Charsets.UTF_8));out.getFD().sync();}
                 String path="'"+marker.getAbsolutePath().replace("'","'\\''")+"'";
                 if(!challenge.equals(shell("cat "+path).trim()))throw new IOException("连接目标不是当前电视，已停止");
             }finally{
@@ -270,6 +256,14 @@ final class AdbController implements Closeable {
     }
 
     String shell(String command) throws Exception {
+        return shell(command,0);
+    }
+    // Raw dumps stay in memory. identityResult already refuses these commands' output.
+    String diagnosticShell(String command) throws Exception {
+        if(!Arrays.asList("dumpsys activity activities","dumpsys window windows","dumpsys activity top").contains(command))throw new IllegalArgumentException("Unsupported diagnostic query");
+        return shell(command,512*1024);
+    }
+    private String shell(String command,int maximumBytes) throws Exception {
         int request=generation.get();AdbConnection c=connection;if(c==null)throw new IOException("需要连接 ADB");
         // A timeout closes the transport. Mutating commands are never automatically retried.
         Closeable active=transport;if(active==null)throw new IOException("ADB 连接已断开，请重新连接");
@@ -282,7 +276,9 @@ final class AdbController implements Closeable {
             byte[] buffer=new byte[8192];int size;
             while(true){
                 try{size=input.read(buffer);}catch(IOException e){if(!output.toString("UTF-8").contains(marker))throw e;break;}
-                if(size<0)break;output.write(buffer,0,size);
+                if(size<0)break;
+                if(maximumBytes>0 && output.size()+size>maximumBytes)throw new IOException("Diagnostic output exceeds limit");
+                output.write(buffer,0,size);
                 String value=output.toString("UTF-8");int position=value.lastIndexOf(marker);
                 if(position>=0 && value.substring(position).endsWith("\n"))break;
             }
@@ -341,6 +337,6 @@ final class AdbController implements Closeable {
     private static Failure failureFor(Stage stage){
         switch(stage){case KEYS:return Failure.KEYS;case HANDSHAKE:return Failure.HANDSHAKE;case LOCAL:return Failure.LOCAL;case SHELL:return Failure.SHELL;case USER:return Failure.USER;case CAPABILITIES:return Failure.CAPABILITIES;default:return Failure.PORT;}
     }
-    synchronized void disconnect(){finishDiagnostic(diagnosticGeneration,"CANCELLED","disconnect");generation.incrementAndGet();user=-1;capabilities=ShellCapabilities.NONE;pairing.close();Closeable active=transport;transport=null;if(active!=null)try{active.close();}catch(IOException ignored){}AdbConnection c=connection;connection=null;if(c!=null)try{c.close();}catch(IOException ignored){}publish(Stage.IDLE,"未连接");}
+    synchronized void disconnect(){finishDiagnostic(diagnosticGeneration,"CANCELLED","disconnect");generation.incrementAndGet();user=-1;capabilities=ShellCapabilities.NONE;Closeable active=transport;transport=null;if(active!=null)try{active.close();}catch(IOException ignored){}AdbConnection c=connection;connection=null;if(c!=null)try{c.close();}catch(IOException ignored){}publish(Stage.IDLE,"未连接");}
     @Override public void close(){closed=true;disconnect();timer.shutdownNow();}
 }

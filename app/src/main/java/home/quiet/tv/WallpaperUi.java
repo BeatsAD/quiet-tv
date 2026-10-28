@@ -26,9 +26,9 @@ final class WallpaperUi {
         return ControlStyle.action(unit,radius,color,0x38ffffff);
     }
     TextView button(String value,boolean primary,Runnable action){
-        TextView view=text(value,12);view.setId(View.generateViewId());view.setFocusable(true);view.setGravity(Gravity.CENTER);
+        TextView view=text(value,12);view.setId(androidx.core.view.ViewCompat.generateViewId());view.setFocusable(true);view.setGravity(Gravity.CENTER);
         view.setTextColor(INK);view.setMinHeight(px(primary?43:38));view.setPadding(px(primary?17:13),px(9),px(primary?17:13),px(9));
-        view.setBackground(focusSurface(0xff242a33,100));
+        view.setBackgroundDrawable(focusSurface(0xff242a33,100));
         view.setOnClickListener(v->action.run());return view;
     }
     TextView categoryTab(String value,Runnable action){
@@ -50,7 +50,7 @@ final class WallpaperUi {
         int radius=px(outerRadius)-px(inset);
         return new ImageView(context){
             final Path clip=new Path();final RectF imageBounds=new RectF();
-            {setScaleType(ScaleType.CENTER_CROP);setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);}
+            {setScaleType(ScaleType.CENTER_CROP);androidx.core.view.ViewCompat.setImportantForAccessibility(this,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);}
             @Override protected void onDraw(Canvas canvas){
                 imageBounds.set(0,0,getWidth(),getHeight());clip.reset();clip.addRoundRect(imageBounds,radius,radius,Path.Direction.CW);
                 int saved=canvas.save();canvas.clipPath(clip);super.onDraw(canvas);canvas.restoreToCount(saved);

@@ -10,7 +10,7 @@ final class AppCoverPolicy {
     static boolean allowed(Context context,String pkg){
         if(!AppCoverStore.packageName(pkg)||ownReadOnly(context,pkg))return false;
         try{ApplicationInfo info=context.getPackageManager().getApplicationInfo(pkg,0);
-            return (info.flags&ApplicationInfo.FLAG_INSTALLED)!=0&&info.enabled&&new HomeAppCatalog(context).launchable().containsKey(pkg);
+            return AppAvailability.installed(context.getPackageManager(),info)&&info.enabled&&new HomeAppCatalog(context).launchable().containsKey(pkg);
         }catch(PackageManager.NameNotFoundException|SecurityException|IllegalArgumentException e){return false;}
     }
     static void require(Context context,String pkg) throws java.io.IOException {
