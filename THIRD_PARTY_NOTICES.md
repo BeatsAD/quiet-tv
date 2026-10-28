@@ -117,11 +117,11 @@ VIDAA 原主页缺少窗口事件、酷开 AI 与松下系无 HOME 声明组件�
 - [ZXing Core 3.5.3](https://github.com/zxing/zxing/tree/zxing-3.5.3)：仅用于生成上传地址二维码，Apache-2.0，版权归 ZXing Authors。
 - [AndroidX ExifInterface 1.4.2](https://developer.android.com/jetpack/androidx/releases/exifinterface#1.4.2)：用于读取上传照片方向，Apache-2.0，版权归 The Android Open Source Project。以上 Apache-2.0 文本随 APK 保存在 `assets/licenses/libadb-Apache-2.0.txt`。
 
-## Android 4.4 compatibility profile
+## Android 4.x compatibility profiles
 
-The `legacy19` profile uses AndroidX Activity 1.9.3, RecyclerView 1.3.2 and MultiDex 2.0.1 under Apache-2.0. Their complete license text is included in the offline license assets. It omits Conscrypt and SPAKE2 from its dependency graph; their historical notices remain available in the repository. Bouncy Castle and the existing minimum patched version constraints are retained.
+The `legacy14` profile (API14+) and historical `legacy19` build option use AndroidX Activity 1.8.2, Core/Core KTX 1.12.0, RecyclerView 1.3.2 and MultiDex 2.0.1 under Apache-2.0. Their complete license text is included in the offline license assets. It omits Conscrypt and SPAKE2 from its dependency graph; their historical notices remain available in the repository. Bouncy Castle and the existing minimum patched version constraints are retained.
 
-The wallpaper uploader in `legacy19` uses ZXing Core 3.3.0 and AndroidX ExifInterface 1.3.7 under the same Apache-2.0 license to retain Android 4.4 compatibility. The standard profile retains ZXing Core 3.5.3 and ExifInterface 1.4.2.
+The wallpaper uploader in `legacy14` / `legacy19` uses ZXing Core 3.3.0 and AndroidX ExifInterface 1.3.7 under the same Apache-2.0 license to retain Android 4.0–4.4 compatibility. The standard profile retains ZXing Core 3.5.3 and ExifInterface 1.4.2.
 
 ## Wallpaper interface icons
 

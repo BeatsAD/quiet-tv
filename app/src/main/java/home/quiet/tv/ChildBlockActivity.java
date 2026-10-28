@@ -54,7 +54,7 @@ public final class ChildBlockActivity extends ManagementUi {
     }
     private void grant(){
         ChildModeUi visual=new ChildModeUi(this);ChildModeUi.Sheet sheet=visual.new Sheet("追加使用时间","",R.drawable.ic_child_time,633.6f);
-        TextView error=visual.text("",16.32f,28,0xffe3aba1);error.setGravity(Gravity.CENTER);error.setAccessibilityLiveRegion(android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        TextView error=visual.text("",16.32f,28,0xffe3aba1);error.setGravity(Gravity.CENTER);androidx.core.view.ViewCompat.setAccessibilityLiveRegion(error,androidx.core.view.ViewCompat.ACCESSIBILITY_LIVE_REGION_POLITE);
         LinearLayout presets=row();visual.gap(sheet.body,19.2f);sheet.body.addView(presets,new LinearLayout.LayoutParams(-1,visual.p(48)));
         for(int minutes:new int[]{15,30}){Button b=visual.button(minutes+" 分钟",()->add(minutes,sheet,error),false);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-1,1);if(presets.getChildCount()>0)lp.leftMargin=visual.p(12);presets.addView(b,lp);}
         visual.gap(sheet.body,19.2f);EditText custom=visual.number("","自定义分钟",4);sheet.body.addView(custom,new LinearLayout.LayoutParams(-1,visual.p(64)));

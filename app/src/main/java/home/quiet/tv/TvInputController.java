@@ -261,7 +261,7 @@ final class TvInputController {
             Object value=configuration.getMethod("queryTvConfigByKey",String.class).invoke(manager,"hdmi"+port+"_order");
             if(!(value instanceof String))return null;
             int source=Integer.parseInt(((String)value).trim());return source>0?source:null;
-        }catch(ReflectiveOperationException|RuntimeException|LinkageError unavailable){return null;}
+        }catch(Exception|LinkageError unavailable){return null;}
     }
     static boolean hiddenInput(String model,String provider,String id){
         return hiddenInput(model,provider,id,"");

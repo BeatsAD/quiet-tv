@@ -14,7 +14,7 @@ final class DeviceInputProfile {
     private static JSONObject last=new JSONObject();
     DeviceInputProfile(Context c){context=c;prefs=c.getSharedPreferences("device-input-profile",Context.MODE_PRIVATE);}
     static String digest(String text) throws Exception {
-        byte[] bytes=java.security.MessageDigest.getInstance("SHA-256").digest(text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        byte[] bytes=java.security.MessageDigest.getInstance("SHA-256").digest(text.getBytes(home.quiet.tv.Charsets.UTF_8));
         StringBuilder out=new StringBuilder();for(byte b:bytes)out.append(String.format(java.util.Locale.ROOT,"%02x",b&255));return out.toString();
     }
     static JSONObject validate(String text,String fingerprint,Set<String> inputs,Set<String> xiaomi) throws Exception {

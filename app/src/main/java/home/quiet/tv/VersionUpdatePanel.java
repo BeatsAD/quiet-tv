@@ -40,9 +40,9 @@ final class VersionUpdatePanel extends ManagementPanel {
         } catch(android.content.pm.PackageManager.NameNotFoundException e){throw new IllegalStateException("Own package unavailable",e);}
         pageRoot=column();content=new FrameLayout(this);
         content.addView(scene,new FrameLayout.LayoutParams(-1,-1));pageRoot.addView(content,new android.widget.LinearLayout.LayoutParams(-1,-1));activity.attachPanel(pageRoot);
-        scene.getViewTreeObserver().addOnDrawListener(new android.view.ViewTreeObserver.OnDrawListener(){
+        UiCompat.onDraw(scene,new Runnable(){
             private boolean drawn;
-            @Override public void onDraw(){if(!drawn){drawn=true;scene.post(()->{if(!isFinishing()){activity.reportFullyDrawn();Log.i("QuietTVAbout","Native About first frame complete");}});}}
+            @Override public void run(){if(!drawn){drawn=true;scene.post(()->{if(!isFinishing()){activity.reportFullyDrawn();Log.i("QuietTVAbout","Native About first frame complete");}});}}
         });
         if(state!=null && state.getBoolean("license"))openLicense();
     }
@@ -73,7 +73,7 @@ final class VersionUpdatePanel extends ManagementPanel {
             long completed=navigation;
             if(android.os.Build.VERSION.SDK_INT>=23)Api23.whenDrawn(view,completed,()->showLicense(view,completed));
             // Android 4/5 have no visual-state callback; reveal the finished offline page on the next frame.
-            else view.postOnAnimation(()->showLicense(view,completed));
+            else androidx.core.view.ViewCompat.postOnAnimation(view,()->showLicense(view,completed));
         }
     }
     @android.annotation.TargetApi(21)

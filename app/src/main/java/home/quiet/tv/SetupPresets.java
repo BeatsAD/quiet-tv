@@ -4,7 +4,7 @@ import android.content.Context;
 import android.os.Build;
 import org.json.*;
 import java.io.*;
-import java.nio.charset.StandardCharsets;
+import home.quiet.tv.Charsets;
 
 /** Rules annotate discovered packages; they never manufacture a device's app inventory. */
 final class SetupPresets {

@@ -69,7 +69,7 @@ final class VideoWallpaperPlayer {
     void destroy(){
         if(destroyed)return;destroyed=true;stop();activity.unregisterReceiver(screen);main.removeCallbacksAndMessages(null);
         // Drain Media3's queued release callbacks before retiring their application Looper.
-        worker.post(()->{releasePlayer();worker.post(playback::quitSafely);});
+        worker.post(()->{releasePlayer();worker.post(()->{if(Build.VERSION.SDK_INT>=18)playback.quitSafely();else playback.quit();});});
     }
     private boolean current(Target candidate){return candidate==target&&candidate.request==generation&&!candidate.retired&&enabled&&!screenOff&&!destroyed;}
     private boolean current(Target candidate,int request){return candidate.request==request&&current(candidate);}
@@ -127,7 +127,7 @@ final class VideoWallpaperPlayer {
             if(!BuildConfig.LEGACY_19&&textureOutput)unappliedRotation=entry.rotation;
             if(textureOutput){TextureView textureView=new TextureView(activity);textureView.setSurfaceTextureListener(this);view=textureView;}
             else{SurfaceView surfaceView=new SurfaceView(activity);surfaceView.getHolder().addCallback(this);view=surfaceView;}
-            view.setKeepScreenOn(false);view.setFocusable(false);view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            view.setKeepScreenOn(false);view.setFocusable(false);androidx.core.view.ViewCompat.setImportantForAccessibility(view,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);
         }
         @Override public void surfaceCreated(SurfaceHolder holder){surface=holder.getSurface();if(current(this))begin(this,entry);}
         @Override public void surfaceChanged(SurfaceHolder holder,int format,int width,int height){}

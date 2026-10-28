@@ -64,7 +64,7 @@ final class WallpaperController {
     private ValueAnimator transition,videoFade;
     private Runnable pendingCover,coverCommit,pendingVideoStart;
     private ViewTreeObserver coverTree;
-    private ViewTreeObserver.OnDrawListener coverDraw;
+    private Runnable coverDraw;
     private final Runnable rotate=this::rotateWallpaper;
     private void rotateWallpaper(){try{store.next();display(store.snapshot().current,true);}catch(IOException e){notice(tr("壁纸设置保存失败","Unable to save wallpaper settings"));}schedule();}
 
@@ -74,7 +74,7 @@ final class WallpaperController {
         FrameLayout background=new FrameLayout(activity);root.addView(background,new FrameLayout.LayoutParams(-1,-1));
         video=new VideoWallpaperPlayer(activity,background);
         current=image();current.setBackgroundColor(Color.BLACK);incoming=image();incoming.setAlpha(0f);background.addView(current,new FrameLayout.LayoutParams(-1,-1));background.addView(incoming,new FrameLayout.LayoutParams(-1,-1));
-        shade=new View(activity);shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x70000000,0x10000000,0xf00a0e15}));background.addView(shade,new FrameLayout.LayoutParams(-1,-1));
+        shade=new View(activity);shade.setBackgroundDrawable(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x70000000,0x10000000,0xf00a0e15}));background.addView(shade,new FrameLayout.LayoutParams(-1,-1));
         ambient=new Ambient(activity,homeUnit);ambient.colorChanged=this::invalidateDock;background.addView(ambient,new FrameLayout.LayoutParams(-1,-1));ambient.setColor(themeColor);ambient.setVisibility(View.VISIBLE);
         display(store.snapshot().current,false);
     }
@@ -92,7 +92,7 @@ final class WallpaperController {
         if(incomingBlur!=null){paint.setAlpha(Math.round(incoming.getAlpha()*255));canvas.drawBitmap(incomingBlur,null,dockScreen,paint);paint.setAlpha(255);}
         if(shade.getVisibility()==View.VISIBLE)shade.draw(canvas);
     }
-    private ImageView image(){ImageView view=new ImageView(activity);view.setScaleType(ImageView.ScaleType.CENTER_CROP);view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);return view;}
+    private ImageView image(){ImageView view=new ImageView(activity);view.setScaleType(ImageView.ScaleType.CENTER_CROP);androidx.core.view.ViewCompat.setImportantForAccessibility(view,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);return view;}
     private void display(String id,boolean animate){display(id,animate,null);}
     private void display(String id,boolean animate,Runnable prepared){
         if(destroyed||leaving)return;
@@ -115,7 +115,7 @@ final class WallpaperController {
                 if(version!=request)return;
                 if(image!=null){android.util.DisplayMetrics screen=activity.getResources().getDisplayMetrics();blurred=DockBackdropDrawable.prepare(image,screen.widthPixels,screen.heightPixels);}
                 Bitmap ready=image,blur=blurred;
-                main.post(()->{if(version!=request||destroyed||activity.isDestroyed())return;if(ready!=null){posterId=id;poster=ready;posterBlur=blur;}showPoster(id,ready,blur,prepared);});
+                main.post(()->{if(version!=request||destroyed||UiCompat.destroyed(activity))return;if(ready!=null){posterId=id;poster=ready;posterBlur=blur;}showPoster(id,ready,blur,prepared);});
             }catch(OutOfMemoryError e){main.post(()->{if(version==request&&!destroyed)showPoster(id,null,null,prepared);});}});return;
         }
         String key=store.imageKey(id);
@@ -132,7 +132,7 @@ final class WallpaperController {
                 if(version!=request)return;
                 Bitmap blurred=DockBackdropDrawable.prepare(bitmap,screen.widthPixels,screen.heightPixels);
                 main.post(()->{
-                    if(version!=request||destroyed||activity.isDestroyed())return;
+                    if(version!=request||destroyed||UiCompat.destroyed(activity))return;
                     ambient.setVisibility(View.INVISIBLE);shade.setVisibility(View.VISIBLE);
                     if(!animate||shown==null||WallpaperCatalog.DEFAULT.equals(shown)){current.setImageBitmap(bitmap);currentBlur=blurred;incomingBlur=null;shown=id;shownKey=key;invalidateDock();}
                     else{
@@ -165,15 +165,14 @@ final class WallpaperController {
             coverCommit=()->main.post(()->{if(pendingCover==pending)pending.run();});
             coverTree.registerFrameCommitCallback(coverCommit);
         }else{
-            coverDraw=()->root.postOnAnimation(()->{if(pendingCover==pending)pending.run();});
-            coverTree.addOnDrawListener(coverDraw);
+            coverDraw=UiCompat.onDraw(root,()->androidx.core.view.ViewCompat.postOnAnimation(root,()->{if(pendingCover==pending)pending.run();}));
         }
         root.invalidate();
     }
     private void cancelCover(){
         pendingCover=null;
         if(coverTree!=null&&coverTree.isAlive()){
-            if(coverDraw!=null)coverTree.removeOnDrawListener(coverDraw);
+            if(coverDraw!=null)coverDraw.run();
             if(Build.VERSION.SDK_INT>=29&&coverCommit!=null)coverTree.unregisterFrameCommitCallback(coverCommit);
         }
         coverTree=null;coverDraw=null;coverCommit=null;
@@ -238,9 +237,9 @@ final class WallpaperController {
         ((androidx.activity.ComponentDialog)picker).getOnBackPressedDispatcher().addCallback((androidx.activity.ComponentDialog)picker,new androidx.activity.OnBackPressedCallback(true){@Override public void handleOnBackPressed(){handlePickerBack();}});
         picker.requestWindowFeature(Window.FEATURE_NO_TITLE);content=new FrameLayout(activity);
         LinearLayout layout=new LinearLayout(activity);layout.setOrientation(LinearLayout.VERTICAL);layout.setPadding(px(36),px(32),px(36),px(32));content.addView(layout,new FrameLayout.LayoutParams(-1,-1));
-        LinearLayout header=row();TextView back=button("",false,this::handlePickerBack);back.setPadding(px(10),px(10),px(10),px(10));back.setCompoundDrawables(ui.icon(R.drawable.wp_chevron_left,17,WallpaperUi.INK),null,null,null);back.setBackground(ui.focusSurface(0xa6111924,100));back.setContentDescription(tr("返回桌面","Back to home"));header.addView(back,new LinearLayout.LayoutParams(px(37),px(37)));gap(header,13);
+        LinearLayout header=row();TextView back=button("",false,this::handlePickerBack);back.setPadding(px(10),px(10),px(10),px(10));back.setCompoundDrawables(ui.icon(R.drawable.wp_chevron_left,17,WallpaperUi.INK),null,null,null);back.setBackgroundDrawable(ui.focusSurface(0xa6111924,100));back.setContentDescription(tr("返回桌面","Back to home"));header.addView(back,new LinearLayout.LayoutParams(px(37),px(37)));gap(header,13);
         TextView heading=label(tr("壁纸设置","Wallpaper Settings"),28);header.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
-        LinearLayout categories=row();categories.setPadding(px(4),px(4),px(4),px(4));categories.setBackground(ui.surface(0xff242a33,100,0x38ffffff,1));
+        LinearLayout categories=row();categories.setPadding(px(4),px(4),px(4),px(4));categories.setBackgroundDrawable(ui.surface(0xff242a33,100,0x38ffffff,1));
         staticTab=ui.categoryTab(tr("静态壁纸","Static"),()->category(false));videoTab=ui.categoryTab(tr("动态壁纸","Video"),()->category(true));
         categories.addView(staticTab,new LinearLayout.LayoutParams(px(78),px(30)));gap(categories,4);categories.addView(videoTab,new LinearLayout.LayoutParams(px(78),px(30)));
         staticTab.setNextFocusLeftId(back.getId());staticTab.setNextFocusRightId(videoTab.getId());videoTab.setNextFocusLeftId(staticTab.getId());back.setNextFocusRightId(staticTab.getId());
@@ -255,9 +254,9 @@ final class WallpaperController {
         // Together with the rail's top padding and focused-card lift, leave about 36px at 1080p.
         LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,-2);ap.setMargins(px(4),0,px(4),px(16));layout.addView(actions,ap);
         scroll=new HorizontalScrollView(activity);scroll.setHorizontalScrollBarEnabled(false);scroll.setClipToPadding(false);scroll.setClipChildren(false);scroll.setFillViewport(false);rail=row();rail.setClipToPadding(false);rail.setClipChildren(false);rail.setGravity(Gravity.BOTTOM);rail.setPadding(px(4),px(7),px(4),0);scroll.addView(rail);LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,px(154));layout.addView(scroll,rp);
-        picker.setContentView(content);picker.setOnDismissListener(d->{commitPending=false;cancelCardPress();pendingCardFocus=null;++pickerVersion;uploads.close();picker=null;daily.cancel();cards.clear();for(int n=1;n<root.getChildCount();n++)root.getChildAt(n).setVisibility(View.VISIBLE);shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x70000000,0x10000000,0xf00a0e15}));if(active)restoreSelected();schedule();});
+        picker.setContentView(content);picker.setOnDismissListener(d->{commitPending=false;cancelCardPress();pendingCardFocus=null;++pickerVersion;uploads.close();picker=null;daily.cancel();cards.clear();for(int n=1;n<root.getChildCount();n++)root.getChildAt(n).setVisibility(View.VISIBLE);shade.setBackgroundDrawable(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x70000000,0x10000000,0xf00a0e15}));if(active)restoreSelected();schedule();});
         Window window=picker.getWindow();if(window!=null){window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));window.getDecorView().setSystemUiVisibility(5894);window.setDimAmount(0);}
-        shade.setBackground(WallpaperUi.shade());picker.show();if(window!=null)window.setLayout(-1,-1);refreshCards(preview,true);
+        shade.setBackgroundDrawable(WallpaperUi.shade());picker.show();if(window!=null)window.setLayout(-1,-1);refreshCards(preview,true);
     }
     private void stopVideo(){stopVideo(null);}
     private void stopVideo(Runnable after){
@@ -310,22 +309,22 @@ final class WallpaperController {
         preview=preferred;
         rail.removeAllViews();cards.clear();
         for(WallpaperCatalog.Entry wallpaper:entries){
-            String id=wallpaper.id;FrameLayout card=new FrameLayout(activity);card.setId(View.generateViewId());card.setFocusable(true);card.setContentDescription(wallpaper.label(chinese));card.setPadding(px(CARD_INSET),px(CARD_INSET),px(CARD_INSET),px(CARD_INSET));card.setBackground(border(false,false));
+            String id=wallpaper.id;FrameLayout card=new FrameLayout(activity);card.setId(androidx.core.view.ViewCompat.generateViewId());card.setFocusable(true);card.setContentDescription(wallpaper.label(chinese));card.setPadding(px(CARD_INSET),px(CARD_INSET),px(CARD_INSET),px(CARD_INSET));card.setBackgroundDrawable(border(false,false));
             LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(px(184),px(147));cp.rightMargin=px(14);rail.addView(card,cp);cards.put(id,card);
             ImageView image=ui.image(CARD_RADIUS,CARD_INSET);card.addView(image,new FrameLayout.LayoutParams(-1,px(95)));
-            if(wallpaper.video()){image.setImageBitmap(defaultThumbnail());TextView play=label("▶",22);play.setGravity(Gravity.CENTER);play.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);card.addView(play,new FrameLayout.LayoutParams(-1,px(95)));}
+            if(wallpaper.video()){image.setImageBitmap(defaultThumbnail());TextView play=label("▶",22);play.setGravity(Gravity.CENTER);androidx.core.view.ViewCompat.setImportantForAccessibility(play,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);card.addView(play,new FrameLayout.LayoutParams(-1,px(95)));}
             if(WallpaperCatalog.DEFAULT.equals(id))image.setImageBitmap(defaultThumbnail());else{
                 String thumbnailKey=store.imageKey(id);Bitmap cached=thumbnails.get(thumbnailKey);if(cached!=null)image.setImageBitmap(cached);
                 else if(!WallpaperCatalog.DAILY.equals(id)||store.cached(state.dailyImages.get(state.dailySource)))decoder.execute(()->{try{Bitmap bitmap=WallpaperImages.decode(activity,store,wallpaper,360,203);thumbnails.put(thumbnailKey,bitmap);main.post(()->{if(picker!=null&&version==pickerVersion)image.setImageBitmap(bitmap);});}catch(IOException|OutOfMemoryError ignored){}});
             }
             if(WallpaperCatalog.DAILY.equals(id)){
                 if(!store.cached(state.dailyImages.get(state.dailySource)))image.setImageBitmap(defaultThumbnail());
-                ImageView calendar=new ImageView(activity);calendar.setImageDrawable(ui.calendar(18));calendar.setPadding(px(7),px(7),px(7),px(7));calendar.setBackground(ui.surface(0xcc20252d,100,Color.TRANSPARENT,0));calendar.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);FrameLayout.LayoutParams dp=new FrameLayout.LayoutParams(px(32),px(32),Gravity.TOP|Gravity.RIGHT);dp.setMargins(0,px(7),px(7),0);card.addView(calendar,dp);
+                ImageView calendar=new ImageView(activity);calendar.setImageDrawable(ui.calendar(18));calendar.setPadding(px(7),px(7),px(7),px(7));calendar.setBackgroundDrawable(ui.surface(0xcc20252d,100,Color.TRANSPARENT,0));androidx.core.view.ViewCompat.setImportantForAccessibility(calendar,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);FrameLayout.LayoutParams dp=new FrameLayout.LayoutParams(px(32),px(32),Gravity.TOP|Gravity.RIGHT);dp.setMargins(0,px(7),px(7),0);card.addView(calendar,dp);
             }
             LinearLayout caption=row();FrameLayout.LayoutParams np=new FrameLayout.LayoutParams(-1,px(34),Gravity.BOTTOM);np.leftMargin=px(4);np.rightMargin=px(4);card.addView(caption,np);
             TextView name=label(wallpaper.label(chinese),12);name.setSingleLine(true);name.setEllipsize(android.text.TextUtils.TruncateAt.END);caption.addView(name,new LinearLayout.LayoutParams(0,-2,1));
             if(id.equals(state.current)){
-                TextView mark=label(tr("当前使用","In use"),10);mark.setTextColor(0xff171d25);mark.setPadding(px(6),px(1),px(6),px(1));mark.setBackground(ui.surface(0xfff0f1f4,100,Color.TRANSPARENT,0));
+                TextView mark=label(tr("当前使用","In use"),10);mark.setTextColor(0xff171d25);mark.setPadding(px(6),px(1),px(6),px(1));mark.setBackgroundDrawable(ui.surface(0xfff0f1f4,100,Color.TRANSPARENT,0));
                 LinearLayout.LayoutParams mp=new LinearLayout.LayoutParams(-2,-2);mp.leftMargin=px(4);caption.addView(mark,mp);
             }
             card.setOnFocusChangeListener((v,focus)->{if(focus){if(!id.equals(preview))commitPending=false;preview=id;if(wallpaper.video())startVideo(id,false);else display(id,true);details();scroll.requestChildFocus(rail,card);}else if(id.equals(pressedWallpaper))cancelCardPress();});
@@ -376,7 +375,7 @@ final class WallpaperController {
         }
         auto.setText(tr("壁纸轮播","Slideshow"));auto.setCompoundDrawables(toggleDrawable(state.rotating),null,null,null);auto.setCompoundDrawablePadding(px(7));auto.setContentDescription(state.rotating?tr("壁纸轮播，开","Slideshow, on"):tr("壁纸轮播，关","Slideshow, off"));auto.setEnabled(!WallpaperCatalog.DAILY.equals(state.current)&&state.pictures().size()>=2);auto.setAlpha(auto.isEnabled()?1:.4f);
         View card=cards.get(preview);if(card==null)return;
-        for(Map.Entry<String,View> item:cards.entrySet()){boolean selected=item.getKey().equals(preview);item.getValue().setBackground(border(selected,false));item.getValue().setPadding(px(CARD_INSET),px(CARD_INSET),px(CARD_INSET),px(CARD_INSET));item.getValue().setTranslationY(selected?-px(3):0);item.getValue().setNextFocusUpId(upload.getId());}
+        for(Map.Entry<String,View> item:cards.entrySet()){boolean selected=item.getKey().equals(preview);item.getValue().setBackgroundDrawable(border(selected,false));item.getValue().setPadding(px(CARD_INSET),px(CARD_INSET),px(CARD_INSET),px(CARD_INSET));item.getValue().setTranslationY(selected?-px(3):0);item.getValue().setNextFocusUpId(upload.getId());}
         int lower=card.getId();
         for(TextView control:new TextView[]{auto,upload,staticTab,videoTab,dynamicToggle})control.setNextFocusDownId(lower);
     }

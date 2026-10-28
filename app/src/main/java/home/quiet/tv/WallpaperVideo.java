@@ -17,10 +17,17 @@ final class WallpaperVideo {
     static String capabilities() {
         try{return new JSONObject().put("purpose","wallpaper").put("imageMaxBytes",WallpaperUploadServer.MAX_UPLOAD)
             .put("videoMaxBytes",MAX_UPLOAD).put("videoMaxWidth",Build.VERSION.SDK_INT>=21?3840:1920)
-            .put("videoMaxHeight",Build.VERSION.SDK_INT>=21?2160:1080).put("videoMaxFps",60).put("videoFormats",new JSONArray(new String[]{"mp4","mov","mkv","webm"}))
+            .put("videoMaxHeight",Build.VERSION.SDK_INT>=21?2160:1080).put("videoMaxFps",60).put("videoFormats",new JSONArray(java.util.Arrays.asList("mp4","mov","mkv","webm")))
             .put("hevc",Build.VERSION.SDK_INT>=21&&Api21.hasHevc()).toString();}
         catch(JSONException e){throw new IllegalStateException(e);}
     }
+    static Info inspect(File file)throws IOException {
+        if(file.length()<12||file.length()>MAX_UPLOAD)throw invalid();
+        return Build.VERSION.SDK_INT>=16?Api16.inspect(file):LegacyVideoProbe.inspect(file);
+    }
+    private static String specification(Info info){String codec="video/avc".equals(info.mime)?"H.264":"video/hevc".equals(info.mime)?"HEVC":info.mime;return codec+" "+info.width+"x"+info.height+" "+info.fps+" FPS";}
+    private static IOException invalid(){return new IOException("视频无法解析，请使用 MP4、MOV、MKV 或 WebM / Unable to read video; use MP4, MOV, MKV or WebM");}
+    @TargetApi(16) private static final class Api16 {
     static Info inspect(File file) throws IOException {
         if(file.length()<12||file.length()>MAX_UPLOAD)throw invalid();
         MediaExtractor extractor=new MediaExtractor();MediaMetadataRetriever metadata=new MediaMetadataRetriever();
@@ -37,13 +44,13 @@ final class WallpaperVideo {
             if(format.containsKey("sar-width")&&format.containsKey("sar-height")){int sw=format.getInteger("sar-width"),sh=format.getInteger("sar-height");if(sw>0&&sh>0)info.pixelRatio=sw/(float)sh;}
             else info.pixelRatio=VideoGeometry.pixelRatio(file,1f);
             info.durationMs=Long.parseLong(metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION));
-            String rotation=metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION);info.rotation=rotation==null?0:Integer.parseInt(rotation);
+            String rotation=Build.VERSION.SDK_INT>=17?metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION):null;info.rotation=rotation==null?(Build.VERSION.SDK_INT<17?LegacyVideoProbe.read(file).rotation:0):Integer.parseInt(rotation);
             if(info.width<=0||info.height<=0||Math.max(info.width,info.height)>3840||Math.min(info.width,info.height)>2160||info.durationMs<=0||info.rotation%90!=0)throw invalid();
             if(Build.VERSION.SDK_INT<21&&(Math.max(info.width,info.height)>1920||Math.min(info.width,info.height)>1080))throw new IOException("此系统请使用不超过 1080p 的 H.264 视频 / Use H.264 up to 1080p on this system");
             if(format.containsKey("color-transfer")){int transfer=format.getInteger("color-transfer");if(transfer==6||transfer==7)throw new IOException("请使用 SDR 视频，暂不支持 HDR / Use SDR video; HDR is not supported");}
             checkProfile(format,info.mime);
             extractor.selectTrack(track);
-            if(extractor.getPsshInfo()!=null&&!extractor.getPsshInfo().isEmpty())throw invalid();
+            if(Build.VERSION.SDK_INT>=18&&extractor.getPsshInfo()!=null&&!extractor.getPsshInfo().isEmpty())throw invalid();
             // Timestamp scan is bounded; preserves the format's declared rate when available.
             long first=Long.MAX_VALUE,last=-1;int frames=0;
             while(frames<121&&extractor.getSampleTime()>=0){if((extractor.getSampleFlags()&MediaExtractor.SAMPLE_FLAG_ENCRYPTED)!=0)throw invalid();long time=extractor.getSampleTime();first=Math.min(first,time);last=Math.max(last,time);frames++;if(!extractor.advance())break;}
@@ -60,8 +67,6 @@ final class WallpaperVideo {
         finally{extractor.release();try{metadata.release();}catch(IOException ignored){}}
     }
     private static Number number(MediaFormat format,String key){try{return format.getInteger(key);}catch(ClassCastException e){return format.getFloat(key);}}
-    private static String specification(Info info){String codec="video/avc".equals(info.mime)?"H.264":"video/hevc".equals(info.mime)?"HEVC":info.mime;return codec+" "+info.width+"x"+info.height+" "+info.fps+" FPS";}
-    private static IOException invalid(){return new IOException("视频无法解析，请使用 MP4、MOV、MKV 或 WebM / Unable to read video; use MP4, MOV, MKV or WebM");}
     private static boolean legacyDecoder(String mime){
         for(int n=0;n<MediaCodecList.getCodecCount();n++){MediaCodecInfo codec=MediaCodecList.getCodecInfoAt(n);if(!codec.isEncoder())for(String type:codec.getSupportedTypes())if(mime.equals(type))return true;}return false;
     }
@@ -92,7 +97,8 @@ final class WallpaperVideo {
         // Some extractors expose codec configuration without Annex-B start codes.
         // The decoder capability check and actual preview remain authoritative.
     }
-    private static final class Bits {
+    }
+    static final class Bits {
         final byte[] bytes;int bit;
         Bits(byte[] raw,int start){ByteArrayOutputStream output=new ByteArrayOutputStream();int zeros=0;for(int i=start;i<raw.length;i++){int v=raw[i]&255;if(zeros>=2&&v==3){zeros=0;continue;}output.write(v);zeros=v==0?zeros+1:0;}bytes=output.toByteArray();}
         int read(int count) throws IOException {if(count<0||bit+count>bytes.length*8)throw invalid();int value=0;while(count-->0){value=(value<<1)|((bytes[bit/8]>>(7-bit%8))&1);bit++;}return value;}
@@ -119,7 +125,7 @@ final class WallpaperVideo {
         Info info=new Info();info.width=entry.width;info.height=entry.height;info.rotation=entry.rotation;info.pixelRatio=entry.pixelRatio;poster(video,output,info);
     }
     @TargetApi(21) private static final class Api21 {
-        static boolean hasHevc(){return legacyDecoder("video/hevc");}
+        static boolean hasHevc(){return Api16.legacyDecoder("video/hevc");}
         static boolean supports(Info info)throws IOException{
             boolean queryFailed=false;int matching=0,eligible=0;
             MediaCodecInfo[] codecs;

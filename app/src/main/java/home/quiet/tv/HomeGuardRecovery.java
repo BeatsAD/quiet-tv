@@ -54,7 +54,7 @@ final class HomeGuardRecovery {
             :c.checkCallingOrSelfPermission(Manifest.permission.WRITE_SETTINGS)==PackageManager.PERMISSION_GRANTED;}
     static boolean notificationSupported(Context c){
         android.app.ActivityManager manager=(android.app.ActivityManager)c.getSystemService(Context.ACTIVITY_SERVICE);
-        return Build.VERSION.SDK_INT>29 || manager==null || !manager.isLowRamDevice();
+        return Build.VERSION.SDK_INT>29 || manager==null || !UiCompat.lowRam(manager);
     }
     static boolean notificationAllowed(Context c){
         if(Build.VERSION.SDK_INT>=27){

@@ -54,7 +54,7 @@ final class GreetingEditorPanel {
     }};
     GreetingEditorPanel(DesktopSettingsActivity ui,DesktopSettingsStore store,String fallback,Runnable saved){this.ui=ui;this.store=store;this.fallback=fallback;this.saved=saved;avatars=new GreetingAvatarStore(ui);avatarUpload=new GreetingAvatarUploadPanel(ui,avatars,this::receiveAvatar);}
     private String tr(String zh,String en){return ui.tr(zh,en);}
-    private void identify(View view,String tag){view.setId(View.generateViewId());view.setTag(tag);}
+    private void identify(View view,String tag){view.setId(androidx.core.view.ViewCompat.generateViewId());view.setTag(tag);}
     void show(){
         if(editor!=null)return;
         enabled=store.greetingEnabled();draftAvatar=avatars.existing(store.avatarFile());avatarEnabled=store.avatarEnabled()&&draftAvatar!=null;
@@ -62,7 +62,7 @@ final class GreetingEditorPanel {
         toggle=makeSwitch(tr("显示问候语","Show greeting"),"greeting-toggle");toggle.setChecked(enabled);
         toggle.setOnCheckedChangeListener((v,value)->{enabled=value;updateEnabled();});editor.body.addView(toggle,new LinearLayout.LayoutParams(-1,ui.px(28)));ui.gap(editor.body,12);
         edit=ui.input(store.greetingText(fallback),tr("输入想在首页显示的文字","Enter text to show on Home"));identify(edit,"greeting-text");
-        edit.setBackground(ui.focusSurface(10));edit.setImeOptions(EditorInfo.IME_ACTION_DONE|EditorInfo.IME_FLAG_NO_EXTRACT_UI);editor.body.addView(edit,new LinearLayout.LayoutParams(-1,ui.px(46)));
+        edit.setBackgroundDrawable(ui.focusSurface(10));edit.setImeOptions(EditorInfo.IME_ACTION_DONE|EditorInfo.IME_FLAG_NO_EXTRACT_UI);editor.body.addView(edit,new LinearLayout.LayoutParams(-1,ui.px(46)));
         LinearLayout assist=ui.row();TextView hint=ui.muted(tr("留空时自动问候","Leave empty for automatic greetings"),11);assist.addView(hint,new LinearLayout.LayoutParams(0,-1,1));
         scan=inline(tr("手机输入","Phone input"),"greeting-scan",this::showPhone);assist.addView(scan,new LinearLayout.LayoutParams(-2,-1));editor.body.addView(assist,new LinearLayout.LayoutParams(-1,ui.px(36)));
         ui.gap(editor.body,16);View line=new View(ui);line.setBackgroundColor(0x12ffffff);editor.body.addView(line,new LinearLayout.LayoutParams(-1,ui.px(1)));ui.gap(editor.body,16);
@@ -74,11 +74,11 @@ final class GreetingEditorPanel {
         LinearLayout.LayoutParams dp=new LinearLayout.LayoutParams(0,-2,1);dp.leftMargin=ui.px(14);avatarRow.addView(details,dp);
         avatarToggle=makeSwitch("","greeting-avatar-toggle");avatarToggle.setContentDescription(tr("显示头像","Show avatar"));avatarToggle.setChecked(avatarEnabled);
         avatarToggle.setOnCheckedChangeListener((v,value)->avatarEnabled=value);avatarRow.addView(avatarToggle,new LinearLayout.LayoutParams(ui.px(48),ui.px(36)));editor.body.addView(avatarRow,new LinearLayout.LayoutParams(-1,ui.px(56)));
-        draftStatus=ui.muted("",11);draftStatus.setVisibility(View.GONE);draftStatus.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);editor.body.addView(draftStatus,new LinearLayout.LayoutParams(-1,ui.px(22)));
+        draftStatus=ui.muted("",11);draftStatus.setVisibility(View.GONE);androidx.core.view.ViewCompat.setAccessibilityLiveRegion(draftStatus,androidx.core.view.ViewCompat.ACCESSIBILITY_LIVE_REGION_POLITE);editor.body.addView(draftStatus,new LinearLayout.LayoutParams(-1,ui.px(22)));
         editor.actions.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
         cancel=editor.action(tr("取消","Cancel"),()->editor.dialog.dismiss());identify(cancel,"greeting-cancel");save=editor.action(tr("保存","Save"),this::save);identify(save,"greeting-save");
-        for(Button action:new Button[]{cancel,save}){action.setMinWidth(ui.px(76));action.setMinimumWidth(ui.px(76));action.setBackground(ui.focusSurface(24));}
-        save.setBackground(ControlStyle.action(ui.unit,24,0xffe6e8ec,0));save.setTextColor(new android.content.res.ColorStateList(new int[][]{{-android.R.attr.state_enabled},{}},new int[]{0xff686d76,0xff191d23}));
+        for(Button action:new Button[]{cancel,save}){action.setMinWidth(ui.px(76));action.setMinimumWidth(ui.px(76));action.setBackgroundDrawable(ui.focusSurface(24));}
+        save.setBackgroundDrawable(ControlStyle.action(ui.unit,24,0xffe6e8ec,0));save.setTextColor(new android.content.res.ColorStateList(new int[][]{{-android.R.attr.state_enabled},{}},new int[]{0xff686d76,0xff191d23}));
         edit.setOnKeyListener((v,key,event)->{
             if(key==KeyEvent.KEYCODE_DPAD_CENTER||key==KeyEvent.KEYCODE_ENTER){if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0)((InputMethodManager)ui.getSystemService(android.content.Context.INPUT_METHOD_SERVICE)).showSoftInput(edit,InputMethodManager.SHOW_IMPLICIT);return true;}
             if(event.getAction()!=KeyEvent.ACTION_DOWN)return false;if(key==KeyEvent.KEYCODE_DPAD_DOWN){scan.requestFocus();return true;}if(key==KeyEvent.KEYCODE_DPAD_UP){toggle.requestFocus();return true;}return false;
@@ -90,11 +90,11 @@ final class GreetingEditorPanel {
     }
     private Switch makeSwitch(String text,String tag){
         Switch result=new Switch(ui);identify(result,tag);result.setText(text);result.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,ui.px(14));result.setTextColor(ManagementUi.TEXT);result.setIncludeFontPadding(false);
-        result.setTextOn("");result.setTextOff("");result.setThumbTextPadding(0);result.setSwitchMinWidth(ui.px(44));result.setSwitchPadding(ui.px(12));result.setMinimumHeight(0);result.setPadding(ui.px(2),0,ui.px(2),0);result.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);result.setBackgroundColor(Color.TRANSPARENT);result.setFocusable(true);result.setFocusableInTouchMode(true);
-        StateListDrawable track=new StateListDrawable();track.addState(new int[]{android.R.attr.state_focused,android.R.attr.state_checked},switchTrack(0xffe1e6ed,true));track.addState(new int[]{android.R.attr.state_focused},switchTrack(0xff535860,true));track.addState(new int[]{android.R.attr.state_checked},switchTrack(0xffe1e6ed,false));track.addState(new int[]{},switchTrack(0xff535860,false));result.setTrackDrawable(track);
-        StateListDrawable thumb=new StateListDrawable();thumb.addState(new int[]{android.R.attr.state_checked},switchThumb(0xff26303b));thumb.addState(new int[]{},switchThumb(0xffe1e3e5));result.setThumbDrawable(thumb);if(Build.VERSION.SDK_INT>=21)result.setSplitTrack(false);return result;
+        result.setTextOn("");result.setTextOff("");if(Build.VERSION.SDK_INT>=16){result.setThumbTextPadding(0);result.setSwitchMinWidth(ui.px(44));result.setSwitchPadding(ui.px(12));}result.setMinimumHeight(0);result.setPadding(ui.px(2),0,ui.px(2),0);result.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);result.setBackgroundColor(Color.TRANSPARENT);result.setFocusable(true);result.setFocusableInTouchMode(true);
+        StateListDrawable track=new StateListDrawable();track.addState(new int[]{android.R.attr.state_focused,android.R.attr.state_checked},switchTrack(0xffe1e6ed,true));track.addState(new int[]{android.R.attr.state_focused},switchTrack(0xff535860,true));track.addState(new int[]{android.R.attr.state_checked},switchTrack(0xffe1e6ed,false));track.addState(new int[]{},switchTrack(0xff535860,false));if(Build.VERSION.SDK_INT>=16)result.setTrackDrawable(track);
+        StateListDrawable thumb=new StateListDrawable();thumb.addState(new int[]{android.R.attr.state_checked},switchThumb(0xff26303b));thumb.addState(new int[]{},switchThumb(0xffe1e3e5));if(Build.VERSION.SDK_INT>=16)result.setThumbDrawable(thumb);if(Build.VERSION.SDK_INT>=21)result.setSplitTrack(false);return result;
     }
-    private Button inline(String text,String tag,Runnable action){Button b=ui.button(text,action);identify(b,tag);b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,ui.px(12));b.setPadding(ui.px(3),0,ui.px(3),0);b.setMinWidth(0);b.setMinimumWidth(0);b.setBackground(ControlStyle.action(ui.unit,4,Color.TRANSPARENT,0));return b;}
+    private Button inline(String text,String tag,Runnable action){Button b=ui.button(text,action);identify(b,tag);b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,ui.px(12));b.setPadding(ui.px(3),0,ui.px(3),0);b.setMinWidth(0);b.setMinimumWidth(0);b.setBackgroundDrawable(ControlStyle.action(ui.unit,4,Color.TRANSPARENT,0));return b;}
     private void discardDraft(){File file=draftAvatar;if(file!=null&&!file.getName().equals(store.avatarFile())){draftAvatar=null;worker.execute(()->GreetingAvatarStore.discard(file));}}
     private boolean receiveAvatar(File candidate){
         if(editor==null||saving||destroyed)return false;boolean first=draftAvatar==null;discardDraft();draftAvatar=candidate;if(first)avatarEnabled=true;
