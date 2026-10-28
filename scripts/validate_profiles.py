@@ -4,7 +4,7 @@ import json
 import re
 from pathlib import Path
 
-source = Path(__file__).resolve().parents[1] / 'app/src/main/assets/setup-presets.json'
+source = Path(__file__).resolve().parents[1] / 'scripts/device-presets.json'
 data = json.loads(source.read_text())
 assert data['schema'] == 1
 seen = set()
@@ -55,7 +55,7 @@ for reference in data.get('references', []):
 print(f"PASS: {len(data['devices'])} executable firmware profile(s), {len(data.get('references', []))} unverified references; no inherited permissions")
 
 # Opening a known system panel does not grant any package-management permissions.
-panels = json.loads((source.parent / 'tv-input-profiles.json').read_text())
+panels = json.loads((source.parents[1] / 'app/src/main/assets/tv-input-profiles.json').read_text())
 assert panels['schema'] == 1
 components = set()
 for panel in panels['panels']:

@@ -47,7 +47,7 @@ Agent 直接使用固定请求时，须通过本机终端读取 `latest.json`，
 
 ## 统一安装入口
 
-本地源码使用 [install_quiet_tv.py](../scripts/install_quiet_tv.py)，独立 Agent 从本次实时 `latest.json` 的 `tools` 字段取得 `install_quiet_tv.py`、`verify_install.py`、`install_tcl.py`、`tcl_cast.py`、`configure_home_guard.py`、`configure_boot_home.py`、`device_maintenance.py`、`device_selftest.py`，下载至同一私有目录并逐文件核对 SHA-256。工具缺项或校验不符时停止，不从不明来源补脚本。站点部署前，公开索引可能尚未含新入口，应明确说明差异；不能据本地代码宣称已经上线。
+本地源码使用 [install_quiet_tv.py](../scripts/install_quiet_tv.py)，独立 Agent 从本次实时 `latest.json` 的 `tools` 字段取得 `install_quiet_tv.py`、`verify_install.py`、`install_tcl.py`、`tcl_cast.py`、`configure_home_guard.py`、`configure_boot_home.py`、`device_maintenance.py`、`device_selftest.py`、`device_adaptation.py`、`vendor_adaptation.py`、`device-presets.json`，下载至同一私有目录并逐文件核对 SHA-256。工具缺项或校验不符时停止，不从不明来源补脚本。站点部署前，公开索引可能尚未含新入口，应明确说明差异；不能据本地代码宣称已经上线。
 
 Agent 先按下文确认电视、完成电脑 ADB 连接／授权并核对前台用户；安装入口不扫描、不自动选择设备、不默认端口或用户。准备现有官方 Platform-Tools、Python 3.9+、Android build-tools 的 `aapt2`／`apksigner` 及其 Java 运行环境，工具缺失时明确说明并按主机环境准备，不要求用户猜路径，不构建源码替代公开包。可用 `--adb`、`--aapt2`、`--apksigner` 指定现有工具。
 
@@ -66,7 +66,9 @@ python3 scripts/install_quiet_tv.py --serial "$TV_SERIAL" --user "$TV_USER" \
 
 入口面向普通包名 `home.quiet.tv` 的标准／安卓4.4档及 relay 形态，按实时索引选择最新适配、同包名且符合覆盖条件的发布 APK，支持预发布；发现已有改包名或酷开专用 Quiet TV 时，转回既有同包名专用安装路径，不自动另装普通包。安装前保存 HOME、原包状态与可读取的已安装 APK，验证包名、系统、ABI、签名、构建号及 SHA-256，安装后拉回实际 APK 再核对。签名冲突、降级、同构建号不同文件、split APK 或普通／relay 形态迁移均停止覆盖。Agent 已核验发布来源的包可用 `--apk "$APK_PATH" --sha256 "$EXPECTED_SHA256"` 明确指定，不通过该参数绕过实际包验证。
 
-接管优先沿用已配置的系统 HOME，或依据固件帮助和实际 HOME 候选设置；不适用时复用电脑守护配置。原桌面／恢复基线不明时停止依赖它的接管。工具不禁用原桌面、不精简应用、不接管屏保、不重启。TCL 复用现有安装助手与同版本 relay 候选，不授权临时停用安装器；公开发布缺 relay 时明确报告，不临时构建、改签或用旧包冒充。
+机型规则、专项路线、旧配置恢复及 APK 能力要求见[电脑 AI 适配规则与恢复](DEVICE_ADAPTATION.zh-CN.md)。默认不禁用原桌面；只有 AI 已核对具体方案时才指定 `--adaptation-route`。
+
+接管优先沿用已配置的系统 HOME，或依据固件帮助和实际 HOME 候选设置；不适用时复用电脑守护配置。原桌面／恢复基线不明时停止依赖它的接管。未指定专项路线时不禁用原桌面；安装工具不精简应用、不接管屏保、不重启。TCL 复用现有安装助手与同版本 relay 候选，不授权临时停用安装器；公开发布缺 relay 时明确报告，不临时构建、改签或用旧包冒充。
 
 ### 原始验收输出
 
@@ -101,7 +103,7 @@ python3 scripts/install_quiet_tv.py --serial "$TV_SERIAL" --user "$TV_USER" \
 
 ### AI 实际调用的开机桌面脚本
 
-可执行入口为 [configure_boot_home.py](../scripts/configure_boot_home.py)。它已接入 `install_quiet_tv.py --goal takeover`：安装并核验主程序后，标准 HOME 包自动进入开机配置；无标准 HOME 路线时继续现有兼容守护。`trial`、`update` 和只读验收不会调用写入路径。独立 Agent 必须从同一次 `latest.json.tools` 下载并校验全部八项工具，不能只复制本文或只下载一个脚本。
+可执行入口为 [configure_boot_home.py](../scripts/configure_boot_home.py)。它已接入 `install_quiet_tv.py --goal takeover`：安装并核验主程序后，标准 HOME 包自动进入开机配置；无标准 HOME 路线时继续现有兼容守护。`trial`、`update` 和只读验收不会调用写入路径。独立 Agent 必须从同一次 `latest.json.tools` 下载并校验全部十一项工具与规则，不能只复制本文或只下载一个脚本。
 
 已有 Quiet TV、只需配置开机桌面时，AI 先执行预览，再在已有开机接管授权内以新记录目录加 `--apply` 执行，不要求用户另写命令：
 

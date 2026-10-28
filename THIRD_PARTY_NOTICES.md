@@ -89,8 +89,8 @@ VIDAA 原主页缺少窗口事件、酷开 AI 与松下系无 HOME 声明组件�
 ## 电视端 ADB 与证书依赖
 
 - [libadb-android 3.1.1](https://github.com/MuntashirAkon/libadb-android/tree/3.1.1)：采用其 Apache-2.0 许可选项，保留继承代码的 BSD-3-Clause 和 MIT 声明。许可文本随 APK 保存在 `assets/licenses/libadb-*.txt`。
-- [Bouncy Castle 1.86](https://github.com/bcgit/bc-java/tree/r1rv86)：bcprov、bcpkix 及 bcutil 的 jdk15to18 版本，用于独立密钥的自签证书和库内部 RSA 公钥编码；安卓4.4档另使用同版本 bctls 提供每日壁纸的纯 Java TLS／JSSE 实现，不包含原生库。许可见 `assets/licenses/bouncycastle-LICENSE.md`。此版本为当前源码依赖；历史发布包的依赖不会随源码维护改变。
-- `1.1.0 / b4` 候选接入无线配对，包含 [spake2-android 2.2.1](https://github.com/MuntashirAkon/spake2-java/tree/2.2.1) 的未修改原生库，采用 LGPL-3.0；版权归 Muntashir Al-Islam 等上游作者。LGPL 与 GPL 文本见 `assets/licenses/spake2-*.txt`。相同版本的完整库源码及构建脚本可从该标签取得；本项目通过 Gradle 引用，保留独立共享库及源码重建／替换路径。上游 Ed25519 实现来源与 CC0 说明见其 README。
+- [Bouncy Castle 1.86](https://github.com/bcgit/bc-java/tree/r1rv86)：bcprov、bcpkix 及 bcutil 的 jdk15to18 版本，用于独立密钥的自签证书和库内部 RSA 公钥编码；安卓4.4档另使用同版本 bctls 提供每日壁纸的纯 Java TLS／JSSE 实现，不包含原生库。许可见 `assets/licenses/bouncycastle-LICENSE.md`。当前仅保留更新清单所需 bcprov 和安卓 4.4 TLS 所需组件，历史发布包的依赖保持原样。
+- `1.1.0 / b4` 候选接入无线配对，包含 [spake2-android 2.2.1](https://github.com/MuntashirAkon/spake2-java/tree/2.2.1) 的未修改原生库，采用 LGPL-3.0；版权归 Muntashir Al-Islam 等上游作者。LGPL 与 GPL 文本见 `assets/licenses/spake2-*.txt`。相同版本的完整库源码及构建脚本可从该标签取得；历史构建通过 Gradle 引用，保留对应来源及重建／替换说明。上游 Ed25519 实现来源与 CC0 说明见其 README。
 - [Conscrypt 2.7.0](https://github.com/google/conscrypt/tree/2.7.0) 提供 TLS 1.3 与公开密钥导出接口，采用 Apache-2.0；其及内含原生代码的声明随 APK 保存为 `assets/licenses/conscrypt-LICENSE.txt`、`conscrypt-NOTICE.txt`。历史 TCP 版本未包含以上无线依赖。
 
 ## AndroidX 返回导航
@@ -119,7 +119,7 @@ VIDAA 原主页缺少窗口事件、酷开 AI 与松下系无 HOME 声明组件�
 
 ## Android 4.4 compatibility profile
 
-The `legacy19` profile uses AndroidX Activity 1.9.3, RecyclerView 1.3.2 and MultiDex 2.0.1 under Apache-2.0. Their complete license text is included in the offline license assets. It omits Conscrypt and SPAKE2 from its dependency graph; their historical notices remain available for the standard profile. Bouncy Castle and the existing minimum patched version constraints are retained.
+The `legacy19` profile uses AndroidX Activity 1.9.3, RecyclerView 1.3.2 and MultiDex 2.0.1 under Apache-2.0. Their complete license text is included in the offline license assets. It omits Conscrypt and SPAKE2 from its dependency graph; their historical notices remain available in the repository. Bouncy Castle and the existing minimum patched version constraints are retained.
 
 The wallpaper uploader in `legacy19` uses ZXing Core 3.3.0 and AndroidX ExifInterface 1.3.7 under the same Apache-2.0 license to retain Android 4.4 compatibility. The standard profile retains ZXing Core 3.5.3 and ExifInterface 1.4.2.
 
@@ -137,3 +137,5 @@ The wallpaper settings and upload dialog use raster exports of Lucide 0.468.0 ic
 补充地点保存在 [places.json](app/src/main/assets/weather/places.json)。长岛的参考坐标根据 [GeoNames 地名数据](https://www.geonames.org/advanced-search.html?country=CN&q=Dao+Xian&startRow=0) 中 Changdao / 长岛县的坐标舍入到两位小数，依 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 使用；别名为本项目维护。该点接近原县城，不代表所有岛屿的中心或气象观测站。联网补充地点由 UAPI 返回，不缓存和风 GeoAPI 响应建立索引。
 
 新增天气源 [Open-Meteo](https://open-meteo.com/) 的数据依 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 使用；天气码由本项目转换为中文/英文和原生图标，当前天气为模型估算。免费托管 API 仅限[非商业使用](https://open-meteo.com/en/terms)，默认关闭，需用户启用；数据许可不等于免费服务的商业使用授权。[OpenWeather](https://openweathermap.org/api/current) 使用开发者可选配置的独立凭据及对应服务条款。天气设置显示实际成功来源并链接其官网；未直接复制上述开源天气应用代码。
+
+当前主程序由电脑脚本执行 ADB 配置，不再构建 libadb、SPAKE2 或 Conscrypt。签名更新清单保留 Bouncy Castle bcprov；安卓 4.4 的连接级 TLS 保留 BCJSSE 及所需依赖。历史许可证文件保留，避免改变历史发布记录。

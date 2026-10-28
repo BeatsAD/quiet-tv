@@ -31,7 +31,7 @@ public final class MaintenanceHelpActivity extends ManagementUi {
         try{
             HomeController home=new HomeController(this);String original=DeviceMaintenanceReceiver.original(this);
             if(original.isEmpty() || !home.component(original,true)){message("原桌面记录缺失或暂不可用，请通过电脑恢复。");return;}
-            HomeController.State current=home.inspect(null);
+            HomeController.State current=home.inspect();
             if(current.known && original.equals(current.actual)){
                 startActivity(new Intent(Intent.ACTION_MAIN).setComponent(ComponentName.unflattenFromString(original)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));return;
             }

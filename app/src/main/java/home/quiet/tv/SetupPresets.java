@@ -29,6 +29,15 @@ final class SetupPresets {
         device=match;
     }
     static synchronized SetupPresets load(Context context) {
+        String supplied=context.getSharedPreferences("device-adaptation",Context.MODE_PRIVATE).getString("rules","");
+        if(!supplied.isEmpty())try{
+            SetupPresets selected=new SetupPresets(supplied,Build.BRAND,Build.MODEL,Build.FINGERPRINT);
+            if(selected.matched())return selected;
+        }catch(JSONException invalid){throw new IllegalStateException("本机适配规则无效",invalid);}
+        return legacy(context);
+    }
+    // Frozen pre-migration rules keep existing installations and their restoration journals usable.
+    static synchronized SetupPresets legacy(Context context) {
         // Bundled assets and Build identity are fixed for this process; live package state is not cached.
         if(bundled!=null)return bundled;
         try(InputStream in=context.getAssets().open("setup-presets.json");ByteArrayOutputStream out=new ByteArrayOutputStream()){

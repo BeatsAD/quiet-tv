@@ -1,0 +1,704 @@
+{
+  "schema": 1,
+  "devices": [
+    {
+      "brand": "Sony",
+      "fingerprint": "Sony/BRAVIA_VH1_CN/BRAVIA_VH1:12/STT2.230505.001.S137/626241:user/release-keys",
+      "apps": [
+        {
+          "package": "com.sonyericsson.idd.agent",
+          "purpose": "诊断数据代理",
+          "recommendDisable": true,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.sony.dtv.sonybugreportsys",
+          "purpose": "错误报告",
+          "recommendDisable": true,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.sony.dtv.sonyloglevelsettingsys",
+          "purpose": "已调查的可管理应用",
+          "recommendDisable": false,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.sony.dtv.da.service",
+          "purpose": "已调查的可管理应用",
+          "recommendDisable": false,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.qterics.da.product",
+          "purpose": "已调查的可管理应用",
+          "recommendDisable": false,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.sony.dtv.braviashow",
+          "purpose": "零售演示",
+          "recommendDisable": true,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.sony.dtv.demosupport",
+          "purpose": "零售演示支持",
+          "recommendDisable": true,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.sony.dtv.demosystemsupport",
+          "purpose": "系统演示支持",
+          "recommendDisable": true,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.sony.dtv.multiscreendemo",
+          "purpose": "多屏演示",
+          "recommendDisable": true,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.sony.dtv.voicesearch",
+          "purpose": "已调查的可管理应用",
+          "recommendDisable": false,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.jd.smartservicetwo",
+          "purpose": "已调查的可管理应用",
+          "recommendDisable": false,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.ktcp.tvvideo",
+          "purpose": "已调查的可管理应用",
+          "recommendDisable": false,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.newtv.sport",
+          "purpose": "已调查的可管理应用",
+          "recommendDisable": false,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.sony.dtv.osat.music",
+          "purpose": "已调查的可管理应用",
+          "recommendDisable": false,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.sony.dtv.smartmediaapp",
+          "purpose": "已调查的可管理应用",
+          "recommendDisable": false,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.sony.dtv.timers",
+          "purpose": "已调查的可管理应用",
+          "recommendDisable": false,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.sony.dtv.mysony",
+          "purpose": "已调查的可管理应用",
+          "recommendDisable": false,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.sony.dtv.livingfit",
+          "purpose": "已调查的可管理应用",
+          "recommendDisable": false,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.sony.dtv.smarthelp",
+          "purpose": "已调查的可管理应用",
+          "recommendDisable": false,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        },
+        {
+          "package": "com.sony.dtv.helpguidecontents",
+          "purpose": "已调查的可管理应用",
+          "recommendDisable": false,
+          "actions": [
+            "ENABLE",
+            "DISABLE",
+            "UNINSTALL",
+            "RESTORE"
+          ]
+        }
+      ],
+      "home": {
+        "component": "com.dangbei.TVHomeLauncher/com.dangbei.leard.leradlauncher.ui.sony.main.MainActivity",
+        "disableVerified": true,
+        "uninstallVerified": false,
+        "restoreInstallVerified": false
+      }
+    },
+    {
+      "brand": "xiaomi",
+      "model": "MiTV-MFTP0",
+      "fingerprint": "xiaomi/alita/alita:9/PPR2.180905.006.A1/6129:user/release-keys",
+      "home": {
+        "component": "com.mitv.tvhome/com.mitv.tvhome.MainActivityUserMode",
+        "versionCode": 1621,
+        "user": 0,
+        "disableVerified": true,
+        "uninstallVerified": false,
+        "restoreInstallVerified": false,
+        "keepAdb": true,
+        "evidence": "2026-10-26 用户报告禁用原桌面并保持 ADB 后可用；日志确认 enabled=3、HOME 指向 Quiet TV、ADB 已连接。各实体场景未分别记录。"
+      }
+    },
+    {
+      "brand": "Xiaomi",
+      "model": "MiTV4-ANSM0",
+      "fingerprint": "Xiaomi/xmen/xmen:6.0.1/MHC19J/2035:user/release-keys",
+      "home": {
+        "component": "com.mitv.tvhome/com.mitv.tvhome.MainActivityUserMode",
+        "versionCode": 1621,
+        "user": 0,
+        "disableVerified": true,
+        "uninstallVerified": false,
+        "restoreInstallVerified": false,
+        "keepAdb": true,
+        "evidence": "2026-10-26 用户明确要求在此机型及固件试用禁用原桌面并保持 ADB 的直接接管方案。诊断确认原桌面构建号 1621、用户 0、ADB 已连接，HOME 后约 5 秒才由守护返回 Quiet TV；本机禁用、恢复、实体 HOME、开机及待机效果尚未验证。"
+      }
+    },
+    {
+      "brand": "Xiaomi",
+      "model": "MiTV-AZFU0",
+      "fingerprint": "Xiaomi/darkknight/darkknight:14/UD2A.240505.001.W1/OS2.0.23.0.UZFAABX:user/release-keys",
+      "home": {
+        "component": "com.mitv.tvhome/com.mitv.tvhome.MainActivityUserMode",
+        "versionCode": 919,
+        "user": 0,
+        "disableVerified": true,
+        "uninstallVerified": false,
+        "restoreInstallVerified": false,
+        "directTakeover": true,
+        "evidence": "2026-10-27 用户明确要求禁用原桌面，由系统直接启动 Quiet TV，不经过原桌面中转或系统选择框。诊断确认原桌面构建号 919、用户 0、Quiet TV 声明 HOME、ADB 已连接且提供 HOME 切换命令；禁用、恢复、实体 HOME、重启、冷启动及唤醒尚待本机验证。"
+      }
+    }
+  ],
+  "references": [
+    {
+      "model": "BenQ E55-735 (Changhong AI PONT, DVB96BQ)",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/1fa7479ce38a439bbfd1de20a5e08f23e6de9e70/examples/benq-e55-735/debloat.txt",
+      "limitations": "上游社区报告；Quiet TV 尚未逐机验证。仅供调查，不授予安装、HOME、ADB、禁用或恢复权限。",
+      "validation": {
+        "install": "unverified",
+        "home": "unverified",
+        "localAdb": "unverified",
+        "disable": "unverified",
+        "restore": "unverified"
+      },
+      "os": "Google TV 14",
+      "sourceNotes": "Homwee store/help, Anoki ACR, Google TV recommendations; wireless-debugging pairing, setupwraith, deep-standby notes"
+    },
+    {
+      "model": "CHiQ AI PONT (DVB93CQ)",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/1fa7479ce38a439bbfd1de20a5e08f23e6de9e70/examples/chiq-ai-pont/debloat.txt",
+      "limitations": "上游社区报告；Quiet TV 尚未逐机验证。仅供调查，不授予安装、HOME、ADB、禁用或恢复权限。",
+      "validation": {
+        "install": "unverified",
+        "home": "unverified",
+        "localAdb": "unverified",
+        "disable": "unverified",
+        "restore": "unverified"
+      },
+      "os": "Android TV 11",
+      "sourceNotes": "Anoki ACR, FAST channels, AI PONT, Homwee services"
+    },
+    {
+      "model": "Chromecast with Google TV 4K (sabrina)",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/1fa7479ce38a439bbfd1de20a5e08f23e6de9e70/examples/google-chromecast-gtv-4k/debloat.txt",
+      "limitations": "上游社区报告；Quiet TV 尚未逐机验证。仅供调查，不授予安装、HOME、ADB、禁用或恢复权限。",
+      "validation": {
+        "install": "unverified",
+        "home": "unverified",
+        "localAdb": "unverified",
+        "disable": "unverified",
+        "restore": "unverified"
+      },
+      "os": "Google TV 14",
+      "sourceNotes": "Google telemetry and ad services, ambient mode, launcherx + setupwraith; wireless-debugging pairing, YouTube button remap"
+    },
+    {
+      "model": "Hisense SmartTV 4K FFM (huangshan, MediaTek)",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/1fa7479ce38a439bbfd1de20a5e08f23e6de9e70/examples/hisense-smarttv-4k-ffm/debloat.txt",
+      "limitations": "上游社区报告；Quiet TV 尚未逐机验证。仅供调查，不授予安装、HOME、ADB、禁用或恢复权限。",
+      "validation": {
+        "install": "unverified",
+        "home": "unverified",
+        "localAdb": "unverified",
+        "disable": "unverified",
+        "restore": "unverified"
+      },
+      "os": "Android TV 10",
+      "sourceNotes": "ACR (evservice), VIDAA preload, store/hotel mode, OTA; smartsense must stay enabled"
+    },
+    {
+      "model": "Insignia 55\" F30 4K Fire TV (NS-55F301NA25, AFTDCT31, duckie)",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/1fa7479ce38a439bbfd1de20a5e08f23e6de9e70/examples/insignia-ns55f301na25/debloat.txt",
+      "limitations": "上游社区报告；Quiet TV 尚未逐机验证。仅供调查，不授予安装、HOME、ADB、禁用或恢复权限。",
+      "validation": {
+        "install": "unverified",
+        "home": "unverified",
+        "localAdb": "unverified",
+        "disable": "unverified",
+        "restore": "unverified"
+      },
+      "os": "Fire OS 7 / Android 9",
+      "sourceNotes": "Amazon ACR telemetry, Fire TV ads/shopping, Alexa, OTA updates; AirPlay and TIF HDMI inputs kept"
+    },
+    {
+      "model": "NVIDIA SHIELD TV Pro 2019 (P2897, mdarcy)",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/1fa7479ce38a439bbfd1de20a5e08f23e6de9e70/examples/nvidia-shield-tv-pro-2019/debloat.txt",
+      "limitations": "上游社区报告；Quiet TV 尚未逐机验证。仅供调查，不授予安装、HOME、ADB、禁用或恢复权限。",
+      "validation": {
+        "install": "unverified",
+        "home": "unverified",
+        "localAdb": "unverified",
+        "disable": "unverified",
+        "restore": "unverified"
+      },
+      "os": "Android TV 11",
+      "sourceNotes": "NVIDIA telemetry, GameStream leftovers, sponsored rows, partner auto-installs"
+    },
+    {
+      "model": "OnePlus TV (D00, Dubai)",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/1fa7479ce38a439bbfd1de20a5e08f23e6de9e70/examples/oneplus-tv-dubai/debloat.txt",
+      "limitations": "上游社区报告；Quiet TV 尚未逐机验证。仅供调查，不授予安装、HOME、ADB、禁用或恢复权限。",
+      "validation": {
+        "install": "unverified",
+        "home": "unverified",
+        "localAdb": "unverified",
+        "disable": "unverified",
+        "restore": "unverified"
+      },
+      "os": "Google TV 14",
+      "sourceNotes": "HeyTap/OnePlus extras, OnePlus Connect, Smart Home"
+    },
+    {
+      "model": "Philips Smart 4K TV (Skyworth, eleonas, MediaTek), India",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/1fa7479ce38a439bbfd1de20a5e08f23e6de9e70/examples/philips-smart-4k-google-tv/debloat.txt",
+      "limitations": "上游社区报告；Quiet TV 尚未逐机验证。仅供调查，不授予安装、HOME、ADB、禁用或恢复权限。",
+      "validation": {
+        "install": "unverified",
+        "home": "unverified",
+        "localAdb": "unverified",
+        "disable": "unverified",
+        "restore": "unverified"
+      },
+      "os": "Google TV 14",
+      "sourceNotes": "Skyworth recommendations, after-sale/activation trackers, iCast; Chromecast, Assistant off by choice; wireless-debugging pairing, setupwraith"
+    },
+    {
+      "model": "RCA AI PONT SA (Changhong, redwood, ISDB92RC; also sold as realme 40-inch)",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/1fa7479ce38a439bbfd1de20a5e08f23e6de9e70/examples/rca-ai-pont/debloat.txt",
+      "limitations": "上游社区报告；Quiet TV 尚未逐机验证。仅供调查，不授予安装、HOME、ADB、禁用或恢复权限。",
+      "validation": {
+        "install": "unverified",
+        "home": "unverified",
+        "localAdb": "unverified",
+        "disable": "unverified",
+        "restore": "unverified"
+      },
+      "os": "Android 14",
+      "sourceNotes": "Homwee store and installers, Anoki ACR, FAST channels; 1 GB"
+    },
+    {
+      "model": "SANYO ATV R2 (SCBC, Realtek RTD285O)",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/1fa7479ce38a439bbfd1de20a5e08f23e6de9e70/examples/sanyo-atv-r2/debloat.txt",
+      "limitations": "上游社区报告；Quiet TV 尚未逐机验证。仅供调查，不授予安装、HOME、ADB、禁用或恢复权限。",
+      "validation": {
+        "install": "unverified",
+        "home": "unverified",
+        "localAdb": "unverified",
+        "disable": "unverified",
+        "restore": "unverified"
+      },
+      "os": "Android TV 9",
+      "sourceNotes": "S-Channels, E-SHOW demo, Vewd, TV Booster, SANYO OTA"
+    },
+    {
+      "model": "Sony BRAVIA 4K UR2 (BRAVIA_UR2_4K, MediaTek)",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/1fa7479ce38a439bbfd1de20a5e08f23e6de9e70/examples/sony-bravia-4k-ur2/debloat.txt",
+      "limitations": "上游社区报告；Quiet TV 尚未逐机验证。仅供调查，不授予安装、HOME、ADB、禁用或恢复权限。",
+      "validation": {
+        "install": "unverified",
+        "home": "unverified",
+        "localAdb": "unverified",
+        "disable": "unverified",
+        "restore": "unverified"
+      },
+      "os": "Android TV 10",
+      "sourceNotes": "Samba TV, Sony promos/Select, demo mode; Assistant, Chromecast, unused streaming apps off by choice"
+    },
+    {
+      "model": "Sony BRAVIA XBR-65X900E (2017, BRAVIA_ATV2)",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/1fa7479ce38a439bbfd1de20a5e08f23e6de9e70/examples/sony-xbr-x900e/debloat.txt",
+      "limitations": "上游社区报告；Quiet TV 尚未逐机验证。仅供调查，不授予安装、HOME、ADB、禁用或恢复权限。",
+      "validation": {
+        "install": "unverified",
+        "home": "unverified",
+        "localAdb": "unverified",
+        "disable": "unverified",
+        "restore": "unverified"
+      },
+      "os": "Android TV 9",
+      "sourceNotes": "Samba TV ACR, Sony Select, My BRAVIA promos, Discover, device agents; Chromecast, DLNA, mirroring off by choice"
+    },
+    {
+      "model": "Stellamore T950S projector (Droidlogic be30a3, Amlogic txhd2)",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/1fa7479ce38a439bbfd1de20a5e08f23e6de9e70/examples/stellamore-t950s/debloat.txt",
+      "limitations": "上游社区报告；Quiet TV 尚未逐机验证。仅供调查，不授予安装、HOME、ADB、禁用或恢复权限。",
+      "validation": {
+        "install": "unverified",
+        "home": "unverified",
+        "localAdb": "unverified",
+        "disable": "unverified",
+        "restore": "unverified"
+      },
+      "os": "Android 13",
+      "sourceNotes": "Zeasn App Store and stock launcher both bundle Google Ads (doubleclick); Zeasn device portal/OTA, Stellamore factory/test/guide; 1 GB; keystone correction must stay enabled"
+    },
+    {
+      "model": "TCL 65C725 (Smart TV Pro, BeyondTV4)",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/1fa7479ce38a439bbfd1de20a5e08f23e6de9e70/examples/tcl-65c725/debloat.txt",
+      "limitations": "上游社区报告；Quiet TV 尚未逐机验证。仅供调查，不授予安装、HOME、ADB、禁用或恢复权限。",
+      "validation": {
+        "install": "unverified",
+        "home": "unverified",
+        "localAdb": "unverified",
+        "disable": "unverified",
+        "restore": "unverified"
+      },
+      "os": "Android TV 11",
+      "sourceNotes": "TCL analytics/promos, Google recommendation rows; voice off, OTA off by choice"
+    },
+    {
+      "model": "TCL ak30a5 (China, Amlogic)",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/1fa7479ce38a439bbfd1de20a5e08f23e6de9e70/examples/tcl-ak30a5/debloat.txt",
+      "limitations": "上游社区报告；Quiet TV 尚未逐机验证。仅供调查，不授予安装、HOME、ADB、禁用或恢复权限。",
+      "validation": {
+        "install": "unverified",
+        "home": "unverified",
+        "localAdb": "unverified",
+        "disable": "unverified",
+        "restore": "unverified"
+      },
+      "os": "Android TV 9",
+      "sourceNotes": "No Google services, TCL boot ad + analytics, no TvInputManager, installs via USB only; debloat only, third-party launchers cannot be installed on this firmware"
+    },
+    {
+      "model": "TCL BeyondTV (India)",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/1fa7479ce38a439bbfd1de20a5e08f23e6de9e70/examples/tcl-beyondtv/debloat.txt",
+      "limitations": "上游社区报告；Quiet TV 尚未逐机验证。仅供调查，不授予安装、HOME、ADB、禁用或恢复权限。",
+      "validation": {
+        "install": "unverified",
+        "home": "unverified",
+        "localAdb": "unverified",
+        "disable": "unverified",
+        "restore": "unverified"
+      },
+      "os": "Android TV 9",
+      "sourceNotes": "TCL analytics, content feed, TCL app store, Google recommendation rows; Jio/Airtel/Hotstar apps untouched"
+    },
+    {
+      "model": "TCL Smart TV Pro (G05, G05_4K_US, MediaTek MT5889)",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/1fa7479ce38a439bbfd1de20a5e08f23e6de9e70/examples/tcl-g05-google-tv/debloat.txt",
+      "limitations": "上游社区报告；Quiet TV 尚未逐机验证。仅供调查，不授予安装、HOME、ADB、禁用或恢复权限。",
+      "validation": {
+        "install": "unverified",
+        "home": "unverified",
+        "localAdb": "unverified",
+        "disable": "unverified",
+        "restore": "unverified"
+      },
+      "os": "Google TV 11",
+      "sourceNotes": "TCL Channel, waterfall, ttvs BI, TGuard; Quick Panel off by choice; setupwraith returned after a reboot, launcher half unverified"
+    },
+    {
+      "model": "TCL 55\" 4K Google TV, 2023 (G10, G10_4K_US_NF)",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/1fa7479ce38a439bbfd1de20a5e08f23e6de9e70/examples/tcl-g10-google-tv/debloat.txt",
+      "limitations": "上游社区报告；Quiet TV 尚未逐机验证。仅供调查，不授予安装、HOME、ADB、禁用或恢复权限。",
+      "validation": {
+        "install": "unverified",
+        "home": "unverified",
+        "localAdb": "unverified",
+        "disable": "unverified",
+        "restore": "unverified"
+      },
+      "os": "Google TV 12",
+      "sourceNotes": "TCL TV+, TCL Live, store demo, smartlink installer"
+    },
+    {
+      "model": "TCL 55Q10G Pro (China, tcl_mt5879_cn, MediaTek MT9952)",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/1fa7479ce38a439bbfd1de20a5e08f23e6de9e70/examples/tcl-q10g-pro/debloat.txt",
+      "limitations": "上游社区报告；Quiet TV 尚未逐机验证。仅供调查，不授予安装、HOME、ADB、禁用或恢复权限。",
+      "validation": {
+        "install": "unverified",
+        "home": "unverified",
+        "localAdb": "unverified",
+        "disable": "unverified",
+        "restore": "unverified"
+      },
+      "os": "Android TV 11",
+      "sourceNotes": "No Google services, TCL boot ad + analytics/BI, OTA and account services; ADB opens from Device info + UP/DOWN/LEFT/RIGHT, not the build number; debloat only, stock launcher cannot be replaced (signature check at install time)"
+    },
+    {
+      "model": "TCL QM6K Pro, 2025 (G08, MediaTek tcl9618)",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/1fa7479ce38a439bbfd1de20a5e08f23e6de9e70/examples/tcl-qm6k-google-tv/debloat.txt",
+      "limitations": "上游社区报告；Quiet TV 尚未逐机验证。仅供调查，不授予安装、HOME、ADB、禁用或恢复权限。",
+      "validation": {
+        "install": "unverified",
+        "home": "unverified",
+        "localAdb": "unverified",
+        "disable": "unverified",
+        "restore": "unverified"
+      },
+      "os": "Google TV 14",
+      "sourceNotes": "Samba TV ACR (ttvs), TCL TV+, TCL Live, store/hotel demo; setupwraith must go for a custom launcher (also AU14, #23)"
+    },
+    {
+      "model": "Toshiba Fire TV (AFTHA004, hazel)",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/1fa7479ce38a439bbfd1de20a5e08f23e6de9e70/examples/toshiba-fire-tv-aftha004/debloat.txt",
+      "limitations": "上游社区报告；Quiet TV 尚未逐机验证。仅供调查，不授予安装、HOME、ADB、禁用或恢复权限。",
+      "validation": {
+        "install": "unverified",
+        "home": "unverified",
+        "localAdb": "unverified",
+        "disable": "unverified",
+        "restore": "unverified"
+      },
+      "os": "Fire OS 7 / Android 9",
+      "sourceNotes": "Amazon ACR, metrics, shopping, tutorials, Miracast sink; streaming preloads off by choice; debloat only"
+    },
+    {
+      "model": "XGIMI Horizon S Pro projector (XK03H, xgimigalileo, MediaTek)",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/1fa7479ce38a439bbfd1de20a5e08f23e6de9e70/examples/xgimi-horizon-s-pro/debloat.txt",
+      "limitations": "上游社区报告；Quiet TV 尚未逐机验证。仅供调查，不授予安装、HOME、ADB、禁用或恢复权限。",
+      "validation": {
+        "install": "unverified",
+        "home": "unverified",
+        "localAdb": "unverified",
+        "disable": "unverified",
+        "restore": "unverified"
+      },
+      "os": "Android TV 11",
+      "sourceNotes": "First projector: keystone/autofocus/HDMI player kept, factory and burn-in tools, bug-report uploader, Google preloads; HDMI needs `input_action`; voice, Chromecast off by choice"
+    },
+    {
+      "model": "Xiaomi Mi Box S (MIBOX4, oneday), streaming box",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/1fa7479ce38a439bbfd1de20a5e08f23e6de9e70/examples/xiaomi-mi-box-s/debloat.txt",
+      "limitations": "上游社区报告；Quiet TV 尚未逐机验证。仅供调查，不授予安装、HOME、ADB、禁用或恢复权限。",
+      "validation": {
+        "install": "unverified",
+        "home": "unverified",
+        "localAdb": "unverified",
+        "disable": "unverified",
+        "restore": "unverified"
+      },
+      "os": "Android TV 9",
+      "sourceNotes": "PatchWall, Mi analytics, Alphonso ad tracking, MiLink; voice, casting, phone remote off by choice"
+    },
+    {
+      "model": "Xiaomi Mi TV 4A (MiTV-MOOQ1)",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/1fa7479ce38a439bbfd1de20a5e08f23e6de9e70/examples/xiaomi-mi-tv-4a/debloat.txt",
+      "limitations": "上游社区报告；Quiet TV 尚未逐机验证。仅供调查，不授予安装、HOME、ADB、禁用或恢复权限。",
+      "validation": {
+        "install": "unverified",
+        "home": "unverified",
+        "localAdb": "unverified",
+        "disable": "unverified",
+        "restore": "unverified"
+      },
+      "os": "Android TV 10",
+      "sourceNotes": "PatchWall, Mi analytics, SmartShare, MiLink"
+    },
+    {
+      "model": "Xiaomi MiTV-AESP0 stick (aquaman, 1 GB)",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/1fa7479ce38a439bbfd1de20a5e08f23e6de9e70/examples/xiaomi-mitv-aesp0/debloat.txt",
+      "limitations": "上游社区报告；Quiet TV 尚未逐机验证。仅供调查，不授予安装、HOME、ADB、禁用或恢复权限。",
+      "validation": {
+        "install": "unverified",
+        "home": "unverified",
+        "localAdb": "unverified",
+        "disable": "unverified",
+        "restore": "unverified"
+      },
+      "os": "Android TV 9",
+      "sourceNotes": "No inputs; Home key sends ALL_APPS, needs `HOME_KEY_SERVICE=1`; Chromecast kept"
+    },
+    {
+      "model": "Xiaomi MiTV-AXSO0 (dangal; Mi TV 4C Pro 2019 / 4A Pro)",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/1fa7479ce38a439bbfd1de20a5e08f23e6de9e70/examples/xiaomi-mitv-axso0/debloat.txt",
+      "limitations": "上游社区报告；Quiet TV 尚未逐机验证。仅供调查，不授予安装、HOME、ADB、禁用或恢复权限。",
+      "validation": {
+        "install": "unverified",
+        "home": "unverified",
+        "localAdb": "unverified",
+        "disable": "unverified",
+        "restore": "unverified"
+      },
+      "os": "Android TV 9",
+      "sourceNotes": "PatchWall, Glance ads, Mi TV+, Sensara, Mi analytics, MiLink; voice, Chromecast, unused streaming apps off by choice"
+    },
+    {
+      "model": "Xiaomi Mi TV (MiTV-MOOQ0, croods)",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/1fa7479ce38a439bbfd1de20a5e08f23e6de9e70/examples/xiaomi-mitv-mooq0/debloat.txt",
+      "limitations": "上游社区报告；Quiet TV 尚未逐机验证。仅供调查，不授予安装、HOME、ADB、禁用或恢复权限。",
+      "validation": {
+        "install": "unverified",
+        "home": "unverified",
+        "localAdb": "unverified",
+        "disable": "unverified",
+        "restore": "unverified"
+      },
+      "os": "Android TV 10",
+      "sourceNotes": "PatchWall, Mi analytics, MiChannel, TV Manager, Alexa bridge; factory test app also claims HOME; notes from #81"
+    },
+    {
+      "model": "Xiaomi MiTV-MOOR2 (venom, MediaTek)",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/1fa7479ce38a439bbfd1de20a5e08f23e6de9e70/examples/xiaomi-mitv-moor2/debloat.txt",
+      "limitations": "上游社区报告；Quiet TV 尚未逐机验证。仅供调查，不授予安装、HOME、ADB、禁用或恢复权限。",
+      "validation": {
+        "install": "unverified",
+        "home": "unverified",
+        "localAdb": "unverified",
+        "disable": "unverified",
+        "restore": "unverified"
+      },
+      "os": "Google TV 11",
+      "sourceNotes": "Mi ad row and PatchWall, Mi analytics, MiLink, store demo; setup wizard off so a third-party launcher can own Home"
+    },
+    {
+      "model": "Xiaomi MiTV-MSSP3 (machuca, MediaTek)",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/1fa7479ce38a439bbfd1de20a5e08f23e6de9e70/examples/xiaomi-mitv-mssp3/debloat.txt",
+      "limitations": "上游社区报告；Quiet TV 尚未逐机验证。仅供调查，不授予安装、HOME、ADB、禁用或恢复权限。",
+      "validation": {
+        "install": "unverified",
+        "home": "unverified",
+        "localAdb": "unverified",
+        "disable": "unverified",
+        "restore": "unverified"
+      },
+      "os": "Android TV 11",
+      "sourceNotes": "PatchWall, Mi analytics, Netflix observer; Chromecast, screensavers, unused streaming apps off by choice"
+    },
+    {
+      "model": "Xiaomi TV A Pro 75\" 2026 (MiTV-MZTU0, river, MediaTek)",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/1fa7479ce38a439bbfd1de20a5e08f23e6de9e70/examples/xiaomi-tv-a-pro-2026/debloat.txt",
+      "limitations": "上游社区报告；Quiet TV 尚未逐机验证。仅供调查，不授予安装、HOME、ADB、禁用或恢复权限。",
+      "validation": {
+        "install": "unverified",
+        "home": "unverified",
+        "localAdb": "unverified",
+        "disable": "unverified",
+        "restore": "unverified"
+      },
+      "os": "Google TV 14",
+      "sourceNotes": "PatchWall/Mi Home tab, Mi analytics, TV Manager, updaters; setup wizard off, launcherx crash-loop notes"
+    }
+  ]
+}

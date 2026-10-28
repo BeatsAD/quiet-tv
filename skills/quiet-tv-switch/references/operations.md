@@ -27,7 +27,7 @@ adb -s "$TV_SERIAL" shell cmd package query-activities --brief --user "$TV_USER"
 adb -s "$TV_SERIAL" shell dumpsys package "$ORIGINAL_PACKAGE"
 ```
 
-有些固件仅在 `pm` 提供对应命令，选择帮助验证过的版本。包名／组件仅接受从该设备 HOME 列表取得的合法标识。若结果为 `android/...ResolverActivity`，这是系统选择器，不能记录成可恢复原桌面；向用户展示实际候选并核实原桌面。设置向导接管 HOME 时不要禁用设置向导。
+有些固件仅在 `pm` 提供对应命令，选择帮助验证过的版本。包名／组件仅接受从该设备 HOME 列表取得的合法标识。若结果为 `android/...ResolverActivity`，这是系统选择器，不能记录成可恢复原桌面；向用户展示实际候选并核实原桌面。系统未完成初始化时不得禁用设置向导；完成初始化后，仅按专项 Google 路线核实真实桌面和恢复基线，再处理实际观察到的 HOME 竞争组件。
 
 在原桌面包输出中找到目标 `User N` 的 `installed`、`hidden`、`suspended`、`enabled` 等字段和相关组件覆盖状态，保存原始值。包级 `enabled=0` 是默认设置，`enabled=1` 是显式启用，两者不能混同。原桌面无法核实、组件被覆盖禁用或功能耦合未知时，只继续不依赖它的查询和手动试用。
 
@@ -51,7 +51,7 @@ adb -s "$TV_SERIAL" shell am start --user "$TV_USER" -n home.quiet.tv/.HomeActiv
 
 用户仍使用原安装请求。先读实时 `latest.json` 的附件 `homeMode`，按当前安装形态、系统、ABI、签名和递增构建号选择已发布包。首次普通包被拒绝时优先使用 relay；已装 relay 只更新相同形态。缺少已发布 relay 时报告，不自动构建、改包或以普通包替代。
 
-使用项目源码的 `scripts/install_tcl.py`、`scripts/tcl_cast.py`；独立 skill 从[最新版索引](https://beatsad.github.io/quiet-tv/latest.json)的 `tools` 字段下载全部八项工具到同一私有目录并校验各自 SHA-256。规则及参数见[官方 Agent 安装说明](https://github.com/BeatsAD/quiet-tv/blob/main/docs/AGENT_INSTALL.zh-CN.md#tcl雷鸟安装受限候选方案)。读取失败时报告未取得工具，不假装执行。以 `--relay-apk`、`--relay-sha256` 传入同版本同签名候选，或直接为已装 relay 传入其更新包；默认预览，`--apply` 才执行。
+使用项目源码的 `scripts/install_tcl.py`、`scripts/tcl_cast.py`；独立 skill 从[最新版索引](https://beatsad.github.io/quiet-tv/latest.json)的 `tools` 字段下载全部十一项工具与规则到同一私有目录并校验各自 SHA-256。规则及参数见[官方 Agent 安装说明](https://github.com/BeatsAD/quiet-tv/blob/main/docs/AGENT_INSTALL.zh-CN.md#tcl雷鸟安装受限候选方案)。读取失败时报告未取得工具，不假装执行。以 `--relay-apk`、`--relay-sha256` 传入同版本同签名候选，或直接为已装 relay 传入其更新包；默认预览，`--apply` 才执行。
 
 relay 通过多屏互动推送，电视用户确认同意后安装；电脑只在环回提供该 APK，只清理本次创建的 ADB reverse。多屏不可用时转当贝／电视文件管理器；拒绝或结果不明时停止。安装后核对实际 APK，按用户已选目标继续；已明确选择接管时无需再询问，使用 `configure_home_guard.py` 完成首次授权。保留原 HOME，不接管屏保，按 AI 安装请求开启适用的 ADB 设置恢复并按实际支持的 TCL AppOps 放行自启动；未知固件仍须实体 HOME、重启及待机唤醒验证。
 
@@ -110,7 +110,7 @@ adb -s "$TV_SERIAL" shell pm enable --user "$TV_USER" "$ORIGINAL_PACKAGE"
 
 ## 统一安装及原始验收
 
-优先按官方 Agent 安装说明使用 `install_quiet_tv.py`。独立下载时从同次 `latest.json` 的 `tools` 取得并核验全部八项工具：安装入口、只读验收、TCL 安装、多屏推送、守护配置、开机桌面配置、设备维护和统一自检；仅下载一项不能运行。网页精简指令已明确要求最新适配版、自动接管和保持 ADB，统一入口默认 `takeover` 并开启适用设备的 ADB 恢复，接管目标包含必要守护授权，不反复询问。用户另行要求试用或仅更新时明确传 `--goal trial`／`--goal update`，保留已有桌面和 ADB 选择；安卓5及以上标准档按 APK 能力和实际权限恢复调试开关；旧 TCP 端口策略仍限定于已有小米／Redmi 路径，网络 ADB 需独立重启重连验收。
+优先按官方 Agent 安装说明使用 `install_quiet_tv.py`。独立下载时从同次 `latest.json` 的 `tools` 取得并核验全部十一项工具与规则：安装入口、只读验收、TCL 安装、多屏推送、守护配置、开机桌面配置、设备维护和统一自检；仅下载一项不能运行。网页精简指令已明确要求最新适配版、自动接管和保持 ADB，统一入口默认 `takeover` 并开启适用设备的 ADB 恢复，接管目标包含必要守护授权，不反复询问。用户另行要求试用或仅更新时明确传 `--goal trial`／`--goal update`，保留已有桌面和 ADB 选择；安卓5及以上标准档按 APK 能力和实际权限恢复调试开关；旧 TCP 端口策略仍限定于已有小米／Redmi 路径，网络 ADB 需独立重启重连验收。
 
 用户实际按实体 HOME 后，单独执行 `--verify-only --physical-home`，原样展示 HOME、无障碍配置及焦点查询的标准输出、标准错误和退出状态。此参数不代替实体按键或可见画面反馈。安装入口不重启、不注入 HOME；电源和 ADB 重连验收分别授权、分别报告。保留已有私有恢复记录，按记录恢复，不套用出厂默认值。
 
@@ -127,3 +127,5 @@ adb -s "$TV_SERIAL" shell pm enable --user "$TV_USER" "$ORIGINAL_PACKAGE"
 维护前完整读取[官方适配指南](https://raw.githubusercontent.com/BeatsAD/quiet-tv/main/docs/AGENT_ADAPT.zh-CN.md)。统一使用 `device_maintenance.py`，保留已选择的原生 HOME、中转或同签名代理；主动暂停后只有明确恢复请求才加 `--resume`。专项原桌面恢复只执行应用核验的历史记录，保留已选择的 ADB 保持。版本或状态改变则停止，不套用其他机器的恢复值。
 
 信号源配置使用 `input-list`、`profile-get`、`profile-set`、`profile-reset`，限定本机完整指纹与实际信号源 ID；修改后复测。`device_selftest.py` 默认只读，主动场景按授权加 `--home-tests`、`--inputs`、`--standby`、`--reboot` 和 `--apply`。每次新建私有记录目录，`--compare` 指向此前同机 report.json。调试设置、模拟按键、真实按键、实际网络重连和画面观察分开报告，未验证不写完成。
+
+机型规则已迁入电脑工具目录，专项接管、规则下发、TCL 策略、HOME 代理和旧记录恢复按[电脑 AI 适配规则与恢复](../../../docs/DEVICE_ADAPTATION.zh-CN.md)执行。先检查 APK 能力，再选有限路线；普通接管不默认禁用原桌面。

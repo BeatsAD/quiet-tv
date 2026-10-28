@@ -19,7 +19,7 @@ final class ComputerRestorePlan {
     }
     private void validate(JSONObject step,JSONObject record) throws Exception {
         String kind=step.getString("kind"),key=step.getString("key"),before=step.getString("before"),after=step.getString("after");
-        SetupPresets rules=SetupPresets.load(context);
+        SetupPresets rules=record.has("rules")?new SetupPresets(record.getJSONObject("rules").toString(),Build.BRAND,Build.MODEL,Build.FINGERPRINT):SetupPresets.legacy(context);
         if("package".equals(kind)){
             if(!Arrays.asList(HomeTakeoverPlan.GOOGLE,HomeTakeoverPlan.CLASSIC,HomeTakeoverPlan.SETUP).contains(key)
                     && !(rules.homeAllows("disableVerified") && rules.home().startsWith(key+"/") && rules.homeIdentityMatches(step.getLong("versionCode"),record.getInt("user"))))throw new IllegalStateException("原记录的包恢复资格不匹配");
@@ -57,6 +57,23 @@ final class ComputerRestorePlan {
         return new JSONObject().put("revision",DeviceInputProfile.digest(record.toString())).put("original",record.getString("original"))
             .put("steps",steps).put("retainedAdbSteps",retained).put("preserveAdb",preserveAdb);
     }
+    void save(String text,String revision) throws Exception {
+        if(text==null || text.length()>49152)throw new IllegalArgumentException("专项记录无效");
+        SetupStore store=new SetupStore(context);JSONObject before=store.get().optJSONObject("takeover");
+        if(!DeviceInputProfile.digest(before==null?"":before.toString()).equals(revision))throw new IllegalStateException("专项记录已变化");
+        JSONObject next=new JSONObject(text);String own=new ComponentName(context,HomeActivity.class).flattenToString();
+        if(next.getInt("user")!=android.os.Process.myUid()/100000 || !Build.FINGERPRINT.equals(next.getString("fingerprint")) || !own.equals(next.getString("target"))
+                || !next.getString("original").equals(store.originalHome()) || !java.util.Arrays.asList("running","applied","incomplete").contains(next.getString("state")))throw new IllegalStateException("专项记录范围无效");
+        JSONArray steps=next.getJSONArray("steps");if(steps.length()==0 || steps.length()>16)throw new IllegalStateException("专项记录步骤无效");
+        int homes=0;for(int i=0;i<steps.length();i++){JSONObject step=steps.getJSONObject(i);validate(step,next);if("home".equals(step.getString("kind")))homes++;}
+        if(homes!=1)throw new IllegalStateException("专项记录必须包含唯一 HOME");
+        if(before!=null && java.util.Arrays.asList("running","applied","incomplete").contains(before.optString("state"))){
+            JSONObject a=new JSONObject(before.toString()),b=new JSONObject(next.toString());
+            for(JSONObject r:new JSONObject[]{a,b}){r.remove("state");JSONArray list=r.getJSONArray("steps");for(int i=0;i<list.length();i++){list.getJSONObject(i).remove("attempted");list.getJSONObject(i).remove("verified");}}
+            if(!a.toString().equals(b.toString()))throw new IllegalStateException("不能覆盖已有恢复方案");
+        }
+        store.put("takeover",next);
+    }
     private JSONObject checked(String expected) throws Exception {
         JSONObject plan=plan();if(expected==null || !expected.equals(plan.getString("revision")))throw new IllegalStateException("专项恢复记录已变化");return plan;
     }
@@ -77,7 +94,7 @@ final class ComputerRestorePlan {
             JSONObject step=steps.getJSONObject(i);String kind=step.getString("kind"),target="home".equals(kind)?step.optString("restore",step.getString("before")):step.getString("before");
             if(!target.equals(proof.getString(Integer.toString(step.getInt("index")))))throw new IllegalStateException("电脑恢复读回证据不完整");
             String actual=target;
-            if("home".equals(kind)){HomeController.State state=new HomeController(context).inspect(null);actual=state.known?state.actual:"";}
+            if("home".equals(kind)){HomeController.State state=new HomeController(context).inspect();actual=state.known?state.actual:"";}
             else if("package".equals(kind))actual=Integer.toString(context.getPackageManager().getApplicationEnabledSetting(step.getString("key")));
             else if("permission".equals(kind))actual=HomeGuardRecovery.writeAllowed(context)?"granted":"denied";
             else if("preference".equals(kind))actual=Boolean.toString(HomeGuardAdb.enabled(context));

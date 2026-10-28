@@ -13,6 +13,7 @@ from urllib.request import Request, urlopen
 import zipfile
 import configure_home_guard as guard
 import configure_boot_home as boot
+import device_adaptation as adaptation
 import device_maintenance as maintenance
 import install_tcl as tcl
 from verify_install import HOME, collect, component, help_text, resolver
@@ -205,7 +206,12 @@ def run_install(args, adb, tools, journal):
     install_options = guard.user_options(pm_help, "install", sdk, args.user)
     print("计划：" + ("沿用相同 APK" if same else "保留数据安装") + "；目标=" + args.goal + "；ADB 设置恢复=" + str(keep_adb), flush=True)
     if not args.apply:
-        if same and metadata["home_mode"] == "standard" and args.goal == "takeover":
+        if getattr(args, "adaptation_route", None):
+            if same:
+                adaptation.prepare(adb, args.user, journal, args.adaptation_route)
+            else:
+                print("专项路线=" + args.adaptation_route + "；安装后仍须核对本机规则、原包版本及恢复能力，不匹配则停止。")
+        elif same and metadata["home_mode"] == "standard" and args.goal == "takeover":
             try:
                 boot.configure(adb, args.user, tools, apk_path, journal)
             except boot.NoNativeRoute as error:
@@ -275,17 +281,29 @@ def run_install(args, adb, tools, journal):
         journal.event("app_recovery_baseline", snapshot=baseline)
         if not baseline.get("originalHome"):
             print("应用内原桌面记录缺失，请保留历史电脑安装记录用于恢复。", flush=True)
+        if "adaptation-rules-v1" in baseline.get("capabilities", []):
+            adaptation.sync_rules(adb, args.user, journal, apply=True)
     else:
         print("旧 APK 无电脑维护接口；恢复依赖电脑记录，新功能需更新 APK。", flush=True)
     native = False
-    if metadata["home_mode"] == "standard":
+    route = getattr(args, "adaptation_route", None)
+    if route:
+        if metadata["home_mode"] != "standard" or sdk < 21:
+            raise ValueError("专项 HOME 路线需要安卓 5 及以上标准 HOME 包")
+        adaptation.prepare(adb, args.user, journal, route)
+        if keep_adb:
+            adaptation.keep_adb(adb, args.user, journal)
+        values = adaptation.prepare(adb, args.user, journal, route)
+        adaptation.apply_plan(adb, *values[:3], values[3], journal)
+        native = True
+    elif metadata["home_mode"] == "standard":
         try:
             boot.configure(adb, args.user, tools, actual_path, journal, apply=True)
             native = True
         except boot.NoNativeRoute as error:
             journal.event("boot_native_unavailable", error=str(error))
             print("标准开机 HOME 路线不可用：" + str(error) + "；继续已有兼容守护。", flush=True)
-    if not native or keep_adb:
+    if not native or keep_adb and not route:
         if sdk < 21:
             raise ValueError("Android 4.4 无兼容守护且默认 HOME 未确认，不能报告接管完成")
         guard_args = SimpleNamespace(serial=args.serial, user=args.user, package=tcl.PACKAGE,
@@ -305,6 +323,8 @@ def main():
     parser.add_argument("--user", type=int, required=True, help="已核对的前台用户")
     parser.add_argument("--adb", default="adb")
     parser.add_argument("--record", type=Path, required=True, help="全新私有记录目录，不覆盖历史基线")
+    parser.add_argument("--adaptation-route", choices=("verified", "google", "jm", "vidaa"),
+                        help="AI 核对影响后明确选择专项路线；默认仍优先普通 HOME 与兼容守护")
     parser.add_argument("--goal", choices=("trial", "takeover", "update"),
                         help="默认 takeover；只读验收默认 trial，仅更新或试用须明确指定")
     adb_choice = parser.add_mutually_exclusive_group()
@@ -325,6 +345,8 @@ def main():
         args.goal = "trial" if args.verify_only else "takeover"
     if args.keep_adb is None:
         args.keep_adb = args.goal == "takeover" and not args.verify_only
+    if args.adaptation_route and (args.goal != "takeover" or args.verify_only):
+        parser.error("专项路线仅用于明确的接管操作")
     if args.user < 0 or bool(args.apk) != bool(args.sha256) or args.sha256 and not re.fullmatch(r"[a-f0-9]{64}", args.sha256):
         parser.error("用户无效，或本地 APK 未同时提供完整 SHA-256")
     if args.keep_adb and args.goal != "takeover":
