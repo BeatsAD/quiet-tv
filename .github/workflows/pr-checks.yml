@@ -68,7 +68,10 @@ jobs:
       - name: Build and lint public Android source
         if: steps.scope.outputs.android == 'true'
         run: ./gradlew :app:assembleDebug :app:lintDebug --console=plain
-      - name: Build and lint Android 4.4 compatibility source
+      - name: Build and lint Android 4.0–4.4 compatibility source
+        if: steps.scope.outputs.android == 'true'
+        run: ./gradlew :app:assembleDebug :app:lintDebug -PquietCompatibility=legacy14 -PquietBuildRoot="$PWD/output/ci-legacy14" --console=plain
+      - name: Build and lint historical Android 4.4 compatibility source
         if: steps.scope.outputs.android == 'true'
         run: ./gradlew :app:assembleDebug :app:lintDebug -PquietCompatibility=legacy19 -PquietBuildRoot="$PWD/output/ci-legacy19" --console=plain
       - name: Build and lint optional HOME proxy and relay launcher

@@ -13,7 +13,7 @@ TCL 等受限固件可另行交付主程序 relay 实验档，复用公共代码
 
 **实施状态：主程序归档脚本已适配版本号与数字构建号、完整中文系统标签、实际单架构标记及“测试版／实验版”状态。归档名与 JSON 的 `public_apk` 均遵循本次命名规则，通用架构或不含原生库时省略架构标记。实际版本、签名、同名 SHA-256 文件及已登记 worktree 的构建号检查保留。助手及正式版流程仍需单独验证。**
 
-**分包实施状态：1.3.0 已无原生库，使用 `--batch --universal-only` 构建标准通用包和安卓4.4包。存在原生库架构差异时，使用 `--batch` 构建标准 ARM32、ARM64、通用及安卓4.4四包。两种模式均固定源码并核对版本、签名、生产输入和递增构建号；四包模式另核对各架构原生库完整性。最终 APK 的功能、升级保留和厂商真机验收仍须单独记录，批次清单不代表设备验收。**
+**分包实施状态：当前开发源码无原生库，使用 `--batch --universal-only` 构建标准通用包和安卓4.0至4.4包。存在原生库架构差异时，使用 `--batch` 构建标准 ARM32、ARM64、通用及一个安卓4.0至4.4包。两种模式均固定源码并核对版本、签名、生产输入和递增构建号；四包模式另核对各架构原生库完整性。最终 APK 的功能、升级保留和厂商真机验收仍须单独记录，批次清单不代表设备验收。**
 
 ## 命名与签名
 
@@ -23,7 +23,7 @@ TCL 等受限固件可另行交付主程序 relay 实验档，复用公共代码
 QuietTV_<版本号>-<构建号>_<适用系统>[_<单架构标记>]_<发布状态>.apk
 ```
 
-方括号表示可选字段，不写入实际名称。固定使用 `QuietTV` 前缀及下划线分隔，文件名保留与 APK 实际 `versionCode` 一致的递增构建号，不加日期、提交哈希或“最新”。`standard`、`legacy19`、`api21`、`benchmark` 等技术字段写入归档记录。历史包、附件和下载链接不追溯改名。
+方括号表示可选字段，不写入实际名称。固定使用 `QuietTV` 前缀及下划线分隔，文件名保留与 APK 实际 `versionCode` 一致的递增构建号，不加日期、提交哈希或“最新”。`standard`、`legacy14`、`legacy19`、`api21`、`benchmark` 等技术字段写入归档记录。历史包、附件和下载链接不追溯改名。
 
 ### 版本号与构建号
 
@@ -32,13 +32,14 @@ QuietTV_<版本号>-<构建号>_<适用系统>[_<单架构标记>]_<发布状态
 - 构建号与实际 APK 的 `versionCode` 一致，只使用不带前导零的正整数，例如 `31`，不使用 `b31`、`Build31`、`RC31`。
 - 主程序各系统档位、架构和构建类型共用递增交付序列；交付不同内容的新包时分配新号，不回退、复用或因版本变化归零。日常编译不必每次加号，同一归档原字节重发不分配新号。
 - 交付前核对源码配置、历史归档和远程发布中的已用号。文件名中的软件版本及构建号、APK 内部版本和归档记录必须对应，不能通过改名冒充新版本；安装时核对 APK 内部构建号。
-- 主程序版本配置在 `app/build.gradle`，当前开发版本为 `1.3.0`（测试版已发布，标准通用包117、安卓4.4包118），默认开发构建号仍为 `105`，不作为新包交付号；下次交付先核对所有已用号，再用 Gradle 参数 `quietBuildNumber` 分别指定递增构建号。1.1.2 已发布：标准档为 `1.1.2 / 34`，兼容档为 `1.1.2 / 35`，历史附件保持原样。standard 与 legacy19 均为 targetSdk36；本页示例不预占构建号。助手版本独立配置在 `coocaa-home-shim/build.gradle` 和 `xiaomi-home-helper/build.gradle`。
+- 主程序版本配置在 `app/build.gradle`，当前开发版本为 `1.3.0`（测试版已发布，标准通用包117、安卓4.4包118），默认开发构建号仍为 `105`，不作为新包交付号；下次交付先核对所有已用号，再用 Gradle 参数 `quietBuildNumber` 分别指定递增构建号。1.1.2 已发布：标准档为 `1.1.2 / 34`，兼容档为 `1.1.2 / 35`，历史附件保持原样。standard、legacy14 与 legacy19 均为 targetSdk36；本页示例不预占构建号。助手版本独立配置在 `coocaa-home-shim/build.gradle` 和 `xiaomi-home-helper/build.gradle`。
 
 ### 安卓档位与架构
 
 | 文件名中的适用系统 | 构建对应关系 | 选择范围 |
 | --- | --- | --- |
-| `安卓4.4` | `legacy19`，minSdk19，`home.quiet.tv` | 安卓4.4兼容包，功能有所裁减 |
+| `安卓4.0至4.4` | `legacy14`，minSdk14，`home.quiet.tv` | 当前开发兼容包，旧系统实际运行验收延期 |
+| `安卓4.4` | `legacy19`，minSdk19，`home.quiet.tv` | 历史兼容档位，保留构建与升级回归 |
 | `安卓5及以上` | `standard`，minSdk21，`home.quiet.tv` | 安卓5.0及以上优先选择的标准包 |
 | `酷开安卓8` | 专用包名 `com.coocaa.quiettv`，minSdk26 | 已确认适配条件的固件专项验证，不按品牌推定兼容 |
 | `酷开安卓5+` | 专用包名 `com.coocaa.quiettv`，standard，minSdk21 | 源码允许构建，跳板与守护按本机能力配置，真机待验收 |
@@ -111,9 +112,9 @@ QuietTV助手_2.0.1-12_酷开安卓8配套酷开桌面_实验版.apk
 python3 scripts/build_apk.py --build-number "$STANDARD_BUILD_NUMBER" --variant benchmark --summary "说明本次更新内容"
 ```
 
-脚本按实际版本及传入构建号输出本地归档 APK、同名 `.apk.sha256`、归档 JSON 及优化映射文件，并在 JSON 的 `public_apk` 记录公开名；不会额外生成公开名副本或自动上传。兼容包增加 `--compatibility legacy19`。已发布的 1.1.2 本地归档为 `QuietTV_1.1.2-34_安卓5及以上_测试版.apk` 与 `QuietTV_1.1.2-35_安卓4.4_测试版.apk`，仅原字节重发可复用这两个编号。
+脚本按实际版本及传入构建号输出本地归档 APK、同名 `.apk.sha256`、归档 JSON 及优化映射文件，并在 JSON 的 `public_apk` 记录公开名；不会额外生成公开名副本或自动上传。当前兼容包增加 `--compatibility legacy14`；历史 API19 回归可用 `legacy19`。已发布的 1.1.2 本地归档为 `QuietTV_1.1.2-34_安卓5及以上_测试版.apk` 与 `QuietTV_1.1.2-35_安卓4.4_测试版.apk`，仅原字节重发可复用这两个编号。
 
-现有参数包括 `--variant benchmark`、`--abi armeabi-v7a`、`--min-sdk 21`（默认）、`23`、`26`、`31`。`--compatibility legacy19` 固定使用 API19，标准档不接受 API19。酷开专用桌面及各中转助手暂按各自说明构建，尚未接入统一归档；交付前须完成对应命名及元数据核验，不将当前脚本描述为已支持所有类别。
+现有参数包括 `--variant benchmark`、`--abi armeabi-v7a`、`--min-sdk 21`（默认）、`23`、`26`、`31`。`--compatibility legacy14` 固定 API14，历史 `legacy19` 固定 API19；标准档不接受 API14或19。酷开专用桌面及各中转助手暂按各自说明构建，尚未接入统一归档；交付前须完成对应命名及元数据核验，不将当前脚本描述为已支持所有类别。
 
 后续交付必须满足：
 
@@ -134,9 +135,9 @@ python3 scripts/build_apk.py --batch --build-number "$FIRST_BUILD_NUMBER" --vari
 python3 scripts/build_apk.py --batch --universal-only --build-number "$FIRST_BUILD_NUMBER" --variant benchmark --summary "说明本次更新内容"
 ```
 
-两包模式依次构建标准通用包、安卓4.4包，分配两个递增构建号，并强制检查两个 APK 均无原生库。若重新引入原生库，改用原四包模式。113–116 已用于本地构建核对并保留记录，1.3.0 测试版两包已使用 117–118 发布；获批暂缓的真机验收项仍未完成，范围以归档材料为准。
+当前两包模式依次构建标准通用包、安卓4.0至4.4包，分配两个递增构建号，并强制检查两个 APK 均无原生库。若重新引入原生库，改用原四包模式。113–116 已用于本地构建核对并保留记录，1.3.0 测试版两包已使用 117–118 发布；获批暂缓的真机验收项仍未完成，范围以归档材料为准。
 
-原四包模式依次分配 ARM32、ARM64、通用及安卓4.4四个构建号；除每包归档外生成 `QuietTV_<版本号>-<起始号>-<末尾号>_batch.json`，记录共同源码、签名、各包元数据及原生库 SHA-256。构建失败时保留已归档包及占用号，不自动清理、覆盖或复用。
+当前四包模式依次为标准 ARM32、ARM64、通用及安卓4.0至4.4包分配构建号；除每包归档外生成 `QuietTV_<版本号>-<起始号>-<末尾号>_batch.json`，记录共同源码、签名、各包元数据及原生库 SHA-256。构建失败时保留已归档包及占用号，不自动清理、覆盖或复用。
 
 主程序脚本核对实际包名、版本、最低及目标 API、签名、架构、生产输入指纹与不可覆盖归档，检查所有已登记 worktree 的归档构建号；不自动联网查询远程 Release 或扫描未登记目录，交付者仍须补齐这两项核对。助手配套归档和正式签名流程另行验证。
 
@@ -184,11 +185,11 @@ Published 1.1.2 provides standard build 34 (minSdk21) and legacy19 build 35 (min
 
 Future downloads and local immutable archives use `QuietTV_<version>-<numeric build>_<system>[_<single ABI>]_<status>.apk`; `public_apk` records the same name. The script does not upload APKs. Version and internal build must match the actual APK. Build numbers are positive integers without prefixes or leading zeros and increase across all main-app delivery variants. Changed content delivered after a published batch requires a new software version; never replace different bytes under the same public filename. Re-sending identical archived bytes does not allocate a new number. The helper uses `QuietTV助手`, its own version/build sequence, and an explicit target launcher; its filename retains the actual build number.
 
-System labels are `安卓4.4` (legacy19, API19), `安卓5及以上` (standard, API21), and `酷开安卓8` (experimental vendor package, API26). Other minimum APIs require matching labels. Omit the architecture marker for multi-ABI and native-library-free APKs. Use ARM32, ARM64, x86 or x86_64 only for actual single-ABI builds. Universal architecture does not imply compatibility with every OS or TV. Status is `测试版` (test), `实验版` (experimental), or `正式版` (formally signed release with agreed acceptance completed). If GitHub needs English download names, use the approved system/architecture/status mapping (for example, Android5plus and Test) with the actual build number, with the Chinese name as the display label; verify actual download names and bytes before upload.
+System labels include `安卓4.0至4.4` (legacy14, API14, local development with device checks deferred), historical `安卓4.4` (legacy19, API19), `安卓5及以上` (standard, API21), and `酷开安卓8` (experimental vendor package, API26). Other minimum APIs require matching labels. Omit the architecture marker for multi-ABI and native-library-free APKs. Use ARM32, ARM64, x86 or x86_64 only for actual single-ABI builds. Universal architecture does not imply compatibility with every OS or TV. Status is `测试版` (test), `实验版` (experimental), or `正式版` (formally signed release with agreed acceptance completed). If GitHub needs English download names, use the approved system/architecture/status mapping (for example, Android5plus and Test) with the actual build number, with the Chinese name as the display label; verify actual download names and bytes before upload.
 
-When native libraries require ABI-specific packages, standard deliveries provide three standalone APKs: ARM32, ARM64 and a universal fallback containing all four native-library ABIs. Each device installs one APK. All three share the source commit, production inputs, software version, feature configuration and signing certificate; assign increasing build numbers in ARM32, ARM64, universal order. Keep one legacy19 APK while it has no native-library or actual ABI differences; determine the Coocaa package set per delivery. Select by the ABIs supported by the operating system, and use the universal fallback when uncertain. In-place switches still require a higher build number; do not uninstall, clear data or force a downgrade to switch to a lower-numbered package.
+When native libraries require ABI-specific packages, standard deliveries provide three standalone APKs: ARM32, ARM64 and a universal fallback containing all four native-library ABIs. Each device installs one APK. All three share the source commit, production inputs, software version, feature configuration and signing certificate; assign increasing build numbers in ARM32, ARM64, universal order. Keep one legacy14 APK while it has no native-library or actual ABI differences; determine the Coocaa package set per delivery. Select by the ABIs supported by the operating system, and use the universal fallback when uncertain. In-place switches still require a higher build number; do not uninstall, clear data or force a downgrade to switch to a lower-numbered package.
 
-For 1.3.0, both profiles have no native libraries: use `--batch --universal-only` for one standard universal APK and one legacy19 APK. This mode rejects any native libraries. The script also supports a fixed-source four-APK batch with `--batch`, including complete native-library checks and batch receipts. Without `--batch`, each invocation builds one standalone APK. Functional, upgrade-data and physical-device acceptance remain separate requirements.
+Current development profiles have no native libraries: use `--batch --universal-only` for one standard universal APK and one legacy14 APK. Published 1.3.0 builds 117/118 retain their original standard/legacy19 profiles; the new legacy14 package is not published. This mode rejects any native libraries. The script also supports a fixed-source four-APK batch with `--batch`, including complete native-library checks and batch receipts. Without `--batch`, each invocation builds one standalone APK. Functional, upgrade-data and physical-device acceptance remain separate requirements.
 
 **The main-app build script implements the naming above, matching checksums, actual APK metadata validation and build-number checks across registered local worktree archives.** Remote releases, unregistered archives, helpers and formal-release acceptance require separate checks. Preserve historical files, checksums, tags and links. Archives require matching checksum and metadata records, including the actual package, SDKs, ABI, signing identity, source and acceptance scope. Same-name/different-byte replacement is forbidden.
 

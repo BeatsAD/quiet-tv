@@ -27,7 +27,7 @@ final class DesktopWeatherPanel {
     private boolean active;
     private WeatherData snapshot;
     DesktopWeatherPanel(DesktopSettingsActivity ui){
-        this.ui=ui;store=new WeatherStore(ui);sources=new WeatherClient(ui);controller=new WeatherController(ui,ui.chinese(),this::render);cityPicker=new WeatherCityPicker(ui,store,controller::settingsChanged);view=new ScrollView(ui);view.setFocusable(false);view.setVerticalScrollBarEnabled(false);LinearLayout body=ui.column();view.addView(body);body.addView(ui.section(tr("位置与更新","Location and updates")));
+        this.ui=ui;store=new WeatherStore(ui);sources=new WeatherClient(ui);controller=new WeatherController(ui,ui.chinese(),this::render);cityPicker=new WeatherCityPicker(ui,store,controller::settingsChanged);view=new ScrollView(ui);view.setFocusable(false);view.setVerticalScrollBarEnabled(false);LinearLayout body=ui.column();view.addView(body);body.addView(ui.section(tr("位置与更新","Location and updates")));ui.gap(body,8);
         LinearLayout group=ui.group();body.addView(group);
         automatic=ui.setting(tr("自动定位","Automatic location"),"locate","automatic");automatic.checked(store.automatic());automatic.setOnClickListener(v->toggleAutomatic());ui.addSetting(group,automatic);
         city=ui.setting(tr("选择城市","Choose city"),"pin","city");city.tail("arrow");city.setOnClickListener(v->chooseCity());ui.addSetting(group,city);

@@ -69,8 +69,8 @@ public final class DesktopSettingsActivity extends ManagementUi implements Share
     private void makeDesktop(){
         desktop=row();desktop.setGravity(Gravity.TOP);content.addView(desktop,new FrameLayout.LayoutParams(-1,-1));
         desktopScroll=new ScrollView(this);desktopScroll.setFocusable(false);desktopScroll.setVerticalScrollBarEnabled(false);desktop.addView(desktopScroll,new LinearLayout.LayoutParams(px(298),-1));
-        LinearLayout controls=column();controls.setPadding(px(1),px(1),px(3),px(2));desktopScroll.addView(controls,new ScrollView.LayoutParams(-1,-2));
-        controls.addView(desktopLabel(tr("布局方式","Layout")));LinearLayout layouts=row();controls.addView(layouts,new LinearLayout.LayoutParams(-1,px(38)));
+        LinearLayout controls=column();controls.setPadding(0,0,px(3),px(2));desktopScroll.addView(controls,new ScrollView.LayoutParams(-1,-2));
+        controls.addView(section(tr("布局方式","Layout")));gap(controls,8);LinearLayout layouts=row();controls.addView(layouts,new LinearLayout.LayoutParams(-1,px(38)));
         classic=layoutChoice(layouts,tr("经典布局","Classic"),"classic");gallery=layoutChoice(layouts,tr("艺术画廊","Gallery"),"gallery");
         gap(controls,16);controls.addView(desktopLabel(tr("首页信息","Home information")));
         LinearLayout first=row();controls.addView(first,new LinearLayout.LayoutParams(-1,px(38)));choice(first,"greeting",tr("问候语","Greeting"));choice(first,"time",tr("时间","Time"));choice(first,"app-title",tr("应用标题","App title"));
@@ -80,8 +80,8 @@ public final class DesktopSettingsActivity extends ManagementUi implements Share
         gap(controls,16);controls.addView(desktopLabel(tr("首页应用","Home apps")));LinearLayout homeApps=row();controls.addView(homeApps,new LinearLayout.LayoutParams(-1,px(38)));choice(homeApps,"home-apps",tr("首屏应用","Home apps"));choice(homeApps,"dock-background",tr("Dock 背景","Dock background"));
         gap(controls,16);controls.addView(desktopLabel(tr("第二屏应用","Second-screen apps")));LinearLayout allApps=row();controls.addView(allApps,new LinearLayout.LayoutParams(-1,px(38)));choice(allApps,"all-apps-names",tr("应用名称","App names"));
         gap(controls,16);controls.addView(desktopLabel(tr("快捷按钮","Quick buttons")));LinearLayout shortcuts=row();controls.addView(shortcuts,new LinearLayout.LayoutParams(-1,px(38)));choice(shortcuts,"input",tr("信号源","Inputs"));choice(shortcuts,"network",tr("网络","Network"));choice(shortcuts,"settings",tr("设置","Settings"));
-        LinearLayout right=column();right.setGravity(Gravity.TOP);right.setPadding(0,px(1),0,0);LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(0,-1,1);rp.leftMargin=px(24);desktop.addView(right,rp);
-        right.addView(desktopLabel(tr("首页实时预览","Live Home preview")));gap(right,8);
+        LinearLayout right=column();right.setGravity(Gravity.TOP);LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(0,-1,1);rp.leftMargin=px(24);desktop.addView(right,rp);
+        right.addView(section(tr("首页实时预览","Live Home preview")));gap(right,8);
         preview=new HomePreviewView(this,chinese,fixedGreeting);preview.setBackgroundDrawable(surface(0xff0e0f13,0xff0e0f13,0x26ffffff,10));UiCompat.clipOutline(preview);right.addView(preview,new LinearLayout.LayoutParams(-1,-2));
         wireDesktop();refreshControls();
     }
@@ -130,7 +130,7 @@ public final class DesktopSettingsActivity extends ManagementUi implements Share
     private void focusContent(){String tag=focusTags.get(selectedSection);View target=tag==null?null:content.findViewWithTag(tag);if(target==null||!target.isShown()||!target.isEnabled())target="weather".equals(selectedSection)?weather.firstRow():classic;target.requestFocus();}
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);select(intent.getStringExtra(SECTION),true);}
     void wireRows(DesktopSettingsRow[] rows,View tab){for(int i=0;i<rows.length;i++){DesktopSettingsRow r=rows[i];r.setNextFocusUpId(i==0?tab.getId():rows[i-1].getId());r.setNextFocusDownId(rows[Math.min(rows.length-1,i+1)].getId());r.setNextFocusLeftId(r.getId());r.setNextFocusRightId(r.getId());}}
-    TextView section(String name){TextView label=muted(name,13);label.setLayoutParams(new LinearLayout.LayoutParams(-1,px(30)));return label;}
+    TextView section(String name){TextView label=muted(name,13);label.setLayoutParams(new LinearLayout.LayoutParams(-1,px(38)));return label;}
     LinearLayout group(){return listGroup();}
     DesktopSettingsRow setting(String label,String icon,String tag){DesktopSettingsRow r=new DesktopSettingsRow(this,label,icon,false);r.setTag(tag);return r;}
     void addSetting(LinearLayout group,DesktopSettingsRow row){group.addView(row,new LinearLayout.LayoutParams(-1,px(60)));}
