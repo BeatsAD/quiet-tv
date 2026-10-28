@@ -13,6 +13,7 @@ from urllib.request import Request, urlopen
 import zipfile
 import configure_home_guard as guard
 import configure_boot_home as boot
+import device_maintenance as maintenance
 import install_tcl as tcl
 from verify_install import HOME, collect, component, help_text, resolver
 
@@ -121,7 +122,10 @@ class RecordedAdb(guard.ComputerAdb):
         try:
             return super().shell(*arguments)
         except (ValueError, OSError, subprocess.TimeoutExpired) as error:
-            self.failed(("shell", shlex.join([str(value) for value in arguments])), error)
+            if maintenance.is_help_result(arguments, error):
+                self.journal.event("help_result", command=list(arguments), exit=error.exit, output=error.output)
+            else:
+                self.failed(("shell", shlex.join([str(value) for value in arguments])), error)
             raise
 
     def failed(self, arguments, error):
@@ -190,10 +194,10 @@ def run_install(args, adb, tools, journal):
     journal.event("apk_verified", apk=metadata)
     vendor = (device["ro.product.brand"] + " " + device["ro.product.manufacturer"]).lower().split()
     is_tcl = bool(set(vendor).intersection(("tcl", "ffalcon", "iffalcon")))
-    keep_adb = args.keep_adb and sdk >= 21 and bool(set(vendor).intersection(("xiaomi", "redmi")))
+    keep_adb = args.keep_adb and sdk >= 21
     if args.keep_adb and not keep_adb:
         journal.event("keep_adb_unsupported")
-        print("保持 ADB：当前系统或品牌未支持，继续独立的安装／桌面配置，不宣称已开启。", flush=True)
+        print("保持 ADB：当前档位未支持；独立安装／HOME 步骤继续，整体常开目标仍未完成。", flush=True)
     if args.goal == "takeover":
         if not original or "ResolverActivity" in original or not tcl.usable(tcl.user_state(stock_dump, args.user)):
             raise ValueError("原桌面或恢复基线未确认；请先确认原主页，未执行安装及接管")
@@ -262,6 +266,17 @@ def run_install(args, adb, tools, journal):
             raise ValueError("安装／启动后 HOME 与原配置不同，结果需核对；未重新配置或自动恢复")
         print("安装核验完成，未主动配置 HOME 或守护；原 HOME 读回" + ("一致。" if original and after_home else "未确认。"), flush=True)
         return
+    installed_dump = adb.shell("dumpsys", "package", tcl.PACKAGE)
+    if "DeviceMaintenanceReceiver" in installed_dump:
+        baseline = maintenance.inspect(adb, tcl.PACKAGE, args.user)
+        if not baseline.get("originalHome") and original != HOME:
+            unchanged_user(adb, args.user)
+            baseline = maintenance.remember_home(adb, tcl.PACKAGE, args.user, original)
+        journal.event("app_recovery_baseline", snapshot=baseline)
+        if not baseline.get("originalHome"):
+            print("应用内原桌面记录缺失，请保留历史电脑安装记录用于恢复。", flush=True)
+    else:
+        print("旧 APK 无电脑维护接口；恢复依赖电脑记录，新功能需更新 APK。", flush=True)
     native = False
     if metadata["home_mode"] == "standard":
         try:
@@ -274,11 +289,13 @@ def run_install(args, adb, tools, journal):
         if sdk < 21:
             raise ValueError("Android 4.4 无兼容守护且默认 HOME 未确认，不能报告接管完成")
         guard_args = SimpleNamespace(serial=args.serial, user=args.user, package=tcl.PACKAGE,
-            adb=args.adb, apply=True, pause=False, direct_home=False,
-            home=original if original != HOME else None, keep_adb=True if keep_adb else None,
+            adb=args.adb, apply=True, pause=False, direct_home=False, adb_only=native,
+            home=original if not native and original != HOME else None, keep_adb=True if keep_adb else None,
             record=journal.directory / "guard-before.json")
         guard.configure(guard_args, adb)
     journal.event("desktop_configured", route="native" if native else "guard", keep_adb_requested=keep_adb)
+    if args.keep_adb and not keep_adb:
+        raise ValueError("安装／桌面步骤已执行，但当前档位不支持 ADB 保持，未满足重启常开目标")
     print("桌面配置已执行；实体 HOME、开机、唤醒和 ADB 重连等待分别验收。", flush=True)
 
 

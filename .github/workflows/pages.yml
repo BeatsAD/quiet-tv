@@ -6,6 +6,7 @@ on:
     paths:
       - prototypes/install-guide/**
       - docs/AGENT_INSTALL.zh-CN.md
+      - docs/AGENT_ADAPT.zh-CN.md
       - scripts/build_install_guide.py
       - scripts/install_quiet_tv.py
       - scripts/verify_install.py
@@ -13,6 +14,8 @@ on:
       - scripts/tcl_cast.py
       - scripts/configure_home_guard.py
       - scripts/configure_boot_home.py
+      - scripts/device_maintenance.py
+      - scripts/device_selftest.py
       - updates/updates.json
       - .github/workflows/pages.yml
   release:

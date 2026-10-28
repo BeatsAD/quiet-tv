@@ -13,6 +13,7 @@
     <uses-permission android:name="android.permission.READ_TV_LISTINGS" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.READ_SYNC_SETTINGS" />
     <uses-permission android:name="android.permission.WRITE_SYNC_SETTINGS" />
@@ -49,7 +50,7 @@
         <activity android:name=".DockEditorActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".HomeSortActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".DesktopSettingsActivity" android:exported="false" android:screenOrientation="landscape" />
-        <activity android:name=".HomeGuardActivity" android:exported="false" android:enabled="${homeGuardAvailable}" android:screenOrientation="landscape" />
+        <activity android:name=".HomeGuardActivity" android:enabled="false" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".HomeProxyEntryActivity" android:exported="true" android:enabled="${homeGuardAvailable}"
             android:launchMode="singleTask" android:taskAffinity="${applicationId}.proxyEntry"
             android:permission="${applicationId}.permission.HOME_PROXY" android:noHistory="true"
@@ -81,6 +82,11 @@
             <intent-filter><action android:name="android.accounts.AccountAuthenticator" /></intent-filter>
             <meta-data android:name="android.accounts.AccountAuthenticator" android:resource="@xml/home_guard_account" />
         </service>
+        <activity android:name=".MaintenanceHelpActivity" android:exported="false" android:screenOrientation="landscape" />
+        <receiver android:name=".DeviceMaintenanceReceiver" android:exported="true"
+            android:permission="android.permission.WRITE_SECURE_SETTINGS">
+            <intent-filter><action android:name="${applicationId}.DEVICE_MAINTENANCE" /></intent-filter>
+        </receiver>
         <!-- The ADB shell can configure grants without the app's independent ADB client. -->
         <receiver android:name=".HomeGuardSetupReceiver" android:exported="true" android:enabled="${homeGuardAvailable}"
             android:permission="android.permission.WRITE_SECURE_SETTINGS">
@@ -104,8 +110,8 @@
             <meta-data android:name="android.accessibilityservice" android:resource="@xml/child_usage" />
         </service>
         <activity android:name=".AppManagementActivity" android:exported="false" android:screenOrientation="landscape" />
-        <activity android:name=".BootAdActivity" android:exported="false" android:screenOrientation="landscape" />
-        <activity android:name=".SetupActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".BootAdActivity" android:enabled="false" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".SetupActivity" android:enabled="false" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".HomeActivity" android:theme="@style/HomeTheme" android:exported="true" android:directBootAware="true" android:launchMode="singleTask" android:excludeFromRecents="true" android:screenOrientation="landscape">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

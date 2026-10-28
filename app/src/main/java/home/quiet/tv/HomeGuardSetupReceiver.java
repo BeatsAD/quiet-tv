@@ -24,19 +24,32 @@ public final class HomeGuardSetupReceiver extends BroadcastReceiver {
                     .put("directHomeAvailable",state.directHomeAvailable()).put("directHomeConfigured",state.directHomeConfigured())
                     .put("usageRequired",HomeGuardService.usageRequired(context)).put("accessibilityAllowed",state.serviceEnabled())
                     .put("accessibilityBound",HomeGuardService.connected()).put("physicalHomeVerified",false)
+                    .put("adbOnlySupported",true).put("adb",HomeGuardAdb.snapshot(context))
                     .put("adbPortSupported",HomeGuardAdb.portSupported(context)).put("adbPort",HomeGuardAdb.port(context)).toString());
                 setResultCode(Activity.RESULT_OK);return;
             }
             if(!state.supported() || !HomeGuardState.unlocked(context))throw new IllegalStateException("系统档位不支持或尚未解锁");
             int adbPort=intent.getIntExtra("adb_port",0);
             if(intent.hasExtra("adb_port") && (!intent.getBooleanExtra("keep_adb",false)
-                    || !HomeGuardPolicy.keepAdbPort(HomeGuardAdb.supported(context),Build.VERSION.SDK_INT,adbPort)))
+                    || !HomeGuardPolicy.keepAdbPort(HomeGuardAdb.portSupported(context),Build.VERSION.SDK_INT,adbPort)))
                 throw new IllegalStateException("仅在明确保持 ADB 时保存已确认的传统 TCP 端口");
             state=new HomeGuardState(context);
             if(intent.getBooleanExtra("pause",false)){
                 state.pause("电脑暂停中转");setResultData(new DesktopRoutes(context).snapshot().toString());if(!state.preferences.getBoolean("proxyPausePending",false))setResultCode(Activity.RESULT_OK);return;
             }
             if(!HomeGuardRecovery.writeAllowed(context))throw new IllegalStateException("请先通过电脑授予写安全设置权限");
+            if(intent.getBooleanExtra("adb_only",false)){
+                if(!intent.hasExtra("keep_adb") || intent.getBooleanExtra("enable",false) || intent.hasExtra("home") || intent.hasExtra("direct_home"))
+                    throw new IllegalStateException("独立 ADB 配置不能同时修改桌面路线");
+                if(intent.hasExtra("adb_port") && !HomeGuardAdb.setPort(context,adbPort))throw new IllegalStateException("ADB 恢复端口未保存");
+                boolean keep=intent.getBooleanExtra("keep_adb",false);
+                if(!HomeGuardAdb.setEnabled(context,keep))throw new IllegalStateException("调试恢复选项未保存");
+                boolean restored=!keep || HomeGuardAdb.restoreSetting(context);
+                setResultData(new JSONObject().put("keepAdb",HomeGuardAdb.enabled(context)).put("adb",HomeGuardAdb.snapshot(context))
+                    .put("adbPortSupported",HomeGuardAdb.portSupported(context)).put("adbPort",HomeGuardAdb.port(context)).toString());
+                if(restored)setResultCode(Activity.RESULT_OK);
+                return;
+            }
             if(!intent.getBooleanExtra("enable",false))throw new IllegalStateException("未明确请求启用守护");
             boolean direct=intent.getBooleanExtra("direct_home",false);
             String home=intent.getStringExtra("home");
@@ -59,6 +72,7 @@ public final class HomeGuardSetupReceiver extends BroadcastReceiver {
             HomeGuardRecovery.configureGranted(context);
             if(intent.hasExtra("keep_adb") && !HomeGuardAdb.setEnabled(context,intent.getBooleanExtra("keep_adb",false)))throw new IllegalStateException("调试恢复选项未保存");
             String problem=HomeGuardRecovery.configurationProblem(context);
+            if(intent.getBooleanExtra("keep_adb",false) && !HomeGuardAdb.restoreSetting(context))problem="ADB 调试开关恢复未确认";
             JSONObject result=new JSONObject();
             result.put("configured",problem.isEmpty());result.put("enabled",state.enabled());
             result.put("physicalHomeVerified",false);result.put("directHomeConfigured",state.directHomeConfigured());
@@ -69,6 +83,7 @@ public final class HomeGuardSetupReceiver extends BroadcastReceiver {
             result.put("notificationAllowed",HomeGuardRecovery.notificationAllowed(context));result.put("notificationBound",HomeGuardRevivalListener.connected());
             result.put("syncSupported",HomeGuardSync.supported(context));result.put("syncReady",HomeGuardSync.ready(context));result.put("syncStatus",HomeGuardSync.summary(context));result.put("keepAdb",HomeGuardAdb.enabled(context));
             result.put("adbPortSupported",HomeGuardAdb.portSupported(context));result.put("adbPort",HomeGuardAdb.port(context));
+            result.put("adb",HomeGuardAdb.snapshot(context));
             result.put("overlayAllowed",Build.VERSION.SDK_INT<23 || Settings.canDrawOverlays(context));
             result.put("problem",problem);
             result.put("desktopRoutes",new DesktopRoutes(context).snapshot());setResultData(result.toString());
