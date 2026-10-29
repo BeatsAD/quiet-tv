@@ -67,6 +67,12 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private ValueAnimator dockPress;
     private WallpaperController wallpapers;
     private WeatherController weather;
+    private ScreensaverController screensaver;
+    private final HomeConfirmGesture confirmGesture=new HomeConfirmGesture();
+    private Runnable pendingConfirm;
+    private String pendingConfirmFocus="";
+    private int saverRow,saverColumn,saverTop,saverRestoreColumn;
+    private String saverPackage="";
     private HomeHeaderView homeHeader;
     private TextView weatherText;
     private DesktopSettingsStore desktopSettings;
@@ -100,7 +106,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private Tile selected;
     private JSONObject config;
     private final BroadcastReceiver timeReceiver = new BroadcastReceiver() {
-        @Override public void onReceive(Context c, Intent i) { updateClock();if(wallpapers!=null)wallpapers.environmentChanged(); }
+        @Override public void onReceive(Context c, Intent i) { updateClock();if(screensaver!=null)screensaver.timeChanged();if(wallpapers!=null)wallpapers.environmentChanged(); }
     };
     private final BroadcastReceiver packageReceiver = new BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) {
@@ -233,9 +239,16 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         greeting=homeHeader.greeting;weatherText=homeHeader.weather;clock=homeHeader.clock;date=homeHeader.date;timeRow=homeHeader.timeRow;topButtons=homeHeader.buttons;
         pills.addAll(homeHeader.pills);inputButton=pills.get(0);network=pills.get(1);
         inputButton.setOnClickListener(v->showInputs());network.setOnClickListener(v->openSettings(Settings.ACTION_WIFI_SETTINGS));pills.get(2).setOnClickListener(v->openSettings(Settings.ACTION_SETTINGS));
-        weather=new WeatherController(this,chinese,(data,message,loading)->homeHeader.weather(data));
+        weather=new WeatherController(this,chinese,(data,message,loading)->{homeHeader.weather(data);if(screensaver!=null)screensaver.weatherChanged(data);});
         appAdapter=new AppAdapter();list.setAdapter(appAdapter);
         applyDesktopSettings();updateClock(); updateNetwork();
+        screensaver=new ScreensaverController(this,root,wallpapers,unit,chinese,new ScreensaverController.Host(){
+            @Override public boolean allowed(){return screensaverAllowed();}
+            @Override public void captureFocus(){cancelConfirm();cancelFocusRestore("screensaver");if(scrollAnimation!=null)scrollAnimation.cancel();list.stopScroll();saverRow=row;saverColumn=column;saverTop=topColumn;saverRestoreColumn=restoreColumn;saverPackage=activePackage;}
+            @Override public void restoreFocus(){row=Math.min(saverRow,gridRows());if(row<0&&!rightButtonsVisible)row=0;column=Math.max(0,Math.min(saverColumn,maxColumn(row)));topColumn=Math.min(saverTop,Math.max(0,visiblePills.size()-1));restoreColumn=saverRestoreColumn;activePackage=saverPackage;focusCurrent(false);}
+            @Override public void desktopVisible(boolean visible){list.setVisibility(visible?View.VISIBLE:View.INVISIBLE);}
+            @Override public void weatherDemand(boolean enabled){weather.screensaverWeather(enabled);}
+        });
     }
 
     private void applyDesktopSettings(){
@@ -328,7 +341,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         if(Build.VERSION.SDK_INT>=24)stopNetworkCallback=Api24.observe(this);
         else registerReceiver(legacyNetworkReceiver,new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
         applyDesktopSettings();updateClock();updateNetwork();
-        wallpapers.resume();weather.resume();
+        wallpapers.resume();weather.resume();screensaver.availabilityChanged();
         loadApps("resume");if(ready)focusCurrent(false);
         if(tvInputs!=null)main.post(tvInputs::openPending);
         main.post(this::openMaintenanceInput);
@@ -359,7 +372,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         long started=SystemClock.uptimeMillis();
         homeResumeEvent("home.window_focus","focused="+focused+" "+InputDiagnostics.focus(this));
         try{
-            super.onWindowFocusChanged(focused);if(wallpapers!=null)wallpapers.windowFocusChanged(focused);systemEntryLifecycle("window_focus="+focused);if(focused && resumed && systemEntryDispatched)systemEntryPending="";if(focused && resumed){new HomeProxy(this).visible(this);if(!isFinishing()){HomeGuardRecovery.visible(this);launchBootApp();}}
+            super.onWindowFocusChanged(focused);if(wallpapers!=null)wallpapers.windowFocusChanged(focused);if(screensaver!=null){if(!focused)cancelConfirm();screensaver.availabilityChanged();}systemEntryLifecycle("window_focus="+focused);if(focused && resumed && systemEntryDispatched)systemEntryPending="";if(focused && resumed){new HomeProxy(this).visible(this);if(!isFinishing()){HomeGuardRecovery.visible(this);launchBootApp();}}
         }finally{homeResumeEvent("home.window_focus.end","focused="+focused+" callbackMs="+(SystemClock.uptimeMillis()-started));}
     }
 
@@ -384,6 +397,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     @Override protected void onPause() {
         if(waitingForUnlock){super.onPause();return;}
+        cancelConfirm();screensaver.pause();
         cancelFocusRestore("pause");
         root.removeCallbacks(checkHomeUpdates);homeReadyDrawn=false;
         if(!HomeGuardState.canShow(this))new HomeProxy(this).defer(getIntent());
@@ -403,7 +417,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     @Override protected void onDestroy(){
         if(waitingForUnlock){unregisterReceiver(unlockReceiver);loader.shutdownNow();super.onDestroy();return;}
         cancelFocusRestore("destroy");
-        BootAppLifecycle.destroyed(this);unregisterReceiver(packageReceiver);loader.shutdownNow();wallpapers.destroy();weather.destroy();super.onDestroy();
+        BootAppLifecycle.destroyed(this);unregisterReceiver(packageReceiver);loader.shutdownNow();screensaver.destroy();wallpapers.destroy();weather.destroy();super.onDestroy();
     }
     @Override protected void onStop(){
         if(!waitingForUnlock){homeResumeEvent("home.stop","");wallpapers.hidden();}
@@ -415,6 +429,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         if(!new HomeProxy(this).allowed(intent)){new HomeProxy(this).original(this);finish();return;}
         getWindow().getDecorView().post(()->{if(resumed && hasWindowFocus())new HomeProxy(this).visible(this);});
         homeResumeEvent("home.new_intent","home="+isHomeIntent(intent));
+        cancelConfirm();screensaver.pause();if(resumed)wallpapers.resume();screensaver.availabilityChanged();
         if(isHomeIntent(intent))resetHomeFocus();else if(ready)focusCurrent(false);
         main.post(this::openMaintenanceInput);
     }
@@ -516,6 +531,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                     row=Math.max(0,Math.min(row,gridRows()));column=Math.min(column,maxColumn(row));
                 }
                 boolean first=!ready;ready=true;
+                if(screensaver!=null)screensaver.availabilityChanged();
                 if(resumed&&(first||dockChanged||gridChanged))focusCurrent(false);
                 long appliedAt=SystemClock.uptimeMillis();
                 DiagnosticLog.info("home.catalog.applied","request="+sequence+" elapsedMs="+(appliedAt-started)
@@ -552,11 +568,15 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         super.onActivityResult(request,result,data);
         if(request==WallpaperFilesActivity.REQUEST&&result==Activity.RESULT_OK&&data!=null&&wallpapers!=null)getWindow().getDecorView().post(()->{if(!isFinishing()&&!UiCompat.destroyed(this))wallpapers.imported(data.getStringExtra("wallpaper"));});
     }
-    public void handleBack(){if(inputPopup!=null && inputPopup.isShowing())inputPopup.dismiss();else if(row>0){row=0;column=Math.min(restoreColumn,maxColumn(0));focusCurrent(true);}}
+    public void handleBack(){cancelConfirm();if(screensaver!=null&&screensaver.showing()){screensaver.key(new KeyEvent(KeyEvent.ACTION_DOWN,KeyEvent.KEYCODE_BACK));return;}if(inputPopup!=null && inputPopup.isShowing())inputPopup.dismiss();else if(row>0){row=0;column=Math.min(restoreColumn,maxColumn(0));focusCurrent(true);}}
 
     // Public Activity override; AndroidX core marks its inherited bridge class library-only.
     @android.annotation.SuppressLint("RestrictedApi")
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
+        if(!waitingForUnlock&&screensaver!=null){
+            if(screensaver.key(event)){cancelConfirm();pressDock(false);return true;}
+            screensaver.interaction();
+        }
         boolean calibrating=new RemoteKeyMap(this).capturing(event);
         RemoteKeyMap.observe(this,event,"home");
         if(calibrating)return true;
@@ -576,8 +596,10 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         boolean confirm=key==KeyEvent.KEYCODE_DPAD_CENTER || key==KeyEvent.KEYCODE_ENTER || key==KeyEvent.KEYCODE_NUMPAD_ENTER;
         if(confirm && (!ready || row<0) && event.getRepeatCount()==0)
             DiagnosticLog.info("home.action.key","entry="+topEntry()+" key="+key+" phase="+event.getAction()+" ready="+ready+" popup="+(inputPopup!=null && inputPopup.isShowing()));
-        if(inputPopup!=null && inputPopup.isShowing())return super.dispatchKeyEvent(event);
+        if(inputPopup!=null && inputPopup.isShowing()){cancelConfirm();return super.dispatchKeyEvent(event);}
         if(!ready)return super.dispatchKeyEvent(event);
+        if(ScreensaverController.systemKey(key))return super.dispatchKeyEvent(event);
+        if(!confirm)cancelConfirm();
         String remoteAction=new RemoteKeyMap(this).action(event);
         if("system".equals(remoteAction))return super.dispatchKeyEvent(event);
         if(remoteAction.isEmpty())remoteAction=key==KeyEvent.KEYCODE_MENU?"settings":key==KeyEvent.KEYCODE_TV_INPUT?"inputs":"";
@@ -612,12 +634,33 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         if(key==KeyEvent.KEYCODE_DPAD_CENTER || key==KeyEvent.KEYCODE_ENTER || key==KeyEvent.KEYCODE_NUMPAD_ENTER){
             if(row<0)visiblePills.get(topColumn).setPressed(event.getAction()==KeyEvent.ACTION_DOWN);
             if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0)pressDock(true);
-            if(event.getAction()==KeyEvent.ACTION_UP){pressDock(false);if(row<0)visiblePills.get(topColumn).performClick();else launchSelected();}return true;
+            if(!screensaverAllowed()){cancelConfirm();return super.dispatchKeyEvent(event);}
+            if(event.getAction()==KeyEvent.ACTION_DOWN){
+                if(!pendingConfirmFocus.isEmpty()&&!pendingConfirmFocus.equals(confirmFocus()))cancelConfirm();
+                confirmGesture.down(key,event.getDownTime(),event.getRepeatCount());
+                if(event.getRepeatCount()>0){if(pendingConfirm!=null)main.removeCallbacks(pendingConfirm);pendingConfirm=null;}
+            }else if(event.getAction()==KeyEvent.ACTION_UP){
+                pressDock(false);if(row<0)visiblePills.get(topColumn).setPressed(false);
+                HomeConfirmGesture.Result result=confirmGesture.up(key,event.getDownTime(),event.getEventTime(),event.isCanceled(),ViewConfiguration.getLongPressTimeout());
+                if(pendingConfirm!=null)main.removeCallbacks(pendingConfirm);pendingConfirm=null;
+                if(result==HomeConfirmGesture.Result.DOUBLE){cancelConfirm();screensaver.enter();}
+                else if(result==HomeConfirmGesture.Result.WAIT){
+                    pendingConfirmFocus=confirmFocus();pendingConfirm=()->{
+                        boolean valid=confirmGesture.pending()&&screensaverAllowed()&&pendingConfirmFocus.equals(confirmFocus());cancelConfirm();
+                        if(valid){if(row<0)visiblePills.get(topColumn).performClick();else launchSelected();}
+                    };main.postDelayed(pendingConfirm,HomeConfirmGesture.WINDOW_MS);
+                }else cancelConfirm();
+            }else cancelConfirm();
+            return true;
         }
         return super.dispatchKeyEvent(event);
     }
 
+    private boolean screensaverAllowed(){return ready&&resumed&&hasWindowFocus()&&!isFinishing()&&wallpapers!=null&&!wallpapers.pickerShowing()&&(inputPopup==null||!inputPopup.isShowing())&&!(getCurrentFocus() instanceof EditText);}
+    private String confirmFocus(){App app=currentApp();return row+":"+column+":"+topColumn+":"+(app==null?"":app.pkg);}
+    private void cancelConfirm(){if(pendingConfirm!=null)main.removeCallbacks(pendingConfirm);pendingConfirm=null;pendingConfirmFocus="";confirmGesture.cancel();}
     private void focusCurrent(boolean animate) {
+        if(pendingConfirm!=null&&!pendingConfirmFocus.equals(confirmFocus()))cancelConfirm();
         if(!ready)return;
         if(row<0||row==0&&!homeAppsVisible){
             if(scrollAnimation!=null)scrollAnimation.cancel();
@@ -715,10 +758,14 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     @Override public boolean dispatchTouchEvent(MotionEvent event){
         InputDiagnostics.pointer(this,event);
+        if(!waitingForUnlock&&screensaver!=null){cancelConfirm();if(screensaver.touch(event))return true;screensaver.interaction();}
         if(!waitingForUnlock && event.getActionMasked()==MotionEvent.ACTION_DOWN)HomeGuardService.bootSourceUserAction(this);
         return super.dispatchTouchEvent(event);
     }
-    private void leaveHome(Runnable launch){HomeGuardService.bootSourceUserAction(this);wallpapers.beforeLeave(()->{if(resumed&&!isFinishing()&&!UiCompat.destroyed(this))launch.run();});}
+    @Override public boolean dispatchGenericMotionEvent(MotionEvent event){
+        if(!waitingForUnlock&&screensaver!=null){cancelConfirm();if(screensaver.pointer(event))return true;screensaver.interaction();}return super.dispatchGenericMotionEvent(event);
+    }
+    private void leaveHome(Runnable launch){cancelConfirm();screensaver.pause();HomeGuardService.bootSourceUserAction(this);wallpapers.beforeLeave(()->{if(resumed&&!isFinishing()&&!UiCompat.destroyed(this))launch.run();});}
     private void launchSelected(){
         App app=currentApp();if(app==null)return;saveFocus();
         if(WALLPAPER_ENTRY.equals(app.pkg)){wallpapers.showPicker();return;}

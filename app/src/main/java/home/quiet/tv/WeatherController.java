@@ -21,7 +21,7 @@ final class WeatherController {
     private final BroadcastReceiver network=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent i){if(connected())refresh(false);}};
     private WeatherData data;
     private Future<?> request;
-    private boolean active,loading,rateLimited;
+    private boolean active,loading,rateLimited,screensaverWeather;
     private int generation;
     private long nextAttempt;
     private static long lastAttempt;
@@ -42,11 +42,16 @@ final class WeatherController {
         cancel();
     }
     void destroy(){pause();worker.shutdownNow();}
+    private boolean needed(){return store.enabled()||screensaverWeather;}
+    void screensaverWeather(boolean enabled){
+        if(screensaverWeather==enabled)return;screensaverWeather=enabled;
+        if(needed()){render();refresh(false);}else{main.removeCallbacks(refresh);cancel();render();}
+    }
     String errorMessage(){return error;}
     void settingsChanged(){cancel();key=store.key(chinese);data=store.cached(chinese);if(!rateLimited)nextAttempt=0;error="";render();refresh(true);}
     void refresh(boolean force){
         main.removeCallbacks(refresh);
-        if(!active||!store.enabled()||loading){render();return;}
+        if(!active||!needed()||loading){render();return;}
         long elapsed=SystemClock.elapsedRealtime(),now=System.currentTimeMillis();
         if(elapsed<nextAttempt&&(!force||rateLimited)){schedule(nextAttempt-elapsed);render();return;}
         if(!force&&data!=null&&data.usable(now)&&now-data.fetchedAt>=0&&now-data.fetchedAt<WeatherData.REFRESH_MS){schedule(WeatherData.REFRESH_MS-(now-data.fetchedAt));render();return;}
@@ -88,11 +93,11 @@ final class WeatherController {
         });
     }
     private boolean accept(int version,String selected){return active&&version==generation&&selected.equals(store.key(chinese));}
-    private void schedule(long delay){main.removeCallbacks(refresh);if(active&&store.enabled())main.postDelayed(refresh,Math.max(1000,delay));}
+    private void schedule(long delay){main.removeCallbacks(refresh);if(active&&needed())main.postDelayed(refresh,Math.max(1000,delay));}
     private void cancel(){++generation;locations.cancel();if(request!=null)request.cancel(true);client.cancel();loading=false;}
     private boolean connected(){ConnectivityManager manager=(ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);NetworkInfo info=manager==null?null:manager.getActiveNetworkInfo();return info!=null&&info.isConnected();}
     private void render(){
-        if(!store.enabled()){listener.changed(null,"",false);return;}
+        if(!needed()){listener.changed(null,"",false);return;}
         WeatherData visible=data!=null&&data.usable(System.currentTimeMillis())?data:null;
         // Failed refreshes are explicit even while a recent cached value is retained.
         String message=visible!=null?(!error.isEmpty()||visible.stale(System.currentTimeMillis())?tr("未更新","Not updated"):""):error;
