@@ -45,7 +45,6 @@ final class AboutView extends FrameLayout {
         int channelX=24+(int)Math.ceil(installed.getPaint().measureText(installed.getText().toString()))+16;
         TextView channel=label(channelName,21,400,0xffacc0db,channelX,412,94,42,"version-channel");
         channel.setGravity(Gravity.CENTER);channel.setBackgroundDrawable(surface(0x08ffffff,8,0x26ffffff));
-        label(device.compatibility,26,400,0xff9eafc7,24,476,470,40,"package-compatibility");
         TextView checkText=label("检查更新",28,400,0xffeff0f4,24,560,400,72,null);checkText.setGravity(Gravity.CENTER);
         update=action(checkText,"check-update",24,560,400,72,check);update.setBackgroundDrawable(ControlStyle.action(1,36,0x08ffffff,0x26ffffff));
 

@@ -75,7 +75,7 @@ final class AboutDeviceInfo {
     static long blockBytes(int blockSize,int count){return blockSize>0 && count>=0?(long)blockSize*count:-1;}
     static String capacity(long bytes){return bytes<0?UNAVAILABLE:String.format(Locale.ROOT,"%.1f GB",bytes/1_000_000_000d);}
     static String storage(long total,long available){
-        return total<=0 || available<0 || available>total?UNAVAILABLE:"数据分区  可用 "+capacity(available)+" / 共 "+capacity(total);
+        return total<=0 || available<0 || available>total?UNAVAILABLE:"可用 "+capacity(available)+" / 共 "+capacity(total);
     }
     static String screenValue(int width,int height,float refresh){
         if(width<=0 || height<=0)return UNAVAILABLE;
