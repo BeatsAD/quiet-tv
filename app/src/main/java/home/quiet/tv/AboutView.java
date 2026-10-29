@@ -69,10 +69,8 @@ final class AboutView extends FrameLayout {
         label("github.com/BeatsAD/quiet-tv",26,400,0xffdbe5f4,1368,96,528,46,"source-address");
         divider(1368,176,528,1);
         label("联系开发者",34,500,0xfff2f4f8,1368,218,528,48,null);
-        label("WenBin AI LAB",28,400,0xffc4d1e3,1368,286,528,40,null);
-        label("wenbinailab@gmail.com",26,400,0xff9eafc7,1368,338,528,42,"developer-email");
-        code("official-qr",1518,414,216).setImageBitmap(image("about/assets/qq-group.webp"));
-        label("扫码进 QQ 交流群",24,400,0xff9eafc7,1408,648,448,34,null).setGravity(Gravity.CENTER);
+        code("official-qr",1500,320,264).setImageBitmap(image("about/assets/qq-group.webp"));
+        label("扫码进 QQ 交流群",24,400,0xff9eafc7,1408,608,448,34,null).setGravity(Gravity.CENTER);
 
         divider(24,784,1872,1);
         TextView mit=label("MIT 许可证 ↗",24,400,0xffa7b9d1,17,796,184,42,null);mit.setPadding(7,0,7,0);
