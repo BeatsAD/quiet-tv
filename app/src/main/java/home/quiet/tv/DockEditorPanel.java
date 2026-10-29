@@ -34,11 +34,12 @@ final class DockEditorPanel extends ManagementPanel {
     @Override protected void onDestroy(){worker.shutdown();super.onDestroy();}
     @Override void focusManagementContent(){if(!slots.isEmpty())slots.get(0).requestFocus();}
     private ApplicationInfo info(String pkg){try{return getPackageManager().getApplicationInfo(pkg,HomeController.METADATA);}catch(PackageManager.NameNotFoundException e){return null;}}
-    private String name(String pkg){ApplicationInfo info=info(pkg);return info==null?pkg:getPackageManager().getApplicationLabel(info).toString();}
+    private boolean builtIn(String pkg){return HomeAppCatalog.DESKTOP_SETTINGS.equals(pkg)||HomeAppCatalog.WALLPAPER.equals(pkg);}
+    private String name(String pkg){if(HomeAppCatalog.DESKTOP_SETTINGS.equals(pkg))return activity.tr("桌面设置","Desktop Settings");if(HomeAppCatalog.WALLPAPER.equals(pkg))return activity.tr("壁纸设置","Wallpaper Settings");ApplicationInfo info=info(pkg);return info==null?pkg:getPackageManager().getApplicationLabel(info).toString();}
     private void loadArtwork(ImageView image,String pkg,ApplicationInfo app){
         Bitmap cached=artwork.get(pkg);if(cached!=null){showArtwork(image,cached);return;}
         int generation=artworkGeneration;
-        worker.execute(()->{Bitmap picture=AppArtwork.load(this,pkg,app);runOnUiThread(()->{
+        worker.execute(()->{Bitmap picture=builtIn(pkg)?HomeEntryArtwork.render(this,name(pkg),pkg):AppArtwork.load(this,pkg,app);runOnUiThread(()->{
             if(isDestroyed() || generation!=artworkGeneration)return;
             artwork.put(pkg,picture);showArtwork(image,picture);
         });});
@@ -53,7 +54,7 @@ final class DockEditorPanel extends ManagementPanel {
         int width=px((864-(DockStore.CAPACITY-1)*20)/(float)DockStore.CAPACITY),height=Math.round(width*203f/360f);
         for(int i=0;i<DockStore.CAPACITY;i++){
             final int slot=i;boolean occupied=i<values.size();String pkg=occupied?values.get(i):"";ApplicationInfo info=occupied?info(pkg):null;
-            boolean unavailable=occupied && (info==null || !info.enabled || !AppAvailability.installed(getPackageManager(),info));
+            boolean unavailable=occupied && !builtIn(pkg) && (info==null || !info.enabled || !AppAvailability.installed(getPackageManager(),info));
             LinearLayout card=column();card.setFocusable(true);card.setClickable(true);card.setClipChildren(false);card.setNextFocusUpId(managementTab().getId());card.setOnClickListener(v->edit(slot));card.setContentDescription("位置 "+(i+1)+"  "+(occupied?name(pkg):"添加常用应用")+(moving && slot==movingIndex?"  正在移动":""));slots.add(card);
             LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,-2,1);if(i>0)cp.leftMargin=px(20);cards.addView(card,cp);
             TextView number=muted(String.format(Locale.ROOT,"%02d",i+1),10);card.addView(number);gap(card,10);

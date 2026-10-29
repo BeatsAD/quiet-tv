@@ -16,8 +16,8 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     LinearLayout root,header,managementInfo;
     FrameLayout stage;
     float unit;
-    private static final int[] MANAGEMENT_ORDER={0,1,2,3,6,4,5};
-    private final Button[] managementTabs=new Button[7];
+    private static final int[] MANAGEMENT_ORDER=SettingsPages.ORDER;
+    private final Button[] managementTabs=new Button[SettingsPages.COUNT];
     private int managementPage=-1;
     private boolean managementEntry=true;
     private Button managementStatus;
@@ -141,11 +141,13 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     }
     TextView managementHint(String text){TextView hint=muted(text,11);hint.setSingleLine();hint.setEllipsize(android.text.TextUtils.TruncateAt.END);return hint;}
     LinearLayout toolbar(int selected){
-        LinearLayout tools=row();LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,px(54));p.topMargin=px(22);root.addView(tools,p);
-        String[] titles={"应用列表","首页应用","应用排序","儿童模式","版本更新","诊断日志"};
+        HorizontalScrollView navigation=new HorizontalScrollView(this);navigation.setFocusable(false);navigation.setHorizontalScrollBarEnabled(false);navigation.setFillViewport(true);
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,px(54));p.topMargin=px(22);root.addView(navigation,p);
+        LinearLayout tools=row();navigation.addView(tools,new HorizontalScrollView.LayoutParams(-2,-1));
         for(int i:MANAGEMENT_ORDER){
-            Button tab=button(i==FileTransferPanel.PAGE?"文件传输":titles[i],()->{});managementTab(tab,i,selected,header.getChildAt(0));
+            Button tab=button(SettingsPages.title(i,((AppManagementActivity)this).chinese()),()->{});managementTab(tab,i,selected,header.getChildAt(0));
             LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(-2,px(36));tp.rightMargin=px(12);tools.addView(tab,tp);
+            tab.setOnFocusChangeListener((v,focused)->{if(focused)navigation.post(()->{Rect bounds=new Rect();tab.getDrawingRect(bounds);tab.requestRectangleOnScreen(bounds,false);});});
         }
         managementHeader();
         tools.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));

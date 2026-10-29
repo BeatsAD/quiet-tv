@@ -21,7 +21,7 @@ final class HomeOrderStore {
             if(!custom())return result;
             try{JSONArray values=new JSONArray(signature());for(int i=0;i<values.length();i++){String id=values.getString(i);if(!result.contains(id))result.add(id);}}
             catch(JSONException e){throw new IllegalStateException("Invalid saved home order",e);}
-            return result;
+            ArrayList<String> unified=HomeAppCatalog.unifiedSettingsEntries(result);if(!unified.equals(result))preferences.edit().putString("packages",new JSONArray(unified).toString()).apply();return unified;
         }
     }
     ArrayList<String> order(List<String> defaults){
