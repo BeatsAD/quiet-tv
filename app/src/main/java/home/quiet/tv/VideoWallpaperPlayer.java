@@ -36,15 +36,22 @@ final class VideoWallpaperPlayer {
     private final Activity activity;
     private final FrameLayout host,frame;
     private final Handler main=new Handler(Looper.getMainLooper());
-    private final HandlerThread playback=new HandlerThread("QuietTV-wallpaper");
-    private final Handler worker;
+    private static final Handler worker=playbackWorker();
     private final BroadcastReceiver screen=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent i){screenOff=Intent.ACTION_SCREEN_OFF.equals(i.getAction());if(screenOff)release();else start();}};
     // Only the playback Looper reads or writes the decoder and its Surface.
-    private final PlaybackHandoff handoff=new PlaybackHandoff();
-    private WallpaperPlayback player;
-    private Surface output;
-    private boolean ownsOutput;
-    private Target playerTarget;
+    private static final PlaybackHandoff handoff=new PlaybackHandoff();
+    private static Decoder decoder;
+    private final Object owner=new Object();
+    private static final class Decoder {
+        final Object owner,outputId;
+        final WallpaperPlayback player;
+        final Surface output;
+        final boolean ownsOutput;
+        final String context;
+        Decoder(Object owner,Object outputId,WallpaperPlayback player,Surface output,boolean ownsOutput,String context){
+            this.owner=owner;this.outputId=outputId;this.player=player;this.output=output;this.ownsOutput=ownsOutput;this.context=context;
+        }
+    }
     private WallpaperCatalog.Entry entry;
     private Listener listener;
     private Target target;
@@ -58,9 +65,12 @@ final class VideoWallpaperPlayer {
         fail(generation,Failure.TIMEOUT);
     };
     private String context(int request){return "request="+request+" wallpaper="+VideoDiagnostics.wallpaper(entry==null?null:entry.id);}
+    private static Handler playbackWorker(){
+        HandlerThread thread=new HandlerThread("QuietTV-wallpaper");thread.start();return new Handler(thread.getLooper());
+    }
 
     VideoWallpaperPlayer(Activity activity,FrameLayout host){
-        this.activity=activity;this.host=host;playback.start();worker=new Handler(playback.getLooper());
+        this.activity=activity;this.host=host;
         frame=new FrameLayout(activity);frame.setClipChildren(true);frame.setVisibility(View.GONE);host.addView(frame,new FrameLayout.LayoutParams(-1,-1));
         host.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->layout());
         IntentFilter filter=new IntentFilter(Intent.ACTION_SCREEN_OFF);filter.addAction(Intent.ACTION_SCREEN_ON);activity.registerReceiver(screen,filter);
@@ -78,7 +88,7 @@ final class VideoWallpaperPlayer {
     void setPaused(boolean value){
         paused=value;final int request=generation;final String diagnosticContext=context(request);
         main.removeCallbacks(timeout);
-        worker.post(()->{if(request==generation&&player!=null)try{player.setPaused(value);}catch(RuntimeException e){DiagnosticLog.error("wallpaper.video.pause_failed",diagnosticContext+" paused="+value+" "+VideoDiagnostics.failureDetails(e),e);main.post(()->fail(request,Failure.DECODE));}});
+        worker.post(()->{if(request==generation&&decoder!=null&&decoder.owner==owner)try{decoder.player.setPaused(value);}catch(RuntimeException e){DiagnosticLog.error("wallpaper.video.pause_failed",diagnosticContext+" paused="+value+" "+VideoDiagnostics.failureDetails(e),e);main.post(()->fail(request,Failure.DECODE));}});
         if(!value){start();if(enabled&&!rendered&&!screenOff)main.postDelayed(timeout,8000);}
     }
     void snapshot(Snapshot callback){
@@ -104,8 +114,6 @@ final class VideoWallpaperPlayer {
     void stop(){enabled=false;release();if(target==null)frame.setVisibility(View.GONE);entry=null;listener=null;}
     void destroy(){
         if(destroyed)return;destroyed=true;stop();activity.unregisterReceiver(screen);main.removeCallbacksAndMessages(null);
-        // Drain Media3's queued release callbacks before retiring their application Looper.
-        worker.post(()->handoff.submit(done->releasePlayer(()->{done.run();worker.post(()->{if(Build.VERSION.SDK_INT>=18)playback.quitSafely();else playback.quit();});})));
     }
     private boolean current(Target candidate){return candidate==target&&candidate.request==generation&&!candidate.retired&&enabled&&!screenOff&&!destroyed;}
     private boolean current(Target candidate,int request){return candidate.request==request&&current(candidate);}
@@ -146,6 +154,7 @@ final class VideoWallpaperPlayer {
         main.postDelayed(timeout,8000);
     }
     private final class Target implements TextureView.SurfaceTextureListener,SurfaceHolder.Callback {
+        final Object outputId=new Object();
         int request;
         final View view;
         final boolean textureOutput;
@@ -216,19 +225,21 @@ final class VideoWallpaperPlayer {
         Log.i(TAG,"prepare request="+next.request);DiagnosticLog.info("wallpaper.video.prepare",diagnosticContext+" mime="+VideoDiagnostics.mime(selected.videoMime)+" size="+selected.width+"x"+selected.height+" fps="+selected.fps+" backend="+(BuildConfig.LEGACY_19?"platform":"media3")+" output="+(next.textureOutput?"texture":"surface")+" source="+(file==null?"asset":"local")+" filePresent="+(file==null?"unknown":file.isFile())+" bytes="+(file==null?-1:file.length()));
         worker.post(()->handoff.submit(done->{
             if(request!=generation||next.retired){done.run();return;}
-            releasePlayer(()->{
+            releaseDecoder(()->{
                 if(request!=generation||next.retired){done.run();return;}
+                Surface output=null;
                 try{
-                    ownsOutput=next.textureOutput;output=ownsOutput?new Surface(next.texture):next.surface;playerTarget=next;
+                    output=next.textureOutput?new Surface(next.texture):next.surface;
                     if(output==null||!output.isValid()){DiagnosticLog.info("wallpaper.video.output_failed",diagnosticContext+" reason=invalid_surface");main.post(()->fail(request,Failure.OUTPUT));return;}
-                    player=new WallpaperPlayback(activity,worker,output,file,selected,diagnosticContext,new PlaybackEvents(){
+                    WallpaperPlayback player=new WallpaperPlayback(activity.getApplicationContext(),worker,output,file,selected,diagnosticContext,new PlaybackEvents(){
                         @Override public void ready(){main.post(()->{if(current(next,request)){next.started=true;if(!next.textureOutput)next.updated=true;firstFrame(next);}});}
                         @Override public void failed(Failure reason){main.post(()->fail(request,reason));}
                         @Override public void size(int width,int height,float pixelRatio){main.post(()->{if(current(next,request)&&width>0&&height>0){next.aspect=VideoGeometry.aspect(width,height,pixelRatio,0);layout();}});}
                     });
+                    decoder=new Decoder(owner,next.outputId,player,output,next.textureOutput,diagnosticContext);
                     player.setPaused(paused);player.prepare();
                 }catch(IOException|RuntimeException e){DiagnosticLog.error("wallpaper.video.prepare_failed",diagnosticContext+" "+VideoDiagnostics.failureDetails(e),e);main.post(()->fail(request,e instanceof IOException?Failure.FILE:Failure.DECODE));}
-                finally{done.run();}
+                finally{if(decoder==null&&next.textureOutput&&output!=null)output.release();done.run();}
             });
         }));
     }
@@ -260,20 +271,21 @@ final class VideoWallpaperPlayer {
     private void retire(Target old){
         old.retired=true;
         Runnable cleanup=()->handoff.submit(done->{
-            if(playerTarget==old)releasePlayer(()->{try{old.releaseTexture();}finally{done.run();}});
+            if(decoder!=null&&decoder.outputId==old.outputId)releasePlayer(()->{try{old.releaseTexture();}finally{done.run();}});
             else{try{old.releaseTexture();}finally{done.run();}}
         });
         // A late detach after destroy has no decoder left; its texture still belongs to this target.
         if(!worker.post(cleanup))old.releaseTexture();
     }
     private void releasePlayer(Runnable completed){
-        String releasedContext=playerTarget==null?"request=unknown":"request="+playerTarget.request;
-        WallpaperPlayback old=player;Surface oldOutput=output;boolean releaseOutput=ownsOutput;
-        player=null;playerTarget=null;output=null;ownsOutput=false;
-        Runnable retired=()->{try{if(oldOutput!=null&&releaseOutput)oldOutput.release();}finally{completed.run();}};
-        if(old==null){retired.run();return;}
+        if(decoder==null||decoder.owner!=owner){completed.run();return;}releaseDecoder(completed);
+    }
+    private static void releaseDecoder(Runnable completed){
+        Decoder old=decoder;decoder=null;
+        if(old==null){completed.run();return;}
+        Runnable retired=()->{try{if(old.ownsOutput)old.output.release();}finally{completed.run();}};
         // A failed release must not be treated as acknowledgement of Surface ownership.
-        try{old.release(retired);}
-        catch(RuntimeException e){DiagnosticLog.error("wallpaper.video.release_failed",releasedContext+" "+VideoDiagnostics.failureDetails(e),e);}
+        try{old.player.release(retired);}
+        catch(RuntimeException e){DiagnosticLog.error("wallpaper.video.release_failed",old.context+" "+VideoDiagnostics.failureDetails(e),e);}
     }
 }

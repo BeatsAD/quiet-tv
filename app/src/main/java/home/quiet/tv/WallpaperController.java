@@ -9,8 +9,6 @@ import android.util.LruCache;
 import android.view.*;
 import android.widget.*;
 import java.io.IOException;
-import java.io.FileOutputStream;
-import androidx.core.util.AtomicFile;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -37,8 +35,7 @@ final class WallpaperController {
     private VideoWallpaperPlayer.Failure videoFailure=VideoWallpaperPlayer.Failure.UNKNOWN;
     private int videoRequest;
     private boolean commitPending,leaving,destroyed;
-    private String posterId;
-    private Bitmap poster,posterBlur,restoredCover;
+    private Bitmap restoredCover;
     private boolean dynamicTab;
     private final LruCache<String,Bitmap> thumbnails=new LruCache<String,Bitmap>(6*1024){@Override protected int sizeOf(String id,Bitmap bitmap){return bitmap.getByteCount()/1024;}};
     private final Map<String,View> cards=new LinkedHashMap<>();
@@ -87,7 +84,7 @@ final class WallpaperController {
             // The cached cover is a startup placeholder, not the full-resolution static image.
             current.setImageBitmap(cached.image);currentBlur=cached.blur;shown=id;ambient.setVisibility(View.INVISIBLE);
             WallpaperCatalog.Entry selected=store.snapshot().find(id);
-            if(selected!=null&&selected.video()){posterId=id;poster=cached.image;posterBlur=cached.blur;}
+            if(selected!=null&&selected.video())shownKey=store.imageKey(id);
             // Install before the window's first draw; the regular cover takes over immediately.
             BitmapDrawable backgroundImage=new BitmapDrawable(activity.getResources(),cached.image);backgroundImage.setGravity(Gravity.FILL);
             activity.getWindow().setBackgroundDrawable(new LayerDrawable(new Drawable[]{backgroundImage,new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x70000000,0x10000000,0xf00a0e15})}));
@@ -114,6 +111,7 @@ final class WallpaperController {
     private ImageView image(){ImageView view=new ImageView(activity);view.setScaleType(ImageView.ScaleType.CENTER_CROP);androidx.core.view.ViewCompat.setImportantForAccessibility(view,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);return view;}
     private void cacheBackdrop(String id,Bitmap image,Bitmap blur){
         if(image==null||blur==null||image==restoredCover||!id.equals(store.snapshot().current))return;
+        if(id.equals(shown)&&!store.imageKey(id).equals(shownKey))return;
         restoredCover=null;
         android.util.DisplayMetrics screen=activity.getResources().getDisplayMetrics();int width=screen.widthPixels,height=screen.heightPixels;
         String key=WallpaperBackdropCache.key(store,id,width,height);
@@ -135,7 +133,8 @@ final class WallpaperController {
         }
         WallpaperCatalog state=store.snapshot();
         if(selected!=null&&selected.video()){
-            if(id.equals(posterId)&&poster!=null){showPoster(id,poster,posterBlur,prepared);return;}
+            String key=store.imageKey(id);
+            if(id.equals(shown)&&key.equals(shownKey)&&current.getDrawable() instanceof BitmapDrawable){showPoster(id,((BitmapDrawable)current.getDrawable()).getBitmap(),currentBlur,key,prepared);return;}
             WallpaperCatalog.Entry posterEntry=!selected.custom()||store.poster(id).isFile()?selected:state.find(state.staticBeforeVideo);
             // Keep the last valid background while the new cover is decoded.
             decoder.execute(()->{try{
@@ -145,8 +144,8 @@ final class WallpaperController {
                 if(version!=request)return;
                 if(image!=null){android.util.DisplayMetrics screen=activity.getResources().getDisplayMetrics();blurred=DockBackdropDrawable.prepare(image,screen.widthPixels,screen.heightPixels);}
                 Bitmap ready=image,blur=blurred;
-                main.post(()->{if(version!=request||destroyed||UiCompat.destroyed(activity))return;if(ready!=null){posterId=id;poster=ready;posterBlur=blur;}showPoster(id,ready,blur,prepared);});
-            }catch(OutOfMemoryError e){main.post(()->{if(version==request&&!destroyed)showPoster(id,null,null,prepared);});}});return;
+                main.post(()->{if(version!=request||destroyed||UiCompat.destroyed(activity))return;showPoster(id,ready,blur,key,prepared);});
+            }catch(OutOfMemoryError e){main.post(()->{if(version==request&&!destroyed)showPoster(id,null,null,key,prepared);});}});return;
         }
         String key=store.imageKey(id);
         if(WallpaperCatalog.DAILY.equals(id)&&!store.cached(state.dailyImages.get(state.dailySource))){
@@ -175,10 +174,10 @@ final class WallpaperController {
             }catch(IOException|OutOfMemoryError e){DiagnosticLog.error("wallpaper.decode.failed",e);main.post(()->{if(version!=request||destroyed)return;if(WallpaperCatalog.DAILY.equals(id)){daily.cacheUnreadable();if(current.getDrawable()==null)display(store.snapshot().lastLocal,false);return;}notice(tr("无法读取这张壁纸","Unable to read this wallpaper"));if(id.equals(store.snapshot().current))try{store.select(WallpaperCatalog.DEFAULT);}catch(IOException ignored){}display(WallpaperCatalog.DEFAULT,false);});}
         });
     }
-    private void showPoster(String id,Bitmap image,Bitmap blur,Runnable prepared){
+    private void showPoster(String id,Bitmap image,Bitmap blur,String key,Runnable prepared){
         if(image!=null){current.setImageBitmap(image);currentBlur=blur;ambient.setVisibility(View.INVISIBLE);shade.setVisibility(View.VISIBLE);}
         else if(current.getDrawable()==null){ambient.setVisibility(View.VISIBLE);ambient.setColor(themeColor);shade.setVisibility(View.INVISIBLE);}
-        incoming.setImageDrawable(null);incoming.setAlpha(0f);incomingBlur=null;shown=id;shownKey=id;invalidateDock();
+        incoming.setImageDrawable(null);incoming.setAlpha(0f);incomingBlur=null;shown=id;shownKey=key;invalidateDock();
         cacheBackdrop(id,image,blur);if(prepared!=null)prepared.run();else stopVideo();
     }
     private void withCover(Runnable action){withCover(action,true);}
@@ -237,7 +236,7 @@ final class WallpaperController {
     }
     void pause(){active=false;leaving=false;++request;cancelCover();pendingVideoStart=null;cancelVideoFade();video.setPaused(true);daily.pause();cancelCardPress();main.removeCallbacks(rotate);uploads.close();if(confirmation!=null)confirmation.dismiss();if(picker!=null)picker.dismiss();if(transition!=null)transition.end();}
     void hidden(){stopVideo();}
-    void destroy(){destroyed=true;finishStartupCover();++request;pendingVideoStart=null;cancelCover();cancelVideoFade();video.destroy();poster=null;posterBlur=null;restoredCover=null;daily.destroy();uploads.destroy();decoder.shutdownNow();main.removeCallbacksAndMessages(null);if(transition!=null){transition.cancel();transition.removeAllUpdateListeners();}current.setImageDrawable(null);incoming.setImageDrawable(null);currentBlur=null;incomingBlur=null;dockInvalidation=null;thumbnails.evictAll();}
+    void destroy(){destroyed=true;finishStartupCover();++request;pendingVideoStart=null;cancelCover();cancelVideoFade();video.destroy();restoredCover=null;daily.destroy();uploads.destroy();decoder.shutdownNow();main.removeCallbacksAndMessages(null);if(transition!=null){transition.cancel();transition.removeAllUpdateListeners();}current.setImageDrawable(null);incoming.setImageDrawable(null);currentBlur=null;incomingBlur=null;dockInvalidation=null;thumbnails.evictAll();}
 
     synchronized Bitmap entryBanner(){
         if(entry==null)entry=HomeEntryArtwork.render(activity,tr("壁纸设置","Wallpaper Settings"),HomeAppCatalog.WALLPAPER);
@@ -326,28 +325,25 @@ final class WallpaperController {
             if(image==null)return;
             if(version!=videoRequest||destroyed){image.recycle();return;}
             decoder.execute(()->{
-                AtomicFile file=new AtomicFile(store.poster(id));FileOutputStream stream=null;
                 try{
-                    stream=file.startWrite();
-                    if(!image.compress(Bitmap.CompressFormat.JPEG,85,stream))throw new IOException("Poster encoding failed");
-                    file.finishWrite(stream);stream=null;
+                    if(!store.saveVideoPoster(id,image)){image.recycle();return;}
                     android.util.DisplayMetrics screen=activity.getResources().getDisplayMetrics();
                     Bitmap blur=DockBackdropDrawable.prepare(image,screen.widthPixels,screen.heightPixels);
                     main.post(()->{
                         if(version!=videoRequest||destroyed){image.recycle();blur.recycle();return;}
-                        posterId=id;poster=image;posterBlur=blur;current.setImageBitmap(image);currentBlur=blur;invalidateDock();cacheBackdrop(id,image,blur);
+                        current.setImageBitmap(image);currentBlur=blur;shownKey=store.imageKey(id);invalidateDock();cacheBackdrop(id,image,blur);
                         // The poster and thumbnail cache own the captured bitmap after this point.
                         thumbnails.put(store.imageKey(id),image);View card=cards.get(id);
                         if(card instanceof FrameLayout)((ImageView)((FrameLayout)card).getChildAt(0)).setImageBitmap(image);
                     });
                 }catch(IOException|RuntimeException|OutOfMemoryError e){
-                    if(stream!=null)file.failWrite(stream);image.recycle();DiagnosticLog.error("wallpaper.video.poster_failed","optional=true "+VideoDiagnostics.failureDetails(e),e);
+                    image.recycle();DiagnosticLog.error("wallpaper.video.poster_failed","optional=true "+VideoDiagnostics.failureDetails(e),e);
                 }
             });
         });
     }
     private void commitVideo(String id){
-        try{daily.cancel();store.select(id);if(id.equals(posterId))cacheBackdrop(id,poster,posterBlur);if(picker!=null)refreshCards(id,cards.get(id)!=null&&cards.get(id).hasFocus());notice(tr("已应用动态壁纸","Video wallpaper applied"));}
+        try{daily.cancel();store.select(id);if(id.equals(shown)&&current.getDrawable() instanceof BitmapDrawable)cacheBackdrop(id,((BitmapDrawable)current.getDrawable()).getBitmap(),currentBlur);if(picker!=null)refreshCards(id,cards.get(id)!=null&&cards.get(id).hasFocus());notice(tr("已应用动态壁纸","Video wallpaper applied"));}
         catch(IOException e){stopVideo();display(store.snapshot().current,false);notice(tr("壁纸设置保存失败","Unable to save wallpaper settings"));}
     }
     private void applySelected(){WallpaperCatalog.Entry entry=store.snapshot().find(preview);if(entry==null)return;
@@ -456,7 +452,7 @@ final class WallpaperController {
         confirmation=dialog;dialog.show();ControlStyle.dialog(dialog,unit);View cancel=dialog.getButton(AlertDialog.BUTTON_NEGATIVE);cancel.post(()->{if(dialog.isShowing())cancel.requestFocusFromTouch();});
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
             try{
-                store.remove(entry.id);thumbnails.remove(entry.id);before.remove(entry.id);returnTo[0]=before.isEmpty()?WallpaperCatalog.DEFAULT:before.get(Math.max(0,Math.min(index,before.size()-1)));
+                String thumbnailKey=store.imageKey(entry.id);store.remove(entry.id);thumbnails.remove(thumbnailKey);before.remove(entry.id);returnTo[0]=before.isEmpty()?WallpaperCatalog.DEFAULT:before.get(Math.max(0,Math.min(index,before.size()-1)));
                 refreshCards(returnTo[0],false);dialog.dismiss();
             }catch(IOException e){notice(tr("删除失败，请检查电视存储后重试","Unable to delete. Check TV storage and retry."));}
         });

@@ -125,7 +125,8 @@ final class WallpaperCatalog {
     long bytes() {return bytes(false);}
     long bytes(boolean video){long size=0;for(Entry e:custom)if(e.video()==video)size+=e.bytes;return size;}
     void add(Entry entry) {
-        if (count(entry.video())>=(entry.video()?MAX_VIDEOS:MAX_CUSTOM) || bytes(entry.video())+entry.bytes>(entry.video()?MAX_VIDEO_BYTES:MAX_BYTES)) throw new IllegalStateException("Wallpaper capacity exceeded");
+        // Video byte limits include asynchronously captured posters and belong to WallpaperStore.
+        if (count(entry.video())>=(entry.video()?MAX_VIDEOS:MAX_CUSTOM) || !entry.video()&&bytes()+entry.bytes>MAX_BYTES) throw new IllegalStateException("Wallpaper capacity exceeded");
         custom.add(entry);
     }
     WallpaperCatalog copy() { try { return read(json()); } catch (JSONException e) { throw new IllegalStateException(e); } }
