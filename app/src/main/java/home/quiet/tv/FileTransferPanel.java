@@ -69,13 +69,23 @@ final class FileTransferPanel extends ManagementPanel {
     }
     private Button sourceTab(){return source==0?received:source==1?local:removable;}
     private void focusFiles(){if(list.getCount()>0)list.requestFocus();else if(accessButton.isShown())accessButton.requestFocus();else sourceTab().requestFocus();}
-    private Button sourceButton(LinearLayout parent,String text,Runnable action){Button choice=button(text,action);choice.setId(androidx.core.view.ViewCompat.generateViewId());activity.styleTab(choice,true);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,-1);p.rightMargin=px(6);parent.addView(choice,p);choice.setOnKeyListener((v,key,event)->{if(key==KeyEvent.KEYCODE_DPAD_DOWN){if(event.getAction()==KeyEvent.ACTION_DOWN)focusFiles();return true;}return false;});return choice;}
+    private Button sourceButton(LinearLayout parent,String text,Runnable action){
+        Button choice=button(text,action);choice.setId(androidx.core.view.ViewCompat.generateViewId());activity.styleTab(choice,true);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,-1);p.rightMargin=px(6);parent.addView(choice,p);
+        choice.setOnKeyListener((v,key,event)->{
+            if(key!=KeyEvent.KEYCODE_DPAD_LEFT&&key!=KeyEvent.KEYCODE_DPAD_RIGHT&&key!=KeyEvent.KEYCODE_DPAD_UP&&key!=KeyEvent.KEYCODE_DPAD_DOWN)return false;
+            if(event.getAction()==KeyEvent.ACTION_UP)return true;
+            if(key==KeyEvent.KEYCODE_DPAD_DOWN)focusFiles();
+            else if(key==KeyEvent.KEYCODE_DPAD_UP)managementTab().requestFocus();
+            else {Button[] tabs={received,local,removable};int index=0;for(int i=0;i<tabs.length;i++)if(tabs[i]==v)index=i;int next=Math.max(0,Math.min(tabs.length-1,index+(key==KeyEvent.KEYCODE_DPAD_RIGHT?1:-1)));if(next!=index){tabs[next].requestFocus();tabs[next].performClick();}}
+            return true;
+        });return choice;
+    }
     private void accessOptions(){Sheet sheet=new Sheet("读取本地文件");sheet.text("可选择单个文件，或授权一个目录供本页浏览。");Button first=sheet.option("系统选择文件",()->{sheet.dialog.dismiss();pick();});if(Build.VERSION.SDK_INT>=21)sheet.option("授权目录",()->{sheet.dialog.dismiss();pickTree();});sheet.option("重新读取存储",()->{sheet.dialog.dismiss();if(!FileTransferSource.requestPermission(activity,PERMISSION))refresh(true);});sheet.action("返回",sheet.dialog::dismiss);sheet.show(first);}
     private void choose(int source){
         if(busy||networkReceiving){message("请先取消或等待当前文件传输完成");return;}
         this.source=source;usb=source==2;folder=boundary=null;tree=current=null;parents.clear();selected=null;selectedSource=null;renderActions();
         if(source>0&&FileTransferSource.requestPermission(activity,PERMISSION)){refresh(false);return;}
-        refresh(true);
+        refresh(false);
     }
     private void refresh(boolean focus){
         if(store==null)return;int request=++listing;final int desired=focus?0:list.hasFocus()?Math.max(0,list.getSelectedItemPosition()):listPosition;final String keep=focus?null:selected!=null?selected.id:selectedSource!=null?selectedSource.uri.toString():null;File path=folder;Uri root=tree,at=current;int mode=source;
@@ -155,10 +165,10 @@ final class FileTransferPanel extends ManagementPanel {
     private void showCode(){FileTransferServer active=server;if(active==null||qrImage==null)return;Sheet sheet=new Sheet("扫码连接文件传输");sheet.text(active.shortAddress()+"\n连接码  "+active.code());ImageView image=new ImageView(activity);image.setImageBitmap(qrImage.copy(Bitmap.Config.ARGB_8888,false));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(px(158),px(158));p.gravity=Gravity.CENTER_HORIZONTAL;sheet.body.addView(image,p);Button back=sheet.action("返回",sheet.dialog::dismiss);codeDialog=sheet.dialog;sheet.dialog.setOnDismissListener(d->{image.setImageDrawable(null);if(codeDialog==sheet.dialog)codeDialog=null;});sheet.show(back);}
     private void stopSession(){++sessionGeneration;if(codeDialog!=null){codeDialog.dismiss();codeDialog=null;}main.removeCallbacks(check);FileTransferServer old=server;server=null;if(old!=null){old.invalidate();worker.execute(old::stop);}if(qr!=null){qr.setImageDrawable(null);qr.setVisibility(View.GONE);}if(qrImage!=null){qrImage.recycle();qrImage=null;}if(start!=null){start.setEnabled(store!=null);start.setText("开启传输");}networkReceiving=false;if(connection!=null)connection.setText("把文件传到电视");if(status!=null)status.setText("传输已关闭");if(cancelTransfer!=null)renderActions();}
     private void up(){if(busy)return;if(tree!=null){if(parents.isEmpty()){tree=current=null;source=0;selectedSource=null;renderActions();refresh(true);}else{current=parents.pop();refresh(true);}}else if(folder!=null){folder=folder.equals(boundary)?null:folder.getParentFile();refresh(true);}else managementTab().requestFocus();}
-    @Override void focusManagementContent(){received.requestFocus();}
+    @Override void focusManagementContent(){sourceTab().requestFocus();}
     @Override public void handleBack(){if(busy){jobGeneration++;busy=false;renderActions();status.setText("已取消");}else if(!managementTabFocused())up();else super.handleBack();}
     @Override protected void onSaveInstanceState(Bundle state){state.putInt("source",source);state.putInt("position",Math.max(0,list.getSelectedItemPosition()));if(folder!=null){state.putString("folder",folder.getPath());state.putString("boundary",boundary.getPath());}if(tree!=null){state.putString("tree",tree.toString());state.putString("current",current.toString());ArrayList<String> saved=new ArrayList<>();for(Uri uri:parents)saved.add(uri.toString());state.putStringArrayList("parents",saved);}super.onSaveInstanceState(state);}
-    @Override protected void onResume(){super.onResume();refresh(false);if(pending!=null)receivePending();}
+    @Override protected void onResume(){super.onResume();refresh(false);if(server==null)startSession(null);if(pending!=null)receivePending();}
     @Override protected void onPause(){super.onPause();listPosition=Math.max(0,list.getSelectedItemPosition());listing++;jobGeneration++;busy=false;dismissFileDialog();stopSession();}
     @Override protected void onDestroy(){destroyed=true;jobGeneration++;stopSession();activity.unregisterReceiver(screen);main.removeCallbacksAndMessages(null);thumbnails.evictAll();worker.shutdown();super.onDestroy();}
 }
