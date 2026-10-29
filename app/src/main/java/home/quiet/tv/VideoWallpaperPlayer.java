@@ -40,6 +40,7 @@ final class VideoWallpaperPlayer {
     private final Handler worker;
     private final BroadcastReceiver screen=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent i){screenOff=Intent.ACTION_SCREEN_OFF.equals(i.getAction());if(screenOff)release();else start();}};
     // Only the playback Looper reads or writes the decoder and its Surface.
+    private final PlaybackHandoff handoff=new PlaybackHandoff();
     private WallpaperPlayback player;
     private Surface output;
     private boolean ownsOutput;
@@ -104,7 +105,7 @@ final class VideoWallpaperPlayer {
     void destroy(){
         if(destroyed)return;destroyed=true;stop();activity.unregisterReceiver(screen);main.removeCallbacksAndMessages(null);
         // Drain Media3's queued release callbacks before retiring their application Looper.
-        worker.post(()->{releasePlayer();worker.post(()->{if(Build.VERSION.SDK_INT>=18)playback.quitSafely();else playback.quit();});});
+        worker.post(()->handoff.submit(done->releasePlayer(()->{done.run();worker.post(()->{if(Build.VERSION.SDK_INT>=18)playback.quitSafely();else playback.quit();});})));
     }
     private boolean current(Target candidate){return candidate==target&&candidate.request==generation&&!candidate.retired&&enabled&&!screenOff&&!destroyed;}
     private boolean current(Target candidate,int request){return candidate.request==request&&current(candidate);}
@@ -171,7 +172,7 @@ final class VideoWallpaperPlayer {
             // SurfaceHolder requires the producer to stop before this callback returns.
             // Unlike SurfaceTexture, its Surface cannot be retained after destruction.
             CountDownLatch released=new CountDownLatch(1);
-            if(worker.post(released::countDown))try{
+            if(worker.post(()->handoff.submit(done->{released.countDown();done.run();})))try{
                 if(!released.await(3,TimeUnit.SECONDS))DiagnosticLog.info("wallpaper.video.release_timeout","surface retirement");
             }catch(InterruptedException e){Thread.currentThread().interrupt();}
         }
@@ -213,20 +214,23 @@ final class VideoWallpaperPlayer {
         next.preparing=true;final int request=next.request;final String diagnosticContext="request="+request+" wallpaper="+VideoDiagnostics.wallpaper(selected.id);
         File file=selected.custom()?WallpaperStore.get(activity).file(selected.id):null;
         Log.i(TAG,"prepare request="+next.request);DiagnosticLog.info("wallpaper.video.prepare",diagnosticContext+" mime="+VideoDiagnostics.mime(selected.videoMime)+" size="+selected.width+"x"+selected.height+" fps="+selected.fps+" backend="+(BuildConfig.LEGACY_19?"platform":"media3")+" output="+(next.textureOutput?"texture":"surface")+" source="+(file==null?"asset":"local")+" filePresent="+(file==null?"unknown":file.isFile())+" bytes="+(file==null?-1:file.length()));
-        worker.post(()->{
-            if(request!=generation||next.retired)return;
-            releasePlayer();if(request!=generation||next.retired)return;
-            try{
-                ownsOutput=next.textureOutput;output=ownsOutput?new Surface(next.texture):next.surface;playerTarget=next;
-                if(output==null||!output.isValid()){DiagnosticLog.info("wallpaper.video.output_failed",diagnosticContext+" reason=invalid_surface");main.post(()->fail(request,Failure.OUTPUT));return;}
-                player=new WallpaperPlayback(activity,worker,output,file,selected,diagnosticContext,new PlaybackEvents(){
-                    @Override public void ready(){main.post(()->{if(current(next,request)){next.started=true;if(!next.textureOutput)next.updated=true;firstFrame(next);}});}
-                    @Override public void failed(Failure reason){main.post(()->fail(request,reason));}
-                    @Override public void size(int width,int height,float pixelRatio){main.post(()->{if(current(next,request)&&width>0&&height>0){next.aspect=VideoGeometry.aspect(width,height,pixelRatio,0);layout();}});}
-                });
-                player.setPaused(paused);player.prepare();
-            }catch(IOException|RuntimeException e){DiagnosticLog.error("wallpaper.video.prepare_failed",diagnosticContext+" "+VideoDiagnostics.failureDetails(e),e);main.post(()->fail(request,e instanceof IOException?Failure.FILE:Failure.DECODE));}
-        });
+        worker.post(()->handoff.submit(done->{
+            if(request!=generation||next.retired){done.run();return;}
+            releasePlayer(()->{
+                if(request!=generation||next.retired){done.run();return;}
+                try{
+                    ownsOutput=next.textureOutput;output=ownsOutput?new Surface(next.texture):next.surface;playerTarget=next;
+                    if(output==null||!output.isValid()){DiagnosticLog.info("wallpaper.video.output_failed",diagnosticContext+" reason=invalid_surface");main.post(()->fail(request,Failure.OUTPUT));return;}
+                    player=new WallpaperPlayback(activity,worker,output,file,selected,diagnosticContext,new PlaybackEvents(){
+                        @Override public void ready(){main.post(()->{if(current(next,request)){next.started=true;if(!next.textureOutput)next.updated=true;firstFrame(next);}});}
+                        @Override public void failed(Failure reason){main.post(()->fail(request,reason));}
+                        @Override public void size(int width,int height,float pixelRatio){main.post(()->{if(current(next,request)&&width>0&&height>0){next.aspect=VideoGeometry.aspect(width,height,pixelRatio,0);layout();}});}
+                    });
+                    player.setPaused(paused);player.prepare();
+                }catch(IOException|RuntimeException e){DiagnosticLog.error("wallpaper.video.prepare_failed",diagnosticContext+" "+VideoDiagnostics.failureDetails(e),e);main.post(()->fail(request,e instanceof IOException?Failure.FILE:Failure.DECODE));}
+                finally{done.run();}
+            });
+        }));
     }
     private void firstFrame(Target next){
         if(!current(next)||!next.started||!next.updated||rendered)return;
@@ -247,23 +251,29 @@ final class VideoWallpaperPlayer {
             // Keep the native output attached under the opaque cover while retiring only the decoder.
             // Removing/readding SurfaceView also changes the window's transparent region.
             old.request=generation;old.preparing=false;old.started=false;old.updated=false;
-            worker.post(this::releasePlayer);return;
+            worker.post(()->handoff.submit(this::releasePlayer));return;
         }
         target=null;
         if(old!=null){old.retired=true;frame.removeView(old.view);retire(old);}
-        else worker.post(this::releasePlayer);
+        else worker.post(()->handoff.submit(this::releasePlayer));
     }
     private void retire(Target old){
         old.retired=true;
-        Runnable cleanup=()->{if(playerTarget==old)releasePlayer();old.releaseTexture();};
+        Runnable cleanup=()->handoff.submit(done->{
+            if(playerTarget==old)releasePlayer(()->{try{old.releaseTexture();}finally{done.run();}});
+            else{try{old.releaseTexture();}finally{done.run();}}
+        });
         // A late detach after destroy has no decoder left; its texture still belongs to this target.
         if(!worker.post(cleanup))old.releaseTexture();
     }
-    private void releasePlayer(){
+    private void releasePlayer(Runnable completed){
         String releasedContext=playerTarget==null?"request=unknown":"request="+playerTarget.request;
-        WallpaperPlayback old=player;player=null;playerTarget=null;Surface oldOutput=output;output=null;boolean releaseOutput=ownsOutput;ownsOutput=false;
-        try{if(old!=null)old.release();}
-        catch(RuntimeException e){DiagnosticLog.error("wallpaper.video.release_failed",releasedContext+" "+VideoDiagnostics.failureDetails(e),e);Log.w(TAG,"decoder release failed",e);}
-        finally{if(oldOutput!=null&&releaseOutput)oldOutput.release();}
+        WallpaperPlayback old=player;Surface oldOutput=output;boolean releaseOutput=ownsOutput;
+        player=null;playerTarget=null;output=null;ownsOutput=false;
+        Runnable retired=()->{try{if(oldOutput!=null&&releaseOutput)oldOutput.release();}finally{completed.run();}};
+        if(old==null){retired.run();return;}
+        // A failed release must not be treated as acknowledgement of Surface ownership.
+        try{old.release(retired);}
+        catch(RuntimeException e){DiagnosticLog.error("wallpaper.video.release_failed",releasedContext+" "+VideoDiagnostics.failureDetails(e),e);}
     }
 }

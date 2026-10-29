@@ -33,6 +33,6 @@ final class WallpaperPlayback {
         else try(AssetFileDescriptor input=activity.getAssets().openFd("wallpapers/"+entry.id+".mp4")){player.setDataSource(input.getFileDescriptor(),input.getStartOffset(),input.getLength());}
         player.prepareAsync();
     }
-    void release(){player.setOnPreparedListener(null);player.setOnErrorListener(null);player.release();}
+    void release(Runnable completed){player.setOnPreparedListener(null);player.setOnErrorListener(null);player.release();completed.run();}
     void setPaused(boolean paused){this.paused=paused;if(prepared){if(paused)player.pause();else player.start();}}
 }
