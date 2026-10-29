@@ -29,18 +29,25 @@ Agent 直接使用固定请求时，须通过本机终端读取 `latest.json`，
 
 ## 统一安装入口
 
-本地源码使用 [install_quiet_tv.py](../../scripts/install_quiet_tv.py)，独立 Agent 从本次实时 `latest.json` 的 `tools` 字段取得 `install_quiet_tv.py`、`verify_install.py`、`install_tcl.py`、`tcl_cast.py`、`configure_home_guard.py`、`configure_boot_home.py`、`device_maintenance.py`、`device_selftest.py`、`device_adaptation.py`、`vendor_adaptation.py`、`device-presets.json`，下载至同一私有目录并逐文件核对 SHA-256。工具缺项或校验不符时停止，不从不明来源补脚本。站点部署前，公开索引可能尚未含新入口，应明确说明差异；不能据本地代码宣称已经上线。
+本地源码使用 [install_quiet_tv.py](../../scripts/install_quiet_tv.py)，独立 Agent 从本次实时latest.json下载全部tools及说明，在同一私有目录逐文件核对SHA-256。工具缺项或校验不符时停止；不能据本地代码宣称已经上线。
 
 Agent 先按[连接说明](connect.md)确认电视、完成电脑 ADB 连接／授权并核对前台用户；安装入口不扫描、不自动选择设备、不默认端口或用户。准备现有官方 Platform-Tools、Python 3.9+、Android build-tools 的 `aapt2`／`apksigner` 及其 Java 运行环境，工具缺失时明确说明并按主机环境准备，不要求用户猜路径，不构建源码替代公开包。可用 `--adb`、`--aapt2`、`--apksigner` 指定现有工具。
 
-变量由 Agent 从已确认目标填写。`NEW_RECORD_DIR` 是仓库外全新的电脑私有目录，父目录应存在；预览与执行使用不同目录。未安装且用户授权接管时使用 `takeover`（配置系统 HOME，必要时配置兼容守护）及 ADB 保持；仅用户明确只试用／只更新时才使用 `--goal trial`／`--goal update`，不改已有桌面、守护或 ADB 选择。不将用户已明确选择的接管再拆成重复授权；目标仍有歧义时先澄清。
+变量由 Agent 从已确认目标填写。`NEW_RECORD_DIR` 是全新电脑私有目录，父目录应存在；预览与执行使用不同目录。首次安装一律先 `trial`，验证基础导航、确认／返回和应用启动，再按原授权继续 `takeover`；这是分步验收，不重复请求接管授权。仅更新使用 `update`，保留已有桌面、守护和ADB选择。安装器默认trial，未安装时直接takeover会在写入前停止。
+
+通过任务工具选择 `install` 路线。下列命令依次执行；说明文字由 Agent 替换为真实观察，不照抄成成功证据。按用户目标用 `--checks` 加入设置、网络、信号源、实际外设及需验证的ADB／重启项目；常开ADB必须包括真实重连，不能只验开关。
 
 ```sh
-python3 scripts/install_quiet_tv.py --serial "$TV_SERIAL" --user "$TV_USER" \
-  --record "$NEW_RECORD_DIR"
+python3 agent_session.py plan --session "$SESSION_DIR" --route install --checks settings,network,adb,network_adb_after_reboot --note "目标和只读现场依据"
+python3 agent_session.py run --session "$SESSION_DIR" --tool install_quiet_tv -- --goal trial --apply
+python3 agent_session.py accept --session "$SESSION_DIR" --check basic_ui --status PASS --note "用户实际试用反馈"
+python3 agent_session.py run --session "$SESSION_DIR" --tool install_quiet_tv -- --goal takeover
+python3 agent_session.py run --session "$SESSION_DIR" --tool install_quiet_tv -- --goal takeover --apply
 ```
 
-预览通过后，沿用已授权目标，以新记录目录加 `--apply` 执行。统一默认请求已明确要求保持 ADB，默认传递该意图；显式 `--keep-adb` 效果相同，无需再让用户勾选。试用／仅更新默认不新增开启。安卓5及以上标准档根据已安装 APK 的能力和实际写安全设置授权配置调试开关恢复，不再按品牌跳过。应用在开机广播完成前恢复开关，并监听后续开关变化；暂停桌面接管不暂停 ADB 保持。原生 HOME 已生效时独立配置 ADB，不额外开启守护或重新选择原桌面。旧 APK、安卓4.4或权限不支持时继续独立安装步骤，但整体报告 ADB 常开未完成，不以成功状态略过。不猜写系统属性或强开端口。开关恢复不等于网络端口持续可用，更不等于完成配对或授权；Android11+无线调试有独立开关，本工具不以 USB 调试开启冒充无线调试恢复。重启／唤醒后的实际电脑 ADB 重连必须另行验收，未通过不能交付为“重启常开已完成”。
+任务自动使用该次试用已核验的实际APK，不再指定 `--apk`、重复下载或重装。基础试用失败先记录FAIL并定位；不配置接管。只是试用的任务选trial路线，到基础验收即可结束。接管后仍需实体HOME、恢复方法及本次额外必要项，不把脚本返回成功当作验收完成。
+
+配置预览通过后，以新记录目录加 `--apply` 执行。takeover默认传递保持ADB意图，试用／仅更新不新增开启，无需让用户重复勾选。安卓5及以上标准档根据已安装 APK 的能力和实际写安全设置授权配置调试开关恢复，不再按品牌跳过。应用在开机广播完成前恢复开关，并监听后续开关变化；暂停桌面接管不暂停 ADB 保持。原生 HOME 已生效时独立配置 ADB，不额外开启守护或重新选择原桌面。旧 APK、安卓4.4或权限不支持时继续独立安装步骤，但整体报告 ADB 常开未完成，不以成功状态略过。不猜写系统属性或强开端口。开关恢复不等于网络端口持续可用，更不等于完成配对或授权；Android11+无线调试有独立开关，本工具不以 USB 调试开启冒充无线调试恢复。重启／唤醒后的实际电脑 ADB 重连必须另行验收，未通过不能交付为“重启常开已完成”。
 
 电脑配置会从已选定、已授权的传统网络 ADB 标识中提取真实 IP 与端口，只对安卓5～10的适用小米／Redmi包保存恢复端口；不默认5555，不将 USB 标识或 Android11+无线调试端口套作传统 TCP。应用先报告 `adbPortSupported`／原 `adbPort`，脚本把端口与 `keep_adb` 一起交给受权限保护的接收器，应用先持久保存端口再启用恢复，并读回核对。该端口复用已有 `adb` 偏好中的 `port`，不改其他连接设置、不导入密钥、不执行 tcpip 或配对。其他设备只恢复已授权的调试开关，不继承小米端口重启策略。
 

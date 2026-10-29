@@ -13,9 +13,11 @@
 ## 检查、修复、复测
 
 1. 运行 `device_selftest.py` 生成修复前的 JSON、Markdown 和原始命令记录；记录 APK 版本、固件、用户、当前 HOME、原桌面、守护和 ADB 状态。
-2. 按故障选择 `device_maintenance.py repair`、`restore` 或本机信号源配置，先预览，再用新记录目录加 `--apply`。沿用已选择的直接 HOME、中转或同签名 HOME 代理。主动暂停的接管只有用户要求恢复时才加 `--resume`。
+2. 通过任务工具 `plan --route repair --issue <领域> --note <证据>` 固定问题范围。home／adb使用对应配置修复，inputs使用本机信号源配置；设置、网络、按键和外设先从真实入口取证，不调用HOME／ADB repair代替定位。现有能力无法处理时记录LIMITED及替代办法。沿用原路线和暂停选择；明确恢复原桌面另用restore意图。
 3. 使用同一自检工具和相同场景复测，以 `--compare` 指向修复前的 `report.json`。对比只读取结果，不从报告执行命令；设备、连接、固件、用户或包名不符则拒绝对比。
 4. 报告分别列配置、模拟按键、实体按键、重启、网络 ADB、冷启动、待机、信号源画面；失败或未测不能写成全面通过。
+
+按原问题复测，用 `accept --check repair --status <实际结果> --note <证据>` 登记；其余必需项通过 `plan --checks` 增加。最后finish汇总，不把命令0当成修复完成。外设按实际现场发现，不限品类，也不因未接入设备扩展成全部必测。
 
 ```sh
 python3 device_selftest.py --serial "$TV_SERIAL" --user "$TV_USER" --record "$BEFORE_DIR"
