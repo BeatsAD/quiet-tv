@@ -104,7 +104,7 @@ public final class WallpaperFilesActivity extends androidx.activity.ComponentAct
                 runOnUiThread(()->{if(!closed){setResult(RESULT_OK,new Intent().putExtra("wallpaper",entry.id));finish();}});
             }catch(IOException|RuntimeException|OutOfMemoryError failure){
                 DiagnosticLog.info("wallpaper.import.failed","source=selected_file type="+failure.getClass().getSimpleName());
-                runOnUiThread(()->{if(!closed){busy=false;status.setText("导入失败，请检查文件格式、大小、存储空间及读取授权。");Button retry=new KeyFeedback.Button(this);retry.setText("重新选择");retry.setOnClickListener(v->systemPicker());root.addView(retry);retry.requestFocus();}});
+                runOnUiThread(()->{if(!closed){busy=false;list.setEnabled(true);status.setText("导入失败，请检查文件格式、大小、存储空间及读取授权。");Button retry=new KeyFeedback.Button(this);retry.setText("重新选择");retry.setOnClickListener(v->systemPicker());root.addView(retry);retry.requestFocus();}});
             }
         });
     }
