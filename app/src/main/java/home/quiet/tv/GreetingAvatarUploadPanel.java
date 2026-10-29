@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /** A one-shot upload hands one immutable candidate to the greeting draft, never to preferences. */
 final class GreetingAvatarUploadPanel {
     interface Receiver { boolean accept(File candidate); }
-    private final DesktopSettingsActivity ui;
+    private final AppManagementActivity ui;
     private final GreetingAvatarStore store;
     private final Receiver receiver;
     private final Handler main=new Handler(Looper.getMainLooper());
@@ -32,7 +32,7 @@ final class GreetingAvatarUploadPanel {
             view.status.setVisibility(View.VISIBLE);view.retry.setVisibility(View.VISIBLE);
         }else main.postDelayed(this,2000);
     }};
-    GreetingAvatarUploadPanel(DesktopSettingsActivity ui,GreetingAvatarStore store,Receiver receiver){this.ui=ui;this.store=store;this.receiver=receiver;}
+    GreetingAvatarUploadPanel(AppManagementActivity ui,GreetingAvatarStore store,Receiver receiver){this.ui=ui;this.store=store;this.receiver=receiver;}
     private String tr(String zh,String en){return ui.tr(zh,en);}
     void show(){
         if(view!=null)return;received=false;

@@ -17,7 +17,7 @@ import java.util.concurrent.*;
 /** One TV-owned draft shared by cascading menus, fuzzy search and phone input. */
 final class WeatherCityPicker {
     private interface Selection { void accept(WeatherRegions.Region region); }
-    private final DesktopSettingsActivity ui;
+    private final AppManagementActivity ui;
     private final WeatherStore store;
     private final Runnable saved;
     private final WeatherRegions regions;
@@ -45,7 +45,7 @@ final class WeatherCityPicker {
         if(server.expired()||!host.equals(WallpaperUploadPanel.lanAddress(ui))){stopServer(false);clearQr();code.setText("");status.setText(tr("会话已结束，请重新连接","Session ended. Reconnect to continue."));reconnect.setVisibility(View.VISIBLE);}
         else main.postDelayed(this,2000);
     }};
-    WeatherCityPicker(DesktopSettingsActivity ui,WeatherStore store,Runnable saved){this.ui=ui;this.store=store;this.saved=saved;regions=WeatherRegions.load(ui);searchClient=new WeatherClient(ui);}
+    WeatherCityPicker(AppManagementActivity ui,WeatherStore store,Runnable saved){this.ui=ui;this.store=store;this.saved=saved;regions=WeatherRegions.load(ui);searchClient=new WeatherClient(ui);}
     private String tr(String zh,String en){return ui.tr(zh,en);}
     private void identify(View view,String tag){view.setId(androidx.core.view.ViewCompat.generateViewId());view.setTag(tag);}
     void show(){
