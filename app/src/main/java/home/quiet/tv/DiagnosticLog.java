@@ -17,7 +17,7 @@ final class DiagnosticLog {
     static void navigationKey(String source,KeyEvent event){
         if(event==null||!navigationKey(event.getKeyCode())||event.getRepeatCount()!=0
             ||event.getAction()!=KeyEvent.ACTION_DOWN&&event.getAction()!=KeyEvent.ACTION_UP)return;
-        info("input.navigation","source="+source+" keyCode="+event.getKeyCode()+" action="+event.getAction()+" eventTime="+event.getEventTime());
+        info("input.navigation","source="+source+" keyCode="+event.getKeyCode()+" action="+event.getAction()+" eventTime="+event.getEventTime()+InputDiagnostics.key(event));
     }
     private final ThreadPoolExecutor worker=new ThreadPoolExecutor(1,1,5,TimeUnit.SECONDS,new ArrayBlockingQueue<>(32),r->{Thread t=new Thread(()->{android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND);r.run();},"quiet-diagnostic-log");t.setDaemon(true);return t;});
     private final DiagnosticEventBuffer buffer=new DiagnosticEventBuffer();

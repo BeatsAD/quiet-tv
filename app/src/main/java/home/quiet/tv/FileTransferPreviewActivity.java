@@ -40,25 +40,19 @@ public final class FileTransferPreviewActivity extends Activity {
                 final WallpaperCatalog.Entry ready=result;Bitmap photo=ready.video()?null:WallpaperImages.decode(this,store,ready,1920,1080);
                 runOnUiThread(()->{if(closed){if(photo!=null)photo.recycle();return;}entry=ready;status.setText("确认预览后设为壁纸");
                     if(photo!=null){bitmap=photo;image.setImageBitmap(photo);apply.setEnabled(true);}
-                    else video.play(ready,new VideoWallpaperPlayer.Listener(){public void ready(){if(!closed){apply.setEnabled(true);status.setText("确认预览后设为动态壁纸");}}public void failed(VideoWallpaperPlayer.Failure reason){if(!closed){apply.setEnabled(false);status.setText(reason.message(true));}}public void stopped(){apply.setEnabled(false);}});
+                    else {video.setSound(store.snapshot().sound);video.play(ready,new VideoWallpaperPlayer.Listener(){public void ready(){if(!closed){apply.setEnabled(true);status.setText("确认预览后设为动态壁纸");}}public void failed(VideoWallpaperPlayer.Failure reason){if(!closed){apply.setEnabled(false);status.setText(reason.message(true));}}public void stopped(){apply.setEnabled(false);}});}
                 });
             }catch(IOException|RuntimeException|OutOfMemoryError error){runOnUiThread(()->{if(!closed)status.setText("文件无法用作壁纸，请检查格式、规格或壁纸库剩余空间");});}
         });
     }
     private WallpaperCatalog.Entry importWallpaper(File source,String name)throws IOException{
         boolean movie=FileTransferPolicy.video(name);if(!movie&&!FileTransferPolicy.image(name))throw new IOException("文件类型不支持");
-        WallpaperStore store=WallpaperStore.get(this);if(movie)store.checkVideoCapacity(source.length());else store.checkCapacity();
-        File incoming=store.videoIncoming(),prepared=new File(incoming.getPath()+".jpg");
-        try{
-            try(InputStream input=new FileInputStream(source);FileOutputStream output=new FileOutputStream(incoming)){FileTransferPolicy.copy(input,output,source.length(),movie?WallpaperVideo.MAX_UPLOAD:WallpaperUploadServer.MAX_UPLOAD,()->!closed,(bytes,total)->{});output.getFD().sync();}
-            if(movie){WallpaperVideo.Info info=WallpaperVideo.inspect(incoming);return store.addVideo(incoming,name,info,()->!closed);}
-            int[] size=WallpaperImages.prepare(incoming,prepared,WallpaperImages.importLimit(this));if(closed)throw new IOException("预览已取消");return store.add(prepared,name,size[0],size[1]);
-        }finally{if(incoming.isFile()&&!incoming.delete())android.util.Log.w("QuietTV","Wallpaper import retained");if(prepared.isFile()&&!prepared.delete())android.util.Log.w("QuietTV","Prepared wallpaper retained");}
+        try(InputStream input=new FileInputStream(source)){return WallpaperImport.accept(this,input,source.length(),name,movie,()->!closed,"source=file_transfer");}
     }
     private void apply(){
         if(entry==null||closed)return;apply.setEnabled(false);worker.execute(()->{try{WallpaperStore.get(this).select(entry.id);runOnUiThread(()->{if(!closed){startActivity(HomeController.launchIntent(this).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP));finish();}});}catch(IOException error){runOnUiThread(()->{if(!closed){status.setText("壁纸保存失败，请重试");apply.setEnabled(true);}});}});
     }
-    @Override protected void onResume(){super.onResume();if(video!=null)video.setPaused(false);}
+    @Override protected void onResume(){super.onResume();if(video!=null){video.setSound(WallpaperStore.get(this).snapshot().sound);video.setPaused(false);}}
     @Override protected void onPause(){if(video!=null)video.setPaused(true);super.onPause();}
     @Override protected void onDestroy(){closed=true;video.destroy();image.setImageDrawable(null);if(bitmap!=null)bitmap.recycle();worker.shutdown();super.onDestroy();}
 }

@@ -11,6 +11,7 @@ final class ManagementAdb {
     interface Listener {void changed();}
     private static ManagementAdb instance;
     static synchronized ManagementAdb get(Context context){if(instance==null)instance=new ManagementAdb(context.getApplicationContext());return instance;}
+    static synchronized ManagementAdb existing(){return instance;}
     final AdbController adb;
     final ScheduledExecutorService worker=Executors.newSingleThreadScheduledExecutor();
     private final Handler main=new Handler(Looper.getMainLooper());

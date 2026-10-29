@@ -63,6 +63,11 @@ final class VideoWallpaperPlayer {
     private Target target;
     private boolean enabled,screenOff,rendered,destroyed;
     private volatile boolean paused;
+    private volatile boolean sound;
+    void setSound(boolean enabled){
+        sound=enabled;final int request=generation;
+        if(!releaseBlocked())worker.post(()->{if(request==generation&&decoder!=null&&decoder.owner==owner)try{decoder.player.setSound(sound);}catch(RuntimeException e){DiagnosticLog.error("wallpaper.video.sound_failed",e);main.post(()->fail(request,Failure.DECODE));}});
+    }
     private volatile int generation;
     private final Runnable timeout=()->{
         Target pending=target;
@@ -248,7 +253,7 @@ final class VideoWallpaperPlayer {
                     });
                     decoder=new Decoder(owner,next.outputId,detached,player,output,next.textureOutput,diagnosticContext);
                     main.post(()->{if(current(next,request)&&!paused){main.removeCallbacks(timeout);main.postDelayed(timeout,8000);}});
-                    player.setPaused(paused);player.prepare();
+                    player.setSound(sound);player.setPaused(paused);player.prepare();
                 }catch(IOException|RuntimeException e){DiagnosticLog.error("wallpaper.video.prepare_failed",diagnosticContext+" "+VideoDiagnostics.failureDetails(e),e);main.post(()->fail(request,e instanceof IOException?Failure.FILE:Failure.DECODE));}
                 finally{if(decoder==null){detached.countDown();if(next.textureOutput&&output!=null)output.release();}done.run();}
             });
