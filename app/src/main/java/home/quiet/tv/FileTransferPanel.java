@@ -43,10 +43,10 @@ final class FileTransferPanel extends ManagementPanel {
     private final Runnable check=new Runnable(){public void run(){FileTransferServer active=server;if(active==null)return;if(active.expired()||!active.shortAddress().startsWith("http://"+WallpaperUploadPanel.lanAddress(activity)+":")){stopSession();status.setText("传输已结束，请重新开启");}else main.postDelayed(this,2000);}};
     FileTransferPanel(AppManagementActivity activity){super(activity);}
     @Override public void onCreate(Bundle state){
-        LinearLayout body=managementContent();space=muted("",11);space.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);managementInfo.addView(space,new LinearLayout.LayoutParams(-1,-1));
+        LinearLayout body=managementContent();space=muted("",11);space.setSingleLine(true);space.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
         LinearLayout columns=row();columns.setGravity(Gravity.TOP);body.addView(columns,new LinearLayout.LayoutParams(-1,-1));
         LinearLayout left=column();columns.addView(left,new LinearLayout.LayoutParams(px(244),-1));
-        TextView caption=muted("手机或电脑",14);left.addView(caption,new LinearLayout.LayoutParams(-1,px(42)));
+        TextView caption=muted("手机或电脑",14);managementInfo.addView(caption,new LinearLayout.LayoutParams(px(244),-1));
         connectionCard=column();connectionCard.setGravity(Gravity.CENTER);connectionCard.setPadding(px(20),px(16),px(20),px(12));connectionCard.setBackgroundDrawable(surface(0x0cffffff,0x06ffffff,0x18ffffff,18));left.addView(connectionCard,new LinearLayout.LayoutParams(-1,0,1));
         connection=center("把文件传到电视",17);connectionCard.addView(connection,new LinearLayout.LayoutParams(-1,-2));
         qr=new ImageView(activity);qr.setContentDescription("扫码打开文件传输页");qr.setVisibility(View.GONE);LinearLayout.LayoutParams qp=new LinearLayout.LayoutParams(px(126),px(126));qp.gravity=Gravity.CENTER_HORIZONTAL;qp.topMargin=px(10);qp.bottomMargin=px(8);connectionCard.addView(qr,qp);
@@ -54,8 +54,8 @@ final class FileTransferPanel extends ManagementPanel {
         gap(connectionCard,10);start=button("开启传输",()->{if(server!=null)stopSession();else startSession(null);});start.setId(androidx.core.view.ViewCompat.generateViewId());connectionCard.addView(start,new LinearLayout.LayoutParams(-1,px(36)));
         cancelTransfer=button("取消当前文件",()->{if(networkReceiving&&server!=null){server.cancelCurrent();status.setText("正在取消接收…");}else{jobGeneration++;busy=false;status.setText("已取消");renderActions();}});cancelTransfer.setVisibility(View.GONE);connectionCard.addView(cancelTransfer,new LinearLayout.LayoutParams(-1,px(32)));
         LinearLayout right=column();LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(0,-1,1);rp.leftMargin=px(30);columns.addView(right,rp);
-        LinearLayout sources=row();right.addView(sources,new LinearLayout.LayoutParams(-1,px(42)));
-        received=sourceButton(sources,"已接收",()->choose(0));local=sourceButton(sources,"本地存储",()->choose(1));removable=sourceButton(sources,"U 盘",()->choose(2));count=muted("",11);count.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);sources.addView(count,new LinearLayout.LayoutParams(0,-1,1));
+        LinearLayout sources=row();LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(0,-1,1);sp.leftMargin=px(30);managementInfo.addView(sources,sp);
+        received=sourceButton(sources,"已接收",()->choose(0));local=sourceButton(sources,"本地存储",()->choose(1));removable=sourceButton(sources,"U 盘",()->choose(2));sources.addView(space,new LinearLayout.LayoutParams(0,-1,1));count=muted("",11);count.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-2,-1);cp.leftMargin=px(12);sources.addView(count,cp);
         LinearLayout pathRow=row();right.addView(pathRow,new LinearLayout.LayoutParams(-1,px(32)));upButton=button("返回上级",this::up);pathRow.addView(upButton,new LinearLayout.LayoutParams(-2,px(28)));upButton.setVisibility(View.GONE);
         location=muted("最近接收",11);location.setSingleLine(true);location.setEllipsize(android.text.TextUtils.TruncateAt.END);pathRow.addView(location,new LinearLayout.LayoutParams(0,-1,1));
         accessButton=button("选择文件",this::accessOptions);accessButton.setVisibility(View.GONE);pathRow.addView(accessButton,new LinearLayout.LayoutParams(-2,px(28)));
@@ -69,7 +69,7 @@ final class FileTransferPanel extends ManagementPanel {
     }
     private Button sourceTab(){return source==0?received:source==1?local:removable;}
     private void focusFiles(){if(list.getCount()>0)list.requestFocus();else if(accessButton.isShown())accessButton.requestFocus();else sourceTab().requestFocus();}
-    private Button sourceButton(LinearLayout parent,String text,Runnable action){Button choice=button(text,action);choice.setId(androidx.core.view.ViewCompat.generateViewId());activity.styleTab(choice,true);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,px(34));p.rightMargin=px(6);parent.addView(choice,p);choice.setOnKeyListener((v,key,event)->{if(key==KeyEvent.KEYCODE_DPAD_DOWN){if(event.getAction()==KeyEvent.ACTION_DOWN)focusFiles();return true;}return false;});return choice;}
+    private Button sourceButton(LinearLayout parent,String text,Runnable action){Button choice=button(text,action);choice.setId(androidx.core.view.ViewCompat.generateViewId());activity.styleTab(choice,true);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,-1);p.rightMargin=px(6);parent.addView(choice,p);choice.setOnKeyListener((v,key,event)->{if(key==KeyEvent.KEYCODE_DPAD_DOWN){if(event.getAction()==KeyEvent.ACTION_DOWN)focusFiles();return true;}return false;});return choice;}
     private void accessOptions(){Sheet sheet=new Sheet("读取本地文件");sheet.text("可选择单个文件，或授权一个目录供本页浏览。");Button first=sheet.option("系统选择文件",()->{sheet.dialog.dismiss();pick();});if(Build.VERSION.SDK_INT>=21)sheet.option("授权目录",()->{sheet.dialog.dismiss();pickTree();});sheet.option("重新读取存储",()->{sheet.dialog.dismiss();if(!FileTransferSource.requestPermission(activity,PERMISSION))refresh(true);});sheet.action("返回",sheet.dialog::dismiss);sheet.show(first);}
     private void choose(int source){
         if(busy||networkReceiving){message("请先取消或等待当前文件传输完成");return;}
