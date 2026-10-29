@@ -51,12 +51,12 @@ public final class HomeAppActionsActivity extends ManagementUi {
     private String protection(){AppRepository.App app=metadata(pkg);return app==null?"保留桌面管理入口":new AppOperations(this).protection(app);}
     private void content(String page,String title){
         mode=page;++generation;box=column();box.setPadding(px(16),px(16),px(16),px(16));box.setBackgroundDrawable(surface(0xff30343e,0xff23272f,0x38ffffff,16));
-        if(page.equals("menu")&&backdrop!=null)box.setBackgroundDrawable(new DockBackdropDrawable((canvas,paint)->{paint.setAlpha(255);canvas.drawBitmap(backdrop,null,new RectF(0,0,getResources().getDisplayMetrics().widthPixels,getResources().getDisplayMetrics().heightPixels),paint);},box,getWindow().getDecorView(),unit));
+        if((page.equals("menu")||page.equals("picker"))&&backdrop!=null)box.setBackgroundDrawable(new DockBackdropDrawable((canvas,paint)->{paint.setAlpha(255);canvas.drawBitmap(backdrop,null,new RectF(0,0,getResources().getDisplayMetrics().widthPixels,getResources().getDisplayMetrics().heightPixels),paint);},box,getWindow().getDecorView(),unit));
         if(!title.isEmpty()){TextView heading=label(title,22);heading.setSingleLine(true);heading.setEllipsize(android.text.TextUtils.TruncateAt.END);heading.setPadding(px(8),px(4),px(8),px(14));box.addView(heading);}
         dialog.setContentView(box);
     }
     private void show(int width,View focus,boolean anchored){
-        dialog.show();Window window=dialog.getWindow();window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);window.setDimAmount(.35f);window.getDecorView().setSystemUiVisibility(5894);window.setLayout(px(width),-2);
+        Window window=dialog.getWindow();window.setWindowAnimations(0);window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);window.setDimAmount(.35f);window.getDecorView().setSystemUiVisibility(5894);window.setLayout(px(width),-2);
         if(anchored){
             box.measure(View.MeasureSpec.makeMeasureSpec(px(width),View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec(px(490),View.MeasureSpec.AT_MOST));
             int screenWidth=getResources().getDisplayMetrics().widthPixels,screenHeight=getResources().getDisplayMetrics().heightPixels;
@@ -64,7 +64,7 @@ public final class HomeAppActionsActivity extends ManagementUi {
             WindowManager.LayoutParams p=window.getAttributes();p.gravity=Gravity.TOP|Gravity.LEFT;p.x=Math.max(px(16),Math.min(screenWidth-px(width+16),x-px(width/2f)));
             p.y=y>box.getMeasuredHeight()+px(16)?y-box.getMeasuredHeight()-px(10):Math.min(screenHeight-box.getMeasuredHeight()-px(16),bottom+px(10));window.setAttributes(p);
         }else{WindowManager.LayoutParams p=window.getAttributes();p.gravity=Gravity.CENTER;p.x=0;p.y=0;window.setAttributes(p);}
-        if(focus!=null)focus.requestFocus();
+        dialog.show();if(focus!=null)focus.requestFocus();
     }
     private Button option(String label,int icon,Runnable action){
         Button b=button(label,action);b.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);b.setPadding(px(14),0,px(12),0);b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(16));b.setFocusableInTouchMode(true);
@@ -95,8 +95,8 @@ public final class HomeAppActionsActivity extends ManagementUi {
     }
     private boolean available(String id){for(HomeAppCatalog.Entry entry:new HomeAppCatalog(this).load(new DockStore(this).load()))if(id.equals(entry.id))return true;return false;}
     private void picker(String choice,boolean fromMenu){
-        pickerMode=choice;pickerFromMenu=fromMenu;content("picker",choice.equals("replace")?"替换 "+name(pkg):"添加首页应用");
-        TextView loading=muted("正在读取应用…",14);box.addView(loading);show(700,loading,false);int request=generation;
+        // Keep the current surface until the complete picker is ready; no short loading window.
+        pickerMode=choice;pickerFromMenu=fromMenu;int request=++generation;
         worker.execute(()->{
             ArrayList<HomeAppCatalog.Entry> choices=new ArrayList<>();HashMap<String,Bitmap> artwork=new HashMap<>();String error=null;
             try{ArrayList<String> pinned=new DockStore(this).load();for(HomeAppCatalog.Entry entry:new HomeAppCatalog(this).load(pinned))if(!pinned.contains(entry.id)){choices.add(entry);artwork.put(entry.id,entry.info==null?HomeEntryArtwork.render(this,entry.label,entry.id):AppArtwork.load(this,entry.info));}}
@@ -105,13 +105,13 @@ public final class HomeAppActionsActivity extends ManagementUi {
         });
     }
     private void pickerGrid(List<HomeAppCatalog.Entry> choices){
-        content("picker",pickerMode.equals("replace")?"替换 "+name(pkg):"添加首页应用");
-        TextView note=muted(pickerMode.equals("replace")?"选择新应用，原应用将回到第二屏":new DockStore(this).load().size()>=DockStore.CAPACITY?"首页已满，选好应用后选择替换位置":"选择应用添加到首页常用栏",13);box.addView(note);
+        content("picker",pickerMode.equals("replace")?"替换应用":"添加应用");
         ScrollView scroll=new ScrollView(this){@Override protected void onMeasure(int w,int h){super.onMeasure(w,View.MeasureSpec.makeMeasureSpec(px(340),View.MeasureSpec.AT_MOST));}};
+        scroll.setVerticalScrollBarEnabled(false);scroll.setHorizontalScrollBarEnabled(false);scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
         LinearLayout grid=column();grid.setPadding(px(5),px(16),px(5),px(8));scroll.addView(grid);box.addView(scroll);View first=null;LinearLayout line=null;
         for(int i=0;i<choices.size();i++){
             HomeAppCatalog.Entry entry=choices.get(i);if(i%5==0){line=row();line.setGravity(Gravity.TOP);grid.addView(line);}
-            LinearLayout card=column();card.setFocusable(true);card.setFocusableInTouchMode(true);card.setClickable(true);card.setPadding(px(5),px(5),px(5),px(7));card.setBackgroundDrawable(ControlStyle.action(unit,10,0,0));card.setContentDescription("选择 "+entry.label);
+            LinearLayout card=column();card.setFocusable(true);card.setFocusableInTouchMode(true);card.setClickable(true);card.setPadding(px(5),px(5),px(5),px(7));StateListDrawable focusBorder=new StateListDrawable();focusBorder.addState(new int[]{android.R.attr.state_focused},surface(0,0,0xfff3f4f7,10));focusBorder.addState(new int[]{},new ColorDrawable(Color.TRANSPARENT));card.setBackgroundDrawable(focusBorder);card.setContentDescription("选择 "+entry.label);
             ImageView image=new ImageView(this);androidx.core.graphics.drawable.RoundedBitmapDrawable cover=androidx.core.graphics.drawable.RoundedBitmapDrawableFactory.create(getResources(),pictures.get(entry.id));cover.setCornerRadius(px(11));cover.setAntiAlias(true);image.setImageDrawable(cover);image.setScaleType(ImageView.ScaleType.FIT_XY);LinearLayout.LayoutParams imageSize=new LinearLayout.LayoutParams(px(116),px(116*203f/360f));imageSize.gravity=Gravity.CENTER_HORIZONTAL;card.addView(image,imageSize);
             TextView title=center(entry.label,12);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);card.addView(title,new LinearLayout.LayoutParams(-1,px(28)));
             card.setOnClickListener(v->select(entry.id));line.addView(card,new LinearLayout.LayoutParams(0,-2,1));if(first==null||entry.id.equals(candidate))first=card;
