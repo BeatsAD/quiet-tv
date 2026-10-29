@@ -120,26 +120,26 @@ See [compatibility and historical evidence](docs/COMPATIBILITY.md). Third-party 
 
 ## Known issues and hardware validation
 
-As of 2026-10-29, some devices have reported results; more models and firmware versions still need testing. **Each result applies only to its stated device, firmware, APK and scenario.** Installation, manual launch and HOME resolution do not establish physical Home-button, reboot, cold-boot or standby-wake behavior.
+Updated 2026-10-29. Results apply to the recorded model, firmware and software version.
 
-| Issue | Progress and remaining checks |
-| --- | --- |
-| Vendor home takeover | A Coocaa 55G20 user confirms physical Home and reboot success on 1.2.9; cold boot, standby and other firmware remain unconfirmed. A Skyworth E6100 / Android 4.4.2 trial report still returns to stock Home, and API19 has no standard guard fallback. |
-| Inputs and remote keys | Skyworth 55H6 / 1.3.0 (130) reports an input screen at boot, input-switching problems and an unresponsive Menu key; fixes and physical retesting remain pending. Opening an input route does not validate picture, audio or remote keys. |
-| Legacy weather and daily wallpaper | Hisense VIDAA_TV / Android 4.4.2 reported HTTPS handshake failures on 1.2.1 (54). Later fixes have shipped; this device still needs an upgrade retest. See [#68](https://github.com/BeatsAD/quiet-tv/issues/68#issuecomment-6430967402). |
-| Restricted ADB access or authorization | Greyed-out USB debugging, missing wireless debugging or no pairing entry can prevent some maintenance and adaptation. There is no universal unlock method. A current connection does not prove access after reboot or standby. |
+**Known issues**
 
-| Device report | Available evidence | Still needed |
+| Issue | Current status | Pending validation |
 | --- | --- | --- |
-| Coocaa / Skyworth 55G20, Android 8, 1.2.9 | User confirms physical Home and reboot into Quiet TV in the [latest #35 comment](https://github.com/BeatsAD/quiet-tv/issues/35#issuecomment-6440081087) | Build/configuration details, cold boot, standby, inputs and stock-home recovery |
-| Xiaomi Box 2 Enhanced, Android 4.4.2, 1.2.4 | User reports installation and normal use in [#81](https://github.com/BeatsAD/quiet-tv/issues/81) | Scenario-specific acceptance, later upgrades and Dock-toggle retesting |
-| Sony BRAVIA VH1, Android 12, historical 1.2.4 (64) | In-place installation, installed APK verification and page captures | Full features and data retention, physical Home, reboot and standby |
+| Home takeover | Skyworth E6100 (Android 4.4.2) returns to stock Home when the Home key is pressed in trial mode | Takeover options, reboot, cold boot and standby wake |
+| Inputs and Menu key | Skyworth 55H6 / 1.3.0 reports an input screen at boot, input-switching problems and an unresponsive Menu key | Physical-TV retesting after fixes |
+| Weather and daily wallpaper | Hisense VIDAA_TV (Android 4.4.2) had connection failures on an older version; compatibility fixes have since shipped. See [#68](https://github.com/BeatsAD/quiet-tv/issues/68#issuecomment-6430967402) | Retest weather and daily wallpaper separately after upgrading |
+| ADB connection | Some firmware restricts debugging access or authorization | Available connection methods and connectivity after reboot or standby |
 
-See the [device records](docs/COMPATIBILITY.md#样机验证记录) for firmware, versions, failures and sources. Community reports and maintainer acceptance are identified separately; an older result does not validate 1.3.0 or an entire brand.
+**Hardware validation results**
 
-Version 1.3.0 uses computer AI for takeover setup; 应用管理 → 更多 → 帮助与恢复 (Help and recovery) pauses takeover or restores stock Home. The guard, HOME proxy, [Xiaomi helper](xiaomi-home-helper/README.md) and [Coocaa shim](coocaa-home-shim/README.md) depend on system capabilities and authorization. Avoid running standalone helpers alongside the built-in guard; the Coocaa port has no Quiet TV physical acceptance yet. Android 4.0–4.4 has no standard guard or HOME proxy. See [setup and recovery](docs/SETUP.md) and [computer adaptation](docs/AGENT_ADAPT.zh-CN.md).
+| Device and version | Available results | Pending validation |
+| --- | --- | --- |
+| Coocaa / Skyworth 55G20, Android 8, 1.2.9 | User confirms physical Home and reboot into Quiet TV. See [#35](https://github.com/BeatsAD/quiet-tv/issues/35#issuecomment-6440081087) | Cold boot, standby, inputs and stock-home recovery |
+| Xiaomi Box 2 Enhanced, Android 4.4.2, 1.2.4 | User reports successful installation and normal use. See [#81](https://github.com/BeatsAD/quiet-tv/issues/81) | Individual feature acceptance, later upgrades and Dock-toggle retesting |
+| Sony BRAVIA VH1, Android 12, historical 1.2.4 (64) | In-place installation and page checks completed | Full features, retention of all data, physical Home, cold boot, reboot and standby |
 
-Use a [device adaptation report](https://github.com/BeatsAD/quiet-tv/issues/new?template=device_adaptation.yml) or the relevant issue. Include model, Android/firmware, Quiet TV version/build and APK source; report manual launch, physical Home, reboot, cold boot, standby, input/Menu keys and stock-home recovery separately. Mark untested items as unverified. Share relevant redacted excerpts only, omitting IP addresses, serial numbers, keys and full device dumps.
+See the [device records](docs/COMPATIBILITY.md#样机验证记录) for models, firmware and evidence. Share redacted test results through the [device adaptation form](https://github.com/BeatsAD/quiet-tv/issues/new?template=device_adaptation.yml).
 
 ## Technical approach
 
@@ -185,7 +185,7 @@ Native source is in `app/`, build and device tools in `scripts/`, and `prototype
 
 Quiet TV is based on [Gathin23/cleanyourtv](https://github.com/Gathin23/cleanyourtv). Thank you to **Gathin** for the original work. This project is independently maintained and is not officially affiliated with the upstream project or TV and application brands.
 
-Project code uses [MIT](LICENSE), preserving the copyrights of Gathin and Quiet TV contributor BeatsAD, the permission notice and disclaimer. Third-party code, fonts, icons, weather data, images and videos retain their respective licenses or service terms; see [third-party notices](THIRD_PARTY_NOTICES.md).
+Project code uses [MIT](LICENSE), preserving the copyrights of Gathin and Quiet TV contributor BeatsAD, the permission notice and disclaimer. Third-party code, fonts, icons, weather data, images and videos retain their respective licenses or service terms; see [third-party notices](THIRD_PARTY_NOTICES.en.md).
 
 ## Let's connect
 

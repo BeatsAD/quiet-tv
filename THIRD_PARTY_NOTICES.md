@@ -1,167 +1,26 @@
-# 第三方项目与资源说明
+# 第三方许可与资源
 
-## 许可适用范围
+Quiet TV 基于 [cleanyourtv](https://github.com/Gathin23/cleanyourtv)（原名 tv-vibehack）独立维护。项目代码采用 [MIT 许可证](LICENSE)，保留 Gathin 与 BeatsAD 的版权声明、许可条件和免责声明。
 
-Quiet TV 的项目代码采用根目录 [MIT 许可证](LICENSE)，保留 Copyright (c) 2026 Gathin 与 Copyright (c) 2026 BeatsAD (Quiet TV modifications)。使用、修改或再分发代码时，须保留版权声明、许可条件和免责声明；完整授权以许可证原文为准。
+## 开源组件
 
-第三方代码、字体、图标、地区与天气数据、在线服务及图片视频分别遵循各自许可或服务条款，不能统一按项目 MIT 许可处理。
-
-| 内容 | 许可与完整文本 |
+| 项目或资源 | 许可与原文 |
 | --- | --- |
-| Quiet TV 项目代码 | [MIT](LICENSE) |
-| cleanyourtv 派生代码及 Aerial 参考实现 | MIT，见下方来源、版权与固定版本记录 |
-| 可选酷开独立助手 | [独立 MIT 许可](coocaa-home-shim/LICENSE)，不随主程序启用 |
-| Android 依赖、字体、图标及地区数据 | 见各节及 [离线许可文件](app/src/main/assets/licenses/)；Outfit 使用 [OFL 1.1](app/src/main/assets/fonts/OFL.txt) |
-| 天气、在线壁纸及历史媒体资源 | 见各节的数据许可、服务条款与来源边界 |
+| cleanyourtv | MIT，[上游许可](app/src/main/assets/licenses/tv-vibehack-LICENSE.txt) |
+| [Aerial](https://github.com/pengchujin/aerial-tv)（部分实现参考） | MIT，Copyright (c) 2026 pengchujin，[许可原文](app/src/main/assets/licenses/aerial-MIT.txt) |
+| AndroidX（含 Media3）、ZXing | Apache-2.0，[许可原文](app/src/main/assets/licenses/libadb-Apache-2.0.txt) |
+| libadb-android | Apache-2.0，保留其继承的 BSD／MIT 声明，见[完整许可目录](app/src/main/assets/licenses/) |
+| Bouncy Castle | MIT，[许可原文](app/src/main/assets/licenses/bouncycastle-LICENSE.md) |
+| NanoHTTPD | BSD-3-Clause，[许可原文](app/src/main/assets/licenses/nanohttpd-LICENSE.txt) |
+| Lucide 图标 | ISC／MIT，[许可原文](app/src/main/assets/licenses/Lucide-LICENSE.txt) |
+| Outfit 字体 | SIL OFL 1.1，[许可原文](app/src/main/assets/fonts/OFL.txt) |
+| 中国行政区划数据 | WTFPL 2.0，[许可原文](app/src/main/assets/licenses/china-regions-WTFPL.txt) |
+| 可选酷开独立助手 | MIT，[独立许可](coocaa-home-shim/LICENSE) |
 
-本文件与完整许可文本会进入后续构建的 APK 离线许可页；修改文档不会更新已安装的 APK。历史许可快照与文件名保留，文件仍在仓库不表示对应依赖仍进入当前主程序。
+完整版权与许可文本随 APK 离线提供。
 
-<a id="tv-vibehack"></a>
+## 在线服务与媒体
 
-## cleanyourtv（原名 tv-vibehack）
-
-- 原项目：[Gathin23/cleanyourtv](https://github.com/Gathin23/cleanyourtv)，原仓库名为 `tv-vibehack`。
-- 原作者版权：Copyright (c) 2026 Gathin，MIT。
-- 完整上游许可快照：[tv-vibehack-LICENSE.txt](app/src/main/assets/licenses/tv-vibehack-LICENSE.txt)，保留历史文件名与原文。
-- 许可核对版本：[19f3c224fe68843cb2ff0df3157b81622bbe1266](https://github.com/Gathin23/cleanyourtv/tree/19f3c224fe68843cb2ff0df3157b81622bbe1266)，核对日期 2026-10-18。此版本固定许可来源，不代表已确认最初派生代码所用提交。
-
-Quiet TV 基于该项目独立维护，保留原作者版权、MIT 授权条件与免责声明。快照中的 Outfit 字体说明对应上游目录，本项目字体路径及独立 OFL 许可见下方字体一节。
-
-## Aerial 桌面守护（实验）参考
-
-来源：[pengchujin/aerial-tv](https://github.com/pengchujin/aerial-tv)，Copyright (c) 2026 pengchujin，MIT；[完整许可](app/src/main/assets/licenses/aerial-MIT.txt)随主程序打包。以下按功能汇总已有固定来源，按 Quiet TV 的 Java 结构实现，未引入上游整套守护或运行库。
-
-| 参考范围 | 固定来源 |
-| --- | --- |
-| 原主页窗口识别、酷开私有 HOME 类别、恢复与有限重绑 | [da9cedc2](https://github.com/pengchujin/aerial-tv/tree/da9cedc2c5887a46d62b1f54699567a5deac5c2a)、[bd30a9f9](https://github.com/pengchujin/aerial-tv/tree/bd30a9f9fbbcbb8e8ff02963dc265714e7a67a8e) |
-| VIDAA 无窗口事件、酷开 AI 与松下系无 HOME 声明组件 | [2d6d468b / HomeGuardService.kt](https://github.com/pengchujin/aerial-tv/blob/2d6d468b6b65095b3f4691a8f9bc1514972feefd/app/src/main/java/app/orchard/tv/guard/HomeGuardService.kt) |
-| 旧安卓 UsageStats 检测、电脑首次授权 | [bc89bc51](https://github.com/pengchujin/aerial-tv/tree/bc89bc51a382899d3233f7d0b87db54a5d408348)，另对照 [cleanyourtv 小米记录 eb0131a3](https://github.com/Gathin23/cleanyourtv/blob/eb0131a32fd8567086f39002f1782f7c1b078ca6/docs/devices/xiaomi-mitv4-ansm0.md) |
-| 小米／Redmi 延后复查与无事件恢复 | [v1.46 / f4e95ffc](https://github.com/pengchujin/aerial-tv/tree/f4e95ffc08c38650970fd4ce70923511f6ecd294) |
-| 本地账号、同步服务、可选 KEEP_ADB 与恢复计数 | [v1.47 / 7b005c6b](https://github.com/pengchujin/aerial-tv/tree/7b005c6b35d068f1772c0e956a0cfddbbd803690) 的 RevivalSync.kt、GuardSetup.kt 与同步元数据 |
-| 直接 HOME 补偿、开机复查与系统同步恢复 | [v1.49 / f1c8ea97](https://github.com/pengchujin/aerial-tv/tree/f1c8ea979a9128cebc46c646bb8efba1644e7b26) 的 HomeGuardService.kt、GuardSetup.kt、BootReceiver.kt、RevivalSync.kt |
-| 系统设置、网络及厂商信号源接口 | [Aerial bc89bc51](https://github.com/pengchujin/aerial-tv/tree/bc89bc51a382899d3233f7d0b87db54a5d408348) 的 SystemState.kt、SettingsLaunch.kt、KonkaSources.kt；[cleanyourtv eb0131a3](https://github.com/Gathin23/cleanyourtv/tree/eb0131a32fd8567086f39002f1782f7c1b078ca6) 的 SystemSettings.java、CoocaaSources.java |
-| 小米 HDMI 配置读取与分层回退 | [f1c8ea97 / SystemState.kt](https://github.com/pengchujin/aerial-tv/blob/f1c8ea979a9128cebc46c646bb8efba1644e7b26/app/src/main/java/app/orchard/tv/system/SystemState.kt#L653-L703) 的 `hdmiN_order` 读取 |
-
-实现保留精确原主页、其他前台应用、暂停与息屏边界；本地账号不登录、不传输数据，可选调试恢复须用户授权并持有既有权限。用量检测、通知监听及组件调用均受系统能力与权限限制。上游机型结果不计为 Quiet TV 真机通过，实际适用范围与样机结果见[兼容说明](docs/COMPATIBILITY.md)。
-
-## 桌面接管机制参考
-
-新增 HOME 事务、厂商属性路由、TCL 策略编辑及 Fire OS 观察入口按 Quiet TV 现有结构独立实现，没有引入这些项目的运行库或整套守护。相关系统行为与故障证据参考：
-
-- [Free My TV：JM 私有 HOME 路由实测](https://github.com/simbasjungles/free-my-tv/pull/230)，及其 `90908dc5bce178feb52e9868947cc039c64730fc` 的 HOME 管理行为。
-- [Aerial：Hisense VIDAA 设备记录](https://github.com/pengchujin/aerial-tv/blob/ae01e48f4f932c60bc84a59a95f449d4d767dff2/docs/devices/hisense-vidaa.md)，区分标准 HOME、私有属性和冷启动。
-- [dumbtv](https://github.com/humblemuzzu/dumbtv/tree/225bb00cc80228d69a793c3be49c0c8c8afa533a)：Google TV 竞争 HOME 顺序、Fire OS 6 用量观察与任务恢复。
-- [TCL Guard Manager](https://github.com/eliotcougar/tcl-guard-manager/tree/49a1fa63a4bcfeebd2c64d2b347c13d01c431e11)：TCL Provider 字段、开机组件及不同策略版本的有效性限制。
-- [UnitedU](https://github.com/GordonWang1878/UnitedU-launcher/blob/fd0bdc330395abd30616d8d328bb913f41dc651a/app/src/main/java/com/uniteduone/launcher/HomeKeyPolicy.kt)：系统屏保放行及同次 HOME 按键配对的故障分析。
-
-上游报告的验证范围属于原项目和对应设备，不构成 Quiet TV 在其他固件上的验收结论。已有直接引用代码和资源继续保留各节原有许可声明。
-
-## 动态壁纸播放
-
-- Android 5+ 使用 [AndroidX Media3 ExoPlayer 1.8.1](https://developer.android.com/jetpack/androidx/releases/media3#1.8.1)，Apache-2.0，版权归 The Android Open Source Project 等贡献者；完整许可沿用 APK 中的 `assets/licenses/libadb-Apache-2.0.txt`。固定此兼容版本以保留 Android 5.0 支持，不引入额外 FFmpeg 解码库；Android 4.4 不包含 Media3，继续使用系统 MediaPlayer。
-- 播放器缓冲上限、关闭音频轨、首帧通知和退出释放的设计参考 [Aerial f1c8ea97](https://github.com/pengchujin/aerial-tv/tree/f1c8ea979a9128cebc46c646bb8efba1644e7b26) 的 `LiveWallpaper.kt`、`VideoSaver.kt` 和 `ScreensaverVideos.kt`，按本项目 Java、局域网上传及双系统档位实现。Aerial 的 MIT 版权和完整许可继续随包保留；未引入其在线航拍下载、缓存或屏保功能。
-
-## TCL 电脑安装通道
-
-电脑侧 TCL 安装通道参考 [Aerial 的 tcast-push.py](https://github.com/pengchujin/aerial-tv/blob/main/tools/tcast-push.py) 及 TCL MT5879 记录，按本项目目标包、私有 APK 校验和 ADB 用户边界实现。`scripts/tcl_cast.py` 保留 Copyright (c) 2026 pengchujin 及完整 MIT 许可。推送不包含远程截图、按键、屏保接管或系统包精简；上游机型的结果不计为 Quiet TV 真机验收。
-
-## coocaa-home-shim（可选独立助手）
-
-- 来源：[VincentYe123/coocaa-home-shim](https://github.com/VincentYe123/coocaa-home-shim/tree/281a6a1362a9e30faaeb2169b75ba701dd0b1a03)，基于提交 `281a6a1362a9e30faaeb2169b75ba701dd0b1a03`，同步 [v2.1](https://github.com/VincentYe123/coocaa-home-shim/releases/tag/v2.1) 的开机主页属性恢复。
-- Copyright (c) 2026 VincentYe123，MIT；[完整许可证](coocaa-home-shim/LICENSE)随助手 APK 打包。
-- 移植仅调整 Quiet TV 目标组件、构建配置及外部调用入口；保留上游主页中转、原桌面回退和短时开机处理。该助手不包含在普通 Quiet TV APK 内。
-- [构建、安装和恢复说明](coocaa-home-shim/README.md)；Quiet TV 移植尚未经过真实酷开电视验收。
-
-## Outfit 字体
-
-- 来源：[Outfit Project](https://github.com/Outfitio/Outfit-Fonts)
-- 版权：Copyright 2021 The Outfit Project Authors
-- 字体文件：`app/src/main/assets/fonts/outfit.ttf`
-- 独立许可：SIL Open Font License 1.1，完整文本见 [OFL.txt](app/src/main/assets/fonts/OFL.txt)，随字体一起打包。
-
-上游许可快照中提到的 `launcher/app/src/main/res/font/outfit.ttf` 和 `launcher/FONT-LICENSE-OFL.txt` 为上游目录；本项目对应文件为本节所列路径。
-
-## 大苏尔风景壁纸
-
-历史三张大苏尔图片来自本机 Apple 壁纸资源清单所列的官方 CDN，曾裁剪为 1920×1080 JPG 供本地离线使用。当前构建已排除这些资源，不进入 APK；保留以下来源记录：
-
-| 本项目文件 | 资源名称 | 原始来源 |
-| --- | --- | --- |
-| `app/src/main/assets/wallpapers/big-sur-coastline.jpg` | Big Sur Coastline | [Apple CDN](https://updates.cdn-apple.com/2025/mobileassets/072-29818/74AF556A-DC02-429B-894B-23AB61E2A5F9/com_apple_MobileAsset_DesktopPicture/bec472e7c6e54ee0765abffa76c624290b9ef2c2.zip) |
-| `app/src/main/assets/wallpapers/big-sur-mountains.jpg` | Big Sur Mountains | [Apple CDN](https://updates.cdn-apple.com/2025/mobileassets/072-29818/74AF556A-DC02-429B-894B-23AB61E2A5F9/com_apple_MobileAsset_DesktopPicture/7a1f6e346a253992b2df0358398caafb6d75fe4a.zip) |
-| `app/src/main/assets/wallpapers/big-sur-road.jpg` | Big Sur Road | [Apple CDN](https://updates.cdn-apple.com/2025/mobileassets/072-29818/74AF556A-DC02-429B-894B-23AB61E2A5F9/com_apple_MobileAsset_DesktopPicture/643aa03a1828fb2170170ef999b18900bd6b26f6.zip) |
-
-这些图片的权利归各自权利人所有，不属于本项目 MIT 许可的代码。上述来源记录不是再分发授权；尚未记录可供公开再分发的授权依据，公开发布源码或 APK 前需核实相应权利，或替换为获准再分发的图片。
-
-
-## 金门大桥日落动态壁纸
-
-历史内置视频「金门大桥日落 / Golden Gate Sunset」选自本机 macOS 已下载的 Apple 航拍壁纸，资源 ID 为 `4207734D-74FE-4F92-B5E1-6EC8DEE24A15`。本机资源清单名称为 `Golden Gate Sunset`，[原始 Apple CDN 来源](https://sylvan.apple.com/itunes-assets/Aerials116/v4/cb/5b/50/cb5b5035-6701-619f-9065-3d7d0e5fbef4/GG_A_SUNSET_MarshallsBeach_c28_v7_24comp_HFR_16Mbps.mov)。
-
-- 视频：`app/src/main/assets/wallpapers/golden-gate-sunset.mp4`，从原视频前 24 秒制作约 23 秒循环，结尾与开头进行 1 秒淡化衔接，转为 1920×1080、30 FPS、SDR、H.264 Baseline Level 4.0，无音轨。
-- 封面：`app/src/main/assets/wallpapers/golden-gate-sunset.jpg`，取内置视频首帧，供离线预览及播放前展示。
-- 当前源码已取消该内置选项及恢复入口。视频、封面和上文三张大苏尔图片仅作为历史来源资料保留在源码中，通过构建排除，不进入 APK。用户仍可上传自己的图片和视频。
-
-资源权利归相应权利人所有，不属于本项目 MIT 许可的代码；来源记录不代表公开再分发授权，与上文大苏尔图片采用相同的本地使用及发布前权利核实边界。
-
-## 电视端 ADB 与证书依赖
-
-当前主程序的首次 ADB 配置由电脑执行，电视端日常应用管理使用本机 TCP 通道。依赖范围以 [app/build.gradle](app/build.gradle) 为准：
-
-| 当前依赖 | 用途与许可 |
-| --- | --- |
-| [libadb-android 3.1.1](https://github.com/MuntashirAkon/libadb-android/tree/3.1.1) | 本机 TCP ADB；采用 Apache-2.0 许可选项，保留继承代码的 BSD-3-Clause 与 MIT 声明，完整文本为 `assets/licenses/libadb-*.txt`。 |
-| [Bouncy Castle 1.86](https://github.com/bcgit/bc-java/tree/r1rv86) 的 bcprov、bcpkix、bcutil / jdk15to18 | 更新清单验签、本机授权身份与自签证书；[完整许可](app/src/main/assets/licenses/bouncycastle-LICENSE.md)。 |
-| 同版本 bctls 及所需组件（仅 legacy14 / legacy19） | 旧安卓连接级 TLS／JSSE，无原生库；沿用 Bouncy Castle 许可。 |
-
-### 历史无线配对依赖
-
-当前主程序不构建 SPAKE2 或 Conscrypt；以下记录与完整许可保留，供对应历史版本核对。
-
-- `1.1.0 / b4` 候选接入无线配对，包含 [spake2-android 2.2.1](https://github.com/MuntashirAkon/spake2-java/tree/2.2.1) 的未修改原生库，采用 LGPL-3.0；版权归 Muntashir Al-Islam 等上游作者。LGPL 与 GPL 文本见 `assets/licenses/spake2-*.txt`。相同版本的完整库源码及构建脚本可从该标签取得；历史构建通过 Gradle 引用，保留对应来源及重建／替换说明。上游 Ed25519 实现来源与 CC0 说明见其 README。
-- [Conscrypt 2.7.0](https://github.com/google/conscrypt/tree/2.7.0) 曾提供 TLS 1.3 与公开密钥导出接口，Apache-2.0；其及内含原生代码的声明保存在 `assets/licenses/conscrypt-LICENSE.txt`、`conscrypt-NOTICE.txt`。历史 TCP 版本未包含以上无线依赖。
-
-## AndroidX 返回导航
-
-- [AndroidX Activity 1.10.1](https://developer.android.com/jetpack/androidx/releases/activity#1.10.1) 及其 AndroidX 生命周期依赖用于统一 Android 6 与新版系统的返回操作，采用 Apache-2.0。完整 Apache-2.0 文本随 APK 保存于 `assets/licenses/libadb-Apache-2.0.txt`；该文本同时适用于这些 AndroidX 组件。版权归 The Android Open Source Project 等贡献者。
-
-## 每日在线壁纸
-
-每日壁纸固定访问必应中国接口及其图片 CDN，只在桌面前台按需请求，将有限缓存保存在电视本机。第三方服务可看到通常的网络请求信息；本功能不上传用户图片，不向提供方发送设备标识或位置。
-
-- 必应保留接口返回的图片标题、版权及来源链接，来源见 [Bing 首页说明](https://support.microsoft.com/en-us/topic/explore-the-homepage-bab2022c-cdb4-4d1f-80e2-c8f5c55712c7)。接口可访问不表示所有图片获得再分发授权，在线图片不作为应用内置资源分发。
-- 历史版本曾采用[搏天随机壁纸接口](https://api.btstu.cn/doc/sjbz.php)。当前不再请求该服务；旧缓存仅用于升级期间保留背景，不作为内置资源分发。图片权利仍归原权利人。
-- 历史 Android 7.1 及以下版本曾对 `api.btstu.cn`、`img.btstu.cn` 补充证书信任；当前已移除上述网络和证书补充逻辑。
-- 安卓4.4档的必应连接使用应用内 TLS 实现，并在系统信任根基础上补充官方 [DigiCert Global Root G2](https://knowledge.digicert.com/general-information/digicert-trusted-root-authority-certificates)。公开证书为 `app/src/main/assets/certificates/digicert-global-root-g2.pem`，DER SHA-256 为 `cb3ccbb76031e5e0138f8dd39a23f9de47ffc35e43c1144cea27d46a5ab1cb5f`。不修改系统证书库、全局安全提供方或默认域名校验，不要求 root；Android 5+ 的壁纸连接继续使用系统默认 TLS。
-
-## 旧版 Android 天气 HTTPS 兼容
-
-- Android 4.4 至 7.1（API19–25）的天气连接在系统信任根基础上补充官方 [ISRG Root X1](https://letsencrypt.org/certificates/)，用于天气源 HTTPS 请求，保留证书链、有效期及域名校验，不修改设备证书库或应用全局 TLS 设置。Android 8 及以上继续使用系统默认信任；Android 4.4 同时沿用 TLS 1.2 兼容设置。
-- 证书文件为 `app/src/main/assets/certificates/isrg-root-x1.pem`，DER SHA-256 为 `96bcec06264976f37460779acf28c5a7cfe8a3c0aae11a8ffcee05c0bddf08c6`。该文件是公开根证书，不含私钥；不固定天气服务的叶证书，服务正常续期仍由证书链校验。
-
-## 壁纸局域网上传
-
-- [NanoHTTPD 2.3.1](https://github.com/NanoHttpd/nanohttpd/tree/nanohttpd-project-2.3.1)：用于临时 HTTP 上传服务，BSD-3-Clause，版权归 NanoHTTPD 贡献者。完整声明随 APK 保存于 `assets/licenses/nanohttpd-LICENSE.txt`。
-- [ZXing Core 3.5.3](https://github.com/zxing/zxing/tree/zxing-3.5.3)：仅用于生成上传地址二维码，Apache-2.0，版权归 ZXing Authors。
-- [AndroidX ExifInterface 1.4.2](https://developer.android.com/jetpack/androidx/releases/exifinterface#1.4.2)：用于读取上传照片方向，Apache-2.0，版权归 The Android Open Source Project。以上 Apache-2.0 文本随 APK 保存在 `assets/licenses/libadb-Apache-2.0.txt`。
-
-## Android 4.x compatibility profiles
-
-The `legacy14` profile (API14+) and historical `legacy19` build option use AndroidX Activity 1.8.2, Core/Core KTX 1.12.0, RecyclerView 1.3.2 and MultiDex 2.0.1 under Apache-2.0. Their complete license text is included in the offline license assets. It omits Conscrypt and SPAKE2 from its dependency graph; their historical notices remain available in the repository. Bouncy Castle and the existing minimum patched version constraints are retained.
-
-The wallpaper uploader in `legacy14` / `legacy19` uses ZXing Core 3.3.0 and AndroidX ExifInterface 1.3.7 under the same Apache-2.0 license to retain Android 4.0–4.4 compatibility. The standard profile retains ZXing Core 3.5.3 and ExifInterface 1.4.2.
-
-## Wallpaper interface icons
-
-The wallpaper settings and upload dialog use raster exports of Lucide 0.468.0 icons (chevron-left, upload, sliders-horizontal, trash-2, check, x, rotate-ccw). Original source: https://github.com/lucide-icons/lucide/tree/0.468.0/icons . The original ISC and Feather-derived MIT license notices are included in `app/src/main/assets/licenses/Lucide-LICENSE.txt` and the APK offline licenses.
-
-
-## 天气地区数据
-
-省市区县选择及本地模糊查询使用 [modood/Administrative-divisions-of-China](https://github.com/modood/Administrative-divisions-of-China/tree/c49d495b40ac73eb1a66f6eeae5f8fd10696f035) 的 `dist/pca-code.json`，固定提交 `c49d495b40ac73eb1a66f6eeae5f8fd10696f035`。原始 JSON 保存在 `app/src/main/assets/weather/regions.json`，完整 WTFPL 2.0 许可随包保存在 [china-regions-WTFPL.txt](app/src/main/assets/licenses/china-regions-WTFPL.txt)。数据快照包含中国大陆 31 个省级单位，不包含港澳台完整区划；行政区调整可能晚于实际生效时间。未收录地区不冒充已支持，不以相近区县替代。
-
-天气数据不属于以上地区数据许可。和风天气通过开发者独立配置的 Host 和凭据请求，来源标注要求见[官方说明](https://dev.qweather.com/docs/terms/attribution/)；当前界面将来源署名与官网入口集中放在“天气设置 → 服务说明”中，首页保留天气主信息。自动模式失败时按配置顺序尝试可用来源，显示实际成功来源。私有凭据不提交源码，查询地区和出口 IP 会被实际请求的服务接收。
-
-补充地点保存在 [places.json](app/src/main/assets/weather/places.json)。长岛的参考坐标根据 [GeoNames 地名数据](https://www.geonames.org/advanced-search.html?country=CN&q=Dao+Xian&startRow=0) 中 Changdao / 长岛县的坐标舍入到两位小数，依 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 使用；别名为本项目维护。该点接近原县城，不代表所有岛屿的中心或气象观测站。联网补充地点由 UAPI 返回，不缓存和风 GeoAPI 响应建立索引。
-
-新增天气源 [Open-Meteo](https://open-meteo.com/) 的数据依 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 使用；天气码由本项目转换为中文/英文和原生图标，当前天气为模型估算。免费托管 API 仅限[非商业使用](https://open-meteo.com/en/terms)，默认关闭，需用户启用；数据许可不等于免费服务的商业使用授权。[OpenWeather](https://openweathermap.org/api/current) 使用开发者可选配置的独立凭据及对应服务条款。天气设置显示实际成功来源并链接其官网；未直接复制上述开源天气应用代码。
+- 必应每日壁纸保留图片版权与来源链接，在线图片不作为内置资源分发。用户上传的图片和视频由用户确认使用权。
+- 天气地区补充坐标与 Open-Meteo 数据使用 CC BY 4.0；[Open-Meteo 免费接口](https://open-meteo.com/en/terms)仅限非商业使用。和风、OpenWeather 等服务按各自条款使用，界面保留实际数据来源。
+- 字体、图标、地区数据、天气数据及媒体资源分别遵循各自许可，不统一纳入项目 MIT 授权。
