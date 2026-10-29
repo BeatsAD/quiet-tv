@@ -35,6 +35,12 @@ final class WallpaperUi {
         TextView view=button(value,false,action);view.setMinHeight(0);view.setPadding(px(10),0,px(10),0);
         ControlStyle.choice(view,unit,100,Color.TRANSPARENT,0);return view;
     }
+    TextView compactButton(String value,Runnable action){
+        TextView view=button(value,false,action);view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(11));
+        view.setSingleLine(true);view.setMinHeight(0);view.setPadding(px(5),0,px(5),0);
+        view.setBackgroundDrawable(focusSurface(Color.TRANSPARENT,100));return view;
+    }
+    Drawable capsule(){return surface(0xd92b2e34,100,0x28ffffff,.7f);}
     Drawable icon(int resource,int size,int color){
         Drawable art=UiCompat.drawable(context,resource).mutate();art.setColorFilter(color,PorterDuff.Mode.SRC_IN);art.setBounds(0,0,px(size),px(size));return art;
     }
