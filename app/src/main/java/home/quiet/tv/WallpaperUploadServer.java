@@ -16,7 +16,8 @@ final class WallpaperUploadServer extends NanoHTTPD {
     interface Assets { InputStream open(String name) throws IOException; }
     interface Active { boolean valid(); }
     interface Importer { String accept(InputStream input,long length,String name,Active active) throws IOException;
-        default String acceptVideo(InputStream input,long length,String name,Active active) throws IOException {throw new IOException("此入口只支持图片 / Images only");} }
+        default String acceptVideo(InputStream input,long length,String name,Active active) throws IOException {throw new IOException("此入口只支持图片 / Images only");}
+        default String acceptVideo(InputStream input,long length,String name,Active active,long upload) throws IOException {return acceptVideo(input,length,name,active);} }
     private static final AtomicBoolean IMPORTING=new AtomicBoolean();
     private final Assets assets;
     private final Importer importer;
@@ -82,23 +83,29 @@ final class WallpaperUploadServer extends NanoHTTPD {
         String kind=session.getHeaders().get("x-wallpaper-kind");
         if(kind==null)kind="image";
         if(!"image".equals(kind)&&!(videos&&"video".equals(kind)))return error(Response.Status.BAD_REQUEST,"此入口不支持这种文件 / Unsupported media type");
-        boolean video="video".equals(kind);long limit=video?WallpaperVideo.MAX_UPLOAD:maximum;
+        boolean video="video".equals(kind);long upload=video?VideoDiagnostics.nextUpload():0;long limit=video?WallpaperVideo.MAX_UPLOAD:maximum;
         long length;
         try { length=Long.parseLong(session.getHeaders().get("content-length")); }
-        catch(NumberFormatException e){return error(Response.Status.LENGTH_REQUIRED,"需要文件长度 / Content-Length required");}
-        if(length<=0 || length>limit)return error(Response.Status.PAYLOAD_TOO_LARGE,"文件不能超过 "+(limit/(1024*1024))+" MB / Maximum file size: "+(limit/(1024*1024))+" MB");
-        if(session.getHeaders().containsKey("transfer-encoding"))return error(Response.Status.BAD_REQUEST,"Unsupported transfer encoding");
-        if(!IMPORTING.compareAndSet(false,true))return error(Response.Status.SERVICE_UNAVAILABLE,"正在处理另一个文件，请稍后重试 / Another upload is in progress");
+        catch(NumberFormatException e){return uploadError(video,upload,Response.Status.LENGTH_REQUIRED,"missing_length","需要文件长度 / Content-Length required");}
+        if(length<=0 || length>limit)return uploadError(video,upload,Response.Status.PAYLOAD_TOO_LARGE,"file_size_limit","文件不能超过 "+(limit/(1024*1024))+" MB / Maximum file size: "+(limit/(1024*1024))+" MB");
+        if(session.getHeaders().containsKey("transfer-encoding"))return uploadError(video,upload,Response.Status.BAD_REQUEST,"transfer_encoding_unsupported","Unsupported transfer encoding");
+        if(!IMPORTING.compareAndSet(false,true))return uploadError(video,upload,Response.Status.SERVICE_UNAVAILABLE,"import_busy","正在处理另一个文件，请稍后重试 / Another upload is in progress");
         try {
             String name=session.getHeaders().get("x-wallpaper-name");
-            if(name==null || name.length()>1024)return error(Response.Status.BAD_REQUEST,"无效的文件名称 / Invalid file name");
+            if(name==null || name.length()>1024)return uploadError(video,upload,Response.Status.BAD_REQUEST,"invalid_name_header","无效的文件名称 / Invalid file name");
             name=URLDecoder.decode(name,"UTF-8");
             long deadline=System.nanoTime()+(video?600000000000L:60000000000L);
             Active active=()->!closed && System.nanoTime()<deadline;
-            String result=video?importer.acceptVideo(session.getInputStream(),length,name,active):importer.accept(session.getInputStream(),length,name,active);
+            String result=video?importer.acceptVideo(session.getInputStream(),length,name,active,upload):importer.accept(session.getInputStream(),length,name,active);
             return secure(newFixedLengthResponse(Response.Status.CREATED,"application/json; charset=utf-8",result));
-        } catch(IOException|IllegalArgumentException e){return error(Response.Status.BAD_REQUEST,e.getMessage()==null?"上传失败，请重试 / Upload failed":e.getMessage());}
+        } catch(IOException|IllegalArgumentException e){
+            if(video)DiagnosticLog.error("wallpaper.upload.response_failed","upload="+upload+" "+VideoDiagnostics.failureDetails(e),e);
+            return error(Response.Status.BAD_REQUEST,e.getMessage()==null?"上传失败，请重试 / Upload failed":e.getMessage());}
         finally {IMPORTING.set(false);touched=System.nanoTime();}
+    }
+    private Response uploadError(boolean video,long upload,Response.Status status,String reason,String message){
+        if(video)DiagnosticLog.info("wallpaper.upload.rejected","upload="+upload+" stage=request reason="+reason+" http="+status.getRequestStatus());
+        return error(status,message);
     }
     private synchronized Response connect(IHTTPSession session) {
         long now=System.nanoTime();

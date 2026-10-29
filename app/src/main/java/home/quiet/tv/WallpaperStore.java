@@ -106,21 +106,21 @@ final class WallpaperStore {
         return entry;
     }
     synchronized void checkVideoCapacity(long incoming) throws IOException {
-        if(catalog.count(true)>=WallpaperCatalog.MAX_VIDEOS||catalog.bytes(true)+incoming>WallpaperCatalog.MAX_VIDEO_BYTES)throw new IOException("动态壁纸库已满 / Video wallpaper library full");
-        if(directory.getUsableSpace()<incoming+32L*1024*1024)throw new IOException("电视存储空间不足 / Not enough TV storage");
+        if(catalog.count(true)>=WallpaperCatalog.MAX_VIDEOS||catalog.bytes(true)+incoming>WallpaperCatalog.MAX_VIDEO_BYTES)throw VideoDiagnostics.failure("capacity","library_full","动态壁纸库已满 / Video wallpaper library full");
+        if(directory.getUsableSpace()<incoming+32L*1024*1024)throw VideoDiagnostics.failure("capacity","storage_space_low","电视存储空间不足 / Not enough TV storage");
     }
     synchronized WallpaperCatalog.Entry addVideo(File ready,File poster, String filename,WallpaperVideo.Info info,WallpaperUploadServer.Active active) throws IOException {
         long bytes=ready.length()+(poster.isFile()?poster.length():0);
-        if(catalog.count(true)>=WallpaperCatalog.MAX_VIDEOS||catalog.bytes(true)+bytes>WallpaperCatalog.MAX_VIDEO_BYTES)throw new IOException("动态壁纸库已满 / Video wallpaper library full");
-        if(!active.valid())throw new IOException("上传会话已结束 / Session ended");
+        if(catalog.count(true)>=WallpaperCatalog.MAX_VIDEOS||catalog.bytes(true)+bytes>WallpaperCatalog.MAX_VIDEO_BYTES)throw VideoDiagnostics.failure("capacity","library_full","动态壁纸库已满 / Video wallpaper library full");
+        if(!active.valid())throw VideoDiagnostics.failure("save","session_ended","上传会话已结束 / Session ended");
         String id="user-"+UUID.randomUUID(),name=filename.replaceAll("[\\p{Cntrl}/\\\\]"," ").replaceFirst("(?i)\\.(mp4|mov|mkv|webm)$", "").trim();
         if(name.isEmpty())name="动态壁纸 / Video wallpaper";if(name.length()>48)name=name.substring(0,48);
         WallpaperCatalog.Entry entry=new WallpaperCatalog.Entry(id,name,info.width,info.height,bytes,"video",info.mime,info.durationMs,info.fps,info.rotation,info.pixelRatio);
-        File destination=mediaFile(id,true);if(!ready.renameTo(destination))throw new IOException("无法保存视频 / Unable to save video");
-        if(poster.isFile()&&!poster.renameTo(poster(id)))throw new IOException("无法保存视频封面 / Unable to save poster");
+        File destination=mediaFile(id,true);if(!ready.renameTo(destination))throw VideoDiagnostics.failure("save","video_rename_failed","无法保存视频 / Unable to save video");
+        if(poster.isFile()&&!poster.renameTo(poster(id)))throw VideoDiagnostics.failure("save","poster_rename_failed","无法保存视频封面 / Unable to save poster");
         WallpaperCatalog next=catalog.copy();next.add(entry);
         // A failed commit leaves this task's unindexed files, never removes an existing wallpaper.
-        if(!active.valid())throw new IOException("上传会话已结束 / Session ended");
+        if(!active.valid())throw VideoDiagnostics.failure("save","session_ended","上传会话已结束 / Session ended");
         persist(next);return entry;
     }
     File videoIncoming(){return new File(directory,"upload-"+UUID.randomUUID()+".tmp");}

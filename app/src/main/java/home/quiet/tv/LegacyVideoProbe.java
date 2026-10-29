@@ -10,26 +10,28 @@ final class LegacyVideoProbe {
     static final class Metadata {
         int width,height,rotation;long timescale,samples,ticks;float fps;String mime="";
     }
-    static WallpaperVideo.Info inspect(File file)throws IOException {
-        Metadata metadata=read(file);
-        if(metadata.width>0&&metadata.height>0&&(Math.max(metadata.width,metadata.height)>1920||Math.min(metadata.width,metadata.height)>1080))throw new IOException("此系统请使用不超过 1080p 的视频 / Use video up to 1080p on this system");
+    static WallpaperVideo.Info inspect(File file)throws IOException {return inspect(file,"");}
+    static WallpaperVideo.Info inspect(File file,String context)throws IOException {
+        Metadata metadata;
+        try{metadata=read(file);}catch(IOException e){DiagnosticLog.error("wallpaper.video.legacy_probe_failed",context+" stage=container reason=invalid_or_unsupported_container "+VideoDiagnostics.causes(e),e);throw e;}
+        if(metadata.width>0&&metadata.height>0&&(Math.max(metadata.width,metadata.height)>1920||Math.min(metadata.width,metadata.height)>1080))throw VideoDiagnostics.failure("legacy_metadata","legacy_resolution_limit","此系统请使用不超过 1080p 的视频 / Use video up to 1080p on this system");
         MediaPlayer player=new MediaPlayer();CountDownLatch ready=new CountDownLatch(1);boolean[] failed={false};
         try {
             player.setOnPreparedListener(p->ready.countDown());
-            player.setOnErrorListener((p,what,extra)->{failed[0]=true;ready.countDown();return true;});
+            player.setOnErrorListener((p,what,extra)->{DiagnosticLog.info("wallpaper.video.legacy_probe_failed",context+" stage=prepare reason="+VideoDiagnostics.platformReason(what,extra)+" what="+what+" extra="+extra);failed[0]=true;ready.countDown();return true;});
             player.setDataSource(file.getPath());player.setVolume(0,0);player.prepareAsync();
-            if(!ready.await(12,TimeUnit.SECONDS))throw new IOException("视频检查超时，请尝试其他视频 / Video inspection timed out");
-            if(failed[0])throw new IOException("电视无法解码此视频 / TV cannot decode this video");
+            if(!ready.await(12,TimeUnit.SECONDS))throw VideoDiagnostics.failure("legacy_prepare","inspection_timeout","视频检查超时，请尝试其他视频 / Video inspection timed out");
+            if(failed[0])throw VideoDiagnostics.failure("legacy_prepare","platform_player_error","电视无法解码此视频 / TV cannot decode this video");
             WallpaperVideo.Info info=new WallpaperVideo.Info();info.width=player.getVideoWidth();info.height=player.getVideoHeight();info.durationMs=player.getDuration();
             if(info.width<=0)info.width=metadata.width;if(info.height<=0)info.height=metadata.height;
-            if(info.width<=0||info.height<=0||info.durationMs<=0)throw new IOException("视频尺寸或时长无效 / Invalid video dimensions or duration");
-            if(Math.max(info.width,info.height)>1920||Math.min(info.width,info.height)>1080)throw new IOException("此系统请使用不超过 1080p 的视频 / Use video up to 1080p on this system");
-            if(metadata.fps>60.1f)throw new IOException("请使用不超过 60 FPS 的视频 / Use video up to 60 FPS");
+            if(info.width<=0||info.height<=0||info.durationMs<=0)throw VideoDiagnostics.failure("legacy_metadata","invalid_dimensions_or_duration","视频尺寸或时长无效 / Invalid video dimensions or duration");
+            if(Math.max(info.width,info.height)>1920||Math.min(info.width,info.height)>1080)throw VideoDiagnostics.failure("legacy_metadata","legacy_resolution_limit","此系统请使用不超过 1080p 的视频 / Use video up to 1080p on this system");
+            if(metadata.fps>60.1f)throw VideoDiagnostics.failure("frame_rate","invalid_or_excessive_frame_rate","请使用不超过 60 FPS 的视频 / Use video up to 60 FPS");
             info.mime=metadata.mime.isEmpty()?"video/unknown":metadata.mime;info.rotation=metadata.rotation;info.fps=metadata.fps;info.pixelRatio=VideoGeometry.pixelRatio(file,1f);
-            DiagnosticLog.info("wallpaper.video.inspect","backend=api14_platform mime="+info.mime+" size="+info.width+"x"+info.height+" fps="+info.fps+" rotation="+info.rotation);
+            DiagnosticLog.info("wallpaper.video.inspect",context+" backend=api14_platform mime="+VideoDiagnostics.mime(info.mime)+" size="+info.width+"x"+info.height+" fps="+info.fps+" rotation="+info.rotation);
             return info;
         }catch(InterruptedException e){Thread.currentThread().interrupt();throw new InterruptedIOException("Video inspection cancelled");}
-        catch(RuntimeException e){throw new IOException("视频无法解析 / Unable to read video",e);}
+        catch(RuntimeException e){DiagnosticLog.error("wallpaper.video.legacy_probe_failed",context+" stage=platform reason=platform_error "+VideoDiagnostics.causes(e),e);throw new IOException("视频无法解析 / Unable to read video",e);}
         finally{player.setOnPreparedListener(null);player.setOnErrorListener(null);player.release();}
     }
     static Metadata read(File file)throws IOException {
