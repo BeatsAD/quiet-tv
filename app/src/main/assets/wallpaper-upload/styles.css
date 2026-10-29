@@ -48,6 +48,14 @@ h1 { font-size: 1.75rem; font-weight: 500; line-height: 1.35; margin: 0 0 1.5rem
 .change { position: absolute; bottom: .75rem; right: .75rem; border: 1px solid var(--line); border-radius: 2rem; background: #20252deb; padding: .6rem 1rem; font-size: .875rem; }
 .file-input { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; clip: rect(0, 0, 0, 0); clip-path: inset(50%); overflow: hidden; white-space: nowrap; }
 #fileinfo { color: var(--muted); font-size: .875rem; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; margin: 1rem 0 1.5rem; }
+#naming { margin: 0 0 1.5rem; }
+#name-label { display: block; margin-bottom: .625rem; }
+#wallpaper-name { display: block; width: 100%; min-height: 3.25rem; padding: .75rem 1rem; border: 1px solid #6b7788; border-radius: .875rem; background: #151c25; color: inherit; font: inherit; }
+#wallpaper-name:disabled { opacity: .65; }
+#wallpaper-name[aria-invalid="true"] { border-color: #ffb4ab; }
+.name-meta { display: flex; justify-content: space-between; gap: 1rem; margin-top: .625rem; color: var(--muted); font-size: .875rem; line-height: 1.5; }
+#name-count { flex-shrink: 0; font-variant-numeric: tabular-nums; }
+#name-error { margin: .625rem 0 0; color: #ffb4ab; font-size: .875rem; line-height: 1.5; }
 button {
   font: inherit;
   font-weight: 500;
