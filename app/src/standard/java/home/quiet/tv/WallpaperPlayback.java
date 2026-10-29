@@ -1,6 +1,5 @@
 package home.quiet.tv;
 
-import android.app.Activity;
 import android.net.Uri;
 import android.os.Handler;
 import android.content.Context;
@@ -25,13 +24,13 @@ final class WallpaperPlayback {
     private final ExoPlayer player;
     private final Handler worker;
     private final String context;
-    private boolean releasing,releaseTimedOut;
+    private boolean detaching,detachFailed,releasing,releaseTimedOut;
     private String decoder="unknown";
     private boolean rendered;
-    WallpaperPlayback(Activity activity,Handler worker,Surface surface,File file,WallpaperCatalog.Entry entry,String context,VideoWallpaperPlayer.PlaybackEvents events){
+    WallpaperPlayback(Context source,Handler worker,Surface surface,File file,WallpaperCatalog.Entry entry,String context,VideoWallpaperPlayer.PlaybackEvents events){
         this.worker=worker;this.context=context;
         boolean manualRotation=VideoGeometry.manualRotation(android.os.Build.VERSION.SDK_INT,entry.rotation);
-        DefaultRenderersFactory renderers=new DefaultRenderersFactory(activity){
+        DefaultRenderersFactory renderers=new DefaultRenderersFactory(source){
             @Override protected void buildVideoRenderers(Context context,int extensions,MediaCodecSelector selector,boolean fallback,Handler handler,VideoRendererEventListener listener,long joiningMs,ArrayList<Renderer> output){
                 if(!manualRotation){super.buildVideoRenderers(context,extensions,selector,fallback,handler,listener,joiningMs,output);return;}
                 output.add(new MediaCodecVideoRenderer(new MediaCodecVideoRenderer.Builder(context).setCodecAdapterFactory(getCodecAdapterFactory()).setMediaCodecSelector(selector).setEnableDecoderFallback(fallback).setEventHandler(handler).setEventListener(listener).setAllowedJoiningTimeMs(joiningMs)){
@@ -44,7 +43,7 @@ final class WallpaperPlayback {
             }
         };
         renderers.setEnableDecoderFallback(true);
-        player=new ExoPlayer.Builder(activity,renderers)
+        player=new ExoPlayer.Builder(source,renderers)
             .setLooper(worker.getLooper())
             .setLoadControl(new DefaultLoadControl.Builder().setTargetBufferBytes(12*1024*1024)
                 .setBufferDurationsMs(5000,15000,500,1000).setPrioritizeTimeOverSizeThresholds(false).build()).build();
@@ -64,9 +63,10 @@ final class WallpaperPlayback {
             @Override public void onVideoSizeChanged(VideoSize size){events.size(size.width,size.height,size.pixelWidthHeightRatio);}
             @Override public void onRenderedFirstFrame(){rendered=true;events.ready();}
             @Override public void onPlayerError(PlaybackException error){
-                DiagnosticLog.error("wallpaper.video.player_error",context+" backend=media3 stage="+(releasing?"release":rendered?"playback":"prepare")+" codec="+decoder+" error="+VideoDiagnostics.token(error.getErrorCodeName())+" code="+error.errorCode
+                DiagnosticLog.error("wallpaper.video.player_error",context+" backend=media3 stage="+(detaching?"detach":releasing?"release":rendered?"playback":"prepare")+" codec="+decoder+" error="+VideoDiagnostics.token(error.getErrorCodeName())+" code="+error.errorCode
                     +" state="+player.getPlaybackState()+" positionMs="+player.getCurrentPosition()+" "+VideoDiagnostics.causes(error),error);
                 logDecoderCauses(context,error);
+                if(detaching){detachFailed=true;return;}
                 if(releasing){releaseTimedOut=true;return;}
                 VideoWallpaperPlayer.Failure reason;
                 switch(error.errorCode){
@@ -118,6 +118,13 @@ final class WallpaperPlayback {
     @android.annotation.TargetApi(23) private static final class Api23 {static int code(MediaCodec.CodecException e){return e.getErrorCode();}}
     void prepare()throws java.io.IOException{player.prepare();}
     void setPaused(boolean paused){player.setPlayWhenReady(!paused);}
+    boolean detachOutput(){
+        if(detachFailed)return false;
+        detaching=true;
+        try{player.clearVideoSurface();return !detachFailed;}
+        catch(RuntimeException e){detachFailed=true;DiagnosticLog.error("wallpaper.video.detach_failed",context+" "+VideoDiagnostics.failureDetails(e),e);return false;}
+        finally{detaching=false;}
+    }
     void release(Runnable completed){
         releasing=true;Thread decoderThread=player.getPlaybackLooper().getThread();
         try{player.release();}

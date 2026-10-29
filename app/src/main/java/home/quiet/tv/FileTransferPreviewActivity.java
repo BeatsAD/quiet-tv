@@ -51,7 +51,7 @@ public final class FileTransferPreviewActivity extends Activity {
         File incoming=store.videoIncoming(),prepared=new File(incoming.getPath()+".jpg");
         try{
             try(InputStream input=new FileInputStream(source);FileOutputStream output=new FileOutputStream(incoming)){FileTransferPolicy.copy(input,output,source.length(),movie?WallpaperVideo.MAX_UPLOAD:WallpaperUploadServer.MAX_UPLOAD,()->!closed,(bytes,total)->{});output.getFD().sync();}
-            if(movie){WallpaperVideo.Info info=WallpaperVideo.inspect(incoming);return store.addVideo(incoming,prepared,name,info,()->!closed);}
+            if(movie){WallpaperVideo.Info info=WallpaperVideo.inspect(incoming);return store.addVideo(incoming,name,info,()->!closed);}
             int[] size=WallpaperImages.prepare(incoming,prepared,WallpaperImages.importLimit(this));if(closed)throw new IOException("预览已取消");return store.add(prepared,name,size[0],size[1]);
         }finally{if(incoming.isFile()&&!incoming.delete())android.util.Log.w("QuietTV","Wallpaper import retained");if(prepared.isFile()&&!prepared.delete())android.util.Log.w("QuietTV","Prepared wallpaper retained");}
     }
