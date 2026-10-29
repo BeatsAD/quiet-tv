@@ -4,7 +4,7 @@
 
 ## 已有安装：覆盖校验与仅更新
 
-下列规则用于覆盖安装校验；开头的自动接管请求在升级核验后继续完成接管及 ADB 配置。仅当用户明确只更新时使用 `--goal update`，不重新配置桌面、守护或 ADB。
+已有可用接管方案时，默认请求和仅更新请求均使用 `--goal update`，不重新配置桌面、守护或ADB。默认请求还有其他修复目标时，在升级路线验收完成后显式plan对应修复；仅更新意图不会允许配置动作。
 
 | 检测结果 | 处理 |
 | --- | --- |
@@ -25,8 +25,11 @@
 先核对[安装说明](install.md)中的版本、分包和签名条件。已有可用接管方案时，即使用户使用默认请求，也先选择 `--goal update`，不重跑 `takeover`。升级预览和执行分别通过任务工具调用，保留原路线、暂停及恢复基线。
 
 ```sh
+python3 agent_session.py plan --session "$SESSION_DIR" --route update --note "实际版本及升级条件"
 python3 agent_session.py run --session "$SESSION_DIR" --tool install_quiet_tv -- --goal update
 python3 agent_session.py run --session "$SESSION_DIR" --tool install_quiet_tv -- --goal update --apply
 ```
+
+相同适配APK会直接报告无需更新，不下载或启动。覆盖完成后APK由工具自动核验；Agent核对原路线、暂停、恢复记录及用户数据后，用 `accept --check preservation` 记录实际结果，再finish。缺必要证据仍为待确认。
 
 没有适用的新包则跳过安装。默认请求需要保持 ADB 时，按[独立 ADB 配置](home.md#adb-常开与重启验收)检查实际能力，必要时调用 `configure_home_guard --adb-only --keep-adb`，不启用已暂停守护；用户仅更新则保持其已有 ADB 选择。发现其他配置异常才按[维护指南](../AGENT_ADAPT.zh-CN.md)在授权范围内修复。
