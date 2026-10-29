@@ -9,12 +9,12 @@ import subprocess
 import sys
 import time
 from types import SimpleNamespace
-from urllib.request import Request, urlopen
 import zipfile
 import configure_home_guard as guard
 import configure_boot_home as boot
 import device_adaptation as adaptation
 import device_maintenance as maintenance
+import computer_resources as resources
 import install_tcl as tcl
 from verify_install import HOME, collect, component, help_text, resolver
 
@@ -23,9 +23,7 @@ RELEASES = "https://github.com/BeatsAD/quiet-tv/releases/download/"
 
 
 def read_index():
-    request = Request(INDEX + "?check=" + str(time.time_ns()), headers={"Cache-Control": "no-cache"})
-    with urlopen(request, timeout=30) as response:
-        data = json.load(response)
+    data = resources.read_json(INDEX + "?check=" + str(time.time_ns()))
     if data.get("schemaVersion") != 1 or not isinstance(data.get("releases"), list):
         raise ValueError("公开版本索引无效，未使用历史缓存")
     return data
@@ -65,16 +63,7 @@ def choose(index, sdk, abis, installed=None, mode="standard", version=None):
 
 
 def download(asset, destination):
-    with urlopen(Request(asset["url"], headers={"Cache-Control": "no-cache"}), timeout=60) as response:
-        with destination.open("xb") as handle:
-            while True:
-                chunk = response.read(1024 * 1024)
-                if not chunk:
-                    break
-                handle.write(chunk)
-    if destination.stat().st_size != asset["bytes"] or tcl.digest(destination) != asset["sha256"]:
-        raise ValueError("下载文件大小或 SHA-256 不符；保留文件供核对，未安装")
-    return destination
+    return resources.download(asset['url'], destination, asset['sha256'], size=asset['bytes'])
 
 
 def pull(adb, sdk, user, destination, pm_help):
@@ -103,6 +92,19 @@ def check_apk(metadata, sha256, sdk, abis, installed=None, asset=None):
             raise ValueError("已有包 HOME 形态不同，需单独确认迁移")
 
 
+def optional_package_absent(arguments, error):
+    # Sony may print a domain-verification warning while dumping an absent package.
+    if (len(arguments) != 3 or tuple(arguments[:2]) != ("dumpsys", "package")
+            or arguments[2] not in ("com.ts.launcher", "com.coocaa.quiettv")
+            or not isinstance(error, guard.CommandFailure) or error.exit != 0):
+        return False
+    package = re.escape(arguments[2])
+    return (re.search(r"(?m)^\s*Unable to find package: " + package + r"\s*$", error.output) is not None
+            and not re.search(r"Package \[" + package + r"\]", error.output)
+            and all(line.strip() == "Failure printing domain verification information"
+                    for line in error.output.splitlines() if guard.ERROR_OUTPUT.search(line)))
+
+
 class RecordedAdb(guard.ComputerAdb):
     """Keep the failing command and original output visible, including legacy shell exits."""
     def __init__(self, executable, serial, journal):
@@ -123,6 +125,9 @@ class RecordedAdb(guard.ComputerAdb):
         try:
             return super().shell(*arguments)
         except (ValueError, OSError, subprocess.TimeoutExpired) as error:
+            if optional_package_absent(arguments, error):
+                self.journal.event("optional_package_absent", package=arguments[2], basis="dumpsys reported absent; exit=0")
+                return ""
             if maintenance.is_help_result(arguments, error):
                 self.journal.event("help_result", command=list(arguments), exit=error.exit, output=error.output)
             else:
@@ -181,6 +186,8 @@ def run_install(args, adb, tools, journal):
         installed = tools.inspect(old)
     if args.goal == "update" and not installed:
         raise ValueError("未确认已有安装，不能将仅更新请求当作首次安装")
+    if args.goal == "takeover" and not installed:
+        raise ValueError("首次安装须先 --goal trial，记录基础试用结果后再配置接管；未安装或修改 HOME")
     index, asset = None, None
     if args.apk:
         apk_path, expected = args.apk, args.sha256
@@ -189,7 +196,11 @@ def run_install(args, adb, tools, journal):
         asset = choose(index, sdk, abis, installed, installed["home_mode"] if installed else "standard")
         journal.event("selected_release", asset=asset)
         print("选定发布：" + json.dumps(asset, ensure_ascii=False), flush=True)
-        apk_path, expected = download(asset, journal.directory / "selected.apk"), asset["sha256"]
+        expected = asset["sha256"]
+        if installed and installed["sha256"] == expected:
+            apk_path = journal.directory / "installed-before.apk"
+        else:
+            apk_path = download(asset, journal.directory / "selected.apk")
     metadata = tools.inspect(apk_path)
     check_apk(metadata, expected, sdk, abis, installed, asset)
     journal.event("apk_verified", apk=metadata)
@@ -203,6 +214,10 @@ def run_install(args, adb, tools, journal):
         if not original or "ResolverActivity" in original or not tcl.usable(tcl.user_state(stock_dump, args.user)):
             raise ValueError("原桌面或恢复基线未确认；请先确认原主页，未执行安装及接管")
     same = installed is not None and installed["sha256"] == metadata["sha256"]
+    if same and args.goal == "update":
+        journal.event("unchanged_apk_verified", actual=installed)
+        print("已安装 APK 与适用附件一致，无需更新；未安装、启动或重新配置。", flush=True)
+        return
     install_options = guard.user_options(pm_help, "install", sdk, args.user)
     print("计划：" + ("沿用相同 APK" if same else "保留数据安装") + "；目标=" + args.goal + "；ADB 设置恢复=" + str(keep_adb), flush=True)
     if not args.apply:
@@ -326,7 +341,7 @@ def main():
     parser.add_argument("--adaptation-route", choices=("verified", "google", "jm", "vidaa"),
                         help="AI 核对影响后明确选择专项路线；默认仍优先普通 HOME 与兼容守护")
     parser.add_argument("--goal", choices=("trial", "takeover", "update"),
-                        help="默认 takeover；只读验收默认 trial，仅更新或试用须明确指定")
+                        help="默认 trial；接管须在本任务基础试用通过后显式指定 takeover")
     adb_choice = parser.add_mutually_exclusive_group()
     adb_choice.add_argument("--keep-adb", dest="keep_adb", action="store_const", const=True, default=None,
                             help="开启适用设备的 ADB 设置恢复；takeover 默认开启")
@@ -342,7 +357,7 @@ def main():
     parser.add_argument("--physical-home", action="store_true", help="用户刚按过实体 HOME；仅用于 --verify-only")
     args = parser.parse_args()
     if args.goal is None:
-        args.goal = "trial" if args.verify_only else "takeover"
+        args.goal = "trial"
     if args.keep_adb is None:
         args.keep_adb = args.goal == "takeover" and not args.verify_only
     if args.adaptation_route and (args.goal != "takeover" or args.verify_only):

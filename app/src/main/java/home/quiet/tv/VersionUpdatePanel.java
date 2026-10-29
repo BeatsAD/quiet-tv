@@ -17,6 +17,7 @@ import android.widget.FrameLayout;
 import android.widget.Toast;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.util.concurrent.*;
 
 /** Retained version-update tab; the web engine is used only for the offline license document. */
 final class VersionUpdatePanel extends ManagementPanel {
@@ -29,6 +30,8 @@ final class VersionUpdatePanel extends ManagementPanel {
     private WebView web;
     private boolean license, licenseReady;
     private long navigation;
+    private final ExecutorService deviceWorker=new ThreadPoolExecutor(0,1,5,TimeUnit.SECONDS,new LinkedBlockingQueue<>());
+    private int deviceRead;
 
     VersionUpdatePanel(AppManagementActivity activity){super(activity);}
     @Override public void onCreate(Bundle state) {
@@ -36,7 +39,7 @@ final class VersionUpdatePanel extends ManagementPanel {
         try {
             PackageInfo info=getPackageManager().getPackageInfo(getPackageName(),0);
             scene=new AboutView(this,getApplicationInfo().loadLabel(getPackageManager()),info.versionName,
-                    UpdatePanel.channel(BuildConfig.UPDATE_CHANNEL),()->managementTab().requestFocus(),this::openLicense,this::openUpstream,updates::check);
+                    UpdatePanel.channel(BuildConfig.UPDATE_CHANNEL),new AboutDeviceInfo(this),()->managementTab().requestFocus(),this::openLicense,this::openUpstream,updates::check,this::recovery);
         } catch(android.content.pm.PackageManager.NameNotFoundException e){throw new IllegalStateException("Own package unavailable",e);}
         pageRoot=column();content=new FrameLayout(this);
         content.addView(scene,new FrameLayout.LayoutParams(-1,-1));pageRoot.addView(content,new android.widget.LinearLayout.LayoutParams(-1,-1));activity.attachPanel(pageRoot);
@@ -47,6 +50,11 @@ final class VersionUpdatePanel extends ManagementPanel {
         if(state!=null && state.getBoolean("license"))openLicense();
     }
 
+    private void recovery(){
+        ChildModeStore store=new ChildModeStore(this);
+        if(!store.configured()){message("请先在儿童模式设置家长密码");return;}
+        ChildModeAuth.show(activity,()->{if(showing&&!license)scene.revealRecovery();});
+    }
     private void openLicense() {
         scene.hideRecovery();
         license=true;licenseReady=false;++navigation;
@@ -135,8 +143,16 @@ final class VersionUpdatePanel extends ManagementPanel {
     @Override void focusManagementContent(){if(license)web.requestFocus();else scene.focusUpdate();}
     @Override public void handleBack(){if(license)returnToAbout();else if(!managementTabFocused())managementTab().requestFocus();else super.handleBack();}
     @Override protected void onSaveInstanceState(Bundle state){state.putBoolean("license",license);super.onSaveInstanceState(state);}
-    @Override protected void onPause(){if(scene!=null)scene.hideRecovery();if(web!=null)web.onPause();super.onPause();}
-    @Override protected void onResume(){super.onResume();UpdateRepository.get(this).add(updateListener);UpdateRepository.get(this).reconcile();updateListener.changed();updates.resumed();if(web!=null)web.onResume();}
+    private void refreshDevice(){
+        int read=++deviceRead;
+        scene.screen(AboutDeviceInfo.screen(getWindow().getWindowManager().getDefaultDisplay()));
+        deviceWorker.execute(()->{
+            AboutDeviceInfo.Resources info=AboutDeviceInfo.resources(getApplicationContext());
+            runOnUiThread(()->{if(showing && read==deviceRead && !isDestroyed() && !isFinishing())scene.resources(info);});
+        });
+    }
+    @Override protected void onPause(){ChildModeAuth.dismiss(activity);++deviceRead;if(scene!=null)scene.hideRecovery();if(web!=null)web.onPause();super.onPause();}
+    @Override protected void onResume(){super.onResume();refreshDevice();UpdateRepository.get(this).add(updateListener);UpdateRepository.get(this).reconcile();updateListener.changed();updates.resumed();if(web!=null)web.onResume();}
     @Override protected void onStop(){UpdateRepository.get(this).remove(updateListener);if(updates!=null)updates.suspend();super.onStop();}
-    @Override protected void onDestroy(){if(updates!=null)updates.suspend();if(web!=null){web.stopLoading();content.removeView(web);web.destroy();}super.onDestroy();}
+    @Override protected void onDestroy(){++deviceRead;deviceWorker.shutdownNow();if(updates!=null)updates.suspend();if(web!=null){web.stopLoading();content.removeView(web);web.destroy();}super.onDestroy();}
 }

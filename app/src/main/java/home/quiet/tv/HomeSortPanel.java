@@ -9,7 +9,7 @@ import androidx.recyclerview.widget.*;
 import java.util.*;
 import java.util.concurrent.*;
 
-/** Each directional move saves the home order without a separate confirmation step. */
+/** Moving is a local preview; OK saves and Back restores the pre-move order. */
 final class HomeSortPanel extends ManagementPanel {
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private final ArrayList<String> defaults=new ArrayList<>(),lastSaved=new ArrayList<>(),order=new ArrayList<>();
@@ -26,24 +26,26 @@ final class HomeSortPanel extends ManagementPanel {
     private Runnable afterSave;
     private Bundle restored;
     private ArrayList<String> pinnedSnapshot;
+    private ArrayList<String> beforeMove;
+    private String visibilitySnapshot="";
     private long coverRevision=-1,childRevision=-1;
     private final BroadcastReceiver packagesChanged=new BroadcastReceiver(){
         @Override public void onReceive(Context context,Intent intent){
             if(Intent.ACTION_PACKAGE_REMOVED.equals(intent.getAction()) && intent.getBooleanExtra(Intent.EXTRA_REPLACING,false))return;
-            if(Intent.ACTION_PACKAGE_REMOVED.equals(intent.getAction()) && intent.getData()!=null){String id=intent.getData().getSchemeSpecificPart();store.remove(id);new DockStore(context).remove(id);}
-            refresh();
+            if(Intent.ACTION_PACKAGE_REMOVED.equals(intent.getAction()) && intent.getData()!=null){String id=intent.getData().getSchemeSpecificPart();store.remove(id);new DockStore(context).remove(id);new HomeVisibilityStore(context).remove(id);}
+            stopMoving();refresh();
         }
     };
     HomeSortPanel(AppManagementActivity activity){super(activity);}
     @Override public void onCreate(Bundle state){
         super.onCreate(state);store=new HomeOrderStore(this);restored=state;
-        LinearLayout body=managementContent();statusHint=managementHint("确定选中应用，方向键调整顺序，自动保存");managementInfo.addView(statusHint,new LinearLayout.LayoutParams(-1,-1));
+        LinearLayout body=managementContent();statusHint=managementHint("确定选中应用，方向键调整顺序");managementInfo.addView(statusHint,new LinearLayout.LayoutParams(-1,-1));
         list=new RecyclerView(this);layout=new GridLayoutManager(this,HomeActivity.APP_COLUMNS);list.setLayoutManager(layout);adapter=new Cards();list.setAdapter(adapter);
         list.setItemAnimator(null);list.setClipToPadding(false);list.setPadding(px(5),px(5),px(5),px(5));list.setOverScrollMode(View.OVER_SCROLL_NEVER);
         LinearLayout.LayoutParams grid=new LinearLayout.LayoutParams(-1,0,1);grid.leftMargin=px(-10);grid.rightMargin=px(-10);body.addView(list,grid);
         IntentFilter filter=new IntentFilter(Intent.ACTION_PACKAGE_ADDED);filter.addAction(Intent.ACTION_PACKAGE_REMOVED);filter.addAction(Intent.ACTION_PACKAGE_CHANGED);filter.addDataScheme("package");registerReceiver(packagesChanged,filter);
     }
-    @Override protected void onResume(){super.onResume();if(!loaded||!new DockStore(this).load().equals(pinnedSnapshot)||coverRevision!=AppCoverStore.get(this).revision()||childRevision!=new ChildModeStore(this).revision())refresh();}
+    @Override protected void onResume(){super.onResume();if(!loaded||!new DockStore(this).load().equals(pinnedSnapshot)||coverRevision!=AppCoverStore.get(this).revision()||childRevision!=new ChildModeStore(this).revision()||!visibilitySnapshot.equals(new HomeVisibilityStore(this).signature()))refresh();}
     @Override void focusManagementContent(){list.requestFocus();if(loaded)focusEntry(selected);}
     @Override protected void onPause(){stopMoving();super.onPause();}
     @Override protected void onDestroy(){unregisterReceiver(packagesChanged);worker.shutdown();super.onDestroy();}
@@ -62,7 +64,7 @@ final class HomeSortPanel extends ManagementPanel {
                 }
                 runOnUiThread(()->{
                     if(isDestroyed() || isFinishing())return;
-                    coverRevision=covers;childRevision=children;pinnedSnapshot=new ArrayList<>(pinned);defaults.clear();defaults.addAll(ids);order.clear();order.addAll(saved);lastSaved.clear();lastSaved.addAll(saved);
+                    coverRevision=covers;childRevision=children;visibilitySnapshot=new HomeVisibilityStore(this).signature();pinnedSnapshot=new ArrayList<>(pinned);defaults.clear();defaults.addAll(ids);order.clear();order.addAll(saved);lastSaved.clear();lastSaved.addAll(saved);
                     entries.clear();for(HomeAppCatalog.Entry entry:available)entries.put(entry.id,entry);artwork.clear();artwork.putAll(pictures);
                     if(restored!=null){selected=restored.getString("selected","");restored=null;}
                     if(!order.contains(moving))moving="";
@@ -74,24 +76,22 @@ final class HomeSortPanel extends ManagementPanel {
             }catch(Exception e){runOnUiThread(()->{if(isDestroyed() || isFinishing())return;refreshing=false;feedback("无法读取应用，请重新进入");});}
         });
     }
-    private void updateHint(){statusHint.setText(moving.isEmpty()?"确定选中应用，方向键调整顺序，自动保存":"方向键移动  确定或返回结束  自动保存");}
+    private void updateHint(){statusHint.setText(moving.isEmpty()?"确定选中应用，方向键调整顺序":"方向键移动  确定放下保存  返回取消");}
     private void pick(String id){
-        if(!loaded || refreshing || !order.contains(id))return;
+        if(!loaded || refreshing || pendingSaves>0 || !order.contains(id))return;
         if(!moving.isEmpty()){
-            String picked=moving;int from=order.indexOf(picked),target=order.indexOf(id);moving="";
-            if(from!=target){HomeOrderStore.move(order,from,target);saveOrder();}
-            renderMove(picked,from,target);return;
+            String picked=moving;moving="";beforeMove=null;saveOrder();render(picked);return;
         }
-        selected=id;moving=id;render(id);
+        selected=id;moving=id;beforeMove=new ArrayList<>(order);render(id);
     }
     private void shift(int dx,int dy){
         if(moving.isEmpty() || refreshing)return;int from=order.indexOf(moving),target=HomeOrderStore.target(from,order.size(),HomeActivity.APP_COLUMNS,dx,dy);
-        if(from==target)return;HomeOrderStore.move(order,from,target);renderMove(moving,from,target);saveOrder();
+        if(from==target)return;HomeOrderStore.move(order,from,target);renderMove(moving,from,target);KeyFeedback.moved(activity);
     }
-    private void endMove(){String id=moving;moving="";render(id);}
+    private void endMove(){String id=moving;if(beforeMove!=null){order.clear();order.addAll(beforeMove);}moving="";beforeMove=null;render(id);}
     private void render(String focus){adapter.notifyItemRangeChanged(0,order.size());updateHint();focusEntry(focus);}
     private void renderMove(String id,int from,int to){
-        if(from!=to)adapter.notifyItemMoved(from,to);
+        // A swap changes two positions; an insertion notification would describe a different order.
         adapter.notifyItemRangeChanged(Math.min(from,to),Math.abs(from-to)+1);updateHint();focusEntry(id);
     }
     private void saveOrder(){
@@ -119,7 +119,7 @@ final class HomeSortPanel extends ManagementPanel {
         if(!showing || isDestroyed() || isFinishing())return true;RecyclerView.ViewHolder holder=list.findViewHolderForAdapterPosition(position);
         return holder!=null && holder.itemView.requestFocusFromTouch();
     }
-    private void stopMoving(){if(!moving.isEmpty()){moving="";adapter.notifyItemRangeChanged(0,order.size());updateHint();}}
+    private void stopMoving(){if(!moving.isEmpty())endMove();}
     @Override void leaveManagement(Runnable action){stopMoving();if(pendingSaves>0)afterSave=action;else action.run();}
     @Override public void handleBack(){if(!moving.isEmpty())endMove();else leaveManagement(this::finish);}
     @Override protected void onSaveInstanceState(Bundle state){state.putString("selected",selected);super.onSaveInstanceState(state);}
@@ -129,14 +129,14 @@ final class HomeSortPanel extends ManagementPanel {
         boolean confirm=key==KeyEvent.KEYCODE_DPAD_CENTER || key==KeyEvent.KEYCODE_ENTER || key==KeyEvent.KEYCODE_NUMPAD_ENTER;
         if(!moving.isEmpty()){
             if(direction){if(event.getAction()==KeyEvent.ACTION_DOWN)shift(key==KeyEvent.KEYCODE_DPAD_LEFT?-1:key==KeyEvent.KEYCODE_DPAD_RIGHT?1:0,key==KeyEvent.KEYCODE_DPAD_UP?-1:key==KeyEvent.KEYCODE_DPAD_DOWN?1:0);return true;}
-            if(confirm){if(event.getAction()==KeyEvent.ACTION_UP)pick(moving);return true;}
+            if(confirm){if(event.getAction()==KeyEvent.ACTION_UP&&!event.isCanceled()){pick(moving);KeyFeedback.confirm(activity);}return true;}
         }
         if(list.hasFocus()){
-            if(confirm){if(event.getAction()==KeyEvent.ACTION_UP)pick(selected);return true;}
+            if(confirm){if(event.getAction()==KeyEvent.ACTION_UP&&!event.isCanceled()){pick(selected);KeyFeedback.confirm(activity);}return true;}
             if(direction){
                 if(event.getAction()==KeyEvent.ACTION_UP)return true;int current=order.indexOf(selected);
                 int next=HomeOrderStore.target(current,order.size(),HomeActivity.APP_COLUMNS,key==KeyEvent.KEYCODE_DPAD_LEFT?-1:key==KeyEvent.KEYCODE_DPAD_RIGHT?1:0,key==KeyEvent.KEYCODE_DPAD_UP?-1:key==KeyEvent.KEYCODE_DPAD_DOWN?1:0);
-                if(next!=current)focusEntry(order.get(next));
+                if(next!=current){focusEntry(order.get(next));KeyFeedback.moved(activity);}
                 else if(key==KeyEvent.KEYCODE_DPAD_UP){View tab=findSortTab(root);if(tab!=null)tab.requestFocus();}
                 return true;
             }
@@ -172,7 +172,7 @@ final class HomeSortPanel extends ManagementPanel {
             background.addState(new int[]{android.R.attr.state_focused},surface(0xff3b3e46,0xff1b1d24,TEXT,12));
             background.addState(new int[]{},surface(0xff373b43,0xff1b1d24,picked?TEXT:0x24ffffff,12));holder.art.setBackgroundDrawable(background);
             holder.card.setContentDescription(entry.label+"，第 "+(position+1)+" 个位置"+(picked?"，正在移动":""));
-            holder.card.setOnFocusChangeListener((v,focus)->{if(focus)selected=id;});holder.card.setOnClickListener(v->pick(id));
+            holder.card.setOnFocusChangeListener((v,focus)->{if(focus)selected=id;});holder.card.setOnClickListener(v->{pick(id);KeyFeedback.confirm(activity);});
             FrameLayout.LayoutParams ip=(FrameLayout.LayoutParams)holder.image.getLayoutParams();ip.width=-1;ip.height=-1;ip.gravity=Gravity.CENTER;
             holder.image.setScaleType(ImageView.ScaleType.FIT_XY);
             holder.image.setBackgroundDrawable(surface(0,0,0,10));

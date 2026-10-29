@@ -39,6 +39,9 @@ final class SystemSettingsRouter {
     List<Intent> candidates(String action){return candidates(action,false);}
     List<Intent> candidates(String action,boolean ethernet){
         ArrayList<Intent> intents=new ArrayList<>();
+        if(Settings.ACTION_ACCESSIBILITY_SETTINGS.equals(action)){
+            intents.add(new Intent(action));intents.addAll(candidates(Settings.ACTION_SETTINGS,ethernet));return intents;
+        }
         if(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS.equals(action)){
             intents.add(new Intent(action));
             // Some MiTV firmware has no exported developer page or standard SETTINGS handler.

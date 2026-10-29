@@ -3,9 +3,7 @@ package home.quiet.tv;
 import android.content.Context;
 import android.graphics.*;
 import android.graphics.drawable.GradientDrawable;
-import android.text.SpannableString;
-import android.text.Spanned;
-import android.text.style.ForegroundColorSpan;
+import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -23,11 +21,11 @@ final class AboutView extends FrameLayout {
     private final View license,upstream,recovery,update;
     private boolean updateAvailable;
     private final TextView recoveryValue;
-    private final ChildModePolicy.TriplePress recoveryPress=new ChildModePolicy.TriplePress();
+    private final TextView memoryValue,storageValue,displayLabel,displayValue;
     private final FrameLayout artboard;
     private final Runnable exit;
 
-    AboutView(Context context,CharSequence name,String version,String channelName,Runnable exit,Runnable licenses,Runnable source,Runnable check) {
+    AboutView(Context context,CharSequence name,String version,String channelName,AboutDeviceInfo device,Runnable exit,Runnable licenses,Runnable source,Runnable check,Runnable recoveryAction) {
         super(context);setBackgroundColor(Color.TRANSPARENT);setTag("about-native");
         this.exit=exit;
         font=android.os.Build.VERSION.SDK_INT>=26?Typeface.createFromAsset(context.getAssets(),"fonts/outfit.ttf"):Typeface.create("sans-serif",Typeface.NORMAL);
@@ -39,37 +37,49 @@ final class AboutView extends FrameLayout {
             }
         };
         artboard.setClipChildren(false);artboard.setPivotX(0);artboard.setPivotY(0);
-        addView(artboard,new LayoutParams(1920,1080));
-        ImageView brand=new ImageView(context);brand.setImageResource(R.drawable.launcher_icon);put(brand,136,315,160,160);
-        SpannableString title=new SpannableString(name+".");title.setSpan(new ForegroundColorSpan(0xff89b8f5),title.length()-1,title.length(),Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        TextView titleView=label(title,104,500,0xfff2f4f8,136,515,626,120,"app-name");UiCompat.letterSpacing(titleView,-3f/104);
-        TextView installed=label("版本 "+version,26,400,0xfff2f4f8,136,658,500,45,"version-name");
-        int channelX=136+(int)Math.ceil(installed.getPaint().measureText(installed.getText().toString()))+16;
-        TextView channel=label(channelName,19,400,0xffacc0db,channelX,658,87,45,"version-channel");
+        addView(artboard,new LayoutParams(1920,850));
+        ImageView brand=new ImageView(context);brand.setImageResource(R.drawable.launcher_icon);put(brand,24,50,152,152);
+        TextView titleView=label(name,84,500,0xfff2f4f8,24,270,470,110,"app-name");UiCompat.letterSpacing(titleView,-3f/104);
+        TextView installed=label("版本 "+version,28,400,0xfff2f4f8,24,412,470,42,"version-name");
+        int channelX=24+(int)Math.ceil(installed.getPaint().measureText(installed.getText().toString()))+16;
+        TextView channel=label(channelName,21,400,0xffacc0db,channelX,412,94,42,"version-channel");
         channel.setGravity(Gravity.CENTER);channel.setBackgroundDrawable(surface(0x08ffffff,8,0x26ffffff));
-        TextView checkText=label("检查更新",23,400,0xffeff0f4,136,750,188,64,null);checkText.setGravity(Gravity.CENTER);
-        update=action(checkText,"check-update",136,750,188,64,check);update.setBackgroundDrawable(ControlStyle.action(1,32,0x08ffffff,0x26ffffff));
-        label("开源项目",29,500,0xfff2f4f8,782,298,600,41,null);
-        label("github.com/BeatsAD/quiet-tv",27,400,0xffdbe5f4,782,360,600,50,"source-address");
-        line(492);
-        label("联系开发者",29,500,0xfff2f4f8,782,563,600,41,null);
-        label("WenBin AI LAB",27,400,0xffc4d1e3,782,625,600,34,null);
-        label("wenbinailab@gmail.com",24,400,0xff9eafc7,782,674,600,45,"developer-email");
-        code("official-qr",1600,528,184).setImageBitmap(image("about/assets/qq-group.webp"));
-        label("扫码进 QQ交流群",21,400,0xff9eafc7,1600,725,184,30,null).setGravity(Gravity.CENTER);
-        line(790);
-        label("开源许可与致谢",23,500,0xffb9c8dc,782,819,1002,33,null);
-        TextView mit=label("MIT 许可证 ↗",21,400,0xffa7b9d1,775,863,135,41,null);mit.setPadding(7,0,7,0);
-        license=action(mit,"license-link",775,863,135,41,licenses);
-        label("基于",21,400,0xff8394ad,939,863,45,41,null);
-        TextView origin=label("tv-vibehack",21,400,0xffa7b9d1,978,863,124,41,null);origin.setPadding(7,0,7,0);
-        upstream=action(origin,"upstream-link",978,863,124,41,source);
-        TextView thanks=label("  感谢 Gathin",21,400,0xff8394ad,1102,863,300,41,null);
-        int recoveryX=1102+(int)Math.ceil(thanks.getPaint().measureText(thanks.getText().toString()))+28;
-        TextView recoveryText=label("恢复码",21,400,0xffa7b9d1,recoveryX,863,76,41,null);
-        recovery=action(recoveryText,"recovery-link",recoveryX,863,76,41,this::revealRecovery);
-        recovery.setOnFocusChangeListener((view,focused)->{if(!focused)recoveryPress.clear();artboard.invalidate();});
-        recoveryValue=label("",21,400,0xffdbe5f4,recoveryX+104,863,220,41,"recovery-value");
+        TextView checkText=label("检查更新",28,400,0xffeff0f4,24,560,400,72,null);checkText.setGravity(Gravity.CENTER);
+        update=action(checkText,"check-update",24,560,400,72,check);update.setBackgroundDrawable(ControlStyle.action(1,36,0x08ffffff,0x26ffffff));
+
+        divider(540,20,1,744);divider(1308,20,1,744);
+        label("电视信息",34,500,0xfff2f4f8,600,20,670,48,null);
+        multiline(label(device.model,36,500,0xfff2f4f8,600,76,670,120,"device-model"));
+        label(device.brand,27,400,0xffc4d1e3,600,196,670,40,"device-brand");
+        divider(600,244,670,1);
+        metric("安卓版本",device.android,600,266,338,"device-android");
+        metric("CPU",device.cpu,966,266,304,"device-cpu");
+        metric("系统架构",device.abis,600,388,338,"device-abis");
+        memoryValue=metric("运行内存","正在读取",966,388,304,"device-memory");
+        storageValue=metric("存储空间","正在读取",600,510,338,"device-storage");
+        displayLabel=label("当前显示模式",24,400,0xff9eafc7,966,510,304,34,"device-display-label");
+        displayValue=multiline(label("正在读取",28,400,0xffdbe5f4,966,548,304,78,"device-display"));
+        divider(600,638,670,1);
+        label("固件版本",24,400,0xff9eafc7,600,654,670,34,null);
+        multiline(label(device.firmware,28,400,0xffdbe5f4,600,692,670,84,"device-firmware"));
+
+        label("开源项目",34,500,0xfff2f4f8,1368,20,528,48,null);
+        label("github.com/BeatsAD/quiet-tv",26,400,0xffdbe5f4,1368,96,528,46,"source-address");
+        divider(1368,176,528,1);
+        code("official-qr",1500,320,264).setImageBitmap(image("about/assets/qq-group.webp"));
+        label("扫码进 QQ 交流群",24,400,0xff9eafc7,1408,608,448,34,null).setGravity(Gravity.CENTER);
+
+        divider(24,784,1872,1);
+        TextView mit=label("MIT 许可证 ↗",24,400,0xffa7b9d1,17,796,184,42,null);mit.setPadding(7,0,7,0);
+        license=action(mit,"license-link",17,796,184,42,licenses);
+        label("基于",24,400,0xff8394ad,235,796,56,42,null);
+        TextView origin=label("tv-vibehack",24,400,0xffa7b9d1,295,796,164,42,null);origin.setPadding(7,0,7,0);
+        upstream=action(origin,"upstream-link",295,796,164,42,source);
+        label("感谢 Gathin",24,400,0xff8394ad,500,796,260,42,null);
+        TextView recoveryText=label("恢复码",24,400,0xffa7b9d1,1792,796,104,42,null);
+        recovery=action(recoveryText,"recovery-link",1792,796,104,42,recoveryAction);
+        recovery.setOnFocusChangeListener((view,focused)->{artboard.invalidate();});
+        recoveryValue=label("",24,400,0xffdbe5f4,1370,796,394,42,"recovery-value");recoveryValue.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
         recoveryValue.setVisibility(View.INVISIBLE);
     }
 
@@ -82,12 +92,19 @@ final class AboutView extends FrameLayout {
     private TextView label(CharSequence value,float size,int weight,int color,int x,int y,int w,int h,String tag) {
         TextView view=new TextView(getContext());view.setText(value);view.setTag(tag);view.setTextColor(color);
         view.setTextSize(TypedValue.COMPLEX_UNIT_PX,size);view.setTypeface(android.os.Build.VERSION.SDK_INT>=28?Typeface.create(font,weight,false):Typeface.create(font,weight>=600?Typeface.BOLD:Typeface.NORMAL));if(android.os.Build.VERSION.SDK_INT>=26)view.setFontVariationSettings("'wght' "+weight);
-        view.setIncludeFontPadding(false);view.setSingleLine(true);view.setGravity(Gravity.CENTER_VERTICAL);put(view,x,y,w,h);return view;
+        view.setIncludeFontPadding(false);view.setSingleLine(true);view.setEllipsize(TextUtils.TruncateAt.END);view.setGravity(Gravity.CENTER_VERTICAL);put(view,x,y,w,h);return view;
     }
+    private TextView multiline(TextView view){view.setSingleLine(false);view.setMaxLines(2);view.setGravity(Gravity.TOP|Gravity.LEFT);return view;}
+    private TextView metric(String title,String value,int x,int y,int width,String tag){
+        label(title,24,400,0xff9eafc7,x,y,width,34,null);
+        return multiline(label(value,28,400,0xffdbe5f4,x,y+38,width,78,tag));
+    }
+    void resources(AboutDeviceInfo.Resources info){memoryValue.setText(info.memory);storageValue.setText(info.storage);}
+    void screen(AboutDeviceInfo.Screen screen){displayLabel.setText(screen.label);displayValue.setText(screen.value);}
     private View action(View view,String tag,int x,int y,int w,int h,Runnable run) {
         if(view.getParent()==null)put(view,x,y,w,h);
         view.setBackgroundDrawable(ControlStyle.action(2,5,Color.TRANSPARENT,0));
-        view.setTag(tag);view.setFocusable(true);view.setFocusableInTouchMode(true);view.setOnClickListener(v->run.run());
+        view.setTag(tag);view.setFocusable(true);view.setFocusableInTouchMode(true);view.setOnClickListener(v->KeyFeedback.clicked(v,run));
         view.setOnFocusChangeListener((v,focused)->artboard.invalidate());return view;
     }
     private ImageView code(String tag,int x,int y,int size) {
@@ -101,16 +118,15 @@ final class AboutView extends FrameLayout {
             if(bitmap==null)throw new IllegalStateException("Invalid QR asset: "+asset);return bitmap;
         } catch(IOException e){throw new IllegalStateException("Missing QR asset",e);}
     }
-    private void line(int y){View line=new View(getContext());line.setBackgroundColor(0x25ffffff);put(line,782,y,1002,1);}
+    private void divider(int x,int y,int width,int height){View line=new View(getContext());line.setBackgroundColor(0x25ffffff);put(line,x,y,width,height);}
     @Override protected void onSizeChanged(int w,int h,int oldw,int oldh) {
-        float height=720,scale=Math.min(w/1920f,h/height);artboard.setScaleX(scale);artboard.setScaleY(scale);
-        artboard.setTranslationX((w-1920*scale)/2);artboard.setTranslationY((h-height*scale)/2-220*scale);
+        float scale=Math.min(w/1920f,h/850f);artboard.setScaleX(scale);artboard.setScaleY(scale);
+        artboard.setTranslationX((w-1920*scale)/2);artboard.setTranslationY((h-850*scale)/2);
     }
-    private void revealRecovery(){
-        if(!recoveryPress.press(android.os.SystemClock.elapsedRealtime()))return;
+    void revealRecovery(){
         String value=new ChildModeStore(getContext()).recovery();recoveryValue.setText(value.isEmpty()?"尚未设置家长密码":value);recoveryValue.setVisibility(View.VISIBLE);
     }
-    void hideRecovery(){press(false);recoveryPress.clear();recoveryValue.setText("");recoveryValue.setVisibility(View.INVISIBLE);}
+    void hideRecovery(){press(false);recoveryValue.setText("");recoveryValue.setVisibility(View.INVISIBLE);}
     void updateAvailable(boolean value){updateAvailable=value;update.setContentDescription(value?"检查更新，有新版本":"检查更新");artboard.invalidate();}
     void focusUpdate(){update.requestFocus();}
     void focusLicense(){license.requestFocus();}

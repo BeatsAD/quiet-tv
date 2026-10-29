@@ -18,6 +18,9 @@ final class HomeAppCatalog {
     private final Context context;
     HomeAppCatalog(Context context){this.context=context;}
     ArrayList<Entry> load(List<String> pinned){
+        return load(pinned,false);
+    }
+    ArrayList<Entry> load(List<String> pinned,boolean hiddenApps){
         JSONObject config;
         try(InputStream input=context.getAssets().open("launcher.json");ByteArrayOutputStream out=new ByteArrayOutputStream()){
             byte[] buffer=new byte[4096];int n;while((n=input.read(buffer))!=-1)out.write(buffer,0,n);
@@ -26,15 +29,24 @@ final class HomeAppCatalog {
         HashSet<String> hidden=new HashSet<>();JSONArray values=config.optJSONArray("hidden");
         if(values!=null)for(int i=0;i<values.length();i++)hidden.add(values.optString(i));
         PackageManager pm=context.getPackageManager();LinkedHashMap<String,ResolveInfo> choices=launchable();
-        for(Iterator<String> ids=choices.keySet().iterator();ids.hasNext();){String id=ids.next();if(new ChildModeStore(context).hidden(id) || hidden.contains(id) && !pinned.contains(id))ids.remove();}
+        ChildModeStore children=new ChildModeStore(context);HomeVisibilityStore visibility=new HomeVisibilityStore(context);
+        for(Iterator<String> ids=choices.keySet().iterator();ids.hasNext();){String id=ids.next();if(children.hidden(id) || visibility.hidden(id)!=hiddenApps || !hiddenApps&&hidden.contains(id)&&!pinned.contains(id))ids.remove();}
         ArrayList<Entry> result=new ArrayList<>();
         for(Map.Entry<String,ResolveInfo> choice:choices.entrySet())result.add(new Entry(choice.getKey(),choice.getValue().loadLabel(pm).toString(),choice.getValue()));
         Collator collator=Collator.getInstance(Locale.SIMPLIFIED_CHINESE);
         Collections.sort(result,(a,b)->{int compared=collator.compare(a.label,b.label);return compared!=0?compared:a.id.compareTo(b.id);});
         boolean chinese=!"en".equals(config.optString("language","zh"));
-        result.add(0,new Entry(WALLPAPER,chinese?"壁纸设置":"Wallpaper Settings",null));
-        result.add(1,new Entry(DESKTOP_SETTINGS,chinese?"桌面设置":"Desktop Settings",null));
-        result.add(2,new Entry(MANAGEMENT,chinese?"应用管理":"App Management",null));
+        if(!hiddenApps){
+            result.add(0,new Entry(WALLPAPER,chinese?"壁纸设置":"Wallpaper Settings",null));
+            result.add(1,new Entry(DESKTOP_SETTINGS,chinese?"桌面设置":"Desktop Settings",null));
+        }
+        return result;
+    }
+    /** Replace the retired management entry once and retain the first saved position. */
+    static ArrayList<String> unifiedSettingsEntries(List<String> entries){
+        ArrayList<String> result=new ArrayList<>();
+        for(String entry:entries){String id=MANAGEMENT.equals(entry)?DESKTOP_SETTINGS:entry;if(!DESKTOP_SETTINGS.equals(id)||!result.contains(id))result.add(id);}
+
         return result;
     }
     /** Same launchable apps for Home, its editor and the Dock; TV entries win. */

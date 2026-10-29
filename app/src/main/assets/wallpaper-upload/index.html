@@ -29,6 +29,12 @@
       <span class="change" id="change" hidden>更换文件</span>
     </label>
     <p id="fileinfo">图片  JPG / PNG / 静态 WebP  最大 60 MB<br>视频  MP4 / MOV / MKV / WebM  最大 200 MB  60 FPS</p>
+    <div id="naming" hidden>
+      <label id="name-label" for="wallpaper-name">壁纸名称</label>
+      <input id="wallpaper-name" type="text" maxlength="48" autocomplete="off" spellcheck="false" enterkeyhint="done" aria-describedby="name-hint name-error">
+      <div class="name-meta"><span id="name-hint">不修改则保留原名</span><span id="name-count">0/48</span></div>
+      <p id="name-error" role="alert" hidden></p>
+    </div>
     <button id="send" disabled>上传到电视</button>
     <button id="cancel" type="button" hidden>取消上传</button>
     <div id="progress" role="progressbar" aria-label="上传进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden><span></span></div>

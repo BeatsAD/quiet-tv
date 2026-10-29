@@ -182,6 +182,7 @@ __pycache__/
 # Computer adaptation guide and acceptance tool shipped with the installation site.
 !/docs/AGENT_ADAPT.zh-CN.md
 !/scripts/device_selftest.py
+!/scripts/remote_calibration.py
 
 !/docs/DEVICE_ADAPTATION.zh-CN.md
 
@@ -189,3 +190,14 @@ __pycache__/
 !/docs/AGENT.md
 !/docs/agent/
 !/scripts/agent_session.py
+!/scripts/computer_resources.py
+!/scripts/device_environment.py
+
+# Browser client required by the native file-transfer tab.
+!/app/src/main/assets/file-transfer/
+!/app/src/main/assets/file-transfer/*
+
+# Original interaction sounds required by the shared TV UI.
+!/app/src/main/res/raw/key_move.wav
+!/app/src/main/res/raw/key_confirm.wav
+!/app/src/main/res/raw/key_back.wav

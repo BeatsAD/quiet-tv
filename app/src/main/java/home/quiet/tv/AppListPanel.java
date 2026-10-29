@@ -1,6 +1,7 @@
 package home.quiet.tv;
 
 import android.content.*;
+import android.graphics.drawable.GradientDrawable;
 import android.os.*;
 import android.provider.Settings;
 import android.text.SpannableString;
@@ -15,13 +16,24 @@ import java.util.concurrent.*;
 
 final class AppListPanel extends ManagementPanel {
     @Override boolean useSettingListStyle(){return false;}
-    private static final String[] FILTERS={"全部","用户应用","预装应用","已禁用","可恢复"};
-    private final ExecutorService worker=Executors.newSingleThreadExecutor();
+    private static final String[] FILTERS={"全部","用户应用","预装应用","已禁用","可恢复","隐藏应用"};
+    private static final int HIDDEN_FILTER=5;
+    private final ManagementAdb session;
+    private final ExecutorService worker;
     private final ArrayList<AppRepository.App> all=new ArrayList<>(),filtered=new ArrayList<>();
     private AppRepository repository;
     private AdbController adb;
     private Button managementConnection;
-    private boolean connecting,mutating;
+    private GradientDrawable connectionDot;
+    private boolean connecting,manualConnection;
+    private final ManagementAdb.Listener connectionChanged=this::managementConnectionChanged;
+    private void managementConnectionChanged(){
+        if(!active)return;
+        updateManagementConnection();dirty=true;
+        if(connecting){renderDetails();return;}
+        if(busy)refreshAfterConnection=true;else refresh();
+        if(manualConnection){manualConnection=false;if(!adb.connected())message(session.detail());}
+    }
     private AppOperations operations;
     private final ArrayList<Button> filterButtons=new ArrayList<>();
     private AppCoverUploadPanel coverUploads;
@@ -36,14 +48,14 @@ final class AppListPanel extends ManagementPanel {
     private volatile int refreshGeneration;
     private final BroadcastReceiver packagesChanged=new BroadcastReceiver(){
         @Override public void onReceive(Context context,Intent intent){
-            if(Intent.ACTION_PACKAGE_REMOVED.equals(intent.getAction()) && !intent.getBooleanExtra(Intent.EXTRA_REPLACING,false) && intent.getData()!=null){String pkg=intent.getData().getSchemeSpecificPart();new DockStore(context).remove(pkg);new HomeOrderStore(context).remove(pkg);worker.execute(()->{try{AppCoverStore.get(context).restore(pkg);}catch(java.io.IOException e){android.util.Log.w("QuietTV","Cover cleanup deferred");}});}
+            if(Intent.ACTION_PACKAGE_REMOVED.equals(intent.getAction()) && !intent.getBooleanExtra(Intent.EXTRA_REPLACING,false) && intent.getData()!=null){String pkg=intent.getData().getSchemeSpecificPart();new DockStore(context).remove(pkg);new HomeOrderStore(context).remove(pkg);new HomeVisibilityStore(context).remove(pkg);worker.execute(()->{try{AppCoverStore.get(context).restore(pkg);}catch(java.io.IOException e){android.util.Log.w("QuietTV","Cover cleanup deferred");}});}
             dirty=true;if(active && !intent.getBooleanExtra(Intent.EXTRA_REPLACING,false))refresh();
         }
     };
-    AppListPanel(AppManagementActivity activity){super(activity);}
+    AppListPanel(AppManagementActivity activity){super(activity);session=ManagementAdb.get(activity);worker=session.worker;}
     @Override public void onCreate(Bundle state){
         super.onCreate(state);repository=new AppRepository(this);operations=new AppOperations(this);
-        adb=new AdbController(this,value->ui(this::updateManagementConnection));
+        adb=session.adb;
         coverUploads=new AppCoverUploadPanel(activity);
         LinearLayout body=managementContent(),filters=managementInfo;
         for(int i=0;i<FILTERS.length;i++){final int chosen=i;Button option=button(FILTERS[i],()->{filter=chosen;applyFilter();});option.setId(androidx.core.view.ViewCompat.generateViewId());styleManagementTab(option,true);
@@ -63,6 +75,8 @@ final class AppListPanel extends ManagementPanel {
         for(int i=0;i<filterButtons.size();i++){Button b=filterButtons.get(i);if(i>0)b.setNextFocusLeftId(filterButtons.get(i-1).getId());if(i+1<filterButtons.size())b.setNextFocusRightId(filterButtons.get(i+1).getId());}
         filters.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));
         managementConnection=button("ADB 未连接",this::connectManagement);styleManagementTab(managementConnection,true);
+        connectionDot=new GradientDrawable();connectionDot.setShape(GradientDrawable.OVAL);connectionDot.setBounds(0,0,px(5),px(5));
+        managementConnection.setCompoundDrawables(connectionDot,null,null,null);managementConnection.setCompoundDrawablePadding(px(6));
         managementConnection.setOnKeyListener((v,key,event)->{
             if(key==KeyEvent.KEYCODE_DPAD_LEFT){if(event.getAction()==KeyEvent.ACTION_DOWN)filterButtons.get(filterButtons.size()-1).requestFocus();return true;}return false;
         });
@@ -74,20 +88,25 @@ final class AppListPanel extends ManagementPanel {
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setClipToPadding(false);scroll.setBackgroundDrawable(surface(0x12ffffff,0x06ffffff,0x1cffffff,20));details=column();details.setGravity(Gravity.CENTER_HORIZONTAL);details.setPadding(px(25),px(27),px(25),px(22));scroll.addView(details);
         LinearLayout.LayoutParams dp=new LinearLayout.LayoutParams(0,-1,57);dp.leftMargin=px(28);panels.addView(scroll,dp);
         if(state!=null){selected=state.getString("selected","");filter=Math.max(0,Math.min(FILTERS.length-1,state.getInt("filter",0)));}
+        else{String requested=activity.getIntent().getStringExtra("selected-package");if(requested!=null)selected=requested;}
         IntentFilter packages=new IntentFilter(Intent.ACTION_PACKAGE_ADDED);packages.addAction(Intent.ACTION_PACKAGE_REMOVED);packages.addAction(Intent.ACTION_PACKAGE_CHANGED);packages.addDataScheme("package");registerReceiver(packagesChanged,packages);
     }
     private void ui(Runnable action){runOnUiThread(()->{if(!isDestroyed() && !isFinishing())action.run();});}
     private void updateManagementConnection(){
-        if(managementConnection==null)return;boolean connected=!connecting && adb.connected();
+        if(managementConnection==null)return;connecting=session.state()==AdbConnectionKeeper.State.CONNECTING;boolean connected=session.state()==AdbConnectionKeeper.State.CONNECTED;
         managementConnection.setText(connecting?"ADB 连接中…":connected?"ADB 已连接":"ADB 未连接");
+        int color=connecting?0xffe5b384:connected?0xff64c49a:MUTED;
+        connectionDot.setColor(color);
+        managementConnection.setTextColor(color);
+        managementConnection.setContentDescription(managementConnection.getText()+"  "+session.detail());
         managementConnection.setEnabled(!busy && !connecting);
     }
     @Override void managementConnected(){dirty=true;if(active){if(busy)refreshAfterConnection=true;else refresh();}}
     @Override void managementMoreOptions(LinearLayout menu){managementMoreOption(menu,"开机自启",this::bootAppPanel);managementMoreOption(menu,"操作记录",()->{try{Sheet sheet=new Sheet("操作记录");sheet.text(operations.history());sheet.action("关闭",sheet.dialog::dismiss);sheet.show(null);}catch(Exception e){message(e.getMessage());}});super.managementMoreOptions(menu);}
-    @Override protected void onResume(){super.onResume();active=true;if(!adb.connected() && getSharedPreferences("adb",0).getBoolean("dailyManagement",false))connectManagement();else if(dirty)refresh();else renderDetails();}
+    @Override protected void onResume(){super.onResume();active=true;session.addListener(connectionChanged);session.request();if(dirty)refresh();else renderDetails();}
     @Override void focusManagementContent(){filterButtons.get(filter).requestFocus();}
-    @Override protected void onStop(){active=false;refreshAfterConnection=false;refreshGeneration++;if(!mutating)adb.disconnect();dirty=true;if(reading){reading=false;busy=false;}coverUploads.close();super.onStop();}
-    @Override protected void onDestroy(){unregisterReceiver(packagesChanged);coverUploads.destroy();if(!mutating)adb.close();worker.shutdown();super.onDestroy();}
+    @Override protected void onStop(){active=false;session.removeListener(connectionChanged);manualConnection=false;refreshAfterConnection=false;refreshGeneration++;dirty=true;if(reading){reading=false;busy=false;}coverUploads.close();super.onStop();}
+    @Override protected void onDestroy(){session.removeListener(connectionChanged);unregisterReceiver(packagesChanged);coverUploads.destroy();super.onDestroy();}
     @Override protected void onSaveInstanceState(Bundle state){state.putString("selected",selected);state.putInt("filter",filter);super.onSaveInstanceState(state);}
     private void refresh(){
         if(!active){dirty=true;return;}
@@ -99,7 +118,8 @@ final class AppListPanel extends ManagementPanel {
     @android.annotation.SuppressLint("NotifyDataSetChanged")
     private void applyFilter(){
         boolean listFocused=list.hasFocus();filtered.clear();
-        for(AppRepository.App app:all){boolean match=filter==0 || filter==1 && !app.system && app.installed || filter==2 && app.system || filter==3 && app.installed && !app.enabled || filter==4 && app.recoverable && !app.installed;if(match)filtered.add(app);}
+        HomeVisibilityStore visibility=new HomeVisibilityStore(this);ChildModeStore children=new ChildModeStore(this);
+        for(AppRepository.App app:all){boolean match=filter==0 || filter==1 && !app.system && app.installed || filter==2 && app.system || filter==3 && app.installed && !app.enabled || filter==4 && app.recoverable && !app.installed || filter==HIDDEN_FILTER && app.installed && visibility.hidden(app.pkg) && !children.hidden(app.pkg);if(match)filtered.add(app);}
         for(int i=0;i<filterButtons.size();i++)filterButtons.get(i).setSelected(i==filter);
         boolean present=false;for(AppRepository.App app:filtered)if(app.pkg.equals(selected))present=true;if(!present)selected=filtered.isEmpty()?"":filtered.get(0).pkg;
         adapter.notifyDataSetChanged();renderDetails();if(listFocused)focusList();
@@ -120,6 +140,10 @@ final class AppListPanel extends ManagementPanel {
         String size=app.apkSizeBytes>=0?Formatter.formatShortFileSize(this,app.apkSizeBytes):"大小未知";
         gap(details,20);TextView meta=center(app.pkg+"\n版本 "+app.version+"  "+size,12);meta.setTextColor(MUTED);meta.setLineSpacing(px(5),1);details.addView(meta,new LinearLayout.LayoutParams(-1,-2));
         details.addView(new View(this),new LinearLayout.LayoutParams(1,0,1));gap(details,18);
+        if(!busy && filter==HIDDEN_FILTER){
+            LinearLayout restore=row();restore.setGravity(Gravity.CENTER);details.addView(restore,new LinearLayout.LayoutParams(-1,px(42)));
+            addAction(restore,button("恢复显示",()->restoreHiddenApp(app)));gap(details,10);
+        }
         LinearLayout actions=row();actions.setGravity(Gravity.CENTER);details.addView(actions,new LinearLayout.LayoutParams(-1,px(42)));
         if(!busy)bootAppAction(app,actions);
         String protectedReason=operations.protection(app);
@@ -146,26 +170,31 @@ final class AppListPanel extends ManagementPanel {
         }
 
     }
+    private void restoreHiddenApp(AppRepository.App app){
+        if(busy)return;busy=true;renderDetails();
+        worker.execute(()->{
+            String result;
+            try{
+                HomeVisibilityStore visibility=new HomeVisibilityStore(this);
+                if(!visibility.hidden(app.pkg)||new ChildModeStore(this).hidden(app.pkg)||!AppAvailability.installed(getPackageManager(),getPackageManager().getApplicationInfo(app.pkg,0)))result="应用状态已变化，请刷新后重试";
+                else{boolean full=visibility.wasPinned(app.pkg)&&new DockStore(this).load().size()>=DockStore.CAPACITY;
+                    result=visibility.restore(app.pkg)?full?"已恢复到第二屏，首页已满":"已恢复显示":"保存失败，请重试";}
+            }catch(Exception e){result="无法恢复显示，请重试";}
+            String outcome=result;ui(()->{busy=false;dirty=true;if(active){applyFilter();focusList();feedback(outcome);}});
+        });
+    }
     private void connectManagement(){
         if(busy || connecting || !active)return;
-        connecting=true;busy=true;renderDetails();
-        final int request=adb.prepare();
-        worker.execute(()->{
-            String failure=null;
-            try{adb.connect(getSharedPreferences("adb",0).getInt("port",5555),request);getSharedPreferences("adb",0).edit().putBoolean("dailyManagement",true).apply();}
-            catch(Exception e){failure=e.getMessage();}
-            String error=failure;ui(()->{connecting=false;busy=false;dirty=true;if(active){refresh();if(error!=null)message("应用管理未连接。请让 AI 检查本机 TCP ADB 与授权后重试。\n"+error);}});
-        });
+        manualConnection=!adb.connected();session.request();updateManagementConnection();
     }
     private void confirmOperation(AppRepository.App app,AppOperations.Action action){
         Sheet sheet=new Sheet(action.label+"应用？");sheet.text(app.label+"\n"+operations.explanation(app,action));
         Button cancel=sheet.action("取消",sheet.dialog::dismiss);
         sheet.action("确认"+action.label,()->{
-            sheet.dialog.dismiss();if(busy)return;busy=true;mutating=true;renderDetails();
+            sheet.dialog.dismiss();if(busy)return;busy=true;renderDetails();
             worker.execute(()->{
                 String result;
                 try{result=new AppOperations(this).perform(adb,app,action);}catch(Exception e){result=e.getMessage()==null?"操作未完成":e.getMessage();}
-                mutating=false;if(!active)adb.disconnect();if(isDestroyed())adb.close();
                 String outcome=result;ui(()->{busy=false;dirty=true;if(active){refresh();message(outcome);}});
             });
         });sheet.show(cancel);
@@ -227,7 +256,7 @@ final class AppListPanel extends ManagementPanel {
         }
         @Override public void onBindViewHolder(Holder holder,int position){AppRepository.App app=filtered.get(position);holder.icon.setImageDrawable(app.icon);holder.title.setText(app.label);holder.summary.setText(coloredState(app,app.summary()));holder.marker.setVisibility(new DockStore(activity).load().contains(app.pkg)?View.VISIBLE:View.GONE);holder.box.setSelected(app.pkg.equals(selected));holder.box.setContentDescription(app.label+" "+app.pkg+" "+app.summary());
             holder.box.setOnFocusChangeListener((v,focus)->{if(focus && !selected.equals(app.pkg)){selected=app.pkg;for(int i=0;i<list.getChildCount();i++)list.getChildAt(i).setSelected(list.getChildAt(i)==v);renderDetails();}});
-            holder.box.setOnClickListener(v->{selected=app.pkg;renderDetails();if(firstAction!=null)firstAction.requestFocus();});
+            holder.box.setOnClickListener(v->{selected=app.pkg;renderDetails();if(firstAction!=null)firstAction.requestFocus();KeyFeedback.confirm(activity);});
         }
         @Override public int getItemCount(){return filtered.size();}
     }

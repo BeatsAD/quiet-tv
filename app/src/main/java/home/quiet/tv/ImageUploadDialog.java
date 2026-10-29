@@ -20,13 +20,13 @@ final class ImageUploadDialog {
     }
     ImageUploadDialog(Activity activity,boolean chinese,Bitmap backdrop,String title,String requirements,String note,Runnable closeAction,Runnable reconnect,String selection){
         this.activity=activity;this.ui=new WallpaperUi(activity,activity.getResources().getDisplayMetrics().widthPixels/960f);this.chinese=chinese;this.backdrop=backdrop;
-        dialog=new Dialog(activity);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        dialog=new KeyFeedback.Dialog(activity);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         FrameLayout stage=new FrameLayout(activity);background=new ImageView(activity);background.setScaleType(ImageView.ScaleType.FIT_XY);background.setImageBitmap(backdrop);stage.addView(background,new FrameLayout.LayoutParams(-1,-1));
         View dim=new View(activity);dim.setBackgroundColor(0xbf070b12);stage.addView(dim,new FrameLayout.LayoutParams(-1,-1));
         FrameLayout panel=new FrameLayout(activity);panel.setBackgroundDrawable(ui.surface(0xff222831,23,0x20ffffff,1));if(android.os.Build.VERSION.SDK_INT>=21)panel.setElevation(ui.px(18));
         LinearLayout box=column();box.setPadding(ui.px(30),ui.px(30),ui.px(30),ui.px(30));
         LinearLayout header=new LinearLayout(activity);header.setGravity(Gravity.CENTER_VERTICAL);TextView heading=ui.text(title,23);heading.setSingleLine();heading.setEllipsize(android.text.TextUtils.TruncateAt.END);header.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
-        TextView close=ui.button("",false,closeAction);close.setContentDescription(tr("关闭上传","Close upload"));close.setPadding(ui.px(8),ui.px(8),ui.px(8),ui.px(8));close.setCompoundDrawables(ui.icon(R.drawable.wp_x,17,WallpaperUi.INK),null,null,null);close.setBackgroundDrawable(ui.focusSurface(0xff343c48,100));
+        TextView close=ui.button("",false,()->{closeAction.run();KeyFeedback.back(activity);});close.setContentDescription(tr("关闭上传","Close upload"));close.setPadding(ui.px(8),ui.px(8),ui.px(8),ui.px(8));close.setCompoundDrawables(ui.icon(R.drawable.wp_x,17,WallpaperUi.INK),null,null,null);close.setBackgroundDrawable(ui.focusSurface(0xff343c48,100));
         header.addView(close,new LinearLayout.LayoutParams(ui.px(33),ui.px(33)));box.addView(header,new LinearLayout.LayoutParams(-1,ui.px(42)));
         LinearLayout connection=new LinearLayout(activity);connection.setGravity(Gravity.CENTER_VERTICAL);connection.setMinimumHeight(ui.px(258));LinearLayout steps=column();
         step(steps,"1",tr("连接同一个局域网","Connect to the same local network"),tr("电视可使用 Wi-Fi 或网线连接","Your TV can use Wi-Fi or Ethernet"),46);

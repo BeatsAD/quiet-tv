@@ -22,7 +22,7 @@ import java.util.concurrent.*;
 
 /** Keeps both input methods in one draft; only the TV Save button persists it. */
 final class GreetingEditorPanel {
-    private final DesktopSettingsActivity ui;
+    private final AppManagementActivity ui;
     private final DesktopSettingsStore store;
     private final String fallback;
     private final Runnable saved;
@@ -52,7 +52,7 @@ final class GreetingEditorPanel {
             status.setText(tr("会话已结束，请重新连接","Session ended. Reconnect to continue."));reconnect.setVisibility(View.VISIBLE);
         }else main.postDelayed(this,2000);
     }};
-    GreetingEditorPanel(DesktopSettingsActivity ui,DesktopSettingsStore store,String fallback,Runnable saved){this.ui=ui;this.store=store;this.fallback=fallback;this.saved=saved;avatars=new GreetingAvatarStore(ui);avatarUpload=new GreetingAvatarUploadPanel(ui,avatars,this::receiveAvatar);}
+    GreetingEditorPanel(AppManagementActivity ui,DesktopSettingsStore store,String fallback,Runnable saved){this.ui=ui;this.store=store;this.fallback=fallback;this.saved=saved;avatars=new GreetingAvatarStore(ui);avatarUpload=new GreetingAvatarUploadPanel(ui,avatars,this::receiveAvatar);}
     private String tr(String zh,String en){return ui.tr(zh,en);}
     private void identify(View view,String tag){view.setId(androidx.core.view.ViewCompat.generateViewId());view.setTag(tag);}
     void show(){

@@ -1,0 +1,7 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Quiet TV 文件传输</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head>
+<body><main><p class="brand">QUIET TV</p><h1>文件传输助手</h1><p class="muted">手机、电脑与电视连接同一局域网</p>
+<section id="connect"><h2>连接电视</h2><form id="pair"><label for="code">电视上的六位连接码</label><div class="row"><input id="code" inputmode="numeric" autocomplete="off" maxlength="6" pattern="[0-9]{6}" required><button>连接</button></div></form></section>
+<div id="workspace" hidden><section><h2>发送到电视</h2><button id="choose" type="button">选择文件</button><input id="files" type="file" multiple hidden><p class="muted">单文件最大 200 MB，接收区最多 500 MB。图片、视频可在电视预览后设为壁纸。</p><ul id="queue" aria-live="polite"></ul><button id="cancel" class="secondary" hidden>取消当前文件</button></section>
+<section><div class="row"><h2>从电视下载</h2><button id="refresh" class="secondary">刷新</button></div><p class="muted">请在电视上选择文件，并点击“传到手机或电脑”。</p><ul id="downloads"></ul></section></div>
+<p id="status" role="status" aria-live="polite"></p><footer>文件仅通过当前局域网传输</footer></main></body></html>

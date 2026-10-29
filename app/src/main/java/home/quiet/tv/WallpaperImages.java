@@ -11,7 +11,6 @@ final class WallpaperImages {
         if(entry.video()){
             if(!entry.custom())return context.getAssets().open("wallpapers/"+entry.id+".jpg");
             File poster=store.poster(entry.id);
-            if((!poster.isFile()||poster.length()==0)&&android.os.Looper.myLooper()!=android.os.Looper.getMainLooper())WallpaperVideo.poster(store.file(entry.id),poster,entry);
             return new FileInputStream(poster);
         }
         if(WallpaperCatalog.DAILY.equals(entry.id)){

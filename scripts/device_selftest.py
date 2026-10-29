@@ -29,16 +29,23 @@ def network_endpoint(serial):
         return False
 
 
-def focused_package(text):
-    # Only an active/resumed activity is evidence, never a historical task entry.
-    patterns = (r'mResumedActivity:.*?\s([\w.]+)/[\w.$]+',
-                r'topResumedActivity=.*?\s([\w.]+)/[\w.$]+',
-                r'mFocusedActivity:.*?\s([\w.]+)/[\w.$]+')
+def focused_activity(text):
+    # Keep the Android user and full component; historical tasks are not evidence.
+    patterns = (r'topResumedActivity=.*?\bu(\d+)\s+([\w.]+/[\w.$]+)',
+                r'mResumedActivity:.*?\bu(\d+)\s+([\w.]+/[\w.$]+)',
+                r'mFocusedActivity:.*?\bu(\d+)\s+([\w.]+/[\w.$]+)')
     for pattern in patterns:
-        match = re.search(pattern, text)
-        if match:
-            return match[1]
-    return ''
+        matches = {(int(user), guard.canonical_home(activity)) for user, activity in re.findall(pattern, text)}
+        if matches:
+            if len(matches) == 1:
+                user, activity = matches.pop()
+                return dict(user=user, component=activity, package=activity.split('/')[0])
+            break
+    return dict(user=None, component='', package='')
+
+
+def focused_package(text):
+    return focused_activity(text)['package']
 
 
 def awake(text):
@@ -81,20 +88,25 @@ class SelfTest:
             raise ValueError('设备、固件或用户改变，停止后续操作')
 
     def focus(self):
-        return focused_package(self.adb.shell('dumpsys', 'activity', 'activities'))
+        sample = focused_activity(self.adb.shell('dumpsys', 'activity', 'activities'))
+        return sample['package'] if sample['user'] == self.args.user else ''
 
     def timeline(self, seconds):
         start = time.monotonic()
         result = []
         while True:
-            result.append({'seconds': round(time.monotonic() - start, 1), 'package': self.focus()})
+            sample = focused_activity(self.adb.shell('dumpsys', 'activity', 'activities'))
+            result.append({'seconds': round(time.monotonic() - start, 1), **sample})
             if time.monotonic() - start >= seconds:
                 return result
             time.sleep(1)
 
     def foreground_result(self, name, samples):
-        known = [x['package'] for x in samples if x['package']]
-        status = 'SKIP' if not known else 'PASS' if samples[-1]['package'] == self.args.package else 'FAIL'
+        last = samples[-1] if samples else {}
+        known = last.get('component') and last.get('user') is not None
+        target = self.args.package + '/home.quiet.tv.HomeActivity'
+        status = ('SKIP' if not known else 'PASS' if last['component'] == target
+                  and last['user'] == self.args.user else 'FAIL')
         self.check(name, status, '记录自动观察的前台；不代替实体遥控器或可见画面验收', timeline=samples)
 
     def home(self):
@@ -249,8 +261,15 @@ class SelfTest:
                 method()
             else:
                 self.check(flag, 'SKIP', '未选择此场景')
-        self.check('physical_home', 'SKIP', '需用户按实体遥控器并观察画面')
-        self.check('cold_boot', 'SKIP', '需人工断电冷启动验收，脚本不模拟断电')
+        scenes = self.report['before'].get('routes', {}).get('sceneEvidence', {})
+        for scene, name in (('home', 'physical_home'), ('coldBoot', 'cold_boot'),
+                            ('reboot', 'user_reboot'), ('wake', 'user_wake')):
+            evidence = scenes.get(scene, {})
+            status = {'通过': 'PASS', '失败': 'FAIL'}.get(evidence.get('result'))
+            if evidence.get('source') == 'user' and status:
+                self.check(name, status, 'APK 当前配置的用户场景记录', source='user', evidence=evidence)
+            elif name in ('physical_home', 'cold_boot'):
+                self.check(name, 'SKIP', '需用户实际操作并反馈，电脑任务可用 accept 登记')
 
     def save(self):
         if self.args.compare:

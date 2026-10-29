@@ -110,3 +110,7 @@ python3 device_maintenance.py restore-app --target "$APP_PACKAGE" --from-record 
 
 
 统一自检、本机信号源配置、同签名 HOME 代理修复和专项恢复详见[电脑适配与维护](AGENT_ADAPT.zh-CN.md)。修复前后使用 `device_selftest.py` 的同机报告对比；默认只读，主动 HOME、信号源、待机和重启场景必须明确选择并加 `--apply`。网络 ADB 必须记录重启后的实际重连结果，不能把调试开关值当作完成。
+
+## 遥控器按键映射
+
+首次AI配置按[逐键校准](agent/remote.md)依次采集、试用和确认HOME、信号源、菜单键。新APK的 `remote-keymap-v1` 在本机按机型、完整固件指纹和Android用户保存；三键全部确认后才替换原映射。旧APK不具备该接口时保留原生按键，不能靠更新电脑规则创造运行能力。

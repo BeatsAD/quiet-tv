@@ -18,7 +18,7 @@ final class ChildModePanel extends ManagementPanel {
     private RecyclerView list;
     private Cards cards;
     private LinearLayout details;
-    private TextView count;
+    private TextView count,timerStatus;
     private android.app.Dialog editing;
     private View first;
     private String selected="",query="";
@@ -30,6 +30,7 @@ final class ChildModePanel extends ManagementPanel {
     private android.os.Parcelable listState;
     private int loadGeneration;
     private ChildModeUi visual;
+    private final Runnable timerChanged=()->runOnUiThread(()->{if(showing&&authorized&&timerStatus!=null&&!selected.isEmpty()){ChildModePolicy.Rule rule=store.rule(selected);timerStatus.setText(rule.locked?"已锁定":rule.limited()&&!ChildUsageService.ready(this)?"计时未生效":describeTime(rule));}});
     ChildModePanel(AppManagementActivity activity){super(activity);}
     @Override public void onCreate(Bundle state){
         super.onCreate(state);store=new ChildModeStore(this);visual=new ChildModeUi(activity);
@@ -49,7 +50,7 @@ final class ChildModePanel extends ManagementPanel {
         LinearLayout.LayoutParams dp=new LinearLayout.LayoutParams(0,-1,57);dp.leftMargin=px(28);panels.addView(scroll,dp);
         locked();
     }
-    @Override protected void onResume(){super.onResume();if(authorized)load();}
+    @Override protected void onResume(){super.onResume();ChildUsageService.listen(timerChanged);if(authorized)load();}
     @Override void focusManagementContent(){if(unlock!=null)unlock.focus();else if(!authorized)unlockButton.requestFocus();else managementAction.requestFocus();}
     private void locked(){
         if(unlock!=null){unlock.close();unlock=null;}gate.removeAllViews();manager.setVisibility(View.GONE);gate.setVisibility(View.VISIBLE);count.setText("家长管理已锁定");
@@ -65,6 +66,7 @@ final class ChildModePanel extends ManagementPanel {
         gate.addView(unlock.view,new FrameLayout.LayoutParams(px(330),-2,Gravity.CENTER));unlock.focus();
     }
     @Override protected void onPause(){
+        ChildUsageService.unlisten(timerChanged);
         if(authorized)listState=list.getLayoutManager().onSaveInstanceState();authorized=false;manager.setVisibility(View.GONE);loadGeneration++;loading=false;ChildModeAuth.dismiss(activity);if(editing!=null)editing.dismiss();
         int removed=visible.size();visible.clear();cards.notifyItemRangeRemoved(0,removed);details.removeAllViews();first=null;returning=false;locked();super.onPause();
     }
@@ -96,7 +98,7 @@ final class ChildModePanel extends ManagementPanel {
         first=toggle("隐藏应用","从首页和常用栏隐藏",rule.hidden,()->{ChildModePolicy.Rule r=store.rule(selected);r.hidden=!r.hidden;save(r,0);});
         toggle("锁定应用","打开时需要家长密码",rule.locked,()->{ChildModePolicy.Rule r=store.rule(selected);r.locked=!r.locked;save(r,1);});
         LinearLayout time=optionRow(),copy=column();TextView label=visual.text("使用时长",26.88f,37.5f,0xffeeeff2);copy.addView(label);if(rule.locked){visual.gap(copy,12.48f);copy.addView(visual.text("解锁后可设置",18.43f,26,0xff848e9c));}time.addView(copy,new LinearLayout.LayoutParams(0,-2,1));
-        time.addView(visual.text(rule.locked?"已锁定":describeTime(rule),22.08f,32,0xffacb6c3),new LinearLayout.LayoutParams(-2,visual.p(37.5f)));ImageView arrow=visual.image(R.drawable.ic_child_arrow,0xff7c8897);LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(visual.p(26.88f),visual.p(26.88f));ap.leftMargin=visual.p(19.2f);time.addView(arrow,ap);time.setFocusable(!rule.locked);time.setClickable(!rule.locked);time.setEnabled(!rule.locked);time.setAlpha(rule.locked?.4f:1);time.setBackgroundDrawable(visual.focus(0,0,0,false));time.setContentDescription("使用时长  "+(rule.locked?"解锁后可设置":describeTime(rule)));time.setOnClickListener(v->time());
+        timerStatus=visual.text(rule.locked?"已锁定":rule.limited()&&!ChildUsageService.ready(this)?"计时未生效":describeTime(rule),22.08f,32,0xffacb6c3);time.addView(timerStatus,new LinearLayout.LayoutParams(-2,visual.p(37.5f)));ImageView arrow=visual.image(R.drawable.ic_child_arrow,0xff7c8897);LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(visual.p(26.88f),visual.p(26.88f));ap.leftMargin=visual.p(19.2f);time.addView(arrow,ap);time.setFocusable(!rule.locked);time.setClickable(!rule.locked);time.setEnabled(!rule.locked);time.setAlpha(rule.locked?.4f:1);time.setBackgroundDrawable(visual.focus(0,0,0,false));time.setContentDescription("使用时长  "+(rule.locked?"解锁后可设置":describeTime(rule)));time.setOnClickListener(v->KeyFeedback.clicked(v,this::time));
         TextView scope=visual.text("仅用于 Quiet TV 内的应用入口",16.9f,23.5f,0xff697583);LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,visual.p(48.46f));scope.setPadding(0,visual.p(24.96f),0,0);details.addView(scope,sp);
     }
     private LinearLayout optionRow(){
@@ -106,7 +108,7 @@ final class ChildModePanel extends ManagementPanel {
     private View toggle(String title,String hint,boolean checked,Runnable action){
         LinearLayout row=optionRow(),copy=column();copy.addView(visual.text(title,26.88f,37.5f,0xffeeeff2));visual.gap(copy,12.48f);copy.addView(visual.text(hint,18.43f,26,0xff848e9c));row.addView(copy,new LinearLayout.LayoutParams(0,-2,1));
         View toggle=new View(this){private final android.graphics.Paint paint=new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);private final android.graphics.RectF track=new android.graphics.RectF(0,0,72.96f,40.32f),border=new android.graphics.RectF(1,1,71.96f,39.32f),focusRing=new android.graphics.RectF(-5,-5,77.96f,45.32f);@Override protected void onDraw(android.graphics.Canvas c){super.onDraw(c);float scale=visual.p(72.96f)/72.96f;c.save();c.scale(scale,scale);c.translate(6,6);paint.setStyle(android.graphics.Paint.Style.FILL);paint.setColor(checked?0xffbdccc1:0x10ffffff);c.drawRoundRect(track,30,30,paint);paint.setStyle(android.graphics.Paint.Style.STROKE);paint.setStrokeWidth(1);paint.setColor(checked?0xffbdccc1:0x26ffffff);c.drawRoundRect(border,30,30,paint);paint.setStyle(android.graphics.Paint.Style.FILL);paint.setColor(checked?0xff263d33:0xff9099a4);c.drawCircle(19.72f+(checked?29.76f:0),19.72f,12.96f,paint);if(isFocused()){paint.setStyle(android.graphics.Paint.Style.STROKE);paint.setStrokeWidth(2);paint.setColor(0xfff6f6f8);c.drawRoundRect(focusRing,35,35,paint);}c.restore();}};
-        toggle.setFocusable(true);toggle.setClickable(true);toggle.setContentDescription(title+"  "+(checked?"开启":"关闭"));toggle.setOnClickListener(v->action.run());row.setOnClickListener(v->toggle.performClick());toggle.setOnFocusChangeListener((v,f)->v.invalidate());LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(visual.p(84.96f),visual.p(52.32f));tp.rightMargin=-visual.p(6);row.addView(toggle,tp);return toggle;
+        toggle.setFocusable(true);toggle.setClickable(true);toggle.setContentDescription(title+"  "+(checked?"开启":"关闭"));toggle.setOnClickListener(v->KeyFeedback.clicked(v,action));row.setOnClickListener(v->toggle.performClick());toggle.setOnFocusChangeListener((v,f)->v.invalidate());LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(visual.p(84.96f),visual.p(52.32f));tp.rightMargin=-visual.p(6);row.addView(toggle,tp);return toggle;
     }
     private void save(ChildModePolicy.Rule rule,int focus){
         if(!store.save(selected,rule)){feedback("保存失败，请重试");return;}refreshSelectedCard();render();if(focus==0 && first!=null)first.requestFocus();else if(focus==1 && details.getChildCount()>5)((ViewGroup)details.getChildAt(5)).getChildAt(1).requestFocus();
@@ -128,12 +130,20 @@ final class ChildModePanel extends ManagementPanel {
             if(!authorized)return;
             if(edited.limited() && custom[0])try{int h=Integer.parseInt(hours.getText().toString()),m=Integer.parseInt(minutes.getText().toString());if(h<0 || h>24 || m<0 || m>59)throw new NumberFormatException();edited.limit=(h*60L+m)*ChildModePolicy.MINUTE;}catch(NumberFormatException e){hint.setText("请输入 1 分钟至 24 小时，分钟填写 0–59");return;}
             try{edited.validate();}catch(IllegalArgumentException e){hint.setText("时长需为 1 分钟至 24 小时");return;}
-            if(edited.limited() && !ChildUsageService.ready(this)){sheet.dialog.dismiss();permission();return;}
-            if(!store.save(selected,edited)){hint.setText("保存失败，请重试");return;}sheet.dialog.dismiss();refreshSelectedCard();render();details.getChildAt(7).requestFocus();
+            if(!store.save(selected,edited)){hint.setText("保存失败，请重试");return;}sheet.dialog.dismiss();refreshSelectedCard();render();details.getChildAt(7).requestFocus();if(edited.limited()&&!ChildUsageService.ready(this)){feedback("时长已保存，计时服务尚未就绪");permission();}
         },true);visual.numberActions(sheet,pad);refresh.run();editing=sheet.dialog;sheet.dialog.setOnDismissListener(d->{sheet.release();if(editing==sheet.dialog)editing=null;});sheet.show(modeButtons.get(edited.mode));
     }
     private void show(Sheet sheet,View focus){editing=sheet.dialog;sheet.dialog.setOnDismissListener(d->{if(editing==sheet.dialog)editing=null;});sheet.show(focus);}
-    private void permission(){Sheet sheet=new Sheet("开启计时服务");sheet.text(store.fault().isEmpty()?"需在无障碍设置开启“儿童模式计时”。到时限制的效果仍需在本机验证。":store.fault());sheet.action("取消",sheet.dialog::dismiss);Button open=sheet.action("去开启",()->{sheet.dialog.dismiss();try{startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));}catch(ActivityNotFoundException e){message("当前电视没有可用的无障碍设置入口");}});show(sheet,open);}
+    private void permission(){
+        ChildTimerState state=ChildUsageService.status(this);Sheet sheet=new Sheet("儿童模式计时");sheet.text(state.message);
+        if(state==ChildTimerState.FAULT)sheet.text(store.fault());
+        sheet.text("进入儿童模式管理页不会开启服务。请在系统无障碍中启用“儿童模式计时”，返回后会重新核对。");
+        sheet.action("关闭",sheet.dialog::dismiss);Button open=sheet.action("系统无障碍设置",()->{
+            sheet.dialog.dismiss();DiagnosticLog.info("child.timer.settings","state="+state.name());
+            if(!new SystemSettingsRouter(this).open(Settings.ACTION_ACCESSIBILITY_SETTINGS))message("未找到可用设置入口，请从电视系统设置进入无障碍；已保存的时长不会丢失。");
+        });show(sheet,open);
+    }
+
     private void search(){
         if(!authorized)return;
         Sheet sheet=new Sheet("搜索应用");EditText input=input(query,"应用名称或包名");input.setId(androidx.core.view.ViewCompat.generateViewId());input.setContentDescription("应用名称或包名");input.setPadding(px(14),0,px(14),0);input.setGravity(Gravity.CENTER_VERTICAL);input.setIncludeFontPadding(false);
@@ -141,7 +151,7 @@ final class ChildModePanel extends ManagementPanel {
         android.view.inputmethod.InputMethodManager keyboard=(android.view.inputmethod.InputMethodManager)getSystemService(INPUT_METHOD_SERVICE);
         Runnable showKeyboard=()->{input.requestFocus();keyboard.showSoftInput(input,android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);};
         sheet.action("清空",()->{query="";sheet.dialog.dismiss();filter();});Button search=sheet.action("搜索",()->{query=input.getText().toString().trim();sheet.dialog.dismiss();filter();});search.setId(androidx.core.view.ViewCompat.generateViewId());input.setNextFocusDownId(search.getId());search.setNextFocusUpId(input.getId());
-        input.setOnClickListener(v->showKeyboard.run());input.setOnKeyListener((v,key,event)->{
+        input.setOnClickListener(v->KeyFeedback.clicked(v,showKeyboard));input.setOnKeyListener((v,key,event)->{
             if(key==KeyEvent.KEYCODE_DPAD_CENTER || key==KeyEvent.KEYCODE_ENTER){if(event.getAction()==KeyEvent.ACTION_UP)showKeyboard.run();return true;}
             if(key==KeyEvent.KEYCODE_DPAD_DOWN){if(event.getAction()==KeyEvent.ACTION_DOWN){keyboard.hideSoftInputFromWindow(input.getWindowToken(),0);search.requestFocus();}return true;}return false;
         });
@@ -161,7 +171,7 @@ final class ChildModePanel extends ManagementPanel {
         @Override public Holder onCreateViewHolder(ViewGroup parent,int type){LinearLayout box=row();box.setPadding(visual.p(24.04f),visual.p(20.16f),visual.p(24.04f),visual.p(20.16f));box.setFocusable(true);box.setClickable(true);android.graphics.drawable.StateListDrawable bg=new android.graphics.drawable.StateListDrawable();bg.addState(new int[]{android.R.attr.state_focused},visual.shape(0x0cffffff,0xfff6f6f8,21.12f,2));bg.addState(new int[]{android.R.attr.state_selected},visual.shape(0x0cffffff,0x36ffffff,21.12f,1));bg.addState(new int[]{},visual.shape(0,0,21.12f,1));box.setBackgroundDrawable(bg);box.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);RecyclerView.LayoutParams lp=new RecyclerView.LayoutParams(-1,visual.p(117.37f));lp.bottomMargin=visual.p(9.6f);box.setLayoutParams(lp);
             ImageView art=visual.appIcon(null,74.88f,15.36f);box.addView(art,new LinearLayout.LayoutParams(visual.p(74.88f),visual.p(74.88f)));LinearLayout copy=column();LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,-2,1);cp.leftMargin=visual.p(26.88f);box.addView(copy,cp);TextView title=visual.text("",27.84f,39,0xffeeeff2);title.setSingleLine();title.setEllipsize(android.text.TextUtils.TruncateAt.END);copy.addView(title);visual.gap(copy,10.56f);TextView state=visual.text("",18.24f,25.5f,0xff8d96a2);state.setSingleLine();state.setEllipsize(android.text.TextUtils.TruncateAt.END);copy.addView(state);
             LinearLayout statuses=row();statuses.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(visual.p(60),visual.p(24));sp.leftMargin=visual.p(26.88f);box.addView(statuses,sp);ImageView hidden=visual.image(R.drawable.ic_child_hidden,0xff9ca6b4),policy=visual.image(R.drawable.ic_child_unlimited,0xff9ca6b4);statuses.addView(hidden,new LinearLayout.LayoutParams(visual.p(24),visual.p(24)));LinearLayout.LayoutParams pp=new LinearLayout.LayoutParams(visual.p(24),visual.p(24));pp.leftMargin=visual.p(12);statuses.addView(policy,pp);return new Holder(box,art,title,state,hidden,policy);}
-        @Override public void onBindViewHolder(Holder h,int position){ResolveInfo info=visible.get(position);String pkg=info.activityInfo.packageName;ChildModePolicy.Rule rule=store.rule(pkg);h.title.setText(info.loadLabel(getPackageManager()));h.icon.setImageDrawable(info.loadIcon(getPackageManager()));h.state.setText(summary(rule));h.hidden.setVisibility(rule.hidden?View.VISIBLE:View.INVISIBLE);h.policy.setTag(rule.locked?"locked":rule.limited()?"limited":"unlimited");h.policy.setImageDrawable(UiCompat.drawable(activity,rule.locked?R.drawable.ic_child_lock:rule.limited()?R.drawable.ic_child_time:R.drawable.ic_child_unlimited));h.box.setContentDescription(info.loadLabel(getPackageManager())+"  "+summary(rule));h.box.setSelected(selected.equals(pkg));h.box.setTag(pkg);h.box.setOnFocusChangeListener((v,focused)->{if(focused && !selected.equals(pkg)){selected=pkg;for(int i=0;i<list.getChildCount();i++)list.getChildAt(i).setSelected(list.getChildAt(i)==v);render();}});h.box.setOnClickListener(v->{selected=pkg;render();if(first!=null)first.requestFocus();});}
+        @Override public void onBindViewHolder(Holder h,int position){ResolveInfo info=visible.get(position);String pkg=info.activityInfo.packageName;ChildModePolicy.Rule rule=store.rule(pkg);h.title.setText(info.loadLabel(getPackageManager()));h.icon.setImageDrawable(info.loadIcon(getPackageManager()));h.state.setText(summary(rule));h.hidden.setVisibility(rule.hidden?View.VISIBLE:View.INVISIBLE);h.policy.setTag(rule.locked?"locked":rule.limited()?"limited":"unlimited");h.policy.setImageDrawable(UiCompat.drawable(activity,rule.locked?R.drawable.ic_child_lock:rule.limited()?R.drawable.ic_child_time:R.drawable.ic_child_unlimited));h.box.setContentDescription(info.loadLabel(getPackageManager())+"  "+summary(rule));h.box.setSelected(selected.equals(pkg));h.box.setTag(pkg);h.box.setOnFocusChangeListener((v,focused)->{if(focused && !selected.equals(pkg)){selected=pkg;for(int i=0;i<list.getChildCount();i++)list.getChildAt(i).setSelected(list.getChildAt(i)==v);render();}});h.box.setOnClickListener(v->{selected=pkg;render();if(first!=null)first.requestFocus();KeyFeedback.confirm(activity);});}
         @Override public int getItemCount(){return visible.size();}
     }
 }

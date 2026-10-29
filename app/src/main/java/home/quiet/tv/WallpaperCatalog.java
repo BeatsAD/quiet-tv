@@ -60,7 +60,9 @@ final class WallpaperCatalog {
         }
     }
     String current = DEFAULT;
-    boolean rotating;
+    boolean rotating,sound;
+    int rotationMinutes=5;
+    static boolean rotationMinutes(int minutes){return minutes==1||minutes==5||minutes==15||minutes==30||minutes==60;}
     String lastVideo="",staticBeforeVideo=DEFAULT;
     boolean rotationBeforeVideo;
     // Source of the displayed cache, not a configurable download provider.
@@ -84,7 +86,8 @@ final class WallpaperCatalog {
         if(find(current)==null)current=DEFAULT;
         Entry previous=find(staticBeforeVideo);if(previous==null||previous.video()){staticBeforeVideo=DEFAULT;rotationBeforeVideo=false;}
         Entry video=find(lastVideo);if(video==null||!video.video()){List<Entry> pool=videos();lastVideo=pool.isEmpty()?"":pool.get(0).id;}
-        if (dynamic() || DEFAULT.equals(current) || DAILY.equals(current) || pictures().size()<2) rotating=false;
+        if (DEFAULT.equals(current) || DAILY.equals(current) || (dynamic()?videos():pictures()).size()<2) rotating=false;
+        if(!rotationMinutes(rotationMinutes))rotationMinutes=5;
         if(DAILY.equals(lastLocal)||find(lastLocal)==null||find(lastLocal).video())lastLocal=DEFAULT;
     }
     void select(String id) {
@@ -99,39 +102,48 @@ final class WallpaperCatalog {
         if(apply)select(DAILY);
         if(DAILY.equals(current))dailySource=BING;
     }
-    void rotation(boolean enabled) {
-        if(dynamic()){stopVideo();if(enabled&&DAILY.equals(current)&&!pictures().isEmpty())current=pictures().get(0).id;}
-        List<Entry> pool=pictures();
-        rotating=enabled && !DAILY.equals(current) && pool.size()>=2;
-        if (rotating && DEFAULT.equals(current)) current=pool.get(0).id;
+    void rotation(boolean video,int minutes,String start) {
+        if(minutes==0){rotating=false;return;}
+        if(!rotationMinutes(minutes))throw new IllegalArgumentException("Unsupported rotation interval");
+        List<Entry> pool=video?videos():pictures();
+        if(pool.size()<2)throw new IllegalArgumentException("Rotation needs at least two wallpapers");
+        Entry entry=find(start);if(entry==null||entry.video()!=video||DEFAULT.equals(start)||DAILY.equals(start))start=pool.get(0).id;
+        select(start);rotationMinutes=minutes;rotating=true;
     }
     void next() {
-        List<Entry> pool=pictures();
+        List<Entry> pool=dynamic()?videos():pictures();
         if (!rotating || pool.size()<2) { normalize(); return; }
         int n=0;
         for (int i=0;i<pool.size();i++) if (pool.get(i).id.equals(current)) n=i;
         current=pool.get((n+1)%pool.size()).id;
+        if(dynamic())lastVideo=current;
     }
     void remove(String id) {
         if (DEFAULT.equals(id)||DAILY.equals(id)) throw new IllegalArgumentException("Wallpaper entry cannot be removed");
         Entry entry=find(id); if (entry==null) return;
-        List<Entry> pool=pictures(); int position=0;
+        List<Entry> pool=entry.video()?videos():pictures(); int position=0;
         for (int i=0;i<pool.size();i++) if (pool.get(i).id.equals(id)) position=i;
         custom.remove(entry);
-        pool=pictures();
-        if (current.equals(id)){if(entry.video()){current=staticBeforeVideo;rotating=rotationBeforeVideo;}else current=rotating && !pool.isEmpty() ? pool.get(position%pool.size()).id : DEFAULT;}
+        pool=entry.video()?videos():pictures();
+        if (current.equals(id)){
+            if(rotating&&!pool.isEmpty()){current=pool.get(position%pool.size()).id;if(entry.video())lastVideo=current;}
+            else if(entry.video()){current=staticBeforeVideo;rotating=rotationBeforeVideo;}
+            else current=DEFAULT;
+        }
         normalize();
     }
     long bytes() {return bytes(false);}
     long bytes(boolean video){long size=0;for(Entry e:custom)if(e.video()==video)size+=e.bytes;return size;}
     void add(Entry entry) {
-        if (count(entry.video())>=(entry.video()?MAX_VIDEOS:MAX_CUSTOM) || bytes(entry.video())+entry.bytes>(entry.video()?MAX_VIDEO_BYTES:MAX_BYTES)) throw new IllegalStateException("Wallpaper capacity exceeded");
+        // Video byte limits include asynchronously captured posters and belong to WallpaperStore.
+        if (count(entry.video())>=(entry.video()?MAX_VIDEOS:MAX_CUSTOM) || !entry.video()&&bytes()+entry.bytes>MAX_BYTES) throw new IllegalStateException("Wallpaper capacity exceeded");
         custom.add(entry);
     }
     WallpaperCatalog copy() { try { return read(json()); } catch (JSONException e) { throw new IllegalStateException(e); } }
     JSONObject json() throws JSONException {
-        JSONObject result=new JSONObject().put("version",2).put("current",current).put("rotating",rotating);
+        JSONObject result=new JSONObject().put("version",2).put("current",current).put("rotating",rotating).put("sound",sound);
         result.put("lastVideo",lastVideo).put("staticBeforeVideo",staticBeforeVideo).put("rotationBeforeVideo",rotationBeforeVideo);
+        result.put("rotationMinutes",rotationMinutes);
         JSONArray user=new JSONArray();
         for (Entry e:custom) user.put(new JSONObject().put("id",e.id).put("name",e.name).put("width",e.width).put("height",e.height).put("bytes",e.bytes).put("kind",e.kind).put("mime",e.videoMime).put("durationMs",e.durationMs).put("fps",e.fps).put("rotation",e.rotation).put("pixelRatio",e.pixelRatio));
         JSONObject images=new JSONObject();for(DailyImage image:dailyImages.values())images.put(image.source,image.json());
@@ -140,8 +152,9 @@ final class WallpaperCatalog {
     static WallpaperCatalog read(JSONObject json) throws JSONException {
         if (json.getInt("version")!=1&&json.getInt("version")!=2) throw new JSONException("Unsupported wallpaper catalog");
         WallpaperCatalog result=new WallpaperCatalog();
-        result.current=json.optString("current",DEFAULT); result.rotating=json.optBoolean("rotating",false);
+        result.current=json.optString("current",DEFAULT); result.rotating=json.optBoolean("rotating",false);result.sound=json.optBoolean("sound",false);
         result.lastVideo=json.optString("lastVideo","");result.staticBeforeVideo=json.optString("staticBeforeVideo",DEFAULT);result.rotationBeforeVideo=json.optBoolean("rotationBeforeVideo",false);
+        result.rotationMinutes=json.optInt("rotationMinutes",5);
         JSONArray users=json.optJSONArray("custom");
         if(users!=null) for(int i=0;i<users.length() && result.custom.size()<MAX_CUSTOM+MAX_VIDEOS;i++) {
             JSONObject e=users.getJSONObject(i); String id=e.getString("id");

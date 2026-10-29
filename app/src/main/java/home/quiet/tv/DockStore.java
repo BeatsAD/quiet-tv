@@ -22,7 +22,8 @@ final class DockStore {
     }
     ArrayList<String> load(){
         try{JSONArray saved=new JSONArray(preferences.getString("packages","[]"));ArrayList<String> result=new ArrayList<>();
-            for(int i=0;i<saved.length();i++)result.add(saved.getString(i));return result;
+            for(int i=0;i<saved.length();i++)result.add(saved.getString(i));
+            ArrayList<String> unified=HomeAppCatalog.unifiedSettingsEntries(result);if(!unified.equals(result))preferences.edit().putString("packages",new JSONArray(unified).toString()).apply();return unified;
         }catch(JSONException e){throw new IllegalStateException("Invalid saved Dock",e);}
     }
     void save(List<String> packages){
