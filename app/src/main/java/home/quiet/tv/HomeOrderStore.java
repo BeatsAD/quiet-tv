@@ -78,5 +78,5 @@ final class HomeOrderStore {
         if(row<0 || row>(count-1)/columns || column<0 || column>=columns)return index;
         return Math.min(row*columns+column,count-1);
     }
-    static void move(List<String> order,int from,int to){if(from!=to)order.add(to,order.remove(from));}
+    static <T> void move(List<T> order,int from,int to){if(from!=to)Collections.swap(order,from,to);}
 }

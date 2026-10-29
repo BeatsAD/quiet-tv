@@ -13,6 +13,7 @@ import java.util.concurrent.*;
 final class DockEditorPanel extends ManagementPanel {
     private DockStore store;
     private ArrayList<String> packages,lastSaved;
+    private ArrayList<String> beforeMove;
     private boolean moving;
     private int pendingSaves;
     private Runnable afterSave;
@@ -30,7 +31,7 @@ final class DockEditorPanel extends ManagementPanel {
         content=managementContent();description=managementHint("");managementInfo.addView(description,new LinearLayout.LayoutParams(-1,-1));
     }
     @Override protected void onResume(){super.onResume();ArrayList<String> latest=store.load();long covers=AppCoverStore.get(this).revision(),children=new ChildModeStore(this).revision();if(slots.isEmpty()||!latest.equals(packages)||covers!=coverRevision||children!=childRevision){coverRevision=covers;childRevision=children;packages=latest;lastSaved=new ArrayList<>(latest);artworkGeneration++;artwork.clear();render(0);}}
-    @Override protected void onPause(){moving=false;description.setText("确定调整顺序或替换应用");super.onPause();}
+    @Override protected void onPause(){if(moving)cancelMove();super.onPause();}
     @Override protected void onDestroy(){worker.shutdown();super.onDestroy();}
     @Override void focusManagementContent(){if(!slots.isEmpty())slots.get(0).requestFocus();}
     private ApplicationInfo info(String pkg){try{return getPackageManager().getApplicationInfo(pkg,HomeController.METADATA);}catch(PackageManager.NameNotFoundException e){return null;}}
@@ -49,7 +50,7 @@ final class DockEditorPanel extends ManagementPanel {
     }
     private void render(int focus){
         content.removeAllViews();slots.clear();List<String> values=packages;
-        description.setText(moving?"方向键移动  确定或返回结束  自动保存":"确定调整顺序或替换应用");
+        description.setText(moving?"左右移动  确定放下保存  返回取消":"确定调整顺序或替换应用");
         LinearLayout cards=row();cards.setGravity(Gravity.TOP);cards.setClipChildren(false);content.addView(cards,new LinearLayout.LayoutParams(-1,-2));
         int width=px((864-(DockStore.CAPACITY-1)*20)/(float)DockStore.CAPACITY),height=Math.round(width*203f/360f);
         for(int i=0;i<DockStore.CAPACITY;i++){
@@ -69,18 +70,19 @@ final class DockEditorPanel extends ManagementPanel {
         if(moving || !managementTabFocused())slots.get(Math.max(0,Math.min(focus,DockStore.CAPACITY-1))).requestFocusFromTouch();
     }
     private void edit(int index){
-        if(moving){endMove();return;}if(index>=packages.size()){choose(-1);return;}
-        Sheet sheet=new Sheet(name(packages.get(index)));Button replace=sheet.option("替换应用",()->{sheet.dialog.dismiss();choose(index);});sheet.option("移除快捷入口",()->{sheet.dialog.dismiss();packages.remove(index);render(Math.min(index,DockStore.CAPACITY-1));saveOrder();});sheet.option("左右排序",()->{sheet.dialog.dismiss();moving=true;movingIndex=index;render(index);});sheet.action("取消",sheet.dialog::dismiss);sheet.show(replace);
+        if(pendingSaves>0)return;if(moving){endMove();return;}if(index>=packages.size()){choose(-1);return;}
+        Sheet sheet=new Sheet(name(packages.get(index)));Button replace=sheet.option("替换应用",()->{sheet.dialog.dismiss();choose(index);});sheet.option("移除快捷入口",()->{sheet.dialog.dismiss();packages.remove(index);render(Math.min(index,DockStore.CAPACITY-1));saveOrder();});sheet.option("左右排序",()->{sheet.dialog.dismiss();moving=true;beforeMove=new ArrayList<>(packages);movingIndex=index;render(index);});sheet.action("取消",sheet.dialog::dismiss);sheet.show(replace);
     }
     private void choose(int replace){
         PackageManager pm=getPackageManager();LinkedHashMap<String,ResolveInfo> choices=new LinkedHashMap<>();
-        for(Map.Entry<String,ResolveInfo> entry:new HomeAppCatalog(this).launchable().entrySet())if(!packages.contains(entry.getKey()) && !new ChildModeStore(this).hidden(entry.getKey()))choices.put(entry.getKey(),entry.getValue());
+        for(Map.Entry<String,ResolveInfo> entry:new HomeAppCatalog(this).launchable().entrySet())if(!packages.contains(entry.getKey()) && !new ChildModeStore(this).hidden(entry.getKey())&&!new HomeVisibilityStore(this).hidden(entry.getKey()))choices.put(entry.getKey(),entry.getValue());
         ArrayList<ResolveInfo> apps=new ArrayList<>(choices.values());Collections.sort(apps,(a,b)->a.loadLabel(pm).toString().compareTo(b.loadLabel(pm).toString()));if(apps.isEmpty()){message("没有可添加的已启用应用");return;}
         Sheet sheet=new Sheet(replace<0?"添加常用应用":"替换第 "+(replace+1)+" 个位置");Button first=null;
         for(ResolveInfo app:apps){Button option=sheet.option(app.loadLabel(pm)+"\n"+app.activityInfo.packageName,()->{String pkg=app.activityInfo.packageName;if(replace<0){if(packages.size()==DockStore.CAPACITY){message("常用应用已满，请选择位置替换");return;}packages.add(pkg);}else packages.set(replace,pkg);sheet.dialog.dismiss();render(replace<0?packages.size()-1:replace);saveOrder();});option.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(12));Drawable icon=app.loadIcon(pm);icon.setBounds(0,0,px(28),px(28));option.setCompoundDrawables(icon,null,null,null);option.setCompoundDrawablePadding(px(12));if(first==null)first=option;}
         sheet.action("取消",sheet.dialog::dismiss);sheet.show(first);
     }
-    private void endMove(){moving=false;render(movingIndex);}
+    private void endMove(){moving=false;beforeMove=null;render(movingIndex);saveOrder();}
+    private void cancelMove(){packages=new ArrayList<>(beforeMove);moving=false;beforeMove=null;render(movingIndex);}
     private void saveOrder(){
         final ArrayList<String> value=new ArrayList<>(packages);pendingSaves++;
         worker.execute(()->{
@@ -94,14 +96,14 @@ final class DockEditorPanel extends ManagementPanel {
             });
         });
     }
-    @Override void leaveManagement(Runnable action){moving=false;description.setText("确定调整顺序或替换应用");if(pendingSaves>0)afterSave=action;else action.run();}
-    public void handleBack(){if(moving)endMove();else leaveManagement(this::finish);}
+    @Override void leaveManagement(Runnable action){if(moving)cancelMove();if(pendingSaves>0)afterSave=action;else action.run();}
+    public void handleBack(){if(moving)cancelMove();else leaveManagement(this::finish);}
     // Public Activity override; AndroidX core marks its inherited bridge class library-only.
     @android.annotation.SuppressLint("RestrictedApi")
     @Override public boolean dispatchKeyEvent(KeyEvent event){
         if(!moving)return false;int key=event.getKeyCode();
         if(key==KeyEvent.KEYCODE_DPAD_CENTER || key==KeyEvent.KEYCODE_ENTER || key==KeyEvent.KEYCODE_NUMPAD_ENTER){if(slots.contains(getCurrentFocus())){if(event.getAction()==KeyEvent.ACTION_UP)endMove();return true;}}
-        if((key==KeyEvent.KEYCODE_DPAD_LEFT || key==KeyEvent.KEYCODE_DPAD_RIGHT) && slots.contains(getCurrentFocus())){if(event.getAction()==KeyEvent.ACTION_DOWN){int target=Math.max(0,Math.min(packages.size()-1,movingIndex+(key==KeyEvent.KEYCODE_DPAD_LEFT?-1:1)));if(target!=movingIndex){Collections.swap(packages,movingIndex,target);movingIndex=target;render(target);saveOrder();}}return true;}
+        if((key==KeyEvent.KEYCODE_DPAD_LEFT || key==KeyEvent.KEYCODE_DPAD_RIGHT) && slots.contains(getCurrentFocus())){if(event.getAction()==KeyEvent.ACTION_DOWN){int target=Math.max(0,Math.min(packages.size()-1,movingIndex+(key==KeyEvent.KEYCODE_DPAD_LEFT?-1:1)));if(target!=movingIndex){HomeOrderStore.move(packages,movingIndex,target);movingIndex=target;render(target);}}return true;}
         if((key==KeyEvent.KEYCODE_DPAD_UP || key==KeyEvent.KEYCODE_DPAD_DOWN) && slots.contains(getCurrentFocus()))return true;
         return false;
     }

@@ -9,4 +9,10 @@
     <style name="HomeTheme" parent="AppTheme">
         <item name="android:windowBackground">@drawable/home_startup_background</item>
     </style>
+    <style name="HomeActionsTheme" parent="AppTheme">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowDisablePreview">true</item>
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
 </resources>
