@@ -71,31 +71,33 @@ final class WallpaperUploadPanel {
     private WallpaperUploadServer server(String host,int port,int attempt){
         return new WallpaperUploadServer(host,port,name->activity.getAssets().open("wallpaper-upload/"+name),new WallpaperUploadServer.Importer(){
             @Override public String accept(InputStream input,long length,String name,WallpaperUploadServer.Active active)throws IOException{return importImage(attempt,input,length,name,active);}
-            @Override public String acceptVideo(InputStream input,long length,String name,WallpaperUploadServer.Active active)throws IOException{return importVideo(attempt,input,length,name,active);}
+            @Override public String acceptVideo(InputStream input,long length,String name,WallpaperUploadServer.Active active,long upload)throws IOException{return importVideo(attempt,upload,input,length,name,active);}
         },WallpaperUploadServer.MAX_UPLOAD,WallpaperVideo.capabilities(),true);
     }
-    private String importVideo(int attempt,InputStream input,long length,String name,WallpaperUploadServer.Active active)throws IOException{
-        store.checkVideoCapacity(length);File incoming=store.videoIncoming(),poster=new File(incoming.getPath()+".jpg");
+    private String importVideo(int attempt,long upload,InputStream input,long length,String name,WallpaperUploadServer.Active active)throws IOException{
+        File incoming=store.videoIncoming(),poster=new File(incoming.getPath()+".jpg");
+        String context="attempt="+attempt+" upload="+upload;
         WallpaperUploadServer.Active valid=()->attempt==generation&&active.valid();
-        long started=SystemClock.elapsedRealtime(),received=0;String stage="receive";
-        DiagnosticLog.info("wallpaper.upload.begin","attempt="+attempt+" kind=video bytes="+length);
+        long started=SystemClock.elapsedRealtime(),received=0;String stage="capacity";
+        DiagnosticLog.info("wallpaper.upload.begin",context+" kind=video bytes="+length);
         try{
+            store.checkVideoCapacity(length);stage="receive";
             try(FileOutputStream output=new FileOutputStream(incoming)){
                 byte[] buffer=new byte[16384];long remaining=length;
-                while(remaining>0){if(!valid.valid())throw new IOException("上传会话已结束 / Session ended");int n=input.read(buffer,0,(int)Math.min(buffer.length,remaining));if(n<0)throw new IOException("视频传输未完成 / Incomplete video upload");output.write(buffer,0,n);remaining-=n;received+=n;}output.getFD().sync();
+                while(remaining>0){if(!valid.valid())throw VideoDiagnostics.failure("session","session_ended","上传会话已结束 / Session ended");int n=input.read(buffer,0,(int)Math.min(buffer.length,remaining));if(n<0)throw VideoDiagnostics.failure("receive","incomplete_input","视频传输未完成 / Incomplete video upload");output.write(buffer,0,n);remaining-=n;received+=n;}output.getFD().sync();
             }
-            if(!valid.valid())throw new IOException("上传会话已结束 / Session ended");
-            DiagnosticLog.info("wallpaper.upload.received","attempt="+attempt+" bytes="+received+" elapsedMs="+(SystemClock.elapsedRealtime()-started));
-            stage="inspect";WallpaperVideo.Info info=WallpaperVideo.inspect(incoming);
-            stage="poster";WallpaperVideo.poster(incoming,poster,info);stage="save";
+            if(!valid.valid())throw VideoDiagnostics.failure("session","session_ended","上传会话已结束 / Session ended");
+            DiagnosticLog.info("wallpaper.upload.received",context+" bytes="+received+" elapsedMs="+(SystemClock.elapsedRealtime()-started));
+            stage="inspect";WallpaperVideo.Info info=WallpaperVideo.inspect(incoming,context);
+            stage="poster";WallpaperVideo.poster(incoming,poster,info,context);stage="save";
             WallpaperCatalog.Entry entry=store.addVideo(incoming,poster,name,info,valid);
-            DiagnosticLog.info("wallpaper.upload.saved","attempt="+attempt+" kind=video elapsedMs="+(SystemClock.elapsedRealtime()-started)+" evidence=import_only");
+            DiagnosticLog.info("wallpaper.upload.saved",context+" wallpaper="+VideoDiagnostics.wallpaper(entry.id)+" kind=video elapsedMs="+(SystemClock.elapsedRealtime()-started)+" evidence=import_only");
             main.post(()->{if(dialog!=null&&attempt==generation){lastImported=entry.id;status.setText(tr("已收到视频，请返回后预览并应用","Video received. Go back to preview and apply."));status.setVisibility(View.VISIBLE);}});
             stage="response";
             return new JSONObject().put("id",entry.id).put("kind","video").put("width",info.width).put("height",info.height).put("durationMs",info.durationMs).toString();
-        }catch(IOException|RuntimeException e){DiagnosticLog.error("wallpaper.upload.failed","attempt="+attempt+" stage="+stage+" receivedBytes="+received+" expectedBytes="+length,e);if(e instanceof FileNotFoundException)throw new IOException("无法读取或保存视频，请检查存储 / Unable to read or save video; check storage");throw e;}
-        catch(JSONException e){DiagnosticLog.error("wallpaper.upload.failed","attempt="+attempt+" stage="+stage,e);throw new IOException(e);}
-        catch(OutOfMemoryError e){DiagnosticLog.error("wallpaper.upload.failed","attempt="+attempt+" stage="+stage+" receivedBytes="+received,e);throw new IOException("电视无法处理此视频，请降低规格 / Video too large for this TV");}
+        }catch(IOException|RuntimeException e){DiagnosticLog.error("wallpaper.upload.failed",context+" stage="+stage+" receivedBytes="+received+" expectedBytes="+length+" elapsedMs="+(SystemClock.elapsedRealtime()-started)+" "+VideoDiagnostics.failureDetails(e),e);if(e instanceof FileNotFoundException)throw new IOException("无法读取或保存视频，请检查存储 / Unable to read or save video; check storage");throw e;}
+        catch(JSONException e){DiagnosticLog.error("wallpaper.upload.failed",context+" stage="+stage+" "+VideoDiagnostics.failureDetails(e),e);throw new IOException(e);}
+        catch(OutOfMemoryError e){DiagnosticLog.error("wallpaper.upload.failed",context+" stage="+stage+" receivedBytes="+received+" "+VideoDiagnostics.failureDetails(e),e);throw new IOException("电视无法处理此视频，请降低规格 / Video too large for this TV");}
         finally{if(incoming.isFile()&&!incoming.delete())android.util.Log.w("QuietTV","Video upload temporary file retained");if(poster.isFile()&&!poster.delete())android.util.Log.w("QuietTV","Video poster temporary file retained");}
     }
     private String importImage(int attempt,InputStream input,long length,String name,WallpaperUploadServer.Active active) throws IOException {

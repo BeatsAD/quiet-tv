@@ -50,7 +50,13 @@ final class VideoWallpaperPlayer {
     private boolean enabled,screenOff,rendered,destroyed;
     private volatile boolean paused;
     private volatile int generation;
-    private final Runnable timeout=()->fail(generation,Failure.TIMEOUT);
+    private final Runnable timeout=()->{
+        Target pending=target;
+        DiagnosticLog.info("wallpaper.video.timeout",context(generation)+" reason=first_frame_timeout paused="+paused+" screenOff="+screenOff
+            +" output="+(pending==null?"missing":pending.textureOutput?"texture":"surface")+" surfaceValid="+(pending!=null&&(pending.textureOutput?pending.texture!=null:pending.surface!=null&&pending.surface.isValid()))+" started="+(pending!=null&&pending.started)+" updated="+(pending!=null&&pending.updated));
+        fail(generation,Failure.TIMEOUT);
+    };
+    private String context(int request){return "request="+request+" wallpaper="+VideoDiagnostics.wallpaper(entry==null?null:entry.id);}
 
     VideoWallpaperPlayer(Activity activity,FrameLayout host){
         this.activity=activity;this.host=host;playback.start();worker=new Handler(playback.getLooper());
@@ -69,9 +75,9 @@ final class VideoWallpaperPlayer {
     boolean ready(){return rendered;}
     boolean visible(){return enabled&&frame.getVisibility()==View.VISIBLE;}
     void setPaused(boolean value){
-        paused=value;final int request=generation;
+        paused=value;final int request=generation;final String diagnosticContext=context(request);
         main.removeCallbacks(timeout);
-        worker.post(()->{if(request==generation&&player!=null)try{player.setPaused(value);}catch(RuntimeException e){main.post(()->fail(request,Failure.DECODE));}});
+        worker.post(()->{if(request==generation&&player!=null)try{player.setPaused(value);}catch(RuntimeException e){DiagnosticLog.error("wallpaper.video.pause_failed",diagnosticContext+" paused="+value+" "+VideoDiagnostics.failureDetails(e),e);main.post(()->fail(request,Failure.DECODE));}});
         if(!value){start();if(enabled&&!rendered&&!screenOff)main.postDelayed(timeout,8000);}
     }
     void snapshot(Snapshot callback){
@@ -135,7 +141,7 @@ final class VideoWallpaperPlayer {
         }
         Target next=new Target(++generation);target=next;
         frame.addView(next.view,new FrameLayout.LayoutParams(-1,-1,Gravity.CENTER));layout();
-        next.view.post(()->{if(next.textureOutput&&current(next)&&!next.view.isHardwareAccelerated())fail(next.request,Failure.OUTPUT);});
+        next.view.post(()->{if(next.textureOutput&&current(next)&&!next.view.isHardwareAccelerated()){DiagnosticLog.info("wallpaper.video.output_failed",context(next.request)+" reason=hardware_acceleration_unavailable");fail(next.request,Failure.OUTPUT);}});
         main.postDelayed(timeout,8000);
     }
     private final class Target implements TextureView.SurfaceTextureListener,SurfaceHolder.Callback {
@@ -172,7 +178,7 @@ final class VideoWallpaperPlayer {
         @Override public void onSurfaceTextureAvailable(SurfaceTexture texture,int width,int height){
             this.texture=texture;
             if(!current(this)){retire(this);return;}
-            if(!view.isHardwareAccelerated()){fail(request,Failure.OUTPUT);return;}
+            if(!view.isHardwareAccelerated()){DiagnosticLog.info("wallpaper.video.output_failed",context(request)+" reason=hardware_acceleration_unavailable");fail(request,Failure.OUTPUT);return;}
             begin(this,entry);
         }
         @Override public void onSurfaceTextureSizeChanged(SurfaceTexture texture,int width,int height){}
@@ -204,33 +210,33 @@ final class VideoWallpaperPlayer {
     }
     private void begin(Target next,WallpaperCatalog.Entry selected){
         if(!current(next)||next.preparing)return;
-        next.preparing=true;final int request=next.request;
+        next.preparing=true;final int request=next.request;final String diagnosticContext="request="+request+" wallpaper="+VideoDiagnostics.wallpaper(selected.id);
         File file=selected.custom()?WallpaperStore.get(activity).file(selected.id):null;
-        Log.i(TAG,"prepare request="+next.request);DiagnosticLog.info("wallpaper.video.prepare","request="+next.request+" mime="+selected.videoMime+" size="+selected.width+"x"+selected.height+" fps="+selected.fps+" backend="+(BuildConfig.LEGACY_19?"platform":"media3"));
+        Log.i(TAG,"prepare request="+next.request);DiagnosticLog.info("wallpaper.video.prepare",diagnosticContext+" mime="+VideoDiagnostics.mime(selected.videoMime)+" size="+selected.width+"x"+selected.height+" fps="+selected.fps+" backend="+(BuildConfig.LEGACY_19?"platform":"media3")+" output="+(next.textureOutput?"texture":"surface")+" source="+(file==null?"asset":"local")+" filePresent="+(file==null?"unknown":file.isFile())+" bytes="+(file==null?-1:file.length()));
         worker.post(()->{
             if(request!=generation||next.retired)return;
             releasePlayer();if(request!=generation||next.retired)return;
             try{
                 ownsOutput=next.textureOutput;output=ownsOutput?new Surface(next.texture):next.surface;playerTarget=next;
-                if(output==null||!output.isValid()){main.post(()->fail(request,Failure.OUTPUT));return;}
-                player=new WallpaperPlayback(activity,worker,output,file,selected,new PlaybackEvents(){
+                if(output==null||!output.isValid()){DiagnosticLog.info("wallpaper.video.output_failed",diagnosticContext+" reason=invalid_surface");main.post(()->fail(request,Failure.OUTPUT));return;}
+                player=new WallpaperPlayback(activity,worker,output,file,selected,diagnosticContext,new PlaybackEvents(){
                     @Override public void ready(){main.post(()->{if(current(next,request)){next.started=true;if(!next.textureOutput)next.updated=true;firstFrame(next);}});}
                     @Override public void failed(Failure reason){main.post(()->fail(request,reason));}
                     @Override public void size(int width,int height,float pixelRatio){main.post(()->{if(current(next,request)&&width>0&&height>0){next.aspect=VideoGeometry.aspect(width,height,pixelRatio,0);layout();}});}
                 });
                 player.setPaused(paused);player.prepare();
-            }catch(IOException|RuntimeException e){DiagnosticLog.error("wallpaper.video.prepare_failed",e);main.post(()->fail(request,e instanceof IOException?Failure.FILE:Failure.DECODE));}
+            }catch(IOException|RuntimeException e){DiagnosticLog.error("wallpaper.video.prepare_failed",diagnosticContext+" "+VideoDiagnostics.failureDetails(e),e);main.post(()->fail(request,e instanceof IOException?Failure.FILE:Failure.DECODE));}
         });
     }
     private void firstFrame(Target next){
         if(!current(next)||!next.started||!next.updated||rendered)return;
-        rendered=true;main.removeCallbacks(timeout);Log.i(TAG,"texture updated request="+next.request);DiagnosticLog.info("wallpaper.video.rendered","first frame request="+next.request);
+        rendered=true;main.removeCallbacks(timeout);Log.i(TAG,"texture updated request="+next.request);DiagnosticLog.info("wallpaper.video.rendered",context(next.request)+" evidence="+(BuildConfig.LEGACY_19?"platform_prepared_and_texture_updated":"rendered_first_frame_callback"));
         final int request=next.request;
         main.post(()->{if(current(next,request)&&rendered&&listener!=null)listener.ready();});
     }
     private void fail(int request,Failure reason){
         if(request!=generation||!enabled||destroyed)return;
-        enabled=false;rendered=false;main.removeCallbacks(timeout);Log.w(TAG,"video unavailable request="+request+" reason="+reason);DiagnosticLog.info("wallpaper.video.failed",reason.name());
+        enabled=false;rendered=false;main.removeCallbacks(timeout);Log.w(TAG,"video unavailable request="+request+" reason="+reason);DiagnosticLog.info("wallpaper.video.failed",context(request)+" reason="+reason.name()+" paused="+paused+" screenOff="+screenOff);
         if(listener!=null)listener.failed(reason);else stop();
     }
     private void release(){
@@ -254,9 +260,10 @@ final class VideoWallpaperPlayer {
         if(!worker.post(cleanup))old.releaseTexture();
     }
     private void releasePlayer(){
+        String releasedContext=playerTarget==null?"request=unknown":"request="+playerTarget.request;
         WallpaperPlayback old=player;player=null;playerTarget=null;Surface oldOutput=output;output=null;boolean releaseOutput=ownsOutput;ownsOutput=false;
         try{if(old!=null)old.release();}
-        catch(RuntimeException e){Log.w(TAG,"decoder release failed",e);}
+        catch(RuntimeException e){DiagnosticLog.error("wallpaper.video.release_failed",releasedContext+" "+VideoDiagnostics.failureDetails(e),e);Log.w(TAG,"decoder release failed",e);}
         finally{if(oldOutput!=null&&releaseOutput)oldOutput.release();}
     }
 }

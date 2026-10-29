@@ -14,14 +14,14 @@ final class WallpaperPlayback {
     private final File file;
     private final WallpaperCatalog.Entry entry;
     private boolean prepared,paused;
-    WallpaperPlayback(Activity activity,Handler worker,Surface surface,File file,WallpaperCatalog.Entry entry,VideoWallpaperPlayer.PlaybackEvents events){
+    WallpaperPlayback(Activity activity,Handler worker,Surface surface,File file,WallpaperCatalog.Entry entry,String context,VideoWallpaperPlayer.PlaybackEvents events){
         this.activity=activity;this.file=file;this.entry=entry;
         player.setSurface(surface);player.setScreenOnWhilePlaying(false);player.setVolume(0,0);player.setLooping(true);
         player.setOnPreparedListener(p->{try{
-            prepared=true;if(!paused)p.start();events.ready();
-        }catch(RuntimeException e){DiagnosticLog.error("wallpaper.video.start_failed",e);events.failed(VideoWallpaperPlayer.Failure.DECODE);}});
+            prepared=true;if(!paused)p.start();DiagnosticLog.info("wallpaper.video.prepared",context+" backend=platform evidence=prepared_callback_only");events.ready();
+        }catch(RuntimeException e){DiagnosticLog.error("wallpaper.video.start_failed",context+" backend=platform stage=start "+VideoDiagnostics.failureDetails(e),e);events.failed(VideoWallpaperPlayer.Failure.DECODE);}});
         player.setOnErrorListener((p,what,extra)->{
-            DiagnosticLog.info("wallpaper.video.player_error","what="+what+" extra="+extra);
+            DiagnosticLog.info("wallpaper.video.player_error",context+" backend=platform stage="+(prepared?"playback":"prepare")+" reason="+VideoDiagnostics.platformReason(what,extra)+" what="+what+" extra="+extra);
             VideoWallpaperPlayer.Failure reason=extra==MediaPlayer.MEDIA_ERROR_UNSUPPORTED?VideoWallpaperPlayer.Failure.UNSUPPORTED:
                 extra==MediaPlayer.MEDIA_ERROR_IO?VideoWallpaperPlayer.Failure.FILE:
                 extra==MediaPlayer.MEDIA_ERROR_TIMED_OUT?VideoWallpaperPlayer.Failure.TIMEOUT:VideoWallpaperPlayer.Failure.DECODE;
