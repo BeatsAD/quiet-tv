@@ -1,6 +1,11 @@
 package home.quiet.tv;
 
 import android.annotation.TargetApi;
+import android.Manifest;
+import android.app.Activity;
+import android.content.pm.PackageManager;
+import android.os.Build;
+import android.os.storage.*;
 import android.content.*;
 import android.database.Cursor;
 import android.net.Uri;
@@ -9,7 +14,7 @@ import android.provider.*;
 import java.io.*;
 import java.util.*;
 
-/** Read-only source enumeration. Modern storage is entered only through a user-granted tree. */
+/** Read-only media access and explicitly granted document trees; never requests all-files access. */
 final class FileTransferSource {
     static final class Item {
         final String name;final long bytes;final boolean directory;final Uri uri;final File file;
@@ -18,6 +23,21 @@ final class FileTransferSource {
     }
     static String size(long bytes){return bytes<0?"大小未知":bytes>=1024*1024?String.format(Locale.ROOT,"%.1f MB",bytes/(1024f*1024)):bytes>=1024?String.format(Locale.ROOT,"%.1f KB",bytes/1024f):bytes+" B";}
     static Item file(File file){return new Item(file.getName(),file.isDirectory()?-1:file.length(),file.isDirectory(),Uri.fromFile(file),file);}
+    static String[] missingPermissions(Context context){
+        if(Build.VERSION.SDK_INT<23)return new String[0];
+        String[] needed=Build.VERSION.SDK_INT>=33?new String[]{Manifest.permission.READ_MEDIA_IMAGES,Manifest.permission.READ_MEDIA_VIDEO}:new String[]{Manifest.permission.READ_EXTERNAL_STORAGE};
+        ArrayList<String> missing=new ArrayList<>();for(String permission:needed)if(context.checkSelfPermission(permission)!=PackageManager.PERMISSION_GRANTED)missing.add(permission);
+        return missing.toArray(new String[0]);
+    }
+    static boolean requestPermission(Activity activity,int request){if(Build.VERSION.SDK_INT<23)return false;String[] missing=missingPermissions(activity);if(missing.length==0)return false;activity.requestPermissions(missing,request);return true;}
+    static List<Item> volumes(Context context,boolean usb){
+        List<Item> result=volumes(usb);
+        if(Build.VERSION.SDK_INT>=30){
+            StorageManager manager=(StorageManager)context.getSystemService(Context.STORAGE_SERVICE);
+            if(manager!=null)for(StorageVolume volume:manager.getStorageVolumes())if(volume.isPrimary()!=usb){File directory=volume.getDirectory();if(directory!=null)add(result,directory);}
+        }
+        return result;
+    }
     static List<Item> volumes(boolean usb){
         ArrayList<Item> result=new ArrayList<>();if(!usb)add(result,Environment.getExternalStorageDirectory());
         else{File[] files=new File("/storage").listFiles();if(files!=null)for(File file:files)if(!file.getName().equals("emulated")&&!file.getName().equals("self"))add(result,file);add(result,new File("/mnt/usb_storage"));}
@@ -34,8 +54,8 @@ final class FileTransferSource {
         sort(result);return result;
     }
     static Item selected(Context context,Uri uri)throws IOException{
-        if("file".equals(uri.getScheme())&&android.os.Build.VERSION.SDK_INT<=28){
-            File selected=new File(uri.getPath());String path=selected.getCanonicalPath();List<Item> roots=new ArrayList<>(volumes(false));roots.addAll(volumes(true));
+        if("file".equals(uri.getScheme())){
+            File selected=new File(uri.getPath());String path=selected.getCanonicalPath();List<Item> roots=new ArrayList<>(volumes(context,false));roots.addAll(volumes(context,true));
             for(Item root:roots)if(path.startsWith(root.file.getCanonicalPath()+File.separator)&&selected.isFile()&&selected.canRead())return file(selected);
         }
         if(!"content".equals(uri.getScheme()))throw new IOException("文件选择器未提供可读取的文件授权");

@@ -1,6 +1,5 @@
 package home.quiet.tv;
 
-import android.Manifest;
 import android.app.Activity;
 import android.content.*;
 import android.content.pm.PackageManager;
@@ -15,7 +14,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 /** Explicit file selection; originals are never changed and USB is not needed after import. */
-public final class WallpaperFilesActivity extends Activity {
+public final class WallpaperFilesActivity extends androidx.activity.ComponentActivity {
     static final int REQUEST=7301;
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private volatile boolean closed;
@@ -23,15 +22,16 @@ public final class WallpaperFilesActivity extends Activity {
     private LinearLayout root;
     private TextView status;
     private ListView list;
-    private File boundary;
+    private File boundary,folder;
+    private Button choose;
     private int listing;
     @Override public void onCreate(Bundle saved){
-        super.onCreate(saved);getWindow().getDecorView().setSystemUiVisibility(5894);
+        super.onCreate(saved);BackNavigation.install(this,()->{if(folder!=null&&!busy)browse(folder.equals(boundary)?null:folder.getParentFile());else finish();});getWindow().getDecorView().setSystemUiVisibility(5894);
         root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(32,24,32,24);root.setBackgroundColor(0xff151a21);setContentView(root);
         Button back=new Button(this);back.setText("取消");back.setOnClickListener(v->finish());root.addView(back);
         status=new TextView(this);status.setTextColor(0xffeeeeee);status.setTextSize(20);status.setPadding(0,16,0,16);root.addView(status);
         list=new ListView(this);root.addView(list,new LinearLayout.LayoutParams(-1,0,1));
-        if(saved==null)systemPicker();else files();
+        choose=new Button(this);choose.setText("系统选择文件");choose.setOnClickListener(v->systemPicker());root.addView(choose);files();
     }
     private void systemPicker(){
         String[] actions=Build.VERSION.SDK_INT>=19?new String[]{Intent.ACTION_OPEN_DOCUMENT,Intent.ACTION_GET_CONTENT}:new String[]{Intent.ACTION_GET_CONTENT};
@@ -41,30 +41,28 @@ public final class WallpaperFilesActivity extends Activity {
             try{startActivityForResult(pick,1);status.setText("请选择本地或 U 盘中的图片、视频");return;}
             catch(ActivityNotFoundException|SecurityException unavailable){/* Try an installed content picker before browsing permitted storage. */}
         }
-        files();
+        status.setText("系统文件选择器不可用，请在下方选择本地存储或 U 盘。");
     }
     @Override protected void onActivityResult(int request,int result,Intent data){
         super.onActivityResult(request,result,data);
-        if(request==1){if(result==RESULT_OK&&data!=null&&data.getData()!=null)importFile(data.getData(),null);else finish();}
+        if(request==1){if(result==RESULT_OK&&data!=null&&data.getData()!=null)importFile(data.getData(),null);else files();}
     }
     private void files(){
-        if(Build.VERSION.SDK_INT>=29){status.setText("系统文件选择器不可用，无法取得本地或 U 盘文件授权。可返回使用局域网上传。");return;}
-        if(Build.VERSION.SDK_INT>=23&&checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE},2);return;}
+        if(FileTransferSource.requestPermission(this,2))return;
         browse(null);
     }
     @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] results){
         super.onRequestPermissionsResult(request,permissions,results);
-        if(request==2&&results.length>0&&results[0]==PackageManager.PERMISSION_GRANTED)browse(null);else status.setText("未获得读取授权，可返回使用局域网上传。");
+        if(request==2){browse(null);if(results.length==0||results[0]!=PackageManager.PERMISSION_GRANTED)status.setText("未获得完整读取授权，可使用系统选择文件或局域网上传。");}
     }
     private void browse(File target){
-        int request=++listing;status.setText("正在读取目录…");list.setEnabled(false);
+        folder=target;int request=++listing;status.setText("正在读取目录…");list.setEnabled(false);
         worker.execute(()->{
             ArrayList<File> choices=new ArrayList<>();
             try{
                 if(target==null){
-                    addRoot(choices,Environment.getExternalStorageDirectory());
-                    File[] volumes=new File("/storage").listFiles();if(volumes!=null)for(File volume:volumes)if(!volume.getName().equals("self")&&!volume.getName().equals("emulated"))addRoot(choices,volume);
-                    addRoot(choices,new File("/mnt/usb_storage"));
+                    for(FileTransferSource.Item volume:FileTransferSource.volumes(this,false))addRoot(choices,volume.file);
+                    for(FileTransferSource.Item volume:FileTransferSource.volumes(this,true))addRoot(choices,volume.file);
                 }else{
                     File[] entries=target.listFiles();if(entries!=null)for(File file:entries)if(!file.isHidden()&&file.canRead()&&(file.isDirectory()||WallpaperImport.media(file.getName())))choices.add(file);
                     Collections.sort(choices,(a,b)->a.isDirectory()!=b.isDirectory()?(a.isDirectory()?-1:1):a.getName().compareToIgnoreCase(b.getName()));
@@ -72,14 +70,14 @@ public final class WallpaperFilesActivity extends Activity {
             }catch(SecurityException ignored){choices.clear();}
             runOnUiThread(()->{
                 if(closed||request!=listing)return;list.setEnabled(true);status.setText(choices.isEmpty()?"没有可读取的文件；请检查 U 盘是否已挂载或使用局域网上传。":target==null?"选择本地存储或 U 盘":"选择图片或视频  "+target.getName());
-                ArrayList<String> labels=new ArrayList<>();if(target!=null)labels.add("返回上一级");for(File file:choices)labels.add(file.isDirectory()?"[文件夹] "+file.getName():file.getName());
+                ArrayList<String> labels=new ArrayList<>();if(target!=null)labels.add("返回上一级");for(File file:choices)labels.add(target==null?(file.equals(Environment.getExternalStorageDirectory())?"本地存储":"U 盘  "+file.getName()):file.isDirectory()?"[文件夹] "+file.getName():file.getName());
                 list.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_list_item_1,labels));
                 list.setOnItemClickListener((p,v,index,id)->{
                     if(busy)return;
                     if(target!=null&&index==0){browse(target.equals(boundary)?null:target.getParentFile());return;}
                     File file=choices.get(index-(target==null?0:1));
                     if(file.isDirectory()){if(target==null)boundary=file;browse(file);}else importFile(Uri.fromFile(file),file);
-                });list.requestFocus();
+                });if(choices.isEmpty())choose.requestFocus();else list.requestFocus();
             });
         });
     }
