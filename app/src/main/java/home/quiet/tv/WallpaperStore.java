@@ -14,12 +14,14 @@ final class WallpaperStore {
     private static WallpaperStore instance;
     private final File directory;
     private final AtomicFile catalogFile;
+    private final ScreensaverStore screensavers;
     private WallpaperCatalog catalog;
     static synchronized WallpaperStore get(Context context) {
         if(instance==null) instance=new WallpaperStore(context.getApplicationContext());
         return instance;
     }
     private WallpaperStore(Context context) {
+        screensavers=ScreensaverStore.get(context);
         directory=new File(context.getFilesDir(),"wallpapers");
         if(!directory.isDirectory() && !directory.mkdirs()) throw new IllegalStateException("Wallpaper storage unavailable");
         catalogFile=new AtomicFile(new File(directory,"catalog.json"));
@@ -34,6 +36,7 @@ final class WallpaperStore {
         // A missing upload must never leave the home screen pointing at an absent file.
         for(Iterator<WallpaperCatalog.Entry> it=catalog.custom.iterator();it.hasNext();) if(!file(it.next().id).isFile()) it.remove();
         catalog.normalize();
+        try{screensavers.initialize(catalog);}catch(IOException e){DiagnosticLog.error("screensaver.load.failed",e);}
     }
     synchronized WallpaperCatalog snapshot() { return catalog.copy(); }
     File dailyDirectory() throws IOException {
@@ -84,12 +87,19 @@ final class WallpaperStore {
     synchronized void next() throws IOException { WallpaperCatalog next=catalog.copy();next.next();persist(next); }
     synchronized void remove(String id) throws IOException {
         WallpaperCatalog.Entry entry=catalog.find(id); if(entry==null || WallpaperCatalog.DEFAULT.equals(id)||WallpaperCatalog.DAILY.equals(id)) return;
-        WallpaperCatalog old=catalog.copy(),next=catalog.copy();next.remove(id);persist(next);
-        if(!entry.custom())return;
-        File deleted=mediaFile(id,entry.video());
-        if(entry.custom() && deleted.exists() && !deleted.delete()) {
-            persist(old); throw new IOException("Unable to delete wallpaper file");
+        WallpaperCatalog old=catalog.copy(),next=catalog.copy();next.remove(id);
+        ScreensaverSettings oldSaver=screensavers.snapshot(old);
+        // Move the reference before removing the media. Even an interrupted deletion stays valid.
+        screensavers.reconcile(next);
+        try{
+            persist(next);
+            File deleted=mediaFile(id,entry.video());
+            if(entry.custom()&&deleted.exists()&&!deleted.delete())throw new IOException("Unable to delete wallpaper file");
+        }catch(IOException failure){
+            try{persist(old);screensavers.save(oldSaver);}catch(IOException rollback){failure.addSuppressed(rollback);}
+            throw failure;
         }
+        if(!entry.custom())return;
         if(entry.video()&&poster(id).exists()&&!poster(id).delete())Log.w("QuietTV","Removed video poster retained");
     }
     synchronized void checkCapacity() throws IOException {
