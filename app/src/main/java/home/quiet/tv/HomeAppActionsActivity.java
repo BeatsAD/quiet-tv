@@ -20,6 +20,7 @@ public final class HomeAppActionsActivity extends ManagementUi {
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private Dialog dialog;
     private LinearLayout box;
+    private Bitmap backdrop;
     private String pkg,mode="menu",pickerMode="",candidate="";
     private boolean fromDock,pickerFromMenu,waitingForDelete;
     private int generation;
@@ -29,6 +30,7 @@ public final class HomeAppActionsActivity extends ManagementUi {
         super.onCreate(state);setContentView(new FrameLayout(this));
         pkg=getIntent().getStringExtra("package");if(pkg==null)pkg="";
         fromDock=getIntent().getBooleanExtra("dock",false);
+        backdrop=getIntent().getParcelableExtra("backdrop");
         dialog=new Dialog(this);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         dialog.setCanceledOnTouchOutside(true);dialog.setOnCancelListener(d->handleBack());
         if(getIntent().getBooleanExtra("add",false))picker("add",false);else menu();
@@ -49,6 +51,7 @@ public final class HomeAppActionsActivity extends ManagementUi {
     private String protection(){AppRepository.App app=metadata(pkg);return app==null?"保留桌面管理入口":new AppOperations(this).protection(app);}
     private void content(String page,String title){
         mode=page;++generation;box=column();box.setPadding(px(16),px(16),px(16),px(16));box.setBackgroundDrawable(surface(0xff30343e,0xff23272f,0x38ffffff,16));
+        if(page.equals("menu")&&backdrop!=null)box.setBackgroundDrawable(new DockBackdropDrawable((canvas,paint)->{paint.setAlpha(255);canvas.drawBitmap(backdrop,null,new RectF(0,0,getResources().getDisplayMetrics().widthPixels,getResources().getDisplayMetrics().heightPixels),paint);},box,getWindow().getDecorView(),unit));
         if(!title.isEmpty()){TextView heading=label(title,22);heading.setSingleLine(true);heading.setEllipsize(android.text.TextUtils.TruncateAt.END);heading.setPadding(px(8),px(4),px(8),px(14));box.addView(heading);}
         dialog.setContentView(box);
     }
