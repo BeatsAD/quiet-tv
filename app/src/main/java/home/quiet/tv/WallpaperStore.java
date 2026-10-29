@@ -83,7 +83,7 @@ final class WallpaperStore {
     }
     synchronized void select(String id) throws IOException { WallpaperCatalog next=catalog.copy();next.select(id);persist(next); }
     synchronized void stopVideo() throws IOException {WallpaperCatalog next=catalog.copy();next.stopVideo();persist(next);}
-    synchronized void rotation(boolean enabled) throws IOException { WallpaperCatalog next=catalog.copy();next.rotation(enabled);persist(next); }
+    synchronized void rotation(boolean video,int minutes,String start) throws IOException { WallpaperCatalog next=catalog.copy();next.rotation(video,minutes,start);persist(next); }
     synchronized void next() throws IOException { WallpaperCatalog next=catalog.copy();next.next();persist(next); }
     synchronized void remove(String id) throws IOException {
         WallpaperCatalog.Entry entry=catalog.find(id); if(entry==null || WallpaperCatalog.DEFAULT.equals(id)||WallpaperCatalog.DAILY.equals(id)) return;
