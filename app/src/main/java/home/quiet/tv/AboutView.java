@@ -22,11 +22,10 @@ final class AboutView extends FrameLayout {
     private boolean updateAvailable;
     private final TextView recoveryValue;
     private final TextView memoryValue,storageValue,displayLabel,displayValue;
-    private final ChildModePolicy.TriplePress recoveryPress=new ChildModePolicy.TriplePress();
     private final FrameLayout artboard;
     private final Runnable exit;
 
-    AboutView(Context context,CharSequence name,String version,String channelName,AboutDeviceInfo device,Runnable exit,Runnable licenses,Runnable source,Runnable check) {
+    AboutView(Context context,CharSequence name,String version,String channelName,AboutDeviceInfo device,Runnable exit,Runnable licenses,Runnable source,Runnable check,Runnable recoveryAction) {
         super(context);setBackgroundColor(Color.TRANSPARENT);setTag("about-native");
         this.exit=exit;
         font=android.os.Build.VERSION.SDK_INT>=26?Typeface.createFromAsset(context.getAssets(),"fonts/outfit.ttf"):Typeface.create("sans-serif",Typeface.NORMAL);
@@ -78,8 +77,8 @@ final class AboutView extends FrameLayout {
         upstream=action(origin,"upstream-link",295,796,164,42,source);
         label("感谢 Gathin",24,400,0xff8394ad,500,796,260,42,null);
         TextView recoveryText=label("恢复码",24,400,0xffa7b9d1,1792,796,104,42,null);
-        recovery=action(recoveryText,"recovery-link",1792,796,104,42,this::revealRecovery);
-        recovery.setOnFocusChangeListener((view,focused)->{if(!focused)recoveryPress.clear();artboard.invalidate();});
+        recovery=action(recoveryText,"recovery-link",1792,796,104,42,recoveryAction);
+        recovery.setOnFocusChangeListener((view,focused)->{artboard.invalidate();});
         recoveryValue=label("",24,400,0xffdbe5f4,1370,796,394,42,"recovery-value");recoveryValue.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
         recoveryValue.setVisibility(View.INVISIBLE);
     }
@@ -124,11 +123,10 @@ final class AboutView extends FrameLayout {
         float scale=Math.min(w/1920f,h/850f);artboard.setScaleX(scale);artboard.setScaleY(scale);
         artboard.setTranslationX((w-1920*scale)/2);artboard.setTranslationY((h-850*scale)/2);
     }
-    private void revealRecovery(){
-        if(!recoveryPress.press(android.os.SystemClock.elapsedRealtime()))return;
+    void revealRecovery(){
         String value=new ChildModeStore(getContext()).recovery();recoveryValue.setText(value.isEmpty()?"尚未设置家长密码":value);recoveryValue.setVisibility(View.VISIBLE);
     }
-    void hideRecovery(){press(false);recoveryPress.clear();recoveryValue.setText("");recoveryValue.setVisibility(View.INVISIBLE);}
+    void hideRecovery(){press(false);recoveryValue.setText("");recoveryValue.setVisibility(View.INVISIBLE);}
     void updateAvailable(boolean value){updateAvailable=value;update.setContentDescription(value?"检查更新，有新版本":"检查更新");artboard.invalidate();}
     void focusUpdate(){update.requestFocus();}
     void focusLicense(){license.requestFocus();}

@@ -149,6 +149,7 @@ final class WallpaperStore {
         persist(next);return entry;
     }
     File videoIncoming(){return new File(directory,"upload-"+UUID.randomUUID()+".tmp");}
+    synchronized void sound(boolean enabled)throws IOException{WallpaperCatalog next=catalog.copy();next.sound=enabled;persist(next);}
     File incoming() { return new File(directory,"incoming.tmp"); }
     File prepared() { return new File(directory,"prepared.tmp"); }
 }

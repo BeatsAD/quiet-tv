@@ -170,3 +170,9 @@ A higher build of the same software version is not offered as an update. Version
 Third-party apps update through their own channels. [Stock-home recovery](SETUP.md) uses this device's own original records, never another TV's system-package list.
 
 The current version shares a callable app catalog across Home, sorting and favorites, adds detected OEM settings/input routes, and retains newly uploaded images up to the actual rendering size (3840px maximum, 1920px on low-memory devices). Existing photos are unchanged. Both profiles include the shared app/image changes; vendor input routing applies to standard, while legacy19 uses system settings. See [compatibility scope](COMPATIBILITY.md#本轮源码兼容改进).
+
+### Current-source additions: files and parent verification
+
+Files / USB imports a selected image or video into app storage before preview and application; originals are unchanged and USB can be removed after a successful import. The system picker is preferred. Older systems can browse readable storage with permission if no picker exists; newer systems require a system file grant, with LAN upload still available. Video wallpaper sound is off by default, persists when changed, and stops when leaving Home or turning the screen off.
+
+Parent verification starts automatically after six digits. Creating or resetting a password still requires confirmation. Parents save their recovery code separately; the forgotten-password flow only accepts an existing code, and viewing the stored code requires parent verification. Timer rules can be saved before the accessibility service is ready, with an explicit inactive status. Entering the service configuration page does not enable the service. On-device expiry enforcement remains a separate validation step.

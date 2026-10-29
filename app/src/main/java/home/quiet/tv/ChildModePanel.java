@@ -18,7 +18,7 @@ final class ChildModePanel extends ManagementPanel {
     private RecyclerView list;
     private Cards cards;
     private LinearLayout details;
-    private TextView count;
+    private TextView count,timerStatus;
     private android.app.Dialog editing;
     private View first;
     private String selected="",query="";
@@ -30,6 +30,7 @@ final class ChildModePanel extends ManagementPanel {
     private android.os.Parcelable listState;
     private int loadGeneration;
     private ChildModeUi visual;
+    private final Runnable timerChanged=()->runOnUiThread(()->{if(showing&&authorized&&timerStatus!=null&&!selected.isEmpty()){ChildModePolicy.Rule rule=store.rule(selected);timerStatus.setText(rule.locked?"已锁定":rule.limited()&&!ChildUsageService.ready(this)?"计时未生效":describeTime(rule));}});
     ChildModePanel(AppManagementActivity activity){super(activity);}
     @Override public void onCreate(Bundle state){
         super.onCreate(state);store=new ChildModeStore(this);visual=new ChildModeUi(activity);
@@ -49,7 +50,7 @@ final class ChildModePanel extends ManagementPanel {
         LinearLayout.LayoutParams dp=new LinearLayout.LayoutParams(0,-1,57);dp.leftMargin=px(28);panels.addView(scroll,dp);
         locked();
     }
-    @Override protected void onResume(){super.onResume();if(authorized)load();}
+    @Override protected void onResume(){super.onResume();ChildUsageService.listen(timerChanged);if(authorized)load();}
     @Override void focusManagementContent(){if(unlock!=null)unlock.focus();else if(!authorized)unlockButton.requestFocus();else managementAction.requestFocus();}
     private void locked(){
         if(unlock!=null){unlock.close();unlock=null;}gate.removeAllViews();manager.setVisibility(View.GONE);gate.setVisibility(View.VISIBLE);count.setText("家长管理已锁定");
@@ -65,6 +66,7 @@ final class ChildModePanel extends ManagementPanel {
         gate.addView(unlock.view,new FrameLayout.LayoutParams(px(330),-2,Gravity.CENTER));unlock.focus();
     }
     @Override protected void onPause(){
+        ChildUsageService.unlisten(timerChanged);
         if(authorized)listState=list.getLayoutManager().onSaveInstanceState();authorized=false;manager.setVisibility(View.GONE);loadGeneration++;loading=false;ChildModeAuth.dismiss(activity);if(editing!=null)editing.dismiss();
         int removed=visible.size();visible.clear();cards.notifyItemRangeRemoved(0,removed);details.removeAllViews();first=null;returning=false;locked();super.onPause();
     }
@@ -96,7 +98,7 @@ final class ChildModePanel extends ManagementPanel {
         first=toggle("隐藏应用","从首页和常用栏隐藏",rule.hidden,()->{ChildModePolicy.Rule r=store.rule(selected);r.hidden=!r.hidden;save(r,0);});
         toggle("锁定应用","打开时需要家长密码",rule.locked,()->{ChildModePolicy.Rule r=store.rule(selected);r.locked=!r.locked;save(r,1);});
         LinearLayout time=optionRow(),copy=column();TextView label=visual.text("使用时长",26.88f,37.5f,0xffeeeff2);copy.addView(label);if(rule.locked){visual.gap(copy,12.48f);copy.addView(visual.text("解锁后可设置",18.43f,26,0xff848e9c));}time.addView(copy,new LinearLayout.LayoutParams(0,-2,1));
-        time.addView(visual.text(rule.locked?"已锁定":describeTime(rule),22.08f,32,0xffacb6c3),new LinearLayout.LayoutParams(-2,visual.p(37.5f)));ImageView arrow=visual.image(R.drawable.ic_child_arrow,0xff7c8897);LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(visual.p(26.88f),visual.p(26.88f));ap.leftMargin=visual.p(19.2f);time.addView(arrow,ap);time.setFocusable(!rule.locked);time.setClickable(!rule.locked);time.setEnabled(!rule.locked);time.setAlpha(rule.locked?.4f:1);time.setBackgroundDrawable(visual.focus(0,0,0,false));time.setContentDescription("使用时长  "+(rule.locked?"解锁后可设置":describeTime(rule)));time.setOnClickListener(v->time());
+        timerStatus=visual.text(rule.locked?"已锁定":rule.limited()&&!ChildUsageService.ready(this)?"计时未生效":describeTime(rule),22.08f,32,0xffacb6c3);time.addView(timerStatus,new LinearLayout.LayoutParams(-2,visual.p(37.5f)));ImageView arrow=visual.image(R.drawable.ic_child_arrow,0xff7c8897);LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(visual.p(26.88f),visual.p(26.88f));ap.leftMargin=visual.p(19.2f);time.addView(arrow,ap);time.setFocusable(!rule.locked);time.setClickable(!rule.locked);time.setEnabled(!rule.locked);time.setAlpha(rule.locked?.4f:1);time.setBackgroundDrawable(visual.focus(0,0,0,false));time.setContentDescription("使用时长  "+(rule.locked?"解锁后可设置":describeTime(rule)));time.setOnClickListener(v->time());
         TextView scope=visual.text("仅用于 Quiet TV 内的应用入口",16.9f,23.5f,0xff697583);LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,visual.p(48.46f));scope.setPadding(0,visual.p(24.96f),0,0);details.addView(scope,sp);
     }
     private LinearLayout optionRow(){
@@ -128,12 +130,20 @@ final class ChildModePanel extends ManagementPanel {
             if(!authorized)return;
             if(edited.limited() && custom[0])try{int h=Integer.parseInt(hours.getText().toString()),m=Integer.parseInt(minutes.getText().toString());if(h<0 || h>24 || m<0 || m>59)throw new NumberFormatException();edited.limit=(h*60L+m)*ChildModePolicy.MINUTE;}catch(NumberFormatException e){hint.setText("请输入 1 分钟至 24 小时，分钟填写 0–59");return;}
             try{edited.validate();}catch(IllegalArgumentException e){hint.setText("时长需为 1 分钟至 24 小时");return;}
-            if(edited.limited() && !ChildUsageService.ready(this)){sheet.dialog.dismiss();permission();return;}
-            if(!store.save(selected,edited)){hint.setText("保存失败，请重试");return;}sheet.dialog.dismiss();refreshSelectedCard();render();details.getChildAt(7).requestFocus();
+            if(!store.save(selected,edited)){hint.setText("保存失败，请重试");return;}sheet.dialog.dismiss();refreshSelectedCard();render();details.getChildAt(7).requestFocus();if(edited.limited()&&!ChildUsageService.ready(this)){feedback("时长已保存，计时服务尚未就绪");permission();}
         },true);visual.numberActions(sheet,pad);refresh.run();editing=sheet.dialog;sheet.dialog.setOnDismissListener(d->{sheet.release();if(editing==sheet.dialog)editing=null;});sheet.show(modeButtons.get(edited.mode));
     }
     private void show(Sheet sheet,View focus){editing=sheet.dialog;sheet.dialog.setOnDismissListener(d->{if(editing==sheet.dialog)editing=null;});sheet.show(focus);}
-    private void permission(){Sheet sheet=new Sheet("开启计时服务");sheet.text(store.fault().isEmpty()?"需在无障碍设置开启“儿童模式计时”。到时限制的效果仍需在本机验证。":store.fault());sheet.action("取消",sheet.dialog::dismiss);Button open=sheet.action("去开启",()->{sheet.dialog.dismiss();try{startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));}catch(ActivityNotFoundException e){message("当前电视没有可用的无障碍设置入口");}});show(sheet,open);}
+    private void permission(){
+        ChildTimerState state=ChildUsageService.status(this);Sheet sheet=new Sheet("儿童模式计时");sheet.text(state.message);
+        if(state==ChildTimerState.FAULT)sheet.text(store.fault());
+        sheet.text("进入儿童模式管理页不会开启服务。请在系统无障碍中启用“儿童模式计时”，返回后会重新核对。");
+        sheet.action("关闭",sheet.dialog::dismiss);Button open=sheet.action("系统无障碍设置",()->{
+            sheet.dialog.dismiss();DiagnosticLog.info("child.timer.settings","state="+state.name());
+            if(!new SystemSettingsRouter(this).open(Settings.ACTION_ACCESSIBILITY_SETTINGS))message("未找到可用设置入口，请从电视系统设置进入无障碍；已保存的时长不会丢失。");
+        });show(sheet,open);
+    }
+
     private void search(){
         if(!authorized)return;
         Sheet sheet=new Sheet("搜索应用");EditText input=input(query,"应用名称或包名");input.setId(androidx.core.view.ViewCompat.generateViewId());input.setContentDescription("应用名称或包名");input.setPadding(px(14),0,px(14),0);input.setGravity(Gravity.CENTER_VERTICAL);input.setIncludeFontPadding(false);

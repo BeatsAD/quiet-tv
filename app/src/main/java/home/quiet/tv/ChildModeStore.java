@@ -55,7 +55,7 @@ final class ChildModeStore {
             return !new HomeGuardState(context).protects(pkg);
         }catch(PackageManager.NameNotFoundException e){return false;}
     }
-    void fault(String reason){commit(preferences.edit().putString("timerFault",reason));}
+    void fault(String reason){commit(preferences.edit().putString("timerFault",reason));ChildUsageService.changed();}
     String fault(){return preferences.getString("timerFault","");}
     static String today(){return new SimpleDateFormat("yyyy-MM-dd",Locale.ROOT).format(new Date());}
     static long sinceMidnight(){Calendar start=Calendar.getInstance();start.set(Calendar.HOUR_OF_DAY,0);start.set(Calendar.MINUTE,0);start.set(Calendar.SECOND,0);start.set(Calendar.MILLISECOND,0);return Math.max(0,System.currentTimeMillis()-start.getTimeInMillis());}

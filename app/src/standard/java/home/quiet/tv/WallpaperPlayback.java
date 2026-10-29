@@ -117,6 +117,11 @@ final class WallpaperPlayback {
     }
     @android.annotation.TargetApi(23) private static final class Api23 {static int code(MediaCodec.CodecException e){return e.getErrorCode();}}
     void prepare()throws java.io.IOException{player.prepare();}
+    void setSound(boolean enabled){
+        player.setVolume(enabled?1f:0f);
+        player.setAudioAttributes(AudioAttributes.DEFAULT,enabled);
+        player.setTrackSelectionParameters(player.getTrackSelectionParameters().buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_AUDIO,!enabled).build());
+    }
     void setPaused(boolean paused){player.setPlayWhenReady(!paused);}
     boolean detachOutput(){
         if(detachFailed)return false;
