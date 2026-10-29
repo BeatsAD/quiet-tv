@@ -33,6 +33,8 @@ final class WallpaperPlayback {
         else try(AssetFileDescriptor input=source.getAssets().openFd("wallpapers/"+entry.id+".mp4")){player.setDataSource(input.getFileDescriptor(),input.getStartOffset(),input.getLength());}
         player.prepareAsync();
     }
+    // TextureView's owned output remains alive until the platform confirms release.
+    boolean detachOutput(){return false;}
     void release(Runnable completed){player.setOnPreparedListener(null);player.setOnErrorListener(null);player.release();completed.run();}
     void setPaused(boolean paused){this.paused=paused;if(prepared){if(paused)player.pause();else player.start();}}
 }
