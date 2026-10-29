@@ -2,6 +2,30 @@
 
 [中文首页](../README.md) · [English home](../README.en.md) · [安装指南](INSTALL.zh-CN.md)
 
+## 样机验证记录
+
+整理日期：2026-10-29。下表分别记录维护者历史验证、社区公开反馈与用户提交的本地报告；本次仅核对资料，没有新增电视操作或真机验收。结论绑定所列版本与固件，不外推到整个品牌或其他安装包。缺失项保留“未验证”，不以源码、模拟器或上游项目的结果替代。
+
+| 样机与固件 | Quiet TV 版本 | 已有结果与来源 | 失败或待验证 |
+| --- | --- | --- | --- |
+| 酷开／创维 55G20（8R40_G20），Android 8 / API26，`OPR6.170623.012`，增量 `019.012.270` | 1.2.9；反馈未给构建号 | 社区 [#35 最新回复](https://github.com/BeatsAD/quiet-tv/issues/35#issuecomment-6440081087)确认配置后，实体 HOME 与重启均进入 Quiet TV。型号、固件沿用同一 Issue 的原始环境，回复未重新回读。 | 补充构建号与实际配置；断电冷启动、待机唤醒、HDMI／播放及原桌面恢复未反馈。该反馈仅确认这两个场景，不代表所有酷开通过。 |
+| 海信 VIDAA_TV / Hi3751，Android 4.4.2 / API19；固件未提供 | 问题包 1.2.1（54） | 社区 [#68](https://github.com/BeatsAD/quiet-tv/issues/68)报告天气及每日壁纸 HTTPS 握手失败；[维护者回复](https://github.com/BeatsAD/quiet-tv/issues/68#issuecomment-6430967402)说明后续版本已有 TLS／证书兼容修复发布。 | 尚无该样机升级后的网络复测，不能标为真机修复通过。HOME、重启、待机等未验证。 |
+| 小米盒子 2 增强版，Android 4.4.2；固件未提供 | 1.2.4；构建号未提供 | 社区 [#81](https://github.com/BeatsAD/quiet-tv/issues/81)反馈安装成功、正常使用；[后续回复](https://github.com/BeatsAD/quiet-tv/issues/81#issuecomment-6430967163)说明 1.2.6 起提供 Dock 背景开关。 | 未提供各项功能、实体 HOME、电源场景、后续升级及 Dock 开关的复测结果。 |
+| Sony BRAVIA VH1，Android 12 / API31 | 历史 1.2.4（64） | 维护者历史核对：从 1.2.4（63）保留数据覆盖安装，已安装 APK 哈希与公开包一致，原 HOME 和数据目录保持，采集可见页面；见[历史记录](#历史发布记录--historical-releases)及[截图来源](assets/README.md#124-索尼真机截图--sony-captures)。 | 页面与部分配置核对不代表全部数据和完整功能；实体 HOME、冷启动、重启、待机与真实切源未全面验收，不作为 1.3.0 验收结果。 |
+| 创维 8H73 E6100 / Hi3751V500，Android 4.4.2 / API19，`022.012.160` | 1.3.0（131），`trial` 试用 | 用户提交的验收报告记录安装、启动与前台运行；实体 HOME 仍回原桌面，系统桌面选择器调用失败。原报告仅保留本地，公开此脱敏摘要。 | 桌面接管未完成；重启、冷启动、待机未执行。API19 无标准守护备用路径，不将试用成功写为接管成功，也不据单次报告断言所有无 root 方案均不可行。 |
+| 创维 55H6（系统型号 9S63_H6），Android 8 / API26，`OPR5.170623.014`，增量 `020.012.180` | 1.3.0（130） | 用户反馈开机先显示信号源、信号源键使用异常、菜单键无响应；所附日志的 HOME 解析指向 Quiet TV。日志仅保留本地，公开此脱敏摘要。 | 修复与该固件复测待完成。HOME 解析不能证明按键与实际切源通过；需分别检查输入画面、声音、切源后是否被守护拉回及菜单键动作。 |
+
+### 验收口径与反馈
+
+- 安装／升级：记录实际包名、版本与构建号、来源和签名／哈希核对，以及所测设置与数据保留范围。
+- 桌面：分别操作手动启动、实体 HOME、整机重启、断电冷启动与待机唤醒；记录实际画面，不能只读 HOME 候选或前台进程。
+- 信号源与按键：分别验证实际输入画面与声音、切源后停留、HOME 返回和菜单键动作。厂商可能直接处理按键，应用未收到键码不能单独证明按键失效。
+- 恢复：保留原桌面，记录暂停接管与恢复结果。ADB 当前连接、重启后连接和待机后连接分别记录。
+
+电脑安装流程默认以 `takeover` 尝试配置 HOME；显式 `trial` 仅试用，`update` 仅更新。当前 API14–19 不提供标准兼容守护，标准 HOME 失败时不能报告接管完成；`trial` 改为 `takeover` 不保证解决厂商限制。见[安装与验收流程](agent/install.md)及[验收说明](agent/acceptance.md)。
+
+公开反馈使用[机型适配模板](https://github.com/BeatsAD/quiet-tv/issues/new?template=device_adaptation.yml)，写明固件、APK、配置方式、复现步骤和每个场景的通过／失败／未验证；仅附必要脱敏片段，不上传地址、序列号、密钥或完整报告。
+
 ## Android 4.0–4.4 统一兼容包（1.3.0测试版131）
 
 1.3.0累加测试版提供标准130与兼容131，下载以[实时安装索引](https://beatsad.github.io/quiet-tv/latest.json)为准。`legacy14` 档位最低 API14，以一个无原生库的通用 APK 覆盖 Android 4.0–4.4。公共功能与 `standard` 共用代码；标准档仍为 API21，保留原来的 Activity、RecyclerView、ExifInterface、Media3 版本。`legacy19` 参数仅保留用于历史 API19 构建与升级回归，默认批次只生成一个 `legacy14` 旧系统包。
@@ -252,7 +276,7 @@ TCL／雷鸟的安装受限方案于 2026-10-26 补充：先以品牌发现候�
 | 范围 | 上游记录与方案 | Quiet TV 状态及验收重点 |
 | --- | --- | --- |
 | 小米 MiTV4-ANSM0 / Android 6 | [#81](https://github.com/pengchujin/aerial-tv/issues/81)：服务绑定后仍可能没有有效窗口事件；上游1.43起增加 UsageStats 补偿，1.46有用户延迟返回及有限重启实测 | 本修复源码加入安卓5／6精确主页补偿与电脑首次配置；未发布，目标固件的事件、实体 HOME、重启、短/长待机及暂停恢复仍待 Quiet TV 真机验收 |
-| 酷开 / Android 8 | [#69](https://github.com/pengchujin/aerial-tv/issues/69)：私有 HOME.CC 类别，识别修复不等于改写固件主页 | Quiet TV 厂商接管待验收；不能按品牌批量应用 |
+| 酷开 / Android 8 | [#69](https://github.com/pengchujin/aerial-tv/issues/69)：私有 HOME.CC 类别，识别修复不等于改写固件主页 | Quiet TV 55G20 在 1.2.9 已有用户确认实体 HOME 与重启通过，详见[样机记录](#样机验证记录)；其他场景与固件仍待验收，不能按品牌批量应用 |
 | 酷开 / Android 11 | [#122](https://github.com/pengchujin/aerial-tv/issues/122)：LITE_HOME 与 HOME.CC 不同，用户修改包有有限实测 | 原主页识别、实体键、开机与恢复均待目标固件核验 |
 | 海信 Android VIDAA | [#40](https://github.com/pengchujin/aerial-tv/issues/40)：私有主页属性可改变 HOME 行为，开机仍受拦截 | Quiet TV 不自动改属性；系统输入面板调用与 HOME 接管分别验证 |
 | TCL MT9655 / 部分新雷鸟 | [机型记录](https://github.com/pengchujin/aerial-tv/blob/d652d5ef65267f22bd273da01f28a99718d059a8/docs/devices/tcl-mt9655-cn.md)：TLS 动态端口但无可用配对入口，能装 APK 不等于能授权接管 | 先核实调试方式；无配对/授权通道时保留普通 App 使用，不循环试连 5555 |
