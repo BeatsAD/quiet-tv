@@ -1,6 +1,6 @@
 package home.quiet.tv;
 
-/** The public desktop-settings entry opens the same nine-page settings window. */
+/** The public desktop-settings entry opens the same seven-tab settings window. */
 public final class DesktopSettingsActivity extends AppManagementActivity {
     static final String SECTION="section";
     @Override int initialPage(){

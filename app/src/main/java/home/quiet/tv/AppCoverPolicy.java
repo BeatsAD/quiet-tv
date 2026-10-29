@@ -14,6 +14,6 @@ final class AppCoverPolicy {
         }catch(PackageManager.NameNotFoundException|SecurityException|IllegalArgumentException e){return false;}
     }
     static void require(Context context,String pkg) throws java.io.IOException {
-        if(!allowed(context,pkg))throw new java.io.IOException("应用状态已改变，请返回应用列表重新选择 / App is no longer available");
+        if(!allowed(context,pkg))throw new java.io.IOException("应用状态已改变，请返回应用管理重新选择 / App is no longer available");
     }
 }

@@ -74,6 +74,7 @@ final class DailyWallpaperController {
         start(false,null);
     }
     void apply(Completed completed){start(true,completed);}
+    void prepare(Completed completed){start(false,completed);}
     private void start(boolean apply,Completed completed){
         if(!active||busy)return;
         final String source=WallpaperCatalog.BING;

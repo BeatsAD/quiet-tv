@@ -17,7 +17,7 @@ final class DesktopSettingsRow extends LinearLayout {
         super(ui);this.ui=ui;setOrientation(HORIZONTAL);setGravity(Gravity.CENTER_VERTICAL);
         setPadding(ui.px(navigation?14:18),0,ui.px(navigation?14:18),0);
         setId(androidx.core.view.ViewCompat.generateViewId());setFocusable(true);setFocusableInTouchMode(true);setClickable(true);
-        setBackgroundDrawable(ui.listSurface());
+        setSoundEffectsEnabled(false);setBackgroundDrawable(ui.listSurface());
         start=new ImageView(ui);int resource="shield".equals(symbol)?R.drawable.ic_manage_shield:0;
         if(resource!=0){start.setImageDrawable(UiCompat.drawable(ui,resource));start.setColorFilter(0xffa2a8b3);}else start.setImageDrawable(new Glyph(symbol,0xffa2a8b3));
         LayoutParams ip=new LayoutParams(ui.px(navigation?17:18),ui.px(navigation?17:18));ip.rightMargin=ui.px(13);addView(start,ip);
@@ -31,6 +31,7 @@ final class DesktopSettingsRow extends LinearLayout {
         androidx.core.view.ViewCompat.setImportantForAccessibility(copy,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
         setContentDescription(text);
     }
+    @Override public boolean performClick(){boolean accepted=super.performClick();if(accepted)KeyFeedback.confirm(getContext());return accepted;}
     void icon(int resource){start.setImageDrawable(UiCompat.drawable(ui,resource));start.clearColorFilter();}
     void value(String text){value.setText(text);updateDescription();}
     String value(){return value.getText().toString();}
@@ -57,6 +58,7 @@ final class DesktopSettingsRow extends LinearLayout {
         private void line(Canvas c,float... points){Path path=new Path();path.moveTo(points[0],points[1]);for(int i=2;i<points.length;i+=2)path.lineTo(points[i],points[i+1]);c.drawPath(path,p);}
         @Override public void draw(Canvas c){Rect r=getBounds();int save=c.save();float size=Math.min(r.width(),r.height());c.translate(r.left+(r.width()-size)/2f,r.top+(r.height()-size)/2f);c.scale(size/24f,size/24f);
             switch(kind){
+                case "sound":line(c,3,9,7,9,12,5,12,19,7,15,3,15,3,9);Path waves=new Path();waves.addArc(new RectF(9,7,19,17),-60,120);waves.addArc(new RectF(6,3,22,21),-55,110);c.drawPath(waves,p);break;
                 case "desktop":c.drawRoundRect(new RectF(3,4,21,20),2,2,p);line(c,3,9,21,9);line(c,9,9,9,20);break;
                 case "clock":c.drawCircle(12,12,9,p);line(c,12,6,12,12,16,14);break;
                 case "tools":for(int i=0;i<3;i++){float y=6+i*6,x=i==1?15:8;line(c,3,y,21,y);line(c,x,y-2,x,y+2);}break;

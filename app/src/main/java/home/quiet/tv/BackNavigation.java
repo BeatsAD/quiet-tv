@@ -8,7 +8,7 @@ final class BackNavigation {
     private BackNavigation(){}
     static void install(ComponentActivity activity,Runnable back){
         activity.getOnBackPressedDispatcher().addCallback(activity,new OnBackPressedCallback(true){
-            @Override public void handleOnBackPressed(){back.run();}
+            @Override public void handleOnBackPressed(){back.run();if(!(activity instanceof HomeActivity))KeyFeedback.returned(activity);}
         });
     }
 }

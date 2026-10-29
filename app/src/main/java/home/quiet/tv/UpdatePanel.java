@@ -19,16 +19,16 @@ final class UpdatePanel {
     private TextView text(String value,int size,int color){TextView view=new TextView(activity);view.setText(value);view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(size));view.setTextColor(color);view.setIncludeFontPadding(false);return view;}
     private void gap(int value){box.addView(new View(activity),new LinearLayout.LayoutParams(1,px(value)));}
     private void begin(String state,String title){
-        dismiss();mode=state;dialog=new Dialog(activity);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        dismiss();mode=state;dialog=new KeyFeedback.Dialog(activity);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         box=new LinearLayout(activity);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(px(60),px(48),px(60),px(48));
         GradientDrawable background=new GradientDrawable();background.setColor(0xff141a23);background.setCornerRadius(px(28));background.setStroke(Math.max(1,px(1)),0x38ffffff);box.setBackgroundDrawable(background);
         box.addView(text("软件更新",20,0xff96a8bf));gap(16);heading=text(title,38,0xfff2f4f8);box.addView(heading);gap(22);
         actions=new LinearLayout(activity);actions.setGravity(Gravity.END);actions.setClipChildren(false);box.setClipChildren(false);
         dialog.setContentView(box);dialog.setCanceledOnTouchOutside(false);
-        dialog.setOnKeyListener((d,key,event)->{if((key==KeyEvent.KEYCODE_BACK||key==KeyEvent.KEYCODE_ESCAPE)&&event.getAction()==KeyEvent.ACTION_UP){back();return true;}return key==KeyEvent.KEYCODE_BACK||key==KeyEvent.KEYCODE_ESCAPE;});
+        dialog.setOnKeyListener((d,key,event)->{if((key==KeyEvent.KEYCODE_BACK||key==KeyEvent.KEYCODE_ESCAPE)&&event.getAction()==KeyEvent.ACTION_UP){if(!event.isCanceled()){back();KeyFeedback.back(activity);}return true;}return key==KeyEvent.KEYCODE_BACK||key==KeyEvent.KEYCODE_ESCAPE;});
     }
     private Button button(String title,Runnable run){
-        Button view=new Button(activity);view.setText(title);view.setAllCaps(false);view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(25));view.setTextColor(0xffeff0f4);
+        Button view=new KeyFeedback.Button(activity);view.setText(title);view.setAllCaps(false);view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(25));view.setTextColor(0xffeff0f4);
         view.setMinimumHeight(0);view.setMinHeight(0);view.setMinimumWidth(0);view.setMinWidth(0);view.setPadding(px(28),0,px(28),0);view.setFocusableInTouchMode(true);
         if(Build.VERSION.SDK_INT>=21)view.setStateListAnimator(null);view.setBackgroundDrawable(ControlStyle.action(unit,35,0xff242a33,0x38ffffff));view.setOnClickListener(v->run.run());
         LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-2,px(70));params.leftMargin=px(20);actions.addView(view,params);return view;

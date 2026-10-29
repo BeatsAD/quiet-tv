@@ -23,6 +23,7 @@ public final class FileTransferPreviewActivity extends Activity {
     private float unit;
     private int px(int value){return Math.round(value*unit);}
     private void style(Button button){button.setTextColor(ManagementUi.TEXT);button.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(14));button.setBackgroundDrawable(ControlStyle.action(unit,24,0xff24262c,0x22ffffff));}
+    @Override public boolean dispatchKeyEvent(KeyEvent key){return KeyFeedback.dispatch(getWindow().getDecorView(),key,()->{boolean handled=super.dispatchKeyEvent(key);if(key.getKeyCode()==KeyEvent.KEYCODE_BACK&&isFinishing())KeyFeedback.back(this);return handled;});}
     @Override public void onCreate(Bundle saved){
         super.onCreate(saved);unit=getResources().getDisplayMetrics().widthPixels/960f;getWindow().getDecorView().setSystemUiVisibility(5894);getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));getWindow().addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);getWindow().setDimAmount(.65f);
         FrameLayout root=new FrameLayout(this);setContentView(root);WallpaperUi ui=new WallpaperUi(this,unit);
@@ -31,8 +32,8 @@ public final class FileTransferPreviewActivity extends Activity {
         FrameLayout media=new FrameLayout(this);LinearLayout.LayoutParams mp=new LinearLayout.LayoutParams(-1,px(205));mp.topMargin=px(10);mp.bottomMargin=px(12);card.addView(media,mp);video=new VideoWallpaperPlayer(this,media,true);
         image=new ImageView(this);image.setScaleType(ImageView.ScaleType.FIT_CENTER);media.addView(image,new FrameLayout.LayoutParams(-1,-1));
         status=ui.text("正在检查并导入壁纸…",13);status.setTextColor(ManagementUi.MUTED);card.addView(status,new LinearLayout.LayoutParams(-1,px(38)));
-        LinearLayout buttons=new LinearLayout(this);buttons.setGravity(Gravity.CENTER);LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-1,px(42));bp.topMargin=px(12);card.addView(buttons,bp);Button cancel=new Button(this);cancel.setText("返回文件传输");style(cancel);cancel.setOnClickListener(v->finish());buttons.addView(cancel,new LinearLayout.LayoutParams(0,-1,1));
-        apply=new Button(this);apply.setText("设为壁纸");style(apply);ControlStyle.choice(apply,unit,24,0xff24262c,0x22ffffff);apply.setSelected(true);apply.setEnabled(false);apply.setOnClickListener(v->apply());LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(0,-1,1);ap.leftMargin=px(12);buttons.addView(apply,ap);cancel.requestFocus();
+        LinearLayout buttons=new LinearLayout(this);buttons.setGravity(Gravity.CENTER);LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-1,px(42));bp.topMargin=px(12);card.addView(buttons,bp);Button cancel=new KeyFeedback.Button(this);cancel.setText("返回文件传输");style(cancel);cancel.setOnClickListener(v->{finish();KeyFeedback.returned(this);});buttons.addView(cancel,new LinearLayout.LayoutParams(0,-1,1));
+        apply=new KeyFeedback.Button(this);apply.setText("设为壁纸");style(apply);ControlStyle.choice(apply,unit,24,0xff24262c,0x22ffffff);apply.setSelected(true);apply.setEnabled(false);apply.setOnClickListener(v->apply());LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(0,-1,1);ap.leftMargin=px(12);buttons.addView(apply,ap);cancel.requestFocus();
         String id=getIntent().getStringExtra("file");
         worker.execute(()->{
             try{

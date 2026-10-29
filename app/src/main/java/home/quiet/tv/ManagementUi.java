@@ -22,7 +22,7 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     private boolean managementEntry=true;
     private Button managementStatus;
     private Button managementMoreButton;
-    private PopupWindow managementMorePopup;
+    private KeyFeedback.Popup managementMorePopup;
     private UpdateBadgeView updateBadge;
     private final UpdateRepository.Listener updateListener=()->{if(updateBadge!=null)updateBadge.available(UpdateRepository.get(this).available!=null);};
     int px(float value){return Math.round(value*unit);}
@@ -42,25 +42,25 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
         View shade=new View(this);shade.setBackgroundDrawable(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0xf00c0d11,0xf50b0c10}));stage.addView(shade,new FrameLayout.LayoutParams(-1,-1));
         root=column();root.setPadding(px(48),px(28),px(48),px(16));stage.addView(root,new FrameLayout.LayoutParams(-1,-1));
         header=row();root.addView(header,new LinearLayout.LayoutParams(-1,px(38)));
-        Button back=iconButton("返回",R.drawable.ic_manage_back,this::handleBack);header.addView(back,new LinearLayout.LayoutParams(px(34),px(34)));
+        Button back=iconButton("返回",R.drawable.ic_manage_back,()->{handleBack();KeyFeedback.back(this);});header.addView(back,new LinearLayout.LayoutParams(px(34),px(34)));
         TextView title=label("应用管理",27);title.setPadding(px(14),0,0,0);header.addView(title,new LinearLayout.LayoutParams(0,-1,1));
     }
     boolean loadWallpaper(){return true;}
     boolean localManagement(){return true;}
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);managementEntry=true;}
     @Override protected void onResume(){super.onResume();UpdateRepository.get(this).add(updateListener);UpdateRepository.get(this).foreground();if(managementEntry && managementPage>=0){managementEntry=false;managementTab().requestFocus();}}
-    @Override protected void onStop(){UpdateRepository.get(this).remove(updateListener);if(managementMorePopup!=null)managementMorePopup.dismiss();super.onStop();}
+    @Override protected void onStop(){UpdateRepository.get(this).remove(updateListener);if(managementMorePopup!=null)managementMorePopup.closeQuietly();super.onStop();}
     @Override protected void onDestroy(){super.onDestroy();}
     @Override public void onWindowFocusChanged(boolean focused){super.onWindowFocusChanged(focused);DiagnosticLog.info("input.window","page="+getClass().getSimpleName()+" "+InputDiagnostics.focus(this));}
     @Override public boolean dispatchTouchEvent(android.view.MotionEvent event){InputDiagnostics.pointer(this,event);return super.dispatchTouchEvent(event);}
     void managementConnected(){}
     @android.annotation.SuppressLint("RestrictedApi")
-    @Override public boolean dispatchKeyEvent(KeyEvent event){DiagnosticLog.navigationKey("quiet_tv_management",event);return super.dispatchKeyEvent(event);}
+    @Override public boolean dispatchKeyEvent(KeyEvent event){return KeyFeedback.dispatch(getWindow().getDecorView(),event,()->{DiagnosticLog.navigationKey("quiet_tv_management",event);return super.dispatchKeyEvent(event);});}
     void connectionPanel(){startActivity(new Intent(this,MaintenanceHelpActivity.class));}
     void managementMore(){
-        LinearLayout menu=column();menu.setPadding(px(7),px(7),px(7),px(7));menu.setBackgroundDrawable(surface(0xfa25262e,0xfa25262e,0,18));
+        LinearLayout menu=new KeyFeedback.Menu(this);menu.setOrientation(LinearLayout.VERTICAL);menu.setPadding(px(7),px(7),px(7),px(7));menu.setBackgroundDrawable(surface(0xfa25262e,0xfa25262e,0,18));
         managementMoreOptions(menu);
-        int width=px(180);managementMorePopup=new PopupWindow(menu,width,-2,true);
+        int width=px(180);managementMorePopup=new KeyFeedback.Popup(this,menu,width,-2);
         managementMorePopup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         if(Build.VERSION.SDK_INT>=21)managementMorePopup.setElevation(px(14));
         managementMorePopup.setOutsideTouchable(true);
@@ -78,7 +78,7 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
         managementMoreOption(menu,"帮助与恢复",()->startActivity(new Intent(this,MaintenanceHelpActivity.class)));
     }
     void managementMoreOption(LinearLayout menu,String title,Runnable action){
-        Button choice=button(title,()->{managementMorePopup.dismiss();action.run();});choice.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(15));choice.setTextColor(0xffeeeeef);
+        Button choice=button(title,()->{managementMorePopup.closeQuietly();action.run();});choice.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(15));choice.setTextColor(0xffeeeeef);
         choice.setPadding(px(16),0,px(12),0);choice.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);choice.setFocusableInTouchMode(true);
         choice.setBackgroundDrawable(useSettingListStyle()?ControlStyle.listRow(unit,11):ControlStyle.action(unit,11,Color.TRANSPARENT,0));
         menu.addView(choice,new LinearLayout.LayoutParams(-1,px(40)));
@@ -106,8 +106,8 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     TextView center(String text,int size){TextView view=label(text,size);view.setGravity(Gravity.CENTER);return view;}
     GradientDrawable surface(int top,int bottom,int stroke,float radius){GradientDrawable shape=new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{top,bottom});shape.setCornerRadius(px(radius));shape.setStroke(px(1),stroke);return shape;}
     Drawable focusSurface(float radius){return ControlStyle.action(unit,radius,0x10ffffff,0x22ffffff);}
-    void focusable(View view,float radius){view.setFocusable(true);view.setBackgroundDrawable(focusSurface(radius));}
-    Button button(String text,Runnable action){Button b=new Button(this);b.setText(text);b.setAllCaps(false);b.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(13));b.setTextColor(TEXT);b.setIncludeFontPadding(false);b.setGravity(Gravity.CENTER);b.setMinimumWidth(0);b.setMinWidth(0);b.setMinimumHeight(0);b.setMinHeight(0);b.setPadding(px(16),0,px(16),0);b.setBackgroundDrawable(focusSurface(24));if(android.os.Build.VERSION.SDK_INT>=21)b.setStateListAnimator(null);b.setOnClickListener(v->action.run());return b;}
+    void focusable(View view,float radius){view.setSoundEffectsEnabled(false);view.setFocusable(true);view.setBackgroundDrawable(focusSurface(radius));}
+    Button button(String text,Runnable action){Button b=new KeyFeedback.Button(this);b.setText(text);b.setAllCaps(false);b.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(13));b.setTextColor(TEXT);b.setIncludeFontPadding(false);b.setGravity(Gravity.CENTER);b.setMinimumWidth(0);b.setMinWidth(0);b.setMinimumHeight(0);b.setMinHeight(0);b.setPadding(px(16),0,px(16),0);b.setBackgroundDrawable(focusSurface(24));if(android.os.Build.VERSION.SDK_INT>=21)b.setStateListAnimator(null);b.setOnClickListener(v->action.run());return b;}
     void styleTab(Button b,boolean compact){
         ControlStyle.choice(b,unit,compact?15:18,Color.TRANSPARENT,0);
         b.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));b.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(compact?12:16));
@@ -172,13 +172,13 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     }
     void managementPageSelected(int page){
         managementPage=page;
-        for(int i=0;i<managementTabs.length;i++)managementTabs[i].setSelected(i==page);
+        for(int i:MANAGEMENT_ORDER)managementTabs[i].setSelected(i==page);
         for(int i=0;i<header.getChildCount();i++)header.getChildAt(i).setNextFocusDownId(managementTab().getId());
     }
     ImageView icon(android.graphics.drawable.Drawable art,int size){ImageView image=new ImageView(this);image.setScaleType(ImageView.ScaleType.FIT_CENTER);image.setBackgroundDrawable(surface(0x08ffffff,0x08ffffff,0,size*.24f));UiCompat.clipOutline(image);image.setImageDrawable(art);image.setLayoutParams(new LinearLayout.LayoutParams(px(size),px(size)));return image;}
     EditText input(String text,String hint){EditText edit=new EditText(this);edit.setText(text);edit.setHint(hint);edit.setSingleLine(true);edit.setTextColor(TEXT);edit.setHintTextColor(MUTED);edit.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(14));edit.setPadding(px(14),px(10),px(14),px(10));edit.setBackgroundDrawable(focusSurface(10));return edit;}
     final class Sheet {
-        final Dialog dialog=new Dialog(ManagementUi.this);
+        final Dialog dialog=new KeyFeedback.Dialog(ManagementUi.this);
         final LinearLayout body=column(),actions=row(),box=column();
         final TextView heading;
         Sheet(String title){

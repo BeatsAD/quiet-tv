@@ -86,7 +86,7 @@ final class HomeSortPanel extends ManagementPanel {
     }
     private void shift(int dx,int dy){
         if(moving.isEmpty() || refreshing)return;int from=order.indexOf(moving),target=HomeOrderStore.target(from,order.size(),HomeActivity.APP_COLUMNS,dx,dy);
-        if(from==target)return;HomeOrderStore.move(order,from,target);renderMove(moving,from,target);
+        if(from==target)return;HomeOrderStore.move(order,from,target);renderMove(moving,from,target);KeyFeedback.moved(activity);
     }
     private void endMove(){String id=moving;if(beforeMove!=null){order.clear();order.addAll(beforeMove);}moving="";beforeMove=null;render(id);}
     private void render(String focus){adapter.notifyItemRangeChanged(0,order.size());updateHint();focusEntry(focus);}
@@ -129,14 +129,14 @@ final class HomeSortPanel extends ManagementPanel {
         boolean confirm=key==KeyEvent.KEYCODE_DPAD_CENTER || key==KeyEvent.KEYCODE_ENTER || key==KeyEvent.KEYCODE_NUMPAD_ENTER;
         if(!moving.isEmpty()){
             if(direction){if(event.getAction()==KeyEvent.ACTION_DOWN)shift(key==KeyEvent.KEYCODE_DPAD_LEFT?-1:key==KeyEvent.KEYCODE_DPAD_RIGHT?1:0,key==KeyEvent.KEYCODE_DPAD_UP?-1:key==KeyEvent.KEYCODE_DPAD_DOWN?1:0);return true;}
-            if(confirm){if(event.getAction()==KeyEvent.ACTION_UP)pick(moving);return true;}
+            if(confirm){if(event.getAction()==KeyEvent.ACTION_UP&&!event.isCanceled()){pick(moving);KeyFeedback.confirm(activity);}return true;}
         }
         if(list.hasFocus()){
-            if(confirm){if(event.getAction()==KeyEvent.ACTION_UP)pick(selected);return true;}
+            if(confirm){if(event.getAction()==KeyEvent.ACTION_UP&&!event.isCanceled()){pick(selected);KeyFeedback.confirm(activity);}return true;}
             if(direction){
                 if(event.getAction()==KeyEvent.ACTION_UP)return true;int current=order.indexOf(selected);
                 int next=HomeOrderStore.target(current,order.size(),HomeActivity.APP_COLUMNS,key==KeyEvent.KEYCODE_DPAD_LEFT?-1:key==KeyEvent.KEYCODE_DPAD_RIGHT?1:0,key==KeyEvent.KEYCODE_DPAD_UP?-1:key==KeyEvent.KEYCODE_DPAD_DOWN?1:0);
-                if(next!=current)focusEntry(order.get(next));
+                if(next!=current){focusEntry(order.get(next));KeyFeedback.moved(activity);}
                 else if(key==KeyEvent.KEYCODE_DPAD_UP){View tab=findSortTab(root);if(tab!=null)tab.requestFocus();}
                 return true;
             }
@@ -172,7 +172,7 @@ final class HomeSortPanel extends ManagementPanel {
             background.addState(new int[]{android.R.attr.state_focused},surface(0xff3b3e46,0xff1b1d24,TEXT,12));
             background.addState(new int[]{},surface(0xff373b43,0xff1b1d24,picked?TEXT:0x24ffffff,12));holder.art.setBackgroundDrawable(background);
             holder.card.setContentDescription(entry.label+"，第 "+(position+1)+" 个位置"+(picked?"，正在移动":""));
-            holder.card.setOnFocusChangeListener((v,focus)->{if(focus)selected=id;});holder.card.setOnClickListener(v->pick(id));
+            holder.card.setOnFocusChangeListener((v,focus)->{if(focus)selected=id;});holder.card.setOnClickListener(v->{pick(id);KeyFeedback.confirm(activity);});
             FrameLayout.LayoutParams ip=(FrameLayout.LayoutParams)holder.image.getLayoutParams();ip.width=-1;ip.height=-1;ip.gravity=Gravity.CENTER;
             holder.image.setScaleType(ImageView.ScaleType.FIT_XY);
             holder.image.setBackgroundDrawable(surface(0,0,0,10));
