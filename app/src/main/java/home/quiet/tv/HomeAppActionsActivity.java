@@ -77,7 +77,7 @@ public final class HomeAppActionsActivity extends ManagementUi {
         option(fromDock?"移出首页":"添加到首页",fromDock?R.drawable.ic_manage_back:R.drawable.ic_manage_plus,()->{if(fromDock)unpin();else pin(pkg);});
         Button hide=option("隐藏",R.drawable.ic_child_hidden,this::hide);hide.setEnabled(real&&protectedReason.isEmpty()&&new ChildModeStore(this).eligible(pkg));
         Button uninstall=option("卸载",R.drawable.ic_manage_trash,this::authorizeUninstall);uninstall.setEnabled(real&&protectedReason.isEmpty());
-        show(250,first,true);
+        show(200,first,true);
     }
     private void changed(String focus){setResult(RESULT_OK,new Intent().putExtra("action","changed").putExtra("package",focus));finish();}
     private void failure(String message){content("notice","未完成");box.addView(muted(message,14));Button close=option("返回",R.drawable.ic_manage_back,this::handleBack);show(400,close,false);}
