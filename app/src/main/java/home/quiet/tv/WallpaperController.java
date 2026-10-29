@@ -273,7 +273,8 @@ final class WallpaperController {
     void showPicker(){
         if(picker!=null||leaving)return;stopVideo();main.removeCallbacks(rotate);preview=store.snapshot().current;dynamicTab=store.snapshot().dynamic();
         for(int n=1;n<root.getChildCount();n++)root.getChildAt(n).setVisibility(View.INVISIBLE);
-        picker=new androidx.activity.ComponentDialog(activity){@Override public void onWindowFocusChanged(boolean focus){super.onWindowFocusChanged(focus);if(focus)focusPendingCard();else cancelCardPress();}};
+        picker=new androidx.activity.ComponentDialog(activity){@Override public void onWindowFocusChanged(boolean focus){super.onWindowFocusChanged(focus);if(focus)focusPendingCard();else cancelCardPress();}
+            @Override public boolean dispatchKeyEvent(KeyEvent key){return KeyFeedback.dispatch(getWindow().getDecorView(),key,()->super.dispatchKeyEvent(key));}};
         ((androidx.activity.ComponentDialog)picker).getOnBackPressedDispatcher().addCallback((androidx.activity.ComponentDialog)picker,new androidx.activity.OnBackPressedCallback(true){@Override public void handleOnBackPressed(){handlePickerBack();}});
         picker.requestWindowFeature(Window.FEATURE_NO_TITLE);content=new FrameLayout(activity);
         LinearLayout layout=new LinearLayout(activity);layout.setOrientation(LinearLayout.VERTICAL);layout.setPadding(px(36),px(32),px(36),px(32));content.addView(layout,new FrameLayout.LayoutParams(-1,-1));
@@ -366,7 +367,7 @@ final class WallpaperController {
         else if(state.find(state.lastVideo)!=null){dynamicTab=true;refreshCards(state.lastVideo,false);startVideo(state.lastVideo,true);}
         else {dynamicTab=true;refreshCards(null,false);upload.requestFocus();}
     }
-    private void handlePickerBack(){if(picker==null)return;commitPending=false;picker.dismiss();}
+    private void handlePickerBack(){if(picker==null)return;commitPending=false;picker.dismiss();KeyFeedback.returned(activity);}
     private void refreshCards(String preferred,boolean focusCard){
         if(picker==null)return;cancelCardPress();pendingCardFocus=null;int version=++pickerVersion;WallpaperCatalog state=store.snapshot();
         List<WallpaperCatalog.Entry> entries=new ArrayList<>();for(WallpaperCatalog.Entry e:state.entries())if(e.video()==dynamicTab)entries.add(e);
@@ -394,7 +395,7 @@ final class WallpaperController {
                 LinearLayout.LayoutParams mp=new LinearLayout.LayoutParams(-2,-2);mp.leftMargin=px(4);caption.addView(mark,mp);
             }
             card.setOnFocusChangeListener((v,focus)->{if(focus){if(!id.equals(preview))commitPending=false;preview=id;if(wallpaper.video())startVideo(id,false);else display(id,true);details();scroll.requestChildFocus(rail,card);}else if(id.equals(pressedWallpaper))cancelCardPress();});
-            card.setOnClickListener(v->{commitPending=false;preview=id;applySelected();});
+            card.setOnClickListener(v->{commitPending=false;preview=id;applySelected();KeyFeedback.confirm(activity);});
             card.setOnLongClickListener(v->{confirmDelete(id,KeyEvent.KEYCODE_UNKNOWN,0);return true;});
             card.setOnKeyListener((v,key,event)->{if(confirmKey(key))return cardKey(id,key,event);if(key!=KeyEvent.KEYCODE_DPAD_LEFT&&key!=KeyEvent.KEYCODE_DPAD_RIGHT)return false;if(event.getAction()==KeyEvent.ACTION_DOWN){cancelCardPress();List<String> ids=focusableCards();int index=ids.indexOf(id)+(key==KeyEvent.KEYCODE_DPAD_LEFT?-1:1);if(index>=0&&index<ids.size())cards.get(ids.get(index)).requestFocus();}return true;});
         }
@@ -453,18 +454,19 @@ final class WallpaperController {
         if(WallpaperCatalog.DAILY.equals(id))return;
         if(WallpaperCatalog.DEFAULT.equals(id)){notice(tr("默认颜色主题不能删除","The default color theme cannot be deleted"));return;}
         stopVideo();List<String> before=focusableCards();int index=before.indexOf(id);String[] returnTo={id};
-        AlertDialog dialog=new AlertDialog.Builder(activity).setTitle(tr("删除「","Delete “")+entry.label(chinese)+tr("」？","”?"))
-            .setMessage(tr("删除电视中保存的壁纸，手机或电脑中的原文件不受影响。","Delete this TV copy. The original on your phone or computer is unchanged.")+(entry.id.equals(state.current)?entry.video()?tr("\n删除后恢复之前的静态壁纸。","\nRestores your previous static wallpaper."):state.rotating?tr("\n将切换到下一张有效图片；不足两张时关闭轮播。","\nSwitch to the next available photo; stop slideshow below two images."):tr("\n这张壁纸正在使用，删除后切回默认颜色主题。","\nThis wallpaper is in use. Deleting it restores the default color theme."):""))
-            .setNegativeButton(tr("取消","Cancel"),null).setPositiveButton(tr("删除","Delete"),null).create();
+        AlertDialog dialog=new KeyFeedback.Alert(activity);dialog.setTitle(tr("删除「","Delete “")+entry.label(chinese)+tr("」？","”?"));
+        dialog.setMessage(tr("删除电视中保存的壁纸，手机或电脑中的原文件不受影响。","Delete this TV copy. The original on your phone or computer is unchanged.")+(entry.id.equals(state.current)?entry.video()?tr("\n删除后恢复之前的静态壁纸。","\nRestores your previous static wallpaper."):state.rotating?tr("\n将切换到下一张有效图片；不足两张时关闭轮播。","\nSwitch to the next available photo; stop slideshow below two images."):tr("\n这张壁纸正在使用，删除后切回默认颜色主题。","\nThis wallpaper is in use. Deleting it restores the default color theme."):""));
+        dialog.setButton(AlertDialog.BUTTON_NEGATIVE,tr("取消","Cancel"),(android.content.DialogInterface.OnClickListener)null);
+        dialog.setButton(AlertDialog.BUTTON_POSITIVE,tr("删除","Delete"),(android.content.DialogInterface.OnClickListener)null);
         // The opening hold can continue in the new window. Consume its repeats and release.
         boolean[] releasing={initiatingKey!=KeyEvent.KEYCODE_UNKNOWN};
         dialog.setOnKeyListener((d,key,event)->{if(!releasing[0]||key!=initiatingKey)return false;if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0&&event.getDownTime()>downTime){releasing[0]=false;return false;}if(event.getAction()==KeyEvent.ACTION_UP)releasing[0]=false;return true;});
         dialog.setOnDismissListener(d->{if(confirmation==dialog)confirmation=null;if(active)focusCard(returnTo[0]);});
-        confirmation=dialog;dialog.show();ControlStyle.dialog(dialog,unit);View cancel=dialog.getButton(AlertDialog.BUTTON_NEGATIVE);cancel.post(()->{if(dialog.isShowing())cancel.requestFocusFromTouch();});
+        confirmation=dialog;dialog.show();ControlStyle.dialog(dialog,unit);View cancel=dialog.getButton(AlertDialog.BUTTON_NEGATIVE);cancel.setOnClickListener(v->{dialog.dismiss();KeyFeedback.back(activity);});cancel.post(()->{if(dialog.isShowing())cancel.requestFocusFromTouch();});
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
             try{
                 String thumbnailKey=store.imageKey(entry.id);store.remove(entry.id);thumbnails.remove(thumbnailKey);before.remove(entry.id);returnTo[0]=before.isEmpty()?WallpaperCatalog.DEFAULT:before.get(Math.max(0,Math.min(index,before.size()-1)));
-                refreshCards(returnTo[0],false);dialog.dismiss();
+                refreshCards(returnTo[0],false);dialog.dismiss();KeyFeedback.confirm(activity);
             }catch(IOException e){notice(tr("删除失败，请检查电视存储后重试","Unable to delete. Check TV storage and retry."));}
         });
     }

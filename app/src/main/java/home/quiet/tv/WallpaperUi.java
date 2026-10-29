@@ -26,7 +26,7 @@ final class WallpaperUi {
         return ControlStyle.action(unit,radius,color,0x38ffffff);
     }
     TextView button(String value,boolean primary,Runnable action){
-        TextView view=text(value,12);view.setId(androidx.core.view.ViewCompat.generateViewId());view.setFocusable(true);view.setGravity(Gravity.CENTER);
+        TextView view=new KeyFeedback.Text(context);view.setText(value);view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(12));view.setIncludeFontPadding(false);view.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));view.setId(androidx.core.view.ViewCompat.generateViewId());view.setFocusable(true);view.setGravity(Gravity.CENTER);
         view.setTextColor(INK);view.setMinHeight(px(primary?43:38));view.setPadding(px(primary?17:13),px(9),px(primary?17:13),px(9));
         view.setBackgroundDrawable(focusSurface(0xff242a33,100));
         view.setOnClickListener(v->action.run());return view;

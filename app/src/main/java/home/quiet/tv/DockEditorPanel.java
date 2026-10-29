@@ -55,7 +55,7 @@ final class DockEditorPanel extends ManagementPanel {
         for(int i=0;i<DockStore.CAPACITY;i++){
             final int slot=i;boolean occupied=i<values.size();String pkg=occupied?values.get(i):"";ApplicationInfo info=occupied?info(pkg):null;
             boolean unavailable=occupied && !builtIn(pkg) && (info==null || !info.enabled || !AppAvailability.installed(getPackageManager(),info));
-            LinearLayout card=column();card.setFocusable(true);card.setClickable(true);card.setClipChildren(false);card.setNextFocusUpId(managementTab().getId());card.setOnClickListener(v->edit(slot));card.setContentDescription("位置 "+(i+1)+"  "+(occupied?name(pkg):"添加常用应用")+(moving && slot==movingIndex?"  正在移动":""));slots.add(card);
+            LinearLayout card=column();card.setFocusable(true);card.setClickable(true);card.setClipChildren(false);card.setNextFocusUpId(managementTab().getId());card.setOnClickListener(v->{edit(slot);KeyFeedback.confirm(activity);});card.setContentDescription("位置 "+(i+1)+"  "+(occupied?name(pkg):"添加常用应用")+(moving && slot==movingIndex?"  正在移动":""));slots.add(card);
             LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,-2,1);if(i>0)cp.leftMargin=px(20);cards.addView(card,cp);
             TextView number=muted(String.format(Locale.ROOT,"%02d",i+1),10);card.addView(number);gap(card,10);
             FrameLayout art=new FrameLayout(this);art.setDuplicateParentStateEnabled(true);art.setBackgroundDrawable(focusSurface(12));art.setPadding(px(3),px(3),px(3),px(3));card.addView(art,new LinearLayout.LayoutParams(-1,height));
@@ -100,8 +100,8 @@ final class DockEditorPanel extends ManagementPanel {
     @android.annotation.SuppressLint("RestrictedApi")
     @Override public boolean dispatchKeyEvent(KeyEvent event){
         if(!moving)return false;int key=event.getKeyCode();
-        if(key==KeyEvent.KEYCODE_DPAD_CENTER || key==KeyEvent.KEYCODE_ENTER || key==KeyEvent.KEYCODE_NUMPAD_ENTER){if(slots.contains(getCurrentFocus())){if(event.getAction()==KeyEvent.ACTION_UP)endMove();return true;}}
-        if((key==KeyEvent.KEYCODE_DPAD_LEFT || key==KeyEvent.KEYCODE_DPAD_RIGHT) && slots.contains(getCurrentFocus())){if(event.getAction()==KeyEvent.ACTION_DOWN){int target=Math.max(0,Math.min(packages.size()-1,movingIndex+(key==KeyEvent.KEYCODE_DPAD_LEFT?-1:1)));if(target!=movingIndex){Collections.swap(packages,movingIndex,target);movingIndex=target;render(target);saveOrder();}}return true;}
+        if(key==KeyEvent.KEYCODE_DPAD_CENTER || key==KeyEvent.KEYCODE_ENTER || key==KeyEvent.KEYCODE_NUMPAD_ENTER){if(slots.contains(getCurrentFocus())){if(event.getAction()==KeyEvent.ACTION_UP&&!event.isCanceled()){endMove();KeyFeedback.confirm(activity);}return true;}}
+        if((key==KeyEvent.KEYCODE_DPAD_LEFT || key==KeyEvent.KEYCODE_DPAD_RIGHT) && slots.contains(getCurrentFocus())){if(event.getAction()==KeyEvent.ACTION_DOWN){int target=Math.max(0,Math.min(packages.size()-1,movingIndex+(key==KeyEvent.KEYCODE_DPAD_LEFT?-1:1)));if(target!=movingIndex){Collections.swap(packages,movingIndex,target);movingIndex=target;render(target);saveOrder();KeyFeedback.moved(activity);}}return true;}
         if((key==KeyEvent.KEYCODE_DPAD_UP || key==KeyEvent.KEYCODE_DPAD_DOWN) && slots.contains(getCurrentFocus()))return true;
         return false;
     }

@@ -196,3 +196,8 @@ __pycache__/
 # Browser client required by the native file-transfer tab.
 !/app/src/main/assets/file-transfer/
 !/app/src/main/assets/file-transfer/*
+
+# Original interaction sounds required by the shared TV UI.
+!/app/src/main/res/raw/key_move.wav
+!/app/src/main/res/raw/key_confirm.wav
+!/app/src/main/res/raw/key_back.wav

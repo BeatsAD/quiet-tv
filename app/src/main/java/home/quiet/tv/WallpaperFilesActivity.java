@@ -25,13 +25,15 @@ public final class WallpaperFilesActivity extends androidx.activity.ComponentAct
     private File boundary,folder;
     private Button choose;
     private int listing;
+    @android.annotation.SuppressLint("RestrictedApi")
+    @Override public boolean dispatchKeyEvent(KeyEvent key){return KeyFeedback.dispatch(getWindow().getDecorView(),key,()->super.dispatchKeyEvent(key));}
     @Override public void onCreate(Bundle saved){
         super.onCreate(saved);BackNavigation.install(this,()->{if(folder!=null&&!busy)browse(folder.equals(boundary)?null:folder.getParentFile());else finish();});getWindow().getDecorView().setSystemUiVisibility(5894);
         root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(32,24,32,24);root.setBackgroundColor(0xff151a21);setContentView(root);
-        Button back=new Button(this);back.setText("取消");back.setOnClickListener(v->finish());root.addView(back);
+        Button back=new KeyFeedback.Button(this);back.setText("取消");back.setOnClickListener(v->{finish();KeyFeedback.returned(this);});root.addView(back);
         status=new TextView(this);status.setTextColor(0xffeeeeee);status.setTextSize(20);status.setPadding(0,16,0,16);root.addView(status);
-        list=new ListView(this);root.addView(list,new LinearLayout.LayoutParams(-1,0,1));
-        choose=new Button(this);choose.setText("系统选择文件");choose.setOnClickListener(v->systemPicker());root.addView(choose);files();
+        list=new KeyFeedback.List(this);root.addView(list,new LinearLayout.LayoutParams(-1,0,1));
+        choose=new KeyFeedback.Button(this);choose.setText("系统选择文件");choose.setOnClickListener(v->systemPicker());root.addView(choose);files();
     }
     private void systemPicker(){
         String[] actions=Build.VERSION.SDK_INT>=19?new String[]{Intent.ACTION_OPEN_DOCUMENT,Intent.ACTION_GET_CONTENT}:new String[]{Intent.ACTION_GET_CONTENT};
@@ -102,7 +104,7 @@ public final class WallpaperFilesActivity extends androidx.activity.ComponentAct
                 runOnUiThread(()->{if(!closed){setResult(RESULT_OK,new Intent().putExtra("wallpaper",entry.id));finish();}});
             }catch(IOException|RuntimeException|OutOfMemoryError failure){
                 DiagnosticLog.info("wallpaper.import.failed","source=selected_file type="+failure.getClass().getSimpleName());
-                runOnUiThread(()->{if(!closed){busy=false;status.setText("导入失败，请检查文件格式、大小、存储空间及读取授权。");Button retry=new Button(this);retry.setText("重新选择");retry.setOnClickListener(v->systemPicker());root.addView(retry);retry.requestFocus();}});
+                runOnUiThread(()->{if(!closed){busy=false;status.setText("导入失败，请检查文件格式、大小、存储空间及读取授权。");Button retry=new KeyFeedback.Button(this);retry.setText("重新选择");retry.setOnClickListener(v->systemPicker());root.addView(retry);retry.requestFocus();}});
             }
         });
     }

@@ -22,6 +22,8 @@ Historical screenshots show published [1.2.4 test builds](https://github.com/Bea
 
 Without a calibrated mapping, current development source opens system settings when Home receives the standard Menu key, and the input selector for the standard TV Input key. Actions run on key release; canceled presses do not launch anything. Keys handled directly by vendor firmware and private key codes still require validation on the target model and firmware. Computer AI setup can [calibrate Home, Input and Menu](agent/remote.md); mappings save locally for the model, firmware and Android user after all three actions are confirmed.
 
+Current source adds Desktop Settings → Desktop → Interaction feedback → Key sounds, off by default. Enable it for soft navigation, selection and back sounds; disabling it silences feedback immediately and the preference persists locally. Boundaries and automatic focus restoration stay silent; held navigation sounds play at most once per 100 ms. This affects Quiet TV only and never changes system volume or other apps. This source feature has not shipped in a new APK; TV and external-speaker sound and latency still need device acceptance.
+
 ## App management and Dock
 
 Open 应用管理 (App Management) from All Apps. Management controls in this first Sony-targeted version are in Chinese.
