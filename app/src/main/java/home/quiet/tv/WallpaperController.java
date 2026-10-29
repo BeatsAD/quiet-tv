@@ -280,7 +280,7 @@ final class WallpaperController {
         header.addView(categories);gap(header,8);
         auto=button("",false,()->runSaved(()->{WallpaperCatalog s=store.snapshot();daily.cancel();store.rotation(!s.rotating);preview=store.snapshot().current;display(preview,true);refreshCards(preview,false);}));header.addView(auto);
         dynamicToggle=button("",false,this::toggleVideo);header.addView(dynamicToggle);
-        gap(header,8);upload=button(tr("上传壁纸","Upload"),false,()->{daily.cancel();stopVideo();uploads.show(WallpaperUi.backdrop(root,content),id->{if(picker!=null){if(id!=null){preview=id;WallpaperCatalog.Entry added=store.snapshot().find(id);dynamicTab=added!=null&&added.video();}refreshCards(preview,id!=null);}});});ui.icon(upload,R.drawable.wp_upload);header.addView(upload);
+        gap(header,8);upload=button(tr("文件传输","Files"),false,()->{daily.cancel();stopVideo();activity.startActivity(new android.content.Intent(activity,AppManagementActivity.class).putExtra("management-page",FileTransferPanel.PAGE));});ui.icon(upload,R.drawable.wp_upload);header.addView(upload);
         layout.addView(header);
         layout.addView(new View(activity),new LinearLayout.LayoutParams(1,0,1));
         actions=row();LinearLayout titles=new LinearLayout(activity);titles.setOrientation(LinearLayout.VERTICAL);title=label("",27);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);titles.addView(title,new LinearLayout.LayoutParams(-1,-2));

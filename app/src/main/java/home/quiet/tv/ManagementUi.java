@@ -16,7 +16,8 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     LinearLayout root,header,managementInfo;
     FrameLayout stage;
     float unit;
-    private final Button[] managementTabs=new Button[6];
+    private static final int[] MANAGEMENT_ORDER={0,1,2,3,6,4,5};
+    private final Button[] managementTabs=new Button[7];
     private int managementPage=-1;
     private boolean managementEntry=true;
     private Button managementStatus;
@@ -140,8 +141,8 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     LinearLayout toolbar(int selected){
         LinearLayout tools=row();LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,px(54));p.topMargin=px(22);root.addView(tools,p);
         String[] titles={"应用列表","首页应用","应用排序","儿童模式","版本更新","诊断日志"};
-        for(int i=0;i<titles.length;i++){
-            Button tab=button(titles[i],()->{});managementTab(tab,i,selected,header.getChildAt(0));
+        for(int i:MANAGEMENT_ORDER){
+            Button tab=button(i==FileTransferPanel.PAGE?"文件传输":titles[i],()->{});managementTab(tab,i,selected,header.getChildAt(0));
             LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(-2,px(36));tp.rightMargin=px(12);tools.addView(tab,tp);
         }
         managementHeader();
@@ -157,7 +158,7 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
             if(key!=KeyEvent.KEYCODE_DPAD_LEFT && key!=KeyEvent.KEYCODE_DPAD_RIGHT && key!=KeyEvent.KEYCODE_DPAD_DOWN)return false;
             if(event.getAction()==KeyEvent.ACTION_UP)return true;
             if(key==KeyEvent.KEYCODE_DPAD_DOWN)focusManagementContent();
-            else{int next=Math.max(0,Math.min(managementTabs.length-1,page+(key==KeyEvent.KEYCODE_DPAD_RIGHT?1:-1)));if(next!=page)managementTabs[next].performClick();}
+            else{int[] order=MANAGEMENT_ORDER;int position=0;for(int i=0;i<order.length;i++)if(order[i]==page)position=i;int next=order[Math.max(0,Math.min(order.length-1,position+(key==KeyEvent.KEYCODE_DPAD_RIGHT?1:-1)))];if(next!=page)managementTabs[next].performClick();}
             return true;
         });
     }

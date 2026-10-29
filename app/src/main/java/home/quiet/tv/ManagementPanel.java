@@ -26,6 +26,8 @@ abstract class ManagementPanel extends ContextWrapper {
     public void handleBack(){finish();}
     void focusManagementContent(){}
     void managementConnected(){}
+    void activityResult(int request,int result,Intent data){}
+    void permissionResult(int request,int[] results){}
     void leaveManagement(Runnable action){action.run();}
     void managementMore(){activity.defaultManagementMore();}
     void managementMoreOptions(LinearLayout menu){activity.defaultManagementMoreOptions(menu);}
