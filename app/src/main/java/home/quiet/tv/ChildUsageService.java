@@ -9,6 +9,10 @@ import android.view.accessibility.AccessibilityEvent;
 /** Observes package/window identity only, and times an app explicitly launched from Quiet TV. */
 public final class ChildUsageService extends AccessibilityService {
     private static volatile ChildUsageService instance;
+    private static final java.util.concurrent.CopyOnWriteArrayList<Runnable> listeners=new java.util.concurrent.CopyOnWriteArrayList<>();
+    static void listen(Runnable listener){listeners.addIfAbsent(listener);}
+    static void unlisten(Runnable listener){listeners.remove(listener);}
+    static void changed(){for(Runnable listener:listeners)listener.run();}
     private final Handler handler=new Handler(Looper.getMainLooper());
     private ChildModeStore store;
     private String target="",foreground="",blocking="";
@@ -38,12 +42,22 @@ public final class ChildUsageService extends AccessibilityService {
         }
     }};
     @Override protected void onServiceConnected(){
-        super.onServiceConnected();store=new ChildModeStore(this);instance=this;
+        super.onServiceConnected();store=new ChildModeStore(this);instance=this;DiagnosticLog.info("child.timer.service","state=connected");
         IntentFilter filter=new IntentFilter(Intent.ACTION_SCREEN_OFF);filter.addAction(Intent.ACTION_SCREEN_ON);filter.addAction(Intent.ACTION_USER_PRESENT);
         if(!registered){if(Build.VERSION.SDK_INT>=33)registerReceiver(screen,filter,Context.RECEIVER_NOT_EXPORTED);else registerReceiver(screen,filter);registered=true;}
         // Clear stale failure only after a fresh explicit service connection.
         store.fault("");
     }
+    static Boolean allowed(Context context){
+        try{
+            String enabled=android.provider.Settings.Secure.getString(context.getContentResolver(),android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+            if(enabled==null)return null;
+            ComponentName own=new ComponentName(context,ChildUsageService.class);
+            for(String item:enabled.split(":"))if(own.equals(ComponentName.unflattenFromString(item)))return true;
+            return false;
+        }catch(SecurityException unavailable){return null;}
+    }
+    static ChildTimerState status(Context context){return ChildTimerState.read(allowed(context),connected(),new ChildModeStore(context).fault());}
     static boolean connected(){return instance!=null;}
     static boolean ready(Context context){return connected() && new ChildModeStore(context).fault().isEmpty();}
     static boolean watch(String pkg){
@@ -85,7 +99,7 @@ public final class ChildUsageService extends AccessibilityService {
         try{startActivity(ChildBlockActivity.intent(this,target).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP));handler.removeCallbacks(checkBlock);handler.postDelayed(checkBlock,2000);}
         catch(SecurityException|android.content.ActivityNotFoundException e){store.fault("系统不允许显示到时限制页");blocking="";}
     }
-    @Override public void onInterrupt(){pause();foreground="";if(store!=null)store.fault("计时服务已中断，请重新启用");}
-    @Override public void onDestroy(){stopSession();handler.removeCallbacksAndMessages(null);if(registered)unregisterReceiver(screen);if(instance==this)instance=null;super.onDestroy();}
-    @Override public boolean onUnbind(Intent intent){stopSession();if(instance==this)instance=null;return super.onUnbind(intent);}
+    @Override public void onInterrupt(){DiagnosticLog.info("child.timer.service","state=interrupted");pause();foreground="";if(store!=null)store.fault("计时服务已中断，请重新启用");}
+    @Override public void onDestroy(){DiagnosticLog.info("child.timer.service","state=destroyed");stopSession();handler.removeCallbacksAndMessages(null);if(registered)unregisterReceiver(screen);if(instance==this)instance=null;changed();super.onDestroy();}
+    @Override public boolean onUnbind(Intent intent){DiagnosticLog.info("child.timer.service","state=unbound");stopSession();if(instance==this)instance=null;changed();return super.onUnbind(intent);}
 }

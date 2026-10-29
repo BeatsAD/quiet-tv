@@ -117,7 +117,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private String tr(String zh, String en) { return chinese ? zh : en; }
 
     @Override public void onCreate(Bundle state) {
-        super.onCreate(state);BackNavigation.install(this,this::handleBack);
+        super.onCreate(state);InputDiagnostics.home(this,isHomeIntent(getIntent()),"create");BackNavigation.install(this,this::handleBack);
         unit = getResources().getDisplayMetrics().widthPixels / 960f;
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN
                 | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
@@ -357,7 +357,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     @Override public void onWindowFocusChanged(boolean focused){
         if(waitingForUnlock){super.onWindowFocusChanged(focused);return;}
         long started=SystemClock.uptimeMillis();
-        homeResumeEvent("home.window_focus","focused="+focused);
+        homeResumeEvent("home.window_focus","focused="+focused+" "+InputDiagnostics.focus(this));
         try{
             super.onWindowFocusChanged(focused);if(wallpapers!=null)wallpapers.windowFocusChanged(focused);systemEntryLifecycle("window_focus="+focused);if(focused && resumed && systemEntryDispatched)systemEntryPending="";if(focused && resumed){new HomeProxy(this).visible(this);if(!isFinishing()){HomeGuardRecovery.visible(this);launchBootApp();}}
         }finally{homeResumeEvent("home.window_focus.end","focused="+focused+" callbackMs="+(SystemClock.uptimeMillis()-started));}
@@ -410,7 +410,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         super.onStop();
     }
     @Override protected void onNewIntent(Intent intent){
-        super.onNewIntent(intent);setIntent(intent);
+        super.onNewIntent(intent);setIntent(intent);InputDiagnostics.home(this,isHomeIntent(intent),"new_intent");
         if(waitingForUnlock){resumeAfterUnlock();return;}
         if(!new HomeProxy(this).allowed(intent)){new HomeProxy(this).original(this);finish();return;}
         getWindow().getDecorView().post(()->{if(resumed && hasWindowFocus())new HomeProxy(this).visible(this);});
@@ -548,6 +548,10 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private void saveFocus(){if(row>=0)getPreferences(0).edit().putInt("row",row).putInt("column",column).putString("package",activePackage).apply();}
 
+    @Override protected void onActivityResult(int request,int result,Intent data){
+        super.onActivityResult(request,result,data);
+        if(request==WallpaperFilesActivity.REQUEST&&result==Activity.RESULT_OK&&data!=null&&wallpapers!=null)getWindow().getDecorView().post(()->{if(!isFinishing()&&!UiCompat.destroyed(this))wallpapers.imported(data.getStringExtra("wallpaper"));});
+    }
     public void handleBack(){if(inputPopup!=null && inputPopup.isShowing())inputPopup.dismiss();else if(row>0){row=0;column=Math.min(restoreColumn,maxColumn(0));focusCurrent(true);}}
 
     // Public Activity override; AndroidX core marks its inherited bridge class library-only.
@@ -710,6 +714,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private App currentApp(){if(row==0)return !homeAppsVisible||dock.isEmpty()?null:dock.get(Math.min(column,dock.size()-1));int n=(row-1)*APP_COLUMNS+column;return n>=0&&n<apps.size()?apps.get(n):null;}
 
     @Override public boolean dispatchTouchEvent(MotionEvent event){
+        InputDiagnostics.pointer(this,event);
         if(!waitingForUnlock && event.getActionMasked()==MotionEvent.ACTION_DOWN)HomeGuardService.bootSourceUserAction(this);
         return super.dispatchTouchEvent(event);
     }

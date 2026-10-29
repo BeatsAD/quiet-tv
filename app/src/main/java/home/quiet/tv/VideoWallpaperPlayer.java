@@ -50,6 +50,8 @@ final class VideoWallpaperPlayer {
     private Target target;
     private boolean enabled,screenOff,rendered,destroyed;
     private volatile boolean paused;
+    private volatile boolean sound;
+    void setSound(boolean enabled){sound=enabled;worker.post(()->{if(player!=null)player.setSound(sound);});}
     private volatile int generation;
     private final Runnable timeout=()->{
         Target pending=target;
@@ -226,7 +228,7 @@ final class VideoWallpaperPlayer {
                         @Override public void failed(Failure reason){main.post(()->fail(request,reason));}
                         @Override public void size(int width,int height,float pixelRatio){main.post(()->{if(current(next,request)&&width>0&&height>0){next.aspect=VideoGeometry.aspect(width,height,pixelRatio,0);layout();}});}
                     });
-                    player.setPaused(paused);player.prepare();
+                    player.setSound(sound);player.setPaused(paused);player.prepare();
                 }catch(IOException|RuntimeException e){DiagnosticLog.error("wallpaper.video.prepare_failed",diagnosticContext+" "+VideoDiagnostics.failureDetails(e),e);main.post(()->fail(request,e instanceof IOException?Failure.FILE:Failure.DECODE));}
                 finally{done.run();}
             });

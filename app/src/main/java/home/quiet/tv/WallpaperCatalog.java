@@ -60,7 +60,7 @@ final class WallpaperCatalog {
         }
     }
     String current = DEFAULT;
-    boolean rotating;
+    boolean rotating,sound;
     String lastVideo="",staticBeforeVideo=DEFAULT;
     boolean rotationBeforeVideo;
     // Source of the displayed cache, not a configurable download provider.
@@ -130,7 +130,7 @@ final class WallpaperCatalog {
     }
     WallpaperCatalog copy() { try { return read(json()); } catch (JSONException e) { throw new IllegalStateException(e); } }
     JSONObject json() throws JSONException {
-        JSONObject result=new JSONObject().put("version",2).put("current",current).put("rotating",rotating);
+        JSONObject result=new JSONObject().put("version",2).put("current",current).put("rotating",rotating).put("sound",sound);
         result.put("lastVideo",lastVideo).put("staticBeforeVideo",staticBeforeVideo).put("rotationBeforeVideo",rotationBeforeVideo);
         JSONArray user=new JSONArray();
         for (Entry e:custom) user.put(new JSONObject().put("id",e.id).put("name",e.name).put("width",e.width).put("height",e.height).put("bytes",e.bytes).put("kind",e.kind).put("mime",e.videoMime).put("durationMs",e.durationMs).put("fps",e.fps).put("rotation",e.rotation).put("pixelRatio",e.pixelRatio));
@@ -140,7 +140,7 @@ final class WallpaperCatalog {
     static WallpaperCatalog read(JSONObject json) throws JSONException {
         if (json.getInt("version")!=1&&json.getInt("version")!=2) throw new JSONException("Unsupported wallpaper catalog");
         WallpaperCatalog result=new WallpaperCatalog();
-        result.current=json.optString("current",DEFAULT); result.rotating=json.optBoolean("rotating",false);
+        result.current=json.optString("current",DEFAULT); result.rotating=json.optBoolean("rotating",false);result.sound=json.optBoolean("sound",false);
         result.lastVideo=json.optString("lastVideo","");result.staticBeforeVideo=json.optString("staticBeforeVideo",DEFAULT);result.rotationBeforeVideo=json.optBoolean("rotationBeforeVideo",false);
         JSONArray users=json.optJSONArray("custom");
         if(users!=null) for(int i=0;i<users.length() && result.custom.size()<MAX_CUSTOM+MAX_VIDEOS;i++) {

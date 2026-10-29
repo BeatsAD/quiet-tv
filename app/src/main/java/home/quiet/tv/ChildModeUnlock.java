@@ -27,12 +27,12 @@ final class ChildModeUnlock {
         view=activity.column();view.setPadding(p(22),p(12),p(22),p(12));view.setBackgroundDrawable(activity.surface(0xff20232a,0xff171a20,0x26ffffff,14));
         LinearLayout fields=view,pad=activity.column();
         title=activity.center("",20);fields.addView(title,new LinearLayout.LayoutParams(-1,p(26)));
-        pin=activity.input("","输入 6 位数字");pin.setId(androidx.core.view.ViewCompat.generateViewId());pin.setTag("child-pin");pin.setGravity(Gravity.CENTER);
+        pin=activity.input("","输入 6 位数字");pin.setSaveEnabled(false);pin.setId(androidx.core.view.ViewCompat.generateViewId());pin.setTag("child-pin");pin.setGravity(Gravity.CENTER);
         pin.setInputType(InputType.TYPE_CLASS_NUMBER|InputType.TYPE_NUMBER_VARIATION_PASSWORD);pin.setFilters(new InputFilter[]{new InputFilter.LengthFilter(6),android.text.method.DigitsKeyListener.getInstance("0123456789")});
         if(android.os.Build.VERSION.SDK_INT>=21)pin.setShowSoftInputOnFocus(false);
         LinearLayout.LayoutParams pp=new LinearLayout.LayoutParams(-1,p(34));pp.topMargin=p(8);fields.addView(pin,pp);
         error=activity.muted("",11);error.setGravity(Gravity.CENTER);error.setTextColor(0xffe3aba1);androidx.core.view.ViewCompat.setAccessibilityLiveRegion(error,androidx.core.view.ViewCompat.ACCESSIBILITY_LIVE_REGION_POLITE);fields.addView(error,new LinearLayout.LayoutParams(-1,p(18)));
-        pin.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int start,int count,int after){}public void onTextChanged(CharSequence s,int start,int before,int count){}public void afterTextChanged(Editable value){if(!busy)error.setText("");}});
+        pin.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int start,int count,int after){}public void onTextChanged(CharSequence s,int start,int before,int count){}public void afterTextChanged(Editable value){if(!busy){error.setText("");if(mode==0&&value.length()==6)submit();}}});
         LinearLayout.LayoutParams padLayout=new LinearLayout.LayoutParams(-1,-2);padLayout.topMargin=p(4);fields.addView(pad,padLayout);
         for(int row=0;row<4;row++){
             LinearLayout line=activity.row();LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,p(32));if(row>0)lp.topMargin=p(6);pad.addView(line,lp);
@@ -75,7 +75,7 @@ final class ChildModeUnlock {
         generation++;mode=next;busy=false;enable(true);pin.setText("");error.setText("");
         title.setText(next==0?"家长验证":next==2?"使用恢复码":"设置家长密码");confirm.setText(next==0?"解锁":next==2?"确认恢复码":"设置密码");
         pin.setContentDescription(next==2?"恢复码":"家长密码");recover.setVisibility(next==0?View.VISIBLE:View.GONE);
-        if(next==2)error.setText("恢复码可在版本更新页面查看");
+        if(next==2)error.setText("请输入家长事先保存的恢复码");
     }
     void focus(){if(busy)activity.managementTab().requestFocus();else pin.requestFocus();}
     private void enter(int index){
@@ -93,7 +93,7 @@ final class ChildModeUnlock {
         if(!ChildModeCredentials.numeric(value)){error.setText("请输入 6 位数字");return;}
         if(mode==2){if(!store.verifyRecovery(value)){error.setText("恢复码不正确");return;}mode(3);focus();return;}
         if(mode==0&&store.retryAfter()>SystemClock.elapsedRealtime()){error.setText("输入次数过多，请稍后重试");return;}
-        int request=++generation;boolean setup=mode!=0;String credential=store.credential();busy=true;enable(false);error.setText(setup?"正在保存…":"正在验证…");
+        int request=++generation;boolean setup=mode!=0,firstSetup=mode==1;String credential=store.credential();busy=true;enable(false);error.setText(setup?"正在保存…":"正在验证…");
         worker.execute(()->{
             String prepared=null,problem=null;boolean valid=false;
             try{if(setup){prepared=ChildModeCredentials.prepare(value);valid=true;}else valid=ChildModeCredentials.verify(value,credential);}
@@ -105,7 +105,7 @@ final class ChildModeUnlock {
                 if(failure!=null){error.setText(failure);return;}
                 if(!matched){store.failed();pin.setText("");error.setText("密码不正确，请重试");focus();return;}
                 if(setup&&!store.saveCredential(result,value)){error.setText("保存失败，请重试");return;}
-                store.verified();pin.setText("");authorized.run();
+                store.verified();pin.setText("");if(firstSetup)ChildModeAuth.backup(activity,store,()->{if(!closed&&active.current())authorized.run();});else authorized.run();
             });
         });
     }

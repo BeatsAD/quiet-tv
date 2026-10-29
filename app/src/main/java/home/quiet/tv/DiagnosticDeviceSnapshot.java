@@ -25,6 +25,13 @@ final class DiagnosticDeviceSnapshot {
         snapshot.section("HOME 候选与状态",snapshot::homeCandidates);
         snapshot.section("厂商私有启动路由",snapshot::privateHome);
         snapshot.section("桌面守护",snapshot::guard);
+        snapshot.section("儿童模式计时",()->{
+            snapshot.line("服务状态",ChildUsageService.status(context).message);
+            Boolean allowed=ChildUsageService.allowed(context);snapshot.line("设置授权",allowed==null?"无法读取":allowed?"是":"否");
+            snapshot.line("服务实际连接",ChildUsageService.connected()?"是":"否");
+            snapshot.line("故障",new ChildModeStore(context).fault().isEmpty()?"未记录":new ChildModeStore(context).fault());
+        });
+        snapshot.section("HOME 与输入事件",()->snapshot.text.append(InputDiagnostics.summary()).append('\n'));
         if(LegacyHomeKeyService.supported())snapshot.section("安卓4.4主页键修复",snapshot::legacyHomeKey);
         snapshot.section("开机接收组件",snapshot::bootReceiver);
         snapshot.section("厂商后台管理组件",snapshot::backgroundManagers);
@@ -32,7 +39,11 @@ final class DiagnosticDeviceSnapshot {
         return snapshot.text.toString();
     }
     static String adb(Context context){
-        return "配置与维护由电脑 ADB 执行。电脑连接状态需由电脑核对。\n"+HomeGuardAdb.summary(context)+"\n";
+        ManagementAdb management=ManagementAdb.existing();
+        String debug="无法确认";
+        try{int value=Build.VERSION.SDK_INT>=17?Settings.Global.getInt(context.getContentResolver(),"adb_enabled",-1):Settings.Secure.getInt(context.getContentResolver(),"adb_enabled",-1);if(value==1)debug="已开启";}catch(SecurityException ignored){}
+        return "电脑 ADB 连接：需由电脑核对\n系统调试开关："+debug+"\n应用内管理连接："+(management==null?"本进程尚未建立":management.state().name()+"  原因分类："+management.adb.failure().name())
+            +"\n保持 ADB 调试："+HomeGuardAdb.summary(context)+"\n";
     }
     @android.annotation.SuppressLint("ObsoleteSdkInt") // Shared with the API19 build.
     private void device() throws JSONException {

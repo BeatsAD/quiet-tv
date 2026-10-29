@@ -3,5 +3,4 @@
     android:accessibilityEventTypes="typeWindowStateChanged"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:notificationTimeout="0"
-    android:canRetrieveWindowContent="false"
-    android:settingsActivity="home.quiet.tv.ChildModeActivity" />
+    android:canRetrieveWindowContent="false" />
