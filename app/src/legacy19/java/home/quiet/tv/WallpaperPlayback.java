@@ -1,6 +1,6 @@
 package home.quiet.tv;
 
-import android.app.Activity;
+import android.content.Context;
 import android.content.res.AssetFileDescriptor;
 import android.media.MediaPlayer;
 import android.os.Handler;
@@ -10,12 +10,12 @@ import java.io.*;
 /** Android 4.x backend. Media3 is absent from this profile's dependency graph. */
 final class WallpaperPlayback {
     private final MediaPlayer player=new MediaPlayer();
-    private final Activity activity;
+    private final Context source;
     private final File file;
     private final WallpaperCatalog.Entry entry;
     private boolean prepared,paused;
-    WallpaperPlayback(Activity activity,Handler worker,Surface surface,File file,WallpaperCatalog.Entry entry,String context,VideoWallpaperPlayer.PlaybackEvents events){
-        this.activity=activity;this.file=file;this.entry=entry;
+    WallpaperPlayback(Context source,Handler worker,Surface surface,File file,WallpaperCatalog.Entry entry,String context,VideoWallpaperPlayer.PlaybackEvents events){
+        this.source=source;this.file=file;this.entry=entry;
         player.setSurface(surface);player.setScreenOnWhilePlaying(false);player.setVolume(0,0);player.setLooping(true);
         player.setOnPreparedListener(p->{try{
             prepared=true;if(!paused)p.start();DiagnosticLog.info("wallpaper.video.prepared",context+" backend=platform evidence=prepared_callback_only");events.ready();
@@ -30,7 +30,7 @@ final class WallpaperPlayback {
     }
     void prepare()throws IOException{
         if(file!=null){try(FileInputStream input=new FileInputStream(file)){player.setDataSource(input.getFD());}}
-        else try(AssetFileDescriptor input=activity.getAssets().openFd("wallpapers/"+entry.id+".mp4")){player.setDataSource(input.getFileDescriptor(),input.getStartOffset(),input.getLength());}
+        else try(AssetFileDescriptor input=source.getAssets().openFd("wallpapers/"+entry.id+".mp4")){player.setDataSource(input.getFileDescriptor(),input.getStartOffset(),input.getLength());}
         player.prepareAsync();
     }
     void release(Runnable completed){player.setOnPreparedListener(null);player.setOnErrorListener(null);player.release();completed.run();}

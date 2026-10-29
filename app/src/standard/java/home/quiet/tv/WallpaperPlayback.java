@@ -1,6 +1,5 @@
 package home.quiet.tv;
 
-import android.app.Activity;
 import android.net.Uri;
 import android.os.Handler;
 import android.content.Context;
@@ -28,10 +27,10 @@ final class WallpaperPlayback {
     private boolean releasing,releaseTimedOut;
     private String decoder="unknown";
     private boolean rendered;
-    WallpaperPlayback(Activity activity,Handler worker,Surface surface,File file,WallpaperCatalog.Entry entry,String context,VideoWallpaperPlayer.PlaybackEvents events){
+    WallpaperPlayback(Context source,Handler worker,Surface surface,File file,WallpaperCatalog.Entry entry,String context,VideoWallpaperPlayer.PlaybackEvents events){
         this.worker=worker;this.context=context;
         boolean manualRotation=VideoGeometry.manualRotation(android.os.Build.VERSION.SDK_INT,entry.rotation);
-        DefaultRenderersFactory renderers=new DefaultRenderersFactory(activity){
+        DefaultRenderersFactory renderers=new DefaultRenderersFactory(source){
             @Override protected void buildVideoRenderers(Context context,int extensions,MediaCodecSelector selector,boolean fallback,Handler handler,VideoRendererEventListener listener,long joiningMs,ArrayList<Renderer> output){
                 if(!manualRotation){super.buildVideoRenderers(context,extensions,selector,fallback,handler,listener,joiningMs,output);return;}
                 output.add(new MediaCodecVideoRenderer(new MediaCodecVideoRenderer.Builder(context).setCodecAdapterFactory(getCodecAdapterFactory()).setMediaCodecSelector(selector).setEnableDecoderFallback(fallback).setEventHandler(handler).setEventListener(listener).setAllowedJoiningTimeMs(joiningMs)){
@@ -44,7 +43,7 @@ final class WallpaperPlayback {
             }
         };
         renderers.setEnableDecoderFallback(true);
-        player=new ExoPlayer.Builder(activity,renderers)
+        player=new ExoPlayer.Builder(source,renderers)
             .setLooper(worker.getLooper())
             .setLoadControl(new DefaultLoadControl.Builder().setTargetBufferBytes(12*1024*1024)
                 .setBufferDurationsMs(5000,15000,500,1000).setPrioritizeTimeOverSizeThresholds(false).build()).build();

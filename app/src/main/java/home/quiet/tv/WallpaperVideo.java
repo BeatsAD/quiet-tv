@@ -1,7 +1,6 @@
 package home.quiet.tv;
 
 import android.annotation.TargetApi;
-import android.graphics.Bitmap;
 import android.media.*;
 import android.os.Build;
 import java.io.*;
@@ -18,7 +17,7 @@ final class WallpaperVideo {
         try{return new JSONObject().put("purpose","wallpaper").put("imageMaxBytes",WallpaperUploadServer.MAX_UPLOAD)
             .put("videoMaxBytes",MAX_UPLOAD).put("videoMaxWidth",Build.VERSION.SDK_INT>=21?3840:1920)
             .put("videoMaxHeight",Build.VERSION.SDK_INT>=21?2160:1080).put("videoMaxFps",60).put("videoFormats",new JSONArray(java.util.Arrays.asList("mp4","mov","mkv","webm")))
-            .put("hevc",Build.VERSION.SDK_INT>=21&&Api21.hasHevc()).toString();}
+            .put("hevc",Build.VERSION.SDK_INT>=21&&Api16.legacyDecoder("video/hevc")).toString();}
         catch(JSONException e){throw new IllegalStateException(e);}
     }
     static Info inspect(File file)throws IOException {return inspect(file,"");}
@@ -73,8 +72,6 @@ final class WallpaperVideo {
             if((Float.isNaN(info.fps)||Float.isInfinite(info.fps))||info.fps<=0||info.fps>60.1f||sampled>60.5f)throw VideoDiagnostics.failure("frame_rate","invalid_or_excessive_frame_rate","请使用不超过 60 FPS 的视频 / Use video up to 60 FPS");
             if(format.containsKey("crypto-key"))throw rejected(stage,"encrypted_track");
             DiagnosticLog.info("wallpaper.video.inspect",context+" mime="+VideoDiagnostics.mime(info.mime)+" size="+info.width+"x"+info.height+" fps="+info.fps+" sampledFps="+sampled+" rotation="+info.rotation+" durationMs="+info.durationMs+" bytes="+file.length());
-            // Vendor declarations are diagnostic only; actual preview decides compatibility.
-            if(Build.VERSION.SDK_INT>=21)try{Api21.supports(info);}catch(IOException ignored){}
             DiagnosticLog.info("wallpaper.video.admission",context+" decision=defer_to_playback");
             return info;
         }catch(VideoDiagnostics.Failure e){throw e;}
@@ -112,7 +109,7 @@ final class WallpaperVideo {
             }
         }
         // Some extractors expose codec configuration without Annex-B start codes.
-        // The decoder capability check and actual preview remain authoritative.
+        // Actual preview remains authoritative for decoder compatibility.
     }
     }
     static final class Bits {
@@ -121,68 +118,4 @@ final class WallpaperVideo {
         int read(int count) throws IOException {if(count<0||bit+count>bytes.length*8)throw invalid();int value=0;while(count-->0){value=(value<<1)|((bytes[bit/8]>>(7-bit%8))&1);bit++;}return value;}
         int ue() throws IOException {int zeros=0;while(read(1)==0){if(++zeros>20)throw invalid();}return (1<<zeros)-1+read(zeros);}
     }
-    static void poster(File video,File output,Info info) {poster(video,output,info,"");}
-    static void poster(File video,File output,Info info,String context) {
-        MediaMetadataRetriever retriever=new MediaMetadataRetriever();Bitmap frame=null,small=null;
-        try{
-            retriever.setDataSource(video.getPath());int width=info.rotation%180==0?info.width:info.height,height=info.rotation%180==0?info.height:info.width;
-            float scale=Math.min(1f,640f/Math.max(width,height));int w=Math.max(1,Math.round(width*scale)),h=Math.max(1,Math.round(height*scale));
-            frame=Build.VERSION.SDK_INT>=27?Api27.frame(retriever,w,h):retriever.getFrameAtTime(0,MediaMetadataRetriever.OPTION_CLOSEST_SYNC);
-            if(frame==null)frame=Build.VERSION.SDK_INT>=27?retriever.getScaledFrameAtTime(-1,MediaMetadataRetriever.OPTION_CLOSEST_SYNC,w,h):retriever.getFrameAtTime(-1);
-            if(frame==null){DiagnosticLog.info("wallpaper.video.poster_failed",context+" reason=no_frame optional=true");return;}
-            // The retriever may already rotate the frame. Preserve its actual aspect instead of stretching it.
-            scale=Math.min(1f,640f/Math.max(frame.getWidth(),frame.getHeight()));
-            w=Math.max(1,Math.round(frame.getWidth()*scale));h=Math.max(1,Math.round(frame.getHeight()*scale));
-            if(info.pixelRatio!=1f){float aspect=VideoGeometry.aspect(info.width,info.height,info.pixelRatio,info.rotation);w=aspect>=1?640:Math.max(1,Math.round(640*aspect));h=aspect>=1?Math.max(1,Math.round(640/aspect)):640;}
-            small=Bitmap.createScaledBitmap(frame,w,h,true);
-            try(FileOutputStream stream=new FileOutputStream(output)){if(!small.compress(Bitmap.CompressFormat.JPEG,85,stream))throw new IOException();stream.getFD().sync();}
-        }catch(IOException|RuntimeException|OutOfMemoryError e){DiagnosticLog.error("wallpaper.video.poster_failed",context+" optional=true "+VideoDiagnostics.failureDetails(e),e);if(output.isFile()&&!output.delete())android.util.Log.w("QuietTV","Incomplete video poster retained");}
-        finally{if(small!=null&&small!=frame)small.recycle();if(frame!=null)frame.recycle();try{retriever.release();}catch(IOException ignored){}}
-    }
-    static void poster(File video,File output,WallpaperCatalog.Entry entry){
-        Info info=new Info();info.width=entry.width;info.height=entry.height;info.rotation=entry.rotation;info.pixelRatio=entry.pixelRatio;poster(video,output,info);
-    }
-    @TargetApi(21) private static final class Api21 {
-        static boolean hasHevc(){return Api16.legacyDecoder("video/hevc");}
-        static boolean supports(Info info)throws IOException{
-            boolean queryFailed=false;int matching=0,eligible=0;
-            MediaCodecInfo[] codecs;
-            try{codecs=new MediaCodecList(MediaCodecList.REGULAR_CODECS).getCodecInfos();}
-            catch(RuntimeException failure){DiagnosticLog.error("wallpaper.video.codec_query_failed",failure);throw unavailable();}
-            for(MediaCodecInfo codec:codecs){
-                try{
-                    if(codec.isEncoder())continue;
-                    boolean matches=false;for(String type:codec.getSupportedTypes())if(info.mime.equalsIgnoreCase(type)){matches=true;break;}
-                    if(!matches)continue;matching++;
-                    if((Math.max(info.width,info.height)>1920||Math.min(info.width,info.height)>1080)&&((Build.VERSION.SDK_INT>=29&&!Api29.hardware(codec))||codec.getName().startsWith("OMX.google.")||codec.getName().startsWith("c2.android."))){
-                        DiagnosticLog.info("wallpaper.video.codec_skipped","codec="+codec.getName()+" reason=software_above_1080p");continue;
-                    }
-                    eligible++;MediaCodecInfo.VideoCapabilities video=codec.getCapabilitiesForType(info.mime).getVideoCapabilities();
-                    if(video==null){queryFailed=true;DiagnosticLog.info("wallpaper.video.codec_query_failed","codec="+codec.getName()+" reason=missing_video_capabilities");continue;}
-                    boolean supported=fits(video,info.width,info.height,info.fps,codec.getName());
-                    if(!supported&&Math.max(info.width,info.height)<=1920&&Math.min(info.width,info.height)<=1080)supported=fits(video,info.height,info.width,info.fps,codec.getName());
-                    if(supported){DiagnosticLog.info("wallpaper.video.codec_check","result=supported codec="+codec.getName()+" evidence=declared_capabilities_only");return true;}
-                }catch(RuntimeException failure){queryFailed=true;DiagnosticLog.error("wallpaper.video.codec_query_failed","codec="+codec.getName(),failure);}
-            }
-            DiagnosticLog.info("wallpaper.video.codec_check","result="+(queryFailed?"unknown":"unsupported")+" matching="+matching+" eligible="+eligible);
-            if(queryFailed)throw unavailable();
-            return false;
-        }
-        private static IOException unavailable(){return new IOException("无法确认电视解码能力，请导出诊断日志 / Unable to query TV decoder capabilities; export diagnostics");}
-        private static boolean fits(MediaCodecInfo.VideoCapabilities video,int width,int height,float fps,String codec){
-            // Match Media3 1.8.1: check aligned coded dimensions and floor the signaled rate.
-            int wa=video.getWidthAlignment(),ha=video.getHeightAlignment();
-            int alignedWidth=((width+wa-1)/wa)*wa,alignedHeight=((height+ha-1)/ha)*ha;
-            double checkedFps=Math.floor(fps);
-            boolean supported=fps<1?video.isSizeSupported(alignedWidth,alignedHeight):video.areSizeAndRateSupported(alignedWidth,alignedHeight,checkedFps);
-            String detail="codec="+codec+" size="+width+"x"+height+" aligned="+alignedWidth+"x"+alignedHeight+" alignment="+wa+"x"+ha+" fps="+fps+" checkedFps="+checkedFps+" result="+supported;
-            // Optional diagnostic ranges must not override a successful size/rate query.
-            try{detail+=" widths="+video.getSupportedWidths()+" heights="+video.getSupportedHeights()+" frameRates="+video.getSupportedFrameRates();}
-            catch(RuntimeException failure){DiagnosticLog.error("wallpaper.video.codec_details_failed","codec="+codec,failure);}
-            DiagnosticLog.info("wallpaper.video.codec_size_rate",detail);
-            return supported;
-        }
-    }
-    @TargetApi(27) private static final class Api27 {static Bitmap frame(MediaMetadataRetriever r,int w,int h){return r.getScaledFrameAtTime(0,MediaMetadataRetriever.OPTION_CLOSEST_SYNC,w,h);}}
-    @TargetApi(29) private static final class Api29 {static boolean hardware(MediaCodecInfo codec){return codec.isHardwareAccelerated();}}
 }
