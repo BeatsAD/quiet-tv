@@ -571,6 +571,12 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             DiagnosticLog.info("home.action.key","entry="+topEntry()+" key="+key+" phase="+event.getAction()+" ready="+ready+" popup="+(inputPopup!=null && inputPopup.isShowing()));
         if(inputPopup!=null && inputPopup.isShowing())return super.dispatchKeyEvent(event);
         if(!ready)return super.dispatchKeyEvent(event);
+        if(key==KeyEvent.KEYCODE_MENU || key==KeyEvent.KEYCODE_TV_INPUT){
+            if(event.getAction()==KeyEvent.ACTION_UP && !event.isCanceled()){
+                if(key==KeyEvent.KEYCODE_MENU)openSettings(Settings.ACTION_SETTINGS);else showInputs();
+            }
+            return true;
+        }
         if(key==KeyEvent.KEYCODE_BACK && row>0){if(event.getAction()==KeyEvent.ACTION_UP)handleBack();return true;}
         if(key==KeyEvent.KEYCODE_DPAD_LEFT || key==KeyEvent.KEYCODE_DPAD_RIGHT || key==KeyEvent.KEYCODE_DPAD_UP || key==KeyEvent.KEYCODE_DPAD_DOWN){
             if(event.getAction()==KeyEvent.ACTION_UP)return true;

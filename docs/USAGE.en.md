@@ -20,6 +20,8 @@ In 1.2.4, the greeting, clock, date, weather, top-right shortcuts and dock scrol
 
 Historical screenshots show published [1.2.4 test builds](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.2.4). Captures come directly from a Sony BRAVIA VH1 / Android 12 running published ARM32 build 64; they do not establish full feature or other-device acceptance. See [capture provenance](assets/README.md).
 
+Current development source opens system settings when Home receives the standard Menu key, and the input selector for the standard TV Input key. Actions run on key release; canceled presses do not launch anything. Keys handled directly by vendor firmware and private key codes still require validation on the target model and firmware.
+
 ## App management and Dock
 
 Open 应用管理 (App Management) from All Apps. Management controls in this first Sony-targeted version are in Chinese.

@@ -12,7 +12,7 @@ import java.util.concurrent.*;
 /** Explicit application events only, with at most 32 queued entries and one idle-expiring worker. */
 final class DiagnosticLog {
     private static volatile DiagnosticLog instance;
-    static boolean navigationKey(int code){return code==KeyEvent.KEYCODE_HOME||code==KeyEvent.KEYCODE_BACK||code==KeyEvent.KEYCODE_MENU
+    static boolean navigationKey(int code){return code==KeyEvent.KEYCODE_HOME||code==KeyEvent.KEYCODE_BACK||code==KeyEvent.KEYCODE_MENU||code==KeyEvent.KEYCODE_TV_INPUT
         ||code>=KeyEvent.KEYCODE_DPAD_UP&&code<=KeyEvent.KEYCODE_DPAD_CENTER||code==KeyEvent.KEYCODE_ENTER||code==KeyEvent.KEYCODE_NUMPAD_ENTER;}
     static void navigationKey(String source,KeyEvent event){
         if(event==null||!navigationKey(event.getKeyCode())||event.getRepeatCount()!=0

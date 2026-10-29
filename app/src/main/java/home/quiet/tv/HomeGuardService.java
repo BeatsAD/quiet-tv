@@ -40,7 +40,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         AccessibilityServiceInfo info=getServiceInfo();if(info==null)return;
         int flag=AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS;
         boolean observe=observeBootSource();
-        boolean wanted=filterHome() || homeKeys.pressed() || observe;int flags=wanted?info.flags|flag:info.flags&~flag;
+        boolean wanted=filterHome() || homeKeys.pressed() || observe || bootSourceDevice() && state!=null && state.ready();int flags=wanted?info.flags|flag:info.flags&~flag;
         int events=observe?info.eventTypes|AccessibilityEvent.TYPE_VIEW_CLICKED:info.eventTypes&~AccessibilityEvent.TYPE_VIEW_CLICKED;
         if(flags!=info.flags || events!=info.eventTypes){info.flags=flags;info.eventTypes=events;setServiceInfo(info);DiagnosticLog.info("home_guard.key_filter","enabled="+wanted+" bootObserve="+observe);}
         keyFiltering=wanted;
@@ -49,6 +49,10 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     @Override protected boolean onKeyEvent(KeyEvent event){
         DiagnosticLog.navigationKey("existing_accessibility_callback",event);
         if(event.getAction()==KeyEvent.ACTION_DOWN && navigationKey(event.getKeyCode()))stopBootSource("remote_navigation");
+        if(event.getAction()==KeyEvent.ACTION_DOWN && event.getRepeatCount()==0){
+            if(event.getKeyCode()==KeyEvent.KEYCODE_TV_INPUT)inputSelected(this);
+            if(event.getKeyCode()==KeyEvent.KEYCODE_HOME)cancelInputTransition();
+        }
         // Every other key passes through, including volume, directions and power.
         if(event.getKeyCode()!=KeyEvent.KEYCODE_HOME)return false;
         if(event.getAction()==KeyEvent.ACTION_DOWN && event.getRepeatCount()==0)homeObservation=DiagnosticOperation.nextId(System.currentTimeMillis());
@@ -86,7 +90,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         if(!bootSourceDevice() || !state.ready() || !HomeGuardPolicy.bootRecheck(SystemClock.elapsedRealtime()))return;
         if(!TvInputController.canOpen(this,ComponentName.unflattenFromString(BootSourcePolicy.PLAYER)))return;
         String boot=new BootAppStore(this).bootId();
-        bootSource=new BootSourcePolicy(boot,state.preferences.getString("sourceBoot",""),state.preferences.getInt("sourceBootAttempts",0),state.preferences.getBoolean("sourceBootStopped",false));
+        bootSource=new BootSourcePolicy(boot,state.preferences.getString("sourceBoot",""),state.preferences.getInt("sourceBootAttempts",0),state.preferences.getBoolean("sourceBootStopped",false),"9S63_H6".equals(Build.MODEL));
         saveBootSource();
     }
     @android.annotation.SuppressLint("ApplySharedPref")
@@ -143,8 +147,12 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         if(!bootSourceDevice())return;
         bootSourceUserAction(c,"input_selection");
         // The vendor source transition can briefly pass through its original HOME.
-        allowOriginal();HomeGuardRecovery.cancel();
+        HomeGuardService service=instance;
+        if(service!=null){service.policy.inputSelected(SystemClock.uptimeMillis());service.cancel();}
+        HomeGuardRecovery.cancel();
     }
+    static boolean inputTransition(){HomeGuardService service=instance;return service!=null && service.policy.inputTransition(SystemClock.uptimeMillis());}
+    static void cancelInputTransition(){HomeGuardService service=instance;if(service!=null){service.policy.cancelInput();service.transitionUntil=0;service.cancel();}}
     // Aerial 1.49: a vendor boot page may cover the first successful takeover much later.
     @android.annotation.SuppressLint("InlinedApi")
     private final Runnable bootRecheck=()->{
@@ -265,6 +273,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
             if(!Intent.ACTION_CLOSE_SYSTEM_DIALOGS.equals(action))DiagnosticLog.info("home_guard.lifecycle","action="+action+" elapsedRealtimeMs="+SystemClock.elapsedRealtime());
             if(Intent.ACTION_CLOSE_SYSTEM_DIALOGS.equals(action)){
                 if(!"homekey".equals(intent.getStringExtra("reason")))return;
+                cancelInputTransition();
                 boolean available=homeActionUsable() && HomeGuardState.canShow(HomeGuardService.this);
                 broadcastObservation=DiagnosticOperation.nextId(System.currentTimeMillis());
                 String problem=HomeGuardState.canShow(HomeGuardService.this)?state.homeActionProblem():"screen_or_unlock_unavailable";
@@ -313,7 +322,8 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     private void cancel(){handler.removeCallbacks(handover);handler.removeCallbacks(homeKeyHandover);}
     private void schedule(String reason){
         cancel();if(state==null || !state.enabled())return;
-        settleReason=reason;transitionUntil=SystemClock.uptimeMillis()+HomeGuardPolicy.SETTLE_MS;handler.postDelayed(handover,HomeGuardPolicy.SETTLE_MS);
+        long delay=Math.max(HomeGuardPolicy.SETTLE_MS,policy.inputDelay(SystemClock.uptimeMillis()));
+        settleReason=reason;transitionUntil=SystemClock.uptimeMillis()+delay;handler.postDelayed(handover,delay);
         scheduleBootSource();
     }
     @Override public void onSharedPreferenceChanged(SharedPreferences preferences,String key){
@@ -349,6 +359,8 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         BootAppLifecycle.foreground(this,(pkg.equals(getPackageName()) && cls.equals(HomeActivity.class.getName()))
             || (state.validSelection() && HomeGuardPolicy.matches(state.eventHome(),pkg,cls)));
         String previous=lastPackage;lastPackage=pkg;
+        if(bootSourceDevice() && BootSourcePolicy.PLAYER.equals(lastActivity) && !pkg.equals(previous)
+                && (bootSource==null || !bootSource.active(SystemClock.elapsedRealtime())))inputSelected(this);
         boolean target=policy.observe(state.eventHome(),pkg,cls,now);
         ComponentName original=ComponentName.unflattenFromString(state.selected());
         if(allowStock && original!=null && !pkg.equals(original.getPackageName()) && !pkg.equals(getPackageName()))allowStock=false;
@@ -356,6 +368,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
             cancel();if(!pkg.equals(getPackageName()))state.preferences.edit().putBoolean("homeInFront",false).apply();return;
         }
         if(!usable() || allowStock || !target){HomeGuardRecovery.observed("accessibility",allowStock?"allow_original":!target?"duplicate_window":"configuration_unavailable",age);return;}
+        if(policy.inputTransition(now)){HomeGuardRecovery.observed("accessibility","input_transition",age);schedule("信号源切换");return;}
         // Skyworth's source service may briefly show Home before the actual input player.
         if("com.tianci.tv".equals(previous) || "com.tianci.tv".equals(pkg) || bootSourceDevice() && "com.skyworth.tv".equals(previous) || now<transitionUntil){HomeGuardRecovery.observed("accessibility","settling",age);schedule("主页稳定期");return;}
         if(policy.consume(state.eventHome(),now,true,true,true)){HomeGuardRecovery.observed("accessibility","handover",age);HomeGuardRecovery.launch(this,"原主页事件");}
