@@ -22,6 +22,7 @@ final class ControlStyle extends Drawable {
         view.setTextColor(new ColorStateList(new int[][]{{-android.R.attr.state_enabled,android.R.attr.state_selected},{-android.R.attr.state_enabled},{android.R.attr.state_selected},{android.R.attr.state_focused},{}},new int[]{0xff686d76,0xff777d88,0xff191d23,0xfff5f6f8,0xff9298a4}));
     }
     static void dialog(AlertDialog dialog,float unit){
+        KeyFeedback.observeAlert(dialog);
         for(int which:new int[]{AlertDialog.BUTTON_POSITIVE,AlertDialog.BUTTON_NEGATIVE,AlertDialog.BUTTON_NEUTRAL}){
             TextView button=dialog.getButton(which);
             if(button!=null){button.setBackgroundDrawable(action(unit,24,0xff242a33,0x38ffffff));button.setTextColor(0xffeff0f4);}

@@ -59,7 +59,7 @@ final class FileTransferPanel extends ManagementPanel {
         LinearLayout pathRow=row();right.addView(pathRow,new LinearLayout.LayoutParams(-1,px(32)));upButton=button("返回上级",this::up);pathRow.addView(upButton,new LinearLayout.LayoutParams(-2,px(28)));upButton.setVisibility(View.GONE);
         location=muted("最近接收",11);location.setSingleLine(true);location.setEllipsize(android.text.TextUtils.TruncateAt.END);pathRow.addView(location,new LinearLayout.LayoutParams(0,-1,1));
         accessButton=button("选择文件",this::accessOptions);accessButton.setVisibility(View.GONE);pathRow.addView(accessButton,new LinearLayout.LayoutParams(-2,px(28)));
-        list=new ListView(activity);list.setId(androidx.core.view.ViewCompat.generateViewId());list.setDivider(null);list.setDividerHeight(px(4));list.setSelector(listSurface());right.addView(list,new LinearLayout.LayoutParams(-1,0,1));
+        list=new KeyFeedback.List(activity);list.setId(androidx.core.view.ViewCompat.generateViewId());list.setDivider(null);list.setDividerHeight(px(4));list.setSelector(listSurface());right.addView(list,new LinearLayout.LayoutParams(-1,0,1));
         list.setOnKeyListener((v,key,event)->{if(event.getAction()!=KeyEvent.ACTION_DOWN)return false;if(key==KeyEvent.KEYCODE_DPAD_LEFT){start.requestFocus();return true;}if(key==KeyEvent.KEYCODE_DPAD_UP&&list.getSelectedItemPosition()<=0){sourceTab().requestFocus();return true;}return false;});
         start.setOnKeyListener((v,key,event)->{if(key==KeyEvent.KEYCODE_DPAD_RIGHT){if(event.getAction()==KeyEvent.ACTION_DOWN)focusFiles();return true;}return false;});
         for(Button tab:new Button[]{received,local,removable}){tab.setNextFocusUpId(managementTab().getId());tab.setNextFocusDownId(list.getId());}

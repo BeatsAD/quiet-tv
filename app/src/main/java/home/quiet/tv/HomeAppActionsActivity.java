@@ -31,8 +31,8 @@ public final class HomeAppActionsActivity extends ManagementUi {
         pkg=getIntent().getStringExtra("package");if(pkg==null)pkg="";
         fromDock=getIntent().getBooleanExtra("dock",false);
         backdrop=getIntent().getParcelableExtra("backdrop");
-        dialog=new Dialog(this);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
-        dialog.setCanceledOnTouchOutside(true);dialog.setOnCancelListener(d->handleBack());
+        dialog=new KeyFeedback.Dialog(this);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        dialog.setCanceledOnTouchOutside(true);dialog.setOnCancelListener(d->{handleBack();KeyFeedback.returned(this);});
         if(getIntent().getBooleanExtra("add",false))picker("add",false);else menu();
     }
     private String name(String id){
@@ -114,7 +114,7 @@ public final class HomeAppActionsActivity extends ManagementUi {
             LinearLayout card=column();card.setFocusable(true);card.setFocusableInTouchMode(true);card.setClickable(true);card.setPadding(px(5),px(5),px(5),px(7));StateListDrawable focusBorder=new StateListDrawable();focusBorder.addState(new int[]{android.R.attr.state_focused},surface(0,0,0xfff3f4f7,10));focusBorder.addState(new int[]{},new ColorDrawable(Color.TRANSPARENT));card.setBackgroundDrawable(focusBorder);card.setContentDescription("选择 "+entry.label);
             ImageView image=new ImageView(this);androidx.core.graphics.drawable.RoundedBitmapDrawable cover=androidx.core.graphics.drawable.RoundedBitmapDrawableFactory.create(getResources(),pictures.get(entry.id));cover.setCornerRadius(px(11));cover.setAntiAlias(true);image.setImageDrawable(cover);image.setScaleType(ImageView.ScaleType.FIT_XY);LinearLayout.LayoutParams imageSize=new LinearLayout.LayoutParams(px(116),px(116*203f/360f));imageSize.gravity=Gravity.CENTER_HORIZONTAL;card.addView(image,imageSize);
             TextView title=center(entry.label,12);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);card.addView(title,new LinearLayout.LayoutParams(-1,px(28)));
-            card.setOnClickListener(v->select(entry.id));line.addView(card,new LinearLayout.LayoutParams(0,-2,1));if(first==null||entry.id.equals(candidate))first=card;
+            card.setOnClickListener(v->KeyFeedback.clicked(v,()->select(entry.id)));line.addView(card,new LinearLayout.LayoutParams(0,-2,1));if(first==null||entry.id.equals(candidate))first=card;
             if(i==choices.size()-1)for(int n=i%5+1;n<5;n++)line.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));
         }
         if(choices.isEmpty())box.addView(center("暂无可添加的应用",16));Button cancel=option("取消",0,()->{if(pickerFromMenu)menu();else finish();});show(700,first==null?cancel:first,false);
@@ -157,6 +157,7 @@ public final class HomeAppActionsActivity extends ManagementUi {
         if(mode.equals("picker")){if(pickerFromMenu)menu();else finish();}
         else if((mode.equals("positions")||mode.equals("notice"))&&!pickerMode.isEmpty())picker(pickerMode,pickerFromMenu);
         else if(!mode.equals("menu"))menu();else finish();
+        KeyFeedback.back(this);
     }
     @Override protected void onStop(){super.onStop();if(!waitingForDelete&&!isChangingConfigurations())finish();}
     @Override protected void onDestroy(){++generation;ChildModeAuth.dismiss(this);if(dialog!=null)dialog.dismiss();worker.shutdownNow();super.onDestroy();}

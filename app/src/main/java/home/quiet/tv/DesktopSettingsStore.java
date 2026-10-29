@@ -39,6 +39,8 @@ final class DesktopSettingsStore {
         }
         DiagnosticLog.info("desktop.greeting.saved","enabled="+enabled+" avatar="+(avatarEnabled&&!file.isEmpty()));
     }
+    boolean keySounds(){return preferences.getBoolean("key-sounds",false);}
+    void keySounds(boolean enabled){preferences.edit().putBoolean("key-sounds",enabled).apply();if(!enabled)KeySounds.stop();}
     boolean showTime(){return preferences.getBoolean("show-time",true);}
     boolean showAppTitle(){return preferences.getBoolean("show-app-title",true);}
     boolean showHomeApps(){return preferences.getBoolean("show-home-apps",true);}

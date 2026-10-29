@@ -20,6 +20,7 @@ final class HomeHeaderView extends FrameLayout {
     private final GreetingAvatarView avatar;
     private final GreetingAvatarStore avatars;
     private final View divider;
+    private final TextView buttonLabel;
     private final float unit;
     private final boolean chinese;
     private final Typeface typeface;
@@ -40,13 +41,15 @@ final class HomeHeaderView extends FrameLayout {
         clock=text("",50,400,0xfff1f2f6);clock.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));if(Build.VERSION.SDK_INT>=21)clock.setFontFeatureSettings("tnum");
         date=text("",14,500,0xffe6e7ed);UiCompat.letterSpacing(date,.08f);
         divider=new View(context);divider.setBackgroundColor(0x70e6e7ed);
-        buttons=new FrameLayout(context);place(buttons,132,36,780,67);
+        buttons=new FrameLayout(context);buttons.setClipChildren(false);buttons.setClipToPadding(false);place(buttons,132,36,780,67);
         String[] titles={tr("信号源","Inputs"),tr("网络","Network"),tr("设置","Settings")};int[] icons={R.drawable.ic_input,R.drawable.ic_ethernet,R.drawable.ic_settings};
         for(int i=0;i<3;i++){
             TextView pill=text("",14,400,0xffededf1);pill.setGravity(Gravity.CENTER);pill.setContentDescription(titles[i]);
             pill.setBackgroundDrawable(ControlStyle.action(unit,100,0x550b2538,0));
             setPillIcon(pill,icons[i]);pills.add(pill);FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(px(36),px(36));p.leftMargin=px(i*48);buttons.addView(pill,p);
         }
+        buttonLabel=text("",12,400,0xffededf1);buttonLabel.setGravity(Gravity.CENTER);buttonLabel.setVisibility(INVISIBLE);
+        FrameLayout.LayoutParams lp=new FrameLayout.LayoutParams(px(120),px(26));lp.topMargin=px(39);buttons.addView(buttonLabel,lp);
         avatar.changed=this::apply;apply();
     }
     private int px(float n){return Math.round(n*unit);}
@@ -106,6 +109,12 @@ final class HomeHeaderView extends FrameLayout {
         boolean[] shown={settings.showInput(),settings.showNetwork(),settings.showSettings()};int count=0;for(boolean show:shown)if(show)count++;
         int n=0;for(int i=0;i<pills.size();i++){TextView pill=pills.get(i);pill.setVisibility(shown[i]?VISIBLE:GONE);if(shown[i]){FrameLayout.LayoutParams p=(FrameLayout.LayoutParams)pill.getLayoutParams();p.leftMargin=px(96-(count-1-n++)*48);pill.setLayoutParams(p);}}
         buttons.setVisibility(count==0?GONE:VISIBLE);FrameLayout.LayoutParams bp=(FrameLayout.LayoutParams)buttons.getLayoutParams();bp.topMargin=px(gallery?24:67);buttons.setLayoutParams(bp);
+    }
+    void focusButton(int index){
+        buttonLabel.setVisibility(index>=0?VISIBLE:INVISIBLE);if(index<0)return;
+        String[] names={tr("信号源","Inputs"),tr("网络","Network"),tr("设置","Settings")};buttonLabel.setText(names[index]);
+        FrameLayout.LayoutParams label=(FrameLayout.LayoutParams)buttonLabel.getLayoutParams(),button=(FrameLayout.LayoutParams)pills.get(index).getLayoutParams();
+        int left=button.leftMargin+(button.width-label.width)/2;if(label.leftMargin!=left){label.leftMargin=left;buttonLabel.setLayoutParams(label);}
     }
     void updateClock(boolean fixedGreeting){Calendar now=Calendar.getInstance();int hour=now.get(Calendar.HOUR_OF_DAY);String automatic=hour<11?tr("早上好","Good morning"):hour<18?tr("下午好","Good afternoon"):tr("晚上好","Good evening");String custom=settings.greetingText(fixedGreeting?tr("欢迎回家","Welcome home"):"");greeting.setText(custom.isEmpty()?automatic:custom);clock.setText(new SimpleDateFormat("HH:mm",Locale.US).format(now.getTime()));date.setText(new SimpleDateFormat(chinese?"M月d日  EEEE":"EEEE, MMMM d",chinese?Locale.SIMPLIFIED_CHINESE:Locale.US).format(now.getTime()));apply();}
     void weather(WeatherData data){weatherAvailable=data!=null;if(data==null){weather.setText("");weather.setCompoundDrawables(null,null,null,null);}else{WeatherIcon icon=new WeatherIcon(data.icon);icon.setBounds(0,0,px(18),px(18));weather.setCompoundDrawables(icon,null,null,null);weather.setText(String.format(Locale.ROOT,"%s  %s  %s",data.temperatureText(),data.description,data.city));}apply();}

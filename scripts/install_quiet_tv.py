@@ -92,6 +92,19 @@ def check_apk(metadata, sha256, sdk, abis, installed=None, asset=None):
             raise ValueError("已有包 HOME 形态不同，需单独确认迁移")
 
 
+def optional_package_absent(arguments, error):
+    # Sony may print a domain-verification warning while dumping an absent package.
+    if (len(arguments) != 3 or tuple(arguments[:2]) != ("dumpsys", "package")
+            or arguments[2] not in ("com.ts.launcher", "com.coocaa.quiettv")
+            or not isinstance(error, guard.CommandFailure) or error.exit != 0):
+        return False
+    package = re.escape(arguments[2])
+    return (re.search(r"(?m)^\s*Unable to find package: " + package + r"\s*$", error.output) is not None
+            and not re.search(r"Package \[" + package + r"\]", error.output)
+            and all(line.strip() == "Failure printing domain verification information"
+                    for line in error.output.splitlines() if guard.ERROR_OUTPUT.search(line)))
+
+
 class RecordedAdb(guard.ComputerAdb):
     """Keep the failing command and original output visible, including legacy shell exits."""
     def __init__(self, executable, serial, journal):
@@ -112,6 +125,9 @@ class RecordedAdb(guard.ComputerAdb):
         try:
             return super().shell(*arguments)
         except (ValueError, OSError, subprocess.TimeoutExpired) as error:
+            if optional_package_absent(arguments, error):
+                self.journal.event("optional_package_absent", package=arguments[2], basis="dumpsys reported absent; exit=0")
+                return ""
             if maintenance.is_help_result(arguments, error):
                 self.journal.event("help_result", command=list(arguments), exit=error.exit, output=error.output)
             else:

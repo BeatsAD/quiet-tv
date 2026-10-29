@@ -104,7 +104,7 @@ final class AboutView extends FrameLayout {
     private View action(View view,String tag,int x,int y,int w,int h,Runnable run) {
         if(view.getParent()==null)put(view,x,y,w,h);
         view.setBackgroundDrawable(ControlStyle.action(2,5,Color.TRANSPARENT,0));
-        view.setTag(tag);view.setFocusable(true);view.setFocusableInTouchMode(true);view.setOnClickListener(v->run.run());
+        view.setTag(tag);view.setFocusable(true);view.setFocusableInTouchMode(true);view.setOnClickListener(v->KeyFeedback.clicked(v,run));
         view.setOnFocusChangeListener((v,focused)->artboard.invalidate());return view;
     }
     private ImageView code(String tag,int x,int y,int size) {

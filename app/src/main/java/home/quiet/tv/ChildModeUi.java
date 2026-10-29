@@ -91,7 +91,7 @@ final class ChildModeUi {
         }
     }
     final class Sheet {
-        final Dialog dialog=new Dialog(ui);
+        final Dialog dialog=new KeyFeedback.Dialog(ui);
         final LinearLayout box=ui.column(),body=ui.column(),actions=ui.row();
         private final float width;
         private Bitmap backdrop;
@@ -108,7 +108,7 @@ final class ChildModeUi {
             if(!description.isEmpty()){gap(box,15.36f);TextView sub=text(description,18.24f,31,ManagementUi.MUTED);sub.setGravity(Gravity.CENTER);box.addView(sub);}
             box.addView(body,new LinearLayout.LayoutParams(-1,-2));gap(box,width>700?38.4f:15.36f);actions.setGravity(Gravity.CENTER);box.addView(actions,new LinearLayout.LayoutParams(-1,p(64.32f)));
             FrameLayout outer=new FrameLayout(ui);outer.addView(screen,new FrameLayout.LayoutParams(-1,-1));
-            Button close=ui.iconButton("关闭弹窗",R.drawable.ic_child_close,dialog::dismiss);close.setBackgroundDrawable(focus(0,0,22,false));FrameLayout.LayoutParams cp=new FrameLayout.LayoutParams(p(42.24f),p(42.24f),Gravity.TOP|Gravity.RIGHT);cp.topMargin=p(20.2f);cp.rightMargin=p(20.2f);FrameLayout closeLayer=new FrameLayout(ui);closeLayer.setClipChildren(false);closeLayer.addView(close,cp);screen.addView(closeLayer,new FrameLayout.LayoutParams(p(width),p(80),Gravity.TOP|Gravity.CENTER_HORIZONTAL));
+            Button close=ui.iconButton("关闭弹窗",R.drawable.ic_child_close,()->{dialog.dismiss();KeyFeedback.back(ui);});close.setBackgroundDrawable(focus(0,0,22,false));FrameLayout.LayoutParams cp=new FrameLayout.LayoutParams(p(42.24f),p(42.24f),Gravity.TOP|Gravity.RIGHT);cp.topMargin=p(20.2f);cp.rightMargin=p(20.2f);FrameLayout closeLayer=new FrameLayout(ui);closeLayer.setClipChildren(false);closeLayer.addView(close,cp);screen.addView(closeLayer,new FrameLayout.LayoutParams(p(width),p(80),Gravity.TOP|Gravity.CENTER_HORIZONTAL));
             // The close control follows the centered panel, including its variable height.
             box.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{FrameLayout.LayoutParams lp=(FrameLayout.LayoutParams)closeLayer.getLayoutParams();if(lp.topMargin!=t){lp.topMargin=t;closeLayer.setLayoutParams(lp);}});
             dialog.setContentView(outer);Window window=dialog.getWindow();window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);window.addFlags(WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM);
