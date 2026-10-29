@@ -23,7 +23,7 @@ final class WallpaperController {
     private String temporaryMedia;
     private final WallpaperBackdropCache backdropCache;
     private final WallpaperUploadPanel uploads;
-    private TextView soundToggle,localFile,applyWallpaper,applySaver,saverTime,saverWeather;
+    private TextView soundToggle,localFile,applySaver,saverTime,saverWeather;
     private final Map<Integer,TextView> saverWaits=new LinkedHashMap<>();
     private final DailyWallpaperController daily;
     private final float unit,homeUnit;
@@ -306,19 +306,19 @@ final class WallpaperController {
         List<TextView> result=new ArrayList<>();result.add(applySaver);result.addAll(saverWaits.values());result.add(saverTime);result.add(saverWeather);return result;
     }
     private void addScreensaverToolbar(LinearLayout parent){
-        LinearLayout bar=row();bar.setPadding(px(6),px(4),px(6),px(4));bar.setBackgroundDrawable(ui.capsule());
-        applySaver=ui.compactButton(tr("设为屏保","Set saver"),this::applySaver);bar.addView(applySaver,new LinearLayout.LayoutParams(px(chinese?76:83),px(27)));gap(bar,8);
-        TextView wait=label(tr("自动进入","Idle"),11);wait.setTextColor(WallpaperUi.MUTED);wait.setSingleLine(true);bar.addView(wait);gap(bar,4);
+        LinearLayout bar=row();bar.setPadding(px(14),px(4),px(14),px(4));bar.setBackgroundDrawable(ui.capsule());
+        applySaver=ui.compactButton(tr("设为屏保","Set saver"),this::applySaver);bar.addView(applySaver,new LinearLayout.LayoutParams(px(chinese?88:95),px(27)));gap(bar,16);
+        TextView wait=label(tr("自动进入","Idle"),11);wait.setTextColor(WallpaperUi.MUTED);wait.setSingleLine(true);bar.addView(wait);gap(bar,8);
         LinearLayout choices=row();choices.setPadding(px(2),px(2),px(2),px(2));choices.setBackgroundDrawable(ui.surface(0x66101217,100,Color.TRANSPARENT,0));saverWaits.clear();
         for(int minutes:ScreensaverSettings.WAITS){
             TextView option=ui.compactButton(minutes==0?tr("关闭","Off"):String.valueOf(minutes),()->{ScreensaverSettings state=saverSettings();if(state!=null)saveSaver(state.waitMinutes(minutes),false);});
             option.setContentDescription(minutes==0?tr("关闭自动进入屏保","Disable automatic screensaver"):tr(minutes+" 分钟后进入屏保","Screensaver after "+minutes+" minutes"));
-            ControlStyle.choice(option,unit,100,Color.TRANSPARENT,0);saverWaits.put(minutes,option);choices.addView(option,new LinearLayout.LayoutParams(px(minutes==0?33:25),px(23)));
+            ControlStyle.choice(option,unit,100,Color.TRANSPARENT,0);saverWaits.put(minutes,option);choices.addView(option,new LinearLayout.LayoutParams(px(minutes==0?37:30),px(23)));
         }
-        bar.addView(choices);gap(bar,4);TextView minutes=label(tr("分钟","min"),10);minutes.setTextColor(WallpaperUi.MUTED);minutes.setSingleLine(true);bar.addView(minutes);gap(bar,8);
+        bar.addView(choices);gap(bar,8);TextView minutes=label(tr("分钟","min"),10);minutes.setTextColor(WallpaperUi.MUTED);minutes.setSingleLine(true);bar.addView(minutes);gap(bar,16);
         saverTime=ui.compactButton(tr("时间","Time"),()->{ScreensaverSettings state=saverSettings();if(state!=null)saveSaver(state.time(!state.showTime),false);});
         saverWeather=ui.compactButton(tr("天气","Weather"),()->{ScreensaverSettings state=saverSettings();if(state!=null)saveSaver(state.weather(!state.showWeather),false);});
-        for(TextView toggle:new TextView[]{saverTime,saverWeather}){toggle.setPadding(px(2),0,px(2),0);bar.addView(toggle,new LinearLayout.LayoutParams(-2,px(27)));if(toggle==saverTime)gap(bar,5);}
+        for(TextView toggle:new TextView[]{saverTime,saverWeather}){toggle.setPadding(px(6),0,px(6),0);toggle.setBackgroundDrawable(ControlStyle.action(unit,100,Color.TRANSPARENT,0));bar.addView(toggle,new LinearLayout.LayoutParams(-2,px(27)));if(toggle==saverTime)gap(bar,12);}
         List<TextView> controls=saverControls();for(int n=0;n<controls.size();n++){TextView control=controls.get(n);control.setNextFocusLeftId(controls.get(Math.max(0,n-1)).getId());control.setNextFocusRightId(controls.get(Math.min(controls.size()-1,n+1)).getId());control.setNextFocusDownId(control.getId());}
         LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-2,-2);bp.gravity=Gravity.CENTER_HORIZONTAL;bp.topMargin=px(16);parent.addView(bar,bp);
     }
@@ -328,7 +328,7 @@ final class WallpaperController {
         boolean selected=enabled&&state.mediaId.equals(preview);applySaver.setText(selected?tr("当前屏保","Current saver"):tr("设为屏保","Set saver"));applySaver.setEnabled(enabled&&preview!=null&&!selected);
         for(Map.Entry<Integer,TextView> option:saverWaits.entrySet())option.getValue().setSelected(enabled&&state.idleMinutes==option.getKey());
         for(TextView toggle:new TextView[]{saverTime,saverWeather}){
-            boolean on=enabled&&(toggle==saverTime?state.showTime:state.showWeather);Drawable art=toggleDrawable(on);art.setBounds(0,0,px(22),px(13));toggle.setCompoundDrawables(null,null,art,null);toggle.setCompoundDrawablePadding(px(4));
+            boolean on=enabled&&(toggle==saverTime?state.showTime:state.showWeather);Drawable art=toggleDrawable(on);art.setBounds(0,0,px(22),px(13));toggle.setCompoundDrawables(null,null,art,null);toggle.setCompoundDrawablePadding(px(6));
             toggle.setContentDescription((toggle==saverTime?tr("屏保时间","Screensaver time"):tr("屏保天气","Screensaver weather"))+(on?tr("，开",", on"):tr("，关",", off")));
         }
     }
@@ -364,7 +364,6 @@ final class WallpaperController {
         layout.addView(new View(activity),new LinearLayout.LayoutParams(1,0,1));
         actions=row();LinearLayout titles=new LinearLayout(activity);titles.setOrientation(LinearLayout.VERTICAL);title=label("",27);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);titles.addView(title,new LinearLayout.LayoutParams(-1,-2));
         subtitle=label("",12);subtitle.setTextColor(WallpaperUi.MUTED);subtitle.setSingleLine(true);subtitle.setEllipsize(android.text.TextUtils.TruncateAt.END);subtitle.setPadding(0,px(7),0,0);titles.addView(subtitle,new LinearLayout.LayoutParams(-1,-2));actions.addView(titles,new LinearLayout.LayoutParams(0,-2,1));
-        applyWallpaper=button(tr("设为壁纸","Set wallpaper"),true,this::applySelected);actions.addView(applyWallpaper);
         // Together with the rail's top padding and focused-card lift, leave about 36px at 1080p.
         LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,-2);ap.setMargins(px(4),0,px(4),px(16));layout.addView(actions,ap);
         scroll=new HorizontalScrollView(activity);scroll.setHorizontalScrollBarEnabled(false);scroll.setClipToPadding(false);scroll.setClipChildren(false);scroll.setFillViewport(false);rail=row();rail.setClipToPadding(false);rail.setClipChildren(false);rail.setGravity(Gravity.BOTTOM);rail.setPadding(px(4),px(7),px(4),0);scroll.addView(rail);LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,px(154));layout.addView(scroll,rp);
@@ -468,7 +467,7 @@ final class WallpaperController {
             ScreensaverSettings saver=saverSettings();
             if(saver!=null&&id.equals(saver.mediaId))addUsageMark(caption,tr("屏保","Saver"));
             card.setOnFocusChangeListener((v,focus)->{if(focus){if(!id.equals(preview))commitPending=false;preview=id;if(wallpaper.video())startVideo(id,false);else display(id,true);details();scroll.requestChildFocus(rail,card);}else if(id.equals(pressedWallpaper))cancelCardPress();});
-            card.setOnClickListener(v->{commitPending=false;preview=id;if(wallpaper.video())startVideo(id,false);else display(id,true);details();});
+            card.setOnClickListener(v->{commitPending=false;preview=id;applySelected();});
             card.setOnLongClickListener(v->{confirmDelete(id,KeyEvent.KEYCODE_UNKNOWN,0);return true;});
             card.setOnKeyListener((v,key,event)->{if(confirmKey(key))return cardKey(id,key,event);if(key!=KeyEvent.KEYCODE_DPAD_LEFT&&key!=KeyEvent.KEYCODE_DPAD_RIGHT)return false;if(event.getAction()==KeyEvent.ACTION_DOWN){cancelCardPress();List<String> ids=focusableCards();int index=ids.indexOf(id)+(key==KeyEvent.KEYCODE_DPAD_LEFT?-1:1);if(index>=0&&index<ids.size())cards.get(ids.get(index)).requestFocus();}return true;});
         }
@@ -499,7 +498,7 @@ final class WallpaperController {
     }
     private void details(){
         if(picker==null)return;WallpaperCatalog state=store.snapshot();WallpaperCatalog.Entry entry=state.find(preview);
-        updateSaverToolbar();applyWallpaper.setEnabled(entry!=null&&!preview.equals(state.current));applyWallpaper.setText(preview!=null&&preview.equals(state.current)?tr("当前壁纸","Current wallpaper"):tr("设为壁纸","Set wallpaper"));
+        updateSaverToolbar();
         staticTab.setSelected(!dynamicTab);videoTab.setSelected(dynamicTab);
         videoTab.setNextFocusRightId(dynamicTab?dynamicToggle.getId():auto.getId());auto.setNextFocusLeftId(videoTab.getId());dynamicToggle.setNextFocusLeftId(videoTab.getId());
         soundToggle.setVisibility(dynamicTab?View.VISIBLE:View.GONE);soundToggle.setText(tr("声音","Sound"));soundToggle.setCompoundDrawables(toggleDrawable(state.sound),null,null,null);soundToggle.setCompoundDrawablePadding(px(7));soundToggle.setContentDescription(state.sound?tr("壁纸声音，开","Wallpaper sound, on"):tr("壁纸声音，关","Wallpaper sound, off"));
@@ -518,10 +517,9 @@ final class WallpaperController {
         }
         auto.setText(tr("壁纸轮播","Slideshow"));auto.setCompoundDrawables(toggleDrawable(state.rotating),null,null,null);auto.setCompoundDrawablePadding(px(7));auto.setContentDescription(state.rotating?tr("壁纸轮播，开","Slideshow, on"):tr("壁纸轮播，关","Slideshow, off"));auto.setEnabled(!WallpaperCatalog.DAILY.equals(state.current)&&state.pictures().size()>=2);auto.setAlpha(auto.isEnabled()?1:.4f);
         View card=cards.get(preview);if(card==null)return;
-        for(Map.Entry<String,View> item:cards.entrySet()){boolean selected=item.getKey().equals(preview);item.getValue().setBackgroundDrawable(border(selected,false));item.getValue().setPadding(px(CARD_INSET),px(CARD_INSET),px(CARD_INSET),px(CARD_INSET));item.getValue().setTranslationY(selected?-px(3):0);item.getValue().setNextFocusUpId(applyWallpaper.getId());}
+        for(Map.Entry<String,View> item:cards.entrySet()){boolean selected=item.getKey().equals(preview);item.getValue().setBackgroundDrawable(border(selected,false));item.getValue().setPadding(px(CARD_INSET),px(CARD_INSET),px(CARD_INSET),px(CARD_INSET));item.getValue().setTranslationY(selected?-px(3):0);item.getValue().setNextFocusUpId(dynamicTab?videoTab.getId():staticTab.getId());}
         int lower=card.getId();
         for(View item:cards.values())item.setNextFocusDownId(applySaver.getId());
-        applyWallpaper.setNextFocusDownId(lower);applyWallpaper.setNextFocusUpId(upload.getId());
         for(TextView control:saverControls())control.setNextFocusUpId(lower);
         for(TextView control:new TextView[]{auto,upload,staticTab,videoTab,dynamicToggle,soundToggle,localFile})control.setNextFocusDownId(lower);
     }
