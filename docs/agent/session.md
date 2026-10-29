@@ -10,7 +10,7 @@
 python3 agent_session.py start --serial "$TV_SERIAL" --user "$TV_USER" --intent setup --session "$NEW_SESSION_DIR" --bundle "$BUNDLE_DIR/latest.json"
 ```
 
-`setup` 对应默认安装/升级/修复请求；其余意图分别为仅更新、仅试用、修复、恢复、只读。意图限制可选路线，路线限制工具动作，不代替具体操作授权。源码工作区使用 `python3 scripts/agent_session.py`，可省略 `--bundle`。专用包通过 `--package` 沿用实际包名，不另装普通包。
+setup对应默认安装／升级／修复，其余意图为update、repair、restore、inspect。不提供独立试用意图；trial仅是install路线内部的基础检查阶段。意图限制路线，路线限制动作，不代替具体授权。源码工作区使用scripts/agent_session.py，可省略--bundle；专用包通过--package沿用实际包名。
 
 新任务目录的父目录须存在，目录本身不得存在。保存 `session.json`、`summary.json`、设备基线以及工具和说明的 SHA-256。初始查询不启动应用；包状态或 HOME 不可读取时记未知，不假装未安装。任务摘要不是应用数据备份，也不替代原始恢复记录。
 
@@ -21,7 +21,6 @@ Agent依据用户目标和只读结果执行plan，用户不选择技术参数�
 | route | 默认必要项 | 允许的实际操作 |
 | --- | --- | --- |
 | install | apk、basic_ui、desktop_configured、physical_home、recovery | 先trial，用户基础试用通过后配置HOME／必要ADB |
-| trial | apk、basic_ui | 安装试用，不配置接管 |
 | update | apk、preservation | 仅兼容覆盖，不能调其他工具重新接管 |
 | repair | repair | 按issue定位；home／adb才用对应配置修复，inputs可调输入配置，其他问题先取证 |
 | restore | physical_home、recovery | 暂停和依原记录恢复，不安装、不启用守护 |
@@ -52,6 +51,15 @@ python3 agent_session.py run --session "$SESSION_DIR" --tool device_selftest
 每次启动之前持久保存 `running` 状态、参数、操作前快照和新记录路径，实时显示并保存工具输出。工具退出码为 0 记录为 `returned`，只表示调用成功；不是实体场景验收通过。非零记录为 `failed`，进程意外结束时保留 `running`。原始工具的 `record.jsonl`、权限快照和报告均保存在对应步骤路径，不能覆盖。
 
 调用使用完整参数名。工具动作须符合路线，预览同样不能拿错误路线试错。首次trial成功后会保留实际APK及哈希；`accept basic_ui`通过才允许配置。继续通过安装器takeover时自动复用试用文件，不再次指定APK。已有APK缺接口时使用系统检测，不强行调用维护接口。约束适用于本任务入口，不控制Agent绕过入口执行终端命令。
+
+外设发现使用同一任务，返回只读候选与通道证据并写入摘要。--include-device可补充用户或Agent现场确认的任意设备，不限品类。
+
+```sh
+python3 agent_session.py run --session "$SESSION_DIR" --tool device_environment -- peripherals
+python3 agent_session.py run --session "$SESSION_DIR" --tool device_environment -- peripherals --include-device "现场补充的设备名称"
+```
+
+Agent结合证据合并同设备视图，确认哪些属于本次目标，再plan --checks peripheral:候选ID增加必要验收，实际操作后accept。未发现不表示不存在，候选不会自动填成PASS；未知格式或厂商服务可用--service实际服务名补采，只查相关服务，不遍历全部系统转储。
 
 ## 记录结果与结束
 

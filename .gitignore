@@ -189,3 +189,5 @@ __pycache__/
 !/docs/AGENT.md
 !/docs/agent/
 !/scripts/agent_session.py
+!/scripts/computer_resources.py
+!/scripts/device_environment.py

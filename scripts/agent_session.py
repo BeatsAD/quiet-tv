@@ -20,19 +20,19 @@ ROOT = Path(__file__).resolve().parent
 TOOLS = ('install_quiet_tv.py', 'verify_install.py', 'install_tcl.py', 'tcl_cast.py',
          'configure_home_guard.py', 'configure_boot_home.py', 'device_maintenance.py',
          'device_selftest.py', 'device_adaptation.py', 'vendor_adaptation.py',
-         'device-presets.json', 'agent_session.py')
+         'device-presets.json', 'agent_session.py', 'computer_resources.py', 'device_environment.py')
 GUIDES = {'agent.md': 'docs/AGENT.md', 'maintenance.md': 'docs/AGENT_ADAPT.zh-CN.md',
           'guides/rules.md': 'docs/DEVICE_ADAPTATION.zh-CN.md',
           **{'guides/' + name + '.md': 'docs/agent/' + name + '.md' for name in
              ('connect', 'install', 'update', 'home', 'tcl', 'restore', 'acceptance', 'inputs', 'session')}}
 RUNNERS = ('install_quiet_tv', 'install_tcl', 'configure_home_guard', 'configure_boot_home',
-           'device_maintenance', 'device_selftest', 'device_adaptation', 'vendor_adaptation')
+           'device_maintenance', 'device_selftest', 'device_adaptation', 'vendor_adaptation', 'device_environment')
 PACKAGES = ('home.quiet.tv', 'com.ts.launcher', 'com.coocaa.quiettv')
 CHECKS = {'install': ('apk', 'basic_ui', 'desktop_configured', 'physical_home', 'recovery'),
-          'trial': ('apk', 'basic_ui'), 'update': ('apk', 'preservation'),
+          'update': ('apk', 'preservation'),
           'repair': ('repair',), 'restore': ('physical_home', 'recovery'),
           'inspect': ('inspection',), 'noop': ('inspection',)}
-ROUTES = {'setup': tuple(CHECKS), 'trial': ('trial', 'inspect'),
+ROUTES = {'setup': tuple(CHECKS),
           'update': ('update', 'noop', 'inspect'), 'repair': ('repair', 'inspect'),
           'restore': ('restore', 'inspect'), 'inspect': ('inspect', 'noop')}
 # Restoring the original desktop always needs a restore intent.
@@ -55,6 +55,10 @@ def operation(tool, arguments):
         raise ValueError('任务调用须使用完整参数名，不使用缩写')
     if tool == 'device_selftest':
         return 'test' if '--apply' in arguments else 'read'
+    if tool == 'device_environment':
+        if not arguments or arguments[0] not in ('adb', 'peripherals'):
+            raise ValueError('现场工具须先指定 adb 或 peripherals')
+        return 'read'
     if tool == 'install_quiet_tv':
         return 'read' if '--verify-only' in arguments else option(arguments, '--goal', 'trial')
     if tool == 'install_tcl':
@@ -114,7 +118,7 @@ def record_result(state, check, status, source, note, evidence=None):
 def plan(state, route, checks, issue, note):
     if route not in ROUTES[state['intent']]:
         raise ValueError('路线不符合原任务意图；目标改变须建立新任务并保留原恢复记录')
-    if state['steps'] and state.get('route') != route:
+    if state.get('route') and state['steps'] and state['route'] != route:
         if completion(state)['status'] != 'complete':
             raise ValueError('当前路线尚未完成，不能改路线跳过缺项；目标改变须建立关联任务')
         state.setdefault('completedRoutes', []).append(dict(route=state['route'], at=stamp(), step=len(state['steps'])))
@@ -137,7 +141,7 @@ def allowed(state, tool, arguments):
     if action == 'read':
         return action
     choices = {'install': ('trial', 'takeover', 'adb', 'home', 'input', 'rules', 'manage', 'test'),
-               'trial': ('trial', 'test'), 'update': ('update', 'test'),
+               'update': ('update', 'test'),
                'restore': ('restore',), 'inspect': (), 'noop': ()}
     if route == 'repair':
         issue = state.get('issue')
@@ -180,6 +184,15 @@ def collect_step(state, step, action, reconcile=False):
             and action == 'takeover' and step.get('exit') == 0 and '--apply' in step['arguments'] and record.exists()):
         record_result(state, 'desktop_configured', 'PASS', 'script', '配置工具已读回，实体场景另验', str(record))
     report = record / 'report.json'
+    if step['tool'] == 'device_environment' and report.is_file():
+        value = json.loads(report.read_text(encoding='utf-8'))
+        if 'devices' in value and value.get('coverage'):
+            if (value.get('serial') != state['scope']['serial'] or value.get('package') != state['package']
+                    or value.get('identity', {}).get('fingerprint') != state['scope']['fingerprint']
+                    or value.get('identity', {}).get('user') != state['scope']['user']):
+                raise ValueError('外设现场不属于本任务设备／固件／用户')
+            state['peripherals'] = dict(report=str(report), devices=value['devices'],
+                                        coverage=value['coverage'], note=value['note'], recordedAt=value['createdAt'])
     if step['tool'] == 'device_selftest' and report.is_file():
         value = json.loads(report.read_text(encoding='utf-8'))
         if (value.get('serial') != state['scope']['serial'] or value.get('package') != state['package']
@@ -324,6 +337,7 @@ def summary(directory, state):
     value = {'intent': state['intent'], 'package': state['package'], 'session': str(directory),
              'route': state.get('route'), 'issue': state.get('issue'), 'completion': completion(state),
              'results': results(state), 'trial': state.get('trial'), 'completedRoutes': state.get('completedRoutes', []),
+             'peripherals': state.get('peripherals'),
              'next': ('先核对未确认步骤并 review，不重放命令' if unresolved(state) else
                       '先 plan 选择路线和必要验收' if not state.get('route') else
                       '先安装试用，再 accept basic_ui 记录用户结果' if state['route'] == 'install'
@@ -352,7 +366,7 @@ def run_step(directory, state, tool, arguments):
     if any(arg.startswith('--') and any(flag.startswith(arg.split('=')[0]) for flag in reserved)
            for arg in arguments):
         raise ValueError('设备、用户、工具路径、包名和记录路径由任务固定，不在子命令重复指定')
-    if state['package'] != tcl.PACKAGE and tool not in ('device_maintenance', 'device_selftest', 'configure_home_guard'):
+    if state['package'] != tcl.PACKAGE and tool not in ('device_maintenance', 'device_selftest', 'configure_home_guard', 'device_environment'):
         raise ValueError('此工具只支持普通包名；专用包沿用已验证的同包名流程')
     current = checked_snapshot(state)
     number = len(state['steps']) + 1
@@ -363,7 +377,7 @@ def run_step(directory, state, tool, arguments):
     command = [sys.executable, str(ROOT / (tool + '.py')), *arguments,
                '--serial', state['scope']['serial'], '--user', str(state['scope']['user']),
                '--adb', state['adb'], '--record', str(record)]
-    if tool in ('device_maintenance', 'device_selftest', 'configure_home_guard'):
+    if tool in ('device_maintenance', 'device_selftest', 'configure_home_guard', 'device_environment'):
         command += ['--package', state['package']]
     step = {'id': number, 'tool': tool, 'arguments': arguments, 'status': 'running',
             'startedAt': stamp(), 'before': current, 'record': str(record), 'log': str(log)}
@@ -411,7 +425,7 @@ def main(argv=None):
     parser.add_argument('--user', type=int)
     parser.add_argument('--package', choices=PACKAGES, default=tcl.PACKAGE)
     parser.add_argument('--adb', default='adb')
-    parser.add_argument('--intent', choices=('setup', 'update', 'trial', 'repair', 'restore', 'inspect'))
+    parser.add_argument('--intent', choices=('setup', 'update', 'repair', 'restore', 'inspect'))
     parser.add_argument('--bundle', type=Path)
     parser.add_argument('--step', type=int)
     parser.add_argument('--note', help='核对的原始记录、现场结果和下一步；不是验收通过标记')
@@ -472,7 +486,7 @@ def main(argv=None):
                     raise ValueError('先核对未确认步骤，不用验收结果跳过失败')
                 if not state.get('route') or args.check not in state['requiredChecks']:
                     raise ValueError('先 plan 把本次需要验证的项目加入清单')
-                if args.check == 'basic_ui' and args.status == 'PASS' and state['route'] in ('install', 'trial') and not state.get('trial'):
+                if args.check == 'basic_ui' and args.status == 'PASS' and state['route'] == 'install' and not state.get('trial'):
                     raise ValueError('尚无本任务安装试用及实际 APK 核验记录')
                 if args.check in ('apk', 'desktop_configured') and args.status == 'PASS':
                     raise ValueError('APK／配置核验由实际工具记录，不以人工反馈代替')

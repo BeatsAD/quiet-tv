@@ -9,12 +9,12 @@ import subprocess
 import sys
 import time
 from types import SimpleNamespace
-from urllib.request import Request, urlopen
 import zipfile
 import configure_home_guard as guard
 import configure_boot_home as boot
 import device_adaptation as adaptation
 import device_maintenance as maintenance
+import computer_resources as resources
 import install_tcl as tcl
 from verify_install import HOME, collect, component, help_text, resolver
 
@@ -23,9 +23,7 @@ RELEASES = "https://github.com/BeatsAD/quiet-tv/releases/download/"
 
 
 def read_index():
-    request = Request(INDEX + "?check=" + str(time.time_ns()), headers={"Cache-Control": "no-cache"})
-    with urlopen(request, timeout=30) as response:
-        data = json.load(response)
+    data = resources.read_json(INDEX + "?check=" + str(time.time_ns()))
     if data.get("schemaVersion") != 1 or not isinstance(data.get("releases"), list):
         raise ValueError("公开版本索引无效，未使用历史缓存")
     return data
@@ -65,16 +63,7 @@ def choose(index, sdk, abis, installed=None, mode="standard", version=None):
 
 
 def download(asset, destination):
-    with urlopen(Request(asset["url"], headers={"Cache-Control": "no-cache"}), timeout=60) as response:
-        with destination.open("xb") as handle:
-            while True:
-                chunk = response.read(1024 * 1024)
-                if not chunk:
-                    break
-                handle.write(chunk)
-    if destination.stat().st_size != asset["bytes"] or tcl.digest(destination) != asset["sha256"]:
-        raise ValueError("下载文件大小或 SHA-256 不符；保留文件供核对，未安装")
-    return destination
+    return resources.download(asset['url'], destination, asset['sha256'], size=asset['bytes'])
 
 
 def pull(adb, sdk, user, destination, pm_help):
