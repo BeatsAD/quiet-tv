@@ -117,7 +117,7 @@ Source includes legacy networking/font fallbacks, detected HOME settings, Back h
 
 ### 旧系统天气证书兼容（开发源码） / Legacy weather certificates
 
-针对 Android 5.1 小米盒子天气刷新时的 `SSLHandshakeException`／`CertificateException`，天气客户端在 API19–25 上将随包的 ISRG Root X1 根证书加入当前连接的信任集合。和风及 UAPI 共用该处理，保留原有系统根证书、证书链、有效期及域名校验，不写入系统 CA 库，也不改变其他网络功能的 TLS 设置。证书来源与指纹见[第三方说明](../THIRD_PARTY_NOTICES.md#旧版-android-天气-https-兼容)。
+针对 Android 5.1 小米盒子天气刷新时的 `SSLHandshakeException`／`CertificateException`，天气客户端在 API19–25 上将随包的 ISRG Root X1 根证书加入当前连接的信任集合。和风及 UAPI 共用该处理，保留原有系统根证书、证书链、有效期及域名校验，不写入系统 CA 库，也不改变其他网络功能的 TLS 设置。根证书来源为 [ISRG Root X1](https://letsencrypt.org/certificates/)，随包文件见[公开证书](../app/src/main/assets/certificates/isrg-root-x1.pem)。
 
 | 档位 / Profile | 共同功能及差异 / Behavior | 本轮验证 / Validation |
 | --- | --- | --- |
