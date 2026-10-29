@@ -26,6 +26,8 @@ Without a calibrated mapping, current development source opens system settings w
 
 Open 应用管理 (App Management) from All Apps. Management controls in this first Sony-targeted version are in Chinese.
 
+Current development source adds a long-OK menu to Dock and second-screen apps. Dock supports move, replace, add, remove from Home, hide and uninstall; the second screen supports move, add to Home, hide and uninstall. Ordinary hidden apps can be restored from the persistent Hidden apps category; parental hiding remains separate. Adding to a full Dock requires choosing a replacement. All sorting surfaces now preview swaps, save when OK puts the app down, and cancel the unfinished move with Back. This differs from the historical 1.2.4 behavior below and has not established physical-TV acceptance. User-app uninstall uses system confirmation and configured parental verification; protected components remain unavailable.
+
 - 首页应用 (Favorites) supports up to five shortcuts: add, replace, remove, or move left/right. In 1.2.4, each reorder move saves automatically; OK or Back ends moving without undoing saved changes. Editing works without ADB.
 - **Home order**: in 1.2.4, open App management → 应用排序. Press OK to select an entry, then use the arrows to move it. Each position change saves automatically; OK or Back ends moving. There are no save/reset buttons or save-on-exit prompts. Historical APKs retain their version-specific behavior. Wallpaper Settings, Desktop Settings and App Management can all move.
 - Current development source filters All, User apps, Preinstalled apps, Disabled and Recoverable, keeping package details and everyday artwork controls.

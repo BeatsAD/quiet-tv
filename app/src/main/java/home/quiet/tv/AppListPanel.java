@@ -47,7 +47,7 @@ final class AppListPanel extends ManagementPanel {
     private volatile int refreshGeneration;
     private final BroadcastReceiver packagesChanged=new BroadcastReceiver(){
         @Override public void onReceive(Context context,Intent intent){
-            if(Intent.ACTION_PACKAGE_REMOVED.equals(intent.getAction()) && !intent.getBooleanExtra(Intent.EXTRA_REPLACING,false) && intent.getData()!=null){String pkg=intent.getData().getSchemeSpecificPart();new DockStore(context).remove(pkg);new HomeOrderStore(context).remove(pkg);worker.execute(()->{try{AppCoverStore.get(context).restore(pkg);}catch(java.io.IOException e){android.util.Log.w("QuietTV","Cover cleanup deferred");}});}
+            if(Intent.ACTION_PACKAGE_REMOVED.equals(intent.getAction()) && !intent.getBooleanExtra(Intent.EXTRA_REPLACING,false) && intent.getData()!=null){String pkg=intent.getData().getSchemeSpecificPart();new DockStore(context).remove(pkg);new HomeOrderStore(context).remove(pkg);new HomeVisibilityStore(context).remove(pkg);worker.execute(()->{try{AppCoverStore.get(context).restore(pkg);}catch(java.io.IOException e){android.util.Log.w("QuietTV","Cover cleanup deferred");}});}
             dirty=true;if(active && !intent.getBooleanExtra(Intent.EXTRA_REPLACING,false))refresh();
         }
     };
@@ -87,6 +87,7 @@ final class AppListPanel extends ManagementPanel {
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setClipToPadding(false);scroll.setBackgroundDrawable(surface(0x12ffffff,0x06ffffff,0x1cffffff,20));details=column();details.setGravity(Gravity.CENTER_HORIZONTAL);details.setPadding(px(25),px(27),px(25),px(22));scroll.addView(details);
         LinearLayout.LayoutParams dp=new LinearLayout.LayoutParams(0,-1,57);dp.leftMargin=px(28);panels.addView(scroll,dp);
         if(state!=null){selected=state.getString("selected","");filter=Math.max(0,Math.min(FILTERS.length-1,state.getInt("filter",0)));}
+        else{String requested=activity.getIntent().getStringExtra("selected-package");if(requested!=null)selected=requested;}
         IntentFilter packages=new IntentFilter(Intent.ACTION_PACKAGE_ADDED);packages.addAction(Intent.ACTION_PACKAGE_REMOVED);packages.addAction(Intent.ACTION_PACKAGE_CHANGED);packages.addDataScheme("package");registerReceiver(packagesChanged,packages);
     }
     private void ui(Runnable action){runOnUiThread(()->{if(!isDestroyed() && !isFinishing())action.run();});}
