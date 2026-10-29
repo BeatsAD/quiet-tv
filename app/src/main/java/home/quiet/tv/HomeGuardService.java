@@ -25,6 +25,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     private String lastActivity="";
     private long lastActivityAt;
     private long transitionUntil;
+    private int filteredHomeCode=KeyEvent.KEYCODE_HOME;
     private String lastPackage="",settleReason="",homeObservation="",broadcastObservation="";
     private boolean defaultHome(){
         ResolveInfo resolved=getPackageManager().resolveActivity(HomeController.homeIntent(),PackageManager.MATCH_DEFAULT_ONLY);
@@ -40,24 +41,30 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         AccessibilityServiceInfo info=getServiceInfo();if(info==null)return;
         int flag=AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS;
         boolean observe=observeBootSource();
-        boolean wanted=filterHome() || homeKeys.pressed() || observe || bootSourceDevice() && state!=null && state.ready();int flags=wanted?info.flags|flag:info.flags&~flag;
+        RemoteKeyMap remote=new RemoteKeyMap(this);
+        boolean wanted=filterHome() || homeKeys.pressed() || observe || remote.observingFor()>0
+            || state!=null && state.ready() && (bootSourceDevice() || remote.customHome());int flags=wanted?info.flags|flag:info.flags&~flag;
         int events=observe?info.eventTypes|AccessibilityEvent.TYPE_VIEW_CLICKED:info.eventTypes&~AccessibilityEvent.TYPE_VIEW_CLICKED;
         if(flags!=info.flags || events!=info.eventTypes){info.flags=flags;info.eventTypes=events;setServiceInfo(info);DiagnosticLog.info("home_guard.key_filter","enabled="+wanted+" bootObserve="+observe);}
         keyFiltering=wanted;
         if(!wanted)homeKeys.reset();
     }
     @Override protected boolean onKeyEvent(KeyEvent event){
+        RemoteKeyMap.observe(this,event,"accessibility");
         DiagnosticLog.navigationKey("existing_accessibility_callback",event);
-        if(event.getAction()==KeyEvent.ACTION_DOWN && navigationKey(event.getKeyCode()))stopBootSource("remote_navigation");
+        String remoteAction=new RemoteKeyMap(this).action(event);
+        if(event.getAction()==KeyEvent.ACTION_DOWN && (navigationKey(event.getKeyCode()) || !remoteAction.isEmpty() && !"system".equals(remoteAction)))stopBootSource("remote_navigation");
         if(event.getAction()==KeyEvent.ACTION_DOWN && event.getRepeatCount()==0){
-            if(event.getKeyCode()==KeyEvent.KEYCODE_TV_INPUT)inputSelected(this);
-            if(event.getKeyCode()==KeyEvent.KEYCODE_HOME)cancelInputTransition();
+            if(event.getKeyCode()==KeyEvent.KEYCODE_TV_INPUT || "inputs".equals(remoteAction))inputSelected(this);
+            if(event.getKeyCode()==KeyEvent.KEYCODE_HOME || "home".equals(remoteAction))cancelInputTransition();
         }
         // Every other key passes through, including volume, directions and power.
-        if(event.getKeyCode()!=KeyEvent.KEYCODE_HOME)return false;
+        boolean mappedHome="home".equals(remoteAction);
+        if(event.getKeyCode()!=KeyEvent.KEYCODE_HOME && !mappedHome && !(homeKeys.pressed() && event.getKeyCode()==filteredHomeCode))return false;
+        boolean eligible=event.getKeyCode()==KeyEvent.KEYCODE_HOME?filterHome():mappedHome && homeActionUsable() && HomeGuardState.canShow(this);
         if(event.getAction()==KeyEvent.ACTION_DOWN && event.getRepeatCount()==0)homeObservation=DiagnosticOperation.nextId(System.currentTimeMillis());
         if(event.getRepeatCount()==0 || event.getAction()==KeyEvent.ACTION_UP){
-            boolean eligible=filterHome();String problem=state==null?"service_unavailable":state.homeActionProblem();
+            String problem=state==null?"service_unavailable":state.homeActionProblem();
             if(!HomeGuardState.canShow(this))problem="screen_or_unlock_unavailable";
             else if(problem.isEmpty() && !eligible)problem="system_handles_home";
             DiagnosticLog.info("home_guard.key_observed","observation="+homeObservation+" source=accessibility keyCode="+event.getKeyCode()
@@ -65,11 +72,11 @@ public final class HomeGuardService extends AccessibilityService implements Shar
                 +" uptimeMs="+SystemClock.uptimeMillis()+" filterRequested="+keyFiltering+" eligible="+eligible+" reason="+(problem.isEmpty()?"eligible":problem));
         }
         if(event.getAction()==KeyEvent.ACTION_DOWN && homeKeys.passed(event.getDownTime()))return false;
-        if(!homeKeys.pressed() && !filterHome()){if(event.getAction()==KeyEvent.ACTION_DOWN)homeKeys.pass(event.getDownTime());return false;}
-        if(event.getAction()==KeyEvent.ACTION_DOWN){homeKeys.down(event.getDownTime());return true;}
+        if(!homeKeys.pressed() && !eligible){if(event.getAction()==KeyEvent.ACTION_DOWN)homeKeys.pass(event.getDownTime());return false;}
+        if(event.getAction()==KeyEvent.ACTION_DOWN){filteredHomeCode=event.getKeyCode();homeKeys.down(event.getDownTime());return true;}
         if(event.getAction()!=KeyEvent.ACTION_UP)return homeKeys.pressed();
         if(!homeKeys.pressed())return false;
-        int action=homeKeys.up(event.getEventTime(),event.isCanceled() || !homeActionUsable() || !HomeGuardState.canShow(this),
+        int action=homeKeys.up(event.getEventTime(),event.isCanceled() || !eligible || !homeActionUsable() || !HomeGuardState.canShow(this),
                 ViewConfiguration.getLongPressTimeout(),ViewConfiguration.getDoubleTapTimeout());
         updateKeyFilter();
         if(action==HomeKeyPolicy.RECENTS && Build.VERSION.SDK_INT>=21){cancel();boolean accepted=performGlobalAction(GLOBAL_ACTION_RECENTS);DiagnosticLog.info("home_guard.recents","observation="+homeObservation+" accepted="+accepted);}
@@ -85,6 +92,11 @@ public final class HomeGuardService extends AccessibilityService implements Shar
             if(selected!=null && intent.getData()!=null && selected.getPackageName().equals(intent.getData().getSchemeSpecificPart()))state.invalidateEventHome();
         }
     };
+    private final Runnable remoteKeysExpiry=this::updateKeyFilter;
+    static void remoteKeysChanged(){HomeGuardService service=instance;if(service==null)return;
+        service.handler.post(()->{service.handler.removeCallbacks(service.remoteKeysExpiry);service.updateKeyFilter();
+            long delay=new RemoteKeyMap(service).refreshFor();if(delay>0)service.handler.postDelayed(service.remoteKeysExpiry,delay);});
+    }
     private static boolean bootSourceDevice(){return BootSourcePolicy.supported(Build.MANUFACTURER,Build.MODEL,Build.DEVICE,Build.FINGERPRINT,Build.VERSION.SDK_INT,BuildConfig.LEGACY_19);}
     private void restoreBootSource(){
         if(!bootSourceDevice() || !state.ready() || !HomeGuardPolicy.bootRecheck(SystemClock.elapsedRealtime()))return;
@@ -298,6 +310,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
             IntentFilter packages=new IntentFilter(Intent.ACTION_PACKAGE_CHANGED);packages.addAction(Intent.ACTION_PACKAGE_REPLACED);packages.addAction(Intent.ACTION_PACKAGE_REMOVED);packages.addAction(Intent.ACTION_PACKAGE_ADDED);packages.addDataScheme("package");
             androidx.core.content.ContextCompat.registerReceiver(this,packageChanges,packages,androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);registered=true;}
         restoreBootSource();refreshUsageWatch();scheduleBootRechecks();updateKeyFilter();
+        remoteKeysChanged();
         scheduleSilentCheck();
         if(state.enabled())state.status(state.directHomeReady()?"HOME 按键补偿已连接，实体效果待验证":"守护已连接，等待原主页");
         if(SystemClock.elapsedRealtime()<HomeGuardPolicy.BOOT_WINDOW_MS || HomeGuardRecovery.unknownAllowed(this))schedule("服务连接");
@@ -376,12 +389,14 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     }
     @Override public void onInterrupt(){DiagnosticLog.info("home_guard.service","interrupted");cancel();cancelRecoveryChecks();}
     @Override public boolean onUnbind(Intent intent){
+        handler.removeCallbacks(remoteKeysExpiry);
         DiagnosticLog.info("home_guard.service","unbound");
         cancel();cancelRecoveryChecks();handler.removeCallbacks(usageCheck);if(instance==this)instance=null;
         if(state!=null && state.enabled())state.status("无障碍已断开，等待系统恢复");
         return super.onUnbind(intent);
     }
     @Override public void onDestroy(){
+        handler.removeCallbacks(remoteKeysExpiry);
         cancel();cancelRecoveryChecks();handler.removeCallbacks(usageCheck);if(instance==this)instance=null;
         if(state!=null)state.preferences.unregisterOnSharedPreferenceChangeListener(this);
         if(registered){unregisterReceiver(lifecycle);unregisterReceiver(packageChanges);}super.onDestroy();

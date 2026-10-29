@@ -20,13 +20,13 @@ ROOT = Path(__file__).resolve().parent
 TOOLS = ('install_quiet_tv.py', 'verify_install.py', 'install_tcl.py', 'tcl_cast.py',
          'configure_home_guard.py', 'configure_boot_home.py', 'device_maintenance.py',
          'device_selftest.py', 'device_adaptation.py', 'vendor_adaptation.py',
-         'device-presets.json', 'agent_session.py')
+         'device-presets.json', 'remote_calibration.py', 'agent_session.py')
 GUIDES = {'agent.md': 'docs/AGENT.md', 'maintenance.md': 'docs/AGENT_ADAPT.zh-CN.md',
           'guides/rules.md': 'docs/DEVICE_ADAPTATION.zh-CN.md',
           **{'guides/' + name + '.md': 'docs/agent/' + name + '.md' for name in
-             ('connect', 'install', 'update', 'home', 'tcl', 'restore', 'acceptance', 'inputs', 'session')}}
+             ('connect', 'install', 'update', 'home', 'tcl', 'restore', 'acceptance', 'inputs', 'session', 'remote')}}
 RUNNERS = ('install_quiet_tv', 'install_tcl', 'configure_home_guard', 'configure_boot_home',
-           'device_maintenance', 'device_selftest', 'device_adaptation', 'vendor_adaptation')
+           'device_maintenance', 'device_selftest', 'device_adaptation', 'vendor_adaptation', 'remote_calibration')
 PACKAGES = ('home.quiet.tv', 'com.ts.launcher', 'com.coocaa.quiettv')
 
 
@@ -166,7 +166,8 @@ def run_step(directory, state, tool, arguments):
     if unresolved(state):
         raise ValueError('上一步未确认；先 resume、核对原记录并 review，不自动重试')
     if state['intent'] == 'inspect' and not (tool == 'device_selftest' and not arguments
-            or tool == 'device_maintenance' and arguments == ['inspect']):
+            or tool == 'device_maintenance' and arguments == ['inspect']
+            or tool == 'remote_calibration' and arguments == ['status']):
         raise ValueError('只读任务只允许默认自检或 inspect；改变目标须明确建立新任务')
     if tool == 'install_quiet_tv' and state['intent'] in ('update', 'trial', 'restore'):
         if state['intent'] == 'restore':
@@ -180,7 +181,7 @@ def run_step(directory, state, tool, arguments):
     if any(arg.startswith('--') and any(flag.startswith(arg.split('=')[0]) for flag in reserved)
            for arg in arguments):
         raise ValueError('设备、用户、工具路径、包名和记录路径由任务固定，不在子命令重复指定')
-    if state['package'] != tcl.PACKAGE and tool not in ('device_maintenance', 'device_selftest', 'configure_home_guard'):
+    if state['package'] != tcl.PACKAGE and tool not in ('device_maintenance', 'device_selftest', 'configure_home_guard', 'remote_calibration'):
         raise ValueError('此工具只支持普通包名；专用包沿用已验证的同包名流程')
     current = checked_snapshot(state)
     number = len(state['steps']) + 1
@@ -191,7 +192,7 @@ def run_step(directory, state, tool, arguments):
     command = [sys.executable, str(ROOT / (tool + '.py')), *arguments,
                '--serial', state['scope']['serial'], '--user', str(state['scope']['user']),
                '--adb', state['adb'], '--record', str(record)]
-    if tool in ('device_maintenance', 'device_selftest', 'configure_home_guard'):
+    if tool in ('device_maintenance', 'device_selftest', 'configure_home_guard', 'remote_calibration'):
         command += ['--package', state['package']]
     step = {'id': number, 'tool': tool, 'arguments': arguments, 'status': 'running',
             'startedAt': stamp(), 'before': current, 'record': str(record), 'log': str(log)}
