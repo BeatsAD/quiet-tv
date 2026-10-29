@@ -16,7 +16,8 @@ import java.util.concurrent.*;
 
 final class AppListPanel extends ManagementPanel {
     @Override boolean useSettingListStyle(){return false;}
-    private static final String[] FILTERS={"全部","用户应用","预装应用","已禁用","可恢复"};
+    private static final String[] FILTERS={"全部","用户应用","预装应用","已禁用","可恢复","隐藏应用"};
+    private static final int HIDDEN_FILTER=5;
     private final ManagementAdb session;
     private final ExecutorService worker;
     private final ArrayList<AppRepository.App> all=new ArrayList<>(),filtered=new ArrayList<>();
@@ -117,7 +118,8 @@ final class AppListPanel extends ManagementPanel {
     @android.annotation.SuppressLint("NotifyDataSetChanged")
     private void applyFilter(){
         boolean listFocused=list.hasFocus();filtered.clear();
-        for(AppRepository.App app:all){boolean match=filter==0 || filter==1 && !app.system && app.installed || filter==2 && app.system || filter==3 && app.installed && !app.enabled || filter==4 && app.recoverable && !app.installed;if(match)filtered.add(app);}
+        HomeVisibilityStore visibility=new HomeVisibilityStore(this);ChildModeStore children=new ChildModeStore(this);
+        for(AppRepository.App app:all){boolean match=filter==0 || filter==1 && !app.system && app.installed || filter==2 && app.system || filter==3 && app.installed && !app.enabled || filter==4 && app.recoverable && !app.installed || filter==HIDDEN_FILTER && app.installed && visibility.hidden(app.pkg) && !children.hidden(app.pkg);if(match)filtered.add(app);}
         for(int i=0;i<filterButtons.size();i++)filterButtons.get(i).setSelected(i==filter);
         boolean present=false;for(AppRepository.App app:filtered)if(app.pkg.equals(selected))present=true;if(!present)selected=filtered.isEmpty()?"":filtered.get(0).pkg;
         adapter.notifyDataSetChanged();renderDetails();if(listFocused)focusList();
@@ -138,6 +140,10 @@ final class AppListPanel extends ManagementPanel {
         String size=app.apkSizeBytes>=0?Formatter.formatShortFileSize(this,app.apkSizeBytes):"大小未知";
         gap(details,20);TextView meta=center(app.pkg+"\n版本 "+app.version+"  "+size,12);meta.setTextColor(MUTED);meta.setLineSpacing(px(5),1);details.addView(meta,new LinearLayout.LayoutParams(-1,-2));
         details.addView(new View(this),new LinearLayout.LayoutParams(1,0,1));gap(details,18);
+        if(!busy && filter==HIDDEN_FILTER){
+            LinearLayout restore=row();restore.setGravity(Gravity.CENTER);details.addView(restore,new LinearLayout.LayoutParams(-1,px(42)));
+            addAction(restore,button("恢复显示",()->restoreHiddenApp(app)));gap(details,10);
+        }
         LinearLayout actions=row();actions.setGravity(Gravity.CENTER);details.addView(actions,new LinearLayout.LayoutParams(-1,px(42)));
         if(!busy)bootAppAction(app,actions);
         String protectedReason=operations.protection(app);
@@ -163,6 +169,19 @@ final class AppListPanel extends ManagementPanel {
             });addAction(actions,uninstall);
         }
 
+    }
+    private void restoreHiddenApp(AppRepository.App app){
+        if(busy)return;busy=true;renderDetails();
+        worker.execute(()->{
+            String result;
+            try{
+                HomeVisibilityStore visibility=new HomeVisibilityStore(this);
+                if(!visibility.hidden(app.pkg)||new ChildModeStore(this).hidden(app.pkg)||!AppAvailability.installed(getPackageManager(),getPackageManager().getApplicationInfo(app.pkg,0)))result="应用状态已变化，请刷新后重试";
+                else{boolean full=visibility.wasPinned(app.pkg)&&new DockStore(this).load().size()>=DockStore.CAPACITY;
+                    result=visibility.restore(app.pkg)?full?"已恢复到第二屏，首页已满":"已恢复显示":"保存失败，请重试";}
+            }catch(Exception e){result="无法恢复显示，请重试";}
+            String outcome=result;ui(()->{busy=false;dirty=true;if(active){applyFilter();focusList();feedback(outcome);}});
+        });
     }
     private void connectManagement(){
         if(busy || connecting || !active)return;

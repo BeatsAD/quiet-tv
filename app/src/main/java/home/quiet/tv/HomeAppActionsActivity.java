@@ -21,14 +21,14 @@ public final class HomeAppActionsActivity extends ManagementUi {
     private Dialog dialog;
     private LinearLayout box;
     private String pkg,mode="menu",pickerMode="",candidate="";
-    private boolean fromDock,fromHidden,pickerFromMenu,waitingForDelete;
+    private boolean fromDock,pickerFromMenu,waitingForDelete;
     private int generation;
     private final HashMap<String,Bitmap> pictures=new HashMap<>();
     @Override boolean loadWallpaper(){return false;}
     @Override public void onCreate(Bundle state){
         super.onCreate(state);setContentView(new FrameLayout(this));
         pkg=getIntent().getStringExtra("package");if(pkg==null)pkg="";
-        fromDock=getIntent().getBooleanExtra("dock",false);fromHidden=getIntent().getBooleanExtra("hidden",false);
+        fromDock=getIntent().getBooleanExtra("dock",false);
         dialog=new Dialog(this);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         dialog.setCanceledOnTouchOutside(true);dialog.setOnCancelListener(d->handleBack());
         if(getIntent().getBooleanExtra("add",false))picker("add",false);else menu();
@@ -72,26 +72,16 @@ public final class HomeAppActionsActivity extends ManagementUi {
     }
     private void menu(){
         pickerMode="";content("menu","");boolean real=!pkg.startsWith("quiet:")&&!pkg.isEmpty();String protectedReason=protection();Button first;
-        if(fromHidden){first=option("恢复显示",R.drawable.ic_manage_refresh,this::restore);}
-        else{
-            first=option("移动",R.drawable.ic_app_move,()->{setResult(RESULT_OK,new Intent().putExtra("action","move").putExtra("package",pkg).putExtra("dock",fromDock));finish();});
-            if(fromDock){option("替换应用",R.drawable.ic_manage_refresh,()->picker("replace",true));option("添加应用",R.drawable.ic_manage_plus,()->picker("add",true));}
-            option(fromDock?"移出首页":"添加到首页",fromDock?R.drawable.ic_manage_back:R.drawable.ic_manage_plus,()->{if(fromDock)unpin();else pin(pkg);});
-            Button hide=option("隐藏",R.drawable.ic_child_hidden,this::hide);hide.setEnabled(real&&protectedReason.isEmpty()&&new ChildModeStore(this).eligible(pkg));
-        }
+        first=option("移动",R.drawable.ic_app_move,()->{setResult(RESULT_OK,new Intent().putExtra("action","move").putExtra("package",pkg).putExtra("dock",fromDock));finish();});
+        if(fromDock){option("替换应用",R.drawable.ic_manage_refresh,()->picker("replace",true));option("添加应用",R.drawable.ic_manage_plus,()->picker("add",true));}
+        option(fromDock?"移出首页":"添加到首页",fromDock?R.drawable.ic_manage_back:R.drawable.ic_manage_plus,()->{if(fromDock)unpin();else pin(pkg);});
+        Button hide=option("隐藏",R.drawable.ic_child_hidden,this::hide);hide.setEnabled(real&&protectedReason.isEmpty()&&new ChildModeStore(this).eligible(pkg));
         Button uninstall=option("卸载",R.drawable.ic_manage_trash,this::authorizeUninstall);uninstall.setEnabled(real&&protectedReason.isEmpty());
         show(250,first,true);
     }
     private void changed(String focus){setResult(RESULT_OK,new Intent().putExtra("action","changed").putExtra("package",focus));finish();}
     private void failure(String message){content("notice","未完成");box.addView(muted(message,14));Button close=option("返回",R.drawable.ic_manage_back,this::handleBack);show(400,close,false);}
-    private void hide(){if(!protection().isEmpty()||!new ChildModeStore(this).eligible(pkg)){failure("此应用必须保留");return;}if(new HomeVisibilityStore(this).hide(pkg)){Toast.makeText(this,"已隐藏，可在“隐藏应用”中恢复",Toast.LENGTH_SHORT).show();changed("");}else failure("保存失败，请重试");}
-    private void restore(){
-        if(new ChildModeStore(this).hidden(pkg)){failure("此应用仍受儿童模式隐藏规则保护");return;}
-        boolean visible=false;for(HomeAppCatalog.Entry entry:new HomeAppCatalog(this).load(new DockStore(this).load(),true))if(pkg.equals(entry.id))visible=true;
-        if(!visible){failure("应用状态已变化，请重新进入隐藏应用");return;}
-        HomeVisibilityStore store=new HomeVisibilityStore(this);boolean full=store.wasPinned(pkg)&&new DockStore(this).load().size()>=DockStore.CAPACITY;
-        if(store.restore(pkg)){Toast.makeText(this,full?"已恢复到第二屏，首页已满":"已恢复显示",Toast.LENGTH_SHORT).show();changed("");}else failure("保存失败，请重试");
-    }
+    private void hide(){if(!protection().isEmpty()||!new ChildModeStore(this).eligible(pkg)){failure("此应用必须保留");return;}if(new HomeVisibilityStore(this).hide(pkg)){Toast.makeText(this,"已隐藏，可在应用管理的“隐藏应用”中恢复",Toast.LENGTH_SHORT).show();changed("");}else failure("保存失败，请重试");}
     private void unpin(){ArrayList<String> values=new DockStore(this).load();values.remove(pkg);if(new DockStore(this).saveOrder(values))changed("");else failure("保存失败，请重试");}
     private void pin(String id){
         ArrayList<String> values=new DockStore(this).load();
@@ -119,7 +109,7 @@ public final class HomeAppActionsActivity extends ManagementUi {
         for(int i=0;i<choices.size();i++){
             HomeAppCatalog.Entry entry=choices.get(i);if(i%5==0){line=row();line.setGravity(Gravity.TOP);grid.addView(line);}
             LinearLayout card=column();card.setFocusable(true);card.setFocusableInTouchMode(true);card.setClickable(true);card.setPadding(px(5),px(5),px(5),px(7));card.setBackgroundDrawable(ControlStyle.action(unit,10,0,0));card.setContentDescription("选择 "+entry.label);
-            ImageView image=new ImageView(this);image.setImageBitmap(pictures.get(entry.id));image.setScaleType(ImageView.ScaleType.FIT_CENTER);card.addView(image,new LinearLayout.LayoutParams(-1,px(65)));
+            ImageView image=new ImageView(this);androidx.core.graphics.drawable.RoundedBitmapDrawable cover=androidx.core.graphics.drawable.RoundedBitmapDrawableFactory.create(getResources(),pictures.get(entry.id));cover.setCornerRadius(px(11));cover.setAntiAlias(true);image.setImageDrawable(cover);image.setScaleType(ImageView.ScaleType.FIT_XY);LinearLayout.LayoutParams imageSize=new LinearLayout.LayoutParams(px(116),px(116*203f/360f));imageSize.gravity=Gravity.CENTER_HORIZONTAL;card.addView(image,imageSize);
             TextView title=center(entry.label,12);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);card.addView(title,new LinearLayout.LayoutParams(-1,px(28)));
             card.setOnClickListener(v->select(entry.id));line.addView(card,new LinearLayout.LayoutParams(0,-2,1));if(first==null||entry.id.equals(candidate))first=card;
             if(i==choices.size()-1)for(int n=i%5+1;n<5;n++)line.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));
