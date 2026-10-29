@@ -15,8 +15,6 @@ public class AppManagementActivity extends ManagementUi {
     private int page=-1;
     private boolean resumed,chinese=true,fixedGreeting;
     @Override boolean localManagement(){return false;}
-    @Override boolean loadWallpaper(){return false;}
-    @Override boolean unifiedSettings(){return true;}
     String tr(String zh,String en){return chinese?zh:en;}
     boolean chinese(){return chinese;}
     boolean fixedGreeting(){return fixedGreeting;}
@@ -29,18 +27,16 @@ public class AppManagementActivity extends ManagementUi {
         }catch(java.io.IOException|org.json.JSONException error){throw new IllegalStateException("Invalid bundled launcher configuration",error);}
         ((TextView)header.getChildAt(1)).setText(tr("桌面设置","Desktop Settings"));
         toolbar(SettingsPages.valid(saved==null?initialPage():saved.getInt("management-page",initialPage())));
-        header.setVisibility(View.GONE);
         panelHost=new FrameLayout(this);root.addView(panelHost,new LinearLayout.LayoutParams(-1,0,1));
         if(saved!=null)for(int i=0;i<panels.length;i++)savedPanels[i]=saved.getBundle("panel-"+i);
         selectManagementPage(SettingsPages.valid(saved==null?initialPage():saved.getInt("management-page",initialPage())));
     }
     void weatherSettingsChanged(){if(panels[SettingsPages.WEATHER]!=null)((WeatherSettingsPanel)panels[SettingsPages.WEATHER]).settingsChanged();}
-    void openWeather(){selectManagementPage(SettingsPages.WEATHER);}
     void wireRows(DesktopSettingsRow[] rows,View tab){for(int i=0;i<rows.length;i++){DesktopSettingsRow row=rows[i];row.setNextFocusUpId(i==0?tab.getId():rows[i-1].getId());row.setNextFocusDownId(rows[Math.min(rows.length-1,i+1)].getId());row.setNextFocusLeftId(row.getId());row.setNextFocusRightId(row.getId());}}
-    TextView section(String name){TextView label=muted(name,13);label.setLayoutParams(new LinearLayout.LayoutParams(-1,px(24)));return label;}
+    TextView section(String name){TextView label=muted(name,13);label.setLayoutParams(new LinearLayout.LayoutParams(-1,px(38)));return label;}
     LinearLayout group(){return listGroup();}
     DesktopSettingsRow setting(String label,String icon,String tag){DesktopSettingsRow row=new DesktopSettingsRow(this,label,icon,false);row.setTag(tag);return row;}
-    void addSetting(LinearLayout group,DesktopSettingsRow row){group.addView(row,new LinearLayout.LayoutParams(-1,px(54)));}
+    void addSetting(LinearLayout group,DesktopSettingsRow row){group.addView(row,new LinearLayout.LayoutParams(-1,px(60)));}
     void attachPanel(View view){panelHost.addView(view,new FrameLayout.LayoutParams(-1,-1));}
     @Override void selectManagementPage(int next){
         if(next<0||next>=panels.length)return;

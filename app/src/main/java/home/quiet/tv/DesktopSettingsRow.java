@@ -12,7 +12,7 @@ final class DesktopSettingsRow extends LinearLayout {
     private final TextView title,value,description;
     private final ImageView start,end;
     private final ManagementUi ui;
-    private boolean checkable,checked,displayStyle;
+    private boolean checkable,checked;
     DesktopSettingsRow(ManagementUi ui,String text,String symbol,boolean navigation){
         super(ui);this.ui=ui;setOrientation(HORIZONTAL);setGravity(Gravity.CENTER_VERTICAL);
         setPadding(ui.px(navigation?14:18),0,ui.px(navigation?14:18),0);
@@ -31,15 +31,6 @@ final class DesktopSettingsRow extends LinearLayout {
         androidx.core.view.ViewCompat.setImportantForAccessibility(copy,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
         setContentDescription(text);
     }
-    void displayStyle(){
-        displayStyle=true;setPadding(ui.px(12),0,ui.px(12),0);title.setTextSize(TypedValue.COMPLEX_UNIT_PX,ui.px(14));value.setMaxWidth(ui.px(90));
-        StateListDrawable states=new StateListDrawable();states.addState(new int[]{android.R.attr.state_focused,android.R.attr.state_window_focused},ui.surface(0xffeff0f3,0xffeff0f3,0,9));states.addState(new int[]{},new ColorDrawable(Color.TRANSPARENT));setBackgroundDrawable(states);
-    }
-    @Override protected void drawableStateChanged(){
-        super.drawableStateChanged();if(!displayStyle||title==null)return;
-        boolean light=isFocused()&&hasWindowFocus();title.setTextColor(light?0xff15171c:ManagementUi.TEXT);value.setTextColor(light?0xff353942:0xffa2a8b3);start.setColorFilter(light?0xff23262c:0xffd4d8df);
-        if(checkable){end.clearColorFilter();end.setImageDrawable(new Toggle(checked,light));}else end.setColorFilter(light?0xff23262c:0xffa2a8b3);
-    }
     void icon(int resource){start.setImageDrawable(UiCompat.drawable(ui,resource));start.clearColorFilter();}
     void value(String text){value.setText(text);updateDescription();}
     String value(){return value.getText().toString();}
@@ -47,14 +38,14 @@ final class DesktopSettingsRow extends LinearLayout {
     void description(String text){description.setText(text);description.setVisibility(text.isEmpty()?GONE:VISIBLE);title.setTextSize(TypedValue.COMPLEX_UNIT_PX,ui.px(text.isEmpty()?16:17));updateDescription();}
     private void updateDescription(){setContentDescription(title.getText()+(value.length()==0?"":"  "+value.getText())+(description.length()==0?"":"  "+description.getText()));}
     void tail(String symbol){end.setImageDrawable(new Glyph(symbol,0xffa2a8b3));end.setVisibility(VISIBLE);}
-    void checked(boolean enabled){checkable=true;checked=enabled;end.setVisibility(VISIBLE);LayoutParams p=(LayoutParams)end.getLayoutParams();p.width=ui.px(44);end.setLayoutParams(p);end.clearColorFilter();end.setImageDrawable(new Toggle(enabled,displayStyle&&isFocused()&&hasWindowFocus()));}
+    void checked(boolean enabled){checkable=true;checked=enabled;end.setVisibility(VISIBLE);LayoutParams p=(LayoutParams)end.getLayoutParams();p.width=ui.px(44);end.setLayoutParams(p);end.setImageDrawable(new Toggle(enabled));}
     boolean checked(){return checked;}
     void available(boolean enabled){setEnabled(enabled);setAlpha(enabled?1f:.55f);}
     @Override public void onInitializeAccessibilityNodeInfo(AccessibilityNodeInfo info){super.onInitializeAccessibilityNodeInfo(info);info.setClassName(checkable?Switch.class.getName():Button.class.getName());info.setCheckable(checkable);if(checkable)info.setChecked(checked);}
     private static final class Toggle extends Drawable {
-        final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);final boolean on,light;
-        Toggle(boolean on,boolean light){this.on=on;this.light=light;}
-        @Override public void draw(Canvas c){Rect r=getBounds();int save=c.save();c.translate(r.left,r.top);c.scale(r.width()/44f,r.height()/24f);paint.setColor(on?(light?0xff252932:0xffe1e6ed):0xff535860);c.drawRoundRect(new RectF(0,0,44,24),12,12,paint);paint.setColor(on?(light?0xfff0f1f4:0xff26303b):0xffe1e3e5);c.drawCircle(on?32:12,12,9,paint);c.restoreToCount(save);}
+        final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);final boolean on;
+        Toggle(boolean on){this.on=on;}
+        @Override public void draw(Canvas c){Rect r=getBounds();int save=c.save();c.translate(r.left,r.top);c.scale(r.width()/44f,r.height()/24f);paint.setColor(on?0xffe1e6ed:0xff535860);c.drawRoundRect(new RectF(0,0,44,24),12,12,paint);paint.setColor(on?0xff26303b:0xffe1e3e5);c.drawCircle(on?32:12,12,9,paint);c.restoreToCount(save);}
         @Override public void setAlpha(int a){paint.setAlpha(a);}
         @Override public void setColorFilter(ColorFilter f){paint.setColorFilter(f);}
         @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
