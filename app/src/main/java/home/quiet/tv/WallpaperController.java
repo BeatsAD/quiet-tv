@@ -5,6 +5,7 @@ import android.app.*;
 import android.graphics.*;
 import android.graphics.drawable.*;
 import android.os.*;
+import android.text.format.Formatter;
 import android.util.LruCache;
 import android.view.*;
 import android.widget.*;
@@ -507,12 +508,20 @@ final class WallpaperController {
         auto.setVisibility(dynamicTab?View.GONE:View.VISIBLE);
         if(entry==null){title.setText(tr("还没有动态壁纸","No video wallpapers"));subtitle.setVisibility(View.GONE);for(TextView control:new TextView[]{staticTab,videoTab,dynamicToggle,soundToggle,localFile,upload})control.setNextFocusDownId(upload.getId());return;}
         title.setText(entry.label(chinese));boolean isDaily=WallpaperCatalog.DAILY.equals(preview);
-        subtitle.setVisibility(isDaily||entry.video()?View.VISIBLE:View.GONE);
-        if(entry.video())subtitle.setText(preview.equals(failedVideo)?videoFailure.hint(chinese):entry.width+" × "+entry.height+"  "+Math.round(entry.fps)+" FPS  "+Math.round(entry.durationMs/1000f)+tr(" 秒"," s"));
+        subtitle.setVisibility(isDaily||entry.custom()?View.VISIBLE:View.GONE);
+        if(entry.custom()){
+            String description=entry.width+" × "+entry.height;
+            if(entry.video())description+="  "+Math.round(entry.fps)+" FPS  "+Math.round(entry.durationMs/1000f)+tr(" 秒"," s");
+            description+="  "+Formatter.formatShortFileSize(activity,entry.bytes);
+            subtitle.setText(entry.video()&&preview.equals(failedVideo)?videoFailure.hint(chinese):description);
+        }
         if(isDaily){
             WallpaperCatalog.DailyImage image=state.dailyImages.get(state.dailySource);
             String description=WallpaperCatalog.sourceLabel(state.dailySource,chinese)+"  "+tr("每天自动更新","Updates daily");
-            if(store.cached(image)&&!image.title.isEmpty())description+="  "+image.title;
+            if(store.cached(image)){
+                description=image.width+" × "+image.height+"  "+Formatter.formatShortFileSize(activity,store.dailyFile(image.source,image.slot).length())+"  "+description;
+                if(!image.title.isEmpty())description+="  "+image.title;
+            }
             subtitle.setText(daily.busy()?daily.status(WallpaperCatalog.BING):description);
         }
         auto.setText(tr("壁纸轮播","Slideshow"));auto.setCompoundDrawables(toggleDrawable(state.rotating),null,null,null);auto.setCompoundDrawablePadding(px(7));auto.setContentDescription(state.rotating?tr("壁纸轮播，开","Slideshow, on"):tr("壁纸轮播，关","Slideshow, off"));auto.setEnabled(!WallpaperCatalog.DAILY.equals(state.current)&&state.pictures().size()>=2);auto.setAlpha(auto.isEnabled()?1:.4f);
