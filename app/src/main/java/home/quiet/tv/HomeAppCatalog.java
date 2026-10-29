@@ -34,7 +34,12 @@ final class HomeAppCatalog {
         boolean chinese=!"en".equals(config.optString("language","zh"));
         result.add(0,new Entry(WALLPAPER,chinese?"壁纸设置":"Wallpaper Settings",null));
         result.add(1,new Entry(DESKTOP_SETTINGS,chinese?"桌面设置":"Desktop Settings",null));
-        result.add(2,new Entry(MANAGEMENT,chinese?"应用管理":"App Management",null));
+        return result;
+    }
+    /** Replace the retired management entry once and retain the first saved position. */
+    static ArrayList<String> unifiedSettingsEntries(List<String> entries){
+        ArrayList<String> result=new ArrayList<>();
+        for(String entry:entries){String id=MANAGEMENT.equals(entry)?DESKTOP_SETTINGS:entry;if(!DESKTOP_SETTINGS.equals(id)||!result.contains(id))result.add(id);}
         return result;
     }
     /** Same launchable apps for Home, its editor and the Dock; TV entries win. */

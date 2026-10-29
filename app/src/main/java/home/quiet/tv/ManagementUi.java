@@ -17,7 +17,7 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     FrameLayout stage;
     float unit;
     private static final int[] MANAGEMENT_ORDER={0,1,2,3,6,4,5};
-    private final Button[] managementTabs=new Button[7];
+    private final Button[] managementTabs=new Button[SettingsPages.COUNT];
     private int managementPage=-1;
     private boolean managementEntry=true;
     private Button managementStatus;
@@ -40,11 +40,12 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
         }catch(java.io.IOException ignored){}
         }
         View shade=new View(this);shade.setBackgroundDrawable(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0xf00c0d11,0xf50b0c10}));stage.addView(shade,new FrameLayout.LayoutParams(-1,-1));
-        root=column();root.setPadding(px(48),px(28),px(48),px(16));stage.addView(root,new FrameLayout.LayoutParams(-1,-1));
+        root=column();root.setPadding(px(unifiedSettings()?36:48),px(28),px(unifiedSettings()?36:48),px(16));stage.addView(root,new FrameLayout.LayoutParams(-1,-1));
         header=row();root.addView(header,new LinearLayout.LayoutParams(-1,px(38)));
         Button back=iconButton("返回",R.drawable.ic_manage_back,this::handleBack);header.addView(back,new LinearLayout.LayoutParams(px(34),px(34)));
         TextView title=label("应用管理",27);title.setPadding(px(14),0,0,0);header.addView(title,new LinearLayout.LayoutParams(0,-1,1));
     }
+    boolean unifiedSettings(){return false;}
     boolean loadWallpaper(){return true;}
     boolean localManagement(){return true;}
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);managementEntry=true;}
@@ -113,7 +114,13 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
         b.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));b.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(compact?12:16));
         b.setSingleLine(true);b.setPadding(px(compact?10:18),0,px(compact?10:18),0);b.setMinWidth(px(compact?48:100));
     }
-    void styleManagementTab(Button b,boolean compact){styleTab(b,compact);}
+    void styleManagementTab(Button b,boolean compact){
+        if(!unifiedSettings()||compact){styleTab(b,compact);return;}
+        b.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(15));b.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));
+        b.setSingleLine(true);b.setPadding(px(10),0,px(10),0);b.setMinimumWidth(0);b.setMinWidth(0);
+        StateListDrawable background=new StateListDrawable();background.addState(new int[]{android.R.attr.state_focused},surface(0xfff0f1f4,0xfff0f1f4,0,19));background.addState(new int[]{android.R.attr.state_selected},surface(0xff353942,0xff353942,0,19));background.addState(new int[]{},new ColorDrawable(Color.TRANSPARENT));b.setBackgroundDrawable(background);
+        b.setTextColor(new ColorStateList(new int[][]{{android.R.attr.state_focused},{android.R.attr.state_selected},{}},new int[]{0xff15171c,0xfff0f1f4,0xffa1a6b0}));
+    }
     boolean useSettingListStyle(){return true;}
     Drawable listSurface(){
         if(useSettingListStyle())return ControlStyle.listRow(unit,10);
@@ -141,15 +148,30 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     }
     TextView managementHint(String text){TextView hint=muted(text,11);hint.setSingleLine();hint.setEllipsize(android.text.TextUtils.TruncateAt.END);return hint;}
     LinearLayout toolbar(int selected){
+        if(unifiedSettings())return settingsToolbar(selected);
         LinearLayout tools=row();LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,px(54));p.topMargin=px(22);root.addView(tools,p);
-        String[] titles={"应用列表","首页应用","应用排序","儿童模式","版本更新","诊断日志"};
         for(int i:MANAGEMENT_ORDER){
-            Button tab=button(i==FileTransferPanel.PAGE?"文件传输":titles[i],()->{});managementTab(tab,i,selected,header.getChildAt(0));
+            Button tab=button(SettingsPages.title(i,true),()->{});managementTab(tab,i,selected,header.getChildAt(0));
             LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(-2,px(36));tp.rightMargin=px(12);tools.addView(tab,tp);
         }
         managementHeader();
         tools.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));
         View line=new View(this);line.setBackgroundColor(0x18ffffff);root.addView(line,new LinearLayout.LayoutParams(-1,px(1)));return tools;
+    }
+    private LinearLayout settingsToolbar(int selected){
+        LinearLayout bar=row();root.addView(bar,new LinearLayout.LayoutParams(-1,px(46)));
+        HorizontalScrollView scrolling=new HorizontalScrollView(this);scrolling.setFocusable(false);scrolling.setHorizontalScrollBarEnabled(false);scrolling.setFillViewport(true);
+        bar.addView(scrolling,new LinearLayout.LayoutParams(0,-1,1));LinearLayout tools=row();scrolling.addView(tools,new HorizontalScrollView.LayoutParams(-2,-1));
+        for(int page:SettingsPages.ORDER){
+            Button tab=button(SettingsPages.title(page,((AppManagementActivity)this).chinese()),()->{});managementTab(tab,page,selected,header.getChildAt(0));
+            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,px(36));p.rightMargin=px(5);tools.addView(tab,p);
+            tab.setNextFocusUpId(tab.getId());tab.setOnFocusChangeListener((v,focused)->{if(focused)scrolling.post(()->{android.graphics.Rect bounds=new android.graphics.Rect();tab.getDrawingRect(bounds);tab.requestRectangleOnScreen(bounds,false);});});
+        }
+        managementHeader();header.removeView(managementMoreButton);bar.addView(managementMoreButton,new LinearLayout.LayoutParams(px(44),px(34)));
+        managementMoreButton.setText("");managementMoreButton.setFocusableInTouchMode(true);managementMoreButton.setContentDescription(((AppManagementActivity)this).tr("更多","More"));managementMoreButton.setCompoundDrawables(null,null,null,null);
+        Drawable icon=UiCompat.drawable(this,R.drawable.ic_manage_more);icon.setBounds(0,0,px(18),px(18));managementMoreButton.setCompoundDrawables(icon,null,null,null);managementMoreButton.setPadding(px(13),0,0,0);
+        managementMoreButton.setNextFocusLeftId(managementTabs[5].getId());managementTabs[5].setNextFocusRightId(managementMoreButton.getId());
+        gap(root,6);return tools;
     }
     void managementTab(Button tab,int page,int selected,View back){
         managementPage=selected;managementTabs[page]=tab;styleManagementTab(tab,false);tab.setSelected(page==selected);tab.setFocusableInTouchMode(true);tab.setId(androidx.core.view.ViewCompat.generateViewId());tab.setTag("management-tab-"+page);
@@ -160,7 +182,7 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
             if(key!=KeyEvent.KEYCODE_DPAD_LEFT && key!=KeyEvent.KEYCODE_DPAD_RIGHT && key!=KeyEvent.KEYCODE_DPAD_DOWN)return false;
             if(event.getAction()==KeyEvent.ACTION_UP)return true;
             if(key==KeyEvent.KEYCODE_DPAD_DOWN)focusManagementContent();
-            else{int[] order=MANAGEMENT_ORDER;int position=0;for(int i=0;i<order.length;i++)if(order[i]==page)position=i;int next=order[Math.max(0,Math.min(order.length-1,position+(key==KeyEvent.KEYCODE_DPAD_RIGHT?1:-1)))];if(next!=page)managementTabs[next].performClick();}
+            else{int[] order=unifiedSettings()?SettingsPages.ORDER:MANAGEMENT_ORDER;int position=0;for(int i=0;i<order.length;i++)if(order[i]==page)position=i;int next=order[Math.max(0,Math.min(order.length-1,position+(key==KeyEvent.KEYCODE_DPAD_RIGHT?1:-1)))];if(next!=page)managementTabs[next].performClick();else if(unifiedSettings()&&key==KeyEvent.KEYCODE_DPAD_RIGHT)managementMoreButton.requestFocus();}
             return true;
         });
     }
