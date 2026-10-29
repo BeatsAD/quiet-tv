@@ -84,7 +84,7 @@ public final class HomeAppActionsActivity extends ManagementUi {
     }
     private void changed(String focus){setResult(RESULT_OK,new Intent().putExtra("action","changed").putExtra("package",focus));finish();}
     private void failure(String message){content("notice","未完成");box.addView(muted(message,14));Button close=option("返回",R.drawable.ic_manage_back,this::handleBack);show(400,close,false);}
-    private void hide(){if(!protection().isEmpty()||!new ChildModeStore(this).eligible(pkg)){failure("此应用必须保留");return;}if(new HomeVisibilityStore(this).hide(pkg)){Toast.makeText(this,"已隐藏，可在“应用列表 → 隐藏应用”中恢复",Toast.LENGTH_SHORT).show();changed("");}else failure("保存失败，请重试");}
+    private void hide(){if(!protection().isEmpty()||!new ChildModeStore(this).eligible(pkg)){failure("此应用必须保留");return;}if(new HomeVisibilityStore(this).hide(pkg)){Toast.makeText(this,"已隐藏，可在“应用管理 → 隐藏应用”中恢复",Toast.LENGTH_SHORT).show();changed("");}else failure("保存失败，请重试");}
     private void unpin(){ArrayList<String> values=new DockStore(this).load();values.remove(pkg);if(new DockStore(this).saveOrder(values))changed("");else failure("保存失败，请重试");}
     private void pin(String id){
         ArrayList<String> values=new DockStore(this).load();
@@ -142,7 +142,7 @@ public final class HomeAppActionsActivity extends ManagementUi {
     private void confirmUninstall(){
         AppRepository.App app=metadata(pkg);if(app==null||!app.installed||!protection().isEmpty()){failure("应用状态已变化，不能卸载");return;}
         content("uninstall","卸载 "+name(pkg)+"？");box.addView(muted("卸载后将删除此应用的数据",14));Button cancel=option("取消",0,this::menu);
-        option(app.system?"在应用列表中继续":"卸载",R.drawable.ic_manage_trash,()->{
+        option(app.system?"在应用管理中继续":"卸载",R.drawable.ic_manage_trash,()->{
             AppRepository.App latest=metadata(pkg);
             if(latest==null||!latest.installed||latest.system!=app.system||!protection().isEmpty()||new ChildModeStore(this).hidden(pkg)){failure("应用状态已变化，请重新确认");return;}
             if(app.system){startActivity(new Intent(this,AppManagementActivity.class).putExtra("selected-package",pkg));finish();return;}
