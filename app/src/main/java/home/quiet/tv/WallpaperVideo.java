@@ -26,14 +26,14 @@ final class WallpaperVideo {
         String details=context+" bytes="+file.length()+" container="+VideoDiagnostics.container(file);
         try{
             if(file.length()<12||file.length()>MAX_UPLOAD)throw rejected("file","file_size_invalid");
-            return Build.VERSION.SDK_INT>=16?Api16.inspect(file,context):LegacyVideoProbe.inspect(file,context);
+            return WallpaperVideoProbe.inspect(file,context);
         }catch(IOException|RuntimeException e){
             DiagnosticLog.error("wallpaper.video.inspect_failed",details+" "+VideoDiagnostics.failureDetails(e),e);throw e;
         }
     }
     private static IOException invalid(){return rejected("codec_data","invalid_codec_data");}
     private static VideoDiagnostics.Failure rejected(String stage,String reason){return VideoDiagnostics.failure(stage,reason,"视频无法解析，请使用 MP4、MOV、MKV 或 WebM / Unable to read video; use MP4, MOV, MKV or WebM");}
-    @TargetApi(16) private static final class Api16 {
+    @TargetApi(16) static final class Api16 {
     static Info inspect(File file,String context) throws IOException {
         MediaExtractor extractor=new MediaExtractor();MediaMetadataRetriever metadata=new MediaMetadataRetriever();
         String stage="extractor_open";
@@ -87,7 +87,7 @@ final class WallpaperVideo {
     private static boolean legacyDecoder(String mime){
         for(int n=0;n<MediaCodecList.getCodecCount();n++){MediaCodecInfo codec=MediaCodecList.getCodecInfoAt(n);if(!codec.isEncoder())for(String type:codec.getSupportedTypes())if(mime.equals(type))return true;}return false;
     }
-    private static void checkProfile(MediaFormat format,String mime) throws IOException {
+    static void checkProfile(MediaFormat format,String mime) throws IOException {
         // Container support is separate from decoder support. Keep the SDR/8-bit policy,
         // but do not reject VP8/VP9/AV1 merely because they have no AVC/HEVC SPS.
         if(format.containsKey("profile")){

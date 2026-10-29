@@ -9,6 +9,8 @@ import android.util.LruCache;
 import android.view.*;
 import android.widget.*;
 import java.io.IOException;
+import java.io.FileOutputStream;
+import androidx.core.util.AtomicFile;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -217,26 +219,9 @@ final class WallpaperController {
     void beforeLeave(Runnable launch){
         if(destroyed||leaving)return;
         if(!video.visible()){launch.run();return;}
-        leaving=true;++request;final int version=videoRequest;String id=playingVideo;
-        video.snapshot(image->{
-            if(destroyed||!active||version!=videoRequest){if(image!=null)image.recycle();leaving=false;return;}
-            if(image==null){finishLeave(launch);return;}
-            posterId=id;poster=image;posterBlur=currentBlur;current.setImageBitmap(image);invalidateDock();
-            // Navigation waits for the cover, never for blur work or disk compression.
-            decoder.execute(()->{
-                try{
-                    android.util.DisplayMetrics screen=activity.getResources().getDisplayMetrics();
-                    Bitmap blur=DockBackdropDrawable.prepare(image,screen.widthPixels,screen.heightPixels);
-                    main.post(()->{
-                        if(destroyed||poster!=image){blur.recycle();return;}
-                        posterBlur=blur;
-                        if(id.equals(shown)&&current.getDrawable() instanceof BitmapDrawable&&((BitmapDrawable)current.getDrawable()).getBitmap()==image){currentBlur=blur;invalidateDock();}
-                        cacheBackdrop(id,image,blur);
-                    });
-                }catch(RuntimeException|OutOfMemoryError e){DiagnosticLog.info("wallpaper.backdrop.save_failed","snapshot blur");}
-            });
-            finishLeave(launch);
-        });
+        leaving=true;++request;
+        // The existing poster/cache is already drawable. Navigation never waits for PixelCopy.
+        finishLeave(launch);
     }
     private void finishLeave(Runnable launch){stopVideo(()->{leaving=false;if(active&&!destroyed)launch.run();});}
     private void restoreSelected(){String id=store.snapshot().current;if(store.snapshot().dynamic()&&!id.equals(failedVideo))startVideo(id,false);else display(id,false);}
@@ -325,6 +310,7 @@ final class WallpaperController {
                     @Override public void ready(){
                         if(version!=videoRequest||!active||destroyed)return;
                         ambient.setVisibility(View.INVISIBLE);shade.setVisibility(View.VISIBLE);revealVideo(version);
+                        captureVideoPoster(id,version);
                         if(commitPending){commitPending=false;commitVideo(id);}else if(picker!=null)details();
                     }
                     @Override public void failed(VideoWallpaperPlayer.Failure reason){if(version!=videoRequest)return;failedVideo=id;videoFailure=reason;stopVideo();if(picker!=null)details();notice(reason.hint(chinese));}
@@ -332,6 +318,32 @@ final class WallpaperController {
             });
             // Resume may run before the window is drawable. Keep the cover until focus returns.
             if(!root.hasWindowFocus()&&picker==null)pendingVideoStart=start;else start.run();
+        });
+    }
+    private void captureVideoPoster(String id,int version){
+        if(!id.startsWith("user-")||store.poster(id).isFile())return;
+        video.snapshot(image->{
+            if(image==null)return;
+            if(version!=videoRequest||destroyed){image.recycle();return;}
+            decoder.execute(()->{
+                AtomicFile file=new AtomicFile(store.poster(id));FileOutputStream stream=null;
+                try{
+                    stream=file.startWrite();
+                    if(!image.compress(Bitmap.CompressFormat.JPEG,85,stream))throw new IOException("Poster encoding failed");
+                    file.finishWrite(stream);stream=null;
+                    android.util.DisplayMetrics screen=activity.getResources().getDisplayMetrics();
+                    Bitmap blur=DockBackdropDrawable.prepare(image,screen.widthPixels,screen.heightPixels);
+                    main.post(()->{
+                        if(version!=videoRequest||destroyed){image.recycle();blur.recycle();return;}
+                        posterId=id;poster=image;posterBlur=blur;current.setImageBitmap(image);currentBlur=blur;invalidateDock();cacheBackdrop(id,image,blur);
+                        // The poster and thumbnail cache own the captured bitmap after this point.
+                        thumbnails.put(store.imageKey(id),image);View card=cards.get(id);
+                        if(card instanceof FrameLayout)((ImageView)((FrameLayout)card).getChildAt(0)).setImageBitmap(image);
+                    });
+                }catch(IOException|RuntimeException|OutOfMemoryError e){
+                    if(stream!=null)file.failWrite(stream);image.recycle();DiagnosticLog.error("wallpaper.video.poster_failed","optional=true "+VideoDiagnostics.failureDetails(e),e);
+                }
+            });
         });
     }
     private void commitVideo(String id){

@@ -23,9 +23,13 @@ import java.io.File;
 @SuppressLint("UnsafeOptInUsageError")
 final class WallpaperPlayback {
     private final ExoPlayer player;
+    private final Handler worker;
+    private final String context;
+    private boolean releasing,releaseTimedOut;
     private String decoder="unknown";
     private boolean rendered;
     WallpaperPlayback(Activity activity,Handler worker,Surface surface,File file,WallpaperCatalog.Entry entry,String context,VideoWallpaperPlayer.PlaybackEvents events){
+        this.worker=worker;this.context=context;
         boolean manualRotation=VideoGeometry.manualRotation(android.os.Build.VERSION.SDK_INT,entry.rotation);
         DefaultRenderersFactory renderers=new DefaultRenderersFactory(activity){
             @Override protected void buildVideoRenderers(Context context,int extensions,MediaCodecSelector selector,boolean fallback,Handler handler,VideoRendererEventListener listener,long joiningMs,ArrayList<Renderer> output){
@@ -60,9 +64,10 @@ final class WallpaperPlayback {
             @Override public void onVideoSizeChanged(VideoSize size){events.size(size.width,size.height,size.pixelWidthHeightRatio);}
             @Override public void onRenderedFirstFrame(){rendered=true;events.ready();}
             @Override public void onPlayerError(PlaybackException error){
-                DiagnosticLog.error("wallpaper.video.player_error",context+" backend=media3 stage="+(rendered?"playback":"prepare")+" codec="+decoder+" error="+VideoDiagnostics.token(error.getErrorCodeName())+" code="+error.errorCode
+                DiagnosticLog.error("wallpaper.video.player_error",context+" backend=media3 stage="+(releasing?"release":rendered?"playback":"prepare")+" codec="+decoder+" error="+VideoDiagnostics.token(error.getErrorCodeName())+" code="+error.errorCode
                     +" state="+player.getPlaybackState()+" positionMs="+player.getCurrentPosition()+" "+VideoDiagnostics.causes(error),error);
                 logDecoderCauses(context,error);
+                if(releasing){releaseTimedOut=true;return;}
                 VideoWallpaperPlayer.Failure reason;
                 switch(error.errorCode){
                     case PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED:
@@ -85,6 +90,7 @@ final class WallpaperPlayback {
     private static void logDecoderCauses(String context,Throwable error){
         for(int n=0;error!=null&&n<6;n++,error=error.getCause()){
             StringBuilder details=new StringBuilder();
+            if(error instanceof ExoTimeoutException)details.append(" timeoutOperation=").append(((ExoTimeoutException)error).timeoutOperation);
             if(error instanceof DecoderInitializationException){
                 DecoderInitializationException e=(DecoderInitializationException)error;
                 details.append(" decoderInit=true codec=").append(VideoDiagnostics.token(e.codecInfo==null?null:e.codecInfo.name))
@@ -112,5 +118,16 @@ final class WallpaperPlayback {
     @android.annotation.TargetApi(23) private static final class Api23 {static int code(MediaCodec.CodecException e){return e.getErrorCode();}}
     void prepare()throws java.io.IOException{player.prepare();}
     void setPaused(boolean paused){player.setPlayWhenReady(!paused);}
-    void release(){player.release();}
+    void release(Runnable completed){
+        releasing=true;Thread decoderThread=player.getPlaybackLooper().getThread();
+        try{player.release();}
+        catch(RuntimeException e){releaseTimedOut=true;DiagnosticLog.error("wallpaper.video.release_failed",context+" "+VideoDiagnostics.failureDetails(e),e);}
+        if(!releaseTimedOut){completed.run();return;}
+        // release() may return before the internal thread has released its renderer/codec.
+        // Keep its Surface alive and hold subsequent decoder work behind this acknowledgement.
+        DiagnosticLog.info("wallpaper.video.release_pending",context+" reason=awaiting_decoder_thread");
+        PlaybackHandoff.awaitTermination(decoderThread,()->worker.post(()->{
+            DiagnosticLog.info("wallpaper.video.release_complete",context);completed.run();
+        }));
+    }
 }

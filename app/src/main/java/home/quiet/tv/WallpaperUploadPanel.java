@@ -89,7 +89,8 @@ final class WallpaperUploadPanel {
             if(!valid.valid())throw VideoDiagnostics.failure("session","session_ended","上传会话已结束 / Session ended");
             DiagnosticLog.info("wallpaper.upload.received",context+" bytes="+received+" elapsedMs="+(SystemClock.elapsedRealtime()-started));
             stage="inspect";WallpaperVideo.Info info=WallpaperVideo.inspect(incoming,context);
-            stage="poster";WallpaperVideo.poster(incoming,poster,info,context);stage="save";
+            // Poster capture is deferred to actual playback; import must not acquire a second decoder.
+            stage="save";
             WallpaperCatalog.Entry entry=store.addVideo(incoming,poster,name,info,valid);
             DiagnosticLog.info("wallpaper.upload.saved",context+" wallpaper="+VideoDiagnostics.wallpaper(entry.id)+" kind=video elapsedMs="+(SystemClock.elapsedRealtime()-started)+" evidence=import_only");
             main.post(()->{if(dialog!=null&&attempt==generation){lastImported=entry.id;status.setText(tr("已收到视频，请返回后预览并应用","Video received. Go back to preview and apply."));status.setVisibility(View.VISIBLE);}});
