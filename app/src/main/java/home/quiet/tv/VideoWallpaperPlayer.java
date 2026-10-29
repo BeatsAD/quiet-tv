@@ -35,6 +35,7 @@ final class VideoWallpaperPlayer {
     }
     private static final String TAG="QuietTVWallpaper";
     private final Activity activity;
+    private final boolean compositeOutput;
     private final FrameLayout host,frame;
     private final Handler main=new Handler(Looper.getMainLooper());
     private static final Handler worker=playbackWorker();
@@ -81,8 +82,9 @@ final class VideoWallpaperPlayer {
         HandlerThread thread=new HandlerThread("QuietTV-wallpaper");thread.start();return new Handler(thread.getLooper());
     }
 
-    VideoWallpaperPlayer(Activity activity,FrameLayout host){
-        this.activity=activity;this.host=host;
+    VideoWallpaperPlayer(Activity activity,FrameLayout host){this(activity,host,false);}
+    VideoWallpaperPlayer(Activity activity,FrameLayout host,boolean compositeOutput){
+        this.activity=activity;this.host=host;this.compositeOutput=compositeOutput;
         frame=new FrameLayout(activity);frame.setClipChildren(true);frame.setVisibility(View.GONE);host.addView(frame,new FrameLayout.LayoutParams(-1,-1));
         host.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->layout());
         IntentFilter filter=new IntentFilter(Intent.ACTION_SCREEN_OFF);filter.addAction(Intent.ACTION_SCREEN_ON);activity.registerReceiver(screen,filter);
@@ -152,7 +154,7 @@ final class VideoWallpaperPlayer {
     private void start(){
         if(destroyed||!enabled||screenOff||paused||entry==null)return;
         if(releaseBlocked()){fail(generation,Failure.RELEASING);return;}
-        boolean textureOutput=BuildConfig.LEGACY_19||VideoGeometry.manualRotation(Build.VERSION.SDK_INT,entry.rotation);
+        boolean textureOutput=compositeOutput||BuildConfig.LEGACY_19||VideoGeometry.manualRotation(Build.VERSION.SDK_INT,entry.rotation);
         if(target!=null){
             if(target.preparing||target.textureOutput)return;
             if(!target.textureOutput&&!textureOutput){
@@ -181,9 +183,10 @@ final class VideoWallpaperPlayer {
         final float[] transform=new float[16];
         Target(int request){
             this.request=request;aspect=VideoGeometry.aspect(entry.width,entry.height,entry.pixelRatio,entry.rotation);
-            // On old native-window paths, rotate explicitly in a viewport-sized texture.
-            textureOutput=BuildConfig.LEGACY_19||VideoGeometry.manualRotation(Build.VERSION.SDK_INT,entry.rotation);
-            if(!BuildConfig.LEGACY_19&&textureOutput)unappliedRotation=entry.rotation;
+            // Wallpaper must share UI composition with its cover; a separate native video plane can flash during window transitions.
+            // Old native-window paths also rotate explicitly in this viewport-sized texture.
+            textureOutput=compositeOutput||BuildConfig.LEGACY_19||VideoGeometry.manualRotation(Build.VERSION.SDK_INT,entry.rotation);
+            if(!BuildConfig.LEGACY_19&&VideoGeometry.manualRotation(Build.VERSION.SDK_INT,entry.rotation))unappliedRotation=entry.rotation;
             if(textureOutput){TextureView textureView=new TextureView(activity);textureView.setSurfaceTextureListener(this);view=textureView;}
             else{SurfaceView surfaceView=new SurfaceView(activity);surfaceView.getHolder().addCallback(this);view=surfaceView;}
             view.setKeepScreenOn(false);view.setFocusable(false);androidx.core.view.ViewCompat.setImportantForAccessibility(view,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);
