@@ -182,6 +182,7 @@ __pycache__/
 # Computer adaptation guide and acceptance tool shipped with the installation site.
 !/docs/AGENT_ADAPT.zh-CN.md
 !/scripts/device_selftest.py
+!/scripts/remote_calibration.py
 
 !/docs/DEVICE_ADAPTATION.zh-CN.md
 

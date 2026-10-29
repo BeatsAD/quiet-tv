@@ -8,11 +8,19 @@ final class HomeGuardPolicy {
     static boolean keepAdbReady(boolean supported,boolean selected,boolean writeAllowed){return supported && selected && writeAllowed;}
     static boolean keepAdbPort(boolean supported,int sdk,int port){return supported && sdk>=21 && sdk<30 && port>0 && port<=65535;}
     static final long SETTLE_MS=1500, MAX_AGE_MS=3000, BOOT_WINDOW_MS=180000;
+    // The submitted H6 log crosses the original HOME up to 5.5s after selecting an input.
+    static final long INPUT_TRANSITION_MS=8000;
     static final long USAGE_POLL_MS=1000, USAGE_LOOKBACK_MS=10000;
     static final long BOOT_RECHECK_FIRST_MS=30000, BOOT_RECHECK_SECOND_MS=45000, DEAF_CHECK_MS=20000;
     private String window="";
     private long arrived,usageTakenAt=Long.MIN_VALUE;
     private boolean consumed,unknownUsed;
+    private long inputStarted=-1;
+
+    void inputSelected(long now){inputStarted=now;}
+    void cancelInput(){inputStarted=-1;}
+    long inputDelay(long now){long age=now-inputStarted;return inputStarted>=0 && age>=0 && age<INPUT_TRANSITION_MS?INPUT_TRANSITION_MS-age:0;}
+    boolean inputTransition(long now){return inputDelay(now)>0;}
 
     static boolean supported(String manufacturer,String brand,int sdk,boolean legacy){return !legacy && sdk>=21;}
     static boolean coocaa(String manufacturer,String brand){
@@ -116,5 +124,5 @@ final class HomeGuardPolicy {
     // A second boot check may answer a previously consumed home window, but never another app.
     boolean bootRecheck(String selected,boolean allowUnknown){return window.isEmpty()?allowUnknown:!selected.isEmpty() && window.equals(selected);}
     void confirmed(){unknownUsed=true;}
-    void clear(){window="";arrived=0;consumed=false;}
+    void clear(){window="";arrived=0;consumed=false;cancelInput();}
 }

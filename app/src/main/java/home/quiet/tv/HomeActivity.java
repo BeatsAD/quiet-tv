@@ -553,6 +553,9 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     // Public Activity override; AndroidX core marks its inherited bridge class library-only.
     @android.annotation.SuppressLint("RestrictedApi")
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
+        boolean calibrating=new RemoteKeyMap(this).capturing(event);
+        RemoteKeyMap.observe(this,event,"home");
+        if(calibrating)return true;
         DiagnosticLog.navigationKey("quiet_tv_home",event);
         if(waitingForUnlock)return super.dispatchKeyEvent(event);
         int key=event.getKeyCode();
@@ -571,6 +574,18 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             DiagnosticLog.info("home.action.key","entry="+topEntry()+" key="+key+" phase="+event.getAction()+" ready="+ready+" popup="+(inputPopup!=null && inputPopup.isShowing()));
         if(inputPopup!=null && inputPopup.isShowing())return super.dispatchKeyEvent(event);
         if(!ready)return super.dispatchKeyEvent(event);
+        String remoteAction=new RemoteKeyMap(this).action(event);
+        if("system".equals(remoteAction))return super.dispatchKeyEvent(event);
+        if(remoteAction.isEmpty())remoteAction=key==KeyEvent.KEYCODE_MENU?"settings":key==KeyEvent.KEYCODE_TV_INPUT?"inputs":"";
+        if(!remoteAction.isEmpty()){
+            if(event.getAction()==KeyEvent.ACTION_UP && !event.isCanceled()){
+                if("settings".equals(remoteAction))openSettings(Settings.ACTION_SETTINGS);
+                else if("inputs".equals(remoteAction))showInputs();
+                else if("desktop_settings".equals(remoteAction))leaveHome(()->startActivity(new Intent(this,DesktopSettingsActivity.class)));
+                else if("home".equals(remoteAction)){HomeGuardService.cancelInputTransition();startActivity(HomeController.launchIntent(this));}
+            }
+            return true;
+        }
         if(key==KeyEvent.KEYCODE_BACK && row>0){if(event.getAction()==KeyEvent.ACTION_UP)handleBack();return true;}
         if(key==KeyEvent.KEYCODE_DPAD_LEFT || key==KeyEvent.KEYCODE_DPAD_RIGHT || key==KeyEvent.KEYCODE_DPAD_UP || key==KeyEvent.KEYCODE_DPAD_DOWN){
             if(event.getAction()==KeyEvent.ACTION_UP)return true;

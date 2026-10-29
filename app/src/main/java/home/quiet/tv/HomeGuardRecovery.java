@@ -172,6 +172,7 @@ final class HomeGuardRecovery {
         launch(c,reason,state,trace);
     }
     static void launchHomeAction(Context c,String reason,String observation){
+        HomeGuardService.cancelInputTransition();
         HomeGuardState state=new HomeGuardState(c);String target=new ComponentName(c,HomeActivity.class).flattenToString();
         DiagnosticOperation trace=diagnostic(reason,state,target);
         DiagnosticLog.info("home_guard.home_trigger","attempt="+trace.id+" observation="+observation+" direct="+state.directHomeConfigured());
@@ -188,6 +189,7 @@ final class HomeGuardRecovery {
     }
     private static void launch(Context c,String reason,HomeGuardState state,DiagnosticOperation trace){launch(c,reason,state,trace,state.selected());}
     private static void launch(Context c,String reason,HomeGuardState state,DiagnosticOperation trace,String target){
+        if(HomeGuardService.inputTransition()){finishDiagnostic(trace,"SKIPPED","input_transition");return;}
         if(HomeGuardPolicy.handoverBlocked(requestedAt!=0,HomeGuardService.homeResumed())){
             finishDiagnostic(trace,"SKIPPED",requestedAt!=0?"request_pending":"home_already_resumed");return;
         }

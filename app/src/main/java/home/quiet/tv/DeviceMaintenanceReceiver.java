@@ -52,7 +52,7 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
         value.getJSONArray("capabilities").put("daily-app-management-v1");
         android.content.SharedPreferences daily=context.getSharedPreferences("adb",0);
         value.put("dailyManagement",new JSONObject().put("transport","tcp").put("port",daily.getInt("port",5555)).put("configured",daily.getBoolean("dailyManagement",false)));
-        value.getJSONArray("capabilities").put("legacy-records-v1").put("proxy-setup-v1");
+        value.getJSONArray("capabilities").put("legacy-records-v1").put("proxy-setup-v1").put("remote-keymap-v1");
         HomeProxy proxy=new HomeProxy(context);
         value.put("proxy",new JSONObject().put("selected","PROXY".equals(guard.preferences.getString("relaySource","")))
             .put("available",proxy.available()).put("component",proxy.component()).put("ready",proxy.ready())
@@ -66,7 +66,9 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
             if(intent==null || !(context.getPackageName()+".DEVICE_MAINTENANCE").equals(intent.getAction()))return;
             if(intent.getIntExtra("user",-1)!=android.os.Process.myUid()/100000)throw new IllegalArgumentException("目标用户不一致");
             String operation=intent.getStringExtra("operation");
-            if("management_config".equals(operation)){
+            if(operation!=null && operation.startsWith("remote_")){
+                new RemoteKeyMap(context).operation(operation,intent);
+            }else if("management_config".equals(operation)){
                 int port=intent.getIntExtra("port",-1);
                 if(port<1 || port>65535)throw new IllegalArgumentException("本机 TCP ADB 端口无效");
                 if(!context.getSharedPreferences("adb",0).edit().putInt("port",port).putBoolean("dailyManagement",true).commit())throw new IllegalStateException("管理配置未保存");
@@ -121,6 +123,7 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
                 new ComputerRestorePlan(context).finish(intent.getStringExtra("revision"),intent.getStringExtra("proof"));
             }else if(!java.util.Arrays.asList("inspect","input_list","profile_get","takeover_plan","legacy_records").contains(operation))throw new IllegalArgumentException("不支持的维护操作");
             JSONObject result=snapshot(context);String pkg=intent.getStringExtra("target_package");
+            if(operation.startsWith("remote_"))result.put("remoteKeys",new RemoteKeyMap(context).snapshot());
             if(operation.startsWith("proxy_"))result.put("proxyEpoch",Long.toString(new HomeGuardState(context,false).preferences.getLong("proxyEpoch",-1)));
             if("legacy_records".equals(operation)){
                 result.put("legacyRecords",new SetupStore(context).get());
