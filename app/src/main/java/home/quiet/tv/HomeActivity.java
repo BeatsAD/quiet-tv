@@ -650,7 +650,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         if(!ready)return super.dispatchKeyEvent(event);
         if(moveSaving)return true;
         if(!movingPackage.isEmpty()){
-            if(confirm){if(event.getAction()==KeyEvent.ACTION_UP&&!event.isCanceled())saveMove();return true;}
+            if(confirm){if(event.getAction()==KeyEvent.ACTION_UP&&!event.isCanceled()){saveMove();KeyFeedback.confirm(this);}return true;}
             if(key>=KeyEvent.KEYCODE_DPAD_UP&&key<=KeyEvent.KEYCODE_DPAD_RIGHT){if(event.getAction()==KeyEvent.ACTION_DOWN)moveSelected(key==KeyEvent.KEYCODE_DPAD_LEFT?-1:key==KeyEvent.KEYCODE_DPAD_RIGHT?1:0,key==KeyEvent.KEYCODE_DPAD_UP?-1:key==KeyEvent.KEYCODE_DPAD_DOWN?1:0);return true;}
         }
         String remoteAction=new RemoteKeyMap(this).action(event);
