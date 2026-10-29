@@ -68,7 +68,6 @@ final class AboutView extends FrameLayout {
         label("开源项目",34,500,0xfff2f4f8,1368,20,528,48,null);
         label("github.com/BeatsAD/quiet-tv",26,400,0xffdbe5f4,1368,96,528,46,"source-address");
         divider(1368,176,528,1);
-        label("联系开发者",34,500,0xfff2f4f8,1368,218,528,48,null);
         code("official-qr",1500,320,264).setImageBitmap(image("about/assets/qq-group.webp"));
         label("扫码进 QQ 交流群",24,400,0xff9eafc7,1408,608,448,34,null).setGravity(Gravity.CENTER);
 
