@@ -58,7 +58,7 @@ final class DesktopSettingsRow extends LinearLayout {
         private void line(Canvas c,float... points){Path path=new Path();path.moveTo(points[0],points[1]);for(int i=2;i<points.length;i+=2)path.lineTo(points[i],points[i+1]);c.drawPath(path,p);}
         @Override public void draw(Canvas c){Rect r=getBounds();int save=c.save();float size=Math.min(r.width(),r.height());c.translate(r.left+(r.width()-size)/2f,r.top+(r.height()-size)/2f);c.scale(size/24f,size/24f);
             switch(kind){
-                case "sound":line(c,3,9,7,9,12,5,12,19,7,15,3,15,3,9);Path waves=new Path();waves.addArc(new RectF(9,7,19,17),-60,120);waves.addArc(new RectF(7,3,25,21),-55,110);c.drawPath(waves,p);break;
+                case "sound":line(c,3,9,7,9,12,5,12,19,7,15,3,15,3,9);Path waves=new Path();waves.addArc(new RectF(9,7,19,17),-60,120);waves.addArc(new RectF(6,3,22,21),-55,110);c.drawPath(waves,p);break;
                 case "desktop":c.drawRoundRect(new RectF(3,4,21,20),2,2,p);line(c,3,9,21,9);line(c,9,9,9,20);break;
                 case "clock":c.drawCircle(12,12,9,p);line(c,12,6,12,12,16,14);break;
                 case "tools":for(int i=0;i<3;i++){float y=6+i*6,x=i==1?15:8;line(c,3,y,21,y);line(c,x,y-2,x,y+2);}break;

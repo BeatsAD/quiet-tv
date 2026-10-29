@@ -51,9 +51,9 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
         gap(controls,16);controls.addView(desktopLabel(tr("第二屏应用","Second-screen apps")));LinearLayout allApps=row();controls.addView(allApps,new LinearLayout.LayoutParams(-1,px(38)));choice(allApps,"all-apps-names",tr("应用名称","App names"));
         gap(controls,16);controls.addView(desktopLabel(tr("快捷按钮","Quick buttons")));LinearLayout shortcuts=row();controls.addView(shortcuts,new LinearLayout.LayoutParams(-1,px(38)));choice(shortcuts,"input",tr("信号源","Inputs"));choice(shortcuts,"network",tr("网络","Network"));choice(shortcuts,"settings",tr("设置","Settings"));
         gap(controls,16);controls.addView(desktopLabel(tr("操作反馈","Interaction feedback")));
-        keySounds=setting(tr("按键音","Key sounds"),"sound","key-sounds");keySounds.description(tr("移动、确认和返回时播放轻柔提示音","Soft sounds when navigating, selecting and going back"));
+        keySounds=setting(tr("按键音","Key sounds"),"sound","key-sounds");
         keySounds.setOnClickListener(v->{desktopStore.keySounds(!desktopStore.keySounds());refreshControls();});
-        LinearLayout soundGroup=group();soundGroup.addView(keySounds,new LinearLayout.LayoutParams(-1,px(82)));controls.addView(soundGroup);
+        controls.addView(keySounds,new LinearLayout.LayoutParams(-1,px(48)));
         LinearLayout right=column();right.setGravity(Gravity.TOP);LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(0,-1,1);rp.leftMargin=px(24);desktop.addView(right,rp);
         right.addView(section(tr("首页实时预览","Live Home preview")));gap(right,8);
         preview=new HomePreviewView(this,chinese,fixedGreeting);preview.setBackgroundDrawable(surface(0xff0e0f13,0xff0e0f13,0x26ffffff,10));UiCompat.clipOutline(preview);right.addView(preview,new LinearLayout.LayoutParams(-1,-2));
@@ -79,7 +79,7 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
         @Override public void onInitializeAccessibilityNodeInfo(AccessibilityNodeInfo info){super.onInitializeAccessibilityNodeInfo(info);info.setClassName(CheckBox.class.getName());info.setCheckable(true);info.setChecked(checked);}
     }
     private void refreshControls(){
-        keySounds.checked(desktopStore.keySounds());keySounds.value(desktopStore.keySounds()?tr("已开启","On"):tr("已关闭","Off"));
+        keySounds.checked(desktopStore.keySounds());
         classic.setSelected("classic".equals(desktopStore.layout()));gallery.setSelected("gallery".equals(desktopStore.layout()));
         boolean[] checked={desktopStore.greetingEnabled(),desktopStore.showTime(),desktopStore.showAppTitle(),desktopStore.showDate(),weatherStore.enabled(),desktopStore.showHomeApps(),desktopStore.showDockBackground(),desktopStore.showAllAppsNames(),desktopStore.showInput(),desktopStore.showNetwork(),desktopStore.showSettings()};int i=0;for(DisplayChoice b:choices.values())b.setChecked(checked[i++]);
         String text=desktopStore.greetingText(fixedGreeting?tr("欢迎回家","Welcome home"):"");greeting.value(!desktopStore.greetingEnabled()?(desktopStore.avatarEnabled()?tr("仅头像","Avatar only"):tr("已关闭","Off")):text.isEmpty()?tr("跟随时间","By time"):text);
