@@ -31,7 +31,7 @@ final class DockBackdropDrawable extends Drawable {
         paint.setShader(null);paint.setStyle(Paint.Style.FILL);paint.setColor(0x18000000);
         canvas.save();canvas.translate(0,2*unit);canvas.drawRoundRect(rect,22*unit,22*unit,paint);canvas.restore();
         int save=canvas.save();canvas.clipPath(clip);
-        host.getLocationInWindow(location);root.getLocationInWindow(origin);
+        host.getLocationOnScreen(location);root.getLocationOnScreen(origin);
         canvas.translate((origin[0]-location[0])/root.getScaleX(),(origin[1]-location[1])/root.getScaleY());
         background.draw(canvas,paint);
         canvas.restoreToCount(save);
