@@ -172,7 +172,7 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     }
     void managementPageSelected(int page){
         managementPage=page;
-        for(int i=0;i<managementTabs.length;i++)managementTabs[i].setSelected(i==page);
+        for(int i:MANAGEMENT_ORDER)managementTabs[i].setSelected(i==page);
         for(int i=0;i<header.getChildCount();i++)header.getChildAt(i).setNextFocusDownId(managementTab().getId());
     }
     ImageView icon(android.graphics.drawable.Drawable art,int size){ImageView image=new ImageView(this);image.setScaleType(ImageView.ScaleType.FIT_CENTER);image.setBackgroundDrawable(surface(0x08ffffff,0x08ffffff,0,size*.24f));UiCompat.clipOutline(image);image.setImageDrawable(art);image.setLayoutParams(new LinearLayout.LayoutParams(px(size),px(size)));return image;}

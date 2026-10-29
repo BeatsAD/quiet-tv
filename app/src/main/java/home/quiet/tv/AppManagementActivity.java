@@ -40,15 +40,16 @@ public class AppManagementActivity extends ManagementUi {
     void attachPanel(View view){panelHost.addView(view,new FrameLayout.LayoutParams(-1,-1));}
     @Override void selectManagementPage(int next){
         if(next<0||next>=panels.length)return;
-        if(next==page){managementTab().requestFocus();return;}
-        if(current!=null){current.leaveManagement(()->showPage(next));return;}showPage(next);
+        final int target=SettingsPages.valid(next);
+        if(target==page){managementTab().requestFocus();return;}
+        if(current!=null){current.leaveManagement(()->showPage(target));return;}showPage(target);
     }
     private void showPage(int next){
         if(isFinishing()||UiCompat.destroyed(this))return;
         if(current!=null){rememberContentFocus();if(resumed){current.onPause();current.onStop();}current.pageRoot.setVisibility(View.GONE);}
         page=next;managementPageSelected(next);
         if(panels[next]==null){
-            panels[next]=next==0?new AppListPanel(this):next==1?new DockEditorPanel(this):next==2?new HomeSortPanel(this):next==3?new ChildModePanel(this):next==4?new VersionUpdatePanel(this):next==5?new DiagnosticLogPanel(this):next==6?new FileTransferPanel(this):next==SettingsPages.DESKTOP?new DesktopDisplayPanel(this):new WeatherSettingsPanel(this);
+            panels[next]=next==0?new AppListPanel(this):next==3?new ChildModePanel(this):next==4?new VersionUpdatePanel(this):next==5?new DiagnosticLogPanel(this):next==6?new FileTransferPanel(this):next==SettingsPages.DESKTOP?new DesktopDisplayPanel(this):new WeatherSettingsPanel(this);
             current=panels[next];current.onCreate(savedPanels[next]);
         }else current=panels[next];
         current.pageRoot.setVisibility(View.VISIBLE);managementTab().requestFocus();
