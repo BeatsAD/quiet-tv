@@ -120,22 +120,26 @@ See [compatibility and historical evidence](docs/COMPATIBILITY.md). Third-party 
 
 ## Known issues and hardware validation
 
-**These issues remain unresolved or unverified. More physical TVs across brands, models, and firmware versions are needed; they must not be treated as fixed.** Successful installation, manual launch, or HOME resolution does not establish correct boot, physical Home-button, or post-reboot behavior. See the current report in [Issue #35](https://github.com/BeatsAD/quiet-tv/issues/35).
+As of 2026-10-29, some devices have reported results; more models and firmware versions still need testing. **Each result applies only to its stated device, firmware, APK and scenario.** Installation, manual launch and HOME resolution do not establish physical Home-button, reboot, cold-boot or standby-wake behavior.
 
-| Issue | Current behavior and validation needed |
+| Issue | Progress and remaining checks |
 | --- | --- |
-| Vendor home takeover | Firmware may restore its own launcher at boot or have the Home button start a vendor Activity directly, bypassing standard HOME preferences. Cold boot, reboot, and wake from standby need separate checks. |
-| Default-home command fails | A report includes `cannot be home on user 0`. The installed APK, current user, HOME candidates, and vendor restrictions need investigation; the cause and adaptation remain unconfirmed. |
-| Default-home status is insufficient | Check default HOME, compatibility guard and proxy status separately. Status text does not establish physical Home-button, reboot or standby behavior. |
-| ADB disabled or inaccessible | Greyed-out USB debugging, missing wireless debugging, or an unavailable pairing code may prevent computer maintenance and ADB-dependent adaptation. Computer tools cannot bypass firmware restrictions or pairing authentication; there is no universal unlock method. |
+| Vendor home takeover | A Coocaa 55G20 user confirms physical Home and reboot success on 1.2.9; cold boot, standby and other firmware remain unconfirmed. A Skyworth E6100 / Android 4.4.2 trial report still returns to stock Home, and API19 has no standard guard fallback. |
+| Inputs and remote keys | Skyworth 55H6 / 1.3.0 (130) reports an input screen at boot, input-switching problems and an unresponsive Menu key; fixes and physical retesting remain pending. Opening an input route does not validate picture, audio or remote keys. |
+| Legacy weather and daily wallpaper | Hisense VIDAA_TV / Android 4.4.2 reported HTTPS handshake failures on 1.2.1 (54). Later fixes have shipped; this device still needs an upgrade retest. See [#68](https://github.com/BeatsAD/quiet-tv/issues/68#issuecomment-6430967402). |
+| Restricted ADB access or authorization | Greyed-out USB debugging, missing wireless debugging or no pairing entry can prevent some maintenance and adaptation. There is no universal unlock method. A current connection does not prove access after reboot or standby. |
 
-Version 1.3.0 moves technical configuration to computer AI and keeps Help and recovery on the TV. Historical 1.2.4 APKs retain Desktop Settings → 桌面配置 (Home setup). Compatibility guard and optional HOME proxies depend on firmware, permissions and companion components; Android 4.0–4.4 has no standard guard. Physical HOME, reboot, cold boot, standby and HDMI/playback need separate target-TV checks. See [setup and recovery](docs/SETUP.md) and [computer adaptation](docs/AGENT_ADAPT.zh-CN.md).
+| Device report | Available evidence | Still needed |
+| --- | --- | --- |
+| Coocaa / Skyworth 55G20, Android 8, 1.2.9 | User confirms physical Home and reboot into Quiet TV in the [latest #35 comment](https://github.com/BeatsAD/quiet-tv/issues/35#issuecomment-6440081087) | Build/configuration details, cold boot, standby, inputs and stock-home recovery |
+| Xiaomi Box 2 Enhanced, Android 4.4.2, 1.2.4 | User reports installation and normal use in [#81](https://github.com/BeatsAD/quiet-tv/issues/81) | Scenario-specific acceptance, later upgrades and Dock-toggle retesting |
+| Sony BRAVIA VH1, Android 12, historical 1.2.4 (64) | In-place installation, installed APK verification and page captures | Full features and data retention, physical Home, reboot and standby |
 
-The standalone [Xiaomi home helper](xiaomi-home-helper/README.md) remains available as an alternative experiment; disable its accessibility service before enabling the built-in guard. Existing helper settings are not migrated automatically.
+See the [device records](docs/COMPATIBILITY.md#样机验证记录) for firmware, versions, failures and sources. Community reports and maintainer acceptance are identified separately; an older result does not validate 1.3.0 or an entire brand.
 
-An optional standalone [Coocaa home shim](coocaa-home-shim/README.md) adapts the upstream helper for Android 8 firmware confirmed to use vendor homepage properties. **This port has not been validated on a physical TV, is not enabled in the universal APK, and cannot unlock ADB.** Log-based monitoring remains unimplemented. Upstream device results do not validate this port. Keep the stock launcher and local recovery records; do not copy another TV's system-package disable list.
+Version 1.3.0 uses computer AI for takeover setup; 应用管理 → 更多 → 帮助与恢复 (Help and recovery) pauses takeover or restores stock Home. The guard, HOME proxy, [Xiaomi helper](xiaomi-home-helper/README.md) and [Coocaa shim](coocaa-home-shim/README.md) depend on system capabilities and authorization. Avoid running standalone helpers alongside the built-in guard; the Coocaa port has no Quiet TV physical acceptance yet. Android 4.0–4.4 has no standard guard or HOME proxy. See [setup and recovery](docs/SETUP.md) and [computer adaptation](docs/AGENT_ADAPT.zh-CN.md).
 
-Share results in [Issue #35](https://github.com/BeatsAD/quiet-tv/issues/35) or a [device adaptation report](https://github.com/BeatsAD/quiet-tv/issues/new?template=device_adaptation.yml): model, Android/firmware version, Quiet TV version and APK source, reproduction steps, and actual results for manual launch, the physical Home button, cold boot/reboot, standby wake, inputs, and stock-launcher recovery. Mark untested items as unverified. Share only relevant redacted log excerpts; omit IP addresses, serial numbers, keys, and full device dumps.
+Use a [device adaptation report](https://github.com/BeatsAD/quiet-tv/issues/new?template=device_adaptation.yml) or the relevant issue. Include model, Android/firmware, Quiet TV version/build and APK source; report manual launch, physical Home, reboot, cold boot, standby, input/Menu keys and stock-home recovery separately. Mark untested items as unverified. Share relevant redacted excerpts only, omitting IP addresses, serial numbers, keys and full device dumps.
 
 ## Technical approach
 
@@ -181,7 +185,7 @@ Native source is in `app/`, build and device tools in `scripts/`, and `prototype
 
 Quiet TV is based on [Gathin23/cleanyourtv](https://github.com/Gathin23/cleanyourtv). Thank you to **Gathin** for the original work. This project is independently maintained and is not officially affiliated with the upstream project or TV and application brands.
 
-Code is licensed under [MIT](LICENSE), preserving the original copyright and complete license. Fonts, wallpaper, and third-party application artwork have their own terms; see [third-party notices](THIRD_PARTY_NOTICES.md).
+Project code uses [MIT](LICENSE), preserving the copyrights of Gathin and Quiet TV contributor BeatsAD, the permission notice and disclaimer. Third-party code, fonts, icons, weather data, images and videos retain their respective licenses or service terms; see [third-party notices](THIRD_PARTY_NOTICES.md).
 
 ## Let's connect
 
