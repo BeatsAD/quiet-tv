@@ -37,7 +37,7 @@ final class DiagnosticLogPanel extends ManagementPanel {
     @Override public void onCreate(Bundle state){
         pageRoot=owner.column();pageRoot.setGravity(Gravity.CENTER);owner.attachPanel(pageRoot);
         LinearLayout box=owner.column();box.setGravity(Gravity.CENTER);pageRoot.addView(box,new LinearLayout.LayoutParams(-1,-2));
-        content=owner.column();content.setGravity(Gravity.CENTER);box.addView(content,new LinearLayout.LayoutParams(-1,owner.px(226)));
+        content=owner.column();content.setGravity(Gravity.CENTER);box.addView(content,new LinearLayout.LayoutParams(-1,owner.px(300)));
         LinearLayout actions=owner.row();actions.setGravity(Gravity.CENTER);LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,owner.px(36));ap.topMargin=owner.px(18);box.addView(actions,ap);
         retry=owner.button("重新生成",this::start);retry.setId(androidx.core.view.ViewCompat.generateViewId());retry.setFocusableInTouchMode(true);actions.addView(retry,new LinearLayout.LayoutParams(owner.px(110),-1));
         retry.setNextFocusUpId(managementTab().getId());
@@ -54,20 +54,21 @@ final class DiagnosticLogPanel extends ManagementPanel {
         if(address==null){failure("未连接局域网，请连接 Wi-Fi 或网线后重试");return;}
         host=address;DiagnosticLog.info("diagnostic.export","requested");
         String adb=DiagnosticDeviceSnapshot.adb(owner);
+        String window=DiagnosticDisplaySnapshot.window(owner);
         worker.execute(()->{
             DiagnosticDownloadServer candidate=null;
             try{
-                File file=DiagnosticLog.export(owner,DiagnosticDeviceSnapshot.collect(owner,adb));
+                File file=DiagnosticLog.export(owner,DiagnosticDeviceSnapshot.collect(owner,adb,window));
                 if(attempt!=generation)return;
                 candidate=new DiagnosticDownloadServer(address,file,name->owner.getAssets().open("diagnostic-download/"+name));preparing=candidate;candidate.listen();
                 if(attempt!=generation){candidate.stop();return;}
-                BitMatrix matrix=new QRCodeWriter().encode(candidate.address(),BarcodeFormat.QR_CODE,384,384,Collections.singletonMap(EncodeHintType.MARGIN,2));
-                int[] pixels=new int[384*384];for(int y=0;y<384;y++)for(int x=0;x<384;x++)pixels[y*384+x]=matrix.get(x,y)?Color.BLACK:Color.WHITE;
-                Bitmap image=Bitmap.createBitmap(pixels,384,384,Bitmap.Config.ARGB_8888);DiagnosticDownloadServer ready=candidate;
+                int size=Math.max(384,owner.getResources().getDisplayMetrics().widthPixels/4);BitMatrix matrix=new QRCodeWriter().encode(candidate.address(),BarcodeFormat.QR_CODE,size,size,Collections.singletonMap(EncodeHintType.MARGIN,2));
+                int[] pixels=new int[size*size];for(int y=0;y<size;y++)for(int x=0;x<size;x++)pixels[y*size+x]=matrix.get(x,y)?Color.BLACK:Color.WHITE;
+                Bitmap image=Bitmap.createBitmap(pixels,size,size,Bitmap.Config.ARGB_8888);DiagnosticDownloadServer ready=candidate;
                 main.post(()->{
                     if(!showing||attempt!=generation){image.recycle();return;}
                     server=ready;if(preparing==ready)preparing=null;bitmap=image;content.removeAllViews();
-                    qr=new ImageView(owner);qr.setContentDescription("日志下载二维码");qr.setImageBitmap(image);qr.setScaleType(ImageView.ScaleType.FIT_CENTER);qr.setPadding(owner.px(6),owner.px(6),owner.px(6),owner.px(6));qr.setBackgroundDrawable(owner.surface(Color.WHITE,Color.WHITE,0,8));content.addView(qr,new LinearLayout.LayoutParams(owner.px(158),owner.px(158)));
+                    qr=new ImageView(owner);qr.setContentDescription("日志下载二维码");qr.setImageBitmap(image);qr.setScaleType(ImageView.ScaleType.FIT_CENTER);qr.setPadding(owner.px(6),owner.px(6),owner.px(6),owner.px(6));qr.setBackgroundDrawable(owner.surface(Color.WHITE,Color.WHITE,0,8));content.addView(qr,new LinearLayout.LayoutParams(owner.px(240),owner.px(240)));
                     TextView scan=owner.center("手机扫码下载日志",14);LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,-2);sp.topMargin=owner.px(15);content.addView(scan,sp);
                     TextView hint=owner.center("手机与电视需连接同一局域网",11);hint.setTextColor(0xffaab3c0);LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,-2);hp.topMargin=owner.px(6);content.addView(hint,hp);retry.setEnabled(true);main.postDelayed(check,2000);
                 });

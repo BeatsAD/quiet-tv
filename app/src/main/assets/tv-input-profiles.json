@@ -26,13 +26,13 @@
       "validation": "upstream-reported; Quiet TV hardware acceptance pending"
     },
     {
-      "component": "com.tcl.settings/com.tcl.insrc.ShowWindowService",
       "type": "service",
       "action": "com.tcl.insrc.SHOW_WINDOW",
       "labelZh": "TCL 系统信号源",
       "labelEn": "TCL system inputs",
       "source": "https://github.com/Gathin23/cleanyourtv/issues/37",
-      "validation": "upstream-reported panel invocation; Quiet TV hardware acceptance pending"
+      "validation": "upstream-reported panel invocation; Quiet TV hardware acceptance pending",
+      "package": "com.tcl.settings"
     },
     {
       "component": "com.sdt.app.skysettings/.entry.activity.QuickSourceActivity",
@@ -42,6 +42,55 @@
       "labelEn": "System inputs",
       "source": "https://github.com/Gathin23/cleanyourtv/blob/3e996739ce0b470b51c1c438bf5d0559d1c9e7eb/examples/byintek-u4/README.md",
       "validation": "upstream-reported incorrect standard inputs; Quiet TV hardware acceptance pending"
+    },
+    {
+      "type": "activity",
+      "action": "coocaa.intent.aigc.home.tvsource",
+      "labelZh": "系统信号源",
+      "labelEn": "System inputs",
+      "source": "https://github.com/pengchujin/aerial-tv/blob/fb0154ee1af96a7e4d54ad63d9c6ba579fda02ac/app/src/main/java/app/orchard/tv/system/SystemState.kt",
+      "validation": "upstream-reported; Quiet TV hardware acceptance pending"
+    },
+    {
+      "type": "activity",
+      "action": "coocaa.intent.action.SOURCE_DIALOG",
+      "labelZh": "系统信号源",
+      "labelEn": "System inputs",
+      "source": "https://github.com/pengchujin/aerial-tv/blob/fb0154ee1af96a7e4d54ad63d9c6ba579fda02ac/app/src/main/java/app/orchard/tv/system/SystemState.kt",
+      "validation": "upstream-reported; Quiet TV hardware acceptance pending"
+    },
+    {
+      "type": "receiver",
+      "component": "com.tianci.movieplatform/com.ccos.cooui.homepage.receiver.LaunchSourceReceiver",
+      "action": "com.coocaa.action.SOURCE",
+      "labelZh": "系统信号源",
+      "labelEn": "System inputs",
+      "source": "https://github.com/pengchujin/aerial-tv/blob/fb0154ee1af96a7e4d54ad63d9c6ba579fda02ac/app/src/main/java/app/orchard/tv/system/SystemState.kt",
+      "validation": "upstream-reported; Quiet TV hardware acceptance pending"
+    },
+    {
+      "type": "service",
+      "component": "com.android.newsettings/com.xgimi.newsettings.SettingService",
+      "action": "com.xgimi.settings.SETTINGS",
+      "extras": {
+        "data": "Settings://com.xgimi.settings.signalSource/hdmi_misckey",
+        "packageName": "com.xgimi.misckey",
+        "unlocked": false
+      },
+      "preferPanel": true,
+      "labelZh": "系统信号源",
+      "labelEn": "System inputs",
+      "source": "https://github.com/pengchujin/aerial-tv/blob/fb0154ee1af96a7e4d54ad63d9c6ba579fda02ac/app/src/main/java/app/orchard/tv/system/SystemState.kt",
+      "validation": "upstream-reported; Quiet TV hardware acceptance pending"
+    },
+    {
+      "type": "service",
+      "action": "com.hisense.tv.start_inputs",
+      "foregroundService": true,
+      "labelZh": "海信系统信号源",
+      "labelEn": "Hisense system inputs",
+      "source": "https://github.com/pengchujin/aerial-tv/blob/fb0154ee1af96a7e4d54ad63d9c6ba579fda02ac/app/src/main/java/app/orchard/tv/system/SystemState.kt",
+      "validation": "Resolve exported system handlers; Quiet TV hardware acceptance pending"
     }
   ]
 }

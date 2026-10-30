@@ -55,6 +55,7 @@ __pycache__/
 !/scripts/configure_boot_home.py
 !/scripts/install_quiet_tv.py
 !/scripts/device_maintenance.py
+!/scripts/boot_ads.py
 !/scripts/device_adaptation.py
 !/scripts/vendor_adaptation.py
 !/scripts/device-presets.json

@@ -26,22 +26,31 @@ final class ChildModeStore {
     void verified(){commit(preferences.edit().remove("failures").remove("retryAfter"));}
     long revision(){return preferences.getLong("revision",0);}
     private JSONObject rules(){try{return new JSONObject(preferences.getString("rules","{}"));}catch(JSONException e){throw new IllegalStateException("儿童模式设置无法读取",e);}}
-    ChildModePolicy.Rule rule(String pkg){synchronized(LOCK){return read(rules().optJSONObject(pkg));}}
+    ChildModePolicy.Rule rule(String pkg){synchronized(LOCK){
+        JSONObject data=rules().optJSONObject(pkg);ChildModePolicy.Rule r=read(data);String previous=r.day;r.newDay(today());
+        // Persist the date as well as the reset, including after an overnight restart without use.
+        if(data!=null && !previous.equals(r.day) && !save(pkg,r))throw new IllegalStateException("每日额度保存失败");return r;
+    }}
     boolean hidden(String pkg){return rule(pkg).hidden;}
-    private ChildModePolicy.Rule read(JSONObject data){
+    static ChildModePolicy.Rule read(JSONObject data){
         ChildModePolicy.Rule r=new ChildModePolicy.Rule();if(data!=null){r.hidden=data.optBoolean("hidden");r.locked=data.optBoolean("locked");r.mode=data.optInt("mode");r.limit=data.optLong("limit",r.limit);r.singleUsed=data.optLong("singleUsed");r.dailyUsed=data.optLong("dailyUsed");r.singleExtra=data.optLong("singleExtra");r.dailyExtra=data.optLong("dailyExtra");r.day=data.optString("day");}
-        r.validate();r.newDay(today());return r;
+        if(data!=null)r.repeatDays=data.optInt("repeatDays",ChildModePolicy.EVERY_DAY);
+        // Older daily rules spent their base quota before any extra. Retain their remaining balance.
+        if(data!=null)r.dailyExtraUsed=data.optLong("dailyExtraUsed",Math.min(r.dailyExtra,Math.max(0,r.dailyUsed-r.limit)));
+        r.validate();return r;
     }
+    boolean saveSettings(String pkg,ChildModePolicy.Rule edited){synchronized(LOCK){
+        ChildModePolicy.Rule current=rule(pkg);current.hidden=edited.hidden;current.locked=edited.locked;current.mode=edited.mode;current.limit=edited.limit;current.repeatDays=edited.repeatDays;
+        boolean saved=save(pkg,current);if(saved)ChildUsageService.changed();return saved;
+    }}
     boolean save(String pkg,ChildModePolicy.Rule rule){
         rule.validate();synchronized(LOCK){try{
-            JSONObject values=rules(),r=new JSONObject();r.put("hidden",rule.hidden).put("locked",rule.locked).put("mode",rule.mode).put("limit",rule.limit).put("singleUsed",rule.singleUsed).put("dailyUsed",rule.dailyUsed).put("singleExtra",rule.singleExtra).put("dailyExtra",rule.dailyExtra).put("day",rule.day);values.put(pkg,r);
+            JSONObject values=rules(),r=new JSONObject();r.put("hidden",rule.hidden).put("locked",rule.locked).put("mode",rule.mode).put("repeatDays",rule.repeatDays).put("limit",rule.limit).put("singleUsed",rule.singleUsed).put("dailyUsed",rule.dailyUsed).put("singleExtra",rule.singleExtra).put("dailyExtra",rule.dailyExtra).put("dailyExtraUsed",rule.dailyExtraUsed).put("day",rule.day);values.put(pkg,r);
             return commit(preferences.edit().putString("rules",values.toString()).putLong("revision",revision()+1));
         }catch(JSONException e){throw new IllegalStateException("无法保存儿童模式设置",e);}}
     }
     boolean consume(String pkg,long elapsed){
-        synchronized(LOCK){JSONObject data=rules().optJSONObject(pkg);ChildModePolicy.Rule r=new ChildModePolicy.Rule();
-            // Preserve the previous date until consume() splits the midnight interval.
-            if(data!=null){r=read(data);r.day=data.optString("day");r.dailyUsed=data.optLong("dailyUsed");r.dailyExtra=data.optLong("dailyExtra");}
+        synchronized(LOCK){ChildModePolicy.Rule r=read(rules().optJSONObject(pkg));
             r.consume(elapsed,today(),sinceMidnight());return save(pkg,r);
         }
     }

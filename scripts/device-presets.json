@@ -281,6 +281,76 @@
   ],
   "references": [
     {
+      "area": "bootAds",
+      "brands": ["Xiaomi", "Redmi"],
+      "model": "Xiaomi L43M7-EA / MiTV-ANTL0, firmware 23.2.4.2225, PatchWall 3.38.1017",
+      "os": "Android 5.1.1 / API 22",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/d4ac32c344987ae4e8faf1ee32d8b9572fb57fe3/docs/devices/xiaomi-l43m7-ea-antl0.md",
+      "sourceNotes": "上游报告 boot_ad_switch 设为 0 后整机重启不再播放广告；原桌面保留。旧启动动画属性方法在此固件无效。",
+      "limitations": "仅调查候选。Quiet TV 未验收；缺少本项目完整指纹和包构建号记录。原键不存在与原值必须分别保存；固件或原桌面更新后的效果未确认。",
+      "validation": {"bootAds": "unverified", "recovery": "unverified"}
+    },
+    {
+      "area": "bootAds",
+      "brands": ["Xiaomi", "Redmi"],
+      "model": "Xiaomi MiTV4-ANSM0 / xmen, Android 6.0.1 build 3390",
+      "os": "Android 6.0.1 / API 23",
+      "source": "https://github.com/Gathin23/cleanyourtv/issues/1185",
+      "sourceNotes": "上游报告 boot_ad_switch 设为 0 后完整断电开机广告消失；该固件拒绝停用和隐藏系统包。",
+      "limitations": "仅调查候选，不能套用现有其他 xmen 固件的 HOME 资格；Quiet TV 尚未验收。拒绝停用时不改用卸载，不清应用数据。",
+      "validation": {"bootAds": "unverified", "recovery": "unverified"}
+    },
+    {
+      "area": "bootAds",
+      "brands": ["TCL", "FFALCON", "IFFALCON"],
+      "model": "TCL 55Q10G Pro 2026012200 / FFALCON 50F295C ak30a5 20250630",
+      "os": "Android 11 / Android 9, China firmware",
+      "source": "https://github.com/Gathin23/cleanyourtv/issues/707",
+      "sourceNotes": "上游 50F295C 报告停用独立开机广告服务 com.tcl.bootadservice 后未出现广告，保留原桌面；Q10G Pro 也有同名服务的机型清单。",
+      "limitations": "仅调查候选；两个机型和固件须分别验收，不能因同名服务共用资格。Quiet TV 未记录精确广告包构建号及恢复验证；不导入包含语音、OTA 等项目的整份精简清单。",
+      "validation": {"bootAds": "unverified", "recovery": "unverified"}
+    },
+    {
+      "area": "bootAds",
+      "brands": ["Skyworth", "Coocaa"],
+      "model": "Skyworth 65A3F / 7T641_A3F, build 10.01.250328",
+      "os": "Android 13 / API 33",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/d4ac32c344987ae4e8faf1ee32d8b9572fb57fe3/examples/skyworth-65a3f/debloat.txt",
+      "sourceNotes": "上游报告 com.tianci.ad 同时承载开机、关机广告及落地页，停用后广告消失并经过重启检查。",
+      "limitations": "仅调查候选，Quiet TV 未验收；须补完整指纹、广告包构建号、冷启动和恢复证据。原桌面参与启动链，不能以停用原桌面代替处理广告。",
+      "validation": {"bootAds": "unverified", "recovery": "unverified"}
+    },
+    {
+      "area": "bootAds",
+      "brands": ["Skyworth", "Coocaa"],
+      "model": "Skyworth / Coocaa 8R40_K5C boot video",
+      "os": "Android 8.0 / API 26",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/d4ac32c344987ae4e8faf1ee32d8b9572fb57fe3/docs/devices/skyworth-8r40-k5c.md",
+      "sourceNotes": "上游报告将 persist.sys.bootvideo.time 设为 1 后不再播放本地开机广告视频，重启后保持。",
+      "limitations": "仅调查候选，Quiet TV 未验收。须先证明属性原值和恢复路径；原属性不存在时不写入。保留 com.skyworth.tv 和原桌面，不删除广告文件。",
+      "validation": {"bootAds": "unverified", "recovery": "unverified"}
+    },
+    {
+      "area": "bootAds",
+      "brands": ["Hisense", "Vidda"],
+      "model": "Hisense E5Q Pro / VIDAA_TV MT9653, firmware 02.02.70.01",
+      "os": "Android 11 / API 30",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/d4ac32c344987ae4e8faf1ee32d8b9572fb57fe3/examples/hisense-e5q-pro/debloat.txt",
+      "sourceNotes": "上游清单包含广告服务和广告 SDK，并给出 com.hisense.service.ad_block 设置；记录正常开机及部分功能。",
+      "limitations": "仅调查候选，尚无独立开机广告效果对照或 Quiet TV 验收。其他海信固件存在设置无效、禁止停用的反例，不按品牌套用。",
+      "validation": {"bootAds": "unverified", "recovery": "unverified"}
+    },
+    {
+      "area": "bootAds",
+      "brands": ["Haier", "MOOKA"],
+      "model": "Haier HRA962X2 / Ali6G China",
+      "os": "Android-based YunOS, exact API requires inspection",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/d4ac32c344987ae4e8faf1ee32d8b9572fb57fe3/docs/devices/haier-hra962x2-ali6g-cn.md",
+      "sourceNotes": "上游停用了 com.yunos.advert.service，状态经过一次重启检查。",
+      "limitations": "仅调查候选；作者明确未验证开机广告效果，不能宣称已关闭。Quiet TV 尚未验收，不授予执行资格。",
+      "validation": {"bootAds": "unverified", "recovery": "unverified"}
+    },
+    {
       "model": "BenQ E55-735 (Changhong AI PONT, DVB96BQ)",
       "source": "https://github.com/Gathin23/cleanyourtv/blob/1fa7479ce38a439bbfd1de20a5e08f23e6de9e70/examples/benq-e55-735/debloat.txt",
       "limitations": "上游社区报告；Quiet TV 尚未逐机验证。仅供调查，不授予安装、HOME、ADB、禁用或恢复权限。",

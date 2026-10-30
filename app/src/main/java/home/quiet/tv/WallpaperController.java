@@ -35,6 +35,11 @@ final class WallpaperController {
     private final View shade;
     private final Ambient ambient;
     private final VideoWallpaperPlayer video;
+    private final WallpaperBlur wallpaperBlur;
+    private final WallpaperAppearance appearance;
+    private int desktopBlur;
+    private int desktopBrightness=100,desktopFade=600;
+    private boolean fadePending;
     private String playingVideo="",failedVideo="";
     private VideoWallpaperPlayer.Failure videoFailure=VideoWallpaperPlayer.Failure.UNKNOWN;
     private int videoRequest;
@@ -84,10 +89,15 @@ final class WallpaperController {
         this.activity=activity;this.root=root;this.homeUnit=unit;this.unit=unit*960f/1040f;this.ui=new WallpaperUi(activity,this.unit);this.chinese=chinese;store=WallpaperStore.get(activity);screensavers=ScreensaverStore.get(activity);uploads=new WallpaperUploadPanel(activity,store,chinese);
         backdropCache=new WallpaperBackdropCache(activity);daily=new DailyWallpaperController(activity,store,chinese,this::dailyChanged);
         FrameLayout background=new FrameLayout(activity);root.addView(background,new FrameLayout.LayoutParams(-1,-1));
-        video=new VideoWallpaperPlayer(activity,background,true);
+        video=new VideoWallpaperPlayer(activity,background);
         current=image();current.setBackgroundColor(Color.BLACK);incoming=image();incoming.setAlpha(0f);background.addView(current,new FrameLayout.LayoutParams(-1,-1));background.addView(incoming,new FrameLayout.LayoutParams(-1,-1));
         shade=new View(activity);shade.setBackgroundDrawable(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x70000000,0x10000000,0xf00a0e15}));background.addView(shade,new FrameLayout.LayoutParams(-1,-1));
         ambient=new Ambient(activity,homeUnit);ambient.colorChanged=this::invalidateDock;background.addView(ambient,new FrameLayout.LayoutParams(-1,-1));ambient.setColor(themeColor);ambient.setVisibility(View.VISIBLE);
+        wallpaperBlur=new WallpaperBlur(background,(width,height)->{
+            Bitmap frame=video.visible()&&video.ready()&&current.getAlpha()<1f?video.textureSnapshot(width,height):null;
+            try{return WallpaperBlur.snapshot(width,height,frame,current,incoming,shade,ambient);}finally{if(frame!=null)frame.recycle();}
+        });video.observeFrames(wallpaperBlur::invalidate);
+        appearance=new WallpaperAppearance(background,this::invalidateDock);
         String id=store.snapshot().current;
         android.util.DisplayMetrics screen=activity.getResources().getDisplayMetrics();
         WallpaperBackdropCache.Picture cached=WallpaperCatalog.DEFAULT.equals(id)?null:backdropCache.read(WallpaperBackdropCache.key(store,id,screen.widthPixels,screen.heightPixels));
@@ -111,14 +121,27 @@ final class WallpaperController {
     private void notice(String message){Toast.makeText(activity,message,Toast.LENGTH_SHORT).show();}
     void setThemeColor(int color){themeColor=color;if(ambient.getVisibility()==View.VISIBLE)ambient.setColor(color);}
     void observeDock(Runnable invalidation){dockInvalidation=invalidation;}
-    private void invalidateDock(){if(dockInvalidation!=null)dockInvalidation.run();}
+    private void invalidateDock(){if(dockInvalidation!=null)dockInvalidation.run();if(wallpaperBlur!=null)wallpaperBlur.invalidate();}
+    void setDesktopBlur(int amount){desktopBlur=amount;updateDesktopEffects();}
+    void setDesktopAppearance(int brightness,int fade){desktopBrightness=brightness;desktopFade=fade;updateDesktopEffects();}
+    private boolean compositeVideo(){return temporaryMedia==null&&picker==null&&desktopBlur>0;}
+    private void updateDesktopEffects(){
+        boolean separate=temporaryMedia!=null||picker!=null;wallpaperBlur.amount(separate?0:desktopBlur);appearance.brightness(separate?100:desktopBrightness);if(separate){fadePending=false;appearance.finish();}
+        boolean composite=compositeVideo();
+        if(video.outputModeChanges(composite)&&video.visible()&&active)withCover(this::applyVideoOutput);
+        else video.setCompositeOutput(composite);
+    }
+    private void applyVideoOutput(){video.setCompositeOutput(compositeVideo());if(video.ready())revealVideo(videoRequest);}
+    private int fadeDuration(int original){return temporaryMedia!=null||picker!=null?original:desktopFade;}
+    private void revealDesktop(boolean changed){if(!active||temporaryMedia!=null||picker!=null)return;if(fadePending||changed){fadePending=false;appearance.fadeIn(desktopFade);}}
     void drawDockBackground(Canvas canvas,Paint paint){
         canvas.drawColor(Color.BLACK);
-        if(ambient.getVisibility()==View.VISIBLE){ambient.draw(canvas);return;}
+        if(ambient.getVisibility()==View.VISIBLE){ambient.draw(canvas);appearance.drawShade(canvas);return;}
         dockScreen.set(0,0,root.getWidth(),root.getHeight());paint.setAlpha(255);
         if(currentBlur!=null)canvas.drawBitmap(currentBlur,null,dockScreen,paint);
         if(incomingBlur!=null){paint.setAlpha(Math.round(incoming.getAlpha()*255));canvas.drawBitmap(incomingBlur,null,dockScreen,paint);paint.setAlpha(255);}
         if(shade.getVisibility()==View.VISIBLE)shade.draw(canvas);
+        appearance.drawShade(canvas);
     }
     private ImageView image(){ImageView view=new ImageView(activity);view.setScaleType(ImageView.ScaleType.CENTER_CROP);androidx.core.view.ViewCompat.setImportantForAccessibility(view,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);return view;}
     private void cacheBackdrop(String id,Bitmap image,Bitmap blur){
@@ -141,7 +164,7 @@ final class WallpaperController {
         final int version=++request;
         if(transition!=null){transition.end();transition=null;}
         if(WallpaperCatalog.DEFAULT.equals(id)){
-            current.setImageDrawable(null);incoming.setImageDrawable(null);currentBlur=null;incomingBlur=null;shade.setVisibility(View.INVISIBLE);ambient.setVisibility(View.VISIBLE);ambient.setColor(themeColor);shown=id;shownKey=id;invalidateDock();stopVideo(prepared);return;
+            boolean changed=!id.equals(shown);current.setImageDrawable(null);incoming.setImageDrawable(null);currentBlur=null;incomingBlur=null;shade.setVisibility(View.INVISIBLE);ambient.setVisibility(View.VISIBLE);ambient.setColor(themeColor);shown=id;shownKey=id;invalidateDock();revealDesktop(changed&&animate);stopVideo(prepared);return;
         }
         WallpaperCatalog state=store.snapshot();
         if(selected!=null&&selected.video()){
@@ -163,7 +186,7 @@ final class WallpaperController {
         if(WallpaperCatalog.DAILY.equals(id)&&!store.cached(state.dailyImages.get(state.dailySource))){
             if(prepared!=null)display(WallpaperCatalog.DEFAULT,false,prepared);else if(shown==null)display(state.lastLocal,false);return;
         }
-        if(id.equals(shown)&&key.equals(shownKey)&&current.getDrawable()!=null){ambient.setVisibility(View.INVISIBLE);shade.setVisibility(View.VISIBLE);invalidateDock();stopVideo(prepared);return;}
+        if(id.equals(shown)&&key.equals(shownKey)&&current.getDrawable()!=null){ambient.setVisibility(View.INVISIBLE);shade.setVisibility(View.VISIBLE);invalidateDock();revealDesktop(false);stopVideo(prepared);return;}
         WallpaperCatalog.Entry wallpaper=state.find(id);if(wallpaper==null){display(WallpaperCatalog.DEFAULT,false,prepared);return;}
         decoder.execute(()->{
             if(version!=request)return;
@@ -175,10 +198,10 @@ final class WallpaperController {
                 main.post(()->{
                     if(version!=request||destroyed||UiCompat.destroyed(activity))return;
                     ambient.setVisibility(View.INVISIBLE);shade.setVisibility(View.VISIBLE);
-                    if(!animate||shown==null||WallpaperCatalog.DEFAULT.equals(shown)){current.setImageBitmap(bitmap);currentBlur=blurred;incomingBlur=null;shown=id;shownKey=key;invalidateDock();}
+                    if(!animate||shown==null||WallpaperCatalog.DEFAULT.equals(shown)||fadeDuration(450)==0){current.setImageBitmap(bitmap);currentBlur=blurred;incomingBlur=null;shown=id;shownKey=key;invalidateDock();revealDesktop(animate);}
                     else{
                         incoming.setImageBitmap(bitmap);incomingBlur=blurred;incoming.setAlpha(0f);
-                        transition=ValueAnimator.ofFloat(0,1);transition.setDuration(450);
+                        transition=ValueAnimator.ofFloat(0,1);transition.setDuration(fadeDuration(450));
                         transition.addUpdateListener(a->{float fraction=(float)a.getAnimatedValue();incoming.setAlpha(fraction);if(fraction==1f){current.setImageBitmap(bitmap);currentBlur=incomingBlur;incomingBlur=null;incoming.setImageDrawable(null);incoming.setAlpha(0f);shown=id;shownKey=key;}invalidateDock();});transition.start();
                     }
                     cacheBackdrop(id,bitmap,blurred);stopVideo(prepared);
@@ -190,6 +213,7 @@ final class WallpaperController {
         if(image!=null){current.setImageBitmap(image);currentBlur=blur;ambient.setVisibility(View.INVISIBLE);shade.setVisibility(View.VISIBLE);}
         else if(current.getDrawable()==null){ambient.setVisibility(View.VISIBLE);ambient.setColor(themeColor);shade.setVisibility(View.INVISIBLE);}
         incoming.setImageDrawable(null);incoming.setAlpha(0f);incomingBlur=null;shown=id;shownKey=key;invalidateDock();
+        revealDesktop(false);
         cacheBackdrop(id,image,blur);if(prepared!=null)prepared.run();else stopVideo();
     }
     private void withCover(Runnable action){withCover(action,true);}
@@ -198,15 +222,17 @@ final class WallpaperController {
         if(current.getDrawable()==null&&ambient.getVisibility()!=View.VISIBLE){ambient.setVisibility(View.VISIBLE);ambient.setColor(themeColor);shade.setVisibility(View.INVISIBLE);}
         // A native Surface is independent of the cover. Submit the opaque cover before changing it.
         // Covered/paused windows may not draw; they must never hold up navigation or decoder release.
-        if(!awaitFrame||!active||!root.isShown()||!root.hasWindowFocus()||root.getWindowVisibility()!=View.VISIBLE){action.run();return;}
+        boolean previewVisible=picker!=null&&picker.isShowing();
+        if(!awaitFrame||!active||!root.isShown()||(!root.hasWindowFocus()&&!previewVisible)||root.getWindowVisibility()!=View.VISIBLE){action.run();return;}
         final int version=videoRequest;
         pendingCover=()->{cancelCover();if(version==videoRequest&&!destroyed)action.run();};
+        DiagnosticLog.info("wallpaper.video.cover","transition="+version+" phase=awaiting_frame alpha=1");
         Runnable pending=pendingCover;coverTree=root.getViewTreeObserver();
         if(Build.VERSION.SDK_INT>=29&&root.isHardwareAccelerated()){
-            coverCommit=()->main.post(()->{if(pendingCover==pending)pending.run();});
+            coverCommit=()->main.post(()->{if(pendingCover==pending){DiagnosticLog.info("wallpaper.video.cover","transition="+version+" phase=frame_submitted evidence=frame_commit_callback");pending.run();}});
             coverTree.registerFrameCommitCallback(coverCommit);
         }else{
-            coverDraw=UiCompat.onDraw(root,()->androidx.core.view.ViewCompat.postOnAnimation(root,()->{if(pendingCover==pending)pending.run();}));
+            coverDraw=UiCompat.onDraw(root,()->androidx.core.view.ViewCompat.postOnAnimation(root,()->{if(pendingCover==pending){DiagnosticLog.info("wallpaper.video.cover","transition="+version+" phase=draw_callback evidence=draw_then_animation_not_presentation");pending.run();}}));
         }
         root.invalidate();
     }
@@ -219,16 +245,17 @@ final class WallpaperController {
         coverTree=null;coverDraw=null;coverCommit=null;
     }
     void windowFocusChanged(boolean focused){
-        if(!focused&&pendingCover!=null)pendingCover.run();
+        if(!focused&&pendingCover!=null&&(picker==null||!picker.isShowing())){DiagnosticLog.info("wallpaper.video.cover","transition="+videoRequest+" phase=window_obscured evidence=state_only");pendingCover.run();}
         if(focused&&active&&restoreDesktopPending){restoreDesktopPending=false;restoreSelected();}
         if(focused&&pendingVideoStart!=null){Runnable start=pendingVideoStart;pendingVideoStart=null;start.run();}
         if(focused&&active&&video.ready()&&videoFade==null&&current.getAlpha()>0f)revealVideo(videoRequest);
     }
     private void cancelVideoFade(){if(videoFade!=null){videoFade.cancel();videoFade.removeAllUpdateListeners();videoFade=null;}}
     private void revealVideo(int version){
-        if(!active||destroyed||!root.isShown()||(!root.hasWindowFocus()&&(picker==null||!picker.isShowing())))return;
-        cancelVideoFade();videoFade=ValueAnimator.ofFloat(current.getAlpha(),0f);videoFade.setDuration(200);
-        videoFade.addUpdateListener(a->{if(version==videoRequest&&active&&!destroyed)current.setAlpha((float)a.getAnimatedValue());});videoFade.start();
+        if(version!=videoRequest||!video.ready()||!active||destroyed||!root.isShown()||(!root.hasWindowFocus()&&(picker==null||!picker.isShowing())))return;
+        DiagnosticLog.info("wallpaper.video.cover","transition="+version+" phase=reveal_requested evidence=ready_callbacks_only");
+        cancelVideoFade();int duration=fadeDuration(200);if(duration==0){current.setAlpha(0);wallpaperBlur.invalidate();return;}videoFade=ValueAnimator.ofFloat(current.getAlpha(),0f);videoFade.setDuration(duration);
+        videoFade.addUpdateListener(a->{if(version==videoRequest&&active&&!destroyed){current.setAlpha((float)a.getAnimatedValue());wallpaperBlur.invalidate();}});videoFade.start();
     }
     void beforeLeave(Runnable launch){
         if(destroyed||leaving)return;
@@ -240,18 +267,18 @@ final class WallpaperController {
     private void finishLeave(Runnable launch){stopVideo(()->{leaving=false;if(active&&!destroyed)launch.run();});}
     private void restoreSelected(){String id=store.snapshot().current;if(store.snapshot().dynamic()&&!id.equals(failedVideo))startVideo(id,false);else display(id,false);}
     private void schedule(){main.removeCallbacks(rotate);WallpaperCatalog state=store.snapshot();if(active&&temporaryMedia==null&&state.rotating&&picker==null)main.postDelayed(rotate,state.rotationMinutes*60*1000L);}
-    void resume(){active=true;restoreDesktopPending=false;video.setSound(store.snapshot().sound);leaving=false;video.setPaused(false);restoreSelected();if(video.ready()&&videoFade==null&&current.getAlpha()>0f)revealVideo(videoRequest);daily.resume();schedule();}
+    void resume(){if(!active)fadePending=true;active=true;wallpaperBlur.active(true);updateDesktopEffects();restoreDesktopPending=false;video.setSound(store.snapshot().sound);leaving=false;video.setPaused(false);restoreSelected();if(video.ready()&&videoFade==null&&current.getAlpha()>0f)revealVideo(videoRequest);daily.resume();schedule();}
     void environmentChanged(){if(temporaryMedia==null)daily.environmentChanged();}
     boolean pickerShowing(){return picker!=null;}
     void showTemporary(String id,Runnable prepared){
-        temporaryMedia=id;main.removeCallbacks(rotate);daily.pause();video.setSound(false);
+        temporaryMedia=id;updateDesktopEffects();main.removeCallbacks(rotate);daily.pause();video.setSound(false);
         shade.setBackgroundDrawable(new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{0x33000000,Color.TRANSPARENT}));present(id,prepared);
     }
     void restoreDesktop(Runnable prepared){
         cancelTemporary();restoreDesktopPending=false;
         present(store.snapshot().current,()->{prepared.run();daily.resume();schedule();});
     }
-    void cancelTemporary(){restoreDesktopPending|=temporaryMedia!=null;temporaryMedia=null;video.setSound(store.snapshot().sound);shade.setBackgroundDrawable(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x70000000,0x10000000,0xf00a0e15}));}
+    void cancelTemporary(){restoreDesktopPending|=temporaryMedia!=null;temporaryMedia=null;updateDesktopEffects();video.setSound(store.snapshot().sound);shade.setBackgroundDrawable(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x70000000,0x10000000,0xf00a0e15}));}
     private void present(String id,Runnable prepared){
         WallpaperCatalog.Entry entry=store.snapshot().find(id);
         if(entry!=null&&entry.video())startVideo(id,false,prepared);else display(id,false,prepared);
@@ -264,9 +291,9 @@ final class WallpaperController {
             refreshCards(preview,cardFocused);
         }else if(active)display(store.snapshot().current,true);
     }
-    void pause(){active=false;leaving=false;++request;cancelCover();pendingVideoStart=null;cancelVideoFade();current.setAlpha(1f);video.setPaused(true);daily.pause();cancelCardPress();main.removeCallbacks(rotate);uploads.close();if(confirmation!=null)confirmation.dismiss();if(picker!=null)picker.dismiss();if(transition!=null)transition.end();}
+    void pause(){active=false;fadePending=false;wallpaperBlur.active(false);appearance.finish();leaving=false;++request;cancelCover();pendingVideoStart=null;cancelVideoFade();current.setAlpha(1f);video.setPaused(true);daily.pause();cancelCardPress();main.removeCallbacks(rotate);uploads.close();if(confirmation!=null)confirmation.dismiss();if(picker!=null)picker.dismiss();if(transition!=null)transition.end();}
     void hidden(){stopVideo();}
-    void destroy(){destroyed=true;finishStartupCover();++request;pendingVideoStart=null;cancelCover();cancelVideoFade();video.destroy();restoredCover=null;daily.destroy();uploads.destroy();decoder.shutdownNow();main.removeCallbacksAndMessages(null);if(transition!=null){transition.cancel();transition.removeAllUpdateListeners();}current.setImageDrawable(null);incoming.setImageDrawable(null);currentBlur=null;incomingBlur=null;dockInvalidation=null;thumbnails.evictAll();}
+    void destroy(){destroyed=true;appearance.finish();wallpaperBlur.destroy();finishStartupCover();++request;pendingVideoStart=null;cancelCover();cancelVideoFade();video.destroy();restoredCover=null;daily.destroy();uploads.destroy();decoder.shutdownNow();main.removeCallbacksAndMessages(null);if(transition!=null){transition.cancel();transition.removeAllUpdateListeners();}current.setImageDrawable(null);incoming.setImageDrawable(null);currentBlur=null;incomingBlur=null;dockInvalidation=null;thumbnails.evictAll();}
 
     synchronized Bitmap entryBanner(){
         if(entry==null)entry=HomeEntryArtwork.render(activity,tr("壁纸设置","Wallpaper Settings"),HomeAppCatalog.WALLPAPER);
@@ -377,14 +404,15 @@ final class WallpaperController {
         pickerVisibility.clear();for(int n=1;n<root.getChildCount();n++){View view=root.getChildAt(n);pickerVisibility.put(view,view.getVisibility());view.setVisibility(View.INVISIBLE);}
         picker=new androidx.activity.ComponentDialog(activity){@Override public void onWindowFocusChanged(boolean focus){super.onWindowFocusChanged(focus);if(focus)focusPendingCard();else cancelCardPress();}
             @Override public boolean dispatchKeyEvent(KeyEvent key){return KeyFeedback.dispatch(getWindow().getDecorView(),key,()->super.dispatchKeyEvent(key));}};
+        updateDesktopEffects();
         ((androidx.activity.ComponentDialog)picker).getOnBackPressedDispatcher().addCallback((androidx.activity.ComponentDialog)picker,new androidx.activity.OnBackPressedCallback(true){@Override public void handleOnBackPressed(){handlePickerBack();}});
         picker.requestWindowFeature(Window.FEATURE_NO_TITLE);content=new FrameLayout(activity);
         LinearLayout layout=new LinearLayout(activity);layout.setOrientation(LinearLayout.VERTICAL);layout.setPadding(px(36),px(32),px(36),px(32));content.addView(layout,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout header=row();TextView back=button("",false,this::handlePickerBack);back.setPadding(px(10),px(10),px(10),px(10));back.setCompoundDrawables(ui.icon(R.drawable.wp_chevron_left,17,WallpaperUi.INK),null,null,null);back.setBackgroundDrawable(ui.focusSurface(0xa6111924,100));back.setContentDescription(tr("返回桌面","Back to home"));header.addView(back,new LinearLayout.LayoutParams(px(37),px(37)));gap(header,13);
         TextView heading=label(tr("壁纸设置","Wallpaper Settings"),28);header.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
-        LinearLayout categories=row();categories.setPadding(px(4),px(4),px(4),px(4));categories.setBackgroundDrawable(ui.surface(0xff242a33,100,0x38ffffff,1));
+        LinearLayout categories=row();int categoryPadding=px(WallpaperUi.CATEGORY_PADDING);categories.setPadding(categoryPadding,categoryPadding,categoryPadding,categoryPadding);categories.setBackgroundDrawable(ui.surface(0xff242a33,100,0x38ffffff,1));
         staticTab=ui.categoryTab(tr("静态壁纸","Static"),()->category(false));videoTab=ui.categoryTab(tr("动态壁纸","Video"),()->category(true));
-        categories.addView(staticTab,new LinearLayout.LayoutParams(px(78),px(30)));gap(categories,4);categories.addView(videoTab,new LinearLayout.LayoutParams(px(78),px(30)));
+        categories.addView(staticTab,new LinearLayout.LayoutParams(px(WallpaperUi.TOOLBAR_WIDTH),px(WallpaperUi.TOOLBAR_HEIGHT)));gap(categories,4);categories.addView(videoTab,new LinearLayout.LayoutParams(px(WallpaperUi.TOOLBAR_WIDTH),px(WallpaperUi.TOOLBAR_HEIGHT)));
         staticTab.setNextFocusLeftId(back.getId());staticTab.setNextFocusRightId(videoTab.getId());videoTab.setNextFocusLeftId(staticTab.getId());back.setNextFocusRightId(staticTab.getId());
         header.addView(categories);gap(header,8);
         auto=button("",false,this::showRotationMenu);header.addView(auto);
@@ -392,7 +420,7 @@ final class WallpaperController {
         soundToggle=button("",false,()->runSaved(()->{store.sound(!store.snapshot().sound);video.setSound(store.snapshot().sound);details();}));header.addView(soundToggle);
         localFile=button(tr("本地 / U盘","Files / USB"),false,()->{picker.dismiss();activity.startActivityForResult(new android.content.Intent(activity,WallpaperFilesActivity.class),WallpaperFilesActivity.REQUEST);});header.addView(localFile);
         gap(header,8);upload=button(tr("上传壁纸","Upload"),false,()->{daily.cancel();stopVideo();uploads.show(WallpaperUi.backdrop(root,content),id->{if(picker==null)return;if(id!=null&&store.snapshot().find(id)!=null){preview=id;dynamicTab=store.snapshot().find(id).video();}refreshCards(preview,true);});});ui.icon(upload,R.drawable.wp_upload);header.addView(upload);
-        heading.setSingleLine();heading.setEllipsize(android.text.TextUtils.TruncateAt.END);for(TextView control:new TextView[]{auto,dynamicToggle,soundToggle,localFile,upload}){control.setSingleLine();control.setPadding(px(8),px(9),px(8),px(9));}
+        heading.setSingleLine();heading.setEllipsize(android.text.TextUtils.TruncateAt.END);for(TextView control:new TextView[]{auto,dynamicToggle,soundToggle,localFile,upload})ui.toolbarSize(control);
         layout.addView(header);
         layout.addView(new View(activity),new LinearLayout.LayoutParams(1,0,1));
         actions=row();LinearLayout titles=new LinearLayout(activity);titles.setOrientation(LinearLayout.VERTICAL);title=label("",27);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);titles.addView(title,new LinearLayout.LayoutParams(-1,-2));
@@ -401,7 +429,7 @@ final class WallpaperController {
         LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,-2);ap.setMargins(px(4),0,px(4),px(16));layout.addView(actions,ap);
         scroll=new HorizontalScrollView(activity);scroll.setHorizontalScrollBarEnabled(false);scroll.setClipToPadding(false);scroll.setClipChildren(false);scroll.setFillViewport(false);rail=row();rail.setClipToPadding(false);rail.setClipChildren(false);rail.setGravity(Gravity.BOTTOM);rail.setPadding(px(4),px(7),px(4),0);scroll.addView(rail);LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,px(154));layout.addView(scroll,rp);
         addScreensaverToolbar(layout);
-        picker.setContentView(content);picker.setOnDismissListener(d->{++saverApplyVersion;commitPending=false;cancelCardPress();pendingCardFocus=null;++pickerVersion;uploads.close();picker=null;if(rotationMenu!=null)rotationMenu.dismiss();daily.cancel();cards.clear();for(Map.Entry<View,Integer> item:pickerVisibility.entrySet())item.getKey().setVisibility(item.getValue());pickerVisibility.clear();shade.setBackgroundDrawable(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x70000000,0x10000000,0xf00a0e15}));if(active)restoreSelected();schedule();});
+        picker.setContentView(content);picker.setOnDismissListener(d->{++saverApplyVersion;commitPending=false;cancelCardPress();pendingCardFocus=null;++pickerVersion;uploads.close();picker=null;updateDesktopEffects();if(rotationMenu!=null)rotationMenu.dismiss();daily.cancel();cards.clear();for(Map.Entry<View,Integer> item:pickerVisibility.entrySet())item.getKey().setVisibility(item.getValue());pickerVisibility.clear();shade.setBackgroundDrawable(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x70000000,0x10000000,0xf00a0e15}));if(active)restoreSelected();schedule();});
         Window window=picker.getWindow();if(window!=null){window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));window.getDecorView().setSystemUiVisibility(5894);window.setDimAmount(0);}
         shade.setBackgroundDrawable(WallpaperUi.shade());picker.show();if(window!=null)window.setLayout(-1,-1);refreshCards(preview,true);
     }
@@ -423,6 +451,7 @@ final class WallpaperController {
             if(covered!=null)covered.run();
             Runnable start=()->withCover(()->{
                 if(version!=videoRequest||!active||destroyed)return;
+                video.setCompositeOutput(compositeVideo());
                 video.play(entry,new VideoWallpaperPlayer.Listener(){
                     @Override public void stopped(){if(version==videoRequest){cancelVideoFade();current.setAlpha(1f);}}
                     @Override public void ready(){
@@ -536,13 +565,13 @@ final class WallpaperController {
         if(picker==null)return;WallpaperCatalog state=store.snapshot();WallpaperCatalog.Entry entry=state.find(preview);
         updateSaverToolbar();
         staticTab.setSelected(!dynamicTab);videoTab.setSelected(dynamicTab);
-        videoTab.setNextFocusRightId(auto.getId());auto.setNextFocusLeftId(videoTab.getId());dynamicToggle.setNextFocusLeftId(auto.getId());
         soundToggle.setVisibility(dynamicTab?View.VISIBLE:View.GONE);soundToggle.setText(tr("声音","Sound"));soundToggle.setCompoundDrawables(toggleDrawable(state.sound),null,null,null);soundToggle.setCompoundDrawablePadding(px(7));soundToggle.setContentDescription(state.sound?tr("壁纸声音，开","Wallpaper sound, on"):tr("壁纸声音，关","Wallpaper sound, off"));
-        dynamicToggle.setNextFocusRightId(soundToggle.getId());soundToggle.setNextFocusLeftId(dynamicToggle.getId());soundToggle.setNextFocusRightId(localFile.getId());auto.setNextFocusRightId(dynamicTab?dynamicToggle.getId():localFile.getId());localFile.setNextFocusLeftId(dynamicTab?soundToggle.getId():auto.getId());localFile.setNextFocusRightId(upload.getId());upload.setNextFocusLeftId(localFile.getId());
         dynamicToggle.setVisibility(dynamicTab?View.VISIBLE:View.GONE);dynamicToggle.setText(tr("启用动态","Enable video"));dynamicToggle.setCompoundDrawables(toggleDrawable(state.dynamic()),null,null,null);dynamicToggle.setCompoundDrawablePadding(px(7));dynamicToggle.setContentDescription(state.dynamic()?tr("启用动态，开","Enable video, on"):tr("启用动态，关","Enable video, off"));
+        for(TextView toggle:new TextView[]{dynamicToggle,soundToggle}){Drawable icon=toggle.getCompoundDrawables()[0];icon.setBounds(0,0,px(22),px(13));toggle.setCompoundDrawables(icon,null,null,null);toggle.setCompoundDrawablePadding(px(4));}
         int count=dynamicTab?state.videos().size():state.pictures().size();
         boolean rotating=state.rotating&&state.dynamic()==dynamicTab;String unavailable=tr(dynamicTab?"至少需要两个视频才能轮播":"至少需要两张图片才能轮播",dynamicTab?"Add at least two videos for rotation":"Add at least two photos for rotation");
-        auto.setText(tr("轮播：","Rotate: ")+rotationLabel(rotating?state.rotationMinutes:0));auto.setCompoundDrawables(null,null,ui.icon(R.drawable.ic_wallpaper_dropdown,11,WallpaperUi.INK),null);auto.setCompoundDrawablePadding(px(5));auto.setEnabled(count>=2);auto.setAlpha(count>=2?1:.4f);auto.setContentDescription(count<2?unavailable:auto.getText());
+        auto.setText(tr("轮播：","Rotate: ")+rotationLabel(rotating?state.rotationMinutes:0));auto.setCompoundDrawables(null,null,ui.icon(R.drawable.ic_wallpaper_dropdown,11,WallpaperUi.INK),null);auto.setCompoundDrawablePadding(px(4));auto.setEnabled(count>=2);auto.setAlpha(count>=2?1:.4f);auto.setContentDescription(count<2?unavailable:auto.getText());
+        WallpaperUi.toolbarFocus(staticTab,videoTab,auto,dynamicToggle,soundToggle,localFile,upload);
         if(entry==null){title.setText(tr("还没有动态壁纸","No video wallpapers"));subtitle.setText(unavailable);subtitle.setVisibility(View.VISIBLE);for(TextView control:new TextView[]{staticTab,videoTab,dynamicToggle,soundToggle,localFile,upload})control.setNextFocusDownId(upload.getId());return;}
         title.setText(entry.label(chinese));boolean isDaily=WallpaperCatalog.DAILY.equals(preview);
         subtitle.setVisibility(isDaily||entry.custom()?View.VISIBLE:View.GONE);

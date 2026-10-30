@@ -35,7 +35,7 @@ final class VideoWallpaperPlayer {
     }
     private static final String TAG="QuietTVWallpaper";
     private final Activity activity;
-    private final boolean compositeOutput;
+    private boolean compositeOutput;
     private final FrameLayout host,frame;
     private final Handler main=new Handler(Looper.getMainLooper());
     private static final Handler worker=playbackWorker();
@@ -61,6 +61,13 @@ final class VideoWallpaperPlayer {
     }
     private WallpaperCatalog.Entry entry;
     private Listener listener;
+    private Runnable framesChanged;
+    void observeFrames(Runnable listener){framesChanged=listener;}
+    Bitmap textureSnapshot(int width,int height){
+        Target captured=target;
+        if(captured==null||!captured.textureOutput||!rendered||!current(captured))return null;
+        return ((TextureView)captured.view).getBitmap(width,height);
+    }
     private Target target;
     private boolean enabled,screenOff,rendered,destroyed;
     private volatile boolean paused;
@@ -74,12 +81,20 @@ final class VideoWallpaperPlayer {
         Target pending=target;
         boolean blocked=releaseBlocked();
         DiagnosticLog.info("wallpaper.video.timeout",context(generation)+" reason="+(blocked?"resource_release_pending":"first_frame_timeout")+" paused="+paused+" screenOff="+screenOff
-            +" output="+(pending==null?"missing":pending.textureOutput?"texture":"surface")+" surfaceValid="+(pending!=null&&(pending.textureOutput?pending.texture!=null:pending.surface!=null&&pending.surface.isValid()))+" started="+(pending!=null&&pending.started)+" updated="+(pending!=null&&pending.updated));
+            +" output="+(pending==null?"missing":pending.textureOutput?"texture":"surface")+" surfaceValid="+(pending!=null&&(pending.textureOutput?pending.texture!=null:pending.surface!=null&&pending.surface.isValid()))+" started="+(pending!=null&&pending.started)+" textureUpdated="+(pending!=null&&pending.updated)+" holder="+(pending==null?"unknown":pending.surfaceWidth+"x"+pending.surfaceHeight));
         fail(generation,blocked?Failure.RELEASING:Failure.TIMEOUT);
     };
     private String context(int request){return "request="+request+" wallpaper="+VideoDiagnostics.wallpaper(entry==null?null:entry.id);}
     private static Handler playbackWorker(){
         HandlerThread thread=new HandlerThread("QuietTV-wallpaper");thread.start();return new Handler(thread.getLooper());
+    }
+    static boolean textureOutput(int sdk,boolean legacy,boolean composite){return composite||(legacy?sdk<17:sdk<27);}
+    private boolean textureOutput(boolean composite){return textureOutput(Build.VERSION.SDK_INT,BuildConfig.LEGACY_19,composite||BuildConfig.LEGACY_19&&entry!=null&&entry.rotation!=0);}
+    boolean outputModeChanges(boolean composite){return textureOutput(compositeOutput)!=textureOutput(composite);}
+    /** The caller submits an opaque cover before replacing a visible output. */
+    void setCompositeOutput(boolean composite){
+        boolean change=outputModeChanges(composite);compositeOutput=composite;
+        if(change&&enabled){release();start();}
     }
 
     VideoWallpaperPlayer(Activity activity,FrameLayout host){this(activity,host,false);}
@@ -103,8 +118,11 @@ final class VideoWallpaperPlayer {
     void setPaused(boolean value){
         paused=value;final int request=generation;final String diagnosticContext=context(request);
         main.removeCallbacks(timeout);
+        // Detach native output before an obscured window can destroy its Surface on the UI thread.
+        // Keep the SurfaceView attached under the cover; resume must await a fresh decoder frame.
+        if(value&&enabled&&target!=null&&!target.textureOutput){release();return;}
         if(!releaseBlocked())worker.post(()->{if(request==generation&&decoder!=null&&decoder.owner==owner)try{decoder.player.setPaused(value);}catch(RuntimeException e){DiagnosticLog.error("wallpaper.video.pause_failed",diagnosticContext+" paused="+value+" "+VideoDiagnostics.failureDetails(e),e);main.post(()->fail(request,Failure.DECODE));}});
-        if(!value){start();if(enabled&&!rendered&&!screenOff)main.postDelayed(timeout,8000);}
+        if(!value){start();if(target!=null)firstFrame(target);if(enabled&&!rendered&&!screenOff)main.postDelayed(timeout,8000);}
     }
     void snapshot(Snapshot callback){
         Target captured=target;final int request=generation;
@@ -132,6 +150,11 @@ final class VideoWallpaperPlayer {
     }
     private boolean current(Target candidate){return candidate==target&&candidate.request==generation&&!candidate.retired&&enabled&&!screenOff&&!destroyed;}
     private boolean current(Target candidate,int request){return candidate.request==request&&current(candidate);}
+    private void invalidateSurfaceFrame(){
+        if(!rendered)return;rendered=false;
+        if(listener!=null)listener.stopped();
+        main.removeCallbacks(timeout);if(enabled&&!paused&&!screenOff)main.postDelayed(timeout,8000);
+    }
     private void layout(){
         if(entry==null||target==null||host.getWidth()==0||host.getHeight()==0)return;
         float videoAspect=target.aspect,viewAspect=host.getWidth()/(float)host.getHeight();
@@ -139,7 +162,11 @@ final class VideoWallpaperPlayer {
             int width=host.getWidth(),height=host.getHeight();
             FrameLayout.LayoutParams params=(FrameLayout.LayoutParams)target.view.getLayoutParams();
             int croppedWidth=Math.round(width*Math.max(1f,videoAspect/viewAspect)),croppedHeight=Math.round(height*Math.max(1f,viewAspect/videoAspect));
-            if(params.width!=croppedWidth||params.height!=croppedHeight){params.width=croppedWidth;params.height=croppedHeight;target.view.setLayoutParams(params);}return;
+            if(params.width!=croppedWidth||params.height!=croppedHeight){
+                target.surfaceWidth=target.surfaceHeight=0;
+                invalidateSurfaceFrame();
+                params.width=croppedWidth;params.height=croppedHeight;target.view.setLayoutParams(params);
+            }return;
         }
         Matrix crop=new Matrix();
         if(target.unappliedRotation!=0){
@@ -154,7 +181,7 @@ final class VideoWallpaperPlayer {
     private void start(){
         if(destroyed||!enabled||screenOff||paused||entry==null)return;
         if(releaseBlocked()){fail(generation,Failure.RELEASING);return;}
-        boolean textureOutput=compositeOutput||BuildConfig.LEGACY_19||VideoGeometry.manualRotation(Build.VERSION.SDK_INT,entry.rotation);
+        boolean textureOutput=textureOutput(compositeOutput);
         if(target!=null){
             if(target.preparing||target.textureOutput)return;
             if(!target.textureOutput&&!textureOutput){
@@ -171,6 +198,7 @@ final class VideoWallpaperPlayer {
     }
     private final class Target implements TextureView.SurfaceTextureListener,SurfaceHolder.Callback {
         final PlaybackHandoff.Output outputId=new PlaybackHandoff.Output();
+        final int epoch;
         int request;
         final View view;
         final boolean textureOutput;
@@ -179,27 +207,37 @@ final class VideoWallpaperPlayer {
         volatile Surface surface;
         boolean preparing,started,updated;
         int unappliedRotation;
+        int surfaceWidth,surfaceHeight;
         float aspect;
         final float[] transform=new float[16];
         Target(int request){
-            this.request=request;aspect=VideoGeometry.aspect(entry.width,entry.height,entry.pixelRatio,entry.rotation);
-            // Wallpaper must share UI composition with its cover; a separate native video plane can flash during window transitions.
-            // Old native-window paths also rotate explicitly in this viewport-sized texture.
-            textureOutput=compositeOutput||BuildConfig.LEGACY_19||VideoGeometry.manualRotation(Build.VERSION.SDK_INT,entry.rotation);
+            this.request=request;epoch=request;aspect=VideoGeometry.aspect(entry.width,entry.height,entry.pixelRatio,entry.rotation);
+            // API17+ platform playback supplies a rendering-start event for native output.
+            // Composited previews and legacy rotation retain their texture path.
+            textureOutput=textureOutput(compositeOutput);
             if(!BuildConfig.LEGACY_19&&VideoGeometry.manualRotation(Build.VERSION.SDK_INT,entry.rotation))unappliedRotation=entry.rotation;
             if(textureOutput){TextureView textureView=new TextureView(activity);textureView.setSurfaceTextureListener(this);view=textureView;}
-            else{SurfaceView surfaceView=new SurfaceView(activity);surfaceView.getHolder().addCallback(this);view=surfaceView;}
+            else{SurfaceView surfaceView=new SurfaceView(activity);if(Build.VERSION.SDK_INT>=34)Api34.attachedLifecycle(surfaceView);surfaceView.getHolder().addCallback(this);view=surfaceView;}
             view.setKeepScreenOn(false);view.setFocusable(false);androidx.core.view.ViewCompat.setImportantForAccessibility(view,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);
         }
-        @Override public void surfaceCreated(SurfaceHolder holder){surface=holder.getSurface();if(current(this))begin(this,entry);}
-        @Override public void surfaceChanged(SurfaceHolder holder,int format,int width,int height){}
+        @Override public void surfaceCreated(SurfaceHolder holder){surface=holder.getSurface();surfaceWidth=surfaceHeight=0;surfaceEvent("created");if(current(this))begin(this,entry);}
+        @Override public void surfaceChanged(SurfaceHolder holder,int format,int width,int height){
+            if(retired)return;
+            surfaceWidth=width;surfaceHeight=height;surfaceEvent("changed");
+            if(current(this)){
+                if(width<=0||height<=0){invalidateSurfaceFrame();return;}
+                begin(this,entry);firstFrame(this);
+            }
+        }
         @Override public void surfaceDestroyed(SurfaceHolder holder){
+            surface=null;surfaceWidth=surfaceHeight=0;surfaceEvent("destroyed");
             detached();
             // Wait only for this output's detachment, not the global decoder retirement queue.
             try{
                 if(!outputId.retire().await(3,TimeUnit.SECONDS))DiagnosticLog.info("wallpaper.video.detach_timeout","surface destroyed before detachment confirmed");
             }catch(InterruptedException e){Thread.currentThread().interrupt();}
         }
+        private void surfaceEvent(String phase){DiagnosticLog.info("wallpaper.video.surface",context(request)+" epoch="+epoch+" phase="+phase+" view="+view.getWidth()+"x"+view.getHeight()+" holder="+surfaceWidth+"x"+surfaceHeight+" evidence=holder_callback_not_buffer_or_presentation");}
         @Override public void onSurfaceTextureAvailable(SurfaceTexture texture,int width,int height){
             this.texture=texture;
             if(!current(this)){retire(this);return;}
@@ -227,14 +265,17 @@ final class VideoWallpaperPlayer {
                 int rotation=(entry.rotation%180!=0?Math.abs(transform[0])>.001f:transform[0]>0)?entry.rotation:0;
                 if(unappliedRotation!=rotation){unappliedRotation=rotation;layout();}
             }
-            updated=true;firstFrame(this);
+            updated=true;firstFrame(this);if(framesChanged!=null)framesChanged.run();
         }
         void releaseTexture(){
             if(released||texture==null)return;released=true;texture.release();
         }
     }
+    @androidx.annotation.RequiresApi(34) private static final class Api34 {
+        static void attachedLifecycle(SurfaceView view){view.setSurfaceLifecycle(SurfaceView.SURFACE_LIFECYCLE_FOLLOWS_ATTACHMENT);}
+    }
     private void begin(Target next,WallpaperCatalog.Entry selected){
-        if(!current(next)||next.preparing)return;
+        if(!current(next)||next.preparing||paused)return;
         if(releaseBlocked()){fail(generation,Failure.RELEASING);return;}
         next.preparing=true;final int request=next.request;final String diagnosticContext="request="+request+" wallpaper="+VideoDiagnostics.wallpaper(selected.id);
         File file=selected.custom()?WallpaperStore.get(activity).file(selected.id):null;
@@ -250,9 +291,9 @@ final class VideoWallpaperPlayer {
                     output=next.textureOutput?new Surface(next.texture):next.surface;
                     if(output==null||!output.isValid()){DiagnosticLog.info("wallpaper.video.output_failed",diagnosticContext+" reason=invalid_surface");main.post(()->fail(request,Failure.OUTPUT));return;}
                     WallpaperPlayback player=new WallpaperPlayback(activity.getApplicationContext(),worker,output,file,selected,diagnosticContext,new PlaybackEvents(){
-                        @Override public void ready(){main.post(()->{if(current(next,request)){next.started=true;if(!next.textureOutput)next.updated=true;firstFrame(next);}});}
+                        @Override public void ready(){main.post(()->{if(current(next,request)){next.started=true;firstFrame(next);}});}
                         @Override public void failed(Failure reason){main.post(()->fail(request,reason));}
-                        @Override public void size(int width,int height,float pixelRatio){main.post(()->{if(current(next,request)&&width>0&&height>0){next.aspect=VideoGeometry.aspect(width,height,pixelRatio,0);layout();}});}
+                        @Override public void size(int width,int height,float pixelRatio){main.post(()->{if(current(next,request)&&width>0&&height>0){DiagnosticLog.info("wallpaper.video.output_size",diagnosticContext+" size="+width+"x"+height+" pixelRatio="+pixelRatio+" evidence=video_size_callback_only");next.aspect=VideoGeometry.aspect(width,height,pixelRatio,0);layout();}});}
                     });
                     decoder=new Decoder(owner,next.outputId,detached,player,output,next.textureOutput,diagnosticContext);
                     main.post(()->{if(current(next,request)&&!paused){main.removeCallbacks(timeout);main.postDelayed(timeout,8000);}});
@@ -263,15 +304,18 @@ final class VideoWallpaperPlayer {
         }));
     }
     private void firstFrame(Target next){
-        if(!current(next)||!next.started||!next.updated||rendered)return;
-        rendered=true;main.removeCallbacks(timeout);Log.i(TAG,"texture updated request="+next.request);DiagnosticLog.info("wallpaper.video.rendered",context(next.request)+" evidence="+(BuildConfig.LEGACY_19?"platform_prepared_and_texture_updated":"rendered_first_frame_callback"));
+        if(!current(next)||paused||!next.started||rendered)return;
+        boolean outputReady=next.textureOutput?next.updated:next.surfaceWidth>0&&next.surfaceHeight>0&&next.surface!=null&&next.surface.isValid();
+        if(!outputReady)return;
+        rendered=true;main.removeCallbacks(timeout);Log.i(TAG,"first frame request="+next.request);DiagnosticLog.info("wallpaper.video.rendered",context(next.request)+" output="+(next.textureOutput?"texture":"surface")+" epoch="+next.epoch+" holder="+next.surfaceWidth+"x"+next.surfaceHeight+" evidence="+(BuildConfig.LEGACY_19?(Build.VERSION.SDK_INT>=17?"platform_rendering_start_callback":"platform_prepared_and_texture_updated"):"rendered_first_frame_callback"));
         final int request=next.request;
         main.post(()->{if(current(next,request)&&rendered&&listener!=null)listener.ready();});
     }
     private void fail(int request,Failure reason){
         if(request!=generation||!enabled||destroyed)return;
         enabled=false;rendered=false;main.removeCallbacks(timeout);Log.w(TAG,"video unavailable request="+request+" reason="+reason);DiagnosticLog.info("wallpaper.video.failed",context(request)+" reason="+reason.name()+" paused="+paused+" screenOff="+screenOff);
-        if(listener!=null)listener.failed(reason);else stop();
+        Listener failed=listener;release();
+        if(failed!=null)failed.failed(reason);
     }
     private void release(){
         ++generation;main.removeCallbacks(timeout);rendered=false;
@@ -305,9 +349,9 @@ final class VideoWallpaperPlayer {
         Decoder old=decoder;decoder=null;
         if(old==null){completed.run();return;}
         releasingSince=SystemClock.elapsedRealtime();
-        Runnable retired=()->{old.detached.countDown();try{if(old.ownsOutput)old.output.release();}finally{releasingSince=-1;completed.run();}};
+        Runnable retired=()->{old.detached.countDown();try{if(old.ownsOutput)old.output.release();}finally{DiagnosticLog.info("wallpaper.video.detach",old.context+" phase=release_complete");releasingSince=-1;completed.run();}};
         // A failed release must not be treated as acknowledgement of Surface ownership.
-        try{if(old.player.detachOutput())old.detached.countDown();old.player.release(retired);}
+        try{boolean acknowledged=old.player.detachOutput();if(acknowledged)old.detached.countDown();DiagnosticLog.info("wallpaper.video.detach",old.context+" phase=detach_result acknowledged="+acknowledged);old.player.release(retired);}
         catch(RuntimeException e){DiagnosticLog.error("wallpaper.video.release_failed",old.context+" "+VideoDiagnostics.failureDetails(e),e);}
     }
 }

@@ -11,6 +11,8 @@ final class DockBackdropDrawable extends Drawable {
     private final Background background;
     private final View host,root;
     private final float unit;
+    private final float radius;
+    private final boolean card;
     private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);
     private final Path clip=new Path();
     private final RectF rect=new RectF();
@@ -21,24 +23,27 @@ final class DockBackdropDrawable extends Drawable {
         this(wallpapers::drawDockBackground,host,root,unit);
     }
     DockBackdropDrawable(Background background,View host,View root,float unit){
-        this.background=background;this.host=host;this.root=root;this.unit=unit;
+        this(background,host,root,unit,false);
+    }
+    DockBackdropDrawable(Background background,View host,View root,float unit,boolean card){
+        this.background=background;this.host=host;this.root=root;this.unit=unit;this.card=card;radius=(card?16:22)*unit;
     }
     @Override protected void onBoundsChange(Rect bounds){
-        rect.set(bounds);clip.reset();clip.addRoundRect(rect,22*unit,22*unit,Path.Direction.CW);
+        rect.set(bounds);clip.reset();clip.addRoundRect(rect,radius,radius,Path.Direction.CW);
         tint=new LinearGradient(0,bounds.top,0,bounds.bottom,new int[]{0x30e6e8ec,0x202c3038},null,Shader.TileMode.CLAMP);
     }
     @Override public void draw(Canvas canvas){
         paint.setShader(null);paint.setStyle(Paint.Style.FILL);paint.setColor(0x18000000);
-        canvas.save();canvas.translate(0,2*unit);canvas.drawRoundRect(rect,22*unit,22*unit,paint);canvas.restore();
+        if(!card){canvas.save();canvas.translate(0,2*unit);canvas.drawRoundRect(rect,radius,radius,paint);canvas.restore();}
         int save=canvas.save();canvas.clipPath(clip);
         host.getLocationOnScreen(location);root.getLocationOnScreen(origin);
         canvas.translate((origin[0]-location[0])/root.getScaleX(),(origin[1]-location[1])/root.getScaleY());
         background.draw(canvas,paint);
         canvas.restoreToCount(save);
-        paint.setAlpha(255);paint.setShader(tint);canvas.drawRoundRect(rect,22*unit,22*unit,paint);paint.setShader(null);
-        float stroke=Math.max(1,.5f*unit);rect.inset(stroke/2,stroke/2);
-        paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(stroke);paint.setColor(0x66ffffff);
-        canvas.drawRoundRect(rect,22*unit-stroke/2,22*unit-stroke/2,paint);
+        paint.setAlpha(255);if(card)paint.setColor(0x1fffffff);else paint.setShader(tint);canvas.drawRoundRect(rect,radius,radius,paint);paint.setShader(null);
+        float stroke=card?unit:Math.max(1,.5f*unit);rect.inset(stroke/2,stroke/2);
+        paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(stroke);paint.setColor(card?0x38ffffff:0x66ffffff);
+        canvas.drawRoundRect(rect,radius-stroke/2,radius-stroke/2,paint);
         rect.inset(-stroke/2,-stroke/2);paint.setStyle(Paint.Style.FILL);
     }
     @Override public void setAlpha(int alpha){}

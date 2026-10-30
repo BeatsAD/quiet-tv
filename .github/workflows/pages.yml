@@ -19,6 +19,7 @@ on:
       - scripts/configure_home_guard.py
       - scripts/configure_boot_home.py
       - scripts/device_maintenance.py
+      - scripts/boot_ads.py
       - scripts/device_selftest.py
       - scripts/device_adaptation.py
       - scripts/home_capabilities.py

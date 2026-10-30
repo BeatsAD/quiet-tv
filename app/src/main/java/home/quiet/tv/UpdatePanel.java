@@ -40,7 +40,9 @@ final class UpdatePanel {
     }
     void check(){closed=false;begin("checking","正在检查更新");Button cancel=button("取消",()->{updates.cancelCheck();dismiss();});show(cancel);updates.check(true);changed();}
     void changed(){
-        if(closed||dialog==null||activity.isFinishing())return;
+        if(closed||activity.isFinishing())return;
+        if(mode.equals("install")||updates.installNotice){installationChanged();return;}
+        if(dialog==null)return;
         if(mode.equals("checking")&&!updates.checking){
             if(!updates.checkError.isEmpty()){
                 begin("error",updates.checkError);Button retry=button("重试",this::check);
@@ -101,22 +103,39 @@ final class UpdatePanel {
         dispatchInstall();
     }
     private void dispatchInstall(){
-        begin("verify","正在核对安装包");show(null);
-        updates.install((file,error)->{if(closed||activity.isFinishing())return;if(file==null){begin("error",error);show(button("关闭",this::dismiss));return;}
-            if(UpdateInstaller.launch(activity,file)){updates.dispatched();dismiss();}else restricted("无法打开系统安装器");});
+        begin("install","正在准备安装");show(null);updates.install();
+    }
+    private void installationChanged(){
+        String state=updates.installState;
+        if(state.equals("prepared")){updates.dispatchInstall(activity);return;}
+        if(state.equals("confirmation")){updates.confirmInstall(activity);return;}
+        if(state.equals("file_dispatched")||state.equals("confirming")){dismiss();return;}
+        if(state.equals("preparing")||state.equals("committing")){
+            if(!mode.equals("install")){begin("install","正在准备安装");show(null);}return;
+        }
+        if(state.equals("submitted")){
+            begin("install","等待系统安装结果");show(button("关闭",this::dismiss));return;
+        }
+        updates.installNotice=false;
+        if(state.equals("success")){begin("installed","更新已安装");show(button("关闭",this::dismiss));return;}
+        begin("error",updates.installError.isEmpty()?"安装结果待核对":updates.installError);
+        Button focus=button("关闭",this::dismiss);
+        if(state.equals("failed")||state.equals("interrupted"))button("通过电脑更新",()->restricted(updates.installError));
+        if(updates.ready)focus=button("重试",()->{if(target==null)ready();else install();});
+        show(focus);
     }
     private void restricted(){restricted("");}
     private void restricted(String reason){
         begin("guide",reason.isEmpty()?"通过电脑更新":reason);box.addView(text("可在电脑上通过 Agent 协助更新，保留已有应用和配置。",25,0xffb5c0cf));gap(18);
         try{
-            int size=192;com.google.zxing.common.BitMatrix matrix=new com.google.zxing.qrcode.QRCodeWriter().encode("https://beatsad.github.io/quiet-tv/",com.google.zxing.BarcodeFormat.QR_CODE,size,size,Collections.singletonMap(com.google.zxing.EncodeHintType.MARGIN,2));
+            int size=Math.max(384,px(480));com.google.zxing.common.BitMatrix matrix=new com.google.zxing.qrcode.QRCodeWriter().encode("https://beatsad.github.io/quiet-tv/",com.google.zxing.BarcodeFormat.QR_CODE,size,size,Collections.singletonMap(com.google.zxing.EncodeHintType.MARGIN,2));
             int[] pixels=new int[size*size];for(int y=0;y<size;y++)for(int x=0;x<size;x++)pixels[y*size+x]=matrix.get(x,y)?Color.BLACK:Color.WHITE;
-            ImageView qr=new ImageView(activity);qr.setImageBitmap(android.graphics.Bitmap.createBitmap(pixels,size,size,android.graphics.Bitmap.Config.ARGB_8888));qr.setContentDescription("更新安装指引二维码");qr.setBackgroundColor(Color.WHITE);box.addView(qr,new LinearLayout.LayoutParams(px(230),px(230)));
+            ImageView qr=new ImageView(activity);qr.setImageBitmap(android.graphics.Bitmap.createBitmap(pixels,size,size,android.graphics.Bitmap.Config.ARGB_8888));qr.setContentDescription("更新安装指引二维码");qr.setScaleType(ImageView.ScaleType.FIT_CENTER);qr.setBackgroundColor(Color.WHITE);LinearLayout.LayoutParams qp=new LinearLayout.LayoutParams(px(480),px(480));qp.gravity=Gravity.CENTER_HORIZONTAL;box.addView(qr,qp);
         }catch(com.google.zxing.WriterException ignored){}
         gap(14);box.addView(text("安装指引：beatsad.github.io/quiet-tv/",23,0xffb5c0cf));show(button("关闭",this::dismiss));
     }
-    void resumed(){closed=false;if(permissionReturning){permissionReturning=false;if(updates.ready&&UpdateInstaller.permitted(activity))ready();}}
-    private void back(){if(mode.equals("verify"))return;if(mode.equals("download")){cancelDownload();return;}if(mode.equals("checking"))updates.cancelCheck();if(mode.equals("cancel")){resumeDownload();return;}dismiss();}
+    void resumed(){closed=false;changed();if(permissionReturning){permissionReturning=false;if(updates.ready&&UpdateInstaller.permitted(activity))ready();}}
+    private void back(){if(mode.equals("verify")||(mode.equals("install")&&updates.installBusy))return;if(mode.equals("download")){cancelDownload();return;}if(mode.equals("checking"))updates.cancelCheck();if(mode.equals("cancel")){resumeDownload();return;}dismiss();}
     void suspend(){closed=true;if(updates.downloading)updates.cancelDownload();if(mode.equals("checking"))updates.cancelCheck();dismiss();}
     private void dismiss(){if(dialog!=null){dialog.dismiss();dialog=null;}mode="";}
     private static String system(int sdk){switch(sdk){case 14:return "安卓4.0至4.4";case 19:return "安卓4.4";case 21:return "安卓5及以上";case 23:return "安卓6及以上";case 26:return "安卓8及以上";case 31:return "安卓12及以上";default:return "安卓兼容版";}}

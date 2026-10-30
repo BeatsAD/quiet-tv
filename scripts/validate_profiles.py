@@ -3,9 +3,11 @@
 import json
 import re
 from pathlib import Path
+from boot_ads import catalog as boot_ad_catalog
 
 source = Path(__file__).resolve().parents[1] / 'scripts/device-presets.json'
 data = json.loads(source.read_text())
+boot_ad_catalog(source)
 assert data['schema'] == 1
 seen = set()
 for device in data['devices']:
@@ -67,9 +69,10 @@ for panel in panels['panels']:
         package_name, activity = component.split('/')
         canonical = package_name + '/' + (package_name + activity if activity.startswith('.') else activity)
     else:
-        assert re.fullmatch(r'[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+', package), 'Invalid service package'
-        assert panel['type'] == 'service' and panel.get('action'), 'Package resolution needs a service action'
+        assert not package or re.fullmatch(r'[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+', package), 'Invalid panel package'
+        assert panel.get('action'), 'Discovery requires an explicit input action'
         canonical = package + ':' + panel['action']
+    canonical = panel['type'] + ':' + canonical
     assert canonical not in components, 'Duplicate system input panel'
     components.add(canonical)
     assert isinstance(panel.get('requiredFeature', ''), str)
@@ -77,8 +80,8 @@ for panel in panels['panels']:
     for value in panel.get('extras', {}).values():
         assert type(value) in (str, int, bool), 'Only primitive input extras are supported'
         assert type(value) is not int or -2147483648 <= value <= 2147483647, 'Integer extra out of range'
-    assert panel['type'] in {'activity', 'service'}
-    assert panel['type'] != 'service' or panel.get('action'), 'Services need an explicit action'
+    assert panel['type'] in {'activity', 'service', 'receiver'}
+    assert panel['type'] == 'activity' or panel.get('action'), 'Services and receivers need an explicit action'
     assert all(panel.get(key) for key in ['labelZh', 'labelEn', 'source', 'validation'])
     assert panel['source'].startswith(('https://github.com/Gathin23/cleanyourtv/', 'https://github.com/pengchujin/aerial-tv/')), 'Panel provenance is required'
     assert isinstance(panel.get('preferPanel', False), bool)

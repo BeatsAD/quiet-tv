@@ -44,7 +44,7 @@ final class ChildModeUnlock {
                     if(code<KeyEvent.KEYCODE_DPAD_UP||code>KeyEvent.KEYCODE_DPAD_RIGHT)return false;
                     if(event.getAction()==KeyEvent.ACTION_DOWN){
                         if(code==KeyEvent.KEYCODE_DPAD_UP){if(index<3)pin.requestFocus();else keys[index-3].requestFocus();}
-                        else if(code==KeyEvent.KEYCODE_DPAD_DOWN){if(index<9)keys[index+3].requestFocus();else view.findViewWithTag(index==9?"child-auth-cancel":"child-auth-confirm").requestFocus();}
+                        else if(code==KeyEvent.KEYCODE_DPAD_DOWN){if(index<9)keys[index+3].requestFocus();else view.findViewWithTag(index==9||mode==0?"child-auth-cancel":"child-auth-confirm").requestFocus();}
                         else keys[index/3*3+Math.max(0,Math.min(2,index%3+(code==KeyEvent.KEYCODE_DPAD_LEFT?-1:1)))].requestFocus();
                     }return true;
                 });
@@ -59,9 +59,9 @@ final class ChildModeUnlock {
         for(Button action:new Button[]{back,confirm,recover})action.setOnKeyListener((v,code,event)->{
             if(code<KeyEvent.KEYCODE_DPAD_UP||code>KeyEvent.KEYCODE_DPAD_RIGHT)return false;
             if(event.getAction()==KeyEvent.ACTION_DOWN){
-                if(code==KeyEvent.KEYCODE_DPAD_UP){if(v==recover)confirm.requestFocus();else keys[v==back?9:11].requestFocus();}
+                if(code==KeyEvent.KEYCODE_DPAD_UP){if(v==recover)(mode==0?back:confirm).requestFocus();else keys[v==back?9:11].requestFocus();}
                 else if(code==KeyEvent.KEYCODE_DPAD_DOWN){if(recover.getVisibility()==View.VISIBLE)recover.requestFocus();}
-                else if(v!=recover){if(code==KeyEvent.KEYCODE_DPAD_LEFT)back.requestFocus();else confirm.requestFocus();}
+                else if(v!=recover){if(code==KeyEvent.KEYCODE_DPAD_LEFT||mode==0)back.requestFocus();else confirm.requestFocus();}
             }return true;
         });
         pin.setOnKeyListener((v,code,event)->{
@@ -74,6 +74,7 @@ final class ChildModeUnlock {
     private void mode(int next){
         generation++;mode=next;busy=false;enable(true);pin.setText("");error.setText("");
         title.setText(next==0?"家长验证":next==2?"使用恢复码":"设置家长密码");confirm.setText(next==0?"解锁":next==2?"确认恢复码":"设置密码");
+        confirm.setVisibility(next==0?View.GONE:View.VISIBLE);
         pin.setContentDescription(next==2?"恢复码":"家长密码");recover.setVisibility(next==0?View.VISIBLE:View.GONE);
         if(next==2)error.setText("请输入家长事先保存的恢复码");
     }

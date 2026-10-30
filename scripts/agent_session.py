@@ -21,21 +21,23 @@ ROOT = Path(__file__).resolve().parent
 TOOLS = ('install_quiet_tv.py', 'verify_install.py', 'install_tcl.py', 'tcl_cast.py',
          'configure_home_guard.py', 'configure_boot_home.py', 'device_maintenance.py',
          'device_selftest.py', 'device_adaptation.py', 'vendor_adaptation.py',
-         'device-presets.json', 'agent_session.py', 'computer_resources.py', 'device_environment.py', 'remote_calibration.py', 'home_capabilities.py')
+         'device-presets.json', 'agent_session.py', 'computer_resources.py', 'device_environment.py', 'remote_calibration.py', 'home_capabilities.py', 'boot_ads.py')
 GUIDES = {'agent.md': 'docs/AGENT.md', 'maintenance.md': 'docs/AGENT_ADAPT.zh-CN.md',
           'guides/rules.md': 'docs/DEVICE_ADAPTATION.zh-CN.md',
           **{'guides/' + name + '.md': 'docs/agent/' + name + '.md' for name in
-             ('connect', 'install', 'update', 'home', 'tcl', 'restore', 'acceptance', 'inputs', 'session', 'remote', 'brands')}}
+             ('connect', 'install', 'update', 'home', 'tcl', 'restore', 'acceptance', 'inputs', 'session', 'remote', 'brands', 'boot-ads')}}
 RUNNERS = ('install_quiet_tv', 'install_tcl', 'configure_home_guard', 'configure_boot_home',
-           'device_maintenance', 'device_selftest', 'device_adaptation', 'vendor_adaptation', 'device_environment', 'remote_calibration')
+           'device_maintenance', 'device_selftest', 'device_adaptation', 'vendor_adaptation', 'device_environment', 'remote_calibration', 'boot_ads')
 PACKAGES = ('home.quiet.tv', 'com.ts.launcher', 'com.coocaa.quiettv')
 CHECKS = {'install': ('apk', 'basic_ui', 'desktop_configured', 'physical_home', 'recovery'),
           'update': ('apk', 'preservation'),
           'repair': ('repair',), 'restore': ('physical_home', 'recovery'),
+          'boot-ads': ('ad_configuration', 'ad_reboot', 'ad_cold_boot', 'ad_wake', 'ad_recovery'),
           'inspect': ('inspection',), 'noop': ('inspection',)}
 ROUTES = {'setup': tuple(CHECKS),
           'update': ('update', 'noop', 'inspect'), 'repair': ('repair', 'inspect'),
-          'restore': ('restore', 'inspect'), 'inspect': ('inspect', 'noop')}
+          'restore': ('restore', 'inspect'), 'inspect': ('inspect', 'noop'),
+          'boot-ads': ('boot-ads', 'inspect')}
 # Restoring the original desktop always needs a restore intent.
 ROUTES['setup'] = tuple(route for route in CHECKS if route != 'restore')
 
@@ -64,6 +66,8 @@ def operation(tool, arguments):
         if not arguments or arguments[0] not in ('adb', 'peripherals'):
             raise ValueError('现场工具须先指定 adb 或 peripherals')
         return 'read'
+    if tool == 'boot_ads':
+        return 'read' if option(arguments, '--action', 'inspect') == 'inspect' else 'ads'
     if tool == 'install_quiet_tv':
         return 'read' if '--verify-only' in arguments else option(arguments, '--goal', 'trial')
     if tool == 'install_tcl':
@@ -147,7 +151,7 @@ def allowed(state, tool, arguments):
         return action
     choices = {'install': ('trial', 'takeover', 'adb', 'home', 'input', 'rules', 'manage', 'test', 'remote'),
                'update': ('update', 'test'),
-               'restore': ('restore',), 'inspect': (), 'noop': ()}
+               'restore': ('restore',), 'inspect': (), 'noop': (), 'boot-ads': ('ads', 'test')}
     if route == 'repair':
         issue = state.get('issue')
         actions = ('remote', 'test') if issue == 'remote' else ('home', 'takeover', 'adb', 'test') if issue == 'home' else ('adb', 'test') if issue == 'adb' else (
@@ -169,6 +173,12 @@ def collect_step(state, step, action, reconcile=False):
     events = record / 'record.jsonl'
     if events.is_file():
         entries = [json.loads(line) for line in events.read_text(encoding='utf-8').splitlines() if line.strip()]
+        if step['tool'] == 'boot_ads' and action == 'ads' and step.get('exit') == 0 and '--apply' in step['arguments'] and not reconcile:
+            outcome = next((item for item in reversed(entries) if item['event'] == 'boot_ad_result' and item.get('verified') is True), None)
+            if outcome:
+                record_result(state, 'ad_configuration', 'PASS', 'script', '广告配置已读回；电源场景另由用户验收', str(events))
+                if outcome.get('restoring'):
+                    record_result(state, 'ad_recovery', 'PASS', 'script', '已按本次原始记录恢复并读回', str(events))
         verified = next((item for item in reversed(entries) if item['event'] in
                          ('installed_apk_verified', 'unchanged_apk_verified', 'boot_apk')), None)
         if verified and verified['event'] == 'boot_apk':
@@ -373,7 +383,7 @@ def run_step(directory, state, tool, arguments):
     if any(arg.startswith('--') and any(flag.startswith(arg.split('=')[0]) for flag in reserved)
            for arg in arguments):
         raise ValueError('设备、用户、工具路径、包名和记录路径由任务固定，不在子命令重复指定')
-    if state['package'] != tcl.PACKAGE and tool not in ('device_maintenance', 'device_selftest', 'configure_home_guard', 'device_environment', 'remote_calibration'):
+    if state['package'] != tcl.PACKAGE and tool not in ('device_maintenance', 'device_selftest', 'configure_home_guard', 'device_environment', 'remote_calibration', 'boot_ads'):
         raise ValueError('此工具只支持普通包名；专用包沿用已验证的同包名流程')
     current = checked_snapshot(state)
     number = len(state['steps']) + 1
@@ -438,7 +448,7 @@ def main(argv=None):
     parser.add_argument('--user', type=int)
     parser.add_argument('--package', choices=PACKAGES, default=tcl.PACKAGE)
     parser.add_argument('--adb', default='adb')
-    parser.add_argument('--intent', choices=('setup', 'update', 'repair', 'restore', 'inspect'))
+    parser.add_argument('--intent', choices=('setup', 'update', 'repair', 'restore', 'inspect', 'boot-ads'))
     parser.add_argument('--bundle', type=Path)
     parser.add_argument('--step', type=int)
     parser.add_argument('--note', help='核对的原始记录、现场结果和下一步；不是验收通过标记')
@@ -503,8 +513,8 @@ def main(argv=None):
                     raise ValueError('尚无本任务安装试用及实际 APK 核验记录')
                 if args.check in ('apk', 'desktop_configured') and args.status == 'PASS':
                     raise ValueError('APK／配置核验由实际工具记录，不以人工反馈代替')
-                if args.check in ('basic_ui', 'physical_home') and args.status == 'PASS' and args.source != 'user':
-                    raise ValueError('基础试用与实体 HOME 需要用户实际反馈')
+                if args.check in ('basic_ui', 'physical_home', 'ad_reboot', 'ad_cold_boot', 'ad_wake') and args.status == 'PASS' and args.source != 'user':
+                    raise ValueError('基础试用、实体 HOME 及广告电源场景需要用户实际反馈')
                 record_result(state, args.check, args.status, args.source, args.note)
             save(directory / 'session.json', state)
             summary(directory, state)
