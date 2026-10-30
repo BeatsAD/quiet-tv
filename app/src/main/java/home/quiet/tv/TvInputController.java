@@ -286,13 +286,13 @@ final class TvInputController {
         return correction(Build.MODEL,service.packageName,input.getType(),input.getId(),Build.DISPLAY);
     }
     String inputLabel(TvInputInfo input){String custom=new DeviceInputProfile(context).label(input.getId());if(!custom.isEmpty())return custom;Route route=correction(input);return route==null?input.loadLabel(context).toString():route.label;}
-    boolean openKnownInput(TvInputInfo input){
+    private Intent knownInputIntent(TvInputInfo input){
         android.content.pm.ServiceInfo service=input.getServiceInfo();
-        if((service.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0)return false;
+        if((service.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0)return null;
         String label=null;
         if(input.getType()==TvInputInfo.TYPE_HDMI)try{CharSequence value=input.loadLabel(context);if(value!=null)label=value.toString();}catch(RuntimeException unavailable){DiagnosticLog.error("input.xiaomi.label.failed",unavailable);}
         Integer custom=new DeviceInputProfile(context).xiaomi(input.getId());
-        Route route=custom==null?xiaomiRoute(Build.MODEL,service.packageName,input.getType(),input.getId(),Build.DISPLAY,label):new Route(null,custom);if(route==null){DiagnosticLog.info("input.xiaomi.route","provider="+service.packageName+" type="+input.getType()+" result=no_known_route");return false;}
+        Route route=custom==null?xiaomiRoute(Build.MODEL,service.packageName,input.getType(),input.getId(),Build.DISPLAY,label):new Route(null,custom);if(route==null){DiagnosticLog.info("input.xiaomi.route","provider="+service.packageName+" type="+input.getType()+" result=no_known_route");return null;}
         ComponentName target=new ComponentName("com.xiaomi.mitv.tvplayer","com.xiaomi.mitv.tvplayer."+route.activity);
         try{
             android.content.pm.ActivityInfo activity=pm.getActivityInfo(target,0);
@@ -300,13 +300,26 @@ final class TvInputController {
             if((activity.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0 || !activity.exported
                     || !(appState==PackageManager.COMPONENT_ENABLED_STATE_DEFAULT?activity.applicationInfo.enabled:appState==PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
                     || !(componentState==PackageManager.COMPONENT_ENABLED_STATE_DEFAULT?activity.enabled:componentState==PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
-                    || (activity.permission!=null && pm.checkPermission(activity.permission,context.getPackageName())!=PackageManager.PERMISSION_GRANTED)){DiagnosticLog.info("input.xiaomi.route","component="+target.flattenToShortString()+" result=not_callable exported="+activity.exported+" appState="+appState+" componentState="+componentState+" permission="+activity.permission);return false;}
+                    || (activity.permission!=null && pm.checkPermission(activity.permission,context.getPackageName())!=PackageManager.PERMISSION_GRANTED)){DiagnosticLog.info("input.xiaomi.route","component="+target.flattenToShortString()+" result=not_callable exported="+activity.exported+" appState="+appState+" componentState="+componentState+" permission="+activity.permission);return null;}
             Intent intent=new Intent("com.xiaomi.mitv.tvplayer."+route.action).setComponent(target).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             if(route.source>=0)intent.putExtra("input",route.source);
-            context.startActivity(intent);
-            DiagnosticLog.info("input.xiaomi.dispatch",target.flattenToShortString()+" source="+route.source);return true;
-        }catch(PackageManager.NameNotFoundException e){DiagnosticLog.info("input.xiaomi.route","component="+target.flattenToShortString()+" result=not_installed");return false;}
-        catch(RuntimeException e){DiagnosticLog.error("input.xiaomi.failed","component="+target.flattenToShortString(),e);return false;}
+            return intent;
+        }catch(PackageManager.NameNotFoundException e){DiagnosticLog.info("input.xiaomi.route","component="+target.flattenToShortString()+" result=not_installed");return null;}
+        catch(RuntimeException e){DiagnosticLog.error("input.xiaomi.failed","component="+target.flattenToShortString(),e);return null;}
+    }
+
+    boolean openKnownInput(TvInputInfo input){
+        Intent intent=knownInputIntent(input);if(intent==null)return false;
+        try{context.startActivity(intent);DiagnosticLog.info("input.xiaomi.dispatch",intent.getComponent().flattenToShortString());return true;}
+        catch(RuntimeException failure){DiagnosticLog.error("input.xiaomi.failed",failure);return false;}
+    }
+    /** Resolve one direct HDMI route without dispatching or opening a source picker. */
+    Intent hdmiIntent(TvInputInfo input){
+        if(input.getType()!=TvInputInfo.TYPE_HDMI || !enabledSystem(context,input.getServiceInfo()))return null;
+        input=mappedInput(input);if(input==null || input.getType()!=TvInputInfo.TYPE_HDMI)return null;
+        Intent intent=knownInputIntent(input);
+        if(intent==null)intent=standardIntent(input.getId(),android.media.tv.TvContract.buildChannelUriForPassthroughInput(input.getId()));
+        return intent!=null?intent:fallbackInputIntent(input);
     }
 
     static boolean enabledSystem(Context context,ComponentInfo info){
@@ -352,20 +365,24 @@ final class TvInputController {
         if(type==TvInputInfo.TYPE_TUNER && (label.toUpperCase(Locale.ROOT).contains("DTV") || label.toUpperCase(Locale.ROOT).contains("DTMB")))return 2;
         return null;
     }
-    boolean openFallbackInput(TvInputInfo input){
-        if(!enabledSystem(context,input.getServiceInfo())){DiagnosticLog.info("input.fallback.route","result=not_enabled_system");return false;}
+    private Intent fallbackInputIntent(TvInputInfo input){
+        if(!enabledSystem(context,input.getServiceInfo())){DiagnosticLog.info("input.fallback.route","result=not_enabled_system");return null;}
         Intent intent=null;
         ComponentName droidlogic=new ComponentName("com.droidlogic.tvsource","com.droidlogic.tvsource.DroidLogicTv");
         if(input.getType()==TvInputInfo.TYPE_HDMI && "com.droidlogic.tvinput".equals(input.getServiceInfo().packageName) && canOpen(context,droidlogic))intent=new Intent(Intent.ACTION_MAIN).setComponent(droidlogic).putExtra("id",input.getId());
         if(intent==null){
             // Prefer TCL's native picker if present; only documented middleware uses these ordinals.
-            for(Panel panel:inspect().availablePanels())if(panel.profile.component.startsWith("com.tcl.settings/") || "com.android.systemui".equals(panel.profile.packageName)){DiagnosticLog.info("input.fallback.route","result=prefer_native_panel");return false;}
+            for(Panel panel:inspect().availablePanels())if(panel.profile.component.startsWith("com.tcl.settings/") || "com.android.systemui".equals(panel.profile.packageName)){DiagnosticLog.info("input.fallback.route","result=prefer_native_panel");return null;}
             Integer source=tclSource(Build.DEVICE,Build.HARDWARE,input.getServiceInfo().packageName,input.getType(),input.loadLabel(context).toString());
             ComponentName player=new ComponentName("com.tcl.tv","com.tcl.tv.TVActivity");
             if(source!=null && canOpen(context,player))intent=new Intent().setComponent(player).putExtra("targetSourceId",source).putExtra("referer","com.tcl.settings.module_source");
         }
-        if(intent==null){DiagnosticLog.info("input.fallback.route","result=no_known_route provider="+input.getServiceInfo().packageName+" type="+input.getType());return false;}
-        try{context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));DiagnosticLog.info("input.fallback.dispatch",intent.getComponent().flattenToShortString());return true;}
+        if(intent==null){DiagnosticLog.info("input.fallback.route","result=no_known_route provider="+input.getServiceInfo().packageName+" type="+input.getType());return null;}
+        return intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+    }
+    boolean openFallbackInput(TvInputInfo input){
+        Intent intent=fallbackInputIntent(input);if(intent==null)return false;
+        try{context.startActivity(intent);DiagnosticLog.info("input.fallback.dispatch",intent.getComponent().flattenToShortString());return true;}
         catch(RuntimeException failure){DiagnosticLog.error("input.fallback.failed",failure);return false;}
     }
 }

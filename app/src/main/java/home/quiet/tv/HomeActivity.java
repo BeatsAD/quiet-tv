@@ -52,7 +52,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private final HashMap<String,App> artworkCache = new HashMap<>();
     private final HomeCatalogRefresh catalogRefresh=new HomeCatalogRefresh();
     private long packageRevision;
-    private int catalogSequence,focusGeneration;
+    private int catalogSequence,focusGeneration,hdmiLaunchGeneration;
     private ViewTreeObserver.OnPreDrawListener focusRestore;
     private boolean waitingForUnlock,unlockRecreateRequested;
     private final BroadcastReceiver unlockReceiver=new BroadcastReceiver(){
@@ -411,12 +411,20 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     void checkBootApp(){getWindow().getDecorView().post(this::launchBootApp);}
 
     private void launchBootApp(){
-        BootAppStore store=new BootAppStore(this);if(store.target().isEmpty())return;
+        BootAppStore store=new BootAppStore(this);if(!store.enabled())return;
         long started=SystemClock.uptimeMillis();
         if(isFinishing() || !resumed || !hasWindowFocus() || !HomeGuardState.canShow(this))return;
         String pkg=store.consume();
         DiagnosticLog.info("home.autostart.check","elapsedMs="+(SystemClock.uptimeMillis()-started)+" consumed="+!pkg.isEmpty());
         if(pkg.isEmpty())return;
+        if(BootAppStore.HDMI.equals(pkg)){
+            if(Build.VERSION.SDK_INT>=21)openSavedHdmi(true);
+            return;
+        }
+        launchStartupApp(pkg);
+    }
+    private void launchStartupApp(String pkg){
+        BootAppStore store=new BootAppStore(this);
         leaveHome(()->{try{
             Intent intent=store.launchIntent(pkg);
             if(intent==null){Log.i(BootAppStore.TAG,"target unavailable");wallpapers.resume();Toast.makeText(this,tr("自启应用不可用，请在应用管理中重新设置","Startup app unavailable"),Toast.LENGTH_LONG).show();return;}
@@ -427,6 +435,16 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         }catch(RuntimeException e){Log.w(BootAppStore.TAG,"launch rejected");DiagnosticLog.error("app.autostart.failed",e);wallpapers.resume();Toast.makeText(this,tr("自启应用暂时无法打开","Unable to open startup app"),Toast.LENGTH_SHORT).show();}});
     }
 
+    private void watchTv(){
+        BootAppStore store=new BootAppStore(this);
+        if(!store.watchTarget().isEmpty()&&Build.VERSION.SDK_INT>=21){openSavedHdmi(false);return;}
+        if(!store.target().isEmpty()){launchStartupApp(store.target());return;}
+        leaveHome(()->startActivity(new Intent(this,WatchTvActivity.class)));
+    }
+    private void openSavedHdmi(boolean automatic){
+        if(tvInputs==null)tvInputs=new TvInputs();tvInputs.saved(automatic);
+    }
+
     @Override protected void onPause() {
         if(waitingForUnlock){super.onPause();return;}
         cancelConfirm();screensaver.pause();
@@ -435,7 +453,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         if(!HomeGuardState.canShow(this))new HomeProxy(this).defer(getIntent());
         homePausedAt=SystemClock.uptimeMillis();homeResumeEvent("home.pause","");homeDrawPending=false;
         systemEntryLifecycle("pause");
-        BootAppLifecycle.left(this);
+        ++hdmiLaunchGeneration;new BootAppStore(this).cancelHdmiBoot();BootAppLifecycle.left(this);
         if(dockPress!=null)dockPress.cancel();updateDock(false);
         HomeGuardRecovery.leftHome(this);
         resumed=false;main.removeCallbacks(confirmHold);heldPackage="";cancelMove();if(scrollAnimation!=null)scrollAnimation.cancel();list.stopScroll();saveFocus();wallpapers.pause();weather.pause();
@@ -482,7 +500,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private HomeCatalogRefresh.Input catalogInput(){
         return new HomeCatalogRefresh.Input(new DockStore(this).load(),new HomeOrderStore(this).signature(),
-            new ChildModeStore(this).revision(),AppCoverStore.get(this).revision(),packageRevision,homeAppsVisible,new HomeVisibilityStore(this).signature());
+            new ChildModeStore(this).revision(),AppCoverStore.get(this).revision(),packageRevision,homeAppsVisible,new HomeVisibilityStore(this).signature()+new BootAppStore(this).watchRevision());
     }
 
     private void loadApps(String reason) {
@@ -517,6 +535,9 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             wallpaperApp.banner=wallpapers.entryBanner();wallpaperApp.color=HomeEntryArtwork.WALLPAPER_COLOR;found.add(0,wallpaperApp);
             App desktopApp=new App();desktopApp.pkg=DESKTOP_SETTINGS_ENTRY;desktopApp.label=tr("桌面设置","Desktop Settings");
             desktopApp.banner=HomeEntryArtwork.render(this,desktopApp.label,true);desktopApp.color=HomeEntryArtwork.DESKTOP_COLOR;found.add(1,desktopApp);
+            if(new BootAppStore(this).showWatch()){
+                App watch=new App();watch.pkg=HomeAppCatalog.WATCH_TV;watch.label=tr("看电视","Watch TV");watch.banner=HomeEntryArtwork.render(this,watch.label,watch.pkg);watch.color=0xff217c94;found.add(0,watch);
+            }
             ArrayList<String> defaults=new ArrayList<>();for(App app:found)if(!pinned.contains(app.pkg))defaults.add(app.pkg);
             ArrayList<String> gridOrder=new HomeOrderStore(this).order(defaults);
             final long preparedAt=SystemClock.uptimeMillis();
@@ -682,7 +703,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         DiagnosticLog.navigationKey("quiet_tv_home",event);
         if(waitingForUnlock)return super.dispatchKeyEvent(event);
         int key=event.getKeyCode();
-        if(event.getAction()==KeyEvent.ACTION_DOWN && HomeGuardService.navigationKey(key))HomeGuardService.bootSourceUserAction(this);
+        if(event.getAction()==KeyEvent.ACTION_DOWN && HomeGuardService.navigationKey(key)){++hdmiLaunchGeneration;new BootAppStore(this).cancelHdmiBoot();HomeGuardService.bootSourceUserAction(this);}
         int kind=key==KeyEvent.KEYCODE_DPAD_LEFT || key==KeyEvent.KEYCODE_DPAD_RIGHT || key==KeyEvent.KEYCODE_DPAD_UP || key==KeyEvent.KEYCODE_DPAD_DOWN?1
             :key==KeyEvent.KEYCODE_DPAD_CENTER || key==KeyEvent.KEYCODE_ENTER || key==KeyEvent.KEYCODE_NUMPAD_ENTER?2
             :key==KeyEvent.KEYCODE_VOLUME_UP || key==KeyEvent.KEYCODE_VOLUME_DOWN || key==KeyEvent.KEYCODE_VOLUME_MUTE?4:0;
@@ -870,7 +891,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     @Override public boolean dispatchTouchEvent(MotionEvent event){
         InputDiagnostics.pointer(this,event);
         if(!waitingForUnlock&&screensaver!=null){cancelConfirm();if(screensaver.touch(event))return true;screensaver.interaction();}
-        if(!waitingForUnlock && event.getActionMasked()==MotionEvent.ACTION_DOWN)HomeGuardService.bootSourceUserAction(this);
+        if(!waitingForUnlock && event.getActionMasked()==MotionEvent.ACTION_DOWN){++hdmiLaunchGeneration;new BootAppStore(this).cancelHdmiBoot();HomeGuardService.bootSourceUserAction(this);}
         return super.dispatchTouchEvent(event);
     }
     @Override public boolean dispatchGenericMotionEvent(MotionEvent event){
@@ -884,6 +905,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         if(new HomeVisibilityStore(this).hidden(app.pkg)){loadApps("hidden_launch");return;}
         KeyFeedback.confirm(this);
         if(WALLPAPER_ENTRY.equals(app.pkg)){wallpapers.showPicker();return;}
+        if(HomeAppCatalog.WATCH_TV.equals(app.pkg)){watchTv();return;}
         leaveHome(()->{
             if(DESKTOP_SETTINGS_ENTRY.equals(app.pkg)){startActivity(new Intent(this,DesktopSettingsActivity.class));return;}
             if(MANAGEMENT_ENTRY.equals(app.pkg)){startActivity(new Intent(this,AppManagementActivity.class));return;}
@@ -1092,6 +1114,19 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     @android.annotation.TargetApi(21)
     private final class TvInputs {
         private TvInputInfo pendingTvInput;
+        void saved(boolean automatic){
+            BootAppStore store=new BootAppStore(HomeActivity.this);
+            if(automatic&&!store.tested())return;
+            String saved=store.watchTarget();int generation=hdmiLaunchGeneration;
+            leaveSystemEntry("input.saved",()->{
+                if(automatic&&(generation!=hdmiLaunchGeneration||!new BootAppStore(HomeActivity.this).hdmiBoot()||!new BootAppStore(HomeActivity.this).tested())){wallpapers.resume();systemEntryResult(false);return;}
+                boolean opened=false;
+                try{HdmiTarget target=HdmiTarget.decode(saved);opened=target!=null&&saved.equals(new BootAppStore(HomeActivity.this).watchTarget())&&target.open(HomeActivity.this);}
+                catch(RuntimeException failure){DiagnosticLog.error("input.saved.failed",failure);}
+                systemEntryResult(opened);
+                if(!opened){wallpapers.resume();Toast.makeText(HomeActivity.this,tr("HDMI 暂不可用，请在开机直达中重新选择并测试","HDMI unavailable; select and test it in startup settings"),Toast.LENGTH_LONG).show();}
+            });
+        }
         void openPending(){if(pendingTvInput!=null && resumed && checkCallingOrSelfPermission("android.permission.READ_TV_LISTINGS")==PackageManager.PERMISSION_GRANTED){TvInputInfo input=pendingTvInput;pendingTvInput=null;openInput(input);}}
         void show(){
             TvInputController.Snapshot snapshot=new TvInputController(HomeActivity.this).inspect();

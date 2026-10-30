@@ -65,6 +65,10 @@ The capture shows an empty verification entry only. No password, rule or timing 
 
 Select an app in App list, choose 设为开机自启 and confirm. One app can be selected; it opens after boot or standby wake enters Quiet TV, without repeating on an ordinary HOME return. More → 开机自启 shows or clears the selection. This depends on the TV entering Quiet TV and does not establish vendor boot/wake acceptance. See [app autostart](APP_MANAGEMENT.md#开机自启开发源码).
 
+## HDMI startup and Watch TV (development source)
+
+Open Desktop Settings → Desktop → 开机直达. Select a directly callable HDMI port and add the Watch TV card to Home. A full five-slot Home asks which entry to replace; the original app remains in the app list. Test the port, return with HOME, reopen settings and confirm picture and sound before enabling startup. HDMI and app autostart are mutually exclusive; disabling startup can keep the shortcut. HDMI attempts once during the first three minutes of a full boot after Quiet TV becomes interactive and foreground, without repeating on HOME return or actively switching on standby wake. Android 4.x and TVs that only expose an input picker retain existing manual input paths. Firmware and route changes require selection and testing again. Dispatch and user confirmation do not replace target-TV boot, wake, picture or audio acceptance. See [HDMI startup](APP_MANAGEMENT.md#hdmi-开机直达与看电视开发源码).
+
 ## Boot-ad management
 
 Current source moves boot-ad maintenance to computer AI. It requires an explicit request, a matching execution rule, original-state records and recovery checks. No Quiet TV boot-ad rule has passed hardware acceptance; no universal ad-removal claim is made. Older APKs may retain their former controls. See [app management](APP_MANAGEMENT.md#开机广告).

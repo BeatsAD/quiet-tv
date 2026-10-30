@@ -58,6 +58,7 @@
         <activity android:name=".DockEditorActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".HomeAppActionsActivity" android:exported="false" android:excludeFromRecents="true" android:theme="@style/HomeActionsTheme" />
         <activity android:name=".HomeSortActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".WatchTvActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".DesktopSettingsActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".HomeProxyEntryActivity" android:exported="true" android:enabled="${homeGuardAvailable}"
             android:launchMode="singleTask" android:taskAffinity="${applicationId}.proxyEntry"
