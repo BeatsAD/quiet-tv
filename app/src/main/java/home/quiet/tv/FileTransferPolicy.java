@@ -17,6 +17,7 @@ final class FileTransferPolicy {
         if(clean.isEmpty()||clean.equals(".")||clean.equals(".."))throw new IOException("文件名无效");
         return clean.substring(0,Math.min(160,clean.length()));
     }
+    static boolean apk(String name){return name!=null&&name.toLowerCase(Locale.ROOT).endsWith(".apk");}
     static boolean image(String name){return name!=null&&name.toLowerCase(Locale.ROOT).matches(".*\\.(jpg|jpeg|png|webp)$");}
     static boolean video(String name){return name!=null&&name.toLowerCase(Locale.ROOT).matches(".*\\.(mp4|mov|mkv|webm)$");}
     static long copy(InputStream input,OutputStream output,long expected,long maximum,Active active,Progress progress)throws IOException{
