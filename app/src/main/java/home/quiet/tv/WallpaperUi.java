@@ -10,6 +10,7 @@ import android.widget.*;
 /** Styles and small, version-independent artwork used by the wallpaper surfaces. */
 final class WallpaperUi {
     static final int INK=0xfff4f5f7,MUTED=0xffaeb9c8;
+    static final int TOOLBAR_WIDTH=78,TOOLBAR_HEIGHT=30,CATEGORY_PADDING=4,TOOLBAR_PADDING=16;
     final Context context;
     final float unit;
     WallpaperUi(Context context,float unit){this.context=context;this.unit=unit;}
@@ -34,6 +35,12 @@ final class WallpaperUi {
     TextView categoryTab(String value,Runnable action){
         TextView view=button(value,false,action);view.setMinHeight(0);view.setPadding(px(10),0,px(10),0);
         ControlStyle.choice(view,unit,100,Color.TRANSPARENT,0);return view;
+    }
+    void toolbarSize(TextView view){
+        // Match the category capsule after each part has been rounded to pixels.
+        view.setLayoutParams(new LinearLayout.LayoutParams(-2,px(TOOLBAR_HEIGHT)+2*px(CATEGORY_PADDING)));
+        view.setBackgroundDrawable(ControlStyle.action(unit,100,0xff242a33,0x38ffffff,0));
+        view.setSingleLine(true);view.setMinHeight(0);view.setPadding(px(TOOLBAR_PADDING),0,px(TOOLBAR_PADDING),0);view.setCompoundDrawablePadding(px(4));
     }
     TextView compactButton(String value,Runnable action){
         TextView view=button(value,false,action);view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(11));

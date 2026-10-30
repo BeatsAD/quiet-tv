@@ -10,12 +10,14 @@ import android.app.AlertDialog;
 final class ControlStyle extends Drawable {
     private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF rect=new RectF();
-    private final float unit,radius;
+    private final float unit,radius,verticalInset;
     private final int color,border;
     private final boolean choice,list;
     private int alpha=255;
-    private ControlStyle(float unit,float radius,int color,int border,boolean choice,boolean list){this.unit=unit;this.radius=radius*unit;this.color=color;this.border=border;this.choice=choice;this.list=list;}
+    private ControlStyle(float unit,float radius,int color,int border,boolean choice,boolean list){this(unit,radius,color,border,choice,list,3);}
+    private ControlStyle(float unit,float radius,int color,int border,boolean choice,boolean list,float verticalInset){this.unit=unit;this.radius=radius*unit;this.verticalInset=verticalInset*unit;this.color=color;this.border=border;this.choice=choice;this.list=list;}
     static Drawable action(float unit,float radius,int color,int border){return new ControlStyle(unit,radius,color,border,false,false);}
+    static Drawable action(float unit,float radius,int color,int border,float verticalInset){return new ControlStyle(unit,radius,color,border,false,false,verticalInset);}
     static Drawable listRow(float unit,float radius){return new ControlStyle(unit,radius,0,0,false,true);}
     static void choice(TextView view,float unit,float radius,int color,int border){
         view.setBackgroundDrawable(new ControlStyle(unit,radius,color,border,true,false));
@@ -48,9 +50,9 @@ final class ControlStyle extends Drawable {
         if(pressed)fill=Color.alpha(fill)==0?0xff262b33:Color.argb(Color.alpha(fill),Math.round(Color.red(fill)*.8f),Math.round(Color.green(fill)*.8f),Math.round(Color.blue(fill)*.8f));
         rect.set(getBounds());paint.setStyle(Paint.Style.FILL);
         if(focused){ink(0xff101116);canvas.drawRoundRect(rect,radius,radius,paint);}
-        rect.inset(3*unit,3*unit);float inner=Math.max(0,radius-3*unit);
+        rect.inset(3*unit,verticalInset);float inner=Math.max(0,radius-3*unit);
         ink(fill);canvas.drawRoundRect(rect,inner,inner,paint);
-        if(border!=0&&!selected){paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(Math.max(1,unit));ink(border);canvas.drawRoundRect(rect,inner,inner,paint);}
+        if(border!=0&&!selected){float stroke=Math.max(1,unit);if(verticalInset==0){rect.inset(0,stroke/2);inner=Math.max(0,inner-stroke/2);}paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(stroke);ink(border);canvas.drawRoundRect(rect,inner,inner,paint);}
         if(focused){rect.set(getBounds());float stroke=Math.max(1,unit);rect.inset(stroke/2,stroke/2);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(stroke);ink(0xfff3f4f7);canvas.drawRoundRect(rect,Math.max(0,radius-stroke/2),Math.max(0,radius-stroke/2),paint);}
     }
     private void ink(int color){paint.setColor(color);paint.setAlpha(Color.alpha(color)*alpha/255);}
