@@ -31,6 +31,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private static final String WALLPAPER_ENTRY = HomeAppCatalog.WALLPAPER;
     private static final String DESKTOP_SETTINGS_ENTRY = HomeAppCatalog.DESKTOP_SETTINGS;
     private static final String MANAGEMENT_ENTRY = HomeAppCatalog.MANAGEMENT;
+    private static final String ADD_DOCK_ENTRY = "quiet:add-dock";
     static final int APP_COLUMNS = 5;
     private static final float CONTENT_MARGIN = 48;
     // The complete first screen scrolls as one item; preserve its original composition.
@@ -520,6 +521,11 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 for(String id:gridOrder)nextApps.add(byId.get(id));
                 // A display-only projection: never save these temporary entries into the grid order.
                 if(!homeAppsVisible)for(App app:nextDock)if(!nextApps.contains(app))nextApps.add(app);
+                // Keep an actionable empty state on HOME, without saving it as a pinned app.
+                if(homeAppsVisible&&nextDock.isEmpty()){
+                    App add=new App();add.pkg=ADD_DOCK_ENTRY;add.label=tr("添加常用应用","Add favorite apps");
+                    add.banner=HomeEntryArtwork.addFavorite(add.label);add.color=0xff666972;nextDock.add(add);
+                }
                 boolean dockChanged=!sameApps(dock,nextDock),gridChanged=!sameApps(apps,nextApps);
                 if(dockChanged||gridChanged){
                     cancelFocusRestore("catalog_changed");
@@ -604,6 +610,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         int[] location=new int[2];int x=getResources().getDisplayMetrics().widthPixels/2,y=px(280),bottom=y;
         if(selected!=null){selected.getLocationOnScreen(location);x=location[0]+selected.getWidth()/2;y=location[1];bottom=y+selected.getHeight();}
         Intent intent=new Intent(this,HomeAppActionsActivity.class).putExtra("package",app.pkg).putExtra("dock",row==0)
+            .putExtra("add",ADD_DOCK_ENTRY.equals(app.pkg))
             .putExtra("anchor-x",x).putExtra("anchor-y",y).putExtra("anchor-bottom",bottom);
         // Reuse the prepared Dock pixels, including its wallpaper shade, without capturing app cards.
         Bitmap backdrop=Bitmap.createBitmap(320,Math.max(1,Math.round(320f*root.getHeight()/root.getWidth())),Bitmap.Config.ARGB_8888);
@@ -861,6 +868,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private void launchSelected(){
         App app=currentApp();if(app==null)return;saveFocus();
         if(!movingPackage.isEmpty()){saveMove();KeyFeedback.confirm(this);return;}
+        if(ADD_DOCK_ENTRY.equals(app.pkg)){openAppActions(app);return;}
         if(new HomeVisibilityStore(this).hidden(app.pkg)){loadApps("hidden_launch");return;}
         KeyFeedback.confirm(this);
         if(WALLPAPER_ENTRY.equals(app.pkg)){wallpapers.showPicker();return;}
