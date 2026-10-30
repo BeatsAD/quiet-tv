@@ -211,7 +211,16 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     private void makeScene() {
-        root = new FrameLayout(this); root.setBackgroundColor(Color.BLACK); root.setClipChildren(false);
+        root = new FrameLayout(this){
+            private int displayResume=-1,displayWidth,displayHeight;
+            @Override protected void dispatchDraw(Canvas canvas){
+                super.dispatchDraw(canvas);
+                if(resumed&&(displayResume!=homeResumeSequence||displayWidth!=getWidth()||displayHeight!=getHeight())){
+                    displayResume=homeResumeSequence;displayWidth=getWidth();displayHeight=getHeight();
+                    DiagnosticDisplaySnapshot.home(HomeActivity.this,this,canvas);
+                }
+            }
+        }; root.setBackgroundColor(Color.BLACK); root.setClipChildren(false);
         UiCompat.onDraw(root,()->{
             if(!resumed)return;
             if(homeDrawPending){

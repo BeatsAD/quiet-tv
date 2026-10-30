@@ -14,9 +14,10 @@ final class DiagnosticDeviceSnapshot {
     private final StringBuilder text=new StringBuilder();
     private interface Read {void run() throws Exception;}
     private DiagnosticDeviceSnapshot(Context context){this.context=context;pm=context.getPackageManager();}
-    static String collect(Context context,String adb){
+    static String collect(Context context,String adb,String window){
         DiagnosticDeviceSnapshot snapshot=new DiagnosticDeviceSnapshot(context);
         snapshot.section("设备与软件",snapshot::device);
+        snapshot.section("显示与绘制",()->snapshot.text.append(DiagnosticDisplaySnapshot.collect(context,window)));
         snapshot.text.append("\n[ADB 与调试接口]\n").append(adb);
         snapshot.section("调试设置入口",snapshot::debugSettings);
         snapshot.section("系统设置页面采集",()->snapshot.text.append(SettingsPageCapture.summary()).append('\n'));
