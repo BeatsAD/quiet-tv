@@ -103,6 +103,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private int scrollTarget = RecyclerView.NO_POSITION;
     private ValueAnimator scrollAnimation;
     private String activePackage = "";
+    private boolean keepAppActionPositionUntilRefresh;
     private TvInputs tvInputs;
     private Tile selected;
     private boolean moveDock,moveSaving,confirmLong;
@@ -583,12 +584,14 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                     });
                 }
                 if(row>=0){
-                    if(!activePackage.isEmpty()) {
+                    // Removed favorites still exist in the grid; keep the original slot instead of following them.
+                    if(!keepAppActionPositionUntilRefresh&&!activePackage.isEmpty()) {
                         for(int n=0;n<dock.size();n++)if(activePackage.equals(dock.get(n).pkg)){row=0;column=n;}
                         for(int n=0;n<apps.size();n++)if(activePackage.equals(apps.get(n).pkg)){row=1+n/APP_COLUMNS;column=n%APP_COLUMNS;}
                     }
                     row=Math.max(0,Math.min(row,gridRows()));column=Math.min(column,maxColumn(row));
                 }
+                keepAppActionPositionUntilRefresh=false;
                 boolean first=!ready;ready=true;
                 appAdapter.notifyItemChanged(1);
                 if(screensaver!=null)screensaver.availabilityChanged();
@@ -629,7 +632,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         super.onActivityResult(request,result,data);
         if(request==HomeAppActionsActivity.REQUEST&&result==RESULT_OK&&data!=null){
             if("move".equals(data.getStringExtra("action"))){pendingMove=data.getStringExtra("package");pendingMoveDock=data.getBooleanExtra("dock",false);}
-            else{activePackage=data.getStringExtra("package");if(activePackage==null)activePackage="";++packageRevision;}
+            else{activePackage=data.getStringExtra("package");if(activePackage==null)activePackage="";keepAppActionPositionUntilRefresh=activePackage.isEmpty();++packageRevision;}
         }
         if(request==WallpaperFilesActivity.REQUEST&&result==Activity.RESULT_OK&&data!=null&&wallpapers!=null)getWindow().getDecorView().post(()->{if(!isFinishing()&&!UiCompat.destroyed(this))wallpapers.imported(data.getStringExtra("wallpaper"));});
     }
