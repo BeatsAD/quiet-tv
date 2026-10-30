@@ -87,5 +87,5 @@ final class HomePreviewView extends FrameLayout {
         canvas.drawColor(Color.BLACK);paint.setAlpha(255);paint.setShader(null);
         if(dockBackground==null)ambient.draw(canvas);else{canvas.drawBitmap(dockBackground,null,new RectF(0,0,960,540),paint);shade.draw(canvas);}
     }
-    private View emptyCard(){ImageView card=new ImageView(getContext());card.setImageBitmap(HomeEntryArtwork.addFavorite(chinese?"添加常用应用":"Add favorite apps"));card.setScaleType(ImageView.ScaleType.FIT_XY);return card;}
+    private View emptyCard(){ImageView card=new ImageView(getContext());card.setBackgroundDrawable(new DockBackdropDrawable(this::drawWallpaper,card,scene,1,true));card.setImageBitmap(HomeEntryArtwork.addFavorite(chinese?"添加常用应用":"Add favorite apps"));card.setScaleType(ImageView.ScaleType.FIT_XY);return card;}
 }

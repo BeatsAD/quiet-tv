@@ -6,21 +6,17 @@ import android.graphics.*;
 /** Built-in entries share their artwork with the sorting preview. */
 final class HomeEntryArtwork {
     static final int WALLPAPER_COLOR=0xff139d88,DESKTOP_COLOR=0xff205fdd,MANAGEMENT_COLOR=0xffe77821;
-    static final float ADD_TOP=42f/203,ADD_BOTTOM=161f/203;
 
     static Bitmap addFavorite(String title){
         Bitmap bitmap=Bitmap.createBitmap(360,203,Bitmap.Config.ARGB_8888);
         Canvas canvas=new Canvas(bitmap);Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
-        RectF rect=new RectF(1.2f,42+1.2f,360-1.2f,161-1.2f);
-        paint.setColor(0x50080d14);canvas.drawRoundRect(rect,33,33,paint);
-        paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(2.4f);paint.setColor(0x50ffffff);
-        canvas.drawRoundRect(rect,33,33,paint);paint.setStyle(Paint.Style.FILL);
-        paint.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));paint.setTextSize(28);
-        float width=paint.measureText(title);if(width>260){paint.setTextSize(28*260/width);width=paint.measureText(title);}
-        float left=(360-30-20-width)/2,center=(42+161)/2f;
-        paint.setColor(0xfff1f2f6);paint.setStrokeWidth(3);paint.setStrokeCap(Paint.Cap.ROUND);
-        canvas.drawLine(left,center,left+30,center,paint);canvas.drawLine(left+15,center-15,left+15,center+15,paint);
-        Paint.FontMetrics metrics=paint.getFontMetrics();canvas.drawText(title,left+50,center-(metrics.ascent+metrics.descent)/2,paint);
+        paint.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));paint.setTextAlign(Paint.Align.CENTER);paint.setTextSize(33);
+        float width=paint.measureText(title);if(width>312)paint.setTextSize(33*312/width);
+        Paint.FontMetrics metrics=paint.getFontMetrics();float circle=38,gap=24,top=(203-2*circle-gap-(metrics.descent-metrics.ascent))/2f,center=top+circle;
+        paint.setColor(0x0fffffff);canvas.drawCircle(180,center,circle,paint);
+        paint.setColor(Color.WHITE);paint.setStrokeWidth(3.6f);paint.setStrokeCap(Paint.Cap.ROUND);
+        canvas.drawLine(165,center,195,center,paint);canvas.drawLine(180,center-15,180,center+15,paint);
+        canvas.drawText(title,180,top+2*circle+gap-metrics.ascent,paint);
         return bitmap;
     }
 
