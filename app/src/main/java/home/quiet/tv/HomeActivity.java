@@ -509,12 +509,13 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         final int sequence=++catalogSequence;
         final long started=SystemClock.uptimeMillis();
         DiagnosticLog.info("home.catalog.begin","request="+sequence+" reason="+reason);
-        final List<String> pinned=requested.pinned;
+        final List<String> savedPinned=requested.pinned;
         loader.execute(()->{
             try {
             final long workerStarted=SystemClock.uptimeMillis();
             PackageManager pm=getPackageManager();
-            ArrayList<HomeAppCatalog.Entry> catalog=new HomeAppCatalog(this).load(pinned);
+            ArrayList<HomeAppCatalog.Entry> catalog=new HomeAppCatalog(this).load(savedPinned);
+            final List<String> pinned=HomeAppCatalog.pinnedIds(catalog,savedPinned);
             final long catalogLoadedAt=SystemClock.uptimeMillis();
             ArrayList<App> found=new ArrayList<>();
             HashMap<String,App> freshCache=new HashMap<>();

@@ -20,7 +20,7 @@ final class HomeVisibilityStore {
     }
     boolean restore(String pkg){
         JSONObject values=hidden();if(!values.has(pkg))return true;
-        ArrayList<String> dock=new DockStore(context).load();int index=values.optInt(pkg,-1);values.remove(pkg);
+        ArrayList<String> dock=new DockStore(context).loadAvailable();int index=values.optInt(pkg,-1);values.remove(pkg);
         if(index>=0&&dock.size()<DockStore.CAPACITY&&!dock.contains(pkg))dock.add(Math.min(index,dock.size()),pkg);
         return save(values,dock);
     }
