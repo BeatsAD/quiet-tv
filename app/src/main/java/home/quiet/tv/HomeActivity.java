@@ -428,7 +428,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         BootAppStore store=new BootAppStore(this);
         leaveHome(()->{try{
             Intent intent=store.launchIntent(pkg);
-            if(intent==null){Log.i(BootAppStore.TAG,"target unavailable");wallpapers.resume();Toast.makeText(this,tr("自启应用不可用，请在应用管理中重新设置","Startup app unavailable"),Toast.LENGTH_LONG).show();return;}
+            if(intent==null){Log.i(BootAppStore.TAG,"target unavailable");wallpapers.resume();Toast.makeText(this,tr("自启应用不可用，请在开机直达中重新设置","Startup app unavailable"),Toast.LENGTH_LONG).show();return;}
             if(ChildBlockActivity.gate(this,pkg)){Log.i(BootAppStore.TAG,"blocked by child mode");return;}
             if(new HomeGuardState(this).protects(pkg))HomeGuardService.allowOriginal();
             startActivity(intent);
@@ -440,7 +440,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         BootAppStore store=new BootAppStore(this);
         if(!store.watchTarget().isEmpty()&&Build.VERSION.SDK_INT>=21){openSavedHdmi(false);return;}
         if(!store.target().isEmpty()){launchStartupApp(store.target());return;}
-        leaveHome(()->startActivity(new Intent(this,WatchTvActivity.class)));
+        leaveHome(()->startActivity(new Intent(this,DesktopSettingsActivity.class).putExtra("management-page",SettingsPages.STARTUP)));
     }
     private void openSavedHdmi(boolean automatic){
         if(tvInputs==null)tvInputs=new TvInputs();tvInputs.saved(automatic);
