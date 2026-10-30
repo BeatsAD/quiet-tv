@@ -10,6 +10,7 @@ import android.widget.*;
 /** Styles and small, version-independent artwork used by the wallpaper surfaces. */
 final class WallpaperUi {
     static final int INK=0xfff4f5f7,MUTED=0xffaeb9c8;
+    static final int TOOLBAR_WIDTH=78,TOOLBAR_HEIGHT=30;
     final Context context;
     final float unit;
     WallpaperUi(Context context,float unit){this.context=context;this.unit=unit;}
@@ -34,6 +35,16 @@ final class WallpaperUi {
     TextView categoryTab(String value,Runnable action){
         TextView view=button(value,false,action);view.setMinHeight(0);view.setPadding(px(10),0,px(10),0);
         ControlStyle.choice(view,unit,100,Color.TRANSPARENT,0);return view;
+    }
+    void toolbarSize(TextView view){
+        view.setLayoutParams(new LinearLayout.LayoutParams(px(TOOLBAR_WIDTH),px(TOOLBAR_HEIGHT)));
+        view.setSingleLine(true);view.setMinHeight(0);view.setPadding(px(5),0,px(5),0);view.setCompoundDrawablePadding(px(4));
+    }
+    void fitToolbarText(TextView view){
+        view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(12));
+        int available=px(TOOLBAR_WIDTH)-view.getCompoundPaddingLeft()-view.getCompoundPaddingRight()-px(2);
+        float width=view.getPaint().measureText(view.getText().toString());
+        if(width>available&&available>0)view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,view.getTextSize()*available/width);
     }
     TextView compactButton(String value,Runnable action){
         TextView view=button(value,false,action);view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(11));
