@@ -31,7 +31,7 @@ public class AppManagementActivity extends ManagementUi {
         if(saved!=null)for(int i=0;i<panels.length;i++)savedPanels[i]=saved.getBundle("panel-"+i);
         selectManagementPage(SettingsPages.valid(saved==null?initialPage():saved.getInt("management-page",initialPage())));
     }
-    void startupApp(String pkg){selectManagementPage(SettingsPages.STARTUP);((StartupDestinationPanel)panels[SettingsPages.STARTUP]).editApp(pkg);}
+    void startupApp(String pkg){selectManagementPage(0);((AppListPanel)panels[0]).editStartupApp(pkg);}
     void weatherSettingsChanged(){if(panels[SettingsPages.WEATHER]!=null)((WeatherSettingsPanel)panels[SettingsPages.WEATHER]).settingsChanged();}
     void wireRows(DesktopSettingsRow[] rows,View tab){for(int i=0;i<rows.length;i++){DesktopSettingsRow row=rows[i];row.setNextFocusUpId(i==0?tab.getId():rows[i-1].getId());row.setNextFocusDownId(rows[Math.min(rows.length-1,i+1)].getId());row.setNextFocusLeftId(row.getId());row.setNextFocusRightId(row.getId());}}
     TextView section(String name){TextView label=muted(name,13);label.setLayoutParams(new LinearLayout.LayoutParams(-1,px(38)));return label;}

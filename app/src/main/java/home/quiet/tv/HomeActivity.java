@@ -429,7 +429,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         BootAppStore store=new BootAppStore(this);
         leaveHome(()->{try{
             Intent intent=store.launchIntent(pkg);
-            if(intent==null){Log.i(BootAppStore.TAG,"target unavailable");wallpapers.resume();Toast.makeText(this,tr("自启应用不可用，请在开机直达中重新设置","Startup app unavailable"),Toast.LENGTH_LONG).show();return;}
+            if(intent==null){Log.i(BootAppStore.TAG,"target unavailable");wallpapers.resume();Toast.makeText(this,tr("自启应用不可用，请在应用管理中重新设置","Startup app unavailable"),Toast.LENGTH_LONG).show();return;}
             if(ChildBlockActivity.gate(this,pkg)){Log.i(BootAppStore.TAG,"blocked by child mode");return;}
             if(new HomeGuardState(this).protects(pkg))HomeGuardService.allowOriginal();
             startActivity(intent);
@@ -440,7 +440,6 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private void watchTv(){
         BootAppStore store=new BootAppStore(this);
         if(!store.watchTarget().isEmpty()&&Build.VERSION.SDK_INT>=21){openSavedHdmi(false);return;}
-        if(!store.target().isEmpty()){launchStartupApp(store.target());return;}
         leaveHome(()->startActivity(new Intent(this,DesktopSettingsActivity.class).putExtra("management-page",SettingsPages.STARTUP)));
     }
     private void openSavedHdmi(boolean automatic){
@@ -539,9 +538,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             wallpaperApp.banner=wallpapers.entryBanner();wallpaperApp.color=HomeEntryArtwork.WALLPAPER_COLOR;found.add(0,wallpaperApp);
             App desktopApp=new App();desktopApp.pkg=DESKTOP_SETTINGS_ENTRY;desktopApp.label=tr("桌面设置","Desktop Settings");
             desktopApp.banner=HomeEntryArtwork.render(this,desktopApp.label,true);desktopApp.color=HomeEntryArtwork.DESKTOP_COLOR;found.add(1,desktopApp);
-            if(new BootAppStore(this).showWatch()){
-                App watch=new App();watch.pkg=HomeAppCatalog.WATCH_TV;watch.label=tr("看电视","Watch TV");watch.banner=HomeEntryArtwork.render(this,watch.label,watch.pkg);watch.color=HomeEntryArtwork.WATCH_TV_COLOR;found.add(0,watch);
-            }
+            App watch=new App();watch.pkg=HomeAppCatalog.WATCH_TV;watch.label=tr("看电视","Watch TV");watch.banner=HomeEntryArtwork.render(this,watch.label,watch.pkg);watch.color=HomeEntryArtwork.WATCH_TV_COLOR;found.add(0,watch);
             ArrayList<String> defaults=new ArrayList<>();for(App app:found)if(!pinned.contains(app.pkg))defaults.add(app.pkg);
             ArrayList<String> gridOrder=new HomeOrderStore(this).order(defaults);
             final long preparedAt=SystemClock.uptimeMillis();
@@ -1164,7 +1161,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 try{HdmiTarget target=HdmiTarget.decode(saved);opened=target!=null&&saved.equals(new BootAppStore(HomeActivity.this).watchTarget())&&target.open(HomeActivity.this);}
                 catch(RuntimeException failure){DiagnosticLog.error("input.saved.failed",failure);}
                 systemEntryResult(opened);
-                if(!opened){wallpapers.resume();Toast.makeText(HomeActivity.this,tr("HDMI 暂不可用，请在开机直达中重新选择并测试","HDMI unavailable; select and test it in startup settings"),Toast.LENGTH_LONG).show();}
+                if(!opened){wallpapers.resume();Toast.makeText(HomeActivity.this,tr("电视信号源暂不可用，请在“看电视”中重新选择","TV source unavailable; select it again in Watch TV settings"),Toast.LENGTH_LONG).show();}
             });
         }
         void openPending(){if(pendingTvInput!=null && resumed && checkCallingOrSelfPermission("android.permission.READ_TV_LISTINGS")==PackageManager.PERMISSION_GRANTED){TvInputInfo input=pendingTvInput;pendingTvInput=null;openInput(input);}}

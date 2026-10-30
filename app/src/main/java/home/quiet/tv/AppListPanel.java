@@ -102,7 +102,7 @@ final class AppListPanel extends ManagementPanel {
         managementConnection.setEnabled(!busy && !connecting);
     }
     @Override void managementConnected(){dirty=true;if(active){if(busy)refreshAfterConnection=true;else refresh();}}
-    @Override void managementMoreOptions(LinearLayout menu){managementMoreOption(menu,"开机直达",()->activity.selectManagementPage(SettingsPages.STARTUP));managementMoreOption(menu,"操作记录",()->{try{Sheet sheet=new Sheet("操作记录");sheet.text(operations.history());sheet.action("关闭",sheet.dialog::dismiss);sheet.show(null);}catch(Exception e){message(e.getMessage());}});super.managementMoreOptions(menu);}
+    @Override void managementMoreOptions(LinearLayout menu){managementMoreOption(menu,"应用自启",this::startupSettings);managementMoreOption(menu,"操作记录",()->{try{Sheet sheet=new Sheet("操作记录");sheet.text(operations.history());sheet.action("关闭",sheet.dialog::dismiss);sheet.show(null);}catch(Exception e){message(e.getMessage());}});super.managementMoreOptions(menu);}
     @Override protected void onResume(){super.onResume();active=true;session.addListener(connectionChanged);session.request();if(dirty)refresh();else renderDetails();}
     @Override void focusManagementContent(){filterButtons.get(filter).requestFocus();}
     @Override protected void onStop(){active=false;session.removeListener(connectionChanged);manualConnection=false;refreshAfterConnection=false;refreshGeneration++;dirty=true;if(reading){reading=false;busy=false;}coverUploads.close();super.onStop();}
@@ -202,7 +202,28 @@ final class AppListPanel extends ManagementPanel {
     private void bootAppAction(AppRepository.App app,LinearLayout actions){
         BootAppStore store=new BootAppStore(this);boolean chosen=app.pkg.equals(store.target());
         if(!chosen && (!app.installed || !app.enabled || store.launchIntent(app.pkg)==null))return;
-        addAction(actions,button(chosen?"开机直达设置":"设为开机自启",()->activity.startupApp(app.pkg)));
+        addAction(actions,button(chosen?"关闭开机自启":"设为开机自启",()->activity.startupApp(app.pkg)));
+    }
+    void editStartupApp(String pkg){
+        BootAppStore store=new BootAppStore(this);
+        if(pkg.equals(store.target())){startupSettings();return;}
+        if(store.launchIntent(pkg)==null){message("此应用暂不可用，请重新选择。");return;}
+        String label=pkg;
+        try{label=getPackageManager().getApplicationLabel(getPackageManager().getApplicationInfo(pkg,0)).toString();}
+        catch(android.content.pm.PackageManager.NameNotFoundException ignored){}
+        final String name=label;Sheet sheet=new Sheet("设为开机自启？");
+        sheet.text("开机或待机唤醒进入 Quiet TV 后，将自动打开 "+name+"。"
+            +(store.hdmiBoot()?"将关闭开机自动看电视。":store.target().isEmpty()?"":"将替换当前自启应用："+store.label()+"。")
+            +"按 HOME 返回不重复，儿童模式限制仍然有效。");
+        Button cancel=sheet.action("取消",sheet.dialog::dismiss);
+        sheet.action("开启",()->{sheet.dialog.dismiss();try{store.select(pkg,name);renderDetails();}catch(java.io.IOException failure){message(failure.getMessage());}});sheet.show(cancel);
+    }
+    private void startupSettings(){
+        BootAppStore store=new BootAppStore(this);Sheet sheet=new Sheet("应用自启");
+        sheet.text(store.target().isEmpty()?"未设置自启应用。可在应用详情选择“设为开机自启”。":"当前自启应用："+store.label()+"。可在其他应用详情替换。");
+        Button close=sheet.action("返回",sheet.dialog::dismiss);
+        if(!store.target().isEmpty())sheet.action("关闭自启",()->{sheet.dialog.dismiss();try{store.select("","");renderDetails();}catch(java.io.IOException failure){message(failure.getMessage());}});
+        sheet.show(close);
     }
     private void protectionNote(String reason,boolean readOnly){TextView note=center(reason,12);note.setTextColor(0xffb9bec8);details.addView(note);if(readOnly){gap(details,8);details.addView(center("为保证电视正常使用，此应用仅供查看。",11));}}
     private void addAction(LinearLayout row,Button action){
