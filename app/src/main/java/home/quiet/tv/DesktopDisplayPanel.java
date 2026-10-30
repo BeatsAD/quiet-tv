@@ -20,6 +20,7 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
     private ScrollView desktopScroll;
     private DesktopSettingsRow greeting,legacyHomeKey,keySounds;
     private Button classic,gallery;
+    private SeekBar homeBlur,secondBlur;
     private String focusTag;
     private int scrollY;
     private final Map<String,DisplayChoice> choices=new LinkedHashMap<>();
@@ -48,7 +49,9 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
         greeting=setting(tr("首页问候语","Home greeting"),"desktop","greeting");greeting.compact();greeting.tail("arrow");
         greetingEditor=new GreetingEditorPanel(activity,desktopStore,fixedGreeting?tr("欢迎回家","Welcome home"):"",this::refreshControls);greeting.setOnClickListener(v->greetingEditor.show());LinearLayout greetingGroup=group();greetingGroup.addView(greeting,new LinearLayout.LayoutParams(-1,px(44)));LinearLayout.LayoutParams gp=new LinearLayout.LayoutParams(-1,-2);gp.topMargin=px(8);controls.addView(greetingGroup,gp);
         gap(controls,16);controls.addView(desktopLabel(tr("首页应用","Home apps")));LinearLayout homeApps=row();controls.addView(homeApps,new LinearLayout.LayoutParams(-1,px(38)));choice(homeApps,"home-apps",tr("首屏应用","Home apps"));choice(homeApps,"dock-background",tr("Dock 背景","Dock background"));
+        homeBlur=blurControl(controls,false);
         gap(controls,16);controls.addView(desktopLabel(tr("第二屏应用","Second-screen apps")));LinearLayout allApps=row();controls.addView(allApps,new LinearLayout.LayoutParams(-1,px(38)));choice(allApps,"all-apps-names",tr("应用名称","App names"));
+        secondBlur=blurControl(controls,true);
         gap(controls,16);controls.addView(desktopLabel(tr("快捷按钮","Quick buttons")));LinearLayout shortcuts=row();controls.addView(shortcuts,new LinearLayout.LayoutParams(-1,px(38)));choice(shortcuts,"input",tr("信号源","Inputs"));choice(shortcuts,"network",tr("网络","Network"));choice(shortcuts,"settings",tr("设置","Settings"));
         gap(controls,16);controls.addView(desktopLabel(tr("操作反馈","Interaction feedback")));
         keySounds=setting(tr("按键音","Key sounds"),"sound","key-sounds");
@@ -60,9 +63,32 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
         wireDesktop();refreshControls();
     }
     private Button layoutChoice(LinearLayout parent,String label,String name){Button b=button(label,()->{desktopStore.layout(name);refreshControls();});b.setFocusableInTouchMode(true);b.setId(androidx.core.view.ViewCompat.generateViewId());b.setTag("layout-"+name);b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(14));b.setPadding(px(7),0,px(7),0);ControlStyle.choice(b,unit,9,0x10ffffff,0x22ffffff);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-1,1);if(parent.getChildCount()>0)p.leftMargin=px(8);parent.addView(b,p);return b;}
+    private SeekBar blurControl(LinearLayout parent,boolean second){
+        LinearLayout line=row();line.setGravity(Gravity.CENTER_VERTICAL);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,px(42));lp.topMargin=px(6);parent.addView(line,lp);
+        TextView name=label(tr("模糊度","Blur"),14);line.addView(name,new LinearLayout.LayoutParams(px(56),-2));
+        SeekBar slider=new SeekBar(activity);slider.setId(androidx.core.view.ViewCompat.generateViewId());slider.setTag(second?"second-wallpaper-blur":"home-wallpaper-blur");slider.setMax(100);slider.setKeyProgressIncrement(5);slider.setFocusable(true);slider.setFocusableInTouchMode(true);
+        slider.setContentDescription((second?tr("第二屏应用","Second-screen apps"):tr("首页应用","Home apps"))+"  "+tr("模糊度","Blur"));slider.setPadding(px(14),0,px(14),0);slider.setBackgroundDrawable(ControlStyle.action(unit,9,Color.TRANSPARENT,0));
+        GradientDrawable track=new GradientDrawable();track.setColor(0xff484b53);track.setCornerRadius(px(2));track.setSize(px(1),px(4));
+        GradientDrawable progress=new GradientDrawable();progress.setColor(0xffe6e8ec);progress.setCornerRadius(px(2));progress.setSize(px(1),px(4));
+        LayerDrawable rail=new LayerDrawable(new Drawable[]{track,new ClipDrawable(progress,Gravity.START,ClipDrawable.HORIZONTAL)}){
+            @Override protected void onBoundsChange(Rect bounds){int top=bounds.centerY()-px(2);super.onBoundsChange(new Rect(bounds.left,top,bounds.right,top+px(4)));}
+        };rail.setId(0,android.R.id.background);rail.setId(1,android.R.id.progress);slider.setProgressDrawable(rail);
+        GradientDrawable thumb=new GradientDrawable();thumb.setColor(0xfff5f6f8);thumb.setCornerRadius(px(10));thumb.setSize(px(24),px(18));slider.setThumb(thumb);slider.setThumbOffset(px(12));if(android.os.Build.VERSION.SDK_INT>=21)slider.setSplitTrack(false);
+        line.addView(slider,new LinearLayout.LayoutParams(0,-1,1));TextView value=muted("0%",12);value.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);line.addView(value,new LinearLayout.LayoutParams(px(34),-1));
+        slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
+            public void onProgressChanged(SeekBar bar,int amount,boolean fromUser){value.setText(String.format(java.util.Locale.ROOT,"%d%%",amount));if(fromUser)saveBlur(second,amount);}
+            public void onStartTrackingTouch(SeekBar bar){}public void onStopTrackingTouch(SeekBar bar){}
+        });
+        slider.setOnKeyListener((v,key,event)->{
+            if(key!=KeyEvent.KEYCODE_DPAD_LEFT&&key!=KeyEvent.KEYCODE_DPAD_RIGHT)return false;
+            if(event.getAction()==KeyEvent.ACTION_DOWN){int amount=Math.max(0,Math.min(100,slider.getProgress()+(key==KeyEvent.KEYCODE_DPAD_RIGHT?5:-5)));if(amount!=slider.getProgress()){slider.setProgress(amount);saveBlur(second,amount);KeyFeedback.moved(activity);}}
+            return true;
+        });return slider;
+    }
+    private void saveBlur(boolean second,int amount){if(second)desktopStore.secondWallpaperBlur(amount);else desktopStore.homeWallpaperBlur(amount);if(preview!=null)preview.refresh();}
     private void choice(LinearLayout parent,String key,String title){DisplayChoice b=new DisplayChoice(title);b.setTag("display-"+key);b.setOnClickListener(v->{boolean value=!b.isChecked();switch(key){case "greeting":desktopStore.greetingEnabled(value);break;case "time":desktopStore.showTime(value);break;case "date":desktopStore.showDate(value);break;case "app-title":desktopStore.showAppTitle(value);break;case "home-apps":desktopStore.showHomeApps(value);break;case "dock-background":desktopStore.showDockBackground(value);break;case "all-apps-names":desktopStore.showAllAppsNames(value);break;case "weather":weatherStore.enabled(value);activity.weatherSettingsChanged();break;case "input":desktopStore.showInput(value);break;case "network":desktopStore.showNetwork(value);break;case "settings":desktopStore.showSettings(value);break;}refreshControls();});choices.put(key,b);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-1,1);if(parent.getChildCount()>0)p.leftMargin=px(8);parent.addView(b,p);}
     private void wireDesktop(){
-        View[][] rows={{classic,gallery},{choices.get("greeting"),choices.get("time"),choices.get("app-title")},{choices.get("date"),choices.get("weather")},{greeting},{choices.get("home-apps"),choices.get("dock-background")},{choices.get("all-apps-names")},{choices.get("input"),choices.get("network"),choices.get("settings")},{keySounds}};
+        View[][] rows={{classic,gallery},{choices.get("greeting"),choices.get("time"),choices.get("app-title")},{choices.get("date"),choices.get("weather")},{greeting},{choices.get("home-apps"),choices.get("dock-background")},{homeBlur},{choices.get("all-apps-names")},{secondBlur},{choices.get("input"),choices.get("network"),choices.get("settings")},{keySounds}};
         for(int r=0;r<rows.length;r++)for(int c=0;c<rows[r].length;c++){View v=rows[r][c];v.setNextFocusLeftId(rows[r][Math.max(0,c-1)].getId());v.setNextFocusRightId(rows[r][Math.min(rows[r].length-1,c+1)].getId());v.setNextFocusUpId(r==0?managementTab().getId():rows[r-1][Math.min(c,rows[r-1].length-1)].getId());v.setNextFocusDownId(r==rows.length-1?v.getId():rows[r+1][Math.min(c,rows[r+1].length-1)].getId());}
         if(legacyHomeKey!=null){
             View[] shortcuts=rows[rows.length-1];for(View v:shortcuts)v.setNextFocusDownId(legacyHomeKey.getId());
@@ -79,6 +105,7 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
         @Override public void onInitializeAccessibilityNodeInfo(AccessibilityNodeInfo info){super.onInitializeAccessibilityNodeInfo(info);info.setClassName(CheckBox.class.getName());info.setCheckable(true);info.setChecked(checked);}
     }
     private void refreshControls(){
+        homeBlur.setProgress(desktopStore.homeWallpaperBlur());secondBlur.setProgress(desktopStore.secondWallpaperBlur());
         keySounds.checked(desktopStore.keySounds());
         classic.setSelected("classic".equals(desktopStore.layout()));gallery.setSelected("gallery".equals(desktopStore.layout()));
         boolean[] checked={desktopStore.greetingEnabled(),desktopStore.showTime(),desktopStore.showAppTitle(),desktopStore.showDate(),weatherStore.enabled(),desktopStore.showHomeApps(),desktopStore.showDockBackground(),desktopStore.showAllAppsNames(),desktopStore.showInput(),desktopStore.showNetwork(),desktopStore.showSettings()};int i=0;for(DisplayChoice b:choices.values())b.setChecked(checked[i++]);

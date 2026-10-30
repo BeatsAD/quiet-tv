@@ -46,6 +46,10 @@ final class DesktopSettingsStore {
     boolean showHomeApps(){return preferences.getBoolean("show-home-apps",true);}
     boolean showDockBackground(){return preferences.getBoolean("show-dock-background",true);}
     boolean showAllAppsNames(){return preferences.getBoolean("show-all-apps-names",true);}
+    int homeWallpaperBlur(){return Math.max(0,Math.min(100,preferences.getInt("home-wallpaper-blur",0)));}
+    int secondWallpaperBlur(){return Math.max(0,Math.min(100,preferences.getInt("second-wallpaper-blur",0)));}
+    void homeWallpaperBlur(int value){preferences.edit().putInt("home-wallpaper-blur",Math.max(0,Math.min(100,value))).apply();}
+    void secondWallpaperBlur(int value){preferences.edit().putInt("second-wallpaper-blur",Math.max(0,Math.min(100,value))).apply();}
     boolean showButtons(){return preferences.getBoolean("show-buttons",true);}
     boolean showInput(){return preferences.getBoolean("show-input",showButtons());}
     boolean showNetwork(){return preferences.getBoolean("show-network",showButtons());}

@@ -129,6 +129,8 @@ Desktop → App title controls the large title above the Dock and defaults to on
 
 Desktop → All apps → App names controls names below second-screen cards. It defaults to on and is independent of the Home App title setting. Hiding names preserves card spacing and order. Changes apply when returning Home and persist across restarts. Classic, Gallery and the Android 4.4 compatibility profile share this setting. This toggle is not included in the published packages yet.
 
+The unpublished source adds separate Blur sliders under Home apps and Second-screen apps. Each ranges from 0–100% and defaults to 0 (clear). Remote left/right adjusts by 5%; touch dragging is also supported. Values save independently on this device. Home blur updates the Home preview; returning to the desktop applies each value to its wallpaper, blending during scrolling while icons and text stay sharp. Photos and video wallpapers share the setting in both layouts. The wallpaper picker and screensaver retain their original appearance. Android 12+ uses system GPU blur; older systems filter small snapshots in the background, updating moving backgrounds at up to about 15 FPS. Performance and appearance still require acceptance on target TVs.
+
 ![Desktop display settings and live preview, 1.2.4 / 64](assets/desktop-settings-1.2.4.png)
 
 <a id="home-greeting-development-source"></a>

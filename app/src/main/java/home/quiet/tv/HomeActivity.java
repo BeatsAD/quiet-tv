@@ -250,9 +250,10 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             @Override public void onScrolled(RecyclerView rv, int dx, int dy) {
                 View header=layout.findViewByPosition(0);
                 if(header!=null)header.setAlpha(Math.max(0,Math.min(1,1+header.getTop()/(float)px(180))));
-                updateHeaderFocus();invalidateDockBackdrop();
+                updateHeaderFocus();invalidateDockBackdrop();updateWallpaperBlur();
             }
         });
+        list.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->updateWallpaperBlur());
         homeHeader=new HomeHeaderView(this,unit,chinese,outfit);
         greeting=homeHeader.greeting;weatherText=homeHeader.weather;clock=homeHeader.clock;date=homeHeader.date;timeRow=homeHeader.timeRow;topButtons=homeHeader.buttons;
         pills.addAll(homeHeader.pills);inputButton=pills.get(0);network=pills.get(1);
@@ -270,6 +271,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     private void applyDesktopSettings(){
+        updateWallpaperBlur();
         homeHeader.apply();
         boolean showApps=desktopSettings.showHomeApps();
         if(homeAppsVisible!=showApps){homeAppsVisible=showApps;row=0;column=0;activePackage="";}
@@ -288,6 +290,13 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         topButtons.setVisibility(rightButtonsVisible?View.VISIBLE:View.GONE);
         if(!rightButtonsVisible && row<0){row=0;column=Math.min(restoreColumn,maxColumn(0));}
         if(ready)focusCurrent(false);
+    }
+
+    private void updateWallpaperBlur(){
+        View header=layout.findViewByPosition(0);
+        float progress=header==null?(layout.findFirstVisibleItemPosition()>0||row>0?1:0):Math.max(0,Math.min(1,-header.getTop()/(float)px(HOME_HEADER_HEIGHT)));
+        int home=desktopSettings.homeWallpaperBlur(),second=desktopSettings.secondWallpaperBlur();
+        wallpapers.setDesktopBlur(Math.round(home+(second-home)*progress));
     }
 
     private void setPillIcon(TextView pill,int resource){homeHeader.setPillIcon(pill,resource);}
