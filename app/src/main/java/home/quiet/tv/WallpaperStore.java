@@ -74,6 +74,7 @@ final class WallpaperStore {
     File poster(String id){mediaFile(id,true);return new File(directory,id+"-poster.jpg");}
     private File mediaFile(String id,boolean video){
         if(!id.matches("user-[a-f0-9-]{36}")) throw new IllegalArgumentException("Invalid wallpaper ID");
+        // Keep historical private paths; image decoding detects the original JPG/PNG/WebP content.
         return new File(directory,id+(video?".mp4":".jpg"));
     }
     private void persist(WallpaperCatalog next) throws IOException {
