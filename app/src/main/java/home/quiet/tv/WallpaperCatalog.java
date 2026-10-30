@@ -30,10 +30,6 @@ final class WallpaperCatalog {
             return image.key.matches("[a-f0-9]{64}")&&(image.slot==0||image.slot==1)&&image.width>0&&image.height>0?image:null;
         }
     }
-    static final int MAX_CUSTOM = 20;
-    static final long MAX_BYTES = 50L * 1024 * 1024;
-    static final int MAX_VIDEOS = 10;
-    static final long MAX_VIDEO_BYTES = 500L * 1024 * 1024;
     static final class Entry {
         final String id, name;
         final int width, height;
@@ -135,8 +131,6 @@ final class WallpaperCatalog {
     long bytes() {return bytes(false);}
     long bytes(boolean video){long size=0;for(Entry e:custom)if(e.video()==video)size+=e.bytes;return size;}
     void add(Entry entry) {
-        // Video byte limits include asynchronously captured posters and belong to WallpaperStore.
-        if (count(entry.video())>=(entry.video()?MAX_VIDEOS:MAX_CUSTOM) || !entry.video()&&bytes()+entry.bytes>MAX_BYTES) throw new IllegalStateException("Wallpaper capacity exceeded");
         custom.add(entry);
     }
     WallpaperCatalog copy() { try { return read(json()); } catch (JSONException e) { throw new IllegalStateException(e); } }
@@ -156,12 +150,12 @@ final class WallpaperCatalog {
         result.lastVideo=json.optString("lastVideo","");result.staticBeforeVideo=json.optString("staticBeforeVideo",DEFAULT);result.rotationBeforeVideo=json.optBoolean("rotationBeforeVideo",false);
         result.rotationMinutes=json.optInt("rotationMinutes",5);
         JSONArray users=json.optJSONArray("custom");
-        if(users!=null) for(int i=0;i<users.length() && result.custom.size()<MAX_CUSTOM+MAX_VIDEOS;i++) {
+        if(users!=null) for(int i=0;i<users.length();i++) {
             JSONObject e=users.getJSONObject(i); String id=e.getString("id");
             if(!id.matches("user-[a-f0-9-]{36}") || result.find(id)!=null) continue;
             String kind=e.optString("kind","image");if(!"image".equals(kind)&&!"video".equals(kind))continue;
             Entry entry=new Entry(id,e.getString("name"),e.getInt("width"),e.getInt("height"),e.getLong("bytes"),kind,e.optString("mime"),e.optLong("durationMs"),(float)e.optDouble("fps",0),e.optInt("rotation"),(float)e.optDouble("pixelRatio",1));
-            if(result.count(entry.video())<(entry.video()?MAX_VIDEOS:MAX_CUSTOM))result.custom.add(entry);
+            result.custom.add(entry);
         }
         JSONObject daily=json.optJSONObject("daily");
         if(daily!=null){
