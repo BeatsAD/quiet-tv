@@ -61,6 +61,13 @@ final class VideoWallpaperPlayer {
     }
     private WallpaperCatalog.Entry entry;
     private Listener listener;
+    private Runnable framesChanged;
+    void observeFrames(Runnable listener){framesChanged=listener;}
+    Bitmap textureSnapshot(int width,int height){
+        Target captured=target;
+        if(captured==null||!captured.textureOutput||!rendered||!current(captured))return null;
+        return ((TextureView)captured.view).getBitmap(width,height);
+    }
     private Target target;
     private boolean enabled,screenOff,rendered,destroyed;
     private volatile boolean paused;
@@ -251,7 +258,7 @@ final class VideoWallpaperPlayer {
                 int rotation=(entry.rotation%180!=0?Math.abs(transform[0])>.001f:transform[0]>0)?entry.rotation:0;
                 if(unappliedRotation!=rotation){unappliedRotation=rotation;layout();}
             }
-            updated=true;firstFrame(this);
+            updated=true;firstFrame(this);if(framesChanged!=null)framesChanged.run();
         }
         void releaseTexture(){
             if(released||texture==null)return;released=true;texture.release();
