@@ -192,6 +192,7 @@ __pycache__/
 !/scripts/agent_session.py
 !/scripts/computer_resources.py
 !/scripts/device_environment.py
+!/scripts/home_capabilities.py
 
 # Browser client required by the native file-transfer tab.
 !/app/src/main/assets/file-transfer/
