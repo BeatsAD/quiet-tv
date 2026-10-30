@@ -63,11 +63,13 @@ The capture shows an empty verification entry only. No password, rule or timing 
 
 ## App autostart
 
-Open Desktop Settings → Startup → App, select an app and confirm. App details → 设为开机自启 opens the same page for confirmation. One app can be selected; it opens after boot or standby wake enters Quiet TV, without repeating on an ordinary HOME return. App Management → More → 开机直达 opens the same settings page; select Quiet TV Home to disable startup. This depends on the TV entering Quiet TV and does not establish vendor boot/wake acceptance. See [app autostart](APP_MANAGEMENT.md#开机自启开发源码).
+Open Desktop Settings → App Management, select an app and choose 设为开机自启 in its details. The current target offers 关闭开机自启. More → 应用自启 shows the current target and lets you disable it even after uninstalling the app. It opens once after boot or an eligible standby wake enters Quiet TV, without repeating on HOME return. Enabling app autostart confirms that Watch TV on startup will be disabled; the saved TV source remains. See [app autostart](APP_MANAGEMENT.md#开机自启开发源码).
 
-## HDMI startup and Watch TV (development source)
+## Watch TV (development source)
 
-Open Desktop Settings → Startup. Select a directly callable HDMI port and add the Watch TV card to Home. A full five-slot Home asks which entry to replace; the original app remains in the app list. Test the port, return with HOME, reopen settings and confirm picture and sound before selecting HDMI input to confirm startup. HDMI and app autostart are mutually exclusive; disabling startup can keep the shortcut. HDMI attempts once during the first three minutes of a full boot after Quiet TV becomes interactive and foreground, without repeating on HOME return or actively switching on standby wake. Android 4.x and TVs that only expose an input picker retain existing manual input paths. Firmware and route changes require selection and testing again. Dispatch and user confirmation do not replace target-TV boot, wake, picture or audio acceptance. See [HDMI startup](APP_MANAGEMENT.md#hdmi-开机直达与看电视开发源码).
+Desktop Settings → Watch TV has three controls: TV source, Watch TV on startup and Watch now. Choose a directly callable HDMI port; Home and automatic boot entry share this one target. Without a target, the Home entry opens these settings instead of an autostart app. Watch TV is always available in the desktop app catalog. Use the existing long-press menu to add it to Home, remove it or replace another entry; source settings do not change Home positions.
+
+First-time startup enablement opens the source for a picture and sound check. Return to settings and confirm to enable startup in one step. Watch now can also be used before enabling startup. Disabling startup retains manual watching; changing the source requires confirmation again. App autostart and TV startup are mutually exclusive. HDMI attempts once during the first three minutes of a full boot after Quiet TV becomes interactive and foreground, without repeating on HOME return or actively switching on standby wake. Android 4.x and TVs that only expose an input picker retain existing manual input paths. Firmware and route changes require selection and testing again. Dispatch and user confirmation do not replace target-TV acceptance. See [Watch TV](APP_MANAGEMENT.md#hdmi-开机直达与看电视开发源码).
 
 ## Boot-ad management
 

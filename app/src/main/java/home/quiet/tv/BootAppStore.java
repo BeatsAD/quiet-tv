@@ -22,15 +22,13 @@ final class BootAppStore {
     boolean enabled(){return hdmiBoot()||!target().isEmpty();}
     String watchTarget(){return preferences.getString("watch-hdmi","");}
     String watchLabel(){return preferences.getString("watch-label","HDMI");}
-    boolean showWatch(){return preferences.getBoolean("show-watch",false);}
-    String watchRevision(){return watchTarget()+":"+showWatch();}
+    String watchRevision(){return watchTarget();}
     boolean tested(){return !watchTarget().isEmpty()&&watchTarget().equals(preferences.getString("tested-hdmi",""));}
     String pendingTest(){return preferences.getString("test-hdmi","");}
     void saveWatch(String target,String label) throws IOException {synchronized(BootAppStore.class){
         save(preferences.edit().putString("watch-hdmi",target).putString("watch-label",label)
             .putBoolean("hdmi-boot",false).remove("tested-hdmi").remove("test-hdmi"));
     }}
-    void showWatch(boolean show) throws IOException {save(preferences.edit().putBoolean("show-watch",show));}
     void testDispatched(String target) throws IOException {if(!target.isEmpty()&&!target.equals(watchTarget()))throw new IOException("目标已变化，请重新测试");save(preferences.edit().putString("test-hdmi",target).remove("tested-hdmi").putBoolean("hdmi-boot",false));}
     void confirmTest(boolean passed) throws IOException {
         String pending=pendingTest();if(pending.isEmpty()||!pending.equals(watchTarget()))throw new IOException("请先测试当前 HDMI");
