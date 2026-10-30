@@ -26,6 +26,9 @@ final class FileTransferPanel extends ManagementPanel {
     private int source,listing,listPosition;
     private File folder,boundary;
     private Uri tree,current,pending;
+    private int treeRequestSource=1;
+    private boolean temporaryDirectory;
+    private String directoryFailure,directoryNotice;
     private final ArrayDeque<Uri> parents=new ArrayDeque<>();
     private ListView list;
     private TextView location,space,status,connection;
@@ -65,6 +68,8 @@ final class FileTransferPanel extends ManagementPanel {
         for(Button tab:new Button[]{received,local,removable}){tab.setNextFocusUpId(managementTab().getId());tab.setNextFocusDownId(list.getId());}
         androidx.core.content.ContextCompat.registerReceiver(activity,screen,new IntentFilter(Intent.ACTION_SCREEN_OFF),androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
         if(state!=null){source=state.getInt("source",0);usb=source==2;listPosition=state.getInt("position",0);String path=state.getString("folder"),edge=state.getString("boundary");if(path!=null&&edge!=null){folder=new File(path);boundary=new File(edge);}if(Build.VERSION.SDK_INT>=21&&state.getString("tree")!=null){tree=Uri.parse(state.getString("tree"));current=Uri.parse(state.getString("current"));ArrayList<String> saved=state.getStringArrayList("parents");if(saved!=null)for(String uri:saved)parents.addLast(Uri.parse(uri));}}
+        if(state!=null){treeRequestSource=state.getInt("tree-request-source",source==2?2:1);temporaryDirectory=state.getBoolean("temporary-directory");}
+        if(tree==null&&folder==null)restoreDirectory();
         try{store=new FileTransferStore(new File(getFilesDir(),"received-files"));refresh(false);}catch(IOException error){location.setText(error.getMessage());start.setEnabled(false);}
     }
     private Button sourceTab(){return source==0?received:source==1?local:removable;}
@@ -80,23 +85,36 @@ final class FileTransferPanel extends ManagementPanel {
             return true;
         });return choice;
     }
-    private void accessOptions(){Sheet sheet=new Sheet("读取本地文件");sheet.text("可选择单个文件，或授权一个目录供本页浏览。");Button first=sheet.option("系统选择文件",()->{sheet.dialog.dismiss();pick();});if(Build.VERSION.SDK_INT>=21)sheet.option("授权目录",()->{sheet.dialog.dismiss();pickTree();});sheet.option("重新读取存储",()->{sheet.dialog.dismiss();if(!FileTransferSource.requestPermission(activity,PERMISSION))refresh(true);});sheet.action("返回",sheet.dialog::dismiss);sheet.show(first);}
+    private void accessOptions(){Sheet sheet=new Sheet("读取本地文件");sheet.text("可选择单个文件，或授权一个目录供本页浏览。");Button first=sheet.option("系统选择文件",()->{sheet.dialog.dismiss();pick();});if(Build.VERSION.SDK_INT>=21)sheet.option("授权目录",()->{sheet.dialog.dismiss();pickTree();});sheet.option("重新读取存储",()->{sheet.dialog.dismiss();reread();});sheet.action("返回",sheet.dialog::dismiss);sheet.show(first);}
+    private void restoreDirectory(){
+        directoryFailure=null;temporaryDirectory=false;
+        if(source==0||Build.VERSION.SDK_INT<21)return;
+        Uri remembered=FileTransferSource.Documents.remembered(activity,source==2);if(remembered==null)return;
+        if(!FileTransferSource.Documents.persistedRead(activity,remembered)){directoryFailure="目录授权已失效，请重新授权";return;}
+        tree=remembered;current=FileTransferSource.Documents.root(tree);parents.clear();
+    }
+    private void directoryNotice(){if(directoryNotice!=null&&showing){String text=directoryNotice;directoryNotice=null;message(text);}}
+    private void reread(){
+        if(tree!=null||directoryFailure!=null){if(tree==null)restoreDirectory();refresh(true);}
+        else if(!FileTransferSource.requestPermission(activity,PERMISSION))refresh(true);
+    }
     private void choose(int source){
         if(busy||networkReceiving){message("请先取消或等待当前文件传输完成");return;}
-        this.source=source;usb=source==2;folder=boundary=null;tree=current=null;parents.clear();selected=null;selectedSource=null;renderActions();
-        if(source>0&&FileTransferSource.requestPermission(activity,PERMISSION)){refresh(false);return;}
+        this.source=source;usb=source==2;folder=boundary=null;tree=current=null;parents.clear();selected=null;selectedSource=null;restoreDirectory();renderActions();
+        if(source>0&&tree==null&&directoryFailure==null&&FileTransferSource.requestPermission(activity,PERMISSION)){refresh(false);return;}
         refresh(false);
     }
     private void refresh(boolean focus){
-        if(store==null)return;int request=++listing;final int desired=focus?0:list.hasFocus()?Math.max(0,list.getSelectedItemPosition()):listPosition;final String keep=focus?null:selected!=null?selected.id:selectedSource!=null?selectedSource.uri.toString():null;File path=folder;Uri root=tree,at=current;int mode=source;
+        if(store==null)return;int request=++listing;final int desired=focus?0:list.hasFocus()?Math.max(0,list.getSelectedItemPosition()):listPosition;final String keep=focus?null:selected!=null?selected.id:selectedSource!=null?selectedSource.uri.toString():null;File path=folder;Uri root=tree,at=current;int mode=source;String accessFailure=directoryFailure;boolean temporary=temporaryDirectory;
         worker.execute(()->{
             List<?> entries;String problem=null;long used=store.used();
-            try{entries=mode==0?store.list():root!=null?FileTransferSource.Documents.children(activity,root,at):path!=null?FileTransferSource.children(path):FileTransferSource.volumes(activity,mode==2);}
-            catch(IOException|SecurityException error){entries=Collections.emptyList();problem="目录无法读取，请检查授权或 U 盘连接";}
+            try{if(mode>0&&accessFailure!=null)throw new IOException(accessFailure);entries=mode==0?store.list():root!=null?FileTransferSource.Documents.children(activity,root,at):path!=null?FileTransferSource.children(path):FileTransferSource.volumes(activity,mode==2);}
+            catch(IOException error){entries=Collections.emptyList();problem=root!=null||accessFailure!=null?error.getMessage():"目录无法读取，请检查授权或 U 盘连接";}
+            catch(SecurityException error){entries=Collections.emptyList();problem="目录授权已失效，请重新授权";}
             final List<?> values=entries;final String failure=problem;
-            main.post(()->{if(destroyed||!showing||request!=listing)return;space.setText("已接收  "+FileTransferSource.size(used)+" / 500 MB");location.setText(failure!=null?failure:mode==0?"已接收文件":root!=null?"已授权目录":path!=null?path.getName():mode==2?"选择 U 盘":"选择本地存储");
+            main.post(()->{if(destroyed||!showing||request!=listing)return;space.setText("已接收  "+FileTransferSource.size(used)+" / 500 MB");location.setText(failure!=null?failure:mode==0?"已接收文件":root!=null?(temporary?"临时授权目录":"已授权目录"):path!=null?path.getName():mode==2?"选择 U 盘":"选择本地存储");
                 received.setSelected(mode==0);local.setSelected(mode==1);removable.setSelected(mode==2);count.setText(values.size()+" 项");upButton.setVisibility(path!=null||root!=null?View.VISIBLE:View.GONE);accessButton.setVisibility(mode>0?View.VISIBLE:View.GONE);
-                if(values.isEmpty()&&failure==null)location.setText(mode==0?"还没有接收文件":mode==2?"未发现可读取的 U 盘，请检查连接或授权目录":"没有可读取的文件，请授权读取或选择文件");
+                if(values.isEmpty()&&failure==null)location.setText(mode==0?"还没有接收文件":root!=null?"目录为空":mode==2?"未发现可读取的 U 盘，请检查连接或授权目录":"没有可读取的文件，请授权读取或选择文件");
                 list.setAdapter(new BaseAdapter(){public int getCount(){return values.size();}public Object getItem(int position){return values.get(position);}public long getItemId(int position){return position;}public View getView(int position,View convert,ViewGroup parent){Object item=values.get(position);LinearLayout row=FileTransferPanel.this.row();row.setPadding(px(10),px(7),px(10),px(7));row.setMinimumHeight(px(60));ImageView image=new ImageView(activity);image.setScaleType(ImageView.ScaleType.CENTER_CROP);row.addView(image,new LinearLayout.LayoutParams(px(62),px(38)));boolean receipt=item instanceof FileTransferStore.Entry;String name=receipt?((FileTransferStore.Entry)item).name:((FileTransferSource.Item)item).name;boolean directory=!receipt&&((FileTransferSource.Item)item).directory;long bytes=receipt?((FileTransferStore.Entry)item).bytes:((FileTransferSource.Item)item).bytes;
                     image.setImageDrawable(UiCompat.drawable(activity,directory?R.drawable.ic_transfer_folder:FileTransferPolicy.video(name)?R.drawable.ic_transfer_video:FileTransferPolicy.image(name)?R.drawable.ic_home_wallpaper:R.drawable.ic_transfer_file));image.setPadding(px(16),px(4),px(16),px(4));
                     LinearLayout names=column();LinearLayout.LayoutParams np=new LinearLayout.LayoutParams(0,-2,1);np.leftMargin=px(16);row.addView(names,np);TextView title=label(name,14);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);names.addView(title);TextView meta=muted(directory?"文件夹":(FileTransferPolicy.apk(name)?"应用安装包":FileTransferPolicy.video(name)?"视频":FileTransferPolicy.image(name)?"图片":"文件")+"  "+FileTransferSource.size(bytes),10);names.addView(meta);row.setContentDescription(name);loadThumbnail(item,image);return row;}});
@@ -128,10 +146,19 @@ final class FileTransferPanel extends ManagementPanel {
     private void dismissFileDialog(){if(fileDialog!=null){fileDialog.dismiss();fileDialog=null;}}
     private void confirmDelete(FileTransferStore.Entry entry){Sheet sheet=new Sheet("删除接收文件？");sheet.text(entry.name+"\n已导入的壁纸不受影响。");Button cancel=sheet.action("取消",sheet.dialog::dismiss);sheet.action("删除",()->{sheet.dialog.dismiss();worker.execute(()->{try{store.remove(entry.id);activity.getSharedPreferences("file-transfer-wallpapers",0).edit().remove(entry.id).apply();main.post(()->{selected=null;renderActions();refresh(false);});}catch(IOException error){main.post(()->message("文件删除未完成"));}});});sheet.show(cancel);}
     private void pick(){Intent intent=new Intent(Build.VERSION.SDK_INT>=19?Intent.ACTION_OPEN_DOCUMENT:Intent.ACTION_GET_CONTENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE);try{activity.startActivityForResult(intent,PICK);}catch(ActivityNotFoundException|SecurityException error){if(Build.VERSION.SDK_INT>=19)try{activity.startActivityForResult(new Intent(Intent.ACTION_GET_CONTENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE),PICK);return;}catch(ActivityNotFoundException|SecurityException unavailable){}message("系统文件选择器不可用，请选择可读取的本地存储或使用局域网传输");}}
-    private void pickTree(){if(Build.VERSION.SDK_INT<21){pick();return;}try{activity.startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),TREE);}catch(ActivityNotFoundException|SecurityException error){message("目录授权入口不可用，请尝试选择文件或局域网传输");}}
+    private void pickTree(){if(Build.VERSION.SDK_INT<21){pick();return;}treeRequestSource=source==2?2:1;try{activity.startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION|Intent.FLAG_GRANT_PREFIX_URI_PERMISSION),TREE);}catch(ActivityNotFoundException|SecurityException error){message("目录授权入口不可用，请尝试选择文件或局域网传输");}}
     @Override void activityResult(int request,int result,Intent data){
         if(result!=android.app.Activity.RESULT_OK||data==null||data.getData()==null)return;
-        if(request==TREE&&Build.VERSION.SDK_INT>=21){tree=data.getData();current=FileTransferSource.Documents.root(tree);parents.clear();source=usb?2:1;refresh(false);}
+        if(request==TREE&&Build.VERSION.SDK_INT>=21){
+            final Uri granted=data.getData();final int target=treeRequestSource,flags=data.getFlags();
+            if(!FileTransferSource.Documents.validTree(granted)){directoryNotice="目录授权无效，请重新选择";directoryNotice();return;}
+            worker.execute(()->{String problem=null;try{FileTransferSource.Documents.remember(activity,target==2,granted,flags);}catch(IOException|RuntimeException error){problem=error instanceof IOException?error.getMessage():"目录授权未保存，请重新授权";}
+                final String notice=problem;main.post(()->{if(destroyed)return;
+                    if(source==target){folder=boundary=null;tree=granted;current=FileTransferSource.Documents.root(tree);parents.clear();directoryFailure=null;temporaryDirectory=notice!=null;refresh(false);}
+                    directoryNotice=notice;directoryNotice();
+                });
+            });
+        }
         else if(request==PICK){pending=data.getData();if(showing)receivePending();}
     }
     @Override void permissionResult(int request,int[] results){if(request==PERMISSION){if(results.length>0&&results[0]==PackageManager.PERMISSION_GRANTED)refresh(false);else {refresh(false);feedback("未获得完整读取授权，可选择文件或授权目录");}}}
@@ -169,8 +196,8 @@ final class FileTransferPanel extends ManagementPanel {
     private void up(){if(busy)return;if(tree!=null){if(parents.isEmpty()){tree=current=null;source=0;selectedSource=null;renderActions();refresh(true);}else{current=parents.pop();refresh(true);}}else if(folder!=null){folder=folder.equals(boundary)?null:folder.getParentFile();refresh(true);}else managementTab().requestFocus();}
     @Override void focusManagementContent(){sourceTab().requestFocus();}
     @Override public void handleBack(){if(busy){jobGeneration++;busy=false;renderActions();status.setText("已取消");}else if(!managementTabFocused())up();else super.handleBack();}
-    @Override protected void onSaveInstanceState(Bundle state){state.putInt("source",source);state.putInt("position",Math.max(0,list.getSelectedItemPosition()));if(folder!=null){state.putString("folder",folder.getPath());state.putString("boundary",boundary.getPath());}if(tree!=null){state.putString("tree",tree.toString());state.putString("current",current.toString());ArrayList<String> saved=new ArrayList<>();for(Uri uri:parents)saved.add(uri.toString());state.putStringArrayList("parents",saved);}super.onSaveInstanceState(state);}
-    @Override protected void onResume(){super.onResume();refresh(false);if(server==null)startSession(null);if(pending!=null)receivePending();}
+    @Override protected void onSaveInstanceState(Bundle state){state.putInt("tree-request-source",treeRequestSource);state.putBoolean("temporary-directory",temporaryDirectory);state.putInt("source",source);state.putInt("position",Math.max(0,list.getSelectedItemPosition()));if(folder!=null){state.putString("folder",folder.getPath());state.putString("boundary",boundary.getPath());}if(tree!=null){state.putString("tree",tree.toString());state.putString("current",current.toString());ArrayList<String> saved=new ArrayList<>();for(Uri uri:parents)saved.add(uri.toString());state.putStringArrayList("parents",saved);}super.onSaveInstanceState(state);}
+    @Override protected void onResume(){super.onResume();refresh(false);if(server==null)startSession(null);if(pending!=null)receivePending();directoryNotice();}
     @Override protected void onPause(){super.onPause();listPosition=Math.max(0,list.getSelectedItemPosition());listing++;jobGeneration++;busy=false;dismissFileDialog();stopSession();}
     @Override protected void onDestroy(){destroyed=true;jobGeneration++;stopSession();activity.unregisterReceiver(screen);main.removeCallbacksAndMessages(null);thumbnails.evictAll();worker.shutdown();super.onDestroy();}
 }

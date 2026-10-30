@@ -67,14 +67,57 @@ final class FileTransferSource {
     }
     private static void sort(List<Item> items){Collections.sort(items,(a,b)->a.directory!=b.directory?(a.directory?-1:1):a.name.compareToIgnoreCase(b.name));}
     @TargetApi(21) static final class Documents {
+    private static SharedPreferences directories(Context context){return context.getSharedPreferences("file-transfer-directories",0);}
+    private static String key(boolean usb){return usb?"usb":"local";}
+    static boolean validTree(Uri tree){
+        try{return tree!=null&&"content".equals(tree.getScheme())&&tree.getAuthority()!=null&&DocumentsContract.getTreeDocumentId(tree)!=null;}
+        catch(IllegalArgumentException invalid){return false;}
+    }
+    static Uri remembered(Context context,boolean usb){
+        String value=directories(context).getString(key(usb),null);if(value==null)return null;
+        try{Uri uri=Uri.parse(value);return validTree(uri)?uri:null;}
+        catch(RuntimeException invalid){return null;}
+    }
+    static boolean persistedRead(Context context,Uri tree){
+        try{for(UriPermission permission:context.getContentResolver().getPersistedUriPermissions())if(permission.isReadPermission()&&tree.equals(permission.getUri()))return true;}
+        catch(RuntimeException unavailable){/* A saved URI alone never establishes permission. */}
+        return false;
+    }
+    static void remember(Context context,boolean usb,Uri tree,int flags)throws IOException{
+        if(!validTree(tree))throw new IOException("目录授权无效，请重新选择");
+        boolean existing=persistedRead(context,tree);
+        if(!existing){
+            int required=Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION;
+            if((flags&required)!=required)throw new IOException("系统只提供临时目录授权，重启后需重新授权");
+            try{context.getContentResolver().takePersistableUriPermission(tree,Intent.FLAG_GRANT_READ_URI_PERMISSION);}
+            catch(RuntimeException denied){throw new IOException("目录授权未能持久保存，重启后需重新授权");}
+            if(!persistedRead(context,tree))throw new IOException("目录授权未能持久保存，重启后需重新授权");
+        }
+        SharedPreferences prefs=directories(context);Uri old=remembered(context,usb),other=remembered(context,!usb);
+        if(!prefs.edit().putString(key(usb),tree.toString()).commit()){
+            if(!existing&&!tree.equals(other))release(context,tree);
+            throw new IOException("目录记录保存失败，重启后请重新授权");
+        }
+        // Release only the read grant replaced in this slot, retaining a directory shared by both slots.
+        if(old!=null&&!old.equals(tree)&&!old.equals(other))release(context,old);
+    }
+    private static void release(Context context,Uri tree){
+        try{context.getContentResolver().releasePersistableUriPermission(tree,Intent.FLAG_GRANT_READ_URI_PERMISSION);}
+        catch(RuntimeException unavailable){DiagnosticLog.info("file_transfer.directory_grant_retained","reason=release_failed");}
+    }
     static List<Item> children(Context context,Uri tree,Uri current)throws IOException{
         ArrayList<Item> items=new ArrayList<>();String id=DocumentsContract.getDocumentId(current);
         Uri children=DocumentsContract.buildChildDocumentsUriUsingTree(tree,id);
         String[] columns={DocumentsContract.Document.COLUMN_DOCUMENT_ID,DocumentsContract.Document.COLUMN_DISPLAY_NAME,DocumentsContract.Document.COLUMN_MIME_TYPE,DocumentsContract.Document.COLUMN_SIZE};
+        try(Cursor cursor=context.getContentResolver().query(current,new String[]{DocumentsContract.Document.COLUMN_MIME_TYPE},null,null,null)){
+            if(cursor==null||!cursor.moveToFirst()||!DocumentsContract.Document.MIME_TYPE_DIR.equals(cursor.getString(0)))throw new IOException("目录不存在或存储未连接，请检查后重新授权");
+        }catch(SecurityException denied){throw new IOException("目录授权已失效，请重新授权",denied);}
+        catch(RuntimeException unavailable){throw new IOException("目录无法读取，请检查存储连接后重试",unavailable);}
         try(Cursor cursor=context.getContentResolver().query(children,columns,null,null,null)){
             if(cursor==null)throw new IOException("目录无法读取");
             while(cursor.moveToNext()){Uri uri=DocumentsContract.buildDocumentUriUsingTree(tree,cursor.getString(0));items.add(new Item(cursor.getString(1),cursor.isNull(3)?-1:cursor.getLong(3),DocumentsContract.Document.MIME_TYPE_DIR.equals(cursor.getString(2)),uri,null));}
-        }catch(RuntimeException e){throw new IOException("目录授权已失效或 U 盘已拔出",e);}
+        }catch(SecurityException denied){throw new IOException("目录授权已失效，请重新授权",denied);}
+        catch(RuntimeException unavailable){throw new IOException("目录无法读取，请检查存储连接后重试",unavailable);}
         sort(items);return items;
     }
     static Uri root(Uri tree){return DocumentsContract.buildDocumentUriUsingTree(tree,DocumentsContract.getTreeDocumentId(tree));}
