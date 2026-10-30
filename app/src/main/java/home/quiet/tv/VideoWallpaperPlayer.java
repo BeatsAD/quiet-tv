@@ -35,7 +35,7 @@ final class VideoWallpaperPlayer {
     }
     private static final String TAG="QuietTVWallpaper";
     private final Activity activity;
-    private final boolean compositeOutput;
+    private boolean compositeOutput;
     private final FrameLayout host,frame;
     private final Handler main=new Handler(Looper.getMainLooper());
     private static final Handler worker=playbackWorker();
@@ -89,6 +89,12 @@ final class VideoWallpaperPlayer {
         HandlerThread thread=new HandlerThread("QuietTV-wallpaper");thread.start();return new Handler(thread.getLooper());
     }
     static boolean textureOutput(int sdk,boolean legacy,boolean composite){return composite||legacy||sdk<27;}
+    boolean outputModeChanges(boolean composite){return textureOutput(Build.VERSION.SDK_INT,BuildConfig.LEGACY_19,compositeOutput)!=textureOutput(Build.VERSION.SDK_INT,BuildConfig.LEGACY_19,composite);}
+    /** The caller submits an opaque cover before replacing a visible output. */
+    void setCompositeOutput(boolean composite){
+        boolean change=outputModeChanges(composite);compositeOutput=composite;
+        if(change&&enabled){release();start();}
+    }
 
     VideoWallpaperPlayer(Activity activity,FrameLayout host){this(activity,host,false);}
     VideoWallpaperPlayer(Activity activity,FrameLayout host,boolean compositeOutput){
