@@ -114,6 +114,11 @@ final class ChildModeUi {
             dialog.setContentView(outer);Window window=dialog.getWindow();window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);window.addFlags(WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM);
         }
         Button action(String label,Runnable click,boolean primary){Button b=button(label,click,primary);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-1,1);if(actions.getChildCount()>0)p.leftMargin=ChildModeUi.this.p(15.36f);actions.addView(b,p);return b;}
+        void scrollBody(float maxHeight){
+            int position=box.indexOfChild(body);box.removeView(body);
+            ScrollView scroll=new ScrollView(ui){@Override protected void onMeasure(int w,int h){super.onMeasure(w,View.MeasureSpec.makeMeasureSpec(p(maxHeight),View.MeasureSpec.AT_MOST));}};
+            scroll.setFocusable(false);scroll.setClipToPadding(false);scroll.addView(body);box.addView(scroll,position,new LinearLayout.LayoutParams(-1,-2));
+        }
         void show(View focus){dialog.show();dialog.getWindow().setLayout(-1,-1);dialog.getWindow().getDecorView().setSystemUiVisibility(5894);if(focus!=null)focus.requestFocus();}
         void release(){if(backdrop!=null){backdrop.recycle();backdrop=null;}}
     }
