@@ -14,6 +14,7 @@ import configure_boot_home as boot
 import configure_home_guard as guard
 import device_maintenance as maintenance
 import install_tcl as tcl
+import home_capabilities as home
 from verify_install import HOME, HOME_ARGS, component, help_text, resolver
 
 CATALOG = Path(__file__).with_name('device-presets.json')
@@ -117,7 +118,7 @@ def prepare(adb, user, journal, route, path=CATALOG):
         if len(alternatives) != 1:
             raise ValueError('Google 设置向导之后的真实原桌面未唯一确认')
         original = alternatives[0]
-    if HOME not in homes or original not in homes or original == HOME or not actual or 'ResolverActivity' in original:
+    if HOME not in homes or original not in homes or original == HOME or not actual or not home.real_home(original):
         raise ValueError('缺少可用且唯一的 HOME 与恢复基线')
     if actual not in (original, HOME) and not actual.startswith(SETUP + '/'):
         raise ValueError('当前 HOME 与恢复基线不一致')
@@ -159,6 +160,8 @@ def prepare(adb, user, journal, route, path=CATALOG):
         raise ValueError('未知路线')
     if targets and adb.shell('settings', 'get', 'global', 'device_provisioned').strip() != '1':
         raise ValueError('系统尚未完成初始化，不停用 HOME 候选')
+    if targets:
+        home.check_stock_change(adb, device, selected, catalog(path).get('references', []), original, targets)
     for name in targets:
         app = package(adb, user, name)
         if not any(h.startswith(name + '/') for h in homes) or not app['enabled'] or app['enabledSetting'] not in (0, 1):
@@ -193,6 +196,10 @@ def apply_plan(adb, device, snapshot, plan, setter, journal):
     for step in plan['steps']:
         if read_step(adb, device, step) != step['before']:
             raise ValueError('执行前原状态变化')
+    targets = [s['key'] for s in plan['steps'] if s['kind'] == 'package']
+    if targets:
+        selected = next(iter(plan['rules']['devices']), None)
+        home.check_stock_change(adb, device, selected, catalog().get('references', []), plan['original'], targets)
     # Persist the real launcher while it is still available. A setup wizard baseline is
     # recorded explicitly by the app only after validating its HOME candidate.
     saved = maintenance.inspect(adb, tcl.PACKAGE, device['user'], 'remember_takeover_home', home=plan['original'])
@@ -268,8 +275,11 @@ def main():
     try:
         adb = maintenance.RecordedAdb(args.adb, args.serial, journal)
         device, selected = discover(adb, args.user, args.rules)
-        journal.event('adaptation_inspect', device=device, matched=selected)
-        print(json.dumps({'device': device, 'matched': selected}, ensure_ascii=False, indent=2))
+        advice = home.collect(adb, device, catalog(args.rules).get('references', []), selected)
+        boot.check_device(adb, device)
+        journal.event('adaptation_inspect', device=device, matched=selected, advice=advice)
+        (journal.directory / 'home-routes.json').write_text(json.dumps(advice, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+        print(json.dumps({'device': device, 'matched': selected, 'advice': advice}, ensure_ascii=False, indent=2))
         if args.action == 'rules-set':
             sync_rules(adb, args.user, journal, args.rules, args.apply)
         elif args.action == 'takeover':

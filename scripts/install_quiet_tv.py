@@ -179,6 +179,13 @@ def run_install(args, adb, tools, journal):
     journal.event("baseline", serial=args.serial, user=args.user, identity=identity, device=device,
                   home_before=home_before, original_package=stock_dump, package_before=package_before,
                   goal=args.goal, keep_adb=args.keep_adb)
+    if args.goal == 'takeover':
+        scope, selected = adaptation.discover(adb, args.user)
+        advice = adaptation.home.collect(adb, scope, adaptation.catalog().get('references', []), selected)
+        boot.check_device(adb, scope)
+        journal.event('home_route_advice', advice=advice)
+        (journal.directory / 'home-routes.json').write_text(json.dumps(advice, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+        print('桌面路线检查：' + json.dumps(advice, ensure_ascii=False), flush=True)
     installed = None
     if state:
         old = journal.directory / "installed-before.apk"

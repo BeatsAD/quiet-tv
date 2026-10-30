@@ -699,6 +699,132 @@
       },
       "os": "Google TV 14",
       "sourceNotes": "PatchWall/Mi Home tab, Mi analytics, TV Manager, updaters; setup wizard off, launcherx crash-loop notes"
+    },
+    {
+      "model": "Skyworth / Coocaa 8R40_K5C",
+      "match": {
+        "device": "8R40_K5C",
+        "sdk": 26
+      },
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/d4ac32c344987ae4e8faf1ee32d8b9572fb57fe3/docs/devices/skyworth-8r40-k5c.md",
+      "preservePackages": [
+        "com.tianci.movieplatform",
+        "com.tianci.de",
+        "com.skyworthdigital.stb.dataprovider",
+        "com.coocaa.sky.ccapi"
+      ],
+      "limitations": "上游单机报告：原 HOME 参与启动链，停用会黑屏；厂商首页属性重启被重写。保留原桌面与 ADB 设置依赖，评估兼容守护，不能承诺开机首屏直达。",
+      "validation": {
+        "quietTv": "unverified",
+        "role": "investigation-and-preservation-only"
+      }
+    },
+    {
+      "model": "Skyworth 7T861_A23",
+      "match": {
+        "model": "7T861_A23",
+        "sdk": 29
+      },
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/d4ac32c344987ae4e8faf1ee32d8b9572fb57fe3/docs/devices/skyworth-7t861-a23.md",
+      "preservePackages": [
+        "com.skyworth.officehomepage"
+      ],
+      "limitations": "上游单机报告：停用 officehomepage 导致卡开机且失去 ADB；可调查已适配的厂商 HOME 中转。改包名不代表获得系统签名权限；不临时构建冒充发布包。",
+      "validation": {
+        "quietTv": "unverified",
+        "role": "investigation-and-preservation-only"
+      }
+    },
+    {
+      "model": "Coocaa 14K / 8S61",
+      "match": {
+        "device": "sky628_8s61",
+        "sdk": 19
+      },
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/d4ac32c344987ae4e8faf1ee32d8b9572fb57fe3/docs/devices/coocaa-14k-8s61.md",
+      "preservePackages": [
+        "com.tianci.movieplatform"
+      ],
+      "limitations": "上游报告 disable-user 被框架拒绝；block 曾造成启动卡死，不能作为替代。普通 adb reboot 在该报告中变成关机；电源测试需用户现场确认。",
+      "validation": {
+        "quietTv": "unverified",
+        "role": "investigation-and-preservation-only"
+      }
+    },
+    {
+      "model": "Acer R4_GTV UKR1.260308",
+      "match": {
+        "fingerprint": "ACER/ACER_NFF/R4_GTV:14/UKR1.260308/5597:user/release-keys"
+      },
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/d4ac32c344987ae4e8faf1ee32d8b9572fb57fe3/docs/devices/acer-r4g.md",
+      "preservePackages": [
+        "com.google.android.apps.tv.launcherx",
+        "com.google.android.tungsten.setupwraith"
+      ],
+      "limitations": "上游报告设置向导冷启动被固件重新启用，导致 RecoveryActivity 黑屏循环。保留 launcherx 与 setupwraith，调查守护，不反复停用或重启试错。",
+      "validation": {
+        "quietTv": "unverified",
+        "role": "investigation-and-preservation-only"
+      }
+    },
+    {
+      "model": "Hisense NOVA72691 04.02.60.03",
+      "match": {
+        "fingerprint": "Hisense/VIDAA_TV/NOVA72691:9/PPR2.180905.006.A1/04.02.60.03:user/release-keys"
+      },
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/d4ac32c344987ae4e8faf1ee32d8b9572fb57fe3/docs/devices/hisense-70v1f-s-nova72691-android9.md",
+      "preservePackages": [
+        "com.jamdeo.tv.vod"
+      ],
+      "limitations": "上游报告默认 HOME 设置成功但未生效、停用原 HOME 导致无法完成启动、无障碍无窗口事件。厂商属性在上游未实测；Quiet TV 用量统计补偿也需本机验证，不把服务绑定视为成功。",
+      "validation": {
+        "quietTv": "unverified",
+        "role": "investigation-and-preservation-only"
+      }
+    },
+    {
+      "model": "TCL G09 AS23",
+      "match": {
+        "device": "G09",
+        "sdk": 31
+      },
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/d4ac32c344987ae4e8faf1ee32d8b9572fb57fe3/docs/devices/tcl-55p71b-g09-key-repeat.md",
+      "preservePackages": [],
+      "limitations": "上游报告绑定按键过滤无障碍服务后音量长按不再连发。开启前后实测音量长按；只调整本应用服务，不清空其他无障碍服务。",
+      "validation": {
+        "quietTv": "unverified",
+        "role": "investigation-and-preservation-only"
+      }
+    },
+    {
+      "model": "TCL MT9655 CN AU01",
+      "match": {
+        "product": "MT9655_4K_CN",
+        "sdk": 34,
+        "display": "tcl9655_cn_an64-user 14 UTT2.250416.001 AU01 release-keys"
+      },
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/d4ac32c344987ae4e8faf1ee32d8b9572fb57fe3/docs/devices/tcl-mt9655-cn-android14.md",
+      "preservePackages": [],
+      "limitations": "上游报告网络 ADB 为动态 TLS 端口且无配对入口，需本机支持的 USB 调试建立授权；TCP 5555 不跨重启保留。APK 校验拒绝时进入 TCL 专项，不能反复换安装命令或停用校验器。",
+      "validation": {
+        "quietTv": "unverified",
+        "role": "investigation-and-preservation-only"
+      }
+    },
+    {
+      "model": "Sony BRAVIA AE2 CN",
+      "match": {
+        "model": "BRAVIA 4K AE2",
+        "device": "BRAVIA_AE2",
+        "display": "BRAVIA_AE2_CN-user 14 UKN4.250422.001 603100 release-keys"
+      },
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/d4ac32c344987ae4e8faf1ee32d8b9572fb57fe3/docs/devices/sony-k75xr50-ae2-cn.md",
+      "preservePackages": [],
+      "limitations": "上游报告中国固件为当贝原 HOME，没有 Google launcherx 或 setupwraith；无线调试端口随重启变化。按实际组件和 TLS 连接检测，不套海外 Sony 包名或固定端口。",
+      "validation": {
+        "quietTv": "unverified",
+        "role": "investigation-and-preservation-only"
+      }
     }
   ]
 }
