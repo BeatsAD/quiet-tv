@@ -899,6 +899,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private void invalidateDockBackdrop() {
         if(dockBand!=null)dockBand.invalidate();
+        for(Tile tile:dockTiles)if(tile.app!=null&&ADD_DOCK_ENTRY.equals(tile.app.pkg))tile.invalidate();
     }
 
     private void updateDock(boolean animate) {
@@ -1008,7 +1009,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             labelPaint.setColor(0xfff1f2f6);labelPaint.setTextAlign(Paint.Align.CENTER);labelPaint.setShadowLayer(px(1),0,px(1),0x99000000);
             setOnClickListener(v->{if(app!=null){if(!movingPackage.isEmpty()){saveMove();return;}selectTile(this);launchSelected();}});
             setOnLongClickListener(v->{if(app==null||!movingPackage.isEmpty())return true;selectTile(this);openAppActions(app);return true;});}
-        void bind(App value){if(app!=null && visibleTiles.get(app.pkg)==this)visibleTiles.remove(app.pkg);transformTile(this,1,0,0,false,0);app=value;artwork=new BitmapShader(app.banner,Shader.TileMode.CLAMP,Shader.TileMode.CLAMP);updateArtwork();visibleTiles.put(app.pkg,this);setContentDescription(app.label);updateLabel();invalidate();}
+        void bind(App value){if(app!=null && visibleTiles.get(app.pkg)==this)visibleTiles.remove(app.pkg);transformTile(this,1,0,0,false,0);app=value;setBackgroundDrawable(ADD_DOCK_ENTRY.equals(app.pkg)?new DockBackdropDrawable(wallpapers::drawDockBackground,this,root,unit,true):null);artwork=new BitmapShader(app.banner,Shader.TileMode.CLAMP,Shader.TileMode.CLAMP);updateArtwork();visibleTiles.put(app.pkg,this);setContentDescription(app.label);updateLabel();invalidate();}
         float imageHeight(){return getWidth()*203f/360f;}
         @Override protected void onSizeChanged(int w,int h,int oldw,int oldh){super.onSizeChanged(w,h,oldw,oldh);highlight=new LinearGradient(0,0,w,imageHeight(),new int[]{0x30ffffff,0x09ffffff},null,Shader.TileMode.CLAMP);updateArtwork();updateLabel();}
         private void updateArtwork(){
@@ -1023,7 +1024,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         }
         @Override protected void onDraw(Canvas c){super.onDraw(c);if(app==null)return;float h=imageHeight(),radius=px(11);RectF rect=imageRect;rect.set(0,0,getWidth(),h);
             boolean add=ADD_DOCK_ENTRY.equals(app.pkg);
-            if(add){rect.top=h*HomeEntryArtwork.ADD_TOP;rect.bottom=h*HomeEntryArtwork.ADD_BOTTOM;radius=px(14);}
+            if(add)radius=px(16);
             {
                 // Paint anti-aliasing does not control clipPath edges on older TV renderers.
                 if(!add){paint.setColor(0xff191a20);c.drawRoundRect(rect,radius,radius,paint);}
