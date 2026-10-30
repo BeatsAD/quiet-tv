@@ -1,4 +1,8 @@
 <lint>
+  <!-- onStartCommand exits unless SDK_INT is exactly 25; Android 14 FGS types do not apply. -->
+  <issue id="ForegroundServiceType">
+    <ignore path="src/main/java/home/quiet/tv/HomeGuardUsageService.java" />
+  </issue>
   <issue id="all">
     <ignore path="src/main/java/home/quiet/tv/AdbConnectionPanel.java" />
     <ignore path="src/main/java/home/quiet/tv/AdbSession.java" />

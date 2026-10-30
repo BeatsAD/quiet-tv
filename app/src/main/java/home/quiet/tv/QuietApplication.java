@@ -6,8 +6,9 @@ import android.os.Bundle;
 
 /** Process startup, rather than opening the export dialog, starts recording. */
 public class QuietApplication extends Application {
+    protected boolean playbackProcess(){return false;}
     @Override public void onCreate(){
-        super.onCreate();DiagnosticLog.init(this);
+        super.onCreate();if(playbackProcess())return;DiagnosticLog.init(this);
         if(HomeGuardState.unlocked(this))new DesktopRoutes(this).restoreAfterUpgrade();
         HomeGuardRecovery.request(this,"进程启动");
         registerActivityLifecycleCallbacks(new ActivityLifecycleCallbacks(){
