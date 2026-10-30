@@ -59,9 +59,9 @@ final class WallpaperUploadPanel {
             WallpaperUploadServer candidate=server(selectedHost,8765,attempt);
             try{
                 try{candidate.listen();}catch(IOException occupied){candidate.stop();candidate=server(selectedHost,0,attempt);candidate.listen();}
-                String url=candidate.address();BitMatrix matrix=new QRCodeWriter().encode(url,BarcodeFormat.QR_CODE,384,384,java.util.Collections.singletonMap(EncodeHintType.MARGIN,1));
-                int[] pixels=new int[384*384];for(int y=0;y<384;y++)for(int x=0;x<384;x++)pixels[y*384+x]=matrix.get(x,y)?Color.BLACK:Color.WHITE;
-                Bitmap bitmap=Bitmap.createBitmap(pixels,384,384,Bitmap.Config.ARGB_8888);WallpaperUploadServer ready=candidate;
+                String url=candidate.address();int size=Math.max(384,activity.getResources().getDisplayMetrics().widthPixels/4);BitMatrix matrix=new QRCodeWriter().encode(url,BarcodeFormat.QR_CODE,size,size,java.util.Collections.singletonMap(EncodeHintType.MARGIN,1));
+                int[] pixels=new int[size*size];for(int y=0;y<size;y++)for(int x=0;x<size;x++)pixels[y*size+x]=matrix.get(x,y)?Color.BLACK:Color.WHITE;
+                Bitmap bitmap=Bitmap.createBitmap(pixels,size,size,Bitmap.Config.ARGB_8888);WallpaperUploadServer ready=candidate;
                 main.post(()->{
                     if(dialog==null||attempt!=generation){ready.stop();bitmap.recycle();return;}server=ready;view.connected(ready.shortAddress(),ready.connectionCode());qr.setImageBitmap(bitmap);main.postDelayed(check,2000);
                 });
