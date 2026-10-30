@@ -36,6 +36,8 @@ python3 agent_session.py plan --session "$SESSION_DIR" --route repair --issue ne
 
 `--checks`只增加本次必要项，不删除既有要求；外设可用`peripheral:实际设备`，不限品类。电源、常开ADB和在线升级按用户目标加入，保持ADB的默认请求需记录配置和真实重连，不用开关值代替。路线未完成不能改路线跳过缺项；setup的一条路线完成后可显式plan下一条，原步骤和完成历史保留。用户改变原意图时建立关联任务，沿用原恢复记录。
 
+首次接管／HOME 修复先按[品牌检测](brands.md)读取路线报告。执行 takeover 配置时自动追加 `physical_home,user_reboot,cold_boot,user_wake,recovery`，区分默认值读回、最终前台和开机首屏。追加检查不授权切电源；未获测试授权或尚未实测时保持待确认，能力受限记 LIMITED，不以配置返回成功结束。仅试用、更新、只读及恢复不新增这些接管项。
+
 ## 执行选定步骤
 
 所有步骤共用 `--session`，由任务工具固定设备、用户和包名。`--` 后是底层工具自身参数；不重复传 `--serial`、`--user`、`--adb`、`--package` 或 `--record`。示例是互斥的不同任务，不连续执行：

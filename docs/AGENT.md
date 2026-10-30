@@ -8,6 +8,8 @@
 请通过我的电脑配置和维护 Quiet TV，先读取：
 https://beatsad.github.io/quiet-tv/agent.md
 先检查电视；未安装时安装最新适配版，已有安装时按需升级或修复。
+请识别品牌、机型、固件和安卓版本，完成开机及实体 HOME 接管。
+允许在精确适配规则和恢复条件满足时禁用已确认的原桌面；先说明对象、影响和恢复办法，不精简其他系统应用。
 沿用有效接管方案，保持 ADB 常开，保留应用数据和原桌面恢复记录。
 恢复原桌面仅在我明确要求时执行；需要我操作电视时提醒我。
 若有未完成任务，先读取原记录并核对现状再继续。最后说明完成项、未验证项和恢复方法。
@@ -36,7 +38,7 @@ https://beatsad.github.io/quiet-tv/agent.md
 | 已安装但配置异常，用户要求修复 | [维护](AGENT_ADAPT.zh-CN.md)，沿用路线，先检查后修复 |
 | 已安装且正常、无适用更新 | 报告无需操作，不初始化、不重复配置 |
 
-安装、升级、修复可以先后发生，不能只凭品牌选择路线。已有正常配置不重跑 `takeover`；仅更新保留原 ADB 选择，默认请求的 ADB 保持可在能力支持时独立配置，不能顺带启用已暂停守护。未知固件按实际能力检查；只有命中专项问题才读 [HOME/ADB](agent/home.md)、[TCL 安装](agent/tcl.md)、[信号源](agent/inputs.md)或[适配规则](DEVICE_ADAPTATION.zh-CN.md)。
+安装、升级、修复可以先后发生。首次接管或 HOME 修复先按[品牌与路线检测](agent/brands.md)只读分流；不能只凭品牌选路线。已有正常配置不重跑 `takeover`；仅更新保留 ADB 选择及守护暂停状态。命中专项问题再读 [HOME/ADB](agent/home.md)、[TCL 安装](agent/tcl.md)、[信号源](agent/inputs.md)或[适配规则](DEVICE_ADAPTATION.zh-CN.md)。
 
 按[任务工具](agent/session.md) `plan` 固定本次路线与必要验收；修复须注明问题领域，`repair` 仅处理 HOME／ADB。无需操作选择 `noop`，不启动安装器。脚本限制各路线允许的动作，用户不需要选择工具。
 

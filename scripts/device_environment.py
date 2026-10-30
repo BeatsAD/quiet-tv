@@ -37,6 +37,8 @@ def adb_plan(devices, serial=None, system='unknown', brand='', model='', firmwar
              debug_enabled=False, menu_mismatch=False, connection_error=''):
     state = next((item['state'] for item in devices if item['serial'] == serial), '')
     result = dict(devices=devices, target=serial, system=system, brand=brand, model=model, firmware=firmware)
+    if system in ('vega', 'tizen', 'webos', 'roku', 'vidaa-linux', 'smartcast'):
+        return dict(result, route='limited', next='此系统不使用 Android APK／ADB 接管流程；VIDAA 先区分 Linux 与 Android，不按品牌判断')
     if not serial and devices:
         return dict(result, route='select_target', next='让用户确认目标，随后指定 --serial，不自动选择设备')
     if state == 'device':
@@ -50,8 +52,6 @@ def adb_plan(devices, serial=None, system='unknown', brand='', model='', firmwar
                  'offline' if state == 'offline' else 'address_port_transport')
         return dict(result, route='connection_diagnosis', cause=cause, debugEnabled=debug_enabled,
                     next='核对调试开关实际状态；已开则查地址、端口、连接方式和授权，未开再按系统指引；不猜端口或重复教程')
-    if system == 'vega':
-        return dict(result, route='limited', next='Vega 不使用此 Android APK／ADB 流程，记录系统限制')
     guide = ANDROID_GUIDE if system in ('android-tv', 'google-tv') else FIRE_GUIDE if system == 'fire-os' else None
     if guide and not menu_mismatch:
         return dict(result, route='guide', guide=guide, next='用户按匹配的常规指引操作；菜单不符加 --menu-mismatch')
@@ -161,7 +161,8 @@ def main():
     parser.add_argument('--user', type=int)
     parser.add_argument('--package', default='home.quiet.tv')
     parser.add_argument('--record', type=Path)
-    parser.add_argument('--system', choices=('unknown', 'android-tv', 'google-tv', 'fire-os', 'vega'), default='unknown')
+    parser.add_argument('--system', choices=('unknown', 'android-tv', 'google-tv', 'fire-os', 'vega',
+                                           'tizen', 'webos', 'roku', 'vidaa-linux', 'smartcast'), default='unknown')
     for name in ('brand', 'model', 'firmware', 'connection-error'):
         parser.add_argument('--'+name, default='')
     parser.add_argument('--debug-enabled', action='store_true')
