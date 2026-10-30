@@ -47,6 +47,9 @@
         <intent><action android:name="android.intent.action.VIEW" /><data android:scheme="content" /></intent>
     </queries>
     <application android:name=".QuietApplication" android:label="Quiet TV" android:theme="@style/AppTheme" android:icon="@drawable/launcher_icon" android:banner="@drawable/launcher_banner" android:allowBackup="false" android:enableOnBackInvokedCallback="true" android:supportsRtl="true">
+        <activity android:name=".ApkInstallActivity" android:exported="false" android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <receiver android:name=".ApkInstallReceiver" android:exported="false" />
+        <receiver android:name=".UpdateInstallReceiver" android:exported="false" />
         <activity android:name=".WallpaperFilesActivity" android:exported="false" />
         <provider android:name=".UpdateFileProvider" android:authorities="${applicationId}.updates" android:exported="false" android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/update_paths" />
@@ -57,6 +60,7 @@
         <activity android:name=".DockEditorActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".HomeAppActionsActivity" android:exported="false" android:excludeFromRecents="true" android:theme="@style/HomeActionsTheme" />
         <activity android:name=".HomeSortActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".WatchTvActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".DesktopSettingsActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".HomeProxyEntryActivity" android:exported="true" android:enabled="${homeGuardAvailable}"
             android:launchMode="singleTask" android:taskAffinity="${applicationId}.proxyEntry"

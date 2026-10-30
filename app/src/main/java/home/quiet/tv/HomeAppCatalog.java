@@ -10,6 +10,7 @@ import java.util.*;
 
 /** The home and its editor must enumerate the same launchable packages and built-in entries. */
 final class HomeAppCatalog {
+    static final String WATCH_TV="quiet:watch-tv";
     static final String WALLPAPER="quiet:wallpapers",DESKTOP_SETTINGS="quiet:desktop-settings",MANAGEMENT="quiet:management";
     static final class Entry {
         final String id,label;final ResolveInfo info;
@@ -39,6 +40,7 @@ final class HomeAppCatalog {
         if(!hiddenApps){
             result.add(0,new Entry(WALLPAPER,chinese?"壁纸设置":"Wallpaper Settings",null));
             result.add(1,new Entry(DESKTOP_SETTINGS,chinese?"桌面设置":"Desktop Settings",null));
+            result.add(0,new Entry(WATCH_TV,chinese?"看电视":"Watch TV",null));
         }
         return result;
     }
@@ -77,6 +79,13 @@ final class HomeAppCatalog {
         return (app==PackageManager.COMPONENT_ENABLED_STATE_DEFAULT?activity.applicationInfo.enabled:app==PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
             && (component==PackageManager.COMPONENT_ENABLED_STATE_DEFAULT?activity.enabled:component==PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
             && (activity.permission==null || pm.checkPermission(activity.permission,context.getPackageName())==PackageManager.PERMISSION_GRANTED);
+    }
+    /** Project saved positions onto the same available entries used to draw HOME. */
+    static ArrayList<String> pinnedIds(List<Entry> entries,List<String> pinned){
+        HashSet<String> available=new HashSet<>();for(Entry entry:entries)available.add(entry.id);
+        ArrayList<String> result=new ArrayList<>();
+        for(String id:pinned)if(available.contains(id)&&!result.contains(id))result.add(id);
+        return result;
     }
     static ArrayList<String> gridIds(List<Entry> entries,List<String> pinned){
         ArrayList<String> ids=new ArrayList<>();for(Entry entry:entries)if(!pinned.contains(entry.id))ids.add(entry.id);return ids;

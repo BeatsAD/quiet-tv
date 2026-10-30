@@ -52,9 +52,9 @@ final class GreetingAvatarUploadPanel {
             WallpaperUploadServer candidate=new WallpaperUploadServer(selected,0,name->ui.getAssets().open("greeting-avatar-upload/"+name),
                 (input,length,name,active)->receive(attempt,input,length,active),GreetingAvatarStore.MAX_UPLOAD,"{\"width\":512,\"height\":512,\"maxBytes\":2097152}");
             try{
-                candidate.listen();BitMatrix matrix=new QRCodeWriter().encode(candidate.address(),BarcodeFormat.QR_CODE,384,384,Collections.singletonMap(EncodeHintType.MARGIN,1));
-                int[] pixels=new int[384*384];for(int y=0;y<384;y++)for(int x=0;x<384;x++)pixels[y*384+x]=matrix.get(x,y)?Color.BLACK:Color.WHITE;
-                Bitmap qr=Bitmap.createBitmap(pixels,384,384,Bitmap.Config.ARGB_8888);
+                candidate.listen();int size=Math.max(384,ui.getResources().getDisplayMetrics().widthPixels/4);BitMatrix matrix=new QRCodeWriter().encode(candidate.address(),BarcodeFormat.QR_CODE,size,size,Collections.singletonMap(EncodeHintType.MARGIN,1));
+                int[] pixels=new int[size*size];for(int y=0;y<size;y++)for(int x=0;x<size;x++)pixels[y*size+x]=matrix.get(x,y)?Color.BLACK:Color.WHITE;
+                Bitmap qr=Bitmap.createBitmap(pixels,size,size,Bitmap.Config.ARGB_8888);
                 main.post(()->{if(view==null||attempt!=generation){candidate.stop();qr.recycle();return;}server=candidate;view.connected(candidate.shortAddress(),candidate.connectionCode());view.qr.setImageBitmap(qr);main.postDelayed(check,2000);});
             }catch(IOException|WriterException e){candidate.stop();main.post(()->{if(view!=null&&attempt==generation){view.address.setText(tr("无法开启上传，请检查网络后重试","Unable to start upload. Check the network."));view.retry.setVisibility(View.VISIBLE);}});}
         });

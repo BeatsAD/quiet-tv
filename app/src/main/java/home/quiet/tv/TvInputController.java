@@ -19,74 +19,16 @@ import java.util.*;
 @android.annotation.TargetApi(21)
 final class TvInputController {
     private static final String TAG="QuietTV";
-    enum InputState { READY, EMPTY, UNAVAILABLE, RESTRICTED, FAILED }
-    enum PanelState { READY, DISABLED, RESTRICTED, UNAVAILABLE, FAILED }
-
-    static final class Profile {
-        final String component,packageName,type,action,zh,en,feature;
-        final android.os.Bundle extras=new android.os.Bundle();
-        final boolean preferred,foregroundService;
-        Profile(JSONObject value) throws JSONException {
-            component=value.optString("component");packageName=value.optString("package");type=value.getString("type");action=value.optString("action");feature=value.optString("requiredFeature");
-            zh=value.getString("labelZh");en=value.getString("labelEn");preferred=value.optBoolean("preferPanel");foregroundService=value.optBoolean("foregroundService");
-            if(foregroundService && !"service".equals(type))throw new JSONException("Foreground launch requires a service");
-            if((component.isEmpty()?(!packageName.matches("[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+") || action.isEmpty() || !"service".equals(type))
-                    :(!packageName.isEmpty() || !component.matches("[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+/[A-Za-z0-9_.$]+")))
-                    || !("activity".equals(type)||"service".equals(type)) || zh.isEmpty() || en.isEmpty()
-                    || ("service".equals(type) && action.isEmpty()))throw new JSONException("Invalid TV input profile");
-            JSONObject parameters=value.optJSONObject("extras");
-            if(value.has("extras") && parameters==null)throw new JSONException("Invalid TV input extras");
-            if(parameters!=null)for(Iterator<String> keys=parameters.keys();keys.hasNext();){
-                String key=keys.next();Object parameter=parameters.get(key);
-                if(parameter instanceof String)extras.putString(key,(String)parameter);
-                else if(parameter instanceof Boolean)extras.putBoolean(key,(Boolean)parameter);
-                else if(parameter instanceof Integer)extras.putInt(key,(Integer)parameter);
-                else throw new JSONException("Unsupported TV input extra");
-            }
-        }
-        String label(boolean chinese){return chinese?zh:en;}
-        Intent intent(){
-            Intent intent=new Intent();if(!action.isEmpty())intent.setAction(action);
-            if(component.isEmpty())intent.setPackage(packageName);else intent.setComponent(ComponentName.unflattenFromString(component));
-            return intent.putExtras(extras);
-        }
-    }
-    static List<Profile> parseProfiles(String source) throws JSONException {
-        JSONObject root=new JSONObject(source);
-        if(root.getInt("schema")!=1)throw new JSONException("Unsupported TV input profile schema");
-        ArrayList<Profile> profiles=new ArrayList<>();HashSet<String> components=new HashSet<>();
-        JSONArray values=root.getJSONArray("panels");
-        for(int i=0;i<values.length();i++){
-            Profile profile=new Profile(values.getJSONObject(i));
-            String canonical;
-            if(profile.component.isEmpty())canonical=profile.packageName+":"+profile.action;
-            else{String[] name=profile.component.split("/",2);canonical=name[0]+"/"+(name[1].startsWith(".")?name[0]+name[1]:name[1]);}
-            if(!components.add(canonical))throw new JSONException("Duplicate TV input panel");
-            profiles.add(profile);
-        }
-        return profiles;
-    }
-    static final class Panel {
-        final Profile profile;final PanelState state;final ComponentName component;
-        Panel(Profile profile,PanelState state,ComponentName component){this.profile=profile;this.state=state;this.component=component;}
-    }
+    enum InputState { READY, EMPTY, FILTERED, UNAVAILABLE, RESTRICTED, FAILED }
     static final class Snapshot {
         final ArrayList<TvInputInfo> inputs=new ArrayList<>();
-        final ArrayList<Panel> panels=new ArrayList<>();
+        final TvInputPanels.Snapshot nativePanels=new TvInputPanels.Snapshot();
         InputState state=InputState.EMPTY;
-        boolean profilesUnavailable;
-        List<Panel> availablePanels(){
-            ArrayList<Panel> available=new ArrayList<>();
-            for(Panel panel:panels)if(panel.state==PanelState.READY)available.add(panel);
-            return available;
-        }
-        Panel directPanel(){
-            List<Panel> available=availablePanels();
-            // Multiple installed panels require an explicit choice rather than a trial launch.
-            if(available.size()!=1)return null;
-            Panel panel=available.get(0);
-            return inputs.isEmpty()||panel.profile.preferred?panel:null;
-        }
+        int reported,filtered,duplicates,itemFailures,metadataWarnings;
+        final ArrayList<TvInputInfo> raw=new ArrayList<>();
+        final Map<String,String> exclusions=new HashMap<>();
+        List<TvInputPanels.Panel> availablePanels(){return nativePanels.availablePanels();}
+        TvInputPanels.Panel directPanel(){return nativePanels.directPanel(inputs.isEmpty());}
     }
 
     private final Context context;
@@ -106,94 +48,64 @@ final class TvInputController {
         return mapped!=null && mapped.isPassthroughInput() && enabledSystem(context,mapped.getServiceInfo())?mapped:null;
     }
     JSONObject maintenanceInputs() throws Exception {
-        JSONArray values=new JSONArray();DeviceInputProfile profile=new DeviceInputProfile(context);
-        for(TvInputInfo input:rawInputs()){
-            boolean shown=input.getParentId()==null && (Build.VERSION.SDK_INT<24 || !input.isHidden(context))
-                && !hiddenInput(Build.MODEL,input.getServiceInfo().packageName,input.getId(),Build.DISPLAY) && !profile.hidden(input.getId());
+        Snapshot snapshot=inspect();JSONArray values=new JSONArray();DeviceInputProfile profile=new DeviceInputProfile(context);
+        Set<String> shown=new HashSet<>();for(TvInputInfo input:snapshot.inputs)shown.add(input.getId());
+        for(TvInputInfo input:snapshot.raw)try{
             values.put(new JSONObject().put("id",input.getId()).put("label",inputLabel(input)).put("firmwareLabel",input.loadLabel(context).toString())
-                .put("shown",shown).put("passthrough",input.isPassthroughInput()).put("type",input.getType()).put("target",profile.target(input.getId()))
+                .put("shown",shown.contains(input.getId())).put("filterReason",snapshot.exclusions.containsKey(input.getId())?snapshot.exclusions.get(input.getId()):"")
+                .put("passthrough",input.isPassthroughInput()).put("type",input.getType()).put("target",profile.target(input.getId()))
                 .put("system",enabledSystem(context,input.getServiceInfo())));
-        }
-        return new JSONObject().put("supported",true).put("sources",values).put("configuration",profile.snapshot());
+        }catch(RuntimeException failed){DiagnosticLog.error("input.maintenance.item_failed",failed);}
+        return new JSONObject().put("supported",true).put("state",snapshot.state.name()).put("reported",snapshot.reported)
+            .put("filtered",snapshot.filtered).put("duplicates",snapshot.duplicates).put("itemFailures",snapshot.itemFailures)
+            .put("metadataWarnings",snapshot.metadataWarnings).put("sources",values).put("configuration",profile.snapshot());
     }
 
     Snapshot inspect(){
-        Snapshot result=new Snapshot();int reported=0,filtered=0;
+        Snapshot result=new Snapshot();
         try{
             TvInputManager manager=(TvInputManager)context.getSystemService(Context.TV_INPUT_SERVICE);
             if(manager==null)result.state=InputState.UNAVAILABLE;
-            else{
-                for(TvInputInfo input:manager.getTvInputList()){
-                    reported++;
-                    if(input.getParentId()==null && (Build.VERSION.SDK_INT<24 || !input.isHidden(context)) && !hiddenInput(Build.MODEL,input.getServiceInfo().packageName,input.getId(),Build.DISPLAY) && !new DeviceInputProfile(context).hidden(input.getId())){
-                        result.inputs.add(input);
-                        if(result.inputs.size()<=8)DiagnosticLog.info("input.enumeration.item","index="+(result.inputs.size()-1)+" service="+new ComponentName(input.getServiceInfo().packageName,input.getServiceInfo().name).flattenToShortString()+" type="+input.getType()+" passthrough="+input.isPassthroughInput());
-                    }else filtered++;
-                }
-                result.state=result.inputs.isEmpty()?InputState.EMPTY:InputState.READY;
-            }
-        }catch(SecurityException e){result.state=InputState.RESTRICTED;DiagnosticLog.error("input.enumeration.restricted",e);}
-        // Some old firmware exposes a manager without a working backing service.
-        catch(RuntimeException e){result.state=InputState.FAILED;DiagnosticLog.error("input.enumeration.failed",e);Log.w(TAG,"TV input enumeration failed: "+e.getClass().getSimpleName());}
-        try(InputStream in=context.getAssets().open("tv-input-profiles.json");ByteArrayOutputStream out=new ByteArrayOutputStream()){
-            byte[] buffer=new byte[4096];int size;while((size=in.read(buffer))!=-1)out.write(buffer,0,size);
-            for(Profile profile:parseProfiles(out.toString("UTF-8"))){Panel panel=inspectPanel(profile);if(panel!=null)result.panels.add(panel);}
-        }catch(IOException|JSONException e){result.profilesUnavailable=true;DiagnosticLog.error("input.profiles.failed",e);Log.w(TAG,"TV input profiles unavailable: "+e.getClass().getSimpleName());}
-        DiagnosticLog.info("input.enumeration","state="+result.state+" reported="+reported+" filtered="+filtered+" usable="+result.inputs.size()+" detailsOmitted="+Math.max(0,result.inputs.size()-8)+" panels="+result.panels.size());
+            else{List<TvInputInfo> raw=manager.getTvInputList();if(raw==null)throw new IllegalStateException("Null input list");result.raw.addAll(raw);filterInputs(result);}
+        }catch(SecurityException failure){result.state=InputState.RESTRICTED;DiagnosticLog.error("input.enumeration.restricted",failure);}
+        catch(RuntimeException failure){result.state=InputState.FAILED;DiagnosticLog.error("input.enumeration.failed",failure);}
+        TvInputPanels.Snapshot nativePanels=new TvInputPanels(context).inspect();result.nativePanels.panels.addAll(nativePanels.panels);result.nativePanels.profilesUnavailable=nativePanels.profilesUnavailable;
+        DiagnosticLog.info("input.enumeration","state="+result.state+" reported="+result.reported+" filtered="+result.filtered+" duplicates="+result.duplicates+" itemFailures="+result.itemFailures+" metadataWarnings="+result.metadataWarnings+" usable="+result.inputs.size()+" panels="+result.nativePanels.panels.size());
         return result;
     }
 
-    private ComponentName panelComponent(Profile profile){
-        if(!profile.component.isEmpty())return ComponentName.unflattenFromString(profile.component);
-        android.content.pm.ResolveInfo resolved=pm.resolveService(profile.intent(),0);
-        if(resolved==null || resolved.serviceInfo==null || !profile.packageName.equals(resolved.serviceInfo.packageName))return null;
-        return new ComponentName(resolved.serviceInfo.packageName,resolved.serviceInfo.name);
+    private void filterInputs(Snapshot result){
+        DeviceInputProfile profile=new DeviceInputProfile(context);LinkedHashMap<String,TvInputInfo> candidates=new LinkedHashMap<>();
+        HashMap<String,String> parents=new HashMap<>();HashSet<String> hidden=new HashSet<>();boolean restricted=false;
+        for(TvInputInfo input:result.raw){
+            result.reported++;
+            try{
+                String id=input.getId();if(id==null||id.isEmpty())throw new IllegalStateException("Missing input ID");
+                input.getType();input.isPassthroughInput();
+                if(hiddenInput(Build.MODEL,input.getServiceInfo().packageName,id,Build.DISPLAY)||profile.hidden(id)){
+                    hidden.add(id);result.exclusions.put(id,"profile_hidden");result.filtered++;continue;
+                }
+                boolean systemHidden=false;
+                if(Build.VERSION.SDK_INT>=24)try{systemHidden=input.isHidden(context);}catch(RuntimeException failure){
+                    // The hiding preference is optional metadata, not the input service itself.
+                    result.metadataWarnings++;DiagnosticLog.error("input.metadata.hidden_failed",failure);
+                }
+                if(systemHidden){hidden.add(id);result.exclusions.put(id,"user_hidden");result.filtered++;continue;}
+                if(candidates.containsKey(id)){result.duplicates++;continue;}
+                parents.put(id,input.getParentId());candidates.put(id,input);
+            }catch(SecurityException failure){restricted=true;result.itemFailures++;DiagnosticLog.error("input.item.restricted",failure);}
+            catch(RuntimeException failure){result.itemFailures++;DiagnosticLog.error("input.item.failed",failure);}
+        }
+        for(Map.Entry<String,TvInputInfo> entry:candidates.entrySet()){
+            String parent=parents.get(entry.getKey());
+            if(parent!=null&&hidden.contains(parent)){result.filtered++;result.exclusions.put(entry.getKey(),"parent_hidden");continue;}
+            if(parent!=null&&!parent.equals(entry.getKey())&&candidates.containsKey(parent)){result.duplicates++;result.exclusions.put(entry.getKey(),"parent_visible");continue;}
+            result.inputs.add(entry.getValue());
+        }
+        result.state=!result.inputs.isEmpty()?InputState.READY:result.reported==0?InputState.EMPTY
+            :result.itemFailures>0?(restricted?InputState.RESTRICTED:InputState.FAILED):InputState.FILTERED;
     }
 
-    private Panel inspectPanel(Profile profile){
-        String route="type="+profile.type+" "+DiagnosticLog.intent(profile.intent());
-        if(!profile.feature.isEmpty() && !pm.hasSystemFeature(profile.feature)){DiagnosticLog.info("input.panel.inspect",route+" result=missing_feature feature="+profile.feature);return null;}
-        ComponentName name=null;
-        int flags=Build.VERSION.SDK_INT>=24?PackageManager.MATCH_DISABLED_COMPONENTS:PackageManager.GET_DISABLED_COMPONENTS;
-        try{
-            name=panelComponent(profile);if(name==null){DiagnosticLog.info("input.panel.inspect",route+" result=unresolved");return null;}
-            ComponentInfo info;String permission;
-            if("activity".equals(profile.type)){
-                android.content.pm.ActivityInfo activity=pm.getActivityInfo(name,flags);info=activity;permission=activity.permission;
-            }else{
-                android.content.pm.ServiceInfo service=pm.getServiceInfo(name,flags);info=service;permission=service.permission;
-            }
-            // A matching package name alone must not turn an ordinary app into a system-source handler.
-            if((info.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0){DiagnosticLog.info("input.panel.inspect",route+" result=not_system");return null;}
-            int appState=pm.getApplicationEnabledSetting(name.getPackageName()),componentState=pm.getComponentEnabledSetting(name);
-            boolean appEnabled=appState==PackageManager.COMPONENT_ENABLED_STATE_DEFAULT?info.applicationInfo.enabled:appState==PackageManager.COMPONENT_ENABLED_STATE_ENABLED;
-            boolean componentEnabled=componentState==PackageManager.COMPONENT_ENABLED_STATE_DEFAULT?info.enabled:componentState==PackageManager.COMPONENT_ENABLED_STATE_ENABLED;
-            if(!appEnabled||!componentEnabled){DiagnosticLog.info("input.panel.inspect",route+" result=disabled appState="+appState+" componentState="+componentState);return new Panel(profile,PanelState.DISABLED,name);}
-            if(!info.exported || (permission!=null && context.checkCallingOrSelfPermission(permission)!=PackageManager.PERMISSION_GRANTED)){DiagnosticLog.info("input.panel.inspect",route+" result=restricted exported="+info.exported+" permission="+permission);return new Panel(profile,PanelState.RESTRICTED,name);}
-            DiagnosticLog.info("input.panel.inspect",route+" result=ready");return new Panel(profile,PanelState.READY,name);
-        }catch(PackageManager.NameNotFoundException e){DiagnosticLog.info("input.panel.inspect",route+" result=not_installed");return null;}
-        catch(SecurityException e){DiagnosticLog.error("input.panel.inspect.restricted",route,e);return new Panel(profile,PanelState.RESTRICTED,name);}
-        catch(RuntimeException e){DiagnosticLog.error("input.panel.inspect.failed",route,e);return new Panel(profile,PanelState.FAILED,name);}
-    }
-
-    PanelState openPanel(Profile profile){
-        // Packages may be disabled or replaced while a menu is open.
-        Panel current=inspectPanel(profile);
-        DiagnosticLog.info("input.panel.request",DiagnosticLog.intent(profile.intent())+" state="+(current==null?PanelState.UNAVAILABLE:current.state));
-        if(current==null)return PanelState.UNAVAILABLE;
-        if(current.state!=PanelState.READY)return current.state;
-        ComponentName target=current.component;if(target==null){DiagnosticLog.info("input.panel.result","result=no_component");return PanelState.UNAVAILABLE;}
-        Intent intent=profile.intent().setComponent(target);
-        try{
-            if("activity".equals(profile.type))context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-            else if((profile.foregroundService && Build.VERSION.SDK_INT>=26?context.startForegroundService(intent):context.startService(intent))==null){DiagnosticLog.info("input.panel.result","result=null_service");return PanelState.UNAVAILABLE;}
-            DiagnosticLog.info("input.panel.dispatch",profile.type+" "+target.flattenToShortString());
-            // This only confirms dispatch; physical switching requires hardware acceptance.
-            return PanelState.READY;
-        }catch(SecurityException e){DiagnosticLog.error("input.panel.dispatch.restricted",DiagnosticLog.intent(intent),e);return PanelState.RESTRICTED;}
-        catch(android.content.ActivityNotFoundException e){DiagnosticLog.error("input.panel.dispatch.unavailable",DiagnosticLog.intent(intent),e);return PanelState.UNAVAILABLE;}
-        catch(RuntimeException e){DiagnosticLog.error("input.panel.dispatch.failed",DiagnosticLog.intent(intent),e);return PanelState.FAILED;}
-    }
     static final class Route {
         final String label,activity,action;final int source;
         Route(String label,int source){this.label=label;this.source=source;activity="ExternalSourceActivity";action="EXTSRC_PLAY";}
@@ -285,14 +197,20 @@ final class TvInputController {
         if((service.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0)return null;
         return correction(Build.MODEL,service.packageName,input.getType(),input.getId(),Build.DISPLAY);
     }
-    String inputLabel(TvInputInfo input){String custom=new DeviceInputProfile(context).label(input.getId());if(!custom.isEmpty())return custom;Route route=correction(input);return route==null?input.loadLabel(context).toString():route.label;}
-    boolean openKnownInput(TvInputInfo input){
+    String inputLabel(TvInputInfo input){
+        String custom=new DeviceInputProfile(context).label(input.getId());if(!custom.isEmpty())return custom;
+        Route route=correction(input);if(route!=null)return route.label;
+        try{CharSequence label=input.loadLabel(context);if(label!=null&&label.length()>0)return label.toString();}
+        catch(RuntimeException failure){DiagnosticLog.error("input.metadata.label_failed",failure);}
+        return input.getType()==TvInputInfo.TYPE_HDMI?"HDMI":"TV input";
+    }
+    private Intent knownInputIntent(TvInputInfo input){
         android.content.pm.ServiceInfo service=input.getServiceInfo();
-        if((service.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0)return false;
+        if((service.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0)return null;
         String label=null;
         if(input.getType()==TvInputInfo.TYPE_HDMI)try{CharSequence value=input.loadLabel(context);if(value!=null)label=value.toString();}catch(RuntimeException unavailable){DiagnosticLog.error("input.xiaomi.label.failed",unavailable);}
         Integer custom=new DeviceInputProfile(context).xiaomi(input.getId());
-        Route route=custom==null?xiaomiRoute(Build.MODEL,service.packageName,input.getType(),input.getId(),Build.DISPLAY,label):new Route(null,custom);if(route==null){DiagnosticLog.info("input.xiaomi.route","provider="+service.packageName+" type="+input.getType()+" result=no_known_route");return false;}
+        Route route=custom==null?xiaomiRoute(Build.MODEL,service.packageName,input.getType(),input.getId(),Build.DISPLAY,label):new Route(null,custom);if(route==null){DiagnosticLog.info("input.xiaomi.route","provider="+service.packageName+" type="+input.getType()+" result=no_known_route");return null;}
         ComponentName target=new ComponentName("com.xiaomi.mitv.tvplayer","com.xiaomi.mitv.tvplayer."+route.activity);
         try{
             android.content.pm.ActivityInfo activity=pm.getActivityInfo(target,0);
@@ -300,13 +218,26 @@ final class TvInputController {
             if((activity.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0 || !activity.exported
                     || !(appState==PackageManager.COMPONENT_ENABLED_STATE_DEFAULT?activity.applicationInfo.enabled:appState==PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
                     || !(componentState==PackageManager.COMPONENT_ENABLED_STATE_DEFAULT?activity.enabled:componentState==PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
-                    || (activity.permission!=null && pm.checkPermission(activity.permission,context.getPackageName())!=PackageManager.PERMISSION_GRANTED)){DiagnosticLog.info("input.xiaomi.route","component="+target.flattenToShortString()+" result=not_callable exported="+activity.exported+" appState="+appState+" componentState="+componentState+" permission="+activity.permission);return false;}
+                    || (activity.permission!=null && pm.checkPermission(activity.permission,context.getPackageName())!=PackageManager.PERMISSION_GRANTED)){DiagnosticLog.info("input.xiaomi.route","component="+target.flattenToShortString()+" result=not_callable exported="+activity.exported+" appState="+appState+" componentState="+componentState+" permission="+activity.permission);return null;}
             Intent intent=new Intent("com.xiaomi.mitv.tvplayer."+route.action).setComponent(target).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             if(route.source>=0)intent.putExtra("input",route.source);
-            context.startActivity(intent);
-            DiagnosticLog.info("input.xiaomi.dispatch",target.flattenToShortString()+" source="+route.source);return true;
-        }catch(PackageManager.NameNotFoundException e){DiagnosticLog.info("input.xiaomi.route","component="+target.flattenToShortString()+" result=not_installed");return false;}
-        catch(RuntimeException e){DiagnosticLog.error("input.xiaomi.failed","component="+target.flattenToShortString(),e);return false;}
+            return intent;
+        }catch(PackageManager.NameNotFoundException e){DiagnosticLog.info("input.xiaomi.route","component="+target.flattenToShortString()+" result=not_installed");return null;}
+        catch(RuntimeException e){DiagnosticLog.error("input.xiaomi.failed","component="+target.flattenToShortString(),e);return null;}
+    }
+
+    boolean openKnownInput(TvInputInfo input){
+        Intent intent=knownInputIntent(input);if(intent==null)return false;
+        try{context.startActivity(intent);DiagnosticLog.info("input.xiaomi.dispatch",intent.getComponent().flattenToShortString());return true;}
+        catch(RuntimeException failure){DiagnosticLog.error("input.xiaomi.failed",failure);return false;}
+    }
+    /** Resolve one direct HDMI route without dispatching or opening a source picker. */
+    Intent hdmiIntent(TvInputInfo input){
+        if(input.getType()!=TvInputInfo.TYPE_HDMI || !enabledSystem(context,input.getServiceInfo()))return null;
+        input=mappedInput(input);if(input==null || input.getType()!=TvInputInfo.TYPE_HDMI)return null;
+        Intent intent=knownInputIntent(input);
+        if(intent==null)intent=standardIntent(input.getId(),android.media.tv.TvContract.buildChannelUriForPassthroughInput(input.getId()));
+        return intent!=null?intent:fallbackInputIntent(input);
     }
 
     static boolean enabledSystem(Context context,ComponentInfo info){
@@ -352,20 +283,24 @@ final class TvInputController {
         if(type==TvInputInfo.TYPE_TUNER && (label.toUpperCase(Locale.ROOT).contains("DTV") || label.toUpperCase(Locale.ROOT).contains("DTMB")))return 2;
         return null;
     }
-    boolean openFallbackInput(TvInputInfo input){
-        if(!enabledSystem(context,input.getServiceInfo())){DiagnosticLog.info("input.fallback.route","result=not_enabled_system");return false;}
+    private Intent fallbackInputIntent(TvInputInfo input){
+        if(!enabledSystem(context,input.getServiceInfo())){DiagnosticLog.info("input.fallback.route","result=not_enabled_system");return null;}
         Intent intent=null;
         ComponentName droidlogic=new ComponentName("com.droidlogic.tvsource","com.droidlogic.tvsource.DroidLogicTv");
         if(input.getType()==TvInputInfo.TYPE_HDMI && "com.droidlogic.tvinput".equals(input.getServiceInfo().packageName) && canOpen(context,droidlogic))intent=new Intent(Intent.ACTION_MAIN).setComponent(droidlogic).putExtra("id",input.getId());
         if(intent==null){
             // Prefer TCL's native picker if present; only documented middleware uses these ordinals.
-            for(Panel panel:inspect().availablePanels())if(panel.profile.component.startsWith("com.tcl.settings/") || "com.android.systemui".equals(panel.profile.packageName)){DiagnosticLog.info("input.fallback.route","result=prefer_native_panel");return false;}
+            for(TvInputPanels.Panel panel:inspect().availablePanels())if(panel.profile.component.startsWith("com.tcl.settings/") || "com.android.systemui".equals(panel.profile.packageName)){DiagnosticLog.info("input.fallback.route","result=prefer_native_panel");return null;}
             Integer source=tclSource(Build.DEVICE,Build.HARDWARE,input.getServiceInfo().packageName,input.getType(),input.loadLabel(context).toString());
             ComponentName player=new ComponentName("com.tcl.tv","com.tcl.tv.TVActivity");
             if(source!=null && canOpen(context,player))intent=new Intent().setComponent(player).putExtra("targetSourceId",source).putExtra("referer","com.tcl.settings.module_source");
         }
-        if(intent==null){DiagnosticLog.info("input.fallback.route","result=no_known_route provider="+input.getServiceInfo().packageName+" type="+input.getType());return false;}
-        try{context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));DiagnosticLog.info("input.fallback.dispatch",intent.getComponent().flattenToShortString());return true;}
+        if(intent==null){DiagnosticLog.info("input.fallback.route","result=no_known_route provider="+input.getServiceInfo().packageName+" type="+input.getType());return null;}
+        return intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+    }
+    boolean openFallbackInput(TvInputInfo input){
+        Intent intent=fallbackInputIntent(input);if(intent==null)return false;
+        try{context.startActivity(intent);DiagnosticLog.info("input.fallback.dispatch",intent.getComponent().flattenToShortString());return true;}
         catch(RuntimeException failure){DiagnosticLog.error("input.fallback.failed",failure);return false;}
     }
 }

@@ -15,7 +15,7 @@ public final class ChildUsageService extends AccessibilityService {
     static void changed(){for(Runnable listener:listeners)listener.run();}
     private final Handler handler=new Handler(Looper.getMainLooper());
     private ChildModeStore store;
-    private String target="",foreground="",blocking="";
+    private String target="",foreground="",blocking="",usageDay="";
     private long last,pending,lastBlock;
     private boolean registered;
     private final Runnable checkBlock=()->{
@@ -28,7 +28,8 @@ public final class ChildUsageService extends AccessibilityService {
         long now=SystemClock.elapsedRealtime();pending+=Math.max(0,now-last);last=now;
         try{
             ChildModePolicy.Rule r=store.rule(target);
-            if(r.locked || !r.limited()){stopSession();return;}
+            if(r.hidden || r.locked){flush();block();return;}
+            if(!r.limited()){stopSession();return;}
             if(pending>=r.remaining()){flush();block();return;}
             if(pending>=5000 && !flush())return;
             handler.postDelayed(this,1000);
@@ -62,7 +63,7 @@ public final class ChildUsageService extends AccessibilityService {
     static boolean ready(Context context){return connected() && new ChildModeStore(context).fault().isEmpty();}
     static boolean watch(String pkg){
         ChildUsageService service=instance;if(service==null)return false;
-        service.stopSession();service.target=pkg;service.foreground="";return true;
+        service.stopSession();service.target=pkg;service.foreground="";service.usageDay=ChildModeStore.today();return true;
     }
     static void cancel(){ChildUsageService service=instance;if(service!=null)service.stopSession();}
     static void blockVisible(String pkg){ChildUsageService service=instance;if(service!=null && service.blocking.equals(pkg)){service.handler.removeCallbacks(service.checkBlock);service.blocking="";}}
@@ -77,13 +78,15 @@ public final class ChildUsageService extends AccessibilityService {
         if(pkg.equals(foreground))return;
         pause();foreground=pkg;
         if(!pkg.equals(target) || !interactive())return;
-        try{if(store.rule(target).remaining()<=0){block();return;}}
+        try{ChildModePolicy.Rule rule=store.rule(target);if(rule.hidden||rule.locked||rule.remaining()<=0){block();return;}}
         catch(RuntimeException e){store.fault("计时数据无法读取");return;}
         last=SystemClock.elapsedRealtime();handler.postDelayed(tick,1000);
     }
     private boolean flush(){
         if(pending==0 || target.isEmpty())return true;
-        long delta=pending;pending=0;
+        long delta=pending;pending=0;String today=ChildModeStore.today();
+        // A rule read may already have persisted midnight's reset. Split pending time independently.
+        if(!usageDay.isEmpty()&&today.compareTo(usageDay)>0)delta=Math.min(delta,ChildModeStore.sinceMidnight());usageDay=today;
         if(store.consume(target,delta))return true;
         store.fault("使用时长保存失败，请检查存储空间");handler.removeCallbacks(tick);return false;
     }

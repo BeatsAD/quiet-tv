@@ -27,10 +27,11 @@ public class AppManagementActivity extends ManagementUi {
         }catch(java.io.IOException|org.json.JSONException error){throw new IllegalStateException("Invalid bundled launcher configuration",error);}
         ((TextView)header.getChildAt(1)).setText(tr("桌面设置","Desktop Settings"));
         toolbar(SettingsPages.valid(saved==null?initialPage():saved.getInt("management-page",initialPage())));
-        panelHost=new FrameLayout(this);root.addView(panelHost,new LinearLayout.LayoutParams(-1,0,1));
+        panelHost=new FrameLayout(this);panelHost.setPadding(0,px(8),0,0);root.addView(panelHost,new LinearLayout.LayoutParams(-1,0,1));
         if(saved!=null)for(int i=0;i<panels.length;i++)savedPanels[i]=saved.getBundle("panel-"+i);
         selectManagementPage(SettingsPages.valid(saved==null?initialPage():saved.getInt("management-page",initialPage())));
     }
+    void startupApp(String pkg){selectManagementPage(0);((AppListPanel)panels[0]).editStartupApp(pkg);}
     void weatherSettingsChanged(){if(panels[SettingsPages.WEATHER]!=null)((WeatherSettingsPanel)panels[SettingsPages.WEATHER]).settingsChanged();}
     void wireRows(DesktopSettingsRow[] rows,View tab){for(int i=0;i<rows.length;i++){DesktopSettingsRow row=rows[i];row.setNextFocusUpId(i==0?tab.getId():rows[i-1].getId());row.setNextFocusDownId(rows[Math.min(rows.length-1,i+1)].getId());row.setNextFocusLeftId(row.getId());row.setNextFocusRightId(row.getId());}}
     TextView section(String name){TextView label=muted(name,13);label.setLayoutParams(new LinearLayout.LayoutParams(-1,px(38)));return label;}
@@ -49,7 +50,7 @@ public class AppManagementActivity extends ManagementUi {
         if(current!=null){rememberContentFocus();if(resumed){current.onPause();current.onStop();}current.pageRoot.setVisibility(View.GONE);}
         page=next;managementPageSelected(next);
         if(panels[next]==null){
-            panels[next]=next==0?new AppListPanel(this):next==3?new ChildModePanel(this):next==4?new VersionUpdatePanel(this):next==5?new DiagnosticLogPanel(this):next==6?new FileTransferPanel(this):next==SettingsPages.DESKTOP?new DesktopDisplayPanel(this):new WeatherSettingsPanel(this);
+            panels[next]=next==0?new AppListPanel(this):next==3?new ChildModePanel(this):next==4?new VersionUpdatePanel(this):next==5?new DiagnosticLogPanel(this):next==6?new FileTransferPanel(this):next==SettingsPages.DESKTOP?new DesktopDisplayPanel(this):next==SettingsPages.STARTUP?new StartupDestinationPanel(this):new WeatherSettingsPanel(this);
             current=panels[next];current.onCreate(savedPanels[next]);
         }else current=panels[next];
         current.pageRoot.setVisibility(View.VISIBLE);managementTab().requestFocus();

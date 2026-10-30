@@ -37,14 +37,14 @@ final class ImageUploadDialog {
         connection.addView(steps,new LinearLayout.LayoutParams(0,-2,1));connection.addView(new View(activity),new LinearLayout.LayoutParams(ui.px(28),1));
         LinearLayout qrColumn=column();qrColumn.setGravity(Gravity.CENTER_HORIZONTAL);
         FrameLayout qrBox=new FrameLayout(activity);qrBox.setBackgroundDrawable(ui.surface(Color.WHITE,15,Color.TRANSPARENT,0));qrBox.setPadding(ui.px(13),ui.px(13),ui.px(13),ui.px(13));
-        qr=new ImageView(activity);qr.setContentDescription(tr("上传地址二维码","Upload address QR code"));qr.setScaleType(ImageView.ScaleType.FIT_CENTER);qrBox.addView(qr,new FrameLayout.LayoutParams(-1,-1));qrColumn.addView(qrBox,new LinearLayout.LayoutParams(ui.px(170),ui.px(170)));
+        qr=new ImageView(activity);qr.setContentDescription(tr("上传地址二维码","Upload address QR code"));qr.setScaleType(ImageView.ScaleType.FIT_CENTER);qrBox.addView(qr,new FrameLayout.LayoutParams(-1,-1));qrColumn.addView(qrBox,new LinearLayout.LayoutParams(ui.px(240),ui.px(240)));
         code=ui.text("",32);code.setTypeface(Typeface.MONOSPACE,Typeface.BOLD);code.setGravity(Gravity.CENTER);code.setLineSpacing(ui.px(4),1);code.setVisibility(View.INVISIBLE);
         LinearLayout.LayoutParams codeParams=new LinearLayout.LayoutParams(-1,ui.px(64));codeParams.topMargin=ui.px(12);qrColumn.addView(code,codeParams);
-        connection.addView(qrColumn,new LinearLayout.LayoutParams(ui.px(190),-2));LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,-2);cp.topMargin=ui.px(24);box.addView(connection,cp);
+        connection.addView(qrColumn,new LinearLayout.LayoutParams(ui.px(260),-2));LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,-2);cp.topMargin=ui.px(24);box.addView(connection,cp);
         status=ui.text("",12);status.setTextColor(WallpaperUi.MUTED);status.setVisibility(View.GONE);androidx.core.view.ViewCompat.setAccessibilityLiveRegion(status,androidx.core.view.ViewCompat.ACCESSIBILITY_LIVE_REGION_POLITE);LinearLayout.LayoutParams st=new LinearLayout.LayoutParams(-1,-2);st.topMargin=ui.px(16);box.addView(status,st);
         retry=ui.button(tr("重新连接","Reconnect"),false,reconnect);retry.setVisibility(View.GONE);LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-2,-2);rp.topMargin=ui.px(12);box.addView(retry,rp);close.setNextFocusDownId(retry.getId());retry.setNextFocusUpId(close.getId());
         panel.addView(box,new FrameLayout.LayoutParams(-1,-2));
-        stage.addView(panel,new FrameLayout.LayoutParams(ui.px(680),-2,Gravity.CENTER));dialog.setContentView(stage);
+        stage.addView(panel,new FrameLayout.LayoutParams(ui.px(740),-2,Gravity.CENTER));dialog.setContentView(stage);
         Window window=dialog.getWindow();if(window!=null){window.setBackgroundDrawableResource(android.R.color.transparent);window.setDimAmount(0);window.getDecorView().setSystemUiVisibility(5894);}
         dialog.setOnShowListener(d->{Window w=dialog.getWindow();if(w!=null)w.setLayout(-1,-1);close.requestFocus();});
     }

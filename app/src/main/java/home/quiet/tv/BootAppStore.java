@@ -12,11 +12,52 @@ import java.io.*;
 final class BootAppStore {
     static final String TAG="QuietTVBootApp";
     static final long WAKE_WINDOW_MS=10000;
+    static final String HDMI="quiet:hdmi";
     private final Context context;
     private final SharedPreferences preferences;
     BootAppStore(Context context){this.context=context;preferences=context.getSharedPreferences("boot-app",0);}
     String target(){return preferences.getString("package","");}
-    String label(){return preferences.getString("label",target());}
+    String label(){return hdmiBoot()?watchLabel():preferences.getString("label",target());}
+    boolean hdmiBoot(){return preferences.getBoolean("hdmi-boot",false);}
+    boolean enabled(){return hdmiBoot()||!target().isEmpty();}
+    String watchTarget(){return preferences.getString("watch-hdmi","");}
+    String watchLabel(){return preferences.getString("watch-label","HDMI");}
+    String watchRevision(){return watchTarget();}
+    boolean tested(){return !watchTarget().isEmpty()&&watchTarget().equals(preferences.getString("tested-hdmi",""));}
+    String pendingTest(){return preferences.getString("test-hdmi","");}
+    void saveWatch(String target,String label) throws IOException {synchronized(BootAppStore.class){
+        save(preferences.edit().putString("watch-hdmi",target).putString("watch-label",label)
+            .putBoolean("hdmi-boot",false).remove("tested-hdmi").remove("test-hdmi"));
+    }}
+    void testDispatched(String target) throws IOException {if(!target.isEmpty()&&!target.equals(watchTarget()))throw new IOException("目标已变化，请重新测试");save(preferences.edit().putString("test-hdmi",target).remove("tested-hdmi").putBoolean("hdmi-boot",false));}
+    void confirmTest(boolean passed) throws IOException {
+        String pending=pendingTest();if(pending.isEmpty()||!pending.equals(watchTarget()))throw new IOException("请先测试当前 HDMI");
+        SharedPreferences.Editor editor=preferences.edit().remove("test-hdmi");
+        if(passed)editor.putString("tested-hdmi",pending);else editor.remove("tested-hdmi").putBoolean("hdmi-boot",false);
+        save(editor);
+    }
+    void hdmiBoot(boolean enabled) throws IOException {synchronized(BootAppStore.class){
+        String boot=bootId();if(enabled&&(!tested()||boot.isEmpty()))throw new IOException("请先测试 HDMI 并确认画面和声音");
+        SharedPreferences.Editor editor=preferences.edit().putBoolean("hdmi-boot",enabled).putString("handled-boot",boot);
+        if(enabled)editor.putString("package","").putBoolean("sleeping",false).putLong("wake-at",-1);
+        save(editor);
+    }}
+    private void save(SharedPreferences.Editor editor) throws IOException {
+        java.util.Map<String,?> before=preferences.getAll();
+        if(editor.commit())return;
+        SharedPreferences.Editor rollback=preferences.edit();
+        // Restore only this store's snapshot after a failed commit changes its memory map.
+        for(String key:preferences.getAll().keySet())if(!before.containsKey(key))rollback.remove(key);
+        for(java.util.Map.Entry<String,?> item:before.entrySet()){
+            Object value=item.getValue();if(value instanceof String)rollback.putString(item.getKey(),(String)value);
+            else if(value instanceof Boolean)rollback.putBoolean(item.getKey(),(Boolean)value);
+            else if(value instanceof Long)rollback.putLong(item.getKey(),(Long)value);
+        }
+        rollback.commit();throw new IOException("设置保存失败，请检查存储空间后重试");
+    }
+    void cancelHdmiBoot(){synchronized(BootAppStore.class){
+        if(hdmiBoot()){String boot=bootId();if(!boot.isEmpty()&&!boot.equals(preferences.getString("handled-boot","")))preferences.edit().putString("handled-boot",boot).commit();}
+    }}
     Intent launchIntent(String pkg){
         if(pkg.isEmpty() || pkg.equals(context.getPackageName()) || "home.quiet.tv.test".equals(pkg))return null;
         ResolveInfo info=new HomeAppCatalog(context).launchable().get(pkg);
@@ -28,7 +69,7 @@ final class BootAppStore {
     void select(String pkg,String label) throws IOException {synchronized(BootAppStore.class){
         String boot=bootId();
         if(!pkg.isEmpty() && (boot.isEmpty() || launchIntent(pkg)==null))throw new IOException("此应用或当前系统暂不支持开机自启");
-        if(!preferences.edit().putString("package",pkg).putString("label",label).putString("handled-boot",boot)
+        if(!preferences.edit().putBoolean("hdmi-boot",false).putString("package",pkg).putString("label",label).putString("handled-boot",boot)
                 .putString("wake-boot",boot).putBoolean("sleeping",false).putLong("wake-at",-1)
                 .putLong("handled-wake",preferences.getLong("wake-generation",0)).commit())throw new IOException("自启设置保存失败，请重试");
     }}
@@ -63,16 +104,19 @@ final class BootAppStore {
     }
     String consume(){
         synchronized(BootAppStore.class){
-            if(target().isEmpty())return "";
+            if(!enabled())return "";
             String boot=bootId();
             if(!syncBoot(boot))return "";
             boolean reboot=!boot.equals(preferences.getString("handled-boot",""));
+            if(hdmiBoot()&&(!reboot||SystemClock.elapsedRealtime()>=HomeGuardPolicy.BOOT_WINDOW_MS)){
+                if(reboot)cancelHdmiBoot();return "";
+            }
             if(!reboot && !pendingWake())return "";
             // Consume before starting, including unavailable/blocked targets, so Home remains recoverable.
             if(!preferences.edit().putString("handled-boot",boot).putLong("wake-at",-1).putBoolean("sleeping",false)
                     .putLong("handled-wake",preferences.getLong("wake-generation",0)).commit())return "";
             if(!target().isEmpty())Log.i(TAG,reboot?"consumed boot":"consumed wake");
-            return target();
+            return hdmiBoot()?HDMI:target();
         }
     }
     String bootId(){

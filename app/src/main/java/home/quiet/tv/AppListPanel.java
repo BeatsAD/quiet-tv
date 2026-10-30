@@ -85,7 +85,7 @@ final class AppListPanel extends ManagementPanel {
         LinearLayout panels=row();panels.setGravity(Gravity.TOP);body.addView(panels,new LinearLayout.LayoutParams(-1,-1));
         LinearLayout left=column();panels.addView(left,new LinearLayout.LayoutParams(0,-1,40));
         list=new RecyclerView(this);list.setLayoutManager(new LinearLayoutManager(this));adapter=new AppAdapter();list.setAdapter(adapter);list.setItemAnimator(null);list.setClipToPadding(false);list.setPadding(px(2),px(2),px(2),px(2));left.addView(list,new LinearLayout.LayoutParams(-1,0,1));
-        ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setClipToPadding(false);scroll.setBackgroundDrawable(surface(0x12ffffff,0x06ffffff,0x1cffffff,20));details=column();details.setGravity(Gravity.CENTER_HORIZONTAL);details.setPadding(px(25),px(27),px(25),px(22));scroll.addView(details);
+        ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setVerticalScrollBarEnabled(false);scroll.setClipToPadding(false);scroll.setBackgroundDrawable(surface(0x12ffffff,0x06ffffff,0x1cffffff,20));details=column();details.setGravity(Gravity.CENTER_HORIZONTAL);details.setPadding(px(25),px(27),px(25),px(22));scroll.addView(details);
         LinearLayout.LayoutParams dp=new LinearLayout.LayoutParams(0,-1,57);dp.leftMargin=px(28);panels.addView(scroll,dp);
         if(state!=null){selected=state.getString("selected","");filter=Math.max(0,Math.min(FILTERS.length-1,state.getInt("filter",0)));}
         else{String requested=activity.getIntent().getStringExtra("selected-package");if(requested!=null)selected=requested;}
@@ -102,7 +102,7 @@ final class AppListPanel extends ManagementPanel {
         managementConnection.setEnabled(!busy && !connecting);
     }
     @Override void managementConnected(){dirty=true;if(active){if(busy)refreshAfterConnection=true;else refresh();}}
-    @Override void managementMoreOptions(LinearLayout menu){managementMoreOption(menu,"开机自启",this::bootAppPanel);managementMoreOption(menu,"操作记录",()->{try{Sheet sheet=new Sheet("操作记录");sheet.text(operations.history());sheet.action("关闭",sheet.dialog::dismiss);sheet.show(null);}catch(Exception e){message(e.getMessage());}});super.managementMoreOptions(menu);}
+    @Override void managementMoreOptions(LinearLayout menu){managementMoreOption(menu,"应用自启",this::startupSettings);managementMoreOption(menu,"操作记录",()->{try{Sheet sheet=new Sheet("操作记录");sheet.text(operations.history());sheet.action("关闭",sheet.dialog::dismiss);sheet.show(null);}catch(Exception e){message(e.getMessage());}});super.managementMoreOptions(menu);}
     @Override protected void onResume(){super.onResume();active=true;session.addListener(connectionChanged);session.request();if(dirty)refresh();else renderDetails();}
     @Override void focusManagementContent(){filterButtons.get(filter).requestFocus();}
     @Override protected void onStop(){active=false;session.removeListener(connectionChanged);manualConnection=false;refreshAfterConnection=false;refreshGeneration++;dirty=true;if(reading){reading=false;busy=false;}coverUploads.close();super.onStop();}
@@ -177,7 +177,7 @@ final class AppListPanel extends ManagementPanel {
             try{
                 HomeVisibilityStore visibility=new HomeVisibilityStore(this);
                 if(!visibility.hidden(app.pkg)||new ChildModeStore(this).hidden(app.pkg)||!AppAvailability.installed(getPackageManager(),getPackageManager().getApplicationInfo(app.pkg,0)))result="应用状态已变化，请刷新后重试";
-                else{boolean full=visibility.wasPinned(app.pkg)&&new DockStore(this).load().size()>=DockStore.CAPACITY;
+                else{boolean full=visibility.wasPinned(app.pkg)&&new DockStore(this).loadAvailable().size()>=DockStore.CAPACITY;
                     result=visibility.restore(app.pkg)?full?"已恢复到第二屏，首页已满":"已恢复显示":"保存失败，请重试";}
             }catch(Exception e){result="无法恢复显示，请重试";}
             String outcome=result;ui(()->{busy=false;dirty=true;if(active){applyFilter();focusList();feedback(outcome);}});
@@ -202,24 +202,28 @@ final class AppListPanel extends ManagementPanel {
     private void bootAppAction(AppRepository.App app,LinearLayout actions){
         BootAppStore store=new BootAppStore(this);boolean chosen=app.pkg.equals(store.target());
         if(!chosen && (!app.installed || !app.enabled || store.launchIntent(app.pkg)==null))return;
-        addAction(actions,button(chosen?"关闭开机自启":"设为开机自启",()->{
-            if(chosen){saveBootApp("","");return;}
-            Sheet sheet=new Sheet("设为开机自启？");
-            sheet.text("开机或待机唤醒进入 Quiet TV 后，将自动打开 "+app.label+"。"+(store.target().isEmpty()?"":"将替换当前自启应用："+store.label()+"。")+"每次仅打开一次，按 Home 返回不重复，儿童模式限制仍然有效。");
-            Button cancel=sheet.action("取消",sheet.dialog::dismiss);
-            sheet.action("开启",()->{sheet.dialog.dismiss();saveBootApp(app.pkg,app.label);});sheet.show(cancel);
-        }));
+        addAction(actions,button(chosen?"关闭开机自启":"设为开机自启",()->activity.startupApp(app.pkg)));
     }
-    private void saveBootApp(String pkg,String label){
-        try{new BootAppStore(this).select(pkg,label);renderDetails();if(firstAction!=null)firstAction.requestFocus();feedback(pkg.isEmpty()?"已关闭开机自启":"已设置，下次开机或待机唤醒生效");}
-        catch(java.io.IOException e){message(e.getMessage());}
+    void editStartupApp(String pkg){
+        BootAppStore store=new BootAppStore(this);
+        if(pkg.equals(store.target())){startupSettings();return;}
+        if(store.launchIntent(pkg)==null){message("此应用暂不可用，请重新选择。");return;}
+        String label=pkg;
+        try{label=getPackageManager().getApplicationLabel(getPackageManager().getApplicationInfo(pkg,0)).toString();}
+        catch(android.content.pm.PackageManager.NameNotFoundException ignored){}
+        final String name=label;Sheet sheet=new Sheet("设为开机自启？");
+        sheet.text("开机或待机唤醒进入 Quiet TV 后，将自动打开 "+name+"。"
+            +(store.hdmiBoot()?"将关闭开机自动看电视。":store.target().isEmpty()?"":"将替换当前自启应用："+store.label()+"。")
+            +"按 HOME 返回不重复，儿童模式限制仍然有效。");
+        Button cancel=sheet.action("取消",sheet.dialog::dismiss);
+        sheet.action("开启",()->{sheet.dialog.dismiss();try{store.select(pkg,name);renderDetails();}catch(java.io.IOException failure){message(failure.getMessage());}});sheet.show(cancel);
     }
-    private void bootAppPanel(){
-        BootAppStore store=new BootAppStore(this);Sheet sheet=new Sheet("开机自启");
-        sheet.text(store.target().isEmpty()?"未开启。选择应用后，在详情中设置开机自启。":"当前自启应用："+store.label()+"。可选择其他应用替换。");
-        sheet.text("开机或待机唤醒进入 Quiet TV 后生效。按 Home 返回桌面不会重复打开应用。");
-        Button close=sheet.action("关闭",sheet.dialog::dismiss);
-        if(!store.target().isEmpty())sheet.action("关闭开机自启",()->{sheet.dialog.dismiss();saveBootApp("","");});sheet.show(close);
+    private void startupSettings(){
+        BootAppStore store=new BootAppStore(this);Sheet sheet=new Sheet("应用自启");
+        sheet.text(store.target().isEmpty()?"未设置自启应用。可在应用详情选择“设为开机自启”。":"当前自启应用："+store.label()+"。可在其他应用详情替换。");
+        Button close=sheet.action("返回",sheet.dialog::dismiss);
+        if(!store.target().isEmpty())sheet.action("关闭自启",()->{sheet.dialog.dismiss();try{store.select("","");renderDetails();}catch(java.io.IOException failure){message(failure.getMessage());}});
+        sheet.show(close);
     }
     private void protectionNote(String reason,boolean readOnly){TextView note=center(reason,12);note.setTextColor(0xffb9bec8);details.addView(note);if(readOnly){gap(details,8);details.addView(center("为保证电视正常使用，此应用仅供查看。",11));}}
     private void addAction(LinearLayout row,Button action){

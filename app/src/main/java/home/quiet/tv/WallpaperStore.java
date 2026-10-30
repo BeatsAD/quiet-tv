@@ -74,6 +74,7 @@ final class WallpaperStore {
     File poster(String id){mediaFile(id,true);return new File(directory,id+"-poster.jpg");}
     private File mediaFile(String id,boolean video){
         if(!id.matches("user-[a-f0-9-]{36}")) throw new IllegalArgumentException("Invalid wallpaper ID");
+        // Keep historical private paths; image decoding detects the original JPG/PNG/WebP content.
         return new File(directory,id+(video?".mp4":".jpg"));
     }
     private void persist(WallpaperCatalog next) throws IOException {
@@ -103,12 +104,10 @@ final class WallpaperStore {
         if(entry.video()&&poster(id).exists()&&!poster(id).delete())Log.w("QuietTV","Removed video poster retained");
     }
     synchronized void checkCapacity() throws IOException {
-        if(catalog.count(false)>=WallpaperCatalog.MAX_CUSTOM || catalog.bytes()>=WallpaperCatalog.MAX_BYTES) throw new IOException("壁纸库已满，请先在电视删除图片 / Wallpaper library full");
         if(directory.getUsableSpace()<30L*1024*1024) throw new IOException("电视存储空间不足 / Not enough TV storage");
     }
     synchronized WallpaperCatalog.Entry add(File ready,String filename,int width,int height) throws IOException {
         checkCapacity();
-        if(catalog.bytes()+ready.length()>WallpaperCatalog.MAX_BYTES) throw new IOException("壁纸库已满 / Wallpaper library full");
         String id="user-"+UUID.randomUUID();
         String name=filename.replaceAll("[\\p{Cntrl}/\\\\]"," ").replaceFirst("(?i)\\.(jpg|jpeg|png|webp)$","").trim();
         if(name.isEmpty()) name="我的壁纸 / My wallpaper";
@@ -121,14 +120,7 @@ final class WallpaperStore {
         return entry;
     }
     synchronized void checkVideoCapacity(long incoming) throws IOException {
-        checkVideoLimit(incoming);
         if(directory.getUsableSpace()<incoming+32L*1024*1024)throw VideoDiagnostics.failure("capacity","storage_space_low","电视存储空间不足 / Not enough TV storage");
-    }
-    private long videoBytes(){
-        long bytes=0;for(WallpaperCatalog.Entry entry:catalog.videos())bytes+=mediaFile(entry.id,true).length()+poster(entry.id).length();return bytes;
-    }
-    private void checkVideoLimit(long incoming)throws IOException{
-        if(catalog.count(true)>=WallpaperCatalog.MAX_VIDEOS||videoBytes()+incoming>WallpaperCatalog.MAX_VIDEO_BYTES)throw VideoDiagnostics.failure("capacity","library_full","动态壁纸库已满 / Video wallpaper library full");
     }
     boolean saveVideoPoster(String id,Bitmap image)throws IOException{
         File destination=poster(id);
@@ -141,13 +133,12 @@ final class WallpaperStore {
             synchronized(this){
                 // Deletion and final publication share this lock; encoding never holds it.
                 WallpaperCatalog.Entry entry=catalog.find(id);if(entry==null||!entry.video()||destination.isFile())return false;
-                if(videoBytes()+pending.length()>WallpaperCatalog.MAX_VIDEO_BYTES)throw VideoDiagnostics.failure("capacity","library_full","动态壁纸库已满 / Video wallpaper library full");
                 if(!pending.renameTo(destination))throw new IOException("Unable to save video poster");return true;
             }
         }finally{if(pending.isFile()&&!pending.delete())Log.w("QuietTV","Video poster temporary file retained");}
     }
     synchronized WallpaperCatalog.Entry addVideo(File ready,String filename,WallpaperVideo.Info info,WallpaperUploadServer.Active active) throws IOException {
-        long bytes=ready.length();checkVideoLimit(bytes);
+        long bytes=ready.length();
         if(!active.valid())throw VideoDiagnostics.failure("save","session_ended","上传会话已结束 / Session ended");
         String id="user-"+UUID.randomUUID(),name=filename.replaceAll("[\\p{Cntrl}/\\\\]"," ").replaceFirst("(?i)\\.(mp4|mov|mkv|webm)$", "").trim();
         if(name.isEmpty())name="动态壁纸 / Video wallpaper";if(name.length()>48)name=name.substring(0,48);

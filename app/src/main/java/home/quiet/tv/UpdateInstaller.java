@@ -49,16 +49,22 @@ final class UpdateInstaller {
         if(Build.VERSION.SDK_INT>=24)return source;
         // Android 4.0-6 installers accept file://, but cannot read our private files directory.
         // API14-18 request storage access in the legacy manifest; API19+ need no permission here.
-        File cache=context.getExternalCacheDir();if(cache==null)throw new IOException("Installer storage unavailable");
-        File directory=new File(cache,"update-install");
-        if(!directory.isDirectory()&&!directory.mkdirs())throw new IOException("Installer directory unavailable");
-        File target=new File(directory,artifact.sha256+".apk");
-        try(InputStream input=new FileInputStream(source);FileOutputStream output=new FileOutputStream(target)){
-            byte[] buffer=new byte[32768];int count;while((count=input.read(buffer))!=-1)output.write(buffer,0,count);
-            output.getFD().sync();
+        try{return prepareExternal(context,artifact,source,true);}
+        catch(UpdateInstallPreparation.Failure failure){
+            if(!"directory_unavailable".equals(failure.reason))throw failure;
+            // Some old TV firmwares do not expose an external cache. The app-specific
+            // files directory is also installer-readable without broad storage access.
+            DiagnosticLog.info("update.install.storage_fallback",failure.details());
+            return prepareExternal(context,artifact,source,false);
         }
-        // The installer must receive the same bytes that passed metadata and signer validation.
-        UpdateTransfer.verify(target,artifact.bytes,artifact.sha256);return target;
+    }
+    private static File prepareExternal(Context context,UpdateManifest.Artifact artifact,File source,boolean cache)throws UpdateInstallPreparation.Failure{
+        String location=cache?"external_cache":"external_files";File root;
+        try{root=cache?context.getExternalCacheDir():context.getExternalFilesDir(null);}
+        catch(RuntimeException failure){throw new UpdateInstallPreparation.Failure("directory_unavailable","directory",location,artifact.bytes,-1,failure);}
+        UpdateInstallPreparation.Prepared prepared=UpdateInstallPreparation.prepare(root,location,source,artifact.bytes,artifact.sha256);
+        DiagnosticLog.info("update.install.storage_ready","location="+location+" requiredBytes="+artifact.bytes+" availableBytes="+prepared.availableBytes+" reused="+prepared.reused);
+        return prepared.file;
     }
     static boolean launch(Activity activity,File file){
         try{

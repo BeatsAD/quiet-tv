@@ -140,8 +140,8 @@ final class GreetingEditorPanel {
         ui.gap(details,14);address=ui.label("",14);details.addView(address);ui.gap(details,6);
         code=ui.label("",13);details.addView(code);ui.gap(details,12);
         status=ui.muted(tr("也可在手机浏览器打开地址，输入连接码","Or open the address in your browser and enter the code"),11);details.addView(status);
-        row.addView(details,new LinearLayout.LayoutParams(0,-2,1));qr=new ImageView(ui);qr.setContentDescription(tr("问候语输入二维码","Greeting input QR code"));qr.setBackgroundColor(Color.WHITE);qr.setPadding(ui.px(8),ui.px(8),ui.px(8),ui.px(8));
-        LinearLayout.LayoutParams qp=new LinearLayout.LayoutParams(ui.px(150),ui.px(150));qp.leftMargin=ui.px(22);row.addView(qr,qp);phone.body.addView(row,new LinearLayout.LayoutParams(-1,-2));
+        row.addView(details,new LinearLayout.LayoutParams(0,-2,1));qr=new ImageView(ui);qr.setContentDescription(tr("问候语输入二维码","Greeting input QR code"));qr.setScaleType(ImageView.ScaleType.FIT_CENTER);qr.setBackgroundColor(Color.WHITE);qr.setPadding(ui.px(8),ui.px(8),ui.px(8),ui.px(8));
+        LinearLayout.LayoutParams qp=new LinearLayout.LayoutParams(ui.px(240),ui.px(240));qp.leftMargin=ui.px(22);row.addView(qr,qp);phone.body.addView(row,new LinearLayout.LayoutParams(-1,-2));
         reconnect=phone.action(tr("重新连接","Reconnect"),this::startServer);identify(reconnect,"greeting-reconnect");
         Button back=phone.action(tr("返回编辑","Back to edit"),()->phone.dialog.dismiss());identify(back,"greeting-phone-back");
         phone.dialog.setOnDismissListener(d->{phone=null;stopServer(received);if(edit!=null){if(received)edit.requestFocus();else scan.requestFocus();}});
@@ -154,9 +154,9 @@ final class GreetingEditorPanel {
         worker.execute(()->{
             GreetingInputServer candidate=new GreetingInputServer(selectedHost,0,draft,name->ui.getAssets().open("greeting-input/"+name),text->receive(attempt,text));
             try{
-                candidate.listen();BitMatrix matrix=new QRCodeWriter().encode(candidate.address(),BarcodeFormat.QR_CODE,384,384,Collections.singletonMap(EncodeHintType.MARGIN,1));
-                int[] pixels=new int[384*384];for(int y=0;y<384;y++)for(int x=0;x<384;x++)pixels[y*384+x]=matrix.get(x,y)?Color.BLACK:Color.WHITE;
-                Bitmap bitmap=Bitmap.createBitmap(pixels,384,384,Bitmap.Config.ARGB_8888);
+                candidate.listen();int size=Math.max(384,ui.getResources().getDisplayMetrics().widthPixels/4);BitMatrix matrix=new QRCodeWriter().encode(candidate.address(),BarcodeFormat.QR_CODE,size,size,Collections.singletonMap(EncodeHintType.MARGIN,1));
+                int[] pixels=new int[size*size];for(int y=0;y<size;y++)for(int x=0;x<size;x++)pixels[y*size+x]=matrix.get(x,y)?Color.BLACK:Color.WHITE;
+                Bitmap bitmap=Bitmap.createBitmap(pixels,size,size,Bitmap.Config.ARGB_8888);
                 main.post(()->{if(phone==null||attempt!=generation){candidate.stop();bitmap.recycle();return;}server=candidate;address.setText(candidate.shortAddress());code.setText(String.format(tr(ui.getString(R.string.greeting_connection_code_zh),ui.getString(R.string.greeting_connection_code_en)),candidate.connectionCode()));qr.setImageBitmap(bitmap);main.postDelayed(check,2000);});
             }catch(IOException|WriterException e){candidate.stop();main.post(()->{if(phone!=null&&attempt==generation){address.setText(tr("无法连接，请检查网络后重试","Unable to connect. Check the network and retry."));reconnect.setVisibility(View.VISIBLE);}});}
         });

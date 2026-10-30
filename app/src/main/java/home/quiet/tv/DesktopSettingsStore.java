@@ -46,6 +46,18 @@ final class DesktopSettingsStore {
     boolean showHomeApps(){return preferences.getBoolean("show-home-apps",true);}
     boolean showDockBackground(){return preferences.getBoolean("show-dock-background",true);}
     boolean showAllAppsNames(){return preferences.getBoolean("show-all-apps-names",true);}
+    int homeWallpaperBlur(){return Math.max(0,Math.min(100,preferences.getInt("home-wallpaper-blur",0)));}
+    int secondWallpaperBlur(){return Math.max(0,Math.min(100,preferences.getInt("second-wallpaper-blur",0)));}
+    void homeWallpaperBlur(int value){preferences.edit().putInt("home-wallpaper-blur",Math.max(0,Math.min(100,value))).apply();}
+    void secondWallpaperBlur(int value){preferences.edit().putInt("second-wallpaper-blur",Math.max(0,Math.min(100,value))).apply();}
+    int homeWallpaperBrightness(){return Math.max(20,Math.min(100,preferences.getInt("home-wallpaper-brightness",100)));}
+    int secondWallpaperBrightness(){return Math.max(20,Math.min(100,preferences.getInt("second-wallpaper-brightness",100)));}
+    void homeWallpaperBrightness(int value){preferences.edit().putInt("home-wallpaper-brightness",Math.max(20,Math.min(100,value))).apply();}
+    void secondWallpaperBrightness(int value){preferences.edit().putInt("second-wallpaper-brightness",Math.max(20,Math.min(100,value))).apply();}
+    int homeWallpaperFade(){return Math.max(0,Math.min(1200,preferences.getInt("home-wallpaper-fade",600)))/100*100;}
+    int secondWallpaperFade(){return Math.max(0,Math.min(1200,preferences.getInt("second-wallpaper-fade",600)))/100*100;}
+    void homeWallpaperFade(int millis){preferences.edit().putInt("home-wallpaper-fade",Math.max(0,Math.min(1200,millis))/100*100).apply();}
+    void secondWallpaperFade(int millis){preferences.edit().putInt("second-wallpaper-fade",Math.max(0,Math.min(1200,millis))/100*100).apply();}
     boolean showButtons(){return preferences.getBoolean("show-buttons",true);}
     boolean showInput(){return preferences.getBoolean("show-input",showButtons());}
     boolean showNetwork(){return preferences.getBoolean("show-network",showButtons());}

@@ -143,14 +143,16 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     LinearLayout toolbar(int selected){
         HorizontalScrollView navigation=new HorizontalScrollView(this);navigation.setFocusable(false);navigation.setHorizontalScrollBarEnabled(false);navigation.setFillViewport(true);
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,px(54));p.topMargin=px(22);root.addView(navigation,p);
-        LinearLayout tools=row();navigation.addView(tools,new HorizontalScrollView.LayoutParams(-2,-1));
+        boolean fit=((AppManagementActivity)this).chinese();
+        LinearLayout tools=row();navigation.addView(tools,new HorizontalScrollView.LayoutParams(fit?-1:-2,-1));
         for(int i:MANAGEMENT_ORDER){
             Button tab=button(SettingsPages.title(i,((AppManagementActivity)this).chinese()),()->{});managementTab(tab,i,selected,header.getChildAt(0));
-            LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(-2,px(36));tp.rightMargin=px(12);tools.addView(tab,tp);
+            if(fit){tab.setMinWidth(0);tab.setMinimumWidth(0);tab.setPadding(px(8),0,px(8),0);}
+            LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(fit?0:-2,px(36),fit?1:0);tp.rightMargin=i==MANAGEMENT_ORDER[MANAGEMENT_ORDER.length-1]?0:px(fit?6:12);tools.addView(tab,tp);
             tab.setOnFocusChangeListener((v,focused)->{if(focused)navigation.post(()->{Rect bounds=new Rect();tab.getDrawingRect(bounds);tab.requestRectangleOnScreen(bounds,false);});});
         }
         managementHeader();
-        tools.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));
+        if(!fit)tools.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));
         View line=new View(this);line.setBackgroundColor(0x18ffffff);root.addView(line,new LinearLayout.LayoutParams(-1,px(1)));return tools;
     }
     void managementTab(Button tab,int page,int selected,View back){

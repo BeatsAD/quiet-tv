@@ -10,7 +10,7 @@
 python3 agent_session.py start --serial "$TV_SERIAL" --user "$TV_USER" --intent setup --session "$NEW_SESSION_DIR" --bundle "$BUNDLE_DIR/latest.json"
 ```
 
-setup对应默认安装／升级／修复，其余意图为update、repair、restore、inspect。不提供独立试用意图；trial仅是install路线内部的基础检查阶段。意图限制路线，路线限制动作，不代替具体授权。源码工作区使用scripts/agent_session.py，可省略--bundle；专用包通过--package沿用实际包名。
+setup对应默认安装／升级／修复，其余意图为update、repair、restore、inspect、boot-ads。boot-ads仅用于用户明确选择的开机广告处理或原记录恢复，不要求先安装或接管桌面。官方客服路线不强求ADB，见[开机广告](boot-ads.md)。不提供独立试用意图；trial仅是install路线内部的基础检查阶段。意图限制路线，路线限制动作，不代替具体授权。源码工作区使用scripts/agent_session.py，可省略--bundle；专用包通过--package沿用实际包名。
 
 新任务目录的父目录须存在，目录本身不得存在。保存 `session.json`、`summary.json`、设备基线以及工具和说明的 SHA-256。初始查询不启动应用；包状态或 HOME 不可读取时记未知，不假装未安装。任务摘要不是应用数据备份，也不替代原始恢复记录。
 
@@ -24,6 +24,7 @@ Agent依据用户目标和只读结果执行plan，用户不选择技术参数�
 | update | apk、preservation | 仅兼容覆盖，不能调其他工具重新接管 |
 | repair | repair | 按issue定位；home／adb用对应配置，inputs用输入配置，remote用逐键校准，其他问题先取证 |
 | restore | physical_home、recovery | 暂停和依原记录恢复，不安装、不启用守护 |
+| boot-ads | ad_configuration、ad_reboot、ad_cold_boot、ad_wake、ad_recovery | 仅boot_ads的单项预览、执行及原记录恢复；电源场景按授权测试，不允许通用应用精简 |
 | inspect／noop | inspection | 只读；noop不启动安装器 |
 
 setup可按现场选择上述路线，恢复必须有restore意图。仅更新只能选择update／noop／inspect，其他专用意图同理。升级、修复、setup下的noop须先确认当前用户可用安装。缺失结果保持只读，不当作未安装。
