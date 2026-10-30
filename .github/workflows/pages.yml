@@ -21,6 +21,7 @@ on:
       - scripts/device_maintenance.py
       - scripts/device_selftest.py
       - scripts/device_adaptation.py
+      - scripts/home_capabilities.py
       - scripts/vendor_adaptation.py
       - scripts/device-presets.json
       - updates/updates.json
