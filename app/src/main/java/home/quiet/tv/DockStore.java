@@ -9,8 +9,10 @@ import java.util.*;
 /** An explicit empty array is a user choice and must never re-import bundled defaults. */
 final class DockStore {
     static final int CAPACITY = 5;
+    private final Context context;
     private final SharedPreferences preferences;
     DockStore(Context context){
+        this.context=context;
         preferences=context.getSharedPreferences("dock",0);
         if(!preferences.contains("packages")){
             try(InputStream input=context.getAssets().open("launcher.json");ByteArrayOutputStream output=new ByteArrayOutputStream()){
@@ -25,6 +27,11 @@ final class DockStore {
             for(int i=0;i<saved.length();i++)result.add(saved.getString(i));
             ArrayList<String> unified=HomeAppCatalog.unifiedSettingsEntries(result);if(!unified.equals(result))preferences.edit().putString("packages",new JSONArray(unified).toString()).apply();return unified;
         }catch(JSONException e){throw new IllegalStateException("Invalid saved Dock",e);}
+    }
+    // Keep raw preferences until an explicit edit; missing or hidden entries consume no slot.
+    ArrayList<String> loadAvailable(){
+        ArrayList<String> pinned=load();
+        return HomeAppCatalog.pinnedIds(new HomeAppCatalog(context).load(pinned),pinned);
     }
     void save(List<String> packages){
         if(packages.size()>CAPACITY || new HashSet<>(packages).size()!=packages.size())throw new IllegalArgumentException("Dock 最多 "+CAPACITY+" 个且不能重复");

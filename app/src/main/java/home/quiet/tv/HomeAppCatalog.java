@@ -80,6 +80,13 @@ final class HomeAppCatalog {
             && (component==PackageManager.COMPONENT_ENABLED_STATE_DEFAULT?activity.enabled:component==PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
             && (activity.permission==null || pm.checkPermission(activity.permission,context.getPackageName())==PackageManager.PERMISSION_GRANTED);
     }
+    /** Project saved positions onto the same available entries used to draw HOME. */
+    static ArrayList<String> pinnedIds(List<Entry> entries,List<String> pinned){
+        HashSet<String> available=new HashSet<>();for(Entry entry:entries)available.add(entry.id);
+        ArrayList<String> result=new ArrayList<>();
+        for(String id:pinned)if(available.contains(id)&&!result.contains(id))result.add(id);
+        return result;
+    }
     static ArrayList<String> gridIds(List<Entry> entries,List<String> pinned){
         ArrayList<String> ids=new ArrayList<>();for(Entry entry:entries)if(!pinned.contains(entry.id))ids.add(entry.id);return ids;
     }
