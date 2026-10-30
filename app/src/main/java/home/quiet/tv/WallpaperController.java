@@ -84,7 +84,7 @@ final class WallpaperController {
         this.activity=activity;this.root=root;this.homeUnit=unit;this.unit=unit*960f/1040f;this.ui=new WallpaperUi(activity,this.unit);this.chinese=chinese;store=WallpaperStore.get(activity);screensavers=ScreensaverStore.get(activity);uploads=new WallpaperUploadPanel(activity,store,chinese);
         backdropCache=new WallpaperBackdropCache(activity);daily=new DailyWallpaperController(activity,store,chinese,this::dailyChanged);
         FrameLayout background=new FrameLayout(activity);root.addView(background,new FrameLayout.LayoutParams(-1,-1));
-        video=new VideoWallpaperPlayer(activity,background,true);
+        video=new VideoWallpaperPlayer(activity,background);
         current=image();current.setBackgroundColor(Color.BLACK);incoming=image();incoming.setAlpha(0f);background.addView(current,new FrameLayout.LayoutParams(-1,-1));background.addView(incoming,new FrameLayout.LayoutParams(-1,-1));
         shade=new View(activity);shade.setBackgroundDrawable(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x70000000,0x10000000,0xf00a0e15}));background.addView(shade,new FrameLayout.LayoutParams(-1,-1));
         ambient=new Ambient(activity,homeUnit);ambient.colorChanged=this::invalidateDock;background.addView(ambient,new FrameLayout.LayoutParams(-1,-1));ambient.setColor(themeColor);ambient.setVisibility(View.VISIBLE);
@@ -198,15 +198,17 @@ final class WallpaperController {
         if(current.getDrawable()==null&&ambient.getVisibility()!=View.VISIBLE){ambient.setVisibility(View.VISIBLE);ambient.setColor(themeColor);shade.setVisibility(View.INVISIBLE);}
         // A native Surface is independent of the cover. Submit the opaque cover before changing it.
         // Covered/paused windows may not draw; they must never hold up navigation or decoder release.
-        if(!awaitFrame||!active||!root.isShown()||!root.hasWindowFocus()||root.getWindowVisibility()!=View.VISIBLE){action.run();return;}
+        boolean previewVisible=picker!=null&&picker.isShowing();
+        if(!awaitFrame||!active||!root.isShown()||(!root.hasWindowFocus()&&!previewVisible)||root.getWindowVisibility()!=View.VISIBLE){action.run();return;}
         final int version=videoRequest;
         pendingCover=()->{cancelCover();if(version==videoRequest&&!destroyed)action.run();};
+        DiagnosticLog.info("wallpaper.video.cover","transition="+version+" phase=awaiting_frame alpha=1");
         Runnable pending=pendingCover;coverTree=root.getViewTreeObserver();
         if(Build.VERSION.SDK_INT>=29&&root.isHardwareAccelerated()){
-            coverCommit=()->main.post(()->{if(pendingCover==pending)pending.run();});
+            coverCommit=()->main.post(()->{if(pendingCover==pending){DiagnosticLog.info("wallpaper.video.cover","transition="+version+" phase=frame_submitted evidence=frame_commit_callback");pending.run();}});
             coverTree.registerFrameCommitCallback(coverCommit);
         }else{
-            coverDraw=UiCompat.onDraw(root,()->androidx.core.view.ViewCompat.postOnAnimation(root,()->{if(pendingCover==pending)pending.run();}));
+            coverDraw=UiCompat.onDraw(root,()->androidx.core.view.ViewCompat.postOnAnimation(root,()->{if(pendingCover==pending){DiagnosticLog.info("wallpaper.video.cover","transition="+version+" phase=draw_callback evidence=draw_then_animation_not_presentation");pending.run();}}));
         }
         root.invalidate();
     }
@@ -219,14 +221,15 @@ final class WallpaperController {
         coverTree=null;coverDraw=null;coverCommit=null;
     }
     void windowFocusChanged(boolean focused){
-        if(!focused&&pendingCover!=null)pendingCover.run();
+        if(!focused&&pendingCover!=null&&(picker==null||!picker.isShowing())){DiagnosticLog.info("wallpaper.video.cover","transition="+videoRequest+" phase=window_obscured evidence=state_only");pendingCover.run();}
         if(focused&&active&&restoreDesktopPending){restoreDesktopPending=false;restoreSelected();}
         if(focused&&pendingVideoStart!=null){Runnable start=pendingVideoStart;pendingVideoStart=null;start.run();}
         if(focused&&active&&video.ready()&&videoFade==null&&current.getAlpha()>0f)revealVideo(videoRequest);
     }
     private void cancelVideoFade(){if(videoFade!=null){videoFade.cancel();videoFade.removeAllUpdateListeners();videoFade=null;}}
     private void revealVideo(int version){
-        if(!active||destroyed||!root.isShown()||(!root.hasWindowFocus()&&(picker==null||!picker.isShowing())))return;
+        if(version!=videoRequest||!video.ready()||!active||destroyed||!root.isShown()||(!root.hasWindowFocus()&&(picker==null||!picker.isShowing())))return;
+        DiagnosticLog.info("wallpaper.video.cover","transition="+version+" phase=reveal_requested evidence=ready_callbacks_only");
         cancelVideoFade();videoFade=ValueAnimator.ofFloat(current.getAlpha(),0f);videoFade.setDuration(200);
         videoFade.addUpdateListener(a->{if(version==videoRequest&&active&&!destroyed)current.setAlpha((float)a.getAnimatedValue());});videoFade.start();
     }
