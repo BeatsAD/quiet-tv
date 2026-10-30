@@ -124,7 +124,14 @@ final class WallpaperController {
     private void invalidateDock(){if(dockInvalidation!=null)dockInvalidation.run();if(wallpaperBlur!=null)wallpaperBlur.invalidate();}
     void setDesktopBlur(int amount){desktopBlur=amount;updateDesktopEffects();}
     void setDesktopAppearance(int brightness,int fade){desktopBrightness=brightness;desktopFade=fade;updateDesktopEffects();}
-    private void updateDesktopEffects(){boolean separate=temporaryMedia!=null||picker!=null;wallpaperBlur.amount(separate?0:desktopBlur);appearance.brightness(separate?100:desktopBrightness);if(separate){fadePending=false;appearance.finish();}}
+    private boolean compositeVideo(){return temporaryMedia==null&&picker==null&&desktopBlur>0;}
+    private void updateDesktopEffects(){
+        boolean separate=temporaryMedia!=null||picker!=null;wallpaperBlur.amount(separate?0:desktopBlur);appearance.brightness(separate?100:desktopBrightness);if(separate){fadePending=false;appearance.finish();}
+        boolean composite=compositeVideo();
+        if(video.outputModeChanges(composite)&&video.visible()&&active)withCover(this::applyVideoOutput);
+        else video.setCompositeOutput(composite);
+    }
+    private void applyVideoOutput(){video.setCompositeOutput(compositeVideo());if(video.ready())revealVideo(videoRequest);}
     private int fadeDuration(int original){return temporaryMedia!=null||picker!=null?original:desktopFade;}
     private void revealDesktop(boolean changed){if(!active||temporaryMedia!=null||picker!=null)return;if(fadePending||changed){fadePending=false;appearance.fadeIn(desktopFade);}}
     void drawDockBackground(Canvas canvas,Paint paint){
@@ -444,6 +451,7 @@ final class WallpaperController {
             if(covered!=null)covered.run();
             Runnable start=()->withCover(()->{
                 if(version!=videoRequest||!active||destroyed)return;
+                video.setCompositeOutput(compositeVideo());
                 video.play(entry,new VideoWallpaperPlayer.Listener(){
                     @Override public void stopped(){if(version==videoRequest){cancelVideoFade();current.setAlpha(1f);}}
                     @Override public void ready(){
