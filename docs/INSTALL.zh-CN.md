@@ -37,7 +37,7 @@ sdk.dir=/absolute/path/to/your/android-sdk
 python3 scripts/build_apk.py --batch --universal-only --build-number "$FIRST_BUILD_NUMBER" --variant benchmark --summary "说明本次构建的修改"
 ```
 
-脚本固定源码提交，依次构建标准通用包和安卓4.0至4.4通用包，检查版本、签名及两包均无原生库；存在原生库架构差异时，省略 `--universal-only` 构建标准 ARM32、ARM64、通用及一个 legacy14 包。在 `dist/apk/` 生成不可变 APK、同名 SHA-256、JSON 和批次清单。后续交付名称须包含软件版本、构建号、适用系统和发布状态，历史名称保留；脚本不安装电视或上传发布。`benchmark` 使用测试签名，不是正式包。本轮按维护者要求在1.3.0内累加修复，增加构建号并使用新文件名；已装1.3.0需手动下载覆盖安装，详见[版本规则](VERSIONING.md)。
+脚本固定源码提交，依次构建标准通用包和安卓4.0至4.4通用包，检查版本、签名及两包均无原生库；存在原生库架构差异时，省略 `--universal-only` 构建标准 ARM32、ARM64、通用及一个 legacy14 包。在 `dist/apk/` 生成不可变 APK、同名 SHA-256、JSON 和批次清单。后续主程序名称包含软件版本、适用系统和发布状态，不含构建号；构建号继续写入 APK 内部及 JSON，`public_apk` 记录英文公开名，历史名称保留；脚本不安装电视或上传发布。`benchmark` 使用测试签名，不是正式包。同版本、系统、架构和状态已归档不同内容时，须同时增加软件版本号和内部构建号，详见[版本规则](VERSIONING.md)。
 
 仅构建标准单包可省略 `--batch`，指定 `--abi armeabi-v7a`、`arm64-v8a` 或 `universal`；最低 API 默认21，可按实际适配选择23、26或31。
 

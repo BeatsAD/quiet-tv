@@ -202,3 +202,10 @@ The current version shares a callable app catalog across Home, sorting and favor
 Files / USB imports a selected image or video into app storage before preview and application; originals are unchanged and USB can be removed after a successful import. The system picker is preferred. Older systems can browse readable storage with permission if no picker exists; newer systems require a system file grant, with LAN upload still available. Video wallpaper sound is off by default, persists when changed, and stops when leaving Home or turning the screen off.
 
 Parent verification starts automatically after six digits. Creating or resetting a password still requires confirmation. Parents save their recovery code separately; the forgotten-password flow only accepts an existing code, and viewing the stored code requires parent verification. Timer rules can be saved before the accessibility service is ready, with an explicit inactive status. Entering the service configuration page does not enable the service. On-device expiry enforcement remains a separate validation step.
+
+
+## Automatic input discovery (development source)
+
+The Home Inputs button detects registered inputs and callable native input panels without asking for a TV model. With no standard inputs, it chooses a ready native route from the compatibility table. A native picker does not establish direct access to a particular HDMI port. Android 4.x checks native panels without invoking the API21 input framework.
+
+Failures distinguish unavailable services, empty lists, hidden/filtered entries, read restrictions/errors, and missing, disabled or restricted native entries. Detect again is explicit; there is no repeated launch, permission change or component enabling. See [compatibility](COMPATIBILITY.md#信号源自动发现与原厂入口开发源码) for route provenance and the target-TV acceptance boundary.
