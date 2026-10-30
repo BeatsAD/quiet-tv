@@ -13,6 +13,23 @@ from install_tcl import manifest_home_mode
 ROOT = Path(__file__).resolve().parents[1]
 ABIS = ('universal', 'arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64')
 COMPATIBILITY = ('standard', 'legacy14', 'legacy19')
+SYSTEM_LABELS = {
+    14: ('安卓4.0-4.4', 'Android4.0-4.4'),
+    19: ('安卓4.4', 'Android4.4'),
+    21: ('安卓5.0及以上', 'Android5.0AndAbove'),
+    23: ('安卓6.0及以上', 'Android6.0AndAbove'),
+    26: ('安卓8.0及以上', 'Android8.0AndAbove'),
+    31: ('安卓12.0及以上', 'Android12.0AndAbove'),
+}
+
+
+def apk_names(version, min_sdk, packaged_abis, home_mode='standard'):
+    abi_names = {'armeabi-v7a': 'ARM32', 'arm64-v8a': 'ARM64', 'x86': 'x86', 'x86_64': 'x86_64'}
+    architecture = abi_names[packaged_abis[0]] if len(packaged_abis) == 1 else ''
+    suffix = '_' + architecture if architecture else ''
+    statuses = ('实验版', 'Experimental') if home_mode == 'relay' else ('测试版', 'Test')
+    return tuple(f'QuietTV_{version}_{system}{suffix}_{status}.apk'
+                 for system, status in zip(SYSTEM_LABELS[min_sdk], statuses))
 
 
 def source_digest():
@@ -59,25 +76,45 @@ def manifest_info(apk):
             'min_sdk': int(found[1]), 'target_sdk': int(target[1])}
 
 
-def used_build_numbers(archive_dir=None):
+def archive_folders(archive_dir=None):
     if archive_dir is not None:
-        folders = [Path(archive_dir)]
-    else:
-        worktrees = subprocess.check_output(['git', 'worktree', 'list', '--porcelain'], cwd=ROOT, text=True)
-        folders = [Path(line[9:]) / 'dist/apk' for line in worktrees.splitlines() if line.startswith('worktree ')]
+        return [Path(archive_dir)]
+    worktrees = subprocess.check_output(['git', 'worktree', 'list', '--porcelain'], cwd=ROOT, text=True)
+    return [Path(line[9:]) / 'dist/apk' for line in worktrees.splitlines() if line.startswith('worktree ')]
+
+
+def used_build_numbers(archive_dir=None):
     numbers = []
-    for folder in folders:
+    for folder in archive_folders(archive_dir):
         if not folder.exists():
             continue
         for path in folder.rglob('*.apk'):
             match = re.match(r'(?:quiet-tv_[^_]+_b(\d+)_|QuietTV_\d+\.\d+\.\d+-(\d+)_)', path.name)
             if match:
                 numbers.append(int(next(value for value in match.groups() if value is not None)))
+            elif re.match(r'QuietTV_\d+\.\d+\.\d+_', path.name):
+                receipt = path.with_suffix('.json')
+                record = json.loads(receipt.read_text()) if receipt.is_file() else {}
+                if record.get('application_id') != 'home.quiet.tv' or not isinstance(record.get('version_code'), int) or record['version_code'] < 1:
+                    raise ValueError(f'无构建号文件名的归档缺少有效构建号元数据：{path}')
         for path in folder.rglob('*.json'):
             record = json.loads(path.read_text())
             if record.get('application_id') == 'home.quiet.tv' and 'version_code' in record:
                 numbers.append(int(record['version_code']))
     return numbers
+
+
+def check_delivery_version(actual, packaged_abis, status, sha256, archive_dir=None):
+    # Historical names also occupy the same version/system/ABI/status slot.
+    identity = {key: actual[key] for key in ('application_id', 'version_name', 'min_sdk')}
+    for folder in archive_folders(archive_dir):
+        for path in folder.rglob('*.json'):
+            record = json.loads(path.read_text())
+            previous_status = record.get('status', '实验版' if record.get('home_mode') == 'relay' else '测试版')
+            if (all(record.get(key) == value for key, value in identity.items())
+                    and record.get('packaged_abis') == packaged_abis and previous_status == status
+                    and record.get('sha256') != sha256):
+                raise FileExistsError(f'同版本、系统、架构和状态已有不同内容，请增加软件版本号：{path}')
 
 
 def archive_apk(summary, built_at=None, output_dir=None, abi='universal', archive_dir=None, min_sdk=21, production_digest=None, compatibility='standard', home_mode='standard'):
@@ -105,26 +142,25 @@ def archive_apk(summary, built_at=None, output_dir=None, abi='universal', archiv
         raise ValueError('归档仅支持三段版本号及正整数构建号的 Quiet TV 主程序')
     if compatibility not in COMPATIBILITY or (compatibility == 'legacy14' and min_sdk != 14) or (compatibility == 'legacy19' and min_sdk != 19) or (compatibility == 'standard' and min_sdk < 21):
         raise ValueError('兼容档位与 APK 最低系统不符')
-    system = {14: '安卓4.0至4.4', 19: '安卓4.4', 21: '安卓5及以上', 23: '安卓6及以上', 26: '安卓8及以上', 31: '安卓12及以上'}[min_sdk]
-    abi_names = {'armeabi-v7a': 'ARM32', 'arm64-v8a': 'ARM64', 'x86': 'x86', 'x86_64': 'x86_64'}
-    architecture = abi_names[packaged_abis[0]] if len(packaged_abis) == 1 else ''
-    suffix = '_' + architecture if architecture else ''
+    system = SYSTEM_LABELS[min_sdk][0]
     status = '实验版' if home_mode == 'relay' else '测试版'
-    name = f"QuietTV_{actual['version_name']}-{actual['version_code']}_{system}{suffix}_{status}.apk"
-    public_name = name
+    name, public_name = apk_names(actual['version_name'], min_sdk, packaged_abis, home_mode)
     destination = Path(archive_dir or ROOT / 'dist/apk') / name
     receipt = destination.with_suffix('.json')
     checksum = destination.with_name(destination.name + '.sha256')
     checksum_text = f'{sha256}  {name}\n'
     if destination.exists():
-        if (hashlib.sha256(destination.read_bytes()).hexdigest() == sha256 and receipt.exists()
-                and json.loads(receipt.read_text())['sha256'] == sha256
+        previous = json.loads(receipt.read_text()) if receipt.is_file() else {}
+        if (hashlib.sha256(destination.read_bytes()).hexdigest() == sha256
+                and previous.get('sha256') == sha256 and previous.get('public_apk') == public_name
+                and all(previous.get(key) == value for key, value in actual.items())
                 and checksum.exists() and checksum.read_text() == checksum_text):
             print(f'复用已归档安装包：{destination}')
             return destination
-        raise FileExistsError(f'归档名称已占用，请使用新的递增构建号：{destination}')
+        raise FileExistsError(f'归档名称已占用，请增加软件版本号：{destination}')
     if receipt.exists() or checksum.exists():
-        raise FileExistsError(f'归档记录已存在，请使用新的递增构建号：{receipt}')
+        raise FileExistsError(f'归档记录已存在，请核对原件；不同内容须增加软件版本号：{receipt}')
+    check_delivery_version(actual, packaged_abis, status, sha256, archive_dir)
     used = used_build_numbers(archive_dir)
     if used and actual['version_code'] <= max(used):
         raise ValueError(f'新包构建号必须高于已归档的 {max(used)}')

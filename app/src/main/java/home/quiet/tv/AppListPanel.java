@@ -177,7 +177,7 @@ final class AppListPanel extends ManagementPanel {
             try{
                 HomeVisibilityStore visibility=new HomeVisibilityStore(this);
                 if(!visibility.hidden(app.pkg)||new ChildModeStore(this).hidden(app.pkg)||!AppAvailability.installed(getPackageManager(),getPackageManager().getApplicationInfo(app.pkg,0)))result="应用状态已变化，请刷新后重试";
-                else{boolean full=visibility.wasPinned(app.pkg)&&new DockStore(this).load().size()>=DockStore.CAPACITY;
+                else{boolean full=visibility.wasPinned(app.pkg)&&new DockStore(this).loadAvailable().size()>=DockStore.CAPACITY;
                     result=visibility.restore(app.pkg)?full?"已恢复到第二屏，首页已满":"已恢复显示":"保存失败，请重试";}
             }catch(Exception e){result="无法恢复显示，请重试";}
             String outcome=result;ui(()->{busy=false;dirty=true;if(active){applyFilter();focusList();feedback(outcome);}});

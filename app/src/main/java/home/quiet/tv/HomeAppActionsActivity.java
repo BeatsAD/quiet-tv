@@ -86,9 +86,9 @@ public final class HomeAppActionsActivity extends ManagementUi {
     private void changed(String focus){setResult(RESULT_OK,new Intent().putExtra("action","changed").putExtra("package",focus));finish();}
     private void failure(String message){content("notice","未完成");box.addView(muted(message,14));Button close=option("返回",R.drawable.ic_manage_back,this::handleBack);show(400,close,false);}
     private void hide(){if(!protection().isEmpty()||!new ChildModeStore(this).eligible(pkg)){failure("此应用必须保留");return;}if(new HomeVisibilityStore(this).hide(pkg)){Toast.makeText(this,"已隐藏，可在“应用管理 → 隐藏应用”中恢复",Toast.LENGTH_SHORT).show();changed("");}else failure("保存失败，请重试");}
-    private void unpin(){ArrayList<String> values=new DockStore(this).load();values.remove(pkg);if(new DockStore(this).saveOrder(values))changed("");else failure("保存失败，请重试");}
+    private void unpin(){ArrayList<String> values=new DockStore(this).loadAvailable();values.remove(pkg);if(new DockStore(this).saveOrder(values))changed("");else failure("保存失败，请重试");}
     private void pin(String id){
-        ArrayList<String> values=new DockStore(this).load();
+        ArrayList<String> values=new DockStore(this).loadAvailable();
         if(!available(id)){failure("应用状态已变化，请重新选择");return;}
         if(values.contains(id)){changed(id);return;}
         candidate=id;if(values.size()>=DockStore.CAPACITY){positions();return;}
@@ -121,15 +121,15 @@ public final class HomeAppActionsActivity extends ManagementUi {
         if(choices.isEmpty())box.addView(center("暂无可添加的应用",16));Button cancel=option("取消",0,()->{if(pickerFromMenu)menu();else finish();});show(700,first==null?cancel:first,false);
     }
     private void select(String id){
-        if(!available(id)||new DockStore(this).load().contains(id)){failure("应用状态已变化，请重新选择");return;}
+        if(!available(id)||new DockStore(this).loadAvailable().contains(id)){failure("应用状态已变化，请重新选择");return;}
         if(!pickerMode.equals("replace")){pin(id);return;}
-        ArrayList<String> values=new DockStore(this).load();int index=values.indexOf(pkg);if(index<0){failure("原位置已变化，请重新选择");return;}
+        ArrayList<String> values=new DockStore(this).loadAvailable();int index=values.indexOf(pkg);if(index<0){failure("原位置已变化，请重新选择");return;}
         values.set(index,id);if(new DockStore(this).saveOrder(values))changed(id);else failure("保存失败，请重试");
     }
     private void positions(){
         content("positions","选择替换位置");box.addView(muted("首页已满，被替换的应用将回到第二屏",14));Button first=null;
-        for(String target:new DockStore(this).load()){if(new ChildModeStore(this).hidden(target))continue;Button choice=option(name(target),0,()->{
-            ArrayList<String> values=new DockStore(this).load();int index=values.indexOf(target);
+        for(String target:new DockStore(this).loadAvailable()){Button choice=option(name(target),0,()->{
+            ArrayList<String> values=new DockStore(this).loadAvailable();int index=values.indexOf(target);
             if(index<0||!available(candidate)||values.contains(candidate)){failure("应用状态已变化，请重新选择");return;}
             values.set(index,candidate);if(new DockStore(this).saveOrder(values))changed(candidate);else failure("保存失败，请重试");
         });if(first==null)first=choice;}

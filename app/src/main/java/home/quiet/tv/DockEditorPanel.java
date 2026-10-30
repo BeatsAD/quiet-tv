@@ -27,10 +27,10 @@ final class DockEditorPanel extends ManagementPanel {
     private long coverRevision=-1,childRevision=-1;
     DockEditorPanel(AppManagementActivity activity){super(activity);}
     @Override public void onCreate(Bundle state){
-        super.onCreate(state);store=new DockStore(this);packages=store.load();lastSaved=new ArrayList<>(packages);
+        super.onCreate(state);store=new DockStore(this);packages=store.loadAvailable();lastSaved=new ArrayList<>(packages);
         content=managementContent();description=managementHint("");managementInfo.addView(description,new LinearLayout.LayoutParams(-1,-1));
     }
-    @Override protected void onResume(){super.onResume();ArrayList<String> latest=store.load();long covers=AppCoverStore.get(this).revision(),children=new ChildModeStore(this).revision();if(slots.isEmpty()||!latest.equals(packages)||covers!=coverRevision||children!=childRevision){coverRevision=covers;childRevision=children;packages=latest;lastSaved=new ArrayList<>(latest);artworkGeneration++;artwork.clear();render(0);}}
+    @Override protected void onResume(){super.onResume();ArrayList<String> latest=store.loadAvailable();long covers=AppCoverStore.get(this).revision(),children=new ChildModeStore(this).revision();if(slots.isEmpty()||!latest.equals(packages)||covers!=coverRevision||children!=childRevision){coverRevision=covers;childRevision=children;packages=latest;lastSaved=new ArrayList<>(latest);artworkGeneration++;artwork.clear();render(0);}}
     @Override protected void onPause(){if(moving)cancelMove();super.onPause();}
     @Override protected void onDestroy(){worker.shutdown();super.onDestroy();}
     @Override void focusManagementContent(){if(!slots.isEmpty())slots.get(0).requestFocus();}

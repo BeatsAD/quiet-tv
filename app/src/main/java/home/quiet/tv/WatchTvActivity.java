@@ -51,7 +51,7 @@ public final class WatchTvActivity extends ManagementUi {
     private void save(Write operation){try{operation.run();render();}catch(Exception failure){message(failure.getMessage());}}
     private boolean shortcutOnHome(){return store.showWatch()&&new DockStore(this).load().contains(HomeAppCatalog.WATCH_TV);}
     private void addShortcut(){
-        ArrayList<String> pinned=new DockStore(this).load();
+        ArrayList<String> pinned=new DockStore(this).loadAvailable();
         if(pinned.contains(HomeAppCatalog.WATCH_TV)){save(()->store.showWatch(true));return;}
         if(pinned.size()<DockStore.CAPACITY){ArrayList<String> next=new ArrayList<>(pinned);next.add(0,HomeAppCatalog.WATCH_TV);saveShortcut(next);return;}
         Sheet sheet=new Sheet("选择首页位置");sheet.text("首页已有五项。选择要替换的位置，原应用仍保留在应用列表。");
