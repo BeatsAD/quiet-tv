@@ -19,6 +19,7 @@ final class HomePreviewView extends FrameLayout {
     private final ImageView wallpaper;
     private final View shade;
     private final WallpaperBlur wallpaperBlur;
+    private final WallpaperAppearance appearance;
     private Bitmap dockBackground;
     private final DockBackdropDrawable dockSurface;
     private final Typeface typeface;
@@ -39,17 +40,20 @@ final class HomePreviewView extends FrameLayout {
         shade=new View(context);shade.setBackgroundDrawable(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x70000000,0x10000000,0xf00a0e15}));background.addView(shade,new FrameLayout.LayoutParams(-1,-1));
         ambient=new WallpaperController.Ambient(context,1);background.addView(ambient,new FrameLayout.LayoutParams(-1,-1));ambient.setColor(0xff666972);
         wallpaperBlur=new WallpaperBlur(background,(width,height)->WallpaperBlur.snapshot(width,height,null,wallpaper,shade,ambient));
+        appearance=new WallpaperAppearance(background,this::invalidateDock);
         typeface=!chinese&&Build.VERSION.SDK_INT>=26?Typeface.createFromAsset(context.getAssets(),"fonts/outfit.ttf"):Typeface.create("sans-serif",Typeface.NORMAL);
         header=new HomeHeaderView(context,1,chinese,typeface);scene.addView(header,new FrameLayout.LayoutParams(-1,-1));
         title=new TextView(context);title.setTextColor(0xfff1f2f6);title.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,40);title.setIncludeFontPadding(false);title.setGravity(Gravity.CENTER_VERTICAL);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);place(title,820,56,50,314);
         band=new FrameLayout(context);dockSurface=new DockBackdropDrawable(this::drawWallpaper,band,scene,1);band.setBackgroundDrawable(dockSurface);ambient.colorChanged=()->{band.invalidate();for(int i=0;i<band.getChildCount();i++)band.getChildAt(i).invalidate();wallpaperBlur.invalidate();};place(band,864,114,48,386);refresh();
     }
     private void place(View v,int width,int height,int x,int y){FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(width,height);p.leftMargin=x;p.topMargin=y;scene.addView(v,p);}
+    private void invalidateDock(){if(band!=null){band.invalidate();for(int i=0;i<band.getChildCount();i++)band.getChildAt(i).invalidate();}}
     @Override protected void onMeasure(int width,int height){int w=MeasureSpec.getSize(width);setMeasuredDimension(w,Math.round(w*540f/960f));scene.measure(MeasureSpec.makeMeasureSpec(960,MeasureSpec.EXACTLY),MeasureSpec.makeMeasureSpec(540,MeasureSpec.EXACTLY));}
     @Override protected void onSizeChanged(int w,int h,int ow,int oh){scene.setScaleX(w/960f);scene.setScaleY(w/960f);if(active&&w>0)loadLocalScene();}
     void refresh(){
         DesktopSettingsStore settings=new DesktopSettingsStore(getContext());
         wallpaperBlur.amount(settings.homeWallpaperBlur());
+        appearance.brightness(settings.homeWallpaperBrightness());
         title.setVisibility(settings.showHomeApps()&&settings.showAppTitle()?VISIBLE:GONE);band.setVisibility(settings.showHomeApps()?VISIBLE:GONE);band.setBackgroundDrawable(hasDockApps&&settings.showDockBackground()?dockSurface:null);
         header.updateClock(fixedGreeting);WeatherStore weather=new WeatherStore(getContext());WeatherData data=weather.enabled()?weather.cached(chinese):null;header.weather(data!=null&&data.usable(System.currentTimeMillis())?data:null);
         android.net.ConnectivityManager manager=(android.net.ConnectivityManager)getContext().getSystemService(Context.CONNECTIVITY_SERVICE);android.net.NetworkInfo network=manager==null?null:manager.getActiveNetworkInfo();
@@ -59,7 +63,8 @@ final class HomePreviewView extends FrameLayout {
         }}pill.setContentDescription(label);header.setPillIcon(pill,icon);
     }
     void resume(){if(active)return;active=true;wallpaperBlur.active(true);IntentFilter filter=new IntentFilter(Intent.ACTION_TIME_CHANGED);filter.addAction(Intent.ACTION_TIMEZONE_CHANGED);filter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);getContext().registerReceiver(changes,filter);tick.run();if(getWidth()>0)loadLocalScene();}
-    void pause(){if(!active)return;active=false;wallpaperBlur.active(false);++generation;getContext().unregisterReceiver(changes);main.removeCallbacks(tick);}
+    void pause(){if(!active)return;active=false;wallpaperBlur.active(false);appearance.finish();++generation;getContext().unregisterReceiver(changes);main.removeCallbacks(tick);}
+    void fadeIn(int millis){if(active)appearance.fadeIn(millis);}
     void destroy(){pause();wallpaperBlur.destroy();++generation;worker.shutdownNow();wallpaper.setImageDrawable(null);dockBackground=null;band.removeAllViews();}
     private void loadLocalScene(){
         final int request=++generation;final Context context=getContext();
@@ -90,6 +95,7 @@ final class HomePreviewView extends FrameLayout {
     private void drawWallpaper(Canvas canvas,Paint paint){
         canvas.drawColor(Color.BLACK);paint.setAlpha(255);paint.setShader(null);
         if(dockBackground==null)ambient.draw(canvas);else{canvas.drawBitmap(dockBackground,null,new RectF(0,0,960,540),paint);shade.draw(canvas);}
+        appearance.drawShade(canvas);
     }
     private View emptyCard(){return new View(getContext()){
         final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);final Path clip=new Path();final RectF rect=new RectF();final int[] location=new int[2],origin=new int[2];
