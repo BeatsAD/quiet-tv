@@ -7,6 +7,19 @@ import android.graphics.*;
 final class HomeEntryArtwork {
     static final int WALLPAPER_COLOR=0xff139d88,DESKTOP_COLOR=0xff205fdd,MANAGEMENT_COLOR=0xffe77821;
 
+    static Bitmap addFavorite(String title){
+        Bitmap bitmap=Bitmap.createBitmap(360,203,Bitmap.Config.ARGB_8888);
+        Canvas canvas=new Canvas(bitmap);Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
+        canvas.drawColor(0xff55565c);
+        paint.setColor(0x18ffffff);canvas.drawCircle(180,76,36,paint);
+        paint.setColor(Color.WHITE);paint.setStrokeWidth(4);paint.setStrokeCap(Paint.Cap.ROUND);
+        canvas.drawLine(166,76,194,76,paint);canvas.drawLine(180,62,180,90,paint);
+        paint.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));paint.setTextAlign(Paint.Align.CENTER);paint.setTextSize(30);
+        float width=paint.measureText(title);if(width>320)paint.setTextSize(30*320/width);
+        Paint.FontMetrics metrics=paint.getFontMetrics();canvas.drawText(title,180,154-(metrics.ascent+metrics.descent)/2,paint);
+        return bitmap;
+    }
+
     static Bitmap render(Context context,String title,boolean desktop){
         return render(context,title,desktop?HomeAppCatalog.DESKTOP_SETTINGS:HomeAppCatalog.MANAGEMENT);
     }
