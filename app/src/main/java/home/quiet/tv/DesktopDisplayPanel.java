@@ -16,6 +16,8 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
     private WeatherStore weatherStore;
     private GreetingEditorPanel greetingEditor;
     private HomePreviewView preview;
+    private TextView previewTitle;
+    private boolean previewSecond;
     private LinearLayout desktop;
     private ScrollView desktopScroll;
     private DesktopSettingsRow greeting,legacyHomeKey,keySounds;
@@ -26,7 +28,7 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
     private final Map<String,DisplayChoice> choices=new LinkedHashMap<>();
     private final android.os.Handler main=new android.os.Handler(android.os.Looper.getMainLooper());
     private final Runnable changed=this::refreshControls;
-    private final Runnable previewFade=()->{if(preview!=null&&showing)preview.fadeIn(desktopStore.homeWallpaperFade());};
+    private final Runnable previewFade=()->{if(preview!=null&&showing)preview.fadeIn(previewSecond?desktopStore.secondWallpaperFade():desktopStore.homeWallpaperFade());};
     DesktopDisplayPanel(AppManagementActivity activity){super(activity);}
     private String tr(String zh,String en){return activity.tr(zh,en);}
     @Override public void onCreate(Bundle state){
@@ -59,7 +61,7 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
         keySounds.setOnClickListener(v->{desktopStore.keySounds(!desktopStore.keySounds());refreshControls();});
         controls.addView(keySounds,new LinearLayout.LayoutParams(-1,px(48)));
         LinearLayout right=column();right.setGravity(Gravity.TOP);LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(0,-1,1);rp.leftMargin=px(24);desktop.addView(right,rp);
-        right.addView(section(tr("首页实时预览","Live Home preview")));gap(right,8);
+        previewTitle=section(tr("首页实时预览","Live Home preview"));right.addView(previewTitle);gap(right,8);
         preview=new HomePreviewView(this,chinese,fixedGreeting);preview.setBackgroundDrawable(surface(0xff0e0f13,0xff0e0f13,0x26ffffff,10));UiCompat.clipOutline(preview);right.addView(preview,new LinearLayout.LayoutParams(-1,-2));
         wireDesktop();refreshControls();
     }
@@ -80,7 +82,7 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
         line.addView(slider,new LinearLayout.LayoutParams(0,-1,1));TextView value=muted(fade?"0.0s":minimum+"%",12);value.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);line.addView(value,new LinearLayout.LayoutParams(px(34),-1));
         slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
             public void onProgressChanged(SeekBar bar,int amount,boolean fromUser){int actual=minimum+amount*scale;value.setText(fade?String.format(java.util.Locale.ROOT,"%.1fs",actual/1000f):String.format(java.util.Locale.ROOT,"%d%%",actual));if(fromUser)saveWallpaperSetting(second,property,actual);}
-            public void onStartTrackingTouch(SeekBar bar){}public void onStopTrackingTouch(SeekBar bar){}
+            public void onStartTrackingTouch(SeekBar bar){bar.requestFocus();showPreview(bar);}public void onStopTrackingTouch(SeekBar bar){}
         });
         slider.setOnKeyListener((v,key,event)->{
             if(key!=KeyEvent.KEYCODE_DPAD_LEFT&&key!=KeyEvent.KEYCODE_DPAD_RIGHT)return false;
@@ -91,18 +93,25 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
     private void saveWallpaperSetting(boolean second,String property,int value){
         if("blur".equals(property)){if(second)desktopStore.secondWallpaperBlur(value);else desktopStore.homeWallpaperBlur(value);}
         else if("brightness".equals(property)){if(second)desktopStore.secondWallpaperBrightness(value);else desktopStore.homeWallpaperBrightness(value);}
-        else{if(second)desktopStore.secondWallpaperFade(value);else desktopStore.homeWallpaperFade(value);if(!second){main.removeCallbacks(previewFade);main.postDelayed(previewFade,200);}}
+        else{if(second)desktopStore.secondWallpaperFade(value);else desktopStore.homeWallpaperFade(value);main.removeCallbacks(previewFade);main.postDelayed(previewFade,200);}
         if(preview!=null)preview.refresh();
     }
-    private void choice(LinearLayout parent,String key,String title){DisplayChoice b=new DisplayChoice(title);b.setTag("display-"+key);b.setOnClickListener(v->{boolean value=!b.isChecked();switch(key){case "greeting":desktopStore.greetingEnabled(value);break;case "time":desktopStore.showTime(value);break;case "date":desktopStore.showDate(value);break;case "app-title":desktopStore.showAppTitle(value);break;case "home-apps":desktopStore.showHomeApps(value);break;case "dock-background":desktopStore.showDockBackground(value);break;case "all-apps-names":desktopStore.showAllAppsNames(value);break;case "weather":weatherStore.enabled(value);activity.weatherSettingsChanged();break;case "input":desktopStore.showInput(value);break;case "network":desktopStore.showNetwork(value);break;case "settings":desktopStore.showSettings(value);break;}refreshControls();});choices.put(key,b);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-1,1);if(parent.getChildCount()>0)p.leftMargin=px(8);parent.addView(b,p);}
+    private void choice(LinearLayout parent,String key,String title){DisplayChoice b=new DisplayChoice(title);b.setTag("display-"+key);b.setOnClickListener(v->{showPreview(v);boolean value=!b.isChecked();switch(key){case "greeting":desktopStore.greetingEnabled(value);break;case "time":desktopStore.showTime(value);break;case "date":desktopStore.showDate(value);break;case "app-title":desktopStore.showAppTitle(value);break;case "home-apps":desktopStore.showHomeApps(value);break;case "dock-background":desktopStore.showDockBackground(value);break;case "all-apps-names":desktopStore.showAllAppsNames(value);break;case "weather":weatherStore.enabled(value);activity.weatherSettingsChanged();break;case "input":desktopStore.showInput(value);break;case "network":desktopStore.showNetwork(value);break;case "settings":desktopStore.showSettings(value);break;}refreshControls();});choices.put(key,b);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-1,1);if(parent.getChildCount()>0)p.leftMargin=px(8);parent.addView(b,p);}
     private void wireDesktop(){
         View[][] rows={{classic,gallery},{choices.get("greeting"),choices.get("time"),choices.get("app-title")},{choices.get("date"),choices.get("weather")},{greeting},{choices.get("home-apps"),choices.get("dock-background")},{homeBlur},{homeBrightness},{homeFade},{choices.get("all-apps-names")},{secondBlur},{secondBrightness},{secondFade},{choices.get("input"),choices.get("network"),choices.get("settings")},{keySounds}};
-        for(int r=0;r<rows.length;r++)for(int c=0;c<rows[r].length;c++){View v=rows[r][c];v.setNextFocusLeftId(rows[r][Math.max(0,c-1)].getId());v.setNextFocusRightId(rows[r][Math.min(rows[r].length-1,c+1)].getId());v.setNextFocusUpId(r==0?managementTab().getId():rows[r-1][Math.min(c,rows[r-1].length-1)].getId());v.setNextFocusDownId(r==rows.length-1?v.getId():rows[r+1][Math.min(c,rows[r+1].length-1)].getId());}
+        for(int r=0;r<rows.length;r++)for(int c=0;c<rows[r].length;c++){View v=rows[r][c];v.setOnFocusChangeListener((view,focused)->{if(focused)showPreview(view);});v.setNextFocusLeftId(rows[r][Math.max(0,c-1)].getId());v.setNextFocusRightId(rows[r][Math.min(rows[r].length-1,c+1)].getId());v.setNextFocusUpId(r==0?managementTab().getId():rows[r-1][Math.min(c,rows[r-1].length-1)].getId());v.setNextFocusDownId(r==rows.length-1?v.getId():rows[r+1][Math.min(c,rows[r+1].length-1)].getId());}
         if(legacyHomeKey!=null){
             View[] shortcuts=rows[rows.length-1];for(View v:shortcuts)v.setNextFocusDownId(legacyHomeKey.getId());
             legacyHomeKey.setNextFocusUpId(shortcuts[0].getId());legacyHomeKey.setNextFocusDownId(legacyHomeKey.getId());
             legacyHomeKey.setNextFocusLeftId(legacyHomeKey.getId());legacyHomeKey.setNextFocusRightId(legacyHomeKey.getId());
         }
+    }
+    private void showPreview(View control){
+        boolean second=control==choices.get("all-apps-names")||control==secondBlur||control==secondBrightness||control==secondFade;
+        if(preview==null||previewSecond==second)return;
+        main.removeCallbacks(previewFade);previewSecond=second;
+        previewTitle.setText(second?tr("第二屏实时预览","Live second-screen preview"):tr("首页实时预览","Live Home preview"));
+        preview.showSecondScreen(second);
     }
     private final class DisplayChoice extends KeyFeedback.Button implements Checkable {
         private boolean checked;
@@ -126,7 +135,7 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
     }
     private void remember(){View focus=getCurrentFocus();if(focus!=null&&pageRoot.hasFocus()&&focus.getTag() instanceof String)focusTag=(String)focus.getTag();scrollY=desktopScroll.getScrollY();}
     @Override void focusManagementContent(){View target=focusTag==null?null:pageRoot.findViewWithTag(focusTag);if(target==null||!target.isShown()||!target.isEnabled())target=classic;target.requestFocus();}
-    @Override protected void onResume(){super.onResume();getSharedPreferences("desktop-settings",0).registerOnSharedPreferenceChangeListener(this);getSharedPreferences("weather",0).registerOnSharedPreferenceChangeListener(this);preview.resume();refreshControls();desktopScroll.post(()->{if(showing)desktopScroll.scrollTo(0,scrollY);});greetingEditor.restoreFocus();}
+    @Override protected void onResume(){super.onResume();getSharedPreferences("desktop-settings",0).registerOnSharedPreferenceChangeListener(this);getSharedPreferences("weather",0).registerOnSharedPreferenceChangeListener(this);preview.resume();showPreview(getCurrentFocus());refreshControls();desktopScroll.post(()->{if(showing)desktopScroll.scrollTo(0,scrollY);});greetingEditor.restoreFocus();}
     @Override protected void onPause(){remember();getSharedPreferences("desktop-settings",0).unregisterOnSharedPreferenceChangeListener(this);getSharedPreferences("weather",0).unregisterOnSharedPreferenceChangeListener(this);main.removeCallbacks(changed);main.removeCallbacks(previewFade);preview.pause();greetingEditor.pause();super.onPause();}
     @Override protected void onDestroy(){preview.destroy();greetingEditor.destroy();super.onDestroy();}
     @Override protected void onSaveInstanceState(Bundle state){remember();state.putString("focus",focusTag);state.putInt("scroll",scrollY);greetingEditor.saveState(state);}
