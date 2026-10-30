@@ -1,7 +1,6 @@
 package home.quiet.tv;
 
 import android.content.Intent;
-import android.content.res.ColorStateList;
 import android.os.*;
 import android.view.*;
 import android.widget.*;
@@ -36,25 +35,22 @@ final class StartupDestinationPanel extends ManagementPanel {
     private void identify(View view,String tag){view.setTag(tag);view.setId(androidx.core.view.ViewCompat.generateViewId());view.setFocusableInTouchMode(true);}
     private DesktopSettingsRow action(String title,String tag,Runnable operation){
         DesktopSettingsRow view=activity.setting(title,"desktop",tag);view.hideIcon();
-        view.setBackgroundDrawable(ControlStyle.action(unit,24,0x10ffffff,0x22ffffff));view.setOnClickListener(v->operation.run());
-        LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,px(56));params.topMargin=px(10);content.addView(view,params);return view;
+        view.setOnClickListener(v->operation.run());LinearLayout group=activity.group();activity.addSetting(group,view);
+        LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,-2);params.topMargin=px(8);content.addView(group,params);return view;
     }
-    private RadioButton choice(LinearLayout choices,String title,String tag,boolean selected,Runnable operation){
-        RadioButton button=new RadioButton(activity);identify(button,tag);button.setText(title);button.setSingleLine();button.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(16));button.setIncludeFontPadding(false);
-        button.setGravity(Gravity.CENTER_VERTICAL);button.setPadding(px(16),0,px(16),0);button.setChecked(selected);button.setSelected(selected);button.setSoundEffectsEnabled(false);
-        ControlStyle.choice(button,unit,12,0x10ffffff,0x22ffffff);
-        androidx.core.widget.CompoundButtonCompat.setButtonTintList(button,new ColorStateList(new int[][]{{android.R.attr.state_checked},{}},new int[]{0xff191d23,0xff9298a4}));
-        button.setOnClickListener(v->{KeyFeedback.confirm(activity);operation.run();});
-        LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(px(200),-1);if(choices.getChildCount()>0)params.leftMargin=px(14);choices.addView(button,params);return button;
+    private Button choice(LinearLayout choices,String title,String tag,boolean selected,Runnable operation){
+        Button button=button(title,operation);identify(button,tag);button.setSingleLine();button.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(14));
+        button.setPadding(px(7),0,px(7),0);button.setSelected(selected);ControlStyle.choice(button,unit,9,0x10ffffff,0x22ffffff);
+        LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(px(200),-1);if(choices.getChildCount()>0)params.leftMargin=px(8);choices.addView(button,params);return button;
     }
     private void render(){
         boolean restore=pageRoot.hasFocus();remember();content.removeAllViews();
-        content.addView(label(tr("开机进入","On startup"),16),new LinearLayout.LayoutParams(-1,px(28)));gap(content,14);
-        LinearLayout modes=row();content.addView(modes,new LinearLayout.LayoutParams(-1,px(50)));
+        content.addView(activity.section(tr("开机进入","On startup")));gap(content,8);
+        LinearLayout modes=row();content.addView(modes,new LinearLayout.LayoutParams(-1,px(38)));
         int selected=store.hdmiBoot()?1:store.enabled()?2:0;
-        RadioButton desktop=choice(modes,"Quiet TV "+tr("桌面","Home"),"mode-desktop",selected==0,()->{editMode(0);save(()->store.select("",""));});
-        RadioButton hdmi=choice(modes,tr("HDMI 信号源","HDMI input"),"mode-hdmi",selected==1,()->{editMode(1);render();if(store.hdmiBoot())return;if(store.watchTarget().isEmpty())choose();else toggleBoot();});
-        RadioButton app=choice(modes,tr("应用","App"),"mode-app",selected==2,()->{editMode(2);render();chooseApp();});
+        Button desktop=choice(modes,"Quiet TV "+tr("桌面","Home"),"mode-desktop",selected==0,()->{editMode(0);save(()->store.select("",""));});
+        Button hdmi=choice(modes,tr("HDMI 信号源","HDMI input"),"mode-hdmi",selected==1,()->{editMode(1);render();if(store.hdmiBoot())return;if(store.watchTarget().isEmpty())choose();else toggleBoot();});
+        Button app=choice(modes,tr("应用","App"),"mode-app",selected==2,()->{editMode(2);render();chooseApp();});
         first=selected==1?hdmi:selected==2?app:desktop;
         ArrayList<View[]> rows=new ArrayList<>();rows.add(new View[]{desktop,hdmi,app});
         gap(content,6);
@@ -70,7 +66,7 @@ final class StartupDestinationPanel extends ManagementPanel {
             if(!store.target().isEmpty())rows.add(new View[]{action(tr("立即测试","Test now"),"test-app",this::testApp)});
         }
         DesktopSettingsRow shortcut=action(tr("首页“看电视”入口","Home Watch TV shortcut"),"shortcut",()->{if(shortcutOnHome())save(()->store.showWatch(false));else addShortcut();});shortcut.checked(shortcutOnHome());rows.add(new View[]{shortcut});
-        gap(content,20);content.addView(muted(tr("按 HOME 返回桌面不会重复跳转。","Returning Home will not launch again."),13));
+        gap(content,12);content.addView(muted(tr("按 HOME 返回桌面不会重复跳转。","Returning Home will not launch again."),12));
         for(int r=0;r<rows.size();r++)for(int c=0;c<rows.get(r).length;c++){
             View[] line=rows.get(r);View view=line[c];view.setNextFocusLeftId(line[Math.max(0,c-1)].getId());view.setNextFocusRightId(line[Math.min(line.length-1,c+1)].getId());
             view.setNextFocusUpId(r==0?managementTab().getId():rows.get(r-1)[Math.min(c,rows.get(r-1).length-1)].getId());
