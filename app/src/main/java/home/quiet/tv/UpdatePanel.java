@@ -40,7 +40,9 @@ final class UpdatePanel {
     }
     void check(){closed=false;begin("checking","正在检查更新");Button cancel=button("取消",()->{updates.cancelCheck();dismiss();});show(cancel);updates.check(true);changed();}
     void changed(){
-        if(closed||dialog==null||activity.isFinishing())return;
+        if(closed||activity.isFinishing())return;
+        if(mode.equals("install")||updates.installNotice){installationChanged();return;}
+        if(dialog==null)return;
         if(mode.equals("checking")&&!updates.checking){
             if(!updates.checkError.isEmpty()){
                 begin("error",updates.checkError);Button retry=button("重试",this::check);
@@ -101,9 +103,26 @@ final class UpdatePanel {
         dispatchInstall();
     }
     private void dispatchInstall(){
-        begin("verify","正在核对安装包");show(null);
-        updates.install((file,error)->{if(closed||activity.isFinishing())return;if(file==null){begin("error",error);show(button("关闭",this::dismiss));return;}
-            if(UpdateInstaller.launch(activity,file)){updates.dispatched();dismiss();}else restricted("无法打开系统安装器");});
+        begin("install","正在准备安装");show(null);updates.install();
+    }
+    private void installationChanged(){
+        String state=updates.installState;
+        if(state.equals("prepared")){updates.dispatchInstall(activity);return;}
+        if(state.equals("confirmation")){updates.confirmInstall(activity);return;}
+        if(state.equals("file_dispatched")||state.equals("confirming")){dismiss();return;}
+        if(state.equals("preparing")||state.equals("committing")){
+            if(!mode.equals("install")){begin("install","正在准备安装");show(null);}return;
+        }
+        if(state.equals("submitted")){
+            begin("install","等待系统安装结果");show(button("关闭",this::dismiss));return;
+        }
+        updates.installNotice=false;
+        if(state.equals("success")){begin("installed","更新已安装");show(button("关闭",this::dismiss));return;}
+        begin("error",updates.installError.isEmpty()?"安装结果待核对":updates.installError);
+        Button focus=button("关闭",this::dismiss);
+        if(state.equals("failed")||state.equals("interrupted"))button("通过电脑更新",()->restricted(updates.installError));
+        if(updates.ready)focus=button("重试",()->{if(target==null)ready();else install();});
+        show(focus);
     }
     private void restricted(){restricted("");}
     private void restricted(String reason){
@@ -115,8 +134,8 @@ final class UpdatePanel {
         }catch(com.google.zxing.WriterException ignored){}
         gap(14);box.addView(text("安装指引：beatsad.github.io/quiet-tv/",23,0xffb5c0cf));show(button("关闭",this::dismiss));
     }
-    void resumed(){closed=false;if(permissionReturning){permissionReturning=false;if(updates.ready&&UpdateInstaller.permitted(activity))ready();}}
-    private void back(){if(mode.equals("verify"))return;if(mode.equals("download")){cancelDownload();return;}if(mode.equals("checking"))updates.cancelCheck();if(mode.equals("cancel")){resumeDownload();return;}dismiss();}
+    void resumed(){closed=false;changed();if(permissionReturning){permissionReturning=false;if(updates.ready&&UpdateInstaller.permitted(activity))ready();}}
+    private void back(){if(mode.equals("verify")||(mode.equals("install")&&updates.installBusy))return;if(mode.equals("download")){cancelDownload();return;}if(mode.equals("checking"))updates.cancelCheck();if(mode.equals("cancel")){resumeDownload();return;}dismiss();}
     void suspend(){closed=true;if(updates.downloading)updates.cancelDownload();if(mode.equals("checking"))updates.cancelCheck();dismiss();}
     private void dismiss(){if(dialog!=null){dialog.dismiss();dialog=null;}mode="";}
     private static String system(int sdk){switch(sdk){case 14:return "安卓4.0至4.4";case 19:return "安卓4.4";case 21:return "安卓5及以上";case 23:return "安卓6及以上";case 26:return "安卓8及以上";case 31:return "安卓12及以上";default:return "安卓兼容版";}}
