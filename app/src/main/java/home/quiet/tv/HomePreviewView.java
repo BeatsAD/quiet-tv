@@ -87,16 +87,5 @@ final class HomePreviewView extends FrameLayout {
         canvas.drawColor(Color.BLACK);paint.setAlpha(255);paint.setShader(null);
         if(dockBackground==null)ambient.draw(canvas);else{canvas.drawBitmap(dockBackground,null,new RectF(0,0,960,540),paint);shade.draw(canvas);}
     }
-    private View emptyCard(){return new View(getContext()){
-        final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);final Path clip=new Path();final RectF rect=new RectF();final int[] location=new int[2],origin=new int[2];
-        @Override protected void onDraw(Canvas canvas){
-            rect.set(0,0,getWidth(),getHeight());clip.reset();clip.addRoundRect(rect,16,16,Path.Direction.CW);int saved=canvas.save();canvas.clipPath(clip);
-            getLocationInWindow(location);scene.getLocationInWindow(origin);int background=canvas.save();canvas.translate((origin[0]-location[0])/scene.getScaleX(),(origin[1]-location[1])/scene.getScaleY());drawWallpaper(canvas,paint);canvas.restoreToCount(background);
-            paint.setColor(0x1fffffff);canvas.drawRect(rect,paint);float center=getWidth()/2f,circle=16,gap=10;
-            paint.setTypeface(typeface);paint.setTextSize(14);paint.setTextAlign(Paint.Align.CENTER);Paint.FontMetrics metrics=paint.getFontMetrics();float top=(rect.height()-2*circle-gap-(metrics.descent-metrics.ascent))/2f,cy=top+circle;
-            paint.setColor(0x0fffffff);canvas.drawCircle(center,cy,circle,paint);paint.setColor(Color.WHITE);paint.setStrokeWidth(1.5f);paint.setStrokeCap(Paint.Cap.ROUND);canvas.drawLine(center-6,cy,center+6,cy,paint);canvas.drawLine(center,cy-6,center,cy+6,paint);paint.setStrokeCap(Paint.Cap.BUTT);
-            String label=chinese?"添加常用应用":"Add favorite apps";paint.setTextSize(Math.min(14,14*(getWidth()-20)/paint.measureText(label)));metrics=paint.getFontMetrics();canvas.drawText(label,center,top+2*circle+gap-metrics.ascent,paint);
-            float stroke=1,inset=stroke/2;rect.inset(inset,inset);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(stroke);paint.setColor(0x38ffffff);canvas.drawRoundRect(rect,16-inset,16-inset,paint);paint.setStyle(Paint.Style.FILL);canvas.restoreToCount(saved);
-        }
-    };}
+    private View emptyCard(){ImageView card=new ImageView(getContext());card.setImageBitmap(HomeEntryArtwork.addFavorite(chinese?"添加常用应用":"Add favorite apps"));card.setScaleType(ImageView.ScaleType.FIT_XY);return card;}
 }

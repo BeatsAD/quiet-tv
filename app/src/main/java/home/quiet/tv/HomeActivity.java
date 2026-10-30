@@ -927,7 +927,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         if(dockBand==null)return;
         boolean show=homeAppsVisible && !dock.isEmpty() && dockBand.getChildCount()>0;
         dockBand.setVisibility(show?View.VISIBLE:View.GONE);
-        dockBand.setBackgroundDrawable(show && desktopSettings.showDockBackground()?new DockBackdropDrawable(wallpapers,dockBand,root,unit):null);
+        boolean empty=dock.size()==1&&ADD_DOCK_ENTRY.equals(dock.get(0).pkg);
+        dockBand.setBackgroundDrawable(show && !empty && desktopSettings.showDockBackground()?new DockBackdropDrawable(wallpapers,dockBand,root,unit):null);
     }
 
     private final class DockBand extends FrameLayout {
@@ -1009,14 +1010,16 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             labelBaseline=imageHeight()+px(APP_LABEL_GAP)+(px(APP_LABEL_HEIGHT)-metrics.bottom-metrics.top)/2;
         }
         @Override protected void onDraw(Canvas c){super.onDraw(c);if(app==null)return;float h=imageHeight(),radius=px(11);RectF rect=imageRect;rect.set(0,0,getWidth(),h);
+            boolean add=ADD_DOCK_ENTRY.equals(app.pkg);
+            if(add){rect.top=h*HomeEntryArtwork.ADD_TOP;rect.bottom=h*HomeEntryArtwork.ADD_BOTTOM;radius=px(14);}
             {
                 // Paint anti-aliasing does not control clipPath edges on older TV renderers.
-                paint.setColor(0xff191a20);c.drawRoundRect(rect,radius,radius,paint);
-                paint.setShader(artwork);c.drawRoundRect(rect,radius,radius,paint);paint.setShader(null);
+                if(!add){paint.setColor(0xff191a20);c.drawRoundRect(rect,radius,radius,paint);}
+                paint.setAlpha(255);paint.setShader(artwork);c.drawRoundRect(rect,radius,radius,paint);paint.setShader(null);
             }
             if(selected==this && row>=0){
-                paint.setShader(highlight);c.drawRoundRect(rect,radius,radius,paint);paint.setShader(null);
-                float stroke=px(FOCUS_STROKE),inset=stroke/2f;rect.inset(inset,inset);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(stroke);paint.setColor(Color.WHITE);c.drawRoundRect(rect,Math.max(0,radius-inset),Math.max(0,radius-inset),paint);paint.setStyle(Paint.Style.FILL);
+                if(!add){paint.setShader(highlight);c.drawRoundRect(rect,radius,radius,paint);paint.setShader(null);}
+                float stroke=add?px(1.5f):px(FOCUS_STROKE),inset=stroke/2f;rect.inset(inset,inset);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(stroke);paint.setColor(add?0xd9ffffff:Color.WHITE);c.drawRoundRect(rect,Math.max(0,radius-inset),Math.max(0,radius-inset),paint);paint.setStyle(Paint.Style.FILL);
             }
             if(showLabel&&desktopSettings.showAllAppsNames())c.drawText(label,getWidth()/2f,labelBaseline,labelPaint);
             if(app.pkg.equals(movingPackage)){
