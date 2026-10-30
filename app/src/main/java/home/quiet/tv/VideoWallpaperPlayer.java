@@ -88,8 +88,9 @@ final class VideoWallpaperPlayer {
     private static Handler playbackWorker(){
         HandlerThread thread=new HandlerThread("QuietTV-wallpaper");thread.start();return new Handler(thread.getLooper());
     }
-    static boolean textureOutput(int sdk,boolean legacy,boolean composite){return composite||legacy||sdk<27;}
-    boolean outputModeChanges(boolean composite){return textureOutput(Build.VERSION.SDK_INT,BuildConfig.LEGACY_19,compositeOutput)!=textureOutput(Build.VERSION.SDK_INT,BuildConfig.LEGACY_19,composite);}
+    static boolean textureOutput(int sdk,boolean legacy,boolean composite){return composite||(legacy?sdk<17:sdk<27);}
+    private boolean textureOutput(boolean composite){return textureOutput(Build.VERSION.SDK_INT,BuildConfig.LEGACY_19,composite||BuildConfig.LEGACY_19&&entry!=null&&entry.rotation!=0);}
+    boolean outputModeChanges(boolean composite){return textureOutput(compositeOutput)!=textureOutput(composite);}
     /** The caller submits an opaque cover before replacing a visible output. */
     void setCompositeOutput(boolean composite){
         boolean change=outputModeChanges(composite);compositeOutput=composite;
@@ -180,7 +181,7 @@ final class VideoWallpaperPlayer {
     private void start(){
         if(destroyed||!enabled||screenOff||paused||entry==null)return;
         if(releaseBlocked()){fail(generation,Failure.RELEASING);return;}
-        boolean textureOutput=textureOutput(Build.VERSION.SDK_INT,BuildConfig.LEGACY_19,compositeOutput);
+        boolean textureOutput=textureOutput(compositeOutput);
         if(target!=null){
             if(target.preparing||target.textureOutput)return;
             if(!target.textureOutput&&!textureOutput){
@@ -211,9 +212,9 @@ final class VideoWallpaperPlayer {
         final float[] transform=new float[16];
         Target(int request){
             this.request=request;epoch=request;aspect=VideoGeometry.aspect(entry.width,entry.height,entry.pixelRatio,entry.rotation);
-            // Native fullscreen output stays below the ordinary cover/UI. Old Android and small
-            // composited previews retain their texture path, including manual video rotation.
-            textureOutput=textureOutput(Build.VERSION.SDK_INT,BuildConfig.LEGACY_19,compositeOutput);
+            // API17+ platform playback supplies a rendering-start event for native output.
+            // Composited previews and legacy rotation retain their texture path.
+            textureOutput=textureOutput(compositeOutput);
             if(!BuildConfig.LEGACY_19&&VideoGeometry.manualRotation(Build.VERSION.SDK_INT,entry.rotation))unappliedRotation=entry.rotation;
             if(textureOutput){TextureView textureView=new TextureView(activity);textureView.setSurfaceTextureListener(this);view=textureView;}
             else{SurfaceView surfaceView=new SurfaceView(activity);if(Build.VERSION.SDK_INT>=34)Api34.attachedLifecycle(surfaceView);surfaceView.getHolder().addCallback(this);view=surfaceView;}
@@ -306,14 +307,15 @@ final class VideoWallpaperPlayer {
         if(!current(next)||paused||!next.started||rendered)return;
         boolean outputReady=next.textureOutput?next.updated:next.surfaceWidth>0&&next.surfaceHeight>0&&next.surface!=null&&next.surface.isValid();
         if(!outputReady)return;
-        rendered=true;main.removeCallbacks(timeout);Log.i(TAG,"first frame request="+next.request);DiagnosticLog.info("wallpaper.video.rendered",context(next.request)+" output="+(next.textureOutput?"texture":"surface")+" epoch="+next.epoch+" holder="+next.surfaceWidth+"x"+next.surfaceHeight+" evidence="+(BuildConfig.LEGACY_19?"platform_prepared_and_texture_updated":"rendered_first_frame_callback"));
+        rendered=true;main.removeCallbacks(timeout);Log.i(TAG,"first frame request="+next.request);DiagnosticLog.info("wallpaper.video.rendered",context(next.request)+" output="+(next.textureOutput?"texture":"surface")+" epoch="+next.epoch+" holder="+next.surfaceWidth+"x"+next.surfaceHeight+" evidence="+(BuildConfig.LEGACY_19?(Build.VERSION.SDK_INT>=17?"platform_rendering_start_callback":"platform_prepared_and_texture_updated"):"rendered_first_frame_callback"));
         final int request=next.request;
         main.post(()->{if(current(next,request)&&rendered&&listener!=null)listener.ready();});
     }
     private void fail(int request,Failure reason){
         if(request!=generation||!enabled||destroyed)return;
         enabled=false;rendered=false;main.removeCallbacks(timeout);Log.w(TAG,"video unavailable request="+request+" reason="+reason);DiagnosticLog.info("wallpaper.video.failed",context(request)+" reason="+reason.name()+" paused="+paused+" screenOff="+screenOff);
-        if(listener!=null)listener.failed(reason);else stop();
+        Listener failed=listener;release();
+        if(failed!=null)failed.failed(reason);
     }
     private void release(){
         ++generation;main.removeCallbacks(timeout);rendered=false;

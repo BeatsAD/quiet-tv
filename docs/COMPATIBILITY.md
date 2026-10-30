@@ -148,10 +148,12 @@ Both layouts share the native Home header with the preview. Only Desktop shows t
 | 能力 | Android 4.4 | Android 5+ |
 | --- | --- | --- |
 | 上传、预览、静音循环、关闭恢复、退出释放 | 共用流程 | 共用流程 |
-| 播放路径 | 系统 MediaPlayer + TextureView，无 Media3 | Media3 1.8.1 + SurfaceView；API21–26的90°／270°视频采用TextureView手动旋转。12 MiB缓冲目标，禁用音频轨，可用解码器回退 |
+| 播放路径 | 私有播放进程中的系统 MediaPlayer；API17–19 普通全屏为 SurfaceView，模糊、小窗口与旋转视频为 TextureView，无 Media3 | Media3 1.8.1 + SurfaceView；API21–26的90°／270°视频采用TextureView手动旋转。12 MiB缓冲目标，禁用音频轨，可用解码器回退 |
 | 输入上限 | SDR、8bit、1080p、60 FPS 内，依系统解码器 | SDR、8bit、4K、60 FPS 内，依实际编码／分辨率／帧率组合 |
 | 4K 封面 | 本批不开放 4K | API27+缩放取帧；API21–26尝试系统取帧后缩小至最长640像素，失败保留占位图 |
 | 厂商硬解、实际输出、长期性能、屏保与待机 | 待对应设备验收 | 待对应设备验收 |
+
+旧安卓播放子进程的原生操作超过 2.5 秒未返回时结束该子进程；收到进程退出通知后才解除释放等待，后续播放可重新绑定。首帧超时主动释放当前播放器，不自动重试同一失败素材。此恢复路径不保证厂商系统媒体服务本身正常，旧安卓真机仍待验收。
 
 不接收 HDR／10bit。手机本机预览与电视首帧验证分别判断；播放错误区分读取、格式、解码、超时及输出失败。上述新范围尚待厂商真机验收；SurfaceView 保留部分电视独立于 UI 分辨率的视频输出路径；不能仅凭面板或素材标签确认原生 4K。4K 不可用时需另传低规格文件，不自动在电视转码。详见[使用指南](USAGE.zh-CN.md)。
 
