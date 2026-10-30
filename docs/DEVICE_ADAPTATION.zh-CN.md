@@ -46,6 +46,8 @@ python3 scripts/device_adaptation.py --serial "$TV_SERIAL" --user "$TV_USER" --r
 
 统一安装也支持 `--adaptation-route verified|google|jm|vidaa`，仅用于 `--goal takeover`。AI 应先检测并解释具体动作，不把“自动接管”解释为未知机型默认禁用。未指定专项路线则不禁用原桌面。需要先安装新 APK 才能检查接口时，先核验安装，专项条件不满足就停止专项操作。
 
+用户提出的“原厂同包名空壳接开机／HOME，再移除原厂桌面文件”见[候选调查与实施条件](agent/home.md#原厂同包名空壳中转候选路线)。它不在上述 `--adaptation-route` 中，不能用 `verified`、现有 HOME 代理或酷开中转代替原厂签名、系统文件部署与离线恢复核验；没有本机专项材料时不执行替换或删除。
+
 恢复新旧专项记录均使用：
 
 ```sh
