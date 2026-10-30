@@ -128,9 +128,9 @@ final class UpdatePanel {
     private void restricted(String reason){
         begin("guide",reason.isEmpty()?"通过电脑更新":reason);box.addView(text("可在电脑上通过 Agent 协助更新，保留已有应用和配置。",25,0xffb5c0cf));gap(18);
         try{
-            int size=192;com.google.zxing.common.BitMatrix matrix=new com.google.zxing.qrcode.QRCodeWriter().encode("https://beatsad.github.io/quiet-tv/",com.google.zxing.BarcodeFormat.QR_CODE,size,size,Collections.singletonMap(com.google.zxing.EncodeHintType.MARGIN,2));
+            int size=Math.max(384,px(480));com.google.zxing.common.BitMatrix matrix=new com.google.zxing.qrcode.QRCodeWriter().encode("https://beatsad.github.io/quiet-tv/",com.google.zxing.BarcodeFormat.QR_CODE,size,size,Collections.singletonMap(com.google.zxing.EncodeHintType.MARGIN,2));
             int[] pixels=new int[size*size];for(int y=0;y<size;y++)for(int x=0;x<size;x++)pixels[y*size+x]=matrix.get(x,y)?Color.BLACK:Color.WHITE;
-            ImageView qr=new ImageView(activity);qr.setImageBitmap(android.graphics.Bitmap.createBitmap(pixels,size,size,android.graphics.Bitmap.Config.ARGB_8888));qr.setContentDescription("更新安装指引二维码");qr.setBackgroundColor(Color.WHITE);box.addView(qr,new LinearLayout.LayoutParams(px(230),px(230)));
+            ImageView qr=new ImageView(activity);qr.setImageBitmap(android.graphics.Bitmap.createBitmap(pixels,size,size,android.graphics.Bitmap.Config.ARGB_8888));qr.setContentDescription("更新安装指引二维码");qr.setScaleType(ImageView.ScaleType.FIT_CENTER);qr.setBackgroundColor(Color.WHITE);LinearLayout.LayoutParams qp=new LinearLayout.LayoutParams(px(480),px(480));qp.gravity=Gravity.CENTER_HORIZONTAL;box.addView(qr,qp);
         }catch(com.google.zxing.WriterException ignored){}
         gap(14);box.addView(text("安装指引：beatsad.github.io/quiet-tv/",23,0xffb5c0cf));show(button("关闭",this::dismiss));
     }

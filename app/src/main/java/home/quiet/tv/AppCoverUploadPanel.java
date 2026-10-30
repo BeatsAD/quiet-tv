@@ -61,9 +61,9 @@ final class AppCoverUploadPanel {
                     (input,length,filename,active)->receive(attempt,target,input,length,active),AppCoverStore.MAX_UPLOAD,info);
                 try{candidate.listen();}catch(IOException occupied){candidate.stop();candidate=new WallpaperUploadServer(selectedHost,0,asset->activity.getAssets().open("app-cover-upload/"+asset),
                     (input,length,filename,active)->receive(attempt,target,input,length,active),AppCoverStore.MAX_UPLOAD,info);candidate.listen();}
-                BitMatrix matrix=new QRCodeWriter().encode(candidate.address(),BarcodeFormat.QR_CODE,384,384,Collections.singletonMap(EncodeHintType.MARGIN,1));
-                int[] pixels=new int[384*384];for(int y=0;y<384;y++)for(int x=0;x<384;x++)pixels[y*384+x]=matrix.get(x,y)?Color.BLACK:Color.WHITE;
-                Bitmap qr=Bitmap.createBitmap(pixels,384,384,Bitmap.Config.ARGB_8888);WallpaperUploadServer ready=candidate;
+                int size=Math.max(384,activity.getResources().getDisplayMetrics().widthPixels/4);BitMatrix matrix=new QRCodeWriter().encode(candidate.address(),BarcodeFormat.QR_CODE,size,size,Collections.singletonMap(EncodeHintType.MARGIN,1));
+                int[] pixels=new int[size*size];for(int y=0;y<size;y++)for(int x=0;x<size;x++)pixels[y*size+x]=matrix.get(x,y)?Color.BLACK:Color.WHITE;
+                Bitmap qr=Bitmap.createBitmap(pixels,size,size,Bitmap.Config.ARGB_8888);WallpaperUploadServer ready=candidate;
                 main.post(()->{if(view==null||attempt!=generation){ready.stop();qr.recycle();return;}server=ready;view.connected(ready.shortAddress(),ready.connectionCode());view.qr.setImageBitmap(qr);main.postDelayed(check,2000);});
             }catch(IOException|JSONException|WriterException e){if(candidate!=null)candidate.stop();main.post(()->{if(view!=null&&attempt==generation){view.address.setText("无法开启上传，请检查应用状态与网络后重试");view.retry.setVisibility(View.VISIBLE);}});}
         });
