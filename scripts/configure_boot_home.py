@@ -10,6 +10,7 @@ import zipfile
 
 import configure_home_guard as guard
 import install_tcl as tcl
+from home_capabilities import real_home
 from verify_install import HOME, HOME_ARGS, component, help_text, resolver
 
 VIDAA = 'persist.vt.use_home_pkg'
@@ -113,7 +114,7 @@ def prepare(adb, user, tools, apk, journal):
     before = component(adb.shell(*resolver(adb, device['sdk'], user)))
     if HOME not in homes:
         raise NoNativeRoute('Quiet TV 不在本机 HOME 候选中，可独立评估已有兼容守护')
-    if before not in homes or 'ResolverActivity' in before:
+    if before not in homes or not real_home(before):
         raise ValueError('目标 HOME 候选或原默认 HOME 未确认，未修改电视')
     journal.event('boot_baseline', device=device, home_before=before, target_package=package,
                   original_package=adb.shell('dumpsys', 'package', before.split('/')[0]))
