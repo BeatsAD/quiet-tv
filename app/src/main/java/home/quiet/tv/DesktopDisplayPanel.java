@@ -33,7 +33,7 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
     private String tr(String zh,String en){return activity.tr(zh,en);}
     @Override public void onCreate(Bundle state){
         chinese=activity.chinese();fixedGreeting=activity.fixedGreeting();desktopStore=new DesktopSettingsStore(this);weatherStore=new WeatherStore(this);LegacyHomeKeyService.prepare(this);
-        pageRoot=column();pageRoot.setPadding(0,px(18),0,0);activity.attachPanel(pageRoot);makeDesktop();
+        pageRoot=column();activity.attachPanel(pageRoot);makeDesktop();
         if(state!=null){focusTag=state.getString("focus");scrollY=state.getInt("scroll");greetingEditor.restoreState(state);}
     }
     private TextView section(String name){return activity.section(name);}

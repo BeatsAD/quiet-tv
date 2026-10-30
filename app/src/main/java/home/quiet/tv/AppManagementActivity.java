@@ -27,7 +27,7 @@ public class AppManagementActivity extends ManagementUi {
         }catch(java.io.IOException|org.json.JSONException error){throw new IllegalStateException("Invalid bundled launcher configuration",error);}
         ((TextView)header.getChildAt(1)).setText(tr("桌面设置","Desktop Settings"));
         toolbar(SettingsPages.valid(saved==null?initialPage():saved.getInt("management-page",initialPage())));
-        panelHost=new FrameLayout(this);root.addView(panelHost,new LinearLayout.LayoutParams(-1,0,1));
+        panelHost=new FrameLayout(this);panelHost.setPadding(0,px(8),0,0);root.addView(panelHost,new LinearLayout.LayoutParams(-1,0,1));
         if(saved!=null)for(int i=0;i<panels.length;i++)savedPanels[i]=saved.getBundle("panel-"+i);
         selectManagementPage(SettingsPages.valid(saved==null?initialPage():saved.getInt("management-page",initialPage())));
     }

@@ -44,7 +44,7 @@ abstract class ManagementPanel extends ContextWrapper {
     LinearLayout row(){return activity.row();}
     LinearLayout column(){return activity.column();}
     LinearLayout managementContent(){
-        pageRoot=column();managementInfo=row();LinearLayout.LayoutParams info=new LinearLayout.LayoutParams(-1,px(26));info.topMargin=px(8);pageRoot.addView(managementInfo,info);
+        pageRoot=column();managementInfo=row();LinearLayout.LayoutParams info=new LinearLayout.LayoutParams(-1,px(26));pageRoot.addView(managementInfo,info);
         LinearLayout body=column();LinearLayout.LayoutParams content=new LinearLayout.LayoutParams(-1,0,1);content.topMargin=px(6);pageRoot.addView(body,content);
         activity.attachPanel(pageRoot);return body;
     }

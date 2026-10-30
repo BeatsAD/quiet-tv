@@ -18,10 +18,10 @@ final class ChildModePanel extends ManagementPanel {
     private RecyclerView list;
     private Cards cards;
     private LinearLayout details;
-    private TextView count,timerStatus,usageStatus;
+    private TextView timerStatus,usageStatus;
     private android.app.Dialog editing;
     private View first;
-    private String selected="",query="";
+    private String selected="";
     private boolean authorized,loading,returning;
     private FrameLayout gate;
     private LinearLayout manager;
@@ -37,18 +37,18 @@ final class ChildModePanel extends ManagementPanel {
     ChildModePanel(AppManagementActivity activity){super(activity);}
     @Override public void onCreate(Bundle state){
         super.onCreate(state);store=new ChildModeStore(this);visual=new ChildModeUi(activity);
-        if(state!=null){selected=state.getString("selected","");query=state.getString("query","");listState=state.getParcelable("list-state");}
-        LinearLayout body=managementContent();count=managementHint("");managementInfo.addView(count,new LinearLayout.LayoutParams(-1,-1));
+        if(state!=null){selected=state.getString("selected","");listState=state.getParcelable("list-state");}
+        LinearLayout body=managementContent();managementInfo.setVisibility(View.GONE);((LinearLayout.LayoutParams)body.getLayoutParams()).topMargin=0;
         gate=new FrameLayout(activity);body.addView(gate,new LinearLayout.LayoutParams(-1,0,1));
         manager=column();body.addView(manager,new LinearLayout.LayoutParams(-1,0,1));
         LinearLayout actions=row();manager.addView(actions,new LinearLayout.LayoutParams(-1,px(32)));
-        for(Button action:new Button[]{button("搜索应用",this::search),button("修改家长密码",()->{if(authorized)ChildModeAuth.change(activity,()->feedback("家长密码已修改"));}),button("计时服务",()->{if(authorized)permission();})}){
+        for(Button action:new Button[]{button("修改家长密码",()->{if(authorized)ChildModeAuth.change(activity,()->feedback("家长密码已修改"));}),button("计时服务",()->{if(authorized)permission();})}){
             if(managementAction==null)managementAction=action;LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-2,-1);ap.rightMargin=px(10);actions.addView(action,ap);action.setNextFocusUpId(managementTab().getId());
             action.setOnKeyListener((v,key,event)->{if(key!=KeyEvent.KEYCODE_DPAD_UP&&key!=KeyEvent.KEYCODE_DPAD_DOWN)return false;if(event.getAction()==KeyEvent.ACTION_DOWN){if(key==KeyEvent.KEYCODE_DPAD_UP)managementTab().requestFocus();else list.requestFocus();}return true;});
         }
         LinearLayout panels=row();panels.setGravity(Gravity.TOP);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,0,1);lp.topMargin=px(8);manager.addView(panels,lp);
         list=new RecyclerView(this);list.setLayoutManager(new LinearLayoutManager(this));cards=new Cards();list.setAdapter(cards);list.setItemAnimator(null);list.setClipToPadding(false);list.setPadding(visual.p(5),visual.p(5),visual.p(5),visual.p(5));panels.addView(list,new LinearLayout.LayoutParams(0,-1,40));
-        ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setClipToPadding(false);scroll.setBackgroundDrawable(visual.shape(0x06ffffff,0x15ffffff,31.68f,1));
+        ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setVerticalScrollBarEnabled(false);scroll.setClipToPadding(false);scroll.setBackgroundDrawable(visual.shape(0x06ffffff,0x15ffffff,31.68f,1));
         details=column();details.setClipToPadding(false);details.setClipChildren(false);details.setPadding(visual.p(58.6f),visual.p(47.08f),visual.p(58.6f),visual.p(47.08f));scroll.addView(details);
         LinearLayout.LayoutParams dp=new LinearLayout.LayoutParams(0,-1,57);dp.leftMargin=px(28);panels.addView(scroll,dp);
         locked();
@@ -56,15 +56,15 @@ final class ChildModePanel extends ManagementPanel {
     @Override protected void onResume(){super.onResume();ChildUsageService.listen(timerChanged);if(authorized)load();}
     @Override void focusManagementContent(){if(unlock!=null)unlock.focus();else if(!authorized)unlockButton.requestFocus();else managementAction.requestFocus();}
     private void locked(){
-        if(unlock!=null){unlock.close();unlock=null;}gate.removeAllViews();manager.setVisibility(View.GONE);gate.setVisibility(View.VISIBLE);count.setText("家长管理已锁定");
+        if(unlock!=null){unlock.close();unlock=null;}gate.removeAllViews();manager.setVisibility(View.GONE);gate.setVisibility(View.VISIBLE);
         LinearLayout card=column();card.setGravity(Gravity.CENTER);card.addView(center("儿童模式",24));gap(card,12);TextView hint=center("验证家长身份后管理应用",13);hint.setTextColor(MUTED);card.addView(hint);gap(card,22);
         unlockButton=button(store.configured()?"家长解锁":"设置家长密码",this::authenticate);unlockButton.setTag("child-unlock");card.addView(unlockButton,new LinearLayout.LayoutParams(px(170),px(40)));unlockButton.setNextFocusUpId(managementTab().getId());
         gate.addView(card,new FrameLayout.LayoutParams(-1,-2,Gravity.CENTER));
     }
     private void authenticate(){
-        if(!showing||authorized||unlock!=null)return;gate.removeAllViews();count.setText("家长验证");
+        if(!showing||authorized||unlock!=null)return;gate.removeAllViews();
         unlock=new ChildModeUnlock(activity,()->showing&&!authorized,()->{
-            unlock.close();unlock=null;authorized=true;gate.removeAllViews();gate.setVisibility(View.GONE);manager.setVisibility(View.VISIBLE);count.setText("正在读取应用…");managementAction.requestFocus();load();
+            unlock.close();unlock=null;authorized=true;gate.removeAllViews();gate.setVisibility(View.GONE);manager.setVisibility(View.VISIBLE);managementAction.requestFocus();load();
             shownDay=ChildModeStore.today();clock.post(refreshDay);
         },()->{locked();managementTab().requestFocus();});
         gate.addView(unlock.view,new FrameLayout.LayoutParams(px(330),-2,Gravity.CENTER));unlock.focus();
@@ -75,7 +75,7 @@ final class ChildModePanel extends ManagementPanel {
         int removed=visible.size();visible.clear();cards.notifyItemRangeRemoved(0,removed);details.removeAllViews();first=null;returning=false;locked();super.onPause();
     }
     @Override protected void onDestroy(){if(unlock!=null)unlock.close();worker.shutdownNow();super.onDestroy();}
-    @Override protected void onSaveInstanceState(Bundle state){state.putString("selected",selected);state.putString("query",query);state.putParcelable("list-state",authorized?list.getLayoutManager().onSaveInstanceState():listState);super.onSaveInstanceState(state);}
+    @Override protected void onSaveInstanceState(Bundle state){state.putString("selected",selected);state.putParcelable("list-state",authorized?list.getLayoutManager().onSaveInstanceState():listState);super.onSaveInstanceState(state);}
     @Override public void handleBack(){if(unlock!=null){locked();managementTab().requestFocus();}else if(!managementTabFocused())managementTab().requestFocus();else super.handleBack();}
     private void load(){
         if(!authorized || loading)return;loading=true;int request=++loadGeneration;
@@ -85,12 +85,12 @@ final class ChildModePanel extends ManagementPanel {
             final String problem=failure;runOnUiThread(()->{if(request!=loadGeneration||isDestroyed()||!authorized||!showing)return;loading=false;if(problem!=null){message(problem);return;}apps.clear();apps.addAll(found);filter();});
         });
     }
-    // Catalog reloads and searches can replace the entire ordered list.
+    // Catalog reloads can replace the entire ordered list.
     @android.annotation.SuppressLint("NotifyDataSetChanged")
     private void filter(){
-        boolean listFocused=list.hasFocus();visible.clear();for(ResolveInfo info:apps)if((info.loadLabel(getPackageManager())+" "+info.activityInfo.packageName).toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT)))visible.add(info);
+        boolean listFocused=list.hasFocus();visible.clear();visible.addAll(apps);
         boolean found=false;for(ResolveInfo info:visible)if(info.activityInfo.packageName.equals(selected))found=true;
-        if(!found)selected=visible.isEmpty()?"":visible.get(0).activityInfo.packageName;count.setText(getString(R.string.child_management_app_count,visible.size()));cards.notifyDataSetChanged();render();
+        if(!found)selected=visible.isEmpty()?"":visible.get(0).activityInfo.packageName;cards.notifyDataSetChanged();render();
         if(listState!=null){list.getLayoutManager().onRestoreInstanceState(listState);listState=null;}
         if(listFocused)list.post(()->{if(managementTabFocused() || !authorized)return;for(int i=0;i<visible.size();i++)if(visible.get(i).activityInfo.packageName.equals(selected)){list.scrollToPosition(i);RecyclerView.ViewHolder holder=list.findViewHolderForAdapterPosition(i);if(holder!=null)holder.itemView.requestFocus();break;}});
     }
@@ -197,22 +197,6 @@ final class ChildModePanel extends ManagementPanel {
         });show(sheet,open);
     }
 
-    private void search(){
-        if(!authorized)return;
-        Sheet sheet=new Sheet("搜索应用");EditText input=input(query,"应用名称或包名");input.setId(androidx.core.view.ViewCompat.generateViewId());input.setContentDescription("应用名称或包名");input.setPadding(px(14),0,px(14),0);input.setGravity(Gravity.CENTER_VERTICAL);input.setIncludeFontPadding(false);
-        input.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH|android.view.inputmethod.EditorInfo.IME_FLAG_NO_EXTRACT_UI);sheet.body.addView(input,new LinearLayout.LayoutParams(-1,px(44)));
-        android.view.inputmethod.InputMethodManager keyboard=(android.view.inputmethod.InputMethodManager)getSystemService(INPUT_METHOD_SERVICE);
-        Runnable showKeyboard=()->{input.requestFocus();keyboard.showSoftInput(input,android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);};
-        sheet.action("清空",()->{query="";sheet.dialog.dismiss();filter();});Button search=sheet.action("搜索",()->{query=input.getText().toString().trim();sheet.dialog.dismiss();filter();});search.setId(androidx.core.view.ViewCompat.generateViewId());input.setNextFocusDownId(search.getId());search.setNextFocusUpId(input.getId());
-        input.setOnClickListener(v->KeyFeedback.clicked(v,showKeyboard));input.setOnKeyListener((v,key,event)->{
-            if(key==KeyEvent.KEYCODE_DPAD_CENTER || key==KeyEvent.KEYCODE_ENTER){if(event.getAction()==KeyEvent.ACTION_UP)showKeyboard.run();return true;}
-            if(key==KeyEvent.KEYCODE_DPAD_DOWN){if(event.getAction()==KeyEvent.ACTION_DOWN){keyboard.hideSoftInputFromWindow(input.getWindowToken(),0);search.requestFocus();}return true;}return false;
-        });
-        input.setOnEditorActionListener((v,action,event)->{if(action!=android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH)return false;search.performClick();return true;});
-        sheet.dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE|WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-        Window window=sheet.dialog.getWindow();window.setGravity(Gravity.TOP|Gravity.CENTER_HORIZONTAL);WindowManager.LayoutParams position=window.getAttributes();position.y=px(16);window.setAttributes(position);
-        show(sheet,input);sheet.dialog.setOnDismissListener(d->{keyboard.hideSoftInputFromWindow(input.getWindowToken(),0);if(editing==sheet.dialog)editing=null;});
-    }
     static String duration(long value){long minutes=value/ChildModePolicy.MINUTE;return value>0&&minutes==0?"不足 1 分钟":minutes>=60?minutes/60+" 小时"+(minutes%60==0?"":" "+minutes%60+" 分钟"):minutes+" 分钟";}
     static String describeTime(ChildModePolicy.Rule r){return !r.limited()?"不限制":(r.mode==ChildModePolicy.DAILY?(r.repeatDays==127?"每天 ":"循环 "):"单次 ")+duration(r.limit);}
     static String usage(ChildModePolicy.Rule r){return r.repeatLabel()+"\n"+(!r.scheduled()&&r.remaining()==0?"今天不可用  下次 "+r.nextDate():"今日已用 "+duration(r.dailyUsed)+"  剩余 "+duration(r.remaining()));}
