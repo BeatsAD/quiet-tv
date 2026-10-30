@@ -3,9 +3,11 @@
 import json
 import re
 from pathlib import Path
+from boot_ads import catalog as boot_ad_catalog
 
 source = Path(__file__).resolve().parents[1] / 'scripts/device-presets.json'
 data = json.loads(source.read_text())
+boot_ad_catalog(source)
 assert data['schema'] == 1
 seen = set()
 for device in data['devices']:

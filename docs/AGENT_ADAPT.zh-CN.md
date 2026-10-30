@@ -30,6 +30,7 @@ python3 device_selftest.py --serial "$TV_SERIAL" --user "$TV_USER" --record "$AF
 
 ## 按需进入专项步骤
 
+- [开机广告](agent/boot-ads.md)：仅在用户明确选择时进入，先官方渠道，技术候选不直接执行；独立记录和恢复。
 - [验收与主动场景自检](agent/acceptance.md)：仅按授权选择实体 HOME、重启、待机等场景。
 - [HOME、守护和 ADB](agent/home.md)：已有路线缺配置或 ADB 保持异常。
 - [信号源](agent/inputs.md)：只在信号源名称、路由或显示异常时读取。
