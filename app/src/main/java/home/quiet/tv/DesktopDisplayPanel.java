@@ -36,32 +36,30 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
         pageRoot=column();activity.attachPanel(pageRoot);makeDesktop();
         if(state!=null){focusTag=state.getString("focus");scrollY=state.getInt("scroll");greetingEditor.restoreState(state);}
     }
-    private TextView section(String name){return activity.section(name);}
-    private LinearLayout group(){return activity.group();}
     private DesktopSettingsRow setting(String name,String icon,String tag){return activity.setting(name,icon,tag);}
     private TextView desktopLabel(String text){TextView v=muted(text,13);v.setLayoutParams(new LinearLayout.LayoutParams(-1,px(28)));return v;}
     private void makeDesktop(){
         desktop=row();desktop.setGravity(Gravity.TOP);pageRoot.addView(desktop,new LinearLayout.LayoutParams(-1,-1));
-        desktopScroll=new ScrollView(this);desktopScroll.setFocusable(false);desktopScroll.setVerticalScrollBarEnabled(false);desktop.addView(desktopScroll,new LinearLayout.LayoutParams(px(298),-1));
+        desktopScroll=new ScrollView(this);desktopScroll.setFocusable(false);desktopScroll.setVerticalScrollBarEnabled(false);desktop.addView(desktopScroll,new LinearLayout.LayoutParams(px(320),-1));
         LinearLayout controls=column();controls.setPadding(0,0,px(3),px(2));desktopScroll.addView(controls,new ScrollView.LayoutParams(-1,-2));
-        controls.addView(section(tr("布局方式","Layout")));gap(controls,8);LinearLayout layouts=row();controls.addView(layouts,new LinearLayout.LayoutParams(-1,px(38)));
+        controls.addView(desktopLabel(tr("布局方式","Layout")));gap(controls,8);LinearLayout layouts=row();controls.addView(layouts,new LinearLayout.LayoutParams(-1,px(38)));
         classic=layoutChoice(layouts,tr("经典布局","Classic"),"classic");gallery=layoutChoice(layouts,tr("艺术画廊","Gallery"),"gallery");
-        gap(controls,16);controls.addView(desktopLabel(tr("首页信息","Home information")));
+        gap(controls,16);controls.addView(desktopLabel(tr("首页信息","Home information")));gap(controls,8);
         LinearLayout first=row();controls.addView(first,new LinearLayout.LayoutParams(-1,px(38)));choice(first,"greeting",tr("问候语","Greeting"));choice(first,"time",tr("时间","Time"));
         gap(controls,8);LinearLayout second=row();controls.addView(second,new LinearLayout.LayoutParams(-1,px(38)));choice(second,"date",tr("日期","Date"));choice(second,"weather",tr("天气","Weather"));
-        greeting=setting(tr("首页问候语","Home greeting"),"desktop","greeting");greeting.compact();greeting.tail("arrow");
-        greetingEditor=new GreetingEditorPanel(activity,desktopStore,fixedGreeting?tr("欢迎回家","Welcome home"):"",this::refreshControls);greeting.setOnClickListener(v->greetingEditor.show());LinearLayout greetingGroup=group();greetingGroup.addView(greeting,new LinearLayout.LayoutParams(-1,px(44)));LinearLayout.LayoutParams gp=new LinearLayout.LayoutParams(-1,-2);gp.topMargin=px(8);controls.addView(greetingGroup,gp);
-        gap(controls,16);controls.addView(desktopLabel(tr("首页应用","Home apps")));LinearLayout homeApps=row();controls.addView(homeApps,new LinearLayout.LayoutParams(-1,px(38)));choice(homeApps,"home-apps",tr("首屏应用","Home apps"));choice(homeApps,"dock-background",tr("Dock 背景","Dock background"));choice(homeApps,"app-title",tr("应用标题","App title"));((LinearLayout.LayoutParams)choices.get("dock-background").getLayoutParams()).weight=1.1f;
+        greeting=setting(tr("首页问候语","Home greeting"),"desktop","greeting");greeting.compact();greeting.setBackgroundDrawable(ControlStyle.action(unit,9,0x10ffffff,0x22ffffff));greeting.tail("arrow");
+        greetingEditor=new GreetingEditorPanel(activity,desktopStore,fixedGreeting?tr("欢迎回家","Welcome home"):"",this::refreshControls);greeting.setOnClickListener(v->greetingEditor.show());LinearLayout.LayoutParams gp=new LinearLayout.LayoutParams(-1,px(38));gp.topMargin=px(8);controls.addView(greeting,gp);
+        gap(controls,16);controls.addView(desktopLabel(tr("首页应用","Home apps")));gap(controls,8);LinearLayout homeApps=row();controls.addView(homeApps,new LinearLayout.LayoutParams(-1,px(38)));choice(homeApps,"home-apps",tr("首屏应用","Home apps"));choice(homeApps,"dock-background",tr("Dock 背景","Dock background"));choice(homeApps,"app-title",tr("应用标题","App title"));
         homeBlur=wallpaperControl(controls,false,"blur");homeBrightness=wallpaperControl(controls,false,"brightness");homeFade=wallpaperControl(controls,false,"fade");
-        gap(controls,16);controls.addView(desktopLabel(tr("第二屏应用","Second-screen apps")));LinearLayout allApps=row();controls.addView(allApps,new LinearLayout.LayoutParams(-1,px(38)));choice(allApps,"all-apps-names",tr("应用名称","App names"));
+        gap(controls,16);controls.addView(desktopLabel(tr("第二屏应用","Second-screen apps")));gap(controls,8);LinearLayout allApps=row();controls.addView(allApps,new LinearLayout.LayoutParams(-1,px(38)));choice(allApps,"all-apps-names",tr("应用名称","App names"));
         secondBlur=wallpaperControl(controls,true,"blur");secondBrightness=wallpaperControl(controls,true,"brightness");secondFade=wallpaperControl(controls,true,"fade");
-        gap(controls,16);controls.addView(desktopLabel(tr("快捷按钮","Quick buttons")));LinearLayout shortcuts=row();controls.addView(shortcuts,new LinearLayout.LayoutParams(-1,px(38)));choice(shortcuts,"input",tr("信号源","Inputs"));choice(shortcuts,"network",tr("网络","Network"));choice(shortcuts,"settings",tr("设置","Settings"));
-        gap(controls,16);controls.addView(desktopLabel(tr("操作反馈","Interaction feedback")));
-        keySounds=setting(tr("按键音","Key sounds"),"sound","key-sounds");
+        gap(controls,16);controls.addView(desktopLabel(tr("快捷按钮","Quick buttons")));gap(controls,8);LinearLayout shortcuts=row();controls.addView(shortcuts,new LinearLayout.LayoutParams(-1,px(38)));choice(shortcuts,"input",tr("信号源","Inputs"));choice(shortcuts,"network",tr("网络","Network"));choice(shortcuts,"settings",tr("设置","Settings"));
+        gap(controls,16);controls.addView(desktopLabel(tr("操作反馈","Interaction feedback")));gap(controls,8);
+        keySounds=setting(tr("按键音","Key sounds"),"sound","key-sounds");keySounds.compact();keySounds.setBackgroundDrawable(ControlStyle.action(unit,9,0x10ffffff,0x22ffffff));
         keySounds.setOnClickListener(v->{desktopStore.keySounds(!desktopStore.keySounds());refreshControls();});
-        controls.addView(keySounds,new LinearLayout.LayoutParams(-1,px(48)));
+        controls.addView(keySounds,new LinearLayout.LayoutParams(-1,px(38)));
         LinearLayout right=column();right.setGravity(Gravity.TOP);LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(0,-1,1);rp.leftMargin=px(24);desktop.addView(right,rp);
-        previewTitle=section(tr("首页实时预览","Live Home preview"));right.addView(previewTitle);gap(right,8);
+        previewTitle=desktopLabel(tr("首页实时预览","Live Home preview"));right.addView(previewTitle);gap(right,8);
         preview=new HomePreviewView(this,chinese,fixedGreeting);preview.setBackgroundDrawable(surface(0xff0e0f13,0xff0e0f13,0x26ffffff,10));UiCompat.clipOutline(preview);right.addView(preview,new LinearLayout.LayoutParams(-1,-2));
         wireDesktop();refreshControls();
     }
@@ -69,7 +67,7 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
     private SeekBar wallpaperControl(LinearLayout parent,boolean second,String property){
         boolean fade="fade".equals(property),brightness="brightness".equals(property);int minimum=brightness?20:0,scale=fade?100:1,increment=fade?1:5;
         String caption=fade?tr("淡入时间","Fade in"):brightness?tr("亮度","Brightness"):tr("模糊度","Blur");
-        LinearLayout line=row();line.setGravity(Gravity.CENTER_VERTICAL);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,px(42));lp.topMargin=px(6);parent.addView(line,lp);
+        LinearLayout line=row();line.setGravity(Gravity.CENTER_VERTICAL);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,px(38));lp.topMargin=px(8);parent.addView(line,lp);
         TextView name=label(caption,14);line.addView(name,new LinearLayout.LayoutParams(px(chinese?56:74),-2));
         SeekBar slider=new SeekBar(activity);slider.setId(androidx.core.view.ViewCompat.generateViewId());slider.setTag((second?"second":"home")+"-wallpaper-"+property);slider.setMax(fade?12:100-minimum);slider.setKeyProgressIncrement(increment);slider.setFocusable(true);slider.setFocusableInTouchMode(true);
         slider.setContentDescription((second?tr("第二屏应用","Second-screen apps"):tr("首页应用","Home apps"))+"  "+caption);slider.setPadding(px(14),0,px(14),0);slider.setBackgroundDrawable(ControlStyle.action(unit,9,Color.TRANSPARENT,0));
@@ -79,7 +77,7 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
             @Override protected void onBoundsChange(Rect bounds){int top=bounds.centerY()-px(2);super.onBoundsChange(new Rect(bounds.left,top,bounds.right,top+px(4)));}
         };rail.setId(0,android.R.id.background);rail.setId(1,android.R.id.progress);slider.setProgressDrawable(rail);
         GradientDrawable thumb=new GradientDrawable();thumb.setColor(0xfff5f6f8);thumb.setCornerRadius(px(10));thumb.setSize(px(24),px(18));slider.setThumb(thumb);slider.setThumbOffset(px(12));if(android.os.Build.VERSION.SDK_INT>=21)slider.setSplitTrack(false);
-        line.addView(slider,new LinearLayout.LayoutParams(0,-1,1));TextView value=muted(fade?"0.0s":minimum+"%",12);value.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);line.addView(value,new LinearLayout.LayoutParams(px(34),-1));
+        line.addView(slider,new LinearLayout.LayoutParams(0,-1,1));TextView value=muted(fade?"0.0s":minimum+"%",13);value.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);line.addView(value,new LinearLayout.LayoutParams(px(34),-1));
         slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
             public void onProgressChanged(SeekBar bar,int amount,boolean fromUser){int actual=minimum+amount*scale;value.setText(fade?String.format(java.util.Locale.ROOT,"%.1fs",actual/1000f):String.format(java.util.Locale.ROOT,"%d%%",actual));if(fromUser)saveWallpaperSetting(second,property,actual);}
             public void onStartTrackingTouch(SeekBar bar){bar.requestFocus();showPreview(bar);}public void onStopTrackingTouch(SeekBar bar){}
@@ -115,7 +113,7 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
     }
     private final class DisplayChoice extends KeyFeedback.Button implements Checkable {
         private boolean checked;
-        DisplayChoice(String title){super(DesktopDisplayPanel.this.activity);setText(title);setAllCaps(false);setSingleLine(true);setEllipsize(android.text.TextUtils.TruncateAt.END);UiCompat.letterSpacing(this,0);setTextColor(TEXT);setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(14));setGravity(Gravity.CENTER);setIncludeFontPadding(false);setMinWidth(0);setMinimumWidth(0);setMinHeight(0);setMinimumHeight(0);setPadding(px(6),0,px(6),0);setId(androidx.core.view.ViewCompat.generateViewId());setFocusable(true);setFocusableInTouchMode(true);ControlStyle.choice(this,unit,9,0x10ffffff,0x22ffffff);if(android.os.Build.VERSION.SDK_INT>=21)setStateListAnimator(null);setCompoundDrawablePadding(px(6));addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{int pad=Math.max(px(6),(int)((getWidth()-px(21)-getPaint().measureText(getText().toString()))/2));setPadding(pad,0,pad,0);});}
+        DisplayChoice(String title){super(DesktopDisplayPanel.this.activity);setText(title);setAllCaps(false);setSingleLine(true);setEllipsize(android.text.TextUtils.TruncateAt.END);UiCompat.letterSpacing(this,0);setTextColor(TEXT);setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(14));setGravity(Gravity.START|Gravity.CENTER_VERTICAL);setIncludeFontPadding(false);setMinWidth(0);setMinimumWidth(0);setMinHeight(0);setMinimumHeight(0);setPadding(px(8),0,px(8),0);setId(androidx.core.view.ViewCompat.generateViewId());setFocusable(true);setFocusableInTouchMode(true);ControlStyle.choice(this,unit,9,0x10ffffff,0x22ffffff);if(android.os.Build.VERSION.SDK_INT>=21)setStateListAnimator(null);setCompoundDrawablePadding(px(6));}
         public boolean isChecked(){return checked;}
         public void toggle(){setChecked(!checked);}
         public void setChecked(boolean value){checked=value;setSelected(value);Drawable mark=new Drawable(){final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);public void draw(Canvas c){Rect b=getBounds();p.setColor(checked?0xff535860:0xff777d88);c.drawRoundRect(new RectF(b),px(2),px(2),p);if(checked){p.setColor(0xfff5f6f8);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(px(1.6f));Path path=new Path();path.moveTo(b.left+b.width()*.2f,b.top+b.height()*.5f);path.lineTo(b.left+b.width()*.43f,b.top+b.height()*.73f);path.lineTo(b.left+b.width()*.82f,b.top+b.height()*.25f);c.drawPath(path,p);p.setStyle(Paint.Style.FILL);}}public void setAlpha(int a){p.setAlpha(a);}public void setColorFilter(ColorFilter f){p.setColorFilter(f);}public int getOpacity(){return PixelFormat.TRANSLUCENT;}};mark.setBounds(0,0,px(13),px(13));setCompoundDrawables(mark,null,null,null);}
