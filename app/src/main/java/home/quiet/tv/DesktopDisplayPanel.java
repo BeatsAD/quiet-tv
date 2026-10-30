@@ -20,7 +20,7 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
     private boolean previewSecond;
     private LinearLayout desktop;
     private ScrollView desktopScroll;
-    private DesktopSettingsRow greeting,legacyHomeKey,keySounds;
+    private DesktopSettingsRow greeting,legacyHomeKey,keySounds,watchTv;
     private Button classic,gallery;
     private SeekBar homeBlur,secondBlur,homeBrightness,secondBrightness,homeFade,secondFade;
     private String focusTag;
@@ -60,6 +60,8 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
         keySounds=setting(tr("按键音","Key sounds"),"sound","key-sounds");
         keySounds.setOnClickListener(v->{desktopStore.keySounds(!desktopStore.keySounds());refreshControls();});
         controls.addView(keySounds,new LinearLayout.LayoutParams(-1,px(48)));
+        gap(controls,16);watchTv=setting(tr("开机直达","Startup destination"),"desktop","watch-tv");watchTv.tail("arrow");
+        watchTv.setOnClickListener(v->startActivity(new Intent(activity,WatchTvActivity.class)));controls.addView(watchTv,new LinearLayout.LayoutParams(-1,px(48)));
         LinearLayout right=column();right.setGravity(Gravity.TOP);LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(0,-1,1);rp.leftMargin=px(24);desktop.addView(right,rp);
         previewTitle=section(tr("首页实时预览","Live Home preview"));right.addView(previewTitle);gap(right,8);
         preview=new HomePreviewView(this,chinese,fixedGreeting);preview.setBackgroundDrawable(surface(0xff0e0f13,0xff0e0f13,0x26ffffff,10));UiCompat.clipOutline(preview);right.addView(preview,new LinearLayout.LayoutParams(-1,-2));
@@ -98,7 +100,7 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
     }
     private void choice(LinearLayout parent,String key,String title){DisplayChoice b=new DisplayChoice(title);b.setTag("display-"+key);b.setOnClickListener(v->{showPreview(v);boolean value=!b.isChecked();switch(key){case "greeting":desktopStore.greetingEnabled(value);break;case "time":desktopStore.showTime(value);break;case "date":desktopStore.showDate(value);break;case "app-title":desktopStore.showAppTitle(value);break;case "home-apps":desktopStore.showHomeApps(value);break;case "dock-background":desktopStore.showDockBackground(value);break;case "all-apps-names":desktopStore.showAllAppsNames(value);break;case "weather":weatherStore.enabled(value);activity.weatherSettingsChanged();break;case "input":desktopStore.showInput(value);break;case "network":desktopStore.showNetwork(value);break;case "settings":desktopStore.showSettings(value);break;}refreshControls();});choices.put(key,b);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-1,1);if(parent.getChildCount()>0)p.leftMargin=px(8);parent.addView(b,p);}
     private void wireDesktop(){
-        View[][] rows={{classic,gallery},{choices.get("greeting"),choices.get("time"),choices.get("app-title")},{choices.get("date"),choices.get("weather")},{greeting},{choices.get("home-apps"),choices.get("dock-background")},{homeBlur},{homeBrightness},{homeFade},{choices.get("all-apps-names")},{secondBlur},{secondBrightness},{secondFade},{choices.get("input"),choices.get("network"),choices.get("settings")},{keySounds}};
+        View[][] rows={{classic,gallery},{choices.get("greeting"),choices.get("time"),choices.get("app-title")},{choices.get("date"),choices.get("weather")},{greeting},{choices.get("home-apps"),choices.get("dock-background")},{homeBlur},{homeBrightness},{homeFade},{choices.get("all-apps-names")},{secondBlur},{secondBrightness},{secondFade},{choices.get("input"),choices.get("network"),choices.get("settings")},{keySounds},{watchTv}};
         for(int r=0;r<rows.length;r++)for(int c=0;c<rows[r].length;c++){View v=rows[r][c];v.setOnFocusChangeListener((view,focused)->{if(focused)showPreview(view);});v.setNextFocusLeftId(rows[r][Math.max(0,c-1)].getId());v.setNextFocusRightId(rows[r][Math.min(rows[r].length-1,c+1)].getId());v.setNextFocusUpId(r==0?managementTab().getId():rows[r-1][Math.min(c,rows[r-1].length-1)].getId());v.setNextFocusDownId(r==rows.length-1?v.getId():rows[r+1][Math.min(c,rows[r+1].length-1)].getId());}
         if(legacyHomeKey!=null){
             View[] shortcuts=rows[rows.length-1];for(View v:shortcuts)v.setNextFocusDownId(legacyHomeKey.getId());

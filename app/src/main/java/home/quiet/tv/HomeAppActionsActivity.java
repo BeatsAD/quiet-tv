@@ -36,6 +36,7 @@ public final class HomeAppActionsActivity extends ManagementUi {
         if(getIntent().getBooleanExtra("add",false))picker("add",false);else menu();
     }
     private String name(String id){
+        if(HomeAppCatalog.WATCH_TV.equals(id))return "看电视";
         if(HomeAppCatalog.WALLPAPER.equals(id))return "壁纸设置";
         if(HomeAppCatalog.DESKTOP_SETTINGS.equals(id))return "桌面设置";
         if(HomeAppCatalog.MANAGEMENT.equals(id))return "应用管理";

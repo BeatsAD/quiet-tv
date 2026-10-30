@@ -16,6 +16,7 @@ import android.view.accessibility.AccessibilityEvent;
 public final class HomeGuardService extends AccessibilityService implements SharedPreferences.OnSharedPreferenceChangeListener {
     private static volatile HomeGuardService instance;
     private static volatile boolean homeResumed;
+    private static long savedInputUntil;
     private final Handler handler=new Handler(Looper.getMainLooper());
     private final HomeGuardPolicy policy=new HomeGuardPolicy();
     private final HomeKeyPolicy homeKeys=new HomeKeyPolicy();
@@ -163,8 +164,14 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         if(service!=null){service.policy.inputSelected(SystemClock.uptimeMillis());service.cancel();}
         HomeGuardRecovery.cancel();
     }
-    static boolean inputTransition(){HomeGuardService service=instance;return service!=null && service.policy.inputTransition(SystemClock.uptimeMillis());}
-    static void cancelInputTransition(){HomeGuardService service=instance;if(service!=null){service.policy.cancelInput();service.transitionUntil=0;service.cancel();}}
+    static void savedInputSelected(Context c){
+        savedInputUntil=SystemClock.uptimeMillis()+HomeGuardPolicy.INPUT_TRANSITION_MS;
+        bootSourceUserAction(c,"saved_input_selection");
+        HomeGuardService service=instance;if(service!=null){service.policy.inputSelected(SystemClock.uptimeMillis());service.cancel();}
+        HomeGuardRecovery.cancel();
+    }
+    static boolean inputTransition(){long now=SystemClock.uptimeMillis();HomeGuardService service=instance;return now<savedInputUntil || service!=null && service.policy.inputTransition(now);}
+    static void cancelInputTransition(){savedInputUntil=0;HomeGuardService service=instance;if(service!=null){service.policy.cancelInput();service.transitionUntil=0;service.cancel();}}
     // Aerial 1.49: a vendor boot page may cover the first successful takeover much later.
     @android.annotation.SuppressLint("InlinedApi")
     private final Runnable bootRecheck=()->{

@@ -18,10 +18,11 @@ final class VendorTvInputs {
     private static final ComponentName SKY_PLAYER=new ComponentName("com.skyworth.tv","com.skyworth.tv.activity.SkyTVMainActivity");
     private static final ComponentName KONKA_PLAYER=new ComponentName("com.konka.tvsettings","com.konka.tvsettings.RootActivity");
     static final class Source {
-        final String label;
+        final String label,key,owner;
+        final boolean hdmi;
         final Intent intent;
         final Bundle parameters;
-        Source(String label,Intent intent,Bundle parameters){this.label=label;this.intent=intent;this.parameters=parameters;}
+        Source(String label,Intent intent,Bundle parameters,String key,String owner,boolean hdmi){this.label=label;this.intent=intent;this.parameters=parameters;this.key=key;this.owner=owner;this.hdmi=hdmi;}
     }
     private final Context context;
     VendorTvInputs(Context context){this.context=context;}
@@ -57,8 +58,8 @@ final class VendorTvInputs {
                     Bundle data=new Bundle();data.putString("name",value);data.putInt("index",ordinal);
                     if(sdk){
                         data.putString("displayname",label);data.putInt("signal",cursor.getInt(cursor.getColumnIndexOrThrow("signalState")));
-                        sources.add(new Source(label,new Intent().setComponent(SKY_PLAYER).putExtra("source",data),null));
-                    }else sources.add(new Source(label,null,data));
+                        sources.add(new Source(label,new Intent().setComponent(SKY_PLAYER).putExtra("source",data),null,authority+":"+value,"com.skyworth.tv",value.toUpperCase(java.util.Locale.ROOT).contains("HDMI")));
+                    }else sources.add(new Source(label,null,data,authority+":"+value,"com.skyworth.tv",value.toUpperCase(java.util.Locale.ROOT).contains("HDMI")));
                 }
             }
         }catch(RuntimeException failure){sources.clear();DiagnosticLog.error("input.vendor.enumeration.failed",failure);}
@@ -81,7 +82,7 @@ final class VendorTvInputs {
                 Enum<?> source=(Enum<?>)item;if(!seen.add(source.name()))continue;
                 String label=source.name();
                 if(labelMethod!=null){Object text=labelMethod.invoke(manager,source);if(text instanceof String && !((String)text).isEmpty())label=(String)text;}
-                sources.add(new Source(label,new Intent("com.konka.tvsettings.intent.action.RootActivity").setComponent(KONKA_PLAYER).putExtra("source",source.ordinal()),null));
+                sources.add(new Source(label,new Intent("com.konka.tvsettings.intent.action.RootActivity").setComponent(KONKA_PLAYER).putExtra("source",source.ordinal()),null,"konka:"+source.name(),"com.konka.tvsettings",source.name().contains("HDMI")));
             }
         }catch(Exception|LinkageError failure){sources.clear();DiagnosticLog.error("input.konka.enumeration.failed",failure);}
         return sources;

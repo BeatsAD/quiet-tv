@@ -10,6 +10,7 @@ import java.util.*;
 
 /** The home and its editor must enumerate the same launchable packages and built-in entries. */
 final class HomeAppCatalog {
+    static final String WATCH_TV="quiet:watch-tv";
     static final String WALLPAPER="quiet:wallpapers",DESKTOP_SETTINGS="quiet:desktop-settings",MANAGEMENT="quiet:management";
     static final class Entry {
         final String id,label;final ResolveInfo info;
@@ -39,6 +40,7 @@ final class HomeAppCatalog {
         if(!hiddenApps){
             result.add(0,new Entry(WALLPAPER,chinese?"壁纸设置":"Wallpaper Settings",null));
             result.add(1,new Entry(DESKTOP_SETTINGS,chinese?"桌面设置":"Desktop Settings",null));
+            if(new BootAppStore(context).showWatch())result.add(0,new Entry(WATCH_TV,chinese?"看电视":"Watch TV",null));
         }
         return result;
     }

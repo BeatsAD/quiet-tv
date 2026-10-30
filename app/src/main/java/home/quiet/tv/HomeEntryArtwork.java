@@ -20,11 +20,21 @@ final class HomeEntryArtwork {
         return bitmap;
     }
 
+    private static Bitmap watchTv(String title){
+        Bitmap bitmap=Bitmap.createBitmap(360,203,Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(bitmap);Paint paint=new Paint(3);
+        paint.setShader(new LinearGradient(0,0,360,203,0xff217c94,0xff124356,Shader.TileMode.CLAMP));canvas.drawRect(0,0,360,203,paint);paint.setShader(null);
+        paint.setColor(Color.WHITE);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(5);canvas.drawRoundRect(new RectF(35,53,145,135),12,12,paint);canvas.drawLine(70,151,110,151,paint);canvas.drawLine(90,135,90,151,paint);
+        paint.setStyle(Paint.Style.FILL);Path play=new Path();play.moveTo(80,76);play.lineTo(80,112);play.lineTo(108,94);play.close();canvas.drawPath(play,paint);
+        paint.setTypeface(Typeface.create("sans-serif",Typeface.BOLD));paint.setTextSize(34);float width=paint.measureText(title);if(width>165)paint.setTextSize(34*165/width);
+        Paint.FontMetrics metrics=paint.getFontMetrics();canvas.drawText(title,168,(203-metrics.ascent-metrics.descent)/2,paint);return bitmap;
+    }
+
     static Bitmap render(Context context,String title,boolean desktop){
         return render(context,title,desktop?HomeAppCatalog.DESKTOP_SETTINGS:HomeAppCatalog.MANAGEMENT);
     }
 
     static Bitmap render(Context context,String title,String entry){
+        if(HomeAppCatalog.WATCH_TV.equals(entry))return watchTv(title);
         boolean wallpaper=HomeAppCatalog.WALLPAPER.equals(entry),desktop=HomeAppCatalog.DESKTOP_SETTINGS.equals(entry);
         Bitmap bitmap=Bitmap.createBitmap(360,203,Bitmap.Config.ARGB_8888);
         Canvas canvas=new Canvas(bitmap);Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);
