@@ -117,7 +117,11 @@ final class UpdateRepository {
             String detail="version="+target.version()+" build="+target.code+" api="+Build.VERSION.SDK_INT+" route="+(Build.VERSION.SDK_INT<24?"legacy_file":"content");
             DiagnosticLog.info("update.install.prepare",detail);
             try{UpdateInstaller.validate(context,target,file(target));stage="prepare";prepared=UpdateInstaller.prepare(context,target,file(target));}
-            catch(IOException|RuntimeException e){error=stage.equals("verify")?"安装包校验失败，请重新下载":"无法准备安装文件，请检查可用存储后重试";DiagnosticLog.error("update.install.prepare_failed",detail+" stage="+stage,e);}
+            catch(IOException|RuntimeException e){
+                UpdateInstallPreparation.Failure preparation=e instanceof UpdateInstallPreparation.Failure?(UpdateInstallPreparation.Failure)e:null;
+                error=stage.equals("verify")?"安装包校验失败，请重新下载":preparation!=null?preparation.userMessage():"安装文件读写失败，请重试或通过电脑更新";
+                DiagnosticLog.error("update.install.prepare_failed",detail+" stage="+stage+" "+(preparation!=null?preparation.details():"reason="+(stage.equals("verify")?"apk_invalid":"io_failed")),e);
+            }
             final String failure=error;final File installFile=prepared;final boolean invalid=stage.equals("verify")&&!failure.isEmpty();
             main.post(()->{verifying=false;if(invalid){ready=false;prefs.edit().remove("readyHash").apply();}notifyChanged();callback.checked(failure.isEmpty()?installFile:null,failure);});});
     }
