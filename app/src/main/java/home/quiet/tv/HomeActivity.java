@@ -82,7 +82,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private KeyFeedback.Popup inputPopup;
     private String systemEntryPending="";
     private long systemEntryStarted;
-    private boolean systemEntryDispatched;
+    private boolean systemEntryDispatched,inputDiscoveryPending;
+    private int inputDiscoveryGeneration;
     private final String homeInstance=Integer.toHexString(System.identityHashCode(this));
     private int homeResumeSequence;
     private long homeResumeStarted,homePausedAt;
@@ -448,6 +449,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     @Override protected void onPause() {
         if(waitingForUnlock){super.onPause();return;}
         cancelConfirm();screensaver.pause();
+        ++inputDiscoveryGeneration;inputDiscoveryPending=false;
         cancelFocusRestore("pause");
         root.removeCallbacks(checkHomeUpdates);homeReadyDrawn=false;
         if(!HomeGuardState.canShow(this))new HomeProxy(this).defer(getIntent());
@@ -1092,11 +1094,45 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     private void showInputs(){
+        if(inputDiscoveryPending)return;
         HomeGuardService.bootSourceUserAction(this);
         DiagnosticLog.info("input.request","api="+Build.VERSION.SDK_INT+" standardSupported="+(Build.VERSION.SDK_INT>=21));
-        if(Build.VERSION.SDK_INT>=21){if(tvInputs==null)tvInputs=new TvInputs();tvInputs.show();return;}
-        Toast.makeText(this,tr("请在电视系统设置中选择信号源，或使用遥控器信号源键","Select an input in TV settings or use the remote input key"),Toast.LENGTH_LONG).show();
-        openSettings(Settings.ACTION_SETTINGS);
+        inputDiscoveryPending=true;int request=++inputDiscoveryGeneration;
+        if(Build.VERSION.SDK_INT>=21){if(tvInputs==null)tvInputs=new TvInputs();tvInputs.show(request);return;}
+        loader.execute(()->{
+            TvInputPanels.Snapshot snapshot=new TvInputPanels(this).inspect();
+            main.post(()->{if(!finishInputDiscovery(request))return;
+                TvInputPanels.Panel direct=snapshot.directPanel(true);
+                if(direct!=null){openNativeInputs(direct);return;}
+                showInputIssue(tr("信号源入口不可用","Input entry unavailable"),tr("当前安卓版本不提供标准输入列表。","This Android version has no standard TV input list.")+"\n\n"+snapshot.problem(chinese));
+            });
+        });
+    }
+    private boolean finishInputDiscovery(int request){
+        if(request!=inputDiscoveryGeneration)return false;inputDiscoveryPending=false;
+        return resumed&&!isFinishing()&&!UiCompat.destroyed(this)&&hasWindowFocus();
+    }
+    private String nativeInputProblem(TvInputPanels.PanelState state){
+        switch(state){
+            case DISABLED:return tr("原厂信号源组件已停用，请在电视系统中检查组件状态。","The native input component is disabled. Check its state in TV settings.");
+            case RESTRICTED:return tr("系统不允许 Quiet TV 调用此信号源入口，请使用电视遥控器信号源键。","The system restricts this input entry. Use the remote input key.");
+            case UNAVAILABLE:return tr("原厂信号源入口已变化或不再可用，请重新检测。","The native input entry changed or is unavailable. Detect again.");
+            default:return tr("原厂信号源启动失败，请使用电视遥控器信号源键。","The native input panel failed to start. Use the remote input key.");
+        }
+    }
+    private void openNativeInputs(TvInputPanels.Panel panel){
+        leaveSystemEntry("input.panel",()->{
+            TvInputPanels.PanelState state=new TvInputPanels(this).open(panel);systemEntryResult(state==TvInputPanels.PanelState.READY);
+            if(state!=TvInputPanels.PanelState.READY){wallpapers.resume();showInputIssue(tr("信号源入口不可用","Input entry unavailable"),nativeInputProblem(state));}
+        });
+    }
+    private void showInputIssue(String title,String message){
+        DiagnosticLog.info("input.problem","dialog_shown");
+        android.app.AlertDialog dialog=new android.app.AlertDialog.Builder(this).setTitle(title).setMessage(message)
+            .setNegativeButton(tr("返回","Back"),(d,w)->KeySounds.play(this,KeySoundPolicy.BACK))
+            .setNeutralButton(tr("重新检测","Detect again"),(d,w)->main.post(this::showInputs))
+            .setPositiveButton(tr("系统设置","System settings"),(d,w)->{openSettings(Settings.ACTION_SETTINGS);KeySounds.play(this,KeySoundPolicy.CONFIRM);}).create();
+        dialog.setOnDismissListener(d->main.post(this::updateHeaderFocus));dialog.show();ControlStyle.dialog(dialog,unit);
     }
 
     @android.annotation.TargetApi(24)
@@ -1129,12 +1165,18 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             });
         }
         void openPending(){if(pendingTvInput!=null && resumed && checkCallingOrSelfPermission("android.permission.READ_TV_LISTINGS")==PackageManager.PERMISSION_GRANTED){TvInputInfo input=pendingTvInput;pendingTvInput=null;openInput(input);}}
-        void show(){
-            TvInputController.Snapshot snapshot=new TvInputController(HomeActivity.this).inspect();
-            List<VendorTvInputs.Source> vendor=snapshot.inputs.isEmpty()?new VendorTvInputs(HomeActivity.this).load():Collections.emptyList();
-            TvInputController.Panel direct=vendor.isEmpty()?snapshot.directPanel():null;
-            DiagnosticLog.info("input.menu.inspect","standard="+snapshot.state+" inputs="+snapshot.inputs.size()+" vendor="+vendor.size()+" panels="+snapshot.panels.size()+" profilesUnavailable="+snapshot.profilesUnavailable+" direct="+(direct!=null));
-            if(direct!=null){openSystemInputs(direct);return;}
+        void show(int request){
+            loader.execute(()->{
+                TvInputController.Snapshot snapshot=new TvInputController(HomeActivity.this).inspect();
+                VendorTvInputs.Discovery vendor=snapshot.inputs.isEmpty()?new VendorTvInputs(HomeActivity.this).inspect():new VendorTvInputs.Discovery();
+                main.post(()->{if(finishInputDiscovery(request))present(snapshot,vendor);});
+            });
+        }
+        private void present(TvInputController.Snapshot snapshot,VendorTvInputs.Discovery discovery){
+            List<VendorTvInputs.Source> vendor=discovery.sources;
+            TvInputPanels.Panel direct=vendor.isEmpty()?snapshot.directPanel():null;
+            DiagnosticLog.info("input.menu.inspect","standard="+snapshot.state+" inputs="+snapshot.inputs.size()+" vendor="+vendor.size()+" panels="+snapshot.nativePanels.panels.size()+" profilesUnavailable="+snapshot.nativePanels.profilesUnavailable+" direct="+(direct!=null));
+            if(direct!=null){openNativeInputs(direct);return;}
             ArrayList<TvInputInfo> inputs=snapshot.inputs;
             Collections.sort(inputs,(a,b)->{
                 int ar=a.getType()==TvInputInfo.TYPE_HDMI?0:a.isPassthroughInput()?1:2;
@@ -1151,9 +1193,11 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 boolean opened=new VendorTvInputs(HomeActivity.this).open(source);systemEntryResult(opened);
                 if(!opened){wallpapers.resume();showInputProblem(tr("原厂信号源未接受切换请求，请使用电视遥控器。","The TV did not accept the input request. Use the TV remote."));}
             }));
-            for(TvInputController.Panel panel:snapshot.availablePanels())addInputChoice(menu,choices,panel.profile.label(chinese),()->openSystemInputs(panel));
+            TvInputPanels.Panel nativeChoice=snapshot.nativePanels.directPanel(true);
+            if(nativeChoice!=null)addInputChoice(menu,choices,nativeChoice.profile.label(chinese),()->openNativeInputs(nativeChoice));
             DiagnosticLog.info("input.menu","choices="+choices.size());
-            if(choices.isEmpty()){showUnavailableInputs(snapshot);return;}
+            if(choices.isEmpty()){showUnavailableInputs(snapshot,discovery);return;}
+            if(snapshot.itemFailures>0){TextView note=text(tr("部分输入信息读取失败","Some inputs could not be read"),12,400,0xffb0b4be);note.setPadding(px(12),px(8),px(12),px(8));menu.addView(note);}
             inputPopup=new KeyFeedback.Popup(HomeActivity.this,menu,px(222),-2);inputPopup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));inputPopup.setElevation(px(14));inputPopup.setOutsideTouchable(true);
             inputPopup.setOnDismissListener(()->main.post(()->updateHeaderFocus()));
             for(int n=0;n<choices.size();n++){
@@ -1172,69 +1216,48 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             choices.add(choice);menu.addView(choice,new LinearLayout.LayoutParams(-1,px(40)));
         }
 
-        private String panelProblem(TvInputController.PanelState state){
-            switch(state){
-                case DISABLED:return tr("系统信号源组件已禁用。请先在电视系统中检查该组件状态。","The system input component is disabled. Check its state in the TV settings.");
-                case RESTRICTED:return tr("电视系统不允许 Quiet TV 打开此信号源面板。请使用电视遥控器的信号源键。","The TV restricts access to HomeActivity.this input panel. Use the TV remote's Input button.");
-                case UNAVAILABLE:return tr("系统信号源入口已不可用。请使用电视遥控器的信号源键。","The system input panel is no longer available. Use the TV remote's Input button.");
-                default:return tr("系统信号源面板未能打开。请使用电视遥控器的信号源键。","The system input panel could not be opened. Use the TV remote's Input button.");
-            }
-        }
-
-        private void openSystemInputs(TvInputController.Panel panel){
-            leaveSystemEntry("input.panel",()->{
-                TvInputController.PanelState state=new TvInputController(HomeActivity.this).openPanel(panel.profile);
-                systemEntryResult(state==TvInputController.PanelState.READY);
-                if(state!=TvInputController.PanelState.READY){wallpapers.resume();showInputProblem(panelProblem(state));}
-            });
-        }
-
-        private void showUnavailableInputs(TvInputController.Snapshot snapshot){
-            String message;
+        private void showUnavailableInputs(TvInputController.Snapshot snapshot,VendorTvInputs.Discovery vendor){
+            String title,message;
             switch(snapshot.state){
-                case UNAVAILABLE:message=tr("电视未提供可用的标准输入服务。","The standard TV input service is unavailable.");break;
-                case RESTRICTED:message=tr("电视系统限制了标准输入列表的读取。","The TV restricts access to its standard input list.");break;
-                case FAILED:message=tr("电视标准输入服务未能返回输入列表。","The TV input service could not return its input list.");break;
-                default:message=tr("电视未通过标准接口提供输入列表。","The TV returned no inputs through the standard interface.");
+                case UNAVAILABLE:title=tr("系统未提供输入服务","Input service unavailable");message=tr("当前系统没有可用的标准信号源服务。","The system has no available standard TV input service.");break;
+                case RESTRICTED:title=tr("系统限制信号源访问","Input access restricted");message=tr("系统限制了信号源列表或输入信息的读取。","The system restricts access to the input list or its entries.");break;
+                case FAILED:title=tr("信号源读取失败","Input discovery failed");message=tr("读取标准信号源时发生异常，请重新检测。","Reading the standard inputs failed. Detect again.");break;
+                case FILTERED:title=tr("信号源已隐藏或被过滤","Inputs hidden or filtered");message=tr("系统返回了输入项，但均被隐藏设置或重复项规则排除。","The system returned inputs, but all were hidden or duplicate entries.");break;
+                default:title=tr("系统未登记信号源","No registered TV inputs");message=tr("标准输入服务返回空列表，这不代表电视没有 HDMI／AV 接口。","The standard input service returned an empty list. This does not mean the TV lacks HDMI/AV ports.");
             }
-            for(TvInputController.Panel panel:snapshot.panels)message+="\n\n"+panel.profile.label(chinese)+"\n"+panelProblem(panel.state);
-            if(snapshot.panels.isEmpty())message+="\n\n"+tr("尚未找到可用的系统信号源入口。请使用电视遥控器的信号源键，或进入系统设置。这不表示电视没有 HDMI／AV 接口。","No usable system input panel was found. Use the TV remote's Input button or open system settings. This does not mean the TV has no HDMI/AV ports.");
-            if(snapshot.profilesUnavailable)message+="\n\n"+tr("系统信号源兼容信息暂不可用。","System input compatibility information is unavailable.");
-            showInputProblem(message);
+            String vendorProblem=vendor.problem(chinese);if(!vendorProblem.isEmpty())message+="\n\n"+vendorProblem;
+            message+="\n\n"+snapshot.nativePanels.problem(chinese);
+            message+="\n\n"+tr("可重新检测、进入系统设置，或使用电视遥控器信号源键。","Detect again, open system settings, or use the remote input key.");
+            showInputIssue(title,message);
         }
+        private void showInputProblem(String message){showInputIssue(tr("信号源切换未完成","Input switch incomplete"),message);}
 
-        private void showInputProblem(String message){
-            DiagnosticLog.info("input.problem","dialog_shown");
-            android.app.AlertDialog dialog=new android.app.AlertDialog.Builder(HomeActivity.this)
-                .setTitle(tr("信号源暂不可用","Inputs unavailable")).setMessage(message)
-                .setNegativeButton(tr("返回","Back"),(d,w)->KeySounds.play(HomeActivity.this,KeySoundPolicy.BACK))
-                .setPositiveButton(tr("系统设置","System settings"),(d,w)->{
-                    openSettings(Settings.ACTION_SETTINGS);KeySounds.play(HomeActivity.this,KeySoundPolicy.CONFIRM);
-                }).create();
-            dialog.setOnDismissListener(d->main.post(()->updateHeaderFocus()));dialog.show();ControlStyle.dialog(dialog,unit);
-        }
-
-        private void offerSystemInputs(){
+        private boolean offerSystemInputs(){
             TvInputController.Snapshot snapshot=new TvInputController(HomeActivity.this).inspect();
-            List<TvInputController.Panel> panels=snapshot.availablePanels();
+            List<TvInputPanels.Panel> panels=snapshot.availablePanels();
             if(panels.isEmpty()){
                 String message=tr("此输入无法打开，且未找到可用的系统信号源面板。请使用电视遥控器的信号源键或进入系统设置。","This input could not be opened and no usable system input panel was found. Use the TV remote's Input button or system settings.");
-                for(TvInputController.Panel panel:snapshot.panels)message+="\n\n"+panel.profile.label(chinese)+"\n"+panelProblem(panel.state);
-                showInputProblem(message);return;
+                message+="\n\n"+snapshot.nativePanels.problem(chinese);
+                showInputProblem(message);return false;
             }
-            String[] labels=new String[panels.size()];for(int i=0;i<labels.length;i++)labels[i]=panels.get(i).profile.label(chinese);
-            android.app.AlertDialog dialog=new android.app.AlertDialog.Builder(HomeActivity.this)
-                .setTitle(tr("此输入无法打开，请选择系统信号源","Input unavailable; choose system inputs"))
-                .setItems(labels,(d,which)->{openSystemInputs(panels.get(which));KeySounds.play(HomeActivity.this,KeySoundPolicy.CONFIRM);})
-                .setNegativeButton(tr("返回","Back"),(d,w)->KeySounds.play(HomeActivity.this,KeySoundPolicy.BACK)).create();
-            dialog.setOnDismissListener(d->main.post(()->updateHeaderFocus()));dialog.show();ControlStyle.dialog(dialog,unit);
+            TvInputPanels.Panel direct=snapshot.nativePanels.directPanel(true);
+            if(direct==null)return false;
+            TvInputPanels.PanelState state=new TvInputPanels(HomeActivity.this).open(direct);
+            if(state!=TvInputPanels.PanelState.READY)showInputProblem(nativeInputProblem(state));
+            return state==TvInputPanels.PanelState.READY;
         }
 
-        private void openInput(TvInputInfo info){leaveSystemEntry("input.standard",()->{DiagnosticLog.info("input.select","provider="+info.getServiceInfo().packageName+" type="+info.getType()+" passthrough="+info.isPassthroughInput());boolean opened=launchInput(info);systemEntryResult(opened);if(!opened)wallpapers.resume();});}
+        private void openInput(TvInputInfo info){leaveSystemEntry("input.standard",()->{
+            boolean opened=false;
+            try{DiagnosticLog.info("input.select","provider="+info.getServiceInfo().packageName+" type="+info.getType()+" passthrough="+info.isPassthroughInput());opened=launchInput(info);}
+            catch(SecurityException restricted){DiagnosticLog.error("input.select.restricted",restricted);showInputProblem(tr("系统限制了此输入的读取或切换，请使用电视遥控器信号源键。","The system restricts this input. Use the remote input key."));}
+            catch(RuntimeException failure){DiagnosticLog.error("input.select.failed",failure);showInputProblem(tr("输入服务已变化或读取失败，请重新检测。","The input service changed or failed. Detect again."));}
+            systemEntryResult(opened);if(!opened)wallpapers.resume();
+        });}
         private boolean launchInput(TvInputInfo info){
             TvInputController controller=new TvInputController(HomeActivity.this);
             info=controller.mappedInput(info);
-            if(info==null){offerSystemInputs();return false;}
+            if(info==null)return offerSystemInputs();
             if(controller.openKnownInput(info))return true;
             // Native DTV players do not need an Android channel database or READ_TV_LISTINGS.
             if(info.getType()==TvInputInfo.TYPE_TUNER && controller.openFallbackInput(info))return true;
@@ -1268,7 +1291,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 if(intent!=null){startActivity(intent);DiagnosticLog.info("input.standard.dispatch",intent.getComponent().flattenToShortString());return true;}
             }catch(RuntimeException e){DiagnosticLog.error("input.standard.failed",e);}
             if(controller.openFallbackInput(info))return true;
-            offerSystemInputs();return false;
+            return offerSystemInputs();
         }
 
         private String inputName(TvInputInfo info){
@@ -1276,7 +1299,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             if(!info.isPassthroughInput())return tr("电视直播","Live TV");
             if(info.getType()==TvInputInfo.TYPE_HDMI || info.getType()==TvInputInfo.TYPE_DISPLAY_PORT)return new TvInputController(HomeActivity.this).inputLabel(info);
             if(info.getType()==TvInputInfo.TYPE_COMPOSITE)return "AV";
-            return info.loadLabel(HomeActivity.this).toString();
+            return new TvInputController(HomeActivity.this).inputLabel(info);
         }
     }
 }
