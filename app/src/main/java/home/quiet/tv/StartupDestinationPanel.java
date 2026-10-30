@@ -22,7 +22,7 @@ final class StartupDestinationPanel extends ManagementPanel {
     @Override public void onCreate(Bundle saved){
         store=new BootAppStore(this);editing=store.hdmiBoot()?1:store.enabled()?2:store.watchTarget().isEmpty()?0:1;
         if(saved!=null){editing=saved.getInt("editing",editing);focusTag=saved.getString("focus");}
-        pageRoot=column();pageRoot.setPadding(0,px(22),0,0);activity.attachPanel(pageRoot);
+        pageRoot=column();activity.attachPanel(pageRoot);
         ScrollView scroll=new ScrollView(activity);scroll.setFocusable(false);scroll.setVerticalScrollBarEnabled(false);
         pageRoot.addView(scroll,new LinearLayout.LayoutParams(-1,-1));
         content=column();content.setPadding(px(2),0,px(2),px(4));scroll.addView(content,new ScrollView.LayoutParams(-1,-2));render();

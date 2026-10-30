@@ -59,7 +59,7 @@ final class VersionUpdatePanel extends ManagementPanel {
         scene.hideRecovery();
         license=true;licenseReady=false;++navigation;
         if(web==null){
-            web=new WebView(this);web.setTag("about-license");web.setBackgroundColor(0xff0b121c);
+            web=new WebView(this);web.setVerticalScrollBarEnabled(false);web.setTag("about-license");web.setBackgroundColor(0xff0b121c);
             web.setVisibility(View.INVISIBLE);content.addView(web,new FrameLayout.LayoutParams(-1,-1));
             web.setNextFocusUpId(managementTab().getId());
             web.setOnKeyListener((view,key,event)->{if(key!=KeyEvent.KEYCODE_DPAD_UP || web.getScrollY()!=0)return false;if(event.getAction()==KeyEvent.ACTION_DOWN)managementTab().requestFocus();return true;});

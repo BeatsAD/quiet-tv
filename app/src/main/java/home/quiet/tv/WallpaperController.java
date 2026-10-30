@@ -565,14 +565,13 @@ final class WallpaperController {
         if(picker==null)return;WallpaperCatalog state=store.snapshot();WallpaperCatalog.Entry entry=state.find(preview);
         updateSaverToolbar();
         staticTab.setSelected(!dynamicTab);videoTab.setSelected(dynamicTab);
-        videoTab.setNextFocusRightId(auto.getId());auto.setNextFocusLeftId(videoTab.getId());dynamicToggle.setNextFocusLeftId(auto.getId());
         soundToggle.setVisibility(dynamicTab?View.VISIBLE:View.GONE);soundToggle.setText(tr("声音","Sound"));soundToggle.setCompoundDrawables(toggleDrawable(state.sound),null,null,null);soundToggle.setCompoundDrawablePadding(px(7));soundToggle.setContentDescription(state.sound?tr("壁纸声音，开","Wallpaper sound, on"):tr("壁纸声音，关","Wallpaper sound, off"));
-        dynamicToggle.setNextFocusRightId(soundToggle.getId());soundToggle.setNextFocusLeftId(dynamicToggle.getId());soundToggle.setNextFocusRightId(localFile.getId());auto.setNextFocusRightId(dynamicTab?dynamicToggle.getId():localFile.getId());localFile.setNextFocusLeftId(dynamicTab?soundToggle.getId():auto.getId());localFile.setNextFocusRightId(upload.getId());upload.setNextFocusLeftId(localFile.getId());
         dynamicToggle.setVisibility(dynamicTab?View.VISIBLE:View.GONE);dynamicToggle.setText(tr("启用动态","Enable video"));dynamicToggle.setCompoundDrawables(toggleDrawable(state.dynamic()),null,null,null);dynamicToggle.setCompoundDrawablePadding(px(7));dynamicToggle.setContentDescription(state.dynamic()?tr("启用动态，开","Enable video, on"):tr("启用动态，关","Enable video, off"));
         for(TextView toggle:new TextView[]{dynamicToggle,soundToggle}){Drawable icon=toggle.getCompoundDrawables()[0];icon.setBounds(0,0,px(22),px(13));toggle.setCompoundDrawables(icon,null,null,null);toggle.setCompoundDrawablePadding(px(4));}
         int count=dynamicTab?state.videos().size():state.pictures().size();
         boolean rotating=state.rotating&&state.dynamic()==dynamicTab;String unavailable=tr(dynamicTab?"至少需要两个视频才能轮播":"至少需要两张图片才能轮播",dynamicTab?"Add at least two videos for rotation":"Add at least two photos for rotation");
         auto.setText(tr("轮播：","Rotate: ")+rotationLabel(rotating?state.rotationMinutes:0));auto.setCompoundDrawables(null,null,ui.icon(R.drawable.ic_wallpaper_dropdown,11,WallpaperUi.INK),null);auto.setCompoundDrawablePadding(px(4));auto.setEnabled(count>=2);auto.setAlpha(count>=2?1:.4f);auto.setContentDescription(count<2?unavailable:auto.getText());
+        WallpaperUi.toolbarFocus(staticTab,videoTab,auto,dynamicToggle,soundToggle,localFile,upload);
         if(entry==null){title.setText(tr("还没有动态壁纸","No video wallpapers"));subtitle.setText(unavailable);subtitle.setVisibility(View.VISIBLE);for(TextView control:new TextView[]{staticTab,videoTab,dynamicToggle,soundToggle,localFile,upload})control.setNextFocusDownId(upload.getId());return;}
         title.setText(entry.label(chinese));boolean isDaily=WallpaperCatalog.DAILY.equals(preview);
         subtitle.setVisibility(isDaily||entry.custom()?View.VISIBLE:View.GONE);

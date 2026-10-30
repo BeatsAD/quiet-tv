@@ -32,6 +32,19 @@ final class WallpaperUi {
         view.setBackgroundDrawable(focusSurface(0xff242a33,100));
         view.setOnClickListener(v->action.run());return view;
     }
+    static void toolbarFocus(TextView... controls){
+        java.util.ArrayList<TextView> available=new java.util.ArrayList<>();
+        for(TextView control:controls)if(control.getVisibility()==View.VISIBLE&&control.isEnabled())available.add(control);
+        for(int i=0;i<available.size();i++){
+            TextView control=available.get(i);if(i>0)control.setNextFocusLeftId(available.get(i-1).getId());
+            control.setNextFocusRightId(available.get(Math.min(i+1,available.size()-1)).getId());
+            final int index=i;control.setOnKeyListener((v,key,event)->{
+                if(key!=KeyEvent.KEYCODE_DPAD_LEFT&&key!=KeyEvent.KEYCODE_DPAD_RIGHT)return false;
+                if(key==KeyEvent.KEYCODE_DPAD_LEFT&&index==0)return false;
+                if(event.getAction()==KeyEvent.ACTION_DOWN)available.get(Math.max(0,Math.min(available.size()-1,index+(key==KeyEvent.KEYCODE_DPAD_LEFT?-1:1)))).requestFocus();return true;
+            });
+        }
+    }
     TextView categoryTab(String value,Runnable action){
         TextView view=button(value,false,action);view.setMinHeight(0);view.setPadding(px(10),0,px(10),0);
         ControlStyle.choice(view,unit,100,Color.TRANSPARENT,0);return view;

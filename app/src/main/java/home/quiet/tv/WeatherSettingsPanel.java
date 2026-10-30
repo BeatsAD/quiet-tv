@@ -11,7 +11,7 @@ final class WeatherSettingsPanel extends ManagementPanel {
     private String focusTag;
     WeatherSettingsPanel(AppManagementActivity activity){super(activity);}
     @Override public void onCreate(Bundle state){
-        pageRoot=column();pageRoot.setPadding(0,px(18),0,0);weather=new DesktopWeatherPanel(activity);pageRoot.addView(weather.view,new LinearLayout.LayoutParams(-1,-1));activity.attachPanel(pageRoot);
+        pageRoot=column();weather=new DesktopWeatherPanel(activity);pageRoot.addView(weather.view,new LinearLayout.LayoutParams(-1,-1));activity.attachPanel(pageRoot);
         activity.wireRows(weather.rows(),managementTab());
         if(state!=null){scrollY=state.getInt("scroll");focusTag=state.getString("focus");}
     }

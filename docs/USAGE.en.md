@@ -55,7 +55,7 @@ App details provide Change cover and Set as startup app. This capture shows the 
 
 Open App Management → 儿童模式. Set a six-digit parent PIN on first use and verify it when returning. Use the on-screen numeric keypad with arrows and OK. Password recovery uses your own recovery details; do not publish a PIN or recovery code.
 
-After parent verification, hide or lock apps and configure per-session, daily or unlimited use, with preset or custom durations. Exhausted limits open a rest screen; a parent can verify and add time. Counting needs the separate 儿童模式计时 accessibility service, distinct from desktop guard. See [child mode](APP_MANAGEMENT.md#儿童模式).
+After parent verification, hide or lock apps and configure per-session, recurring or unlimited use, with preset or custom durations. Recurring limits persist until changed: choose every day, weekdays, weekends or custom weekdays. Each selected date receives its own quota at local midnight without a PIN; unselected dates are blocked. Unused and parent-added time do not carry over. Restarting retains the current day’s usage. Exhausted limits open a rest screen; a parent can verify and add time for today, including an unselected date. The rest screen refreshes after midnight and lets the user continue without starting the app automatically. Counting needs the separate 儿童模式计时 accessibility service, distinct from desktop guard. See [child mode](APP_MANAGEMENT.md#儿童模式).
 
 The capture shows an empty verification entry only. No password, rule or timing setting was changed.
 
