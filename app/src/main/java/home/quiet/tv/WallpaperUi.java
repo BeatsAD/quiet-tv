@@ -10,7 +10,7 @@ import android.widget.*;
 /** Styles and small, version-independent artwork used by the wallpaper surfaces. */
 final class WallpaperUi {
     static final int INK=0xfff4f5f7,MUTED=0xffaeb9c8;
-    static final int TOOLBAR_WIDTH=78,TOOLBAR_HEIGHT=30;
+    static final int TOOLBAR_WIDTH=78,TOOLBAR_HEIGHT=30,CATEGORY_PADDING=4;
     final Context context;
     final float unit;
     WallpaperUi(Context context,float unit){this.context=context;this.unit=unit;}
@@ -37,7 +37,9 @@ final class WallpaperUi {
         ControlStyle.choice(view,unit,100,Color.TRANSPARENT,0);return view;
     }
     void toolbarSize(TextView view){
-        view.setLayoutParams(new LinearLayout.LayoutParams(px(TOOLBAR_WIDTH),px(TOOLBAR_HEIGHT)));
+        // Match the category capsule after each part has been rounded to pixels.
+        view.setLayoutParams(new LinearLayout.LayoutParams(px(TOOLBAR_WIDTH),px(TOOLBAR_HEIGHT)+2*px(CATEGORY_PADDING)));
+        view.setBackgroundDrawable(ControlStyle.action(unit,100,0xff242a33,0x38ffffff,0));
         view.setSingleLine(true);view.setMinHeight(0);view.setPadding(px(5),0,px(5),0);view.setCompoundDrawablePadding(px(4));
     }
     void fitToolbarText(TextView view){
