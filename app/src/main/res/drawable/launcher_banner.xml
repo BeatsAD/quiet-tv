@@ -1,1 +1,6 @@
-<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle"><solid android:color="#15171B" /><size android:width="320dp" android:height="180dp" /><corners android:radius="16dp" /></shape>
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pre-rendered from docs/assets/quiet-tv-icon.svg and the bundled Outfit font. -->
+<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
+    android:src="@drawable/quiet_tv_banner"
+    android:gravity="fill"
+    android:filter="true" />
