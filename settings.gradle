@@ -14,4 +14,6 @@ if (providers.gradleProperty('quietXiaomiHelper').getOrElse('false') == 'true') 
     if (file(name + '/build.gradle').isFile()) include ':' + name
 }
 
+// Keep the patched Guava coordinate visible to Dependabot's static Gradle parser.
+ext.guavaSecurityDependency = 'com.google.guava:guava:33.7.2-android'
 apply from: 'gradle/security-constraints.gradle'
