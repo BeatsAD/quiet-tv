@@ -59,8 +59,12 @@ final class WallpaperEngine {
             @Override public void onVideoDecoderInitialized(EventTime time,String name,long initializedAt,long durationMs){
                 decoder=VideoDiagnostics.token(name);info("wallpaper.video.decoder",context+" backend=media3 codec="+decoder+" initMs="+durationMs);
             }
+            @Override public void onVideoDisabled(EventTime time,androidx.media3.exoplayer.DecoderCounters counters){
+                info("wallpaper.video.counters",context+" rendered="+counters.renderedOutputBufferCount+" dropped="+counters.droppedBufferCount+" skipped="+counters.skippedOutputBufferCount+" evidence=decoder_counters_not_presentation");
+            }
         });
         player.addListener(new Player.Listener(){
+            @Override public void onPlaybackStateChanged(int state){info("wallpaper.video.playback",context+" state="+state+" playWhenReady="+player.getPlayWhenReady()+" isPlaying="+player.isPlaying()+" suppression="+player.getPlaybackSuppressionReason()+" positionMs="+player.getCurrentPosition());}
             @Override public void onVideoSizeChanged(VideoSize size){events.size(size.width,size.height,size.pixelWidthHeightRatio);}
             @Override public void onRenderedFirstFrame(){rendered=true;events.ready();}
             @Override public void onPlayerError(PlaybackException error){

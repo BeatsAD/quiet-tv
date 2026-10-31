@@ -231,7 +231,7 @@ final class WallpaperController {
         // A native Surface is independent of the cover. Submit the opaque cover before changing it.
         // Covered/paused windows may not draw; they must never hold up navigation or decoder release.
         boolean previewVisible=picker!=null&&picker.isShowing();
-        if(!awaitFrame||!active||!root.isShown()||(!root.hasWindowFocus()&&!previewVisible)||root.getWindowVisibility()!=View.VISIBLE){action.run();return;}
+        if(!awaitFrame||!active||!video.displayReady()||!root.isShown()||(!root.hasWindowFocus()&&!previewVisible)||root.getWindowVisibility()!=View.VISIBLE){action.run();return;}
         final int version=videoRequest;
         pendingCover=()->{cancelCover();if(version==videoRequest&&!destroyed)action.run();};
         DiagnosticLog.info("wallpaper.video.cover","transition="+version+" phase=awaiting_frame alpha=1");
@@ -252,11 +252,21 @@ final class WallpaperController {
         }
         coverTree=null;coverDraw=null;coverCommit=null;
     }
+    private void recordVideoState(String phase){
+        if(!video.visible())return;
+        video.diagnosticState(phase);
+        DiagnosticLog.info("wallpaper.video.layers","transition="+videoRequest+" outputGeneration="+video.outputGeneration()+" phase="+phase
+            +" active="+active+" temporary="+(temporaryMedia!=null)+" picker="+(picker!=null)+" coverPending="+(pendingCover!=null)
+            +" coverVisible="+(current.getVisibility()==View.VISIBLE)+" coverAlpha="+current.getAlpha()+" poster="+(current.getDrawable()!=null)
+            +" incomingAlpha="+incoming.getAlpha()+" ambientVisible="+(ambient.getVisibility()==View.VISIBLE)+" shadeVisible="+(shade.getVisibility()==View.VISIBLE)
+            +" "+wallpaperBlur.diagnostics()+" "+appearance.diagnostics()+" evidence=layer_state_not_presentation");
+    }
     void windowFocusChanged(boolean focused){
         if(!focused&&pendingCover!=null&&(picker==null||!picker.isShowing())){DiagnosticLog.info("wallpaper.video.cover","transition="+videoRequest+" phase=window_obscured evidence=state_only");pendingCover.run();}
         if(focused&&active&&restoreDesktopPending){restoreDesktopPending=false;restoreSelected();}
         if(focused&&pendingVideoStart!=null){Runnable start=pendingVideoStart;pendingVideoStart=null;start.run();}
         if(focused&&active&&video.ready()&&videoFade==null&&current.getAlpha()>0f)revealVideo(videoRequest);
+        recordVideoState(focused?"focus_gain":"focus_loss");
     }
     private void cancelVideoFade(){if(videoFade!=null){videoFade.cancel();videoFade.removeAllUpdateListeners();videoFade=null;}}
     private void revealVideo(int version){
@@ -269,11 +279,11 @@ final class WallpaperController {
             final int output=video.outputGeneration();
             withCover(()->{
                 if(version!=videoRequest||output!=video.outputGeneration()||!video.ready()||!active||destroyed||(!root.hasWindowFocus()&&(picker==null||!picker.isShowing())))return;
-                current.setAlpha(0f);wallpaperBlur.invalidate();
+                current.setAlpha(0f);wallpaperBlur.invalidate();recordVideoState("reveal_complete");
             });return;
         }
         videoFade=ValueAnimator.ofFloat(current.getAlpha(),0f);videoFade.setDuration(duration);
-        videoFade.addUpdateListener(a->{if(version==videoRequest&&active&&!destroyed){current.setAlpha((float)a.getAnimatedValue());wallpaperBlur.invalidate();}});videoFade.start();
+        videoFade.addUpdateListener(a->{if(version==videoRequest&&active&&!destroyed){current.setAlpha((float)a.getAnimatedValue());wallpaperBlur.invalidate();if(current.getAlpha()==0f)recordVideoState("reveal_complete");}});videoFade.start();
     }
     void beforeLeave(Runnable launch){
         if(destroyed||leaving)return;
@@ -287,7 +297,7 @@ final class WallpaperController {
     private void finishLeave(Runnable launch){stopVideo(()->{leaving=false;if(active&&!destroyed)launch.run();});}
     private void restoreSelected(){String id=store.snapshot().current;if(store.snapshot().dynamic()&&!id.equals(failedVideo))startVideo(id,false);else display(id,false);}
     private void schedule(){main.removeCallbacks(rotate);WallpaperCatalog state=store.snapshot();if(active&&temporaryMedia==null&&state.rotating&&picker==null)main.postDelayed(rotate,state.rotationMinutes*60*1000L);}
-    void resume(){if(!active&&!desktopRevealed)fadePending=true;active=true;wallpaperBlur.suspended(false);wallpaperBlur.interaction();wallpaperBlur.active(true);updateDesktopEffects();restoreDesktopPending=false;video.setSound(store.snapshot().sound);leaving=false;video.setPaused(false);restoreSelected();if(video.ready()&&videoFade==null&&current.getAlpha()>0f)revealVideo(videoRequest);daily.resume();schedule();}
+    void resume(){if(!active&&!desktopRevealed)fadePending=true;active=true;wallpaperBlur.suspended(false);wallpaperBlur.interaction();wallpaperBlur.active(true);updateDesktopEffects();restoreDesktopPending=false;video.setSound(store.snapshot().sound);leaving=false;video.setPaused(false);restoreSelected();if(video.ready()&&videoFade==null&&current.getAlpha()>0f)revealVideo(videoRequest);daily.resume();schedule();recordVideoState("resume");}
     void environmentChanged(){if(temporaryMedia==null)daily.environmentChanged();}
     boolean pickerShowing(){return picker!=null;}
     void showTemporary(String id,Runnable prepared){
@@ -311,7 +321,7 @@ final class WallpaperController {
             refreshCards(preview,cardFocused);
         }else if(active)display(store.snapshot().current,true);
     }
-    void pause(){active=false;fadePending=false;wallpaperBlur.active(false);appearance.finish();leaving=false;++request;cancelCover();pendingVideoStart=null;cancelVideoFade();current.setAlpha(1f);video.setPaused(true);daily.pause();cancelCardPress();main.removeCallbacks(rotate);uploads.close();if(confirmation!=null)confirmation.dismiss();if(picker!=null)picker.dismiss();if(transition!=null)transition.end();}
+    void pause(){recordVideoState("before_pause");active=false;fadePending=false;wallpaperBlur.active(false);appearance.finish();leaving=false;++request;cancelCover();pendingVideoStart=null;cancelVideoFade();current.setAlpha(1f);video.setPaused(true);daily.pause();cancelCardPress();main.removeCallbacks(rotate);uploads.close();if(confirmation!=null)confirmation.dismiss();if(picker!=null)picker.dismiss();if(transition!=null)transition.end();}
     void hidden(){stopVideo();}
     void destroy(){destroyed=true;appearance.finish();wallpaperBlur.destroy();finishStartupCover();++request;pendingVideoStart=null;cancelCover();cancelVideoFade();video.destroy();restoredCover=null;daily.destroy();uploads.destroy();decoder.shutdownNow();main.removeCallbacksAndMessages(null);if(transition!=null){transition.cancel();transition.removeAllUpdateListeners();}current.setImageDrawable(null);incoming.setImageDrawable(null);currentBlur=null;incomingBlur=null;dockInvalidation=null;thumbnails.evictAll();}
 
@@ -472,7 +482,8 @@ final class WallpaperController {
             Runnable start=()->withCover(()->{
                 if(version!=videoRequest||!active||destroyed)return;
                 video.play(entry,new VideoWallpaperPlayer.Listener(){
-                    @Override public void stopped(){if(version==videoRequest){cancelVideoFade();current.setAlpha(1f);updateDesktopEffects();}}
+                    @Override public void cover(Runnable change){if(version==videoRequest&&active&&!destroyed){appearance.finish();withCover(change);recordVideoState("wake_cover");}}
+                    @Override public void stopped(){if(version==videoRequest){cancelVideoFade();current.setAlpha(1f);updateDesktopEffects();recordVideoState("video_stopped");}}
                     @Override public void ready(){
                         if(version!=videoRequest||!active||destroyed)return;
                         ambient.setVisibility(View.INVISIBLE);shade.setVisibility(View.VISIBLE);updateDesktopEffects();revealVideo(version);
