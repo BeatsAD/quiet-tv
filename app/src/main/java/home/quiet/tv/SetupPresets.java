@@ -109,6 +109,7 @@ final class SetupPresets {
             validateTargets(observer.getJSONArray("targets"));
             if(observer.has("bootTargets"))validateTargets(observer.getJSONArray("bootTargets"));
             if(observer.has("bootStockMs") && (!(observer.opt("bootStockMs") instanceof Integer) || observer.getInt("bootStockMs")<0 || observer.getInt("bootStockMs")>60000))throw new JSONException("原桌面初始化等待须在 0 至 60000 毫秒内");
+            if(observer.has("filterHome") && !(observer.opt("filterHome") instanceof Boolean))throw new JSONException("HOME 按键过滤开关无效");
             if(observer.has("silentUsage") && !(observer.opt("silentUsage") instanceof Boolean))throw new JSONException("静默观察开关无效");
         }
         JSONObject boot=home.optJSONObject("vendorBoot");if(boot==null)return;

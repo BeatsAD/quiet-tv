@@ -47,6 +47,8 @@ def validate_observation(device):
             if (not re.fullmatch(r'[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+/[A-Za-z0-9_.$]+', component)
                     or component.split('/')[0] in excluded or type(target.get('versionCode')) is not int or target['versionCode'] < 0):
                 raise ValueError('观察目标组件或版本无效')
+    if type(observer.get('filterHome', False)) is not bool:
+        raise ValueError('HOME 按键过滤开关无效')
     if type(observer.get('silentUsage', False)) is not bool or type(observer.get('bootStockMs', 0)) is not int or not 0 <= observer.get('bootStockMs', 0) <= 60000:
         raise ValueError('静默观察或初始化等待无效')
 
@@ -101,6 +103,8 @@ def sync_rules(adb, user, journal, path=CATALOG, apply=False):
         return snapshot
     if 'observation' in selected.get('home', {}) and 'home-observation-v1' not in snapshot.get('capabilities', []):
         raise ValueError('APK 缺少多页面观察及开机补偿能力，未写入规则')
+    if 'filterHome' in selected.get('home', {}).get('observation', {}) and 'home-key-filter-v1' not in snapshot.get('capabilities', []):
+        raise ValueError('APK 缺少输入设备保护能力，未写入按键过滤规则')
     desired = {'schema': 1, 'devices': [selected]}
     current = snapshot['adaptation']
     journal.event('adaptation_rules_plan', device=device, before=current, rules=desired,

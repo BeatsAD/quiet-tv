@@ -23,6 +23,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     private final HomeGuardPolicy.SilentHome silentHome=new HomeGuardPolicy.SilentHome();
     private boolean runtimeSilent;
     private HomeGuardState state;
+    private HomeInputDevices inputDevices;
     private BootSourcePolicy bootSource;
     private boolean registered,allowStock,sawActivityEvent,bootRechecksScheduled,keyFiltering;
     private String lastActivity="";
@@ -35,9 +36,17 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         return resolved!=null && resolved.activityInfo!=null && getPackageName().equals(resolved.activityInfo.packageName)
                 && HomeActivity.class.getName().equals(resolved.activityInfo.name);
     }
+    private boolean inputFilterSafe(){
+        boolean front=homeResumed || state!=null && state.eventHomes().contains(lastActivity);
+        return inputDevices!=null && HomeInputDevices.safe(inputDevices.known,HomeGuardPolicy.xiaomi(Build.MANUFACTURER,Build.BRAND),inputDevices.mouse,inputDevices.gamepad,front);
+    }
     private boolean filterHome(){
-        if(!HomeGuardPolicy.xiaomi(Build.MANUFACTURER,Build.BRAND) || !homeActionUsable() || !HomeGuardState.canShow(this))return false;
-        return HomeGuardPolicy.filterHome(true,true,true,Build.VERSION.SDK_INT,!homeResumed && defaultHome(),homeResumed,state.directHomeReady());
+        if(!homeActionUsable() || !HomeGuardState.canShow(this) || !keyFilterCapable() || !inputFilterSafe())return false;
+        boolean direct=state.directHomeReady(),nativeHome=defaultHome();
+        if(nativeHome && !direct)return false;
+        org.json.JSONObject rule=state.observationRules();
+        boolean verified=rule!=null && rule.optBoolean("filterHome") && Build.VERSION.SDK_INT<=30;
+        return verified || HomeGuardPolicy.filterHome(HomeGuardPolicy.xiaomi(Build.MANUFACTURER,Build.BRAND),true,true,Build.VERSION.SDK_INT,nativeHome,homeResumed,direct);
     }
     private void updateKeyFilter(){
         if(Build.VERSION.SDK_INT<21)return;
@@ -45,8 +54,8 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         int flag=AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS;
         boolean observe=observeBootSource();
         RemoteKeyMap remote=new RemoteKeyMap(this);
-        boolean wanted=filterHome() || homeKeys.pressed() || observe || remote.observingFor()>0
-            || state!=null && state.ready() && (bootSourceDevice() || remote.customHome());int flags=wanted?info.flags|flag:info.flags&~flag;
+        boolean wanted=homeKeys.pressed() || inputFilterSafe() && keyFilterCapable() && HomeGuardState.canShow(this) && (filterHome() || observe || remote.observingFor()>0
+            || state!=null && state.ready() && (bootSourceDevice() || remote.customHome()));int flags=wanted?info.flags|flag:info.flags&~flag;
         int events=observe?info.eventTypes|AccessibilityEvent.TYPE_VIEW_CLICKED:info.eventTypes&~AccessibilityEvent.TYPE_VIEW_CLICKED;
         if(flags!=info.flags || events!=info.eventTypes){info.flags=flags;info.eventTypes=events;setServiceInfo(info);DiagnosticLog.info("home_guard.key_filter","enabled="+wanted+" bootObserve="+observe);}
         keyFiltering=wanted;
@@ -64,7 +73,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         // Every other key passes through, including volume, directions and power.
         boolean mappedHome="home".equals(remoteAction);
         if(event.getKeyCode()!=KeyEvent.KEYCODE_HOME && !mappedHome && !(homeKeys.pressed() && event.getKeyCode()==filteredHomeCode))return false;
-        boolean eligible=event.getKeyCode()==KeyEvent.KEYCODE_HOME?filterHome():mappedHome && homeActionUsable() && HomeGuardState.canShow(this);
+        boolean eligible=event.getKeyCode()==KeyEvent.KEYCODE_HOME?filterHome():mappedHome && homeActionUsable() && HomeGuardState.canShow(this) && inputFilterSafe() && keyFilterCapable();
         if(event.getAction()==KeyEvent.ACTION_DOWN && event.getRepeatCount()==0)homeObservation=DiagnosticOperation.nextId(System.currentTimeMillis());
         if(event.getRepeatCount()==0 || event.getAction()==KeyEvent.ACTION_UP){
             String problem=state==null?"service_unavailable":state.homeActionProblem();
@@ -92,7 +101,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     private final BroadcastReceiver packageChanges=new BroadcastReceiver(){
         @Override public void onReceive(Context context,Intent intent){
             ComponentName selected=state==null?null:ComponentName.unflattenFromString(state.selected());
-            if(state!=null){state.invalidateEventHome();cancel();policy.clear();lastActivity="";lastActivityAt=0;refreshUsageWatch();}
+            if(state!=null){state.invalidateEventHome();cancel();policy.clear();lastActivity="";lastActivityAt=0;refreshUsageWatch();updateKeyFilter();}
         }
     };
     private final Runnable remoteKeysExpiry=this::updateKeyFilter;
@@ -373,6 +382,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
             if(Build.VERSION.SDK_INT>=24)filter.addAction(Intent.ACTION_USER_UNLOCKED);androidx.core.content.ContextCompat.registerReceiver(this,lifecycle,filter,androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
             IntentFilter packages=new IntentFilter(Intent.ACTION_PACKAGE_CHANGED);packages.addAction(Intent.ACTION_PACKAGE_REPLACED);packages.addAction(Intent.ACTION_PACKAGE_REMOVED);packages.addAction(Intent.ACTION_PACKAGE_ADDED);packages.addDataScheme("package");
             androidx.core.content.ContextCompat.registerReceiver(this,packageChanges,packages,androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);registered=true;}
+        if(Build.VERSION.SDK_INT>=21){if(inputDevices==null)inputDevices=new HomeInputDevices(this,this::updateKeyFilter);inputDevices.start(handler);}
         restoreBootSource();refreshUsageWatch();scheduleBootRechecks();updateKeyFilter();
         remoteKeysChanged();HomeGuardRevivalListener.guardConnected();
         scheduleSilentCheck();
@@ -432,6 +442,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         if(age<0 || age>HomeGuardPolicy.MAX_AGE_MS){if(HomeGuardPolicy.matches(state.eventHomes(),pkg,cls))HomeGuardRecovery.observed("accessibility","stale_event",age);return;}
         silentHome.observed(event.getEventTime());if(!silentHome.active())handler.removeCallbacks(homeProbe);
         sawActivityEvent=true;lastActivity=new ComponentName(pkg,cls.startsWith(".")?pkg+cls:cls).flattenToString();lastActivityAt=System.currentTimeMillis()-age;
+        updateKeyFilter();
         if(bootForeground(lastActivity,lastActivityAt))return;
         if(BootSourcePolicy.PLAYER.equals(lastActivity))scheduleBootSource();
         // A delayed usage event must not override a newer settings/player accessibility event.
@@ -456,14 +467,14 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     }
     @Override public void onInterrupt(){DiagnosticLog.info("home_guard.service","interrupted");cancel();cancelRecoveryChecks();}
     @Override public boolean onUnbind(Intent intent){
-        handler.removeCallbacks(remoteKeysExpiry);
+        handler.removeCallbacks(remoteKeysExpiry);if(inputDevices!=null)inputDevices.stop();homeKeys.reset();
         DiagnosticLog.info("home_guard.service","unbound");
         cancel();cancelRecoveryChecks();handler.removeCallbacks(usageCheck);if(instance==this)instance=null;
         if(state!=null && state.enabled())state.status("无障碍已断开，等待系统恢复");
         return super.onUnbind(intent);
     }
     @Override public void onDestroy(){
-        handler.removeCallbacks(remoteKeysExpiry);
+        handler.removeCallbacks(remoteKeysExpiry);if(inputDevices!=null)inputDevices.stop();homeKeys.reset();
         cancel();cancelRecoveryChecks();handler.removeCallbacks(usageCheck);if(instance==this)instance=null;
         if(state!=null)state.preferences.unregisterOnSharedPreferenceChangeListener(this);
         if(registered){unregisterReceiver(lifecycle);unregisterReceiver(packageChanges);}super.onDestroy();
