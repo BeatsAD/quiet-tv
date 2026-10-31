@@ -63,11 +63,9 @@ final class VideoWallpaperPlayer {
     private Listener listener;
     private Runnable framesChanged;
     void observeFrames(Runnable listener){framesChanged=listener;}
-    Bitmap textureSnapshot(int width,int height){
-        Target captured=target;
-        if(captured==null||!captured.textureOutput||!rendered||!current(captured))return null;
-        return ((TextureView)captured.view).getBitmap(width,height);
-    }
+    boolean nativeOutput(){return target!=null&&!target.textureOutput;}
+    int outputGeneration(){return generation;}
+    boolean snapshotSupported(){return !nativeOutput()||Build.VERSION.SDK_INT>=24;}
     private Target target;
     private boolean enabled,screenOff,rendered,destroyed;
     private volatile boolean paused;
@@ -125,19 +123,27 @@ final class VideoWallpaperPlayer {
         if(!value){start();if(target!=null)firstFrame(target);if(enabled&&!rendered&&!screenOff)main.postDelayed(timeout,8000);}
     }
     void snapshot(Snapshot callback){
-        Target captured=target;final int request=generation;
+        Target captured=target;
         if(captured==null||!rendered||!current(captured)||captured.view.getWidth()==0||captured.view.getHeight()==0){callback.ready(null);return;}
         float scale=Math.min(1f,WallpaperBackdropCache.MAX_EDGE/(float)Math.max(captured.view.getWidth(),captured.view.getHeight()));
         int width=Math.max(1,Math.round(captured.view.getWidth()*scale)),height=Math.max(1,Math.round(captured.view.getHeight()*scale));
+        snapshot(width,height,callback);
+    }
+    void snapshot(int width,int height,Snapshot callback){
+        Target captured=target;final int request=generation;
+        if(captured==null||!rendered||!current(captured)||captured.view.getWidth()==0||captured.view.getHeight()==0){callback.ready(null);return;}
         if(captured.textureOutput){
             Bitmap image=null;try{image=((TextureView)captured.view).getBitmap(width,height);}catch(RuntimeException|OutOfMemoryError ignored){}
             callback.ready(image);return;
         }
         if(Build.VERSION.SDK_INT<24){callback.ready(null);return;}
+        // Preserve the native view's aspect; the wallpaper snapshot applies the viewport crop.
+        float scale=Math.min(width/(float)captured.view.getWidth(),height/(float)captured.view.getHeight());
+        int copyWidth=Math.max(1,Math.round(captured.view.getWidth()*scale)),copyHeight=Math.max(1,Math.round(captured.view.getHeight()*scale));
         Bitmap image;
-        try{image=Bitmap.createBitmap(width,height,Bitmap.Config.ARGB_8888);}catch(OutOfMemoryError e){callback.ready(null);return;}
+        try{image=Bitmap.createBitmap(copyWidth,copyHeight,Bitmap.Config.ARGB_8888);}catch(OutOfMemoryError e){callback.ready(null);return;}
         try{Api24.copy((SurfaceView)captured.view,image,main,success->{
-            if(success&&current(captured,request))callback.ready(image);else{image.recycle();callback.ready(null);}
+            if(success&&rendered&&current(captured,request))callback.ready(image);else{image.recycle();callback.ready(null);}
         });}catch(RuntimeException e){image.recycle();callback.ready(null);}
     }
     @android.annotation.TargetApi(24) private static final class Api24 {

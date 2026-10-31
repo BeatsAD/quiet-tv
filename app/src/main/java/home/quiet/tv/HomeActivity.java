@@ -299,10 +299,9 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         View header=layout.findViewByPosition(0);
         float progress=header==null?(layout.findFirstVisibleItemPosition()>0||row>0?1:0):Math.max(0,Math.min(1,-header.getTop()/(float)px(HOME_HEADER_HEIGHT)));
         int home=desktopSettings.homeWallpaperBlur(),second=desktopSettings.secondWallpaperBlur();
-        wallpapers.setDesktopBlur(Math.round(home+(second-home)*progress));
         int homeBrightness=desktopSettings.homeWallpaperBrightness(),secondBrightness=desktopSettings.secondWallpaperBrightness();
         int homeFade=desktopSettings.homeWallpaperFade(),secondFade=desktopSettings.secondWallpaperFade();
-        wallpapers.setDesktopAppearance(Math.round(homeBrightness+(secondBrightness-homeBrightness)*progress),Math.round(homeFade+(secondFade-homeFade)*progress));
+        wallpapers.setDesktopEffects(Math.round(home+(second-home)*progress),Math.round(homeBrightness+(secondBrightness-homeBrightness)*progress),Math.round(homeFade+(secondFade-homeFade)*progress));
     }
 
     private void setPillIcon(TextView pill,int resource){homeHeader.setPillIcon(pill,resource);}
