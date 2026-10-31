@@ -187,6 +187,22 @@ API19／x86 对照验证中，原引擎连接必应被重置；保留 Java 版�
 
 Both optimized APKs passed 49 unit tests each, Lint with zero errors (warnings remain), metadata, signature and alignment checks; GitHub download hashes match the immutable archives. Sony / Android 12 captures verify the installed standard 1.1.2 / 34 hash and the displayed pages only. No settings, wallpapers or ordering were changed. Final-APK feature acceptance, in-place upgrade retention, physical Home, reboot, standby and actual input switching remain incomplete; Android 4.4 physical-TV acceptance is pending.
 
+### 小米 L43M5-EK / MiTV-ANTL0：旧版设置崩溃与实机验证
+
+2026-10-23 在小米 L43M5-EK（E43K，系统型号 MiTV-ANTL0）、Android 5.1.1 / API22、ARM32 上复现：Quiet TV 1.1.0 / b26 点击首页“设置”后退出，返回原厂桌面。该固件没有处理标准 `android.settings.SETTINGS` 的 Activity；b26 捕获首次异常后再次调用同一个动作，第二次异常未处理：
+
+```text
+Process: home.quiet.tv
+android.content.ActivityNotFoundException:
+No Activity found to handle Intent { act=android.settings.SETTINGS }
+```
+
+对应修复已包含在上游 [1.1.2 测试版](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.2) 中，并非本次实机反馈新增的生产代码。可对照 [b26 的设置调用](https://github.com/BeatsAD/quiet-tv/blob/v1.1.0-b26/app/src/main/java/home/quiet/tv/HomeActivity.java) 与 [1.1.2 的 SystemSettingsRouter](https://github.com/BeatsAD/quiet-tv/blob/v1.1.2/app/src/main/java/home/quiet/tv/SystemSettingsRouter.java)：优先检测可调用的小米系统组件，设置使用 `com.xiaomi.mitv.settings/.entry.MainActivity`，动作 `com.xiaomi.mitv.settings.SETTINGS`；无线网络使用 `com.xiaomi.mitv.settings/.wifi.MitvWifiActivity`。全部入口不可用时显示提示，不重复调用失败的标准入口。
+
+使用上游原始签名的 Android 5+ 包升级到 **Quiet TV 1.1.2 / b34** 后，已从 Quiet TV 自身按钮打开原厂设置菜单、返回 Quiet TV，并从网络按钮进入无线网络页。用户在实机确认菜单可见，遥控器方向、确认和返回可操作。覆盖安装未卸载或清除数据；UID 与首次安装时间保持，安装后拉回的 APK 与下载包 SHA-256 一致。
+
+该结果只覆盖此设备上 **b26 → b34 的设置及无线网络入口**。没有据此验证当前开发版、全部小米固件、HDMI 切换、实体 HOME 接管、重启、待机唤醒或长期稳定性。遇到类似问题时先记录 APK 版本和相关异常，检查固件实际提供的入口；不要通过禁用原厂桌面、Root 或套用其他机型的系统包清单解决。
+
 ### 历史开发与发布证据 / Historical evidence
 
 - 历史应用内配置的桌面守护采用自动策略，完成首次授权后自动运行；当前源码改由电脑配置既有运行机制。标准档按 HOME 身份与系统能力识别，普通原主页事件快速接管，开机/唤醒稳定期复核，通知监听提供有限恢复。安卓4.4档禁用相关组件。守护不改真实 HOME、不禁用原桌面、不读取屏幕或通知正文；首次兼容配置可在 HOME 仍属原桌面时完成，但不解锁系统包操作。通知绑定、后台启动和厂商实际效果仍有系统限制；目标固件的重启、冷启动、待机及 HDMI/播放均需单独验收，详见[桌面配置](SETUP.md#桌面守护实验)。旧独立助手保留并互斥。
