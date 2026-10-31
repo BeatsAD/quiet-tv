@@ -2,9 +2,16 @@ package home.quiet.tv;
 
 import java.io.*;
 import java.net.*;
+import javax.net.ssl.SSLHandshakeException;
 
 /** User-facing check failures and bounded diagnostics without server text or local paths. */
 final class UpdateFailure {
+    static IOException connectionFailure(RuntimeException error){
+        if(error instanceof IllegalStateException&&("No usable protocols enabled".equals(error.getMessage())||"No usable cipher suites enabled".equals(error.getMessage()))){
+            SSLHandshakeException failure=new SSLHandshakeException("Update TLS negotiation failed");failure.initCause(error);return failure;
+        }
+        throw error;
+    }
     static final class HttpException extends IOException {
         final int status;
         HttpException(int status){super("Update HTTP failure");this.status=status;}
