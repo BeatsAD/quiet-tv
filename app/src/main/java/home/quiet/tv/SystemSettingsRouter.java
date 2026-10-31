@@ -22,6 +22,7 @@ import java.util.Locale;
 /** Installed system entries only. A successful dispatch does not prove that an OEM page stayed open. */
 final class SystemSettingsRouter {
     private static final String XIAOMI="com.xiaomi.mitv.settings";
+    private static final String DANGBEI="com.dangbei.leard.settings";
     private static final ComponentName XGIMI=new ComponentName("com.android.newsettings","com.xgimi.newsettings.SettingService");
     private static final ComponentName HAIER=new ComponentName("com.haier.tv.menusetting.ui","com.haier.tv.menusetting.ui.SettingsService");
     private static final ComponentName HISENSE=new ComponentName("com.android.tv.settings","com.hisense.systemsettings.MainActivity");
@@ -35,6 +36,16 @@ final class SystemSettingsRouter {
     }
     private static boolean hisense(){return "Hisense".equalsIgnoreCase(Build.MANUFACTURER)||"Hisense".equalsIgnoreCase(Build.BRAND);}
     private static Intent activity(String pkg,String name){return new Intent(Intent.ACTION_MAIN).setComponent(new ComponentName(pkg,name));}
+    private void dangbeiSettings(List<Intent> intents){
+        intents.add(new Intent(Settings.ACTION_SETTINGS).setPackage(DANGBEI));
+        try{
+            // B1S/q200 reports SliceSettingsActivity without a full class name. Read it from the installed package.
+            ActivityInfo[] activities=pm.getPackageInfo(DANGBEI,PackageManager.GET_ACTIVITIES).activities;
+            if(activities!=null)for(ActivityInfo info:activities)
+                if(info.name!=null && info.name.endsWith(".SliceSettingsActivity"))intents.add(activity(DANGBEI,info.name));
+        }catch(PackageManager.NameNotFoundException missing){/* Other firmware keeps the existing routes. */}
+        catch(RuntimeException unavailable){DiagnosticLog.error("settings.dangbei.discovery_failed",unavailable);}
+    }
 
     List<Intent> candidates(String action){return candidates(action,false);}
     List<Intent> candidates(String action,boolean ethernet){
@@ -55,6 +66,8 @@ final class SystemSettingsRouter {
             // Submitted VIDAA firmware exposes the OEM settings root in this same package.
             intents.add(new Intent(Settings.ACTION_SETTINGS).setComponent(HISENSE));
         }
+        if(network)intents.add(new Intent(action).setPackage(DANGBEI));
+        if(settings)dangbeiSettings(intents);
         if(network||settings){
             String page=network?"Settings://com.xgimi.settings.net/wifi_misckey":"Settings://com.xgimi.misckey.main/mainPage";
             intents.add(new Intent("com.xgimi.settings.SETTINGS").setComponent(XGIMI)
@@ -70,6 +83,7 @@ final class SystemSettingsRouter {
                 intents.add(new Intent("com.pptv.intent.action.WIFI_ACTIVITY").setComponent(new ComponentName("com.pptv.setting","com.pptv.setting.wifi.WifiWorkActivity")));
                 intents.add(new Intent(Intent.ACTION_VIEW,Uri.parse(page)));
             }
+            if(network)dangbeiSettings(intents);
             intents.add(new Intent(XIAOMI+".SETTINGS").setComponent(new ComponentName(XIAOMI,XIAOMI+".entry.MainActivity")));
             // Haier's full settings is an overlay service; RootActivity opens the source menu.
             intents.add(new Intent("com.haier.settings.intent.action.SettingsService").setComponent(HAIER).putExtra("command",0));
