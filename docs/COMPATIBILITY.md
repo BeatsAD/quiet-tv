@@ -97,7 +97,9 @@ Version 1.2.5 has standard ARM32/ARM64/universal and Android 4.4 profiles. Histo
 | 历史 [b23 ARM32 测试包](https://github.com/BeatsAD/quiet-tv/releases/tag/v1.1.0) | Android 12 / API31 起，需支持 armeabi-v7a；仅支持 64 位应用的设备不可用。 / Requires Android 12 and ARM32 app support. |
 | Android 4.0～4.3、Tizen、webOS 等非 Android 系统 | 不支持 / Unsupported |
 
-Android 4.4 的 `legacy19` 档位采用 Activity 1.9.3、RecyclerView 1.3.2、旧版主题及构建工具生成的位图图标。保留核心桌面、Dock、壁纸、网络、设置、关于、离线许可证和传统 TCP ADB；不包含 Conscrypt/SPAKE2 原生库，不提供六位码配对。信号源回退到系统设置与遥控器信号源键，厂商直切未适配。未裁剪 Debug 包启用旧版 MultiDex，最终优化包需单独验证。
+Android 4.4 的 `legacy19` 档位采用 Activity 1.9.3、RecyclerView 1.3.2、旧版主题及构建工具生成的位图图标。保留核心桌面、Dock、壁纸、网络、设置、关于、离线许可证和传统 TCP ADB；不包含 Conscrypt/SPAKE2 原生库，不提供六位码配对。信号源检测可调用的原厂入口，未匹配时保留系统设置与遥控器信号源键；不提供标准 TV Input 端口列表。未裁剪 Debug 包启用旧版 MultiDex，最终优化包需单独验证。
+
+旧小米 MiTV2-40 / hancock（Android 4.4.4，固件 7.7.21.1653）用户反馈外部信号源组件可以启动。开发源码已将 `com.xiaomi.mitv.tvplayer/.ExternalSourceActivity` 纳入原厂入口检测，三档共用；仅接受已启用、可导出、具备调用权限的系统组件，排除 HOME，不依赖桌面图标或重新启用原桌面。没有标准输入列表时可从信号源按钮进入该页面，不猜测或附加 HDMI 端口编号。查询返回空值按无匹配处理，继续检测其他入口；HOME 身份查询同样兼容空返回。用户观察仅证明页面能打开，实际端口、画面、声音和实体按键仍待对应电视验收。
 
 The `legacy19` profile targets Android 4.4 with legacy UI resources and TCP ADB only. It contains no Conscrypt/SPAKE2 native libraries and offers no pairing control. Inputs fall back to system settings; direct vendor input switching and physical TV acceptance remain unverified.
 

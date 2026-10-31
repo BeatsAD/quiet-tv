@@ -105,14 +105,19 @@ final class TvInputPanels {
         int flags=PackageManager.GET_DISABLED_COMPONENTS;
         List<ResolveInfo> matches="service".equals(profile.type)?pm.queryIntentServices(profile.intent(),flags)
             :"receiver".equals(profile.type)?pm.queryBroadcastReceivers(profile.intent(),flags):pm.queryIntentActivities(profile.intent(),flags);
-        for(ResolveInfo match:matches){ComponentInfo info="service".equals(profile.type)?match.serviceInfo:match.activityInfo;
+        // Older firmware can return null instead of an empty query result.
+        if(matches==null)return names;
+        for(ResolveInfo match:matches){if(match==null)continue;ComponentInfo info="service".equals(profile.type)?match.serviceInfo:match.activityInfo;
             if(info!=null)names.add(new ComponentName(info.packageName,info.name));}
         Collections.sort(names,(a,b)->a.flattenToString().compareTo(b.flattenToString()));return names;
     }
     private boolean home(ComponentName name){
-        for(String category:new String[]{Intent.CATEGORY_HOME,"android.intent.category.HOME.CC","android.intent.category.HOME.CC_MAIN","smartdevice.intent.category.LITE_HOME"})
-            for(ResolveInfo info:pm.queryIntentActivities(new Intent(Intent.ACTION_MAIN).addCategory(category).setPackage(name.getPackageName()),PackageManager.GET_DISABLED_COMPONENTS))
-                if(info.activityInfo!=null&&name.equals(new ComponentName(info.activityInfo.packageName,info.activityInfo.name)))return true;
+        for(String category:new String[]{Intent.CATEGORY_HOME,"android.intent.category.HOME.CC","android.intent.category.HOME.CC_MAIN","smartdevice.intent.category.LITE_HOME"}){
+            List<ResolveInfo> matches=pm.queryIntentActivities(new Intent(Intent.ACTION_MAIN).addCategory(category).setPackage(name.getPackageName()),PackageManager.GET_DISABLED_COMPONENTS);
+            if(matches==null)continue;
+            for(ResolveInfo info:matches)
+                if(info!=null&&info.activityInfo!=null&&name.equals(new ComponentName(info.activityInfo.packageName,info.activityInfo.name)))return true;
+        }
         return false;
     }
     private Panel inspect(Profile profile,ComponentName name){
