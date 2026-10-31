@@ -24,6 +24,7 @@ final class TvInputController {
         final ArrayList<TvInputInfo> inputs=new ArrayList<>();
         final TvInputPanels.Snapshot nativePanels=new TvInputPanels.Snapshot();
         VendorTvInputs.Discovery vendor=new VendorTvInputs.Discovery();
+        final ArrayList<VendorTvInputs.Source> vendorReported=new ArrayList<>();
         InputState state=InputState.EMPTY;
         int reported,filtered,duplicates,itemFailures,metadataWarnings;
         final ArrayList<TvInputInfo> raw=new ArrayList<>();
@@ -59,31 +60,43 @@ final class TvInputController {
         }catch(RuntimeException failed){DiagnosticLog.error("input.maintenance.item_failed",failed);}
         JSONArray vendorValues=new JSONArray();
         for(VendorTvInputs.Source source:snapshot.vendor.sources)vendorValues.put(new JSONObject().put("id",source.key).put("label",source.label).put("type",source.type).put("hdmi",source.hdmi));
+        JSONArray nativeValues=new JSONArray();
+        for(VendorTvInputs.Source source:snapshot.vendorReported)nativeValues.put(new JSONObject().put("id",source.key).put("label",source.label).put("type",source.type).put("alias",profile.vendorTarget(source.key)).put("hidden",profile.hidden(source.key)));
         return new JSONObject().put("supported",true).put("state",snapshot.state.name()).put("reported",snapshot.reported)
             .put("filtered",snapshot.filtered).put("duplicates",snapshot.duplicates).put("itemFailures",snapshot.itemFailures)
-            .put("metadataWarnings",snapshot.metadataWarnings).put("sources",values).put("vendorSources",vendorValues).put("configuration",profile.snapshot());
+            .put("metadataWarnings",snapshot.metadataWarnings).put("sources",values).put("vendorSources",vendorValues).put("vendorReported",nativeValues).put("configuration",profile.snapshot());
     }
 
     /** Shared by the input menu, saved HDMI selection and maintenance; call on a worker. */
     Snapshot inspectSources(){
         Snapshot snapshot=inspect();
         snapshot.vendor=new VendorTvInputs(context).inspect();
+        snapshot.vendorReported.addAll(snapshot.vendor.sources);
         mergeVendorSources(snapshot);
         return snapshot;
     }
     private void mergeVendorSources(Snapshot snapshot){
-        Set<Integer> registered=new HashSet<>();boolean unknown=false;
+        Map<String,Integer> registered=new HashMap<>();Set<String> ids=new HashSet<>();boolean unknown=false;
+        for(TvInputInfo input:snapshot.raw)try{ids.add(input.getId());}catch(RuntimeException unavailable){unknown=true;}
         // Include hidden entries: a vendor alias must not resurrect a user's hidden port.
         for(TvInputInfo input:snapshot.raw)try{
-            if((input.getServiceInfo().applicationInfo.flags&(ApplicationInfo.FLAG_SYSTEM|ApplicationInfo.FLAG_UPDATED_SYSTEM_APP))!=0)registered.add(input.getType());
+            if((input.getServiceInfo().applicationInfo.flags&(ApplicationInfo.FLAG_SYSTEM|ApplicationInfo.FLAG_UPDATED_SYSTEM_APP))!=0
+                    &&(input.getParentId()==null||!ids.contains(input.getParentId())))registered.put(input.getId(),input.getType());
         }catch(RuntimeException unavailable){unknown=true;}
         Map<String,Integer> counts=new HashMap<>();
         for(VendorTvInputs.Source source:snapshot.vendor.sources)counts.put(source.key,counts.containsKey(source.key)?counts.get(source.key)+1:1);
+        DeviceInputProfile profile=new DeviceInputProfile(context);Set<String> covered=new HashSet<>();
+        for(VendorTvInputs.Source source:snapshot.vendor.sources){
+            String target=profile.vendorTarget(source.key);
+            if(counts.get(source.key)==1&&registered.containsKey(target)&&registered.get(target)==source.type)covered.add(target);
+        }
+        Set<Integer> unresolved=new HashSet<>();for(Map.Entry<String,Integer> input:registered.entrySet())if(!covered.contains(input.getKey()))unresolved.add(input.getValue());
         for(Iterator<VendorTvInputs.Source> it=snapshot.vendor.sources.iterator();it.hasNext();){
             VendorTvInputs.Source source=it.next();
-            // There is no cross-provider port identity yet. Preserve the framework for a type
-            // it already registers; do not guess an identity from matching display names.
-            if(unknown||registered.contains(source.type)||source.type<0&&!registered.isEmpty()||counts.get(source.key)>1)it.remove();
+            String target=profile.vendorTarget(source.key),label=profile.label(source.key);if(!label.isEmpty())source.label=label;
+            // Supplement within a type only when every registered physical port has a unique,
+            // explicit native alias. Missing/stale mappings retain the first-batch conservative rule.
+            if(unknown||profile.hidden(source.key)||covered.contains(target)||unresolved.contains(source.type)||source.type<0&&!registered.isEmpty()||counts.get(source.key)>1)it.remove();
         }
         DiagnosticLog.info("input.vendor.merge","registeredTypes="+registered+" unknown="+unknown+" usable="+snapshot.vendor.sources.size());
     }
@@ -109,7 +122,7 @@ final class TvInputController {
             try{
                 String id=input.getId();if(id==null||id.isEmpty())throw new IllegalStateException("Missing input ID");
                 input.getType();input.isPassthroughInput();
-                if(hiddenInput(Build.MODEL,input.getServiceInfo().packageName,id,Build.DISPLAY)||profile.hidden(id)){
+                if(hiddenInput(Build.MODEL,input.getServiceInfo().packageName,id,Build.DISPLAY)||profile.hidden(id)||profile.aliasHidden(id)){
                     hidden.add(id);result.exclusions.put(id,"profile_hidden");result.filtered++;continue;
                 }
                 boolean systemHidden=false;

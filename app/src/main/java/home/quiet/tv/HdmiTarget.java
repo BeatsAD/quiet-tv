@@ -27,8 +27,11 @@ final class HdmiTarget {
         return pkg+":"+info.versionCode+":"+info.lastUpdateTime;
     }
     static List<HdmiTarget> available(Context context){
-        ArrayList<HdmiTarget> result=new ArrayList<>();if(Build.VERSION.SDK_INT<21)return result;
-        TvInputController controller=new TvInputController(context);TvInputController.Snapshot snapshot=controller.inspectSources();
+        if(Build.VERSION.SDK_INT<21)return new ArrayList<>();
+        return available(context,new TvInputController(context).inspectSources());
+    }
+    private static List<HdmiTarget> available(Context context,TvInputController.Snapshot snapshot){
+        ArrayList<HdmiTarget> result=new ArrayList<>();TvInputController controller=new TvInputController(context);
         for(TvInputInfo input:snapshot.inputs)try{
             if(input.getType()!=TvInputInfo.TYPE_HDMI)continue;
             Intent route=controller.hdmiIntent(input);if(route==null)continue;
@@ -37,13 +40,7 @@ final class HdmiTarget {
         }catch(Exception failure){DiagnosticLog.info("input.saved.inspect","standard route unavailable");}
         for(VendorTvInputs.Source source:snapshot.vendor.sources)try{
             if(!source.hdmi)continue;
-            String provider="";
-            if(!source.key.startsWith("konka:")){
-                android.content.pm.ProviderInfo info=context.getPackageManager().resolveContentProvider(source.key.substring(0,source.key.indexOf(':')),0);
-                if(info==null)continue;provider=stamp(context,info.packageName);
-            }
-            String scope=DeviceInputProfile.digest(Build.FINGERPRINT+"\n"+source.key+"\n"+provider+"\n"+stamp(context,source.owner));
-            result.add(new HdmiTarget("vendor",source.key,source.label,scope));
+            result.add(new HdmiTarget("vendor",source.key,source.label,VendorTvInputs.scope(context,source)));
         }catch(Exception failure){DiagnosticLog.info("input.saved.inspect","vendor route unavailable");}
         // Duplicate provider names cannot identify a port unambiguously.
         HashMap<String,Integer> counts=new HashMap<>();for(HdmiTarget target:result){String key=target.kind+":"+target.id;counts.put(key,counts.containsKey(key)?counts.get(key)+1:1);}
@@ -59,10 +56,12 @@ final class HdmiTarget {
     }
     boolean open(Context context){return open(context,false);}
     boolean open(Context context,boolean automatic){
-        if(!availableNow(context))return false;
+        TvInputController.Snapshot snapshot=new TvInputController(context).inspectSources();boolean found=false;
+        for(HdmiTarget current:available(context,snapshot))if(matches(current)){found=true;break;}
+        if(!found)return false;
         if(!automatic)HomeGuardService.bootSourceUserAction(context,"saved_hdmi");
         if("vendor".equals(kind)){
-            for(VendorTvInputs.Source source:new VendorTvInputs(context).load())if(source.hdmi&&id.equals(source.key)){
+            for(VendorTvInputs.Source source:snapshot.vendor.sources)if(source.hdmi&&id.equals(source.key)){
                 boolean dispatched=new VendorTvInputs(context).open(source);if(dispatched)HomeGuardService.savedInputSelected(context,automatic);return dispatched;
             }
             return false;

@@ -48,6 +48,7 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
             value.put("takeoverRecord",takeover);
         if(!BuildConfig.LEGACY_19)value.put("routes",new DesktopRoutes(context,false).snapshot());
         value.put("capabilities",new org.json.JSONArray().put("input-profile-v1").put("takeover-restore-v1").put("proxy-repair-v1").put("adaptation-rules-v1").put("takeover-record-v1"));
+        if(Build.VERSION.SDK_INT>=21)value.getJSONArray("capabilities").put("input-profile-v2");
         value.put("adaptation",new DeviceAdaptation(context).snapshot());
         value.put("desktopStatus",DesktopTakeoverStatus.read(context).snapshot());
         value.getJSONArray("capabilities").put("home-status-v1");

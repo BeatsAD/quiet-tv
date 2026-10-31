@@ -28,7 +28,7 @@ Current source adds Desktop Settings → Desktop → Interaction feedback → Ke
 
 In the current development source, if a Xiaomi TV or box closes Settings immediately, hold OK on the Home screen’s system Settings button to try its native settings panel. Only a callable system entry is used; returning never automatically opens another menu. Devices without this alternate entry show a message. This change is not released and still needs firmware-specific hardware validation.
 
-Home inputs and HDMI selection in Watch TV share discovery rules: when the standard framework lists only tuners, existing vendor adapters can also supply HDMI entries. Input types already registered by the framework take priority, preserving hidden ports across vendor aliases. A missing port within an already registered type still needs firmware-specific mapping. Failure to find an entry does not mean the TV has no input ports.
+Home inputs and HDMI selection in Watch TV share discovery rules. Current development source adds old XGIMI product configuration, Hisense Jamdeo inputs and explicit Xiaomi port records. Framework input types take priority; missing ports within a type are added only with complete, explicit port mappings, preserving hidden ports across aliases. Mappings are scoped to firmware and related system package versions; see [input configuration](agent/inputs.md). Failure to find an entry does not mean the TV has no input ports. The new protocols still need Quiet TV hardware acceptance on the relevant firmware.
 
 ## App management and Dock
 
