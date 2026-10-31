@@ -26,6 +26,10 @@ Without a calibrated mapping, current development source opens system settings w
 
 Current source adds Desktop Settings → Desktop → Interaction feedback → Key sounds, off by default. Enable it for soft navigation, selection and back sounds; disabling it silences feedback immediately and the preference persists locally. Boundaries and automatic focus restoration stay silent; held navigation sounds play at most once per 100 ms. This affects Quiet TV only and never changes system volume or other apps. This source feature has not shipped in a new APK; TV and external-speaker sound and latency still need device acceptance.
 
+In the current development source, if a Xiaomi TV or box closes Settings immediately, hold OK on the Home screen’s system Settings button to try its native settings panel. Only a callable system entry is used; returning never automatically opens another menu. Devices without this alternate entry show a message. This change is not released and still needs firmware-specific hardware validation.
+
+Home inputs and HDMI selection in Watch TV share discovery rules: when the standard framework lists only tuners, existing vendor adapters can also supply HDMI entries. Input types already registered by the framework take priority, preserving hidden ports across vendor aliases. A missing port within an already registered type still needs firmware-specific mapping. Failure to find an entry does not mean the TV has no input ports.
+
 ## App management and Dock
 
 Open 应用管理 (App Management) from All Apps. Management controls in this first Sony-targeted version are in Chinese.
