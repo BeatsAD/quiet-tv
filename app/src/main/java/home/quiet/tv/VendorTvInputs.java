@@ -6,13 +6,15 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ProviderInfo;
 import android.database.Cursor;
+import android.media.tv.TvInputInfo;
 import android.net.Uri;
 import android.os.Bundle;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 
-/** Inputs actually enumerated by vendor firmware when the Android TV framework has none. */
+/** Inputs actually enumerated by vendor firmware, including types missing from the framework. */
+@android.annotation.TargetApi(21)
 final class VendorTvInputs {
     private static final String SKY_LIST="com.skyworth.tv.provider",SKY_SDK="com.skyworth.tv.sdk.provider";
     private static final ComponentName SKY_PLAYER=new ComponentName("com.skyworth.tv","com.skyworth.tv.activity.SkyTVMainActivity");
@@ -20,9 +22,10 @@ final class VendorTvInputs {
     static final class Source {
         final String label,key,owner;
         final boolean hdmi;
+        final int type;
         final Intent intent;
         final Bundle parameters;
-        Source(String label,Intent intent,Bundle parameters,String key,String owner,boolean hdmi){this.label=label;this.intent=intent;this.parameters=parameters;this.key=key;this.owner=owner;this.hdmi=hdmi;}
+        Source(String label,Intent intent,Bundle parameters,String key,String owner,int type){this.label=label;this.intent=intent;this.parameters=parameters;this.key=key;this.owner=owner;this.type=type;hdmi=type==TvInputInfo.TYPE_HDMI;}
     }
     static final class Discovery {
         final List<Source> sources=new ArrayList<>();
@@ -39,6 +42,19 @@ final class VendorTvInputs {
     private Discovery discovery=new Discovery();
     private final Context context;
     VendorTvInputs(Context context){this.context=context;}
+
+    // Use the firmware's source identifier, never its editable display label.
+    static int sourceType(String name){
+        String value=name.toUpperCase(java.util.Locale.ROOT);
+        if(value.contains("HDMI"))return TvInputInfo.TYPE_HDMI;
+        if(value.equals("DP")||value.contains("DISPLAYPORT"))return TvInputInfo.TYPE_DISPLAY_PORT;
+        if(value.equals("VOD")||value.contains("DTV")||value.contains("ATV")||value.contains("DVB")||value.contains("DTMB"))return TvInputInfo.TYPE_TUNER;
+        if(value.startsWith("AV")||value.contains("_AV"))return TvInputInfo.TYPE_COMPOSITE;
+        if(value.contains("YPBPR")||value.contains("YUV"))return TvInputInfo.TYPE_COMPONENT;
+        if(value.contains("SVIDEO"))return TvInputInfo.TYPE_SVIDEO;
+        if(value.contains("VGA"))return TvInputInfo.TYPE_VGA;
+        return -1;
+    }
 
     List<Source> load(){return inspect().sources;}
     Discovery inspect(){
@@ -88,8 +104,8 @@ final class VendorTvInputs {
                     Bundle data=new Bundle();data.putString("name",value);data.putInt("index",ordinal);
                     if(sdk){
                         data.putString("displayname",label);data.putInt("signal",cursor.getInt(cursor.getColumnIndexOrThrow("signalState")));
-                        sources.add(new Source(label,new Intent().setComponent(SKY_PLAYER).putExtra("source",data),null,authority+":"+value,"com.skyworth.tv",value.toUpperCase(java.util.Locale.ROOT).contains("HDMI")));
-                    }else sources.add(new Source(label,null,data,authority+":"+value,"com.skyworth.tv",value.toUpperCase(java.util.Locale.ROOT).contains("HDMI")));
+                        sources.add(new Source(label,new Intent().setComponent(SKY_PLAYER).putExtra("source",data),null,authority+":"+value,"com.skyworth.tv",sourceType(value)));
+                    }else sources.add(new Source(label,null,data,authority+":"+value,"com.skyworth.tv",sourceType(value)));
                 }
             }
             if(sources.isEmpty())discovery.empty=true;
@@ -114,7 +130,7 @@ final class VendorTvInputs {
                 Enum<?> source=(Enum<?>)item;if(!seen.add(source.name()))continue;
                 String label=source.name();
                 if(labelMethod!=null){Object text=labelMethod.invoke(manager,source);if(text instanceof String && !((String)text).isEmpty())label=(String)text;}
-                sources.add(new Source(label,new Intent("com.konka.tvsettings.intent.action.RootActivity").setComponent(KONKA_PLAYER).putExtra("source",source.ordinal()),null,"konka:"+source.name(),"com.konka.tvsettings",source.name().contains("HDMI")));
+                sources.add(new Source(label,new Intent("com.konka.tvsettings.intent.action.RootActivity").setComponent(KONKA_PLAYER).putExtra("source",source.ordinal()),null,"konka:"+source.name(),"com.konka.tvsettings",sourceType(source.name())));
             }
             if(sources.isEmpty())discovery.empty=true;
         }catch(ClassNotFoundException|NoSuchMethodException|LinkageError unavailable){discovery.sdkUnavailable=true;DiagnosticLog.error("input.konka.sdk_unavailable",unavailable);}

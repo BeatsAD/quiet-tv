@@ -113,6 +113,9 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private ArrayList<String> moveDefaults;
     private HomeCatalogRefresh.Input moveInput;
     private final Runnable confirmHold=()->{
+        if(screensaverAllowed()&&"system:settings".equals(heldPackage)&&"settings".equals(topEntry())&&!confirmLong){
+            confirmLong=true;cancelConfirm();visiblePills.get(topColumn).setPressed(false);openSettingsAlternative();return;
+        }
         App app=currentApp();
         if(screensaverAllowed()&&app!=null&&app.pkg.equals(heldPackage)&&!confirmLong){confirmLong=true;cancelConfirm();pressDock(false);openAppActions(app);}
     };
@@ -261,6 +264,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         greeting=homeHeader.greeting;weatherText=homeHeader.weather;clock=homeHeader.clock;date=homeHeader.date;timeRow=homeHeader.timeRow;topButtons=homeHeader.buttons;
         pills.addAll(homeHeader.pills);inputButton=pills.get(0);network=pills.get(1);
         inputButton.setOnClickListener(v->KeyFeedback.clicked(v,this::showInputs));network.setOnClickListener(v->KeyFeedback.clicked(v,()->openSettings(Settings.ACTION_WIFI_SETTINGS)));pills.get(2).setOnClickListener(v->KeyFeedback.clicked(v,()->openSettings(Settings.ACTION_SETTINGS)));
+        pills.get(2).setOnLongClickListener(v->{openSettingsAlternative();return true;});
         weather=new WeatherController(this,chinese,(data,message,loading)->{homeHeader.weather(data);if(screensaver!=null)screensaver.weatherChanged(data);});
         appAdapter=new AppAdapter();list.setAdapter(appAdapter);
         applyDesktopSettings();updateClock(); updateNetwork();
@@ -772,7 +776,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             if(event.getAction()==KeyEvent.ACTION_DOWN){
                 if(!pendingConfirmFocus.isEmpty()&&!pendingConfirmFocus.equals(confirmFocus()))cancelConfirm();
                 if(pendingConfirm!=null){main.removeCallbacks(pendingConfirm);pendingConfirm=null;}
-                if(event.getRepeatCount()==0){pressDock(true);confirmLong=false;App app=currentApp();heldPackage=row>=0&&app!=null?app.pkg:"";if(!heldPackage.isEmpty())main.postDelayed(confirmHold,600);}
+                if(event.getRepeatCount()==0){pressDock(true);confirmLong=false;App app=currentApp();heldPackage=row>=0&&app!=null?app.pkg:"settings".equals(topEntry())?"system:settings":"";if(!heldPackage.isEmpty())main.postDelayed(confirmHold,600);}
                 confirmGesture.down(key,event.getDownTime(),event.getRepeatCount());
                 if(event.getRepeatCount()>0){if(pendingConfirm!=null)main.removeCallbacks(pendingConfirm);pendingConfirm=null;}
             }else if(event.getAction()==KeyEvent.ACTION_UP){
@@ -1089,7 +1093,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
     private void systemEntryResult(boolean dispatched){
         systemEntryDispatched=dispatched;
-        if(dispatched && systemEntryPending.startsWith("input."))HomeGuardService.inputSelected(this);
+        if(dispatched && systemEntryPending.startsWith("input."))HomeGuardService.savedInputSelected(this);
         systemEntryLifecycle(dispatched?"dispatched_unverified":"not_dispatched");
         if(!dispatched)systemEntryPending="";
     }
@@ -1098,6 +1102,10 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             boolean opened=new SystemSettingsRouter(this).open(action);systemEntryResult(opened);
             if(!opened){wallpapers.resume();Toast.makeText(this,tr("系统设置不可用，请使用电视遥控器","Settings unavailable; use the TV remote"),Toast.LENGTH_LONG).show();}
         });
+    }
+    private void openSettingsAlternative(){
+        if(new SystemSettingsRouter(this).available(SystemSettingsRouter.XIAOMI_POPUP))openSettings(SystemSettingsRouter.XIAOMI_POPUP);
+        else Toast.makeText(this,tr("没有其他可用的系统设置入口","No alternative settings entry is available"),Toast.LENGTH_SHORT).show();
     }
 
     private void showInputs(){
@@ -1135,10 +1143,11 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
     private void showInputIssue(String title,String message){
         DiagnosticLog.info("input.problem","dialog_shown");
-        android.app.AlertDialog dialog=new android.app.AlertDialog.Builder(this).setTitle(title).setMessage(message)
+        android.app.AlertDialog.Builder builder=new android.app.AlertDialog.Builder(this).setTitle(title).setMessage(message)
             .setNegativeButton(tr("返回","Back"),(d,w)->KeySounds.play(this,KeySoundPolicy.BACK))
-            .setNeutralButton(tr("重新检测","Detect again"),(d,w)->main.post(this::showInputs))
-            .setPositiveButton(tr("系统设置","System settings"),(d,w)->{openSettings(Settings.ACTION_SETTINGS);KeySounds.play(this,KeySoundPolicy.CONFIRM);}).create();
+            .setNeutralButton(tr("重新检测","Detect again"),(d,w)->main.post(this::showInputs));
+        if(new SystemSettingsRouter(this).available(Settings.ACTION_SETTINGS))builder.setPositiveButton(tr("系统设置","System settings"),(d,w)->{openSettings(Settings.ACTION_SETTINGS);KeySounds.play(this,KeySoundPolicy.CONFIRM);});
+        android.app.AlertDialog dialog=builder.create();
         dialog.setOnDismissListener(d->main.post(this::updateHeaderFocus));dialog.show();ControlStyle.dialog(dialog,unit);
     }
 
@@ -1174,9 +1183,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         void openPending(){if(pendingTvInput!=null && resumed && checkCallingOrSelfPermission("android.permission.READ_TV_LISTINGS")==PackageManager.PERMISSION_GRANTED){TvInputInfo input=pendingTvInput;pendingTvInput=null;openInput(input);}}
         void show(int request){
             loader.execute(()->{
-                TvInputController.Snapshot snapshot=new TvInputController(HomeActivity.this).inspect();
-                VendorTvInputs.Discovery vendor=snapshot.inputs.isEmpty()?new VendorTvInputs(HomeActivity.this).inspect():new VendorTvInputs.Discovery();
-                main.post(()->{if(finishInputDiscovery(request))present(snapshot,vendor);});
+                TvInputController.Snapshot snapshot=new TvInputController(HomeActivity.this).inspectSources();
+                main.post(()->{if(finishInputDiscovery(request))present(snapshot,snapshot.vendor);});
             });
         }
         private void present(TvInputController.Snapshot snapshot,VendorTvInputs.Discovery discovery){
@@ -1230,11 +1238,11 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 case RESTRICTED:title=tr("系统限制信号源访问","Input access restricted");message=tr("系统限制了信号源列表或输入信息的读取。","The system restricts access to the input list or its entries.");break;
                 case FAILED:title=tr("信号源读取失败","Input discovery failed");message=tr("读取标准信号源时发生异常，请重新检测。","Reading the standard inputs failed. Detect again.");break;
                 case FILTERED:title=tr("信号源已隐藏或被过滤","Inputs hidden or filtered");message=tr("系统返回了输入项，但均被隐藏设置或重复项规则排除。","The system returned inputs, but all were hidden or duplicate entries.");break;
-                default:title=tr("系统未登记信号源","No registered TV inputs");message=tr("标准输入服务返回空列表，这不代表电视没有 HDMI／AV 接口。","The standard input service returned an empty list. This does not mean the TV lacks HDMI/AV ports.");
+                default:title=tr("暂未找到可用的信号源入口","No available input entry found");message=tr("Quiet TV 尚未识别到本机可用的输入入口。","Quiet TV has not found a usable input entry on this device.");
             }
             String vendorProblem=vendor.problem(chinese);if(!vendorProblem.isEmpty())message+="\n\n"+vendorProblem;
             message+="\n\n"+snapshot.nativePanels.problem(chinese);
-            message+="\n\n"+tr("可重新检测、进入系统设置，或使用电视遥控器信号源键。","Detect again, open system settings, or use the remote input key.");
+            message+="\n\n"+tr("可重新检测，或使用电视遥控器信号源键。","Detect again or use the TV remote's Input button.");
             showInputIssue(title,message);
         }
         private void showInputProblem(String message){showInputIssue(tr("信号源切换未完成","Input switch incomplete"),message);}
