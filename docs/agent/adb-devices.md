@@ -51,7 +51,7 @@
 | --- | --- | --- | --- | --- |
 | T14 创维／酷开<br>14K／8S61／sky628_8s61 | Android 4.4.2；018.010.130；2018-10-13 | A 上游型号报告<br>完整入口<br>Quiet TV未验证 | 本机信息→`↑↑↓↓←→←→`→停约2秒→工厂菜单其他设置→Adbd Enable由0改1。<br>网络ADB，无授权框。 | 报告重启后保持；准确方向为左右左右，不是左左右右。 原报告adb reboot会关机，不能当作正常重启。<br>[来源1](https://github.com/Gathin23/cleanyourtv/blob/57c00a40dafe040b0be1f32086e96c05a1a37054/docs/devices/coocaa-14k-8s61.md) |
 | T15 创维／酷开<br>K5C／8R40_K5C | Android 8.0；OPR6.170623.012 | A 上游型号报告<br>完整入口<br>Quiet TV未验证 | 设置→基本设置→设备信息→更多信息→`↑↑↓↓←→←→`→工厂ADB开关。<br>TCP 5555。 | 没有普通开发者选项；关于页及厂商设置组件是入口的一部分。<br>[来源1](https://github.com/Gathin23/cleanyourtv/blob/57c00a40dafe040b0be1f32086e96c05a1a37054/docs/devices/skyworth-8r40-k5c.md) |
-| T17 创维／酷开<br>品牌指引，未限定型号 | 适用固件未限定 | B 品牌／平台指引<br>完整入口<br>Quiet TV未验证 | 本机信息页缓慢按`↑↑↓↓←→←→`；另一分支为关于→软件版本7次→开发者选项→USB调试。<br>端口及授权依固件。 | 不同界面分支，不保证每台都适用。<br>[来源1](https://github.com/quicktvui/quicktvui-next/blob/10a21cc05118d396833ccebee5828f0c0de0ba48/docs/zh-CN/guide/device/skyworth.md) |
+| T17 创维／酷开<br>品牌指引，未限定型号 | 适用固件未限定 | B 品牌／平台指引<br>方向键路径：入口不完整<br>开发者选项路径：完整入口<br>Quiet TV未验证 | 方向键路径：本机信息页缓慢按`↑↑↓↓←→←→`，仅进入工厂菜单，原文未给ADB开关。<br>开发者选项路径：设置→关于电视→软件版本号7次→开发者选项→USB调试；端口与授权按实机核对。 | 方向键路径到工厂菜单后停止并补本机证据；不得借用T14、T15或其他型号的ADB位置、参数和后续步骤。开发者选项路径仅在当前页面吻合且无已知本机反例时指导；页面不符就停止，不轮试或拼接两条路径。<br>[来源1](https://github.com/quicktvui/quicktvui-next/blob/10a21cc05118d396833ccebee5828f0c0de0ba48/docs/zh-CN/guide/device/skyworth.md) |
 | T47 创维<br>7T861_A23 | Android 10／API 29；MT9638；QQ2A.200305.004.A1／eng.nobody.20241225.120706 | A 上游型号报告<br>入口不完整<br>Quiet TV未验证 | 来源用过网络ADB，未完整记录开启菜单。<br>TCP 5555，无授权框。 | 只保留连接证据，不提高其他创维暗码的验证等级。<br>[来源1](https://github.com/Gathin23/cleanyourtv/blob/57c00a40dafe040b0be1f32086e96c05a1a37054/docs/devices/skyworth-7t861-a23.md) |
 
 <a id="prima"></a>
