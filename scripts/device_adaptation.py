@@ -25,6 +25,32 @@ JM = 'persist.sys.home.selectpkg'
 VIDAA = 'persist.vt.use_home_pkg'
 
 
+def validate_observation(device):
+    home = device.get('home', {})
+    if 'observation' not in home:
+        return
+    observer = home['observation']
+    if (not isinstance(observer, dict) or observer.get('verified') is not True
+            or not str(observer.get('source', '')).startswith('https://')
+            or not all(device.get(key) for key in ('brand', 'model', 'fingerprint'))
+            or not home.get('component') or type(home.get('versionCode')) is not int or home['versionCode'] < 0
+            or type(home.get('user')) is not int or home['user'] < 0 or home.get('preserveOriginal') is not True):
+        raise ValueError('观察规则缺少精确身份、来源或本机验证')
+    excluded = {'com.tcl.tv', 'com.xiaomi.mitv.tvplayer', 'com.skyworth.tv', 'com.hisilicon.tvui',
+                'com.stv.appdaemon', 'com.letv.lekids', 'com.cvte.factory.at'}
+    for key in ('targets', 'bootTargets'):
+        targets = observer.get(key, [] if key == 'bootTargets' else None)
+        if not isinstance(targets, list):
+            raise ValueError('观察目标须为数组')
+        for target in targets:
+            component = target.get('component', '') if isinstance(target, dict) else ''
+            if (not re.fullmatch(r'[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+/[A-Za-z0-9_.$]+', component)
+                    or component.split('/')[0] in excluded or type(target.get('versionCode')) is not int or target['versionCode'] < 0):
+                raise ValueError('观察目标组件或版本无效')
+    if type(observer.get('silentUsage', False)) is not bool or type(observer.get('bootStockMs', 0)) is not int or not 0 <= observer.get('bootStockMs', 0) <= 60000:
+        raise ValueError('静默观察或初始化等待无效')
+
+
 def catalog(path=CATALOG):
     root = json.loads(Path(path).read_text(encoding='utf-8'))
     if root.get('schema') != 1 or not isinstance(root.get('devices'), list):
@@ -36,6 +62,7 @@ def catalog(path=CATALOG):
             raise ValueError('执行规则缺少唯一固件指纹')
         seen.add(fp)
         home = device.get('home', {})
+        validate_observation(device)
         if home.get('preserveOriginal') and (home.get('disableVerified') or home.get('uninstallVerified')):
             raise ValueError('保留原桌面与禁用规则冲突')
         if home.get('directTakeover') and not all(k in home for k in ('versionCode', 'user', 'component')):
@@ -72,6 +99,8 @@ def sync_rules(adb, user, journal, path=CATALOG, apply=False):
     if selected is None:
         print('没有匹配的已收录规则，保留现有配置；可继续检测通用 HOME 和守护能力。')
         return snapshot
+    if 'observation' in selected.get('home', {}) and 'home-observation-v1' not in snapshot.get('capabilities', []):
+        raise ValueError('APK 缺少多页面观察及开机补偿能力，未写入规则')
     desired = {'schema': 1, 'devices': [selected]}
     current = snapshot['adaptation']
     journal.event('adaptation_rules_plan', device=device, before=current, rules=desired,

@@ -61,12 +61,12 @@ final class HomeGuardState {
     boolean protects(String pkg){return protects(pkg,SetupPresets.load(context));}
     boolean protects(String pkg,SetupPresets rules){
         ComponentName name=ComponentName.unflattenFromString(selected()),fallback=ComponentName.unflattenFromString(preferences.getString("proxyOriginal",""));boolean selected=name!=null && name.getPackageName().equals(pkg);
-        if(enabled())for(String target:eventHomes())if(!target.equals(selected()) && target.startsWith(pkg+"/"))return true;
+        if(enabled() && rules.observation()!=null)for(String target:protectedHomes())if(!target.equals(selected()) && target.startsWith(pkg+"/"))return true;
         return DesktopRoutePolicy.preserve(rules.protectedHomePackage(pkg) || fallback!=null && fallback.getPackageName().equals(pkg) || !BuildConfig.DECLARES_HOME && selected,selected && selected().equals(rules.home()) && rules.homeAllows("disableVerified"),selected,enabled());
     }
     // Persist disabled mode before canceling scheduled recovery.
     @android.annotation.SuppressLint("ApplySharedPref")
-    void pause(String reason){DiagnosticLog.info("home_guard.pause",reason);preferences.edit().putString("mode","OFF").putBoolean("enabled",false).putString("status",reason).commit();HomeGuardRecovery.cancel();HomeGuardService.cancelPending();HomeGuardSync.pause(context);HomeGuardUsageService.pause(context);DesktopRoutes.disableVendor(context);if(!new HomeProxy(context).pause())status(reason+"；代理暂停回执待确认，主程序启动入口已关闭");}
+    void pause(String reason){if(unlocked(context))new BootAppStore(context).userAction("guard_paused");DiagnosticLog.info("home_guard.pause",reason);preferences.edit().putString("mode","OFF").putBoolean("enabled",false).putString("status",reason).commit();HomeGuardRecovery.cancel();HomeGuardService.cancelPending();HomeGuardSync.pause(context);HomeGuardUsageService.pause(context);DesktopRoutes.disableVendor(context);if(!new HomeProxy(context).pause())status(reason+"；代理暂停回执待确认，主程序启动入口已关闭");}
     // Persist the selected HOME and firmware before subsequent recovery requests.
     @android.annotation.SuppressLint("ApplySharedPref")
     void select(ComponentName name){if(!name.flattenToString().equals(selected()))new HomeProxy(context).pause();HomeGuardRecovery.cancel();HomeGuardService.cancelPending();preferences.edit().putBoolean("configured",true).putString("home",name.flattenToString()).putString("firmware",Build.FINGERPRINT).commit();new DesktopRoutes(context).reconcileVendor();}
@@ -153,7 +153,10 @@ final class HomeGuardState {
         String alias=resolveEventHome(selected());if(observationActivity(alias,-1))homes.add(alias);
         addObservationTargets(homes,observationRules(),"targets");return homes;
     }
-    boolean observedPackage(String pkg){for(String target:eventHomes())if(target.startsWith(pkg+"/"))return true;return false;}
+    Set<String> bootHomes(){Set<String> homes=new LinkedHashSet<>();addObservationTargets(homes,observationRules(),"bootTargets");return homes;}
+    long bootStockMs(){org.json.JSONObject rules=observationRules();return rules==null?0:rules.optInt("bootStockMs",0);}
+    Set<String> protectedHomes(){Set<String> homes=eventHomes();homes.addAll(bootHomes());return homes;}
+    boolean observedPackage(String pkg){for(String target:protectedHomes())if(target.startsWith(pkg+"/"))return true;return false;}
     private void addObservationTargets(Set<String> homes,org.json.JSONObject rules,String key){
         org.json.JSONArray targets=rules==null?null:rules.optJSONArray(key);
         if(targets!=null)for(int i=0;i<targets.length();i++){
@@ -164,7 +167,7 @@ final class HomeGuardState {
     String observationRevision(){
         StringBuilder value=new StringBuilder(selected());
         org.json.JSONObject rules=observationRules();value.append('|').append(rules==null?"":rules.toString());
-        for(String target:eventHomes())try{PackageInfo pkg=pm.getPackageInfo(ComponentName.unflattenFromString(target).getPackageName(),0);
+        for(String target:protectedHomes())try{PackageInfo pkg=pm.getPackageInfo(ComponentName.unflattenFromString(target).getPackageName(),0);
             value.append('|').append(target).append(':').append(Build.VERSION.SDK_INT>=28?pkg.getLongVersionCode():pkg.versionCode);
         }catch(PackageManager.NameNotFoundException ignored){}return value.toString();
     }

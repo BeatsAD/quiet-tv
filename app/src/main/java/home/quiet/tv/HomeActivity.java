@@ -431,7 +431,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             if(intent==null){Log.i(BootAppStore.TAG,"target unavailable");wallpapers.resume();Toast.makeText(this,tr("自启应用不可用，请在应用管理中重新设置","Startup app unavailable"),Toast.LENGTH_LONG).show();return;}
             if(ChildBlockActivity.gate(this,pkg)){Log.i(BootAppStore.TAG,"blocked by child mode");return;}
             if(new HomeGuardState(this).protects(pkg))HomeGuardService.allowOriginal();
-            startActivity(intent);
+            startActivity(intent);store.dispatched(pkg,pkg+"/");
             Log.i(BootAppStore.TAG,"launch requested");DiagnosticLog.info("app.autostart.dispatched",pkg);
         }catch(RuntimeException e){Log.w(BootAppStore.TAG,"launch rejected");DiagnosticLog.error("app.autostart.failed",e);wallpapers.resume();Toast.makeText(this,tr("自启应用暂时无法打开","Unable to open startup app"),Toast.LENGTH_SHORT).show();}});
     }
@@ -712,7 +712,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         DiagnosticLog.navigationKey("quiet_tv_home",event);
         if(waitingForUnlock)return super.dispatchKeyEvent(event);
         int key=event.getKeyCode();
-        if(event.getAction()==KeyEvent.ACTION_DOWN && HomeGuardService.navigationKey(key)){++hdmiLaunchGeneration;new BootAppStore(this).cancelHdmiBoot();HomeGuardService.bootSourceUserAction(this);}
+        if(event.getAction()==KeyEvent.ACTION_DOWN && HomeGuardService.navigationKey(key)){++hdmiLaunchGeneration;new BootAppStore(this).cancelHdmiBoot();new BootAppStore(this).userAction("desktop_input");HomeGuardService.bootSourceUserAction(this);}
         int kind=key==KeyEvent.KEYCODE_DPAD_LEFT || key==KeyEvent.KEYCODE_DPAD_RIGHT || key==KeyEvent.KEYCODE_DPAD_UP || key==KeyEvent.KEYCODE_DPAD_DOWN?1
             :key==KeyEvent.KEYCODE_DPAD_CENTER || key==KeyEvent.KEYCODE_ENTER || key==KeyEvent.KEYCODE_NUMPAD_ENTER?2
             :key==KeyEvent.KEYCODE_VOLUME_UP || key==KeyEvent.KEYCODE_VOLUME_DOWN || key==KeyEvent.KEYCODE_VOLUME_MUTE?4:0;
@@ -901,7 +901,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     @Override public boolean dispatchTouchEvent(MotionEvent event){
         InputDiagnostics.pointer(this,event);
         if(!waitingForUnlock&&screensaver!=null){cancelConfirm();if(screensaver.touch(event))return true;screensaver.interaction();}
-        if(!waitingForUnlock && event.getActionMasked()==MotionEvent.ACTION_DOWN){++hdmiLaunchGeneration;new BootAppStore(this).cancelHdmiBoot();HomeGuardService.bootSourceUserAction(this);}
+        if(!waitingForUnlock && event.getActionMasked()==MotionEvent.ACTION_DOWN){++hdmiLaunchGeneration;new BootAppStore(this).cancelHdmiBoot();new BootAppStore(this).userAction("desktop_input");HomeGuardService.bootSourceUserAction(this);}
         return super.dispatchTouchEvent(event);
     }
     @Override public boolean dispatchGenericMotionEvent(MotionEvent event){
@@ -1087,9 +1087,10 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         DiagnosticLog.info("home.action.request","entry="+entry+" ready="+ready+" resumed="+resumed+" windowFocus="+hasWindowFocus()+" api="+Build.VERSION.SDK_INT);
         leaveHome(()->{systemEntryLifecycle("wallpaper_exit_ready");action.run();});
     }
-    private void systemEntryResult(boolean dispatched){
+    private void systemEntryResult(boolean dispatched){systemEntryResult(dispatched,false);}
+    private void systemEntryResult(boolean dispatched,boolean automatic){
         systemEntryDispatched=dispatched;
-        if(dispatched && systemEntryPending.startsWith("input."))HomeGuardService.inputSelected(this);
+        if(dispatched && systemEntryPending.startsWith("input."))HomeGuardService.inputSelected(this,automatic);
         systemEntryLifecycle(dispatched?"dispatched_unverified":"not_dispatched");
         if(!dispatched)systemEntryPending="";
     }
@@ -1165,9 +1166,9 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             leaveSystemEntry("input.saved",()->{
                 if(automatic&&(generation!=hdmiLaunchGeneration||!new BootAppStore(HomeActivity.this).hdmiBoot()||!new BootAppStore(HomeActivity.this).tested())){wallpapers.resume();systemEntryResult(false);return;}
                 boolean opened=false;
-                try{HdmiTarget target=HdmiTarget.decode(saved);opened=target!=null&&saved.equals(new BootAppStore(HomeActivity.this).watchTarget())&&target.open(HomeActivity.this);}
+                try{HdmiTarget target=HdmiTarget.decode(saved);opened=target!=null&&saved.equals(new BootAppStore(HomeActivity.this).watchTarget())&&target.open(HomeActivity.this,automatic);if(opened && automatic)store.dispatched(BootAppStore.HDMI,target.foregroundComponent(HomeActivity.this));}
                 catch(RuntimeException failure){DiagnosticLog.error("input.saved.failed",failure);}
-                systemEntryResult(opened);
+                systemEntryResult(opened,automatic);
                 if(!opened){wallpapers.resume();Toast.makeText(HomeActivity.this,tr("电视信号源暂不可用，请在“看电视”中重新选择","TV source unavailable; select it again in Watch TV settings"),Toast.LENGTH_LONG).show();}
             });
         }

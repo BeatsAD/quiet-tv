@@ -137,6 +137,10 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         handler.removeCallbacks(bootSourceExpiry);handler.postDelayed(bootSourceExpiry,Math.max(0,HomeGuardPolicy.BOOT_WINDOW_MS-SystemClock.elapsedRealtime()));
     }
     private void stopBootSource(String reason){
+        if(HomeGuardState.unlocked(this) && !"desktop_navigation".equals(reason)){
+            new BootAppStore(this).userAction(reason);cancel();lastActivity="";lastActivityAt=System.currentTimeMillis();
+            policy.ignoreUsageThrough(lastActivityAt);
+        }
         if(bootSource==null || bootSource.stopped())return;
         bootSource.stop();saveBootSource();cancel();cancelRecoveryChecks();
         DiagnosticLog.info("home_guard.boot_source","decision=stop reason="+reason);updateKeyFilter();
@@ -151,6 +155,10 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     }
     @android.annotation.SuppressLint("ApplySharedPref")
     static void bootSourceUserAction(Context c,String reason){
+        if(HomeGuardState.unlocked(c) && !"desktop_navigation".equals(reason)){
+            new BootAppStore(c).userAction(reason);
+            if(instance!=null){instance.stopBootSource(reason);return;}
+        }
         if(!bootSourceDevice() || !HomeGuardState.unlocked(c) || !HomeGuardPolicy.bootRecheck(SystemClock.elapsedRealtime()))return;
         HomeGuardService service=instance;
         if(service!=null && service.bootSource!=null){service.stopBootSource(reason);return;}
@@ -158,16 +166,18 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         String boot=new BootAppStore(c).bootId();if(boot.isEmpty())return;
         new HomeGuardState(c,false).preferences.edit().putString("sourceBoot",boot).putBoolean("sourceBootStopped",true).commit();
     }
-    static void inputSelected(Context c){
-        bootSourceUserAction(c,"input_selection");
+    static void inputSelected(Context c){inputSelected(c,false);}
+    static void inputSelected(Context c,boolean automatic){
+        if(!automatic)bootSourceUserAction(c,"input_selection");
         // The vendor source transition can briefly pass through its original HOME.
         HomeGuardService service=instance;
         if(service!=null){service.policy.inputSelected(SystemClock.uptimeMillis());service.cancel();}
         HomeGuardRecovery.cancel();
     }
-    static void savedInputSelected(Context c){
+    static void savedInputSelected(Context c){savedInputSelected(c,false);}
+    static void savedInputSelected(Context c,boolean automatic){
         savedInputUntil=SystemClock.uptimeMillis()+HomeGuardPolicy.INPUT_TRANSITION_MS;
-        bootSourceUserAction(c,"saved_input_selection");
+        if(!automatic)bootSourceUserAction(c,"saved_input_selection");
         HomeGuardService service=instance;if(service!=null){service.policy.inputSelected(SystemClock.uptimeMillis());service.cancel();}
         HomeGuardRecovery.cancel();
     }
@@ -187,9 +197,27 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         // An unknown/other foreground is never converted into a stock-home observation.
         boolean take=HomeGuardPolicy.recheckTarget(state.eventHomes(),front,at,System.currentTimeMillis());
         DiagnosticLog.info("home_guard.boot_recheck","decision="+(take?"handover":"foreground_not_stock"));
-        if(take)HomeGuardRecovery.launch(this,"开机后原主页复查");
+        if(!bootForeground(front,at) && take)HomeGuardRecovery.launch(this,"开机后原主页复查");
         scheduleBootSource();
     };
+    private final Runnable bootHoldCheck=()->bootRecheck.run();
+    private boolean bootForeground(String front,long at){
+        if(front.isEmpty() || !HomeGuardPolicy.bootRecheck(SystemClock.elapsedRealtime()) || !usable() || !HomeGuardState.canShow(this) || allowStock)return false;
+        boolean normal=state.eventHomes().contains(front),boot=state.bootHomes().contains(front);
+        BootAppStore store=new BootAppStore(this);
+        store.foreground(front,normal || boot,front.equals(new ComponentName(this,HomeActivity.class).flattenToString()),at);
+        if(!normal && !boot){handler.removeCallbacks(bootHoldCheck);return false;}
+        if(!HomeGuardPolicy.recheckTarget(java.util.Collections.singleton(front),front,at,System.currentTimeMillis()))return false;
+        if(inputTransition()){handler.removeCallbacks(bootHoldCheck);handler.postDelayed(bootHoldCheck,HomeGuardPolicy.INPUT_TRANSITION_MS);return true;}
+        long hold=store.stockHoldRemaining(state.bootStockMs());
+        if(hold>0){handler.removeCallbacks(handover);handler.removeCallbacks(bootHoldCheck);handler.postDelayed(bootHoldCheck,hold);return true;}
+        if(store.covered(at)){
+            DiagnosticLog.info("home.autostart.cover","event=confirmed_stock_cover retry=once");
+            HomeGuardRecovery.launch(this,"开机目标被原桌面覆盖");return true;
+        }
+        if(boot){HomeGuardRecovery.launch(this,"已确认的厂商开机页面");return true;}
+        return false;
+    }
     private final Runnable silentCheck=()->{
         if(sawActivityEvent || state!=null && state.directHomeSelected() || !usable() || !HomeGuardState.canShow(this) || allowStock)return;
         if(HomeGuardPolicy.xiaomiRecovery(Build.MANUFACTURER,Build.BRAND,Build.VERSION.SDK_INT,BuildConfig.LEGACY_19))HomeGuardRecovery.restartSilentAccessibility(this);
@@ -199,10 +227,11 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         handler.removeCallbacks(silentCheck);
         if(Build.VERSION.SDK_INT<=23 && state!=null && state.enabled() && !sawActivityEvent)handler.postDelayed(silentCheck,HomeGuardPolicy.DEAF_CHECK_MS);
     }
-    private void cancelRecoveryChecks(){handler.removeCallbacks(bootRecheck);handler.removeCallbacks(silentCheck);handler.removeCallbacks(bootSourceCheck);handler.removeCallbacks(bootSourceExpiry);bootRechecksScheduled=false;}
+    private void cancelRecoveryChecks(){handler.removeCallbacks(bootRecheck);handler.removeCallbacks(silentCheck);handler.removeCallbacks(bootSourceCheck);handler.removeCallbacks(bootSourceExpiry);handler.removeCallbacks(bootHoldCheck);bootRechecksScheduled=false;}
     private void scheduleBootRechecks(){
         if(bootRechecksScheduled || state==null || !state.enabled() || !HomeGuardPolicy.bootRecheck(SystemClock.elapsedRealtime()))return;
-        bootRechecksScheduled=true;handler.postDelayed(bootRecheck,HomeGuardPolicy.BOOT_RECHECK_FIRST_MS);handler.postDelayed(bootRecheck,HomeGuardPolicy.BOOT_RECHECK_SECOND_MS);
+        bootRechecksScheduled=true;long now=SystemClock.elapsedRealtime();
+        for(long point:new long[]{HomeGuardPolicy.BOOT_RECHECK_FIRST_MS,HomeGuardPolicy.BOOT_RECHECK_SECOND_MS})if(now<point)handler.postDelayed(bootRecheck,point-now);
     }
     private final Runnable usageCheck=new Runnable(){
         // Shared with API19; the usage service exists on API21, before its public constant in API22.
@@ -216,6 +245,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
             if(!foreground(latest))return;
             String pkg=latest.getPackageName(),cls=latest.getClassName();
             if(pkg==null || cls==null)return;
+            if(latest.getTimeStamp()>=lastActivityAt && bootForeground(new ComponentName(pkg,cls.startsWith(".")?pkg+cls:cls).flattenToString(),latest.getTimeStamp()))return;
             ComponentName original=ComponentName.unflattenFromString(state.selected());
             if(allowStock && !state.observedPackage(pkg) && !pkg.equals(getPackageName()))allowStock=false;
             if(allowStock){if(HomeGuardPolicy.matches(state.eventHomes(),pkg,cls))HomeGuardRecovery.observed("usage","allow_original",now-latest.getTimeStamp());return;}
@@ -322,7 +352,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
                 String problem=HomeGuardState.canShow(HomeGuardService.this)?state.homeActionProblem():"screen_or_unlock_unavailable";
                 DiagnosticLog.info("home_guard.home_action","observation="+broadcastObservation+" received=true conditionsAvailable="+available+" reason="+(problem.isEmpty()?"eligible":problem)+" physicalKeyVerified=false");
                 if(!available)return;
-                bootSourceUserAction(context,"home_action");
+                if(!silentHome.active())bootSourceUserAction(context,"home_action");
                 if(!state.directHomeSelected()){startHomeProbe();return;}
                 if(!homeActionEligible())return;
                 allowStock=false;cancel();policy.clear();transitionUntil=0;
@@ -366,7 +396,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     static void lifecycle(String reason){HomeGuardService service=instance;if(service!=null){service.schedule(reason);service.refreshUsageWatch();service.scheduleBootRechecks();service.scheduleSilentCheck();}}
     static void allowOriginal(){HomeGuardUsageService.allowOriginal();HomeGuardService service=instance;if(service!=null){service.allowStock=true;service.cancel();}}
     static void homeVisible(){HomeGuardUsageService.visible();HomeGuardService service=instance;if(service!=null){service.allowStock=false;service.lastActivity=new ComponentName(service,HomeActivity.class).flattenToString();service.lastActivityAt=System.currentTimeMillis();service.policy.confirmed();service.cancel();}}
-    private void cancel(){handler.removeCallbacks(handover);handler.removeCallbacks(homeKeyHandover);handler.removeCallbacks(homeProbe);silentHome.cancel();}
+    private void cancel(){handler.removeCallbacks(handover);handler.removeCallbacks(homeKeyHandover);handler.removeCallbacks(homeProbe);handler.removeCallbacks(bootHoldCheck);silentHome.cancel();}
     private void schedule(String reason){
         cancel();if(state==null || !state.enabled())return;
         long delay=Math.max(HomeGuardPolicy.SETTLE_MS,policy.inputDelay(SystemClock.uptimeMillis()));
@@ -375,6 +405,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     }
     @Override public void onSharedPreferenceChanged(SharedPreferences preferences,String key){
         if("mode".equals(key) || "home".equals(key) || "firmware".equals(key) || "configured".equals(key) || "observeHome".equals(key) || "directHomeKeys".equals(key) || "routeHome".equals(key) || "routeRevision".equals(key) || "observationRulesRevision".equals(key)){
+            if(HomeGuardState.unlocked(this))new BootAppStore(this).userAction("guard_configuration");
             if("home".equals(key) || "firmware".equals(key))state.invalidateEventHome();
             cancel();cancelRecoveryChecks();policy.clear();lastPackage="";allowStock=false;
             if(state.enabled()){schedule("配置恢复");scheduleBootRechecks();scheduleSilentCheck();}refreshUsageWatch();updateKeyFilter();
@@ -401,6 +432,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         if(age<0 || age>HomeGuardPolicy.MAX_AGE_MS){if(HomeGuardPolicy.matches(state.eventHomes(),pkg,cls))HomeGuardRecovery.observed("accessibility","stale_event",age);return;}
         silentHome.observed(event.getEventTime());if(!silentHome.active())handler.removeCallbacks(homeProbe);
         sawActivityEvent=true;lastActivity=new ComponentName(pkg,cls.startsWith(".")?pkg+cls:cls).flattenToString();lastActivityAt=System.currentTimeMillis()-age;
+        if(bootForeground(lastActivity,lastActivityAt))return;
         if(BootSourcePolicy.PLAYER.equals(lastActivity))scheduleBootSource();
         // A delayed usage event must not override a newer settings/player accessibility event.
         policy.ignoreUsageThrough(System.currentTimeMillis()-age);

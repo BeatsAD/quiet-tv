@@ -79,6 +79,11 @@ final class SetupPresets {
         JSONObject home=device==null?null:device.optJSONObject("home");if(home==null)return false;
         if(this.home().startsWith(pkg+"/") && (home.optBoolean("preserveOriginal") || !home.optBoolean("disableVerified")))return true;
         JSONObject boot=home.optJSONObject("vendorBoot");if(boot!=null && pkg.equals(boot.optString("systemPackage")))return true;
+        JSONObject observer=home.optJSONObject("observation");
+        if(observer!=null)for(String key:new String[]{"targets","bootTargets"}){
+            JSONArray targets=observer.optJSONArray(key);if(targets!=null)for(int i=0;i<targets.length();i++)
+                if(targets.optJSONObject(i)!=null && targets.optJSONObject(i).optString("component").startsWith(pkg+"/"))return true;
+        }
         JSONArray required=home.optJSONArray("requiredPackages");
         if(required!=null)for(int i=0;i<required.length();i++)if(pkg.equals(required.optString(i)))return true;
         return false;
@@ -102,6 +107,9 @@ final class SetupPresets {
                     || home.optString("component").isEmpty() || !home.has("versionCode") || !home.has("user")
                     || !home.optBoolean("preserveOriginal"))throw new JSONException("原桌面观察规则缺少精确身份、来源或本机验证");
             validateTargets(observer.getJSONArray("targets"));
+            if(observer.has("bootTargets"))validateTargets(observer.getJSONArray("bootTargets"));
+            if(observer.has("bootStockMs") && (!(observer.opt("bootStockMs") instanceof Integer) || observer.getInt("bootStockMs")<0 || observer.getInt("bootStockMs")>60000))throw new JSONException("原桌面初始化等待须在 0 至 60000 毫秒内");
+            if(observer.has("silentUsage") && !(observer.opt("silentUsage") instanceof Boolean))throw new JSONException("静默观察开关无效");
         }
         JSONObject boot=home.optJSONObject("vendorBoot");if(boot==null)return;
         Object version=boot.opt("versionCode");

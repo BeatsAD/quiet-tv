@@ -50,6 +50,7 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
         value.put("capabilities",new org.json.JSONArray().put("input-profile-v1").put("takeover-restore-v1").put("proxy-repair-v1").put("adaptation-rules-v1").put("takeover-record-v1"));
         value.put("adaptation",new DeviceAdaptation(context).snapshot());
         value.getJSONArray("capabilities").put("daily-app-management-v1");
+        if(guard.supported())value.getJSONArray("capabilities").put("home-observation-v1");
         android.content.SharedPreferences daily=context.getSharedPreferences("adb",0);
         value.put("dailyManagement",new JSONObject().put("transport","tcp").put("port",daily.getInt("port",5555)).put("configured",daily.getBoolean("dailyManagement",false)));
         value.getJSONArray("capabilities").put("legacy-records-v1").put("proxy-setup-v1").put("remote-keymap-v1");

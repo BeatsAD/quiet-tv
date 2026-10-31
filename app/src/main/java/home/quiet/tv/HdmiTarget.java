@@ -52,18 +52,24 @@ final class HdmiTarget {
     }
     boolean matches(HdmiTarget current){return current!=null&&kind.equals(current.kind)&&id.equals(current.id)&&scope.equals(current.scope);}
     boolean availableNow(Context context){for(HdmiTarget current:available(context))if(matches(current))return true;return false;}
-    boolean open(Context context){
+    String foregroundComponent(Context context){
+        if(!"standard".equals(kind) || !availableNow(context))return "";
+        TvInputController controller=new TvInputController(context);TvInputInfo input=controller.findInput(id);
+        Intent intent=input==null?null:controller.hdmiIntent(input);return intent==null || intent.getComponent()==null?"":intent.getComponent().flattenToString();
+    }
+    boolean open(Context context){return open(context,false);}
+    boolean open(Context context,boolean automatic){
         if(!availableNow(context))return false;
-        HomeGuardService.bootSourceUserAction(context,"saved_hdmi");
+        if(!automatic)HomeGuardService.bootSourceUserAction(context,"saved_hdmi");
         if("vendor".equals(kind)){
             for(VendorTvInputs.Source source:new VendorTvInputs(context).load())if(source.hdmi&&id.equals(source.key)){
-                boolean dispatched=new VendorTvInputs(context).open(source);if(dispatched)HomeGuardService.savedInputSelected(context);return dispatched;
+                boolean dispatched=new VendorTvInputs(context).open(source);if(dispatched)HomeGuardService.savedInputSelected(context,automatic);return dispatched;
             }
             return false;
         }
         TvInputController controller=new TvInputController(context);TvInputInfo input=controller.findInput(id);
         Intent intent=input==null?null:controller.hdmiIntent(input);if(intent==null)return false;
-        context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));HomeGuardService.savedInputSelected(context);
+        context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));HomeGuardService.savedInputSelected(context,automatic);
         DiagnosticLog.info("input.saved.dispatch","standard dispatched_unverified");return true;
     }
 }

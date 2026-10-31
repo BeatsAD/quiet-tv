@@ -44,6 +44,7 @@ final class BootAppStore {
     }}
     private void save(SharedPreferences.Editor editor) throws IOException {
         java.util.Map<String,?> before=preferences.getAll();
+        editor.putBoolean("cover-pending",false).putBoolean("cover-armed",false).putBoolean("cover-stopped",true);
         if(editor.commit())return;
         SharedPreferences.Editor rollback=preferences.edit();
         // Restore only this store's snapshot after a failed commit changes its memory map.
@@ -69,7 +70,8 @@ final class BootAppStore {
     void select(String pkg,String label) throws IOException {synchronized(BootAppStore.class){
         String boot=bootId();
         if(!pkg.isEmpty() && (boot.isEmpty() || launchIntent(pkg)==null))throw new IOException("此应用或当前系统暂不支持开机自启");
-        if(!preferences.edit().putBoolean("hdmi-boot",false).putString("package",pkg).putString("label",label).putString("handled-boot",boot)
+        if(!preferences.edit().putBoolean("cover-pending",false).putBoolean("cover-armed",false).putBoolean("cover-stopped",true)
+                .putBoolean("hdmi-boot",false).putString("package",pkg).putString("label",label).putString("handled-boot",boot)
                 .putString("wake-boot",boot).putBoolean("sleeping",false).putLong("wake-at",-1)
                 .putLong("handled-wake",preferences.getLong("wake-generation",0)).commit())throw new IOException("自启设置保存失败，请重试");
     }}
@@ -102,9 +104,53 @@ final class BootAppStore {
         if(now<at || now-at>WAKE_WINDOW_MS){cancelWake("expired");return false;}
         return true;
     }
+    private String configuredTarget(){return hdmiBoot()?HDMI:target();}
+    private boolean coverCurrent(){
+        long at=preferences.getLong("cover-at",-1),now=SystemClock.elapsedRealtime();
+        return at>=0 && now>=at && now-at<=60000 && HomeGuardPolicy.bootRecheck(now)
+            && bootId().equals(preferences.getString("cover-boot","")) && configuredTarget().equals(preferences.getString("cover-target",""))
+            && (!hdmiBoot() || tested() && watchRevision().equals(preferences.getString("cover-input","")));
+    }
+    void dispatched(String target,String foreground){synchronized(BootAppStore.class){
+        if(foreground.isEmpty() || !target.equals(configuredTarget()) || !bootId().equals(preferences.getString("cover-boot",""))
+                || preferences.getBoolean("cover-stopped",true) || preferences.getBoolean("cover-used",false))return;
+        preferences.edit().putString("cover-foreground",foreground).putLong("cover-at",SystemClock.elapsedRealtime())
+            .putLong("cover-wall",System.currentTimeMillis()).putBoolean("cover-armed",true).putBoolean("cover-seen",false).commit();
+    }}
+    void foreground(String component,boolean stock,boolean own,long at){synchronized(BootAppStore.class){
+        if(!preferences.getBoolean("cover-armed",false) || !coverCurrent() || at<preferences.getLong("cover-wall",Long.MAX_VALUE))return;
+        String expected=preferences.getString("cover-foreground","");
+        if(component.equals(expected) || expected.endsWith("/") && component.startsWith(expected)){
+            if(!preferences.getBoolean("cover-seen",false))preferences.edit().putBoolean("cover-seen",true).putLong("cover-seen-at",at).commit();
+        }else if(!stock && !own)userAction("other_foreground");
+    }}
+    boolean covered(long at){synchronized(BootAppStore.class){
+        if(!preferences.getBoolean("cover-armed",false) || !preferences.getBoolean("cover-seen",false)
+                || preferences.getBoolean("cover-used",false) || !coverCurrent() || at<preferences.getLong("cover-seen-at",Long.MAX_VALUE))return false;
+        return preferences.edit().putBoolean("cover-used",true).putBoolean("cover-pending",true).putBoolean("cover-armed",false).commit();
+    }}
+    void userAction(String reason){synchronized(BootAppStore.class){
+        String boot=bootId();if(boot.isEmpty() || !HomeGuardPolicy.bootRecheck(SystemClock.elapsedRealtime()))return;
+        if(boot.equals(preferences.getString("boot-user-cycle","")) && preferences.getBoolean("cover-stopped",true))return;
+        preferences.edit().putString("boot-user-cycle",boot).putBoolean("cover-stopped",true).putBoolean("cover-armed",false).putBoolean("cover-pending",false).commit();
+        DiagnosticLog.info("home.autostart.cover","event=user_cancel reason="+reason);
+    }}
+    boolean userNavigated(){String boot=bootId();return !boot.isEmpty() && boot.equals(preferences.getString("boot-user-cycle",""));}
+    long stockHoldRemaining(long duration){synchronized(BootAppStore.class){
+        long now=SystemClock.elapsedRealtime();String boot=bootId();
+        if(duration<=0 || boot.isEmpty() || !HomeGuardPolicy.bootRecheck(now) || boot.equals(preferences.getString("boot-user-cycle","")))return 0;
+        long at=preferences.getLong("stock-hold-at",now);
+        if(!boot.equals(preferences.getString("stock-hold-boot",""))){at=now;if(!preferences.edit().putString("stock-hold-boot",boot).putLong("stock-hold-at",at).commit())return 0;}
+        return now>=at?Math.max(0,Math.min(duration-(now-at),HomeGuardPolicy.BOOT_WINDOW_MS-now)):0;
+    }}
     String consume(){
         synchronized(BootAppStore.class){
             if(!enabled())return "";
+            if(preferences.getBoolean("cover-pending",false)){
+                boolean valid=coverCurrent() && !preferences.getBoolean("cover-stopped",true);
+                if(!preferences.edit().putBoolean("cover-pending",false).commit())return "";
+                if(valid)return configuredTarget();
+            }
             String boot=bootId();
             if(!syncBoot(boot))return "";
             boolean reboot=!boot.equals(preferences.getString("handled-boot",""));
@@ -113,7 +159,9 @@ final class BootAppStore {
             }
             if(!reboot && !pendingWake())return "";
             // Consume before starting, including unavailable/blocked targets, so Home remains recoverable.
-            if(!preferences.edit().putString("handled-boot",boot).putLong("wake-at",-1).putBoolean("sleeping",false)
+            if(!preferences.edit().putString("cover-boot",reboot?boot:"").putString("cover-target",configuredTarget()).putString("cover-input",watchRevision())
+                    .putBoolean("cover-stopped",boot.equals(preferences.getString("boot-user-cycle",""))).putBoolean("cover-used",false).putBoolean("cover-pending",false).putBoolean("cover-armed",false)
+                    .putString("handled-boot",boot).putLong("wake-at",-1).putBoolean("sleeping",false)
                     .putLong("handled-wake",preferences.getLong("wake-generation",0)).commit())return "";
             if(!target().isEmpty())Log.i(TAG,reboot?"consumed boot":"consumed wake");
             return hdmiBoot()?HDMI:target();

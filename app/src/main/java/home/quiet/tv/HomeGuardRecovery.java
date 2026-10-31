@@ -183,7 +183,7 @@ final class HomeGuardRecovery {
         HomeGuardState state=new HomeGuardState(c);long now=System.currentTimeMillis(),uptime=SystemClock.elapsedRealtime();
         long start=state.preferences.getLong("revivalWallStart",-1);boolean same=start>=now-uptime && start<=now;
         if(!restoredInStandby && same && now-start<600000 && state.preferences.getInt("revivalCount",0)>=3)return false;
-        if(uptime<HomeGuardPolicy.BOOT_WINDOW_MS)return true;
+        if(uptime<HomeGuardPolicy.BOOT_WINDOW_MS)return HomeGuardState.unlocked(c) && !new BootAppStore(c).userNavigated();
         return state.preferences.getBoolean("homeInFront",false) && (restoredInStandby || restoredAt>=0 && uptime>=restoredAt && uptime-restoredAt<60000 || same && state.preferences.getInt("revivalCount",0)>0 && now-start<60000);
     }
     static void launch(Context c,String reason){
