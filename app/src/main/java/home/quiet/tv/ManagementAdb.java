@@ -26,7 +26,8 @@ final class ManagementAdb {
                 catch(SecurityException unknown){return true;} // The verified protocol remains authoritative.
             }
             public boolean connected(){return adb.connected();}
-            public void connect() throws Exception {adb.connect(context.getSharedPreferences("adb",0).getInt("port",5555));}
+            public int prepare(){return adb.prepare();}
+            public void connect(int attempt) throws Exception {adb.connect(context.getSharedPreferences("adb",0).getInt("port",5555),attempt);}
             public void check() throws Exception {adb.validateUser();}
             public void disconnect(){adb.disconnect();}
         },worker,()->{main.removeCallbacks(dispatch);main.post(dispatch);});
