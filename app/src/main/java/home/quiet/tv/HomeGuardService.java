@@ -54,8 +54,8 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         int flag=AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS;
         boolean observe=observeBootSource();
         RemoteKeyMap remote=new RemoteKeyMap(this);
-        boolean wanted=homeKeys.pressed() || inputFilterSafe() && keyFilterCapable() && HomeGuardState.canShow(this) && (filterHome() || observe || remote.observingFor()>0
-            || state!=null && state.ready() && (bootSourceDevice() || remote.customHome()));int flags=wanted?info.flags|flag:info.flags&~flag;
+        boolean wanted=HomeGuardState.canShow(this) && (homeKeys.pressed() || inputFilterSafe() && keyFilterCapable() && (filterHome() || observe || remote.observingFor()>0
+            || state!=null && state.ready() && (bootSourceDevice() || remote.customHome())));int flags=wanted?info.flags|flag:info.flags&~flag;
         int events=observe?info.eventTypes|AccessibilityEvent.TYPE_VIEW_CLICKED:info.eventTypes&~AccessibilityEvent.TYPE_VIEW_CLICKED;
         if(flags!=info.flags || events!=info.eventTypes){info.flags=flags;info.eventTypes=events;setServiceInfo(info);DiagnosticLog.info("home_guard.key_filter","enabled="+wanted+" bootObserve="+observe);}
         keyFiltering=wanted;
@@ -342,8 +342,11 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         if(Build.VERSION.SDK_INT<21 || !usable() || !HomeGuardState.canShow(this) || allowStock){DiagnosticLog.info("home_guard.settle","source="+settleReason+" decision=conditions_unavailable allowOriginal="+allowStock);return;}
         UsageEvents.Event latest=latestUsage();
         boolean fresh=latest!=null && latest.getTimeStamp()>=lastActivityAt && latest.getPackageName()!=null && latest.getClassName()!=null;
-        if(fresh && foreground(latest))
+        if(fresh && foreground(latest)){
+            String pkg=latest.getPackageName(),cls=latest.getClassName();
+            if(bootForeground(new ComponentName(pkg,cls.startsWith(".")?pkg+cls:cls).flattenToString(),latest.getTimeStamp()))return;
             policy.observe(state.eventHomes(),latest.getPackageName(),latest.getClassName(),SystemClock.uptimeMillis());
+        }
         boolean other=fresh && (!foreground(latest) || !HomeGuardPolicy.matches(state.eventHomes(),latest.getPackageName(),latest.getClassName()));
         boolean unknown=HomeGuardPolicy.xiaomi(Build.MANUFACTURER,Build.BRAND) && latest==null && policy.unknown();
         boolean accepted=!other && !unknown && policy.settle(state.eventHomes(),HomeGuardRecovery.unknownAllowed(this));
