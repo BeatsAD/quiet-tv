@@ -6,7 +6,20 @@ import android.os.Bundle;
 
 /** Process startup, rather than opening the export dialog, starts recording. */
 public class QuietApplication extends Application {
-    protected boolean playbackProcess(){return false;}
+    protected boolean playbackProcess(){
+        // Do not start HOME recovery, ADB, or the shared log writer in the codec process.
+        try(java.io.FileInputStream input=new java.io.FileInputStream("/proc/self/cmdline")){
+            byte[] name=new byte[256];int count=input.read(name),end=0;
+            while(end<count&&name[end]!=0)end++;
+            return new String(name,0,end,"UTF-8").equals(getPackageName()+":wallpaper");
+        }catch(java.io.IOException|SecurityException e){
+            android.app.ActivityManager manager=(android.app.ActivityManager)getSystemService(ACTIVITY_SERVICE);
+            java.util.List<android.app.ActivityManager.RunningAppProcessInfo> processes=manager==null?null:manager.getRunningAppProcesses();
+            if(processes!=null)for(android.app.ActivityManager.RunningAppProcessInfo process:processes)
+                if(process.pid==android.os.Process.myPid())return (getPackageName()+":wallpaper").equals(process.processName);
+            return false;
+        }
+    }
     @Override public void onCreate(){
         super.onCreate();if(playbackProcess())return;DiagnosticLog.init(this);
         if(HomeGuardState.unlocked(this))new DesktopRoutes(this).restoreAfterUpgrade();

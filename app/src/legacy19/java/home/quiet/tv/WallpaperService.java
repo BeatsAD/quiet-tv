@@ -8,9 +8,9 @@ import android.view.Surface;
 import java.io.IOException;
 
 /** Private, bound-only codec process. The service main Looper never calls MediaPlayer. */
-public class LegacyWallpaperService extends Service {
+public class WallpaperService extends Service {
     static final int OPEN=1,SOUND=2,PAUSE=3,RELEASE=4;
-    static final int PREPARED=11,FRAME=12,SIZE=13,FAILED=14,RELEASED=15,NOTE=16;
+    static final int PREPARED=11,FRAME=12,SIZE=13,FAILED=14,RELEASED=15,NOTE=16,LOG=17;
     static final long OPERATION_TIMEOUT_MS=2500;
     private final Handler main=new Handler(Looper.getMainLooper());
     private Handler worker;

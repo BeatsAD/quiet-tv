@@ -68,7 +68,7 @@ final class DiagnosticLog {
             +" package="+intent.getPackage()+" scheme="+intent.getScheme();
     }
     // Exception messages can include input, URLs and credentials: keep only types and bounded frames.
-    private static String trace(Throwable error){
+    static String trace(Throwable error){
         StringBuilder text=new StringBuilder();
         for(int cause=0;error!=null&&cause<3;cause++,error=error.getCause()){
             text.append(error.getClass().getName());StackTraceElement[] frames=error.getStackTrace();

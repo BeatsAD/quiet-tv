@@ -16,20 +16,21 @@ import android.view.Surface;
 import androidx.media3.common.*;
 import android.annotation.SuppressLint;
 import androidx.media3.exoplayer.*;
-import java.io.File;
 
 /** Local-only Media3 playback, with bounded buffering and no audio decoder. */
 @SuppressLint("UnsafeOptInUsageError")
-final class WallpaperPlayback {
+final class WallpaperEngine {
+    interface Diagnostics {void record(boolean error,String event,String detail);}
+    private final Diagnostics log;
     private final ExoPlayer player;
     private final Handler worker;
     private final String context;
-    private boolean detaching,detachFailed,releasing,releaseTimedOut;
+    private boolean releasing,releaseTimedOut;
     private String decoder="unknown";
     private boolean rendered;
-    WallpaperPlayback(Context source,Handler worker,Surface surface,File file,WallpaperCatalog.Entry entry,String context,VideoWallpaperPlayer.PlaybackEvents events){
-        this.worker=worker;this.context=context;
-        boolean manualRotation=VideoGeometry.manualRotation(android.os.Build.VERSION.SDK_INT,entry.rotation);
+    WallpaperEngine(Context source,Handler worker,Surface surface,Uri uri,int rotation,String context,VideoWallpaperPlayer.PlaybackEvents events,Diagnostics log){
+        this.worker=worker;this.context=context;this.log=log;
+        boolean manualRotation=VideoGeometry.manualRotation(android.os.Build.VERSION.SDK_INT,rotation);
         DefaultRenderersFactory renderers=new DefaultRenderersFactory(source){
             @Override protected void buildVideoRenderers(Context context,int extensions,MediaCodecSelector selector,boolean fallback,Handler handler,VideoRendererEventListener listener,long joiningMs,ArrayList<Renderer> output){
                 if(!manualRotation){super.buildVideoRenderers(context,extensions,selector,fallback,handler,listener,joiningMs,output);return;}
@@ -52,21 +53,20 @@ final class WallpaperPlayback {
         player.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT);
         player.addAnalyticsListener(new AnalyticsListener(){
             @Override public void onVideoInputFormatChanged(EventTime time,Format format,DecoderReuseEvaluation reuse){
-                DiagnosticLog.info("wallpaper.video.input_format",context+" mime="+VideoDiagnostics.mime(format.sampleMimeType)+" codecs="+VideoDiagnostics.token(format.codecs)
+                info("wallpaper.video.input_format",context+" mime="+VideoDiagnostics.mime(format.sampleMimeType)+" codecs="+VideoDiagnostics.token(format.codecs)
                     +" size="+format.width+"x"+format.height+" fps="+format.frameRate+" averageBitrate="+format.averageBitrate+" peakBitrate="+format.peakBitrate);
             }
             @Override public void onVideoDecoderInitialized(EventTime time,String name,long initializedAt,long durationMs){
-                decoder=VideoDiagnostics.token(name);DiagnosticLog.info("wallpaper.video.decoder",context+" backend=media3 codec="+decoder+" initMs="+durationMs);
+                decoder=VideoDiagnostics.token(name);info("wallpaper.video.decoder",context+" backend=media3 codec="+decoder+" initMs="+durationMs);
             }
         });
         player.addListener(new Player.Listener(){
             @Override public void onVideoSizeChanged(VideoSize size){events.size(size.width,size.height,size.pixelWidthHeightRatio);}
             @Override public void onRenderedFirstFrame(){rendered=true;events.ready();}
             @Override public void onPlayerError(PlaybackException error){
-                DiagnosticLog.error("wallpaper.video.player_error",context+" backend=media3 stage="+(detaching?"detach":releasing?"release":rendered?"playback":"prepare")+" codec="+decoder+" error="+VideoDiagnostics.token(error.getErrorCodeName())+" code="+error.errorCode
+                error("wallpaper.video.player_error",context+" backend=media3 stage="+(releasing?"release":rendered?"playback":"prepare")+" codec="+decoder+" error="+VideoDiagnostics.token(error.getErrorCodeName())+" code="+error.errorCode
                     +" state="+player.getPlaybackState()+" positionMs="+player.getCurrentPosition()+" "+VideoDiagnostics.causes(error),error);
                 logDecoderCauses(context,error);
-                if(detaching){detachFailed=true;return;}
                 if(releasing){releaseTimedOut=true;return;}
                 VideoWallpaperPlayer.Failure reason;
                 switch(error.errorCode){
@@ -85,9 +85,9 @@ final class WallpaperPlayback {
                 events.failed(reason);
             }
         });
-        player.setMediaItem(MediaItem.fromUri(file!=null?Uri.fromFile(file):Uri.parse("asset:///wallpapers/"+entry.id+".mp4")));
+        player.setMediaItem(MediaItem.fromUri(uri));
     }
-    private static void logDecoderCauses(String context,Throwable error){
+    private void logDecoderCauses(String context,Throwable error){
         for(int n=0;error!=null&&n<6;n++,error=error.getCause()){
             StringBuilder details=new StringBuilder();
             if(error instanceof ExoTimeoutException)details.append(" timeoutOperation=").append(((ExoTimeoutException)error).timeoutOperation);
@@ -111,11 +111,13 @@ final class WallpaperPlayback {
                     .append(" recoverable=").append(e.isRecoverable()).append(" transient=").append(e.isTransient());
                 if(Build.VERSION.SDK_INT>=23)details.append(" platformCode=").append(Api23.code(e));
             }
-            if(details.length()>0)DiagnosticLog.info("wallpaper.video.codec_error",context+" cause="+n+details);
+            if(details.length()>0)info("wallpaper.video.codec_error",context+" cause="+n+details);
             if(error.getCause()==error)break;
         }
     }
     @android.annotation.TargetApi(23) private static final class Api23 {static int code(MediaCodec.CodecException e){return e.getErrorCode();}}
+    private void info(String event,String detail){log.record(false,event,detail);}
+    private void error(String event,String detail,Throwable error){log.record(true,event,detail+" "+DiagnosticLog.trace(error));}
     void prepare()throws java.io.IOException{player.prepare();}
     void setSound(boolean enabled){
         player.setVolume(enabled?1f:0f);
@@ -123,23 +125,16 @@ final class WallpaperPlayback {
         player.setTrackSelectionParameters(player.getTrackSelectionParameters().buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_AUDIO,!enabled).build());
     }
     void setPaused(boolean paused){player.setPlayWhenReady(!paused);}
-    boolean detachOutput(){
-        if(detachFailed)return false;
-        detaching=true;
-        try{player.clearVideoSurface();return !detachFailed;}
-        catch(RuntimeException e){detachFailed=true;DiagnosticLog.error("wallpaper.video.detach_failed",context+" "+VideoDiagnostics.failureDetails(e),e);return false;}
-        finally{detaching=false;}
-    }
     void release(Runnable completed){
         releasing=true;Thread decoderThread=player.getPlaybackLooper().getThread();
         try{player.release();}
-        catch(RuntimeException e){releaseTimedOut=true;DiagnosticLog.error("wallpaper.video.release_failed",context+" "+VideoDiagnostics.failureDetails(e),e);}
+        catch(RuntimeException e){releaseTimedOut=true;error("wallpaper.video.release_failed",context+" "+VideoDiagnostics.failureDetails(e),e);}
         if(!releaseTimedOut){completed.run();return;}
         // release() may return before the internal thread has released its renderer/codec.
         // Keep its Surface alive and hold subsequent decoder work behind this acknowledgement.
-        DiagnosticLog.info("wallpaper.video.release_pending",context+" reason=awaiting_decoder_thread");
+        info("wallpaper.video.release_pending",context+" reason=awaiting_decoder_thread");
         PlaybackHandoff.awaitTermination(decoderThread,()->worker.post(()->{
-            DiagnosticLog.info("wallpaper.video.release_complete",context);completed.run();
+            info("wallpaper.video.release_complete",context);completed.run();
         }));
     }
 }
