@@ -120,14 +120,14 @@ final class DesktopRoutes {
         problem=HomeGuardRecovery.configurationProblem(context);if(!problem.isEmpty())return problem;
         return state.observationReady()?"":"等待系统连接桌面服务";
     }
-    String test(String scene){return current()?prefs.getString("routeTest_"+scene,"待验证"):"待验证";}
+    String test(String scene){return current() && state.observationRevision().equals(prefs.getString("routeTargetRevision_"+scene,state.observationRules()==null?state.observationRevision():""))?prefs.getString("routeTest_"+scene,"待验证"):"待验证";}
     void observation(String scene,String result){
         if(!java.util.Arrays.asList("home","reboot","coldBoot","wake").contains(scene)
                 || !java.util.Arrays.asList("通过","失败","待验证").contains(result))throw new IllegalArgumentException("验证记录无效");
         long at=System.currentTimeMillis();
         DiagnosticOperation trace=new DiagnosticOperation("desktop.scene",at,SystemClock.elapsedRealtime(),DiagnosticLog::info);
         String lastHandover=HomeGuardRecovery.lastDiagnosticAttempt();
-        edit().putString("routeTest_"+scene,result).putLong("routeTestAt_"+scene,at).putString("routeTestEvidence_"+scene,trace.id).apply();
+        edit().putString("routeTargetRevision_"+scene,state.observationRevision()).putString("routeTest_"+scene,result).putLong("routeTestAt_"+scene,at).putString("routeTestEvidence_"+scene,trace.id).apply();
         DiagnosticLog.info("desktop.scene","attempt="+trace.id+" scene="+scene+" source=user result="+result+" lastHandoverAttempt="+lastHandover);
         trace.finish("USER_REPORTED","scene_"+scene,System.currentTimeMillis(),SystemClock.elapsedRealtime());
     }
@@ -135,7 +135,7 @@ final class DesktopRoutes {
             +"\n断电开机："+bootLabel()+"  "+test("coldBoot")+"\n待机唤醒："+wakeLabel()+"  "+test("wake");}
     JSONObject snapshot() throws JSONException {
         JSONObject snapshot=new JSONObject().put("packageMode",BuildConfig.DECLARES_HOME?"standard":"relay")
-                .put("homeRoute",home()).put("observeHome",prefs.getBoolean("observeHome",true)).put("nativeObserverConfigured",state.nativeObserverConfigured())
+                .put("observationTargets",new JSONArray(state.eventHomes())).put("homeRoute",home()).put("observeHome",prefs.getBoolean("observeHome",true)).put("nativeObserverConfigured",state.nativeObserverConfigured())
                 .put("nativeObserverSelected",state.nativeObserverSelected()).put("directHomeSelected",current() && state.directHomeSelected())
                 .put("relaySource",prefs.getString("relaySource","UNKNOWN")).put("proxyPackage",new HomeProxy(context).packageName())
                 .put("proxyAvailable",new HomeProxy(context).available()).put("proxyReady",new HomeProxy(context).ready())

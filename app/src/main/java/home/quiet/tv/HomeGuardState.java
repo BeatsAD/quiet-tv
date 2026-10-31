@@ -61,6 +61,7 @@ final class HomeGuardState {
     boolean protects(String pkg){return protects(pkg,SetupPresets.load(context));}
     boolean protects(String pkg,SetupPresets rules){
         ComponentName name=ComponentName.unflattenFromString(selected()),fallback=ComponentName.unflattenFromString(preferences.getString("proxyOriginal",""));boolean selected=name!=null && name.getPackageName().equals(pkg);
+        if(enabled())for(String target:eventHomes())if(!target.equals(selected()) && target.startsWith(pkg+"/"))return true;
         return DesktopRoutePolicy.preserve(rules.protectedHomePackage(pkg) || fallback!=null && fallback.getPackageName().equals(pkg) || !BuildConfig.DECLARES_HOME && selected,selected && selected().equals(rules.home()) && rules.homeAllows("disableVerified"),selected,enabled());
     }
     // Persist disabled mode before canceling scheduled recovery.
@@ -123,11 +124,50 @@ final class HomeGuardState {
     private void collect(Map<String,Candidate> homes,List<ResolveInfo> values){
         for(ResolveInfo value:values){ActivityInfo info=value.activityInfo;
             if(info==null || context.getPackageName().equals(info.packageName) || !info.enabled || !info.applicationInfo.enabled
-                    || (info.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0 || "android".equals(info.packageName) || info.name.endsWith("FallbackHome"))continue;
+                    || (info.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0 || "android".equals(info.packageName) || HomeGuardPolicy.excludedHome(info.packageName) || info.name.endsWith("FallbackHome"))continue;
             ComponentName name=new ComponentName(info.packageName,info.name);homes.put(name.flattenToString(),new Candidate(name,info.loadLabel(pm).toString()));
         }
     }
     String eventHome(){return eventHomeCache.get(selected());}
+    private boolean observationActivity(String component,long version){
+        ComponentName name=ComponentName.unflattenFromString(component);if(name==null || context.getPackageName().equals(name.getPackageName()) || HomeGuardPolicy.excludedHome(name.getPackageName()))return false;
+        try{
+            ActivityInfo info=pm.getActivityInfo(name,0);PackageInfo pkg=pm.getPackageInfo(name.getPackageName(),0);
+            long code=Build.VERSION.SDK_INT>=28?pkg.getLongVersionCode():pkg.versionCode;
+            return info.enabled && info.applicationInfo.enabled && (info.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)!=0
+                && AppAvailability.installed(pm,info.applicationInfo) && (version<0 || code==version);
+        }catch(PackageManager.NameNotFoundException|SecurityException unavailable){return false;}
+    }
+    org.json.JSONObject observationRules(){
+        if(!validSelection())return null;
+        SetupPresets rules=SetupPresets.load(context);org.json.JSONObject observer=rules.observation();
+        if(observer==null || !selected().equals(rules.home()))return null;
+        ComponentName home=ComponentName.unflattenFromString(selected());
+        try{PackageInfo pkg=pm.getPackageInfo(home.getPackageName(),0);long version=Build.VERSION.SDK_INT>=28?pkg.getLongVersionCode():pkg.versionCode;
+            return rules.homeIdentityMatches(version,android.os.Process.myUid()/100000)?observer:null;
+        }catch(PackageManager.NameNotFoundException|SecurityException unavailable){return null;}
+    }
+    Set<String> eventHomes(){
+        Set<String> homes=new LinkedHashSet<>();if(!validSelection())return homes;
+        if(observationActivity(selected(),-1))homes.add(selected());
+        String alias=resolveEventHome(selected());if(observationActivity(alias,-1))homes.add(alias);
+        addObservationTargets(homes,observationRules(),"targets");return homes;
+    }
+    boolean observedPackage(String pkg){for(String target:eventHomes())if(target.startsWith(pkg+"/"))return true;return false;}
+    private void addObservationTargets(Set<String> homes,org.json.JSONObject rules,String key){
+        org.json.JSONArray targets=rules==null?null:rules.optJSONArray(key);
+        if(targets!=null)for(int i=0;i<targets.length();i++){
+            org.json.JSONObject target=targets.optJSONObject(i);if(target==null)continue;
+            String name=target.optString("component");if(observationActivity(name,target.optLong("versionCode",-1)))homes.add(ComponentName.unflattenFromString(name).flattenToString());
+        }
+    }
+    String observationRevision(){
+        StringBuilder value=new StringBuilder(selected());
+        org.json.JSONObject rules=observationRules();value.append('|').append(rules==null?"":rules.toString());
+        for(String target:eventHomes())try{PackageInfo pkg=pm.getPackageInfo(ComponentName.unflattenFromString(target).getPackageName(),0);
+            value.append('|').append(target).append(':').append(Build.VERSION.SDK_INT>=28?pkg.getLongVersionCode():pkg.versionCode);
+        }catch(PackageManager.NameNotFoundException ignored){}return value.toString();
+    }
     void invalidateEventHome(){eventHomeCache.invalidate();}
     private String resolveEventHome(String selected){
         ComponentName name=ComponentName.unflattenFromString(selected);if(name==null)return "";

@@ -24,5 +24,6 @@ final class DeviceAdaptation {
         JSONObject pending=new SetupStore(context).get().optJSONObject("takeover");
         if(pending!=null && java.util.Arrays.asList("running","incomplete").contains(pending.optString("state")))throw new IllegalStateException("请先恢复未完成的接管，再更新规则");
         if(!context.getSharedPreferences("device-adaptation",Context.MODE_PRIVATE).edit().putString("rules",root.toString()).commit())throw new IllegalStateException("适配规则未保存");
+        new HomeGuardState(context).preferences.edit().putString("observationRulesRevision",DeviceInputProfile.digest(root.toString())).apply();
     }
 }

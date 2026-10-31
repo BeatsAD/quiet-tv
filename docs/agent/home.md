@@ -150,3 +150,11 @@ python3 configure_home_guard.py --serial "$TV_SERIAL" --user "$TV_USER" --packag
 用户明确要求停止保持时，独立命令改用 `--no-keep-adb`，只停止自动恢复，不主动关闭当前连接或删除授权；这与安装入口的同名参数“本次不新增开启”语义不同。默认流程不自动执行此操作。
 
 配置和验收分开：记录固件、当前连接方式、实际端口和 `/proc/sys/kernel/random/boot_id`；用户授权重启测试后，通过原授权连接重新建立 ADB，核对同一设备、变化后的 boot_id、`adb_enabled=1` 和应用内 `adb.selected/ready/settingEnabled`。网络模式还须通过实际网络地址重连，不能用 USB／模拟器串行通道成功代替。冷启动和待机唤醒分别验证。断连后不得盲目重启、反复开关或扫描网络；无法重新连接时通过电视系统授权或已知 USB 恢复路径继续，并报告未通过。
+
+## 原桌面实际页面观察
+
+原桌面恢复目标保持为所选 HOME 入口。运行时同时识别有效的入口及 Activity alias 目标；其他跳转页面仅通过本机精确适配规则加入，不把同包所有页面或所有 HOME 候选当作桌面。输入播放器、儿童应用和已知工厂测试入口不作为观察目标。
+
+现有 `home` 规则可附加 `observation`：必须限定品牌、型号、完整固件、原桌面版本及用户，`preserveOriginal=true`；观察对象需 `verified=true`、HTTPS 证据来源，以及 `targets` 数组，每项为实际 `component` 和 `versionCode`。规则由现有适配入口保存，执行前仍检查组件及系统包可用性和版本。包更新、禁用、卸载或规则变化会重新计算目标，使对应旧场景证据失效；扩展观察依赖的包受保护。主动打开原桌面时，允许的原桌面包均暂时放行。
+
+[Aerial 固定源码中的跳转页面参考](https://github.com/pengchujin/aerial-tv/blob/587a2849c58b27dc5854a18eab3b458e1d072b34/app/src/main/java/app/orchard/tv/guard/HomeGuardService.kt)包括乐视 `com.stv.deskplatform.ui.activity.Launcher`、腾讯极光 `com.ktcp.launcher.activity.LauncherHomeSingleTaskActivity`。这里只记录候选来源，没有加入 QuietTV 已验收执行规则；本机页面用途、固件、组件版本和实际行为须分别核对。
