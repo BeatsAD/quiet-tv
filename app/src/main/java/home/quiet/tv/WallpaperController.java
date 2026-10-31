@@ -93,9 +93,18 @@ final class WallpaperController {
         current=image();current.setBackgroundColor(Color.BLACK);incoming=image();incoming.setAlpha(0f);background.addView(current,new FrameLayout.LayoutParams(-1,-1));background.addView(incoming,new FrameLayout.LayoutParams(-1,-1));
         shade=new View(activity);shade.setBackgroundDrawable(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x70000000,0x10000000,0xf00a0e15}));background.addView(shade,new FrameLayout.LayoutParams(-1,-1));
         ambient=new Ambient(activity,homeUnit);ambient.colorChanged=this::invalidateDock;background.addView(ambient,new FrameLayout.LayoutParams(-1,-1));ambient.setColor(themeColor);ambient.setVisibility(View.VISIBLE);
-        wallpaperBlur=new WallpaperBlur(background,(width,height)->{
-            Bitmap frame=video.visible()&&video.ready()&&current.getAlpha()<1f?video.textureSnapshot(width,height):null;
-            try{return WallpaperBlur.snapshot(width,height,frame,current,incoming,shade,ambient);}finally{if(frame!=null)frame.recycle();}
+        wallpaperBlur=new WallpaperBlur(background,(width,height,result)->{
+            if(video.visible()&&video.ready()&&current.getAlpha()<1f){
+                // Before PixelCopy, native output can only blur its existing poster.
+                if(!video.snapshotSupported()){
+                    Bitmap poster=current.getDrawable() instanceof BitmapDrawable?((BitmapDrawable)current.getDrawable()).getBitmap():null;
+                    result.ready(poster==null?null:WallpaperBlur.snapshot(width,height,poster,shade,ambient));return;
+                }
+                video.snapshot(width,height,frame->{
+                    if(frame==null){result.ready(null);return;}
+                    try{result.ready(WallpaperBlur.snapshot(width,height,frame,current,incoming,shade,ambient));}finally{frame.recycle();}
+                });
+            }else result.ready(WallpaperBlur.snapshot(width,height,null,current,incoming,shade,ambient));
         });video.observeFrames(wallpaperBlur::invalidate);
         appearance=new WallpaperAppearance(background,this::invalidateDock);
         String id=store.snapshot().current;
@@ -122,16 +131,12 @@ final class WallpaperController {
     void setThemeColor(int color){themeColor=color;if(ambient.getVisibility()==View.VISIBLE)ambient.setColor(color);}
     void observeDock(Runnable invalidation){dockInvalidation=invalidation;}
     private void invalidateDock(){if(dockInvalidation!=null)dockInvalidation.run();if(wallpaperBlur!=null)wallpaperBlur.invalidate();}
-    void setDesktopBlur(int amount){desktopBlur=amount;updateDesktopEffects();}
-    void setDesktopAppearance(int brightness,int fade){desktopBrightness=brightness;desktopFade=fade;updateDesktopEffects();}
-    private boolean compositeVideo(){return temporaryMedia==null&&picker==null&&desktopBlur>0;}
+    void setDesktopEffects(int blur,int brightness,int fade){desktopBlur=blur;desktopBrightness=brightness;desktopFade=fade;updateDesktopEffects();}
     private void updateDesktopEffects(){
+        // Keep native video at its display resolution. Blur samples that output without replacing it.
+        wallpaperBlur.nativeVideo(video.visible()&&video.ready()&&video.nativeOutput());
         boolean separate=temporaryMedia!=null||picker!=null;wallpaperBlur.amount(separate?0:desktopBlur);appearance.brightness(separate?100:desktopBrightness);if(separate){fadePending=false;appearance.finish();}
-        boolean composite=compositeVideo();
-        if(video.outputModeChanges(composite)&&video.visible()&&active)withCover(this::applyVideoOutput);
-        else video.setCompositeOutput(composite);
     }
-    private void applyVideoOutput(){video.setCompositeOutput(compositeVideo());if(video.ready())revealVideo(videoRequest);}
     private int fadeDuration(int original){return temporaryMedia!=null||picker!=null?original:desktopFade;}
     private void revealDesktop(boolean changed){if(!active||temporaryMedia!=null||picker!=null)return;if(fadePending||changed){fadePending=false;appearance.fadeIn(desktopFade);}}
     void drawDockBackground(Canvas canvas,Paint paint){
@@ -254,7 +259,17 @@ final class WallpaperController {
     private void revealVideo(int version){
         if(version!=videoRequest||!video.ready()||!active||destroyed||!root.isShown()||(!root.hasWindowFocus()&&(picker==null||!picker.isShowing())))return;
         DiagnosticLog.info("wallpaper.video.cover","transition="+version+" phase=reveal_requested evidence=ready_callbacks_only");
-        cancelVideoFade();int duration=fadeDuration(200);if(duration==0){current.setAlpha(0);wallpaperBlur.invalidate();return;}videoFade=ValueAnimator.ofFloat(current.getAlpha(),0f);videoFade.setDuration(duration);
+        cancelVideoFade();int duration=fadeDuration(200);
+        if(duration==0){
+            if(pendingCover!=null)return;
+            // Zero disables the animation, not the covered frame needed to hand off a native Surface.
+            final int output=video.outputGeneration();
+            withCover(()->{
+                if(version!=videoRequest||output!=video.outputGeneration()||!video.ready()||!active||destroyed||(!root.hasWindowFocus()&&(picker==null||!picker.isShowing())))return;
+                current.setAlpha(0f);wallpaperBlur.invalidate();
+            });return;
+        }
+        videoFade=ValueAnimator.ofFloat(current.getAlpha(),0f);videoFade.setDuration(duration);
         videoFade.addUpdateListener(a->{if(version==videoRequest&&active&&!destroyed){current.setAlpha((float)a.getAnimatedValue());wallpaperBlur.invalidate();}});videoFade.start();
     }
     void beforeLeave(Runnable launch){
@@ -451,12 +466,11 @@ final class WallpaperController {
             if(covered!=null)covered.run();
             Runnable start=()->withCover(()->{
                 if(version!=videoRequest||!active||destroyed)return;
-                video.setCompositeOutput(compositeVideo());
                 video.play(entry,new VideoWallpaperPlayer.Listener(){
-                    @Override public void stopped(){if(version==videoRequest){cancelVideoFade();current.setAlpha(1f);}}
+                    @Override public void stopped(){if(version==videoRequest){cancelVideoFade();current.setAlpha(1f);updateDesktopEffects();}}
                     @Override public void ready(){
                         if(version!=videoRequest||!active||destroyed)return;
-                        ambient.setVisibility(View.INVISIBLE);shade.setVisibility(View.VISIBLE);revealVideo(version);
+                        ambient.setVisibility(View.INVISIBLE);shade.setVisibility(View.VISIBLE);updateDesktopEffects();revealVideo(version);
                         captureVideoPoster(id,version);
                         if(commitPending){commitPending=false;commitVideo(id);}else if(picker!=null)details();
                     }

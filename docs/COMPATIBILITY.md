@@ -148,7 +148,8 @@ Both layouts share the native Home header with the preview. Only Desktop shows t
 | 能力 | Android 4.4 | Android 5+ |
 | --- | --- | --- |
 | 上传、预览、静音循环、关闭恢复、退出释放 | 共用流程 | 共用流程 |
-| 播放路径 | 私有播放进程中的系统 MediaPlayer；API17–19 普通全屏为 SurfaceView，模糊、小窗口与旋转视频为 TextureView，无 Media3 | Media3 1.8.1 + SurfaceView；API21–26的90°／270°视频采用TextureView手动旋转。12 MiB缓冲目标，禁用音频轨，可用解码器回退 |
+| 播放路径 | 私有播放进程中的系统 MediaPlayer；API17–19 普通全屏为 SurfaceView，小窗口与旋转视频为 TextureView，无 Media3 | Media3 1.8.1；API27+ 为 SurfaceView，API21–26 为 TextureView，必要时手动旋转。12 MiB缓冲目标，禁用音频轨，可用解码器回退 |
+| 模糊、淡入与上下切换 | 复用播放器和输出；无 PixelCopy 的原生输出采用封面模糊，纹理输出读取画面 | API27+ 保留 SurfaceView，异步小图模糊；API21–26 保留 TextureView。0 秒仍等待首帧及封面帧交接 |
 | 输入上限 | SDR、8bit、1080p、60 FPS 内，依系统解码器 | SDR、8bit、4K、60 FPS 内，依实际编码／分辨率／帧率组合 |
 | 4K 封面 | 本批不开放 4K | API27+缩放取帧；API21–26尝试系统取帧后缩小至最长640像素，失败保留占位图 |
 | 厂商硬解、实际输出、长期性能、屏保与待机 | 待对应设备验收 | 待对应设备验收 |
