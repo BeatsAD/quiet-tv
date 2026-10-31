@@ -150,7 +150,7 @@ final class FileTransferPanel extends ManagementPanel {
             dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);box.setPadding(px(24),px(20),px(24),px(22));box.setBackgroundDrawable(surface(0xff24272d,0xff24272d,0x38ffffff,16));
             box.addView(label("文件操作",20),new LinearLayout.LayoutParams(-1,-2));gap(box,16);
             LinearLayout file=row();file.setGravity(Gravity.CENTER_VERTICAL);box.addView(file,new LinearLayout.LayoutParams(-1,-2));
-            ImageView icon=new ImageView(activity);icon.setImageDrawable(UiCompat.drawable(activity,FileTransferPolicy.apk(name)?R.drawable.ic_transfer_apk:R.drawable.ic_transfer_file));file.addView(icon,new LinearLayout.LayoutParams(px(34),px(42)));
+            ImageView icon=new ImageView(activity);icon.setImageDrawable(UiCompat.drawable(activity,FileTransferPolicy.apk(name)?R.drawable.ic_transfer_apk:FileTransferPolicy.image(name)?R.drawable.ic_transfer_image:R.drawable.ic_transfer_file));file.addView(icon,new LinearLayout.LayoutParams(px(34),px(42)));
             LinearLayout info=column();LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(0,-2,1);ip.leftMargin=px(14);file.addView(info,ip);
             TextView title=label(name,13);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);title.setContentDescription(name);info.addView(title,new LinearLayout.LayoutParams(-1,-2));gap(info,5);
             info.addView(muted((FileTransferPolicy.apk(name)?"应用安装包":FileTransferPolicy.image(name)?"图片":FileTransferPolicy.video(name)?"视频":"文件")+"  "+FileTransferSource.size(bytes),11));gap(box,22);
