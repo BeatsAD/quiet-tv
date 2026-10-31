@@ -23,6 +23,7 @@ public final class ApkInstallActivity extends Activity {
     private long baseline=-1;
     private TextView details,status;
     private Button install;
+    private android.app.AlertDialog permissionDialog;
     private float unit;
     private int px(int value){return Math.round(value*unit);}
     private boolean sessions(){return UpdateInstallPolicy.session(Build.VERSION.SDK_INT);}
@@ -68,13 +69,26 @@ public final class ApkInstallActivity extends Activity {
         try{return android.provider.Settings.Secure.getInt(getContentResolver(),"install_non_market_apps",1)!=0;}
         catch(RuntimeException unavailable){return true;} // Unknown vendor policy remains the system installer's decision.
     }
+    private void permissionRequired(){waiting=false;status.setText("尚未获得安装授权");action("去系统设置授权",this::showPermissionDialog);}
+    private void showPermissionDialog(){
+        if(closed||isFinishing()||permissionDialog!=null)return;
+        android.app.AlertDialog dialog=new KeyFeedback.Alert(this);dialog.setTitle("允许安装应用");
+        dialog.setMessage(Build.VERSION.SDK_INT>=26?"安装应用需要授权，请在系统设置中允许 Quiet TV 安装应用。":"安装应用需要授权，请在系统安全设置中允许未知来源。");
+        dialog.setButton(android.app.AlertDialog.BUTTON_NEGATIVE,"取消",(d,which)->{});
+        dialog.setButton(android.app.AlertDialog.BUTTON_POSITIVE,"去系统设置授权",(d,which)->{dialog.dismiss();openPermissionSettings();});
+        dialog.setOnDismissListener(d->{if(permissionDialog==dialog)permissionDialog=null;if(!closed)install.requestFocus();});
+        permissionDialog=dialog;dialog.show();ControlStyle.dialog(dialog,unit);dialog.getButton(android.app.AlertDialog.BUTTON_NEGATIVE).requestFocus();
+    }
+    private void openPermissionSettings(){
+        Intent intent=Build.VERSION.SDK_INT>=26?new Intent("android.settings.MANAGE_UNKNOWN_APP_SOURCES",Uri.parse("package:"+getPackageName())):new Intent(android.provider.Settings.ACTION_SECURITY_SETTINGS);
+        DiagnosticLog.info("received_apk.permission","phase=request api="+Build.VERSION.SDK_INT+" action="+intent.getAction());
+        try{startActivityForResult(intent,PERMISSION);}
+        catch(ActivityNotFoundException|SecurityException error){DiagnosticLog.error("received_apk.permission_failed",error);fail("系统未提供安装来源授权入口，请在电视系统设置中允许安装应用");}
+    }
     private void begin(){
         if(apk==null||waiting)return;
         if(!installationAllowed()){
-            status.setText(Build.VERSION.SDK_INT>=26?"请先允许 Quiet TV 安装应用，返回后再次选择安装":"请先在系统设置中允许未知来源，返回后再次选择安装");action("允许安装",()->{
-                try{startActivityForResult(Build.VERSION.SDK_INT>=26?new Intent("android.settings.MANAGE_UNKNOWN_APP_SOURCES",Uri.parse("package:"+getPackageName())):new Intent(android.provider.Settings.ACTION_SECURITY_SETTINGS),PERMISSION);}
-                catch(ActivityNotFoundException|SecurityException error){fail("系统未提供安装来源授权入口，请在电视系统设置中允许安装应用");}
-            });return;
+            permissionRequired();showPermissionDialog();return;
         }
         waiting=true;install.setEnabled(false);status.setText("正在检查并准备安装…");
         worker.execute(()->{
@@ -151,7 +165,7 @@ public final class ApkInstallActivity extends Activity {
     @Override protected void onActivityResult(int request,int result,Intent data){
         super.onActivityResult(request,result,data);
         if(apk==null)return;
-        if(request==PERMISSION){ready();if(!installationAllowed())status.setText("尚未获得安装授权");}
+        if(request==PERMISSION){boolean allowed=installationAllowed();DiagnosticLog.info("received_apk.permission","phase=return allowed="+allowed+" result="+result);if(allowed){ready();status.setText("已获得安装授权，请再次选择安装");}else permissionRequired();}
         else if(request==INSTALL){
             if(sessions()&&!fallback){checkSessionReturn();return;}
             if(!viewRoute)worker.execute(this::removeCopy);
@@ -161,5 +175,5 @@ public final class ApkInstallActivity extends Activity {
     @Override protected void onResume(){super.onResume();resumed=true;if(sessions()){ApkInstallSession.changed=()->refreshSession(true);if(apk!=null)refreshSession(false);}}
     @Override protected void onPause(){resumed=false;if(sessions())ApkInstallSession.changed=null;super.onPause();}
     @Override protected void onSaveInstanceState(Bundle saved){super.onSaveInstanceState(saved);saved.putBoolean("waiting",waiting);saved.putLong("baseline",baseline);saved.putBoolean("viewRoute",viewRoute);saved.putBoolean("fallback",fallback);if(prepared!=null)saved.putString("prepared",prepared.getAbsolutePath());}
-    @Override protected void onDestroy(){closed=true;super.onDestroy();}
+    @Override protected void onDestroy(){closed=true;if(permissionDialog!=null)permissionDialog.dismiss();super.onDestroy();}
 }
