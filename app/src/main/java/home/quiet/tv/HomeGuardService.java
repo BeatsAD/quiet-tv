@@ -317,7 +317,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
             IntentFilter packages=new IntentFilter(Intent.ACTION_PACKAGE_CHANGED);packages.addAction(Intent.ACTION_PACKAGE_REPLACED);packages.addAction(Intent.ACTION_PACKAGE_REMOVED);packages.addAction(Intent.ACTION_PACKAGE_ADDED);packages.addDataScheme("package");
             androidx.core.content.ContextCompat.registerReceiver(this,packageChanges,packages,androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);registered=true;}
         restoreBootSource();refreshUsageWatch();scheduleBootRechecks();updateKeyFilter();
-        remoteKeysChanged();
+        remoteKeysChanged();HomeGuardRevivalListener.guardConnected();
         scheduleSilentCheck();
         if(state.enabled())state.status(state.directHomeReady()?"HOME 按键补偿已连接，实体效果待验证":"守护已连接，等待原主页");
         if(SystemClock.elapsedRealtime()<HomeGuardPolicy.BOOT_WINDOW_MS || HomeGuardRecovery.unknownAllowed(this))schedule("服务连接");

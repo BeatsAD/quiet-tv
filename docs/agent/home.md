@@ -133,6 +133,8 @@ python3 agent_session.py finish --session "$NEW_SESSION_DIR"
 
 撤回这次新增的可选权限时，先在明确恢复意图下暂停守护，再预览 `configure_home_guard.py --serial "$TV_SERIAL" --user "$TV_USER" --package "$QUIET_PACKAGE" --restore-record "$GUARD_BEFORE_JSON"`，执行时加 `--apply --record "$NEW_PRIVATE_RECORD"`。工具核对设备、固件、用户、包名、原值和执行读回，只恢复该记录确认从非 allow 改为 allow、当前仍为 allow 的命名权限；当前模式不同则保留并记录。系统不提供同模式重复授权的来源历史，若之后有人重新授予相同的 allow，需先核对该授权是否仍要保留。此操作不撤销原有授权、不恢复整份无障碍／通知服务列表，也不恢复系统 HOME；后者使用原桌面恢复分支。记录不完整或写入后读回失败时，不自动推断成功或自动回滚。
 
+通知恢复服务创建时即检查守护，并在创建后 5、10、20、35、65、125 秒有限复查；重复连接回调不延长窗口，已有重绑不会并行启动。锁定时只保存等待状态，解锁后补一次检查；暂停、目标失效、权限缺失、守护连接成功或服务销毁会停止相应恢复。超过窗口不常驻轮询，真实断连或服务重建可开始新窗口。维护快照中的 `listenerRecovery` 和 `listenerRecoveryAttempt` 记录停止原因与请求次数；服务绑定仍不代表实体 HOME、开机或唤醒验收通过。
+
 
 
 ## ADB 常开与重启验收

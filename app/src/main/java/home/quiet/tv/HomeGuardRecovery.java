@@ -14,6 +14,24 @@ final class HomeGuardRecovery {
     private static final Handler handler=new Handler(Looper.getMainLooper());
     private static Runnable check,readd,confirmation;
     private static boolean recovering;
+    private static long bindingGeneration;
+    static long bindingAttempt(){return recovering?bindingGeneration:0;}
+    static void cancelBindingAttempt(long attempt){
+        if(attempt==0 || attempt!=bindingAttempt())return;
+        if(check!=null)handler.removeCallbacks(check);if(readd!=null)handler.removeCallbacks(readd);
+        check=null;readd=null;recovering=false;
+    }
+    static void finishBindingAttempt(Context c,long attempt){
+        if(attempt==0 || attempt!=bindingAttempt())return;
+        // A connection callback can race the remove/re-add settle period. Do not cancel
+        // the re-add while our entry is still absent from the secure service list.
+        if(readd!=null){
+            if(!writeAllowed(c) || !new HomeGuardState(c).recoveryReady())return;
+            try{restoreEntry(c);}
+            catch(SecurityException|IllegalStateException unavailable){return;}
+        }
+        cancelBindingAttempt(attempt);
+    }
     private static boolean accessibilityRestarted;
     private static boolean revivalNoted,restoredInStandby;
     private static long restoredAt=-1;
@@ -85,7 +103,7 @@ final class HomeGuardRecovery {
         if(HomeGuardUsageService.eligible(c)){HomeGuardUsageService.ensure(c);return;}
         if(recovering)return;
         if(!writeAllowed(c)){state.status("写安全设置权限未授予");return;}
-        recovering=true;
+        recovering=true;bindingGeneration++;
         try{restoreEntry(c);}
         catch(SecurityException|IllegalStateException failure){recovering=false;state.status(HisenseGuardRefresh.supported()?"固件未接受无障碍配置，请连接 ADB 修复":"无法恢复无障碍配置");Log.w(TAG,"restore unavailable");return;}
         check=()->{
