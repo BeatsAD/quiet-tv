@@ -87,7 +87,7 @@ final class HomeAppCatalog {
         for(String id:pinned)if(available.contains(id)&&!result.contains(id))result.add(id);
         return result;
     }
-    static ArrayList<String> gridIds(List<Entry> entries,List<String> pinned){
-        ArrayList<String> ids=new ArrayList<>();for(Entry entry:entries)if(!pinned.contains(entry.id))ids.add(entry.id);return ids;
+    static ArrayList<String> gridIds(List<Entry> entries){
+        ArrayList<String> ids=new ArrayList<>();for(Entry entry:entries)ids.add(entry.id);return ids;
     }
 }

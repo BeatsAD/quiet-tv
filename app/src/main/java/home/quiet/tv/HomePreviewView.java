@@ -114,8 +114,7 @@ final class HomePreviewView extends FrameLayout implements SharedPreferences.OnS
                 else{
                     ArrayList<String> packages=new DockStore(context).load();art=new ArrayList<>();names=new ArrayList<>();ArrayList<HomeAppCatalog.Entry> catalogApps=new HomeAppCatalog(context).load(packages);
                     for(String pkg:packages)for(HomeAppCatalog.Entry app:catalogApps)if(pkg.equals(app.id)){names.add(app.label);art.add(app.info==null?HomeEntryArtwork.render(context,app.label,app.id):AppArtwork.load(context,app.info));break;}
-                    ArrayList<String> gridIds=HomeAppCatalog.gridIds(catalogApps,packages);
-                    if(!new DesktopSettingsStore(context).showHomeApps())gridIds.addAll(HomeAppCatalog.pinnedIds(catalogApps,packages));
+                    ArrayList<String> gridIds=HomeAppCatalog.gridIds(catalogApps);
                     gridIds=HomeOrderStore.project(new HomeOrderStore(context).load(),gridIds);gridArt=new ArrayList<>();gridNames=new ArrayList<>();
                     for(String id:gridIds){
                         if(gridArt.size()>=20)break;

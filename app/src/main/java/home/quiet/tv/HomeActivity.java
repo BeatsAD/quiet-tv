@@ -540,9 +540,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             if(desktopSettings.showWatchTv()){
                 App watch=new App();watch.pkg=HomeAppCatalog.WATCH_TV;watch.label=tr("看电视","Watch TV");watch.banner=HomeEntryArtwork.render(this,watch.label,watch.pkg);watch.color=HomeEntryArtwork.WATCH_TV_COLOR;found.add(0,watch);
             }
-            ArrayList<String> defaults=new ArrayList<>();for(App app:found)if(!pinned.contains(app.pkg))defaults.add(app.pkg);
-            // Hidden Dock entries belong to the sortable grid and must be projected with its saved order.
-            if(!requested.homeApps)for(String pkg:pinned)for(App app:found)if(pkg.equals(app.pkg))defaults.add(pkg);
+            // Favorites are shortcuts; All Apps keeps the complete catalog and its own order.
+            ArrayList<String> defaults=appIds(found);
             ArrayList<String> gridOrder=new HomeOrderStore(this).order(defaults);
             final long preparedAt=SystemClock.uptimeMillis();
             main.post(()->{
@@ -584,8 +583,9 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 if(row>=0){
                     // Removed favorites still exist in the grid; keep the original slot instead of following them.
                     if(!keepAppActionPositionUntilRefresh&&!activePackage.isEmpty()) {
-                        for(int n=0;n<dock.size();n++)if(activePackage.equals(dock.get(n).pkg)){row=0;column=n;}
-                        for(int n=0;n<apps.size();n++)if(activePackage.equals(apps.get(n).pkg)){row=1+n/APP_COLUMNS;column=n%APP_COLUMNS;}
+                        boolean foundInDock=false;
+                        if(row==0&&homeAppsVisible)for(int n=0;n<dock.size();n++)if(activePackage.equals(dock.get(n).pkg)){column=n;foundInDock=true;break;}
+                        if(!foundInDock)for(int n=0;n<apps.size();n++)if(activePackage.equals(apps.get(n).pkg)){row=1+n/APP_COLUMNS;column=n%APP_COLUMNS;break;}
                     }
                     row=Math.max(0,Math.min(row,gridRows()));column=Math.min(column,maxColumn(row));
                 }
