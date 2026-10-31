@@ -287,7 +287,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         }catch(SecurityException|IllegalStateException failure){return null;}
         return latest;
     }
-    static boolean foreground(UsageEvents.Event event){return event!=null && event.getEventType()==UsageEvents.Event.MOVE_TO_FOREGROUND;}
+    static boolean foreground(UsageEvents.Event event){return Build.VERSION.SDK_INT>=21 && event!=null && event.getEventType()==UsageEvents.Event.MOVE_TO_FOREGROUND;}
     static boolean usageRequired(Context c){return new HomeGuardState(c,false).supported() && !new HomeGuardState(c,false).directHomeReady();}
     static boolean usageAllowed(Context c){
         if(Build.VERSION.SDK_INT<21)return false;
@@ -321,7 +321,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     }
     private final Runnable homeProbe=new Runnable(){public void run(){
         long now=SystemClock.uptimeMillis();
-        if(!silentHome.within(now) || !usable() || !HomeGuardState.canShow(HomeGuardService.this) || allowStock || inputTransition() || !usageAllowed(HomeGuardService.this)){silentHome.cancel();return;}
+        if(Build.VERSION.SDK_INT<21 || !silentHome.within(now) || !usable() || !HomeGuardState.canShow(HomeGuardService.this) || allowStock || inputTransition() || !usageAllowed(HomeGuardService.this)){silentHome.cancel();return;}
         UsageEvents.Event latest=latestUsage(HomeGuardService.this,HomeGuardPolicy.USAGE_LOOKBACK_MS);
         if(foreground(latest) && silentHome.fresh(latest.getTimeStamp(),lastActivityAt)
                 && policy.consumeUsage(state.eventHomes(),latest.getPackageName(),latest.getClassName(),latest.getTimeStamp(),System.currentTimeMillis())){

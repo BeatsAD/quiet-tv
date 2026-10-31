@@ -23,6 +23,7 @@ final class TvInputController {
     static final class Snapshot {
         final ArrayList<TvInputInfo> inputs=new ArrayList<>();
         final TvInputPanels.Snapshot nativePanels=new TvInputPanels.Snapshot();
+        VendorTvInputs.Discovery vendor=new VendorTvInputs.Discovery();
         InputState state=InputState.EMPTY;
         int reported,filtered,duplicates,itemFailures,metadataWarnings;
         final ArrayList<TvInputInfo> raw=new ArrayList<>();
@@ -48,7 +49,7 @@ final class TvInputController {
         return mapped!=null && mapped.isPassthroughInput() && enabledSystem(context,mapped.getServiceInfo())?mapped:null;
     }
     JSONObject maintenanceInputs() throws Exception {
-        Snapshot snapshot=inspect();JSONArray values=new JSONArray();DeviceInputProfile profile=new DeviceInputProfile(context);
+        Snapshot snapshot=inspectSources();JSONArray values=new JSONArray();DeviceInputProfile profile=new DeviceInputProfile(context);
         Set<String> shown=new HashSet<>();for(TvInputInfo input:snapshot.inputs)shown.add(input.getId());
         for(TvInputInfo input:snapshot.raw)try{
             values.put(new JSONObject().put("id",input.getId()).put("label",inputLabel(input)).put("firmwareLabel",input.loadLabel(context).toString())
@@ -56,9 +57,35 @@ final class TvInputController {
                 .put("passthrough",input.isPassthroughInput()).put("type",input.getType()).put("target",profile.target(input.getId()))
                 .put("system",enabledSystem(context,input.getServiceInfo())));
         }catch(RuntimeException failed){DiagnosticLog.error("input.maintenance.item_failed",failed);}
+        JSONArray vendorValues=new JSONArray();
+        for(VendorTvInputs.Source source:snapshot.vendor.sources)vendorValues.put(new JSONObject().put("id",source.key).put("label",source.label).put("type",source.type).put("hdmi",source.hdmi));
         return new JSONObject().put("supported",true).put("state",snapshot.state.name()).put("reported",snapshot.reported)
             .put("filtered",snapshot.filtered).put("duplicates",snapshot.duplicates).put("itemFailures",snapshot.itemFailures)
-            .put("metadataWarnings",snapshot.metadataWarnings).put("sources",values).put("configuration",profile.snapshot());
+            .put("metadataWarnings",snapshot.metadataWarnings).put("sources",values).put("vendorSources",vendorValues).put("configuration",profile.snapshot());
+    }
+
+    /** Shared by the input menu, saved HDMI selection and maintenance; call on a worker. */
+    Snapshot inspectSources(){
+        Snapshot snapshot=inspect();
+        snapshot.vendor=new VendorTvInputs(context).inspect();
+        mergeVendorSources(snapshot);
+        return snapshot;
+    }
+    private void mergeVendorSources(Snapshot snapshot){
+        Set<Integer> registered=new HashSet<>();boolean unknown=false;
+        // Include hidden entries: a vendor alias must not resurrect a user's hidden port.
+        for(TvInputInfo input:snapshot.raw)try{
+            if((input.getServiceInfo().applicationInfo.flags&(ApplicationInfo.FLAG_SYSTEM|ApplicationInfo.FLAG_UPDATED_SYSTEM_APP))!=0)registered.add(input.getType());
+        }catch(RuntimeException unavailable){unknown=true;}
+        Map<String,Integer> counts=new HashMap<>();
+        for(VendorTvInputs.Source source:snapshot.vendor.sources)counts.put(source.key,counts.containsKey(source.key)?counts.get(source.key)+1:1);
+        for(Iterator<VendorTvInputs.Source> it=snapshot.vendor.sources.iterator();it.hasNext();){
+            VendorTvInputs.Source source=it.next();
+            // There is no cross-provider port identity yet. Preserve the framework for a type
+            // it already registers; do not guess an identity from matching display names.
+            if(unknown||registered.contains(source.type)||source.type<0&&!registered.isEmpty()||counts.get(source.key)>1)it.remove();
+        }
+        DiagnosticLog.info("input.vendor.merge","registeredTypes="+registered+" unknown="+unknown+" usable="+snapshot.vendor.sources.size());
     }
 
     Snapshot inspect(){

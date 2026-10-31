@@ -8,6 +8,7 @@ import android.view.InputDevice;
 import java.util.Locale;
 
 /** Input topology affects key filtering only; it never changes accessibility grants. API 21+. */
+@android.annotation.TargetApi(21)
 final class HomeInputDevices implements InputManager.InputDeviceListener {
     private final InputManager manager;
     private final Runnable changed;

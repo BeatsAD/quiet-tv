@@ -28,14 +28,14 @@ final class HdmiTarget {
     }
     static List<HdmiTarget> available(Context context){
         ArrayList<HdmiTarget> result=new ArrayList<>();if(Build.VERSION.SDK_INT<21)return result;
-        TvInputController controller=new TvInputController(context);TvInputController.Snapshot snapshot=controller.inspect();
+        TvInputController controller=new TvInputController(context);TvInputController.Snapshot snapshot=controller.inspectSources();
         for(TvInputInfo input:snapshot.inputs)try{
             if(input.getType()!=TvInputInfo.TYPE_HDMI)continue;
             Intent route=controller.hdmiIntent(input);if(route==null)continue;
             String scope=DeviceInputProfile.digest(Build.FINGERPRINT+"\n"+route.toUri(0)+"\n"+stamp(context,input.getServiceInfo().packageName)+"\n"+stamp(context,route.getComponent().getPackageName()));
             result.add(new HdmiTarget("standard",input.getId(),controller.inputLabel(input),scope));
         }catch(Exception failure){DiagnosticLog.info("input.saved.inspect","standard route unavailable");}
-        if(snapshot.inputs.isEmpty())for(VendorTvInputs.Source source:new VendorTvInputs(context).load())try{
+        for(VendorTvInputs.Source source:snapshot.vendor.sources)try{
             if(!source.hdmi)continue;
             String provider="";
             if(!source.key.startsWith("konka:")){
