@@ -26,6 +26,7 @@ public final class HomeGuardSetupReceiver extends BroadcastReceiver {
                     .put("nativeObserverConfigured",state.nativeObserverConfigured()).put("paused","OFF".equals(state.preferences.getString("mode","AUTO")))
                     .put("usageRequired",HomeGuardService.usageRequired(context)).put("accessibilityAllowed",state.serviceEnabled())
                     .put("accessibilityBound",HomeGuardService.connected()).put("physicalHomeVerified",false)
+                    .put("permissions",HomeGuardRecovery.permissions(context))
                     .put("adbOnlySupported",true).put("adb",HomeGuardAdb.snapshot(context))
                     .put("adbPortSupported",HomeGuardAdb.portSupported(context)).put("adbPort",HomeGuardAdb.port(context)).toString());
                 setResultCode(Activity.RESULT_OK);return;
@@ -93,6 +94,7 @@ public final class HomeGuardSetupReceiver extends BroadcastReceiver {
             result.put("adb",HomeGuardAdb.snapshot(context));
             result.put("overlayAllowed",Build.VERSION.SDK_INT<23 || Settings.canDrawOverlays(context));
             result.put("problem",problem);
+            result.put("permissions",HomeGuardRecovery.permissions(context));
             result.put("desktopRoutes",new DesktopRoutes(context).snapshot());setResultData(result.toString());
             if(problem.isEmpty())setResultCode(Activity.RESULT_OK);
             DiagnosticLog.info("home_guard.computer_setup",problem.isEmpty()?"权限已配置，接管待验证":"部分权限未配置");

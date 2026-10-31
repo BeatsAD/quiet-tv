@@ -129,6 +129,10 @@ python3 agent_session.py finish --session "$NEW_SESSION_DIR"
 
 系统默认 HOME 已指向 Quiet TV，但实际按键、开机或唤醒仍进入原桌面时，可在 `device_maintenance.py repair` 或标准 `install_quiet_tv.py --goal takeover` 使用 `--native-observer`。底层 `configure_home_guard.py` 同样支持此选项，并可用 `--home` 指定实际原桌面候选。该模式保留系统 HOME，只观察原桌面窗口，不启用 MiBOX3 专用按键补偿；与代理、`--direct-home`、`--adb-only` 不混用。维护会沿用已配置的此模式，也会依据当前路线中有用户证据的场景失败补充观察；默认 HOME 解析成功或服务绑定成功不会触发此分流。仅更新、试用和只读检查不增加守护，正常原生 HOME 保持原路线。
 
+守护恢复只依赖写安全设置权限，不要求亮度等功能使用的 `WRITE_SETTINGS`；前台检测、后台启动、通知或同步恢复分别检查。Android 13 及以上在明确配置守护时探测 `ACCESS_RESTRICTED_SETTINGS`；TCL 系列按名字探测 `APP_AUTO_START`、`AUTO_START`、`APP_ASSOC_START`、`ASSOC_START`。不支持与拒绝授权分别记录，不猜数字编号，原本已允许的可选权限不重复写入。
+
+撤回这次新增的可选权限时，先在明确恢复意图下暂停守护，再预览 `configure_home_guard.py --serial "$TV_SERIAL" --user "$TV_USER" --package "$QUIET_PACKAGE" --restore-record "$GUARD_BEFORE_JSON"`，执行时加 `--apply --record "$NEW_PRIVATE_RECORD"`。工具核对设备、固件、用户、包名、原值和执行读回，只恢复该记录确认从非 allow 改为 allow、当前仍为 allow 的命名权限；当前模式不同则保留并记录。系统不提供同模式重复授权的来源历史，若之后有人重新授予相同的 allow，需先核对该授权是否仍要保留。此操作不撤销原有授权、不恢复整份无障碍／通知服务列表，也不恢复系统 HOME；后者使用原桌面恢复分支。记录不完整或写入后读回失败时，不自动推断成功或自动回滚。
+
 
 
 ## ADB 常开与重启验收

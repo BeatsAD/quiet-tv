@@ -84,7 +84,7 @@ final class HomeGuardRecovery {
         if(HomeGuardService.connected()){HomeGuardService.lifecycle(reason);return;}
         if(HomeGuardUsageService.eligible(c)){HomeGuardUsageService.ensure(c);return;}
         if(recovering)return;
-        if(!writeAllowed(c) || !systemWriteAllowed(c)){state.status(state.enableProblem().isEmpty()?"等待系统绑定无障碍":state.enableProblem());return;}
+        if(!writeAllowed(c)){state.status("写安全设置权限未授予");return;}
         recovering=true;
         try{restoreEntry(c);}
         catch(SecurityException|IllegalStateException failure){recovering=false;state.status(HisenseGuardRefresh.supported()?"固件未接受无障碍配置，请连接 ADB 修复":"无法恢复无障碍配置");Log.w(TAG,"restore unavailable");return;}
@@ -108,7 +108,7 @@ final class HomeGuardRecovery {
     }
     static void rebindIfSilent(Context c){
         HomeGuardState state=new HomeGuardState(c);String boot=new BootAppStore(c).bootId();
-        if(!state.ready() || !writeAllowed(c) || !systemWriteAllowed(c) || boot.isEmpty() || boot.equals(state.preferences.getString("silentRebindBoot","")))return;
+        if(!state.ready() || !writeAllowed(c) || boot.isEmpty() || boot.equals(state.preferences.getString("silentRebindBoot","")))return;
         if(!state.preferences.edit().putString("silentRebindBoot",boot).commit())return;
         try{
             String current=Settings.Secure.getString(c.getContentResolver(),Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
@@ -251,7 +251,6 @@ final class HomeGuardRecovery {
         HomeGuardState state=new HomeGuardState(c);
         if(!state.recoveryReady())throw new java.io.IOException(state.enableProblem());
         if(!writeAllowed(c))throw new java.io.IOException("写安全设置权限未授予");
-        if(!systemWriteAllowed(c))throw new java.io.IOException("写系统设置权限未授予");
         HomeGuardAdb.watch(c);
         if(Build.VERSION.SDK_INT<27 && notificationSupported(c) && !notificationAllowed(c)){
             String current=Settings.Secure.getString(c.getContentResolver(),"enabled_notification_listeners");
@@ -271,12 +270,18 @@ final class HomeGuardRecovery {
     // Recovery is posted to the main thread; grant completion must not race service restoration.
     private static String permissionProblem(Context c){
         if(!writeAllowed(c))return "写安全设置权限未授予";
-        if(!systemWriteAllowed(c))return "写系统设置权限未授予";
         if(HomeGuardService.usageRequired(c) && !HomeGuardService.usageAllowed(c))return "桌面前台检测未授权";
         if(Build.VERSION.SDK_INT>=23 && !Settings.canDrawOverlays(c))return "后台启动权限未确认";
         if(notificationSupported(c) && !notificationAllowed(c) && !HomeGuardSync.ready(c))return "通知访问未授予";
         if(!notificationSupported(c) && HomeGuardSync.supported(c) && !HomeGuardSync.ready(c))return "同步恢复："+HomeGuardSync.summary(c);
         return "";
+    }
+    static org.json.JSONObject permissions(Context c) throws org.json.JSONException {
+        return new org.json.JSONObject().put("recoveryWriteAllowed",writeAllowed(c))
+                .put("usageRequired",HomeGuardService.usageRequired(c)).put("usageAllowed",HomeGuardService.usageAllowed(c))
+                .put("backgroundLaunchAllowed",Build.VERSION.SDK_INT<23 || Settings.canDrawOverlays(c))
+                .put("notificationSupported",notificationSupported(c)).put("notificationAllowed",notificationAllowed(c))
+                .put("syncReady",HomeGuardSync.ready(c)).put("problem",permissionProblem(c));
     }
     /** Called only from the foreground setup's already-authorized local ADB worker. */
     static String configuredSummary(Context c){
