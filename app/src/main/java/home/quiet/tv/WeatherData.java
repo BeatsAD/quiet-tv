@@ -49,7 +49,9 @@ final class WeatherData {
         if(WeatherRegions.coordinates(latitude,longitude))result.put("latitude",latitude).put("longitude",longitude);return result;
     }
     static long reportTime(String text,long received){
-        Matcher relative=Pattern.compile("(\\d+)\\s*(分钟|小时|minutes?|hours?)",Pattern.CASE_INSENSITIVE).matcher(text);
+        // Keep untrusted timestamps within the same bound as other weather text fields.
+        if(text.length()>120)return 0;
+        Matcher relative=Pattern.compile("(\\d{1,120})\\s{0,120}(分钟|小时|minutes?|hours?)",Pattern.CASE_INSENSITIVE).matcher(text);
         if(relative.find())try{
             long count=Long.parseLong(relative.group(1));if(count>100000)return 0;
             long unit=relative.group(2).startsWith("小")||relative.group(2).toLowerCase(Locale.US).startsWith("hour")?3600000L:60000L;
