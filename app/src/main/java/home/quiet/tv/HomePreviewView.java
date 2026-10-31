@@ -13,7 +13,7 @@ import java.util.concurrent.*;
 
 /** A local, 16:9 scene. It never launches apps, asks permissions or fetches weather. */
 @android.annotation.SuppressLint("ViewConstructor") // Created only by the native desktop settings panel.
-final class HomePreviewView extends FrameLayout {
+final class HomePreviewView extends FrameLayout implements SharedPreferences.OnSharedPreferenceChangeListener {
     final HomeHeaderView header;
     private final FrameLayout scene,band,grid;
     private final ImageView wallpaper;
@@ -28,12 +28,18 @@ final class HomePreviewView extends FrameLayout {
     private final boolean chinese,fixedGreeting;
     private final Handler main=new Handler(Looper.getMainLooper());
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
+    private final HomePreviewCache cache;
+    private HomePreviewCache.Scene applied;
+    private HomePreviewCache.Key pendingKey,failedKey;
+    private int pendingWidth;
     private boolean active,hasDockApps,secondScreen;
     private volatile int generation;
     private final Runnable tick=new Runnable(){public void run(){if(active){refresh();main.postDelayed(this,60000-System.currentTimeMillis()%60000);}}};
     private final BroadcastReceiver changes=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent i){refresh();}};
+    private final Runnable contentChanged=this::refresh;
+    private static final String[] CONTENT_PREFERENCES={"dock","home-order","child-mode","boot-app"};
     HomePreviewView(Context context,boolean chinese,boolean fixedGreeting){
-        super(context);this.chinese=chinese;this.fixedGreeting=fixedGreeting;setTag("home-preview");setFocusable(false);setDescendantFocusability(FOCUS_BLOCK_DESCENDANTS);androidx.core.view.ViewCompat.setImportantForAccessibility(this,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);setClipChildren(true);
+        super(context);this.chinese=chinese;this.fixedGreeting=fixedGreeting;cache=HomePreviewCache.get(context);setTag("home-preview");setFocusable(false);setDescendantFocusability(FOCUS_BLOCK_DESCENDANTS);androidx.core.view.ViewCompat.setImportantForAccessibility(this,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);setClipChildren(true);
         scene=new FrameLayout(context);scene.setPivotX(0);scene.setPivotY(0);scene.setBackgroundColor(Color.BLACK);addView(scene,new FrameLayout.LayoutParams(960,540));
         FrameLayout background=new FrameLayout(context);scene.addView(background,new FrameLayout.LayoutParams(-1,-1));
         wallpaper=new ImageView(context);wallpaper.setScaleType(ImageView.ScaleType.CENTER_CROP);background.addView(wallpaper,new FrameLayout.LayoutParams(-1,-1));
@@ -46,6 +52,7 @@ final class HomePreviewView extends FrameLayout {
         title=new TextView(context);title.setTextColor(0xfff1f2f6);title.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,40);title.setIncludeFontPadding(false);title.setGravity(Gravity.CENTER_VERTICAL);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);place(title,820,56,50,314);
         band=new FrameLayout(context);dockSurface=new DockBackdropDrawable(this::drawWallpaper,band,scene,1);band.setBackgroundDrawable(dockSurface);ambient.colorChanged=()->{band.invalidate();for(int i=0;i<band.getChildCount();i++)band.getChildAt(i).invalidate();wallpaperBlur.invalidate();};place(band,864,114,48,386);
         grid=new FrameLayout(context);place(grid,864,540,48,0);refresh();
+        HomePreviewCache.Scene saved=cache.scene();if(saved!=null&&saved.key.equals(sceneKey()))applyLocalScene(saved);
     }
     private void place(View v,int width,int height,int x,int y){FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(width,height);p.leftMargin=x;p.topMargin=y;scene.addView(v,p);}
     private void invalidateDock(){if(band!=null){band.invalidate();for(int i=0;i<band.getChildCount();i++)band.getChildAt(i).invalidate();}}
@@ -64,6 +71,7 @@ final class HomePreviewView extends FrameLayout {
         if(connected){if(network.getType()==ConnectivityManager.TYPE_ETHERNET){icon=R.drawable.ic_ethernet;label=chinese?"有线网络":"Ethernet";}else{icon=R.drawable.ic_wifi;label=chinese?"Wi-Fi 已连接":"Wi-Fi connected";
             try{WifiManager wifi=(WifiManager)getContext().getApplicationContext().getSystemService(Context.WIFI_SERVICE);String ssid=wifi==null?null:wifi.getConnectionInfo().getSSID();if(ssid!=null&&!"<unknown ssid>".equals(ssid))label=ssid.replace("\"","");}catch(SecurityException ignored){}
         }}pill.setContentDescription(label);header.setPillIcon(pill,icon);
+        if(active&&getWidth()>0)loadLocalScene();
     }
     void showSecondScreen(boolean second){
         if(secondScreen==second)return;
@@ -71,47 +79,70 @@ final class HomePreviewView extends FrameLayout {
         wallpaperBlur.invalidate();
     }
     void reloadScene(){if(active&&getWidth()>0)loadLocalScene();}
-    void resume(){if(active)return;active=true;wallpaperBlur.active(true);IntentFilter filter=new IntentFilter(Intent.ACTION_TIME_CHANGED);filter.addAction(Intent.ACTION_TIMEZONE_CHANGED);filter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);getContext().registerReceiver(changes,filter);tick.run();if(getWidth()>0)loadLocalScene();}
-    void pause(){if(!active)return;active=false;wallpaperBlur.active(false);appearance.finish();++generation;getContext().unregisterReceiver(changes);main.removeCallbacks(tick);}
+    void resume(){if(active)return;active=true;wallpaperBlur.active(true);IntentFilter filter=new IntentFilter(Intent.ACTION_TIME_CHANGED);filter.addAction(Intent.ACTION_TIMEZONE_CHANGED);filter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);getContext().registerReceiver(changes,filter);cache.listen(contentChanged);for(String name:CONTENT_PREFERENCES)getContext().getSharedPreferences(name,0).registerOnSharedPreferenceChangeListener(this);tick.run();}
+    void pause(){if(!active)return;active=false;wallpaperBlur.active(false);appearance.finish();++generation;pendingKey=null;failedKey=null;if(applied!=null&&!applied.complete)applied=null;getContext().unregisterReceiver(changes);cache.unlisten(contentChanged);for(String name:CONTENT_PREFERENCES)getContext().getSharedPreferences(name,0).unregisterOnSharedPreferenceChangeListener(this);main.removeCallbacks(tick);main.removeCallbacks(contentChanged);}
+    @Override public void onSharedPreferenceChanged(SharedPreferences preferences,String key){main.removeCallbacks(contentChanged);main.post(contentChanged);}
     void fadeIn(int millis){if(active)appearance.fadeIn(millis);}
-    void destroy(){pause();wallpaperBlur.destroy();++generation;worker.shutdownNow();wallpaper.setImageDrawable(null);dockBackground=null;band.removeAllViews();grid.removeAllViews();}
+    void destroy(){pause();wallpaperBlur.destroy();++generation;worker.shutdownNow();applied=null;wallpaper.setImageDrawable(null);dockBackground=null;band.removeAllViews();grid.removeAllViews();}
+    private HomePreviewCache.Key sceneKey(){return HomePreviewCache.Key.read(getContext(),chinese,cache.packages());}
     private void loadLocalScene(){
-        final int request=++generation;final Context context=getContext();
+        final HomePreviewCache.Key key=sceneKey();final Context context=getContext().getApplicationContext();
         android.app.ActivityManager memory=(android.app.ActivityManager)context.getSystemService(Context.ACTIVITY_SERVICE);
         int limit=memory!=null&&UiCompat.lowRam(memory)?720:1280;
         final int width=Math.min(limit,Math.max(360,getWidth()));
+        if(applied!=null&&applied.width==width&&applied.key.equals(key)){if(pendingKey!=null){++generation;pendingKey=null;}return;}
+        HomePreviewCache.Scene saved=cache.scene();
+        if(saved!=null&&saved.width==width&&saved.key.equals(key)){++generation;pendingKey=null;failedKey=null;applyLocalScene(saved);return;}
+        if(key.equals(failedKey)||key.equals(pendingKey)&&width==pendingWidth)return;
+        final HomePreviewCache.Scene previous=applied!=null?applied:saved;
+        final int request=++generation;final long cacheGeneration=cache.generation();pendingKey=key;pendingWidth=width;failedKey=null;
+        if(applied!=null&&!applied.key.sameApps(key)){applied=null;hasDockApps=false;band.removeAllViews();band.setBackgroundDrawable(null);grid.removeAllViews();title.setText("");}
         worker.execute(()->{
-            if(request!=generation)return;
-            WallpaperStore store=WallpaperStore.get(context);WallpaperCatalog catalog=store.snapshot();WallpaperCatalog.Entry entry=catalog.find(catalog.current);Bitmap background=null;
-            if(entry!=null&&entry.video()&&entry.custom()&&!store.poster(entry.id).isFile())entry=catalog.find(catalog.staticBeforeVideo);
-            if(entry!=null&&!WallpaperCatalog.DEFAULT.equals(entry.id))try{background=WallpaperImages.decode(context,store,entry,width,width*9/16);}catch(java.io.IOException ignored){}
-            if(request!=generation)return;
-            ArrayList<String> packages=new DockStore(context).load();ArrayList<Bitmap> art=new ArrayList<>();ArrayList<String> names=new ArrayList<>();ArrayList<HomeAppCatalog.Entry> catalogApps=new HomeAppCatalog(context).load(packages);
-            for(String pkg:packages)for(HomeAppCatalog.Entry app:catalogApps)if(pkg.equals(app.id)){names.add(app.label);art.add(app.info==null?HomeEntryArtwork.render(context,app.label,app.id):AppArtwork.load(context,app.info));break;}
-            ArrayList<String> gridIds=HomeAppCatalog.gridIds(catalogApps,packages);
-            if(!new DesktopSettingsStore(context).showHomeApps())gridIds.addAll(HomeAppCatalog.pinnedIds(catalogApps,packages));
-            gridIds=HomeOrderStore.project(new HomeOrderStore(context).load(),gridIds);
-            ArrayList<Bitmap> gridArt=new ArrayList<>();ArrayList<String> gridNames=new ArrayList<>();
-            for(String id:gridIds){
-                if(gridArt.size()>=20)break;
-                for(HomeAppCatalog.Entry app:catalogApps)if(id.equals(app.id)){
-                    gridNames.add(app.label);gridArt.add(app.info==null?HomeEntryArtwork.render(context,app.label,app.id):AppArtwork.load(context,app.info));break;
+            try{
+                if(request!=generation)return;
+                Bitmap background=null,blurred=null;boolean complete=true;
+                if(previous!=null&&previous.complete&&previous.width==width&&previous.key.sameWallpaper(key)){background=previous.wallpaper;blurred=previous.dockBackground;}
+                else{
+                    WallpaperStore store=WallpaperStore.get(context);WallpaperCatalog catalog=store.snapshot();WallpaperCatalog.Entry entry=catalog.find(catalog.current);
+                    if(entry!=null&&entry.video()&&entry.custom()&&!store.poster(entry.id).isFile())entry=catalog.find(catalog.staticBeforeVideo);
+                    if(entry!=null&&!WallpaperCatalog.DEFAULT.equals(entry.id))try{background=WallpaperImages.decode(context,store,entry,width,width*9/16);}catch(java.io.IOException ignored){complete=false;}
+                    if(background!=null)blurred=DockBackdropDrawable.prepare(background,960,540);
                 }
-            }
-            Bitmap image=background,blurred=background==null?null:DockBackdropDrawable.prepare(background,960,540);main.post(()->{
-                if(!active||request!=generation)return;
-                dockBackground=blurred;wallpaper.setImageBitmap(image);shade.setVisibility(image==null?GONE:VISIBLE);ambient.setVisibility(image==null?VISIBLE:GONE);band.removeAllViews();
-                title.setText(names.isEmpty()?chinese?"添加常用应用":"Add favorite apps":names.get(0));
-                int color=art.isEmpty()?0xff666972:HomeActivity.sampleColor(art.get(0));ambient.setColor(color);
-                boolean empty=art.isEmpty();hasDockApps=!empty;int count=empty?1:art.size();
-                float cardWidth=(864-36-4*18)/5f,cardHeight=cardWidth*203/360;
-                FrameLayout.LayoutParams bandParams=(FrameLayout.LayoutParams)band.getLayoutParams();bandParams.height=Math.round(cardHeight+36);bandParams.width=Math.round(36+count*cardWidth+Math.max(0,count-1)*18);bandParams.leftMargin=Math.round((960-bandParams.width)/2f);band.setLayoutParams(bandParams);
-                for(int i=0;i<count;i++){View card;if(empty)card=emptyCard();else{ImageView imageCard=new ImageView(context);imageCard.setImageBitmap(art.get(i));imageCard.setScaleType(ImageView.ScaleType.FIT_XY);GradientDrawable outline=new GradientDrawable();outline.setColor(Color.TRANSPARENT);outline.setCornerRadius(11);imageCard.setBackgroundDrawable(outline);UiCompat.clipOutline(imageCard);card=imageCard;}FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(Math.round(cardWidth),Math.round(cardHeight));p.leftMargin=Math.round(18+i*(cardWidth+18));p.topMargin=18;band.addView(card,p);}
-                renderGrid(gridArt,gridNames);refresh();wallpaperBlur.invalidate();
-            });
+                if(request!=generation)return;
+                List<Bitmap> art,gridArt;List<String> names,gridNames;
+                if(previous!=null&&previous.key.sameApps(key)){art=previous.art;names=previous.names;gridArt=previous.gridArt;gridNames=previous.gridNames;}
+                else{
+                    ArrayList<String> packages=new DockStore(context).load();art=new ArrayList<>();names=new ArrayList<>();ArrayList<HomeAppCatalog.Entry> catalogApps=new HomeAppCatalog(context).load(packages);
+                    for(String pkg:packages)for(HomeAppCatalog.Entry app:catalogApps)if(pkg.equals(app.id)){names.add(app.label);art.add(app.info==null?HomeEntryArtwork.render(context,app.label,app.id):AppArtwork.load(context,app.info));break;}
+                    ArrayList<String> gridIds=HomeAppCatalog.gridIds(catalogApps,packages);
+                    if(!new DesktopSettingsStore(context).showHomeApps())gridIds.addAll(HomeAppCatalog.pinnedIds(catalogApps,packages));
+                    gridIds=HomeOrderStore.project(new HomeOrderStore(context).load(),gridIds);gridArt=new ArrayList<>();gridNames=new ArrayList<>();
+                    for(String id:gridIds){
+                        if(gridArt.size()>=20)break;
+                        for(HomeAppCatalog.Entry app:catalogApps)if(id.equals(app.id)){
+                            gridNames.add(app.label);gridArt.add(app.info==null?HomeEntryArtwork.render(context,app.label,app.id):AppArtwork.load(context,app.info));break;
+                        }
+                    }
+                }
+                HomePreviewCache.Scene ready=new HomePreviewCache.Scene(key,width,background,blurred,art,names,gridArt,gridNames,complete);main.post(()->{
+                    if(!active||request!=generation)return;
+                    pendingKey=null;if(!key.equals(sceneKey())){loadLocalScene();return;}
+                    cache.save(ready,cacheGeneration);applyLocalScene(ready);
+                });
+            }catch(RuntimeException|OutOfMemoryError failure){if(failure instanceof OutOfMemoryError)cache.clear();DiagnosticLog.error("home.preview.load_failed",failure);main.post(()->{if(request==generation){pendingKey=null;failedKey=key;}});}
         });
     }
-    private void renderGrid(ArrayList<Bitmap> art,ArrayList<String> names){
+    private void applyLocalScene(HomePreviewCache.Scene ready){
+        applied=ready;dockBackground=ready.dockBackground;wallpaper.setImageBitmap(ready.wallpaper);shade.setVisibility(ready.wallpaper==null?GONE:VISIBLE);ambient.setVisibility(ready.wallpaper==null?VISIBLE:GONE);band.removeAllViews();
+        title.setText(ready.names.isEmpty()?chinese?"添加常用应用":"Add favorite apps":ready.names.get(0));
+        ambient.setColor(ready.art.isEmpty()?0xff666972:HomeActivity.sampleColor(ready.art.get(0)));
+        boolean empty=ready.art.isEmpty();hasDockApps=!empty;int count=empty?1:ready.art.size();
+        float cardWidth=(864-36-4*18)/5f,cardHeight=cardWidth*203/360;
+        FrameLayout.LayoutParams bandParams=(FrameLayout.LayoutParams)band.getLayoutParams();bandParams.height=Math.round(cardHeight+36);bandParams.width=Math.round(36+count*cardWidth+Math.max(0,count-1)*18);bandParams.leftMargin=Math.round((960-bandParams.width)/2f);band.setLayoutParams(bandParams);
+        for(int i=0;i<count;i++){View card;if(empty)card=emptyCard();else{ImageView imageCard=new ImageView(getContext());imageCard.setImageBitmap(ready.art.get(i));imageCard.setScaleType(ImageView.ScaleType.FIT_XY);GradientDrawable outline=new GradientDrawable();outline.setColor(Color.TRANSPARENT);outline.setCornerRadius(11);imageCard.setBackgroundDrawable(outline);UiCompat.clipOutline(imageCard);card=imageCard;}FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(Math.round(cardWidth),Math.round(cardHeight));p.leftMargin=Math.round(18+i*(cardWidth+18));p.topMargin=18;band.addView(card,p);}
+        renderGrid(ready.gridArt,ready.gridNames);refresh();wallpaperBlur.invalidate();
+    }
+    private void renderGrid(List<Bitmap> art,List<String> names){
         grid.removeAllViews();int columns=HomeActivity.APP_COLUMNS;
         float cellWidth=864f/columns,cardWidth=cellWidth-16,cardHeight=cardWidth*203/360;
         for(int i=0;i<art.size();i++){
