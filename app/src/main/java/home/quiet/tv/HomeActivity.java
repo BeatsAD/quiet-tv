@@ -540,6 +540,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             desktopApp.banner=HomeEntryArtwork.render(this,desktopApp.label,true);desktopApp.color=HomeEntryArtwork.DESKTOP_COLOR;found.add(1,desktopApp);
             App watch=new App();watch.pkg=HomeAppCatalog.WATCH_TV;watch.label=tr("看电视","Watch TV");watch.banner=HomeEntryArtwork.render(this,watch.label,watch.pkg);watch.color=HomeEntryArtwork.WATCH_TV_COLOR;found.add(0,watch);
             ArrayList<String> defaults=new ArrayList<>();for(App app:found)if(!pinned.contains(app.pkg))defaults.add(app.pkg);
+            // Hidden Dock entries belong to the sortable grid and must be projected with its saved order.
+            if(!requested.homeApps)for(String pkg:pinned)for(App app:found)if(pkg.equals(app.pkg))defaults.add(pkg);
             ArrayList<String> gridOrder=new HomeOrderStore(this).order(defaults);
             final long preparedAt=SystemClock.uptimeMillis();
             main.post(()->{
@@ -553,8 +555,6 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 for(String pkg:pinned)for(App app:found)if(pkg.equals(app.pkg))nextDock.add(app);
                 HashMap<String,App> byId=new HashMap<>();for(App app:found)byId.put(app.pkg,app);
                 for(String id:gridOrder)nextApps.add(byId.get(id));
-                // A display-only projection: never save these temporary entries into the grid order.
-                if(!homeAppsVisible)for(App app:nextDock)if(!nextApps.contains(app))nextApps.add(app);
                 // Keep an actionable empty state on HOME, without saving it as a pinned app.
                 if(homeAppsVisible&&nextDock.isEmpty()){
                     App add=new App();add.pkg=ADD_DOCK_ENTRY;add.label=tr("添加常用应用","Add favorite apps");
@@ -666,10 +666,10 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
     private void moveSelected(int dx,int dy){
         ArrayList<App> values=moveDock?dock:apps;ArrayList<String> ids=appIds(values);int from=ids.indexOf(movingPackage);
-        int target=moveDock?Math.max(0,Math.min(ids.size()-1,from+dx)):HomeOrderStore.target(from,ids.size(),APP_COLUMNS,dx,dy);
+        int target=moveDock?Math.max(0,Math.min(ids.size()-1,from+dx)):HomeOrderStore.moveTarget(from,ids.size(),APP_COLUMNS,dx,dy);
         if(from<0||target==from||moveDock&&dy!=0)return;
         HomeOrderStore.move(values,from,target);activePackage=movingPackage;row=moveDock?0:1+target/APP_COLUMNS;column=moveDock?target:target%APP_COLUMNS;
-        if(moveDock)appAdapter.notifyItemChanged(0);else{appAdapter.notifyItemChanged(from+2);appAdapter.notifyItemChanged(target+2);}
+        if(moveDock)appAdapter.notifyItemChanged(0);else appAdapter.notifyItemRangeChanged(Math.min(from,target)+2,Math.abs(from-target)+1);
         focusCurrent(false);KeyFeedback.moved(this);
     }
     private void cancelMove(){
