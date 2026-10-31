@@ -15,8 +15,8 @@ import java.util.concurrent.*;
 
 final class AppListPanel extends ManagementPanel {
     @Override boolean useSettingListStyle(){return false;}
-    private static final String[] FILTERS={"全部","用户应用","预装应用","已禁用","可恢复","隐藏应用"};
-    private static final int HIDDEN_FILTER=5;
+    private static final String[] FILTERS={"全部","用户应用","预装应用","隐藏应用","已禁用","可恢复"};
+    private static final int HIDDEN_FILTER=3;
     private final ManagementAdb session;
     private final ExecutorService worker;
     private final ArrayList<AppRepository.App> all=new ArrayList<>(),filtered=new ArrayList<>();
@@ -114,7 +114,7 @@ final class AppListPanel extends ManagementPanel {
     private void applyFilter(){
         boolean listFocused=list.hasFocus();filtered.clear();
         HomeVisibilityStore visibility=new HomeVisibilityStore(this);ChildModeStore children=new ChildModeStore(this);
-        for(AppRepository.App app:all){boolean match=filter==0 || filter==1 && !app.system && app.installed || filter==2 && app.system || filter==3 && app.installed && !app.enabled || filter==4 && app.recoverable && !app.installed || filter==HIDDEN_FILTER && app.installed && visibility.hidden(app.pkg) && !children.hidden(app.pkg);if(match)filtered.add(app);}
+        for(AppRepository.App app:all){boolean match=filter==0 || filter==1 && !app.system && app.installed || filter==2 && app.system || filter==4 && app.installed && !app.enabled || filter==5 && app.recoverable && !app.installed || filter==HIDDEN_FILTER && app.installed && visibility.hidden(app.pkg) && !children.hidden(app.pkg);if(match)filtered.add(app);}
         for(int i=0;i<filterButtons.size();i++)filterButtons.get(i).setSelected(i==filter);
         boolean present=false;for(AppRepository.App app:filtered)if(app.pkg.equals(selected))present=true;if(!present)selected=filtered.isEmpty()?"":filtered.get(0).pkg;
         adapter.notifyDataSetChanged();renderDetails();if(listFocused)focusList();
