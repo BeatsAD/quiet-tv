@@ -439,7 +439,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private void watchTv(){
         BootAppStore store=new BootAppStore(this);
         if(!store.watchTarget().isEmpty()&&Build.VERSION.SDK_INT>=21){openSavedHdmi(false);return;}
-        leaveHome(()->startActivity(new Intent(this,DesktopSettingsActivity.class).putExtra("management-page",SettingsPages.STARTUP)));
+        leaveHome(()->startActivity(settingsIntent(DesktopSettingsActivity.class).putExtra("management-page",SettingsPages.STARTUP)));
     }
     private void openSavedHdmi(boolean automatic){
         if(tvInputs==null)tvInputs=new TvInputs();tvInputs.saved(automatic);
@@ -649,11 +649,16 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         Intent intent=new Intent(this,HomeAppActionsActivity.class).putExtra("package",app.pkg).putExtra("dock",row==0)
             .putExtra("add",ADD_DOCK_ENTRY.equals(app.pkg))
             .putExtra("anchor-x",x).putExtra("anchor-y",y).putExtra("anchor-bottom",bottom);
-        // Reuse the prepared Dock pixels, including its wallpaper shade, without capturing app cards.
+        addSettingsBackdrop(intent);
+        leaveHome(()->startActivityForResult(intent,HomeAppActionsActivity.REQUEST));
+    }
+    private Intent settingsIntent(Class<?> page){return addSettingsBackdrop(new Intent(this,page));}
+    private Intent addSettingsBackdrop(Intent intent){
+        // Reuse bounded prepared pixels, including the current shade, without copying the native 4K output.
         Bitmap backdrop=Bitmap.createBitmap(320,Math.max(1,Math.round(320f*root.getHeight()/root.getWidth())),Bitmap.Config.ARGB_8888);
         Canvas backdropCanvas=new Canvas(backdrop);backdropCanvas.scale(backdrop.getWidth()/(float)root.getWidth(),backdrop.getHeight()/(float)root.getHeight());
         wallpapers.drawDockBackground(backdropCanvas,new Paint(Paint.FILTER_BITMAP_FLAG));intent.putExtra("backdrop",backdrop);
-        leaveHome(()->startActivityForResult(intent,HomeAppActionsActivity.REQUEST));
+        return intent;
     }
     private ArrayList<String> appIds(List<App> values){ArrayList<String> ids=new ArrayList<>();for(App app:values)ids.add(app.pkg);return ids;}
     private void beginPendingMove(){
@@ -736,7 +741,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             if(event.getAction()==KeyEvent.ACTION_UP && !event.isCanceled()){
                 if("settings".equals(remoteAction))openSettings(Settings.ACTION_SETTINGS);
                 else if("inputs".equals(remoteAction))showInputs();
-                else if("desktop_settings".equals(remoteAction))leaveHome(()->startActivity(new Intent(this,DesktopSettingsActivity.class)));
+                else if("desktop_settings".equals(remoteAction))leaveHome(()->startActivity(settingsIntent(DesktopSettingsActivity.class)));
                 else if("home".equals(remoteAction)){HomeGuardService.cancelInputTransition();startActivity(HomeController.launchIntent(this));}
             }
             return true;
@@ -911,8 +916,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         if(WALLPAPER_ENTRY.equals(app.pkg)){wallpapers.showPicker();return;}
         if(HomeAppCatalog.WATCH_TV.equals(app.pkg)){watchTv();return;}
         leaveHome(()->{
-            if(DESKTOP_SETTINGS_ENTRY.equals(app.pkg)){startActivity(new Intent(this,DesktopSettingsActivity.class));return;}
-            if(MANAGEMENT_ENTRY.equals(app.pkg)){startActivity(new Intent(this,AppManagementActivity.class));return;}
+            if(DESKTOP_SETTINGS_ENTRY.equals(app.pkg)){startActivity(settingsIntent(DesktopSettingsActivity.class));return;}
+            if(MANAGEMENT_ENTRY.equals(app.pkg)){startActivity(settingsIntent(AppManagementActivity.class));return;}
             try{
                 if(ChildBlockActivity.gate(this,app.pkg))return;
                 if(new HomeGuardState(this).protects(app.pkg))HomeGuardService.allowOriginal();

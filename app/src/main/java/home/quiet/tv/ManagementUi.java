@@ -9,6 +9,7 @@ import android.os.*;
 import android.util.TypedValue;
 import android.view.*;
 import android.widget.*;
+import java.util.concurrent.*;
 
 /** Native management surfaces share the launcher's quiet glass and white focus outline. */
 abstract class ManagementUi extends androidx.activity.ComponentActivity {
@@ -24,33 +25,46 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     private Button managementMoreButton;
     private KeyFeedback.Popup managementMorePopup;
     private UpdateBadgeView updateBadge;
+    private ExecutorService backdropLoader;
+    private boolean backdropClosed;
     private final UpdateRepository.Listener updateListener=()->{if(updateBadge!=null)updateBadge.available(UpdateRepository.get(this).available!=null);};
     int px(float value){return Math.round(value*unit);}
     @Override public void onCreate(Bundle state){
         super.onCreate(state);BackNavigation.install(this,this::handleBack);unit=getResources().getDisplayMetrics().widthPixels/960f;
         getWindow().getDecorView().setSystemUiVisibility(5894);
         stage=new FrameLayout(this);stage.setBackgroundColor(0xff0e0f13);setContentView(stage);
-        if(loadWallpaper()){
-        WallpaperStore wallpaperStore=WallpaperStore.get(this);
-        WallpaperCatalog wallpaperState=wallpaperStore.snapshot();
-        WallpaperCatalog.Entry wallpaperEntry=wallpaperState.find(wallpaperState.current);
-        if(wallpaperEntry!=null && !WallpaperCatalog.DEFAULT.equals(wallpaperEntry.id))try{
-            Bitmap bitmap=WallpaperImages.decode(this,wallpaperStore,wallpaperEntry,480,270);
-            ImageView image=new ImageView(this);image.setScaleType(ImageView.ScaleType.CENTER_CROP);image.setImageBitmap(bitmap);stage.addView(image,new FrameLayout.LayoutParams(-1,-1));
-        }catch(java.io.IOException ignored){}
-        }
+        if(loadWallpaper())prepareBackdrop();
         View shade=new View(this);shade.setBackgroundDrawable(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0xf00c0d11,0xf50b0c10}));stage.addView(shade,new FrameLayout.LayoutParams(-1,-1));
         root=column();root.setPadding(px(48),px(28),px(48),px(16));stage.addView(root,new FrameLayout.LayoutParams(-1,-1));
         header=row();root.addView(header,new LinearLayout.LayoutParams(-1,px(38)));
         Button back=iconButton("返回",R.drawable.ic_manage_back,()->{handleBack();KeyFeedback.back(this);});header.addView(back,new LinearLayout.LayoutParams(px(34),px(34)));
         TextView title=label("应用管理",27);title.setPadding(px(14),0,0,0);header.addView(title,new LinearLayout.LayoutParams(0,-1,1));
     }
+    private void prepareBackdrop(){
+        ImageView image=new ImageView(this);image.setScaleType(ImageView.ScaleType.CENTER_CROP);stage.addView(image,new FrameLayout.LayoutParams(-1,-1));
+        Bitmap supplied=getIntent().getParcelableExtra("backdrop");
+        if(supplied!=null){image.setImageBitmap(supplied);return;}
+        // A direct settings entry still draws immediately; file IO and decoding are not on its first-frame path.
+        backdropLoader=Executors.newSingleThreadExecutor();
+        backdropLoader.execute(()->{
+            Bitmap decoded=null;
+            try{
+                WallpaperStore store=WallpaperStore.get(this);WallpaperCatalog state=store.snapshot();WallpaperCatalog.Entry entry=state.find(state.current);
+                if(entry!=null&&!WallpaperCatalog.DEFAULT.equals(entry.id))decoded=WallpaperImages.decode(this,store,entry,480,270);
+            }catch(java.io.IOException|RuntimeException|OutOfMemoryError error){DiagnosticLog.info("management.backdrop.unavailable","keep themed background");}
+            Bitmap ready=decoded;
+            runOnUiThread(()->{
+                if(backdropClosed||isFinishing()||UiCompat.destroyed(this)){if(ready!=null)ready.recycle();return;}
+                if(ready!=null){image.setAlpha(0f);image.setImageBitmap(ready);image.animate().alpha(1f).setDuration(getResources().getInteger(R.integer.quiet_motion_panel_ms)).start();}
+            });
+        });
+    }
     boolean loadWallpaper(){return true;}
     boolean localManagement(){return true;}
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);managementEntry=true;}
     @Override protected void onResume(){super.onResume();UpdateRepository.get(this).add(updateListener);UpdateRepository.get(this).foreground();if(managementEntry && managementPage>=0){managementEntry=false;managementTab().requestFocus();}}
     @Override protected void onStop(){UpdateRepository.get(this).remove(updateListener);if(managementMorePopup!=null)managementMorePopup.closeQuietly();super.onStop();}
-    @Override protected void onDestroy(){super.onDestroy();}
+    @Override protected void onDestroy(){backdropClosed=true;if(backdropLoader!=null)backdropLoader.shutdownNow();super.onDestroy();}
     @Override public void onWindowFocusChanged(boolean focused){super.onWindowFocusChanged(focused);DiagnosticLog.info("input.window","page="+getClass().getSimpleName()+" "+InputDiagnostics.focus(this));}
     @Override public boolean dispatchTouchEvent(android.view.MotionEvent event){InputDiagnostics.pointer(this,event);return super.dispatchTouchEvent(event);}
     void managementConnected(){}

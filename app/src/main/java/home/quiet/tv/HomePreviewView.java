@@ -76,8 +76,9 @@ final class HomePreviewView extends FrameLayout implements SharedPreferences.OnS
     void showSecondScreen(boolean second){
         if(secondScreen==second)return;
         secondScreen=second;appearance.finish();refresh();
-        if(active){loadLocalScene();DesktopSettingsStore settings=new DesktopSettingsStore(getContext());fadeIn(second?settings.secondWallpaperFade():settings.homeWallpaperFade());}
+        wallpaperBlur.invalidate();
     }
+    void reloadScene(){if(active&&getWidth()>0)loadLocalScene();}
     void resume(){if(active)return;active=true;wallpaperBlur.active(true);IntentFilter filter=new IntentFilter(Intent.ACTION_TIME_CHANGED);filter.addAction(Intent.ACTION_TIMEZONE_CHANGED);filter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);getContext().registerReceiver(changes,filter);cache.listen(contentChanged);for(String name:CONTENT_PREFERENCES)getContext().getSharedPreferences(name,0).registerOnSharedPreferenceChangeListener(this);tick.run();}
     void pause(){if(!active)return;active=false;wallpaperBlur.active(false);appearance.finish();++generation;pendingKey=null;failedKey=null;if(applied!=null&&!applied.complete)applied=null;getContext().unregisterReceiver(changes);cache.unlisten(contentChanged);for(String name:CONTENT_PREFERENCES)getContext().getSharedPreferences(name,0).unregisterOnSharedPreferenceChangeListener(this);main.removeCallbacks(tick);main.removeCallbacks(contentChanged);}
     @Override public void onSharedPreferenceChanged(SharedPreferences preferences,String key){main.removeCallbacks(contentChanged);main.post(contentChanged);}

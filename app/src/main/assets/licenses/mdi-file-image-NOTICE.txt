@@ -1,0 +1,8 @@
+Pictogrammers / Material Design Icons
+Icon: file-image
+Source: https://github.com/Templarian/MaterialDesign/blob/f08b713c8eef826e6bfe826c65240326546648ea/svg/file-image.svg
+Upstream license: https://github.com/Templarian/MaterialDesign/blob/f08b713c8eef826e6bfe826c65240326546648ea/LICENSE
+Icon license: Apache License 2.0; the full text is included in libadb-Apache-2.0.txt.
+
+Adaptation for Quiet TV: converted SVG to Android VectorDrawable and used a
+light-gray fill. The original icon path and 24x24 viewport are unchanged.
