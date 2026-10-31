@@ -1,8 +1,7 @@
 // Minimum patched versions for build tools and application dependencies.
 // Constraints upgrade existing modules without adding them to the APK or downgrading newer versions.
+def guavaSecurityDependency = settings.ext.guavaSecurityDependency
 def minimumVersions = [
-    // Guava metadata selects Android artifacts for the app and JRE artifacts for build tools.
-    'com.google.guava:guava': '33.7.2-android',
     'org.bouncycastle:bcprov-jdk15to18': '1.86',
     'org.bouncycastle:bcpkix-jdk15to18': '1.86',
     'org.bouncycastle:bcutil-jdk15to18': '1.86',
@@ -27,6 +26,10 @@ def addSecurityConstraints = { configurations, dependencies ->
     def security = configurations.create('securityConstraints') {
         canBeResolved = false
         canBeConsumed = false
+    }
+    // Guava metadata selects Android artifacts for the app and JRE artifacts for build tools.
+    dependencies.constraints.add(security.name, guavaSecurityDependency) {
+        because 'Minimum patched versions for build tools and application dependencies'
     }
     minimumVersions.each { module, version ->
         dependencies.constraints.add(security.name, "${module}:${version}") {
