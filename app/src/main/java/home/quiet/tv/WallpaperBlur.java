@@ -60,6 +60,7 @@ final class WallpaperBlur {
         secondOverlay.setAlpha(progress);secondOverlay.setVisibility(!same&&secondAmount>0&&progress>0&&secondOverlay.getDrawable()!=null?View.VISIBLE:View.GONE);
     }
     private void clear(){overlay.setVisibility(View.GONE);overlay.setImageDrawable(null);overlay.setAlpha(1);secondOverlay.setVisibility(View.GONE);secondOverlay.setImageDrawable(null);}
+    String diagnostics(){return "blur="+amount+" blurVisible="+(overlay.getVisibility()==View.VISIBLE)+" blurAlpha="+overlay.getAlpha()+" secondBlurVisible="+(secondOverlay.getVisibility()==View.VISIBLE)+" secondBlurAlpha="+secondOverlay.getAlpha()+" blurBusy="+busy;}
     private void cancelCapture(){main.removeCallbacks(capture);scheduled=false;}
     private void defer(int millis){quietUntil=Math.max(quietUntil,SystemClock.uptimeMillis()+millis);cancelCapture();}
     void interaction(){if(nativeVideo){defer(320);invalidate();}}
