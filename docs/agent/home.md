@@ -81,6 +81,26 @@ Android 的 [Direct Boot](https://developer.android.com/privacy-and-security/dir
 
 用户提出的方案是：定位原厂桌面实际文件和启动入口，准备同名空壳，在壳内承接开机／HOME 并显式拉起 Quiet TV，最后移除原厂桌面文件。将它记录为待核验的机型专项，不是已经实现或验收的通用方法。当前没有对应脚本、原厂同包名壳 APK 或可执行规则；不要将本节转成普通安装器命令，也不要把现有独立 HOME 代理、酷开中转或改包名主程序当作原厂应用替换。
 
+### 只读调查示例
+
+明确提出“原厂同包名空壳接管”或“同名壳接开机、拉起新桌面”时，从统一入口直接进入本节。先区分下文的名称含义并调查可行性；不因未安装 Quiet TV 转去首装，不用普通 `repair`／`takeover` 代替空壳调查，也不虚构新的空壳执行路线。
+
+目标电视、当前用户及只读 ADB 检查已经确认时，按[任务记录](session.md)填写变量，使用同批工具和全新私有目录：
+
+```sh
+python3 agent_session.py start --serial "$TV_SERIAL" --user "$TV_USER" --intent inspect --session "$NEW_SESSION_DIR" --bundle "$BUNDLE_DIR/latest.json"
+python3 agent_session.py plan --session "$NEW_SESSION_DIR" --route inspect --note "原厂同包名空壳候选调查；只读核对原厂路径、组件、签名、启动依赖和离线恢复条件"
+```
+
+`start` 会只读查询目标电视，`plan` 保存调查范围；二者不会自动完成下文的原厂文件取证。继续按实际支持的只读命令核对，将设备／固件／用户、原厂路径与组件、签名、分区和依赖、恢复证据、未知项及下一步保存到电脑私有调查材料。证据不足时，将真实结论与缺项填入 `INVESTIGATION_FINDINGS`，按受限结果记录：
+
+```sh
+python3 agent_session.py accept --session "$NEW_SESSION_DIR" --check inspection --status LIMITED --source agent --note "$INVESTIGATION_FINDINGS"
+python3 agent_session.py finish --session "$NEW_SESSION_DIR"
+```
+
+此时应报告调查受限，不能报告已经完成替换或接管。用户要求先不连接、不操作电视，或尚无目标时，不执行上述建档及任何设备命令；先在电脑保存候选说明和待补证据，不能填造路径、签名或验收结果。广告与空壳目标同时提出时，分别建立广告任务和只读调查任务，沿用各自记录；纯分析阶段同样不为建档连接电视。
+
 ### 同名的含义与技术条件
 
 - 应用显示名、APK 文件名、安装路径、包名和组件名分别核对。文件改名不改变包名；厂商若显式启动完整组件，仅同包名而没有原 Activity／别名也不能承接入口。
