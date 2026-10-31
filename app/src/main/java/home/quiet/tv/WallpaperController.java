@@ -39,7 +39,7 @@ final class WallpaperController {
     private final WallpaperAppearance appearance;
     private int desktopBlur;
     private int desktopBrightness=100,desktopFade=600;
-    private boolean fadePending;
+    private boolean fadePending,desktopRevealed;
     private String playingVideo="",failedVideo="";
     private VideoWallpaperPlayer.Failure videoFailure=VideoWallpaperPlayer.Failure.UNKNOWN;
     private int videoRequest;
@@ -138,7 +138,7 @@ final class WallpaperController {
         boolean separate=temporaryMedia!=null||picker!=null;wallpaperBlur.amount(separate?0:desktopBlur);appearance.brightness(separate?100:desktopBrightness);if(separate){fadePending=false;appearance.finish();}
     }
     private int fadeDuration(int original){return temporaryMedia!=null||picker!=null?original:desktopFade;}
-    private void revealDesktop(boolean changed){if(!active||temporaryMedia!=null||picker!=null)return;if(fadePending||changed){fadePending=false;appearance.fadeIn(desktopFade);}}
+    private void revealDesktop(boolean changed){if(!active||temporaryMedia!=null||picker!=null)return;if(fadePending||changed){fadePending=false;desktopRevealed=true;appearance.fadeIn(desktopFade);}}
     void drawDockBackground(Canvas canvas,Paint paint){
         canvas.drawColor(Color.BLACK);
         if(ambient.getVisibility()==View.VISIBLE){ambient.draw(canvas);appearance.drawShade(canvas);return;}
@@ -282,7 +282,7 @@ final class WallpaperController {
     private void finishLeave(Runnable launch){stopVideo(()->{leaving=false;if(active&&!destroyed)launch.run();});}
     private void restoreSelected(){String id=store.snapshot().current;if(store.snapshot().dynamic()&&!id.equals(failedVideo))startVideo(id,false);else display(id,false);}
     private void schedule(){main.removeCallbacks(rotate);WallpaperCatalog state=store.snapshot();if(active&&temporaryMedia==null&&state.rotating&&picker==null)main.postDelayed(rotate,state.rotationMinutes*60*1000L);}
-    void resume(){if(!active)fadePending=true;active=true;wallpaperBlur.active(true);updateDesktopEffects();restoreDesktopPending=false;video.setSound(store.snapshot().sound);leaving=false;video.setPaused(false);restoreSelected();if(video.ready()&&videoFade==null&&current.getAlpha()>0f)revealVideo(videoRequest);daily.resume();schedule();}
+    void resume(){if(!active&&!desktopRevealed)fadePending=true;active=true;wallpaperBlur.active(true);updateDesktopEffects();restoreDesktopPending=false;video.setSound(store.snapshot().sound);leaving=false;video.setPaused(false);restoreSelected();if(video.ready()&&videoFade==null&&current.getAlpha()>0f)revealVideo(videoRequest);daily.resume();schedule();}
     void environmentChanged(){if(temporaryMedia==null)daily.environmentChanged();}
     boolean pickerShowing(){return picker!=null;}
     void showTemporary(String id,Runnable prepared){

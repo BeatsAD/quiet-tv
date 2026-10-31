@@ -61,7 +61,7 @@ public final class HomeAppActionsActivity extends ManagementUi {
         dialog.setContentView(box);
     }
     private void show(int width,View focus,boolean anchored){
-        Window window=dialog.getWindow();window.setWindowAnimations(0);window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);window.setDimAmount(.35f);window.getDecorView().setSystemUiVisibility(5894);window.setLayout(px(width),-2);
+        Window window=dialog.getWindow();window.setWindowAnimations(R.style.QuietDialogAnimation);window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);window.setDimAmount(.35f);window.getDecorView().setSystemUiVisibility(5894);window.setLayout(px(width),-2);
         if(anchored){
             box.measure(View.MeasureSpec.makeMeasureSpec(px(width),View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec(px(490),View.MeasureSpec.AT_MOST));
             int screenWidth=getResources().getDisplayMetrics().widthPixels,screenHeight=getResources().getDisplayMetrics().heightPixels;

@@ -70,18 +70,18 @@ final class KeyFeedback {
     }
     static class Alert extends android.app.AlertDialog {
         Alert(Context context){super(context);setOnCancelListener(d->KeySounds.play(context,KeySoundPolicy.BACK));}
-        @Override protected void onCreate(Bundle state){super.onCreate(state);attach(getWindow().getDecorView());}
+        @Override protected void onCreate(Bundle state){super.onCreate(state);getWindow().setWindowAnimations(R.style.QuietDialogAnimation);attach(getWindow().getDecorView());}
         @Override public boolean dispatchKeyEvent(KeyEvent key){return dispatch(getWindow().getDecorView(),key,()->super.dispatchKeyEvent(key));}
     }
     static class Dialog extends android.app.Dialog {
         Dialog(Context context){super(context);setOnCancelListener(d->KeySounds.play(context,KeySoundPolicy.BACK));}
-        @Override protected void onCreate(Bundle state){super.onCreate(state);attach(getWindow().getDecorView());}
+        @Override protected void onCreate(Bundle state){super.onCreate(state);getWindow().setWindowAnimations(R.style.QuietDialogAnimation);attach(getWindow().getDecorView());}
         @Override public boolean dispatchKeyEvent(KeyEvent key){return dispatch(getWindow().getDecorView(),key,()->super.dispatchKeyEvent(key));}
     }
     static final class Popup extends PopupWindow {
         private final Context context;
         private boolean quiet;
-        Popup(Context context,View content,int width,int height){super(content,width,height,true);this.context=context;}
+        Popup(Context context,View content,int width,int height){super(content,width,height,true);this.context=context;setAnimationStyle(R.style.QuietDialogAnimation);}
         void closeQuietly(){quiet=true;try{dismiss();}finally{quiet=false;}}
         @Override public void dismiss(){boolean showing=isShowing();super.dismiss();if(showing&&!quiet){if(input==null)KeySounds.play(context,KeySoundPolicy.BACK);else if(input.key.getKeyCode()==KeyEvent.KEYCODE_BACK)back(context);}}
     }

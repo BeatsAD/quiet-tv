@@ -141,5 +141,8 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
     @Override protected void onPause(){remember();getSharedPreferences("desktop-settings",0).unregisterOnSharedPreferenceChangeListener(this);getSharedPreferences("weather",0).unregisterOnSharedPreferenceChangeListener(this);main.removeCallbacks(changed);main.removeCallbacks(previewFade);preview.pause();greetingEditor.pause();super.onPause();}
     @Override protected void onDestroy(){preview.destroy();greetingEditor.destroy();super.onDestroy();}
     @Override protected void onSaveInstanceState(Bundle state){remember();state.putString("focus",focusTag);state.putInt("scroll",scrollY);greetingEditor.saveState(state);}
-    @Override public void onSharedPreferenceChanged(SharedPreferences prefs,String key){main.removeCallbacks(changed);main.post(changed);}
+    @Override public void onSharedPreferenceChanged(SharedPreferences prefs,String key){
+        if(preview!=null&&("show-home-apps".equals(key)||"show-watch-tv".equals(key)))preview.reloadScene();
+        main.removeCallbacks(changed);main.post(changed);
+    }
 }

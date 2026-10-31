@@ -68,8 +68,9 @@ final class HomePreviewView extends FrameLayout {
     void showSecondScreen(boolean second){
         if(secondScreen==second)return;
         secondScreen=second;appearance.finish();refresh();
-        if(active){loadLocalScene();DesktopSettingsStore settings=new DesktopSettingsStore(getContext());fadeIn(second?settings.secondWallpaperFade():settings.homeWallpaperFade());}
+        wallpaperBlur.invalidate();
     }
+    void reloadScene(){if(active&&getWidth()>0)loadLocalScene();}
     void resume(){if(active)return;active=true;wallpaperBlur.active(true);IntentFilter filter=new IntentFilter(Intent.ACTION_TIME_CHANGED);filter.addAction(Intent.ACTION_TIMEZONE_CHANGED);filter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);getContext().registerReceiver(changes,filter);tick.run();if(getWidth()>0)loadLocalScene();}
     void pause(){if(!active)return;active=false;wallpaperBlur.active(false);appearance.finish();++generation;getContext().unregisterReceiver(changes);main.removeCallbacks(tick);}
     void fadeIn(int millis){if(active)appearance.fadeIn(millis);}
