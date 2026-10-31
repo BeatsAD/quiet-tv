@@ -146,6 +146,8 @@ def unchanged_user(adb, user):
 
 
 def run_install(args, adb, tools, journal):
+    if getattr(args, "native_observer", False) and (args.goal != "takeover" or getattr(args, "adaptation_route", None)):
+        raise ValueError("原桌面观察仅用于标准接管，不能同时选择专项 HOME 路线")
     if adb.run("get-state") != "device":
         raise ValueError("需要用户已选定并授权的 ADB 目标；本工具不扫描或自动连接电视")
     unchanged_user(adb, args.user)
@@ -295,8 +297,11 @@ def run_install(args, adb, tools, journal):
         print("安装核验完成，未主动配置 HOME 或守护；原 HOME 读回" + ("一致。" if original and after_home else "未确认。"), flush=True)
         return
     installed_dump = adb.shell("dumpsys", "package", tcl.PACKAGE)
+    baseline = {}
     if "DeviceMaintenanceReceiver" in installed_dump:
         baseline = maintenance.inspect(adb, tcl.PACKAGE, args.user)
+        if baseline.get("paused"):
+            raise ValueError("守护已暂停，接管不覆盖暂停选择；明确恢复时使用维护 repair --resume")
         if not baseline.get("originalHome") and original != HOME:
             unchanged_user(adb, args.user)
             baseline = maintenance.remember_home(adb, tcl.PACKAGE, args.user, original)
@@ -325,15 +330,20 @@ def run_install(args, adb, tools, journal):
         except boot.NoNativeRoute as error:
             journal.event("boot_native_unavailable", error=str(error))
             print("标准开机 HOME 路线不可用：" + str(error) + "；继续已有兼容守护。", flush=True)
-    if not native or keep_adb and not route:
+    observer = native and (getattr(args, "native_observer", False) or maintenance.native_observer_needed(baseline))
+    if getattr(args, "native_observer", False) and not native:
+        raise ValueError("系统 HOME 未设置成功，不能使用直接 HOME 原桌面观察")
+    if not native or observer or keep_adb and not route:
         if sdk < 21:
             raise ValueError("Android 4.4 无兼容守护且默认 HOME 未确认，不能报告接管完成")
         guard_args = SimpleNamespace(serial=args.serial, user=args.user, package=tcl.PACKAGE,
-            adb=args.adb, apply=True, pause=False, direct_home=False, adb_only=native,
-            home=original if not native and original != HOME else None, keep_adb=True if keep_adb else None,
+            adb=args.adb, apply=True, pause=False, direct_home=False, adb_only=native and not observer,
+            native_observer=observer,
+            home=(original if original != HOME else baseline.get("originalHome")) if not native or observer else None,
+            keep_adb=True if keep_adb else None,
             record=journal.directory / "guard-before.json")
         guard.configure(guard_args, adb)
-    journal.event("desktop_configured", route="native" if native else "guard", keep_adb_requested=keep_adb)
+    journal.event("desktop_configured", route="native_observer" if observer else "native" if native else "guard", keep_adb_requested=keep_adb)
     if args.keep_adb and not keep_adb:
         raise ValueError("安装／桌面步骤已执行，但当前档位不支持 ADB 保持，未满足重启常开目标")
     print("桌面配置已执行；实体 HOME、开机、唤醒和 ADB 重连等待分别验收。", flush=True)
@@ -349,6 +359,7 @@ def main():
                         help="AI 核对影响后明确选择专项路线；默认仍优先普通 HOME 与兼容守护")
     parser.add_argument("--goal", choices=("trial", "takeover", "update"),
                         help="默认 trial；接管须在本任务基础试用通过后显式指定 takeover")
+    parser.add_argument("--native-observer", action="store_true", help="已确认厂商绕过默认 HOME 时，增加原桌面观察")
     adb_choice = parser.add_mutually_exclusive_group()
     adb_choice.add_argument("--keep-adb", dest="keep_adb", action="store_const", const=True, default=None,
                             help="开启适用设备的 ADB 设置恢复；takeover 默认开启")
@@ -369,6 +380,8 @@ def main():
         args.keep_adb = args.goal == "takeover" and not args.verify_only
     if args.adaptation_route and (args.goal != "takeover" or args.verify_only):
         parser.error("专项路线仅用于明确的接管操作")
+    if args.native_observer and (args.goal != "takeover" or args.verify_only or args.adaptation_route):
+        parser.error("原桌面观察仅用于标准接管，不与专项路线或只读验收混用")
     if args.user < 0 or bool(args.apk) != bool(args.sha256) or args.sha256 and not re.fullmatch(r"[a-f0-9]{64}", args.sha256):
         parser.error("用户无效，或本地 APK 未同时提供完整 SHA-256")
     if args.keep_adb and args.goal != "takeover":

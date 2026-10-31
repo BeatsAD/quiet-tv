@@ -57,6 +57,17 @@ final class DesktopRoutes {
         HomeGuardRecovery.request(context,"直接 HOME 开机补偿");
         state.status("系统 HOME 已设置，开机补偿待核对");
     }
+    void nativeObserver(){
+        if(!state.nativeObserverAvailable() || !state.validSelection())throw new IllegalStateException("系统 HOME 或原桌面观察目标已变化");
+        HomeGuardRecovery.cancel();HomeGuardService.cancelPending();
+        SharedPreferences.Editor change=edit().putString("routeHome","DIRECT").putString("relaySource","")
+                .putString("mode","AUTO").putBoolean("configured",true).putBoolean("observeHome",true).putBoolean("directHomeKeys",false);
+        if(!state.nativeObserverConfigured())for(String scene:new String[]{"home","reboot","coldBoot","wake"})
+            change.remove("routeTest_"+scene).remove("routeTestAt_"+scene).remove("routeTestEvidence_"+scene);
+        if(!change.commit())throw new IllegalStateException("原桌面观察配置未保存");
+        HomeGuardSync.refresh(context);HomeGuardAdb.ensure(context);HomeGuardRecovery.request(context,"直接 HOME 原桌面观察");
+        state.status("系统 HOME 保留，原桌面观察已配置；按键、开机与唤醒待验证");
+    }
     void directOnly(){
         if(!BuildConfig.DECLARES_HOME)throw new IllegalStateException("此兼容包只能使用原桌面中转");
         HomeGuardRecovery.cancel();HomeGuardService.cancelPending();HomeGuardSync.pause(context);HomeGuardUsageService.pause(context);
@@ -78,7 +89,8 @@ final class DesktopRoutes {
 
         prefs.edit().putString("mode","AUTO").putBoolean("configured",true).apply();
         if(!"DIRECT".equals(home())){state.enable();return;}
-        prefs.edit().putBoolean("observeHome",true).putBoolean("directHomeKeys",state.directHomeAvailable()).apply();HomeGuardRecovery.request(context,"恢复开机补偿");
+        // Resume the selected direct route; do not silently add observation or key interception.
+        HomeGuardRecovery.request(context,"恢复开机补偿");
         state.status("系统直接启动，开机补偿待核对");
     }
     String home(){return current()?prefs.getString("routeHome",state.enabled()?"RELAY":"UNKNOWN"):"UNKNOWN";}
@@ -123,7 +135,9 @@ final class DesktopRoutes {
             +"\n断电开机："+bootLabel()+"  "+test("coldBoot")+"\n待机唤醒："+wakeLabel()+"  "+test("wake");}
     JSONObject snapshot() throws JSONException {
         JSONObject snapshot=new JSONObject().put("packageMode",BuildConfig.DECLARES_HOME?"standard":"relay")
-                .put("homeRoute",home()).put("relaySource",prefs.getString("relaySource","UNKNOWN")).put("proxyPackage",new HomeProxy(context).packageName())
+                .put("homeRoute",home()).put("observeHome",prefs.getBoolean("observeHome",true)).put("nativeObserverConfigured",state.nativeObserverConfigured())
+                .put("nativeObserverSelected",state.nativeObserverSelected()).put("directHomeSelected",current() && state.directHomeSelected())
+                .put("relaySource",prefs.getString("relaySource","UNKNOWN")).put("proxyPackage",new HomeProxy(context).packageName())
                 .put("proxyAvailable",new HomeProxy(context).available()).put("proxyReady",new HomeProxy(context).ready())
                 .put("proxyPausePending",prefs.getBoolean("proxyPausePending",false)).put("proxyVisibleAt",current() && prefs.getLong("proxyVisibleEpoch",-1)==prefs.getLong("proxyEpoch",-2)?prefs.getLong("proxyVisibleAt",0):0).put("bootRoute",vendorReady()?"VENDOR":state.enabled()?"GUARD":"UNKNOWN")
                 .put("wakeRoute",state.enabled()?"GUARD":"UNKNOWN").put("paused","OFF".equals(prefs.getString("mode","AUTO"))).put("automatic",state.automatic())

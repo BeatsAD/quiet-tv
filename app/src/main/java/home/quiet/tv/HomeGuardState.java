@@ -142,6 +142,19 @@ final class HomeGuardState {
         for(Candidate home:candidates())if(home.component.flattenToString().equals(selected()))return true;return false;
     }
     boolean ready(){return enabled() && validSelection() && !helperActive();}
+    boolean nativeObserverAvailable(){
+        if(!supported() || !BuildConfig.DECLARES_HOME || !unlocked(context) || helperActive()
+                || preferences.getBoolean("proxyPausePending",false) || "PROXY".equals(preferences.getString("relaySource","")))return false;
+        try{return new HomeController(context).inspect().isOwn(context);}
+        catch(Exception unavailable){return false;}
+    }
+    boolean nativeObserverSelected(){
+        return preferences.getBoolean("configured",false) && preferences.getBoolean("observeHome",true)
+                && !directHomeSelected() && "DIRECT".equals(preferences.getString("routeHome","")) && new DesktopRoutes(context,false).current();
+    }
+    boolean nativeObserverConfigured(){
+        return enabled() && nativeObserverSelected() && validSelection() && nativeObserverAvailable();
+    }
     boolean directHomeAvailable(){
         if(!BuildConfig.DECLARES_HOME || !HomeGuardPolicy.directHomeDevice(Build.MANUFACTURER,Build.BRAND,Build.MODEL,Build.DEVICE,Build.VERSION.SDK_INT,BuildConfig.LEGACY_19)
                 || !unlocked(context) || helperActive() || preferences.getBoolean("proxyPausePending",false)

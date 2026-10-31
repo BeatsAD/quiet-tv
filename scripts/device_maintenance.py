@@ -352,6 +352,18 @@ def restore_home(args, adb, journal, sdk, snapshot):
     print("系统 HOME 已恢复，守护保持暂停；请按实体 HOME 验证。重启与唤醒未验证。")
 
 
+def native_observer_needed(snapshot):
+    routes = snapshot.get("routes", {})
+    if routes.get("nativeObserverConfigured") or routes.get("nativeObserverSelected"):
+        return True
+    if routes.get("homeRoute") != "DIRECT":
+        return False
+    # Resolver/binding output is never scene evidence. Only current user-recorded failures qualify.
+    return any(item.get("result") == "失败" and item.get("source") == "user"
+               and item.get("recordedAt", 0) > 0 and item.get("evidenceId")
+               for item in routes.get("sceneEvidence", {}).values() if isinstance(item, dict))
+
+
 def run(args, adb, journal):
     if adb.run("get-state") != "device":
         raise ValueError("需要已授权的目标电视")
@@ -392,7 +404,10 @@ def run(args, adb, journal):
         if snapshot.get("paused") and not args.resume:
             raise ValueError("接管已被主动暂停；只有用户要求恢复时才使用 --resume")
         routes = snapshot.get("routes", {})
+        native_observer = getattr(args, "native_observer", False)
         if snapshot.get("proxy", {}).get("selected") or routes.get("relaySource") == "PROXY":
+            if native_observer:
+                raise ValueError("已选择 HOME 代理，不能叠加原桌面观察")
             if args.apply:
                 unchanged_user(adb, args.user)
                 result = inspect(adb, args.package, args.user, "proxy_repair", extras={"resume":args.resume})
@@ -407,11 +422,17 @@ def run(args, adb, journal):
             guard.configure(repair, adb)
             return
         own = args.package + "/home.quiet.tv.HomeActivity"
-        adb_only = (snapshot.get("systemHome") == own and not snapshot.get("guardConfigured")
-                    and not snapshot.get("directHomeConfigured"))
+        direct_home = snapshot.get("directHomeConfigured", False) or routes.get("directHomeSelected", False)
+        native_observer = native_observer or (snapshot.get("systemHome") == own and native_observer_needed(snapshot))
+        if native_observer and direct_home:
+            raise ValueError("已选择直接 HOME 按键补偿，不能叠加原桌面观察")
+        adb_only = (snapshot.get("systemHome") == own and not native_observer
+                    and not direct_home
+                    and (not snapshot.get("guardConfigured") or routes.get("observeHome") is False))
         repair = SimpleNamespace(serial=args.serial, user=args.user, package=args.package, adb=args.adb,
-            apply=args.apply, pause=False, direct_home=snapshot.get("directHomeConfigured", False),
-            home=None if adb_only or snapshot.get("directHomeConfigured") else snapshot.get("originalHome") or None,
+            apply=args.apply, pause=False, direct_home=direct_home,
+            native_observer=native_observer, resume=args.resume,
+            home=None if adb_only or direct_home else snapshot.get("originalHome") or None,
             keep_adb=True, adb_only=adb_only, record=journal.directory / "guard-before.json")
         guard.configure(repair, adb)
         print("配置流程结束；实体 HOME、重启、冷启动、待机唤醒须分别验收。")
@@ -431,6 +452,7 @@ def main():
     parser.add_argument("--record", required=True, type=Path, help="全新的电脑私有记录目录")
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--resume", action="store_true", help="用户明确要求重新启用已暂停的接管")
+    parser.add_argument("--native-observer", action="store_true", help="已确认默认 HOME 被厂商绕过，补充原桌面观察")
     parser.add_argument("--adb", default="adb")
     args = parser.parse_args()
     if args.user < 0 or args.target and not re.fullmatch(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+", args.target):
@@ -439,7 +461,7 @@ def main():
         parser.error("需要 --target 指定单个应用")
     if args.action == "restore-app" and not args.from_record:
         parser.error("恢复需要禁用时的 --from-record")
-    if args.resume and args.action != "repair" or args.apply and args.action == "inspect":
+    if (args.resume or args.native_observer) and args.action != "repair" or args.apply and args.action == "inspect":
         parser.error("inspect 只读；--resume 仅用于 repair")
     if args.action == "profile-set" and not args.profile or args.action == "input-open" and not args.source:
         parser.error("profile-set 需要 --profile；input-open 需要 --source")

@@ -359,6 +359,12 @@ def configure(args, adb):
         raise ValueError("Android 4.4 档位未开放桌面守护及 ADB 开关恢复")
     keep_adb = getattr(args, "keep_adb", None)
     adb_only = getattr(args, "adb_only", False)
+    native_observer = getattr(args, "native_observer", False)
+    resume = getattr(args, "resume", False)
+    if native_observer and (args.pause or adb_only or getattr(args, "direct_home", False)):
+        raise ValueError("原桌面观察不能同时暂停、独立配置 ADB 或启用直接按键补偿")
+    if resume and (args.pause or adb_only):
+        raise ValueError("恢复守护不能同时暂停或独立配置 ADB")
     if adb_only and (keep_adb is None or args.pause or args.home or getattr(args, "direct_home", False)):
         raise ValueError("独立 ADB 配置需明确保持选项，不能同时修改桌面路线或暂停")
     if args.pause and keep_adb is not None:
@@ -393,7 +399,7 @@ def configure(args, adb):
     port_candidate = legacy_tcp_port(args.serial, sdk) if keep_adb else None
     selected = canonical_home(args.home or "")
     inspection = None
-    if args.apply or direct_home or keep_adb is not None:
+    if args.apply or direct_home or native_observer or resume or keep_adb is not None:
         # New APKs answer without changing preferences or enabling the guard. Old APKs
         # reject inspect before the explicit enable branch; retain their existing setup path.
         output = adb.shell("am", "broadcast", "--include-stopped-packages", "--user", args.user,
@@ -404,6 +410,12 @@ def configure(args, adb):
         if re.search(r"\bresult=-1\b", output) and inspection and inspection.get("schemaVersion") == 1:
             if inspection.get("package") != args.package or not inspection.get("supported"):
                 raise ValueError("应用身份或守护能力不匹配，未修改权限")
+            if not adb_only and inspection.get("paused") and not resume:
+                raise ValueError("守护已暂停；明确恢复时使用 --resume，未修改权限")
+            if native_observer and (inspection.get("nativeObserverSupported") is not True
+                    or inspection.get("nativeObserverAvailable") is not True
+                    or canonical_home(inspection.get("resolvedHome", "")) != args.package + "/home.quiet.tv.HomeActivity"):
+                raise ValueError("已安装 APK 或系统 HOME 不支持直接 HOME 原桌面观察，未修改权限")
             if keep_adb and inspection.get("adb", {}).get("supported") is not True:
                 raise ValueError("已安装 APK 未确认 ADB 保持能力；需更新或核对档位，未修改权限")
             if adb_only:
@@ -417,7 +429,7 @@ def configure(args, adb):
                 selected = selected or inspection.get("selected") or (resolved if resolved in homes else "") or (homes[0] if len(homes) == 1 else "")
                 if not selected or selected not in homes:
                     raise ValueError("原主页未唯一确定或已失效，请使用 --home 指定本机候选；未修改权限")
-        elif direct_home or keep_adb is not None:
+        elif direct_home or native_observer or resume or keep_adb is not None:
             raise ValueError("已安装 APK 未提供所需 HOME／ADB 能力核对；未修改权限")
     port_to_write = port_candidate if inspection and inspection.get("adbPortSupported") is True else None
     if keep_adb and port_candidate and not args.apply:
@@ -472,6 +484,10 @@ def configure(args, adb):
                  "--ez", "enable", "true"]
     if direct_home:
         broadcast += ["--ez", "direct_home", "true"]
+    if native_observer:
+        broadcast += ["--ez", "native_observer", "true"]
+    if resume:
+        broadcast += ["--ez", "resume", "true"]
     if selected:
         broadcast += ["--es", "home", selected]
     if keep_adb is not None:
@@ -556,6 +572,8 @@ def configure(args, adb):
                 confirmed = broadcast_data(output)
                 if not confirmed or not confirmed.get("directHomeConfigured"):
                     raise ValueError("直接 HOME 路线未读回确认；已完成的授权保留")
+            if native_observer and (not confirmed or confirmed.get("nativeObserverConfigured") is not True):
+                raise ValueError("直接 HOME 原桌面观察未读回确认；已完成的授权保留")
         if command[:2] == ["appops", "set"] and command[-2] in vendor_before:
             operation = command[-2]
             if adb.current_user() != args.user:
@@ -575,6 +593,8 @@ def main():
     parser.add_argument("--user", type=int, required=True, help="已经核对的前台用户，不预设 0")
     parser.add_argument("--package", choices=["home.quiet.tv", "com.coocaa.quiettv", "com.ts.launcher"], default="home.quiet.tv")
     parser.add_argument("--direct-home", action="store_true", help="配置已核对的 MiBOX3 直接 HOME 按键补偿，不要求原桌面")
+    parser.add_argument("--native-observer", action="store_true", help="已确认厂商绕过默认 HOME 时，保留 Quiet TV HOME 并观察原桌面")
+    parser.add_argument("--resume", action="store_true", help="明确恢复已暂停的守护")
     parser.add_argument("--home", help="本机实际检测到的原主页组件；多候选时指定")
     parser.add_argument("--adb", default="adb")
     parser.add_argument("--apply", action="store_true", help="执行所选授权配置；--adb-only 不启用守护")
