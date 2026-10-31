@@ -21,12 +21,11 @@ public class QuietApplication extends Application {
             public void onActivityDestroyed(Activity activity){}
         });
         HomeGuardSync.refresh(this);HomeGuardAdb.watch(this);
-        if(HomeGuardState.unlocked(this))ManagementAdb.get(this).request();
         BroadcastReceiver screen=new BroadcastReceiver(){@Override public void onReceive(Context context,Intent intent){
             DiagnosticLog.info("screen",intent.getAction());
-            if(Intent.ACTION_SCREEN_OFF.equals(intent.getAction())){KeySounds.stop();SettingsPageCapture.stopCurrent("screen_off");}
+            if(Intent.ACTION_SCREEN_OFF.equals(intent.getAction())){KeySounds.stop();SettingsPageCapture.stopCurrent("screen_off");ManagementAdb management=ManagementAdb.existing();if(management!=null)management.disconnect();}
             if(Intent.ACTION_USER_UNLOCKED.equals(intent.getAction())){KeySounds.prepare(context);new DesktopRoutes(context).restoreAfterUpgrade();}
-            if(!Intent.ACTION_SCREEN_OFF.equals(intent.getAction())){HomeGuardSync.refresh(context);HomeGuardAdb.ensure(context);HomeGuardRecovery.request(context,"亮屏或解锁恢复");if(HomeGuardState.unlocked(context))ManagementAdb.get(context).request();}
+            if(!Intent.ACTION_SCREEN_OFF.equals(intent.getAction())){HomeGuardSync.refresh(context);HomeGuardAdb.ensure(context);HomeGuardRecovery.request(context,"亮屏或解锁恢复");}
         }};
         IntentFilter filter=new IntentFilter(Intent.ACTION_SCREEN_ON);filter.addAction(Intent.ACTION_SCREEN_OFF);
         if(android.os.Build.VERSION.SDK_INT>=24)filter.addAction(Intent.ACTION_USER_UNLOCKED);

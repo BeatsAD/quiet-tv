@@ -2,7 +2,7 @@ package home.quiet.tv;
 
 import java.util.concurrent.*;
 
-/** Process-owned connection; its queue also serializes management commands with health checks. */
+/** Explicit management connection; release stays behind any already queued management command. */
 final class AdbConnectionKeeper {
     interface Client {
         boolean available();
@@ -10,47 +10,44 @@ final class AdbConnectionKeeper {
         void connect() throws Exception;
         void check() throws Exception;
         void disconnect();
-        boolean retryable();
     }
     enum State { DISCONNECTED, CONNECTING, CONNECTED }
     private final Client client;
-    private final ScheduledExecutorService worker;
+    private final ExecutorService worker;
     private final Runnable changed;
-    private ScheduledFuture<?> next;
     private boolean running;
+    private int generation;
     private volatile State state=State.DISCONNECTED;
     private volatile String detail="";
-    AdbConnectionKeeper(Client client,ScheduledExecutorService worker,Runnable changed){this.client=client;this.worker=worker;this.changed=changed;}
+    AdbConnectionKeeper(Client client,ExecutorService worker,Runnable changed){this.client=client;this.worker=worker;this.changed=changed;}
     State state(){return state==State.CONNECTED && !client.connected()?State.DISCONNECTED:state;}
     String detail(){return detail;}
     synchronized void request(){
         if(running)return;
-        if(next!=null){next.cancel(false);next=null;}
-        running=true;
+        running=true;int request=++generation;
         if(!client.connected()){state=State.CONNECTING;detail="正在连接本机 ADB";changed.run();}
-        worker.execute(this::check);
+        worker.execute(()->check(request));
     }
-    private void check(){
-        State before=state;String previousDetail=detail;
-        boolean retry=false;
+    synchronized void disconnect(){
+        generation++;running=false;state=State.DISCONNECTED;detail="";
+        // Do not interrupt a package write before its state verification has completed.
+        worker.execute(client::disconnect);changed.run();
+    }
+    private void check(int request){
+        synchronized(this){if(request!=generation)return;}
+        State result;String explanation;
         try{
             if(!client.available()){
-                client.disconnect();state=State.DISCONNECTED;detail="系统 ADB 未开启或用户尚未解锁";
+                client.disconnect();result=State.DISCONNECTED;explanation="系统 ADB 未开启或用户尚未解锁";
             }else{
                 if(client.connected())client.check();else client.connect();
-                state=State.CONNECTED;detail="已核对本机与当前用户";retry=true;
+                result=State.CONNECTED;explanation="已核对本机与当前用户";
             }
         }catch(Exception failure){
-            retry=client.retryable();client.disconnect();state=State.DISCONNECTED;
-            detail=failure.getMessage()==null?"ADB 连接未完成":failure.getMessage();
-        }finally{
-            synchronized(this){
-                running=false;
-                // A dead port may recover after boot/wake. Authorization and identity failures
-                // wait for a user/lifecycle request rather than repeatedly opening prompts.
-                if(retry)next=worker.schedule(this::request,30,TimeUnit.SECONDS);
-            }
-            if(state!=before || !detail.equals(previousDetail))changed.run();
+            client.disconnect();result=State.DISCONNECTED;
+            explanation=failure.getMessage()==null?"ADB 连接未完成":failure.getMessage();
         }
+        synchronized(this){if(request!=generation)return;running=false;state=result;detail=explanation;}
+        changed.run();
     }
 }
