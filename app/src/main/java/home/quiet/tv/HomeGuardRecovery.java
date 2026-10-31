@@ -126,17 +126,20 @@ final class HomeGuardRecovery {
     }
     static void rebindIfSilent(Context c){
         HomeGuardState state=new HomeGuardState(c);String boot=new BootAppStore(c).bootId();
-        if(!state.ready() || !writeAllowed(c) || boot.isEmpty() || boot.equals(state.preferences.getString("silentRebindBoot","")))return;
+        if(recovering || !state.ready() || !writeAllowed(c) || boot.isEmpty() || boot.equals(state.preferences.getString("silentRebindBoot","")))return;
         if(!state.preferences.edit().putString("silentRebindBoot",boot).commit())return;
+        recovering=true;bindingGeneration++;
         try{
             String current=Settings.Secure.getString(c.getContentResolver(),Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
             if(!Settings.Secure.putString(c.getContentResolver(),Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,HomeGuardPolicy.services(current,guard(c),false)))throw new IllegalStateException();
-            handler.postDelayed(()->{
+            readd=()->{
+                readd=null;recovering=false;
                 if(!new HomeGuardState(c).recoveryReady() || !writeAllowed(c))return;
                 try{restoreEntry(c);}catch(SecurityException|IllegalStateException failure){new HomeGuardState(c).status("无障碍重新绑定未完成");}
-            },HomeGuardPolicy.SETTLE_MS);
+            };
+            handler.postDelayed(readd,HomeGuardPolicy.SETTLE_MS);
             DiagnosticLog.info("home_guard.rebind","source=no_window_events scope=own_service");
-        }catch(SecurityException|IllegalStateException failure){state.status("无障碍重新绑定未完成");}
+        }catch(SecurityException|IllegalStateException failure){recovering=false;state.status("无障碍重新绑定未完成");}
     }
     private static void restoreEntry(Context c){
         boolean missing=!new HomeGuardState(c).serviceEnabled();

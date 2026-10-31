@@ -30,7 +30,7 @@ public final class HomeGuardUsageService extends Service {
         if(!HomeGuardState.canShow(HomeGuardUsageService.this) || HomeGuardService.homeResumed())return;
         HomeGuardState state=new HomeGuardState(HomeGuardUsageService.this,false);
         UsageEvents.Event event=HomeGuardService.latestUsage(HomeGuardUsageService.this,HomeGuardPolicy.USAGE_LOOKBACK_MS);
-        if(event==null)return;
+        if(!HomeGuardService.foreground(event))return;
         ComponentName selected=ComponentName.unflattenFromString(state.selected());
         if(allowOriginal && !state.observedPackage(event.getPackageName()) && !getPackageName().equals(event.getPackageName()))allowOriginal=false;
         if(!allowOriginal && policy.consumeUsage(state.eventHomes(),event.getPackageName(),event.getClassName(),event.getTimeStamp(),System.currentTimeMillis()))

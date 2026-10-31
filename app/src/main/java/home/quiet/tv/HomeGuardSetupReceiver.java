@@ -25,6 +25,7 @@ public final class HomeGuardSetupReceiver extends BroadcastReceiver {
                     .put("nativeObserverSupported",true).put("nativeObserverAvailable",state.nativeObserverAvailable())
                     .put("nativeObserverConfigured",state.nativeObserverConfigured()).put("paused","OFF".equals(state.preferences.getString("mode","AUTO")))
                     .put("usageRequired",HomeGuardService.usageRequired(context)).put("accessibilityAllowed",state.serviceEnabled())
+                    .put("homeEventUsageSupported",state.supported())
                     .put("accessibilityBound",HomeGuardService.connected()).put("physicalHomeVerified",false)
                     .put("permissions",HomeGuardRecovery.permissions(context))
                     .put("adbOnlySupported",true).put("adb",HomeGuardAdb.snapshot(context))

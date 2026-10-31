@@ -158,3 +158,9 @@ python3 configure_home_guard.py --serial "$TV_SERIAL" --user "$TV_USER" --packag
 现有 `home` 规则可附加 `observation`：必须限定品牌、型号、完整固件、原桌面版本及用户，`preserveOriginal=true`；观察对象需 `verified=true`、HTTPS 证据来源，以及 `targets` 数组，每项为实际 `component` 和 `versionCode`。规则由现有适配入口保存，执行前仍检查组件及系统包可用性和版本。包更新、禁用、卸载或规则变化会重新计算目标，使对应旧场景证据失效；扩展观察依赖的包受保护。主动打开原桌面时，允许的原桌面包均暂时放行。
 
 [Aerial 固定源码中的跳转页面参考](https://github.com/pengchujin/aerial-tv/blob/587a2849c58b27dc5854a18eab3b458e1d072b34/app/src/main/java/app/orchard/tv/guard/HomeGuardService.kt)包括乐视 `com.stv.deskplatform.ui.activity.Launcher`、腾讯极光 `com.ktcp.launcher.activity.LauncherHomeSingleTaskActivity`。这里只记录候选来源，没有加入 QuietTV 已验收执行规则；本机页面用途、固件、组件版本和实际行为须分别核对。
+
+## HOME 后窗口事件失效
+
+新版本观察路线的权限计划包含用量统计，用于收到实际 HOME 信号后核对当前前台；专用直接按键补偿保持原权限分流。普通模式等待 1.5 秒，已确认静默后最多以 150 毫秒间隔检查 1.5 秒，重复回调不延长窗口。新窗口、暂停、息屏或切源中止检查；没有新鲜、精确的原桌面前台证据时不接管。前后台事件配对，退出前台不会继续被当作当前桌面，迟到的使用记录不能覆盖更新的窗口事件。
+
+精确适配规则的 `observation.silentUsage=true` 可启用已有每秒观察路径，息屏停止；没有本机证据不对新品牌启用持续观察。运行中恢复仅移除并重新加入自身无障碍登记，每个开机身份至多一次，并与已有恢复请求互斥；旧小米全局切换专项没有扩大范围。

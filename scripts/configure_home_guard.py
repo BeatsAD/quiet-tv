@@ -533,7 +533,7 @@ def configure(args, adb):
     if sdk >= 23:
         plan.append(["appops", "set", *ops_user, args.package, "SYSTEM_ALERT_WINDOW", "allow"])
     vendor = " ".join(adb.shell("getprop", key) for key in ("ro.product.manufacturer", "ro.product.brand")).lower().split()
-    if not direct_home and (sdk <= 23 or "xiaomi" in vendor or "redmi" in vendor or selected.startswith("com.jamdeo.tv.vod/")
+    if not direct_home and (inspection and inspection.get("homeEventUsageSupported") is True or sdk <= 23 or "xiaomi" in vendor or "redmi" in vendor or selected.startswith("com.jamdeo.tv.vod/")
             or sdk == 25 and selected.startswith("com.amazon.tv.launcher/")):
         plan.append(["appops", "set", *ops_user, args.package, "GET_USAGE_STATS", "allow"])
     vendor_before = {}

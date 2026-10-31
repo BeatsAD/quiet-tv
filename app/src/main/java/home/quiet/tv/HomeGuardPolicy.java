@@ -18,6 +18,18 @@ final class HomeGuardPolicy {
     private long arrived,usageTakenAt=Long.MIN_VALUE;
     private boolean consumed,unknownUsed;
     private long inputStarted=-1;
+    static final class SilentHome {
+        private long began=-1,wall;
+        private boolean fast;
+        boolean begin(long now,long wall,boolean fast){if(began>=0)return false;began=now;this.wall=wall;this.fast=fast;return true;}
+        boolean active(){return began>=0;}
+        long delay(){return fast?150:SETTLE_MS;}
+        boolean within(long now){return began>=0 && now>=began && now-began<=SETTLE_MS;}
+        boolean fresh(long at,long latestWindow){return at>=wall && at>=latestWindow;}
+        boolean again(long now){return fast && within(now) && now-began<SETTLE_MS;}
+        void observed(long at){if(at>=began)cancel();}
+        void cancel(){began=-1;}
+    }
 
     void inputSelected(long now){inputStarted=now;}
     void cancelInput(){inputStarted=-1;}
