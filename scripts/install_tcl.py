@@ -35,7 +35,7 @@ def manifest_home_mode(tree):
             names = [item[1] for item in stack]
             application |= element[2] == 'application'
             activity |= element[2] in ('activity', 'activity-alias') and 'application' in names
-        elif re.search(r'A: (?:android|http://schemas.android.com/apk/res/android):name[^=]*="android.intent.category.HOME"', line):
+        elif re.search(r'A: (?:android|http://schemas\.android\.com/apk/res/android):name[^=]*="android.intent.category.HOME"', line):
             names = [item[1] for item in stack]
             if (len(names) >= 4 and names[-3] in ("activity", "activity-alias")
                     and names[-2:] == ["intent-filter", "category"] and "application" in names):
