@@ -279,6 +279,19 @@ def restore_takeover(args, adb, journal, sdk, snapshot):
     print("专项原桌面恢复已读回；保留已选择的 ADB 保持。实体 HOME、重启及唤醒待验收。")
 
 
+def input_profile_matches(desired, saved):
+    if not isinstance(desired, dict) or not isinstance(saved, dict):
+        return False
+    if desired.get("schemaVersion") != 2 or "packageVersions" in desired:
+        return saved == desired
+    # Version 2 binds the requested mapping to the system packages actually read by the app.
+    # Only this app-generated field may differ; never accept changed port records or aliases.
+    versions = saved.get("packageVersions")
+    return (isinstance(versions, dict)
+            and all(isinstance(k, str) and isinstance(v, str) and v.startswith(k + ":") for k, v in versions.items())
+            and {k: v for k, v in saved.items() if k != "packageVersions"} == desired)
+
+
 def input_action(args, adb, journal, snapshot):
     operation = args.action.replace("-", "_")
     before = inspect(adb, args.package, args.user, "profile_get")
@@ -296,6 +309,8 @@ def input_action(args, adb, journal, snapshot):
         desired = json.loads(text)
         if not isinstance(desired, dict) or desired.get("fingerprint") != snapshot["fingerprint"] or len(text) > 8192:
             raise ValueError("配置必须是当前固件的 JSON 对象，且不超过 8192 字符")
+        if desired.get("schemaVersion") == 2 and "input-profile-v2" not in before.get("capabilities", []):
+            raise ValueError("当前 Quiet TV 不支持版本 2 的信号源配置")
         extras["profile_json"] = text
     elif args.action == "input-open":
         extras["source"] = args.source
@@ -311,7 +326,7 @@ def input_action(args, adb, journal, snapshot):
     result = inspect(adb, args.package, args.user, operation, extras=extras)
     journal.event("input_result", result=result)
     saved = result["inputProfile"]["profile"]
-    if args.action == "profile-set" and saved != desired or args.action == "profile-reset" and saved:
+    if args.action == "profile-set" and not input_profile_matches(desired, saved) or args.action == "profile-reset" and saved:
         raise ValueError("本机配置读回不匹配")
     print(json.dumps(result["inputProfile"], ensure_ascii=False, indent=2))
     if args.action == "input-open":
