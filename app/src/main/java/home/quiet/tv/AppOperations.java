@@ -13,12 +13,15 @@ final class AppOperations {
     private final SetupPresets presets;
     AppOperations(Context context){this(context,SetupPresets.load(context));}
     AppOperations(Context context,SetupPresets presets){this.context=context;this.presets=presets;}
-    String protection(AppRepository.App app){
+    String protection(AppRepository.App app){return protection(app,true);}
+    // Hiding only changes launcher visibility; essential system and recovery routes stay protected.
+    String hidingProtection(AppRepository.App app){return protection(app,false);}
+    private String protection(AppRepository.App app,boolean packageManagement){
         if(Arrays.asList("android","com.android.systemui","com.android.settings","com.android.tv.settings","com.android.packageinstaller","com.google.android.packageinstaller","com.android.permissioncontroller","com.google.android.permissioncontroller").contains(app.pkg))return "系统核心组件只读";
         if(app.pkg.equals(context.getPackageName()) || app.pkg.equals("home.quiet.tv.test"))return "Quiet TV 与管理验证组件只读";
         if(home.quiet.proxy.ProxyContract.isPackage(app.pkg))return "HOME 代理请先恢复系统原桌面，再通过系统设置处理";
         if(new HomeGuardState(context,false).protects(app.pkg,presets))return "此原桌面或依赖必须保留";
-        if(app.system && presets.app(app.pkg)==null)return "关键组件或用途未确认的预装包只读";
+        if(packageManagement && app.system && presets.app(app.pkg)==null)return "关键组件或用途未确认的预装包只读";
         if(isHome(app.pkg))return "桌面组件请通过桌面配置与恢复原桌面处理";
         return "";
     }
