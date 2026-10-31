@@ -2,12 +2,13 @@ package home.quiet.tv;
 
 import java.util.concurrent.*;
 
-/** Explicit management connection; release stays behind any already queued management command. */
+/** Cancel handshakes immediately; release established sessions after queued management commands. */
 final class AdbConnectionKeeper {
     interface Client {
         boolean available();
         boolean connected();
-        void connect() throws Exception;
+        int prepare();
+        void connect(int attempt) throws Exception;
         void check() throws Exception;
         void disconnect();
     }
@@ -15,7 +16,7 @@ final class AdbConnectionKeeper {
     private final Client client;
     private final ExecutorService worker;
     private final Runnable changed;
-    private boolean running;
+    private boolean running,connecting;
     private int generation;
     private volatile State state=State.DISCONNECTED;
     private volatile String detail="";
@@ -30,8 +31,9 @@ final class AdbConnectionKeeper {
     }
     synchronized void disconnect(){
         generation++;running=false;state=State.DISCONNECTED;detail="";
-        // Do not interrupt a package write before its state verification has completed.
-        worker.execute(client::disconnect);changed.run();
+        // A handshake must not block its own cancellation. Package writes keep deferred release.
+        if(connecting)client.disconnect();else worker.execute(client::disconnect);
+        changed.run();
     }
     private void check(int request){
         synchronized(this){if(request!=generation)return;}
@@ -40,14 +42,20 @@ final class AdbConnectionKeeper {
             if(!client.available()){
                 client.disconnect();result=State.DISCONNECTED;explanation="系统 ADB 未开启或用户尚未解锁";
             }else{
-                if(client.connected())client.check();else client.connect();
+                boolean connected;int attempt;
+                synchronized(this){
+                    if(request!=generation)return;
+                    connected=client.connected();attempt=connected?0:client.prepare();connecting=!connected;
+                }
+                // Preparation and cancellation share the lock; a cancelled token cannot reopen a transport.
+                if(connected)client.check();else client.connect(attempt);
                 result=State.CONNECTED;explanation="已核对本机与当前用户";
             }
         }catch(Exception failure){
             client.disconnect();result=State.DISCONNECTED;
             explanation=failure.getMessage()==null?"ADB 连接未完成":failure.getMessage();
-        }
-        synchronized(this){if(request!=generation)return;running=false;state=result;detail=explanation;}
+        }finally{synchronized(this){connecting=false;}}
+        synchronized(this){if(request!=generation){client.disconnect();return;}running=false;state=result;detail=explanation;}
         changed.run();
     }
 }
