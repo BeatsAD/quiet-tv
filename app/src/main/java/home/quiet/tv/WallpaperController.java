@@ -37,7 +37,8 @@ final class WallpaperController {
     private final VideoWallpaperPlayer video;
     private final WallpaperBlur wallpaperBlur;
     private final WallpaperAppearance appearance;
-    private int desktopBlur;
+    private int desktopBlur,firstBlur,secondBlur;
+    private float desktopProgress;
     private int desktopBrightness=100,desktopFade=600;
     private boolean fadePending,desktopRevealed;
     private String playingVideo="",failedVideo="";
@@ -131,11 +132,13 @@ final class WallpaperController {
     void setThemeColor(int color){themeColor=color;if(ambient.getVisibility()==View.VISIBLE)ambient.setColor(color);}
     void observeDock(Runnable invalidation){dockInvalidation=invalidation;}
     private void invalidateDock(){if(dockInvalidation!=null)dockInvalidation.run();if(wallpaperBlur!=null)wallpaperBlur.invalidate();}
-    void setDesktopEffects(int blur,int brightness,int fade){desktopBlur=blur;desktopBrightness=brightness;desktopFade=fade;updateDesktopEffects();}
+    void setDesktopEffects(int blur,int brightness,int fade){setDesktopEffects(blur,blur,0,brightness,fade);}
+    void setDesktopEffects(int first,int second,float progress,int brightness,int fade){firstBlur=first;secondBlur=second;desktopProgress=progress;desktopBlur=Math.round(first+(second-first)*progress);desktopBrightness=brightness;desktopFade=fade;updateDesktopEffects();}
+    void interaction(){wallpaperBlur.interaction();}
     private void updateDesktopEffects(){
         // Keep native video at its display resolution. Blur samples that output without replacing it.
-        wallpaperBlur.nativeVideo(video.visible()&&video.ready()&&video.nativeOutput());
-        boolean separate=temporaryMedia!=null||picker!=null;wallpaperBlur.amount(separate?0:desktopBlur);appearance.brightness(separate?100:desktopBrightness);if(separate){fadePending=false;appearance.finish();}
+        wallpaperBlur.nativeVideo(video.visible()&&video.ready()&&video.nativeOutput(),video.outputGeneration());
+        boolean separate=temporaryMedia!=null||picker!=null;if(separate)wallpaperBlur.amount(0);else wallpaperBlur.blend(firstBlur,secondBlur,desktopProgress);appearance.brightness(separate?100:desktopBrightness);if(separate){fadePending=false;appearance.finish();}
     }
     private int fadeDuration(int original){return temporaryMedia!=null||picker!=null?original:desktopFade;}
     private void revealDesktop(boolean changed){if(!active||temporaryMedia!=null||picker!=null)return;if(fadePending||changed){fadePending=false;desktopRevealed=true;appearance.fadeIn(desktopFade);}}
@@ -274,15 +277,17 @@ final class WallpaperController {
     }
     void beforeLeave(Runnable launch){
         if(destroyed||leaving)return;
-        if(!video.visible()){launch.run();return;}
+        wallpaperBlur.suspended(true);
+        Runnable next=()->{try{launch.run();}finally{wallpaperBlur.interaction();wallpaperBlur.suspended(false);}};
+        if(!video.visible()){next.run();return;}
         leaving=true;++request;
         // The existing poster/cache is already drawable. Navigation never waits for PixelCopy.
-        finishLeave(launch);
+        finishLeave(next);
     }
     private void finishLeave(Runnable launch){stopVideo(()->{leaving=false;if(active&&!destroyed)launch.run();});}
     private void restoreSelected(){String id=store.snapshot().current;if(store.snapshot().dynamic()&&!id.equals(failedVideo))startVideo(id,false);else display(id,false);}
     private void schedule(){main.removeCallbacks(rotate);WallpaperCatalog state=store.snapshot();if(active&&temporaryMedia==null&&state.rotating&&picker==null)main.postDelayed(rotate,state.rotationMinutes*60*1000L);}
-    void resume(){if(!active&&!desktopRevealed)fadePending=true;active=true;wallpaperBlur.active(true);updateDesktopEffects();restoreDesktopPending=false;video.setSound(store.snapshot().sound);leaving=false;video.setPaused(false);restoreSelected();if(video.ready()&&videoFade==null&&current.getAlpha()>0f)revealVideo(videoRequest);daily.resume();schedule();}
+    void resume(){if(!active&&!desktopRevealed)fadePending=true;active=true;wallpaperBlur.suspended(false);wallpaperBlur.interaction();wallpaperBlur.active(true);updateDesktopEffects();restoreDesktopPending=false;video.setSound(store.snapshot().sound);leaving=false;video.setPaused(false);restoreSelected();if(video.ready()&&videoFade==null&&current.getAlpha()>0f)revealVideo(videoRequest);daily.resume();schedule();}
     void environmentChanged(){if(temporaryMedia==null)daily.environmentChanged();}
     boolean pickerShowing(){return picker!=null;}
     void showTemporary(String id,Runnable prepared){
