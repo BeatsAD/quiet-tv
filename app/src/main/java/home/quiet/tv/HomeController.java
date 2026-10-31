@@ -78,7 +78,7 @@ final class HomeController {
         if(component.startsWith("com.google.android.tungsten.setupwraith/"))return "Google TV 设置向导正在接管 HOME；当前固件需单独适配，不会自动禁用";
         return "";
     }
-    private Intent requestIntent(){
+    Intent requestIntent(){
         try{
             if(Build.VERSION.SDK_INT>=29){Intent role=Api29.request(context);if(role!=null && role.resolveActivity(pm)!=null)return role;}
             Intent settings=new Intent(Settings.ACTION_HOME_SETTINGS);

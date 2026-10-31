@@ -41,18 +41,19 @@ final class HomeGuardRecovery {
     private static boolean pendingVisibilityEvidence;
     private static String lastAccessibilityDecision="",lastUsageDecision="",lastAccessibilityObservation="",lastUsageObservation="";
     // Only exact stock-home matches, and only decision changes. Never log the foreground app stream.
-    static void observed(String source,String decision,long age){
+    static void observed(String source,String decision,long age){observed(source,"selected_home",decision,age);}
+    static void observed(String source,String target,String decision,long age){
         String previous="usage".equals(source)?lastUsageDecision:lastAccessibilityDecision;
-        if(previous.equals(decision))return;
+        String signature=decision+"|"+target;if(previous.equals(signature))return;
         String id=DiagnosticOperation.nextId(System.currentTimeMillis());
-        if("usage".equals(source)){lastUsageDecision=decision;lastUsageObservation=id;}
-        else{lastAccessibilityDecision=decision;lastAccessibilityObservation=id;}
-        DiagnosticLog.info("home_guard.observation","observation="+id+" source="+source+" target=selected_home decision="+decision+" ageMs="+age);
+        if("usage".equals(source)){lastUsageDecision=signature;lastUsageObservation=id;}
+        else{lastAccessibilityDecision=signature;lastAccessibilityObservation=id;}
+        DiagnosticLog.info("home_guard.observation","observation="+id+" source="+source+" target="+target+" decision="+decision+" ageMs="+age);
     }
     private static DiagnosticOperation diagnostic(String source,HomeGuardState state){return diagnostic(source,state,state.selected());}
     private static DiagnosticOperation diagnostic(String source,HomeGuardState state,String target){
         DiagnosticOperation trace=new DiagnosticOperation("home_guard.handover",System.currentTimeMillis(),SystemClock.elapsedRealtime(),DiagnosticLog::info);
-        String observation="原主页事件".equals(source)?lastAccessibilityObservation:"用量统计原主页".equals(source)?lastUsageObservation:"";
+        String observation="原主页事件".equals(source)?lastAccessibilityObservation:("用量统计原主页".equals(source) || "HOME 后原主页前台证据".equals(source))?lastUsageObservation:("已确认的厂商开机页面".equals(source) || "开机目标被原桌面覆盖".equals(source))?lastAccessibilityObservation:"";
         DiagnosticLog.info("home_guard.source","attempt="+trace.id+" source="+source+" observation="+observation+" target="+target);
         trace.stage("ELIGIBILITY",SystemClock.elapsedRealtime());return trace;
     }
@@ -258,7 +259,9 @@ final class HomeGuardRecovery {
         // A slow first frame may arrive after the confirmation deadline; actual visibility wins.
         state.status("已进入 Quiet TV");
         if(requestedAt!=0){
-            long elapsed=SystemClock.uptimeMillis()-requestedAt;boolean same=requestedHome.equals(state.selected()) || requestedHome.equals(new ComponentName(c,HomeActivity.class).flattenToString());
+            long elapsed=SystemClock.uptimeMillis()-requestedAt;
+            DiagnosticLog.info("home_guard.visibility","attempt="+lastDiagnosticAttempt()+" requestToCallbackMs="+elapsed+" source=home_callback screenVerified=false");
+            boolean same=requestedHome.equals(state.selected()) || requestedHome.equals(new ComponentName(c,HomeActivity.class).flattenToString());
             finishDiagnostic(handoverDiagnostic,same?"VISIBILITY_CALLBACK":"CANCELLED",same?"home_callback_not_screen_proof":"target_changed");
             pendingVisibilityEvidence=false;
             if(confirmation!=null)handler.removeCallbacks(confirmation);confirmation=null;requestedAt=0;requestedHome="";

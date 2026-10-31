@@ -181,3 +181,12 @@ python3 configure_home_guard.py --serial "$TV_SERIAL" --user "$TV_USER" --packag
 服务监听输入设备增加、移除和变化。手柄以真实 GAMEPAD 来源识别，不把只有 JOYSTICK 标记的红外遥控器或虚拟语音设备算作手柄；手柄连接且前台不是桌面时停止过滤。小米输入栈连接鼠标时停止过滤，API29 以下无法确认外接属性时对物理鼠标保守放行。外设移除后重新核对当前路线、前台和权限再恢复。正常系统默认 HOME 且没有专项按键补偿时不请求普通 HOME 过滤。
 
 其他按键继续透传；已接收的 HOME 按下／抬起保持配对，期间暂停或条件失效则不触发动作。短按、长按和双击沿用现有语义；不会修改其他无障碍服务登记。依据 [Android 输入设备接口](https://developer.android.com/reference/android/view/InputDevice) 和 [输入设备监听接口](https://developer.android.com/reference/android/hardware/input/InputManager)；软件用例不能代替厂商鼠标／手柄插拔与输入栈稳定性验收。
+
+
+## 设为桌面与状态入口
+
+桌面设置中的“设为桌面”和“帮助与恢复”打开同一页。页面只读取现有路线、系统 HOME 和当前配置的场景确认记录，不授予权限、不恢复暂停状态、不重新配置守护。系统默认桌面选择入口可用时直接打开；其余配置沿用公开安装页二维码和电脑 AI 流程。仅选择 Quiet TV 或收到首页回调时保持待验证；HOME、重启、断电开机、唤醒四项当前记录均通过，包含确认时间和证据编号且配置有效，才显示“已验证可用”。
+
+`DEVICE_MAINTENANCE` 的 `home-status-v1` 能力和 `desktopStatus` 返回同一状态。旧 APK 没有该能力时电脑端显示未提供状态，保留旧维护路径，不从 `guardConfigured` 推断成功。配置未完成、已暂停、已失效及能力受限分别提示下一步；进入状态页不会自动修复。
+
+“导出诊断”沿用现有局域网下载及脱敏日志，不自动上传。观察事件仅在已匹配的原桌面／开机页面上记录目标组件，关联既有 observation 和 attempt；导出补充权限缺项、恢复检查次数与停止原因。`requestToCallbackMs` 表示启动请求到首页软件回调的耗时，`screenVerified=false`，不能替代实体 HOME 或用户可见画面验收。不记录完整前台应用流或通知内容。

@@ -168,6 +168,11 @@ final class DiagnosticDeviceSnapshot {
     private void guard() throws Exception {
         // Diagnostics must not perform preference migrations or request recovery.
         HomeGuardState state=new HomeGuardState(context,false);
+        line("接管状态",DesktopTakeoverStatus.read(context).snapshot().toString());
+        line("最近接管请求",HomeGuardRecovery.lastDiagnosticAttempt());
+        if(state.enabled())line("补偿权限",HomeGuardRecovery.permissions(context).toString());
+        line("恢复检查次数",String.valueOf(state.preferences.getInt("listenerRecoveryAttempt",0)));
+        line("恢复停止原因",state.preferences.getString("listenerRecovery","未触发"));
         line("系统档位支持",yes(state.supported()));
         line("已配置",yes(state.preferences.getBoolean("configured",false)));
         line("用户模式",state.preferences.getString("mode","未记录"));line("配置开关启用",yes(state.enabled()));

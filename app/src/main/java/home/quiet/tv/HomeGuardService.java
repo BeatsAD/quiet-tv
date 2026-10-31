@@ -221,10 +221,11 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         long hold=store.stockHoldRemaining(state.bootStockMs());
         if(hold>0){handler.removeCallbacks(handover);handler.removeCallbacks(bootHoldCheck);handler.postDelayed(bootHoldCheck,hold);return true;}
         if(store.covered(at)){
+            HomeGuardRecovery.observed("boot",front,"confirmed_stock_cover",System.currentTimeMillis()-at);
             DiagnosticLog.info("home.autostart.cover","event=confirmed_stock_cover retry=once");
             HomeGuardRecovery.launch(this,"开机目标被原桌面覆盖");return true;
         }
-        if(boot){HomeGuardRecovery.launch(this,"已确认的厂商开机页面");return true;}
+        if(boot){HomeGuardRecovery.observed("boot",front,"handover",System.currentTimeMillis()-at);HomeGuardRecovery.launch(this,"已确认的厂商开机页面");return true;}
         return false;
     }
     private final Runnable silentCheck=()->{
@@ -257,15 +258,15 @@ public final class HomeGuardService extends AccessibilityService implements Shar
             if(latest.getTimeStamp()>=lastActivityAt && bootForeground(new ComponentName(pkg,cls.startsWith(".")?pkg+cls:cls).flattenToString(),latest.getTimeStamp()))return;
             ComponentName original=ComponentName.unflattenFromString(state.selected());
             if(allowStock && !state.observedPackage(pkg) && !pkg.equals(getPackageName()))allowStock=false;
-            if(allowStock){if(HomeGuardPolicy.matches(state.eventHomes(),pkg,cls))HomeGuardRecovery.observed("usage","allow_original",now-latest.getTimeStamp());return;}
+            if(allowStock){if(HomeGuardPolicy.matches(state.eventHomes(),pkg,cls))HomeGuardRecovery.observed("usage",new ComponentName(pkg,cls.startsWith(".")?pkg+cls:cls).flattenToString(),"allow_original",now-latest.getTimeStamp());return;}
             String previous=lastPackage;lastPackage=pkg;
             if(!HomeGuardPolicy.matches(state.eventHomes(),pkg,cls))return;
             if("com.tianci.tv".equals(previous))transitionUntil=SystemClock.uptimeMillis()+HomeGuardPolicy.SETTLE_MS;
-            if(SystemClock.uptimeMillis()<transitionUntil){HomeGuardRecovery.observed("usage","settling",now-latest.getTimeStamp());return;}
+            if(SystemClock.uptimeMillis()<transitionUntil){HomeGuardRecovery.observed("usage",new ComponentName(pkg,cls.startsWith(".")?pkg+cls:cls).flattenToString(),"settling",now-latest.getTimeStamp());return;}
             if(policy.consumeUsage(state.eventHomes(),pkg,cls,latest.getTimeStamp(),now)){
-                HomeGuardRecovery.observed("usage","handover",now-latest.getTimeStamp());
+                HomeGuardRecovery.observed("usage",new ComponentName(pkg,cls.startsWith(".")?pkg+cls:cls).flattenToString(),"handover",now-latest.getTimeStamp());
                 DiagnosticLog.info("home_guard.usage_takeover","原主页");HomeGuardRecovery.launch(HomeGuardService.this,"用量统计原主页");
-            }else HomeGuardRecovery.observed("usage","stale_or_consumed",now-latest.getTimeStamp());
+            }else HomeGuardRecovery.observed("usage",new ComponentName(pkg,cls.startsWith(".")?pkg+cls:cls).flattenToString(),"stale_or_consumed",now-latest.getTimeStamp());
         }
     };
     @android.annotation.SuppressLint({"ObsoleteSdkInt","InlinedApi"})
@@ -325,7 +326,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         if(foreground(latest) && silentHome.fresh(latest.getTimeStamp(),lastActivityAt)
                 && policy.consumeUsage(state.eventHomes(),latest.getPackageName(),latest.getClassName(),latest.getTimeStamp(),System.currentTimeMillis())){
             silentHome.cancel();runtimeSilent=true;
-            HomeGuardRecovery.observed("usage","home_signal_without_window",System.currentTimeMillis()-latest.getTimeStamp());
+            HomeGuardRecovery.observed("usage",new ComponentName(latest.getPackageName(),latest.getClassName().startsWith(".")?latest.getPackageName()+latest.getClassName():latest.getClassName()).flattenToString(),"home_signal_without_window",System.currentTimeMillis()-latest.getTimeStamp());
             HomeGuardRecovery.launch(HomeGuardService.this,"HOME 后原主页前台证据");
             HomeGuardRecovery.rebindIfSilent(HomeGuardService.this);return;
         }
@@ -439,7 +440,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         String pkg=event.getPackageName()==null?null:event.getPackageName().toString(),cls=event.getClassName()==null?null:event.getClassName().toString();
         if(pkg==null || cls==null || !activity(pkg,cls))return;
         long now=SystemClock.uptimeMillis(),age=now-event.getEventTime();
-        if(age<0 || age>HomeGuardPolicy.MAX_AGE_MS){if(HomeGuardPolicy.matches(state.eventHomes(),pkg,cls))HomeGuardRecovery.observed("accessibility","stale_event",age);return;}
+        if(age<0 || age>HomeGuardPolicy.MAX_AGE_MS){if(HomeGuardPolicy.matches(state.eventHomes(),pkg,cls))HomeGuardRecovery.observed("accessibility",new ComponentName(pkg,cls.startsWith(".")?pkg+cls:cls).flattenToString(),"stale_event",age);return;}
         silentHome.observed(event.getEventTime());if(!silentHome.active())handler.removeCallbacks(homeProbe);
         sawActivityEvent=true;lastActivity=new ComponentName(pkg,cls.startsWith(".")?pkg+cls:cls).flattenToString();lastActivityAt=System.currentTimeMillis()-age;
         updateKeyFilter();
@@ -458,12 +459,12 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         if(!HomeGuardPolicy.matches(state.eventHomes(),pkg,cls)){
             cancel();if(!pkg.equals(getPackageName()))state.preferences.edit().putBoolean("homeInFront",false).apply();return;
         }
-        if(!usable() || allowStock || !target){HomeGuardRecovery.observed("accessibility",allowStock?"allow_original":!target?"duplicate_window":"configuration_unavailable",age);return;}
-        if(policy.inputTransition(now)){HomeGuardRecovery.observed("accessibility","input_transition",age);schedule("信号源切换");return;}
+        if(!usable() || allowStock || !target){HomeGuardRecovery.observed("accessibility",new ComponentName(pkg,cls.startsWith(".")?pkg+cls:cls).flattenToString(),allowStock?"allow_original":!target?"duplicate_window":"configuration_unavailable",age);return;}
+        if(policy.inputTransition(now)){HomeGuardRecovery.observed("accessibility",new ComponentName(pkg,cls.startsWith(".")?pkg+cls:cls).flattenToString(),"input_transition",age);schedule("信号源切换");return;}
         // Skyworth's source service may briefly show Home before the actual input player.
-        if("com.tianci.tv".equals(previous) || "com.tianci.tv".equals(pkg) || bootSourceDevice() && "com.skyworth.tv".equals(previous) || now<transitionUntil){HomeGuardRecovery.observed("accessibility","settling",age);schedule("主页稳定期");return;}
-        if(policy.consume(state.eventHomes(),now,true,true,true)){HomeGuardRecovery.observed("accessibility","handover",age);HomeGuardRecovery.launch(this,"原主页事件");}
-        else HomeGuardRecovery.observed("accessibility","stale_or_consumed",age);
+        if("com.tianci.tv".equals(previous) || "com.tianci.tv".equals(pkg) || bootSourceDevice() && "com.skyworth.tv".equals(previous) || now<transitionUntil){HomeGuardRecovery.observed("accessibility",new ComponentName(pkg,cls.startsWith(".")?pkg+cls:cls).flattenToString(),"settling",age);schedule("主页稳定期");return;}
+        if(policy.consume(state.eventHomes(),now,true,true,true)){HomeGuardRecovery.observed("accessibility",new ComponentName(pkg,cls.startsWith(".")?pkg+cls:cls).flattenToString(),"handover",age);HomeGuardRecovery.launch(this,"原主页事件");}
+        else HomeGuardRecovery.observed("accessibility",new ComponentName(pkg,cls.startsWith(".")?pkg+cls:cls).flattenToString(),"stale_or_consumed",age);
     }
     @Override public void onInterrupt(){DiagnosticLog.info("home_guard.service","interrupted");cancel();cancelRecoveryChecks();}
     @Override public boolean onUnbind(Intent intent){

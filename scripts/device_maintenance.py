@@ -56,6 +56,14 @@ def inspect(adb, package, user, operation="inspect", target=None, home=None, ext
     return result
 
 
+def desktop_status(snapshot):
+    status = snapshot.get("desktopStatus")
+    if "home-status-v1" in snapshot.get("capabilities", []) and isinstance(status, dict) and status.get("code") in {
+            "unconfigured", "incomplete", "pending", "verified", "repair", "paused", "limited"}:
+        return status
+    return {"code": "unknown", "title": "此 APK 未提供接管状态", "next": "通过电脑逐项核对配置与实体结果，不能据此判定接管成功。"}
+
+
 def remember_home(adb, package, user, home):
     """Call only before changing native HOME; never replace an existing recovery baseline."""
     before = inspect(adb, package, user)
@@ -374,6 +382,7 @@ def run(args, adb, journal):
     journal.event("maintenance_before", serial=args.serial, snapshot=snapshot)
     if args.action == "inspect":
         print(json.dumps(snapshot, ensure_ascii=False, indent=2))
+        print("桌面接管：" + desktop_status(snapshot)["title"], file=sys.stderr)
     elif args.action == "management-config":
         if "daily-app-management-v1" not in snapshot.get("capabilities", []):
             raise ValueError("已安装 APK 尚不支持日常应用管理配置")

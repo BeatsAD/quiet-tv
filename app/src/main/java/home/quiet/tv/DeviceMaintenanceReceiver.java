@@ -49,6 +49,8 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
         if(!BuildConfig.LEGACY_19)value.put("routes",new DesktopRoutes(context,false).snapshot());
         value.put("capabilities",new org.json.JSONArray().put("input-profile-v1").put("takeover-restore-v1").put("proxy-repair-v1").put("adaptation-rules-v1").put("takeover-record-v1"));
         value.put("adaptation",new DeviceAdaptation(context).snapshot());
+        value.put("desktopStatus",DesktopTakeoverStatus.read(context).snapshot());
+        value.getJSONArray("capabilities").put("home-status-v1");
         value.getJSONArray("capabilities").put("daily-app-management-v1");
         if(guard.supported())value.getJSONArray("capabilities").put("home-observation-v1").put("home-key-filter-v1");
         android.content.SharedPreferences daily=context.getSharedPreferences("adb",0);
