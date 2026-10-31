@@ -37,7 +37,7 @@ def direct_boot_home(tree):
                 activities.append(node)
             stack.append((depth, element[2], node))
         elif stack:
-            attr = re.search(r'A: (?:android|http://schemas.android.com/apk/res/android):(name|directBootAware)[^=]*=(.*)', line)
+            attr = re.search(r'A: (?:android|http://schemas\.android\.com/apk/res/android):(name|directBootAware)[^=]*=(.*)', line)
             if attr:
                 value = attr[2]
                 if attr[1] == 'name':
