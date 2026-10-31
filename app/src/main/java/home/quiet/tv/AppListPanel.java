@@ -72,7 +72,7 @@ final class AppListPanel extends ManagementPanel {
             option.setNextFocusUpId(managementTab().getId());filterButtons.add(option);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,-1);if(i>0)p.leftMargin=px(10);filters.addView(option,p);}
         for(int i=0;i<filterButtons.size();i++){Button b=filterButtons.get(i);if(i>0)b.setNextFocusLeftId(filterButtons.get(i-1).getId());if(i+1<filterButtons.size())b.setNextFocusRightId(filterButtons.get(i+1).getId());}
         filters.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));
-        managementConnection=button("连接 ADB",this::connectManagement);styleManagementTab(managementConnection,true);
+        managementConnection=button("ADB 未连接",this::connectManagement);styleManagementTab(managementConnection,true);
         managementConnection.setOnKeyListener((v,key,event)->{
             if(key==KeyEvent.KEYCODE_DPAD_LEFT){if(event.getAction()==KeyEvent.ACTION_DOWN)filterButtons.get(filterButtons.size()-1).requestFocus();return true;}return false;
         });
@@ -90,17 +90,17 @@ final class AppListPanel extends ManagementPanel {
     private void ui(Runnable action){runOnUiThread(()->{if(!isDestroyed() && !isFinishing())action.run();});}
     private void updateManagementConnection(){
         if(managementConnection==null)return;connecting=session.state()==AdbConnectionKeeper.State.CONNECTING;boolean connected=session.state()==AdbConnectionKeeper.State.CONNECTED;
-        managementConnection.setText(connecting?"取消 ADB 连接":connected?"断开 ADB":"连接 ADB");
+        managementConnection.setText(connecting?"ADB 连接中…":connected?"ADB 已连接":"ADB 未连接");
         int color=connecting?0xffe5b384:connected?0xff64c49a:MUTED;
         managementConnection.setTextColor(color);
         managementConnection.setContentDescription(managementConnection.getText()+"  "+session.detail());
-        managementConnection.setEnabled(!busy);
+        managementConnection.setEnabled(!busy && !connecting);
     }
     @Override void managementConnected(){dirty=true;if(active){if(busy)refreshAfterConnection=true;else refresh();}}
     @Override void managementMoreOptions(LinearLayout menu){managementMoreOption(menu,"应用自启",this::startupSettings);managementMoreOption(menu,"操作记录",()->{try{Sheet sheet=new Sheet("操作记录");sheet.text(operations.history());sheet.action("关闭",sheet.dialog::dismiss);sheet.show(null);}catch(Exception e){message(e.getMessage());}});super.managementMoreOptions(menu);}
-    @Override protected void onResume(){super.onResume();active=true;session.addListener(connectionChanged);updateManagementConnection();if(dirty)refresh();else renderDetails();}
+    @Override protected void onResume(){super.onResume();active=true;session.addListener(connectionChanged);session.request();updateManagementConnection();if(dirty)refresh();else renderDetails();}
     @Override void focusManagementContent(){filterButtons.get(filter).requestFocus();}
-    @Override protected void onStop(){active=false;session.removeListener(connectionChanged);session.disconnect();manualConnection=false;refreshAfterConnection=false;refreshGeneration++;dirty=true;if(reading){reading=false;busy=false;}coverUploads.close();super.onStop();}
+    @Override protected void onStop(){active=false;session.removeListener(connectionChanged);manualConnection=false;refreshAfterConnection=false;refreshGeneration++;dirty=true;if(reading){reading=false;busy=false;}coverUploads.close();super.onStop();}
     @Override protected void onDestroy(){session.removeListener(connectionChanged);unregisterReceiver(packagesChanged);coverUploads.destroy();super.onDestroy();}
     @Override protected void onSaveInstanceState(Bundle state){state.putString("selected",selected);state.putInt("filter",filter);super.onSaveInstanceState(state);}
     private void refresh(){
@@ -179,10 +179,8 @@ final class AppListPanel extends ManagementPanel {
         });
     }
     private void connectManagement(){
-        if(busy || !active)return;
-        if(session.state()!=AdbConnectionKeeper.State.DISCONNECTED){manualConnection=false;session.disconnect();}
-        else{manualConnection=true;session.request();}
-        updateManagementConnection();
+        if(busy || connecting || !active)return;
+        manualConnection=!adb.connected();session.request();updateManagementConnection();
     }
     private void confirmOperation(AppRepository.App app,AppOperations.Action action){
         Sheet sheet=new Sheet(action.label+"应用？");sheet.text(app.label+"\n"+operations.explanation(app,action));
