@@ -12,6 +12,8 @@ import android.widget.FrameLayout;
 import java.io.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /** One playback Looper owns the decoder; each output acknowledges detachment separately. */
 final class VideoWallpaperPlayer {
@@ -38,6 +40,7 @@ final class VideoWallpaperPlayer {
     private boolean compositeOutput;
     private final FrameLayout host,frame;
     private final Handler main=new Handler(Looper.getMainLooper());
+    private final ExecutorService copies=Executors.newSingleThreadExecutor();
     private static final Handler worker=playbackWorker();
     private final BroadcastReceiver screen=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent i){screenOff=Intent.ACTION_SCREEN_OFF.equals(i.getAction());if(screenOff)release();else start();}};
     // Only the playback Looper reads or writes the decoder and its Surface.
@@ -140,19 +143,27 @@ final class VideoWallpaperPlayer {
         // Preserve the native view's aspect; the wallpaper snapshot applies the viewport crop.
         float scale=Math.min(width/(float)captured.view.getWidth(),height/(float)captured.view.getHeight());
         int copyWidth=Math.max(1,Math.round(captured.view.getWidth()*scale)),copyHeight=Math.max(1,Math.round(captured.view.getHeight()*scale));
-        Bitmap image;
-        try{image=Bitmap.createBitmap(copyWidth,copyHeight,Bitmap.Config.ARGB_8888);}catch(OutOfMemoryError e){callback.ready(null);return;}
-        try{Api24.copy((SurfaceView)captured.view,image,main,success->{
-            if(success&&rendered&&current(captured,request))callback.ready(image);else{image.recycle();callback.ready(null);}
-        });}catch(RuntimeException e){image.recycle();callback.ready(null);}
+        Surface surface=((SurfaceView)captured.view).getHolder().getSurface();
+        // Android 12 copies before posting the callback. Keep the request itself off the UI and decoder Loopers.
+        copies.execute(()->{
+            if(request!=generation){main.post(()->callback.ready(null));return;}
+            Bitmap image;
+            try{image=Bitmap.createBitmap(copyWidth,copyHeight,Bitmap.Config.ARGB_8888);}catch(OutOfMemoryError e){main.post(()->callback.ready(null));return;}
+            try{Api24.copy(surface,image,main,success->{
+                if(success&&rendered&&current(captured,request))callback.ready(image);else{image.recycle();callback.ready(null);}
+            });}catch(RuntimeException e){image.recycle();main.post(()->callback.ready(null));}
+        });
     }
     @android.annotation.TargetApi(24) private static final class Api24 {
         interface Result {void ready(boolean success);}
-        static void copy(SurfaceView view,Bitmap image,Handler handler,Result result){PixelCopy.request(view,image,status->result.ready(status==PixelCopy.SUCCESS),handler);}
+        static void copy(Surface surface,Bitmap image,Handler handler,Result result){
+            Trace.beginSection("QuietTV.PixelCopy");
+            try{PixelCopy.request(surface,image,status->result.ready(status==PixelCopy.SUCCESS),handler);}finally{Trace.endSection();}
+        }
     }
     void stop(){enabled=false;release();if(target==null)frame.setVisibility(View.GONE);entry=null;listener=null;}
     void destroy(){
-        if(destroyed)return;destroyed=true;stop();activity.unregisterReceiver(screen);main.removeCallbacksAndMessages(null);
+        if(destroyed)return;destroyed=true;stop();copies.shutdownNow();activity.unregisterReceiver(screen);main.removeCallbacksAndMessages(null);
     }
     private boolean current(Target candidate){return candidate==target&&candidate.request==generation&&!candidate.retired&&enabled&&!screenOff&&!destroyed;}
     private boolean current(Target candidate,int request){return candidate.request==request&&current(candidate);}

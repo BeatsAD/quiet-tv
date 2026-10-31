@@ -301,7 +301,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         int home=desktopSettings.homeWallpaperBlur(),second=desktopSettings.secondWallpaperBlur();
         int homeBrightness=desktopSettings.homeWallpaperBrightness(),secondBrightness=desktopSettings.secondWallpaperBrightness();
         int homeFade=desktopSettings.homeWallpaperFade(),secondFade=desktopSettings.secondWallpaperFade();
-        wallpapers.setDesktopEffects(Math.round(home+(second-home)*progress),Math.round(homeBrightness+(secondBrightness-homeBrightness)*progress),Math.round(homeFade+(secondFade-homeFade)*progress));
+        wallpapers.setDesktopEffects(home,second,progress,Math.round(homeBrightness+(secondBrightness-homeBrightness)*progress),Math.round(homeFade+(secondFade-homeFade)*progress));
     }
 
     private void setPillIcon(TextView pill,int resource){homeHeader.setPillIcon(pill,resource);}
@@ -716,6 +716,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         int kind=key==KeyEvent.KEYCODE_DPAD_LEFT || key==KeyEvent.KEYCODE_DPAD_RIGHT || key==KeyEvent.KEYCODE_DPAD_UP || key==KeyEvent.KEYCODE_DPAD_DOWN?1
             :key==KeyEvent.KEYCODE_DPAD_CENTER || key==KeyEvent.KEYCODE_ENTER || key==KeyEvent.KEYCODE_NUMPAD_ENTER?2
             :key==KeyEvent.KEYCODE_VOLUME_UP || key==KeyEvent.KEYCODE_VOLUME_DOWN || key==KeyEvent.KEYCODE_VOLUME_MUTE?4:0;
+        if(event.getAction()==KeyEvent.ACTION_DOWN&&wallpapers!=null&&(kind==1||kind==2||key==KeyEvent.KEYCODE_BACK))wallpapers.interaction();
         if(kind!=0 && event.getAction()==KeyEvent.ACTION_DOWN && event.getRepeatCount()==0 && (observedInputKinds&kind)==0){
             observedInputKinds|=kind;long received=SystemClock.uptimeMillis();
             DiagnosticLog.info("home.input.first","instance="+homeInstance+" resume="+homeResumeSequence+" kind="+kind+" key="+key+" eventUptimeMs="+event.getEventTime()+" receivedUptimeMs="+received
