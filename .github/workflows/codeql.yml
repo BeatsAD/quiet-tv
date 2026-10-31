@@ -1,0 +1,87 @@
+name: CodeQL
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '24 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    name: Android (${{ matrix.compatibility }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        compatibility: [standard, legacy14, legacy19]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install Android SDK platform
+        run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0"'
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          languages: java-kotlin
+          build-mode: manual
+      - name: Compile Android source and optional helpers
+        env:
+          COMPATIBILITY: ${{ matrix.compatibility }}
+        shell: bash
+        run: |
+          tasks=(:app:compileDebugJavaWithJavac)
+          options=(-PquietCompatibility="$COMPATIBILITY")
+          if [ "$COMPATIBILITY" = standard ]; then
+            tasks+=(:home-proxy:compileDebugJavaWithJavac :coocaa-home-shim:compileDebugJavaWithJavac :xiaomi-home-helper:compileDebugJavaWithJavac)
+            options+=(-PquietHomeProxy=true -PquietCoocaaShim=true -PquietXiaomiHelper=true)
+          fi
+          ./gradlew "${tasks[@]}" "${options[@]}" \
+            -PquietBuildRoot="$RUNNER_TEMP/codeql-$COMPATIBILITY" \
+            --no-daemon --no-build-cache --rerun-tasks --console=plain
+      - name: Analyze Android source
+        uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          category: /language:java-kotlin/profile:${{ matrix.compatibility }}
+
+  scripts:
+    name: Scripts and workflows (${{ matrix.language }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [actions, javascript-typescript, python]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+      - name: Analyze scripts and workflows
+        uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          category: /language:${{ matrix.language }}

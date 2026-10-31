@@ -11,6 +11,7 @@ final class StartupDestinationPanel extends ManagementPanel {
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private LinearLayout content;
     private BootAppStore store;
+    private DesktopSettingsStore desktop;
     private boolean busy;
     private int generation;
     private boolean enableAfterTest;
@@ -21,6 +22,7 @@ final class StartupDestinationPanel extends ManagementPanel {
     private String tr(String zh,String en){return activity.tr(zh,en);}
     @Override public void onCreate(Bundle saved){
         store=new BootAppStore(this);
+        desktop=new DesktopSettingsStore(this);
         if(saved!=null){enableAfterTest=saved.getBoolean("enable-after-test",false);focusTag=saved.getString("focus");}
         pageRoot=column();activity.attachPanel(pageRoot);
         ScrollView scroll=new ScrollView(activity);scroll.setFocusable(false);scroll.setVerticalScrollBarEnabled(false);
@@ -40,13 +42,15 @@ final class StartupDestinationPanel extends ManagementPanel {
     }
     private void render(){
         boolean restore=pageRoot.hasFocus();remember();content.removeAllViews();
+        DesktopSettingsRow visible=action(tr("显示看电视","Show Watch TV"),"show-watch-tv",()->save(()->desktop.showWatchTv(!desktop.showWatchTv())));
+        visible.checked(desktop.showWatchTv());first=visible;
         DesktopSettingsRow target=action(tr("电视信号源","TV source"),"choose",this::choose);
-        target.value(store.watchTarget().isEmpty()?tr("请选择","Choose"):store.watchLabel());target.tail("arrow");first=target;
+        target.value(store.watchTarget().isEmpty()?tr("请选择","Choose"):store.watchLabel());target.tail("arrow");
         DesktopSettingsRow boot=action(tr("开机自动看电视","Watch TV on startup"),"boot",this::toggleBoot);
         boot.checked(store.hdmiBoot());boot.available(!store.watchTarget().isEmpty()&&Build.VERSION.SDK_INT>=21);
         DesktopSettingsRow watch=action(tr("立即观看","Watch now"),"test",()->test(false));watch.tail("arrow");
         watch.available(!store.watchTarget().isEmpty()&&Build.VERSION.SDK_INT>=21);
-        activity.wireRows(new DesktopSettingsRow[]{target,boot,watch},managementTab());
+        activity.wireRows(new DesktopSettingsRow[]{visible,target,boot,watch},managementTab());
         if(restore)focusManagementContent();
     }
     private interface Write {void run() throws Exception;}

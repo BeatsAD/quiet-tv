@@ -39,7 +39,7 @@ final class HomePreviewView extends FrameLayout {
         wallpaper=new ImageView(context);wallpaper.setScaleType(ImageView.ScaleType.CENTER_CROP);background.addView(wallpaper,new FrameLayout.LayoutParams(-1,-1));
         shade=new View(context);shade.setBackgroundDrawable(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x70000000,0x10000000,0xf00a0e15}));background.addView(shade,new FrameLayout.LayoutParams(-1,-1));
         ambient=new WallpaperController.Ambient(context,1);background.addView(ambient,new FrameLayout.LayoutParams(-1,-1));ambient.setColor(0xff666972);
-        wallpaperBlur=new WallpaperBlur(background,(width,height)->WallpaperBlur.snapshot(width,height,null,wallpaper,shade,ambient));
+        wallpaperBlur=new WallpaperBlur(background,(width,height,result)->result.ready(WallpaperBlur.snapshot(width,height,null,wallpaper,shade,ambient)));
         appearance=new WallpaperAppearance(background,this::invalidateDock);
         typeface=!chinese&&Build.VERSION.SDK_INT>=26?Typeface.createFromAsset(context.getAssets(),"fonts/outfit.ttf"):Typeface.create("sans-serif",Typeface.NORMAL);
         header=new HomeHeaderView(context,1,chinese,typeface);scene.addView(header,new FrameLayout.LayoutParams(-1,-1));
