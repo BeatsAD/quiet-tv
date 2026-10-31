@@ -88,8 +88,8 @@ final class HomePreviewView extends FrameLayout {
             ArrayList<String> packages=new DockStore(context).load();ArrayList<Bitmap> art=new ArrayList<>();ArrayList<String> names=new ArrayList<>();ArrayList<HomeAppCatalog.Entry> catalogApps=new HomeAppCatalog(context).load(packages);
             for(String pkg:packages)for(HomeAppCatalog.Entry app:catalogApps)if(pkg.equals(app.id)){names.add(app.label);art.add(app.info==null?HomeEntryArtwork.render(context,app.label,app.id):AppArtwork.load(context,app.info));break;}
             ArrayList<String> gridIds=HomeAppCatalog.gridIds(catalogApps,packages);
+            if(!new DesktopSettingsStore(context).showHomeApps())gridIds.addAll(HomeAppCatalog.pinnedIds(catalogApps,packages));
             gridIds=HomeOrderStore.project(new HomeOrderStore(context).load(),gridIds);
-            if(!new DesktopSettingsStore(context).showHomeApps())for(String id:packages)if(!gridIds.contains(id))gridIds.add(id);
             ArrayList<Bitmap> gridArt=new ArrayList<>();ArrayList<String> gridNames=new ArrayList<>();
             for(String id:gridIds){
                 if(gridArt.size()>=20)break;
