@@ -49,6 +49,8 @@ final class WeatherData {
         if(WeatherRegions.coordinates(latitude,longitude))result.put("latitude",latitude).put("longitude",longitude);return result;
     }
     static long reportTime(String text,long received){
+        // Keep untrusted timestamps within the same bound as other weather text fields.
+        if(text.length()>120)return 0;
         Matcher relative=Pattern.compile("(\\d+)\\s*(分钟|小时|minutes?|hours?)",Pattern.CASE_INSENSITIVE).matcher(text);
         if(relative.find())try{
             long count=Long.parseLong(relative.group(1));if(count>100000)return 0;
