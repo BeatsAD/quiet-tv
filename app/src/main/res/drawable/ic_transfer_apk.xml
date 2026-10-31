@@ -1,11 +1,11 @@
+<!-- Google Material Symbols: apk_document (filled), Apache-2.0.
+     Original path retained; translated from the SVG negative-Y viewBox.
+     See assets/licenses/material-symbols-NOTICE.txt. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="34dp" android:height="42dp"
-    android:viewportWidth="64" android:viewportHeight="80">
-    <path android:fillColor="#FFB6BBC3"
-        android:pathData="M10,0H40L60,20V74Q60,80 54,80H10Q4,80 4,74V6Q4,0 10,0Z" />
-    <path android:fillColor="#FF7D8591"
-        android:pathData="M40,0V16Q40,20 44,20H60Z" />
-    <path android:fillColor="#00000000" android:strokeColor="#FF20242B"
-        android:strokeWidth="2.4" android:strokeLineCap="round" android:strokeLineJoin="round"
-        android:pathData="M12,69L18,53L24,69M14,64H22M29,69V53H34C42,53 42,61 34,61H29M44,53V69M54,53L44,62L54,69" />
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="960" android:viewportHeight="960">
+    <group android:translateY="960">
+        <path android:fillColor="#FFB6BBC3"
+            android:pathData="M240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v480q0 33-23.5 56.5T720-80H240Zm40-120h400q-4-49-30-90t-68-65l38-68q2-4 1-9t-6-7q-4-2-8.5-1t-6.5 5l-39 70q-20-8-40-12.5t-41-4.5q-21 0-41 4.5T399-365l-39-70q-2-5-6.5-5t-9.5 2l-4 15 38 68q-42 24-68 65t-30 90Zm110-60q-8 0-14-6t-6-14q0-8 6-14t14-6q8 0 14 6t6 14q0 8-6 14t-14 6Zm180 0q-8 0-14-6t-6-14q0-8 6-14t14-6q8 0 14 6t6 14q0 8-6 14t-14 6Zm-50-340h200L520-800v200Z" />
+    </group>
 </vector>
