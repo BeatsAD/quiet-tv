@@ -397,10 +397,15 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         if(!resumed || Build.VERSION.SDK_INT<21)return;
         String id=DeviceInputProfile.consume();if(id.isEmpty())return;
         try{
-            TvInputInfo input=new TvInputController(this).findInput(id);
-            if(input==null){DeviceInputProfile.dispatched(false);return;}
-            if(tvInputs==null)tvInputs=new TvInputs();
-            leaveSystemEntry("input.maintenance",()->{boolean opened=tvInputs.launchInput(input);DeviceInputProfile.dispatched(opened);systemEntryResult(opened);});
+            TvInputController.Snapshot snapshot=new TvInputController(this).inspectSources();
+            for(VendorTvInputs.Source source:snapshot.vendor.sources)if(id.equals(source.key)){
+                leaveSystemEntry("input.maintenance",()->{boolean opened=new VendorTvInputs(this).open(source);DeviceInputProfile.dispatched(opened);systemEntryResult(opened);});return;
+            }
+            for(TvInputInfo input:snapshot.inputs)if(id.equals(input.getId())){
+                if(tvInputs==null)tvInputs=new TvInputs();
+                leaveSystemEntry("input.maintenance",()->{boolean opened=tvInputs.launchInput(input);DeviceInputProfile.dispatched(opened);systemEntryResult(opened);});return;
+            }
+            DeviceInputProfile.dispatched(false);
         }catch(RuntimeException failure){DeviceInputProfile.dispatched(false);DiagnosticLog.error("input.maintenance.failed",failure);}
     }
 

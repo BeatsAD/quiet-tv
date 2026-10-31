@@ -6,10 +6,11 @@ import android.os.Build;
 import org.json.*;
 import java.util.*;
 
-/** Per-firmware corrections to enumerated inputs, never arbitrary intents or shell commands. */
+/** Per-firmware input corrections. Version 2 adds explicit native ports and cross-provider aliases. */
 final class DeviceInputProfile {
     private final Context context;
     private final SharedPreferences prefs;
+    private static final Object profileLock=new Object();
     private static String pending="",request="";
     private static JSONObject last=new JSONObject();
     DeviceInputProfile(Context c){context=c;prefs=c.getSharedPreferences("device-input-profile",Context.MODE_PRIVATE);}
@@ -18,18 +19,24 @@ final class DeviceInputProfile {
         StringBuilder out=new StringBuilder();for(byte b:bytes)out.append(String.format(java.util.Locale.ROOT,"%02x",b&255));return out.toString();
     }
     static JSONObject validate(String text,String fingerprint,Set<String> inputs,Set<String> xiaomi) throws Exception {
+        return validate(text,fingerprint,inputs,xiaomi,Collections.emptyMap(),Collections.emptyMap());
+    }
+    static JSONObject validate(String text,String fingerprint,Set<String> inputs,Set<String> xiaomi,Map<String,Integer> vendor,Map<String,Integer> standard) throws Exception {
         if(text.length()>8192)throw new IllegalArgumentException("本机配置过长");
         JSONObject value=new JSONObject(text);
         Set<String> fields=new HashSet<>(Arrays.asList("schemaVersion","fingerprint","hidden","labels","routes","xiaomiSources"));
+        int schema=value.getInt("schemaVersion");
+        if(schema==2)fields.addAll(Arrays.asList("nativeSources","vendorAliases","packageVersions"));
         for(Iterator<String> keys=value.keys();keys.hasNext();)if(!fields.contains(keys.next()))throw new IllegalArgumentException("未知配置字段");
-        if(value.getInt("schemaVersion")!=1 || !fingerprint.equals(value.getString("fingerprint")))throw new IllegalArgumentException("配置不属于当前固件");
+        if((schema!=1&&schema!=2) || !fingerprint.equals(value.getString("fingerprint")))throw new IllegalArgumentException("配置不属于当前固件");
+        Set<String> configurable=new HashSet<>(inputs);if(schema==2)configurable.addAll(vendor.keySet());
         JSONArray hidden=value.has("hidden")?value.getJSONArray("hidden"):new JSONArray();Set<String> seen=new HashSet<>();
-        for(int i=0;i<hidden.length();i++){String id=hidden.getString(i);if(!inputs.contains(id) || !seen.add(id))throw new IllegalArgumentException("隐藏项不是本机唯一信号源");}
+        for(int i=0;i<hidden.length();i++){String id=hidden.getString(i);if(!configurable.contains(id) || !seen.add(id))throw new IllegalArgumentException("隐藏项不是本机唯一信号源");}
         JSONObject routes=value.has("routes")?value.getJSONObject("routes"):new JSONObject();
         for(String field:new String[]{"labels","routes","xiaomiSources"}){
             JSONObject map=value.has(field)?value.getJSONObject(field):new JSONObject();
             for(Iterator<String> keys=map.keys();keys.hasNext();){String id=keys.next();Object item=map.get(id);
-                if(!inputs.contains(id))throw new IllegalArgumentException("配置引用未知信号源");
+                if(!("labels".equals(field)?configurable:inputs).contains(id))throw new IllegalArgumentException("配置引用未知信号源");
                 if("labels".equals(field)){
                     if(!(item instanceof String) || ((String)item).trim().isEmpty() || ((String)item).length()>40 || ((String)item).matches("(?s).*[\\p{Cntrl}].*"))throw new IllegalArgumentException("信号源名称无效");
                 }else if("routes".equals(field)){
@@ -37,19 +44,36 @@ final class DeviceInputProfile {
                 }else if(!(item instanceof Integer) || (Integer)item<19 || (Integer)item>32 || !xiaomi.contains(id) || routes.has(id))throw new IllegalArgumentException("本机没有对应的小米 HDMI 播放入口");
             }
         }
+        if(schema==2){
+            for(VendorTvInputs.Source source:XiaomiInputs.records(value))if(!vendor.containsKey(source.key))throw new IllegalArgumentException("本机没有可用的小米原生端口协议");
+            JSONObject aliases=value.has("vendorAliases")?value.getJSONObject("vendorAliases"):new JSONObject();Set<String> targets=new HashSet<>();
+            for(Iterator<String> keys=aliases.keys();keys.hasNext();){String source=keys.next();Object target=aliases.get(source);
+                if(!(target instanceof String)||!vendor.containsKey(source)||!standard.containsKey(target)||vendor.get(source)<0||!vendor.get(source).equals(standard.get(target))||!targets.add((String)target)||routes.has((String)target))throw new IllegalArgumentException("端口对应必须引用同类型的本机唯一输入，不能与入口重映射冲突");
+                JSONObject overrides=value.optJSONObject("xiaomiSources");
+                if(source.startsWith("xiaomi:")&&overrides!=null&&overrides.has((String)target)&&!source.equals("xiaomi:"+overrides.getInt((String)target)))throw new IllegalArgumentException("小米端口对应与播放器编号冲突");
+            }
+            if(value.has("packageVersions"))value.getJSONObject("packageVersions");
+        }
         return value;
     }
     JSONObject active(){
-        try{JSONObject value=new JSONObject(prefs.getString("profile","{}"));return Build.FINGERPRINT.equals(value.optString("fingerprint"))?value:new JSONObject();}
+        try{JSONObject value=new JSONObject(prefs.getString("profile","{}"));return Build.FINGERPRINT.equals(value.optString("fingerprint"))&&(value.optInt("schemaVersion")==1||value.optInt("schemaVersion")==2&&packagesMatch(value.optJSONObject("packageVersions")))?value:new JSONObject();}
         catch(JSONException invalid){return new JSONObject();}
     }
+    private boolean packagesMatch(JSONObject versions){
+        if(versions==null)return false;
+        try{for(Iterator<String> keys=versions.keys();keys.hasNext();){String pkg=keys.next();if(!VendorTvInputs.packageStamp(context,pkg).equals(versions.getString(pkg)))return false;}return true;}
+        catch(Exception unavailable){return false;}
+    }
+    String vendorTarget(String key){JSONObject aliases=active().optJSONObject("vendorAliases");return aliases==null?"":aliases.optString(key);}
+    boolean aliasHidden(String standard){JSONObject aliases=active().optJSONObject("vendorAliases");if(aliases!=null)for(Iterator<String> keys=aliases.keys();keys.hasNext();){String key=keys.next();if(standard.equals(aliases.optString(key))&&hidden(key))return true;}return false;}
     boolean hidden(String id){JSONArray values=active().optJSONArray("hidden");if(values!=null)for(int i=0;i<values.length();i++)if(id.equals(values.optString(i)))return true;return false;}
     String label(String id){JSONObject values=active().optJSONObject("labels");return values==null?"":values.optString(id);}
     String target(String id){JSONObject values=active().optJSONObject("routes");return values==null?id:values.optString(id,id);}
     Integer xiaomi(String id){JSONObject values=active().optJSONObject("xiaomiSources");return values!=null && values.has(id)?values.optInt(id):null;}
     JSONObject snapshot() throws Exception {
         String raw=prefs.getString("profile","");JSONObject profile=raw.isEmpty()?new JSONObject():new JSONObject(raw);
-        return new JSONObject().put("revision",digest(raw)).put("state",raw.isEmpty()?"default":Build.FINGERPRINT.equals(profile.optString("fingerprint"))?"active":"stale")
+        return new JSONObject().put("revision",digest(raw)).put("state",raw.isEmpty()?"default":active().length()>0?"active":"stale")
             .put("profile",profile).put("lastInput",last);
     }
     @android.annotation.SuppressLint("ApplySharedPref")
@@ -58,17 +82,58 @@ final class DeviceInputProfile {
         String desired="";
         if(!reset){
             if(Build.VERSION.SDK_INT<21)throw new IllegalStateException("本档位没有标准信号源配置接口");
+            JSONObject proposed=new JSONObject(text);
             TvInputController controller=new TvInputController(context);Set<String> ids=new HashSet<>(),xiaomi=new HashSet<>();
-            for(TvInputInfo input:controller.rawInputs())if(input.isPassthroughInput() && TvInputController.enabledSystem(context,input.getServiceInfo())){
+            Map<String,Integer> standard=new HashMap<>(),vendor=new HashMap<>();JSONObject versions=new JSONObject();
+            TvInputController.Snapshot snapshot=controller.inspect();
+            if(snapshot.state==TvInputController.InputState.RESTRICTED)throw new IllegalStateException("标准输入信息受限，不能更新端口映射");
+            for(TvInputInfo input:snapshot.raw)if(input!=null&&input.isPassthroughInput() && TvInputController.enabledSystem(context,input.getServiceInfo())){
                 ids.add(input.getId());if(input.getType()==TvInputInfo.TYPE_HDMI && TvInputController.canOpen(context,new ComponentName("com.xiaomi.mitv.tvplayer","com.xiaomi.mitv.tvplayer.ExternalSourceActivity")))xiaomi.add(input.getId());
+                if(input.getParentId()==null)standard.put(input.getId(),input.getType());
+                String pkg=input.getServiceInfo().packageName;versions.put(pkg,VendorTvInputs.packageStamp(context,pkg));
             }
-            desired=validate(text,Build.FINGERPRINT,ids,xiaomi).toString();
+            if(proposed.optInt("schemaVersion")==2){
+                // Validate the restricted native record syntax before any adapter reads it.
+                XiaomiInputs.records(proposed);
+                for(VendorTvInputs.Source source:new VendorTvInputs(context).inspect(proposed).sources){
+                    if(vendor.containsKey(source.key))vendor.put(source.key,-1);else vendor.put(source.key,source.type);
+                    versions.put(source.owner,VendorTvInputs.packageStamp(context,source.owner));
+                    if(source.key.startsWith("hisense:"))versions.put(HisenseInputs.SOURCE.getPackageName(),VendorTvInputs.packageStamp(context,HisenseInputs.SOURCE.getPackageName()));
+                    if(source.key.startsWith("com.skyworth.tv.provider:")||source.key.startsWith("com.skyworth.tv.sdk.provider:")){
+                        android.content.pm.ProviderInfo provider=context.getPackageManager().resolveContentProvider(source.key.substring(0,source.key.indexOf(':')),0);
+                        if(provider==null)throw new IllegalStateException("厂商输入服务已变化");
+                        versions.put(provider.packageName,VendorTvInputs.packageStamp(context,provider.packageName));
+                    }
+                }
+                if(proposed.optJSONObject("xiaomiSources")!=null&&proposed.getJSONObject("xiaomiSources").length()>0)
+                    versions.put(XiaomiInputs.PLAYER.getPackageName(),VendorTvInputs.packageStamp(context,XiaomiInputs.PLAYER.getPackageName()));
+            }
+            JSONObject valid=validate(text,Build.FINGERPRINT,ids,xiaomi,vendor,standard);
+            if(valid.optInt("schemaVersion")==2){
+                JSONObject before=valid.optJSONObject("packageVersions");
+                if(before!=null){
+                    if(before.length()!=versions.length())throw new IllegalArgumentException("系统组件已变化，请重新读取端口");
+                    for(Iterator<String> keys=before.keys();keys.hasNext();){String pkg=keys.next();if(!versions.optString(pkg).equals(before.getString(pkg)))throw new IllegalArgumentException("系统组件已变化，请重新读取端口");}
+                }
+                valid.put("packageVersions",versions);
+            }
+            desired=valid.toString();
+            if(desired.length()>8192)throw new IllegalArgumentException("含系统组件版本的本机配置过长");
         }
-        if(!prefs.edit().putString("profile",desired).commit())throw new IllegalStateException("本机配置未保存");
+        synchronized(profileLock){
+            // Native enumeration may wait for initialization. A second writer must not be
+            // overwritten using the revision observed before that wait.
+            if(!digest(prefs.getString("profile","")).equals(expected))throw new IllegalStateException("本机配置已变化，请重新读取");
+            if(!prefs.edit().putString("profile",desired).commit())throw new IllegalStateException("本机配置未保存");
+        }
     }
     static synchronized String request(Context c,String id) throws Exception {
-        if(Build.VERSION.SDK_INT<21 || new TvInputController(c).findInput(id)==null)throw new IllegalArgumentException("信号源不存在");
         if(!pending.isEmpty())throw new IllegalStateException("上一次信号源请求尚未处理");
+        if(Build.VERSION.SDK_INT<21||id==null)throw new IllegalArgumentException("信号源不存在");
+        TvInputController.Snapshot snapshot=new TvInputController(c).inspectSources();boolean found=false;
+        for(TvInputInfo input:snapshot.inputs)if(id.equals(input.getId())){found=true;break;}
+        for(VendorTvInputs.Source source:snapshot.vendor.sources)if(id.equals(source.key)){found=true;break;}
+        if(!found)throw new IllegalArgumentException("信号源不存在或已隐藏");
         pending=id;request=UUID.randomUUID().toString();last=new JSONObject().put("request",request).put("id",id).put("result","pending");
         try{c.startActivity(new Intent(c,HomeActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));}
         catch(RuntimeException failure){pending="";last.put("result","failed");throw failure;}
