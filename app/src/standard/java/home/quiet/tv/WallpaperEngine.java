@@ -28,6 +28,7 @@ final class WallpaperEngine {
     private boolean releasing,releaseTimedOut;
     private String decoder="unknown";
     private boolean rendered;
+    private int loops;
     WallpaperEngine(Context source,Handler worker,Surface surface,Uri uri,int rotation,String context,VideoWallpaperPlayer.PlaybackEvents events,Diagnostics log){
         this.worker=worker;this.context=context;this.log=log;
         boolean manualRotation=VideoGeometry.manualRotation(android.os.Build.VERSION.SDK_INT,rotation);
@@ -65,6 +66,9 @@ final class WallpaperEngine {
         });
         player.addListener(new Player.Listener(){
             @Override public void onPlaybackStateChanged(int state){info("wallpaper.video.playback",context+" state="+state+" playWhenReady="+player.getPlayWhenReady()+" isPlaying="+player.isPlaying()+" suppression="+player.getPlaybackSuppressionReason()+" positionMs="+player.getCurrentPosition());}
+            @Override public void onPositionDiscontinuity(Player.PositionInfo oldPosition,Player.PositionInfo newPosition,int reason){
+                if(reason==Player.DISCONTINUITY_REASON_AUTO_TRANSITION)info("wallpaper.video.loop",context+" count="+(++loops)+" fromMs="+oldPosition.positionMs+" toMs="+newPosition.positionMs+" evidence=player_timeline_transition");
+            }
             @Override public void onVideoSizeChanged(VideoSize size){events.size(size.width,size.height,size.pixelWidthHeightRatio);}
             @Override public void onRenderedFirstFrame(){rendered=true;events.ready();}
             @Override public void onPlayerError(PlaybackException error){
@@ -86,6 +90,10 @@ final class WallpaperEngine {
                     case PlaybackException.ERROR_CODE_VIDEO_FRAME_PROCESSING_FAILED:reason=VideoWallpaperPlayer.Failure.OUTPUT;break;
                     default:reason=VideoWallpaperPlayer.Failure.DECODE;
                 }
+                // The platform may report a generic decode failure even when Media3 has
+                // already identified that this format exceeds the decoder's capabilities.
+                if(error instanceof ExoPlaybackException&&((ExoPlaybackException)error).rendererFormatSupport==C.FORMAT_EXCEEDS_CAPABILITIES)
+                    reason=VideoWallpaperPlayer.Failure.UNSUPPORTED;
                 events.failed(reason);
             }
         });
