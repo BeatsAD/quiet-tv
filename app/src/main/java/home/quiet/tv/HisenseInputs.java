@@ -2,7 +2,6 @@ package home.quiet.tv;
 
 import android.content.*;
 import android.content.pm.*;
-import android.media.tv.TvInputInfo;
 import android.os.*;
 import java.util.*;
 import java.util.concurrent.*;
@@ -10,7 +9,6 @@ import java.util.regex.*;
 
 /** Jamdeo SourceManager protocol, observed on H55E9A / Android 8.
  * Aerial 587a2849, HisenseSources.kt (MIT). No port-number template or activity-owned binding. */
-@android.annotation.TargetApi(21)
 final class HisenseInputs {
     static final ComponentName SOURCE=new ComponentName("com.jamdeo.tv.service","com.jamdeo.tv.service.SourceService");
     static final ComponentName TRANSITION=new ComponentName("com.hisense.tv.tiletransition","com.hisense.tv.tiletransition.TileTransitionService");
@@ -19,7 +17,7 @@ final class HisenseInputs {
     static boolean callable(Context context){
         for(ComponentName component:new ComponentName[]{SOURCE,TRANSITION})try{
             ServiceInfo info=context.getPackageManager().getServiceInfo(component,0);
-            if(!TvInputController.enabledSystem(context,info)||!info.exported||info.permission!=null&&context.getPackageManager().checkPermission(info.permission,context.getPackageName())!=PackageManager.PERMISSION_GRANTED)return false;
+            if(!InputComponents.enabledSystem(context,info)||!info.exported||info.permission!=null&&context.getPackageManager().checkPermission(info.permission,context.getPackageName())!=PackageManager.PERMISSION_GRANTED)return false;
         }catch(PackageManager.NameNotFoundException|RuntimeException unavailable){return false;}
         return true;
     }
@@ -51,7 +49,7 @@ final class HisenseInputs {
                 Object value=name.invoke(manager,item);if(!(value instanceof String))continue;
                 Matcher match=hdmi.matcher(((String)value).trim());if(!match.matches())continue;
                 int id=(Integer)item;Intent intent=new Intent(ACTION).setPackage(TRANSITION.getPackageName()).putExtra(EXTRA,id);
-                result.add(new VendorTvInputs.Source("HDMI "+match.group(1),intent,null,"hisense:"+id,TRANSITION.getPackageName(),TvInputInfo.TYPE_HDMI));
+                result.add(new VendorTvInputs.Source("HDMI "+match.group(1),intent,null,"hisense:"+id,TRANSITION.getPackageName(),VendorTvInputs.TYPE_HDMI));
             }
             return result;
         }catch(InterruptedException cancelled){Thread.currentThread().interrupt();return Collections.emptyList();}

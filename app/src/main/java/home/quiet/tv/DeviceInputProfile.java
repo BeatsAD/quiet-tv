@@ -11,7 +11,7 @@ final class DeviceInputProfile {
     private final Context context;
     private final SharedPreferences prefs;
     private static final Object profileLock=new Object();
-    private static String pending="",request="";
+    private static String pending="",request="",pendingTarget="";
     private static JSONObject last=new JSONObject();
     DeviceInputProfile(Context c){context=c;prefs=c.getSharedPreferences("device-input-profile",Context.MODE_PRIVATE);}
     static String digest(String text) throws Exception {
@@ -81,17 +81,11 @@ final class DeviceInputProfile {
         if(expected==null || !digest(prefs.getString("profile","")).equals(expected))throw new IllegalStateException("本机配置已变化，请重新读取");
         String desired="";
         if(!reset){
-            if(Build.VERSION.SDK_INT<21)throw new IllegalStateException("本档位没有标准信号源配置接口");
             JSONObject proposed=new JSONObject(text);
-            TvInputController controller=new TvInputController(context);Set<String> ids=new HashSet<>(),xiaomi=new HashSet<>();
+            Set<String> ids=new HashSet<>(),xiaomi=new HashSet<>();
             Map<String,Integer> standard=new HashMap<>(),vendor=new HashMap<>();JSONObject versions=new JSONObject();
-            TvInputController.Snapshot snapshot=controller.inspect();
-            if(snapshot.state==TvInputController.InputState.RESTRICTED)throw new IllegalStateException("标准输入信息受限，不能更新端口映射");
-            for(TvInputInfo input:snapshot.raw)if(input!=null&&input.isPassthroughInput() && TvInputController.enabledSystem(context,input.getServiceInfo())){
-                ids.add(input.getId());if(input.getType()==TvInputInfo.TYPE_HDMI && TvInputController.canOpen(context,new ComponentName("com.xiaomi.mitv.tvplayer","com.xiaomi.mitv.tvplayer.ExternalSourceActivity")))xiaomi.add(input.getId());
-                if(input.getParentId()==null)standard.put(input.getId(),input.getType());
-                String pkg=input.getServiceInfo().packageName;versions.put(pkg,VendorTvInputs.packageStamp(context,pkg));
-            }
+            if(Build.VERSION.SDK_INT>=21)Api21.collect(context,ids,xiaomi,standard,versions);
+            else if(proposed.optInt("schemaVersion")!=2)throw new IllegalArgumentException("旧系统仅支持原生端口配置版本 2");
             if(proposed.optInt("schemaVersion")==2){
                 // Validate the restricted native record syntax before any adapter reads it.
                 XiaomiInputs.records(proposed);
@@ -127,25 +121,56 @@ final class DeviceInputProfile {
             if(!prefs.edit().putString("profile",desired).commit())throw new IllegalStateException("本机配置未保存");
         }
     }
+    @androidx.annotation.RequiresApi(21)
+    private static final class Api21 {
+        static JSONObject inputs(Context c)throws Exception{return new TvInputController(c).maintenanceInputs();}
+        static boolean contains(Context c,String id){
+            TvInputController.Snapshot snapshot=new TvInputController(c).inspectSources();boolean found=false;
+            for(TvInputInfo input:snapshot.inputs)if(id.equals(input.getId())){found=true;break;}
+            for(VendorTvInputs.Source source:snapshot.vendor.sources)if(id.equals(source.key)){found=true;break;}
+            return found;
+        }
+        static void collect(Context context,Set<String> ids,Set<String> xiaomi,Map<String,Integer> standard,JSONObject versions)throws Exception{
+            TvInputController controller=new TvInputController(context);
+            TvInputController.Snapshot snapshot=controller.inspect();
+            if(snapshot.state==TvInputController.InputState.RESTRICTED)throw new IllegalStateException("标准输入信息受限，不能更新端口映射");
+            for(TvInputInfo input:snapshot.raw)if(input!=null&&input.isPassthroughInput() && TvInputController.enabledSystem(context,input.getServiceInfo())){
+                ids.add(input.getId());if(input.getType()==TvInputInfo.TYPE_HDMI && TvInputController.canOpen(context,new ComponentName("com.xiaomi.mitv.tvplayer","com.xiaomi.mitv.tvplayer.ExternalSourceActivity")))xiaomi.add(input.getId());
+                if(input.getParentId()==null)standard.put(input.getId(),input.getType());
+                String pkg=input.getServiceInfo().packageName;versions.put(pkg,VendorTvInputs.packageStamp(context,pkg));
+            }
+        }
+    }
+    static JSONObject maintenanceInputs(Context context)throws Exception{
+        if(Build.VERSION.SDK_INT>=21)return Api21.inputs(context);
+        JSONArray sources=new JSONArray();
+        for(HdmiTarget target:HdmiTarget.available(context))sources.put(new JSONObject().put("id",target.id).put("label",target.label)
+            .put("type",VendorTvInputs.TYPE_HDMI).put("hdmi",true));
+        return new JSONObject().put("supported",true).put("standardSupported",false).put("scope","native_hdmi")
+            .put("state",sources.length()==0?"EMPTY":"READY").put("sources",new JSONArray()).put("vendorSources",sources)
+            .put("configuration",new DeviceInputProfile(context).snapshot());
+    }
     static String request(Context c,String id) throws Exception {
         synchronized(DeviceInputProfile.class){if(!pending.isEmpty())throw new IllegalStateException("上一次信号源请求尚未处理");}
-        if(Build.VERSION.SDK_INT<21||id==null)throw new IllegalArgumentException("信号源不存在");
-        TvInputController.Snapshot snapshot=new TvInputController(c).inspectSources();boolean found=false;
-        for(TvInputInfo input:snapshot.inputs)if(id.equals(input.getId())){found=true;break;}
-        for(VendorTvInputs.Source source:snapshot.vendor.sources)if(id.equals(source.key)){found=true;break;}
-        if(!found)throw new IllegalArgumentException("信号源不存在或已隐藏");
+        if(id==null)throw new IllegalArgumentException("信号源不存在");
+        String saved="";
+        if(Build.VERSION.SDK_INT>=21){if(!Api21.contains(c,id))throw new IllegalArgumentException("信号源不存在或已隐藏");}
+        else{
+            for(HdmiTarget target:HdmiTarget.available(c))if(id.equals(target.id)){saved=target.encode();break;}
+            if(saved.isEmpty())throw new IllegalArgumentException("信号源不存在或已隐藏");
+        }
         final String token=UUID.randomUUID().toString();
         synchronized(DeviceInputProfile.class){
             if(!pending.isEmpty())throw new IllegalStateException("上一次信号源请求尚未处理");
-            pending=id;request=token;last=new JSONObject().put("request",request).put("id",id).put("result","pending");
+            pending=id;request=token;pendingTarget=saved;last=new JSONObject().put("request",request).put("id",id).put("result","pending");
         }
         try{c.startActivity(new Intent(c,HomeActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));}
-        catch(RuntimeException failure){synchronized(DeviceInputProfile.class){if(token.equals(request)){pending="";last.put("result","failed");}}throw failure;}
+        catch(RuntimeException failure){synchronized(DeviceInputProfile.class){if(token.equals(request)){pending="";pendingTarget="";last.put("result","failed");}}throw failure;}
         return token;
     }
     private static synchronized JSONObject lastSnapshot() throws JSONException {return new JSONObject(last.toString());}
-    static final class Request {final String id,token;Request(String id,String token){this.id=id;this.token=token;}}
-    static synchronized Request consume(){Request value=new Request(pending,request);pending="";return value;}
+    static final class Request {final String id,token,saved;Request(String id,String token,String saved){this.id=id;this.token=token;this.saved=saved;}}
+    static synchronized Request consume(){Request value=new Request(pending,request,pendingTarget);pending="";pendingTarget="";return value;}
     static synchronized void cancelled(String token){result(token,"cancelled_unverified");}
     static synchronized void dispatched(String token,boolean opened){result(token,opened?"dispatched":"failed");}
     private static void result(String token,String result){if(!token.equals(request))return;try{last.put("result",result).put("physicalVerified",false);}catch(JSONException ignored){}}

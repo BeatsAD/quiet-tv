@@ -1,0 +1,3 @@
+<resources>
+    <bool name="legacy_window_home_guard_available">false</bool>
+</resources>

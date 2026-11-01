@@ -8,7 +8,7 @@ Quiet TV 基于 [cleanyourtv](https://github.com/Gathin23/cleanyourtv)（原名 
 | --- | --- |
 | cleanyourtv | MIT，[上游许可](app/src/main/assets/licenses/tv-vibehack-LICENSE.txt) |
 | [Aerial](https://github.com/pengchujin/aerial-tv)（部分实现参考） | MIT，Copyright (c) 2026 pengchujin，[许可原文](app/src/main/assets/licenses/aerial-MIT.txt) |
-| AndroidX（含 Media3）、ZXing | Apache-2.0，[许可原文](app/src/main/assets/licenses/libadb-Apache-2.0.txt) |
+| AndroidX（含 Media3）、ExoPlayer（安卓4.1–4.4软解适配）、ZXing | Apache-2.0，[许可原文](app/src/main/assets/licenses/libadb-Apache-2.0.txt) |
 | libadb-android | Apache-2.0，保留其继承的 BSD／MIT 声明，见[完整许可目录](app/src/main/assets/licenses/) |
 | Bouncy Castle | MIT，[许可原文](app/src/main/assets/licenses/bouncycastle-LICENSE.md) |
 | NanoHTTPD | BSD-3-Clause，[许可原文](app/src/main/assets/licenses/nanohttpd-LICENSE.txt) |

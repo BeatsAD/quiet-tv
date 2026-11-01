@@ -13,6 +13,11 @@ final class DesktopTakeoverStatus {
             if(!HomeGuardState.unlocked(context))return new DesktopTakeoverStatus("incomplete","等待系统解锁","解锁后重新检查桌面接管状态。");
             if(guard.preferences.getBoolean("proxyPausePending",false))return repair("暂停尚未确认，请通过电脑继续恢复。");
             if("OFF".equals(guard.preferences.getString("mode","AUTO")))return new DesktopTakeoverStatus("paused","已暂停","需要继续接管时，通过电脑恢复原有配置。");
+            if(LegacyWindowHomeGuard.configured(context)){
+                if(!LegacyWindowHomeGuard.enabled(context))return repair("窗口守护配置已变化，请通过电脑核对固件及原桌面版本。");
+                if(!LegacyWindowHomeGuard.authorized(context) || !LegacyWindowHomeGuardService.connected())return repair("窗口守护无障碍尚未连接，请通过电脑检查。");
+                return new DesktopTakeoverStatus("pending","窗口守护待验证","保留系统原桌面；实体 HOME、开机和待机唤醒须分别验证。");
+            }
             if(LegacyAdbHomeGuard.configured(context)){
                 if(!LegacyAdbHomeGuard.enabled(context))return repair("ADB 守护配置已变化，请通过电脑核对固件及原桌面。");
                 return new DesktopTakeoverStatus("pending","本机 ADB 守护待验证",LegacyAdbHomeGuardService.status()+"；重启后须确认本机 ADB 端口仍可连接。");

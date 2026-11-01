@@ -35,6 +35,25 @@ JSON 格式（示意值不能直接用于设备）：
 
 单个画面测试使用 `input-open --source "$INPUT_ID"`，预览后在切换画面授权下加 `--apply`，再读 `profile-get` 的 `lastInput`，核对 request 和 result。请求不会持久保存为重试队列。
 
+## 电脑测试并保存系统入口
+
+首次安装在基础试用通过、配置 HOME 前分别检查 `settings`（完整设置）、`network`（网络设置）及 `inputs`（原厂信号源面板）。通过 `agent_session.py run` 调用下列维护操作，记录目录由任务工具分配；下面只展示底层参数。APK 必须声明 `system-entry-test-v1`，旧包缺接口时明确记录未完成，不直接写应用私有数据。
+
+```sh
+python3 device_maintenance.py entry-list --entry settings --serial "$TV_SERIAL" --user "$TV_USER" --record "$LIST_DIR"
+python3 device_maintenance.py entry-test --entry settings --from-entry "$LIST_DIR/entry.json" --serial "$TV_SERIAL" --user "$TV_USER" --record "$TEST_DIR" --apply
+python3 device_maintenance.py entry-status --entry settings --from-entry "$TEST_DIR/entry.json" --serial "$TV_SERIAL" --user "$TV_USER" --record "$STATUS_DIR"
+python3 device_maintenance.py entry-confirm --entry settings --from-entry "$TEST_DIR/entry.json" --worked yes --observed "实际结果摘要" --evidence-source user --serial "$TV_SERIAL" --user "$TV_USER" --record "$CONFIRM_DIR" --apply
+```
+
+`entry-list` 只读取当前应用允许调用的内置候选，按当前有效的成功记忆排序，不打开页面。`entry-test` 默认测试优先候选，可用 `--candidate` 明确选择列表中的其他 ID；省略 `--apply` 只预览。测试会进入 Quiet TV，并复用首页的壁纸退出、生命周期取消和系统入口调用路径。只测试选定候选，同步失败也不偷偷改测另一项；请求最多保留30秒，派发后的确认十分钟内有效，进程重启不恢复未完成测试。
+
+工具短时读取派发结果并生成 `entry.json`；`DISPATCHED_UNVERIFIED` 或窗口出现均不算功能成功。Agent 能取得实际截图／界面证据时，以 `--evidence-source agent` 记录真实结果；物理切源的画面和声音仍需用户确认。其他情况下询问用户实际页面，以 `user` 记录。失败用 `--worked no` 明确拒绝，再从新列表中选择下一候选，不能连续盲开所有系统页面。`--observed` 只写功能摘要，不含账号、SSID 或页面私人信息。
+
+确认成功复用设置／网络的原有成功记忆，二者独立；网络回退到完整设置主页不能确认成网络成功。信号源只记住经过确认的原厂面板，首页优先采用仍可访问的已确认面板，不覆盖端口的隐藏、名称、映射及开机 HDMI 设置。原厂面板出现不等于某个 HDMI 已有画面，不将其记作开机直达端口。固件、API、协议参数或目标系统包变化后不再使用过期选择。
+
+安装任务默认包含这三项验收。通过任务工具执行的 `entry-test` 只记待确认，`entry-confirm` 成功并读回后才归入对应功能的 PASS，失败确认记 FAIL。无原厂面板但已有标准输入可实际使用的设备，沿用 `input-list`、`input-open` 和实际画面验收，在任务中确认 `inputs`，不要求安装额外面板。没有候选时，电脑 Agent 核对实际系统包、原厂页面及诊断；仅使用现有协议或本机信号源配置解决。缺新协议或权限受限时，保存原因并记录 LIMITED／FAIL，不猜写组件、不修改原桌面来试错。
+
 ## 原生端口与对应关系（版本 2）
 
 当前开发源码保留版本 1 的读取与写入格式。版本 2 在上述字段基础上增加 `nativeSources`、`vendorAliases`、`packageVersions`，不接受任意组件、Intent、广播或 shell 命令。
@@ -62,13 +81,17 @@ JSON 格式（示意值不能直接用于设备）：
 
 | 路径 | 运行时启用条件 | 端口和调用来源 |
 | --- | --- | --- |
-| 老极米 | API21～27；启用、导出且允许访问的系统 `com.xgimi.xhplayer/.InputActivity`；可读取 `GimiConfigManager.getXgimiConfig("global")` | 仅取产品 `signal` 配置中的 HDMI，不使用 MStar 通用枚举补口；传 `launcher_start_source`，新 GMUI 保留原有面板路径 |
-| 海信 Jamdeo | API21+；可访问的系统 `com.jamdeo.tv.service/.SourceService` 与 `com.hisense.tv.tiletransition/.TileTransitionService`；可读取 `TvManager` 的 SourceManager | 从实际返回 ID 和原生 HDMI 名称读取；按 `SILO_SWITCH_EVENT` / `silo_input_src_id` 协议发给原厂转换服务所在包，不直接拉起 LiveTV 冒充切源 |
-| 小米原生记录 | API21+；当前固件的版本 2 记录、MiTV 型号和可调用的系统播放器 | 使用记录中的 source，发送 `EXTSRC_PLAY`；原生记录路径带 `CLEAR_TOP`，避免复用旧任务丢掉端口参数 |
+| 老极米 | API14～27；启用、导出且允许访问的系统 `com.xgimi.xhplayer/.InputActivity`；可读取 `GimiConfigManager.getXgimiConfig("global")` | 仅取产品 `signal` 配置中的 HDMI，不使用 MStar 通用枚举补口；传 `launcher_start_source`，新 GMUI 保留原有面板路径 |
+| 海信 Jamdeo | API14+；可访问的系统 `com.jamdeo.tv.service/.SourceService` 与 `com.hisense.tv.tiletransition/.TileTransitionService`；可读取 `TvManager` 的 SourceManager | 从实际返回 ID 和原生 HDMI 名称读取；按 `SILO_SWITCH_EVENT` / `silo_input_src_id` 协议发给原厂转换服务所在包，不直接拉起 LiveTV 冒充切源 |
+| 小米原生记录 | API14+；当前固件的版本 2 记录、MiTV 型号和可调用的系统播放器 | 使用记录中的 source，发送 `EXTSRC_PLAY`；原生记录路径带 `CLEAR_TOP`，避免复用旧任务丢掉端口参数 |
 
 海信管理器只持有应用 Context，按固件及两个系统包的版本隔离；初始化投递到主线程，主线程不等待。后台最多等初始化 2 秒及首批端口就绪 1 秒，中断会结束等待，不创建无限重试任务或注册额外监听。维护读取也在后台等待；超时仍未就绪时可由用户重新检测。现有创维、康佳可返回端口时优先保留，不混合无法核对硬件身份的两套厂商列表。
 
-Android 4.x 档位继续使用原有原厂信号源面板，不加载 API21 输入框架和本批原生端口配置；界面及现有面板共用主线代码。此档位的直接保存 HDMI 能力未在本批扩展。
+Android 4.x 的“看电视 → 电视信号源”可选择并保存厂商接口实际返回的 HDMI，或经过核对的版本 2 小米原生端口记录；不加载 API21 标准输入框架。隐藏、改名、固件和组件版本校验继续生效，不接受标准输入映射。首页仍保留原厂面板；只有面板而没有明确端口的设备不能保存指定 HDMI。选择后可立即观看，确认画面和声音后才可开启开机自动进入。此能力尚待对应固件真机验收。
+
+各档位在“电视信号源”未发现可直达的 HDMI 时，列出本机已启用、导出且有调用权限的原厂面板。TCL 的快捷面板与设置面板可分别手动尝试；首页无输入时也提供这两个入口的选择，已有明确的面板优先规则继续沿用。面板请求只标记派发，不保存为具体 HDMI、不产生画面声音确认、不启用开机直达，失败或返回后不自动调用下一面板。没有可用面板时说明原因并提示使用遥控器信号源键。此入口修复不包含后台 HDMI 音频释放，实际面板和物理切源仍待目标固件验收。
+
+安卓 4.x 的电脑维护 `input-list` 返回 `scope=native_hdmi`、`standardSupported=false`，可用 HDMI 位于 `vendorSources`，与“看电视”的可选目标一致。`input-open` 仅接受这些可见且身份唯一的目标；请求绑定当时的固件／组件范围，桌面派发前再次检查。配置能力声明包含 `input-profile-v2`。列表为空不代表电视没有接口，ATV／DTV／AV 和仅有原厂面板的设备不在此直接切换范围内。派发或取消回执仍不证明物理画面和声音正常。
 
 协议依据为 Aerial 固定提交 `587a2849c58b27dc5854a18eab3b458e1d072b34` 的 [HisenseSources](https://github.com/pengchujin/aerial-tv/blob/587a2849c58b27dc5854a18eab3b458e1d072b34/app/src/main/java/app/orchard/tv/system/HisenseSources.kt)、[XgimiMstarSources](https://github.com/pengchujin/aerial-tv/blob/587a2849c58b27dc5854a18eab3b458e1d072b34/app/src/main/java/app/orchard/tv/system/XgimiMstarSources.kt) 与 [小米原生输入](https://github.com/pengchujin/aerial-tv/blob/587a2849c58b27dc5854a18eab3b458e1d072b34/app/src/main/java/app/orchard/tv/system/SystemState.kt)。运行时按组件、API 和协议能力匹配，不将整品牌视为同一固件。上游报告与本地夹具测试不替代 Quiet TV 的厂商实机验收。
 
@@ -85,6 +108,6 @@ Android 4.x 档位继续使用原有原厂信号源面板，不加载 API21 输�
 | 档位 | 共同能力 | 差异 |
 | --- | --- | --- |
 | Android 5+ | 异步准备与取消、设置测试和路径记忆 | 标准输入与已匹配厂商原生端口，支持保存 HDMI |
-| Android 4.x | 原厂面板后台发现与取消、设置测试和路径记忆 | 不加载 API21 输入框架，保持原厂面板／遥控器路径 |
+| Android 4.x | 原厂面板、厂商 HDMI 后台发现与取消、设置测试和路径记忆 | 不加载 API21 输入框架；明确的原生 HDMI 可保存、测试并经确认用于开机进入，缺少端口接口时保留面板／遥控器路径 |
 
 本地 JVM 测试只验证线程、生命周期、路由及状态规则。真实厂商 SDK 的耗时、窗口表现、HDMI 画面／声音及开机／待机行为仍须逐固件验收。

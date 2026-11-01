@@ -231,14 +231,17 @@ def run_install(args, adb, tools, journal):
     print("计划：" + ("沿用相同 APK" if same else "保留数据安装") + "；目标=" + args.goal + "；ADB 设置恢复=" + str(keep_adb), flush=True)
     # Check the selected installed APK before launching it or writing recovery/configuration state.
     if not getattr(args, "adaptation_route", None) and same and metadata["home_mode"] == "standard" and args.goal == "takeover":
+        preflight = tcl.Journal(journal.directory / "boot-preflight")
         try:
-            boot.configure(adb, args.user, tools, apk_path, journal)
+            boot.configure(adb, args.user, tools, apk_path, preflight)
         except boot.NoNativeRoute as error:
             journal.event("boot_native_unavailable", error=str(error))
             if sdk < 21:
                 raise ValueError("接管未完成：" + str(error) + "；现有兼容守护不支持 API " + str(sdk)
                                  + "。Agent 须继续核对本机适配与恢复条件，不转交用户在应用内手动接管。") from error
             print("标准开机 HOME 路线不可用：" + str(error) + "；执行时评估现有兼容守护及实际 APK 能力。", flush=True)
+        finally:
+            preflight.close()
     if not args.apply:
         if getattr(args, "adaptation_route", None):
             if same:

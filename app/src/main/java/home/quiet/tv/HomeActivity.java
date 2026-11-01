@@ -86,6 +86,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private int inputDiscoveryGeneration,systemEntryGeneration;
     private final InputEntryTask inputWork=new InputEntryTask();
     private String maintenanceInputRequest="";
+    private String maintenanceEntryRequest="";
     private boolean automaticInputPending;
     private SettingsRouteMemory.Attempt settingsTrial;
     private String settingsTrialAction="";
@@ -402,10 +403,30 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     private void openMaintenanceInput(){
-        if(!resumed || Build.VERSION.SDK_INT<21)return;
+        if(!resumed)return;
+        if(SystemEntryMaintenance.pending()){openMaintenanceEntry();return;}
         DeviceInputProfile.Request request=DeviceInputProfile.consume();if(request.id.isEmpty())return;
+        if(Build.VERSION.SDK_INT<21){
+            leaveSystemEntry("input.maintenance",()->{
+                Context app=getApplicationContext();
+                inputWork.submit(()->{HdmiTarget target=HdmiTarget.decode(request.saved);return target==null?null:target.prepare(app);},
+                    (launch,failure)->dispatchSavedHdmi(launch,failure,false));
+            });
+            maintenanceInputRequest=request.token;return;
+        }
         if(tvInputs==null)tvInputs=new TvInputs();
         tvInputs.launch(request.id,false,request.token);
+    }
+
+    private void openMaintenanceEntry(){
+        if(!inputActive()||!hasWindowFocus())return;
+        SystemEntryMaintenance.Test test=SystemEntryMaintenance.consume();if(test==null)return;
+        cancelInputWork();maintenanceEntryRequest=test.token;
+        new BootAppStore(this).userAction("system_entry_test");
+        leaveSystemEntryPrepared(test.entry+".maintenance",()->{
+            boolean opened=SystemEntryMaintenance.dispatch(this,test);maintenanceEntryRequest="";systemEntryResult(opened);
+            if(!opened)wallpapers.resume();
+        });
     }
 
     @Override public void onWindowFocusChanged(boolean focused){
@@ -415,11 +436,13 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         try{
             super.onWindowFocusChanged(focused);if(!focused)cancelInputWork(true);if(wallpapers!=null)wallpapers.windowFocusChanged(focused);if(screensaver!=null){if(!focused)cancelConfirm();screensaver.availabilityChanged();}systemEntryLifecycle("window_focus="+focused);if(focused && resumed && systemEntryDispatched)systemEntryPending="";if(focused && resumed){new HomeProxy(this).visible(this);if(!isFinishing()){HomeGuardRecovery.visible(this);launchBootApp();}}
         }finally{homeResumeEvent("home.window_focus.end","focused="+focused+" callbackMs="+(SystemClock.uptimeMillis()-started));}
+        if(focused&&resumed)main.post(this::openMaintenanceInput);
     }
 
     void checkBootApp(){getWindow().getDecorView().post(this::launchBootApp);}
 
     private void launchBootApp(){
+        if(SystemEntryMaintenance.pending())return;
         BootAppStore store=new BootAppStore(this);if(!store.enabled())return;
         long started=SystemClock.uptimeMillis();
         if(isFinishing() || !resumed || !hasWindowFocus() || !HomeGuardState.canShow(this))return;
@@ -427,7 +450,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         DiagnosticLog.info("home.autostart.check","elapsedMs="+(SystemClock.uptimeMillis()-started)+" consumed="+!pkg.isEmpty());
         if(pkg.isEmpty())return;
         if(BootAppStore.HDMI.equals(pkg)){
-            if(Build.VERSION.SDK_INT>=21)openSavedHdmi(true);
+            openSavedHdmi(true);
             return;
         }
         launchStartupApp(pkg);
@@ -446,11 +469,38 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private void watchTv(){
         BootAppStore store=new BootAppStore(this);
-        if(!store.watchTarget().isEmpty()&&Build.VERSION.SDK_INT>=21){openSavedHdmi(false);return;}
+        if(!store.watchTarget().isEmpty()){openSavedHdmi(false);return;}
         leaveHome(()->startActivity(settingsIntent(DesktopSettingsActivity.class).putExtra("management-page",SettingsPages.STARTUP)));
     }
     private void openSavedHdmi(boolean automatic){
-        if(tvInputs==null)tvInputs=new TvInputs();tvInputs.saved(automatic);
+        BootAppStore store=new BootAppStore(HomeActivity.this);
+        if(automatic&&!store.tested())return;
+        String saved=store.watchTarget();int generation=hdmiLaunchGeneration;
+        leaveSystemEntry("input.saved",()->{
+            automaticInputPending=automatic;Context app=getApplicationContext();
+            inputWork.submit(()->{HdmiTarget target=HdmiTarget.decode(saved);return target==null?null:target.prepare(app);},(launch,failure)->{
+                if(!inputActive())return;
+                BootAppStore current=new BootAppStore(HomeActivity.this);
+                if(!saved.equals(current.watchTarget())||automatic&&(generation!=hdmiLaunchGeneration||!current.hdmiBoot()||!current.tested())){automaticInputPending=false;systemEntryResult(false,automatic);wallpapers.resume();return;}
+                dispatchSavedHdmi(launch,failure,automatic);
+            });
+        });
+    }
+    private void dispatchSavedHdmi(SavedInputLaunch launch,Exception failure,boolean automatic){
+        if(!inputActive())return;
+        if(failure!=null)DiagnosticLog.error("input.prepare.failed",failure);
+        if(launch==null||!launch.current(this)){finishSavedHdmi(false,null,automatic);return;}
+        if(launch.blocking()){
+            HomeGuardService.savedInputSelected(this,automatic);Context app=getApplicationContext();
+            inputWork.submit(()->launch.dispatch(app),(opened,error)->{if(inputActive())finishSavedHdmi(Boolean.TRUE.equals(opened),launch,automatic);});
+        }else finishSavedHdmi(launch.dispatch(this),launch,automatic);
+    }
+    private void finishSavedHdmi(boolean opened,SavedInputLaunch launch,boolean automatic){
+        if(!maintenanceInputRequest.isEmpty()){DeviceInputProfile.dispatched(maintenanceInputRequest,opened);maintenanceInputRequest="";}
+        automaticInputPending=false;systemEntryResult(opened,automatic);
+        if(opened){if(automatic)new BootAppStore(this).dispatched(BootAppStore.HDMI,launch.foregroundComponent());return;}
+        HomeGuardService.cancelInputTransition();wallpapers.resume();
+        showInputIssue(tr("信号源切换未完成","Input switch incomplete"),tr("信号源暂不可用，请重新检测或使用电视遥控器信号源键。","Input unavailable; detect again or use the TV remote input key."));
     }
 
     @Override protected void onPause() {
@@ -1105,6 +1155,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         if(!keepPermission&&tvInputs!=null)tvInputs.pendingTvInput=null;
         inputWork.cancel();automaticInputPending=false;++inputDiscoveryGeneration;++systemEntryGeneration;inputDiscoveryPending=false;
         if(!maintenanceInputRequest.isEmpty()){DeviceInputProfile.cancelled(maintenanceInputRequest);maintenanceInputRequest="";}
+        if(!maintenanceEntryRequest.isEmpty()){SystemEntryMaintenance.cancelled(maintenanceEntryRequest);maintenanceEntryRequest="";}
         if(!systemEntryDispatched&&!systemEntryPending.isEmpty()){
             systemEntryLifecycle("cancelled_unverified");systemEntryPending="";
             if(!keepPermission)resumeCancelledEntry();
@@ -1113,7 +1164,10 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private void resumeCancelledEntry(){if(inputActive()&&hasWindowFocus()&&HomeGuardState.interactive(this)&&wallpapers!=null)wallpapers.resume();}
     private boolean inputActive(){return resumed&&!isFinishing()&&!UiCompat.destroyed(this);}
     private void leaveSystemEntry(String entry,Runnable action){
-        cancelInputWork();final int request=systemEntryGeneration;
+        cancelInputWork();leaveSystemEntryPrepared(entry,action);
+    }
+    private void leaveSystemEntryPrepared(String entry,Runnable action){
+        final int request=systemEntryGeneration;
         systemEntryPending=entry;systemEntryDispatched=false;systemEntryStarted=android.os.SystemClock.elapsedRealtime();
         DiagnosticLog.info("home.action.request","entry="+entry+" ready="+ready+" resumed="+resumed+" windowFocus="+hasWindowFocus()+" api="+Build.VERSION.SDK_INT);
         leaveHomePrepared(()->{if(request!=systemEntryGeneration){if(systemEntryPending.isEmpty())resumeCancelledEntry();return;}systemEntryLifecycle("wallpaper_exit_ready");action.run();});
@@ -1176,6 +1230,13 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             if(failure!=null){showInputIssue(tr("信号源读取失败","Input discovery failed"),tr("请重新检测","Detect again"));return;}
             TvInputPanels.Panel direct=snapshot.directPanel(true);
             if(direct!=null){openNativeInputs(direct);return;}
+            List<TvInputPanels.Panel> panels=snapshot.availablePanels();
+            if(!panels.isEmpty()){
+                String[] labels=new String[panels.size()];for(int i=0;i<labels.length;i++)labels[i]=panels.get(i).profile.label(chinese);
+                android.app.AlertDialog dialog=new android.app.AlertDialog.Builder(this)
+                    .setTitle(tr("系统信号源","System inputs")).setItems(labels,(d,index)->openNativeInputs(panels.get(index)))
+                    .setNegativeButton(tr("返回","Back"),null).create();dialog.show();ControlStyle.dialog(dialog,unit);return;
+            }
             showInputIssue(tr("信号源入口不可用","Input entry unavailable"),tr("当前安卓版本不提供标准输入列表。","This Android version has no standard TV input list.")+"\n\n"+snapshot.problem(chinese));
         });
     }
@@ -1223,20 +1284,6 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     @android.annotation.TargetApi(21)
     private final class TvInputs {
         private TvInputInfo pendingTvInput;
-        void saved(boolean automatic){
-            BootAppStore store=new BootAppStore(HomeActivity.this);
-            if(automatic&&!store.tested())return;
-            String saved=store.watchTarget();int generation=hdmiLaunchGeneration;
-            leaveSystemEntry("input.saved",()->{
-                automaticInputPending=automatic;Context app=getApplicationContext();
-                inputWork.submit(()->{HdmiTarget target=HdmiTarget.decode(saved);return target==null?null:target.prepare(app);},(launch,failure)->{
-                    if(!inputActive())return;
-                    BootAppStore current=new BootAppStore(HomeActivity.this);
-                    if(!saved.equals(current.watchTarget())||automatic&&(generation!=hdmiLaunchGeneration||!current.hdmiBoot()||!current.tested())){automaticInputPending=false;systemEntryResult(false,automatic);wallpapers.resume();return;}
-                    dispatch(launch,failure,automatic);
-                });
-            });
-        }
         void openPending(){if(pendingTvInput!=null && resumed && checkCallingOrSelfPermission("android.permission.READ_TV_LISTINGS")==PackageManager.PERMISSION_GRANTED){TvInputInfo input=pendingTvInput;pendingTvInput=null;openInput(input);}}
         void show(int request){
             Context app=getApplicationContext();
@@ -1308,8 +1355,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 addInputChoice(menu,choices,inputName(info),()->openInput(info));
             }
             for(VendorTvInputs.Source source:vendor)addInputChoice(menu,choices,source.label,()->launch(source.key,true,""));
-            TvInputPanels.Panel nativeChoice=snapshot.nativePanels.directPanel(true);
-            if(nativeChoice!=null)addInputChoice(menu,choices,nativeChoice.profile.label(chinese),()->openNativeInputs(nativeChoice));
+            for(TvInputPanels.Panel nativeChoice:snapshot.availablePanels())addInputChoice(menu,choices,nativeChoice.profile.label(chinese),()->openNativeInputs(nativeChoice));
             DiagnosticLog.info("input.menu","choices="+choices.size());
             if(choices.isEmpty()){showUnavailableInputs(snapshot,discovery);return;}
             if(snapshot.itemFailures>0){TextView note=text(tr("部分输入信息读取失败","Some inputs could not be read"),12,400,0xffb0b4be);note.setPadding(px(12),px(8),px(12),px(8));menu.addView(note);}

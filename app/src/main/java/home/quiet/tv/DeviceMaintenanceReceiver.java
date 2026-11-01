@@ -11,6 +11,8 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
     static String original(Context context) throws Exception {
         String saved=new SetupStore(context).originalHome();
         if(!saved.isEmpty())return saved;
+        String windowHome=LegacyWindowHomeGuard.original(context);
+        if(!windowHome.isEmpty())return windowHome;
         String adbHome=LegacyAdbHomeGuard.original(context);
         return adbHome.isEmpty()?new HomeGuardState(context,false).selected():adbHome;
     }
@@ -51,7 +53,8 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
             value.put("takeoverRecord",takeover);
         if(!BuildConfig.LEGACY_19)value.put("routes",new DesktopRoutes(context,false).snapshot());
         value.put("capabilities",new org.json.JSONArray().put("input-profile-v1").put("takeover-restore-v1").put("proxy-repair-v1").put("adaptation-rules-v1").put("takeover-record-v1"));
-        if(Build.VERSION.SDK_INT>=21)value.getJSONArray("capabilities").put("input-profile-v2");
+        value.getJSONArray("capabilities").put("input-profile-v2");
+        value.getJSONArray("capabilities").put("system-entry-test-v1");
         value.put("adaptation",new DeviceAdaptation(context).snapshot());
         value.put("desktopStatus",DesktopTakeoverStatus.read(context).snapshot());
         value.getJSONArray("capabilities").put("home-status-v1");
@@ -59,6 +62,8 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
         if(guard.supported())value.getJSONArray("capabilities").put("home-observation-v1").put("home-key-filter-v1");
         value.put("adbHomeGuard",LegacyAdbHomeGuard.snapshot(context));
         if(LegacyAdbHomeGuard.supported())value.getJSONArray("capabilities").put("adb-home-guard-v1");
+        value.put("windowHomeGuard",LegacyWindowHomeGuard.snapshot(context));
+        if(LegacyWindowHomeGuard.supported())value.getJSONArray("capabilities").put("window-home-guard-v1");
         android.content.SharedPreferences daily=context.getSharedPreferences("adb",0);
         value.put("dailyManagement",new JSONObject().put("transport","tcp").put("port",daily.getInt("port",5555)).put("configured",daily.getBoolean("dailyManagement",false)));
         value.getJSONArray("capabilities").put("legacy-records-v1").put("proxy-setup-v1").put("remote-keymap-v1");
@@ -75,7 +80,7 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
     @Override public void onReceive(Context context,Intent intent){
         String operation=intent==null?null:intent.getStringExtra("operation");
         if(intent!=null&&(context.getPackageName()+".DEVICE_MAINTENANCE").equals(intent.getAction())
-                &&java.util.Arrays.asList("input_list","input_open","profile_get","profile_set","profile_reset").contains(operation)){
+                &&java.util.Arrays.asList("input_list","input_open","profile_get","profile_set","profile_reset","entry_list","entry_status","entry_test","entry_confirm").contains(operation)){
             PendingResult pending=goAsync();Context app=context.getApplicationContext();Intent request=new Intent(intent);
             inputWorker.execute(()->{try{Reply reply=perform(app,request);pending.setResultCode(reply.code);pending.setResultData(reply.data);}finally{pending.finish();}});
         }else{Reply reply=perform(context,intent);setResultCode(reply.code);setResultData(reply.data);}
@@ -87,10 +92,19 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
             if(intent==null || !(context.getPackageName()+".DEVICE_MAINTENANCE").equals(intent.getAction()))return reply;
             if(intent.getIntExtra("user",-1)!=android.os.Process.myUid()/100000)throw new IllegalArgumentException("目标用户不一致");
             String operation=intent.getStringExtra("operation");
-            if(operation!=null && operation.startsWith("remote_")){
+            if(operation!=null && java.util.Arrays.asList("entry_list","entry_status","entry_test","entry_confirm").contains(operation)){
+                String entry=intent.getStringExtra("entry");SystemEntryMaintenance.action(entry);
+                if("entry_test".equals(operation))SystemEntryMaintenance.request(context,entry,intent.getStringExtra("candidate"),intent.getStringExtra("scope"));
+                if("entry_confirm".equals(operation)){
+                    if(!intent.hasExtra("worked"))throw new IllegalArgumentException("需要明确的实际结果");
+                    SystemEntryMaintenance.confirm(context,entry,intent.getStringExtra("request"),intent.getBooleanExtra("worked",false),intent.getStringExtra("source"));
+                }
+            }else if(operation!=null && operation.startsWith("remote_")){
                 new RemoteKeyMap(context).operation(operation,intent);
             }else if("adb_guard_configure".equals(operation)){
                 LegacyAdbHomeGuard.configure(context,intent.getStringExtra("home"),intent.getIntExtra("port",-1),intent.getBooleanExtra("resume",false));
+            }else if("window_guard_configure".equals(operation)){
+                LegacyWindowHomeGuard.configure(context,intent.getStringExtra("home"),intent.getBooleanExtra("resume",false));
             }else if("management_config".equals(operation)){
                 int port=intent.getIntExtra("port",-1);
                 if(port<1 || port>65535)throw new IllegalArgumentException("本机 TCP ADB 端口无效");
@@ -146,6 +160,7 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
                 new ComputerRestorePlan(context).finish(intent.getStringExtra("revision"),intent.getStringExtra("proof"));
             }else if(!java.util.Arrays.asList("inspect","input_list","profile_get","takeover_plan","legacy_records").contains(operation))throw new IllegalArgumentException("不支持的维护操作");
             JSONObject result=snapshot(context);String pkg=intent.getStringExtra("target_package");
+            if(operation.startsWith("entry_"))result.put("systemEntry",SystemEntryMaintenance.snapshot(context,intent.getStringExtra("entry")));
             if(operation.startsWith("remote_"))result.put("remoteKeys",new RemoteKeyMap(context).snapshot());
             if(operation.startsWith("proxy_"))result.put("proxyEpoch",Long.toString(new HomeGuardState(context,false).preferences.getLong("proxyEpoch",-1)));
             if("legacy_records".equals(operation)){
@@ -159,7 +174,7 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
             }
             if(pkg!=null)result.put("app",app(context,pkg));
             if(operation.startsWith("profile_") || "input_open".equals(operation))result.put("inputProfile",new DeviceInputProfile(context).snapshot());
-            if("input_list".equals(operation))result.put("inputs",Build.VERSION.SDK_INT>=21?new TvInputController(context).maintenanceInputs():new JSONObject().put("supported",false));
+            if("input_list".equals(operation))result.put("inputs",DeviceInputProfile.maintenanceInputs(context));
             if("takeover_plan".equals(operation))result.put("restorePlan",new ComputerRestorePlan(context).plan());
             reply.data=result.toString();reply.code=Activity.RESULT_OK;
         }catch(Exception failure){reply.data="维护未完成："+failure.getMessage();}

@@ -5,6 +5,7 @@ import json
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 from types import SimpleNamespace
 import configure_home_guard as guard
@@ -341,9 +342,109 @@ def input_action(args, adb, journal, snapshot):
         print("已提交画面切换请求；请核对 lastInput 回执和实际画面，不能把请求当作切换成功。")
 
 
+def entry_record(args, journal, snapshot):
+    value = {"schemaVersion": 1, "serial": args.serial, "package": args.package, "user": args.user,
+             "fingerprint": snapshot["fingerprint"], "systemEntry": snapshot["systemEntry"]}
+    (journal.directory / "entry.json").write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps(value["systemEntry"], ensure_ascii=False, indent=2))
+    return value
+
+
+def entry_action(args, adb, journal, snapshot):
+    if "system-entry-test-v1" not in snapshot.get("capabilities", []):
+        raise ValueError("已安装 APK 缺少系统入口测试接口；保留原配置，不能绕过应用改写入口")
+    current = inspect(adb, args.package, args.user, "entry_list", extras={"entry": args.entry})
+    if not same_scope(snapshot, current):
+        raise ValueError("读取入口时设备或用户已变化")
+    entry = current["systemEntry"]
+    if args.action == "entry-list":
+        entry_record(args, journal, current)
+        return
+    previous = json.loads(args.from_entry.read_text(encoding="utf-8"))
+    if (previous.get("schemaVersion") != 1 or previous.get("serial") != args.serial
+            or previous.get("package") != args.package or previous.get("user") != args.user
+            or previous.get("fingerprint") != current["fingerprint"]
+            or previous.get("systemEntry", {}).get("entry") != args.entry):
+        raise ValueError("上一入口记录不属于当前连接、应用、用户或固件")
+    before = previous["systemEntry"]
+    if args.action == "entry-test":
+        if before.get("scope") != entry["scope"]:
+            raise ValueError("候选或成功记录已变化，请重新 entry-list")
+        candidates = entry["candidates"]
+        selected = args.candidate or (candidates[0]["id"] if candidates else "")
+        if not any(item["id"] == selected for item in candidates):
+            raise ValueError("没有对应的可调用入口；请检查本机系统组件和诊断，不能试写任意组件")
+        extras = {"entry": args.entry, "candidate": selected, "scope": entry["scope"]}
+    else:
+        test = before.get("test", {})
+        actual = entry.get("test", {})
+        if not test.get("request") or actual.get("request") != test["request"]:
+            raise ValueError("原测试已结束或被其他测试替换，请重新测试")
+        if args.action == "entry-status":
+            entry_record(args, journal, current)
+            return
+        if actual.get("state") != "DISPATCHED_UNVERIFIED":
+            raise ValueError("当前测试尚未派发、已失败或过期，不能确认")
+        if actual.get("fallback") and args.worked == "yes":
+            raise ValueError("打开设置首页不能确认成网络设置成功")
+        extras = {"entry": args.entry, "request": test["request"], "worked": args.worked == "yes", "source": args.evidence_source}
+    journal.event("entry_plan", operation=args.action, parameters=extras)
+    if not args.apply:
+        print(json.dumps({"operation": args.action, "parameters": extras}, ensure_ascii=False, indent=2))
+        print("仅预览；entry-test 会从 Quiet TV 打开指定页面，entry-confirm 才保存明确确认的结果。")
+        return
+    unchanged_user(adb, args.user)
+    fresh = inspect(adb, args.package, args.user, "entry_status", extras={"entry": args.entry})
+    if not same_scope(current, fresh) or fresh["systemEntry"] != entry:
+        raise ValueError("执行前入口或测试状态已变化，请重新读取")
+    result = inspect(adb, args.package, args.user, args.action.replace("-", "_"), extras=extras)
+    if args.action == "entry-test":
+        request = result["systemEntry"].get("test", {}).get("request")
+        if not request or result["systemEntry"]["test"].get("candidate") != selected:
+            raise ValueError("应用未确认本次入口请求")
+        deadline = time.monotonic() + 10
+        while result["systemEntry"]["test"]["state"] in ("PENDING", "PREPARING") and time.monotonic() < deadline:
+            time.sleep(0.25)
+            unchanged_user(adb, args.user)
+            result = inspect(adb, args.package, args.user, "entry_status", extras={"entry": args.entry})
+            if (not same_scope(current, result)
+                    or result["systemEntry"].get("test", {}).get("request") != request):
+                raise ValueError("测试期间设备或入口请求已变化")
+    else:
+        expected = "CONFIRMED" if args.worked == "yes" else "REJECTED"
+        saved = result["systemEntry"].get("test", {})
+        if saved.get("request") != extras["request"] or saved.get("state") != expected or saved.get("source") != args.evidence_source:
+            raise ValueError("入口确认未读回")
+        journal.event("entry_observation", source=args.evidence_source, worked=args.worked, observed=args.observed)
+    entry_record(args, journal, result)
+    state = result["systemEntry"].get("test", {}).get("state")
+    journal.event("entry_result", result=result["systemEntry"])
+    if state in ("FAILED", "CANCELLED_UNVERIFIED", "EXPIRED"):
+        raise ValueError("入口测试未完成：" + state + "；已保存 entry.json，不自动重放请求")
+    if args.action == "entry-test":
+        print("请求状态已记录；请核对实际页面，再用 entry-confirm --worked yes/no --observed 描述实际结果。")
+    else:
+        print("已保存并读回入口选择。" if args.worked == "yes" else "已记录入口未正常打开；可从候选中明确选择下一项测试。")
+
+
 def restore_home(args, adb, journal, sdk, snapshot):
     if snapshot.get("takeoverRecord"):
         return restore_takeover(args, adb, journal, sdk, snapshot)
+    if snapshot.get("windowHomeGuard", {}).get("configured"):
+        home = snapshot["windowHomeGuard"].get("home")
+        if snapshot.get("systemHome") not in (None, "", home):
+            raise ValueError("系统 HOME 已变化，需先核对其他桌面改动")
+        journal.event("restore_plan", before=snapshot, command="pause_window_guard")
+        if not args.apply:
+            print("计划：暂停窗口守护，保留系统原桌面；不调用桌面切换命令。")
+            return
+        unchanged_user(adb, args.user)
+        result = inspect(adb, args.package, args.user, "pause")
+        if not result.get("paused") or result.get("windowHomeGuard", {}).get("enabled"):
+            raise ValueError("窗口守护暂停未确认")
+        journal.event("restore_result", result=result)
+        print("窗口守护已暂停，系统 HOME 保持原状；请按实体 HOME 验证。")
+        return
     if (snapshot.get("adbHomeGuard", {}).get("configured")
             and snapshot.get("systemHome") in (None, "", snapshot["adbHomeGuard"].get("home"))):
         journal.event("restore_plan", before=snapshot, command="pause_adb_guard")
@@ -400,6 +501,56 @@ def native_observer_needed(snapshot):
                for item in routes.get("sceneEvidence", {}).values() if isinstance(item, dict))
 
 
+def configure_window_guard(args, adb, journal, sdk, snapshot):
+    state = snapshot.get("windowHomeGuard", {})
+    if sdk != 18 or "window-home-guard-v1" not in snapshot.get("capabilities", []) or state.get("supported") is not True:
+        raise ValueError("需要 API18 且已安装包含 window-home-guard-v1 的新 APK")
+    if snapshot.get("paused") and not args.resume:
+        raise ValueError("接管已暂停，明确恢复时使用 --resume")
+    home = guard.canonical_home(args.home or state.get("home") or snapshot.get("originalHome") or "")
+    if not home or home not in {guard.canonical_home(value) for value in state.get("candidates", [])}:
+        raise ValueError("需要用 --home 指定应用实际检测到的系统 HOME 完整组件")
+    service = args.package + "/home.quiet.tv.LegacyWindowHomeGuardService"
+    def setting(operation, key, *values):
+        return adb.shell("settings", "--user", args.user, operation, "secure", key, *values)
+    before = setting("get", "enabled_accessibility_services")
+    enabled = setting("get", "accessibility_enabled")
+    if enabled not in ("0", "1", "null"):
+        raise ValueError("无障碍总开关原值未确认，未修改")
+    entries = [entry for entry in before.split(":") if entry and entry != "null"
+               and guard.canonical_home(entry) != service]
+    desired = ":".join(dict.fromkeys([*entries, service]))
+    journal.event("window_guard_plan", home=home, before=snapshot,
+                  accessibility_before=before, accessibility_enabled_before=enabled,
+                  accessibility_after=desired)
+    print("计划：仅登记 API18 窗口守护并保存 " + home + "；保留其他无障碍服务、系统 HOME 和原桌面。")
+    if not args.apply:
+        print("仅预览；不授予应用写安全设置权限，不配置本机 ADB 或使用统计。")
+        return
+    unchanged_user(adb, args.user)
+    if not same_scope(snapshot, inspect(adb, args.package, args.user)):
+        raise ValueError("执行前设备或固件已变化")
+    if setting("get", "enabled_accessibility_services") != before or setting("get", "accessibility_enabled") != enabled:
+        raise ValueError("无障碍原值已变化，未覆盖")
+    if desired != before:
+        setting("put", "enabled_accessibility_services", desired)
+    if setting("get", "enabled_accessibility_services") != desired:
+        raise ValueError("窗口守护登记未读回；停止后续配置并保留记录")
+    unchanged_user(adb, args.user)
+    if enabled != "1":
+        setting("put", "accessibility_enabled", "1")
+    if setting("get", "accessibility_enabled") != "1":
+        raise ValueError("无障碍总开关未读回；停止后续配置并保留记录")
+    unchanged_user(adb, args.user)
+    result = inspect(adb, args.package, args.user, "window_guard_configure", home=home, extras={"resume":args.resume})
+    saved = result.get("windowHomeGuard", {})
+    if not saved.get("enabled") or not saved.get("accessibilityAllowed") or saved.get("home") != home:
+        raise ValueError("窗口守护配置读回不一致")
+    journal.event("window_guard_configured", result=result)
+    print(json.dumps(saved, ensure_ascii=False, indent=2))
+    print("窗口守护配置已保存；服务绑定、实际页面事件、实体 HOME、开机及唤醒须分别验收。")
+
+
 def run(args, adb, journal):
     if adb.run("get-state") != "device":
         raise ValueError("需要已授权的目标电视")
@@ -411,6 +562,10 @@ def run(args, adb, journal):
     if args.action == "inspect":
         print(json.dumps(snapshot, ensure_ascii=False, indent=2))
         print("桌面接管：" + desktop_status(snapshot)["title"], file=sys.stderr)
+    elif args.action == "repair" and (getattr(args, "window_guard", False)
+            or sdk == 18 and snapshot.get("windowHomeGuard", {}).get("configured")
+                and not getattr(args, "adb_guard", False) and not getattr(args, "native_observer", False)):
+        configure_window_guard(args, adb, journal, sdk, snapshot)
     elif args.action == "repair" and getattr(args, "adb_guard", False):
         if sdk != 19 or "adb-home-guard-v1" not in snapshot.get("capabilities", []):
             raise ValueError("需要 API19 且已安装包含 adb-home-guard-v1 的新 APK")
@@ -450,6 +605,8 @@ def run(args, adb, journal):
             print("已保存本机 TCP 端口；须在电视应用管理连接并确认应用自己的 ADB 授权。端口配置不等于权限已可用。")
         else:
             print("仅预览：保存本机 TCP ADB 端口 " + str(args.port) + "，不打开端口、不修改应用。")
+    elif args.action.startswith("entry-"):
+        entry_action(args, adb, journal, snapshot)
     elif args.action.startswith(("input-", "profile-")):
         input_action(args, adb, journal, snapshot)
     elif args.action in ("disable", "restore-app"):
@@ -502,7 +659,7 @@ def run(args, adb, journal):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("management-config", "inspect", "repair", "pause", "restore", "disable", "restore-app", "input-list", "input-open", "profile-get", "profile-set", "profile-reset"))
+    parser.add_argument("action", choices=("management-config", "inspect", "repair", "pause", "restore", "disable", "restore-app", "input-list", "input-open", "profile-get", "profile-set", "profile-reset", "entry-list", "entry-status", "entry-test", "entry-confirm"))
     parser.add_argument("--serial", required=True)
     parser.add_argument("--user", required=True, type=int)
     parser.add_argument("--package", default=tcl.PACKAGE, choices=(tcl.PACKAGE, "com.ts.launcher", "com.coocaa.quiettv"))
@@ -510,19 +667,28 @@ def main():
     parser.add_argument("--target", help="本次明确选择的一个应用包名")
     parser.add_argument("--profile", type=Path, help="当前固件的本机信号源配置 JSON")
     parser.add_argument("--source", help="input-list 返回的完整信号源 ID")
+    parser.add_argument("--entry", choices=("settings", "network", "inputs"), help="本次系统入口功能；inputs 测试原厂面板，不修改端口映射")
+    parser.add_argument("--from-entry", type=Path, help="前一步生成的 entry.json")
+    parser.add_argument("--candidate", help="entry-list 返回的候选 ID；省略时使用当前优先候选")
+    parser.add_argument("--worked", choices=("yes", "no"), help="实际功能是否正常")
+    parser.add_argument("--observed", help="实际页面或结果摘要，最多300字，不含账号或网络信息")
+    parser.add_argument("--evidence-source", choices=("user", "agent"), default="user")
     parser.add_argument("--from-record", type=Path, help="禁用时保存的原始 record.jsonl")
     parser.add_argument("--record", required=True, type=Path, help="全新的电脑私有记录目录")
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--resume", action="store_true", help="用户明确要求重新启用已暂停的接管")
     parser.add_argument("--native-observer", action="store_true", help="已确认默认 HOME 被厂商绕过，补充原桌面观察")
     parser.add_argument("--adb-guard", action="store_true", help="显式配置 API19 本机 ADB 桌面守护")
-    parser.add_argument("--home", help="adb-guard 使用的实际原桌面完整组件")
+    parser.add_argument("--window-guard", action="store_true", help="显式配置 API18 无障碍窗口桌面守护")
+    parser.add_argument("--home", help="窗口守护或 adb-guard 使用的实际原桌面完整组件")
     parser.add_argument("--adb", default="adb")
     args = parser.parse_args()
     if args.user < 0 or args.target and not re.fullmatch(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+", args.target):
         parser.error("用户或包名无效")
-    if args.adb_guard and (args.action != "repair" or args.native_observer) or args.home and not args.adb_guard:
-        parser.error("--adb-guard 仅用于 repair，不与 --native-observer 混用；--home 仅用于 adb-guard")
+    if (args.adb_guard or args.window_guard) and (args.action != "repair" or args.native_observer) or args.adb_guard and args.window_guard:
+        parser.error("--adb-guard 与 --window-guard 仅用于 repair，不互相叠加或与 --native-observer 混用")
+    if args.home and not (args.adb_guard or args.window_guard) or args.window_guard and args.port is not None:
+        parser.error("--home 仅用于指定守护；--window-guard 不配置本机 ADB 端口")
     if args.action in ("disable", "restore-app") and not args.target:
         parser.error("需要 --target 指定单个应用")
     if args.action == "restore-app" and not args.from_record:
@@ -533,6 +699,13 @@ def main():
         parser.error("profile-set 需要 --profile；input-open 需要 --source")
     if args.apply and args.action in ("input-list", "profile-get"):
         parser.error("读取信号源和配置不使用 --apply")
+    if args.action.startswith("entry-"):
+        if not args.entry or args.action != "entry-list" and not args.from_entry:
+            parser.error("入口操作需要 --entry；测试、状态和确认需要上一阶段 --from-entry")
+        if args.action in ("entry-list", "entry-status") and args.apply:
+            parser.error("读取入口不使用 --apply")
+        if args.action == "entry-confirm" and (args.worked is None or not args.observed or not args.observed.strip() or len(args.observed) > 300):
+            parser.error("确认需要 --worked yes/no 和实际结果 --observed（最多300字）")
     journal = None
     try:
         journal = tcl.Journal(args.record)
