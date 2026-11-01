@@ -24,6 +24,7 @@ final class WallpaperImport {
         WallpaperStore store=WallpaperStore.get(context);
         if(video)store.checkVideoCapacity(Math.max(0,length));else store.checkCapacity();
         File incoming=store.videoIncoming();
+        File prepared=null;
         try{
             long bytes;
             try(FileOutputStream output=new FileOutputStream(incoming)){bytes=copy(input,output,length,video?WallpaperVideo.MAX_UPLOAD:WallpaperUploadServer.MAX_UPLOAD,active);output.getFD().sync();}
@@ -33,12 +34,15 @@ final class WallpaperImport {
                 WallpaperVideo.Info info=WallpaperVideo.inspect(incoming,diagnostic);
                 return store.addVideo(incoming,name,info,active);
             }
-            int[] size=WallpaperImages.inspectOriginal(incoming);
+            prepared=store.videoIncoming();
+            int[] size=WallpaperImages.prepareImport(incoming,prepared);
             if(!active.valid())throw new IOException("导入已取消 / Import cancelled");
-            WallpaperCatalog.Entry entry=store.add(incoming,name,size[0],size[1]);
-            DiagnosticLog.info("wallpaper.import.image",diagnostic+" size="+size[0]+"x"+size[1]+" bytes="+bytes+" originalPreserved=true");
+            boolean original=!prepared.isFile();
+            WallpaperCatalog.Entry entry=store.add(original?incoming:prepared,name,size[0],size[1]);
+            DiagnosticLog.info("wallpaper.import.image",diagnostic+" size="+size[0]+"x"+size[1]+" bytes="+entry.bytes+" originalPreserved="+original);
             return entry;
         }finally{
+            if(prepared!=null&&prepared.isFile()&&!prepared.delete())android.util.Log.w("QuietTV","Prepared import temporary file retained");
             if(incoming.isFile()&&!incoming.delete())android.util.Log.w("QuietTV","Import temporary file retained");
         }
     }

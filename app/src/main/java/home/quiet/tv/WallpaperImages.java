@@ -6,6 +6,7 @@ import androidx.exifinterface.media.ExifInterface;
 import java.io.*;
 
 final class WallpaperImages {
+    private static final int IMPORT_LONG_EDGE=3840,IMPORT_SHORT_EDGE=2160;
     private WallpaperImages() {}
     static InputStream open(Context context,WallpaperStore store,WallpaperCatalog.Entry entry) throws IOException {
         if(entry.video()){
@@ -42,7 +43,7 @@ final class WallpaperImages {
             if(bitmap==null) throw new IOException("Invalid wallpaper image"); return bitmap;
         }
     }
-    // Only derived display images are bounded by the UI and memory class; uploaded originals are not.
+    // Display limits depend on the UI and memory class; the saved import has a separate 4K cap.
     static int importLimit(Context context){
         android.util.DisplayMetrics screen=context.getResources().getDisplayMetrics();
         android.app.ActivityManager memory=(android.app.ActivityManager)context.getSystemService(Context.ACTIVITY_SERVICE);
@@ -101,6 +102,35 @@ final class WallpaperImages {
         check.recycle();
         int rotation=new ExifInterface(input).getRotationDegrees();
         return rotation%180==0?new int[]{width,height}:new int[]{height,width};
+    }
+    // Leave images within 4K byte-for-byte intact; only larger imports create an output file.
+    static int[] prepareImport(File input,File output)throws IOException{
+        int[] size=inspectOriginal(input);
+        double scale=Math.min(1d,Math.min(IMPORT_LONG_EDGE/(double)Math.max(size[0],size[1]),IMPORT_SHORT_EDGE/(double)Math.min(size[0],size[1])));
+        if(scale==1d)return size;
+        int width=Math.max(1,(int)Math.floor(size[0]*scale)),height=Math.max(1,(int)Math.floor(size[1]*scale));
+        BitmapFactory.Options options=bounds(input);
+        options.inJustDecodeBounds=false;options.inSampleSize=1;
+        while(size[0]/(options.inSampleSize*2)>=width&&size[1]/(options.inSampleSize*2)>=height)options.inSampleSize*=2;
+        // Bound intermediate pixels as on the display path, including very tall/wide inputs.
+        while((long)((options.outWidth+options.inSampleSize-1)/options.inSampleSize)*((options.outHeight+options.inSampleSize-1)/options.inSampleSize)>2L*width*height)options.inSampleSize*=2;
+        Bitmap source=BitmapFactory.decodeFile(input.getPath(),options);
+        if(source==null)throw new IOException("无法读取图片 / Cannot decode image");
+        Bitmap prepared=null;
+        try{
+            ExifInterface exif=new ExifInterface(input);Matrix matrix=orientation(exif);
+            boolean swap=exif.getRotationDegrees()%180!=0;
+            matrix.postScale(width/(float)(swap?source.getHeight():source.getWidth()),height/(float)(swap?source.getWidth():source.getHeight()));
+            prepared=Bitmap.createBitmap(source,0,0,source.getWidth(),source.getHeight(),matrix,true);
+            Bitmap.CompressFormat format=prepared.hasAlpha()?Bitmap.CompressFormat.PNG:Bitmap.CompressFormat.JPEG;
+            try(FileOutputStream stream=new FileOutputStream(output)){
+                if(!prepared.compress(format,90,stream))throw new IOException("Unable to encode image");stream.getFD().sync();
+            }
+            return new int[]{prepared.getWidth(),prepared.getHeight()};
+        }finally{
+            if(prepared!=null&&prepared!=source)prepared.recycle();
+            source.recycle();
+        }
     }
     private static Matrix orientation(ExifInterface exif){
         Matrix matrix=new Matrix();if(exif.isFlipped())matrix.postScale(-1,1);matrix.postRotate(exif.getRotationDegrees());return matrix;

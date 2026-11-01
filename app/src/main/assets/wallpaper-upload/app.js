@@ -23,7 +23,7 @@ $('wallpaper-name').addEventListener('input',updateName);
 async function capabilities(){
   limits=null;$('photo').disabled=true;$('send').disabled=true;
   try{const response=await fetch(new URL('info',uploadBase));if(!response.ok)throw Error();const data=await response.json();if(data.purpose!=='wallpaper')throw Error();limits=data;
-    $('fileinfo').textContent=message('图片  JPG / PNG / 静态 WebP  最大 ','Images  JPG / PNG / static WebP  Up to ')+(data.imageMaxBytes/1024/1024)+' MB\n'+message('视频  MP4 / MOV / MKV / WebM  最大 ','Video  MP4 / MOV / MKV / WebM  Up to ')+(data.videoMaxBytes/1024/1024)+' MB  '+data.videoMaxFps+' FPS\n'+message('视频规格以电视检查结果为准','Video compatibility is checked on the TV');$('photo').disabled=false;
+    $('fileinfo').textContent=message('图片  JPG / PNG / 静态 WebP  最大 ','Images  JPG / PNG / static WebP  Up to ')+(data.imageMaxBytes/1024/1024)+message(' MB  最高保留 4K\n',' MB  Saved up to 4K\n')+message('视频  MP4 / MOV / MKV / WebM  最大 ','Video  MP4 / MOV / MKV / WebM  Up to ')+(data.videoMaxBytes/1024/1024)+' MB  '+data.videoMaxFps+' FPS\n'+message('视频规格以电视检查结果为准','Video compatibility is checked on the TV');$('photo').disabled=false;
   }catch{error(message('会话不可用，请在电视重新打开上传页面。','Session unavailable. Reopen upload on your TV.'));}
 }
 if(!needsCode)capabilities();
