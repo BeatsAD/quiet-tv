@@ -112,9 +112,12 @@ final class AdbController implements Closeable {
     }
     void connect(int port) throws Exception {connect(port,prepare());}
     void connect(int port,int attempt) throws Exception {
-        try{connectAttempt(port,attempt);}catch(Exception failure){failedDiagnostic(attempt,failure);throw failure;}
+        connect(port,attempt,true);
     }
-    private void connectAttempt(int port,int attempt) throws Exception {
+    void connect(int port,int attempt,boolean requestAuthorization) throws Exception {
+        try{connectAttempt(port,attempt,requestAuthorization);}catch(Exception failure){failedDiagnostic(attempt,failure);throw failure;}
+    }
+    private void connectAttempt(int port,int attempt,boolean requestAuthorization) throws Exception {
         if(port<1 || port>65535)throw new IOException("端口必须在 1～65535 之间");
         if(closed || generation.get()!=attempt)throw new IOException("连接已取消");
         List<String> hosts=new ArrayList<>();hosts.add("127.0.0.1");
@@ -143,8 +146,9 @@ final class AdbController implements Closeable {
                         .setCertificate(keys.getCertificate("adb")).build();
                 synchronized(this){if(closed || generation.get()!=attempt){c.close();throw new IOException("连接已取消");}connection=c;}
                 if(closed || generation.get()!=attempt)throw new IOException("连接已取消");
-                publish(Stage.HANDSHAKE,"正在进行 ADB 握手／等待授权（最多 60 秒）  如出现调试授权弹窗，请选择允许",attempt);
-                handshake(c,relay,timer);
+                publish(Stage.HANDSHAKE,requestAuthorization?"正在进行 ADB 握手／等待授权（最多 60 秒）  如出现调试授权弹窗，请选择允许":"正在核对已有 ADB 授权",attempt);
+                try{handshake(c,relay,timer,requestAuthorization);}
+                catch(io.github.muntashirakon.adb.AdbAuthenticationFailedException unauthorized){throw new IOException("本机 ADB 尚未授权，请在应用管理中主动连接",unauthorized);}
                 stage="本机身份核对";publish(Stage.LOCAL,"正在核对本机身份",attempt);
                 verifyLocalDevice();
                 stage="ADB 身份核对";publish(Stage.SHELL,"正在核对 ADB shell 身份",attempt);
@@ -193,10 +197,11 @@ final class AdbController implements Closeable {
     }
 
     // libadb's internal wait uses wall time; also bound socket I/O independently of TV clock changes.
-    static void handshake(AdbConnection c,Closeable relay,ScheduledExecutorService timer) throws Exception {
+    static void handshake(AdbConnection c,Closeable relay,ScheduledExecutorService timer) throws Exception {handshake(c,relay,timer,true);}
+    static void handshake(AdbConnection c,Closeable relay,ScheduledExecutorService timer,boolean requestAuthorization) throws Exception {
         try(AdbTimeout timeout=new AdbTimeout(timer,relay,60000)){
             boolean ready;
-            try{ready=c.connect(60,TimeUnit.SECONDS,false);}
+            try{ready=c.connect(60,TimeUnit.SECONDS,!requestAuthorization);}
             catch(Exception e){timeout.close();if(timeout.expired())throw handshakeTimeout();throw e;}
             timeout.close();
             if(!ready || timeout.expired())throw handshakeTimeout();
