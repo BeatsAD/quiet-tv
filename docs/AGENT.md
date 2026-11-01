@@ -16,7 +16,7 @@ https://beatsad.github.io/quiet-tv/agent.md
 若有未完成任务，先读取原记录并核对现状再继续。最后说明完成项、未验证项和恢复方法。
 ```
 
-可追加“只检查”“只更新”“关闭开机广告”“同包名空壳接管”或“恢复原桌面”。明确目标优先；暂停不代表故障。基础试用是首装检查点，不单列路线，不让用户选择脚本。
+可追加“只检查”“只更新”“关闭开机广告”“同包名空壳接管”或“恢复原桌面”。明确目标优先，暂停不代表故障；首装先试用，由Agent选路线与工具。
 
 ## 先做什么
 
@@ -43,7 +43,7 @@ https://beatsad.github.io/quiet-tv/agent.md
 
 首次接管或 HOME 修复先按[品牌与路线检测](agent/brands.md)只读分流；不能只凭品牌选路线。已有正常配置不重跑 `takeover`；仅更新保留 ADB 选择及守护暂停状态。命中专项问题再读 [HOME/ADB](agent/home.md)、[TCL 安装](agent/tcl.md)、[信号源](agent/inputs.md)或[适配规则](DEVICE_ADAPTATION.zh-CN.md)。
 
-按[任务工具](agent/session.md) `plan` 固定本次路线与必要验收；修复须注明问题领域，`repair` 仅处理 HOME／ADB。无需操作选择 `noop`，不启动安装器。脚本限制各路线允许的动作，用户不需要选择工具。
+按[任务工具](agent/session.md) `plan` 固定路线与验收；`repair` 只处理本次问题领域。无需操作用 `noop`，不启动安装器；工具按路线限制动作。
 
 ## 执行与结束
 
