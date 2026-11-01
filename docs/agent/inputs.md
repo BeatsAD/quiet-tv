@@ -35,6 +35,25 @@ JSON 格式（示意值不能直接用于设备）：
 
 单个画面测试使用 `input-open --source "$INPUT_ID"`，预览后在切换画面授权下加 `--apply`，再读 `profile-get` 的 `lastInput`，核对 request 和 result。请求不会持久保存为重试队列。
 
+## 电脑测试并保存系统入口
+
+首次安装在基础试用通过、配置 HOME 前分别检查 `settings`（完整设置）、`network`（网络设置）及 `inputs`（原厂信号源面板）。通过 `agent_session.py run` 调用下列维护操作，记录目录由任务工具分配；下面只展示底层参数。APK 必须声明 `system-entry-test-v1`，旧包缺接口时明确记录未完成，不直接写应用私有数据。
+
+```sh
+python3 device_maintenance.py entry-list --entry settings --serial "$TV_SERIAL" --user "$TV_USER" --record "$LIST_DIR"
+python3 device_maintenance.py entry-test --entry settings --from-entry "$LIST_DIR/entry.json" --serial "$TV_SERIAL" --user "$TV_USER" --record "$TEST_DIR" --apply
+python3 device_maintenance.py entry-status --entry settings --from-entry "$TEST_DIR/entry.json" --serial "$TV_SERIAL" --user "$TV_USER" --record "$STATUS_DIR"
+python3 device_maintenance.py entry-confirm --entry settings --from-entry "$TEST_DIR/entry.json" --worked yes --observed "实际结果摘要" --evidence-source user --serial "$TV_SERIAL" --user "$TV_USER" --record "$CONFIRM_DIR" --apply
+```
+
+`entry-list` 只读取当前应用允许调用的内置候选，按当前有效的成功记忆排序，不打开页面。`entry-test` 默认测试优先候选，可用 `--candidate` 明确选择列表中的其他 ID；省略 `--apply` 只预览。测试会进入 Quiet TV，并复用首页的壁纸退出、生命周期取消和系统入口调用路径。只测试选定候选，同步失败也不偷偷改测另一项；请求最多保留30秒，派发后的确认十分钟内有效，进程重启不恢复未完成测试。
+
+工具短时读取派发结果并生成 `entry.json`；`DISPATCHED_UNVERIFIED` 或窗口出现均不算功能成功。Agent 能取得实际截图／界面证据时，以 `--evidence-source agent` 记录真实结果；物理切源的画面和声音仍需用户确认。其他情况下询问用户实际页面，以 `user` 记录。失败用 `--worked no` 明确拒绝，再从新列表中选择下一候选，不能连续盲开所有系统页面。`--observed` 只写功能摘要，不含账号、SSID 或页面私人信息。
+
+确认成功复用设置／网络的原有成功记忆，二者独立；网络回退到完整设置主页不能确认成网络成功。信号源只记住经过确认的原厂面板，首页优先采用仍可访问的已确认面板，不覆盖端口的隐藏、名称、映射及开机 HDMI 设置。原厂面板出现不等于某个 HDMI 已有画面，不将其记作开机直达端口。固件、API、协议参数或目标系统包变化后不再使用过期选择。
+
+安装任务默认包含这三项验收。通过任务工具执行的 `entry-test` 只记待确认，`entry-confirm` 成功并读回后才归入对应功能的 PASS，失败确认记 FAIL。无原厂面板但已有标准输入可实际使用的设备，沿用 `input-list`、`input-open` 和实际画面验收，在任务中确认 `inputs`，不要求安装额外面板。没有候选时，电脑 Agent 核对实际系统包、原厂页面及诊断；仅使用现有协议或本机信号源配置解决。缺新协议或权限受限时，保存原因并记录 LIMITED／FAIL，不猜写组件、不修改原桌面来试错。
+
 ## 原生端口与对应关系（版本 2）
 
 当前开发源码保留版本 1 的读取与写入格式。版本 2 在上述字段基础上增加 `nativeSources`、`vendorAliases`、`packageVersions`，不接受任意组件、Intent、广播或 shell 命令。

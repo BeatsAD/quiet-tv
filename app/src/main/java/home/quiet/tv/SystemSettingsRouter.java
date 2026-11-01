@@ -182,7 +182,7 @@ final class SystemSettingsRouter {
         }catch(RuntimeException unavailable){DiagnosticLog.error("settings.inspect.failed",unavailable);}
         return false;
     }
-    private List<Route> routes(String action,boolean ethernet){
+    List<Route> routes(String action,boolean ethernet){
         ArrayList<Route> result=new ArrayList<>();HashSet<String> seen=new HashSet<>();
         for(Intent intent:candidates(action,ethernet))try{
             for(ComponentInfo info:targets(intent)){
@@ -194,8 +194,10 @@ final class SystemSettingsRouter {
         return result;
     }
     boolean open(String action){return open(action,false,java.util.Collections.emptySet())!=null;}
+    SettingsRouteMemory.Attempt openCandidate(String action,String identity){return open(action,true,java.util.Collections.emptySet(),identity);}
+    SettingsRouteMemory.Attempt open(String action,boolean trial,java.util.Set<String> excluded){return open(action,trial,excluded,"");}
     @SuppressWarnings("deprecation")
-    SettingsRouteMemory.Attempt open(String action,boolean trial,java.util.Set<String> excluded){
+    private SettingsRouteMemory.Attempt open(String action,boolean trial,java.util.Set<String> excluded,String selected){
         DiagnosticOperation diagnostic=new DiagnosticOperation("settings",System.currentTimeMillis(),android.os.SystemClock.elapsedRealtime(),DiagnosticLog::info);
         DiagnosticLog.info("settings.requested","attempt="+diagnostic.id+" action="+action+" trial="+trial);
         boolean ethernet=false;
@@ -210,6 +212,7 @@ final class SystemSettingsRouter {
         for(int i=0;i<routes.size();i++)if(!settingsFallback(action,routes.get(i).page)&&memory.preferred(slot,routes.get(i))){Route preferred=routes.remove(i);routes.add(0,preferred);break;}
         diagnostic.stage("ROUTING",android.os.SystemClock.elapsedRealtime());
         for(Route route:routes){
+            if(!selected.isEmpty()&&!selected.equals(route.identity))continue;
             if(excluded.contains(route.identity))continue;
             if(!callable(action,route))continue;
             try{

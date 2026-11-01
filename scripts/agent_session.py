@@ -29,7 +29,7 @@ GUIDES = {'agent.md': 'docs/AGENT.md', 'maintenance.md': 'docs/AGENT_ADAPT.zh-CN
 RUNNERS = ('install_quiet_tv', 'install_tcl', 'configure_home_guard', 'configure_boot_home',
            'device_maintenance', 'device_selftest', 'device_adaptation', 'vendor_adaptation', 'device_environment', 'remote_calibration', 'boot_ads')
 PACKAGES = ('home.quiet.tv', 'com.ts.launcher', 'com.coocaa.quiettv')
-CHECKS = {'install': ('apk', 'basic_ui', 'desktop_configured', 'physical_home', 'recovery'),
+CHECKS = {'install': ('apk', 'basic_ui', 'settings', 'network', 'inputs', 'desktop_configured', 'physical_home', 'recovery'),
           'update': ('apk', 'preservation'),
           'repair': ('repair',), 'restore': ('physical_home', 'recovery'),
           'boot-ads': ('ad_configuration', 'ad_reboot', 'ad_cold_boot', 'ad_wake', 'ad_recovery'),
@@ -80,6 +80,7 @@ def operation(tool, arguments):
         if not arguments or arguments[0].startswith('-'):
             raise ValueError('维护工具须先指定完整操作名')
         return {'inspect': 'read', 'input-list': 'read', 'profile-get': 'read',
+                'entry-list': 'read', 'entry-status': 'read', 'entry-test': 'test', 'entry-confirm': 'entry',
                 'input-open': 'test', 'profile-set': 'input', 'profile-reset': 'input',
                 'repair': 'home', 'management-config': 'adb', 'disable': 'manage',
                 'restore': 'restore', 'restore-app': 'restore', 'pause': 'restore'}.get(arguments[0], 'unknown')
@@ -149,17 +150,20 @@ def allowed(state, tool, arguments):
     route = state.get('route')
     if action == 'read':
         return action
-    choices = {'install': ('trial', 'takeover', 'adb', 'home', 'input', 'rules', 'manage', 'test', 'remote'),
+    choices = {'install': ('trial', 'takeover', 'adb', 'home', 'input', 'rules', 'manage', 'test', 'remote', 'entry'),
                'update': ('update', 'test'),
                'restore': ('restore',), 'inspect': (), 'noop': (), 'boot-ads': ('ads', 'test')}
     if route == 'repair':
         issue = state.get('issue')
         actions = ('remote', 'test') if issue == 'remote' else ('home', 'takeover', 'adb', 'test') if issue == 'home' else ('adb', 'test') if issue == 'adb' else (
-                  ('input', 'test') if issue == 'inputs' else ('manage', 'rules', 'test') if issue == 'apps' else ('test',))
+                  ('input', 'entry', 'test') if issue == 'inputs' else ('manage', 'rules', 'test') if issue == 'apps' else ('entry', 'test') if issue in ('settings', 'network') else ('test',))
     else:
         actions = choices.get(route, ())
     if action not in actions:
         raise ValueError('当前路线不允许此动作；先 plan 选择符合原意图的路线，不重新接管或扩大修复范围')
+    if (route == 'repair' and tool == 'device_maintenance' and arguments[0] in ('entry-test', 'entry-confirm')
+            and option(arguments, '--entry') != state.get('issue')):
+        raise ValueError('入口测试及保存须对应本次修复领域')
     if route == 'install' and action not in ('trial', 'test') and '--apply' in arguments:
         if results(state).get('basic_ui', {}).get('status') != 'PASS' or not state.get('trial'):
             raise ValueError('首次配置前先安装试用，并 accept basic_ui 记录用户实际结果')
@@ -170,6 +174,21 @@ def allowed(state, tool, arguments):
 
 def collect_step(state, step, action, reconcile=False):
     record = Path(step['record'])
+    entry_file = record / 'entry.json'
+    if (step['tool'] == 'device_maintenance' and step.get('exit') == 0 and '--apply' in step['arguments']
+            and step['arguments'][0] in ('entry-test', 'entry-confirm') and entry_file.is_file() and not reconcile):
+        observed = json.loads(entry_file.read_text(encoding='utf-8'))
+        entry = observed.get('systemEntry', {})
+        test = entry.get('test', {})
+        if (observed.get('serial') == state['scope']['serial'] and observed.get('user') == state['scope']['user']
+                and observed.get('package') == state['package'] and observed.get('fingerprint') == state['scope']['fingerprint']
+                and entry.get('entry') == option(step['arguments'], '--entry')
+                and entry['entry'] in ('settings', 'network', 'inputs') and test.get('request')):
+            confirmed = step['arguments'][0] == 'entry-confirm' and test.get('state') == 'CONFIRMED' and test.get('functionVerified') is True
+            rejected = step['arguments'][0] == 'entry-confirm' and test.get('state') == 'REJECTED'
+            source = test.get('source') if (confirmed or rejected) and test.get('source') in ('user', 'agent') else 'script'
+            record_result(state, entry['entry'], 'PASS' if confirmed else 'FAIL' if rejected else 'SKIP', source,
+                          '已确认实际页面并保存入口' if confirmed else '实际页面未正常打开' if rejected else '入口请求已记录，实际功能待确认', str(entry_file))
     events = record / 'record.jsonl'
     if events.is_file():
         entries = [json.loads(line) for line in events.read_text(encoding='utf-8').splitlines() if line.strip()]
