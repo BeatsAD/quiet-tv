@@ -49,7 +49,7 @@ final class SettingsPageCapture {
         final int request=adb.prepare();
         worker.execute(()->{
             try{
-                adb.connect(context.getSharedPreferences("adb",0).getInt("port",5555),request);
+                adb.connect(context.getSharedPreferences("adb",0).getInt("port",5555),request,false);
                 synchronized(this){if(!running)return;capturedUser=adb.user;state="正在自动观察设置页面";
                     DiagnosticLog.info("settings.capture.connected","capture="+id+" user="+capturedUser);}
                 sample();
