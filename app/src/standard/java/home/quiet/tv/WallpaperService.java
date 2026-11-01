@@ -10,7 +10,7 @@ import java.io.IOException;
 /** Bound-only Media3 process. Its main Looper can retire a blocked codec without stopping HOME. */
 public class WallpaperService extends Service {
     static final int OPEN=1,SOUND=2,PAUSE=3,RELEASE=4;
-    static final int PREPARED=11,FRAME=12,SIZE=13,FAILED=14,RELEASED=15,NOTE=16,LOG=17;
+    static final int PREPARED=11,FRAME=12,SIZE=13,FAILED=14,RELEASED=15,NOTE=16,LOG=17,SOFTWARE_AVAILABLE=18,RETRY_SOFTWARE=19;
     static final long OPERATION_TIMEOUT_MS=2500;
     private final Handler main=new Handler(Looper.getMainLooper());
     private Handler worker;
@@ -64,8 +64,10 @@ public class WallpaperService extends Service {
         output=data.getParcelable("surface");
         if(output==null||!output.isValid())throw new IOException("Missing playback output");
         final int openedSession=session;
-        player=new WallpaperEngine(this,worker,output,Uri.parse(data.getString("uri")),data.getInt("rotation"),data.getString("context"),new VideoWallpaperPlayer.PlaybackEvents(){
+        player=new WallpaperEngine(this,worker,output,Uri.parse(data.getString("uri")),data.getInt("rotation"),data.getString("context"),data.getBoolean("softwareOnly"),new VideoWallpaperPlayer.PlaybackEvents(){
             @Override public void ready(){send(openedSession,FRAME,0,null);}
+            @Override public void softwareDecoderAvailable(boolean available){send(openedSession,SOFTWARE_AVAILABLE,available?1:0,null);}
+            @Override public void retrySoftware(){send(openedSession,RETRY_SOFTWARE,0,null);}
             @Override public void failed(VideoWallpaperPlayer.Failure reason){send(openedSession,FAILED,reason.ordinal(),null);}
             @Override public void size(int width,int height,float ratio){Bundle size=new Bundle();size.putInt("width",width);size.putInt("height",height);size.putFloat("pixelRatio",ratio);send(openedSession,SIZE,0,size);}
         },(error,event,detail)->diagnostic(openedSession,error,event,detail));

@@ -24,7 +24,9 @@ final class WallpaperPlayback {
     private IBinder binder;
     private ParcelFileDescriptor input;
     private long offset,length;
-    private boolean bound,opened,released,terminal,sound,paused,linked;
+    private boolean bound,opened,released,terminal,sound,paused,linked,cancelled,softwareAvailable;
+    private final boolean softwareOnly;
+    private WallpaperPlayback fallback;
     private Runnable completion;
     private final IBinder.DeathRecipient death;
     private final ServiceConnection connection=new ServiceConnection(){
@@ -32,7 +34,10 @@ final class WallpaperPlayback {
         @Override public void onServiceDisconnected(ComponentName name){worker.post(()->ended("service_disconnected"));}
     };
     WallpaperPlayback(Context source,Handler worker,Surface surface,File file,WallpaperCatalog.Entry entry,String context,VideoWallpaperPlayer.PlaybackEvents events){
-        this.source=source;this.worker=worker;this.surface=surface;this.file=file;this.entry=entry;this.context=context;this.events=events;
+        this(source,worker,surface,file,entry,context,events,false);
+    }
+    private WallpaperPlayback(Context source,Handler worker,Surface surface,File file,WallpaperCatalog.Entry entry,String context,VideoWallpaperPlayer.PlaybackEvents events,boolean softwareOnly){
+        this.source=source;this.worker=worker;this.surface=surface;this.file=file;this.entry=entry;this.context=context;this.events=events;this.softwareOnly=softwareOnly;
         death=()->worker.post(()->ended("process_died"));
         replies=new Messenger(new Handler(worker.getLooper()){@Override public void handleMessage(Message message){receive(message);}});
     }
@@ -55,7 +60,7 @@ final class WallpaperPlayback {
             service.linkToDeath(death,0);linked=true;
             Bundle data=new Bundle();data.putParcelable("surface",surface);data.putParcelable("file",input);
             data.putString("uri",(file!=null?Uri.fromFile(file):Uri.parse("asset:///wallpapers/"+entry.id+".mp4")).toString());
-            data.putInt("rotation",entry.rotation);data.putString("context",context);
+            data.putBoolean("softwareOnly",softwareOnly);data.putInt("rotation",entry.rotation);data.putString("context",context);
             data.putLong("offset",offset);data.putLong("length",length);data.putBoolean("sound",sound);data.putBoolean("paused",paused);
             opened=true;send(WallpaperService.OPEN,data);
             DiagnosticLog.info("wallpaper.video.remote",context+" phase=bound session="+session);
@@ -74,6 +79,9 @@ final class WallpaperPlayback {
         }
         if(released)return;
         switch(message.what){
+            case WallpaperService.SOFTWARE_AVAILABLE:softwareAvailable=message.arg2!=0;break;
+            case WallpaperService.RETRY_SOFTWARE:
+                if(!retrySoftware("video_decode_error"))events.failed(VideoWallpaperPlayer.Failure.DECODE);break;
             case WallpaperService.PREPARED:
                 DiagnosticLog.info("wallpaper.video.prepared",context+" backend=platform evidence=prepared_callback_only");
                 if(Build.VERSION.SDK_INT<17)events.ready();break;
@@ -93,10 +101,29 @@ final class WallpaperPlayback {
         Bundle data=new Bundle();data.putBoolean("enabled",enabled);
         try{send(command,data);}catch(RemoteException e){remoteFailure("control_failed");}
     }
-    void setSound(boolean enabled){sound=enabled;control(WallpaperService.SOUND,enabled);}
-    void setPaused(boolean value){paused=value;control(WallpaperService.PAUSE,value);}
+    void setSound(boolean enabled){sound=enabled;if(fallback!=null)fallback.setSound(enabled);else control(WallpaperService.SOUND,enabled);}
+    void setPaused(boolean value){paused=value;if(fallback!=null)fallback.setPaused(value);else control(WallpaperService.PAUSE,value);}
+    boolean retrySoftware(String reason){
+        if(cancelled||released||terminal||softwareOnly||fallback!=null||!softwareAvailable)return false;
+        DiagnosticLog.info("wallpaper.video.fallback",context+" from=hardware to=software reason="+reason+" phase=retiring_hardware");
+        events.retrying();
+        retire(()->{
+            if(cancelled)return;
+            fallback=new WallpaperPlayback(source,worker,surface,file,entry,context,events,true);
+            fallback.setSound(sound);fallback.setPaused(paused);
+            DiagnosticLog.info("wallpaper.video.fallback",context+" from=hardware to=software phase=starting_software");
+            try{fallback.prepare();}
+            catch(IOException|RuntimeException e){DiagnosticLog.error("wallpaper.video.fallback_failed",context+" "+VideoDiagnostics.failureDetails(e),e);events.failed(e instanceof IOException?VideoWallpaperPlayer.Failure.FILE:VideoWallpaperPlayer.Failure.DECODE);}
+        });
+        return true;
+    }
     boolean detachOutput(){return false;}
     void release(Runnable completed){
+        cancelled=true;
+        if(fallback!=null){fallback.release(completed);return;}
+        retire(completed);
+    }
+    private void retire(Runnable completed){
         released=true;completion=completed;
         if(terminal||!opened){ended("cancelled_before_open");return;}
         DiagnosticLog.info("wallpaper.video.remote",context+" phase=release_requested session="+session);
