@@ -11,7 +11,7 @@ final class DeviceInputProfile {
     private final Context context;
     private final SharedPreferences prefs;
     private static final Object profileLock=new Object();
-    private static String pending="",request="";
+    private static String pending="",request="",pendingTarget="";
     private static JSONObject last=new JSONObject();
     DeviceInputProfile(Context c){context=c;prefs=c.getSharedPreferences("device-input-profile",Context.MODE_PRIVATE);}
     static String digest(String text) throws Exception {
@@ -123,6 +123,7 @@ final class DeviceInputProfile {
     }
     @androidx.annotation.RequiresApi(21)
     private static final class Api21 {
+        static JSONObject inputs(Context c)throws Exception{return new TvInputController(c).maintenanceInputs();}
         static boolean contains(Context c,String id){
             TvInputController.Snapshot snapshot=new TvInputController(c).inspectSources();boolean found=false;
             for(TvInputInfo input:snapshot.inputs)if(id.equals(input.getId())){found=true;break;}
@@ -140,22 +141,36 @@ final class DeviceInputProfile {
             }
         }
     }
+    static JSONObject maintenanceInputs(Context context)throws Exception{
+        if(Build.VERSION.SDK_INT>=21)return Api21.inputs(context);
+        JSONArray sources=new JSONArray();
+        for(HdmiTarget target:HdmiTarget.available(context))sources.put(new JSONObject().put("id",target.id).put("label",target.label)
+            .put("type",VendorTvInputs.TYPE_HDMI).put("hdmi",true));
+        return new JSONObject().put("supported",true).put("standardSupported",false).put("scope","native_hdmi")
+            .put("state",sources.length()==0?"EMPTY":"READY").put("sources",new JSONArray()).put("vendorSources",sources)
+            .put("configuration",new DeviceInputProfile(context).snapshot());
+    }
     static String request(Context c,String id) throws Exception {
         synchronized(DeviceInputProfile.class){if(!pending.isEmpty())throw new IllegalStateException("上一次信号源请求尚未处理");}
-        if(Build.VERSION.SDK_INT<21||id==null)throw new IllegalArgumentException("信号源不存在");
-        if(!Api21.contains(c,id))throw new IllegalArgumentException("信号源不存在或已隐藏");
+        if(id==null)throw new IllegalArgumentException("信号源不存在");
+        String saved="";
+        if(Build.VERSION.SDK_INT>=21){if(!Api21.contains(c,id))throw new IllegalArgumentException("信号源不存在或已隐藏");}
+        else{
+            for(HdmiTarget target:HdmiTarget.available(c))if(id.equals(target.id)){saved=target.encode();break;}
+            if(saved.isEmpty())throw new IllegalArgumentException("信号源不存在或已隐藏");
+        }
         final String token=UUID.randomUUID().toString();
         synchronized(DeviceInputProfile.class){
             if(!pending.isEmpty())throw new IllegalStateException("上一次信号源请求尚未处理");
-            pending=id;request=token;last=new JSONObject().put("request",request).put("id",id).put("result","pending");
+            pending=id;request=token;pendingTarget=saved;last=new JSONObject().put("request",request).put("id",id).put("result","pending");
         }
         try{c.startActivity(new Intent(c,HomeActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));}
-        catch(RuntimeException failure){synchronized(DeviceInputProfile.class){if(token.equals(request)){pending="";last.put("result","failed");}}throw failure;}
+        catch(RuntimeException failure){synchronized(DeviceInputProfile.class){if(token.equals(request)){pending="";pendingTarget="";last.put("result","failed");}}throw failure;}
         return token;
     }
     private static synchronized JSONObject lastSnapshot() throws JSONException {return new JSONObject(last.toString());}
-    static final class Request {final String id,token;Request(String id,String token){this.id=id;this.token=token;}}
-    static synchronized Request consume(){Request value=new Request(pending,request);pending="";return value;}
+    static final class Request {final String id,token,saved;Request(String id,String token,String saved){this.id=id;this.token=token;this.saved=saved;}}
+    static synchronized Request consume(){Request value=new Request(pending,request,pendingTarget);pending="";pendingTarget="";return value;}
     static synchronized void cancelled(String token){result(token,"cancelled_unverified");}
     static synchronized void dispatched(String token,boolean opened){result(token,opened?"dispatched":"failed");}
     private static void result(String token,String result){if(!token.equals(request))return;try{last.put("result",result).put("physicalVerified",false);}catch(JSONException ignored){}}

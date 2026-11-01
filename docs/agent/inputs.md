@@ -70,6 +70,8 @@ JSON 格式（示意值不能直接用于设备）：
 
 Android 4.x 的“看电视 → 电视信号源”可选择并保存厂商接口实际返回的 HDMI，或经过核对的版本 2 小米原生端口记录；不加载 API21 标准输入框架。隐藏、改名、固件和组件版本校验继续生效，不接受标准输入映射。首页仍保留原厂面板；只有面板而没有明确端口的设备不能保存指定 HDMI。选择后可立即观看，确认画面和声音后才可开启开机自动进入。此能力尚待对应固件真机验收。
 
+安卓 4.x 的电脑维护 `input-list` 返回 `scope=native_hdmi`、`standardSupported=false`，可用 HDMI 位于 `vendorSources`，与“看电视”的可选目标一致。`input-open` 仅接受这些可见且身份唯一的目标；请求绑定当时的固件／组件范围，桌面派发前再次检查。配置能力声明包含 `input-profile-v2`。列表为空不代表电视没有接口，ATV／DTV／AV 和仅有原厂面板的设备不在此直接切换范围内。派发或取消回执仍不证明物理画面和声音正常。
+
 协议依据为 Aerial 固定提交 `587a2849c58b27dc5854a18eab3b458e1d072b34` 的 [HisenseSources](https://github.com/pengchujin/aerial-tv/blob/587a2849c58b27dc5854a18eab3b458e1d072b34/app/src/main/java/app/orchard/tv/system/HisenseSources.kt)、[XgimiMstarSources](https://github.com/pengchujin/aerial-tv/blob/587a2849c58b27dc5854a18eab3b458e1d072b34/app/src/main/java/app/orchard/tv/system/XgimiMstarSources.kt) 与 [小米原生输入](https://github.com/pengchujin/aerial-tv/blob/587a2849c58b27dc5854a18eab3b458e1d072b34/app/src/main/java/app/orchard/tv/system/SystemState.kt)。运行时按组件、API 和协议能力匹配，不将整品牌视为同一固件。上游报告与本地夹具测试不替代 Quiet TV 的厂商实机验收。
 
 ## 异步调用与结果确认（第三批开发源码）
