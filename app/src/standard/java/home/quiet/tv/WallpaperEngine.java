@@ -29,16 +29,22 @@ final class WallpaperEngine {
     private String decoder="unknown";
     private boolean rendered;
     private int loops;
-    WallpaperEngine(Context source,Handler worker,Surface surface,Uri uri,int rotation,String context,VideoWallpaperPlayer.PlaybackEvents events,Diagnostics log){
+    private volatile boolean softwareAvailable;
+    private volatile java.util.Set<String> softwareNames=java.util.Collections.emptySet();
+    private boolean softwareDecoder;
+    WallpaperEngine(Context source,Handler worker,Surface surface,Uri uri,int rotation,String context,boolean softwareOnly,VideoWallpaperPlayer.PlaybackEvents events,Diagnostics log){
         this.worker=worker;this.context=context;this.log=log;
         boolean manualRotation=VideoGeometry.manualRotation(android.os.Build.VERSION.SDK_INT,rotation);
-        boolean sonyCodec=Build.VERSION.SDK_INT==31&&"Sony".equalsIgnoreCase(Build.MANUFACTURER);
         DefaultRenderersFactory renderers=new DefaultRenderersFactory(source){
             @Override protected void buildVideoRenderers(Context context,int extensions,MediaCodecSelector selector,boolean fallback,Handler handler,VideoRendererEventListener listener,long joiningMs,ArrayList<Renderer> output){
-                if(!manualRotation&&!sonyCodec){super.buildVideoRenderers(context,extensions,selector,fallback,handler,listener,joiningMs,output);return;}
                 output.add(new MediaCodecVideoRenderer(new MediaCodecVideoRenderer.Builder(context).setCodecAdapterFactory(getCodecAdapterFactory()).setMediaCodecSelector(selector).setEnableDecoderFallback(fallback).setEventHandler(handler).setEventListener(listener).setAllowedJoiningTimeMs(joiningMs)){
                     @Override protected java.util.List<androidx.media3.exoplayer.mediacodec.MediaCodecInfo> getDecoderInfos(MediaCodecSelector selector,Format format,boolean secure)throws androidx.media3.exoplayer.mediacodec.MediaCodecUtil.DecoderQueryException{
-                        return localDecoders(super.getDecoderInfos(selector,format,secure),format);
+                        java.util.List<androidx.media3.exoplayer.mediacodec.MediaCodecInfo> codecs=localDecoders(super.getDecoderInfos(selector,format,secure),format,softwareOnly);
+                        java.util.Set<String> names=new java.util.HashSet<>();
+                        for(androidx.media3.exoplayer.mediacodec.MediaCodecInfo codec:codecs)if(codec.softwareOnly)names.add(codec.name);
+                        softwareNames=names;softwareAvailable=!names.isEmpty();
+                        events.softwareDecoderAvailable(!softwareOnly&&softwareAvailable&&!codecs.isEmpty()&&!codecs.get(0).softwareOnly);
+                        return codecs;
                     }
                     @Override protected androidx.media3.exoplayer.mediacodec.MediaCodecAdapter.Configuration getMediaCodecConfiguration(androidx.media3.exoplayer.mediacodec.MediaCodecInfo codec,Format format,android.media.MediaCrypto crypto,float rate){
                         androidx.media3.exoplayer.mediacodec.MediaCodecAdapter.Configuration value=super.getMediaCodecConfiguration(codec,format,crypto,rate);
@@ -68,7 +74,9 @@ final class WallpaperEngine {
                     +" size="+format.width+"x"+format.height+" fps="+format.frameRate+" averageBitrate="+format.averageBitrate+" peakBitrate="+format.peakBitrate);
             }
             @Override public void onVideoDecoderInitialized(EventTime time,String name,long initializedAt,long durationMs){
-                decoder=VideoDiagnostics.token(name);info("wallpaper.video.decoder",context+" backend=media3 codec="+decoder+" initMs="+durationMs);
+                decoder=VideoDiagnostics.token(name);softwareDecoder=softwareNames.contains(name);
+                events.softwareDecoderAvailable(!softwareOnly&&!softwareDecoder&&softwareAvailable);
+                info("wallpaper.video.decoder",context+" backend=media3 codec="+decoder+" mode="+(softwareDecoder?"software":"hardware")+" initMs="+durationMs);
             }
             @Override public void onVideoDisabled(EventTime time,androidx.media3.exoplayer.DecoderCounters counters){
                 info("wallpaper.video.counters",context+" rendered="+counters.renderedOutputBufferCount+" dropped="+counters.droppedBufferCount+" skipped="+counters.skippedOutputBufferCount+" evidence=decoder_counters_not_presentation");
@@ -91,6 +99,9 @@ final class WallpaperEngine {
                     +" state="+player.getPlaybackState()+" positionMs="+player.getCurrentPosition()+" "+VideoDiagnostics.causes(error),error);
                 logDecoderCauses(context,error);
                 if(releasing){releaseTimedOut=true;return;}
+                if(retrySoftware(error,softwareAvailable,softwareOnly||softwareDecoder)){
+                    events.retrySoftware();return;
+                }
                 VideoWallpaperPlayer.Failure reason;
                 switch(error.errorCode){
                     case PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED:
@@ -111,18 +122,25 @@ final class WallpaperEngine {
         player.setMediaItem(MediaItem.fromUri(uri));
     }
     static java.util.List<androidx.media3.exoplayer.mediacodec.MediaCodecInfo> localDecoders(java.util.List<androidx.media3.exoplayer.mediacodec.MediaCodecInfo> codecs,Format format)throws androidx.media3.exoplayer.mediacodec.MediaCodecUtil.DecoderQueryException{
-        if(Build.VERSION.SDK_INT!=31||!"Sony".equalsIgnoreCase(Build.MANUFACTURER)||!"video/hevc".equals(format.sampleMimeType))return codecs;
-        boolean affected=false;
+        return localDecoders(codecs,format,false);
+    }
+    static java.util.List<androidx.media3.exoplayer.mediacodec.MediaCodecInfo> localDecoders(java.util.List<androidx.media3.exoplayer.mediacodec.MediaCodecInfo> codecs,Format format,boolean softwareOnly)throws androidx.media3.exoplayer.mediacodec.MediaCodecUtil.DecoderQueryException{
+        java.util.List<androidx.media3.exoplayer.mediacodec.MediaCodecInfo> hardware=new ArrayList<>(),software=new ArrayList<>(),unsupported=new ArrayList<>();
         for(androidx.media3.exoplayer.mediacodec.MediaCodecInfo codec:codecs){
-            if(!codec.softwareOnly&&codec.isFormatSupported(format))return codecs;
-            if("OMX.MTK.VIDEO.DECODER.HEVC".equals(codec.name))affected=true;
+            if(codec.softwareOnly)software.add(codec);
+            else if(!softwareOnly){if(codec.isFormatSupported(format))hardware.add(codec);else unsupported.add(codec);}
         }
-        if(!affected)return codecs;
-        // Try the system software decoder before hardware that declares this stream unsupported.
-        // This changes playback preference, without rejecting or rewriting the uploaded file.
-        java.util.List<androidx.media3.exoplayer.mediacodec.MediaCodecInfo> ordered=new ArrayList<>(codecs);
-        java.util.Collections.sort(ordered,(left,right)->Boolean.compare(!left.softwareOnly,!right.softwareOnly));
-        return ordered;
+        hardware.addAll(software);hardware.addAll(unsupported);return hardware;
+    }
+    static boolean retrySoftware(PlaybackException error,boolean available,boolean alreadySoftware){
+        if(!available||alreadySoftware||!(error instanceof ExoPlaybackException))return false;
+        ExoPlaybackException renderer=(ExoPlaybackException)error;
+        if(renderer.type!=ExoPlaybackException.TYPE_RENDERER||renderer.rendererFormat==null||renderer.rendererFormat.sampleMimeType==null||!renderer.rendererFormat.sampleMimeType.startsWith("video/"))return false;
+        // Initialization already tries the available decoders. Only a video decoding failure
+        // during playback needs one fresh software-only attempt in a retired codec process.
+        return error.errorCode==PlaybackException.ERROR_CODE_DECODING_FAILED
+            ||error.errorCode==PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES
+            ||error.errorCode==PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED;
     }
     static boolean configureLocalVideo(MediaFormat value,String codec){
         if(Build.VERSION.SDK_INT!=31||!"Sony".equalsIgnoreCase(Build.MANUFACTURER)||!"OMX.MTK.VIDEO.DECODER.HEVC".equals(codec))return false;
