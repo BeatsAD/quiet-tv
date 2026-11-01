@@ -153,6 +153,7 @@ final class VersionUpdatePanel extends ManagementPanel {
     }
     @Override protected void onPause(){ChildModeAuth.dismiss(activity);++deviceRead;if(scene!=null)scene.hideRecovery();if(web!=null)web.onPause();super.onPause();}
     @Override protected void onResume(){super.onResume();refreshDevice();UpdateRepository.get(this).add(updateListener);UpdateRepository.get(this).reconcile();updateListener.changed();updates.resumed();if(web!=null)web.onResume();}
+    @Override void activityResult(int request,int result,android.content.Intent data){if(request==UpdateInstaller.REQUEST_INSTALL)UpdateRepository.get(this).fileInstallReturned(result,data);}
     @Override protected void onStop(){UpdateRepository.get(this).remove(updateListener);if(updates!=null)updates.suspend();super.onStop();}
     @Override protected void onDestroy(){++deviceRead;deviceWorker.shutdownNow();if(updates!=null)updates.suspend();if(web!=null){web.stopLoading();content.removeView(web);web.destroy();}super.onDestroy();}
 }

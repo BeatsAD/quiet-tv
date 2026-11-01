@@ -52,7 +52,7 @@ def option(arguments, name, default=None):
 
 def operation(tool, arguments):
     # The child parsers accept abbreviations; do not let an abbreviated flag evade routing.
-    flags = ('--apply', '--goal', '--action', '--pause', '--restore-record', '--verify-only', '--adb-only')
+    flags = ('--apply', '--goal', '--action', '--pause', '--restore-record', '--verify-only', '--adb-only', '--native-observer', '--resume')
     if any(arg.startswith('--') and any(flag.startswith(arg.split('=')[0])
             and flag != arg.split('=')[0] for flag in flags) for arg in arguments):
         raise ValueError('任务调用须使用完整参数名，不使用缩写')
@@ -75,7 +75,7 @@ def operation(tool, arguments):
     if tool == 'configure_boot_home':
         return 'restore' if option(arguments, '--restore-record') else 'takeover'
     if tool == 'configure_home_guard':
-        return 'restore' if '--pause' in arguments else 'adb' if '--adb-only' in arguments else 'takeover'
+        return 'restore' if '--pause' in arguments or option(arguments, '--restore-record') else 'adb' if '--adb-only' in arguments else 'takeover'
     if tool == 'device_maintenance':
         if not arguments or arguments[0].startswith('-'):
             raise ValueError('维护工具须先指定完整操作名')

@@ -41,12 +41,14 @@ final class UpdateRepository {
     private UpdateRepository(Context context){
         this.context=context;prefs=context.getSharedPreferences("application-updates",0);
         directory=new File(context.getFilesDir(),"updates");cache=new File(context.getFilesDir(),"update-manifest.json");
+        installAttempt=prefs.getString("installAttempt","");
         if(UpdateInstallPolicy.session(Build.VERSION.SDK_INT)){
-            installAttempt=prefs.getString("installAttempt","");installSession=prefs.getInt("installSession",-1);installFallback=prefs.getBoolean("installFallback",false);
+            installSession=prefs.getInt("installSession",-1);installFallback=prefs.getBoolean("installFallback",false);
             if(!prefs.getString("installPhase","").isEmpty()){
                 installState="interrupted";installError=UpdateInstallPolicy.message("interrupted");installNotice=true;
             }
         }
+        if("file_dispatched".equals(prefs.getString("installPhase",""))){installState="file_dispatched";installNotice=true;}
         worker.execute(()->{try{
             key=read(context.getAssets().open("updates/public-key.der"),4096);
             if(cache.isFile()){manifest=UpdateManifest.verify(read(new FileInputStream(cache),UpdateManifest.MAX_BYTES),key,prefs.getLong("revision",0));prefs.edit().putLong("revision",manifest.revision).apply();}
@@ -167,8 +169,9 @@ final class UpdateRepository {
         if(!"prepared".equals(installState)||installBusy)return;installNotice=false;
         if(installSession<0){
             installState="file_dispatched";
+            if(!prefs.edit().putString("installPhase","file_dispatched").commit()){installationFailed("无法记录安装任务，请重试");return;}
             if(!UpdateInstaller.launch(activity,installFile))installationFailed(UpdateInstallPolicy.message("confirmation_missing"));
-            else {prefs.edit().remove("installPhase").apply();notifyChanged();}return;
+            else notifyChanged();return;
         }
         final int id=installSession;installBusy=true;installState="committing";prefs.edit().putString("installPhase","committing").apply();notifyChanged();
         worker.execute(()->{
@@ -183,6 +186,15 @@ final class UpdateRepository {
                 DiagnosticLog.info("update.install.session","step=commit session="+id);notifyChanged();
             });
         });
+    }
+    /** A file installer may omit its result or finish immediately. The installed version is authoritative. */
+    void fileInstallReturned(int resultCode,Intent result){
+        if(!"file_dispatched".equals(prefs.getString("installPhase","")))return;
+        int status=result==null?Integer.MIN_VALUE:result.getIntExtra("android.intent.extra.INSTALL_RESULT",Integer.MIN_VALUE);
+        reconcile();boolean installed="success".equals(installState);
+        DiagnosticLog.info("update.install.file_result","attempt="+installAttempt+" result="+(resultCode==Integer.MIN_VALUE?"unavailable":resultCode)+" status="+(status==Integer.MIN_VALUE?"unavailable":status)+" outcome="+(installed?"installed":"not_confirmed"));
+        if(installed)notifyChanged();
+        else installationFailed("尚未确认更新完成，请重试或通过电脑更新","not_installed");
     }
     void installationResult(Intent intent){
         int id=prefs.getInt("installSession",-1);

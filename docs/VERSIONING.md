@@ -32,7 +32,19 @@ QuietTV_<版本号>_<适用系统>[_<单架构标记>]_<发布状态>.apk
 - 构建号与实际 APK 的 `versionCode` 一致，只使用不带前导零的正整数，例如 `31`，不使用 `b31`、`Build31`、`RC31`。
 - 主程序各系统档位、架构和构建类型共用递增交付序列；交付不同内容的新包时分配新号，不回退、复用或因版本变化归零。日常编译不必每次加号，同一归档原字节重发不分配新号。
 - 交付前核对源码配置、历史归档和远程发布中的已用号。文件名中的软件版本须与 APK 的 `versionName` 对应，归档中的构建号须与 APK 的 `versionCode` 对应，不能通过改名冒充新版本；安装时核对 APK 内部构建号。
-- 主程序版本配置在 `app/build.gradle`，当前开发版本为 `1.3.2`；后续交付使用新的递增构建号，公开发布须另行审核确认。历史1.3.0标准130与4.x兼容131保持原样，默认开发构建号仍为 `105`，不作为新包交付号；下次交付先核对所有已用号，再用 Gradle 参数 `quietBuildNumber` 分别指定递增构建号。1.1.2 已发布：标准档为 `1.1.2 / 34`，兼容档为 `1.1.2 / 35`，历史附件保持原样。standard、legacy14 与 legacy19 均为 targetSdk36；本页示例不预占构建号。助手版本独立配置在 `coocaa-home-shim/build.gradle` 和 `xiaomi-home-helper/build.gradle`。
+- 主程序版本配置在 `app/build.gradle`，当前基础版本为 `1.3.3`，本地电视过渡测试版为 `1.3.3.1`；后续交付使用新的递增构建号，公开发布须另行审核确认。历史1.3.0标准130与4.x兼容131保持原样，默认开发构建号仍为 `105`，不作为新包交付号；下次交付先核对所有已用号，再用 Gradle 参数 `quietBuildNumber` 分别指定递增构建号。1.1.2 已发布：标准档为 `1.1.2 / 34`，兼容档为 `1.1.2 / 35`，历史附件保持原样。standard、legacy14 与 legacy19 均为 targetSdk36；本页示例不预占构建号。助手版本独立配置在 `coocaa-home-shim/build.gradle` 和 `xiaomi-home-helper/build.gradle`。
+
+### 本地电视过渡测试
+
+仅本地更新到电视测试时，在三段基础版本后追加 `.1`，例如 `1.3.2.1`。使用 `scripts/build_apk.py --local-test`，对应 Gradle 参数 `quietLocalTest=true`；基础版本不因本地测试递增。不同内容继续分配全局递增的 `versionCode`，系统、签名及数据兼容仍须核对，不能通过版本显示变化规避升级条件。应用内更新比较已安装过渡版本时使用三段基础版本；后续更高基础版本仍须同时满足更高构建号和原有签名等条件，公开更新清单仍只接受三段版本。
+
+本地过渡包文件名保留实际构建号，例如 `QuietTV_1.3.2.1-180_安卓5.0及以上_测试版.apk`；同一 `.1` 版本可归档后续更高构建号，保留全部历史原件。此为本地测试对上方三段版本及无构建号文件名规则的例外，公开版本规则不变。历史 `1.3.3` 至 `1.3.7` 本地候选保持原样，不改名或覆盖。本地过渡包不默认上传、发布或更新线上清单。
+
+```sh
+python3 scripts/build_apk.py --local-test --variant benchmark --build-number "$LOCAL_TEST_BUILD_NUMBER" --summary "本次本地电视测试内容"
+```
+
+This local-TV-only mode appends `.1` to the three-part base version. Each new payload still requires a higher delivery build number, which stays in the local transition APK filename. Published versions remain three-part; local testing does not authorize publication.
 
 ### 安卓档位与架构
 

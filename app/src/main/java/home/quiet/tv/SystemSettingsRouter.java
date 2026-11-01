@@ -23,9 +23,14 @@ import java.util.Locale;
 final class SystemSettingsRouter {
     private static final String XIAOMI="com.xiaomi.mitv.settings";
     private static final String DANGBEI="com.dangbei.leard.settings";
+    static final String XIAOMI_POPUP="com.xiaomi.intent.action.show.globalsetting";
+    private static final String NETWORK="android.settings.NETWORK_SETTINGS";
+    private static final ComponentName KONKA=new ComponentName("com.konka.tvsettings","com.konka.service.SettingService");
     private static final ComponentName XGIMI=new ComponentName("com.android.newsettings","com.xgimi.newsettings.SettingService");
     private static final ComponentName HAIER=new ComponentName("com.haier.tv.menusetting.ui","com.haier.tv.menusetting.ui.SettingsService");
     private static final ComponentName HISENSE=new ComponentName("com.android.tv.settings","com.hisense.systemsettings.MainActivity");
+    enum LaunchType { ACTIVITY, SERVICE, BROADCAST }
+    enum Page { NETWORK, WIFI, ETHERNET, SETTINGS, OTHER }
     private final Context context;
     private final PackageManager pm;
     SystemSettingsRouter(Context context){this.context=context;pm=context.getPackageManager();}
@@ -36,6 +41,32 @@ final class SystemSettingsRouter {
     }
     private static boolean hisense(){return "Hisense".equalsIgnoreCase(Build.MANUFACTURER)||"Hisense".equalsIgnoreCase(Build.BRAND);}
     private static Intent activity(String pkg,String name){return new Intent(Intent.ACTION_MAIN).setComponent(new ComponentName(pkg,name));}
+    private static Intent xiaomiPopup(){return new Intent(XIAOMI_POPUP).setPackage(XIAOMI);}
+    static boolean preferXiaomiPopup(int sdk,String fingerprint){
+        // Upstream #834: this MiBOX3S firmware finishes MainActivity over another HOME.
+        // Other firmware retains the existing order and can use the explicit alternate entry.
+        return sdk==23 && "Xiaomi/queenchristina/queenchristina:6.0.1/MOB31S/838:user/release-keys".equals(fingerprint);
+    }
+    static LaunchType launchType(Intent intent){
+        if(XIAOMI_POPUP.equals(intent.getAction()) && XIAOMI.equals(intent.getPackage()))return LaunchType.BROADCAST;
+        ComponentName component=intent.getComponent();
+        return XGIMI.equals(component)||HAIER.equals(component)||KONKA.equals(component)?LaunchType.SERVICE:LaunchType.ACTIVITY;
+    }
+    static Page page(Intent intent){
+        String action=intent.getAction();ComponentName component=intent.getComponent();
+        if(NETWORK.equals(action)||component!=null&&"com.android.tv.settings.connectivity.NetworkActivity".equals(component.getClassName()))return Page.NETWORK;
+        if((XIAOMI+".ETHERNET_SETTINGS").equals(action))return Page.ETHERNET;
+        if(Settings.ACTION_WIFI_SETTINGS.equals(action)||(XIAOMI+".WIFI_SETTINGS").equals(action)||"com.pptv.intent.action.WIFI_ACTIVITY".equals(action))return Page.WIFI;
+        if(Settings.ACTION_WIRELESS_SETTINGS.equals(action))return Page.NETWORK;
+        String link=intent.getDataString();
+        if(XGIMI.equals(component))link=intent.getStringExtra("data");
+        if(link!=null&&link.startsWith("Settings://"))return link.contains("/wifi_misckey")?Page.WIFI:Page.SETTINGS;
+        if(Settings.ACTION_ACCESSIBILITY_SETTINGS.equals(action)||Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS.equals(action))return Page.OTHER;
+        return Page.SETTINGS;
+    }
+    static boolean settingsFallback(String action,Page page){
+        return !Settings.ACTION_SETTINGS.equals(action)&&!XIAOMI_POPUP.equals(action)&&page==Page.SETTINGS;
+    }
     private void dangbeiSettings(List<Intent> intents){
         intents.add(new Intent(Settings.ACTION_SETTINGS).setPackage(DANGBEI));
         try{
@@ -50,6 +81,7 @@ final class SystemSettingsRouter {
     List<Intent> candidates(String action){return candidates(action,false);}
     List<Intent> candidates(String action,boolean ethernet){
         ArrayList<Intent> intents=new ArrayList<>();
+        if(XIAOMI_POPUP.equals(action)){intents.add(xiaomiPopup());return intents;}
         if(Settings.ACTION_ACCESSIBILITY_SETTINGS.equals(action)){
             intents.add(new Intent(action));intents.addAll(candidates(Settings.ACTION_SETTINGS,ethernet));return intents;
         }
@@ -61,19 +93,20 @@ final class SystemSettingsRouter {
         }
         boolean network=Settings.ACTION_WIFI_SETTINGS.equals(action),settings=Settings.ACTION_SETTINGS.equals(action);
         if(network && hisense()){
+            intents.add(new Intent(NETWORK).setComponent(HISENSE));
             intents.add(new Intent(action).setPackage(HISENSE.getPackageName()));
             intents.add(new Intent(Settings.ACTION_WIRELESS_SETTINGS).setPackage(HISENSE.getPackageName()));
-            // Submitted VIDAA firmware exposes the OEM settings root in this same package.
-            intents.add(new Intent(Settings.ACTION_SETTINGS).setComponent(HISENSE));
         }
         if(network)intents.add(new Intent(action).setPackage(DANGBEI));
         if(settings)dangbeiSettings(intents);
         if(network||settings){
+            if(settings&&preferXiaomiPopup(Build.VERSION.SDK_INT,Build.FINGERPRINT))intents.add(xiaomiPopup());
             String page=network?"Settings://com.xgimi.settings.net/wifi_misckey":"Settings://com.xgimi.misckey.main/mainPage";
             intents.add(new Intent("com.xgimi.settings.SETTINGS").setComponent(XGIMI)
                 .putExtra("data",page).putExtra("packageName","com.xgimi.misckey").putExtra("unlocked",false));
             if(network){
                 if(ethernet)intents.add(new Intent(XIAOMI+".ETHERNET_SETTINGS").setPackage(XIAOMI));
+                intents.add(new Intent(NETWORK));
                 // MiTV-ANSP0/MFTP0 can resolve the Xiaomi Wi-Fi page then close it immediately (#331).
                 // Prefer the TV network page instead of guessing whether a quick Back meant failure.
                 intents.add(activity("com.android.tv.settings","com.android.tv.settings.connectivity.NetworkActivity"));
@@ -82,9 +115,15 @@ final class SystemSettingsRouter {
                 intents.add(new Intent(Settings.ACTION_WIRELESS_SETTINGS));
                 intents.add(new Intent("com.pptv.intent.action.WIFI_ACTIVITY").setComponent(new ComponentName("com.pptv.setting","com.pptv.setting.wifi.WifiWorkActivity")));
                 intents.add(new Intent(Intent.ACTION_VIEW,Uri.parse(page)));
+                // An unplugged Ethernet connection still needs an entry for configuration.
+                if(!ethernet)intents.add(new Intent(XIAOMI+".ETHERNET_SETTINGS").setPackage(XIAOMI));
             }
+            // Keep the OEM settings home as a fallback after all network pages.
+            if(network&&hisense())intents.add(new Intent(Settings.ACTION_SETTINGS).setComponent(HISENSE));
             if(network)dangbeiSettings(intents);
+            intents.add(new Intent("com.konka.settings.action.SETTING_MAIN_VIEW").setComponent(KONKA));
             intents.add(new Intent(XIAOMI+".SETTINGS").setComponent(new ComponentName(XIAOMI,XIAOMI+".entry.MainActivity")));
+            intents.add(xiaomiPopup());
             // Haier's full settings is an overlay service; RootActivity opens the source menu.
             intents.add(new Intent("com.haier.settings.intent.action.SettingsService").setComponent(HAIER).putExtra("command",0));
             intents.add(activity("com.tcl.settings","com.tcl.settings.ui.MainActivity"));
@@ -92,62 +131,106 @@ final class SystemSettingsRouter {
             intents.add(activity("com.helios.setting","com.helios.activity.StartActivity"));
         }else intents.add(new Intent(action));
         intents.add(new Intent(Settings.ACTION_SETTINGS));
+        if(network||settings){
+            intents.add(activity("com.konka.tvsettings","com.konka.settingcenter.settings.view.MainSettingsActivity"));
+            intents.add(activity("com.konka.systemsetting","com.konka.systemsetting.MainActivity"));
+        }
         if(!network)intents.add(new Intent(Intent.ACTION_VIEW,Uri.parse("Settings://com.xgimi.misckey.main/mainPage")));
         intents.add(activity("com.amazon.tv.launcher","com.amazon.tv.launcher.ui.MainSettingsActivity"));
         return intents;
     }
 
+    private List<ComponentInfo> targets(Intent intent){
+        ArrayList<ComponentInfo> values=new ArrayList<>();LaunchType type=launchType(intent);
+        if(type==LaunchType.BROADCAST){
+            List<ResolveInfo> receivers=pm.queryBroadcastReceivers(intent,0);
+            if(receivers!=null)for(ResolveInfo receiver:receivers)if(receiver!=null&&receiver.activityInfo!=null)values.add(receiver.activityInfo);
+        }else{
+            ResolveInfo resolved=type==LaunchType.SERVICE?pm.resolveService(intent,0):pm.resolveActivity(intent,0);
+            ComponentInfo info=resolved==null?null:type==LaunchType.SERVICE?resolved.serviceInfo:resolved.activityInfo;
+            if(info!=null)values.add(info);
+        }
+        return values;
+    }
+    private String rejection(String action,Intent intent,ComponentInfo info){
+        if(Settings.ACTION_WIFI_SETTINGS.equals(action)&&hisense()&&HISENSE.getPackageName().equals(intent.getPackage())
+                && !info.name.startsWith("com.hisense."))return "not_hisense_network";
+        String reason=rejection(info,info instanceof ServiceInfo?((ServiceInfo)info).permission:((ActivityInfo)info).permission);
+        if(reason.isEmpty()&&launchType(intent)==LaunchType.ACTIVITY&&isHome((ActivityInfo)info))return "home_handler";
+        return reason;
+    }
+    boolean available(String action){
+        for(Intent intent:candidates(action))try{
+            for(ComponentInfo info:targets(intent))if(rejection(action,intent,info).isEmpty())return true;
+        }catch(RuntimeException unavailable){DiagnosticLog.error("settings.inspect.failed",unavailable);}
+        return false;
+    }
+
+    static final class Route {
+        final Intent template,launch;
+        final LaunchType type;
+        final Page page;
+        final String identity;
+        Route(Intent intent,ComponentInfo info){
+            template=new Intent(intent);launch=new Intent(intent).setComponent(new ComponentName(info.packageName,info.name));
+            type=launchType(intent);page=page(intent);identity=SettingsRouteMemory.identity(type+":"+launch.toUri(0));
+        }
+    }
+    boolean callable(String action,Route route){
+        try{for(ComponentInfo info:targets(route.template))
+            if(route.launch.getComponent().equals(new ComponentName(info.packageName,info.name))&&rejection(action,route.template,info).isEmpty())return true;
+        }catch(RuntimeException unavailable){DiagnosticLog.error("settings.inspect.failed",unavailable);}
+        return false;
+    }
+    private List<Route> routes(String action,boolean ethernet){
+        ArrayList<Route> result=new ArrayList<>();HashSet<String> seen=new HashSet<>();
+        for(Intent intent:candidates(action,ethernet))try{
+            for(ComponentInfo info:targets(intent)){
+                String rejection=rejection(action,intent,info);
+                if(!rejection.isEmpty()){DiagnosticLog.info("settings.route",DiagnosticLog.intent(intent)+" result="+rejection);continue;}
+                Route route=new Route(intent,info);if(seen.add(route.identity))result.add(route);
+            }
+        }catch(RuntimeException failure){DiagnosticLog.error("settings.route.failed",failure);}
+        return result;
+    }
+    boolean open(String action){return open(action,false,java.util.Collections.emptySet())!=null;}
     @SuppressWarnings("deprecation")
-    boolean open(String action){
+    SettingsRouteMemory.Attempt open(String action,boolean trial,java.util.Set<String> excluded){
         DiagnosticOperation diagnostic=new DiagnosticOperation("settings",System.currentTimeMillis(),android.os.SystemClock.elapsedRealtime(),DiagnosticLog::info);
-        DiagnosticLog.info("settings.requested","attempt="+diagnostic.id+" action="+action);
+        DiagnosticLog.info("settings.requested","attempt="+diagnostic.id+" action="+action+" trial="+trial);
         boolean ethernet=false;
         if(Settings.ACTION_WIFI_SETTINGS.equals(action)){
             ConnectivityManager manager=(ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);
             NetworkInfo active=manager==null?null:manager.getActiveNetworkInfo();
-            ethernet=active!=null && active.isConnected() && active.getType()==ConnectivityManager.TYPE_ETHERNET;
-            DiagnosticLog.info("settings.network","service="+(manager!=null)+" active="+(active!=null)+" connected="+(active!=null && active.isConnected())+" type="+(active==null?-1:active.getType()));
+            ethernet=active!=null&&active.isConnected()&&active.getType()==ConnectivityManager.TYPE_ETHERNET;
         }
-        DiagnosticLog.info("settings.request","action="+action+" ethernet="+ethernet);
+        String slot=action+"|"+ethernet;SettingsRouteMemory memory=new SettingsRouteMemory(context);
+        List<Route> routes=routes(action,ethernet);
+        // A record can only reorder newly resolved built-in candidates, never supply an Intent.
+        for(int i=0;i<routes.size();i++)if(!settingsFallback(action,routes.get(i).page)&&memory.preferred(slot,routes.get(i))){Route preferred=routes.remove(i);routes.add(0,preferred);break;}
         diagnostic.stage("ROUTING",android.os.SystemClock.elapsedRealtime());
-        HashSet<String> attempted=new HashSet<>();int candidate=0;
-        for(Intent intent:candidates(action,ethernet)){
-            String route="attempt="+diagnostic.id+" request="+action+" candidate="+(++candidate)+" "+DiagnosticLog.intent(intent);
+        for(Route route:routes){
+            if(excluded.contains(route.identity))continue;
+            if(!callable(action,route))continue;
             try{
-                boolean service=XGIMI.equals(intent.getComponent()) || HAIER.equals(intent.getComponent());
-                ResolveInfo resolved=service?pm.resolveService(intent,0):pm.resolveActivity(intent,0);
-                ComponentInfo info=resolved==null?null:service?resolved.serviceInfo:resolved.activityInfo;
-                if(info==null){DiagnosticLog.info("settings.route",route+" result=unresolved");continue;}
-                if(Settings.ACTION_WIFI_SETTINGS.equals(action) && hisense() && HISENSE.getPackageName().equals(intent.getPackage())
-                    && !info.name.startsWith("com.hisense.")){DiagnosticLog.info("settings.route",route+" result=not_hisense_network");continue;}
-                String rejection=rejection(info,service?((ServiceInfo)info).permission:((ActivityInfo)info).permission);
-                route+=" resolved="+new ComponentName(info.packageName,info.name).flattenToShortString();
-                if(!rejection.isEmpty()){DiagnosticLog.info("settings.route",route+" result="+rejection);continue;}
-                ComponentName target=new ComponentName(info.packageName,info.name);
-                if(!attempted.add(target.flattenToString())){DiagnosticLog.info("settings.route",route+" result=duplicate");continue;}
-                if(!service && isHome((ActivityInfo)info)){DiagnosticLog.info("settings.route",route+" result=home_handler");continue;}
-                Intent launch=new Intent(intent).setComponent(target);
-                if(service){if(context.startService(launch)==null){DiagnosticLog.info("settings.route",route+" result=null_service");continue;}}
+                String scope=SettingsRouteMemory.scope(context,route);
+                Intent launch=new Intent(route.launch);ComponentName target=launch.getComponent();
+                if(route.type==LaunchType.BROADCAST)context.sendBroadcast(launch);
+                else if(route.type==LaunchType.SERVICE){if(context.startService(launch)==null){memory.failed(slot,route);continue;}}
                 else{
-                    // AOSP's translucent panel belongs above Home, without a separate black task.
-                    boolean panel=context instanceof android.app.Activity && "com.android.tv.settings".equals(info.packageName)
-                        && "com.android.tv.settings.MainSettings".equals(info.name);
+                    boolean panel=context instanceof android.app.Activity&&"com.android.tv.settings".equals(target.getPackageName())&&"com.android.tv.settings.MainSettings".equals(target.getClassName());
                     if(!panel)launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                     context.startActivity(launch);
                 }
-                DiagnosticLog.info("settings.dispatch",route+" type="+(service?"service":"activity")+" result=dispatched_unverified");
-                try{SettingsPageCapture.observe(context);}catch(RuntimeException unavailable){DiagnosticLog.error("settings.capture.unavailable",unavailable);}
-                boolean systemFallback=!Settings.ACTION_SETTINGS.equals(action) && (Settings.ACTION_SETTINGS.equals(intent.getAction())
-                        || (XIAOMI+".entry.MainActivity").equals(info.name));
-                diagnostic.finish("DISPATCHED_UNVERIFIED",systemFallback?"system_settings_fallback":"candidate_dispatched",System.currentTimeMillis(),android.os.SystemClock.elapsedRealtime());
-                return true;
-            }catch(RuntimeException failure){
-                DiagnosticLog.error("settings.route.failed",route,failure);
-            }
+                SettingsRouteMemory.Attempt attempt=new SettingsRouteMemory.Attempt(action,slot,route,scope,trial);
+                DiagnosticLog.info("settings.dispatch","attempt="+diagnostic.id+" resolved="+target.flattenToShortString()+" type="+route.type+" page="+route.page+" result=dispatched_unverified");
+                try{SettingsPageCapture.observe(context,attempt);}catch(RuntimeException unavailable){DiagnosticLog.error("settings.capture.unavailable",unavailable);}
+                boolean fallback=settingsFallback(action,route.page);
+                diagnostic.finish("DISPATCHED_UNVERIFIED",fallback?"system_settings_fallback":"candidate_dispatched",System.currentTimeMillis(),android.os.SystemClock.elapsedRealtime());
+                return attempt;
+            }catch(Exception failure){memory.failed(slot,route);DiagnosticLog.error("settings.route.failed",failure);}
         }
-        DiagnosticLog.info("settings.unavailable",action);
-        diagnostic.finish("UNAVAILABLE","no_usable_candidate",System.currentTimeMillis(),android.os.SystemClock.elapsedRealtime());
-        return false;
+        diagnostic.finish("UNAVAILABLE","no_usable_candidate",System.currentTimeMillis(),android.os.SystemClock.elapsedRealtime());return null;
     }
     private String rejection(ComponentInfo info,String permission){
         // Also reject these when an OEM registers them for the standard SETTINGS action.
@@ -162,7 +245,10 @@ final class SystemSettingsRouter {
         return permission!=null && pm.checkPermission(permission,context.getPackageName())!=PackageManager.PERMISSION_GRANTED?"permission_denied permission="+permission:"";
     }
     private boolean isHome(ActivityInfo activity){
-        for(ResolveInfo candidate:pm.queryIntentActivities(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME),0)){
+        List<ResolveInfo> homes=pm.queryIntentActivities(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME),0);
+        if(homes==null)return false;
+        for(ResolveInfo candidate:homes){
+            if(candidate==null)continue;
             ActivityInfo home=candidate.activityInfo;
             if(home!=null && home.packageName.equals(activity.packageName)
                 && (home.name.equals(activity.name) || (activity.targetActivity!=null && activity.targetActivity.equals(home.name))))return true;

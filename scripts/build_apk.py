@@ -23,7 +23,11 @@ SYSTEM_LABELS = {
 }
 
 
-def apk_names(version, min_sdk, packaged_abis, home_mode='standard'):
+def apk_names(version, min_sdk, packaged_abis, home_mode='standard', build_number=None):
+    if re.fullmatch(r'\d+\.\d+\.\d+\.1', version):
+        if not isinstance(build_number, int) or build_number < 1:
+            raise ValueError('本地过渡测试包须指定递增构建号')
+        version += '-' + str(build_number)
     abi_names = {'armeabi-v7a': 'ARM32', 'arm64-v8a': 'ARM64', 'x86': 'x86', 'x86_64': 'x86_64'}
     architecture = abi_names[packaged_abis[0]] if len(packaged_abis) == 1 else ''
     suffix = '_' + architecture if architecture else ''
@@ -89,10 +93,10 @@ def used_build_numbers(archive_dir=None):
         if not folder.exists():
             continue
         for path in folder.rglob('*.apk'):
-            match = re.match(r'(?:quiet-tv_[^_]+_b(\d+)_|QuietTV_\d+\.\d+\.\d+-(\d+)_)', path.name)
+            match = re.match(r'(?:quiet-tv_[^_]+_b(\d+)_|QuietTV_\d+\.\d+\.\d+(?:\.1)?-(\d+)_)', path.name)
             if match:
                 numbers.append(int(next(value for value in match.groups() if value is not None)))
-            elif re.match(r'QuietTV_\d+\.\d+\.\d+_', path.name):
+            elif re.match(r'QuietTV_\d+\.\d+\.\d+(?:\.1)?_', path.name):
                 receipt = path.with_suffix('.json')
                 record = json.loads(receipt.read_text()) if receipt.is_file() else {}
                 if record.get('application_id') != 'home.quiet.tv' or not isinstance(record.get('version_code'), int) or record['version_code'] < 1:
@@ -107,6 +111,8 @@ def used_build_numbers(archive_dir=None):
 def check_delivery_version(actual, packaged_abis, status, sha256, archive_dir=None):
     # Historical names also occupy the same version/system/ABI/status slot.
     identity = {key: actual[key] for key in ('application_id', 'version_name', 'min_sdk')}
+    if re.fullmatch(r'\d+\.\d+\.\d+\.1', actual['version_name']):
+        identity['version_code'] = actual['version_code']
     for folder in archive_folders(archive_dir):
         for path in folder.rglob('*.json'):
             record = json.loads(path.read_text())
@@ -138,13 +144,14 @@ def archive_apk(summary, built_at=None, output_dir=None, abi='universal', archiv
     if (actual['application_id'] != metadata['applicationId'] or actual['version_code'] != int(element['versionCode'])
             or actual['version_name'] != element['versionName']):
         raise ValueError('APK 实际版本或包名与构建元数据不符')
-    if actual['application_id'] != 'home.quiet.tv' or not re.fullmatch(r'\d+\.\d+\.\d+', actual['version_name']) or actual['version_code'] < 1:
-        raise ValueError('归档仅支持三段版本号及正整数构建号的 Quiet TV 主程序')
+    if actual['application_id'] != 'home.quiet.tv' or not re.fullmatch(r'\d+\.\d+\.\d+(?:\.1)?', actual['version_name']) or actual['version_code'] < 1:
+        raise ValueError('归档仅支持三段基础版本或追加 .1 的本地测试版，以及正整数构建号')
     if compatibility not in COMPATIBILITY or (compatibility == 'legacy14' and min_sdk != 14) or (compatibility == 'legacy19' and min_sdk != 19) or (compatibility == 'standard' and min_sdk < 21):
         raise ValueError('兼容档位与 APK 最低系统不符')
     system = SYSTEM_LABELS[min_sdk][0]
     status = '实验版' if home_mode == 'relay' else '测试版'
-    name, public_name = apk_names(actual['version_name'], min_sdk, packaged_abis, home_mode)
+    local_test = actual['version_name'].endswith('.1') and actual['version_name'].count('.') == 3
+    name, public_name = apk_names(actual['version_name'], min_sdk, packaged_abis, home_mode, actual['version_code'])
     destination = Path(archive_dir or ROOT / 'dist/apk') / name
     receipt = destination.with_suffix('.json')
     checksum = destination.with_name(destination.name + '.sha256')
@@ -172,7 +179,7 @@ def archive_apk(summary, built_at=None, output_dir=None, abi='universal', archiv
     record = {
         'apk': name, 'public_apk': public_name, 'application_id': metadata['applicationId'],
         'version_name': element['versionName'], 'version_code': element['versionCode'],
-        'build_type': metadata['variantName'], 'status': status, 'system': system,
+        'build_type': metadata['variantName'], 'status': status, 'system': system, 'local_test': local_test,
         'compatibility': compatibility, 'home_mode': home_mode, 'abi': abi, 'packaged_abis': packaged_abis, 'min_sdk': min_sdk, 'target_sdk': actual['target_sdk'],
         'signer_sha256': certs, 'built_at': built_at,
         'apk_modified_at': datetime.fromtimestamp(apk.stat().st_mtime).astimezone().isoformat(timespec='seconds'),
@@ -183,7 +190,7 @@ def archive_apk(summary, built_at=None, output_dir=None, abi='universal', archiv
         'workspace_diff_sha256': hashlib.sha256(subprocess.check_output(['git', 'diff', 'HEAD', '--binary'], cwd=ROOT)).hexdigest(),
         'production_sources_sha256': production_digest,
         'build_parameters': {'quietBuildNumber': actual['version_code'], 'quietCompatibility': compatibility,
-                             'quietMinSdk': min_sdk, 'quietAbi': abi, 'quietHomeMode': home_mode},
+                             'quietMinSdk': min_sdk, 'quietAbi': abi, 'quietHomeMode': home_mode, 'quietLocalTest': local_test},
         'validation_scope': '构建、APK 元数据与签名校验；安装、功能、升级数据及真机验收另行记录',
     }
     mapping = output_dir.parents[1] / 'mapping' / metadata['variantName'] / 'mapping.txt'
@@ -202,7 +209,7 @@ def archive_apk(summary, built_at=None, output_dir=None, abi='universal', archiv
     return destination
 
 
-def build_apk(summary, variant='debug', abi='universal', min_sdk=None, compatibility='standard', build_number=None, home_mode='standard'):
+def build_apk(summary, variant='debug', abi='universal', min_sdk=None, compatibility='standard', build_number=None, home_mode='standard', local_test=False):
     if compatibility not in COMPATIBILITY:
         raise ValueError('不支持的兼容档位')
     if home_mode not in ('standard', 'relay') or (home_mode == 'relay' and compatibility != 'standard'):
@@ -219,7 +226,8 @@ def build_apk(summary, variant='debug', abi='universal', min_sdk=None, compatibi
     build_root = ROOT / 'output/candidate-builds' / f'{compatibility}-{home_mode}-{variant}-{abi}-api{min_sdk}-{identity}'
     subprocess.run([str(ROOT / 'gradlew'), ':app:assemble' + variant.capitalize(), '--console=plain',
                     '-PquietBuildRoot=' + str(build_root), '-PquietAbi=' + abi, '-PquietMinSdk='+str(min_sdk),
-                    '-PquietCompatibility=' + compatibility, '-PquietHomeMode=' + home_mode]
+                    '-PquietCompatibility=' + compatibility, '-PquietHomeMode=' + home_mode,
+                    '-PquietLocalTest=' + str(local_test).lower()]
                    + (['-PquietBuildNumber=' + str(build_number)] if build_number is not None else []), cwd=ROOT, check=True)
     if source_digest() != before:
         raise RuntimeError('生产源码在构建期间改变，产物未归档，请重新构建')
@@ -272,7 +280,7 @@ def verify_batch(apks):
             'validation_scope': '整批构建、版本、签名、架构及原生库一致性；功能、升级数据及真机验收另行记录'}
 
 
-def build_batch(summary, first_build_number, variant='benchmark', universal_only=False):
+def build_batch(summary, first_build_number, variant='benchmark', universal_only=False, local_test=False):
     if not isinstance(first_build_number, int) or first_build_number < 1:
         raise ValueError('整批构建必须指定起始正整数构建号')
     used = used_build_numbers()
@@ -291,7 +299,7 @@ def build_batch(summary, first_build_number, variant='benchmark', universal_only
                 subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip() != commit):
             raise RuntimeError('批次源码基线改变，停止后续构建与批次归档')
         apks.append(build_apk(summary, variant, abi, compatibility=profile,
-                              build_number=first_build_number + offset))
+                              build_number=first_build_number + offset, local_test=local_test))
     if (source_digest() != before or
             subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip() != commit):
         raise RuntimeError('批次源码基线改变，不生成批次清单')
@@ -322,6 +330,7 @@ if __name__ == '__main__':
     parser.add_argument('--home-mode', choices=['standard', 'relay'], default='standard', help='relay: 不声明 HOME，复用现有桌面守护')
     parser.add_argument('--min-sdk', choices=[14,19,21,23,26,31], type=int, help='defaults to 14 for legacy14, 19 for legacy19, 21 for standard')
     parser.add_argument('--build-number', type=int, help='Positive delivery number; first number for --batch')
+    parser.add_argument('--local-test', action='store_true', help='本地电视测试：在基础版本后追加 .1，构建号继续递增，不代表发布授权')
     parser.add_argument('--batch', action='store_true', help='Build standard ARM32, ARM64, universal and one legacy14 APK')
     parser.add_argument('--universal-only', action='store_true', help='With --batch, build standard universal + legacy14; both must have no native libraries')
     args = parser.parse_args()
@@ -332,6 +341,6 @@ if __name__ == '__main__':
     if args.batch:
         if args.abi != 'universal' or args.min_sdk is not None or args.compatibility != 'standard' or args.home_mode != 'standard':
             parser.error('--batch 固定各档位配置，不能同时指定 ABI、最低 API 或兼容档位')
-        build_batch(args.summary.strip(), args.build_number, args.variant, args.universal_only)
+        build_batch(args.summary.strip(), args.build_number, args.variant, args.universal_only, args.local_test)
     else:
-        build_apk(args.summary.strip(), args.variant, args.abi, args.min_sdk, args.compatibility, args.build_number, args.home_mode)
+        build_apk(args.summary.strip(), args.variant, args.abi, args.min_sdk, args.compatibility, args.build_number, args.home_mode, args.local_test)

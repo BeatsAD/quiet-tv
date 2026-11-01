@@ -79,11 +79,17 @@ final class SetupPresets {
         JSONObject home=device==null?null:device.optJSONObject("home");if(home==null)return false;
         if(this.home().startsWith(pkg+"/") && (home.optBoolean("preserveOriginal") || !home.optBoolean("disableVerified")))return true;
         JSONObject boot=home.optJSONObject("vendorBoot");if(boot!=null && pkg.equals(boot.optString("systemPackage")))return true;
+        JSONObject observer=home.optJSONObject("observation");
+        if(observer!=null)for(String key:new String[]{"targets","bootTargets"}){
+            JSONArray targets=observer.optJSONArray(key);if(targets!=null)for(int i=0;i<targets.length();i++)
+                if(targets.optJSONObject(i)!=null && targets.optJSONObject(i).optString("component").startsWith(pkg+"/"))return true;
+        }
         JSONArray required=home.optJSONArray("requiredPackages");
         if(required!=null)for(int i=0;i<required.length();i++)if(pkg.equals(required.optString(i)))return true;
         return false;
     }
     JSONObject vendorBoot(){JSONObject home=device==null?null:device.optJSONObject("home");return home==null?null:home.optJSONObject("vendorBoot");}
+    JSONObject observation(){JSONObject home=device==null?null:device.optJSONObject("home");return home==null?null:home.optJSONObject("observation");}
     static void validateHome(JSONObject device) throws JSONException {
         JSONObject home=device.optJSONObject("home");if(home==null)return;
         if(home.has("versionCode") && (!(home.opt("versionCode") instanceof Integer || home.opt("versionCode") instanceof Long) || home.optLong("versionCode",-1)<0))throw new JSONException("原桌面版本必须为非负整数");
@@ -94,6 +100,18 @@ final class SetupPresets {
         if(home.optBoolean("preserveOriginal") && (home.optBoolean("disableVerified") || home.optBoolean("uninstallVerified")))throw new JSONException("必须保留的原桌面不能开放禁用或卸载");
         JSONArray required=home.optJSONArray("requiredPackages");
         if(required!=null)for(int i=0;i<required.length();i++)if(!required.getString(i).matches("[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+"))throw new JSONException("原桌面依赖包名无效");
+        JSONObject observer=home.optJSONObject("observation");
+        if(home.has("observation")){
+            if(observer==null || !observer.optBoolean("verified") || !observer.optString("source").startsWith("https://")
+                    || device.optString("brand").isEmpty() || device.optString("model").isEmpty() || device.optString("fingerprint").isEmpty()
+                    || home.optString("component").isEmpty() || !home.has("versionCode") || !home.has("user")
+                    || !home.optBoolean("preserveOriginal"))throw new JSONException("原桌面观察规则缺少精确身份、来源或本机验证");
+            validateTargets(observer.getJSONArray("targets"));
+            if(observer.has("bootTargets"))validateTargets(observer.getJSONArray("bootTargets"));
+            if(observer.has("bootStockMs") && (!(observer.opt("bootStockMs") instanceof Integer) || observer.getInt("bootStockMs")<0 || observer.getInt("bootStockMs")>60000))throw new JSONException("原桌面初始化等待须在 0 至 60000 毫秒内");
+            if(observer.has("filterHome") && !(observer.opt("filterHome") instanceof Boolean))throw new JSONException("HOME 按键过滤开关无效");
+            if(observer.has("silentUsage") && !(observer.opt("silentUsage") instanceof Boolean))throw new JSONException("静默观察开关无效");
+        }
         JSONObject boot=home.optJSONObject("vendorBoot");if(boot==null)return;
         Object version=boot.opt("versionCode");
         if(device.optString("brand").isEmpty() || device.optString("model").isEmpty() || device.optString("fingerprint").isEmpty()
@@ -102,6 +120,13 @@ final class SetupPresets {
                 || !boot.optString("systemPackage").matches("[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+")
                 || !(version instanceof Integer || version instanceof Long) || boot.optLong("versionCode",-1)<0
                 || !boot.optBoolean("afterUnlock") || !boot.optString("source").startsWith("https://"))throw new JSONException("开机跳板缺少精确固件、组件版本或解锁后验证证据");
+    }
+    private static void validateTargets(JSONArray targets) throws JSONException {
+        for(int i=0;i<targets.length();i++){
+            JSONObject target=targets.getJSONObject(i);String component=target.getString("component");Object version=target.opt("versionCode");
+            if(!component.matches("[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+/[A-Za-z0-9_.$]+") || HomeGuardPolicy.excludedHome(component.split("/",2)[0])
+                    || !(version instanceof Integer || version instanceof Long) || target.optLong("versionCode",-1)<0)throw new JSONException("原桌面观察目标或版本无效");
+        }
     }
     // References are documentation only. They can never participate in permission matching.
     static void validateReference(JSONObject reference) throws JSONException {

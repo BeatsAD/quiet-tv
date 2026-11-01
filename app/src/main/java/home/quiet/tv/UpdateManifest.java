@@ -119,5 +119,12 @@ final class UpdateManifest {
         if(!value.matches("(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)"))throw new IOException("Invalid release version");
         String[] fields=value.split("\\.");long[] parts=new long[3];try{for(int n=0;n<3;n++)parts[n]=Long.parseLong(fields[n]);}catch(NumberFormatException e){throw new IOException("Invalid release version",e);}return parts;
     }
-    static int compare(String left,String right){try{long[] a=versionParts(left),b=versionParts(right);for(int n=0;n<3;n++){int c=Long.compare(a[n],b[n]);if(c!=0)return c;}return 0;}catch(IOException e){return -1;}}
+    static int compare(String left,String right){
+        try{
+            // Installed local-TV candidates retain the published base for future update comparisons.
+            if(right.matches("[0-9]+\\.[0-9]+\\.[0-9]+\\.1"))right=right.substring(0,right.length()-2);
+            long[] a=versionParts(left),b=versionParts(right);
+            for(int n=0;n<3;n++){int c=Long.compare(a[n],b[n]);if(c!=0)return c;}return 0;
+        }catch(IOException e){return -1;}
+    }
 }

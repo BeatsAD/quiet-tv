@@ -14,6 +14,24 @@ final class HomeGuardRecovery {
     private static final Handler handler=new Handler(Looper.getMainLooper());
     private static Runnable check,readd,confirmation;
     private static boolean recovering;
+    private static long bindingGeneration;
+    static long bindingAttempt(){return recovering?bindingGeneration:0;}
+    static void cancelBindingAttempt(long attempt){
+        if(attempt==0 || attempt!=bindingAttempt())return;
+        if(check!=null)handler.removeCallbacks(check);if(readd!=null)handler.removeCallbacks(readd);
+        check=null;readd=null;recovering=false;
+    }
+    static void finishBindingAttempt(Context c,long attempt){
+        if(attempt==0 || attempt!=bindingAttempt())return;
+        // A connection callback can race the remove/re-add settle period. Do not cancel
+        // the re-add while our entry is still absent from the secure service list.
+        if(readd!=null){
+            if(!writeAllowed(c) || !new HomeGuardState(c).recoveryReady())return;
+            try{restoreEntry(c);}
+            catch(SecurityException|IllegalStateException unavailable){return;}
+        }
+        cancelBindingAttempt(attempt);
+    }
     private static boolean accessibilityRestarted;
     private static boolean revivalNoted,restoredInStandby;
     private static long restoredAt=-1;
@@ -23,18 +41,19 @@ final class HomeGuardRecovery {
     private static boolean pendingVisibilityEvidence;
     private static String lastAccessibilityDecision="",lastUsageDecision="",lastAccessibilityObservation="",lastUsageObservation="";
     // Only exact stock-home matches, and only decision changes. Never log the foreground app stream.
-    static void observed(String source,String decision,long age){
+    static void observed(String source,String decision,long age){observed(source,"selected_home",decision,age);}
+    static void observed(String source,String target,String decision,long age){
         String previous="usage".equals(source)?lastUsageDecision:lastAccessibilityDecision;
-        if(previous.equals(decision))return;
+        String signature=decision+"|"+target;if(previous.equals(signature))return;
         String id=DiagnosticOperation.nextId(System.currentTimeMillis());
-        if("usage".equals(source)){lastUsageDecision=decision;lastUsageObservation=id;}
-        else{lastAccessibilityDecision=decision;lastAccessibilityObservation=id;}
-        DiagnosticLog.info("home_guard.observation","observation="+id+" source="+source+" target=selected_home decision="+decision+" ageMs="+age);
+        if("usage".equals(source)){lastUsageDecision=signature;lastUsageObservation=id;}
+        else{lastAccessibilityDecision=signature;lastAccessibilityObservation=id;}
+        DiagnosticLog.info("home_guard.observation","observation="+id+" source="+source+" target="+target+" decision="+decision+" ageMs="+age);
     }
     private static DiagnosticOperation diagnostic(String source,HomeGuardState state){return diagnostic(source,state,state.selected());}
     private static DiagnosticOperation diagnostic(String source,HomeGuardState state,String target){
         DiagnosticOperation trace=new DiagnosticOperation("home_guard.handover",System.currentTimeMillis(),SystemClock.elapsedRealtime(),DiagnosticLog::info);
-        String observation="原主页事件".equals(source)?lastAccessibilityObservation:"用量统计原主页".equals(source)?lastUsageObservation:"";
+        String observation="原主页事件".equals(source)?lastAccessibilityObservation:("用量统计原主页".equals(source) || "HOME 后原主页前台证据".equals(source))?lastUsageObservation:("已确认的厂商开机页面".equals(source) || "开机目标被原桌面覆盖".equals(source))?lastAccessibilityObservation:"";
         DiagnosticLog.info("home_guard.source","attempt="+trace.id+" source="+source+" observation="+observation+" target="+target);
         trace.stage("ELIGIBILITY",SystemClock.elapsedRealtime());return trace;
     }
@@ -84,8 +103,8 @@ final class HomeGuardRecovery {
         if(HomeGuardService.connected()){HomeGuardService.lifecycle(reason);return;}
         if(HomeGuardUsageService.eligible(c)){HomeGuardUsageService.ensure(c);return;}
         if(recovering)return;
-        if(!writeAllowed(c) || !systemWriteAllowed(c)){state.status(state.enableProblem().isEmpty()?"等待系统绑定无障碍":state.enableProblem());return;}
-        recovering=true;
+        if(!writeAllowed(c)){state.status("写安全设置权限未授予");return;}
+        recovering=true;bindingGeneration++;
         try{restoreEntry(c);}
         catch(SecurityException|IllegalStateException failure){recovering=false;state.status(HisenseGuardRefresh.supported()?"固件未接受无障碍配置，请连接 ADB 修复":"无法恢复无障碍配置");Log.w(TAG,"restore unavailable");return;}
         check=()->{
@@ -108,17 +127,20 @@ final class HomeGuardRecovery {
     }
     static void rebindIfSilent(Context c){
         HomeGuardState state=new HomeGuardState(c);String boot=new BootAppStore(c).bootId();
-        if(!state.ready() || !writeAllowed(c) || !systemWriteAllowed(c) || boot.isEmpty() || boot.equals(state.preferences.getString("silentRebindBoot","")))return;
+        if(recovering || !state.ready() || !writeAllowed(c) || boot.isEmpty() || boot.equals(state.preferences.getString("silentRebindBoot","")))return;
         if(!state.preferences.edit().putString("silentRebindBoot",boot).commit())return;
+        recovering=true;bindingGeneration++;
         try{
             String current=Settings.Secure.getString(c.getContentResolver(),Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
             if(!Settings.Secure.putString(c.getContentResolver(),Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,HomeGuardPolicy.services(current,guard(c),false)))throw new IllegalStateException();
-            handler.postDelayed(()->{
+            readd=()->{
+                readd=null;recovering=false;
                 if(!new HomeGuardState(c).recoveryReady() || !writeAllowed(c))return;
                 try{restoreEntry(c);}catch(SecurityException|IllegalStateException failure){new HomeGuardState(c).status("无障碍重新绑定未完成");}
-            },HomeGuardPolicy.SETTLE_MS);
+            };
+            handler.postDelayed(readd,HomeGuardPolicy.SETTLE_MS);
             DiagnosticLog.info("home_guard.rebind","source=no_window_events scope=own_service");
-        }catch(SecurityException|IllegalStateException failure){state.status("无障碍重新绑定未完成");}
+        }catch(SecurityException|IllegalStateException failure){recovering=false;state.status("无障碍重新绑定未完成");}
     }
     private static void restoreEntry(Context c){
         boolean missing=!new HomeGuardState(c).serviceEnabled();
@@ -162,7 +184,7 @@ final class HomeGuardRecovery {
         HomeGuardState state=new HomeGuardState(c);long now=System.currentTimeMillis(),uptime=SystemClock.elapsedRealtime();
         long start=state.preferences.getLong("revivalWallStart",-1);boolean same=start>=now-uptime && start<=now;
         if(!restoredInStandby && same && now-start<600000 && state.preferences.getInt("revivalCount",0)>=3)return false;
-        if(uptime<HomeGuardPolicy.BOOT_WINDOW_MS)return true;
+        if(uptime<HomeGuardPolicy.BOOT_WINDOW_MS)return HomeGuardState.unlocked(c) && state.bootStockMs()==0 && !new BootAppStore(c).userNavigated();
         return state.preferences.getBoolean("homeInFront",false) && (restoredInStandby || restoredAt>=0 && uptime>=restoredAt && uptime-restoredAt<60000 || same && state.preferences.getInt("revivalCount",0)>0 && now-start<60000);
     }
     static void launch(Context c,String reason){
@@ -237,7 +259,9 @@ final class HomeGuardRecovery {
         // A slow first frame may arrive after the confirmation deadline; actual visibility wins.
         state.status("已进入 Quiet TV");
         if(requestedAt!=0){
-            long elapsed=SystemClock.uptimeMillis()-requestedAt;boolean same=requestedHome.equals(state.selected()) || requestedHome.equals(new ComponentName(c,HomeActivity.class).flattenToString());
+            long elapsed=SystemClock.uptimeMillis()-requestedAt;
+            DiagnosticLog.info("home_guard.visibility","attempt="+lastDiagnosticAttempt()+" requestToCallbackMs="+elapsed+" source=home_callback screenVerified=false");
+            boolean same=requestedHome.equals(state.selected()) || requestedHome.equals(new ComponentName(c,HomeActivity.class).flattenToString());
             finishDiagnostic(handoverDiagnostic,same?"VISIBILITY_CALLBACK":"CANCELLED",same?"home_callback_not_screen_proof":"target_changed");
             pendingVisibilityEvidence=false;
             if(confirmation!=null)handler.removeCallbacks(confirmation);confirmation=null;requestedAt=0;requestedHome="";
@@ -251,7 +275,6 @@ final class HomeGuardRecovery {
         HomeGuardState state=new HomeGuardState(c);
         if(!state.recoveryReady())throw new java.io.IOException(state.enableProblem());
         if(!writeAllowed(c))throw new java.io.IOException("写安全设置权限未授予");
-        if(!systemWriteAllowed(c))throw new java.io.IOException("写系统设置权限未授予");
         HomeGuardAdb.watch(c);
         if(Build.VERSION.SDK_INT<27 && notificationSupported(c) && !notificationAllowed(c)){
             String current=Settings.Secure.getString(c.getContentResolver(),"enabled_notification_listeners");
@@ -271,12 +294,18 @@ final class HomeGuardRecovery {
     // Recovery is posted to the main thread; grant completion must not race service restoration.
     private static String permissionProblem(Context c){
         if(!writeAllowed(c))return "写安全设置权限未授予";
-        if(!systemWriteAllowed(c))return "写系统设置权限未授予";
         if(HomeGuardService.usageRequired(c) && !HomeGuardService.usageAllowed(c))return "桌面前台检测未授权";
         if(Build.VERSION.SDK_INT>=23 && !Settings.canDrawOverlays(c))return "后台启动权限未确认";
         if(notificationSupported(c) && !notificationAllowed(c) && !HomeGuardSync.ready(c))return "通知访问未授予";
         if(!notificationSupported(c) && HomeGuardSync.supported(c) && !HomeGuardSync.ready(c))return "同步恢复："+HomeGuardSync.summary(c);
         return "";
+    }
+    static org.json.JSONObject permissions(Context c) throws org.json.JSONException {
+        return new org.json.JSONObject().put("recoveryWriteAllowed",writeAllowed(c))
+                .put("usageRequired",HomeGuardService.usageRequired(c)).put("usageAllowed",HomeGuardService.usageAllowed(c))
+                .put("backgroundLaunchAllowed",Build.VERSION.SDK_INT<23 || Settings.canDrawOverlays(c))
+                .put("notificationSupported",notificationSupported(c)).put("notificationAllowed",notificationAllowed(c))
+                .put("syncReady",HomeGuardSync.ready(c)).put("problem",permissionProblem(c));
     }
     /** Called only from the foreground setup's already-authorized local ADB worker. */
     static String configuredSummary(Context c){

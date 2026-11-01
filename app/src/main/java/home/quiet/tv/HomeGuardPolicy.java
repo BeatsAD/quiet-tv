@@ -1,6 +1,8 @@
 package home.quiet.tv;
 
 import java.util.LinkedHashSet;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Locale;
 
 /** Fresh home events are immediate; lifecycle recovery has a separate, bounded settle path. */
@@ -16,6 +18,18 @@ final class HomeGuardPolicy {
     private long arrived,usageTakenAt=Long.MIN_VALUE;
     private boolean consumed,unknownUsed;
     private long inputStarted=-1;
+    static final class SilentHome {
+        private long began=-1,wall;
+        private boolean fast;
+        boolean begin(long now,long wall,boolean fast){if(began>=0)return false;began=now;this.wall=wall;this.fast=fast;return true;}
+        boolean active(){return began>=0;}
+        long delay(){return fast?150:SETTLE_MS;}
+        boolean within(long now){return began>=0 && now>=began && now-began<=SETTLE_MS;}
+        boolean fresh(long at,long latestWindow){return at>=wall && at>=latestWindow;}
+        boolean again(long now){return fast && within(now) && now-began<SETTLE_MS;}
+        void observed(long at){if(at>=began)cancel();}
+        void cancel(){began=-1;}
+    }
 
     void inputSelected(long now){inputStarted=now;}
     void cancelInput(){inputStarted=-1;}
@@ -64,8 +78,9 @@ final class HomeGuardPolicy {
     }
     static boolean handoverBlocked(boolean pending,boolean homeResumed){return pending || homeResumed;}
     static boolean bootRecheck(long uptime){return uptime>=0 && uptime<BOOT_WINDOW_MS;}
-    static boolean recheckTarget(String selected,String front,long at,long now){
-        return !selected.isEmpty() && selected.equals(front) && at>0 && now>=at && now-at<=BOOT_WINDOW_MS;
+    static boolean recheckTarget(String selected,String front,long at,long now){return recheckTarget(Collections.singleton(selected),front,at,now);}
+    static boolean recheckTarget(Collection<String> selected,String front,long at,long now){
+        return !front.isEmpty() && !selected.isEmpty() && selected.contains(front) && at>0 && now>=at && now-at<=BOOT_WINDOW_MS;
     }
     static boolean countRevival(boolean interactive,long uptime,boolean alreadyNoted,long sinceUpdate){return interactive && uptime>=120000 && !alreadyNoted && (sinceUpdate<0 || sinceUpdate>=120000);}
     static boolean vendorHome(String category){
@@ -73,9 +88,14 @@ final class HomeGuardPolicy {
             || "android.intent.category.HOME.CC_MAIN".equals(category)
             || "smartdevice.intent.category.LITE_HOME".equals(category);
     }
-    static boolean matches(String selected,String pkg,String cls){
+    static boolean excludedHome(String pkg){
+        return java.util.Arrays.asList("com.tcl.tv","com.xiaomi.mitv.tvplayer","com.skyworth.tv","com.hisilicon.tvui",
+                "com.stv.appdaemon","com.letv.lekids","com.cvte.factory.at").contains(pkg);
+    }
+    static boolean matches(String selected,String pkg,String cls){return matches(Collections.singleton(selected),pkg,cls);}
+    static boolean matches(Collection<String> selected,String pkg,String cls){
         if(selected.isEmpty() || pkg==null || cls==null || cls.isEmpty())return false;
-        return selected.equals(pkg+"/"+(cls.startsWith(".")?pkg+cls:cls));
+        return selected.contains(pkg+"/"+(cls.startsWith(".")?pkg+cls:cls));
     }
     static boolean migrateAuto(boolean present,boolean enabled,String status){
         if(!present || enabled)return true;
@@ -94,35 +114,40 @@ final class HomeGuardPolicy {
         if(include)entries.add(own);
         StringBuilder joined=new StringBuilder();for(String entry:entries){if(joined.length()>0)joined.append(':');joined.append(entry);}return joined.toString();
     }
-    boolean observe(String selected,String pkg,String cls,long now){
+    boolean observe(String selected,String pkg,String cls,long now){return observe(Collections.singleton(selected),pkg,cls,now);}
+    boolean observe(Collection<String> selected,String pkg,String cls,long now){
         String next=pkg+"/"+(cls.startsWith(".")?pkg+cls:cls);
         if(window.equals(next))return false;
         window=next;arrived=now;consumed=false;
         return matches(selected,pkg,cls);
     }
-    boolean consume(String selected,long now,boolean enabled,boolean interactive,boolean unlocked){
+    boolean consume(String selected,long now,boolean enabled,boolean interactive,boolean unlocked){return consume(Collections.singleton(selected),now,enabled,interactive,unlocked);}
+    boolean consume(Collection<String> selected,long now,boolean enabled,boolean interactive,boolean unlocked){
         long age=now-arrived;
-        if(!enabled || !interactive || !unlocked || consumed || !window.equals(selected) || selected.isEmpty()
-                || age<0 || age>MAX_AGE_MS)return false;
+        if(!enabled || !interactive || !unlocked || consumed || !selected.contains(window) || selected.isEmpty()
+                || window.isEmpty() || age<0 || age>MAX_AGE_MS)return false;
         consumed=true;return true;
     }
-    boolean settle(String selected,boolean allowUnknown){
+    boolean settle(String selected,boolean allowUnknown){return settle(Collections.singleton(selected),allowUnknown);}
+    boolean settle(Collection<String> selected,boolean allowUnknown){
         if(window.isEmpty()){
             if(!allowUnknown || unknownUsed)return false;
             unknownUsed=true;return true;
         }
-        if(!window.equals(selected) || consumed)return false;
+        if(!selected.contains(window) || consumed)return false;
         consumed=true;return true;
     }
     // Wall-clock timestamps from UsageEvents are separate from accessibility's uptime.
-    boolean consumeUsage(String selected,String pkg,String cls,long at,long now){
+    boolean consumeUsage(String selected,String pkg,String cls,long at,long now){return consumeUsage(Collections.singleton(selected),pkg,cls,at,now);}
+    boolean consumeUsage(Collection<String> selected,String pkg,String cls,long at,long now){
         if(at<=usageTakenAt || now<at || now-at>USAGE_LOOKBACK_MS || !matches(selected,pkg,cls))return false;
         usageTakenAt=at;return true;
     }
     void ignoreUsageThrough(long now){usageTakenAt=Math.max(usageTakenAt,now);}
     boolean unknown(){return window.isEmpty();}
     // A second boot check may answer a previously consumed home window, but never another app.
-    boolean bootRecheck(String selected,boolean allowUnknown){return window.isEmpty()?allowUnknown:!selected.isEmpty() && window.equals(selected);}
+    boolean bootRecheck(String selected,boolean allowUnknown){return bootRecheck(Collections.singleton(selected),allowUnknown);}
+    boolean bootRecheck(Collection<String> selected,boolean allowUnknown){return window.isEmpty()?allowUnknown:!selected.isEmpty() && selected.contains(window);}
     void confirmed(){unknownUsed=true;}
     void clear(){window="";arrived=0;consumed=false;cancelInput();}
 }

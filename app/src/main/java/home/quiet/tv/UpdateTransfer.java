@@ -67,7 +67,9 @@ final class UpdateTransfer {
                 if(first<0||clock.now()>end){stream.close();throw new SocketTimeoutException("No update data");}
                 request.setReadTimeout(8000);
                 return new Response(request,new SequenceInputStream(new ByteArrayInputStream(new byte[]{(byte)first}),stream),status);
-            }catch(IOException|RuntimeException e){request.disconnect();throw e;}finally{timeout.cancel(false);}
+            }catch(IOException e){request.disconnect();throw e;}
+            catch(RuntimeException e){request.disconnect();throw UpdateFailure.connectionFailure(e);}
+            finally{timeout.cancel(false);}
         }
         throw new IOException("Too many update redirects");
     }

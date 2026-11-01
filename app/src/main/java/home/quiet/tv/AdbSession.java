@@ -67,7 +67,7 @@ final class AdbSession {
     }
     private void autoConnect(){
         if(!active || manual || working || attempted || adb.connected() || debug==AdbState.Debug.DISABLED || !preferences.getBoolean("autoConnect",true))return;
-        attempted=true;working=true;connection=AdbState.Connection.CONNECTING;detail="正在连接本机  如出现调试授权弹窗，请选择允许";publish();
+        attempted=true;working=true;connection=AdbState.Connection.CONNECTING;detail="正在核对已有本机 ADB 授权";publish();
         final int run=++epoch;
         boolean tls=AdbController.pairingAvailable() && ("tls".equals(preferences.getString("lastTransport","tcp")) || readerWifiEnabled());
         if(tls){
@@ -79,7 +79,7 @@ final class AdbSession {
     private boolean valid(int run){return (active || suspended) && run==epoch;}
     private void connect(int run,int port,boolean tls){
         final int request=adb.prepare();
-        worker.execute(()->{if(!valid(run))return;try{adb.connect(port,request);main.post(()->{if(!valid(run))return;working=false;manual=false;remember(tls);connection=AdbState.Connection.CONNECTED;protocolEnabled=true;detail="已核对本机与当前用户";publish();if(active)listener.connected();});}
+        worker.execute(()->{if(!valid(run))return;try{adb.connect(port,request,false);main.post(()->{if(!valid(run))return;working=false;manual=false;remember(tls);connection=AdbState.Connection.CONNECTED;protocolEnabled=true;detail="已核对本机与当前用户";publish();if(active)listener.connected();});}
             catch(Exception e){main.post(()->failed(run,e.getMessage()==null?"连接失败":e.getMessage()));}});
     }
     private void failed(int run,String reason){if(!valid(run))return;AdbController.Failure failure=adb.failure();if(failure==AdbController.Failure.SHELL || failure==AdbController.Failure.USER || failure==AdbController.Failure.CAPABILITIES)protocolEnabled=true;working=false;connection=AdbState.Connection.FAILED;detail=reason;publish();}

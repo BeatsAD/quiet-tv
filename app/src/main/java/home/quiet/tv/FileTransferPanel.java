@@ -136,12 +136,40 @@ final class FileTransferPanel extends ManagementPanel {
     }
     private void showFileActions(){
         if(busy||networkReceiving)return;if(selected==null&&(selectedSource==null||selectedSource.directory))return;
-        dismissFileDialog();Sheet sheet=new Sheet("文件操作");sheet.text((selected!=null?selected.name:selectedSource.name)+"  "+FileTransferSource.size(selected!=null?selected.bytes:selectedSource.bytes));Button first=null;
-        if(selected!=null){final FileTransferStore.Entry entry=selected;if(FileTransferPolicy.apk(entry.name))first=sheet.option("安装应用",()->{sheet.dialog.dismiss();install(entry.id);});if(FileTransferPolicy.image(entry.name)||FileTransferPolicy.video(entry.name))first=sheet.option("预览并设为壁纸",()->{sheet.dialog.dismiss();preview(entry.id);});Button send=sheet.option("传到手机或电脑",()->{sheet.dialog.dismiss();offer(entry.id);});if(first==null)first=send;sheet.option("删除文件",()->{sheet.dialog.dismiss();confirmDelete(entry);});}
+        dismissFileDialog();FileActions sheet=new FileActions(selected!=null?selected.name:selectedSource.name,selected!=null?selected.bytes:selectedSource.bytes);Button first=null;
+        if(selected!=null){final FileTransferStore.Entry entry=selected;if(FileTransferPolicy.apk(entry.name))first=sheet.option("安装应用",()->{sheet.dialog.dismiss();install(entry.id);});if(FileTransferPolicy.image(entry.name)||FileTransferPolicy.video(entry.name))first=sheet.option("预览并设为壁纸",()->{sheet.dialog.dismiss();preview(entry.id);});Button send=sheet.option("传到手机或电脑",()->{sheet.dialog.dismiss();offer(entry.id);});if(first==null)first=send;sheet.option("删除文件",true,()->{sheet.dialog.dismiss();confirmDelete(entry);});}
         else {final FileTransferSource.Item item=selectedSource;if(FileTransferPolicy.apk(item.name))first=sheet.option("安装应用",()->{sheet.dialog.dismiss();receive(item,false,false,true);});if(FileTransferPolicy.image(item.name)||FileTransferPolicy.video(item.name))first=sheet.option("预览并设为壁纸",()->{sheet.dialog.dismiss();receive(item,false,true);});Button save=sheet.option("保存到已接收",()->{sheet.dialog.dismiss();receive(item,false,false);});if(first==null)first=save;sheet.option("传到手机或电脑",()->{sheet.dialog.dismiss();receive(item,true,false);});}
-        for(int i=0;i<sheet.body.getChildCount();i++)if(sheet.body.getChildAt(i) instanceof Button)sheet.body.getChildAt(i).setBackgroundDrawable(ControlStyle.action(unit,11,0x0cffffff,0x22ffffff));
-        if(first!=null){ControlStyle.choice(first,unit,11,0x0cffffff,0x22ffffff);first.setSelected(true);}
-        sheet.action("关闭",sheet.dialog::dismiss);fileDialog=sheet.dialog;sheet.dialog.setOnDismissListener(d->{if(fileDialog==sheet.dialog)fileDialog=null;if(showing)list.post(this::focusFiles);});sheet.show(first);
+        sheet.option("取消",sheet.dialog::dismiss);fileDialog=sheet.dialog;sheet.dialog.setOnDismissListener(d->{if(fileDialog==sheet.dialog)fileDialog=null;if(showing)list.post(this::focusFiles);});sheet.show(first);
+    }
+    /** Compact, two-column file actions; other management sheets keep their own layout. */
+    private final class FileActions {
+        final android.app.Dialog dialog=new KeyFeedback.Dialog(activity);
+        final LinearLayout box=column();
+        final ArrayList<Button> buttons=new ArrayList<>();
+        FileActions(String name,long bytes){
+            dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);box.setPadding(px(24),px(20),px(24),px(22));box.setBackgroundDrawable(surface(0xff24272d,0xff24272d,0x38ffffff,16));
+            box.addView(label("文件操作",20),new LinearLayout.LayoutParams(-1,-2));gap(box,16);
+            LinearLayout file=row();file.setGravity(Gravity.CENTER_VERTICAL);box.addView(file,new LinearLayout.LayoutParams(-1,-2));
+            ImageView icon=new ImageView(activity);icon.setImageDrawable(UiCompat.drawable(activity,FileTransferPolicy.apk(name)?R.drawable.ic_transfer_apk:FileTransferPolicy.image(name)?R.drawable.ic_transfer_image:R.drawable.ic_transfer_file));file.addView(icon,new LinearLayout.LayoutParams(px(34),px(42)));
+            LinearLayout info=column();LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(0,-2,1);ip.leftMargin=px(14);file.addView(info,ip);
+            TextView title=label(name,13);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);title.setContentDescription(name);info.addView(title,new LinearLayout.LayoutParams(-1,-2));gap(info,5);
+            info.addView(muted((FileTransferPolicy.apk(name)?"应用安装包":FileTransferPolicy.image(name)?"图片":FileTransferPolicy.video(name)?"视频":"文件")+"  "+FileTransferSource.size(bytes),11));gap(box,22);
+            dialog.setContentView(box);Window window=dialog.getWindow();window.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);window.setDimAmount(.65f);
+        }
+        Button option(String text,Runnable action){return option(text,false,action);}
+        Button option(String text,boolean destructive,Runnable action){
+            Button button=button(text,action);button.setId(androidx.core.view.ViewCompat.generateViewId());button.setPadding(px(8),0,px(8),0);button.setSingleLine(true);button.setFocusableInTouchMode(true);
+            android.graphics.drawable.StateListDrawable background=new android.graphics.drawable.StateListDrawable();background.addState(new int[]{android.R.attr.state_pressed},surface(0xffd6d9df,0xffd6d9df,0,9));background.addState(new int[]{android.R.attr.state_focused},surface(0xfff0f1f4,0xfff0f1f4,0,9));background.addState(new int[]{},surface(0xff2a2d33,0xff2a2d33,0x30ffffff,9));button.setBackgroundDrawable(background);
+            button.setTextColor(new android.content.res.ColorStateList(new int[][]{{android.R.attr.state_pressed},{android.R.attr.state_focused},{}},new int[]{0xff191d23,0xff191d23,destructive?0xffed8777:TEXT}));buttons.add(button);return button;
+        }
+        void show(Button first){
+            ArrayList<Button> cells=new ArrayList<>(buttons);if(cells.size()%2!=0)cells.add(cells.size()-1,null);
+            for(int i=0;i<cells.size();i+=2){LinearLayout line=row();LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,px(42));if(i>0)lp.topMargin=px(10);box.addView(line,lp);for(int col=0;col<2;col++){Button button=cells.get(i+col);LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,-1,1);if(col==1)bp.leftMargin=px(10);line.addView(button==null?new View(activity):button,bp);}}
+            for(int i=0;i<cells.size();i++){Button button=cells.get(i);if(button==null)continue;int row=i/2,col=i%2;Button left=col==1?cells.get(i-1):button,right=col==0?cells.get(i+1):button,up=row>0?cells.get(i-2):button,down=i+2<cells.size()?cells.get(i+2):button;if(down==null)down=cells.get(i+3);button.setNextFocusLeftId(left==null?button.getId():left.getId());button.setNextFocusRightId(right==null?button.getId():right.getId());button.setNextFocusUpId(up==null?button.getId():up.getId());button.setNextFocusDownId(down.getId());
+                button.setOnKeyListener((v,key,event)->{if(key==KeyEvent.KEYCODE_DPAD_CENTER||key==KeyEvent.KEYCODE_ENTER)return event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()>0;int id=key==KeyEvent.KEYCODE_DPAD_LEFT?v.getNextFocusLeftId():key==KeyEvent.KEYCODE_DPAD_RIGHT?v.getNextFocusRightId():key==KeyEvent.KEYCODE_DPAD_UP?v.getNextFocusUpId():key==KeyEvent.KEYCODE_DPAD_DOWN?v.getNextFocusDownId():View.NO_ID;if(id==View.NO_ID)return false;if(event.getAction()==KeyEvent.ACTION_DOWN)box.findViewById(id).requestFocus();return true;});
+            }
+            dialog.show();dialog.getWindow().setLayout(px(400),-2);dialog.getWindow().getDecorView().setSystemUiVisibility(5894);(first==null?buttons.get(0):first).requestFocus();
+        }
     }
     private void dismissFileDialog(){if(fileDialog!=null){fileDialog.dismiss();fileDialog=null;}}
     private void confirmDelete(FileTransferStore.Entry entry){Sheet sheet=new Sheet("删除接收文件？");sheet.text(entry.name+"\n已导入的壁纸不受影响。");Button cancel=sheet.action("取消",sheet.dialog::dismiss);sheet.action("删除",()->{sheet.dialog.dismiss();worker.execute(()->{try{store.remove(entry.id);activity.getSharedPreferences("file-transfer-wallpapers",0).edit().remove(entry.id).apply();main.post(()->{selected=null;renderActions();refresh(false);});}catch(IOException error){main.post(()->message("文件删除未完成"));}});});sheet.show(cancel);}

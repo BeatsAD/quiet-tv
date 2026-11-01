@@ -12,6 +12,8 @@ Quiet TV 基于 [cleanyourtv](https://github.com/Gathin23/cleanyourtv)（原名 
 | libadb-android | Apache-2.0，保留其继承的 BSD／MIT 声明，见[完整许可目录](app/src/main/assets/licenses/) |
 | Bouncy Castle | MIT，[许可原文](app/src/main/assets/licenses/bouncycastle-LICENSE.md) |
 | NanoHTTPD | BSD-3-Clause，[许可原文](app/src/main/assets/licenses/nanohttpd-LICENSE.txt) |
+| Google Material Symbols（APK 图标） | Apache-2.0，[许可原文](app/src/main/assets/licenses/libadb-Apache-2.0.txt)，[来源与转换说明](app/src/main/assets/licenses/material-symbols-NOTICE.txt) |
+| Pictogrammers Material Design Icons（图片文件图标） | Apache-2.0，[许可原文](app/src/main/assets/licenses/libadb-Apache-2.0.txt)，[来源与转换说明](app/src/main/assets/licenses/mdi-file-image-NOTICE.txt) |
 | Lucide 图标 | ISC／MIT，[许可原文](app/src/main/assets/licenses/Lucide-LICENSE.txt) |
 | Outfit 字体 | SIL OFL 1.1，[许可原文](app/src/main/assets/fonts/OFL.txt) |
 | 中国行政区划数据 | WTFPL 2.0，[许可原文](app/src/main/assets/licenses/china-regions-WTFPL.txt) |

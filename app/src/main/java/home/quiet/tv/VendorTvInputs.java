@@ -6,23 +6,28 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ProviderInfo;
 import android.database.Cursor;
+import android.media.tv.TvInputInfo;
 import android.net.Uri;
 import android.os.Bundle;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 
-/** Inputs actually enumerated by vendor firmware when the Android TV framework has none. */
+/** Inputs actually enumerated by vendor firmware, including types missing from the framework. */
+@android.annotation.TargetApi(21)
 final class VendorTvInputs {
     private static final String SKY_LIST="com.skyworth.tv.provider",SKY_SDK="com.skyworth.tv.sdk.provider";
     private static final ComponentName SKY_PLAYER=new ComponentName("com.skyworth.tv","com.skyworth.tv.activity.SkyTVMainActivity");
     private static final ComponentName KONKA_PLAYER=new ComponentName("com.konka.tvsettings","com.konka.tvsettings.RootActivity");
     static final class Source {
-        final String label,key,owner;
+        String label;
+        final String key,owner;
         final boolean hdmi;
+        final int type;
         final Intent intent;
         final Bundle parameters;
-        Source(String label,Intent intent,Bundle parameters,String key,String owner,boolean hdmi){this.label=label;this.intent=intent;this.parameters=parameters;this.key=key;this.owner=owner;this.hdmi=hdmi;}
+        String mapping="";
+        Source(String label,Intent intent,Bundle parameters,String key,String owner,int type){this.label=label;this.intent=intent;this.parameters=parameters;this.key=key;this.owner=owner;this.type=type;hdmi=type==TvInputInfo.TYPE_HDMI;}
     }
     static final class Discovery {
         final List<Source> sources=new ArrayList<>();
@@ -40,14 +45,52 @@ final class VendorTvInputs {
     private final Context context;
     VendorTvInputs(Context context){this.context=context;}
 
+    // Use the firmware's source identifier, never its editable display label.
+    static int sourceType(String name){
+        String value=name.toUpperCase(java.util.Locale.ROOT);
+        if(value.contains("HDMI"))return TvInputInfo.TYPE_HDMI;
+        if(value.equals("DP")||value.contains("DISPLAYPORT"))return TvInputInfo.TYPE_DISPLAY_PORT;
+        if(value.equals("VOD")||value.contains("DTV")||value.contains("ATV")||value.contains("DVB")||value.contains("DTMB"))return TvInputInfo.TYPE_TUNER;
+        if(value.startsWith("AV")||value.contains("_AV"))return TvInputInfo.TYPE_COMPOSITE;
+        if(value.contains("YPBPR")||value.contains("YUV"))return TvInputInfo.TYPE_COMPONENT;
+        if(value.contains("SVIDEO"))return TvInputInfo.TYPE_SVIDEO;
+        if(value.contains("VGA"))return TvInputInfo.TYPE_VGA;
+        return -1;
+    }
+
     List<Source> load(){return inspect().sources;}
-    Discovery inspect(){
+    Discovery inspect(){return inspect(new DeviceInputProfile(context).active());}
+    Discovery inspect(org.json.JSONObject profile){
         discovery=new Discovery();List<Source> sources=skyworth(false);
         if(sources.isEmpty())sources=skyworth(true);
         if(sources.isEmpty())sources=konka();
         discovery.sources.addAll(sources);
-        DiagnosticLog.info("input.vendor.enumeration","count="+sources.size()+" restricted="+discovery.restricted+" disabled="+discovery.disabled+" failed="+discovery.failed+" sdkUnavailable="+discovery.sdkUnavailable+" empty="+discovery.empty);
+        // Preserve working native protocols. Do not combine two vendor lists whose hardware
+        // identities cannot be compared, or manufacture ports from the brand alone.
+        if(discovery.sources.isEmpty())try{discovery.sources.addAll(XgimiInputs.load(context));}catch(Exception|LinkageError failure){adapterFailure("xgimi",failure);}
+        if(discovery.sources.isEmpty())try{discovery.sources.addAll(HisenseInputs.load(context));}catch(Exception|LinkageError failure){adapterFailure("hisense",failure);}
+        if(discovery.sources.isEmpty())try{discovery.sources.addAll(XiaomiInputs.load(context,profile));}catch(Exception|LinkageError failure){adapterFailure("xiaomi",failure);}
+        DiagnosticLog.info("input.vendor.enumeration","count="+discovery.sources.size()+" restricted="+discovery.restricted+" disabled="+discovery.disabled+" failed="+discovery.failed+" sdkUnavailable="+discovery.sdkUnavailable+" empty="+discovery.empty);
         return discovery;
+    }
+    private void adapterFailure(String name,Throwable failure){
+        if(failure instanceof ClassNotFoundException||failure instanceof NoSuchMethodException||failure instanceof LinkageError)discovery.sdkUnavailable=true;else discovery.failed=true;
+        DiagnosticLog.error("input."+name+".enumeration_failed",failure);
+    }
+    static String packageStamp(Context context,String pkg) throws PackageManager.NameNotFoundException {
+        android.content.pm.PackageInfo info=context.getPackageManager().getPackageInfo(pkg,0);
+        return pkg+":"+info.versionCode+":"+info.lastUpdateTime;
+    }
+    static String scope(Context context,Source source) throws Exception {
+        String provider="";
+        if(source.key.startsWith(SKY_LIST+":")||source.key.startsWith(SKY_SDK+":")){
+            ProviderInfo info=context.getPackageManager().resolveContentProvider(source.key.substring(0,source.key.indexOf(':')),0);
+            if(info==null)throw new IllegalStateException("Input provider unavailable");provider=packageStamp(context,info.packageName);
+        }else if(source.key.startsWith("hisense:"))provider=HisenseInputs.stamp(context);
+        String value=android.os.Build.FINGERPRINT+"\n"+source.key+"\n"+provider+"\n"+packageStamp(context,source.owner);
+        // Preserve saved scopes of the existing Skyworth and Konka protocols byte for byte.
+        if(source.key.startsWith("xgimi:")||source.key.startsWith("hisense:")||source.key.startsWith("xiaomi:"))value+="\n"+source.intent.toUri(0)+"\n"+source.mapping;
+        return DeviceInputProfile.digest(value);
     }
     private boolean provider(String authority,boolean write){
         ProviderInfo info=context.getPackageManager().resolveContentProvider(authority,PackageManager.GET_DISABLED_COMPONENTS);
@@ -88,8 +131,8 @@ final class VendorTvInputs {
                     Bundle data=new Bundle();data.putString("name",value);data.putInt("index",ordinal);
                     if(sdk){
                         data.putString("displayname",label);data.putInt("signal",cursor.getInt(cursor.getColumnIndexOrThrow("signalState")));
-                        sources.add(new Source(label,new Intent().setComponent(SKY_PLAYER).putExtra("source",data),null,authority+":"+value,"com.skyworth.tv",value.toUpperCase(java.util.Locale.ROOT).contains("HDMI")));
-                    }else sources.add(new Source(label,null,data,authority+":"+value,"com.skyworth.tv",value.toUpperCase(java.util.Locale.ROOT).contains("HDMI")));
+                        sources.add(new Source(label,new Intent().setComponent(SKY_PLAYER).putExtra("source",data),null,authority+":"+value,"com.skyworth.tv",sourceType(value)));
+                    }else sources.add(new Source(label,null,data,authority+":"+value,"com.skyworth.tv",sourceType(value)));
                 }
             }
             if(sources.isEmpty())discovery.empty=true;
@@ -114,7 +157,7 @@ final class VendorTvInputs {
                 Enum<?> source=(Enum<?>)item;if(!seen.add(source.name()))continue;
                 String label=source.name();
                 if(labelMethod!=null){Object text=labelMethod.invoke(manager,source);if(text instanceof String && !((String)text).isEmpty())label=(String)text;}
-                sources.add(new Source(label,new Intent("com.konka.tvsettings.intent.action.RootActivity").setComponent(KONKA_PLAYER).putExtra("source",source.ordinal()),null,"konka:"+source.name(),"com.konka.tvsettings",source.name().contains("HDMI")));
+                sources.add(new Source(label,new Intent("com.konka.tvsettings.intent.action.RootActivity").setComponent(KONKA_PLAYER).putExtra("source",source.ordinal()),null,"konka:"+source.name(),"com.konka.tvsettings",sourceType(source.name())));
             }
             if(sources.isEmpty())discovery.empty=true;
         }catch(ClassNotFoundException|NoSuchMethodException|LinkageError unavailable){discovery.sdkUnavailable=true;DiagnosticLog.error("input.konka.sdk_unavailable",unavailable);}
@@ -127,6 +170,19 @@ final class VendorTvInputs {
     }
     boolean open(Source source){
         try{
+            if(source.key.startsWith("xgimi:")||source.key.startsWith("hisense:")||source.key.startsWith("xiaomi:")){
+                boolean current=false;
+                for(Source candidate:new TvInputController(context).inspectSources().vendor.sources)
+                    if(candidate.key.equals(source.key)&&candidate.mapping.equals(source.mapping)&&candidate.intent.toUri(0).equals(source.intent.toUri(0))){current=true;break;}
+                if(!current)return false;
+            }
+            return openPrepared(source);
+        }catch(RuntimeException failure){DiagnosticLog.error("input.vendor.dispatch.failed",failure);return false;}
+    }
+    /** Only after current enumeration and scope validation, with provider calls on a worker. */
+    boolean openPrepared(Source source){
+        try{
+            if(source.key.startsWith("hisense:"))return HisenseInputs.open(context,source);
             if(source.intent!=null){
                 if(!TvInputController.canOpen(context,source.intent.getComponent())){DiagnosticLog.info("input.vendor.request",DiagnosticLog.intent(source.intent)+" result=not_callable");return false;}
                 context.startActivity(new Intent(source.intent).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));

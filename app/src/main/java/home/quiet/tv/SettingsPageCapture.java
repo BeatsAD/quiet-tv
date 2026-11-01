@@ -14,6 +14,7 @@ final class SettingsPageCapture {
     private static String skipped="";
     private final Context context;
     private final AdbController adb;
+    private final SettingsRouteMemory.Attempt attempt;
     private final ScheduledExecutorService worker=Executors.newSingleThreadScheduledExecutor();
     private final Handler main=new Handler(Looper.getMainLooper());
     private final String id=Long.toHexString(System.currentTimeMillis());
@@ -24,17 +25,17 @@ final class SettingsPageCapture {
     private String state="正在核对已有本机 ADB",previous="";
     private int samples,changes,unknown,capturedUser=-1;
     private final Runnable deadline=()->stop("time_limit");
-    private SettingsPageCapture(Context context){this.context=context.getApplicationContext();adb=new AdbController(this.context,value->{});}
+    private SettingsPageCapture(Context context,SettingsRouteMemory.Attempt attempt){this.attempt=attempt;this.context=context.getApplicationContext();adb=new AdbController(this.context,value->{});}
     static synchronized boolean running(){return current!=null&&current.running;}
     static synchronized String summary(){return !skipped.isEmpty()?skipped:current==null?"本进程尚无系统设置页面观察记录；历史结果见 settings.capture 事件。":current.describe();}
-    static synchronized void observe(Context context){
-        if(running())return;
+    static synchronized void observe(Context context,SettingsRouteMemory.Attempt attempt){
+        if(running())current.stop("next_entry");
         // Ordinary settings navigation must not create a new key or require a diagnostic setup flow.
         String reason=!new File(context.getFilesDir(),"local-adb.p12").isFile()?"no_existing_adb_key":
             !context.getSharedPreferences("adb",0).getBoolean("autoConnect",true)?"adb_paused":
             "tls".equals(context.getSharedPreferences("adb",0).getString("lastTransport","tcp"))?"tcp_unavailable":"";
         if(!reason.isEmpty()){skipped="设置页面自动观察未执行："+reason+"；应用自身收到的导航按键仍会记录。";DiagnosticLog.info("settings.capture.skipped","reason="+reason);return;}
-        skipped="";SettingsPageCapture capture=new SettingsPageCapture(context);current=capture;capture.connect();
+        skipped="";SettingsPageCapture capture=new SettingsPageCapture(context,attempt);current=capture;capture.connect();
     }
     static synchronized void stopCurrent(String reason){if(current!=null)current.stop(reason);}
     private synchronized String describe(){return "采集状态："+state+"\n采集编号："+id+"\n采样次数："+samples+"  结构变化："+changes+"  前台未知："+unknown
@@ -48,7 +49,7 @@ final class SettingsPageCapture {
         final int request=adb.prepare();
         worker.execute(()->{
             try{
-                adb.connect(context.getSharedPreferences("adb",0).getInt("port",5555),request);
+                adb.connect(context.getSharedPreferences("adb",0).getInt("port",5555),request,false);
                 synchronized(this){if(!running)return;capturedUser=adb.user;state="正在自动观察设置页面";
                     DiagnosticLog.info("settings.capture.connected","capture="+id+" user="+capturedUser);}
                 sample();
@@ -68,6 +69,7 @@ final class SettingsPageCapture {
             synchronized(this){
                 if(!running)return;
                 samples++;if(snapshot.resumed.isEmpty())unknown++;
+                attempt.observed(snapshot.resumed);attempt.observed(snapshot.focused);
                 if(!snapshot.key().equals(previous)){
                     previous=snapshot.key();changes++;
                     DiagnosticLog.info("settings.capture.page","capture="+id+" sample="+samples+" user="+capturedUser+" elapsedMs="+(SystemClock.elapsedRealtime()-started)+" "+snapshot.page());

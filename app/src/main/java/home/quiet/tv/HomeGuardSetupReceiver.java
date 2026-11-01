@@ -22,8 +22,12 @@ public final class HomeGuardSetupReceiver extends BroadcastReceiver {
                 setResultData(new JSONObject().put("schemaVersion",1).put("package",context.getPackageName())
                     .put("supported",state.supported()).put("selected",state.selected()).put("candidates",candidates).put("resolvedHome",resolvedHome)
                     .put("directHomeAvailable",state.directHomeAvailable()).put("directHomeConfigured",state.directHomeConfigured())
+                    .put("nativeObserverSupported",true).put("nativeObserverAvailable",state.nativeObserverAvailable())
+                    .put("nativeObserverConfigured",state.nativeObserverConfigured()).put("paused","OFF".equals(state.preferences.getString("mode","AUTO")))
                     .put("usageRequired",HomeGuardService.usageRequired(context)).put("accessibilityAllowed",state.serviceEnabled())
+                    .put("homeEventUsageSupported",state.supported())
                     .put("accessibilityBound",HomeGuardService.connected()).put("physicalHomeVerified",false)
+                    .put("permissions",HomeGuardRecovery.permissions(context))
                     .put("adbOnlySupported",true).put("adb",HomeGuardAdb.snapshot(context))
                     .put("adbPortSupported",HomeGuardAdb.portSupported(context)).put("adbPort",HomeGuardAdb.port(context)).toString());
                 setResultCode(Activity.RESULT_OK);return;
@@ -39,7 +43,7 @@ public final class HomeGuardSetupReceiver extends BroadcastReceiver {
             }
             if(!HomeGuardRecovery.writeAllowed(context))throw new IllegalStateException("请先通过电脑授予写安全设置权限");
             if(intent.getBooleanExtra("adb_only",false)){
-                if(!intent.hasExtra("keep_adb") || intent.getBooleanExtra("enable",false) || intent.hasExtra("home") || intent.hasExtra("direct_home"))
+                if(!intent.hasExtra("keep_adb") || intent.getBooleanExtra("enable",false) || intent.hasExtra("home") || intent.hasExtra("direct_home") || intent.hasExtra("native_observer"))
                     throw new IllegalStateException("独立 ADB 配置不能同时修改桌面路线");
                 if(intent.hasExtra("adb_port") && !HomeGuardAdb.setPort(context,adbPort))throw new IllegalStateException("ADB 恢复端口未保存");
                 boolean keep=intent.getBooleanExtra("keep_adb",false);
@@ -52,6 +56,9 @@ public final class HomeGuardSetupReceiver extends BroadcastReceiver {
             }
             if(!intent.getBooleanExtra("enable",false))throw new IllegalStateException("未明确请求启用守护");
             boolean direct=intent.getBooleanExtra("direct_home",false);
+            boolean nativeObserver=intent.getBooleanExtra("native_observer",false);
+            if("OFF".equals(state.preferences.getString("mode","AUTO")) && !intent.getBooleanExtra("resume",false))throw new IllegalStateException("守护已暂停，需要明确恢复");
+            if(nativeObserver && (direct || !state.nativeObserverAvailable()))throw new IllegalStateException("当前路线不适用直接 HOME 原桌面观察");
             String home=intent.getStringExtra("home");
             if(direct){
                 if(home!=null || !state.directHomeAvailable())throw new IllegalStateException("当前设备或系统 HOME 不适用直接按键补偿");
@@ -68,6 +75,7 @@ public final class HomeGuardSetupReceiver extends BroadcastReceiver {
             }
             if(intent.hasExtra("adb_port") && !HomeGuardAdb.setPort(context,adbPort))throw new IllegalStateException("ADB 恢复端口未保存");
             if(direct){state.preferences.edit().putString("mode","AUTO").apply();new DesktopRoutes(context).direct();}
+            else if(nativeObserver)new DesktopRoutes(context).nativeObserver();
             else state.enable();
             HomeGuardRecovery.configureGranted(context);
             if(intent.hasExtra("keep_adb") && !HomeGuardAdb.setEnabled(context,intent.getBooleanExtra("keep_adb",false)))throw new IllegalStateException("调试恢复选项未保存");
@@ -76,6 +84,7 @@ public final class HomeGuardSetupReceiver extends BroadcastReceiver {
             JSONObject result=new JSONObject();
             result.put("configured",problem.isEmpty());result.put("enabled",state.enabled());
             result.put("physicalHomeVerified",false);result.put("directHomeConfigured",state.directHomeConfigured());
+            result.put("nativeObserverConfigured",state.nativeObserverConfigured());
             result.put("accessibilityAllowed",state.serviceEnabled());result.put("accessibilityBound",HomeGuardService.connected());
             result.put("usageRequired",HomeGuardService.usageRequired(context));result.put("usageAllowed",HomeGuardService.usageAllowed(context));
             result.put("notificationSupported",HomeGuardRecovery.notificationSupported(context));
@@ -86,6 +95,7 @@ public final class HomeGuardSetupReceiver extends BroadcastReceiver {
             result.put("adb",HomeGuardAdb.snapshot(context));
             result.put("overlayAllowed",Build.VERSION.SDK_INT<23 || Settings.canDrawOverlays(context));
             result.put("problem",problem);
+            result.put("permissions",HomeGuardRecovery.permissions(context));
             result.put("desktopRoutes",new DesktopRoutes(context).snapshot());setResultData(result.toString());
             if(problem.isEmpty())setResultCode(Activity.RESULT_OK);
             DiagnosticLog.info("home_guard.computer_setup",problem.isEmpty()?"权限已配置，接管待验证":"部分权限未配置");
