@@ -79,6 +79,11 @@
             <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
             <meta-data android:name="android.accessibilityservice" android:resource="@xml/home_guard" />
         </service>
+        <service android:name=".LegacyWindowHomeGuardService" android:exported="true" android:enabled="@bool/legacy_window_home_guard_available"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" android:label="@string/legacy_window_home_guard_name">
+            <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/legacy_window_home_guard" />
+        </service>
         <service android:name=".LegacyAdbHomeGuardService" android:exported="false" android:enabled="${legacyAdbGuardAvailable}" />
         <receiver android:name=".LegacyAdbHomeGuardReceiver" android:exported="true" android:enabled="false">
             <intent-filter>

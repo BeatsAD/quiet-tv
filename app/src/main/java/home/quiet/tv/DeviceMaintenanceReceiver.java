@@ -11,6 +11,8 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
     static String original(Context context) throws Exception {
         String saved=new SetupStore(context).originalHome();
         if(!saved.isEmpty())return saved;
+        String windowHome=LegacyWindowHomeGuard.original(context);
+        if(!windowHome.isEmpty())return windowHome;
         String adbHome=LegacyAdbHomeGuard.original(context);
         return adbHome.isEmpty()?new HomeGuardState(context,false).selected():adbHome;
     }
@@ -60,6 +62,8 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
         if(guard.supported())value.getJSONArray("capabilities").put("home-observation-v1").put("home-key-filter-v1");
         value.put("adbHomeGuard",LegacyAdbHomeGuard.snapshot(context));
         if(LegacyAdbHomeGuard.supported())value.getJSONArray("capabilities").put("adb-home-guard-v1");
+        value.put("windowHomeGuard",LegacyWindowHomeGuard.snapshot(context));
+        if(LegacyWindowHomeGuard.supported())value.getJSONArray("capabilities").put("window-home-guard-v1");
         android.content.SharedPreferences daily=context.getSharedPreferences("adb",0);
         value.put("dailyManagement",new JSONObject().put("transport","tcp").put("port",daily.getInt("port",5555)).put("configured",daily.getBoolean("dailyManagement",false)));
         value.getJSONArray("capabilities").put("legacy-records-v1").put("proxy-setup-v1").put("remote-keymap-v1");
@@ -99,6 +103,8 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
                 new RemoteKeyMap(context).operation(operation,intent);
             }else if("adb_guard_configure".equals(operation)){
                 LegacyAdbHomeGuard.configure(context,intent.getStringExtra("home"),intent.getIntExtra("port",-1),intent.getBooleanExtra("resume",false));
+            }else if("window_guard_configure".equals(operation)){
+                LegacyWindowHomeGuard.configure(context,intent.getStringExtra("home"),intent.getBooleanExtra("resume",false));
             }else if("management_config".equals(operation)){
                 int port=intent.getIntExtra("port",-1);
                 if(port<1 || port>65535)throw new IllegalArgumentException("本机 TCP ADB 端口无效");

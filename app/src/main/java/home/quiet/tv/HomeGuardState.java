@@ -62,7 +62,8 @@ final class HomeGuardState {
     boolean protects(String pkg,SetupPresets rules){
         ComponentName name=ComponentName.unflattenFromString(selected()),fallback=ComponentName.unflattenFromString(preferences.getString("proxyOriginal",""));boolean selected=name!=null && name.getPackageName().equals(pkg);
         if(enabled() && rules.observation()!=null)for(String target:protectedHomes())if(!target.equals(selected()) && target.startsWith(pkg+"/"))return true;
-        return DesktopRoutePolicy.preserve(rules.protectedHomePackage(pkg) || fallback!=null && fallback.getPackageName().equals(pkg) || !BuildConfig.DECLARES_HOME && selected,selected && selected().equals(rules.home()) && rules.homeAllows("disableVerified"),selected,enabled());
+        ComponentName windowHome=ComponentName.unflattenFromString(LegacyWindowHomeGuard.original(context));
+        return windowHome!=null && windowHome.getPackageName().equals(pkg) || DesktopRoutePolicy.preserve(rules.protectedHomePackage(pkg) || fallback!=null && fallback.getPackageName().equals(pkg) || !BuildConfig.DECLARES_HOME && selected,selected && selected().equals(rules.home()) && rules.homeAllows("disableVerified"),selected,enabled());
     }
     // Persist disabled mode before canceling scheduled recovery.
     @android.annotation.SuppressLint("ApplySharedPref")

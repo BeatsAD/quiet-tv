@@ -147,6 +147,21 @@ python3 agent_session.py finish --session "$NEW_SESSION_DIR"
 
 兼容档保留开机广播权限；开机和应用升级仅恢复之前启用的调试保持或 API19 本机守护。两者独立：暂停桌面守护不关闭独立 ADB 保持，关闭 ADB 保持也不停止已配置的桌面守护。调试开关恢复仍不证明网络端口重开、授权保留或重启后能重新连接，须逐固件验收。
 
+### API18 窗口桌面守护
+
+Android 4.3 的兼容包提供 `window-home-guard-v1`。标准 HOME 选择无法完成、用户明确选择兼容守护时，先检查实际安装包的能力及 `windowHomeGuard.candidates`，指定本机已启用的系统 HOME 完整组件。电脑 AI 沿用原任务记录执行预览，再在已有接管授权内加 `--apply`：
+
+```sh
+python3 device_maintenance.py repair --serial "$TV_SERIAL" --user "$TV_USER" \
+  --package "$QUIET_PACKAGE" --window-guard --home "$ORIGINAL_HOME" --record "$NEW_PRIVATE_RECORD"
+```
+
+工具只合并登记自己的 API18 无障碍服务并读回，保留其他服务、系统 HOME、原桌面及应用数据，不授予应用写安全设置权限，不依赖本机 ADB、使用统计或通知访问。已有暂停选择须用户明确恢复后加 `--resume`；仅检查、更新和试用不启用。后续 `repair` 沿用已保存的窗口路线，`pause`／`restore` 暂停该守护，不需要固件提供 `set-home-activity`。
+
+守护仅接受新鲜的精确原主页／Activity alias 目标事件，保留用户打开原桌面与切源的放行，不根据包名抢回设置或播放页面。它显式拉起 Quiet TV，不修改默认 HOME；Android 4.3 的 HOME 后应用切换时序仍须实测。配置限定当前固件与原桌面版本，变化后须重新核对。系统负责绑定并在开机后恢复已登记服务，暂停状态跨进程保留；没有新鲜页面事件时不猜测前台，也不承诺厂商固件永久常驻。
+
+配置读回不代表服务已绑定、实际事件已收到或实体 HOME 已通过。逐项记录绑定、真实页面事件、实体 HOME、退出应用、重启／冷启动、待机唤醒、设置／HDMI及恢复结果；乐视 S50 Air 的报告只提供故障线索，本路线尚无该固件验收。旧包没有此能力时停止依赖步骤，不把后续源码当作已安装能力。
+
 ### API19 本机 ADB 桌面守护
 
 新开发包的 `adb-home-guard-v1` 将电脑脚本的观察循环移到电视端，仅用于 API19 兼容档，默认不启用。通过应用已有的本机 ADB 连接，以当前用户唯一的 `mResumedActivity`、当前焦点窗口和原桌面完整组件判断前台；后台历史包名不触发。每次原桌面前台事件只尝试一次，启动后核对 Quiet TV 前台；屏幕关闭、锁定或屏保时不启动。不禁用原桌面，不改变系统 HOME，不修改 ADB 开关或端口监听状态。

@@ -52,7 +52,7 @@ def option(arguments, name, default=None):
 
 def operation(tool, arguments):
     # The child parsers accept abbreviations; do not let an abbreviated flag evade routing.
-    flags = ('--apply', '--goal', '--action', '--pause', '--restore-record', '--verify-only', '--adb-only', '--adb-guard', '--native-observer', '--resume')
+    flags = ('--apply', '--goal', '--action', '--pause', '--restore-record', '--verify-only', '--adb-only', '--adb-guard', '--window-guard', '--native-observer', '--resume')
     if any(arg.startswith('--') and any(flag.startswith(arg.split('=')[0])
             and flag != arg.split('=')[0] for flag in flags) for arg in arguments):
         raise ValueError('任务调用须使用完整参数名，不使用缩写')
@@ -424,7 +424,7 @@ def run_step(directory, state, tool, arguments):
                 record_result(state, name, 'SKIP', 'script', '校准阶段改变，需按最终映射重新验收')
     elif '--apply' in arguments and action not in ('read', 'test'):
         state['evidenceAfter'] = number
-        if action == 'takeover' or action == 'home' and '--adb-guard' in arguments:
+        if action == 'takeover' or action == 'home' and ('--adb-guard' in arguments or '--window-guard' in arguments):
             state['requiredChecks'] = list(dict.fromkeys((*state.get('requiredChecks', []), *TAKEOVER_CHECKS)))
         if action in ('trial', 'update'):
             state.pop('trial', None)
