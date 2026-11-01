@@ -100,18 +100,48 @@ final class WallpaperUploadPanel {
         ConnectivityManager manager=(ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkInfo active=manager==null?null:manager.getActiveNetworkInfo();
         if(active==null||!active.isConnected())return null;
-        if(active.getType()==ConnectivityManager.TYPE_WIFI){
-            android.net.wifi.WifiManager wifi=(android.net.wifi.WifiManager)context.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-            android.net.wifi.WifiInfo info=wifi==null?null:wifi.getConnectionInfo();int ip=info==null?0:info.getIpAddress();
-            return ip==0?null:(ip&255)+"."+((ip>>>8)&255)+"."+((ip>>>16)&255)+"."+((ip>>>24)&255);
-        }
-        if(active.getType()==ConnectivityManager.TYPE_ETHERNET)try{
-            for(NetworkInterface nic:java.util.Collections.list(NetworkInterface.getNetworkInterfaces())){
-                if(!nic.isUp()||!nic.getName().matches("(?:eth|en)[0-9]+"))continue;
-                for(InetAddress address:java.util.Collections.list(nic.getInetAddresses()))if(address instanceof Inet4Address&&!address.isLoopbackAddress()&&!address.isLinkLocalAddress()&&address.isSiteLocalAddress())return address.getHostAddress();
+        if(active.getType()==ConnectivityManager.TYPE_WIFI)return wifiAddress(context);
+        if(active.getType()!=ConnectivityManager.TYPE_ETHERNET)return null;
+        // API14-20 expose the active link only through this hidden framework API.
+        // Its addresses identify the connected USB/physical interface without a name whitelist.
+        try{
+            Object links=manager.getClass().getMethod("getActiveLinkProperties").invoke(manager);
+            if(links!=null){
+                Object addresses=links.getClass().getMethod("getAddresses").invoke(links);
+                if(addresses instanceof Iterable){
+                    for(Object value:(Iterable<?>)addresses)if(value instanceof InetAddress&&usableLanAddress((InetAddress)value))return ((InetAddress)value).getHostAddress();
+                    return null;
+                }
+            }
+        }catch(NoSuchMethodException|IllegalAccessException|java.lang.reflect.InvocationTargetException|SecurityException ignored){}
+        // Some vendor frameworks omit link properties. Accept only one unambiguous
+        // non-Wi-Fi, non-point-to-point interface instead of guessing between adapters.
+        String wifi=wifiAddress(context),selected=null;
+        try{
+            java.util.Enumeration<NetworkInterface> interfaces=NetworkInterface.getNetworkInterfaces();
+            while(interfaces!=null&&interfaces.hasMoreElements()){
+                NetworkInterface nic=interfaces.nextElement();
+                try{
+                    if(!nic.isUp()||nic.isLoopback()||nic.isPointToPoint())continue;
+                    for(InetAddress address:java.util.Collections.list(nic.getInetAddresses()))if(usableLanAddress(address)&&!address.getHostAddress().equals(wifi)){
+                        if(selected!=null&&!selected.equals(address.getHostAddress()))return null;
+                        selected=address.getHostAddress();break;
+                    }
+                }catch(SocketException ignored){}
             }
         }catch(SocketException ignored){}
-        return null;
+        return selected;
+    }
+    private static String wifiAddress(Context context){
+        android.net.wifi.WifiManager wifi=(android.net.wifi.WifiManager)context.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+        android.net.wifi.WifiInfo info=wifi==null?null:wifi.getConnectionInfo();int ip=info==null?0:info.getIpAddress();
+        return ip==0?null:(ip&255)+"."+((ip>>>8)&255)+"."+((ip>>>16)&255)+"."+((ip>>>24)&255);
+    }
+    static boolean usableLanAddress(InetAddress address){
+        // LAN addresses need not be private IPv4 addresses.
+        if(!(address instanceof Inet4Address)||address.isLoopbackAddress()||address.isLinkLocalAddress())return false;
+        int first=address.getAddress()[0]&255;
+        return first>0&&first<224;
     }
     @android.annotation.TargetApi(21)
     private static final class Api21 {
@@ -123,9 +153,10 @@ final class WallpaperUploadPanel {
             for(Network network:networks){String address=address(manager,network);if(address!=null)return address;}return null;
         }
         private static String address(ConnectivityManager manager,Network network){
+            NetworkInfo info=manager.getNetworkInfo(network);if(info==null||!info.isConnected())return null;
             NetworkCapabilities capabilities=manager.getNetworkCapabilities(network);LinkProperties links=manager.getLinkProperties(network);
-            if(capabilities==null||links==null||(!capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)&&!capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)))return null;
-            for(LinkAddress link:links.getLinkAddresses()){InetAddress address=link.getAddress();if(address instanceof Inet4Address&&!address.isLoopbackAddress()&&!address.isLinkLocalAddress()&&address.isSiteLocalAddress())return address.getHostAddress();}return null;
+            if(capabilities==null||links==null||capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)||(!capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)&&!capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)&&!(Build.VERSION.SDK_INT>=31&&capabilities.hasTransport(NetworkCapabilities.TRANSPORT_USB))))return null;
+            for(LinkAddress link:links.getLinkAddresses()){InetAddress address=link.getAddress();if(usableLanAddress(address))return address.getHostAddress();}return null;
         }
     }
 }
