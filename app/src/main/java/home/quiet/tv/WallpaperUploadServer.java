@@ -83,19 +83,20 @@ final class WallpaperUploadServer extends NanoHTTPD {
         String kind=session.getHeaders().get("x-wallpaper-kind");
         if(kind==null)kind="image";
         if(!"image".equals(kind)&&!(videos&&"video".equals(kind)))return error(Response.Status.BAD_REQUEST,"此入口不支持这种文件 / Unsupported media type");
-        boolean video="video".equals(kind);long upload=video?VideoDiagnostics.nextUpload():0;long limit=video?WallpaperVideo.MAX_UPLOAD:maximum;
+        boolean video="video".equals(kind);long upload=video?VideoDiagnostics.nextUpload():0;long limit=video?0:maximum;
         long length;
         try { length=Long.parseLong(session.getHeaders().get("content-length")); }
         catch(NumberFormatException e){return uploadError(video,upload,Response.Status.LENGTH_REQUIRED,"missing_length","需要文件长度 / Content-Length required");}
-        if(length<=0 || length>limit)return uploadError(video,upload,Response.Status.PAYLOAD_TOO_LARGE,"file_size_limit","文件不能超过 "+(limit/(1024*1024))+" MB / Maximum file size: "+(limit/(1024*1024))+" MB");
+        if(length<=0)return uploadError(video,upload,Response.Status.BAD_REQUEST,"empty_file","文件不能为空 / File must not be empty");
+        if(limit>0&&length>limit)return uploadError(video,upload,Response.Status.PAYLOAD_TOO_LARGE,"file_size_limit","文件不能超过 "+(limit/(1024*1024))+" MB / Maximum file size: "+(limit/(1024*1024))+" MB");
         if(session.getHeaders().containsKey("transfer-encoding"))return uploadError(video,upload,Response.Status.BAD_REQUEST,"transfer_encoding_unsupported","Unsupported transfer encoding");
         if(!IMPORTING.compareAndSet(false,true))return uploadError(video,upload,Response.Status.SERVICE_UNAVAILABLE,"import_busy","正在处理另一个文件，请稍后重试 / Another upload is in progress");
         try {
             String name=session.getHeaders().get("x-wallpaper-name");
             if(name==null || name.length()>1024)return uploadError(video,upload,Response.Status.BAD_REQUEST,"invalid_name_header","无效的文件名称 / Invalid file name");
             name=URLDecoder.decode(name,"UTF-8");
-            long deadline=System.nanoTime()+(video?600000000000L:60000000000L);
-            Active active=()->!closed && System.nanoTime()<deadline;
+            long deadline=System.nanoTime()+60000000000L;
+            Active active=()->{if(video)touched=System.nanoTime();return !closed&&(video||System.nanoTime()<deadline);};
             String result=video?importer.acceptVideo(session.getInputStream(),length,name,active,upload):importer.accept(session.getInputStream(),length,name,active);
             return secure(newFixedLengthResponse(Response.Status.CREATED,"application/json; charset=utf-8",result));
         } catch(IOException|IllegalArgumentException e){
