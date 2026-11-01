@@ -280,26 +280,9 @@ final class TvInputController {
         return intent!=null?intent:fallbackInputIntent(input);
     }
 
-    static boolean enabledSystem(Context context,ComponentInfo info){
-        if((info.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0)return false;
-        return enabled(context,info);
-    }
-    static boolean enabled(Context context,ComponentInfo info){
-        PackageManager pm=context.getPackageManager();
-        int app=pm.getApplicationEnabledSetting(info.packageName),component=pm.getComponentEnabledSetting(new ComponentName(info.packageName,info.name));
-        return (app==PackageManager.COMPONENT_ENABLED_STATE_DEFAULT?info.applicationInfo.enabled:app==PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
-            && (component==PackageManager.COMPONENT_ENABLED_STATE_DEFAULT?info.enabled:component==PackageManager.COMPONENT_ENABLED_STATE_ENABLED);
-    }
-    static boolean canOpen(Context context,ComponentName target){
-        if(target==null)return false;
-        try{
-            android.content.pm.ActivityInfo info=context.getPackageManager().getActivityInfo(target,0);
-            String reason=!enabledSystem(context,info)?"not_enabled_system":!info.exported?"not_exported":info.permission!=null && context.getPackageManager().checkPermission(info.permission,context.getPackageName())!=PackageManager.PERMISSION_GRANTED?"permission_denied permission="+info.permission:"";
-            if(!reason.isEmpty())DiagnosticLog.info("input.component","component="+target.flattenToShortString()+" result="+reason);
-            return reason.isEmpty();
-        }catch(PackageManager.NameNotFoundException unavailable){DiagnosticLog.info("input.component","component="+target.flattenToShortString()+" result=not_installed");return false;}
-        catch(RuntimeException unavailable){DiagnosticLog.error("input.component.failed","component="+target.flattenToShortString(),unavailable);return false;}
-    }
+    static boolean enabledSystem(Context context,ComponentInfo info){return InputComponents.enabledSystem(context,info);}
+    static boolean enabled(Context context,ComponentInfo info){return InputComponents.enabled(context,info);}
+    static boolean canOpen(Context context,ComponentName target){return InputComponents.canOpen(context,target);}
     Intent standardIntent(String inputId,android.net.Uri uri){
         Intent intent=new Intent(Intent.ACTION_VIEW).setDataAndType(uri,TvContract.Channels.CONTENT_ITEM_TYPE).putExtra(TvInputInfo.EXTRA_INPUT_ID,inputId);
         List<android.content.pm.ResolveInfo> handlers=pm.queryIntentActivities(intent,PackageManager.MATCH_DEFAULT_ONLY);

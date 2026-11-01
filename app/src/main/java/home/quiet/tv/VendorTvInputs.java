@@ -6,7 +6,6 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ProviderInfo;
 import android.database.Cursor;
-import android.media.tv.TvInputInfo;
 import android.net.Uri;
 import android.os.Bundle;
 import java.util.ArrayList;
@@ -14,8 +13,10 @@ import java.util.HashSet;
 import java.util.List;
 
 /** Inputs actually enumerated by vendor firmware, including types missing from the framework. */
-@android.annotation.TargetApi(21)
 final class VendorTvInputs {
+    // TvInputInfo numeric values, kept local so Android 4.x native adapters do not link API21.
+    static final int TYPE_TUNER=0,TYPE_COMPOSITE=1001,TYPE_SVIDEO=1002,TYPE_COMPONENT=1004,
+        TYPE_VGA=1005,TYPE_HDMI=1007,TYPE_DISPLAY_PORT=1008;
     private static final String SKY_LIST="com.skyworth.tv.provider",SKY_SDK="com.skyworth.tv.sdk.provider";
     private static final ComponentName SKY_PLAYER=new ComponentName("com.skyworth.tv","com.skyworth.tv.activity.SkyTVMainActivity");
     private static final ComponentName KONKA_PLAYER=new ComponentName("com.konka.tvsettings","com.konka.tvsettings.RootActivity");
@@ -27,7 +28,7 @@ final class VendorTvInputs {
         final Intent intent;
         final Bundle parameters;
         String mapping="";
-        Source(String label,Intent intent,Bundle parameters,String key,String owner,int type){this.label=label;this.intent=intent;this.parameters=parameters;this.key=key;this.owner=owner;this.type=type;hdmi=type==TvInputInfo.TYPE_HDMI;}
+        Source(String label,Intent intent,Bundle parameters,String key,String owner,int type){this.label=label;this.intent=intent;this.parameters=parameters;this.key=key;this.owner=owner;this.type=type;hdmi=type==VendorTvInputs.TYPE_HDMI;}
     }
     static final class Discovery {
         final List<Source> sources=new ArrayList<>();
@@ -48,13 +49,13 @@ final class VendorTvInputs {
     // Use the firmware's source identifier, never its editable display label.
     static int sourceType(String name){
         String value=name.toUpperCase(java.util.Locale.ROOT);
-        if(value.contains("HDMI"))return TvInputInfo.TYPE_HDMI;
-        if(value.equals("DP")||value.contains("DISPLAYPORT"))return TvInputInfo.TYPE_DISPLAY_PORT;
-        if(value.equals("VOD")||value.contains("DTV")||value.contains("ATV")||value.contains("DVB")||value.contains("DTMB"))return TvInputInfo.TYPE_TUNER;
-        if(value.startsWith("AV")||value.contains("_AV"))return TvInputInfo.TYPE_COMPOSITE;
-        if(value.contains("YPBPR")||value.contains("YUV"))return TvInputInfo.TYPE_COMPONENT;
-        if(value.contains("SVIDEO"))return TvInputInfo.TYPE_SVIDEO;
-        if(value.contains("VGA"))return TvInputInfo.TYPE_VGA;
+        if(value.contains("HDMI"))return VendorTvInputs.TYPE_HDMI;
+        if(value.equals("DP")||value.contains("DISPLAYPORT"))return VendorTvInputs.TYPE_DISPLAY_PORT;
+        if(value.equals("VOD")||value.contains("DTV")||value.contains("ATV")||value.contains("DVB")||value.contains("DTMB"))return VendorTvInputs.TYPE_TUNER;
+        if(value.startsWith("AV")||value.contains("_AV"))return VendorTvInputs.TYPE_COMPOSITE;
+        if(value.contains("YPBPR")||value.contains("YUV"))return VendorTvInputs.TYPE_COMPONENT;
+        if(value.contains("SVIDEO"))return VendorTvInputs.TYPE_SVIDEO;
+        if(value.contains("VGA"))return VendorTvInputs.TYPE_VGA;
         return -1;
     }
 
@@ -94,9 +95,9 @@ final class VendorTvInputs {
     }
     private boolean provider(String authority,boolean write){
         ProviderInfo info=context.getPackageManager().resolveContentProvider(authority,PackageManager.GET_DISABLED_COMPONENTS);
-        String reason=info==null?"missing":!TvInputController.enabledSystem(context,info)?"not_enabled_system":!info.exported?"not_exported":!permitted(info.readPermission)?"read_permission_denied":write&&!permitted(info.writePermission)?"write_permission_denied":"ready";
+        String reason=info==null?"missing":!InputComponents.enabledSystem(context,info)?"not_enabled_system":!info.exported?"not_exported":!permitted(info.readPermission)?"read_permission_denied":write&&!permitted(info.writePermission)?"write_permission_denied":"ready";
         if(info!=null&&(info.applicationInfo.flags&android.content.pm.ApplicationInfo.FLAG_SYSTEM)!=0){
-            if(!TvInputController.enabledSystem(context,info))discovery.disabled=true;
+            if(!InputComponents.enabledSystem(context,info))discovery.disabled=true;
             else if(!info.exported||!permitted(info.readPermission)||write&&!permitted(info.writePermission))discovery.restricted=true;
         }
         DiagnosticLog.info("input.vendor.provider","authority="+authority+" write="+write+" result="+reason);
@@ -106,7 +107,7 @@ final class VendorTvInputs {
         try{
             android.content.pm.ActivityInfo info=context.getPackageManager().getActivityInfo(name,PackageManager.GET_DISABLED_COMPONENTS);
             if((info.applicationInfo.flags&android.content.pm.ApplicationInfo.FLAG_SYSTEM)==0)return false;
-            if(!TvInputController.enabledSystem(context,info)){discovery.disabled=true;return false;}
+            if(!InputComponents.enabledSystem(context,info)){discovery.disabled=true;return false;}
             if(!info.exported||!permitted(info.permission)){discovery.restricted=true;return false;}
             return true;
         }catch(PackageManager.NameNotFoundException missing){return false;}
@@ -172,19 +173,26 @@ final class VendorTvInputs {
         try{
             if(source.key.startsWith("xgimi:")||source.key.startsWith("hisense:")||source.key.startsWith("xiaomi:")){
                 boolean current=false;
-                for(Source candidate:new TvInputController(context).inspectSources().vendor.sources)
+                for(Source candidate:currentSources(context))
                     if(candidate.key.equals(source.key)&&candidate.mapping.equals(source.mapping)&&candidate.intent.toUri(0).equals(source.intent.toUri(0))){current=true;break;}
                 if(!current)return false;
             }
             return openPrepared(source);
         }catch(RuntimeException failure){DiagnosticLog.error("input.vendor.dispatch.failed",failure);return false;}
     }
+    private static List<Source> currentSources(Context context){
+        return android.os.Build.VERSION.SDK_INT<21?HdmiTarget.legacySources(context):Api21.sources(context);
+    }
+    @androidx.annotation.RequiresApi(21)
+    private static final class Api21 {
+        static List<Source> sources(Context context){return new TvInputController(context).inspectSources().vendor.sources;}
+    }
     /** Only after current enumeration and scope validation, with provider calls on a worker. */
     boolean openPrepared(Source source){
         try{
             if(source.key.startsWith("hisense:"))return HisenseInputs.open(context,source);
             if(source.intent!=null){
-                if(!TvInputController.canOpen(context,source.intent.getComponent())){DiagnosticLog.info("input.vendor.request",DiagnosticLog.intent(source.intent)+" result=not_callable");return false;}
+                if(!InputComponents.canOpen(context,source.intent.getComponent())){DiagnosticLog.info("input.vendor.request",DiagnosticLog.intent(source.intent)+" result=not_callable");return false;}
                 context.startActivity(new Intent(source.intent).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
                 DiagnosticLog.info("input.vendor.dispatch",source.intent.getComponent().flattenToShortString());return true;
             }

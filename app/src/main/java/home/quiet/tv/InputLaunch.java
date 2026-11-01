@@ -9,7 +9,7 @@ import java.util.*;
 
 /** Resolve/query on a worker; only the resulting, still-current route may be dispatched. */
 @android.annotation.TargetApi(21)
-final class InputLaunch {
+final class InputLaunch extends SavedInputLaunch {
     enum Issue { NONE, PERMISSION, NO_CHANNELS }
     final TvInputInfo input;
     final VendorTvInputs.Source vendor;
@@ -44,7 +44,7 @@ final class InputLaunch {
     }
     private static InputLaunch savedCurrent(Context context,HdmiTarget saved) throws Exception {
         TvInputController controller=new TvInputController(context);TvInputController.Snapshot snapshot=controller.inspectSources();
-        boolean matched=false;for(HdmiTarget current:HdmiTarget.available(context,snapshot))if(saved.matches(current)){matched=true;break;}
+        boolean matched=false;for(HdmiTarget current:HdmiTarget.Api21.available(context,snapshot))if(saved.matches(current)){matched=true;break;}
         if(!matched)return null;
         if("vendor".equals(saved.kind))for(VendorTvInputs.Source source:snapshot.vendor.sources)if(saved.id.equals(source.key))return new InputLaunch(context,null,source,null);
         if("standard".equals(saved.kind))for(TvInputInfo input:snapshot.inputs)if(saved.id.equals(input.getId())){

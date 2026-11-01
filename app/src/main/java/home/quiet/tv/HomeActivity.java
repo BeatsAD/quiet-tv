@@ -427,7 +427,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         DiagnosticLog.info("home.autostart.check","elapsedMs="+(SystemClock.uptimeMillis()-started)+" consumed="+!pkg.isEmpty());
         if(pkg.isEmpty())return;
         if(BootAppStore.HDMI.equals(pkg)){
-            if(Build.VERSION.SDK_INT>=21)openSavedHdmi(true);
+            openSavedHdmi(true);
             return;
         }
         launchStartupApp(pkg);
@@ -446,11 +446,37 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private void watchTv(){
         BootAppStore store=new BootAppStore(this);
-        if(!store.watchTarget().isEmpty()&&Build.VERSION.SDK_INT>=21){openSavedHdmi(false);return;}
+        if(!store.watchTarget().isEmpty()){openSavedHdmi(false);return;}
         leaveHome(()->startActivity(settingsIntent(DesktopSettingsActivity.class).putExtra("management-page",SettingsPages.STARTUP)));
     }
     private void openSavedHdmi(boolean automatic){
-        if(tvInputs==null)tvInputs=new TvInputs();tvInputs.saved(automatic);
+        BootAppStore store=new BootAppStore(HomeActivity.this);
+        if(automatic&&!store.tested())return;
+        String saved=store.watchTarget();int generation=hdmiLaunchGeneration;
+        leaveSystemEntry("input.saved",()->{
+            automaticInputPending=automatic;Context app=getApplicationContext();
+            inputWork.submit(()->{HdmiTarget target=HdmiTarget.decode(saved);return target==null?null:target.prepare(app);},(launch,failure)->{
+                if(!inputActive())return;
+                BootAppStore current=new BootAppStore(HomeActivity.this);
+                if(!saved.equals(current.watchTarget())||automatic&&(generation!=hdmiLaunchGeneration||!current.hdmiBoot()||!current.tested())){automaticInputPending=false;systemEntryResult(false,automatic);wallpapers.resume();return;}
+                dispatchSavedHdmi(launch,failure,automatic);
+            });
+        });
+    }
+    private void dispatchSavedHdmi(SavedInputLaunch launch,Exception failure,boolean automatic){
+        if(!inputActive())return;
+        if(failure!=null)DiagnosticLog.error("input.prepare.failed",failure);
+        if(launch==null||!launch.current(this)){finishSavedHdmi(false,null,automatic);return;}
+        if(launch.blocking()){
+            HomeGuardService.savedInputSelected(this,automatic);Context app=getApplicationContext();
+            inputWork.submit(()->launch.dispatch(app),(opened,error)->{if(inputActive())finishSavedHdmi(Boolean.TRUE.equals(opened),launch,automatic);});
+        }else finishSavedHdmi(launch.dispatch(this),launch,automatic);
+    }
+    private void finishSavedHdmi(boolean opened,SavedInputLaunch launch,boolean automatic){
+        automaticInputPending=false;systemEntryResult(opened,automatic);
+        if(opened){if(automatic)new BootAppStore(this).dispatched(BootAppStore.HDMI,launch.foregroundComponent());return;}
+        HomeGuardService.cancelInputTransition();wallpapers.resume();
+        showInputIssue(tr("信号源切换未完成","Input switch incomplete"),tr("信号源暂不可用，请重新检测或使用电视遥控器信号源键。","Input unavailable; detect again or use the TV remote input key."));
     }
 
     @Override protected void onPause() {
@@ -1223,20 +1249,6 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     @android.annotation.TargetApi(21)
     private final class TvInputs {
         private TvInputInfo pendingTvInput;
-        void saved(boolean automatic){
-            BootAppStore store=new BootAppStore(HomeActivity.this);
-            if(automatic&&!store.tested())return;
-            String saved=store.watchTarget();int generation=hdmiLaunchGeneration;
-            leaveSystemEntry("input.saved",()->{
-                automaticInputPending=automatic;Context app=getApplicationContext();
-                inputWork.submit(()->{HdmiTarget target=HdmiTarget.decode(saved);return target==null?null:target.prepare(app);},(launch,failure)->{
-                    if(!inputActive())return;
-                    BootAppStore current=new BootAppStore(HomeActivity.this);
-                    if(!saved.equals(current.watchTarget())||automatic&&(generation!=hdmiLaunchGeneration||!current.hdmiBoot()||!current.tested())){automaticInputPending=false;systemEntryResult(false,automatic);wallpapers.resume();return;}
-                    dispatch(launch,failure,automatic);
-                });
-            });
-        }
         void openPending(){if(pendingTvInput!=null && resumed && checkCallingOrSelfPermission("android.permission.READ_TV_LISTINGS")==PackageManager.PERMISSION_GRANTED){TvInputInfo input=pendingTvInput;pendingTvInput=null;openInput(input);}}
         void show(int request){
             Context app=getApplicationContext();
