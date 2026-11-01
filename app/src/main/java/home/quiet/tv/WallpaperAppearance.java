@@ -27,4 +27,5 @@ final class WallpaperAppearance {
     }
     void finish(){if(reveal!=null){reveal.cancel();reveal.removeAllUpdateListeners();reveal=null;}opacity=1;host.setAlpha(1);apply();}
     void drawShade(Canvas canvas){int alpha=255-Math.round(brightness*2.55f*opacity);if(alpha>0)canvas.drawColor(Color.argb(alpha,0,0,0));}
+    String diagnostics(){return "brightness="+brightness+" opacity="+opacity+" dimVisible="+(dim.getVisibility()==View.VISIBLE)+" dimAlpha="+dim.getAlpha();}
 }

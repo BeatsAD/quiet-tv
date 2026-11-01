@@ -50,6 +50,10 @@ public final class HomeAppActionsActivity extends ManagementUi {
         }catch(PackageManager.NameNotFoundException e){return null;}
     }
     private String protection(){AppRepository.App app=metadata(pkg);return app==null?"保留桌面管理入口":new AppOperations(this).protection(app);}
+    private boolean canHide(){
+        AppRepository.App app=metadata(pkg);
+        return app!=null && new AppOperations(this).hidingProtection(app).isEmpty() && new ChildModeStore(this).eligible(pkg) && new HomeAppCatalog(this).launchable().containsKey(pkg);
+    }
     private void content(String page,String title){
         mode=page;++generation;box=column();box.setPadding(px(16),px(16),px(16),px(16));box.setBackgroundDrawable(surface(0xff30343e,0xff23272f,0x38ffffff,16));
         if((page.equals("menu")||page.equals("picker"))&&backdrop!=null)box.setBackgroundDrawable(new DockBackdropDrawable((canvas,paint)->{paint.setAlpha(255);canvas.drawBitmap(backdrop,null,new RectF(0,0,getResources().getDisplayMetrics().widthPixels,getResources().getDisplayMetrics().heightPixels),paint);},box,getWindow().getDecorView(),unit));
@@ -57,7 +61,7 @@ public final class HomeAppActionsActivity extends ManagementUi {
         dialog.setContentView(box);
     }
     private void show(int width,View focus,boolean anchored){
-        Window window=dialog.getWindow();window.setWindowAnimations(0);window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);window.setDimAmount(.35f);window.getDecorView().setSystemUiVisibility(5894);window.setLayout(px(width),-2);
+        Window window=dialog.getWindow();window.setWindowAnimations(R.style.QuietDialogAnimation);window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);window.setDimAmount(.35f);window.getDecorView().setSystemUiVisibility(5894);window.setLayout(px(width),-2);
         if(anchored){
             box.measure(View.MeasureSpec.makeMeasureSpec(px(width),View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec(px(490),View.MeasureSpec.AT_MOST));
             int screenWidth=getResources().getDisplayMetrics().widthPixels,screenHeight=getResources().getDisplayMetrics().heightPixels;
@@ -80,13 +84,13 @@ public final class HomeAppActionsActivity extends ManagementUi {
         boolean canAdd=new DockStore(this).loadAvailable().size()<DockStore.CAPACITY;
         if(fromDock){option("替换应用",R.drawable.ic_manage_refresh,()->picker("replace",true));Button add=option("添加应用",R.drawable.ic_manage_plus,()->picker("add",true));add.setEnabled(canAdd);}
         Button home=option(fromDock?"移出首页":"添加到首页",fromDock?R.drawable.ic_manage_back:R.drawable.ic_manage_plus,()->{if(fromDock)unpin();else pin(pkg);});home.setEnabled(fromDock||canAdd);
-        Button hide=option("隐藏",R.drawable.ic_child_hidden,this::hide);hide.setEnabled(real&&protectedReason.isEmpty()&&new ChildModeStore(this).eligible(pkg));
+        Button hide=option("隐藏",R.drawable.ic_child_hidden,this::hide);hide.setEnabled(canHide());
         Button uninstall=option("卸载",R.drawable.ic_manage_trash,this::authorizeUninstall);uninstall.setEnabled(real&&protectedReason.isEmpty());
         show(200,first,true);
     }
     private void changed(String focus){setResult(RESULT_OK,new Intent().putExtra("action","changed").putExtra("package",focus));finish();}
     private void failure(String message){content("notice","未完成");box.addView(muted(message,14));Button close=option("返回",R.drawable.ic_manage_back,this::handleBack);show(400,close,false);}
-    private void hide(){if(!protection().isEmpty()||!new ChildModeStore(this).eligible(pkg)){failure("此应用必须保留");return;}if(new HomeVisibilityStore(this).hide(pkg)){Toast.makeText(this,"已隐藏，可在“应用管理 → 隐藏应用”中恢复",Toast.LENGTH_SHORT).show();changed("");}else failure("保存失败，请重试");}
+    private void hide(){if(!canHide()){failure("此应用必须保留或已不可用");return;}if(new HomeVisibilityStore(this).hide(pkg)){Toast.makeText(this,"已隐藏，可在“应用管理 → 隐藏应用”中恢复",Toast.LENGTH_SHORT).show();changed("");}else failure("保存失败，请重试");}
     private void unpin(){ArrayList<String> values=new DockStore(this).loadAvailable();values.remove(pkg);if(new DockStore(this).saveOrder(values))changed("");else failure("保存失败，请重试");}
     private void pin(String id){
         ArrayList<String> values=new DockStore(this).loadAvailable();

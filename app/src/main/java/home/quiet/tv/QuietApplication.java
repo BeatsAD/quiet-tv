@@ -6,7 +6,20 @@ import android.os.Bundle;
 
 /** Process startup, rather than opening the export dialog, starts recording. */
 public class QuietApplication extends Application {
-    protected boolean playbackProcess(){return false;}
+    protected boolean playbackProcess(){
+        // Do not start HOME recovery, ADB, or the shared log writer in the codec process.
+        try(java.io.FileInputStream input=new java.io.FileInputStream("/proc/self/cmdline")){
+            byte[] name=new byte[256];int count=input.read(name),end=0;
+            while(end<count&&name[end]!=0)end++;
+            return new String(name,0,end,"UTF-8").equals(getPackageName()+":wallpaper");
+        }catch(java.io.IOException|SecurityException e){
+            android.app.ActivityManager manager=(android.app.ActivityManager)getSystemService(ACTIVITY_SERVICE);
+            java.util.List<android.app.ActivityManager.RunningAppProcessInfo> processes=manager==null?null:manager.getRunningAppProcesses();
+            if(processes!=null)for(android.app.ActivityManager.RunningAppProcessInfo process:processes)
+                if(process.pid==android.os.Process.myPid())return (getPackageName()+":wallpaper").equals(process.processName);
+            return false;
+        }
+    }
     @Override public void onCreate(){
         super.onCreate();if(playbackProcess())return;DiagnosticLog.init(this);
         if(HomeGuardState.unlocked(this))new DesktopRoutes(this).restoreAfterUpgrade();
@@ -21,11 +34,12 @@ public class QuietApplication extends Application {
             public void onActivityDestroyed(Activity activity){}
         });
         HomeGuardSync.refresh(this);HomeGuardAdb.watch(this);
+        if(HomeGuardState.unlocked(this))ManagementAdb.get(this).request();
         BroadcastReceiver screen=new BroadcastReceiver(){@Override public void onReceive(Context context,Intent intent){
             DiagnosticLog.info("screen",intent.getAction());
-            if(Intent.ACTION_SCREEN_OFF.equals(intent.getAction())){KeySounds.stop();SettingsPageCapture.stopCurrent("screen_off");ManagementAdb management=ManagementAdb.existing();if(management!=null)management.disconnect();}
+            if(Intent.ACTION_SCREEN_OFF.equals(intent.getAction())){KeySounds.stop();SettingsPageCapture.stopCurrent("screen_off");}
             if(Intent.ACTION_USER_UNLOCKED.equals(intent.getAction())){KeySounds.prepare(context);new DesktopRoutes(context).restoreAfterUpgrade();}
-            if(!Intent.ACTION_SCREEN_OFF.equals(intent.getAction())){HomeGuardSync.refresh(context);HomeGuardAdb.ensure(context);HomeGuardRecovery.request(context,"亮屏或解锁恢复");}
+            if(!Intent.ACTION_SCREEN_OFF.equals(intent.getAction())){HomeGuardSync.refresh(context);HomeGuardAdb.ensure(context);HomeGuardRecovery.request(context,"亮屏或解锁恢复");if(HomeGuardState.unlocked(context))ManagementAdb.get(context).request();}
         }};
         IntentFilter filter=new IntentFilter(Intent.ACTION_SCREEN_ON);filter.addAction(Intent.ACTION_SCREEN_OFF);
         if(android.os.Build.VERSION.SDK_INT>=24)filter.addAction(Intent.ACTION_USER_UNLOCKED);

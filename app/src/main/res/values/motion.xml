@@ -1,0 +1,22 @@
+<resources>
+    <integer name="quiet_motion_panel_ms">160</integer>
+    <integer name="quiet_motion_page_enter_ms">180</integer>
+    <integer name="quiet_motion_page_exit_ms">140</integer>
+    <integer name="quiet_motion_dialog_enter_ms">160</integer>
+    <integer name="quiet_motion_dialog_exit_ms">100</integer>
+    <style name="ManagementTheme" parent="AppTheme">
+        <item name="android:windowDisablePreview">true</item>
+        <item name="android:windowBackground">@drawable/home_startup_background</item>
+        <item name="android:windowAnimationStyle">@style/QuietPageAnimation</item>
+    </style>
+    <style name="QuietPageAnimation">
+        <item name="android:activityOpenEnterAnimation">@anim/quiet_page_enter</item>
+        <item name="android:activityOpenExitAnimation">@anim/quiet_page_hold</item>
+        <item name="android:activityCloseEnterAnimation">@anim/quiet_page_return</item>
+        <item name="android:activityCloseExitAnimation">@anim/quiet_page_exit</item>
+    </style>
+    <style name="QuietDialogAnimation">
+        <item name="android:windowEnterAnimation">@anim/quiet_dialog_enter</item>
+        <item name="android:windowExitAnimation">@anim/quiet_dialog_exit</item>
+    </style>
+</resources>

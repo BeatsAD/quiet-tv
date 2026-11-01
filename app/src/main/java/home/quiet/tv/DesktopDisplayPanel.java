@@ -21,7 +21,7 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
     private LinearLayout desktop;
     private ScrollView desktopScroll;
     private DesktopSettingsRow greeting,legacyHomeKey,keySounds;
-    private Button classic,gallery;
+    private Button classic,gallery,takeover;
     private SeekBar homeBlur,secondBlur,homeBrightness,secondBrightness,homeFade,secondFade;
     private String focusTag;
     private int scrollY;
@@ -42,6 +42,7 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
         desktop=row();desktop.setGravity(Gravity.TOP);pageRoot.addView(desktop,new LinearLayout.LayoutParams(-1,-1));
         desktopScroll=new ScrollView(this);desktopScroll.setFocusable(false);desktopScroll.setVerticalScrollBarEnabled(false);desktop.addView(desktopScroll,new LinearLayout.LayoutParams(px(344),-1));
         LinearLayout controls=column();controls.setPadding(0,0,px(3),px(2));desktopScroll.addView(controls,new ScrollView.LayoutParams(-1,-2));
+        takeover=button(tr("设为桌面","Set as Home"),()->startActivity(new Intent(activity,MaintenanceHelpActivity.class)));takeover.setTag("takeover");takeover.setId(androidx.core.view.ViewCompat.generateViewId());takeover.setFocusableInTouchMode(true);controls.addView(takeover,new LinearLayout.LayoutParams(-1,px(38)));gap(controls,16);
         controls.addView(desktopLabel(tr("布局方式","Layout")));gap(controls,8);LinearLayout layouts=row();controls.addView(layouts,new LinearLayout.LayoutParams(-1,px(38)));
         classic=layoutChoice(layouts,tr("经典布局","Classic"),"classic");gallery=layoutChoice(layouts,tr("艺术画廊","Gallery"),"gallery");
         gap(controls,16);controls.addView(desktopLabel(tr("首页信息","Home information")));gap(controls,8);
@@ -95,7 +96,7 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
     }
     private void choice(LinearLayout parent,String key,String title){DisplayChoice b=new DisplayChoice(title);b.setTag("display-"+key);b.setOnClickListener(v->{showPreview(v);boolean value=!b.isChecked();switch(key){case "greeting":desktopStore.greetingEnabled(value);break;case "time":desktopStore.showTime(value);break;case "date":desktopStore.showDate(value);break;case "app-title":desktopStore.showAppTitle(value);break;case "home-apps":desktopStore.showHomeApps(value);break;case "dock-background":desktopStore.showDockBackground(value);break;case "all-apps-names":desktopStore.showAllAppsNames(value);break;case "weather":weatherStore.enabled(value);activity.weatherSettingsChanged();break;case "input":desktopStore.showInput(value);break;case "network":desktopStore.showNetwork(value);break;case "settings":desktopStore.showSettings(value);break;}refreshControls();});choices.put(key,b);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-1,1);if(parent.getChildCount()>0)p.leftMargin=px(8);parent.addView(b,p);}
     private void wireDesktop(){
-        View[][] rows={{classic,gallery},{choices.get("greeting"),choices.get("time"),choices.get("date"),choices.get("weather")},{greeting},{choices.get("home-apps"),choices.get("dock-background"),choices.get("app-title")},{homeBlur},{homeBrightness},{homeFade},{choices.get("all-apps-names")},{secondBlur},{secondBrightness},{secondFade},{choices.get("input"),choices.get("network"),choices.get("settings")},{keySounds}};
+        View[][] rows={{takeover},{classic,gallery},{choices.get("greeting"),choices.get("time"),choices.get("date"),choices.get("weather")},{greeting},{choices.get("home-apps"),choices.get("dock-background"),choices.get("app-title")},{homeBlur},{homeBrightness},{homeFade},{choices.get("all-apps-names")},{secondBlur},{secondBrightness},{secondFade},{choices.get("input"),choices.get("network"),choices.get("settings")},{keySounds}};
         for(int r=0;r<rows.length;r++)for(int c=0;c<rows[r].length;c++){View v=rows[r][c];v.setOnFocusChangeListener((view,focused)->{if(focused)showPreview(view);});v.setNextFocusLeftId(rows[r][Math.max(0,c-1)].getId());v.setNextFocusRightId(rows[r][Math.min(rows[r].length-1,c+1)].getId());v.setNextFocusUpId(r==0?managementTab().getId():rows[r-1][Math.min(c,rows[r-1].length-1)].getId());v.setNextFocusDownId(r==rows.length-1?v.getId():rows[r+1][Math.min(c,rows[r+1].length-1)].getId());}
         if(legacyHomeKey!=null){
             View[] shortcuts=rows[rows.length-1];for(View v:shortcuts)v.setNextFocusDownId(legacyHomeKey.getId());
@@ -136,10 +137,13 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
         if(preview!=null&&showing)preview.refresh();
     }
     private void remember(){View focus=getCurrentFocus();if(focus!=null&&pageRoot.hasFocus()&&focus.getTag() instanceof String)focusTag=(String)focus.getTag();scrollY=desktopScroll.getScrollY();}
-    @Override void focusManagementContent(){View target=focusTag==null?null:pageRoot.findViewWithTag(focusTag);if(target==null||!target.isShown()||!target.isEnabled())target=classic;target.requestFocus();}
+    @Override void focusManagementContent(){View target=focusTag==null?null:pageRoot.findViewWithTag(focusTag);if(target==null||!target.isShown()||!target.isEnabled())target=takeover;target.requestFocus();}
     @Override protected void onResume(){super.onResume();getSharedPreferences("desktop-settings",0).registerOnSharedPreferenceChangeListener(this);getSharedPreferences("weather",0).registerOnSharedPreferenceChangeListener(this);preview.resume();showPreview(getCurrentFocus());refreshControls();desktopScroll.post(()->{if(showing)desktopScroll.scrollTo(0,scrollY);});greetingEditor.restoreFocus();}
     @Override protected void onPause(){remember();getSharedPreferences("desktop-settings",0).unregisterOnSharedPreferenceChangeListener(this);getSharedPreferences("weather",0).unregisterOnSharedPreferenceChangeListener(this);main.removeCallbacks(changed);main.removeCallbacks(previewFade);preview.pause();greetingEditor.pause();super.onPause();}
     @Override protected void onDestroy(){preview.destroy();greetingEditor.destroy();super.onDestroy();}
     @Override protected void onSaveInstanceState(Bundle state){remember();state.putString("focus",focusTag);state.putInt("scroll",scrollY);greetingEditor.saveState(state);}
-    @Override public void onSharedPreferenceChanged(SharedPreferences prefs,String key){main.removeCallbacks(changed);main.post(changed);}
+    @Override public void onSharedPreferenceChanged(SharedPreferences prefs,String key){
+        if(preview!=null&&("show-home-apps".equals(key)||"show-watch-tv".equals(key)))preview.reloadScene();
+        main.removeCallbacks(changed);main.post(changed);
+    }
 }

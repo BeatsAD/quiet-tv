@@ -4,10 +4,12 @@ import json
 import re
 from pathlib import Path
 from boot_ads import catalog as boot_ad_catalog
+from device_adaptation import catalog as adaptation_catalog
 
 source = Path(__file__).resolve().parents[1] / 'scripts/device-presets.json'
 data = json.loads(source.read_text())
 boot_ad_catalog(source)
+adaptation_catalog(source)
 assert data['schema'] == 1
 seen = set()
 for device in data['devices']:
@@ -83,7 +85,7 @@ for panel in panels['panels']:
     assert panel['type'] in {'activity', 'service', 'receiver'}
     assert panel['type'] == 'activity' or panel.get('action'), 'Services and receivers need an explicit action'
     assert all(panel.get(key) for key in ['labelZh', 'labelEn', 'source', 'validation'])
-    assert panel['source'].startswith(('https://github.com/Gathin23/cleanyourtv/', 'https://github.com/pengchujin/aerial-tv/')), 'Panel provenance is required'
+    assert panel['source'].startswith(('https://github.com/Gathin23/cleanyourtv/', 'https://github.com/pengchujin/aerial-tv/', 'user-reported:')), 'Panel provenance is required'
     assert isinstance(panel.get('preferPanel', False), bool)
     assert isinstance(panel.get('foregroundService', False), bool)
     assert not panel.get('foregroundService') or panel['type'] == 'service'

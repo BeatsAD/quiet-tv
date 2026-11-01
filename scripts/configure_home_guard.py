@@ -13,6 +13,9 @@ import sys
 import uuid
 
 ERROR_OUTPUT = re.compile(r"(?im)^\s*(?:error:|exception|securityexception|failure|bad argument:|operation not allowed:|unknown (?:command|operation|op)\b|invalid operation)")
+TCL_START_OPS = ("APP_AUTO_START", "AUTO_START", "APP_ASSOC_START", "ASSOC_START")
+OPTIONAL_OPS = ("ACCESS_RESTRICTED_SETTINGS", *TCL_START_OPS)
+APP_OP_MODES = ("allow", "ignore", "deny", "default", "foreground")
 
 
 class CommandFailure(ValueError):
@@ -105,6 +108,82 @@ def broadcast_data(output):
 
 def appop_allowed(output, operation):
     return bool(re.search(r'(?m)^\s*' + re.escape(operation) + r':\s*allow(?:[;\s]|$)', output))
+
+
+def appop_mode(output, operation):
+    modes = re.findall(r'(?m)^\s*' + re.escape(operation) + r':\s*([a-z]+)(?:[;\s]|$)', output)
+    if len(modes) == 1 and modes[0] in APP_OP_MODES and not re.search(r'(?i)\buid mode:', output):
+        return modes[0]
+    if re.fullmatch(r'\s*No operations\.?\s*', output, re.I):
+        return "default"
+    raise ValueError("无法核对 AppOps 原模式：" + operation)
+
+
+def probe_appop(adb, options, package, operation):
+    try:
+        output = adb.shell("appops", "get", *options, package, operation)
+    except ValueError as error:
+        if re.search(r"unknown (?:operation|op)|invalid operation", str(error), re.I):
+            return {"status": "unsupported"}
+        raise
+    return {"status": "supported", "mode": appop_mode(output, operation), "output": output}
+
+
+def restore_appops(args, adb, sdk):
+    """Undo only verified named-op transitions from this record, never replay saved commands."""
+    source = args.restore_record
+    before = json.loads(source.read_text(encoding="utf-8"))
+    expected = dict(serial=args.serial, user=args.user, package=args.package, sdk=sdk,
+                    fingerprint=adb.shell("getprop", "ro.build.fingerprint"))
+    if any(before.get(key) != value for key, value in expected.items()):
+        raise ValueError("权限记录与当前设备、固件、用户或应用不一致")
+    output = adb.shell("am", "broadcast", "--include-stopped-packages", "--user", args.user,
+                       "-a", args.package + ".CONFIGURE_HOME_GUARD", "-n", args.package + "/home.quiet.tv.HomeGuardSetupReceiver",
+                       "--ei", "user", args.user, "--ez", "inspect", "true")
+    state = broadcast_data(output)
+    if not re.search(r"\bresult=-1\b", output) or not state or state.get("package") != args.package or state.get("paused") is not True:
+        raise ValueError("请先明确暂停守护并核对回执，再撤回本次新增权限")
+    help_text = adb.permission_help("appops")
+    get_user = user_options(help_text, "get", sdk, args.user)
+    set_user = user_options(help_text, "set", sdk, args.user)
+    events = [json.loads(line) for line in source.with_name(source.name + ".results.jsonl").read_text(encoding="utf-8").splitlines()]
+    changes, skipped = {}, []
+    for event in events:
+        if event.get("type") != "appop_change" or event.get("allowed") is not True:
+            continue
+        op, mode = event.get("operation"), event.get("beforeMode")
+        if op not in OPTIONAL_OPS or mode not in APP_OP_MODES or mode == "allow":
+            raise ValueError("权限变更记录无效")
+        if before.get("optional_appops_before", {}).get(op, {}).get("mode") != mode:
+            raise ValueError("权限原值与执行记录不一致")
+        current = probe_appop(adb, get_user, args.package, op)
+        if current.get("mode") == "allow":
+            changes[op] = mode
+        else:
+            skipped.append(dict(operation=op, reason="current_mode_changed", current=current))
+    record = dict(**expected, source=str(source), changes=changes, skipped=skipped)
+    print(json.dumps(record, ensure_ascii=False, indent=2))
+    if not args.apply:
+        print("仅预览；只撤回本次确认新增且当前仍为 allow 的可选权限。")
+        return
+    descriptor = os.open(args.record, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+        json.dump(record, handle, ensure_ascii=False, indent=2)
+    results = args.record.with_name(args.record.name + ".results.jsonl")
+    descriptor = os.open(results, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+        for op, mode in changes.items():
+            if adb.current_user() != args.user:
+                raise ValueError("前台用户已改变，停止权限恢复")
+            if probe_appop(adb, get_user, args.package, op).get("mode") != "allow":
+                raise ValueError("权限已被其他操作改变，停止恢复")
+            adb.shell("appops", "set", *set_user, args.package, op, mode)
+            actual = probe_appop(adb, get_user, args.package, op)
+            handle.write(json.dumps(dict(operation=op, expected=mode, actual=actual), ensure_ascii=False) + "\n")
+            handle.flush()
+            if actual.get("mode") != mode:
+                raise ValueError("权限原值恢复未读回：" + op)
+    print("本次可选权限恢复已读回；既有授权及已改变的模式保留，守护保持暂停。")
 
 
 def canonical_home(value):
@@ -359,6 +438,15 @@ def configure(args, adb):
         raise ValueError("Android 4.4 档位未开放桌面守护及 ADB 开关恢复")
     keep_adb = getattr(args, "keep_adb", None)
     adb_only = getattr(args, "adb_only", False)
+    native_observer = getattr(args, "native_observer", False)
+    resume = getattr(args, "resume", False)
+    restore_record = getattr(args, "restore_record", None)
+    if restore_record and (args.pause or args.home or adb_only or native_observer or resume or getattr(args, "direct_home", False) or keep_adb is not None):
+        raise ValueError("权限恢复不能同时配置桌面或 ADB")
+    if native_observer and (args.pause or adb_only or getattr(args, "direct_home", False)):
+        raise ValueError("原桌面观察不能同时暂停、独立配置 ADB 或启用直接按键补偿")
+    if resume and (args.pause or adb_only):
+        raise ValueError("恢复守护不能同时暂停或独立配置 ADB")
     if adb_only and (keep_adb is None or args.pause or args.home or getattr(args, "direct_home", False)):
         raise ValueError("独立 ADB 配置需明确保持选项，不能同时修改桌面路线或暂停")
     if args.pause and keep_adb is not None:
@@ -369,6 +457,8 @@ def configure(args, adb):
         raise ValueError("当前用户上的 Quiet TV 未安装、被隐藏或已停用")
     if not re.search(r"(?<![\w.$])home\.quiet\.tv(?:\.|/\.)HomeGuardSetupReceiver(?![\w.$])", package):
         raise ValueError("已安装 APK 不包含电脑守护配置入口；请先核对并更新到包含本修复的版本")
+    if restore_record:
+        return restore_appops(args, adb, sdk)
     if args.pause:
         command = ["am", "broadcast", "--include-stopped-packages", "--user", args.user,
                    "-a", args.package + ".CONFIGURE_HOME_GUARD", "-n", args.package + "/home.quiet.tv.HomeGuardSetupReceiver",
@@ -393,7 +483,7 @@ def configure(args, adb):
     port_candidate = legacy_tcp_port(args.serial, sdk) if keep_adb else None
     selected = canonical_home(args.home or "")
     inspection = None
-    if args.apply or direct_home or keep_adb is not None:
+    if args.apply or direct_home or native_observer or resume or keep_adb is not None:
         # New APKs answer without changing preferences or enabling the guard. Old APKs
         # reject inspect before the explicit enable branch; retain their existing setup path.
         output = adb.shell("am", "broadcast", "--include-stopped-packages", "--user", args.user,
@@ -404,6 +494,12 @@ def configure(args, adb):
         if re.search(r"\bresult=-1\b", output) and inspection and inspection.get("schemaVersion") == 1:
             if inspection.get("package") != args.package or not inspection.get("supported"):
                 raise ValueError("应用身份或守护能力不匹配，未修改权限")
+            if not adb_only and inspection.get("paused") and not resume:
+                raise ValueError("守护已暂停；明确恢复时使用 --resume，未修改权限")
+            if native_observer and (inspection.get("nativeObserverSupported") is not True
+                    or inspection.get("nativeObserverAvailable") is not True
+                    or canonical_home(inspection.get("resolvedHome", "")) != args.package + "/home.quiet.tv.HomeActivity"):
+                raise ValueError("已安装 APK 或系统 HOME 不支持直接 HOME 原桌面观察，未修改权限")
             if keep_adb and inspection.get("adb", {}).get("supported") is not True:
                 raise ValueError("已安装 APK 未确认 ADB 保持能力；需更新或核对档位，未修改权限")
             if adb_only:
@@ -417,7 +513,7 @@ def configure(args, adb):
                 selected = selected or inspection.get("selected") or (resolved if resolved in homes else "") or (homes[0] if len(homes) == 1 else "")
                 if not selected or selected not in homes:
                     raise ValueError("原主页未唯一确定或已失效，请使用 --home 指定本机候选；未修改权限")
-        elif direct_home or keep_adb is not None:
+        elif direct_home or native_observer or resume or keep_adb is not None:
             raise ValueError("已安装 APK 未提供所需 HOME／ADB 能力核对；未修改权限")
     port_to_write = port_candidate if inspection and inspection.get("adbPortSupported") is True else None
     if keep_adb and port_candidate and not args.apply:
@@ -435,33 +531,39 @@ def configure(args, adb):
     ops_get_user = user_options(ops_help, "get", sdk, args.user)
     plan = [["pm", "grant", *pm_user, args.package, "android.permission.WRITE_SECURE_SETTINGS"]]
     if sdk >= 23:
-        plan.append(["appops", "set", *ops_user, args.package, "WRITE_SETTINGS", "allow"])
         plan.append(["appops", "set", *ops_user, args.package, "SYSTEM_ALERT_WINDOW", "allow"])
     vendor = " ".join(adb.shell("getprop", key) for key in ("ro.product.manufacturer", "ro.product.brand")).lower().split()
-    if not direct_home and (sdk <= 23 or "xiaomi" in vendor or "redmi" in vendor or selected.startswith("com.jamdeo.tv.vod/")
+    if not direct_home and (inspection and inspection.get("homeEventUsageSupported") is True or sdk <= 23 or "xiaomi" in vendor or "redmi" in vendor or selected.startswith("com.jamdeo.tv.vod/")
             or sdk == 25 and selected.startswith("com.amazon.tv.launcher/")):
         plan.append(["appops", "set", *ops_user, args.package, "GET_USAGE_STATS", "allow"])
     vendor_before = {}
+    optional_before = {}
+    if sdk >= 33:
+        optional_before["ACCESS_RESTRICTED_SETTINGS"] = probe_appop(adb, ops_get_user, args.package, "ACCESS_RESTRICTED_SETTINGS")
     brand = adb.shell("getprop", "ro.product.brand")
     manufacturer = adb.shell("getprop", "ro.product.manufacturer")
     hisense = hisense_refresh_supported(adb, sdk, args.user, brand, manufacturer)
     if re.search(r"\b(?:tcl|ffalcon|iffalcon)\b", brand + " " + manufacturer, re.I):
         # TCL's process-start gate is independent of accessibility. Probe names rather than
         # hard-coding numeric app-op IDs shared with unrelated Android permissions.
-        for operation in ("APP_AUTO_START", "AUTO_START", "APP_ASSOC_START"):
-            try:
-                vendor_before[operation] = adb.shell("appops", "get", *ops_get_user, args.package, operation)
-            except ValueError as error:
-                if re.search(r"unknown (?:operation|op)|invalid operation", str(error), re.I):
-                    continue
-                raise
+        for operation in TCL_START_OPS:
+            optional_before[operation] = probe_appop(adb, ops_get_user, args.package, operation)
+            if optional_before[operation]["status"] == "supported":
+                vendor_before[operation] = optional_before[operation]["output"]
+    for operation, before in optional_before.items():
+        if before["status"] == "unsupported":
+            print("本机不支持命名权限：" + operation + "；不使用数字编号替代。")
+        elif before["mode"] != "allow":
             plan.append(["appops", "set", *ops_user, args.package, operation, "allow"])
-        if vendor_before and command_signature(ops_help, "write-settings"):
-            plan.append(["appops", "write-settings"])
+    if vendor_before and command_signature(ops_help, "write-settings"):
+        plan.append(["appops", "write-settings"])
     # Old firmware has no cmd. Its notification list is merged by the app with its granted permission.
     if sdk >= 27:
         try:
             help_text = adb.shell("cmd", "notification", "help")
+        except CommandFailure as error:
+            # Android 12 can print valid command help with exit status 255.
+            help_text = error.output if error.exit == 255 and not ERROR_OUTPUT.search(error.output) else ""
         except ValueError:
             help_text = ""
         if "user_id" in command_signature(help_text, "allow_listener"):
@@ -472,6 +574,10 @@ def configure(args, adb):
                  "--ez", "enable", "true"]
     if direct_home:
         broadcast += ["--ez", "direct_home", "true"]
+    if native_observer:
+        broadcast += ["--ez", "native_observer", "true"]
+    if resume:
+        broadcast += ["--ez", "resume", "true"]
     if selected:
         broadcast += ["--es", "home", selected]
     if keep_adb is not None:
@@ -490,6 +596,7 @@ def configure(args, adb):
         return
     # Save original settings and grant state before the first write, without replacing any baseline.
     record = {"serial": args.serial, "user": args.user, "package": args.package, "sdk": sdk, "identity_profile": profile,
+              "fingerprint": adb.shell("getprop", "ro.build.fingerprint"), "optional_appops_before": optional_before,
               "tcl_appops_before": vendor_before, "inspection": inspection,
               "hisense_refresh_fingerprint": HISENSE_REFRESH_FINGERPRINT if hisense else None,
               "package_before": package, "plan": plan,
@@ -513,6 +620,9 @@ def configure(args, adb):
     for command in plan:
         if adb.current_user() != args.user:
             raise ValueError("前台用户已改变，停止后续配置；已完成的授权保留")
+        optional_op = command[-2] if command[:2] == ["appops", "set"] and command[-2] in optional_before else None
+        if optional_op and probe_appop(adb, ops_get_user, args.package, optional_op).get("mode") != optional_before[optional_op]["mode"]:
+            raise ValueError("权限原值已改变，停止配置：" + optional_op)
         try:
             try:
                 output = adb.shell(*command)
@@ -556,16 +666,19 @@ def configure(args, adb):
                 confirmed = broadcast_data(output)
                 if not confirmed or not confirmed.get("directHomeConfigured"):
                     raise ValueError("直接 HOME 路线未读回确认；已完成的授权保留")
-        if command[:2] == ["appops", "set"] and command[-2] in vendor_before:
+            if native_observer and (not confirmed or confirmed.get("nativeObserverConfigured") is not True):
+                raise ValueError("直接 HOME 原桌面观察未读回确认；已完成的授权保留")
+        if optional_op:
             operation = command[-2]
             if adb.current_user() != args.user:
                 raise ValueError("前台用户已改变，停止后续配置；已完成的授权保留")
             after = adb.shell("appops", "get", *ops_get_user, args.package, operation)
             with results_path.open("a", encoding="utf-8") as handle:
-                handle.write(json.dumps({"operation": operation, "readback": after,
+                handle.write(json.dumps({"type": "appop_change", "operation": operation,
+                                         "beforeMode": optional_before[operation]["mode"], "readback": after,
                                          "allowed": appop_allowed(after, operation)}, ensure_ascii=False) + "\n")
             if not appop_allowed(after, operation):
-                raise ValueError("厂商自启动权限未读回 allow：" + operation + "；已完成的授权保留")
+                raise ValueError("可选守护权限未读回 allow：" + operation + "；已完成的授权保留")
     print("权限已配置；实际绑定、实体 HOME、冷启动及待机唤醒仍需逐项验证。")
 
 
@@ -575,6 +688,9 @@ def main():
     parser.add_argument("--user", type=int, required=True, help="已经核对的前台用户，不预设 0")
     parser.add_argument("--package", choices=["home.quiet.tv", "com.coocaa.quiettv", "com.ts.launcher"], default="home.quiet.tv")
     parser.add_argument("--direct-home", action="store_true", help="配置已核对的 MiBOX3 直接 HOME 按键补偿，不要求原桌面")
+    parser.add_argument("--native-observer", action="store_true", help="已确认厂商绕过默认 HOME 时，保留 Quiet TV HOME 并观察原桌面")
+    parser.add_argument("--resume", action="store_true", help="明确恢复已暂停的守护")
+    parser.add_argument("--restore-record", type=Path, help="守护暂停后，仅恢复此记录中本次新增的可选 AppOps")
     parser.add_argument("--home", help="本机实际检测到的原主页组件；多候选时指定")
     parser.add_argument("--adb", default="adb")
     parser.add_argument("--apply", action="store_true", help="执行所选授权配置；--adb-only 不启用守护")

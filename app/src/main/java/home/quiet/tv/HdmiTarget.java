@@ -27,23 +27,20 @@ final class HdmiTarget {
         return pkg+":"+info.versionCode+":"+info.lastUpdateTime;
     }
     static List<HdmiTarget> available(Context context){
-        ArrayList<HdmiTarget> result=new ArrayList<>();if(Build.VERSION.SDK_INT<21)return result;
-        TvInputController controller=new TvInputController(context);TvInputController.Snapshot snapshot=controller.inspect();
+        if(Build.VERSION.SDK_INT<21)return new ArrayList<>();
+        return available(context,new TvInputController(context).inspectSources());
+    }
+    static List<HdmiTarget> available(Context context,TvInputController.Snapshot snapshot){
+        ArrayList<HdmiTarget> result=new ArrayList<>();TvInputController controller=new TvInputController(context);
         for(TvInputInfo input:snapshot.inputs)try{
             if(input.getType()!=TvInputInfo.TYPE_HDMI)continue;
             Intent route=controller.hdmiIntent(input);if(route==null)continue;
             String scope=DeviceInputProfile.digest(Build.FINGERPRINT+"\n"+route.toUri(0)+"\n"+stamp(context,input.getServiceInfo().packageName)+"\n"+stamp(context,route.getComponent().getPackageName()));
             result.add(new HdmiTarget("standard",input.getId(),controller.inputLabel(input),scope));
         }catch(Exception failure){DiagnosticLog.info("input.saved.inspect","standard route unavailable");}
-        if(snapshot.inputs.isEmpty())for(VendorTvInputs.Source source:new VendorTvInputs(context).load())try{
+        for(VendorTvInputs.Source source:snapshot.vendor.sources)try{
             if(!source.hdmi)continue;
-            String provider="";
-            if(!source.key.startsWith("konka:")){
-                android.content.pm.ProviderInfo info=context.getPackageManager().resolveContentProvider(source.key.substring(0,source.key.indexOf(':')),0);
-                if(info==null)continue;provider=stamp(context,info.packageName);
-            }
-            String scope=DeviceInputProfile.digest(Build.FINGERPRINT+"\n"+source.key+"\n"+provider+"\n"+stamp(context,source.owner));
-            result.add(new HdmiTarget("vendor",source.key,source.label,scope));
+            result.add(new HdmiTarget("vendor",source.key,source.label,VendorTvInputs.scope(context,source)));
         }catch(Exception failure){DiagnosticLog.info("input.saved.inspect","vendor route unavailable");}
         // Duplicate provider names cannot identify a port unambiguously.
         HashMap<String,Integer> counts=new HashMap<>();for(HdmiTarget target:result){String key=target.kind+":"+target.id;counts.put(key,counts.containsKey(key)?counts.get(key)+1:1);}
@@ -52,18 +49,17 @@ final class HdmiTarget {
     }
     boolean matches(HdmiTarget current){return current!=null&&kind.equals(current.kind)&&id.equals(current.id)&&scope.equals(current.scope);}
     boolean availableNow(Context context){for(HdmiTarget current:available(context))if(matches(current))return true;return false;}
-    boolean open(Context context){
-        if(!availableNow(context))return false;
-        HomeGuardService.bootSourceUserAction(context,"saved_hdmi");
-        if("vendor".equals(kind)){
-            for(VendorTvInputs.Source source:new VendorTvInputs(context).load())if(source.hdmi&&id.equals(source.key)){
-                boolean dispatched=new VendorTvInputs(context).open(source);if(dispatched)HomeGuardService.savedInputSelected(context);return dispatched;
-            }
-            return false;
-        }
-        TvInputController controller=new TvInputController(context);TvInputInfo input=controller.findInput(id);
-        Intent intent=input==null?null:controller.hdmiIntent(input);if(intent==null)return false;
-        context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));HomeGuardService.savedInputSelected(context);
-        DiagnosticLog.info("input.saved.dispatch","standard dispatched_unverified");return true;
+    /** Worker-only compatibility helper; UI callers keep the prepared dispatch receipt. */
+    String foregroundComponent(Context context){
+        try{InputLaunch launch=prepare(context);return launch==null||!"standard".equals(kind)||launch.intents.isEmpty()?"":launch.intents.get(0).getComponent().flattenToString();}
+        catch(Exception unavailable){return "";}
+    }
+    InputLaunch prepare(Context context) throws Exception {return InputLaunch.saved(context,this);}
+    boolean open(Context context){return open(context,false);}
+    boolean open(Context context,boolean automatic){
+        try{InputLaunch launch=prepare(context);if(launch==null)return false;
+            if(!automatic)HomeGuardService.bootSourceUserAction(context,"saved_hdmi");
+            boolean opened=launch.dispatch(context);if(opened)HomeGuardService.savedInputSelected(context,automatic);return opened;
+        }catch(Exception failure){DiagnosticLog.error("input.saved.failed",failure);return false;}
     }
 }

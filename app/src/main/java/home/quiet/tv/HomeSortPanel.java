@@ -56,7 +56,7 @@ final class HomeSortPanel extends ManagementPanel {
             try{
                 long covers=AppCoverStore.get(this).revision(),children=new ChildModeStore(this).revision();
                 ArrayList<String> pinned=new DockStore(this).load();ArrayList<HomeAppCatalog.Entry> available=new HomeAppCatalog(this).load(pinned);
-                ArrayList<String> ids=HomeAppCatalog.gridIds(available,pinned),saved=store.order(ids);
+                ArrayList<String> ids=HomeAppCatalog.gridIds(available),saved=store.order(ids);
                 HashMap<String,Bitmap> pictures=new HashMap<>();
                 for(HomeAppCatalog.Entry entry:available){
                     if(entry.info!=null)pictures.put(entry.id,AppArtwork.load(this,entry.info));
@@ -91,7 +91,7 @@ final class HomeSortPanel extends ManagementPanel {
     private void endMove(){String id=moving;if(beforeMove!=null){order.clear();order.addAll(beforeMove);}moving="";beforeMove=null;render(id);}
     private void render(String focus){adapter.notifyItemRangeChanged(0,order.size());updateHint();focusEntry(focus);}
     private void renderMove(String id,int from,int to){
-        // A swap changes two positions; an insertion notification would describe a different order.
+        // Insertion shifts every position between the source and destination.
         adapter.notifyItemRangeChanged(Math.min(from,to),Math.abs(from-to)+1);updateHint();focusEntry(id);
     }
     private void saveOrder(){

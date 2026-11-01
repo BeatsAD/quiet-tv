@@ -12,7 +12,7 @@ public class AppManagementActivity extends ManagementUi {
     private FrameLayout panelHost;
     private ManagementPanel current;
     private final View[] contentFocus=new View[SettingsPages.COUNT];
-    private int page=-1;
+    private int page=-1,pageRequest;
     private boolean resumed,chinese=true,fixedGreeting;
     @Override boolean localManagement(){return false;}
     String tr(String zh,String en){return chinese?zh:en;}
@@ -38,28 +38,33 @@ public class AppManagementActivity extends ManagementUi {
     LinearLayout group(){return listGroup();}
     DesktopSettingsRow setting(String label,String icon,String tag){DesktopSettingsRow row=new DesktopSettingsRow(this,label,icon,false);row.setTag(tag);return row;}
     void addSetting(LinearLayout group,DesktopSettingsRow row){group.addView(row,new LinearLayout.LayoutParams(-1,px(60)));}
-    void attachPanel(View view){panelHost.addView(view,new FrameLayout.LayoutParams(-1,-1));}
+    void attachPanel(View view){view.setVisibility(View.GONE);panelHost.addView(view,new FrameLayout.LayoutParams(-1,-1));}
     @Override void selectManagementPage(int next){
         if(next<0||next>=panels.length)return;
         final int target=SettingsPages.valid(next);
+        final int request=++pageRequest;
         if(target==page){managementTab().requestFocus();return;}
-        if(current!=null){current.leaveManagement(()->showPage(target));return;}showPage(target);
+        if(current!=null){current.leaveManagement(()->{if(request==pageRequest)showPage(target);});return;}showPage(target);
     }
     private void showPage(int next){
         if(isFinishing()||UiCompat.destroyed(this))return;
-        if(current!=null){rememberContentFocus();if(resumed){current.onPause();current.onStop();}current.pageRoot.setVisibility(View.GONE);}
+        ManagementPanel previous=current;int oldPage=page;
+        if(previous!=null){rememberContentFocus();if(resumed){previous.onPause();previous.onStop();}}
         page=next;managementPageSelected(next);
         if(panels[next]==null){
             panels[next]=next==0?new AppListPanel(this):next==3?new ChildModePanel(this):next==4?new VersionUpdatePanel(this):next==5?new DiagnosticLogPanel(this):next==6?new FileTransferPanel(this):next==SettingsPages.DESKTOP?new DesktopDisplayPanel(this):next==SettingsPages.STARTUP?new StartupDestinationPanel(this):new WeatherSettingsPanel(this);
             current=panels[next];current.onCreate(savedPanels[next]);
         }else current=panels[next];
-        current.pageRoot.setVisibility(View.VISIBLE);managementTab().requestFocus();
+        current.pageRoot.setVisibility(View.VISIBLE);
+        if(previous!=null){UiMotion.settle(previous.pageRoot);previous.pageRoot.setVisibility(View.GONE);UiMotion.panel(current.pageRoot,px(tabPosition(next)>tabPosition(oldPage)?10:-10));}
+        managementTab().requestFocus();
         if(resumed)current.onResume();
     }
+    private int tabPosition(int target){for(int i=0;i<SettingsPages.ORDER.length;i++)if(SettingsPages.ORDER[i]==target)return i;return 0;}
     @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);for(ManagementPanel panel:panels)if(panel!=null)panel.activityResult(request,result,data);}
     @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] results){super.onRequestPermissionsResult(request,permissions,results);for(ManagementPanel panel:panels)if(panel!=null)panel.permissionResult(request,results);}
     @Override protected void onResume(){super.onResume();resumed=true;if(current!=null)current.onResume();}
-    @Override protected void onPause(){resumed=false;rememberContentFocus();if(current!=null)current.onPause();super.onPause();}
+    @Override protected void onPause(){++pageRequest;resumed=false;rememberContentFocus();if(current!=null){UiMotion.settle(current.pageRoot);current.onPause();}super.onPause();}
     @Override protected void onStop(){if(current!=null)current.onStop();super.onStop();}
     @Override protected void onDestroy(){for(ManagementPanel panel:panels)if(panel!=null)panel.onDestroy();super.onDestroy();}
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);selectManagementPage(initialPage());}
@@ -77,7 +82,7 @@ public class AppManagementActivity extends ManagementUi {
     @Override void managementMoreOptions(LinearLayout menu){if(current==null)super.managementMoreOptions(menu);else current.managementMoreOptions(menu);}
     void defaultManagementMoreOptions(LinearLayout menu){super.managementMoreOptions(menu);}
     @Override boolean useSettingListStyle(){return current==null||current.useSettingListStyle();}
-    @Override public void handleBack(){if(current==null)super.handleBack();else current.handleBack();}
+    @Override public void handleBack(){++pageRequest;if(current==null)super.handleBack();else{UiMotion.settle(current.pageRoot);current.handleBack();}}
     @android.annotation.SuppressLint("RestrictedApi")
     @Override public boolean dispatchKeyEvent(KeyEvent event){
         return KeyFeedback.dispatch(getWindow().getDecorView(),event,()->{

@@ -1,0 +1,8 @@
+Google Material Symbols
+Icon: apk_document, Material Symbols Outlined, filled, 24px
+Source: https://github.com/google/material-design-icons/blob/6d7ca43bd6e6668531a00fcaca06d921b63dd716/symbols/web/apk_document/materialsymbolsoutlined/apk_document_fill1_24px.svg
+License: Apache License 2.0; the full text is included in libadb-Apache-2.0.txt.
+
+Adaptation for Quiet TV: converted SVG to Android VectorDrawable, translated
+its negative-Y viewBox to positive coordinates, and used a light-gray fill.
+The original icon path is unchanged.

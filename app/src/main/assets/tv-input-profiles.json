@@ -91,6 +91,14 @@
       "labelEn": "Hisense system inputs",
       "source": "https://github.com/pengchujin/aerial-tv/blob/fb0154ee1af96a7e4d54ad63d9c6ba579fda02ac/app/src/main/java/app/orchard/tv/system/SystemState.kt",
       "validation": "Resolve exported system handlers; Quiet TV hardware acceptance pending"
+    },
+    {
+      "component": "com.xiaomi.mitv.tvplayer/com.xiaomi.mitv.tvplayer.ExternalSourceActivity",
+      "type": "activity",
+      "labelZh": "小米外部信号源",
+      "labelEn": "Xiaomi external inputs",
+      "source": "user-reported:MiTV2-40/hancock/7.7.21.1653",
+      "validation": "User-reported component opens; HDMI port selection, video and audio acceptance pending"
     }
   ]
 }
