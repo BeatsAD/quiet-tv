@@ -192,7 +192,7 @@ final class HomeGuardState {
         catch(Exception unavailable){return false;}
     }
     boolean nativeObserverSelected(){
-        return preferences.getBoolean("configured",false) && preferences.getBoolean("observeHome",true)
+        return unlocked(context) && preferences.getBoolean("configured",false) && preferences.getBoolean("observeHome",true)
                 && !directHomeSelected() && "DIRECT".equals(preferences.getString("routeHome","")) && new DesktopRoutes(context,false).current();
     }
     boolean nativeObserverConfigured(){
@@ -211,7 +211,8 @@ final class HomeGuardState {
     }
     boolean directHomeSelected(){return preferences.getBoolean("directHomeKeys",false) && "DIRECT".equals(preferences.getString("routeHome",""));}
     boolean directHomeConfigured(){
-        return HomeGuardPolicy.directHomeConfigured(enabled(),preferences.getBoolean("directHomeKeys",false),
+        // DesktopRoutes reads credential-protected adaptation rules, unavailable during direct boot.
+        return unlocked(context) && HomeGuardPolicy.directHomeConfigured(enabled(),preferences.getBoolean("directHomeKeys",false),
                 new DesktopRoutes(context,false).current(),preferences.getString("routeHome",""));
     }
     boolean directHomeReady(){return directHomeConfigured() && directHomeAvailable();}
