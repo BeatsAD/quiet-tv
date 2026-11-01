@@ -50,16 +50,20 @@ final class SettingsRouteMemory {
         catch(Exception stale){return false;}
     }
     boolean confirm(Attempt attempt,boolean successful){
+        return confirm(attempt,successful,"user");
+    }
+    boolean confirm(Attempt attempt,boolean successful,String source){
+        if(!"user".equals(source)&&!"agent".equals(source))return false;
         if(attempt==null||!attempt.trial)return false;
         synchronized(attempt){
             Result state=attempt.result();if(state!=Result.DISPATCHED_UNVERIFIED&&state!=Result.WINDOW_OBSERVED)return false;
-            if(!successful){attempt.result=Result.REJECTED;failed(attempt.slot,attempt.route);DiagnosticLog.info("settings.result","result=user_rejected");return true;}
+            if(!successful){attempt.result=Result.REJECTED;failed(attempt.slot,attempt.route);DiagnosticLog.info("settings.result","result="+source+"_rejected");return true;}
             if(attempt.fallback())return false;
             try{
                 if(!attempt.scope.equals(scope(context,attempt.route))||!new SystemSettingsRouter(context).callable(attempt.action,attempt.route))return false;
-                JSONObject record=new JSONObject().put("identity",attempt.identity).put("scope",attempt.scope).put("confirmed",true);
+                JSONObject record=new JSONObject().put("identity",attempt.identity).put("scope",attempt.scope).put("confirmed",true).put("source",source);
                 if(!prefs.edit().putString(attempt.slot,record.toString()).commit())return false;
-                attempt.result=Result.CONFIRMED;DiagnosticLog.info("settings.result","result=user_confirmed");return true;
+                attempt.result=Result.CONFIRMED;DiagnosticLog.info("settings.result","result="+source+"_confirmed");return true;
             }catch(Exception changed){return false;}
         }
     }

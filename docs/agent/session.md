@@ -20,7 +20,7 @@ Agent依据用户目标和只读结果执行plan，用户不选择技术参数�
 
 | route | 默认必要项 | 允许的实际操作 |
 | --- | --- | --- |
-| install | apk、basic_ui、desktop_configured、physical_home、recovery | 先trial，用户基础试用通过后配置HOME／必要ADB |
+| install | apk、basic_ui、settings、network、inputs、desktop_configured、physical_home、recovery | 先trial，用户基础试用通过后测试并保存系统入口，再配置HOME／必要ADB |
 | update | apk、preservation | 仅兼容覆盖，不能调其他工具重新接管 |
 | repair | repair | 按issue定位；home／adb用对应配置，inputs用输入配置，remote用逐键校准，其他问题先取证 |
 | restore | physical_home、recovery | 暂停和依原记录恢复，不安装、不启用守护 |

@@ -86,6 +86,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private int inputDiscoveryGeneration,systemEntryGeneration;
     private final InputEntryTask inputWork=new InputEntryTask();
     private String maintenanceInputRequest="";
+    private String maintenanceEntryRequest="";
     private boolean automaticInputPending;
     private SettingsRouteMemory.Attempt settingsTrial;
     private String settingsTrialAction="";
@@ -403,6 +404,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private void openMaintenanceInput(){
         if(!resumed)return;
+        if(SystemEntryMaintenance.pending()){openMaintenanceEntry();return;}
         DeviceInputProfile.Request request=DeviceInputProfile.consume();if(request.id.isEmpty())return;
         if(Build.VERSION.SDK_INT<21){
             leaveSystemEntry("input.maintenance",()->{
@@ -416,6 +418,17 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         tvInputs.launch(request.id,false,request.token);
     }
 
+    private void openMaintenanceEntry(){
+        if(!inputActive()||!hasWindowFocus())return;
+        SystemEntryMaintenance.Test test=SystemEntryMaintenance.consume();if(test==null)return;
+        cancelInputWork();maintenanceEntryRequest=test.token;
+        new BootAppStore(this).userAction("system_entry_test");
+        leaveSystemEntryPrepared(test.entry+".maintenance",()->{
+            boolean opened=SystemEntryMaintenance.dispatch(this,test);maintenanceEntryRequest="";systemEntryResult(opened);
+            if(!opened)wallpapers.resume();
+        });
+    }
+
     @Override public void onWindowFocusChanged(boolean focused){
         if(waitingForUnlock){super.onWindowFocusChanged(focused);return;}
         long started=SystemClock.uptimeMillis();
@@ -423,11 +436,13 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         try{
             super.onWindowFocusChanged(focused);if(!focused)cancelInputWork(true);if(wallpapers!=null)wallpapers.windowFocusChanged(focused);if(screensaver!=null){if(!focused)cancelConfirm();screensaver.availabilityChanged();}systemEntryLifecycle("window_focus="+focused);if(focused && resumed && systemEntryDispatched)systemEntryPending="";if(focused && resumed){new HomeProxy(this).visible(this);if(!isFinishing()){HomeGuardRecovery.visible(this);launchBootApp();}}
         }finally{homeResumeEvent("home.window_focus.end","focused="+focused+" callbackMs="+(SystemClock.uptimeMillis()-started));}
+        if(focused&&resumed)main.post(this::openMaintenanceInput);
     }
 
     void checkBootApp(){getWindow().getDecorView().post(this::launchBootApp);}
 
     private void launchBootApp(){
+        if(SystemEntryMaintenance.pending())return;
         BootAppStore store=new BootAppStore(this);if(!store.enabled())return;
         long started=SystemClock.uptimeMillis();
         if(isFinishing() || !resumed || !hasWindowFocus() || !HomeGuardState.canShow(this))return;
@@ -1140,6 +1155,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         if(!keepPermission&&tvInputs!=null)tvInputs.pendingTvInput=null;
         inputWork.cancel();automaticInputPending=false;++inputDiscoveryGeneration;++systemEntryGeneration;inputDiscoveryPending=false;
         if(!maintenanceInputRequest.isEmpty()){DeviceInputProfile.cancelled(maintenanceInputRequest);maintenanceInputRequest="";}
+        if(!maintenanceEntryRequest.isEmpty()){SystemEntryMaintenance.cancelled(maintenanceEntryRequest);maintenanceEntryRequest="";}
         if(!systemEntryDispatched&&!systemEntryPending.isEmpty()){
             systemEntryLifecycle("cancelled_unverified");systemEntryPending="";
             if(!keepPermission)resumeCancelledEntry();
@@ -1148,7 +1164,10 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private void resumeCancelledEntry(){if(inputActive()&&hasWindowFocus()&&HomeGuardState.interactive(this)&&wallpapers!=null)wallpapers.resume();}
     private boolean inputActive(){return resumed&&!isFinishing()&&!UiCompat.destroyed(this);}
     private void leaveSystemEntry(String entry,Runnable action){
-        cancelInputWork();final int request=systemEntryGeneration;
+        cancelInputWork();leaveSystemEntryPrepared(entry,action);
+    }
+    private void leaveSystemEntryPrepared(String entry,Runnable action){
+        final int request=systemEntryGeneration;
         systemEntryPending=entry;systemEntryDispatched=false;systemEntryStarted=android.os.SystemClock.elapsedRealtime();
         DiagnosticLog.info("home.action.request","entry="+entry+" ready="+ready+" resumed="+resumed+" windowFocus="+hasWindowFocus()+" api="+Build.VERSION.SDK_INT);
         leaveHomePrepared(()->{if(request!=systemEntryGeneration){if(systemEntryPending.isEmpty())resumeCancelledEntry();return;}systemEntryLifecycle("wallpaper_exit_ready");action.run();});
