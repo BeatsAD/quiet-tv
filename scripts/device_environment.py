@@ -54,11 +54,11 @@ def adb_plan(devices, serial=None, system='unknown', brand='', model='', firmwar
                     next='核对调试开关实际状态；已开则查地址、端口、连接方式和授权，未开再按系统指引；不猜端口或重复教程')
     guide = ANDROID_GUIDE if system in ('android-tv', 'google-tv') else FIRE_GUIDE if system == 'fire-os' else None
     if guide and not menu_mismatch:
-        return dict(result, route='guide', guide=guide, next='用户按匹配的常规指引操作；菜单不符加 --menu-mismatch')
+        return dict(result, route='guide', guide=guide, next='优先对应型号；匹配不到就列出同品牌已有方法，逐个指导尝试；菜单不符加 --menu-mismatch 并换下一种')
     query = ' '.join(value for value in (brand, model, firmware, system if system != 'unknown' else '',
                                        '电视 ADB 开发者选项 网络调试 官方') if value)
     return dict(result, route='research', query=query,
-                next='Agent 先补齐实际型号／系统及菜单差异，再定向检索官方资料；记录来源，不猜隐藏密码')
+                next='Agent 继续同品牌尚未尝试的方法，不因型号或固件缺失停住；全部试过再按当前页面定向检索，保留来源，不编造暗码')
 
 
 def preflight(args):
