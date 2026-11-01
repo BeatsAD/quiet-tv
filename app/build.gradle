@@ -19,7 +19,7 @@ android {
         applicationId launcherId
         minSdk minimumSdk
         if (legacy) multiDexEnabled true
-        manifestPlaceholders = [leanbackRequired: !legacy, homeGuardAvailable: !legacy]
+        manifestPlaceholders = [leanbackRequired: !legacy, homeGuardAvailable: !legacy, legacyAdbGuardAvailable: legacy]
         buildConfigField 'boolean', 'LEGACY_19', legacy.toString()
         buildConfigField 'boolean', 'DECLARES_HOME', (homeMode == 'standard').toString()
         resValue 'string', 'home_guard_account_type', launcherId + '.guard'
@@ -88,9 +88,10 @@ android {
     compileOptions { sourceCompatibility JavaVersion.VERSION_11; targetCompatibility JavaVersion.VERSION_11 }
 }
 dependencies {
-    // 1.8 retains Android 5.0 support; legacy19 keeps the platform player.
+    // Media3 serves API21+; the API16-only legacy fallback stays isolated from API14/15.
     if (!legacy) implementation 'androidx.media3:media3-exoplayer:1.8.1'
     if (legacy) implementation 'androidx.multidex:multidex:2.0.1'
+    if (legacy) implementation 'com.google.android.exoplayer:exoplayer-core:2.18.7'
     // Removing the pairing dependency exposes older AndroidX jdk7/jdk8 transitives.
     // Align them with the already selected 1.8.22 stdlib, where those classes were merged.
     if (legacy) implementation platform('org.jetbrains.kotlin:kotlin-bom:1.8.22')

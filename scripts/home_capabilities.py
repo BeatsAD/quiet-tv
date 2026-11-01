@@ -120,7 +120,9 @@ def collect(adb, device, references=(), selected=None):
                                    and not reason and not setup_blocker and packages),
                     reason or setup_blocker or '先确认系统初始化及恢复基线；可选禁用须明确选择'),
               route('guard', device['sdk'] >= 21 and 'HomeGuardService' in own,
-                    '保留原桌面，核验绑定、事件、自启动和实体按键；可能先显示原桌面再跳转')]
+                    '保留原桌面，核验绑定、事件、自启动和实体按键；可能先显示原桌面再跳转'),
+              route('legacy-adb', device['sdk'] == 19 and 'LegacyAdbHomeGuardService' in own,
+                    '新 APK 的 API19 本机 ADB 守护；须确认原桌面完整组件、端口、应用独立授权及断开电脑后的开机，不修改系统 HOME')]
     return dict(schemaVersion=1, identity=identity, user=device['user'], home=actual,
                 homeCandidates=sorted(homes), realHome=real_home(actual), setter=setter,
                 cvte=any(name.startswith('com.cvte.') for name in packages),

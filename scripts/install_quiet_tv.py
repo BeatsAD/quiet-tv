@@ -221,7 +221,7 @@ def run_install(args, adb, tools, journal):
         print("保持 ADB：当前档位未支持；独立安装／HOME 步骤继续，整体常开目标仍未完成。", flush=True)
     if args.goal == "takeover":
         if not original or "ResolverActivity" in original or not tcl.usable(tcl.user_state(stock_dump, args.user)):
-            raise ValueError("原桌面或恢复基线未确认；请先确认原主页，未执行安装及接管")
+            raise ValueError("原桌面或恢复基线未确认；Agent 须先核对原记录并继续只读检测，未执行安装及接管")
     same = installed is not None and installed["sha256"] == metadata["sha256"]
     if same and args.goal == "update":
         journal.event("unchanged_apk_verified", actual=installed)
@@ -229,17 +229,25 @@ def run_install(args, adb, tools, journal):
         return
     install_options = guard.user_options(pm_help, "install", sdk, args.user)
     print("计划：" + ("沿用相同 APK" if same else "保留数据安装") + "；目标=" + args.goal + "；ADB 设置恢复=" + str(keep_adb), flush=True)
+    # Check the selected installed APK before launching it or writing recovery/configuration state.
+    if not getattr(args, "adaptation_route", None) and same and metadata["home_mode"] == "standard" and args.goal == "takeover":
+        preflight = tcl.Journal(journal.directory / "boot-preflight")
+        try:
+            boot.configure(adb, args.user, tools, apk_path, preflight)
+        except boot.NoNativeRoute as error:
+            journal.event("boot_native_unavailable", error=str(error))
+            if sdk < 21:
+                raise ValueError("接管未完成：" + str(error) + "；现有兼容守护不支持 API " + str(sdk)
+                                 + "。Agent 须继续核对本机适配与恢复条件，不转交用户在应用内手动接管。") from error
+            print("标准开机 HOME 路线不可用：" + str(error) + "；执行时评估现有兼容守护及实际 APK 能力。", flush=True)
+        finally:
+            preflight.close()
     if not args.apply:
         if getattr(args, "adaptation_route", None):
             if same:
                 adaptation.prepare(adb, args.user, journal, args.adaptation_route)
             else:
                 print("专项路线=" + args.adaptation_route + "；安装后仍须核对本机规则、原包版本及恢复能力，不匹配则停止。")
-        elif same and metadata["home_mode"] == "standard" and args.goal == "takeover":
-            try:
-                boot.configure(adb, args.user, tools, apk_path, journal)
-            except boot.NoNativeRoute as error:
-                print("标准开机 HOME 路线不可用：" + str(error) + "；执行时评估兼容守护。", flush=True)
         print("仅预览，未修改电视。核对目标和授权后，以新的 --record 目录加 --apply 执行。", flush=True)
         return
     unchanged_user(adb, args.user)
@@ -329,13 +337,14 @@ def run_install(args, adb, tools, journal):
             native = True
         except boot.NoNativeRoute as error:
             journal.event("boot_native_unavailable", error=str(error))
-            print("标准开机 HOME 路线不可用：" + str(error) + "；继续已有兼容守护。", flush=True)
+            print("标准开机 HOME 路线不可用：" + str(error), flush=True)
     observer = native and (getattr(args, "native_observer", False) or maintenance.native_observer_needed(baseline))
     if getattr(args, "native_observer", False) and not native:
         raise ValueError("系统 HOME 未设置成功，不能使用直接 HOME 原桌面观察")
     if not native or observer or keep_adb and not route:
         if sdk < 21:
-            raise ValueError("Android 4.4 无兼容守护且默认 HOME 未确认，不能报告接管完成")
+            raise ValueError("接管未完成：现有兼容守护不支持 API " + str(sdk)
+                             + "；Agent 须核对本机适配与恢复条件，不转交用户在应用内手动接管")
         guard_args = SimpleNamespace(serial=args.serial, user=args.user, package=tcl.PACKAGE,
             adb=args.adb, apply=True, pause=False, direct_home=False, adb_only=native and not observer,
             native_observer=observer,

@@ -35,6 +35,7 @@ public class QuietApplication extends Application {
         });
         HomeGuardSync.refresh(this);HomeGuardAdb.watch(this);
         if(HomeGuardState.unlocked(this))ManagementAdb.get(this).request();
+        LegacyAdbHomeGuard.refresh(this);
         BroadcastReceiver screen=new BroadcastReceiver(){@Override public void onReceive(Context context,Intent intent){
             DiagnosticLog.info("screen",intent.getAction());
             if(Intent.ACTION_SCREEN_OFF.equals(intent.getAction())){KeySounds.stop();SettingsPageCapture.stopCurrent("screen_off");}

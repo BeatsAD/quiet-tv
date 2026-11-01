@@ -1,13 +1,11 @@
 package home.quiet.tv;
 
 import android.content.*;
-import android.media.tv.TvInputInfo;
 import android.os.Build;
 import org.json.*;
 import java.util.*;
 
 /** Explicit per-firmware port records only. hdmiN_order is not a physical-port enumeration. */
-@android.annotation.TargetApi(21)
 final class XiaomiInputs {
     static final ComponentName PLAYER=new ComponentName("com.xiaomi.mitv.tvplayer","com.xiaomi.mitv.tvplayer.ExternalSourceActivity");
     static List<VendorTvInputs.Source> records(JSONObject profile) throws JSONException {
@@ -23,7 +21,7 @@ final class XiaomiInputs {
             if(port<1||port>4||source<19||source>32||!ports.add(port)||!sources.add(source))throw new JSONException("原生 HDMI 端口必须唯一且在支持范围内");
             Intent intent=new Intent("com.xiaomi.mitv.tvplayer.EXTSRC_PLAY").setComponent(PLAYER).putExtra("input",source)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            VendorTvInputs.Source item=new VendorTvInputs.Source("HDMI "+port,intent,null,"xiaomi:"+source,PLAYER.getPackageName(),TvInputInfo.TYPE_HDMI);
+            VendorTvInputs.Source item=new VendorTvInputs.Source("HDMI "+port,intent,null,"xiaomi:"+source,PLAYER.getPackageName(),VendorTvInputs.TYPE_HDMI);
             item.mapping="port="+port;result.add(item);
         }
         return result;
@@ -34,7 +32,7 @@ final class XiaomiInputs {
         // the same package but has HDMI output only; no default ports are manufactured for it.
         String model=Build.MODEL.toLowerCase(Locale.ROOT);
         if(!model.startsWith("mitv")||model.contains("box")||boxFirmware()||!SystemSettingsRouter.xiaomi(Build.MANUFACTURER,Build.BRAND,Build.MODEL)
-                ||!Build.FINGERPRINT.equals(profile.optString("fingerprint"))||!TvInputController.canOpen(context,PLAYER))return Collections.emptyList();
+                ||!Build.FINGERPRINT.equals(profile.optString("fingerprint"))||!InputComponents.canOpen(context,PLAYER))return Collections.emptyList();
         return sources;
     }
     private static boolean boxFirmware(){

@@ -14,6 +14,7 @@ public final class HomeGuardSetupReceiver extends BroadcastReceiver {
         HomeGuardState state=new HomeGuardState(context,false);
         try{
             if(intent.getIntExtra("user",-1)!=android.os.Process.myUid()/100000)throw new IllegalStateException("目标用户不一致");
+            if(BuildConfig.LEGACY_19 && Build.VERSION.SDK_INT<21){legacyAdb(context,intent);return;}
             if(intent.getBooleanExtra("inspect",false)){
                 org.json.JSONArray candidates=new org.json.JSONArray();
                 for(HomeGuardState.Candidate candidate:state.candidates())candidates.put(candidate.component.flattenToString());
@@ -101,4 +102,22 @@ public final class HomeGuardSetupReceiver extends BroadcastReceiver {
             DiagnosticLog.info("home_guard.computer_setup",problem.isEmpty()?"权限已配置，接管待验证":"部分权限未配置");
         }catch(Exception failure){setResultData("配置未完成："+failure.getMessage());}
     }
+    // The legacy receiver exposes only the independent ADB setting path, never modern HOME APIs.
+    private void legacyAdb(Context context,Intent intent)throws Exception {
+        if(!intent.getBooleanExtra("inspect",false)){
+            if(!intent.getBooleanExtra("adb_only",false) || !intent.hasExtra("keep_adb")
+                    || intent.hasExtra("adb_port") || intent.hasExtra("home") || intent.hasExtra("direct_home")
+                    || intent.hasExtra("native_observer") || intent.hasExtra("enable") || intent.hasExtra("pause") || intent.hasExtra("resume"))
+                throw new IllegalStateException("安卓4仅支持独立恢复调试开关，不支持修改桌面路线或恢复端口");
+            if(!HomeGuardAdb.setEnabled(context,intent.getBooleanExtra("keep_adb",false)))
+                throw new IllegalStateException("需要系统实际授予写安全设置权限；普通 ADB 连接不等于拥有此权限");
+        }
+        boolean restored=!HomeGuardAdb.enabled(context) || intent.getBooleanExtra("inspect",false) || HomeGuardAdb.restoreSetting(context);
+        setResultData(new JSONObject().put("schemaVersion",1).put("package",context.getPackageName())
+                .put("supported",false).put("adbOnlySupported",HomeGuardAdb.supported(context))
+                .put("keepAdb",HomeGuardAdb.enabled(context)).put("adb",HomeGuardAdb.snapshot(context))
+                .put("adbPortSupported",false).put("physicalHomeVerified",false).toString());
+        if(restored)setResultCode(Activity.RESULT_OK);
+    }
+
 }

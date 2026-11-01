@@ -57,6 +57,7 @@ final class TvInputPanels {
     }
     static final class Panel {
         final Profile profile;final PanelState state;final ComponentName component;
+        boolean confirmedPreference;
         Panel(Profile profile,PanelState state,ComponentName component){this.profile=profile;this.state=state;this.component=component;}
     }
 
@@ -66,9 +67,10 @@ final class TvInputPanels {
         List<Panel> availablePanels(){ArrayList<Panel> ready=new ArrayList<>();for(Panel p:panels)if(p.state==PanelState.READY)ready.add(p);return ready;}
         Panel directPanel(boolean noInputs){
             List<Panel> ready=availablePanels();
+            for(Panel panel:ready)if(panel.confirmedPreference)return panel;
             Panel preferred=null;int count=0;for(Panel p:ready)if(p.profile.preferred){preferred=p;count++;}
             if(count==1)return preferred;
-            return noInputs&&!ready.isEmpty()?ready.get(0):null;
+            return noInputs&&ready.size()==1?ready.get(0):null;
         }
         String problem(boolean chinese){
             if(profilesUnavailable)return chinese?"原厂信号源适配信息读取失败。":"Unable to read native input compatibility information.";
@@ -131,11 +133,16 @@ final class TvInputPanels {
                     ||!(component==PackageManager.COMPONENT_ENABLED_STATE_DEFAULT?info.enabled:component==PackageManager.COMPONENT_ENABLED_STATE_ENABLED)?PanelState.DISABLED
                 :!info.exported||permission!=null&&context.checkCallingOrSelfPermission(permission)!=PackageManager.PERMISSION_GRANTED?PanelState.RESTRICTED:PanelState.READY;
             DiagnosticLog.info("input.panel.inspect","component="+name.flattenToShortString()+" type="+profile.type+" state="+state);
-            return new Panel(profile,state,name);
+            Panel panel=new Panel(profile,state,name);panel.confirmedPreference=SystemEntryMaintenance.preferredPanel(context,panel);return panel;
         }catch(PackageManager.NameNotFoundException missing){DiagnosticLog.info("input.panel.inspect","component="+name.flattenToShortString()+" result=not_installed");return null;}
         catch(SecurityException restricted){return new Panel(profile,PanelState.RESTRICTED,name);}
     }
     PanelState open(Panel requested){
+        PanelState result=launchPanel(requested);
+        if(result!=PanelState.READY)SystemEntryMaintenance.failedPanel(context,requested);
+        return result;
+    }
+    private PanelState launchPanel(Panel requested){
         try{
             if(!requested.profile.feature.isEmpty()&&!pm.hasSystemFeature(requested.profile.feature))return PanelState.UNAVAILABLE;
             if(requested.component==null||!components(requested.profile).contains(requested.component))return PanelState.UNAVAILABLE;

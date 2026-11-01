@@ -22,13 +22,13 @@
   <section id="editor" aria-labelledby="editor-title" hidden>
     <h1 id="editor-title">上传壁纸</h1>
     <label class="preview" for="photo">
-      <input id="photo" class="file-input" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/x-matroska,video/webm,.mp4,.mov,.mkv,.webm" aria-label="选择壁纸图片或视频">
+      <input id="photo" class="file-input" type="file" accept="image/jpeg,image/png,image/webp,video/*,.mp4,.mov,.mkv,.webm,.m4v,.3gp,.3g2,.ts,.m2ts,.mts,.mpg,.mpeg,.vob,.flv" aria-label="选择壁纸图片或视频">
       <img id="preview" alt="待上传壁纸预览" hidden>
       <video id="video-preview" muted playsinline controls preload="metadata" aria-label="待上传视频预览" hidden></video>
       <span id="placeholder"><span class="plus" aria-hidden="true">＋</span><span class="placeholder-text">选择图片或视频</span></span>
       <span class="change" id="change" hidden>更换文件</span>
     </label>
-    <p id="fileinfo">图片  JPG / PNG / 静态 WebP  最大 60 MB  最高保留 4K<br>视频  MP4 / MOV / MKV / WebM  最大 200 MB  60 FPS</p>
+    <p id="fileinfo">图片  JPG / PNG / 静态 WebP  最大 60 MB  最高保留 4K<br>视频  常见视频格式  大小受电视剩余空间限制</p>
     <div id="naming" hidden>
       <label id="name-label" for="wallpaper-name">壁纸名称</label>
       <input id="wallpaper-name" type="text" maxlength="48" autocomplete="off" spellcheck="false" enterkeyhint="done" aria-describedby="name-hint name-error">
