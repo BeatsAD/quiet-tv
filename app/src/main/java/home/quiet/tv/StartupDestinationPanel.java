@@ -103,14 +103,20 @@ final class StartupDestinationPanel extends ManagementPanel {
     }
     private void confirm(){
         final boolean enable=enableAfterTest;
+        final String pending=store.pendingTest();
+        if(pending.isEmpty())return;
         Sheet sheet=new Sheet("电视画面和声音正常吗？");confirmation=sheet.dialog;
         sheet.text(enable?bootMessage():"请确认已进入 "+store.watchLabel()+"，且画面和声音正常。");
         Button cancel=sheet.action("稍后确认",sheet.dialog::dismiss);
-        sheet.option(enable?"正常，开启自动进入":"画面和声音正常",()->{sheet.dialog.dismiss();String pending=store.pendingTest();prepare(pending,launch->{
-            if(!pending.equals(store.pendingTest()))return;
+        sheet.option(enable?"正常，开启自动进入":"画面和声音正常",()->{sheet.dialog.dismiss();if(!currentTest(pending))return;prepare(pending,launch->{
+            if(!currentTest(pending))return;
             save(()->{store.confirmTest(true);if(enable)store.hdmiBoot(true);enableAfterTest=false;});
         });});
-        sheet.option("画面或声音异常",()->{sheet.dialog.dismiss();enableAfterTest=false;save(()->store.confirmTest(false));});sheet.show(cancel);
+        sheet.option("画面或声音异常",()->{sheet.dialog.dismiss();if(!currentTest(pending))return;enableAfterTest=false;save(()->store.confirmTest(false));});sheet.show(cancel);
+    }
+    private boolean currentTest(String pending){
+        if(pending.equals(store.pendingTest())&&pending.equals(store.watchTarget()))return true;
+        message("测试目标已变化，请重新测试。");return false;
     }
     private void toggleBoot(){
         if(store.hdmiBoot()){enableAfterTest=false;save(()->store.hdmiBoot(false));return;}
