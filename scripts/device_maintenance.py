@@ -344,6 +344,21 @@ def input_action(args, adb, journal, snapshot):
 def restore_home(args, adb, journal, sdk, snapshot):
     if snapshot.get("takeoverRecord"):
         return restore_takeover(args, adb, journal, sdk, snapshot)
+    if snapshot.get("windowHomeGuard", {}).get("configured"):
+        home = snapshot["windowHomeGuard"].get("home")
+        if snapshot.get("systemHome") not in (None, "", home):
+            raise ValueError("系统 HOME 已变化，需先核对其他桌面改动")
+        journal.event("restore_plan", before=snapshot, command="pause_window_guard")
+        if not args.apply:
+            print("计划：暂停窗口守护，保留系统原桌面；不调用桌面切换命令。")
+            return
+        unchanged_user(adb, args.user)
+        result = inspect(adb, args.package, args.user, "pause")
+        if not result.get("paused") or result.get("windowHomeGuard", {}).get("enabled"):
+            raise ValueError("窗口守护暂停未确认")
+        journal.event("restore_result", result=result)
+        print("窗口守护已暂停，系统 HOME 保持原状；请按实体 HOME 验证。")
+        return
     if (snapshot.get("adbHomeGuard", {}).get("configured")
             and snapshot.get("systemHome") in (None, "", snapshot["adbHomeGuard"].get("home"))):
         journal.event("restore_plan", before=snapshot, command="pause_adb_guard")
@@ -400,6 +415,56 @@ def native_observer_needed(snapshot):
                for item in routes.get("sceneEvidence", {}).values() if isinstance(item, dict))
 
 
+def configure_window_guard(args, adb, journal, sdk, snapshot):
+    state = snapshot.get("windowHomeGuard", {})
+    if sdk != 18 or "window-home-guard-v1" not in snapshot.get("capabilities", []) or state.get("supported") is not True:
+        raise ValueError("需要 API18 且已安装包含 window-home-guard-v1 的新 APK")
+    if snapshot.get("paused") and not args.resume:
+        raise ValueError("接管已暂停，明确恢复时使用 --resume")
+    home = guard.canonical_home(args.home or state.get("home") or snapshot.get("originalHome") or "")
+    if not home or home not in {guard.canonical_home(value) for value in state.get("candidates", [])}:
+        raise ValueError("需要用 --home 指定应用实际检测到的系统 HOME 完整组件")
+    service = args.package + "/home.quiet.tv.LegacyWindowHomeGuardService"
+    def setting(operation, key, *values):
+        return adb.shell("settings", "--user", args.user, operation, "secure", key, *values)
+    before = setting("get", "enabled_accessibility_services")
+    enabled = setting("get", "accessibility_enabled")
+    if enabled not in ("0", "1", "null"):
+        raise ValueError("无障碍总开关原值未确认，未修改")
+    entries = [entry for entry in before.split(":") if entry and entry != "null"
+               and guard.canonical_home(entry) != service]
+    desired = ":".join(dict.fromkeys([*entries, service]))
+    journal.event("window_guard_plan", home=home, before=snapshot,
+                  accessibility_before=before, accessibility_enabled_before=enabled,
+                  accessibility_after=desired)
+    print("计划：仅登记 API18 窗口守护并保存 " + home + "；保留其他无障碍服务、系统 HOME 和原桌面。")
+    if not args.apply:
+        print("仅预览；不授予应用写安全设置权限，不配置本机 ADB 或使用统计。")
+        return
+    unchanged_user(adb, args.user)
+    if not same_scope(snapshot, inspect(adb, args.package, args.user)):
+        raise ValueError("执行前设备或固件已变化")
+    if setting("get", "enabled_accessibility_services") != before or setting("get", "accessibility_enabled") != enabled:
+        raise ValueError("无障碍原值已变化，未覆盖")
+    if desired != before:
+        setting("put", "enabled_accessibility_services", desired)
+    if setting("get", "enabled_accessibility_services") != desired:
+        raise ValueError("窗口守护登记未读回；停止后续配置并保留记录")
+    unchanged_user(adb, args.user)
+    if enabled != "1":
+        setting("put", "accessibility_enabled", "1")
+    if setting("get", "accessibility_enabled") != "1":
+        raise ValueError("无障碍总开关未读回；停止后续配置并保留记录")
+    unchanged_user(adb, args.user)
+    result = inspect(adb, args.package, args.user, "window_guard_configure", home=home, extras={"resume":args.resume})
+    saved = result.get("windowHomeGuard", {})
+    if not saved.get("enabled") or not saved.get("accessibilityAllowed") or saved.get("home") != home:
+        raise ValueError("窗口守护配置读回不一致")
+    journal.event("window_guard_configured", result=result)
+    print(json.dumps(saved, ensure_ascii=False, indent=2))
+    print("窗口守护配置已保存；服务绑定、实际页面事件、实体 HOME、开机及唤醒须分别验收。")
+
+
 def run(args, adb, journal):
     if adb.run("get-state") != "device":
         raise ValueError("需要已授权的目标电视")
@@ -411,6 +476,10 @@ def run(args, adb, journal):
     if args.action == "inspect":
         print(json.dumps(snapshot, ensure_ascii=False, indent=2))
         print("桌面接管：" + desktop_status(snapshot)["title"], file=sys.stderr)
+    elif args.action == "repair" and (getattr(args, "window_guard", False)
+            or sdk == 18 and snapshot.get("windowHomeGuard", {}).get("configured")
+                and not getattr(args, "adb_guard", False) and not getattr(args, "native_observer", False)):
+        configure_window_guard(args, adb, journal, sdk, snapshot)
     elif args.action == "repair" and getattr(args, "adb_guard", False):
         if sdk != 19 or "adb-home-guard-v1" not in snapshot.get("capabilities", []):
             raise ValueError("需要 API19 且已安装包含 adb-home-guard-v1 的新 APK")
@@ -516,13 +585,16 @@ def main():
     parser.add_argument("--resume", action="store_true", help="用户明确要求重新启用已暂停的接管")
     parser.add_argument("--native-observer", action="store_true", help="已确认默认 HOME 被厂商绕过，补充原桌面观察")
     parser.add_argument("--adb-guard", action="store_true", help="显式配置 API19 本机 ADB 桌面守护")
-    parser.add_argument("--home", help="adb-guard 使用的实际原桌面完整组件")
+    parser.add_argument("--window-guard", action="store_true", help="显式配置 API18 无障碍窗口桌面守护")
+    parser.add_argument("--home", help="窗口守护或 adb-guard 使用的实际原桌面完整组件")
     parser.add_argument("--adb", default="adb")
     args = parser.parse_args()
     if args.user < 0 or args.target and not re.fullmatch(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+", args.target):
         parser.error("用户或包名无效")
-    if args.adb_guard and (args.action != "repair" or args.native_observer) or args.home and not args.adb_guard:
-        parser.error("--adb-guard 仅用于 repair，不与 --native-observer 混用；--home 仅用于 adb-guard")
+    if (args.adb_guard or args.window_guard) and (args.action != "repair" or args.native_observer) or args.adb_guard and args.window_guard:
+        parser.error("--adb-guard 与 --window-guard 仅用于 repair，不互相叠加或与 --native-observer 混用")
+    if args.home and not (args.adb_guard or args.window_guard) or args.window_guard and args.port is not None:
+        parser.error("--home 仅用于指定守护；--window-guard 不配置本机 ADB 端口")
     if args.action in ("disable", "restore-app") and not args.target:
         parser.error("需要 --target 指定单个应用")
     if args.action == "restore-app" and not args.from_record:

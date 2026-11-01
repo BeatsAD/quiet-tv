@@ -177,6 +177,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     }
     static void inputSelected(Context c){inputSelected(c,false);}
     static void inputSelected(Context c,boolean automatic){
+        LegacyWindowHomeGuardService.inputSelected();
         if(!automatic)bootSourceUserAction(c,"input_selection");
         // The vendor source transition can briefly pass through its original HOME.
         HomeGuardService service=instance;
@@ -185,6 +186,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     }
     static void savedInputSelected(Context c){savedInputSelected(c,false);}
     static void savedInputSelected(Context c,boolean automatic){
+        LegacyWindowHomeGuardService.inputSelected();
         savedInputUntil=SystemClock.uptimeMillis()+HomeGuardPolicy.INPUT_TRANSITION_MS;
         if(!automatic)bootSourceUserAction(c,"saved_input_selection");
         HomeGuardService service=instance;if(service!=null){service.policy.inputSelected(SystemClock.uptimeMillis());service.cancel();}
@@ -408,7 +410,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     }
     static void cancelPending(){HomeGuardService service=instance;if(service!=null){Runnable cancel=()->{service.cancel();service.cancelRecoveryChecks();};if(Looper.myLooper()==Looper.getMainLooper())cancel.run();else service.handler.post(cancel);}}
     static void lifecycle(String reason){HomeGuardService service=instance;if(service!=null){service.schedule(reason);service.refreshUsageWatch();service.scheduleBootRechecks();service.scheduleSilentCheck();}}
-    static void allowOriginal(){HomeGuardUsageService.allowOriginal();HomeGuardService service=instance;if(service!=null){service.allowStock=true;service.cancel();}}
+    static void allowOriginal(){LegacyWindowHomeGuardService.allowOriginal();HomeGuardUsageService.allowOriginal();HomeGuardService service=instance;if(service!=null){service.allowStock=true;service.cancel();}}
     static void homeVisible(){HomeGuardUsageService.visible();HomeGuardService service=instance;if(service!=null){service.allowStock=false;service.lastActivity=new ComponentName(service,HomeActivity.class).flattenToString();service.lastActivityAt=System.currentTimeMillis();service.policy.confirmed();service.cancel();}}
     private void cancel(){handler.removeCallbacks(handover);handler.removeCallbacks(homeKeyHandover);handler.removeCallbacks(homeProbe);handler.removeCallbacks(bootHoldCheck);silentHome.cancel();}
     private void schedule(String reason){
