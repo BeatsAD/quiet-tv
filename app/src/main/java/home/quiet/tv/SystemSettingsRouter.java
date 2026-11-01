@@ -64,6 +64,9 @@ final class SystemSettingsRouter {
         if(Settings.ACTION_ACCESSIBILITY_SETTINGS.equals(action)||Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS.equals(action))return Page.OTHER;
         return Page.SETTINGS;
     }
+    static boolean settingsFallback(String action,Page page){
+        return !Settings.ACTION_SETTINGS.equals(action)&&!XIAOMI_POPUP.equals(action)&&page==Page.SETTINGS;
+    }
     private void dangbeiSettings(List<Intent> intents){
         intents.add(new Intent(Settings.ACTION_SETTINGS).setPackage(DANGBEI));
         try{
@@ -204,7 +207,7 @@ final class SystemSettingsRouter {
         String slot=action+"|"+ethernet;SettingsRouteMemory memory=new SettingsRouteMemory(context);
         List<Route> routes=routes(action,ethernet);
         // A record can only reorder newly resolved built-in candidates, never supply an Intent.
-        for(int i=0;i<routes.size();i++)if(memory.preferred(slot,routes.get(i))){Route preferred=routes.remove(i);routes.add(0,preferred);break;}
+        for(int i=0;i<routes.size();i++)if(!settingsFallback(action,routes.get(i).page)&&memory.preferred(slot,routes.get(i))){Route preferred=routes.remove(i);routes.add(0,preferred);break;}
         diagnostic.stage("ROUTING",android.os.SystemClock.elapsedRealtime());
         for(Route route:routes){
             if(excluded.contains(route.identity))continue;
@@ -222,7 +225,7 @@ final class SystemSettingsRouter {
                 SettingsRouteMemory.Attempt attempt=new SettingsRouteMemory.Attempt(action,slot,route,scope,trial);
                 DiagnosticLog.info("settings.dispatch","attempt="+diagnostic.id+" resolved="+target.flattenToShortString()+" type="+route.type+" page="+route.page+" result=dispatched_unverified");
                 try{SettingsPageCapture.observe(context,attempt);}catch(RuntimeException unavailable){DiagnosticLog.error("settings.capture.unavailable",unavailable);}
-                boolean fallback=!Settings.ACTION_SETTINGS.equals(action)&&!XIAOMI_POPUP.equals(action)&&route.page==Page.SETTINGS;
+                boolean fallback=settingsFallback(action,route.page);
                 diagnostic.finish("DISPATCHED_UNVERIFIED",fallback?"system_settings_fallback":"candidate_dispatched",System.currentTimeMillis(),android.os.SystemClock.elapsedRealtime());
                 return attempt;
             }catch(Exception failure){memory.failed(slot,route);DiagnosticLog.error("settings.route.failed",failure);}

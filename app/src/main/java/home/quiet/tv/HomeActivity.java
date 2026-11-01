@@ -1135,15 +1135,17 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         if(!settingsTried.isEmpty()){labels.add(tr("测试下一个入口","Test next entry"));operations.add(()->testSettings(action));}
         SettingsRouteMemory.Attempt attempt=settingsTrial;
         if(attempt!=null&&(attempt.result()==SettingsRouteMemory.Result.DISPATCHED_UNVERIFIED||attempt.result()==SettingsRouteMemory.Result.WINDOW_OBSERVED)){
-            labels.add(Settings.ACTION_WIFI_SETTINGS.equals(action)?tr("已正常打开网络设置，记住入口","Network settings worked; remember entry"):tr("已正常打开系统设置，记住入口","System settings worked; remember entry"));
-            operations.add(()->{
-                boolean saved=new SettingsRouteMemory(this).confirm(attempt,true);
-                Toast.makeText(this,saved?tr("已记住当前固件的入口","Entry remembered for this firmware"):tr("入口已变化或测试已过期，请重新测试","Entry changed or test expired; test again"),Toast.LENGTH_LONG).show();settingsTrial=null;
-            });
+            if(!attempt.fallback()){
+                labels.add(Settings.ACTION_WIFI_SETTINGS.equals(action)?tr("已正常打开网络设置，记住入口","Network settings worked; remember entry"):tr("已正常打开系统设置，记住入口","System settings worked; remember entry"));
+                operations.add(()->{
+                    boolean saved=new SettingsRouteMemory(this).confirm(attempt,true);
+                    Toast.makeText(this,saved?tr("已记住当前固件的入口","Entry remembered for this firmware"):tr("入口已变化或测试已过期，请重新测试","Entry changed or test expired; test again"),Toast.LENGTH_LONG).show();settingsTrial=null;
+                });
+            }
             labels.add(tr("没有正常打开","Did not open correctly"));operations.add(()->{new SettingsRouteMemory(this).confirm(attempt,false);settingsTrial=null;showSettingsTest(action);});
         }
         android.app.AlertDialog dialog=new android.app.AlertDialog.Builder(this)
-            .setTitle(Settings.ACTION_WIFI_SETTINGS.equals(action)?tr("网络入口测试","Network entry test"):tr("系统设置入口测试","System settings entry test"))
+            .setTitle(attempt!=null&&attempt.fallback()?tr("当前是系统设置首页入口","Current entry opens the settings home"):Settings.ACTION_WIFI_SETTINGS.equals(action)?tr("网络入口测试","Network entry test"):tr("系统设置入口测试","System settings entry test"))
             .setItems(labels.toArray(new String[0]),(d,which)->operations.get(which).run()).setNegativeButton(tr("返回","Back"),null).create();
         dialog.show();ControlStyle.dialog(dialog,unit);
     }

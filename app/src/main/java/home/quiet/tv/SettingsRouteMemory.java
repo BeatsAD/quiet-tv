@@ -17,6 +17,7 @@ final class SettingsRouteMemory {
         Attempt(String action,String slot,SystemSettingsRouter.Route route,String scope,boolean trial){
             this.action=action;this.slot=slot;this.route=route;identity=route.identity;this.scope=scope;this.trial=trial;
         }
+        boolean fallback(){return SystemSettingsRouter.settingsFallback(action,route.page);}
         synchronized Result result(){
             if((result==Result.DISPATCHED_UNVERIFIED||result==Result.WINDOW_OBSERVED)&&SystemClock.elapsedRealtime()-started>600000)result=Result.EXPIRED;
             return result;
@@ -53,6 +54,7 @@ final class SettingsRouteMemory {
         synchronized(attempt){
             Result state=attempt.result();if(state!=Result.DISPATCHED_UNVERIFIED&&state!=Result.WINDOW_OBSERVED)return false;
             if(!successful){attempt.result=Result.REJECTED;failed(attempt.slot,attempt.route);DiagnosticLog.info("settings.result","result=user_rejected");return true;}
+            if(attempt.fallback())return false;
             try{
                 if(!attempt.scope.equals(scope(context,attempt.route))||!new SystemSettingsRouter(context).callable(attempt.action,attempt.route))return false;
                 JSONObject record=new JSONObject().put("identity",attempt.identity).put("scope",attempt.scope).put("confirmed",true);
