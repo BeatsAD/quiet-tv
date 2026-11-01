@@ -96,8 +96,6 @@ final class SystemSettingsRouter {
             intents.add(new Intent(NETWORK).setComponent(HISENSE));
             intents.add(new Intent(action).setPackage(HISENSE.getPackageName()));
             intents.add(new Intent(Settings.ACTION_WIRELESS_SETTINGS).setPackage(HISENSE.getPackageName()));
-            // Submitted VIDAA firmware exposes the OEM settings root in this same package.
-            intents.add(new Intent(Settings.ACTION_SETTINGS).setComponent(HISENSE));
         }
         if(network)intents.add(new Intent(action).setPackage(DANGBEI));
         if(settings)dangbeiSettings(intents);
@@ -120,6 +118,8 @@ final class SystemSettingsRouter {
                 // An unplugged Ethernet connection still needs an entry for configuration.
                 if(!ethernet)intents.add(new Intent(XIAOMI+".ETHERNET_SETTINGS").setPackage(XIAOMI));
             }
+            // Keep the OEM settings home as a fallback after all network pages.
+            if(network&&hisense())intents.add(new Intent(Settings.ACTION_SETTINGS).setComponent(HISENSE));
             if(network)dangbeiSettings(intents);
             intents.add(new Intent("com.konka.settings.action.SETTING_MAIN_VIEW").setComponent(KONKA));
             intents.add(new Intent(XIAOMI+".SETTINGS").setComponent(new ComponentName(XIAOMI,XIAOMI+".entry.MainActivity")));
