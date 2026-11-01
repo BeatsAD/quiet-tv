@@ -66,7 +66,7 @@ final class HomeGuardState {
     }
     // Persist disabled mode before canceling scheduled recovery.
     @android.annotation.SuppressLint("ApplySharedPref")
-    void pause(String reason){if(unlocked(context))new BootAppStore(context).userAction("guard_paused");DiagnosticLog.info("home_guard.pause",reason);preferences.edit().putString("mode","OFF").putBoolean("enabled",false).putString("status",reason).commit();HomeGuardRecovery.cancel();HomeGuardService.cancelPending();HomeGuardSync.pause(context);HomeGuardUsageService.pause(context);DesktopRoutes.disableVendor(context);if(!new HomeProxy(context).pause())status(reason+"；代理暂停回执待确认，主程序启动入口已关闭");}
+    void pause(String reason){if(unlocked(context))new BootAppStore(context).userAction("guard_paused");DiagnosticLog.info("home_guard.pause",reason);preferences.edit().putString("mode","OFF").putBoolean("enabled",false).putBoolean("adbGuardEnabled",false).putString("status",reason).commit();LegacyAdbHomeGuard.stop(context);HomeGuardRecovery.cancel();HomeGuardService.cancelPending();HomeGuardSync.pause(context);HomeGuardUsageService.pause(context);DesktopRoutes.disableVendor(context);if(!new HomeProxy(context).pause())status(reason+"；代理暂停回执待确认，主程序启动入口已关闭");}
     // Persist the selected HOME and firmware before subsequent recovery requests.
     @android.annotation.SuppressLint("ApplySharedPref")
     void select(ComponentName name){if(!name.flattenToString().equals(selected()))new HomeProxy(context).pause();HomeGuardRecovery.cancel();HomeGuardService.cancelPending();preferences.edit().putBoolean("configured",true).putString("home",name.flattenToString()).putString("firmware",Build.FINGERPRINT).commit();new DesktopRoutes(context).reconcileVendor();}

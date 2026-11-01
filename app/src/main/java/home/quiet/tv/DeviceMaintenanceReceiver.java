@@ -10,7 +10,9 @@ import org.json.JSONObject;
 public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
     static String original(Context context) throws Exception {
         String saved=new SetupStore(context).originalHome();
-        return saved.isEmpty()?new HomeGuardState(context,false).selected():saved;
+        if(!saved.isEmpty())return saved;
+        String adbHome=LegacyAdbHomeGuard.original(context);
+        return adbHome.isEmpty()?new HomeGuardState(context,false).selected():adbHome;
     }
     private static JSONObject app(Context context,String pkg) throws Exception {
         if(!pkg.matches("[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+"))throw new IllegalArgumentException("包名无效");
@@ -36,7 +38,8 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
         JSONObject value=new JSONObject().put("schemaVersion",1).put("package",context.getPackageName())
                 .put("user",android.os.Process.myUid()/100000).put("fingerprint",Build.FINGERPRINT)
                 .put("appVersion",BuildConfig.VERSION_CODE).put("systemHome",home.known?home.actual:"")
-                .put("originalHome",original).put("originalUsable",new HomeController(context).component(original,true))
+                .put("originalHome",original).put("originalUsable",new HomeController(context).component(original,true)
+                        || LegacyAdbHomeGuard.configured(context) && LegacyAdbHomeGuard.usable(context,original))
                 .put("paused","OFF".equals(guard.preferences.getString("mode","AUTO"))).put("guardSupported",guard.supported())
                 .put("guardConfigured",guard.preferences.getBoolean("configured",false))
                 .put("directHomeConfigured",guard.directHomeConfigured()).put("keepAdb",HomeGuardAdb.enabled(context)).put("adb",HomeGuardAdb.snapshot(context));
@@ -54,6 +57,8 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
         value.getJSONArray("capabilities").put("home-status-v1");
         value.getJSONArray("capabilities").put("daily-app-management-v1");
         if(guard.supported())value.getJSONArray("capabilities").put("home-observation-v1").put("home-key-filter-v1");
+        value.put("adbHomeGuard",LegacyAdbHomeGuard.snapshot(context));
+        if(LegacyAdbHomeGuard.supported())value.getJSONArray("capabilities").put("adb-home-guard-v1");
         android.content.SharedPreferences daily=context.getSharedPreferences("adb",0);
         value.put("dailyManagement",new JSONObject().put("transport","tcp").put("port",daily.getInt("port",5555)).put("configured",daily.getBoolean("dailyManagement",false)));
         value.getJSONArray("capabilities").put("legacy-records-v1").put("proxy-setup-v1").put("remote-keymap-v1");
@@ -84,6 +89,8 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
             String operation=intent.getStringExtra("operation");
             if(operation!=null && operation.startsWith("remote_")){
                 new RemoteKeyMap(context).operation(operation,intent);
+            }else if("adb_guard_configure".equals(operation)){
+                LegacyAdbHomeGuard.configure(context,intent.getStringExtra("home"),intent.getIntExtra("port",-1),intent.getBooleanExtra("resume",false));
             }else if("management_config".equals(operation)){
                 int port=intent.getIntExtra("port",-1);
                 if(port<1 || port>65535)throw new IllegalArgumentException("本机 TCP ADB 端口无效");

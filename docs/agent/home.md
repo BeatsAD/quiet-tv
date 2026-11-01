@@ -139,6 +139,21 @@ python3 agent_session.py finish --session "$NEW_SESSION_DIR"
 
 ## ADB 常开与重启验收
 
+### API19 本机 ADB 桌面守护
+
+新开发包的 `adb-home-guard-v1` 将电脑脚本的观察循环移到电视端，仅用于 API19 兼容档，默认不启用。通过应用已有的本机 ADB 连接，以当前用户唯一的 `mResumedActivity`、当前焦点窗口和原桌面完整组件判断前台；后台历史包名不触发。每次原桌面前台事件只尝试一次，启动后核对 Quiet TV 前台；屏幕关闭、锁定或屏保时不启动。不禁用原桌面，不改变系统 HOME，不修改 ADB 开关或端口监听状态。
+
+Agent 先通过同次工具包建立／继续任务，读取实际 APK 的能力及原恢复记录，核对本机原桌面完整组件、固件与实际 TCP 端口；不得把示例或其他电视的地址、包名及端口直接套用。旧 APK 缺能力时明确报告需要新包，不能只更新脚本后宣布支持。使用现有 `install` 路线（基础试用已通过）或 `repair --issue home`，通过任务工具执行预览及配置：
+
+```sh
+python3 agent_session.py run --session "$SESSION_DIR" --tool device_maintenance -- repair --adb-guard --home "$ORIGINAL_HOME" --port "$LOCAL_ADB_PORT"
+python3 agent_session.py run --session "$SESSION_DIR" --tool device_maintenance -- repair --adb-guard --home "$ORIGINAL_HOME" --port "$LOCAL_ADB_PORT" --apply
+```
+
+已暂停时仅按用户明确恢复目标追加 `--resume`。配置会请求应用自己的 ADB 授权，若系统实际弹窗则请用户确认；不复制电脑密钥。应用复用进程共享连接，开机及升级后只恢复先前启用的守护，固件变化停止启用。通知可进入状态及暂停入口；“暂停桌面接管”同时停止该守护。此路线的恢复只需暂停，脚本不写回系统 HOME；原桌面可从帮助恢复页打开，实体 HOME 仍须验收。
+
+配置读回只证明选项保存。须关闭电脑守护后分别验证本机 ADB 连通、真实跳转、实体 HOME、重启／冷启动、待机唤醒及视频／HDMI／设置不被打断。若固件重启关闭 ADB 端口，应用无法通过已关闭的通道恢复自身连接，报告受限；不以常驻服务或成功启动一次替代这些验收。此能力与 API21 以上的无障碍守护、ADB 开关恢复是独立路线。
+
 默认安装请求包含 ADB 常开，不需要用户在电视桌面设置开关。独立修复 ADB、同时保留现有桌面路线和暂停状态时：
 
 ```sh

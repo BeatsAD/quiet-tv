@@ -65,8 +65,13 @@ public final class MaintenanceHelpActivity extends ManagementUi {
         if(!restore){message("已暂停自动接管。");return;}
         try{
             HomeController home=new HomeController(this);String original=DeviceMaintenanceReceiver.original(this);
-            if(original.isEmpty() || !home.component(original,true)){message("原桌面记录缺失或暂不可用，请通过电脑恢复。");return;}
             HomeController.State current=home.inspect();
+            if(LegacyAdbHomeGuard.configured(this) && LegacyAdbHomeGuard.usable(this,original)
+                    && (!current.known || original.equals(current.actual))){
+                startActivity(new Intent(Intent.ACTION_MAIN).setComponent(ComponentName.unflattenFromString(original)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                message("已停止守护并打开原桌面，系统默认 HOME 未修改。");return;
+            }
+            if(original.isEmpty() || !home.component(original,true)){message("原桌面记录缺失或暂不可用，请通过电脑恢复。");return;}
             if(current.known && original.equals(current.actual)){
                 startActivity(new Intent(Intent.ACTION_MAIN).setComponent(ComponentName.unflattenFromString(original)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));return;
             }
