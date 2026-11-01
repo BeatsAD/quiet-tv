@@ -23,13 +23,15 @@ def help_text(adb, *tool):
 
 
 def resolver(adb, sdk, user):
+    failures = []
     for tool in (("cmd", "package"), ("pm",)):
         try:
             options = user_options(help_text(adb, *tool), "resolve-activity", sdk, user)
             return [*tool, "resolve-activity", "--brief", *options, *HOME_ARGS]
-        except ValueError:
+        except ValueError as error:
+            failures.append(' '.join((*tool, 'resolve-activity')) + ': ' + str(error))
             continue
-    raise ValueError("本机帮助未确认针对当前用户的 HOME 查询命令")
+    raise ValueError("本机帮助未确认针对当前用户的 HOME 查询命令；检测结果：" + '；'.join(failures))
 
 
 def component(output):
