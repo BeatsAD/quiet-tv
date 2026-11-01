@@ -216,6 +216,21 @@ def collect_step(state, step, action, reconcile=False):
                 record_result(state, 'preservation', 'PASS', 'script', '相同 APK 未安装、启动或重新配置', str(events))
         if (not reconcile or verified) and any(item['event'] in ('desktop_configured', 'boot_configured') for item in entries):
             record_result(state, 'desktop_configured', 'PASS', 'script', '桌面配置已执行并读回，实体场景另验', str(events))
+        if (step['tool'] == 'device_maintenance' and action in ('home', 'takeover')
+                and step.get('exit') == 0 and '--apply' in step['arguments'] and (not reconcile or verified)):
+            outcome = next((item for item in reversed(entries) if item['event'] in
+                            ('adb_guard_configured', 'window_guard_configured')), None)
+            if outcome:
+                observed = outcome.get('result', {})
+                adb_guard = outcome['event'] == 'adb_guard_configured'
+                saved = observed.get('adbHomeGuard' if adb_guard else 'windowHomeGuard', {})
+                home = guard.canonical_home(option(step['arguments'], '--home') or saved.get('home', ''))
+                confirmed = (saved.get('enabled') is True and bool(home) and saved.get('home') == home
+                             and (saved.get('bootEnabled') is True and str(saved.get('port')) == option(step['arguments'], '--port')
+                                  if adb_guard else saved.get('accessibilityAllowed') is True))
+                if (observed.get('package') == state['package'] and observed.get('user') == state['scope']['user']
+                        and observed.get('fingerprint') == state['scope']['fingerprint'] and confirmed):
+                    record_result(state, 'desktop_configured', 'PASS', 'script', '兼容守护配置已读回，实体场景另验', str(events))
     if (step['tool'] in ('configure_home_guard', 'device_adaptation', 'vendor_adaptation')
             and action == 'takeover' and step.get('exit') == 0 and '--apply' in step['arguments'] and record.exists()):
         record_result(state, 'desktop_configured', 'PASS', 'script', '配置工具已读回，实体场景另验', str(record))
