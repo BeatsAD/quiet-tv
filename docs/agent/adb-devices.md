@@ -1,10 +1,10 @@
 # ADB入口资料：品牌、型号与固件
 
-[匹配与使用规则](adb.md)  [连接分流](connect.md)。本页是调查资料，不是执行规则。先按匹配指引核对条件，再只读取对应品牌段；不能逐条试码。资料采集于2026-10-31，58条记录中电视47条、投影仪7条、机顶盒4条；既含成功描述，也保留缺步骤和受阻报告，不是58种已验证方法。
+[开启与尝试方法](adb.md)  [连接分流](connect.md)。优先对应型号；匹配不到时，把同品牌记录中的不同方法列给用户，逐个指导尝试。资料采集于2026-10-31，58条记录中电视47条、投影仪7条、机顶盒4条；既含成功描述，也保留缺步骤和受阻报告，不是58种已验证方法。
 
-**Quiet TV验证：本页全部未验证。** A／B／C表示来源层级，入口状态是上游描述，不代表本机验证。单个目录列出多个型号不算多次独立复验；一个品牌指引不构成全品牌兼容结论。未知固件不能当通配；同SoC、相近型号及不同地区固件不自动继承。引用资料不获得执行、安装第三方工具、禁用应用或HOME接管资格。
+**Quiet TV验证：本页全部未验证。** A／B／C、型号和固件说明方法来自哪里，不是尝试门槛。同品牌其他型号的方法可作为备选，实际看到菜单和调试开关再继续；不把候选方法说成全品牌兼容。入口完整性和本机连接结果分别记录，开启ADB不等于完成安装或HOME接管。
 
-有可靠品牌／系统指引、步骤完整且现场页面吻合时，可按[匹配指引](adb.md)直接指导用户；“Quiet TV未验证”不等于不能提供步骤。型号／固件缺项只影响依赖这些条件的专项方法，不阻塞不要求这些字段的普通品牌路径。已有本机反例仍优先，不能因通用路径存在而忽略。
+菜单不符就换下一种；步骤只到工厂菜单时，可参考同品牌记录帮用户寻找实际调试项，找不到则换方法，不编造缺失步骤。已知系统不适用的分支或本机已经失败的方法跳过；打开后检查连接，不再继续试入口。
 
 ## 电视本体
 
@@ -51,7 +51,7 @@
 | --- | --- | --- | --- | --- |
 | T14 创维／酷开<br>14K／8S61／sky628_8s61 | Android 4.4.2；018.010.130；2018-10-13 | A 上游型号报告<br>完整入口<br>Quiet TV未验证 | 本机信息→`↑↑↓↓←→←→`→停约2秒→工厂菜单其他设置→Adbd Enable由0改1。<br>网络ADB，无授权框。 | 报告重启后保持；准确方向为左右左右，不是左左右右。 原报告adb reboot会关机，不能当作正常重启。<br>[来源1](https://github.com/Gathin23/cleanyourtv/blob/57c00a40dafe040b0be1f32086e96c05a1a37054/docs/devices/coocaa-14k-8s61.md) |
 | T15 创维／酷开<br>K5C／8R40_K5C | Android 8.0；OPR6.170623.012 | A 上游型号报告<br>完整入口<br>Quiet TV未验证 | 设置→基本设置→设备信息→更多信息→`↑↑↓↓←→←→`→工厂ADB开关。<br>TCP 5555。 | 没有普通开发者选项；关于页及厂商设置组件是入口的一部分。<br>[来源1](https://github.com/Gathin23/cleanyourtv/blob/57c00a40dafe040b0be1f32086e96c05a1a37054/docs/devices/skyworth-8r40-k5c.md) |
-| T17 创维／酷开<br>品牌指引，未限定型号 | 适用固件未限定 | B 品牌／平台指引<br>方向键路径：入口不完整<br>开发者选项路径：完整入口<br>Quiet TV未验证 | 方向键路径：本机信息页缓慢按`↑↑↓↓←→←→`，仅进入工厂菜单，原文未给ADB开关。<br>开发者选项路径：设置→关于电视→软件版本号7次→开发者选项→USB调试；端口与授权按实机核对。 | 方向键路径到工厂菜单后停止并补本机证据；不得借用T14、T15或其他型号的ADB位置、参数和后续步骤。开发者选项路径仅在当前页面吻合且无已知本机反例时指导；页面不符就停止，不轮试或拼接两条路径。<br>[来源1](https://github.com/quicktvui/quicktvui-next/blob/10a21cc05118d396833ccebee5828f0c0de0ba48/docs/zh-CN/guide/device/skyworth.md) |
+| T17 创维／酷开<br>品牌指引，未限定型号 | 适用固件未限定 | B 品牌／平台指引<br>方向键路径：入口不完整<br>开发者选项路径：完整入口<br>Quiet TV未验证 | 方向键路径：本机信息页缓慢按`↑↑↓↓←→←→`，仅进入工厂菜单，原文未给ADB开关。<br>开发者选项路径：设置→关于电视→软件版本号7次→开发者选项→USB调试；端口与授权按实机核对。 | 两条路径分别尝试，一条不符就换另一条。到工厂菜单后可参考T14、T15寻找实际ADB项，出现对应选项再继续；这些是同品牌备选，不算T17原文已补齐。找不到开关就返回并换下一种。<br>[来源1](https://github.com/quicktvui/quicktvui-next/blob/10a21cc05118d396833ccebee5828f0c0de0ba48/docs/zh-CN/guide/device/skyworth.md) |
 | T47 创维<br>7T861_A23 | Android 10／API 29；MT9638；QQ2A.200305.004.A1／eng.nobody.20241225.120706 | A 上游型号报告<br>入口不完整<br>Quiet TV未验证 | 来源用过网络ADB，未完整记录开启菜单。<br>TCP 5555，无授权框。 | 只保留连接证据，不提高其他创维暗码的验证等级。<br>[来源1](https://github.com/Gathin23/cleanyourtv/blob/57c00a40dafe040b0be1f32086e96c05a1a37054/docs/devices/skyworth-7t861-a23.md) |
 
 <a id="prima"></a>
@@ -99,7 +99,7 @@
 | --- | --- | --- | --- | --- |
 | T26 海尔／模卡 MOOKA<br>品牌指引，未限定型号 | 定制Android等适用固件 | B 品牌／平台指引<br>完整入口<br>Quiet TV未验证 | 按电视机身信号源键，菜单出现后遥控器`←←↑→`→海尔工厂菜单→ADB调试；部分为Other Option→adb debug。<br>端口／授权依实机。 | 须区分机身信号源键与遥控器操作上下文。<br>[来源1](https://github.com/pengchujin/aerial-tv/blob/main/docs/devices/adb-by-brand.md) [来源2](https://github.com/quicktvui/quicktvui-next/blob/10a21cc05118d396833ccebee5828f0c0de0ba48/docs/zh-CN/guide/device/haier.md) |
 | T27 海尔／模卡 MOOKA<br>M638_MOOKA_UD；U55A5M1P1固件标识 | YunOS／Android 4.4.4；L_MST6A638_MOOKA_U55A5M1P1；2020-08-03 | A 上游型号报告<br>完整入口<br>Quiet TV未验证 | 设置→关于→Build number连续点击→海尔工厂菜单→ADB调试开关。<br>TCP 5555；ro.adb.secure=0，无授权框。 | 原文没给精确点击次数，采证时未重新进入工厂菜单；保留为拥有者提供的路径。YunOS不能一概判为无ADB。<br>[来源1](https://github.com/Gathin23/cleanyourtv/blob/57c00a40dafe040b0be1f32086e96c05a1a37054/docs/devices/haier-m638-mooka-ud-yunos44.md) |
-| T46 海尔<br>HRA962X2_2G_ALI6G_A，中国版 | Android 9／API 28；9.0.0-RS-20230315.0915；PPR1.180610.011.20220620 | A 上游型号报告<br>入口不完整<br>Quiet TV未验证 | 原记录已开启ADB，未提供初始菜单路径。<br>TCP 5555，无授权框。 | 不能把品牌通用方向键路线当成本机实测。<br>[来源1](https://github.com/Gathin23/cleanyourtv/blob/57c00a40dafe040b0be1f32086e96c05a1a37054/docs/devices/haier-hra962x2-ali6g-cn.md) |
+| T46 海尔<br>HRA962X2_2G_ALI6G_A，中国版 | Android 9／API 28；9.0.0-RS-20230315.0915；PPR1.180610.011.20220620 | A 上游型号报告<br>入口不完整<br>Quiet TV未验证 | 原记录已开启ADB，未提供初始菜单路径。<br>TCP 5555，无授权框。 | 可把T26、T27列为同品牌备选逐个尝试，仍保留本型号入口未实测状态。<br>[来源1](https://github.com/Gathin23/cleanyourtv/blob/57c00a40dafe040b0be1f32086e96c05a1a37054/docs/devices/haier-hra962x2-ali6g-cn.md) |
 
 <a id="huawei"></a>
 
@@ -133,8 +133,8 @@
 
 | 编号／型号或平台 | 系统／固件范围 | 来源与验证状态 | 上游开启描述／连接行为 | 限制与出处 |
 | --- | --- | --- | --- | --- |
-| T33 飞利浦／TP Vision<br>55OLED705/12、43PUS7304/12、55PUS7334/12；TPM191E | Android 12；PH9M_EA_5599:12/STT2.230526.001/4215 | A 上游型号报告<br>完整入口<br>Quiet TV未验证 | 所有设置→Android设置→设备偏好设置→关于→Build7次→开发者选项→USB debugging。<br>TCP 5555；首次电视授权；该记录无需配对码。 | 目录列出这组型号，菜单标签未逐屏重新核对，不是三台独立复验。不适用Saphi／Titan。<br>[来源1](https://github.com/humblemuzzu/dumbtv/blob/755991b17a66e753e82f7252368c8850c08fdc71/catalog/devices/androidtv-philips-tpm191e.yaml) |
-| T34 飞利浦<br>65OLED873；TPM171E，2018款 | Android TV；完整固件未给 | A 上游型号报告<br>完整入口<br>Quiet TV未验证 | 关于页Build连续点击至开发者模式，作者记录5次；开启USB调试。<br>首次授权有时不弹，原作者连接成功不稳定。 | 旧固件个人笔记，仓库未找到许可证。Home Assistant另记部分Philips首次授权须Wi-Fi，未指明本型号。<br>[来源1](https://github.com/yath/tpm171e/blob/master/README.md) [来源2](https://github.com/home-assistant/home-assistant.io/blob/current/source/_integrations/androidtv.markdown) |
+| T33 飞利浦／TP Vision<br>55OLED705/12、43PUS7304/12、55PUS7334/12；TPM191E | Android 12；PH9M_EA_5599:12/STT2.230526.001/4215 | A 上游型号报告<br>完整入口<br>Quiet TV未验证 | 所有设置→Android设置→设备偏好设置→关于→Build7次→开发者选项→USB debugging。<br>TCP 5555；首次电视授权；该记录无需配对码。 | 来源有三台同固件使用记录，初始菜单标签未逐屏复核。不适用Saphi／Titan。<br>[来源1](https://github.com/humblemuzzu/dumbtv/blob/755991b17a66e753e82f7252368c8850c08fdc71/catalog/devices/androidtv-philips-tpm191e.yaml) |
+| T34 飞利浦<br>65OLED873；TPM171E，2018款 | Android TV；完整固件未给 | A 上游型号报告<br>入口不完整<br>Quiet TV未验证 | 来源先写从Google Play安装telnetd并启用ADB服务，再写关于页Build5次→USB调试；两者的前置或替代关系未说明。<br>可列为备选，按实际页面尝试；首次授权不稳定。 | 旧固件个人笔记，仓库未找到许可证。Home Assistant另记部分Philips首次授权须Wi-Fi，未指明本型号。<br>[来源1](https://github.com/yath/tpm171e/blob/master/README.md) [来源2](https://github.com/home-assistant/home-assistant.io/blob/current/source/_integrations/androidtv.markdown) |
 
 <a id="toshiba"></a>
 
@@ -168,7 +168,7 @@
 | 编号／型号或平台 | 系统／固件范围 | 来源与验证状态 | 上游开启描述／连接行为 | 限制与出处 |
 | --- | --- | --- | --- | --- |
 | T40 夏普<br>2T-C32GH3000I，印度尼西亚 | Google TV 14；UKN6.260116.061 | A 上游型号报告<br>入口不完整<br>Quiet TV未验证 | 记录只有Wireless debugging入口，先配对连接，之后可选tcpip 5555。<br>初始5555关闭；配对与连接各用自己的端口。 | 初始解锁菜单没逐项记录；不能移植国行旧夏普路径。<br>[来源1](https://github.com/Gathin23/cleanyourtv/blob/57c00a40dafe040b0be1f32086e96c05a1a37054/examples/sharp-2t-c32gh3000i/debloat.txt) |
-| T41 夏普／联想平台<br>LCD-80LX850A；ideatv | Android 4.0.4；固件未完整记录 | A 上游型号报告<br>默认开启<br>Quiet TV未验证 | 作者记录出厂网络ADB已开启，无需找开关。<br>TCP 5555，无授权框。 | 只对应该台；能连不等于能改系统，也不能证明所有联想默认开。<br>[来源1](https://github.com/sanshengai/sansheng-tv-adb/blob/main/data/brands/sharp-cn.json) [来源2](https://github.com/sanshengai/sansheng-tv-adb/blob/main/data/brands/lenovo.json) |
+| T41 夏普／联想平台<br>LCD-80LX850A；ideatv | Android 4.0.4；lenovo/ideatv/ideatv_K82:4.0.4/P0031.42/0083:user/dev-keys | A 上游型号报告<br>默认开启<br>Quiet TV未验证 | 作者记录出厂网络ADB已开启，无需找开关。<br>TCP 5555，无授权框。 | 只对应该台；能连不等于能改系统，也不能证明所有联想默认开。<br>[来源1](https://github.com/sanshengai/sansheng-tv-adb/blob/main/data/brands/sharp-cn.json) [来源2](https://github.com/sanshengai/sansheng-tv-adb/blob/main/data/brands/lenovo.json) |
 
 <a id="super-general"></a>
 
@@ -208,13 +208,13 @@
 
 | 编号／型号或平台 | 系统／固件范围 | 来源与验证状态 | 上游开启描述／连接行为 | 限制与出处 |
 | --- | --- | --- | --- | --- |
-| P01 极米<br>Z7X高亮版；另有指定GMUI固件报告 | Android 9；GMUI 6.11.101.01_499／PG0017V6.12.68 | A 上游型号报告<br>完整入口<br>Quiet TV未验证 | U盘安装code-ant/z7x-adb工具，打开并启用ADB。<br>适用固件启动adbd并开放5555。 | 作者验证Z7X；工具写系统属性的能力依固件权限，非通用Android能力。不开开机恢复时，重启不会自动保持。<br>[来源1](https://github.com/code-ant/z7x-adb/blob/main/README.md) [来源2](https://github.com/pengchujin/aerial-tv/blob/main/docs/devices/xgimi-z7x.md) |
+| P01 极米<br>Z7X高亮版；另有指定GMUI固件报告 | Android 9；GMUI 6.11.101.01_499／PG0017V6.12.68 | A 上游型号报告<br>完整入口<br>Quiet TV未验证 | U盘安装code-ant/z7x-adb工具，打开并启用ADB。<br>适用固件启动adbd并开放5555。 | 高亮版作者报告与指定GMUI报告分别保留：前者普通开启验证为工具v1.2.0，后者实测v1.1.0。权限及重启保持依固件、工具版本和开机恢复设置，其他同品牌设备可作为候选尝试。<br>[来源1](https://github.com/code-ant/z7x-adb/blob/main/README.md) [来源2](https://github.com/pengchujin/aerial-tv/blob/main/docs/devices/xgimi-z7x.md) |
 | P02 极米<br>H3／m7221 ironman | Android 8；v1.15.93 | A 上游型号报告<br>完整入口<br>Quiet TV未验证 | 手机下载z7x-adb APK，经极米手机App上传安装到投影仪，打开工具。<br>报告TCP 5555成功。 | Aerial于2026-10-26有该台成功记录；工具作者表中H3仍待验证，不能概括全系H3成功。<br>[来源1](https://github.com/pengchujin/aerial-tv/blob/main/docs/devices/xgimi-h3.md) [来源2](https://github.com/code-ant/z7x-adb/blob/main/README.md) |
 | P03 极米<br>H3S、Z9X、M1、Z6、Z6X、Z6X Pro、Z8X | 未逐型号给出固件 | B 品牌／平台指引<br>待验证线索<br>Quiet TV未验证 | z7x-adb兼容表标注用户反馈可用，采用安装工具开启路线。<br>按实际固件与工具核对。 | 不是逐固件复验记录；H2S／Z4X等原表待验证型号不算成功。<br>[来源1](https://github.com/code-ant/z7x-adb/blob/main/README.md) |
 | P04 坚果 JMGO<br>N5s Pro／K990CN | LunaOS／Android 11；1.1.31.7；RP1A.200720.011 | A 上游型号报告<br>完整入口<br>Quiet TV未验证 | 设置→关于本机→系统版本→反复确定，最多约12次，直到ADB提示。<br>TCP 5555，无授权框。 | 旁边console调试不是网络ADB必需项；该固件不适用普通Build7次路线。<br>[来源1](https://github.com/Gathin23/cleanyourtv/blob/57c00a40dafe040b0be1f32086e96c05a1a37054/docs/devices/jmgo-n5s-pro.md) |
 | P05 Wanbo<br>T6R Max | Android 9；TVOS-04.16.031.01.12 | A 上游型号报告<br>入口不完整<br>Quiet TV未验证 | 原记录开启USB与网络调试，但没完整写菜单层级。<br>端口5877，无授权框。 | 不是5555，不能推广其他Wanbo型号。<br>[来源1](https://github.com/Gathin23/cleanyourtv/blob/57c00a40dafe040b0be1f32086e96c05a1a37054/docs/devices/wanbo-t6r-max.md) |
 | P06 当贝<br>F5 | 原反馈未限定固件 | B 品牌／平台指引<br>待验证线索<br>Quiet TV未验证 | Aerial用户反馈使用BuddhaYi/android-tv-developer-enabler开启调试。<br>缺型号固件与工具分支完整执行记录。 | 工具多为跳转已有设置页，部分分支需额外权限，不是通用绕过。不能先依赖ADB安装它再声称解决初次ADB。<br>[来源1](https://github.com/pengchujin/aerial-tv/blob/main/docs/devices/adb-by-brand.md) [来源2](https://github.com/BuddhaYi/android-tv-developer-enabler/blob/main/src/com/gelab/devenab/MainActivity.java) |
-| P07 坚果 JMGO<br>G9S | Android 9；1.1.52 | A 上游型号报告<br>入口不完整<br>Quiet TV未验证 | 原记录已有ADB，未完整给开启入口。<br>TCP 5555，无授权框。 | 不能直接移植N5s Pro连按次数。<br>[来源1](https://github.com/Gathin23/cleanyourtv/blob/57c00a40dafe040b0be1f32086e96c05a1a37054/docs/devices/jmgo-g9s.md) |
+| P07 坚果 JMGO<br>G9S | Android 9；1.1.52 | A 上游型号报告<br>入口不完整<br>Quiet TV未验证 | 原记录已有ADB，未完整给开启入口。<br>TCP 5555，无授权框。 | 可把P04的系统版本连按法列为同品牌备选，按实际提示尝试；不能记为G9S已经验证。<br>[来源1](https://github.com/Gathin23/cleanyourtv/blob/57c00a40dafe040b0be1f32086e96c05a1a37054/docs/devices/jmgo-g9s.md) |
 
 <a id="boxes"></a>
 
@@ -223,7 +223,7 @@
 | 编号／型号或平台 | 系统／固件范围 | 来源与验证状态 | 上游开启描述／连接行为 | 限制与出处 |
 | --- | --- | --- | --- | --- |
 | B01 天猫魔盒<br>文档未限定型号 | 未限定系统／固件 | B 品牌／平台指引<br>完整入口<br>Quiet TV未验证 | 我的→设置→通用设置→开发者模式→开启。<br>文档称启用ADB；端口／授权未给。 | 不代表所有天猫魔盒及YunOS固件。<br>[来源1](https://github.com/quicktvui/quicktvui-next/blob/10a21cc05118d396833ccebee5828f0c0de0ba48/docs/zh-CN/guide/device/tmall.md) |
-| B02 腾讯极光<br>文档未限定型号 | Android；版本未给 | B 品牌／平台指引<br>入口不完整<br>Quiet TV未验证 | 设置→关于本机→安卓原生设置→关于→连续点击Android TV操作系统版本对应条目→开发者选项→启用。<br>原文没补齐USB调试及连接步骤。 | 中文版本条目需以实机Build项核对；启用开发者选项不自动等于开启ADB。<br>[来源1](https://github.com/quicktvui/quicktvui-next/blob/10a21cc05118d396833ccebee5828f0c0de0ba48/docs/zh-CN/guide/device/tencent.md) |
+| B02 腾讯极光<br>文档未限定范围；配图设备A4112 | Android 11；极光OS 8.30.05；配图构建片段eng.root.20240902.122823 dev-keys | B 品牌／平台指引<br>入口不完整<br>Quiet TV未验证 | 设置→关于本机→安卓原生设置→关于→连续点击底部含构建字符串的Android TV操作系统版本条目（Build）→开发者选项→启用。<br>原文没补齐USB调试及连接步骤。 | 配图指向底部Build条目，不是上方值为11的版本项；启用开发者选项后仍需寻找实际ADB调试开关。<br>[来源1](https://github.com/quicktvui/quicktvui-next/blob/10a21cc05118d396833ccebee5828f0c0de0ba48/docs/zh-CN/guide/device/tencent.md) |
 | B03 NVIDIA Shield<br>TV／TV Pro系列 | Android TV；未逐固件限定 | C 汇总线索<br>待验证线索<br>Quiet TV未验证 | 汇总库：关于→Build连续点击→开发者选项→Network debugging。<br>端口按页面。 | 本次未逐台核查2015／2017／2019型号，保留平台线索。<br>[来源1](https://github.com/sanshengai/sansheng-tv-adb/blob/main/data/brands/shield.json) |
 | B04 Google／onn<br>Chromecast with Google TV、Google TV Streamer、onn 4K | Google TV；未逐型号固件限定 | C 汇总线索<br>待验证线索<br>Quiet TV未验证 | 汇总库：关于→Android TV OS build连续点击→开发者选项，再按实机使用USB调试或无线配对。<br>固定5555或动态配对端口由固件决定。 | 系列目录不是逐机验证。<br>[来源1](https://github.com/sanshengai/sansheng-tv-adb/blob/main/data/brands/googletv-devices.json) |
 
