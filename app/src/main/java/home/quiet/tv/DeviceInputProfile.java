@@ -74,7 +74,7 @@ final class DeviceInputProfile {
     JSONObject snapshot() throws Exception {
         String raw=prefs.getString("profile","");JSONObject profile=raw.isEmpty()?new JSONObject():new JSONObject(raw);
         return new JSONObject().put("revision",digest(raw)).put("state",raw.isEmpty()?"default":active().length()>0?"active":"stale")
-            .put("profile",profile).put("lastInput",last);
+            .put("profile",profile).put("lastInput",lastSnapshot());
     }
     @android.annotation.SuppressLint("ApplySharedPref")
     void save(String text,String expected,boolean reset) throws Exception {
@@ -127,18 +127,26 @@ final class DeviceInputProfile {
             if(!prefs.edit().putString("profile",desired).commit())throw new IllegalStateException("本机配置未保存");
         }
     }
-    static synchronized String request(Context c,String id) throws Exception {
-        if(!pending.isEmpty())throw new IllegalStateException("上一次信号源请求尚未处理");
+    static String request(Context c,String id) throws Exception {
+        synchronized(DeviceInputProfile.class){if(!pending.isEmpty())throw new IllegalStateException("上一次信号源请求尚未处理");}
         if(Build.VERSION.SDK_INT<21||id==null)throw new IllegalArgumentException("信号源不存在");
         TvInputController.Snapshot snapshot=new TvInputController(c).inspectSources();boolean found=false;
         for(TvInputInfo input:snapshot.inputs)if(id.equals(input.getId())){found=true;break;}
         for(VendorTvInputs.Source source:snapshot.vendor.sources)if(id.equals(source.key)){found=true;break;}
         if(!found)throw new IllegalArgumentException("信号源不存在或已隐藏");
-        pending=id;request=UUID.randomUUID().toString();last=new JSONObject().put("request",request).put("id",id).put("result","pending");
+        final String token=UUID.randomUUID().toString();
+        synchronized(DeviceInputProfile.class){
+            if(!pending.isEmpty())throw new IllegalStateException("上一次信号源请求尚未处理");
+            pending=id;request=token;last=new JSONObject().put("request",request).put("id",id).put("result","pending");
+        }
         try{c.startActivity(new Intent(c,HomeActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));}
-        catch(RuntimeException failure){pending="";last.put("result","failed");throw failure;}
-        return request;
+        catch(RuntimeException failure){synchronized(DeviceInputProfile.class){if(token.equals(request)){pending="";last.put("result","failed");}}throw failure;}
+        return token;
     }
-    static synchronized String consume(){String id=pending;pending="";return id;}
-    static synchronized void dispatched(boolean opened){try{last.put("result",opened?"dispatched":"failed").put("physicalVerified",false);}catch(JSONException ignored){}}
+    private static synchronized JSONObject lastSnapshot() throws JSONException {return new JSONObject(last.toString());}
+    static final class Request {final String id,token;Request(String id,String token){this.id=id;this.token=token;}}
+    static synchronized Request consume(){Request value=new Request(pending,request);pending="";return value;}
+    static synchronized void cancelled(String token){result(token,"cancelled_unverified");}
+    static synchronized void dispatched(String token,boolean opened){result(token,opened?"dispatched":"failed");}
+    private static void result(String token,String result){if(!token.equals(request))return;try{last.put("result",result).put("physicalVerified",false);}catch(JSONException ignored){}}
 }

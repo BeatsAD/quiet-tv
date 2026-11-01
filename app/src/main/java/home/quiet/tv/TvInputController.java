@@ -244,7 +244,7 @@ final class TvInputController {
         catch(RuntimeException failure){DiagnosticLog.error("input.metadata.label_failed",failure);}
         return input.getType()==TvInputInfo.TYPE_HDMI?"HDMI":"TV input";
     }
-    private Intent knownInputIntent(TvInputInfo input){
+    Intent knownInputIntent(TvInputInfo input){
         android.content.pm.ServiceInfo service=input.getServiceInfo();
         if((service.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0)return null;
         String label=null;
@@ -282,6 +282,9 @@ final class TvInputController {
 
     static boolean enabledSystem(Context context,ComponentInfo info){
         if((info.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0)return false;
+        return enabled(context,info);
+    }
+    static boolean enabled(Context context,ComponentInfo info){
         PackageManager pm=context.getPackageManager();
         int app=pm.getApplicationEnabledSetting(info.packageName),component=pm.getComponentEnabledSetting(new ComponentName(info.packageName,info.name));
         return (app==PackageManager.COMPONENT_ENABLED_STATE_DEFAULT?info.applicationInfo.enabled:app==PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
@@ -323,7 +326,7 @@ final class TvInputController {
         if(type==TvInputInfo.TYPE_TUNER && (label.toUpperCase(Locale.ROOT).contains("DTV") || label.toUpperCase(Locale.ROOT).contains("DTMB")))return 2;
         return null;
     }
-    private Intent fallbackInputIntent(TvInputInfo input){
+    Intent fallbackInputIntent(TvInputInfo input){
         if(!enabledSystem(context,input.getServiceInfo())){DiagnosticLog.info("input.fallback.route","result=not_enabled_system");return null;}
         Intent intent=null;
         ComponentName droidlogic=new ComponentName("com.droidlogic.tvsource","com.droidlogic.tvsource.DroidLogicTv");

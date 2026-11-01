@@ -66,8 +66,25 @@ JSON 格式（示意值不能直接用于设备）：
 | 海信 Jamdeo | API21+；可访问的系统 `com.jamdeo.tv.service/.SourceService` 与 `com.hisense.tv.tiletransition/.TileTransitionService`；可读取 `TvManager` 的 SourceManager | 从实际返回 ID 和原生 HDMI 名称读取；按 `SILO_SWITCH_EVENT` / `silo_input_src_id` 协议发给原厂转换服务所在包，不直接拉起 LiveTV 冒充切源 |
 | 小米原生记录 | API21+；当前固件的版本 2 记录、MiTV 型号和可调用的系统播放器 | 使用记录中的 source，发送 `EXTSRC_PLAY`；原生记录路径带 `CLEAR_TOP`，避免复用旧任务丢掉端口参数 |
 
-海信管理器只持有应用 Context，按固件及两个系统包的版本隔离；初始化投递到主线程，主线程不等待。后台最多等初始化 2 秒及首批端口就绪 1 秒，中断会结束等待，不创建无限重试任务或注册额外监听。首次维护读取可能尚未就绪，可重新检测。现有创维、康佳可返回端口时优先保留，不混合无法核对硬件身份的两套厂商列表。
+海信管理器只持有应用 Context，按固件及两个系统包的版本隔离；初始化投递到主线程，主线程不等待。后台最多等初始化 2 秒及首批端口就绪 1 秒，中断会结束等待，不创建无限重试任务或注册额外监听。维护读取也在后台等待；超时仍未就绪时可由用户重新检测。现有创维、康佳可返回端口时优先保留，不混合无法核对硬件身份的两套厂商列表。
 
 Android 4.x 档位继续使用原有原厂信号源面板，不加载 API21 输入框架和本批原生端口配置；界面及现有面板共用主线代码。此档位的直接保存 HDMI 能力未在本批扩展。
 
 协议依据为 Aerial 固定提交 `587a2849c58b27dc5854a18eab3b458e1d072b34` 的 [HisenseSources](https://github.com/pengchujin/aerial-tv/blob/587a2849c58b27dc5854a18eab3b458e1d072b34/app/src/main/java/app/orchard/tv/system/HisenseSources.kt)、[XgimiMstarSources](https://github.com/pengchujin/aerial-tv/blob/587a2849c58b27dc5854a18eab3b458e1d072b34/app/src/main/java/app/orchard/tv/system/XgimiMstarSources.kt) 与 [小米原生输入](https://github.com/pengchujin/aerial-tv/blob/587a2849c58b27dc5854a18eab3b458e1d072b34/app/src/main/java/app/orchard/tv/system/SystemState.kt)。运行时按组件、API 和协议能力匹配，不将整品牌视为同一固件。上游报告与本地夹具测试不替代 Quiet TV 的厂商实机验收。
+
+## 异步调用与结果确认（第三批开发源码）
+
+首页列表、手动切源、已保存 HDMI、维护 `input_open` 和“看电视”页复用后台准备路径。厂商枚举、频道查询和创维 Provider 切源不在主线程执行；活动、服务及广播在准备完成后由前台路径派发。派发前复查配置、隐藏项、固件、相关包版本和组件权限，不在主线程重新枚举。原厂 DTV 入口可用时先直接调用，仅在明确失败后查询标准频道。
+
+首页的 Back、HOME、新 Intent、失焦、暂停、停止、熄屏和销毁会中断等待，并用请求代次丢弃迟到结果；“看电视”页退出及销毁同样取消。已送入厂商进程的调用不能保证撤回，中断不等于物理切换失败。维护输入／配置命令使用异步广播结果；`lastInput` 按 request 隔离，取消后的 `cancelled_unverified` 不证明切源成功或失败，`physicalVerified` 仍为 false。未完成请求不持久重放。保存 HDMI 的原有 JSON 格式不变。
+
+长按首页网络／系统设置可进行显式入口测试，返回后再次长按同一入口确认，十分钟内有效；活动重建不会恢复未确认的设置测试。只有用户确认对应功能正常后才保存成功路径。系统接受启动为 `DISPATCHED_UNVERIFIED`；已有授权的页面观察最多提升到 `WINDOW_OBSERVED`，窗口存在不等于设置功能正常。失败、返回、短暂失焦、超时及没有观察能力均不会自动启动下一入口。
+
+成功记录只保存内置路由的摘要与环境绑定，不保存可执行 Intent。每次使用重新解析允许调用的系统候选，再按记录排序；网络连接为以太网与其他情况分别记忆。固件、API 或目标／已知关联包版本变化会停止使用旧优先级，旧记录保留供重新确认。明确派发失败可以尝试当前候选链后续入口；派发后结果未知时只能由用户主动试下一入口。
+
+| 档位 | 共同能力 | 差异 |
+| --- | --- | --- |
+| Android 5+ | 异步准备与取消、设置测试和路径记忆 | 标准输入与已匹配厂商原生端口，支持保存 HDMI |
+| Android 4.x | 原厂面板后台发现与取消、设置测试和路径记忆 | 不加载 API21 输入框架，保持原厂面板／遥控器路径 |
+
+本地 JVM 测试只验证线程、生命周期、路由及状态规则。真实厂商 SDK 的耗时、窗口表现、HDMI 画面／声音及开机／待机行为仍须逐固件验收。

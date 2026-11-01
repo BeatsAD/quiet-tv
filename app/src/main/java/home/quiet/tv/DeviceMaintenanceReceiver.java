@@ -63,11 +63,23 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
             .put("pending",proxy.setupPending()).put("pausePending",guard.preferences.getBoolean("proxyPausePending",false)));
         return value;
     }
-    @android.annotation.SuppressLint("ApplySharedPref") // A successful reply requires durable restoration state.
+    private static final java.util.concurrent.ExecutorService inputWorker=java.util.concurrent.Executors.newSingleThreadExecutor();
+    private static final class Reply {
+        int code=Activity.RESULT_CANCELED;String data;
+    }
     @Override public void onReceive(Context context,Intent intent){
-        setResultCode(Activity.RESULT_CANCELED);
+        String operation=intent==null?null:intent.getStringExtra("operation");
+        if(intent!=null&&(context.getPackageName()+".DEVICE_MAINTENANCE").equals(intent.getAction())
+                &&java.util.Arrays.asList("input_list","input_open","profile_get","profile_set","profile_reset").contains(operation)){
+            PendingResult pending=goAsync();Context app=context.getApplicationContext();Intent request=new Intent(intent);
+            inputWorker.execute(()->{try{Reply reply=perform(app,request);pending.setResultCode(reply.code);pending.setResultData(reply.data);}finally{pending.finish();}});
+        }else{Reply reply=perform(context,intent);setResultCode(reply.code);setResultData(reply.data);}
+    }
+    @android.annotation.SuppressLint("ApplySharedPref") // A successful reply requires durable restoration state.
+    private Reply perform(Context context,Intent intent){
+        Reply reply=new Reply();
         try{
-            if(intent==null || !(context.getPackageName()+".DEVICE_MAINTENANCE").equals(intent.getAction()))return;
+            if(intent==null || !(context.getPackageName()+".DEVICE_MAINTENANCE").equals(intent.getAction()))return reply;
             if(intent.getIntExtra("user",-1)!=android.os.Process.myUid()/100000)throw new IllegalArgumentException("目标用户不一致");
             String operation=intent.getStringExtra("operation");
             if(operation!=null && operation.startsWith("remote_")){
@@ -142,7 +154,8 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
             if(operation.startsWith("profile_") || "input_open".equals(operation))result.put("inputProfile",new DeviceInputProfile(context).snapshot());
             if("input_list".equals(operation))result.put("inputs",Build.VERSION.SDK_INT>=21?new TvInputController(context).maintenanceInputs():new JSONObject().put("supported",false));
             if("takeover_plan".equals(operation))result.put("restorePlan",new ComputerRestorePlan(context).plan());
-            setResultData(result.toString());setResultCode(Activity.RESULT_OK);
-        }catch(Exception failure){setResultData("维护未完成："+failure.getMessage());}
+            reply.data=result.toString();reply.code=Activity.RESULT_OK;
+        }catch(Exception failure){reply.data="维护未完成："+failure.getMessage();}
+        return reply;
     }
 }
