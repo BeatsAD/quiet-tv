@@ -48,16 +48,16 @@ final class StartupDestinationPanel extends ManagementPanel {
         DesktopSettingsRow target=action(tr("电视信号源","TV source"),"choose",this::choose);
         target.value(store.watchTarget().isEmpty()?tr("请选择","Choose"):store.watchLabel());target.tail("arrow");
         DesktopSettingsRow boot=action(tr("开机自动看电视","Watch TV on startup"),"boot",this::toggleBoot);
-        boot.checked(store.hdmiBoot());boot.available(!store.watchTarget().isEmpty()&&Build.VERSION.SDK_INT>=21);
+        boot.checked(store.hdmiBoot());boot.available(!store.watchTarget().isEmpty());
         DesktopSettingsRow watch=action(tr("立即观看","Watch now"),"test",()->test(false));watch.tail("arrow");
-        watch.available(!store.watchTarget().isEmpty()&&Build.VERSION.SDK_INT>=21);
+        watch.available(!store.watchTarget().isEmpty());
         activity.wireRows(new DesktopSettingsRow[]{visible,target,boot,watch},managementTab());
         if(restore)focusManagementContent();
     }
     private interface Write {void run() throws Exception;}
     private void save(Write operation){try{operation.run();render();}catch(Exception failure){message(failure.getMessage());}}
     private void choose(){
-        if(busy)return;if(Build.VERSION.SDK_INT<21){message("此系统暂不支持保存电视信号源，请使用遥控器信号源键。");return;}
+        if(busy)return;
         busy=true;int request=++generation;
         android.content.Context app=getApplicationContext();
         inputWork.submit(()->HdmiTarget.available(app),(choices,failure)->{
@@ -68,9 +68,9 @@ final class StartupDestinationPanel extends ManagementPanel {
             sheet.action("返回",sheet.dialog::dismiss);sheet.show(first);
         });
     }
-    private interface Prepared {void accept(InputLaunch launch) throws Exception;}
+    private interface Prepared {void accept(SavedInputLaunch launch) throws Exception;}
     private void prepare(String saved,Prepared action){
-        if(busy||Build.VERSION.SDK_INT<21)return;busy=true;
+        if(busy)return;busy=true;
         android.content.Context app=getApplicationContext();
         inputWork.submit(()->{HdmiTarget target=HdmiTarget.decode(saved);return target==null?null:target.prepare(app);},(launch,failure)->{
             if(!showing||isFinishing()||isDestroyed())return;busy=false;
@@ -115,7 +115,6 @@ final class StartupDestinationPanel extends ManagementPanel {
     private void toggleBoot(){
         if(store.hdmiBoot()){enableAfterTest=false;save(()->store.hdmiBoot(false));return;}
         if(!store.tested()){test(true);return;}
-        if(Build.VERSION.SDK_INT<21)return;
         String saved=store.watchTarget();prepare(saved,launch->{
             Sheet sheet=new Sheet("开启开机自动看电视？");sheet.text(bootMessage());
             Button cancel=sheet.action("取消",sheet.dialog::dismiss);
