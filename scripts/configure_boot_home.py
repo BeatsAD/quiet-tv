@@ -74,18 +74,23 @@ def identity(adb, user):
 
 
 def home_commands(adb, sdk, user):
+    failures = []
     for tool in (('cmd', 'package'), ('pm',)):
+        operation = 'query-activities'
         try:
             usage = help_text(adb, *tool)
             query_options = guard.user_options(usage, 'query-activities', sdk, user)
+            operation = 'set-home-activity'
             set_options = guard.user_options(usage, 'set-home-activity', sdk, user)
+            operation = 'query-activities'
             candidates = adb.shell(*tool, 'query-activities', '--brief', *query_options, *HOME_ARGS)
-        except ValueError:
+        except ValueError as error:
+            failures.append(' '.join((*tool, operation)) + ': ' + str(error))
             continue
         homes = {component(line) for line in candidates.splitlines()}
         homes.discard('')
         return [*tool, 'set-home-activity', *set_options], homes
-    raise NoNativeRoute('未确认本机可用的 HOME 查询和设置命令；可独立评估已有兼容守护')
+    raise NoNativeRoute('未确认本机可用的 HOME 查询和设置命令；检测结果：' + '；'.join(failures))
 
 
 def pull_installed(adb, user, sdk, destination):

@@ -344,6 +344,19 @@ def input_action(args, adb, journal, snapshot):
 def restore_home(args, adb, journal, sdk, snapshot):
     if snapshot.get("takeoverRecord"):
         return restore_takeover(args, adb, journal, sdk, snapshot)
+    if (snapshot.get("adbHomeGuard", {}).get("configured")
+            and snapshot.get("systemHome") in (None, "", snapshot["adbHomeGuard"].get("home"))):
+        journal.event("restore_plan", before=snapshot, command="pause_adb_guard")
+        if not args.apply:
+            print("仅预览：停止本机 ADB 桌面守护；此路线未修改系统 HOME，不执行 HOME 写入。")
+            return
+        unchanged_user(adb, args.user)
+        result = inspect(adb, args.package, args.user, "pause")
+        if result.get("adbHomeGuard", {}).get("enabled") or not result.get("paused"):
+            raise ValueError("ADB 守护暂停未确认")
+        journal.event("restore_result", snapshot=result)
+        print("本机 ADB 守护已暂停，系统 HOME 未写入；原桌面实体 HOME、开机及唤醒仍须分别验收。")
+        return
     original = guard.canonical_home(snapshot.get("originalHome", ""))
     own = args.package + "/home.quiet.tv.HomeActivity"
     current = component(adb.shell(*resolver(adb, sdk, args.user)))
@@ -398,6 +411,31 @@ def run(args, adb, journal):
     if args.action == "inspect":
         print(json.dumps(snapshot, ensure_ascii=False, indent=2))
         print("桌面接管：" + desktop_status(snapshot)["title"], file=sys.stderr)
+    elif args.action == "repair" and getattr(args, "adb_guard", False):
+        if sdk != 19 or "adb-home-guard-v1" not in snapshot.get("capabilities", []):
+            raise ValueError("需要 API19 且已安装包含 adb-home-guard-v1 的新 APK")
+        if snapshot.get("paused") and not args.resume:
+            raise ValueError("接管已暂停，明确恢复时使用 --resume")
+        home = guard.canonical_home(args.home or "")
+        if not home or args.port is None or not 1 <= args.port <= 65535:
+            raise ValueError("需要实际原桌面组件 --home 和已核对的本机 TCP 端口 --port")
+        journal.event("adb_guard_plan", home=home, port=args.port, before=snapshot)
+        print("计划：由电视本机 ADB 观察 " + home + " 的真实前台；不修改 HOME 或原桌面启用状态。")
+        if not args.apply:
+            print("仅预览；应用首次连接需确认自己的 ADB 授权，重启后端口可用性另验。")
+            return
+        unchanged_user(adb, args.user)
+        fresh = inspect(adb, args.package, args.user)
+        if not same_scope(snapshot, fresh):
+            raise ValueError("执行前设备或固件已变化")
+        result = inspect(adb, args.package, args.user, "adb_guard_configure", home=home,
+                         extras={"port":args.port, "resume":args.resume})
+        saved = result.get("adbHomeGuard", {})
+        if not saved.get("enabled") or not saved.get("bootEnabled") or saved.get("home") != home or saved.get("port") != args.port:
+            raise ValueError("本机 ADB 守护配置读回不一致")
+        journal.event("adb_guard_configured", result=result)
+        print(json.dumps(saved, ensure_ascii=False, indent=2))
+        print("本机 ADB 守护配置已保存；连接授权、真实前台跳转、实体 HOME、断开电脑后的开机及唤醒尚未验收。")
     elif args.action == "management-config":
         if "daily-app-management-v1" not in snapshot.get("capabilities", []):
             raise ValueError("已安装 APK 尚不支持日常应用管理配置")
@@ -468,7 +506,7 @@ def main():
     parser.add_argument("--serial", required=True)
     parser.add_argument("--user", required=True, type=int)
     parser.add_argument("--package", default=tcl.PACKAGE, choices=(tcl.PACKAGE, "com.ts.launcher", "com.coocaa.quiettv"))
-    parser.add_argument("--port", type=int, help="management-config 使用的本机 TCP ADB 端口")
+    parser.add_argument("--port", type=int, help="management-config 或 --adb-guard 使用的实际本机 TCP ADB 端口")
     parser.add_argument("--target", help="本次明确选择的一个应用包名")
     parser.add_argument("--profile", type=Path, help="当前固件的本机信号源配置 JSON")
     parser.add_argument("--source", help="input-list 返回的完整信号源 ID")
@@ -477,10 +515,14 @@ def main():
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--resume", action="store_true", help="用户明确要求重新启用已暂停的接管")
     parser.add_argument("--native-observer", action="store_true", help="已确认默认 HOME 被厂商绕过，补充原桌面观察")
+    parser.add_argument("--adb-guard", action="store_true", help="显式配置 API19 本机 ADB 桌面守护")
+    parser.add_argument("--home", help="adb-guard 使用的实际原桌面完整组件")
     parser.add_argument("--adb", default="adb")
     args = parser.parse_args()
     if args.user < 0 or args.target and not re.fullmatch(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+", args.target):
         parser.error("用户或包名无效")
+    if args.adb_guard and (args.action != "repair" or args.native_observer) or args.home and not args.adb_guard:
+        parser.error("--adb-guard 仅用于 repair，不与 --native-observer 混用；--home 仅用于 adb-guard")
     if args.action in ("disable", "restore-app") and not args.target:
         parser.error("需要 --target 指定单个应用")
     if args.action == "restore-app" and not args.from_record:

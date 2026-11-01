@@ -19,7 +19,7 @@ android {
         applicationId launcherId
         minSdk minimumSdk
         if (legacy) multiDexEnabled true
-        manifestPlaceholders = [leanbackRequired: !legacy, homeGuardAvailable: !legacy]
+        manifestPlaceholders = [leanbackRequired: !legacy, homeGuardAvailable: !legacy, legacyAdbGuardAvailable: legacy]
         buildConfigField 'boolean', 'LEGACY_19', legacy.toString()
         buildConfigField 'boolean', 'DECLARES_HOME', (homeMode == 'standard').toString()
         resValue 'string', 'home_guard_account_type', launcherId + '.guard'
