@@ -38,8 +38,7 @@ final class LegacyAdbHomeGuard {
         if(!c.getSharedPreferences("adb",0).edit().putInt("port",port).commit())throw new IllegalStateException("本机端口未保存");
         if(!state.preferences.edit().putString("adbGuardHome",home).putString("adbGuardFirmware",Build.FINGERPRINT)
                 .putBoolean("adbGuardEnabled",true).putString("mode","AUTO").commit())throw new IllegalStateException("守护配置未保存");
-        c.getPackageManager().setComponentEnabledSetting(new ComponentName(c,LegacyAdbHomeGuardReceiver.class),
-                PackageManager.COMPONENT_ENABLED_STATE_ENABLED,PackageManager.DONT_KILL_APP);
+        updateBootReceiver(c);
         ManagementAdb adb=ManagementAdb.get(c);
         if(!adb.adb.connected() || adb.adb.connectedPort()!=port){adb.disconnect();adb.requestAuthorization();}
         refresh(c);
@@ -47,10 +46,15 @@ final class LegacyAdbHomeGuard {
     static void refresh(Context c){
         if(enabled(c))c.startService(new Intent(c,LegacyAdbHomeGuardService.class));
     }
+    static void updateBootReceiver(Context c){
+        if(!BuildConfig.LEGACY_19)return;
+        c.getPackageManager().setComponentEnabledSetting(new ComponentName(c,LegacyAdbHomeGuardReceiver.class),
+                enabled(c) || HomeGuardAdb.enabled(c)?PackageManager.COMPONENT_ENABLED_STATE_ENABLED:PackageManager.COMPONENT_ENABLED_STATE_DEFAULT,
+                PackageManager.DONT_KILL_APP);
+    }
     static boolean bootEnabled(Context c){return c.getPackageManager().getComponentEnabledSetting(new ComponentName(c,LegacyAdbHomeGuardReceiver.class))==PackageManager.COMPONENT_ENABLED_STATE_ENABLED;}
     static void stop(Context c){
-        if(supported())c.getPackageManager().setComponentEnabledSetting(new ComponentName(c,LegacyAdbHomeGuardReceiver.class),
-                PackageManager.COMPONENT_ENABLED_STATE_DEFAULT,PackageManager.DONT_KILL_APP);
+        updateBootReceiver(c);
         c.stopService(new Intent(c,LegacyAdbHomeGuardService.class));
     }
     static JSONObject snapshot(Context c) throws org.json.JSONException {

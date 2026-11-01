@@ -122,5 +122,30 @@ final class FileTransferSource {
     }
     static Uri root(Uri tree){return DocumentsContract.buildDocumentUriUsingTree(tree,DocumentsContract.getTreeDocumentId(tree));}
     }
+    /** A remembered readable path is a bookmark, not a system document-tree grant. */
+    static final class LocalDirectories {
+        private static SharedPreferences preferences(Context c){return c.getSharedPreferences("file-transfer-local-directories",0);}
+        private static String key(boolean usb){return usb?"usb":"local";}
+        static void remember(Context c,boolean usb,File folder)throws IOException {
+            File path=folder.getCanonicalFile();
+            if(!readable(c,usb,path))throw new IOException("目录无法读取，请检查存储连接或权限");
+            if(!preferences(c).edit().putString(key(usb),path.getPath()).commit())throw new IOException("目录未能保存，请重试");
+        }
+        static File remembered(Context c,boolean usb)throws IOException {
+            String saved=preferences(c).getString(key(usb),null);if(saved==null)return null;
+            File path=new File(saved).getCanonicalFile();
+            if(!path.getPath().equals(saved) || !readable(c,usb,path))throw new IOException("已记住的目录不可用，请连接存储后重试或重新选择");
+            return path;
+        }
+        static boolean forget(Context c,boolean usb){return preferences(c).edit().remove(key(usb)).commit();}
+        private static boolean readable(Context c,boolean usb,File path)throws IOException {
+            if(!path.isDirectory() || !path.canRead())return false;
+            for(Item volume:volumes(c,usb)){
+                File root=volume.file.getCanonicalFile();
+                if(path.equals(root) || path.getPath().startsWith(root.getPath()+File.separator))return true;
+            }
+            return false;
+        }
+    }
     private FileTransferSource(){}
 }

@@ -384,13 +384,17 @@ def configure_adb_only(args, adb, sdk, package, inspection, port):
     """Keep maintenance access without enabling or changing any HOME guard route."""
     if not inspection.get("adbOnlySupported"):
         raise ValueError("已安装 APK 不支持独立 ADB 保持；需更新 APK，不改桌面路线")
-    options = user_options(adb.permission_help("pm"), "grant", sdk, args.user)
+    if sdk < 21 and args.keep_adb and inspection.get("adb", {}).get("permissionGranted") is not True:
+        raise ValueError("安卓4需要应用已拥有写安全设置权限；不自动提权或把 ADB 连接当作授权")
     broadcast = ["am", "broadcast", "--include-stopped-packages", "--user", args.user,
                  "-a", args.package + ".CONFIGURE_HOME_GUARD", "-n", args.package + "/home.quiet.tv.HomeGuardSetupReceiver",
                  "--ei", "user", args.user, "--ez", "adb_only", "true", "--ez", "keep_adb", str(args.keep_adb).lower()]
     if port is not None:
         broadcast += ["--ei", "adb_port", port]
-    plan = [["pm", "grant", *options, args.package, "android.permission.WRITE_SECURE_SETTINGS"], broadcast]
+    plan = [broadcast]
+    if sdk >= 21:
+        options = user_options(adb.permission_help("pm"), "grant", sdk, args.user)
+        plan.insert(0, ["pm", "grant", *options, args.package, "android.permission.WRITE_SECURE_SETTINGS"])
     print("计划：独立配置 ADB 保持，保留桌面路线及暂停选择。")
     if not args.apply:
         for command in plan:
@@ -434,8 +438,8 @@ def configure(args, adb):
     profile = verify_identity(adb, sdk)
     if adb.current_user() != args.user:
         raise ValueError("指定用户不是当前前台用户")
-    if sdk < 21:
-        raise ValueError("Android 4.4 档位未开放桌面守护及 ADB 开关恢复")
+    if sdk < 21 and (sdk < 17 or not getattr(args, "adb_only", False)):
+        raise ValueError("旧版仅开放 API17～20 的独立 ADB 开关恢复；API19 桌面守护使用维护入口")
     keep_adb = getattr(args, "keep_adb", None)
     adb_only = getattr(args, "adb_only", False)
     native_observer = getattr(args, "native_observer", False)
@@ -492,7 +496,7 @@ def configure(args, adb):
                            "--ei", "user", args.user, "--ez", "inspect", "true")
         inspection = broadcast_data(output)
         if re.search(r"\bresult=-1\b", output) and inspection and inspection.get("schemaVersion") == 1:
-            if inspection.get("package") != args.package or not inspection.get("supported"):
+            if inspection.get("package") != args.package or not inspection.get("adbOnlySupported" if adb_only else "supported"):
                 raise ValueError("应用身份或守护能力不匹配，未修改权限")
             if not adb_only and inspection.get("paused") and not resume:
                 raise ValueError("守护已暂停；明确恢复时使用 --resume，未修改权限")
