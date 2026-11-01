@@ -98,13 +98,14 @@ public final class WallpaperFilesActivity extends androidx.activity.ComponentAct
                 WallpaperCatalog.Entry entry;
                 try(InputStream input=file==null?getContentResolver().openInputStream(uri):new FileInputStream(file)){
                     if(input==null)throw new IOException("文件不可读取");
-                    boolean video=WallpaperImport.video(name,mime);if(size>(video?WallpaperVideo.MAX_UPLOAD:WallpaperUploadServer.MAX_UPLOAD))throw new IOException("文件超过大小限制");
-                    entry=WallpaperImport.accept(this,input,-1,name,video,()->!closed,"source=selected_file");
+                    boolean video=WallpaperImport.video(name,mime);if(!video&&size>WallpaperUploadServer.MAX_UPLOAD)throw new IOException("文件超过大小限制");
+                    entry=WallpaperImport.accept(this,input,size,name,video,()->!closed,"source=selected_file");
                 }
                 runOnUiThread(()->{if(!closed){setResult(RESULT_OK,new Intent().putExtra("wallpaper",entry.id));finish();}});
             }catch(IOException|RuntimeException|OutOfMemoryError failure){
                 DiagnosticLog.info("wallpaper.import.failed","source=selected_file type="+failure.getClass().getSimpleName());
-                runOnUiThread(()->{if(!closed){busy=false;list.setEnabled(true);status.setText("导入失败，请检查文件格式、大小、存储空间及读取授权。");Button retry=new KeyFeedback.Button(this);retry.setText("重新选择");retry.setOnClickListener(v->systemPicker());root.addView(retry);retry.requestFocus();}});
+                String detail=failure instanceof IOException&&failure.getMessage()!=null?failure.getMessage():"请检查文件格式、存储空间及读取授权。";
+                runOnUiThread(()->{if(!closed){busy=false;list.setEnabled(true);status.setText("导入失败："+detail);Button retry=new KeyFeedback.Button(this);retry.setText("重新选择");retry.setOnClickListener(v->systemPicker());root.addView(retry);retry.requestFocus();}});
             }
         });
     }
