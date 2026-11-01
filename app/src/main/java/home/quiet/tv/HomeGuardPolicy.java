@@ -23,7 +23,8 @@ final class HomeGuardPolicy {
         private boolean fast;
         boolean begin(long now,long wall,boolean fast){if(began>=0)return false;began=now;this.wall=wall;this.fast=fast;return true;}
         boolean active(){return began>=0;}
-        long delay(){return fast?150:SETTLE_MS;}
+        // Leave scheduling slack before the bounded evidence window expires.
+        long delay(){return fast?150:1000;}
         boolean within(long now){return began>=0 && now>=began && now-began<=SETTLE_MS;}
         boolean fresh(long at,long latestWindow){return at>=wall && at>=latestWindow;}
         boolean again(long now){return fast && within(now) && now-began<SETTLE_MS;}
