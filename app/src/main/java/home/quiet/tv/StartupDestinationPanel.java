@@ -3,6 +3,7 @@ package home.quiet.tv;
 import android.os.*;
 import android.view.*;
 import android.widget.*;
+import java.util.List;
 
 /** One TV source for manual watching and optional boot entry. */
 final class StartupDestinationPanel extends ManagementPanel {
@@ -15,7 +16,7 @@ final class StartupDestinationPanel extends ManagementPanel {
     private boolean enableAfterTest;
     private String focusTag;
     private View first;
-    private android.app.Dialog confirmation;
+    private android.app.Dialog confirmation,sourceChoices;
     StartupDestinationPanel(AppManagementActivity activity){super(activity);}
     private String tr(String zh,String en){return activity.tr(zh,en);}
     @Override public void onCreate(Bundle saved){
@@ -28,7 +29,7 @@ final class StartupDestinationPanel extends ManagementPanel {
         content=column();content.setPadding(px(2),0,px(2),px(4));scroll.addView(content,new ScrollView.LayoutParams(-1,-2));render();
     }
     @Override protected void onResume(){super.onResume();render();if(!store.pendingTest().isEmpty())confirm();}
-    @Override protected void onPause(){remember();super.onPause();inputWork.cancel();++generation;busy=false;if(confirmation!=null)confirmation.dismiss();}
+    @Override protected void onPause(){remember();super.onPause();inputWork.cancel();++generation;busy=false;if(confirmation!=null)confirmation.dismiss();if(sourceChoices!=null)sourceChoices.dismiss();}
     @Override protected void onDestroy(){inputWork.close();super.onDestroy();}
     @Override protected void onStop(){inputWork.cancel();busy=false;super.onStop();}
     @Override public void handleBack(){inputWork.cancel();busy=false;super.handleBack();}
@@ -62,10 +63,30 @@ final class StartupDestinationPanel extends ManagementPanel {
         android.content.Context app=getApplicationContext();
         inputWork.submit(()->HdmiTarget.available(app),(choices,failure)->{
             if(!showing||request!=generation||isFinishing())return;busy=false;
-            if(failure!=null||choices.isEmpty()){message("未找到可直接进入的电视信号源，请使用首页信号源入口或遥控器信号源键。");return;}
-            Sheet sheet=new Sheet(tr("选择电视信号源","Choose TV source"));Button first=null;
+            if(failure!=null)DiagnosticLog.error("input.saved.inspect.failed",failure);
+            if(failure!=null||choices.isEmpty()){chooseNativePanels();return;}
+            Sheet sheet=new Sheet(tr("选择电视信号源","Choose TV source"));sourceChoices=sheet.dialog;Button first=null;
             for(HdmiTarget target:choices){Button b=sheet.option(target.label,()->{sheet.dialog.dismiss();enableAfterTest=false;save(()->store.saveWatch(target.encode(),target.label));});if(first==null)first=b;}
             sheet.action("返回",sheet.dialog::dismiss);sheet.show(first);
+        });
+    }
+    private void chooseNativePanels(){
+        busy=true;int request=++generation;android.content.Context app=getApplicationContext();
+        inputWork.submit(()->new TvInputPanels(app).inspect(),(snapshot,failure)->{
+            if(!showing||request!=generation||isFinishing())return;busy=false;
+            if(failure!=null){message(tr("系统信号源读取失败，请使用遥控器信号源键。","Unable to read system inputs. Use the remote input key."));return;}
+            List<TvInputPanels.Panel> panels=snapshot.availablePanels();
+            if(panels.isEmpty()){message(snapshot.problem(activity.chinese())+"\n\n"+tr("请使用遥控器信号源键。","Use the remote input key."));return;}
+            Sheet sheet=new Sheet(tr("打开系统信号源","Open system inputs"));sourceChoices=sheet.dialog;
+            sheet.text(tr("未识别到可直达的 HDMI，请在原厂面板中选择信号源。","No direct HDMI input was found. Select a source in a system panel."));
+            Button first=null;
+            for(TvInputPanels.Panel panel:panels){Button choice=sheet.option(panel.profile.label(activity.chinese()),()->{
+                sheet.dialog.dismiss();if(!showing||request!=generation||isFinishing())return;
+                enableAfterTest=false;
+                if(new TvInputPanels(activity).open(panel)!=TvInputPanels.PanelState.READY)
+                    message(tr("此面板暂时无法打开，请尝试其他入口或使用遥控器信号源键。","This panel could not be opened. Try another entry or use the remote input key."));
+            });if(first==null)first=choice;}
+            sheet.action(tr("返回","Back"),sheet.dialog::dismiss);sheet.show(first);
         });
     }
     private interface Prepared {void accept(SavedInputLaunch launch) throws Exception;}

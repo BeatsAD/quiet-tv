@@ -68,7 +68,7 @@ final class TvInputPanels {
             List<Panel> ready=availablePanels();
             Panel preferred=null;int count=0;for(Panel p:ready)if(p.profile.preferred){preferred=p;count++;}
             if(count==1)return preferred;
-            return noInputs&&!ready.isEmpty()?ready.get(0):null;
+            return noInputs&&ready.size()==1?ready.get(0):null;
         }
         String problem(boolean chinese){
             if(profilesUnavailable)return chinese?"原厂信号源适配信息读取失败。":"Unable to read native input compatibility information.";

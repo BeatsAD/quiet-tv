@@ -1211,6 +1211,13 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             if(failure!=null){showInputIssue(tr("信号源读取失败","Input discovery failed"),tr("请重新检测","Detect again"));return;}
             TvInputPanels.Panel direct=snapshot.directPanel(true);
             if(direct!=null){openNativeInputs(direct);return;}
+            List<TvInputPanels.Panel> panels=snapshot.availablePanels();
+            if(!panels.isEmpty()){
+                String[] labels=new String[panels.size()];for(int i=0;i<labels.length;i++)labels[i]=panels.get(i).profile.label(chinese);
+                android.app.AlertDialog dialog=new android.app.AlertDialog.Builder(this)
+                    .setTitle(tr("系统信号源","System inputs")).setItems(labels,(d,index)->openNativeInputs(panels.get(index)))
+                    .setNegativeButton(tr("返回","Back"),null).create();dialog.show();ControlStyle.dialog(dialog,unit);return;
+            }
             showInputIssue(tr("信号源入口不可用","Input entry unavailable"),tr("当前安卓版本不提供标准输入列表。","This Android version has no standard TV input list.")+"\n\n"+snapshot.problem(chinese));
         });
     }
@@ -1329,8 +1336,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 addInputChoice(menu,choices,inputName(info),()->openInput(info));
             }
             for(VendorTvInputs.Source source:vendor)addInputChoice(menu,choices,source.label,()->launch(source.key,true,""));
-            TvInputPanels.Panel nativeChoice=snapshot.nativePanels.directPanel(true);
-            if(nativeChoice!=null)addInputChoice(menu,choices,nativeChoice.profile.label(chinese),()->openNativeInputs(nativeChoice));
+            for(TvInputPanels.Panel nativeChoice:snapshot.availablePanels())addInputChoice(menu,choices,nativeChoice.profile.label(chinese),()->openNativeInputs(nativeChoice));
             DiagnosticLog.info("input.menu","choices="+choices.size());
             if(choices.isEmpty()){showUnavailableInputs(snapshot,discovery);return;}
             if(snapshot.itemFailures>0){TextView note=text(tr("部分输入信息读取失败","Some inputs could not be read"),12,400,0xffb0b4be);note.setPadding(px(12),px(8),px(12),px(8));menu.addView(note);}
