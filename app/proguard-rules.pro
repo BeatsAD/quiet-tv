@@ -1,5 +1,9 @@
 # Offline license WebView uses no Javascript interface or reflective app bridge.
 
+# Keep the API16 software adapter behind a verifier-safe boundary on API14/15.
+-keep,allowobfuscation class home.quiet.tv.WallpaperService$Api16 { *; }
+-keep,allowobfuscation interface home.quiet.tv.WallpaperService$SoftwarePlayer { *; }
+
 # API19's connection-local BCJSSE provider registers JCA implementations by class name.
 # The condition keeps standard builds, which do not include BCJSSE, unaffected.
 -if class org.bouncycastle.jsse.provider.BouncyCastleJsseProvider

@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+    <!-- API14/15 retain MediaPlayer; API16 libraries are loaded only through the guarded adapter. -->
+    <uses-sdk tools:overrideLibrary="com.google.android.exoplayer2.common,com.google.android.exoplayer2.core,com.google.android.exoplayer2.database,com.google.android.exoplayer2.decoder,com.google.android.exoplayer2.extractor,com.google.android.exoplayer2.upstream" />
     <!-- Before API19 the system installer handoff needs writable app-specific external cache. -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="18" />
     <uses-permission android:name="android.permission.WRITE_SETTINGS" tools:node="remove" tools:ignore="ProtectedPermissions" />

@@ -8,7 +8,7 @@ Quiet TV is independently maintained and based on [cleanyourtv](https://github.c
 | --- | --- |
 | cleanyourtv | MIT, [upstream license](app/src/main/assets/licenses/tv-vibehack-LICENSE.txt) |
 | [Aerial](https://github.com/pengchujin/aerial-tv) (reference for parts of the implementation) | MIT, Copyright (c) 2026 pengchujin, [full text](app/src/main/assets/licenses/aerial-MIT.txt) |
-| AndroidX (including Media3), ZXing | Apache-2.0, [full text](app/src/main/assets/licenses/libadb-Apache-2.0.txt) |
+| AndroidX (including Media3), ExoPlayer (Android 4.1–4.4 software-decoder adapter), ZXing | Apache-2.0, [full text](app/src/main/assets/licenses/libadb-Apache-2.0.txt) |
 | libadb-android | Apache-2.0, retaining its inherited BSD/MIT notices; see the [complete license directory](app/src/main/assets/licenses/) |
 | Bouncy Castle | MIT, [full text](app/src/main/assets/licenses/bouncycastle-LICENSE.md) |
 | NanoHTTPD | BSD-3-Clause, [full text](app/src/main/assets/licenses/nanohttpd-LICENSE.txt) |

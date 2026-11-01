@@ -105,13 +105,13 @@ final class WallpaperPlayback {
     void setPaused(boolean value){paused=value;if(fallback!=null)fallback.setPaused(value);else control(WallpaperService.PAUSE,value);}
     boolean retrySoftware(String reason){
         if(cancelled||released||terminal||softwareOnly||fallback!=null||!softwareAvailable)return false;
-        DiagnosticLog.info("wallpaper.video.fallback",context+" from=hardware to=software reason="+reason+" phase=retiring_hardware");
+        DiagnosticLog.info("wallpaper.video.fallback",context+" from="+(BuildConfig.LEGACY_19?"platform":"hardware")+" to=software reason="+reason+" phase=retiring_player");
         events.retrying();
         retire(()->{
             if(cancelled)return;
             fallback=new WallpaperPlayback(source,worker,surface,file,entry,context,events,true);
             fallback.setSound(sound);fallback.setPaused(paused);
-            DiagnosticLog.info("wallpaper.video.fallback",context+" from=hardware to=software phase=starting_software");
+            DiagnosticLog.info("wallpaper.video.fallback",context+" from="+(BuildConfig.LEGACY_19?"platform":"hardware")+" to=software phase=starting_software");
             try{fallback.prepare();}
             catch(IOException|RuntimeException e){DiagnosticLog.error("wallpaper.video.fallback_failed",context+" "+VideoDiagnostics.failureDetails(e),e);events.failed(e instanceof IOException?VideoWallpaperPlayer.Failure.FILE:VideoWallpaperPlayer.Failure.DECODE);}
         });
