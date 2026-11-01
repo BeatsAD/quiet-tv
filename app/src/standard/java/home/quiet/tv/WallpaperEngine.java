@@ -32,14 +32,21 @@ final class WallpaperEngine {
     WallpaperEngine(Context source,Handler worker,Surface surface,Uri uri,int rotation,String context,VideoWallpaperPlayer.PlaybackEvents events,Diagnostics log){
         this.worker=worker;this.context=context;this.log=log;
         boolean manualRotation=VideoGeometry.manualRotation(android.os.Build.VERSION.SDK_INT,rotation);
+        boolean sonyCodec=Build.VERSION.SDK_INT==31&&"Sony".equalsIgnoreCase(Build.MANUFACTURER);
         DefaultRenderersFactory renderers=new DefaultRenderersFactory(source){
             @Override protected void buildVideoRenderers(Context context,int extensions,MediaCodecSelector selector,boolean fallback,Handler handler,VideoRendererEventListener listener,long joiningMs,ArrayList<Renderer> output){
-                if(!manualRotation){super.buildVideoRenderers(context,extensions,selector,fallback,handler,listener,joiningMs,output);return;}
+                if(!manualRotation&&!sonyCodec){super.buildVideoRenderers(context,extensions,selector,fallback,handler,listener,joiningMs,output);return;}
                 output.add(new MediaCodecVideoRenderer(new MediaCodecVideoRenderer.Builder(context).setCodecAdapterFactory(getCodecAdapterFactory()).setMediaCodecSelector(selector).setEnableDecoderFallback(fallback).setEventHandler(handler).setEventListener(listener).setAllowedJoiningTimeMs(joiningMs)){
+                    @Override protected androidx.media3.exoplayer.mediacodec.MediaCodecAdapter.Configuration getMediaCodecConfiguration(androidx.media3.exoplayer.mediacodec.MediaCodecInfo codec,Format format,android.media.MediaCrypto crypto,float rate){
+                        androidx.media3.exoplayer.mediacodec.MediaCodecAdapter.Configuration value=super.getMediaCodecConfiguration(codec,format,crypto,rate);
+                        if(configureLocalVideo(value.mediaFormat,codec.name))info("wallpaper.video.codec_workaround",WallpaperEngine.this.context+" codec="+codec.name+" adaptive=false reason=sony_mtk_hevc_fixed_size");
+                        return value;
+                    }
                     @Override protected MediaFormat getMediaFormat(Format format,String mime,CodecMaxValues maximum,float rate,boolean workaround,int session){
                         MediaFormat value=super.getMediaFormat(format,mime,maximum,rate,workaround,session);
                         // API21-26 native rotation can change the buffer's aspect. Rotate once in the texture instead.
-                        value.setInteger(MediaFormat.KEY_ROTATION,0);return value;
+                        if(manualRotation)value.setInteger(MediaFormat.KEY_ROTATION,0);
+                        return value;
                     }
                 });
             }
@@ -67,7 +74,12 @@ final class WallpaperEngine {
         player.addListener(new Player.Listener(){
             @Override public void onPlaybackStateChanged(int state){info("wallpaper.video.playback",context+" state="+state+" playWhenReady="+player.getPlayWhenReady()+" isPlaying="+player.isPlaying()+" suppression="+player.getPlaybackSuppressionReason()+" positionMs="+player.getCurrentPosition());}
             @Override public void onPositionDiscontinuity(Player.PositionInfo oldPosition,Player.PositionInfo newPosition,int reason){
-                if(reason==Player.DISCONTINUITY_REASON_AUTO_TRANSITION)info("wallpaper.video.loop",context+" count="+(++loops)+" fromMs="+oldPosition.positionMs+" toMs="+newPosition.positionMs+" evidence=player_timeline_transition");
+                if(reason==Player.DISCONTINUITY_REASON_AUTO_TRANSITION){
+                    androidx.media3.exoplayer.DecoderCounters counters=player.getVideoDecoderCounters();
+                    if(counters!=null)counters.ensureUpdated();
+                    info("wallpaper.video.loop",context+" count="+(++loops)+" fromMs="+oldPosition.positionMs+" toMs="+newPosition.positionMs
+                        +" rendered="+(counters==null?-1:counters.renderedOutputBufferCount)+" dropped="+(counters==null?-1:counters.droppedBufferCount)+" evidence=player_timeline_transition_and_decoder_counters");
+                }
             }
             @Override public void onVideoSizeChanged(VideoSize size){events.size(size.width,size.height,size.pixelWidthHeightRatio);}
             @Override public void onRenderedFirstFrame(){rendered=true;events.ready();}
@@ -90,14 +102,16 @@ final class WallpaperEngine {
                     case PlaybackException.ERROR_CODE_VIDEO_FRAME_PROCESSING_FAILED:reason=VideoWallpaperPlayer.Failure.OUTPUT;break;
                     default:reason=VideoWallpaperPlayer.Failure.DECODE;
                 }
-                // The platform may report a generic decode failure even when Media3 has
-                // already identified that this format exceeds the decoder's capabilities.
-                if(error instanceof ExoPlaybackException&&((ExoPlaybackException)error).rendererFormatSupport==C.FORMAT_EXCEEDS_CAPABILITIES)
-                    reason=VideoWallpaperPlayer.Failure.UNSUPPORTED;
                 events.failed(reason);
             }
         });
         player.setMediaItem(MediaItem.fromUri(uri));
+    }
+    static boolean configureLocalVideo(MediaFormat value,String codec){
+        if(Build.VERSION.SDK_INT!=31||!"Sony".equalsIgnoreCase(Build.MANUFACTURER)||!"OMX.MTK.VIDEO.DECODER.HEVC".equals(codec))return false;
+        // This firmware's adaptive/seamless path fails on multi-reference HEVC streams.
+        // Each wallpaper owns one fixed-size codec, so adaptive resolution is unnecessary.
+        value.removeKey("max-width");value.removeKey("max-height");return true;
     }
     private void logDecoderCauses(String context,Throwable error){
         for(int n=0;error!=null&&n<6;n++,error=error.getCause()){
