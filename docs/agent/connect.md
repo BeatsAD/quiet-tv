@@ -48,9 +48,9 @@ python3 device_environment.py adb --serial "$TV_SERIAL" --system "$TV_SYSTEM" --
 
 已在线返回connected，直接继续。unauthorized／认证问题转用户授权与配对；offline、已开调试或实际连接错误转地址／端口／连接方式排查。Agent可传--debug-enabled及实际--connection-error，不能反复让用户开启同一开关。
 
-未开启时先读[ADB入口匹配指引](adb.md)，再只查[品牌、型号与固件资料](adb-devices.md)中对应品牌的记录。有可靠品牌／系统方法、完整步骤且当前页面吻合时，直接逐步指导；不要为普通品牌路径先索要全部固件字段。已知型号反例优先，专项方法或页面不符再补齐型号、地区及固件；不能要求先执行ADB命令才能找开启方式。未知系统参数使用unknown，其他缺项留空，不虚构版本。
+未开启时先读[ADB开启指引](adb.md)，列出[资料表](adb-devices.md)中该品牌已有的方法，优先对应型号，再逐个尝试其他路径。型号、固件缺失或菜单不符不结束指导；说明“同品牌备选”后继续下一种，直到打开或已有方法用尽。未知系统参数使用unknown，其他缺项留空，不要求先执行ADB命令找入口。
 
-工具返回guide只是标准菜单参考，不是型号匹配结果。核对后的android-tv／google-tv可参考[Android官方方法](https://developer.android.com/training/tv/get-started/create)，fire-os参考[Amazon官方ADB说明](https://developer.amazon.com/docs/fire-tv/connecting-adb-to-device.html)。实际型号／固件有不适用或连接受阻记录时，不用通用教程覆盖。菜单不符加--menu-mismatch，结合资料编号、缺失条件和工具检索词定向查官方及原始设备报告；记录来源与本机结果，不猜密码、不轮试不同型号暗码。Vega不是Android Fire OS，不套用此APK／ADB流程。
+工具返回guide只是标准菜单参考，不是型号匹配结果。android-tv／google-tv可参考[Android官方方法](https://developer.android.com/training/tv/get-started/create)，fire-os参考[Amazon官方ADB说明](https://developer.amazon.com/docs/fire-tv/connecting-adb-to-device.html)。菜单不符加--menu-mismatch；返回research时先继续同品牌剩余方法，全部试过再定向检索。使用来源已有的组合键，不编造暗码；本机本次已试失败的方法不重复试。Vega不是Android Fire OS，不套用此APK／ADB流程。
 
 厂商入口、USB／TCP／无线配对及授权边界见[ADB指引](adb.md#连接与验收)。先用 `adb mdns services` 识别本机无线连接／配对服务，核对电视实际端口；TLS 只有连接服务且没有配对入口时，不以明文客户端或猜配对码替代授权。已有用户授权的 USB 调试可作为固件支持时的入口。端口关闭不证明非 Android，也不证明不存在调试入口；反过来有 ADB 不证明可安装 APK 或可切换 HOME。连通后才进入[品牌与HOME路线检测](brands.md)，不自动扫描网络、停用校验器或开启工厂菜单探测。
 
