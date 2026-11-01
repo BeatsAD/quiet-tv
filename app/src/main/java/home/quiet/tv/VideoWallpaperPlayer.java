@@ -298,7 +298,7 @@ final class VideoWallpaperPlayer {
         volatile boolean retired,released;
         volatile SurfaceTexture texture;
         volatile Surface surface;
-        boolean preparing,started,updated;
+        boolean preparing,started,updated,softwareFallback;
         int unappliedRotation;
         int surfaceWidth,surfaceHeight;
         float aspect;
@@ -388,7 +388,7 @@ final class VideoWallpaperPlayer {
                         @Override public void failed(Failure reason){main.post(()->fail(request,reason));}
                         @Override public void retrying(){main.post(()->{
                             if(!current(next,request))return;
-                            rendered=false;next.started=false;next.updated=false;
+                            rendered=false;next.started=false;next.updated=false;next.softwareFallback=true;
                             if(listener!=null)listener.stopped();
                             main.removeCallbacks(timeout);if(!paused&&outputAllowed())main.postDelayed(timeout,8000);
                         });}
@@ -407,7 +407,7 @@ final class VideoWallpaperPlayer {
         if(!outputAllowed()){diagnosticState("frame_deferred");return;}
         boolean outputReady=next.textureOutput?next.updated:next.surfaceWidth>0&&next.surfaceHeight>0&&next.surface!=null&&next.surface.isValid();
         if(!outputReady)return;
-        rendered=true;main.removeCallbacks(timeout);Log.i(TAG,"first frame request="+next.request);DiagnosticLog.info("wallpaper.video.rendered",context(next.request)+" output="+(next.textureOutput?"texture":"surface")+" epoch="+next.epoch+" holder="+next.surfaceWidth+"x"+next.surfaceHeight+" evidence="+(BuildConfig.LEGACY_19?(Build.VERSION.SDK_INT>=17?"platform_rendering_start_callback":"platform_prepared_and_texture_updated"):"rendered_first_frame_callback"));
+        rendered=true;main.removeCallbacks(timeout);Log.i(TAG,"first frame request="+next.request);DiagnosticLog.info("wallpaper.video.rendered",context(next.request)+" output="+(next.textureOutput?"texture":"surface")+" epoch="+next.epoch+" holder="+next.surfaceWidth+"x"+next.surfaceHeight+" evidence="+(next.softwareFallback?"software_rendered_first_frame_callback":BuildConfig.LEGACY_19?(Build.VERSION.SDK_INT>=17?"platform_rendering_start_callback":"platform_prepared_and_texture_updated"):"rendered_first_frame_callback"));
         diagnosticState("first_frame");
         final int request=next.request;
         main.post(()->{if(current(next,request)&&rendered&&listener!=null)listener.ready();});
