@@ -176,6 +176,12 @@ final class VendorTvInputs {
                     if(candidate.key.equals(source.key)&&candidate.mapping.equals(source.mapping)&&candidate.intent.toUri(0).equals(source.intent.toUri(0))){current=true;break;}
                 if(!current)return false;
             }
+            return openPrepared(source);
+        }catch(RuntimeException failure){DiagnosticLog.error("input.vendor.dispatch.failed",failure);return false;}
+    }
+    /** Only after current enumeration and scope validation, with provider calls on a worker. */
+    boolean openPrepared(Source source){
+        try{
             if(source.key.startsWith("hisense:"))return HisenseInputs.open(context,source);
             if(source.intent!=null){
                 if(!TvInputController.canOpen(context,source.intent.getComponent())){DiagnosticLog.info("input.vendor.request",DiagnosticLog.intent(source.intent)+" result=not_callable");return false;}

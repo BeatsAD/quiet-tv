@@ -30,7 +30,7 @@ final class HdmiTarget {
         if(Build.VERSION.SDK_INT<21)return new ArrayList<>();
         return available(context,new TvInputController(context).inspectSources());
     }
-    private static List<HdmiTarget> available(Context context,TvInputController.Snapshot snapshot){
+    static List<HdmiTarget> available(Context context,TvInputController.Snapshot snapshot){
         ArrayList<HdmiTarget> result=new ArrayList<>();TvInputController controller=new TvInputController(context);
         for(TvInputInfo input:snapshot.inputs)try{
             if(input.getType()!=TvInputInfo.TYPE_HDMI)continue;
@@ -49,26 +49,17 @@ final class HdmiTarget {
     }
     boolean matches(HdmiTarget current){return current!=null&&kind.equals(current.kind)&&id.equals(current.id)&&scope.equals(current.scope);}
     boolean availableNow(Context context){for(HdmiTarget current:available(context))if(matches(current))return true;return false;}
+    /** Worker-only compatibility helper; UI callers keep the prepared dispatch receipt. */
     String foregroundComponent(Context context){
-        if(!"standard".equals(kind) || !availableNow(context))return "";
-        TvInputController controller=new TvInputController(context);TvInputInfo input=controller.findInput(id);
-        Intent intent=input==null?null:controller.hdmiIntent(input);return intent==null || intent.getComponent()==null?"":intent.getComponent().flattenToString();
+        try{InputLaunch launch=prepare(context);return launch==null||!"standard".equals(kind)||launch.intents.isEmpty()?"":launch.intents.get(0).getComponent().flattenToString();}
+        catch(Exception unavailable){return "";}
     }
+    InputLaunch prepare(Context context) throws Exception {return InputLaunch.saved(context,this);}
     boolean open(Context context){return open(context,false);}
     boolean open(Context context,boolean automatic){
-        TvInputController.Snapshot snapshot=new TvInputController(context).inspectSources();boolean found=false;
-        for(HdmiTarget current:available(context,snapshot))if(matches(current)){found=true;break;}
-        if(!found)return false;
-        if(!automatic)HomeGuardService.bootSourceUserAction(context,"saved_hdmi");
-        if("vendor".equals(kind)){
-            for(VendorTvInputs.Source source:snapshot.vendor.sources)if(source.hdmi&&id.equals(source.key)){
-                boolean dispatched=new VendorTvInputs(context).open(source);if(dispatched)HomeGuardService.savedInputSelected(context,automatic);return dispatched;
-            }
-            return false;
-        }
-        TvInputController controller=new TvInputController(context);TvInputInfo input=controller.findInput(id);
-        Intent intent=input==null?null:controller.hdmiIntent(input);if(intent==null)return false;
-        context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));HomeGuardService.savedInputSelected(context,automatic);
-        DiagnosticLog.info("input.saved.dispatch","standard dispatched_unverified");return true;
+        try{InputLaunch launch=prepare(context);if(launch==null)return false;
+            if(!automatic)HomeGuardService.bootSourceUserAction(context,"saved_hdmi");
+            boolean opened=launch.dispatch(context);if(opened)HomeGuardService.savedInputSelected(context,automatic);return opened;
+        }catch(Exception failure){DiagnosticLog.error("input.saved.failed",failure);return false;}
     }
 }

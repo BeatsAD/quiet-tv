@@ -83,7 +83,13 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private String systemEntryPending="";
     private long systemEntryStarted;
     private boolean systemEntryDispatched,inputDiscoveryPending;
-    private int inputDiscoveryGeneration;
+    private int inputDiscoveryGeneration,systemEntryGeneration;
+    private final InputEntryTask inputWork=new InputEntryTask();
+    private String maintenanceInputRequest="";
+    private boolean automaticInputPending;
+    private SettingsRouteMemory.Attempt settingsTrial;
+    private String settingsTrialAction="";
+    private final HashSet<String> settingsTried=new HashSet<>();
     private final String homeInstance=Integer.toHexString(System.identityHashCode(this));
     private int homeResumeSequence;
     private long homeResumeStarted,homePausedAt;
@@ -113,15 +119,15 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private ArrayList<String> moveDefaults;
     private HomeCatalogRefresh.Input moveInput;
     private final Runnable confirmHold=()->{
-        if(screensaverAllowed()&&"system:settings".equals(heldPackage)&&"settings".equals(topEntry())&&!confirmLong){
-            confirmLong=true;cancelConfirm();visiblePills.get(topColumn).setPressed(false);openSettingsAlternative();return;
+        if(screensaverAllowed()&&heldPackage.equals("system:"+topEntry())&&("settings".equals(topEntry())||"network".equals(topEntry()))&&!confirmLong){
+            boolean network="network".equals(topEntry());confirmLong=true;cancelConfirm();visiblePills.get(topColumn).setPressed(false);showSettingsTest(network?Settings.ACTION_WIFI_SETTINGS:Settings.ACTION_SETTINGS);return;
         }
         App app=currentApp();
         if(screensaverAllowed()&&app!=null&&app.pkg.equals(heldPackage)&&!confirmLong){confirmLong=true;cancelConfirm();pressDock(false);openAppActions(app);}
     };
     private JSONObject config;
     private final BroadcastReceiver timeReceiver = new BroadcastReceiver() {
-        @Override public void onReceive(Context c, Intent i) { updateClock();if(screensaver!=null)screensaver.timeChanged();if(wallpapers!=null)wallpapers.environmentChanged(); }
+        @Override public void onReceive(Context c, Intent i) { if(Intent.ACTION_SCREEN_OFF.equals(i.getAction())){cancelInputWork();return;}updateClock();if(screensaver!=null)screensaver.timeChanged();if(wallpapers!=null)wallpapers.environmentChanged(); }
     };
     private final BroadcastReceiver packageReceiver = new BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) {
@@ -264,7 +270,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         greeting=homeHeader.greeting;weatherText=homeHeader.weather;clock=homeHeader.clock;date=homeHeader.date;timeRow=homeHeader.timeRow;topButtons=homeHeader.buttons;
         pills.addAll(homeHeader.pills);inputButton=pills.get(0);network=pills.get(1);
         inputButton.setOnClickListener(v->KeyFeedback.clicked(v,this::showInputs));network.setOnClickListener(v->KeyFeedback.clicked(v,()->openSettings(Settings.ACTION_WIFI_SETTINGS)));pills.get(2).setOnClickListener(v->KeyFeedback.clicked(v,()->openSettings(Settings.ACTION_SETTINGS)));
-        pills.get(2).setOnLongClickListener(v->{openSettingsAlternative();return true;});
+        pills.get(2).setOnLongClickListener(v->{showSettingsTest(Settings.ACTION_SETTINGS);return true;});
+        network.setOnLongClickListener(v->{showSettingsTest(Settings.ACTION_WIFI_SETTINGS);return true;});
         weather=new WeatherController(this,chinese,(data,message,loading)->{homeHeader.weather(data);if(screensaver!=null)screensaver.weatherChanged(data);});
         appAdapter=new AppAdapter();list.setAdapter(appAdapter);
         applyDesktopSettings();updateClock(); updateNetwork();
@@ -372,7 +379,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         BootAppLifecycle.visible(this);
         if(!HomeGuardService.connected())HomeGuardRecovery.request(this,"桌面恢复");
         getWindow().getDecorView().post(()->{if(resumed && hasWindowFocus()){new HomeProxy(this).visible(this);if(!isFinishing()){HomeGuardRecovery.visible(this);launchBootApp();}}});
-        IntentFilter time=new IntentFilter(Intent.ACTION_TIME_TICK);time.addAction(Intent.ACTION_TIME_CHANGED);time.addAction(Intent.ACTION_TIMEZONE_CHANGED);
+        IntentFilter time=new IntentFilter(Intent.ACTION_TIME_TICK);time.addAction(Intent.ACTION_TIME_CHANGED);time.addAction(Intent.ACTION_TIMEZONE_CHANGED);time.addAction(Intent.ACTION_SCREEN_OFF);
         registerReceiver(timeReceiver,time);
         if(Build.VERSION.SDK_INT>=24)stopNetworkCallback=Api24.observe(this);
         else registerReceiver(legacyNetworkReceiver,new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
@@ -395,18 +402,9 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private void openMaintenanceInput(){
         if(!resumed || Build.VERSION.SDK_INT<21)return;
-        String id=DeviceInputProfile.consume();if(id.isEmpty())return;
-        try{
-            TvInputController.Snapshot snapshot=new TvInputController(this).inspectSources();
-            for(VendorTvInputs.Source source:snapshot.vendor.sources)if(id.equals(source.key)){
-                leaveSystemEntry("input.maintenance",()->{boolean opened=new VendorTvInputs(this).open(source);DeviceInputProfile.dispatched(opened);systemEntryResult(opened);});return;
-            }
-            for(TvInputInfo input:snapshot.inputs)if(id.equals(input.getId())){
-                if(tvInputs==null)tvInputs=new TvInputs();
-                leaveSystemEntry("input.maintenance",()->{boolean opened=tvInputs.launchInput(input);DeviceInputProfile.dispatched(opened);systemEntryResult(opened);});return;
-            }
-            DeviceInputProfile.dispatched(false);
-        }catch(RuntimeException failure){DeviceInputProfile.dispatched(false);DiagnosticLog.error("input.maintenance.failed",failure);}
+        DeviceInputProfile.Request request=DeviceInputProfile.consume();if(request.id.isEmpty())return;
+        if(tvInputs==null)tvInputs=new TvInputs();
+        tvInputs.launch(request.id,false,request.token);
     }
 
     @Override public void onWindowFocusChanged(boolean focused){
@@ -414,7 +412,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         long started=SystemClock.uptimeMillis();
         homeResumeEvent("home.window_focus","focused="+focused+" "+InputDiagnostics.focus(this));
         try{
-            super.onWindowFocusChanged(focused);if(wallpapers!=null)wallpapers.windowFocusChanged(focused);if(screensaver!=null){if(!focused)cancelConfirm();screensaver.availabilityChanged();}systemEntryLifecycle("window_focus="+focused);if(focused && resumed && systemEntryDispatched)systemEntryPending="";if(focused && resumed){new HomeProxy(this).visible(this);if(!isFinishing()){HomeGuardRecovery.visible(this);launchBootApp();}}
+            super.onWindowFocusChanged(focused);if(!focused)cancelInputWork(true);if(wallpapers!=null)wallpapers.windowFocusChanged(focused);if(screensaver!=null){if(!focused)cancelConfirm();screensaver.availabilityChanged();}systemEntryLifecycle("window_focus="+focused);if(focused && resumed && systemEntryDispatched)systemEntryPending="";if(focused && resumed){new HomeProxy(this).visible(this);if(!isFinishing()){HomeGuardRecovery.visible(this);launchBootApp();}}
         }finally{homeResumeEvent("home.window_focus.end","focused="+focused+" callbackMs="+(SystemClock.uptimeMillis()-started));}
     }
 
@@ -455,9 +453,9 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     @Override protected void onPause() {
+        cancelInputWork(true);
         if(waitingForUnlock){super.onPause();return;}
         cancelConfirm();screensaver.pause();
-        ++inputDiscoveryGeneration;inputDiscoveryPending=false;
         cancelFocusRestore("pause");
         root.removeCallbacks(checkHomeUpdates);homeReadyDrawn=false;
         if(!HomeGuardState.canShow(this))new HomeProxy(this).defer(getIntent());
@@ -475,15 +473,18 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     @Override protected void onDestroy(){
+        inputWork.close();
         if(waitingForUnlock){unregisterReceiver(unlockReceiver);loader.shutdownNow();super.onDestroy();return;}
         cancelFocusRestore("destroy");
         BootAppLifecycle.destroyed(this);unregisterReceiver(packageReceiver);loader.shutdownNow();screensaver.destroy();wallpapers.destroy();weather.destroy();super.onDestroy();
     }
     @Override protected void onStop(){
+        cancelInputWork();
         if(!waitingForUnlock){homeResumeEvent("home.stop","");wallpapers.hidden();}
         super.onStop();
     }
     @Override protected void onNewIntent(Intent intent){
+        cancelInputWork();if(isHomeIntent(intent))HomeGuardService.cancelInputTransition();
         super.onNewIntent(intent);setIntent(intent);InputDiagnostics.home(this,isHomeIntent(intent),"new_intent");
         if(waitingForUnlock){resumeAfterUnlock();return;}
         if(!new HomeProxy(this).allowed(intent)){new HomeProxy(this).original(this);finish();return;}
@@ -644,6 +645,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         if(request==WallpaperFilesActivity.REQUEST&&result==Activity.RESULT_OK&&data!=null&&wallpapers!=null)getWindow().getDecorView().post(()->{if(!isFinishing()&&!UiCompat.destroyed(this))wallpapers.imported(data.getStringExtra("wallpaper"));});
     }
     public void handleBack(){
+        cancelInputWork();
         cancelConfirm();
         if(screensaver!=null&&screensaver.showing()){screensaver.key(new KeyEvent(KeyEvent.ACTION_DOWN,KeyEvent.KEYCODE_BACK));return;}
         if(moveSaving)return;
@@ -721,7 +723,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         DiagnosticLog.navigationKey("quiet_tv_home",event);
         if(waitingForUnlock)return super.dispatchKeyEvent(event);
         int key=event.getKeyCode();
-        if(event.getAction()==KeyEvent.ACTION_DOWN && HomeGuardService.navigationKey(key)){++hdmiLaunchGeneration;new BootAppStore(this).cancelHdmiBoot();new BootAppStore(this).userAction("desktop_input");HomeGuardService.bootSourceUserAction(this);}
+        if(event.getAction()==KeyEvent.ACTION_DOWN && HomeGuardService.navigationKey(key)){if(automaticInputPending)cancelInputWork();++hdmiLaunchGeneration;new BootAppStore(this).cancelHdmiBoot();new BootAppStore(this).userAction("desktop_input");HomeGuardService.bootSourceUserAction(this);}
         int kind=key==KeyEvent.KEYCODE_DPAD_LEFT || key==KeyEvent.KEYCODE_DPAD_RIGHT || key==KeyEvent.KEYCODE_DPAD_UP || key==KeyEvent.KEYCODE_DPAD_DOWN?1
             :key==KeyEvent.KEYCODE_DPAD_CENTER || key==KeyEvent.KEYCODE_ENTER || key==KeyEvent.KEYCODE_NUMPAD_ENTER?2
             :key==KeyEvent.KEYCODE_VOLUME_UP || key==KeyEvent.KEYCODE_VOLUME_DOWN || key==KeyEvent.KEYCODE_VOLUME_MUTE?4:0;
@@ -731,6 +733,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             DiagnosticLog.info("home.input.first","instance="+homeInstance+" resume="+homeResumeSequence+" kind="+kind+" key="+key+" eventUptimeMs="+event.getEventTime()+" receivedUptimeMs="+received
                 +" ageMs="+Math.max(0,received-event.getEventTime())+" ready="+ready+" resumed="+resumed+" windowFocus="+hasWindowFocus());
         }
+        if(event.getAction()==KeyEvent.ACTION_DOWN&&(key==KeyEvent.KEYCODE_BACK||key==KeyEvent.KEYCODE_HOME))cancelInputWork();
         if(event.getAction()==KeyEvent.ACTION_DOWN && hasWindowFocus() && systemEntryDispatched && !systemEntryPending.isEmpty()){systemEntryLifecycle("next_home_key");systemEntryPending="";}
         boolean confirm=key==KeyEvent.KEYCODE_DPAD_CENTER || key==KeyEvent.KEYCODE_ENTER || key==KeyEvent.KEYCODE_NUMPAD_ENTER;
         if(confirm && (!ready || row<0) && event.getRepeatCount()==0)
@@ -781,7 +784,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             if(event.getAction()==KeyEvent.ACTION_DOWN){
                 if(!pendingConfirmFocus.isEmpty()&&!pendingConfirmFocus.equals(confirmFocus()))cancelConfirm();
                 if(pendingConfirm!=null){main.removeCallbacks(pendingConfirm);pendingConfirm=null;}
-                if(event.getRepeatCount()==0){pressDock(true);confirmLong=false;App app=currentApp();heldPackage=row>=0&&app!=null?app.pkg:"settings".equals(topEntry())?"system:settings":"";if(!heldPackage.isEmpty())main.postDelayed(confirmHold,600);}
+                if(event.getRepeatCount()==0){pressDock(true);confirmLong=false;App app=currentApp();heldPackage=row>=0&&app!=null?app.pkg:("settings".equals(topEntry())||"network".equals(topEntry()))?"system:"+topEntry():"";if(!heldPackage.isEmpty())main.postDelayed(confirmHold,600);}
                 confirmGesture.down(key,event.getDownTime(),event.getRepeatCount());
                 if(event.getRepeatCount()>0){if(pendingConfirm!=null)main.removeCallbacks(pendingConfirm);pendingConfirm=null;}
             }else if(event.getAction()==KeyEvent.ACTION_UP){
@@ -910,13 +913,14 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     @Override public boolean dispatchTouchEvent(MotionEvent event){
         InputDiagnostics.pointer(this,event);
         if(!waitingForUnlock&&screensaver!=null){cancelConfirm();if(screensaver.touch(event))return true;screensaver.interaction();}
-        if(!waitingForUnlock && event.getActionMasked()==MotionEvent.ACTION_DOWN){++hdmiLaunchGeneration;new BootAppStore(this).cancelHdmiBoot();new BootAppStore(this).userAction("desktop_input");HomeGuardService.bootSourceUserAction(this);}
+        if(!waitingForUnlock && event.getActionMasked()==MotionEvent.ACTION_DOWN){if(automaticInputPending)cancelInputWork();++hdmiLaunchGeneration;new BootAppStore(this).cancelHdmiBoot();new BootAppStore(this).userAction("desktop_input");HomeGuardService.bootSourceUserAction(this);}
         return super.dispatchTouchEvent(event);
     }
     @Override public boolean dispatchGenericMotionEvent(MotionEvent event){
         if(!waitingForUnlock&&screensaver!=null){cancelConfirm();if(screensaver.pointer(event))return true;screensaver.interaction();}return super.dispatchGenericMotionEvent(event);
     }
-    private void leaveHome(Runnable launch){cancelConfirm();screensaver.pause();HomeGuardService.bootSourceUserAction(this);wallpapers.beforeLeave(()->{if(resumed&&!isFinishing()&&!UiCompat.destroyed(this))launch.run();});}
+    private void leaveHome(Runnable launch){cancelInputWork();leaveHomePrepared(launch);}
+    private void leaveHomePrepared(Runnable launch){cancelConfirm();screensaver.pause();HomeGuardService.bootSourceUserAction(this);wallpapers.beforeLeave(()->{if(resumed&&!isFinishing()&&!UiCompat.destroyed(this))launch.run();});}
     private void launchSelected(){
         App app=currentApp();if(app==null)return;saveFocus();
         if(!movingPackage.isEmpty()){saveMove();KeyFeedback.confirm(this);return;}
@@ -1091,10 +1095,23 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private void systemEntryLifecycle(String state){
         if(!systemEntryPending.isEmpty())DiagnosticLog.info("home.action.lifecycle","entry="+systemEntryPending+" elapsedMs="+(android.os.SystemClock.elapsedRealtime()-systemEntryStarted)+" state="+state);
     }
+    private void cancelInputWork(){cancelInputWork(false);}
+    private void cancelInputWork(boolean keepPermission){
+        if(!keepPermission&&tvInputs!=null)tvInputs.pendingTvInput=null;
+        inputWork.cancel();automaticInputPending=false;++inputDiscoveryGeneration;++systemEntryGeneration;inputDiscoveryPending=false;
+        if(!maintenanceInputRequest.isEmpty()){DeviceInputProfile.cancelled(maintenanceInputRequest);maintenanceInputRequest="";}
+        if(!systemEntryDispatched&&!systemEntryPending.isEmpty()){
+            systemEntryLifecycle("cancelled_unverified");systemEntryPending="";
+            if(!keepPermission)resumeCancelledEntry();
+        }
+    }
+    private void resumeCancelledEntry(){if(inputActive()&&hasWindowFocus()&&HomeGuardState.interactive(this)&&wallpapers!=null)wallpapers.resume();}
+    private boolean inputActive(){return resumed&&!isFinishing()&&!UiCompat.destroyed(this);}
     private void leaveSystemEntry(String entry,Runnable action){
+        cancelInputWork();final int request=systemEntryGeneration;
         systemEntryPending=entry;systemEntryDispatched=false;systemEntryStarted=android.os.SystemClock.elapsedRealtime();
         DiagnosticLog.info("home.action.request","entry="+entry+" ready="+ready+" resumed="+resumed+" windowFocus="+hasWindowFocus()+" api="+Build.VERSION.SDK_INT);
-        leaveHome(()->{systemEntryLifecycle("wallpaper_exit_ready");action.run();});
+        leaveHomePrepared(()->{if(request!=systemEntryGeneration){if(systemEntryPending.isEmpty())resumeCancelledEntry();return;}systemEntryLifecycle("wallpaper_exit_ready");action.run();});
     }
     private void systemEntryResult(boolean dispatched){systemEntryResult(dispatched,false);}
     private void systemEntryResult(boolean dispatched,boolean automatic){
@@ -1104,29 +1121,55 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         if(!dispatched)systemEntryPending="";
     }
     private void openSettings(String action){
+        settingsTrial=null;settingsTried.clear();
         leaveSystemEntry(Settings.ACTION_WIFI_SETTINGS.equals(action)?"network":"settings",()->{
             boolean opened=new SystemSettingsRouter(this).open(action);systemEntryResult(opened);
             if(!opened){wallpapers.resume();Toast.makeText(this,tr("系统设置不可用，请使用电视遥控器","Settings unavailable; use the TV remote"),Toast.LENGTH_LONG).show();}
         });
     }
-    private void openSettingsAlternative(){
-        if(new SystemSettingsRouter(this).available(SystemSettingsRouter.XIAOMI_POPUP))openSettings(SystemSettingsRouter.XIAOMI_POPUP);
-        else Toast.makeText(this,tr("没有其他可用的系统设置入口","No alternative settings entry is available"),Toast.LENGTH_SHORT).show();
+    private void showSettingsTest(String action){
+        cancelInputWork();
+        if(!action.equals(settingsTrialAction)){settingsTrial=null;settingsTried.clear();settingsTrialAction=action;}
+        ArrayList<String> labels=new ArrayList<>();ArrayList<Runnable> operations=new ArrayList<>();
+        labels.add(tr("测试当前入口","Test current entry"));operations.add(()->{settingsTried.clear();testSettings(action);});
+        if(!settingsTried.isEmpty()){labels.add(tr("测试下一个入口","Test next entry"));operations.add(()->testSettings(action));}
+        SettingsRouteMemory.Attempt attempt=settingsTrial;
+        if(attempt!=null&&(attempt.result()==SettingsRouteMemory.Result.DISPATCHED_UNVERIFIED||attempt.result()==SettingsRouteMemory.Result.WINDOW_OBSERVED)){
+            labels.add(Settings.ACTION_WIFI_SETTINGS.equals(action)?tr("已正常打开网络设置，记住入口","Network settings worked; remember entry"):tr("已正常打开系统设置，记住入口","System settings worked; remember entry"));
+            operations.add(()->{
+                boolean saved=new SettingsRouteMemory(this).confirm(attempt,true);
+                Toast.makeText(this,saved?tr("已记住当前固件的入口","Entry remembered for this firmware"):tr("入口已变化或测试已过期，请重新测试","Entry changed or test expired; test again"),Toast.LENGTH_LONG).show();settingsTrial=null;
+            });
+            labels.add(tr("没有正常打开","Did not open correctly"));operations.add(()->{new SettingsRouteMemory(this).confirm(attempt,false);settingsTrial=null;showSettingsTest(action);});
+        }
+        android.app.AlertDialog dialog=new android.app.AlertDialog.Builder(this)
+            .setTitle(Settings.ACTION_WIFI_SETTINGS.equals(action)?tr("网络入口测试","Network entry test"):tr("系统设置入口测试","System settings entry test"))
+            .setItems(labels.toArray(new String[0]),(d,which)->operations.get(which).run()).setNegativeButton(tr("返回","Back"),null).create();
+        dialog.show();ControlStyle.dialog(dialog,unit);
+    }
+    private void testSettings(String action){
+        settingsTrial=null;
+        leaveSystemEntry(Settings.ACTION_WIFI_SETTINGS.equals(action)?"network.test":"settings.test",()->{
+            settingsTrial=new SystemSettingsRouter(this).open(action,true,settingsTried);
+            boolean opened=settingsTrial!=null;systemEntryResult(opened);
+            if(opened){settingsTried.add(settingsTrial.identity);Toast.makeText(this,tr("返回后长按同一入口，确认是否正常打开","After returning, long-press this entry to confirm the result"),Toast.LENGTH_LONG).show();}
+            else{wallpapers.resume();Toast.makeText(this,tr("没有其他可用入口，可重新测试或使用电视遥控器","No further entry; restart the test or use the TV remote"),Toast.LENGTH_LONG).show();}
+        });
     }
 
     private void showInputs(){
         if(inputDiscoveryPending)return;
         HomeGuardService.bootSourceUserAction(this);
         DiagnosticLog.info("input.request","api="+Build.VERSION.SDK_INT+" standardSupported="+(Build.VERSION.SDK_INT>=21));
-        inputDiscoveryPending=true;int request=++inputDiscoveryGeneration;
+        cancelInputWork();inputDiscoveryPending=true;int request=++inputDiscoveryGeneration;
         if(Build.VERSION.SDK_INT>=21){if(tvInputs==null)tvInputs=new TvInputs();tvInputs.show(request);return;}
-        loader.execute(()->{
-            TvInputPanels.Snapshot snapshot=new TvInputPanels(this).inspect();
-            main.post(()->{if(!finishInputDiscovery(request))return;
-                TvInputPanels.Panel direct=snapshot.directPanel(true);
-                if(direct!=null){openNativeInputs(direct);return;}
-                showInputIssue(tr("信号源入口不可用","Input entry unavailable"),tr("当前安卓版本不提供标准输入列表。","This Android version has no standard TV input list.")+"\n\n"+snapshot.problem(chinese));
-            });
+        Context app=getApplicationContext();
+        inputWork.submit(()->new TvInputPanels(app).inspect(),(snapshot,failure)->{
+            if(!finishInputDiscovery(request))return;
+            if(failure!=null){showInputIssue(tr("信号源读取失败","Input discovery failed"),tr("请重新检测","Detect again"));return;}
+            TvInputPanels.Panel direct=snapshot.directPanel(true);
+            if(direct!=null){openNativeInputs(direct);return;}
+            showInputIssue(tr("信号源入口不可用","Input entry unavailable"),tr("当前安卓版本不提供标准输入列表。","This Android version has no standard TV input list.")+"\n\n"+snapshot.problem(chinese));
         });
     }
     private boolean finishInputDiscovery(int request){
@@ -1178,20 +1221,67 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             if(automatic&&!store.tested())return;
             String saved=store.watchTarget();int generation=hdmiLaunchGeneration;
             leaveSystemEntry("input.saved",()->{
-                if(automatic&&(generation!=hdmiLaunchGeneration||!new BootAppStore(HomeActivity.this).hdmiBoot()||!new BootAppStore(HomeActivity.this).tested())){wallpapers.resume();systemEntryResult(false);return;}
-                boolean opened=false;
-                try{HdmiTarget target=HdmiTarget.decode(saved);opened=target!=null&&saved.equals(new BootAppStore(HomeActivity.this).watchTarget())&&target.open(HomeActivity.this,automatic);if(opened && automatic)store.dispatched(BootAppStore.HDMI,target.foregroundComponent(HomeActivity.this));}
-                catch(RuntimeException failure){DiagnosticLog.error("input.saved.failed",failure);}
-                systemEntryResult(opened,automatic);
-                if(!opened){wallpapers.resume();Toast.makeText(HomeActivity.this,tr("电视信号源暂不可用，请在“看电视”中重新选择","TV source unavailable; select it again in Watch TV settings"),Toast.LENGTH_LONG).show();}
+                automaticInputPending=automatic;Context app=getApplicationContext();
+                inputWork.submit(()->{HdmiTarget target=HdmiTarget.decode(saved);return target==null?null:target.prepare(app);},(launch,failure)->{
+                    if(!inputActive())return;
+                    BootAppStore current=new BootAppStore(HomeActivity.this);
+                    if(!saved.equals(current.watchTarget())||automatic&&(generation!=hdmiLaunchGeneration||!current.hdmiBoot()||!current.tested())){automaticInputPending=false;systemEntryResult(false,automatic);wallpapers.resume();return;}
+                    dispatch(launch,failure,automatic);
+                });
             });
         }
         void openPending(){if(pendingTvInput!=null && resumed && checkCallingOrSelfPermission("android.permission.READ_TV_LISTINGS")==PackageManager.PERMISSION_GRANTED){TvInputInfo input=pendingTvInput;pendingTvInput=null;openInput(input);}}
         void show(int request){
-            loader.execute(()->{
-                TvInputController.Snapshot snapshot=new TvInputController(HomeActivity.this).inspectSources();
-                main.post(()->{if(finishInputDiscovery(request))present(snapshot,snapshot.vendor);});
+            Context app=getApplicationContext();
+            inputWork.submit(()->new TvInputController(app).inspectSources(),(snapshot,failure)->{
+                if(!finishInputDiscovery(request))return;
+                if(failure!=null){showInputProblem(tr("信号源读取失败，请重新检测","Input discovery failed; detect again"));return;}
+                present(snapshot,snapshot.vendor);
             });
+        }
+        void launch(String id,boolean vendor,String maintenance){
+            leaveSystemEntry(!maintenance.isEmpty()?"input.maintenance":vendor?"input.vendor":"input.standard",()->{
+                Context app=getApplicationContext();
+                inputWork.submit(()->InputLaunch.resolve(app,id,vendor),this::dispatch);
+            });
+            maintenanceInputRequest=maintenance;
+        }
+        private void dispatch(InputLaunch launch,Exception failure){dispatch(launch,failure,false);}
+        private void dispatch(InputLaunch launch,Exception failure,boolean automatic){
+            if(!inputActive())return;
+            if(failure!=null)DiagnosticLog.error("input.prepare.failed",failure);
+            if(launch==null||!launch.current(HomeActivity.this)){finishLaunch(false,null,automatic);return;}
+            if(launch.blocking()){
+                // An issued provider transaction cannot be retracted. Never apply its late UI reply.
+                HomeGuardService.savedInputSelected(HomeActivity.this,automatic);Context app=getApplicationContext();
+                inputWork.submit(()->launch.dispatch(app),(opened,error)->{if(inputActive())finishLaunch(Boolean.TRUE.equals(opened),launch,automatic);});
+            }else{
+                boolean opened=launch.dispatch(HomeActivity.this);
+                if(!opened&&launch.channelsPending){Context app=getApplicationContext();inputWork.submit(()->launch.channels(app),(next,error)->dispatch(next,error,automatic));}
+                else finishLaunch(opened,launch,automatic);
+            }
+        }
+        private void finishLaunch(boolean opened,InputLaunch launch,boolean automatic){
+            automaticInputPending=false;
+            if(!maintenanceInputRequest.isEmpty()){DeviceInputProfile.dispatched(maintenanceInputRequest,opened);maintenanceInputRequest="";}
+            systemEntryResult(opened,automatic);
+            if(opened){if(automatic)new BootAppStore(HomeActivity.this).dispatched(BootAppStore.HDMI,launch.foregroundComponent());return;}
+            HomeGuardService.cancelInputTransition();wallpapers.resume();
+            if(launch!=null&&launch.issue==InputLaunch.Issue.PERMISSION){
+                if(Build.VERSION.SDK_INT>=23){pendingTvInput=launch.input;requestPermissions(new String[]{"android.permission.READ_TV_LISTINGS"},102);}
+                else showInputProblem(tr("系统未授予电视频道读取权限","TV channel permission was not granted by the system"));return;
+            }
+            if(launch!=null&&launch.issue==InputLaunch.Issue.NO_CHANNELS){
+                android.app.AlertDialog.Builder dialog=new android.app.AlertDialog.Builder(HomeActivity.this).setTitle(tr("尚未配置电视频道","No TV channels configured"))
+                    .setMessage(tr("连接天线或有线电视后，可在信号源设置中搜台。","Connect an antenna or cable, then configure channels."))
+                    .setNegativeButton(tr("返回","Back"),null);
+                Intent setup=launch.input.createSetupIntent();
+                if(setup!=null)dialog.setPositiveButton(tr("信号源设置","Set up input"),(d,w)->leaveSystemEntry("input.setup",()->{
+                    try{startActivity(setup);systemEntryResult(true);}catch(RuntimeException unavailable){systemEntryResult(false);wallpapers.resume();showInputProblem(tr("信号源设置不可用","Input setup unavailable"));}
+                }));
+                ControlStyle.dialog(dialog.show(),unit);return;
+            }
+            showInputProblem(tr("信号源暂不可用，请重新检测或使用电视遥控器信号源键。","Input unavailable; detect again or use the TV remote input key."));
         }
         private void present(TvInputController.Snapshot snapshot,VendorTvInputs.Discovery discovery){
             List<VendorTvInputs.Source> vendor=discovery.sources;
@@ -1210,10 +1300,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 if(!info.isPassthroughInput() && !tuners.add("live"))continue;
                 addInputChoice(menu,choices,inputName(info),()->openInput(info));
             }
-            for(VendorTvInputs.Source source:vendor)addInputChoice(menu,choices,source.label,()->leaveSystemEntry("input.vendor",()->{
-                boolean opened=new VendorTvInputs(HomeActivity.this).open(source);systemEntryResult(opened);
-                if(!opened){wallpapers.resume();showInputProblem(tr("原厂信号源未接受切换请求，请使用电视遥控器。","The TV did not accept the input request. Use the TV remote."));}
-            }));
+            for(VendorTvInputs.Source source:vendor)addInputChoice(menu,choices,source.label,()->launch(source.key,true,""));
             TvInputPanels.Panel nativeChoice=snapshot.nativePanels.directPanel(true);
             if(nativeChoice!=null)addInputChoice(menu,choices,nativeChoice.profile.label(chinese),()->openNativeInputs(nativeChoice));
             DiagnosticLog.info("input.menu","choices="+choices.size());
@@ -1253,67 +1340,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         }
         private void showInputProblem(String message){showInputIssue(tr("信号源切换未完成","Input switch incomplete"),message);}
 
-        private boolean offerSystemInputs(){
-            TvInputController.Snapshot snapshot=new TvInputController(HomeActivity.this).inspect();
-            List<TvInputPanels.Panel> panels=snapshot.availablePanels();
-            if(panels.isEmpty()){
-                String message=tr("此输入无法打开，且未找到可用的系统信号源面板。请使用电视遥控器的信号源键或进入系统设置。","This input could not be opened and no usable system input panel was found. Use the TV remote's Input button or system settings.");
-                message+="\n\n"+snapshot.nativePanels.problem(chinese);
-                showInputProblem(message);return false;
-            }
-            TvInputPanels.Panel direct=snapshot.nativePanels.directPanel(true);
-            if(direct==null)return false;
-            TvInputPanels.PanelState state=new TvInputPanels(HomeActivity.this).open(direct);
-            if(state!=TvInputPanels.PanelState.READY)showInputProblem(nativeInputProblem(state));
-            return state==TvInputPanels.PanelState.READY;
-        }
+        private void openInput(TvInputInfo info){launch(info.getId(),false,"");}
 
-        private void openInput(TvInputInfo info){leaveSystemEntry("input.standard",()->{
-            boolean opened=false;
-            try{DiagnosticLog.info("input.select","provider="+info.getServiceInfo().packageName+" type="+info.getType()+" passthrough="+info.isPassthroughInput());opened=launchInput(info);}
-            catch(SecurityException restricted){DiagnosticLog.error("input.select.restricted",restricted);showInputProblem(tr("系统限制了此输入的读取或切换，请使用电视遥控器信号源键。","The system restricts this input. Use the remote input key."));}
-            catch(RuntimeException failure){DiagnosticLog.error("input.select.failed",failure);showInputProblem(tr("输入服务已变化或读取失败，请重新检测。","The input service changed or failed. Detect again."));}
-            systemEntryResult(opened);if(!opened)wallpapers.resume();
-        });}
-        private boolean launchInput(TvInputInfo info){
-            TvInputController controller=new TvInputController(HomeActivity.this);
-            info=controller.mappedInput(info);
-            if(info==null)return offerSystemInputs();
-            if(controller.openKnownInput(info))return true;
-            // Native DTV players do not need an Android channel database or READ_TV_LISTINGS.
-            if(info.getType()==TvInputInfo.TYPE_TUNER && controller.openFallbackInput(info))return true;
-            Uri uri;
-            if(info.isPassthroughInput())uri=TvContract.buildChannelUriForPassthroughInput(info.getId());
-            else{
-                if(checkCallingOrSelfPermission("android.permission.READ_TV_LISTINGS")!=PackageManager.PERMISSION_GRANTED){
-                    DiagnosticLog.info("input.permission","permission=android.permission.READ_TV_LISTINGS result=missing requestable="+(Build.VERSION.SDK_INT>=23));
-                    if(Build.VERSION.SDK_INT>=23){pendingTvInput=info;requestPermissions(new String[]{"android.permission.READ_TV_LISTINGS"},102);}
-                    else Toast.makeText(HomeActivity.this,tr("系统未授予电视频道读取权限","TV channel permission was not granted by the system"),Toast.LENGTH_SHORT).show();
-                    return false;
-                }
-                long channel=-1;
-                try(android.database.Cursor cursor=getContentResolver().query(TvContract.buildChannelsUriForInput(info.getId()),new String[]{TvContract.Channels._ID},null,null,null)){
-                    if(cursor!=null && cursor.moveToFirst())channel=cursor.getLong(0);
-                }catch(SecurityException e){DiagnosticLog.error("input.channels.failed",e);Toast.makeText(HomeActivity.this,tr("系统未允许读取电视频道","TV channels are restricted by the system"),Toast.LENGTH_SHORT).show();return false;}
-                DiagnosticLog.info("input.channels","hasChannel="+(channel>=0));
-                if(channel<0){
-                    android.app.AlertDialog.Builder dialog=new android.app.AlertDialog.Builder(HomeActivity.this)
-                        .setTitle(tr("尚未配置电视频道","No TV channels configured"))
-                        .setMessage(tr("电视系统的频道库为空。连接天线或有线电视后，可在信号源设置中搜台。网络直播请打开天光云影。","Connect an antenna or cable source, then configure channels. For IPTV, open your streaming app."))
-                        .setNegativeButton(tr("返回","Back"),(d,w)->KeySounds.play(HomeActivity.this,KeySoundPolicy.BACK));
-                    Intent setup=info.createSetupIntent();
-                    if(setup!=null)dialog.setPositiveButton(tr("信号源设置","Set up input"),(d,w)->{try{DiagnosticLog.info("input.setup.request",DiagnosticLog.intent(setup));startActivity(setup);KeySounds.play(HomeActivity.this,KeySoundPolicy.CONFIRM);DiagnosticLog.info("input.setup.dispatch","dispatched_unverified");}catch(ActivityNotFoundException|SecurityException e){DiagnosticLog.error("input.setup.failed",e);Toast.makeText(HomeActivity.this,tr("信号源设置不可用","Input setup unavailable"),Toast.LENGTH_SHORT).show();}});
-                    ControlStyle.dialog(dialog.show(),unit);return false;
-                }
-                uri=TvContract.buildChannelUri(channel);
-            }
-            try{
-                Intent intent=controller.standardIntent(info.getId(),uri);
-                if(intent!=null){startActivity(intent);DiagnosticLog.info("input.standard.dispatch",intent.getComponent().flattenToShortString());return true;}
-            }catch(RuntimeException e){DiagnosticLog.error("input.standard.failed",e);}
-            if(controller.openFallbackInput(info))return true;
-            return offerSystemInputs();
-        }
 
         private String inputName(TvInputInfo info){
             String custom=new DeviceInputProfile(HomeActivity.this).label(info.getId());if(!custom.isEmpty())return custom;

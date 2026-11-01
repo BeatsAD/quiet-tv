@@ -163,53 +163,71 @@ final class SystemSettingsRouter {
         return false;
     }
 
+    static final class Route {
+        final Intent template,launch;
+        final LaunchType type;
+        final Page page;
+        final String identity;
+        Route(Intent intent,ComponentInfo info){
+            template=new Intent(intent);launch=new Intent(intent).setComponent(new ComponentName(info.packageName,info.name));
+            type=launchType(intent);page=page(intent);identity=SettingsRouteMemory.identity(type+":"+launch.toUri(0));
+        }
+    }
+    boolean callable(String action,Route route){
+        try{for(ComponentInfo info:targets(route.template))
+            if(route.launch.getComponent().equals(new ComponentName(info.packageName,info.name))&&rejection(action,route.template,info).isEmpty())return true;
+        }catch(RuntimeException unavailable){DiagnosticLog.error("settings.inspect.failed",unavailable);}
+        return false;
+    }
+    private List<Route> routes(String action,boolean ethernet){
+        ArrayList<Route> result=new ArrayList<>();HashSet<String> seen=new HashSet<>();
+        for(Intent intent:candidates(action,ethernet))try{
+            for(ComponentInfo info:targets(intent)){
+                String rejection=rejection(action,intent,info);
+                if(!rejection.isEmpty()){DiagnosticLog.info("settings.route",DiagnosticLog.intent(intent)+" result="+rejection);continue;}
+                Route route=new Route(intent,info);if(seen.add(route.identity))result.add(route);
+            }
+        }catch(RuntimeException failure){DiagnosticLog.error("settings.route.failed",failure);}
+        return result;
+    }
+    boolean open(String action){return open(action,false,java.util.Collections.emptySet())!=null;}
     @SuppressWarnings("deprecation")
-    boolean open(String action){
+    SettingsRouteMemory.Attempt open(String action,boolean trial,java.util.Set<String> excluded){
         DiagnosticOperation diagnostic=new DiagnosticOperation("settings",System.currentTimeMillis(),android.os.SystemClock.elapsedRealtime(),DiagnosticLog::info);
-        DiagnosticLog.info("settings.requested","attempt="+diagnostic.id+" action="+action);
+        DiagnosticLog.info("settings.requested","attempt="+diagnostic.id+" action="+action+" trial="+trial);
         boolean ethernet=false;
         if(Settings.ACTION_WIFI_SETTINGS.equals(action)){
             ConnectivityManager manager=(ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);
             NetworkInfo active=manager==null?null:manager.getActiveNetworkInfo();
-            ethernet=active!=null && active.isConnected() && active.getType()==ConnectivityManager.TYPE_ETHERNET;
-            DiagnosticLog.info("settings.network","service="+(manager!=null)+" active="+(active!=null)+" connected="+(active!=null && active.isConnected())+" type="+(active==null?-1:active.getType()));
+            ethernet=active!=null&&active.isConnected()&&active.getType()==ConnectivityManager.TYPE_ETHERNET;
         }
-        DiagnosticLog.info("settings.request","action="+action+" ethernet="+ethernet);
+        String slot=action+"|"+ethernet;SettingsRouteMemory memory=new SettingsRouteMemory(context);
+        List<Route> routes=routes(action,ethernet);
+        // A record can only reorder newly resolved built-in candidates, never supply an Intent.
+        for(int i=0;i<routes.size();i++)if(memory.preferred(slot,routes.get(i))){Route preferred=routes.remove(i);routes.add(0,preferred);break;}
         diagnostic.stage("ROUTING",android.os.SystemClock.elapsedRealtime());
-        HashSet<String> attempted=new HashSet<>();int candidate=0;
-        for(Intent intent:candidates(action,ethernet)){
-            String route="attempt="+diagnostic.id+" request="+action+" candidate="+(++candidate)+" "+DiagnosticLog.intent(intent);
-            List<ComponentInfo> targets;
-            try{targets=targets(intent);}catch(RuntimeException failure){DiagnosticLog.error("settings.route.failed",route,failure);continue;}
-            if(targets.isEmpty()){DiagnosticLog.info("settings.route",route+" result=unresolved");continue;}
-            for(ComponentInfo info:targets)try{
-                LaunchType type=launchType(intent);Page page=page(intent);
-                String rejection=rejection(action,intent,info);
-                if(!rejection.isEmpty()){DiagnosticLog.info("settings.route",route+" result="+rejection);continue;}
-                ComponentName target=new ComponentName(info.packageName,info.name);
-                Intent launch=new Intent(intent).setComponent(target);
-                if(!attempted.add(type+":"+launch.toUri(0))){DiagnosticLog.info("settings.route",route+" result=duplicate");continue;}
-                if(type==LaunchType.BROADCAST)context.sendBroadcast(launch);
-                else if(type==LaunchType.SERVICE){if(context.startService(launch)==null){DiagnosticLog.info("settings.route",route+" result=null_service");continue;}}
+        for(Route route:routes){
+            if(excluded.contains(route.identity))continue;
+            if(!callable(action,route))continue;
+            try{
+                String scope=SettingsRouteMemory.scope(context,route);
+                Intent launch=new Intent(route.launch);ComponentName target=launch.getComponent();
+                if(route.type==LaunchType.BROADCAST)context.sendBroadcast(launch);
+                else if(route.type==LaunchType.SERVICE){if(context.startService(launch)==null){memory.failed(slot,route);continue;}}
                 else{
-                    // AOSP's translucent panel belongs above Home, without a separate black task.
-                    boolean panel=context instanceof android.app.Activity && "com.android.tv.settings".equals(info.packageName)
-                        && "com.android.tv.settings.MainSettings".equals(info.name);
+                    boolean panel=context instanceof android.app.Activity&&"com.android.tv.settings".equals(target.getPackageName())&&"com.android.tv.settings.MainSettings".equals(target.getClassName());
                     if(!panel)launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                     context.startActivity(launch);
                 }
-                DiagnosticLog.info("settings.dispatch",route+" resolved="+target.flattenToShortString()+" type="+type+" page="+page+" result=dispatched_unverified");
-                try{SettingsPageCapture.observe(context);}catch(RuntimeException unavailable){DiagnosticLog.error("settings.capture.unavailable",unavailable);}
-                boolean systemFallback=!Settings.ACTION_SETTINGS.equals(action)&&!XIAOMI_POPUP.equals(action)&&page==Page.SETTINGS;
-                diagnostic.finish("DISPATCHED_UNVERIFIED",systemFallback?"system_settings_fallback":"candidate_dispatched",System.currentTimeMillis(),android.os.SystemClock.elapsedRealtime());
-                return true;
-            }catch(RuntimeException failure){
-                DiagnosticLog.error("settings.route.failed",route,failure);
-            }
+                SettingsRouteMemory.Attempt attempt=new SettingsRouteMemory.Attempt(action,slot,route,scope,trial);
+                DiagnosticLog.info("settings.dispatch","attempt="+diagnostic.id+" resolved="+target.flattenToShortString()+" type="+route.type+" page="+route.page+" result=dispatched_unverified");
+                try{SettingsPageCapture.observe(context,attempt);}catch(RuntimeException unavailable){DiagnosticLog.error("settings.capture.unavailable",unavailable);}
+                boolean fallback=!Settings.ACTION_SETTINGS.equals(action)&&!XIAOMI_POPUP.equals(action)&&route.page==Page.SETTINGS;
+                diagnostic.finish("DISPATCHED_UNVERIFIED",fallback?"system_settings_fallback":"candidate_dispatched",System.currentTimeMillis(),android.os.SystemClock.elapsedRealtime());
+                return attempt;
+            }catch(Exception failure){memory.failed(slot,route);DiagnosticLog.error("settings.route.failed",failure);}
         }
-        DiagnosticLog.info("settings.unavailable",action);
-        diagnostic.finish("UNAVAILABLE","no_usable_candidate",System.currentTimeMillis(),android.os.SystemClock.elapsedRealtime());
-        return false;
+        diagnostic.finish("UNAVAILABLE","no_usable_candidate",System.currentTimeMillis(),android.os.SystemClock.elapsedRealtime());return null;
     }
     private String rejection(ComponentInfo info,String permission){
         // Also reject these when an OEM registers them for the standard SETTINGS action.
