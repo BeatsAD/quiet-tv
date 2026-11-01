@@ -5,11 +5,14 @@ import android.media.*;
 import android.os.Build;
 import java.io.*;
 import java.nio.ByteBuffer;
+import java.util.Locale;
 import org.json.*;
 
 /** Bounded local-video inspection. No network, transcoding or full-video buffering. */
 final class WallpaperVideo {
     static final long MAX_UPLOAD=200L*1024*1024;
+    // Container duration rounding can put nominal 60 FPS slightly above 60.
+    private static final float MAX_ADMITTED_FPS=60.5f;
     static final class Info {
         int width,height,rotation;long durationMs;float fps,pixelRatio=1f;String mime;
     }
@@ -31,7 +34,33 @@ final class WallpaperVideo {
         }
     }
     private static IOException invalid(){return rejected("codec_data","invalid_codec_data");}
-    private static VideoDiagnostics.Failure rejected(String stage,String reason){return VideoDiagnostics.failure(stage,reason,"视频无法解析，请使用 MP4、MOV、MKV 或 WebM / Unable to read video; use MP4, MOV, MKV or WebM");}
+    static void checkFrameRate(float fps,float sampled)throws IOException {
+        if(Float.isNaN(fps)||Float.isInfinite(fps)||fps<=0)
+            throw VideoDiagnostics.failure("frame_rate","invalid_or_excessive_frame_rate","视频帧率无效或缺失，请重新导出视频 / Video frame rate is missing or invalid; re-export the video");
+        if(fps>MAX_ADMITTED_FPS||sampled>MAX_ADMITTED_FPS){
+            float detected=Math.max(fps,sampled);
+            throw VideoDiagnostics.failure("frame_rate","invalid_or_excessive_frame_rate",String.format(Locale.ROOT,
+                "视频帧率 %.3f FPS 过高，请使用 60 FPS 或以下的视频 / Video frame rate %.3f FPS is too high; use 60 FPS or lower",detected,detected));
+        }
+    }
+    static VideoDiagnostics.Failure rejected(String stage,String reason){
+        String message;
+        switch(reason){
+            case "file_size_invalid":message="视频文件大小无效，请使用非空且不超过 200 MB 的视频 / Use a non-empty video up to 200 MB";break;
+            case "resolution_limit":message=Build.VERSION.SDK_INT<21?"此系统请使用不超过 1080p 的视频 / Use video up to 1080p on this system":"视频分辨率过高，请使用长边不超过 3840、短边不超过 2160 像素的视频 / Use video up to 3840 by 2160 pixels, in either orientation";break;
+            case "invalid_dimensions_or_duration":message="视频尺寸或时长无效，请重新导出视频 / Invalid video dimensions or duration; re-export the video";break;
+            case "invalid_rotation":message="视频旋转信息无效，请使用 0、90、180 或 270 度 / Use video rotation of 0, 90, 180 or 270 degrees";break;
+            case "no_video_track":message="文件中未找到视频轨道，请选择包含画面的视频 / No video track found; choose a file containing video";break;
+            case "multiple_video_tracks":message="暂不支持多个视频轨道，请只保留一个视频轨道 / Keep only one video track";break;
+            case "encrypted_sample":case "encrypted_track":case "drm_metadata":message="暂不支持加密视频，请使用未加密的视频 / Encrypted video is not supported; use unencrypted video";break;
+            case "hdr_unsupported":message="暂不支持 HDR 视频，请使用 SDR 视频 / HDR is not supported; use SDR video";break;
+            case "unsupported_bit_depth":message="暂不支持高位深视频，请使用 SDR 8-bit 视频 / Use SDR 8-bit video";break;
+            case "unsupported_chroma":message="视频色度格式不受支持，请使用 YUV 4:2:0 视频 / Use YUV 4:2:0 video";break;
+            case "invalid_codec_data":message="视频编码信息无效，请重新导出视频 / Invalid video codec data; re-export the video";break;
+            default:message="无法解析视频容器或编码信息，请重新导出为 MP4、MOV、MKV 或 WebM；详情见诊断日志 / Unable to parse video container or codec data; re-export as MP4, MOV, MKV or WebM; see diagnostics";
+        }
+        return VideoDiagnostics.failure(stage,reason,message);
+    }
     @TargetApi(16) static final class Api16 {
     static Info inspect(File file,String context) throws IOException {
         MediaExtractor extractor=new MediaExtractor();MediaMetadataRetriever metadata=new MediaMetadataRetriever();
@@ -69,7 +98,7 @@ final class WallpaperVideo {
             if(format.containsKey(MediaFormat.KEY_FRAME_RATE))info.fps=((Number)number(format,MediaFormat.KEY_FRAME_RATE)).floatValue();
             if(info.fps<=0)info.fps=sampled;
             DiagnosticLog.info("wallpaper.video.samples",context+" count="+frames+" fps="+info.fps+" sampledFps="+sampled);
-            if((Float.isNaN(info.fps)||Float.isInfinite(info.fps))||info.fps<=0||info.fps>60.1f||sampled>60.5f)throw VideoDiagnostics.failure("frame_rate","invalid_or_excessive_frame_rate","请使用不超过 60 FPS 的视频 / Use video up to 60 FPS");
+            checkFrameRate(info.fps,sampled);
             if(format.containsKey("crypto-key"))throw rejected(stage,"encrypted_track");
             DiagnosticLog.info("wallpaper.video.inspect",context+" mime="+VideoDiagnostics.mime(info.mime)+" size="+info.width+"x"+info.height+" fps="+info.fps+" sampledFps="+sampled+" rotation="+info.rotation+" durationMs="+info.durationMs+" bytes="+file.length());
             DiagnosticLog.info("wallpaper.video.admission",context+" decision=defer_to_playback");

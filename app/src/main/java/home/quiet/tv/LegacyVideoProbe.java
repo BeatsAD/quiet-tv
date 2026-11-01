@@ -26,7 +26,7 @@ final class LegacyVideoProbe {
             if(info.width<=0)info.width=metadata.width;if(info.height<=0)info.height=metadata.height;
             if(info.width<=0||info.height<=0||info.durationMs<=0)throw VideoDiagnostics.failure("legacy_metadata","invalid_dimensions_or_duration","视频尺寸或时长无效 / Invalid video dimensions or duration");
             if(Math.max(info.width,info.height)>1920||Math.min(info.width,info.height)>1080)throw VideoDiagnostics.failure("legacy_metadata","legacy_resolution_limit","此系统请使用不超过 1080p 的视频 / Use video up to 1080p on this system");
-            if(metadata.fps>60.1f)throw VideoDiagnostics.failure("frame_rate","invalid_or_excessive_frame_rate","请使用不超过 60 FPS 的视频 / Use video up to 60 FPS");
+            if(metadata.fps>0)WallpaperVideo.checkFrameRate(metadata.fps,0);
             info.mime=metadata.mime.isEmpty()?"video/unknown":metadata.mime;info.rotation=metadata.rotation;info.fps=metadata.fps;info.pixelRatio=VideoGeometry.pixelRatio(file,1f);
             DiagnosticLog.info("wallpaper.video.inspect",context+" backend=api14_platform mime="+VideoDiagnostics.mime(info.mime)+" size="+info.width+"x"+info.height+" fps="+info.fps+" rotation="+info.rotation);
             return info;

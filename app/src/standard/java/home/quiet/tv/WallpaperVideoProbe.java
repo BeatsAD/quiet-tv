@@ -50,7 +50,7 @@ final class WallpaperVideoProbe {
             if(info.width<=0||info.height<=0||info.durationMs<=0)throw rejected("metadata","invalid_dimensions_or_duration");
             if(Math.max(info.width,info.height)>3840||Math.min(info.width,info.height)>2160)throw rejected("metadata","resolution_limit");
             if(info.rotation%90!=0)throw rejected("metadata","invalid_rotation");
-            if((Float.isNaN(info.fps)||Float.isInfinite(info.fps))||info.fps<=0||info.fps>60.1f||sampled>60.5f)throw rejected("frame_rate","invalid_or_excessive_frame_rate");
+            WallpaperVideo.checkFrameRate(info.fps,sampled);
             if(format.drmInitData!=null||format.cryptoType!=C.CRYPTO_TYPE_NONE)throw rejected("tracks","encrypted_track");
             if(format.colorInfo!=null){
                 if(format.colorInfo.colorTransfer==C.COLOR_TRANSFER_ST2084||format.colorInfo.colorTransfer==C.COLOR_TRANSFER_HLG)throw rejected("color","hdr_unsupported");
@@ -67,7 +67,7 @@ final class WallpaperVideoProbe {
         finally{if(selected!=null)selected.release();}
     }
     private static DefaultExtractorInput input(RandomAccessFile source)throws IOException{return new DefaultExtractorInput(source::read,source.getFilePointer(),source.length());}
-    private static VideoDiagnostics.Failure rejected(String stage,String reason){return VideoDiagnostics.failure(stage,reason,"视频无法解析或规格不受支持，请查看诊断日志 / Video format unsupported; see diagnostics");}
+    private static VideoDiagnostics.Failure rejected(String stage,String reason){return WallpaperVideo.rejected(stage,reason);}
     private static final class Track implements TrackOutput {
         Format format;int frames;long first=Long.MAX_VALUE,last=Long.MIN_VALUE;final Output output;final byte[] scratch=new byte[8192];
         Track(Output output){this.output=output;}
