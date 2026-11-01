@@ -51,7 +51,7 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
             value.put("takeoverRecord",takeover);
         if(!BuildConfig.LEGACY_19)value.put("routes",new DesktopRoutes(context,false).snapshot());
         value.put("capabilities",new org.json.JSONArray().put("input-profile-v1").put("takeover-restore-v1").put("proxy-repair-v1").put("adaptation-rules-v1").put("takeover-record-v1"));
-        if(Build.VERSION.SDK_INT>=21)value.getJSONArray("capabilities").put("input-profile-v2");
+        value.getJSONArray("capabilities").put("input-profile-v2");
         value.put("adaptation",new DeviceAdaptation(context).snapshot());
         value.put("desktopStatus",DesktopTakeoverStatus.read(context).snapshot());
         value.getJSONArray("capabilities").put("home-status-v1");
@@ -159,7 +159,7 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
             }
             if(pkg!=null)result.put("app",app(context,pkg));
             if(operation.startsWith("profile_") || "input_open".equals(operation))result.put("inputProfile",new DeviceInputProfile(context).snapshot());
-            if("input_list".equals(operation))result.put("inputs",Build.VERSION.SDK_INT>=21?new TvInputController(context).maintenanceInputs():new JSONObject().put("supported",false));
+            if("input_list".equals(operation))result.put("inputs",DeviceInputProfile.maintenanceInputs(context));
             if("takeover_plan".equals(operation))result.put("restorePlan",new ComputerRestorePlan(context).plan());
             reply.data=result.toString();reply.code=Activity.RESULT_OK;
         }catch(Exception failure){reply.data="维护未完成："+failure.getMessage();}

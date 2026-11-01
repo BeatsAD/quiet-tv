@@ -402,8 +402,16 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     private void openMaintenanceInput(){
-        if(!resumed || Build.VERSION.SDK_INT<21)return;
+        if(!resumed)return;
         DeviceInputProfile.Request request=DeviceInputProfile.consume();if(request.id.isEmpty())return;
+        if(Build.VERSION.SDK_INT<21){
+            leaveSystemEntry("input.maintenance",()->{
+                Context app=getApplicationContext();
+                inputWork.submit(()->{HdmiTarget target=HdmiTarget.decode(request.saved);return target==null?null:target.prepare(app);},
+                    (launch,failure)->dispatchSavedHdmi(launch,failure,false));
+            });
+            maintenanceInputRequest=request.token;return;
+        }
         if(tvInputs==null)tvInputs=new TvInputs();
         tvInputs.launch(request.id,false,request.token);
     }
@@ -473,6 +481,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         }else finishSavedHdmi(launch.dispatch(this),launch,automatic);
     }
     private void finishSavedHdmi(boolean opened,SavedInputLaunch launch,boolean automatic){
+        if(!maintenanceInputRequest.isEmpty()){DeviceInputProfile.dispatched(maintenanceInputRequest,opened);maintenanceInputRequest="";}
         automaticInputPending=false;systemEntryResult(opened,automatic);
         if(opened){if(automatic)new BootAppStore(this).dispatched(BootAppStore.HDMI,launch.foregroundComponent());return;}
         HomeGuardService.cancelInputTransition();wallpapers.resume();
