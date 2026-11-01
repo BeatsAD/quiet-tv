@@ -180,7 +180,7 @@ final class AppListPanel extends ManagementPanel {
     }
     private void connectManagement(){
         if(busy || connecting || !active)return;
-        manualConnection=!adb.connected();session.request();updateManagementConnection();
+        manualConnection=!adb.connected();session.requestAuthorization();updateManagementConnection();
     }
     private void confirmOperation(AppRepository.App app,AppOperations.Action action){
         Sheet sheet=new Sheet(action.label+"应用？");sheet.text(app.label+"\n"+operations.explanation(app,action));

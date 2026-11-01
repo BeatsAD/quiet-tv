@@ -28,7 +28,7 @@ final class ManagementAdb {
             }
             public boolean connected(){return adb.connected();}
             public int prepare(){return adb.prepare();}
-            public void connect(int attempt) throws Exception {adb.connect(context.getSharedPreferences("adb",0).getInt("port",5555),attempt);}
+            public void connect(int attempt,boolean requestAuthorization) throws Exception {adb.connect(context.getSharedPreferences("adb",0).getInt("port",5555),attempt,requestAuthorization);}
             public void check() throws Exception {adb.validateUser();}
             public void disconnect(){adb.disconnect();}
             public boolean retryable(){return adb.failure()==AdbController.Failure.PORT || adb.failure()==AdbController.Failure.NONE;}
@@ -43,6 +43,7 @@ final class ManagementAdb {
         static android.net.Uri uri(){return Settings.Global.getUriFor("adb_enabled");}
     }
     void request(){keeper.request();}
+    void requestAuthorization(){keeper.requestAuthorization();}
     void disconnect(){keeper.disconnect();}
     AdbConnectionKeeper.State state(){return keeper.state();}
     String detail(){return keeper.detail();}
