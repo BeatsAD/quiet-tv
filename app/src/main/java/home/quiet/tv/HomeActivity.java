@@ -108,6 +108,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private int row = 0, column = 0, topColumn = 0, restoreColumn = 0;
     private int scrollTarget = RecyclerView.NO_POSITION;
     private ValueAnimator scrollAnimation;
+    private boolean animateHomeReturn;
     private String activePackage = "";
     private boolean keepAppActionPositionUntilRefresh;
     private TvInputs tvInputs;
@@ -453,6 +454,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     @Override protected void onPause() {
+        animateHomeReturn=false;
         cancelInputWork(true);
         if(waitingForUnlock){super.onPause();return;}
         cancelConfirm();screensaver.pause();
@@ -500,6 +502,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private void resetHomeFocus(){
         cancelMove();
         if(inputPopup!=null && inputPopup.isShowing())inputPopup.closeQuietly();
+        animateHomeReturn=ready&&root.isShown()&&root.getWindowVisibility()==View.VISIBLE&&list.canScrollVertically(-1);
         row=0;column=Math.max(0,Math.min(restoreColumn,maxColumn(0)));
         // Do not let an in-flight catalog refresh restore the old grid application.
         activePackage="";saveFocus();focusCurrent(false);
@@ -812,6 +815,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private void focusCurrent(boolean animate) {
         if(pendingConfirm!=null&&!pendingConfirmFocus.equals(confirmFocus()))cancelConfirm();
         if(!ready)return;
+        // HOME arrives between pause and resume; wait to start the existing page motion.
+        if(animateHomeReturn){if(!resumed)return;animate=true;animateHomeReturn=false;}
         AppAdapter adapter=(AppAdapter)list.getAdapter();
         int gridStride=px(adapter.gridHeight)+px(APP_GAP);
         int bottom=Math.max(px(20),list.getHeight()-px(APP_TITLE_HEIGHT)-gridRows()*gridStride);
@@ -830,7 +835,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             View first=layout.findViewByPosition(position);
             needsScroll=first==null || first.getTop()<px(APP_TOP) || first.getBottom()>list.getHeight()-px(20);
         }
-        if(needsScroll && !(animate && scrollTarget==position && scrollAnimation!=null && scrollAnimation.isRunning())){
+        if(needsScroll && !(scrollTarget==position && scrollAnimation!=null && scrollAnimation.isRunning())){
             if(scrollAnimation!=null)scrollAnimation.cancel();
             list.stopScroll();scrollTarget=position;
             if(!animate)layout.scrollToPositionWithOffset(position,offset);
