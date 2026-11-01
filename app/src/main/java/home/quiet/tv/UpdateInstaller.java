@@ -12,6 +12,7 @@ import java.util.*;
 import java.util.zip.ZipFile;
 
 final class UpdateInstaller {
+    static final int REQUEST_INSTALL=7412;
     static UpdateManifest.Device device(Context context)throws IOException{
         try{
             PackageInfo info=context.getPackageManager().getPackageInfo(context.getPackageName(),flags());
@@ -72,8 +73,11 @@ final class UpdateInstaller {
             Uri uri=legacy?Uri.fromFile(file):FileProvider.getUriForFile(activity,activity.getPackageName()+".updates",file);
             // ACTION_VIEW always delegates confirmation to the platform installer. No unattended sessions.
             Intent intent=new Intent(Intent.ACTION_VIEW).setDataAndType(uri,"application/vnd.android.package-archive");
+            intent.putExtra(Intent.EXTRA_RETURN_RESULT,true);
             if(!legacy){intent.setClipData(ClipData.newRawUri("Quiet TV update",uri));intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);}
-            return ExternalActivityLauncher.open(activity,"update.install",intent);
+            ComponentName resolved=intent.resolveActivity(activity.getPackageManager());
+            DiagnosticLog.info("update.install.dispatch","route="+(legacy?"legacy_file":"content")+" resolved="+(resolved==null?"none":resolved.flattenToShortString())+" allowed="+permitted(activity));
+            return ExternalActivityLauncher.dispatch("entry=update.install "+DiagnosticLog.intent(intent),()->activity.startActivityForResult(intent,REQUEST_INSTALL));
         }catch(RuntimeException e){DiagnosticLog.error("update.install.failed",e);return false;}
     }
 }
