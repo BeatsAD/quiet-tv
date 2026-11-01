@@ -19,7 +19,7 @@ final class WallpaperBlur {
     private int amount,generation,firstAmount,secondAmount,sourceVersion;
     private float progress;
     private boolean active,scheduled,busy,dirty,destroyed,nativeVideo,suspended;
-    private long capturedAt=-1000,quietUntil;
+    private long capturedAt=-1000;
     WallpaperBlur(FrameLayout host,Snapshot source){
         this.host=host;this.source=source;overlay=image();secondOverlay=image();
         host.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{if(r-l!=or-ol||b-t!=ob-ot){++generation;if(!bitmapOutput())Api31.apply(host,amount);invalidate();}});
@@ -45,7 +45,7 @@ final class WallpaperBlur {
         firstAmount=first;secondAmount=second;progress=fraction;amount=next;
         if(nativeVideo){
             if(strength){++generation;}
-            if(moved)defer(180);
+            if(moved)cancelCapture();
             renderNative();if(first==0&&second==0){cancelCapture();clear();}else invalidate();
             return;
         }
@@ -62,8 +62,8 @@ final class WallpaperBlur {
     private void clear(){overlay.setVisibility(View.GONE);overlay.setImageDrawable(null);overlay.setAlpha(1);secondOverlay.setVisibility(View.GONE);secondOverlay.setImageDrawable(null);}
     String diagnostics(){return "blur="+amount+" blurVisible="+(overlay.getVisibility()==View.VISIBLE)+" blurAlpha="+overlay.getAlpha()+" secondBlurVisible="+(secondOverlay.getVisibility()==View.VISIBLE)+" secondBlurAlpha="+secondOverlay.getAlpha()+" blurBusy="+busy;}
     private void cancelCapture(){main.removeCallbacks(capture);scheduled=false;}
-    private void defer(int millis){quietUntil=Math.max(quietUntil,SystemClock.uptimeMillis()+millis);cancelCapture();}
-    void interaction(){if(nativeVideo){defer(320);invalidate();}}
+    // Input and page motion must keep refreshing the visible video cache.
+    void interaction(){if(nativeVideo){cancelCapture();invalidate();}}
     void suspended(boolean value){if(suspended==value)return;suspended=value;++generation;cancelCapture();if(!value)invalidate();}
     void active(boolean value){active=value;if(!value){++generation;cancelCapture();}else invalidate();}
     private boolean canCapture(){return !destroyed&&active&&!suspended&&bitmapOutput()&&(nativeVideo?firstAmount>0||secondAmount>0:amount>0);}
@@ -71,7 +71,7 @@ final class WallpaperBlur {
         if(!canCapture())return;
         dirty=true;if(scheduled||busy)return;scheduled=true;
         int interval=nativeVideo?(amount>0?100:1000):66;
-        long delay=Math.max(0,Math.max(capturedAt+interval,quietUntil)-SystemClock.uptimeMillis());
+        long delay=Math.max(0,capturedAt+interval-SystemClock.uptimeMillis());
         main.postDelayed(capture,delay);
     }
     private void capture(){
@@ -83,7 +83,7 @@ final class WallpaperBlur {
         catch(RuntimeException|OutOfMemoryError e){DiagnosticLog.error("wallpaper.blur.capture_failed",e);completed();}
     }
     private void completed(){busy=false;if(dirty||nativeVideo&&Build.VERSION.SDK_INT>=24)invalidate();}
-    private boolean valid(int version,boolean nativeFrame){return canCapture()&&version==generation&&nativeFrame==nativeVideo&&(!nativeFrame||SystemClock.uptimeMillis()>=quietUntil);}
+    private boolean valid(int version,boolean nativeFrame){return canCapture()&&version==generation&&nativeFrame==nativeVideo;}
     private static void blur(Bitmap image,int width,int height,int strength){
         int[] pixels=new int[width*height];image.getPixels(pixels,0,width,0,0,width,height);DockBackdropDrawable.blurPixels(pixels,width,height,Math.max(1,Math.round(strength*width/2000f)));image.setPixels(pixels,0,width,0,0,width,height);
     }

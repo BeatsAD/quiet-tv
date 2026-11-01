@@ -17,7 +17,7 @@ import java.util.concurrent.*;
 final class WallpaperController {
     private static final int CARD_RADIUS=16,CARD_INSET=5,CARD_STROKE=2;
     private final Activity activity;
-    private final FrameLayout root;
+    private final FrameLayout root,background;
     private final WallpaperStore store;
     private final ScreensaverStore screensavers;
     private String temporaryMedia;
@@ -89,8 +89,19 @@ final class WallpaperController {
     WallpaperController(Activity activity,FrameLayout root,float unit,boolean chinese){
         this.activity=activity;this.root=root;this.homeUnit=unit;this.unit=unit*960f/1040f;this.ui=new WallpaperUi(activity,this.unit);this.chinese=chinese;store=WallpaperStore.get(activity);screensavers=ScreensaverStore.get(activity);uploads=new WallpaperUploadPanel(activity,store,chinese);
         backdropCache=new WallpaperBackdropCache(activity);daily=new DailyWallpaperController(activity,store,chinese,this::dailyChanged);
-        FrameLayout background=new FrameLayout(activity);root.addView(background,new FrameLayout.LayoutParams(-1,-1));
-        video=new VideoWallpaperPlayer(activity,background);
+        background=new FrameLayout(activity){
+            @Override protected void onMeasure(int widthSpec,int heightSpec){
+                if(getScaleX()==2f){
+                    widthSpec=View.MeasureSpec.makeMeasureSpec((View.MeasureSpec.getSize(widthSpec)+1)/2,View.MeasureSpec.getMode(widthSpec));
+                    heightSpec=View.MeasureSpec.makeMeasureSpec((View.MeasureSpec.getSize(heightSpec)+1)/2,View.MeasureSpec.getMode(heightSpec));
+                }
+                super.onMeasure(widthSpec,heightSpec);
+            }
+        };
+        background.setPivotX(0);background.setPivotY(0);
+        root.addView(background,new FrameLayout.LayoutParams(-1,-1));
+        // Compose video and cover in the same View frame; ready waits for the texture update.
+        video=new VideoWallpaperPlayer(activity,background,true);
         current=image();current.setBackgroundColor(Color.BLACK);incoming=image();incoming.setAlpha(0f);background.addView(current,new FrameLayout.LayoutParams(-1,-1));background.addView(incoming,new FrameLayout.LayoutParams(-1,-1));
         shade=new View(activity);shade.setBackgroundDrawable(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x70000000,0x10000000,0xf00a0e15}));background.addView(shade,new FrameLayout.LayoutParams(-1,-1));
         ambient=new Ambient(activity,homeUnit);ambient.colorChanged=this::invalidateDock;background.addView(ambient,new FrameLayout.LayoutParams(-1,-1));ambient.setColor(themeColor);ambient.setVisibility(View.VISIBLE);
@@ -136,9 +147,13 @@ final class WallpaperController {
     void setDesktopEffects(int first,int second,float progress,int brightness,int fade){firstBlur=first;secondBlur=second;desktopProgress=progress;desktopBlur=Math.round(first+(second-first)*progress);desktopBrightness=brightness;desktopFade=fade;updateDesktopEffects();}
     void interaction(){wallpaperBlur.interaction();}
     private void updateDesktopEffects(){
-        // Keep native video at its display resolution. Blur samples that output without replacing it.
-        wallpaperBlur.nativeVideo(video.visible()&&video.ready()&&video.nativeOutput(),video.outputGeneration());
-        boolean separate=temporaryMedia!=null||picker!=null;if(separate)wallpaperBlur.amount(0);else wallpaperBlur.blend(firstBlur,secondBlur,desktopProgress);appearance.brightness(separate?100:desktopBrightness);if(separate){fadePending=false;appearance.finish();}
+        boolean separate=temporaryMedia!=null||picker!=null;
+        // Filter the moving texture at half size; sharp wallpaper and all foreground UI stay full size.
+        float scale=Build.VERSION.SDK_INT>=31&&!separate&&video.visible()&&!video.nativeOutput()&&desktopBlur>0?2f:1f;
+        if(background.getScaleX()!=scale){background.setScaleX(scale);background.setScaleY(scale);background.requestLayout();}
+        // Reuse both page caches for live video; compiling blur filters during scroll stalls the render thread.
+        wallpaperBlur.nativeVideo(video.visible()&&video.ready()&&(video.nativeOutput()||Build.VERSION.SDK_INT>=31),video.outputGeneration());
+        if(separate)wallpaperBlur.amount(0);else wallpaperBlur.blend(firstBlur,secondBlur,desktopProgress);appearance.brightness(separate?100:desktopBrightness);if(separate){fadePending=false;appearance.finish();}
     }
     private int fadeDuration(int original){return temporaryMedia!=null||picker!=null?original:desktopFade;}
     private void revealDesktop(boolean changed){if(!active||temporaryMedia!=null||picker!=null)return;if(fadePending||changed){fadePending=false;desktopRevealed=true;appearance.fadeIn(desktopFade);}}
@@ -275,12 +290,7 @@ final class WallpaperController {
         cancelVideoFade();int duration=fadeDuration(200);
         if(duration==0){
             if(pendingCover!=null)return;
-            // Zero disables the animation, not the covered frame needed to hand off a native Surface.
-            final int output=video.outputGeneration();
-            withCover(()->{
-                if(version!=videoRequest||output!=video.outputGeneration()||!video.ready()||!active||destroyed||(!root.hasWindowFocus()&&(picker==null||!picker.isShowing())))return;
-                current.setAlpha(0f);wallpaperBlur.invalidate();recordVideoState("reveal_complete");
-            });return;
+            current.setAlpha(0f);wallpaperBlur.invalidate();recordVideoState("reveal_complete");return;
         }
         videoFade=ValueAnimator.ofFloat(current.getAlpha(),0f);videoFade.setDuration(duration);
         videoFade.addUpdateListener(a->{if(version==videoRequest&&active&&!destroyed){current.setAlpha((float)a.getAnimatedValue());wallpaperBlur.invalidate();if(current.getAlpha()==0f)recordVideoState("reveal_complete");}});videoFade.start();
@@ -294,7 +304,7 @@ final class WallpaperController {
         // The existing poster/cache is already drawable. Navigation never waits for PixelCopy.
         finishLeave(next);
     }
-    private void finishLeave(Runnable launch){stopVideo(()->{leaving=false;if(active&&!destroyed)launch.run();});}
+    private void finishLeave(Runnable launch){leaving=false;if(active&&!destroyed)launch.run();}
     private void restoreSelected(){String id=store.snapshot().current;if(store.snapshot().dynamic()&&!id.equals(failedVideo))startVideo(id,false);else display(id,false);}
     private void schedule(){main.removeCallbacks(rotate);WallpaperCatalog state=store.snapshot();if(active&&temporaryMedia==null&&state.rotating&&picker==null)main.postDelayed(rotate,state.rotationMinutes*60*1000L);}
     void resume(){if(!active&&!desktopRevealed)fadePending=true;active=true;wallpaperBlur.suspended(false);wallpaperBlur.interaction();wallpaperBlur.active(true);updateDesktopEffects();restoreDesktopPending=false;video.setSound(store.snapshot().sound);leaving=false;video.setPaused(false);restoreSelected();if(video.ready()&&videoFade==null&&current.getAlpha()>0f)revealVideo(videoRequest);daily.resume();schedule();recordVideoState("resume");}
@@ -321,7 +331,8 @@ final class WallpaperController {
             refreshCards(preview,cardFocused);
         }else if(active)display(store.snapshot().current,true);
     }
-    void pause(){recordVideoState("before_pause");active=false;fadePending=false;wallpaperBlur.active(false);appearance.finish();leaving=false;++request;cancelCover();pendingVideoStart=null;cancelVideoFade();current.setAlpha(1f);video.setPaused(true);daily.pause();cancelCardPress();main.removeCallbacks(rotate);uploads.close();if(confirmation!=null)confirmation.dismiss();if(picker!=null)picker.dismiss();if(transition!=null)transition.end();}
+    // HOME can pause a still-visible Activity; hidden() stops playback when it actually leaves.
+    void pause(){recordVideoState("before_pause");active=false;fadePending=false;wallpaperBlur.active(false);appearance.finish();leaving=false;++request;cancelCover();pendingVideoStart=null;cancelVideoFade();daily.pause();cancelCardPress();main.removeCallbacks(rotate);uploads.close();if(confirmation!=null)confirmation.dismiss();if(picker!=null)picker.dismiss();if(transition!=null)transition.end();}
     void hidden(){stopVideo();}
     void destroy(){destroyed=true;appearance.finish();wallpaperBlur.destroy();finishStartupCover();++request;pendingVideoStart=null;cancelCover();cancelVideoFade();video.destroy();restoredCover=null;daily.destroy();uploads.destroy();decoder.shutdownNow();main.removeCallbacksAndMessages(null);if(transition!=null){transition.cancel();transition.removeAllUpdateListeners();}current.setImageDrawable(null);incoming.setImageDrawable(null);currentBlur=null;incomingBlur=null;dockInvalidation=null;thumbnails.evictAll();}
 
