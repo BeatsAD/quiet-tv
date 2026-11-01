@@ -561,6 +561,9 @@ def configure(args, adb):
     if sdk >= 27:
         try:
             help_text = adb.shell("cmd", "notification", "help")
+        except CommandFailure as error:
+            # Android 12 can print valid command help with exit status 255.
+            help_text = error.output if error.exit == 255 and not ERROR_OUTPUT.search(error.output) else ""
         except ValueError:
             help_text = ""
         if "user_id" in command_signature(help_text, "allow_listener"):
