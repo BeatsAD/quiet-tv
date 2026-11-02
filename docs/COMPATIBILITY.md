@@ -413,3 +413,9 @@ MiBOX3 / JurassicPark（API22）新增直接 HOME 按键补偿开发路径，允
 发现过程在后台执行，离开桌面后不启动过期结果。失败分别提示标准服务未提供、空列表、全部隐藏/去重、读取受限、读取异常、原厂入口未识别/停用/受限，以及厂商枚举接口缺失。可以手动重新检测，不循环重试，不自动改权限、启用系统组件或模拟全局按键。诊断记录标准返回数、过滤数、去重数、单项失败及原厂组件状态，电脑维护快照也提供过滤原因。
 
 本轮新增原厂入口的接口依据为 [Aerial SystemState](https://github.com/pengchujin/aerial-tv/blob/fb0154ee1af96a7e4d54ad63d9c6ba579fda02ac/app/src/main/java/app/orchard/tv/system/SystemState.kt)，酷开入口的上游记录见 [#582](https://github.com/pengchujin/aerial-tv/issues/582)、[#779](https://github.com/pengchujin/aerial-tv/issues/779)。这些上游记录不计作 Quiet TV 真机验收。
+
+## 信号源搜索与配对（开发源码，未打包）
+
+“看电视”可用遥控器搜索、逐项试开并确认原厂面板或 HDMI，电脑 AI 使用同一维护接口。标准档读取 TV Input 和已适配厂商接口，Android 4.x 不加载标准输入框架；双方均可按实际本机 ADB 能力尝试已有协议。菜单确认与端口画面声音确认分开，旧配置只在确认保存后替换。
+
+辅助识别仅提供限时系统现场与用户观察，未知组件不能直接变成调用协议。连接、权限、命令支持、HDMI 画面声音及返回后的音频释放仍须逐固件核对；JVM／编译验证不代替真机。详见[操作说明](USAGE.zh-CN.md#信号源搜索与配对开发源码未打包)和[电脑接口](agent/inputs.md#遥控器与-ai-共用搜索配对)。

@@ -14,6 +14,8 @@ final class DiagnosticDownloadServer extends NanoHTTPD {
     static final String FILE_NAME="QuietTV-diagnostics.txt";
     interface Assets {InputStream open(String name) throws IOException;}
     private final File file;
+    private String fileName=FILE_NAME,mime="text/plain; charset=utf-8";
+    private long maximumBytes=MAX_EXPORT_BYTES;
     private final Assets assets;
     private final String host,token;
     private final long started=System.nanoTime(),lifetime;
@@ -29,6 +31,10 @@ final class DiagnosticDownloadServer extends NanoHTTPD {
             public synchronized void closed(ClientHandler client){clients.remove(client);}
             public synchronized void closeAll(){for(ClientHandler client:clients)client.close();clients.clear();}
         });
+    }
+    DiagnosticDownloadServer(String host,File file,Assets assets,boolean inputExport){
+        this(host,file,assets);
+        if(inputExport){fileName="QuietTV-inputs.zip";mime="application/zip";maximumBytes=InputSourceObservation.MAX_BYTES;}
     }
     void listen() throws IOException {start(10000,true);}
     String address(){return "http://"+host+":"+getListeningPort()+"/"+token+"/";}
@@ -56,9 +62,9 @@ final class DiagnosticDownloadServer extends NanoHTTPD {
         String route=uri.substring(prefix.length());
         try{
             if("download".equals(route)){
-                if(!file.isFile()||file.length()>MAX_EXPORT_BYTES)throw new IOException("Export unavailable");
-                Response response=newFixedLengthResponse(Response.Status.OK,"text/plain; charset=utf-8",new FileInputStream(file),file.length());
-                response.addHeader("Content-Disposition","attachment; filename=\""+FILE_NAME+"\"");
+                if(!file.isFile()||file.length()>maximumBytes)throw new IOException("Export unavailable");
+                Response response=newFixedLengthResponse(Response.Status.OK,mime,new FileInputStream(file),file.length());
+                response.addHeader("Content-Disposition","attachment; filename=\""+fileName+"\"");
                 if(session.getMethod()==Method.GET)DiagnosticLog.info("diagnostic.download","requested");
                 return secure(response);
             }
@@ -68,8 +74,8 @@ final class DiagnosticDownloadServer extends NanoHTTPD {
                     byte[] buffer=new byte[4096];int count;while((count=input.read(buffer))!=-1)output.write(buffer,0,count);bytes=output.toByteArray();
                 }
                 if(route.isEmpty()){
-                    if(!file.isFile()||file.length()>MAX_EXPORT_BYTES)throw new IOException("Export unavailable");
-                    String html=new String(bytes,Charsets.UTF_8).replace("__FILE_NAME__",FILE_NAME)
+                    if(!file.isFile()||file.length()>maximumBytes)throw new IOException("Export unavailable");
+                    String html=new String(bytes,Charsets.UTF_8).replace("__FILE_NAME__",fileName)
                         .replace("__FILE_SIZE__",fileSize(file.length()))
                         .replace("__GENERATED_AT__",new SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z",Locale.ROOT).format(new Date(file.lastModified())));
                     bytes=html.getBytes(Charsets.UTF_8);

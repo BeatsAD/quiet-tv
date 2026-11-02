@@ -20,6 +20,7 @@ final class DiagnosticDeviceSnapshot {
         snapshot.section("显示与绘制",()->snapshot.text.append(DiagnosticDisplaySnapshot.collect(context,window)));
         snapshot.text.append("\n[ADB 与调试接口]\n").append(adb);
         snapshot.section("调试设置入口",snapshot::debugSettings);
+        snapshot.section("信号源搜索与配对",()->snapshot.text.append(InputSourceObservation.configurationSummary(context)).append("\n专项观察：").append(InputSourceObservation.status(context)).append("\n详细证据请下载信号源诊断包。\n"));
         snapshot.section("系统设置页面采集",()->snapshot.text.append(SettingsPageCapture.summary()).append('\n'));
         snapshot.section("系统默认桌面",snapshot::home);
         snapshot.section("原桌面记录",snapshot::original);

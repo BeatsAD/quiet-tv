@@ -110,6 +110,7 @@ final class SystemEntryMaintenance {
         if(("PENDING".equals(current.state)||"PREPARING".equals(current.state))&&age>30000
                 ||"DISPATCHED_UNVERIFIED".equals(current.state)&&age>600000){current.state="EXPIRED";current.reason="test_expired";}
     }
+    static synchronized boolean inputBusy(){expire();return current!=null&&"inputs".equals(current.entry)&&(pending()||"DISPATCHED_UNVERIFIED".equals(current.state));}
     static synchronized boolean pending(){expire();return current!=null&&("PENDING".equals(current.state)||"PREPARING".equals(current.state));}
     static synchronized Test consume(){
         expire();if(current==null||!"PENDING".equals(current.state))return null;
@@ -140,19 +141,21 @@ final class SystemEntryMaintenance {
             if(!new SettingsRouteMemory(context).confirm(test.attempt,worked,source))throw new IllegalStateException("此入口不能确认当前功能，或测试已失效");
         }else{
             if(worked){
-                JSONObject saved=new JSONObject().put("id",candidate.id).put("scope",candidate.scope).put("source",source);
-                if(!context.getSharedPreferences("system-entry-maintenance",0).edit().putString("inputs",saved.toString()).commit())throw new IllegalStateException("信号源入口未保存");
+                JSONObject saved=new JSONObject().put("id",candidate.id).put("scope",candidate.scope).put("source",source).put("transport","native");
+                SourcePairingStore store=new SourcePairingStore(context);store.saveEntry(saved,store.revision());
             }else failedPanel(context,candidate.panel);
         }
         test.state=worked?"CONFIRMED":"REJECTED";test.source=source;
     }
-    private static String panelId(TvInputPanels.Panel panel){return SettingsRouteMemory.identity(panel.profile.type+":"+panel.profile.intent().setComponent(panel.component).toUri(0));}
-    private static String panelScope(Context context,TvInputPanels.Panel panel)throws Exception{
+    static String panelId(TvInputPanels.Panel panel){return SettingsRouteMemory.identity(panel.profile.type+":"+panel.profile.intent().setComponent(panel.component).toUri(0));}
+    static String panelScope(Context context,TvInputPanels.Panel panel)throws Exception{
         return DeviceInputProfile.digest(Build.FINGERPRINT+"\n"+Build.VERSION.SDK_INT+"\n"+panelId(panel)+"\n"+VendorTvInputs.packageStamp(context,panel.component.getPackageName()));
     }
     static boolean preferredPanel(Context context,TvInputPanels.Panel panel){
         if(panel.state!=TvInputPanels.PanelState.READY||panel.component==null)return false;
-        try{JSONObject saved=new JSONObject(context.getSharedPreferences("system-entry-maintenance",0).getString("inputs","{}"));
+        try{SourcePairingStore pairing=new SourcePairingStore(context);
+            JSONObject saved=pairing.overridesEntry()?pairing.entry():new JSONObject(context.getSharedPreferences("system-entry-maintenance",0).getString("inputs","{}"));
+            if(saved==null||saved.optBoolean("rejected")||!"native".equals(saved.optString("transport","native")))return false;
             return panelId(panel).equals(saved.optString("id"))&&panelScope(context,panel).equals(saved.optString("scope"));
         }catch(Exception stale){return false;}
     }

@@ -427,6 +427,66 @@ def entry_action(args, adb, journal, snapshot):
         print("已保存并读回入口选择。" if args.worked == "yes" else "已记录入口未正常打开；可从候选中明确选择下一项测试。")
 
 
+SOURCE_ACTIONS = ("source-search", "source-status", "source-test", "source-confirm", "source-cancel",
+                  "source-observe", "source-observe-stop", "source-evidence", "source-restore")
+
+
+def source_operation(args, adb, journal, snapshot):
+    if "source-pairing-v1" not in snapshot.get("capabilities", []):
+        raise ValueError("已安装 APK 缺少 source-pairing-v1，不绕过接口改写配置")
+    previous = None
+    if args.from_source:
+        previous = json.loads(args.from_source.read_text(encoding="utf-8"))
+        if (previous.get("serial") != args.serial or previous.get("package") != args.package
+                or previous.get("user") != args.user or previous.get("fingerprint") != snapshot.get("fingerprint")):
+            raise ValueError("信号源记录不属于本机、用户或固件")
+    extras = {}
+    action = args.action
+    if action in ("source-test", "source-confirm", "source-restore"):
+        if not previous:
+            raise ValueError("需要上一阶段的 --from-source source.json")
+        state = previous["sourcePairing"]
+        if action == "source-test":
+            candidates = [item for item in state.get("candidates", []) if item.get("id") == args.candidate]
+            if len(candidates) != 1:
+                raise ValueError("需要用 --candidate 明确选择一个真实搜索候选")
+            extras = {"candidate": args.candidate, "scope": candidates[0]["scope"], "revision": state["revision"]}
+            if args.label:
+                extras["label"] = args.label
+        elif action == "source-confirm":
+            test = state.get("test", {})
+            if test.get("state") != "DISPATCHED_UNVERIFIED" or not test.get("request"):
+                raise ValueError("需要已派发且尚未确认的测试记录")
+            extras = {"request": test["request"], "worked": args.worked == "yes", "physical": args.physical_confirmed,
+                      "source": args.evidence_source, "observed": args.observed}
+        else:
+            extras = {"revision": state["revision"], "defaults": args.defaults}
+    elif action == "source-observe":
+        if "source-observation-v1" not in snapshot.get("capabilities", []):
+            raise ValueError("APK 缺少 source-observation-v1")
+        extras = {"raw": args.include_raw}
+    elif action == "source-observe-stop":
+        extras = {"source": args.evidence_source, "observation_result": args.observation_result, "hdmi_port": args.hdmi_port or 0, "physical": args.physical_confirmed}
+    readonly = action in ("source-search", "source-status", "source-evidence")
+    journal.event("source_plan", action=action, extras=extras, scope=snapshot)
+    if not readonly and not args.apply:
+        print(json.dumps({"action": action, "parameters": extras}, ensure_ascii=False, indent=2))
+        print("仅预览；测试会切换界面，确认会保存配置，采集会短时观察原厂操作；执行使用 --apply。")
+        return
+    unchanged_user(adb, args.user)
+    result = inspect(adb, args.package, args.user, action.replace("-", "_"), extras=extras)
+    record = {"schemaVersion": 1, "serial": args.serial, "package": args.package, "user": args.user,
+              "fingerprint": result["fingerprint"], "sourcePairing": result["sourcePairing"]}
+    if previous:
+        record["expectedRequest"] = previous.get("sourcePairing", {}).get("test", {}).get("request")
+    if "sourceEvidence" in result:
+        record["sourceEvidence"] = result["sourceEvidence"]
+    (journal.directory / "source.json").write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
+    journal.event("source_result", result=record)
+    print(json.dumps(record["sourcePairing"], ensure_ascii=False, indent=2))
+    print("已保存 source.json；异步搜索、测试和保存用 source-status 读取最终状态，不重放操作。")
+
+
 def restore_home(args, adb, journal, sdk, snapshot):
     if snapshot.get("takeoverRecord"):
         return restore_takeover(args, adb, journal, sdk, snapshot)
@@ -605,6 +665,8 @@ def run(args, adb, journal):
             print("已保存本机 TCP 端口；须在电视应用管理连接并确认应用自己的 ADB 授权。端口配置不等于权限已可用。")
         else:
             print("仅预览：保存本机 TCP ADB 端口 " + str(args.port) + "，不打开端口、不修改应用。")
+    elif args.action in SOURCE_ACTIONS:
+        source_operation(args, adb, journal, snapshot)
     elif args.action.startswith("entry-"):
         entry_action(args, adb, journal, snapshot)
     elif args.action.startswith(("input-", "profile-")):
@@ -659,7 +721,7 @@ def run(args, adb, journal):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("management-config", "inspect", "repair", "pause", "restore", "disable", "restore-app", "input-list", "input-open", "profile-get", "profile-set", "profile-reset", "entry-list", "entry-status", "entry-test", "entry-confirm"))
+    parser.add_argument("action", choices=("management-config", "inspect", "repair", "pause", "restore", "disable", "restore-app", "input-list", "input-open", "profile-get", "profile-set", "profile-reset", "entry-list", "entry-status", "entry-test", "entry-confirm") + SOURCE_ACTIONS)
     parser.add_argument("--serial", required=True)
     parser.add_argument("--user", required=True, type=int)
     parser.add_argument("--package", default=tcl.PACKAGE, choices=(tcl.PACKAGE, "com.ts.launcher", "com.coocaa.quiettv"))
@@ -668,6 +730,13 @@ def main():
     parser.add_argument("--profile", type=Path, help="当前固件的本机信号源配置 JSON")
     parser.add_argument("--source", help="input-list 返回的完整信号源 ID")
     parser.add_argument("--entry", choices=("settings", "network", "inputs"), help="本次系统入口功能；inputs 测试原厂面板，不修改端口映射")
+    parser.add_argument("--from-source", type=Path, help="上一阶段生成的 source.json")
+    parser.add_argument("--observation-result", choices=("menu", "hdmi", "failed", "unknown"), default="unknown", help="辅助识别时用户实际执行的原厂操作结果")
+    parser.add_argument("--hdmi-port", type=int, help="辅助识别中实际接线的 HDMI 插口编号")
+    parser.add_argument("--label", help="本次校准后的实际端口名称，需重新测试")
+    parser.add_argument("--physical-confirmed", action="store_true", help="用户实际确认了端口、画面与声音")
+    parser.add_argument("--include-raw", action="store_true", help="辅助识别附加相关原始系统片段，导出前须检查私人信息")
+    parser.add_argument("--defaults", action="store_true", help="source-restore 恢复配对默认设置")
     parser.add_argument("--from-entry", type=Path, help="前一步生成的 entry.json")
     parser.add_argument("--candidate", help="entry-list 返回的候选 ID；省略时使用当前优先候选")
     parser.add_argument("--worked", choices=("yes", "no"), help="实际功能是否正常")
@@ -706,6 +775,25 @@ def main():
             parser.error("读取入口不使用 --apply")
         if args.action == "entry-confirm" and (args.worked is None or not args.observed or not args.observed.strip() or len(args.observed) > 300):
             parser.error("确认需要 --worked yes/no 和实际结果 --observed（最多300字）")
+    if args.action in SOURCE_ACTIONS:
+        if args.action in ("source-search", "source-status", "source-evidence") and args.apply:
+            parser.error("读取信号源不使用 --apply")
+        if args.action in ("source-test", "source-confirm", "source-restore") and not args.from_source:
+            parser.error("此操作需要上一阶段 --from-source source.json")
+        if args.action == "source-test" and not args.candidate:
+            parser.error("测试需要明确的 --candidate")
+        if args.action == "source-confirm" and (args.worked is None or not args.observed or not args.observed.strip() or len(args.observed) > 300):
+            parser.error("确认需要 --worked yes/no 和实际结果 --observed（最多300字）")
+        if args.label and (args.action != "source-test" or len(args.label) > 40 or re.search(r"[\x00-\x1f]", args.label)):
+            parser.error("--label 仅用于本次测试的端口校准，最多40字")
+        if args.include_raw and args.action != "source-observe" or args.physical_confirmed and args.action not in ("source-confirm", "source-observe-stop") or args.defaults and args.action != "source-restore":
+            parser.error("--include-raw、--physical-confirmed、--defaults 须用于对应操作")
+        if args.action == "source-observe-stop" and args.observation_result == "hdmi" and (not args.hdmi_port or not 1 <= args.hdmi_port <= 32 or not args.physical_confirmed or args.evidence_source != "user"):
+            parser.error("HDMI 观察需要用户确认实际插口 --hdmi-port、画面和声音 --physical-confirmed")
+        if args.hdmi_port is not None and args.action != "source-observe-stop" or args.observation_result != "unknown" and args.action != "source-observe-stop":
+            parser.error("原厂操作结果仅用于 source-observe-stop")
+    elif args.from_source or args.label or args.include_raw or args.physical_confirmed or args.defaults or args.hdmi_port is not None or args.observation_result != "unknown":
+        parser.error("信号源配对参数仅用于 source-* 操作")
     journal = None
     try:
         journal = tcl.Journal(args.record)

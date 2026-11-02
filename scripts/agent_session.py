@@ -52,7 +52,7 @@ def option(arguments, name, default=None):
 
 def operation(tool, arguments):
     # The child parsers accept abbreviations; do not let an abbreviated flag evade routing.
-    flags = ('--apply', '--goal', '--action', '--pause', '--restore-record', '--verify-only', '--adb-only', '--adb-guard', '--window-guard', '--native-observer', '--resume')
+    flags = ('--apply', '--goal', '--action', '--pause', '--restore-record', '--verify-only', '--adb-only', '--adb-guard', '--window-guard', '--native-observer', '--resume', '--include-raw', '--physical-confirmed', '--defaults')
     if any(arg.startswith('--') and any(flag.startswith(arg.split('=')[0])
             and flag != arg.split('=')[0] for flag in flags) for arg in arguments):
         raise ValueError('任务调用须使用完整参数名，不使用缩写')
@@ -81,6 +81,9 @@ def operation(tool, arguments):
             raise ValueError('维护工具须先指定完整操作名')
         return {'inspect': 'read', 'input-list': 'read', 'profile-get': 'read',
                 'entry-list': 'read', 'entry-status': 'read', 'entry-test': 'test', 'entry-confirm': 'entry',
+                'source-search': 'read', 'source-status': 'read', 'source-evidence': 'read',
+                'source-test': 'input-test', 'source-observe': 'input-test', 'source-observe-stop': 'input-test',
+                'source-cancel': 'input-test', 'source-confirm': 'input', 'source-restore': 'input',
                 'input-open': 'test', 'profile-set': 'input', 'profile-reset': 'input',
                 'repair': 'home', 'management-config': 'adb', 'disable': 'manage',
                 'restore': 'restore', 'restore-app': 'restore', 'pause': 'restore'}.get(arguments[0], 'unknown')
@@ -150,13 +153,13 @@ def allowed(state, tool, arguments):
     route = state.get('route')
     if action == 'read':
         return action
-    choices = {'install': ('trial', 'takeover', 'adb', 'home', 'input', 'rules', 'manage', 'test', 'remote', 'entry'),
+    choices = {'install': ('trial', 'takeover', 'adb', 'home', 'input', 'rules', 'manage', 'test', 'remote', 'entry', 'input-test'),
                'update': ('update', 'test'),
                'restore': ('restore',), 'inspect': (), 'noop': (), 'boot-ads': ('ads', 'test')}
     if route == 'repair':
         issue = state.get('issue')
         actions = ('remote', 'test') if issue == 'remote' else ('home', 'takeover', 'adb', 'test') if issue == 'home' else ('adb', 'test') if issue == 'adb' else (
-                  ('input', 'entry', 'test') if issue == 'inputs' else ('manage', 'rules', 'test') if issue == 'apps' else ('entry', 'test') if issue in ('settings', 'network') else ('test',))
+                  ('input', 'entry', 'test', 'input-test') if issue == 'inputs' else ('manage', 'rules', 'test') if issue == 'apps' else ('entry', 'test') if issue in ('settings', 'network') else ('test',))
     else:
         actions = choices.get(route, ())
     if action not in actions:
@@ -164,7 +167,7 @@ def allowed(state, tool, arguments):
     if (route == 'repair' and tool == 'device_maintenance' and arguments[0] in ('entry-test', 'entry-confirm')
             and option(arguments, '--entry') != state.get('issue')):
         raise ValueError('入口测试及保存须对应本次修复领域')
-    if route == 'install' and action not in ('trial', 'test') and '--apply' in arguments:
+    if route == 'install' and action not in ('trial', 'test', 'input-test') and '--apply' in arguments:
         if results(state).get('basic_ui', {}).get('status') != 'PASS' or not state.get('trial'):
             raise ValueError('首次配置前先安装试用，并 accept basic_ui 记录用户实际结果')
         if action == 'remote' and results(state).get('desktop_configured', {}).get('status') != 'PASS':
@@ -174,6 +177,21 @@ def allowed(state, tool, arguments):
 
 def collect_step(state, step, action, reconcile=False):
     record = Path(step['record'])
+    source_file = record / 'source.json'
+    if (step['tool'] == 'device_maintenance' and step.get('exit') == 0 and step['arguments'][0] == 'source-status'
+            and source_file.is_file() and option(step['arguments'], '--from-source') and not reconcile):
+        observed = json.loads(source_file.read_text(encoding='utf-8'))
+        previous = json.loads(Path(option(step['arguments'], '--from-source')).read_text(encoding='utf-8'))
+        pairing = observed.get('sourcePairing', {})
+        test = pairing.get('test', {})
+        if (all(observed.get(key) == state['scope'][key] for key in ('serial', 'user', 'fingerprint'))
+                and observed.get('package') == state['package'] and observed.get('expectedRequest') == test.get('request')
+                and previous.get('sourcePairing', {}).get('test', {}).get('request') == test.get('request')
+                and test.get('request') and test.get('source') in ('user', 'agent') and not pairing.get('saving')):
+            outcome = test.get('state')
+            if outcome in ('SAVED', 'REJECTED', 'FAILED'):
+                record_result(state, 'inputs', 'PASS' if outcome == 'SAVED' else 'FAIL', test['source'],
+                              ('本次输入已确认，未变更常用 HDMI' if test.get('savedKind') == 'observed_input' else '本次信号源已确认、保存并读回') if outcome == 'SAVED' else '本次信号源测试未通过', str(source_file))
     entry_file = record / 'entry.json'
     if (step['tool'] == 'device_maintenance' and step.get('exit') == 0 and '--apply' in step['arguments']
             and step['arguments'][0] in ('entry-test', 'entry-confirm') and entry_file.is_file() and not reconcile):
@@ -437,7 +455,7 @@ def run_step(directory, state, tool, arguments):
         for name in ('physical_home', 'remote'):
             if name in state.get('requiredChecks', []):
                 record_result(state, name, 'SKIP', 'script', '校准阶段改变，需按最终映射重新验收')
-    elif '--apply' in arguments and action not in ('read', 'test'):
+    elif '--apply' in arguments and action not in ('read', 'test', 'input-test'):
         state['evidenceAfter'] = number
         if action == 'takeover' or action == 'home' and ('--adb-guard' in arguments or '--window-guard' in arguments):
             state['requiredChecks'] = list(dict.fromkeys((*state.get('requiredChecks', []), *TAKEOVER_CHECKS)))

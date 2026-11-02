@@ -43,8 +43,11 @@ final class BootAppStore {
         save(editor);
     }}
     private void save(SharedPreferences.Editor editor) throws IOException {
-        java.util.Map<String,?> before=preferences.getAll();
         editor.putBoolean("cover-pending",false).putBoolean("cover-armed",false).putBoolean("cover-stopped",true);
+        commit(preferences,editor);
+    }
+    static void commit(SharedPreferences preferences,SharedPreferences.Editor editor) throws IOException {
+        java.util.Map<String,?> before=preferences.getAll();
         if(editor.commit())return;
         SharedPreferences.Editor rollback=preferences.edit();
         // Restore only this store's snapshot after a failed commit changes its memory map.
