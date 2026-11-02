@@ -8,8 +8,14 @@ import android.view.Surface;
 import java.io.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/** Codec calls live outside HOME; completion requires release acknowledgement or Binder death. */
+/** Playback replacement waits for codec release; normal devices use the isolated service. */
 final class WallpaperPlayback {
+    interface LocalPlayer {
+        void prepare()throws IOException;
+        void setSound(boolean enabled);
+        void setPaused(boolean paused);
+        void release(Runnable completed);
+    }
     private static final AtomicInteger sessions=new AtomicInteger();
     private final int session=sessions.incrementAndGet();
     private final Context source;
@@ -27,6 +33,7 @@ final class WallpaperPlayback {
     private boolean bound,opened,released,terminal,sound,paused,linked,cancelled,softwareAvailable;
     private final boolean softwareOnly;
     private WallpaperPlayback fallback;
+    private LocalPlayer local;
     private Runnable completion;
     private final IBinder.DeathRecipient death;
     private final ServiceConnection connection=new ServiceConnection(){
@@ -42,7 +49,20 @@ final class WallpaperPlayback {
         replies=new Messenger(new Handler(worker.getLooper()){@Override public void handleMessage(Message message){receive(message);}});
     }
     void prepare()throws IOException{
+        if(released||terminal)return;
         try{
+            local=WallpaperService.localPlayer(source,worker,surface,uri(),entry.rotation,context,softwareOnly,new VideoWallpaperPlayer.PlaybackEvents(){
+                @Override public void ready(){localEvent(WallpaperService.FRAME,0,null);}
+                @Override public void softwareDecoderAvailable(boolean available){localEvent(WallpaperService.SOFTWARE_AVAILABLE,available?1:0,null);}
+                @Override public void retrySoftware(){localEvent(WallpaperService.RETRY_SOFTWARE,0,null);}
+                @Override public void failed(VideoWallpaperPlayer.Failure reason){localEvent(WallpaperService.FAILED,reason.ordinal(),null);}
+                @Override public void size(int width,int height,float ratio){Bundle size=new Bundle();size.putInt("width",width);size.putInt("height",height);size.putFloat("pixelRatio",ratio);localEvent(WallpaperService.SIZE,0,size);}
+            });
+            if(local!=null){
+                opened=true;
+                DiagnosticLog.info("wallpaper.video.local",context+" phase=open session="+session+" reason=mitv_starwars_api22_firmware_1653");
+                local.setSound(sound);local.setPaused(paused);local.prepare();return;
+            }
             if(BuildConfig.LEGACY_19){
                 if(file!=null){input=ParcelFileDescriptor.open(file,ParcelFileDescriptor.MODE_READ_ONLY);offset=0;length=file.length();}
                 else try(AssetFileDescriptor asset=source.getAssets().openFd("wallpapers/"+entry.id+".mp4")){
@@ -53,13 +73,21 @@ final class WallpaperPlayback {
             if(!bound)throw new IOException("Playback service unavailable");
         }catch(IOException|RuntimeException e){closeInput();throw e;}
     }
+    private Uri uri(){return file!=null?Uri.fromFile(file):Uri.parse("asset:///wallpapers/"+entry.id+".mp4");}
+    private void localEvent(int what,int reason,Bundle data){
+        // Codec discovery can call back on the renderer thread. Serialize with controls/release.
+        worker.post(()->{
+            Message message=Message.obtain(null,what,session,reason);if(data!=null)message.setData(data);
+            try{receive(message);}finally{message.recycle();}
+        });
+    }
     private void connected(IBinder service){
         if(terminal||released)return;
         binder=service;remote=new Messenger(service);
         try{
             service.linkToDeath(death,0);linked=true;
             Bundle data=new Bundle();data.putParcelable("surface",surface);data.putParcelable("file",input);
-            data.putString("uri",(file!=null?Uri.fromFile(file):Uri.parse("asset:///wallpapers/"+entry.id+".mp4")).toString());
+            data.putString("uri",uri().toString());
             data.putBoolean("softwareOnly",softwareOnly);data.putInt("rotation",entry.rotation);data.putString("context",context);
             data.putLong("offset",offset);data.putLong("length",length);data.putBoolean("sound",sound);data.putBoolean("paused",paused);
             opened=true;send(WallpaperService.OPEN,data);
@@ -101,8 +129,8 @@ final class WallpaperPlayback {
         Bundle data=new Bundle();data.putBoolean("enabled",enabled);
         try{send(command,data);}catch(RemoteException e){remoteFailure("control_failed");}
     }
-    void setSound(boolean enabled){sound=enabled;if(fallback!=null)fallback.setSound(enabled);else control(WallpaperService.SOUND,enabled);}
-    void setPaused(boolean value){paused=value;if(fallback!=null)fallback.setPaused(value);else control(WallpaperService.PAUSE,value);}
+    void setSound(boolean enabled){sound=enabled;if(fallback!=null)fallback.setSound(enabled);else if(local!=null){if(!released&&!terminal)local.setSound(enabled);}else control(WallpaperService.SOUND,enabled);}
+    void setPaused(boolean value){paused=value;if(fallback!=null)fallback.setPaused(value);else if(local!=null){if(!released&&!terminal)local.setPaused(value);}else control(WallpaperService.PAUSE,value);}
     boolean retrySoftware(String reason){
         if(cancelled||released||terminal||softwareOnly||fallback!=null||!softwareAvailable)return false;
         DiagnosticLog.info("wallpaper.video.fallback",context+" from="+(BuildConfig.LEGACY_19?"platform":"hardware")+" to=software reason="+reason+" phase=retiring_player");
@@ -124,7 +152,16 @@ final class WallpaperPlayback {
         retire(completed);
     }
     private void retire(Runnable completed){
-        released=true;completion=completed;
+        boolean retiring=released;released=true;completion=completed;
+        if(local!=null){
+            if(terminal)ended("local_already_released");
+            else if(!retiring){
+                DiagnosticLog.info("wallpaper.video.local",context+" phase=release_requested session="+session);
+                // No process-kill watchdog in HOME. A blocked release keeps the handoff closed.
+                local.release(()->ended("local_release_complete"));
+            }
+            return;
+        }
         if(terminal||!opened){ended("cancelled_before_open");return;}
         DiagnosticLog.info("wallpaper.video.remote",context+" phase=release_requested session="+session);
         try{send(WallpaperService.RELEASE,null);}catch(RemoteException e){remoteFailure("release_failed");}
@@ -142,7 +179,7 @@ final class WallpaperPlayback {
         if(binder!=null){if(linked)binder.unlinkToDeath(death,0);linked=false;binder=null;}
         remote=null;
         if(bound){bound=false;source.unbindService(connection);}
-        if(first)DiagnosticLog.info("wallpaper.video.remote",context+" session="+session+" phase="+phase);
+        if(first)DiagnosticLog.info(local!=null?"wallpaper.video.local":"wallpaper.video.remote",context+" session="+session+" phase="+phase);
         if(completion!=null){Runnable done=completion;completion=null;done.run();}
         else if(first&&!released)events.failed(VideoWallpaperPlayer.Failure.DECODE);
     }

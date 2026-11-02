@@ -28,9 +28,18 @@ final class VideoDiagnostics {
     }
     static String causes(Throwable error){
         StringBuilder out=new StringBuilder();
+        Throwable last=null;
         for(int n=0;error!=null&&n<6;n++,error=error.getCause()){
+            last=error;
             if(n>0)out.append(' ');out.append("cause").append(n).append('=').append(token(error.getClass().getName()));
             if(error.getCause()==error)break;
+        }
+        // Keep the innermost call sites before the long outer trace reaches the event limit.
+        // Class, method and line only: exception messages and source filenames may contain data.
+        if(last!=null){
+            StackTraceElement[] frames=last.getStackTrace();
+            for(int n=0;n<Math.min(3,frames.length);n++)out.append(" frame").append(n).append('=')
+                .append(token(frames[n].getClassName())).append('.').append(token(frames[n].getMethodName())).append(':').append(frames[n].getLineNumber());
         }
         return out.toString();
     }

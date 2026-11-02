@@ -19,7 +19,7 @@ import androidx.media3.exoplayer.*;
 
 /** Local-only Media3 playback, with bounded buffering and no audio decoder. */
 @SuppressLint("UnsafeOptInUsageError")
-final class WallpaperEngine {
+final class WallpaperEngine implements WallpaperPlayback.LocalPlayer {
     interface Diagnostics {void record(boolean error,String event,String detail);}
     private final Diagnostics log;
     private final ExoPlayer player;
@@ -165,6 +165,7 @@ final class WallpaperEngine {
                 MediaCodecDecoderException e=(MediaCodecDecoderException)error;
                 details.append(" codec=").append(VideoDiagnostics.token(e.codecInfo==null?null:e.codecInfo.name))
                     .append(" codecError=").append(e.errorCode).append(" diagnostic=").append(VideoDiagnostics.token(e.diagnosticInfo));
+                if(e instanceof MediaCodecVideoDecoderException)details.append(" surfaceValid=").append(((MediaCodecVideoDecoderException)e).isSurfaceValid);
             }
             if(error instanceof MediaCodec.CodecException){
                 MediaCodec.CodecException e=(MediaCodec.CodecException)error;
@@ -179,14 +180,14 @@ final class WallpaperEngine {
     @android.annotation.TargetApi(23) private static final class Api23 {static int code(MediaCodec.CodecException e){return e.getErrorCode();}}
     private void info(String event,String detail){log.record(false,event,detail);}
     private void error(String event,String detail,Throwable error){log.record(true,event,detail+" "+DiagnosticLog.trace(error));}
-    void prepare()throws java.io.IOException{player.prepare();}
-    void setSound(boolean enabled){
+    @Override public void prepare()throws java.io.IOException{player.prepare();}
+    @Override public void setSound(boolean enabled){
         player.setVolume(enabled?1f:0f);
         player.setAudioAttributes(AudioAttributes.DEFAULT,enabled);
         player.setTrackSelectionParameters(player.getTrackSelectionParameters().buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_AUDIO,!enabled).build());
     }
-    void setPaused(boolean paused){player.setPlayWhenReady(!paused);}
-    void release(Runnable completed){
+    @Override public void setPaused(boolean paused){player.setPlayWhenReady(!paused);}
+    @Override public void release(Runnable completed){
         releasing=true;Thread decoderThread=player.getPlaybackLooper().getThread();
         try{player.release();}
         catch(RuntimeException e){releaseTimedOut=true;error("wallpaper.video.release_failed",context+" "+VideoDiagnostics.failureDetails(e),e);}

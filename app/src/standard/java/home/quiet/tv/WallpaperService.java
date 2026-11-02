@@ -12,6 +12,18 @@ public class WallpaperService extends Service {
     static final int OPEN=1,SOUND=2,PAUSE=3,RELEASE=4;
     static final int PREPARED=11,FRAME=12,SIZE=13,FAILED=14,RELEASED=15,NOTE=16,LOG=17,SOFTWARE_AVAILABLE=18,RETRY_SOFTWARE=19;
     static final long OPERATION_TIMEOUT_MS=2500;
+    static boolean localPlayback(int sdk,String manufacturer,String model,String device,String firmware){
+        // 1.3.2 rendered in HOME on this firmware; 1.3.3 fails before its first remote frame.
+        // Keep the exception exact so other Xiaomi firmware and Android versions stay isolated.
+        return sdk==22&&"xiaomi".equalsIgnoreCase(manufacturer)&&"MiTV-ANTL0".equals(model)
+            &&"starwars".equals(device)&&"22.2.16.1653".equals(firmware);
+    }
+    static WallpaperPlayback.LocalPlayer localPlayer(android.content.Context source,Handler worker,Surface surface,Uri uri,int rotation,String context,boolean softwareOnly,VideoWallpaperPlayer.PlaybackEvents events){
+        if(!localPlayback(Build.VERSION.SDK_INT,Build.MANUFACTURER,Build.MODEL,Build.DEVICE,Build.DISPLAY))return null;
+        return new WallpaperEngine(source,worker,surface,uri,rotation,context,softwareOnly,events,(error,event,detail)->{
+            if(error)DiagnosticLog.error(event,detail,null);else DiagnosticLog.info(event,detail);
+        });
+    }
     private final Handler main=new Handler(Looper.getMainLooper());
     private Handler worker;
     private HandlerThread thread;
