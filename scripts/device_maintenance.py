@@ -636,7 +636,7 @@ def run(args, adb, journal):
             else:
                 print("计划：修复已选择的同签名 HOME 代理，不切换为内置中转。")
             repair = SimpleNamespace(serial=args.serial, user=args.user, package=args.package, adb=args.adb,
-                apply=args.apply, pause=False, direct_home=False, home=None, keep_adb=True, adb_only=True,
+                apply=args.apply, pause=False, direct_home=False, home=None, keep_adb=snapshot.get("keepAdb", False), adb_only=True,
                 record=journal.directory / "adb-before.json")
             guard.configure(repair, adb)
             return
@@ -652,7 +652,7 @@ def run(args, adb, journal):
             apply=args.apply, pause=False, direct_home=direct_home,
             native_observer=native_observer, resume=args.resume,
             home=None if adb_only or direct_home else snapshot.get("originalHome") or None,
-            keep_adb=True, adb_only=adb_only, record=journal.directory / "guard-before.json")
+            keep_adb=snapshot.get("keepAdb", False), adb_only=adb_only, record=journal.directory / "guard-before.json")
         guard.configure(repair, adb)
         print("配置流程结束；实体 HOME、重启、冷启动、待机唤醒须分别验收。")
 
