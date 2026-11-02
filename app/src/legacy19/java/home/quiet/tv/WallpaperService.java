@@ -12,6 +12,7 @@ public class WallpaperService extends Service {
     static final int OPEN=1,SOUND=2,PAUSE=3,RELEASE=4;
     static final int PREPARED=11,FRAME=12,SIZE=13,FAILED=14,RELEASED=15,NOTE=16,LOG=17,SOFTWARE_AVAILABLE=18,RETRY_SOFTWARE=19;
     static final long OPERATION_TIMEOUT_MS=2500;
+    static WallpaperPlayback.LocalPlayer localPlayer(Context source,Handler worker,Surface surface,android.net.Uri uri,int rotation,String context,boolean softwareOnly,VideoWallpaperPlayer.PlaybackEvents events){return null;}
     private final Handler main=new Handler(Looper.getMainLooper());
     private Handler worker;
     private HandlerThread thread;
