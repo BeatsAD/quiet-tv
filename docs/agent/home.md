@@ -162,6 +162,31 @@ python3 device_maintenance.py repair --serial "$TV_SERIAL" --user "$TV_USER" \
 
 配置读回不代表服务已绑定、实际事件已收到或实体 HOME 已通过。逐项记录绑定、真实页面事件、实体 HOME、退出应用、重启／冷启动、待机唤醒、设置／HDMI及恢复结果；乐视 S50 Air 的报告只提供故障线索，本路线尚无该固件验收。旧包没有此能力时停止依赖步骤，不把后续源码当作已安装能力。
 
+### 乐视 Android 4.3：先分清原厂入口与实际窗口
+
+开发源码补充了 `com.stv.deskplatform.ui.activity.ExternalJumpActivity` 后面的真实主页 `com.stv.deskplatform.ui.activity.Launcher`。只有前者是已选的可用系统 HOME、后者在同一包中存在且启用时，API18 窗口守护才把后者也作为观察目标；不按整个包抢回设置、播放或其他页面。依据是 [Aerial 的乐视入口差异报告](https://github.com/pengchujin/aerial-tv/issues/121)，它来自 Android 6，不能当作 S50 Air 的验收。普通 alias 的处理继续保留；实际 APK 的 `windowHomeGuard.targets` 才是该包已有能力的证据。
+
+另有 [X50 Air Android 4.3 的社区报告](https://github.com/pengchujin/aerial-tv/issues/1172)指出 `DesktopManagerService.startDockOrHome` 显式启动 `com.stv.launcher/.activity.Launcher`，绕过默认 HOME，停用后没有回退。以及 [S40 Air 精简固件报告](https://github.com/pengchujin/aerial-tv/issues/1118)使用同包名应用承接已缺失的原桌面。它们是不同固件的调查参考，不授予 S50 Air 禁用或同包名替换资格。签名、原件、依赖及恢复仍按上方空壳调查逐项核对。
+
+对方电视不在本机时，可交付独立的 [只读采集脚本](../../scripts/collect_letv_home.py)，只需要 Python 3 和已有 ADB。先列出设备、让用户确认目标，不扫描网络或照搬报告旧地址。当前用户未知时省略 `--user`，不猜0；已有任务且用户已核对时，通过原任务执行：
+
+```sh
+python3 agent_session.py run --session "$SESSION_DIR" --tool collect_letv_home -- --seconds 90 --pull-files
+```
+
+尚未建立任务、旧固件无法确认当前用户时，独立采集到全新私有目录：
+
+```sh
+python3 collect_letv_home.py --adb "$ADB_PATH" --serial "$TV_SERIAL" \
+  --record "$NEW_PRIVATE_CASE" --seconds 90 --pull-files
+```
+
+脚本先开日志流再做只读快照，看到“已开始采集”才安排用户从一个应用按一次实体 HOME，并记下时间、原页面及返回页面。复现窗口默认90秒、最多180秒，不含前后快照耗时；Ctrl+C停止并保存。没有清日志、PID过滤、按键注入、应用广播、安装、root、权限写入、包停用或重启。查询被拒绝、无当前用户、日志提前结束、截断及省略长行分别保留，退出码0也不表示HOME验收通过。
+
+`--pull-files` 仅保存 `pm path` 实际返回的原包 APK、Quiet TV APK，以及明确的 `/system/framework/framework-letv.jar` 和 `.odex` 候选；失败保持缺失，不尝试提权。前后设备身份未能确认一致时不拉文件。未指定该选项时只保存日志与快照。副本不执行、不修改、不上传；存在文件或字符串不代表已经证明显式路由，更不代表签名可覆盖或恢复可用。
+
+读取 `session.json`、`report.json`、前后快照和日志，将用户观察关联到真实前台／启动组件。框架及原厂APK没有自动脱敏，日志也只尽力处理常见凭据和网络标识；全部资料仅在电脑私下保存。脚本的反馈报告是待人工补全的调查材料，系统默认HOME、窗口接管、同包名替换与实体场景必须分开记录。该源码修复和新采集工具没有因本地准备而自动发布或安装到用户电视。
+
 ### API19 本机 ADB 桌面守护
 
 新开发包的 `adb-home-guard-v1` 将电脑脚本的观察循环移到电视端，仅用于 API19 兼容档，默认不启用。通过应用已有的本机 ADB 连接，以当前用户唯一的 `mResumedActivity`、当前焦点窗口和原桌面完整组件判断前台；后台历史包名不触发。每次原桌面前台事件只尝试一次，启动后核对 Quiet TV 前台；屏幕关闭、锁定或屏保时不启动。不禁用原桌面，不改变系统 HOME，不修改 ADB 开关或端口监听状态。

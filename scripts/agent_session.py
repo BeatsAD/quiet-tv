@@ -21,13 +21,13 @@ ROOT = Path(__file__).resolve().parent
 TOOLS = ('install_quiet_tv.py', 'verify_install.py', 'install_tcl.py', 'tcl_cast.py',
          'configure_home_guard.py', 'configure_boot_home.py', 'device_maintenance.py',
          'device_selftest.py', 'device_adaptation.py', 'vendor_adaptation.py',
-         'device-presets.json', 'agent_session.py', 'computer_resources.py', 'device_environment.py', 'remote_calibration.py', 'home_capabilities.py', 'boot_ads.py')
+         'device-presets.json', 'agent_session.py', 'computer_resources.py', 'device_environment.py', 'remote_calibration.py', 'home_capabilities.py', 'boot_ads.py', 'collect_letv_home.py')
 GUIDES = {'agent.md': 'docs/AGENT.md', 'maintenance.md': 'docs/AGENT_ADAPT.zh-CN.md',
           'guides/rules.md': 'docs/DEVICE_ADAPTATION.zh-CN.md',
           **{'guides/' + name + '.md': 'docs/agent/' + name + '.md' for name in
              ('connect', 'adb', 'adb-devices', 'install', 'update', 'home', 'tcl', 'restore', 'acceptance', 'inputs', 'session', 'remote', 'brands', 'boot-ads')}}
 RUNNERS = ('install_quiet_tv', 'install_tcl', 'configure_home_guard', 'configure_boot_home',
-           'device_maintenance', 'device_selftest', 'device_adaptation', 'vendor_adaptation', 'device_environment', 'remote_calibration', 'boot_ads')
+           'device_maintenance', 'device_selftest', 'device_adaptation', 'vendor_adaptation', 'device_environment', 'remote_calibration', 'boot_ads', 'collect_letv_home')
 PACKAGES = ('home.quiet.tv', 'com.ts.launcher', 'com.coocaa.quiettv')
 CHECKS = {'install': ('apk', 'basic_ui', 'settings', 'network', 'inputs', 'desktop_configured', 'physical_home', 'recovery'),
           'update': ('apk', 'preservation'),
@@ -56,6 +56,8 @@ def operation(tool, arguments):
     if any(arg.startswith('--') and any(flag.startswith(arg.split('=')[0])
             and flag != arg.split('=')[0] for flag in flags) for arg in arguments):
         raise ValueError('任务调用须使用完整参数名，不使用缩写')
+    if tool == 'collect_letv_home':
+        return 'read'
     if tool == 'device_selftest':
         return 'test' if '--apply' in arguments else 'read'
     if tool == 'remote_calibration':

@@ -122,7 +122,9 @@ def collect(adb, device, references=(), selected=None):
               route('guard', device['sdk'] >= 21 and 'HomeGuardService' in own,
                     '保留原桌面，核验绑定、事件、自启动和实体按键；可能先显示原桌面再跳转'),
               route('legacy-adb', device['sdk'] == 19 and 'LegacyAdbHomeGuardService' in own,
-                    '新 APK 的 API19 本机 ADB 守护；须确认原桌面完整组件、端口、应用独立授权及断开电脑后的开机，不修改系统 HOME')]
+                    '新 APK 的 API19 本机 ADB 守护；须确认原桌面完整组件、端口、应用独立授权及断开电脑后的开机，不修改系统 HOME'),
+              route('legacy-window', device['sdk'] == 18 and 'LegacyWindowHomeGuardService' in own,
+                    'API18 窗口守护候选；须由实际 APK 确认 window-home-guard-v1、原主页与真实窗口，配置后另验绑定和实体 HOME，不修改默认 HOME')]
     return dict(schemaVersion=1, identity=identity, user=device['user'], home=actual,
                 homeCandidates=sorted(homes), realHome=real_home(actual), setter=setter,
                 cvte=any(name.startswith('com.cvte.') for name in packages),
