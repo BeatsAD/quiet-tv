@@ -50,13 +50,8 @@ final class HdmiTarget {
         }
     }
     static List<VendorTvInputs.Source> legacySources(Context context){
-        DeviceInputProfile profile=new DeviceInputProfile(context);
-        List<VendorTvInputs.Source> sources=new VendorTvInputs(context).inspect().sources;
-        for(Iterator<VendorTvInputs.Source> it=sources.iterator();it.hasNext();){
-            VendorTvInputs.Source source=it.next();
-            if(!source.hdmi||profile.hidden(source.key)||!profile.vendorTarget(source.key).isEmpty()){it.remove();continue;}
-            String label=new SourcePairingStore(context).label(source.key);if(label.isEmpty())label=profile.label(source.key);if(!label.isEmpty())source.label=label;
-        }
+        List<VendorTvInputs.Source> sources=VendorTvInputs.legacySources(context);
+        for(Iterator<VendorTvInputs.Source> it=sources.iterator();it.hasNext();)if(!it.next().hdmi)it.remove();
         return sources;
     }
     static List<HdmiTarget> nativeTargets(Context context,List<VendorTvInputs.Source> sources){

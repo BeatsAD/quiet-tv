@@ -113,6 +113,8 @@ Android 4.4 的 `legacy19` 档位采用 Activity 1.9.3、RecyclerView 1.3.2、�
 
 旧小米 MiTV2-40 / hancock（Android 4.4.4，固件 7.7.21.1653）用户反馈外部信号源组件可以启动。开发源码已将 `com.xiaomi.mitv.tvplayer/.ExternalSourceActivity` 纳入原厂入口检测，三档共用；仅接受已启用、可导出、具备调用权限的系统组件，排除 HOME，不依赖桌面图标或重新启用原桌面。没有标准输入列表时可从信号源按钮进入该页面，不猜测或附加 HDMI 端口编号。查询返回空值按无匹配处理，继续检测其他入口；HOME 身份查询同样兼容空返回。用户观察仅证明页面能打开，实际端口、画面、声音和实体按键仍待对应电视验收。
 
+小米电视2 49寸的 [#132](https://github.com/BeatsAD/quiet-tv/issues/132) 映射作为开发候选，仅匹配 `MiTV2-49` / API18，并逐项核对系统组件可调用性。`legacy14` 的首页菜单及搜索保留 HDMI 1/2/3、AV、VGA、模拟 TV 和 DTMB，常用及开机目标仍只接受经过确认的 HDMI。其他型号与 API 不继承映射，已有显式端口配置优先。实际 `ro.product.model`、固件版本、组件全名和 Quiet TV 画面声音验收仍待报告者补充；内置候选不代表厂商真机验证通过，详见[信号源说明](agent/inputs.md#小米电视2-49寸候选)。
+
 The `legacy19` profile targets Android 4.4 with legacy UI resources and TCP ADB only. It contains no Conscrypt/SPAKE2 native libraries and offers no pairing control. Inputs fall back to system settings; direct vendor input switching and physical TV acceptance remain unverified.
 
 Android 5 使用旧版网络状态接口和安装时权限；频道权限或 TV Input 服务受限时给出提示，ADB 仅提供设备实际支持的传统 TCP 操作，六位码无线配对不可用。离线许可证页使用旧版页面完成回调。

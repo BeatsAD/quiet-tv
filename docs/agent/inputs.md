@@ -86,7 +86,7 @@ python3 device_maintenance.py entry-confirm --entry settings --from-entry "$TEST
 - `input-list.sources` 是标准输入，`vendorReported` 是厂商接口原始发现的端口（含被合并或隐藏的项），`vendorSources` 是合并后可选的厂商端口。新增协议均不把“请求发出”标记为画面或声音验证成功。
 - `vendorAliases` 用厂商端口 ID 作键、同类型标准物理端口 ID 作值，要求一一对应；CEC 子输入不能代替物理端口，也不能与 `routes` 重映射或显式小米编号冲突。对应关系必须有本机端口证据，不能凭显示名称填写。同类型中每个已登记的标准端口都能对应到实际枚举的厂商端口后，才补出其余厂商端口。对应不全、厂商 ID 有歧义或配置过期时保留保守去重规则。
 - 版本 2 的 `hidden` 和 `labels` 也接受实际枚举出的厂商 ID。隐藏标准端口不会通过它的厂商别名恢复；隐藏已对应的厂商端口，也隐藏标准端口及 CEC 子输入。`routes` 和 `xiaomiSources` 仍只接受标准输入 ID。
-- `nativeSources` 目前仅支持小米电视已核对的原生 HDMI 记录：每项只能含 `protocol: "xiaomi"`、整数 `port`（物理口 1～4）、整数 `source`（播放器协议参数 19～32）。物理口与 source 均不得重复。这些范围是参数检查，不代表设备实际具有对应接口，也不代表两种编号相同。必须匹配当前固件、MiTV 型号和可调用的原厂系统播放器；盒子和仅装有同名第三方包的设备不会获得输入端口。没有记录就不生成端口，不把 `hdmiN_order` 当作物理端口列表。
+- `nativeSources` 目前仅支持小米电视已核对的原生 HDMI 记录：每项只能含 `protocol: "xiaomi"`、整数 `port`（物理口 1～4）、整数 `source`（播放器协议参数 19～32）。物理口与 source 均不得重复。这些范围是参数检查，不代表设备实际具有对应接口，也不代表两种编号相同。必须匹配当前固件、MiTV 型号和可调用的原厂系统播放器；盒子和仅装有同名第三方包的设备不会获得输入端口。除下述明确型号的内置候选外，没有记录就不生成端口，不把 `hdmiN_order` 当作物理端口列表。
 - `packageVersions` 是应用保存时生成的相关系统包版本与更新时间绑定。首次提交可省略，电脑工具只允许这一字段在读回时由应用补充；端口记录及其他字段必须完全一致。导出的字段重新提交时必须与本机一致。固件或绑定的包版本变化后，配置显示 `stale`，原记录和 revision 保留；重新核对端口后才重建绑定，不自动复用旧确认。
 
 以下仅展示结构，示例值不是任何设备的已验证映射，不能直接应用：
@@ -100,7 +100,13 @@ python3 device_maintenance.py entry-confirm --entry settings --from-entry "$TEST
 }
 ```
 
-没有标准输入的电视可以省略 `vendorAliases`，但仍须提供已经核对的 `nativeSources`。维护工具的 `input-open` 也支持可见的厂商 ID，调用前及桌面接收请求后会重新检查；已隐藏或已消失的输入不再执行。旧 APK 不声明版本 2 能力时，电脑工具拒绝写入版本 2。
+没有标准输入且未命中内置候选的电视可以省略 `vendorAliases`，但仍须提供已经核对的 `nativeSources`。维护工具的 `input-open` 也支持可见的厂商 ID（旧系统仅 HDMI，其他输入使用 `source-test`），调用前及桌面接收请求后会重新检查；已隐藏或已消失的输入不再执行。旧 APK 不声明版本 2 能力时，电脑工具拒绝写入版本 2。
+
+### 小米电视2 49寸候选
+
+[Issue #132](https://github.com/BeatsAD/quiet-tv/issues/132) 报告的映射仅在 `Build.MODEL` 精确等于 `MiTV2-49`、API18（Android 4.3）且本机原厂系统组件可调用时进入候选：首页信号源菜单和“看电视”的搜索均保留 HDMI 1/2/3、AV、VGA、TV、DTMB。前三项 `input` 为整数 23/24/25，AV/VGA/TV 为整数 2/0/1；DTMB 使用独立 `DTMB_PLAY`，保留报告中的完整类名 `dtmb.DTMBActivity`，不添加 `input`。各组件分别检查启用、导出和权限，未找到或不可调用的项不显示。
+
+该型号使用 `legacy14` 构建。已有显式 `nativeSources` 优先于内置候选；其他型号、API 和盒子不套用这份表。常用及开机目标仍仅限 HDMI，须通过原有画面、声音确认流程保存；固件指纹和播放器版本变化后旧确认失效。非 HDMI 可从首页切换，也可通过 `source-search` / `source-test` 测试，不写入常用 HDMI。尚缺实际系统型号、固件及 Quiet TV 真机验收，不把用户报告或调用成功视为本项目已验收。
 
 ## 已实现的厂商读取协议
 

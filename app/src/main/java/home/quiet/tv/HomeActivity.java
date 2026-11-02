@@ -1247,19 +1247,33 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         }
         if(Build.VERSION.SDK_INT>=21){if(tvInputs==null)tvInputs=new TvInputs();tvInputs.show(request);return;}
         Context app=getApplicationContext();
-        inputWork.submit(()->new TvInputPanels(app).inspect(),(snapshot,failure)->{
+        inputWork.submit(()->new android.util.Pair<>(new TvInputPanels(app).inspect(),VendorTvInputs.legacySources(app)),(result,failure)->{
             if(!finishInputDiscovery(request))return;
             if(failure!=null){showInputIssue(tr("信号源读取失败","Input discovery failed"),tr("请重新检测","Detect again"));return;}
+            TvInputPanels.Snapshot snapshot=result.first;List<VendorTvInputs.Source> sources=result.second;
             TvInputPanels.Panel direct=snapshot.directPanel(true);
+            if(direct!=null&&!direct.confirmedPreference&&!sources.isEmpty())direct=null;
             if(direct!=null){openNativeInputs(direct);return;}
             List<TvInputPanels.Panel> panels=snapshot.availablePanels();
-            if(!panels.isEmpty()){
-                String[] labels=new String[panels.size()];for(int i=0;i<labels.length;i++)labels[i]=panels.get(i).profile.label(chinese);
+            if(!sources.isEmpty()||!panels.isEmpty()){
+                ArrayList<String> labels=new ArrayList<>();ArrayList<Runnable> actions=new ArrayList<>();
+                for(VendorTvInputs.Source source:sources){labels.add(source.label);actions.add(()->openLegacyInput(source.key));}
+                for(TvInputPanels.Panel panel:panels){labels.add(panel.profile.label(chinese));actions.add(()->openNativeInputs(panel));}
                 android.app.AlertDialog dialog=new android.app.AlertDialog.Builder(this)
-                    .setTitle(tr("系统信号源","System inputs")).setItems(labels,(d,index)->openNativeInputs(panels.get(index)))
+                    .setTitle(tr("系统信号源","System inputs")).setItems(labels.toArray(new String[0]),(d,index)->actions.get(index).run())
                     .setNegativeButton(tr("返回","Back"),null).create();dialog.show();ControlStyle.dialog(dialog,unit);return;
             }
             showInputIssue(tr("信号源入口不可用","Input entry unavailable"),tr("当前安卓版本不提供标准输入列表。","This Android version has no standard TV input list.")+"\n\n"+snapshot.problem(chinese));
+        });
+    }
+    private void openLegacyInput(String id){
+        leaveSystemEntry("input.vendor",()->{
+            Context app=getApplicationContext();
+            inputWork.submit(()->{
+                VendorTvInputs.Source selected=null;
+                for(VendorTvInputs.Source source:VendorTvInputs.legacySources(app))if(id.equals(source.key)){if(selected!=null)return null;selected=source;}
+                return selected==null?null:SavedInputLaunch.vendor(app,selected);
+            },(launch,failure)->dispatchSavedHdmi(launch,failure,false));
         });
     }
     private boolean finishInputDiscovery(int request){

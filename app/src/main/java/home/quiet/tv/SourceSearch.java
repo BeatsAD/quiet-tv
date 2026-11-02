@@ -38,7 +38,7 @@ final class SourceSearch {
         else{
             channels.put("standard",new JSONObject().put("state","UNSUPPORTED"));
             try{
-                List<VendorTvInputs.Source> sources=HdmiTarget.legacySources(context);
+                List<VendorTvInputs.Source> sources=VendorTvInputs.legacySources(context);
                 vendors(context,sources,HdmiTarget.nativeTargets(context,sources),result);
                 channels.put("vendor",new JSONObject().put("state","READ").put("count",sources.size()));
             }catch(Exception failure){channels.put("vendor",quality(failure));}
