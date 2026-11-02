@@ -3,24 +3,23 @@ package home.quiet.tv;
 import android.os.*;
 import android.view.*;
 import android.widget.*;
-import java.util.List;
 
 /** One TV source for manual watching and optional boot entry. */
 final class StartupDestinationPanel extends ManagementPanel {
+    private SourcePairingUi pairingUi;
     private final InputEntryTask inputWork=new InputEntryTask();
     private LinearLayout content;
     private BootAppStore store;
     private DesktopSettingsStore desktop;
     private boolean busy;
-    private int generation;
     private boolean enableAfterTest;
     private String focusTag;
     private View first;
-    private android.app.Dialog confirmation,sourceChoices;
+    private android.app.Dialog confirmation;
     StartupDestinationPanel(AppManagementActivity activity){super(activity);}
     private String tr(String zh,String en){return activity.tr(zh,en);}
     @Override public void onCreate(Bundle saved){
-        store=new BootAppStore(this);
+        store=new BootAppStore(this);pairingUi=new SourcePairingUi(this);
         desktop=new DesktopSettingsStore(this);
         if(saved!=null){enableAfterTest=saved.getBoolean("enable-after-test",false);focusTag=saved.getString("focus");}
         pageRoot=column();activity.attachPanel(pageRoot);
@@ -28,9 +27,9 @@ final class StartupDestinationPanel extends ManagementPanel {
         pageRoot.addView(scroll,new LinearLayout.LayoutParams(-1,-1));
         content=column();content.setPadding(px(2),0,px(2),px(4));scroll.addView(content,new ScrollView.LayoutParams(-1,-2));render();
     }
-    @Override protected void onResume(){super.onResume();render();if(!store.pendingTest().isEmpty())confirm();}
-    @Override protected void onPause(){remember();super.onPause();inputWork.cancel();++generation;busy=false;if(confirmation!=null)confirmation.dismiss();if(sourceChoices!=null)sourceChoices.dismiss();}
-    @Override protected void onDestroy(){inputWork.close();super.onDestroy();}
+    @Override protected void onResume(){super.onResume();render();pairingUi.resume();if(!store.pendingTest().isEmpty())confirm();}
+    @Override protected void onPause(){remember();if(pairingUi!=null)pairingUi.pause();super.onPause();inputWork.cancel();busy=false;if(confirmation!=null)confirmation.dismiss();}
+    @Override protected void onDestroy(){if(pairingUi!=null)pairingUi.close();inputWork.close();super.onDestroy();}
     @Override protected void onStop(){inputWork.cancel();busy=false;super.onStop();}
     @Override public void handleBack(){inputWork.cancel();busy=false;super.handleBack();}
     @Override public boolean dispatchKeyEvent(KeyEvent event){if(event.getAction()==KeyEvent.ACTION_DOWN&&(event.getKeyCode()==KeyEvent.KEYCODE_BACK||event.getKeyCode()==KeyEvent.KEYCODE_HOME)){inputWork.cancel();busy=false;}return false;}
@@ -42,53 +41,30 @@ final class StartupDestinationPanel extends ManagementPanel {
         view.setOnClickListener(v->operation.run());LinearLayout group=activity.group();activity.addSetting(group,view);
         LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,-2);params.topMargin=px(8);content.addView(group,params);return view;
     }
-    private void render(){
+    void render(){
         boolean restore=pageRoot.hasFocus();remember();content.removeAllViews();
         DesktopSettingsRow visible=action(tr("显示看电视","Show Watch TV"),"show-watch-tv",()->save(()->desktop.showWatchTv(!desktop.showWatchTv())));
         visible.checked(desktop.showWatchTv());first=visible;
-        DesktopSettingsRow target=action(tr("电视信号源","TV source"),"choose",this::choose);
-        target.value(store.watchTarget().isEmpty()?tr("请选择","Choose"):store.watchLabel());target.tail("arrow");
+        DesktopSettingsRow target=action(tr("电视信号源","TV source"),"choose",pairingUi::details);
+        target.value(store.watchTarget().isEmpty()?(new SourcePairingStore(this).entry()==null?tr("请选择","Choose"):tr("系统信号源  手动选择","System inputs  Select manually")):store.watchLabel());target.tail("arrow");
+        DesktopSettingsRow pairing=action(tr("搜索与配对","Search and pair"),"pair-inputs",pairingUi::open);pairing.tail("arrow");
         DesktopSettingsRow boot=action(tr("开机自动看电视","Watch TV on startup"),"boot",this::toggleBoot);
         boot.checked(store.hdmiBoot());boot.available(!store.watchTarget().isEmpty());
-        DesktopSettingsRow watch=action(tr("立即观看","Watch now"),"test",()->test(false));watch.tail("arrow");
-        watch.available(!store.watchTarget().isEmpty());
-        activity.wireRows(new DesktopSettingsRow[]{visible,target,boot,watch},managementTab());
+        DesktopSettingsRow watch=action(store.watchTarget().isEmpty()?tr("打开信号源","Open inputs"):tr("立即观看","Watch now"),"test",()->{if(store.watchTarget().isEmpty())openPairedPanel();else test(false);});watch.tail("arrow");
+        watch.available(!store.watchTarget().isEmpty()||new SourcePairingStore(this).entry()!=null);
+        activity.wireRows(new DesktopSettingsRow[]{visible,target,pairing,boot,watch},managementTab());
         if(restore)focusManagementContent();
+    }
+    private void openPairedPanel(){
+        if(busy)return;busy=true;android.content.Context app=getApplicationContext();
+        inputWork.submit(()->{SourceSearch.Candidate candidate=SourcePairing.preferred(app,new SourcePairingStore(app).entry());return candidate==null?null:candidate.prepare(app,null);},(launch,failure)->{
+            busy=false;if(!showing)return;if(launch==null||!launch.current(this)){message("入口已变化，请重新配对");return;}
+            if(launch.blocking())inputWork.submit(()->launch.dispatch(app),(opened,error)->{if(showing&&!Boolean.TRUE.equals(opened))message("入口暂不可用，请检查连接或重新配对");});
+            else if(!launch.dispatch(activity))message("入口暂不可用，请重新配对");
+        });
     }
     private interface Write {void run() throws Exception;}
     private void save(Write operation){try{operation.run();render();}catch(Exception failure){message(failure.getMessage());}}
-    private void choose(){
-        if(busy)return;
-        busy=true;int request=++generation;
-        android.content.Context app=getApplicationContext();
-        inputWork.submit(()->HdmiTarget.available(app),(choices,failure)->{
-            if(!showing||request!=generation||isFinishing())return;busy=false;
-            if(failure!=null)DiagnosticLog.error("input.saved.inspect.failed",failure);
-            if(failure!=null||choices.isEmpty()){chooseNativePanels();return;}
-            Sheet sheet=new Sheet(tr("选择电视信号源","Choose TV source"));sourceChoices=sheet.dialog;Button first=null;
-            for(HdmiTarget target:choices){Button b=sheet.option(target.label,()->{sheet.dialog.dismiss();enableAfterTest=false;save(()->store.saveWatch(target.encode(),target.label));});if(first==null)first=b;}
-            sheet.action("返回",sheet.dialog::dismiss);sheet.show(first);
-        });
-    }
-    private void chooseNativePanels(){
-        busy=true;int request=++generation;android.content.Context app=getApplicationContext();
-        inputWork.submit(()->new TvInputPanels(app).inspect(),(snapshot,failure)->{
-            if(!showing||request!=generation||isFinishing())return;busy=false;
-            if(failure!=null){message(tr("系统信号源读取失败，请使用遥控器信号源键。","Unable to read system inputs. Use the remote input key."));return;}
-            List<TvInputPanels.Panel> panels=snapshot.availablePanels();
-            if(panels.isEmpty()){message(snapshot.problem(activity.chinese())+"\n\n"+tr("请使用遥控器信号源键。","Use the remote input key."));return;}
-            Sheet sheet=new Sheet(tr("打开系统信号源","Open system inputs"));sourceChoices=sheet.dialog;
-            sheet.text(tr("未识别到可直达的 HDMI，请在原厂面板中选择信号源。","No direct HDMI input was found. Select a source in a system panel."));
-            Button first=null;
-            for(TvInputPanels.Panel panel:panels){Button choice=sheet.option(panel.profile.label(activity.chinese()),()->{
-                sheet.dialog.dismiss();if(!showing||request!=generation||isFinishing())return;
-                enableAfterTest=false;
-                if(new TvInputPanels(activity).open(panel)!=TvInputPanels.PanelState.READY)
-                    message(tr("此面板暂时无法打开，请尝试其他入口或使用遥控器信号源键。","This panel could not be opened. Try another entry or use the remote input key."));
-            });if(first==null)first=choice;}
-            sheet.action(tr("返回","Back"),sheet.dialog::dismiss);sheet.show(first);
-        });
-    }
     private interface Prepared {void accept(SavedInputLaunch launch) throws Exception;}
     private void prepare(String saved,Prepared action){
         if(busy)return;busy=true;

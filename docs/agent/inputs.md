@@ -2,9 +2,34 @@
 
 [维护指南](../AGENT_ADAPT.zh-CN.md)  [统一入口](../AGENT.md)
 
+## 遥控器与 AI 共用搜索配对
+
+开发源码声明 `source-pairing-v1` 和 `source-observation-v1`；先核对实际安装 APK 能力，源码新增不等于已交付。旧包缺接口时停止依赖步骤，不临时改写私有文件。下列为底层工具示例；电脑 Agent 通过任务工具按本次授权执行，并始终指定同一设备、用户与包名。
+
+```sh
+python3 device_maintenance.py source-search --serial "$TV_SERIAL" --user "$TV_USER" --record "$SEARCH_DIR"
+python3 device_maintenance.py source-status --serial "$TV_SERIAL" --user "$TV_USER" --record "$RESULT_DIR"
+python3 device_maintenance.py source-test --from-source "$RESULT_DIR/source.json" --candidate "$CANDIDATE_ID" --serial "$TV_SERIAL" --user "$TV_USER" --record "$TEST_DIR" --apply
+python3 device_maintenance.py source-status --serial "$TV_SERIAL" --user "$TV_USER" --record "$TEST_STATUS_DIR"
+python3 device_maintenance.py source-confirm --from-source "$TEST_STATUS_DIR/source.json" --worked yes --observed "实际菜单或画面结果" --serial "$TV_SERIAL" --user "$TV_USER" --record "$CONFIRM_DIR" --apply
+python3 device_maintenance.py source-status --from-source "$CONFIRM_DIR/source.json" --serial "$TV_SERIAL" --user "$TV_USER" --record "$SAVED_DIR"
+```
+
+每一步使用新的记录目录。`source-search` 不启动输入，搜索为异步；`source-status` 返回 `sourcePairing.searchState`、逐通道质量和候选。等待搜索完成，或明确停止／超时取得部分结果后，才能选择一个实际候选测试。测试和确认省略 `--apply` 只预览；状态返回 `DISPATCHED_UNVERIFIED` 不算成功。确认保存也为异步，必须用状态读回 `test.state=SAVED` 及正式 `configuration`／`watch`。原有 `input-open` 的 `physicalVerified` 语义不变。通过任务工具调用时，最后一次 `source-status` 带上确认步骤的 `--from-source`，同一 request 保存并读回后才归入 inputs PASS；搜索或单独派发不会通过验收。
+
+直接 HDMI 成功确认必须为真实用户观察来源，同时加 `--physical-confirmed`，确认端口、画面和声音；一张截图不能证明声音正常。面板可以用真实用户反馈或 Agent 实际页面观察确认，但只能保存信号源菜单。校准端口名称使用 `source-test --label "HDMI 2"`，需实际测试并重新确认；不能把显示名称当作物理端口证据。`watch.confirmed` 是历史确认，实际使用前仍复核当前环境和依赖。
+
+`source-cancel --apply` 停止当前电脑会话；不会抢占电视端任务。电视用户可明确停止电脑会话。双方不能同时切源，也不能用旧 `input-open`、`profile-set` 或 `entry-test` 绕过当前配对任务。旧 `entry-confirm inputs` 与电视端默认入口使用相同保存位置。
+
+辅助识别使用 `source-observe --apply`，只在实际界面提示准备完成后引导用户操作原厂菜单；`source-status` 中观察状态 `PREPARING` 不能当作已经取得操作前基线。完成后 `source-observe-stop --observation-result menu/hdmi/failed/unknown --apply`（按实际结果选择一个值）；选 hdmi 时还需 `--hdmi-port` 和用户实际画面声音确认 `--physical-confirmed`。该结果只描述原厂操作，不代表 Quiet TV 调用已配对。随后再用 `source-evidence` 导出结构化证据至电脑记录。仅在用户选择附加原始片段时加 `--include-raw`；原始附件通过电视“诊断日志 → 信号源诊断包”导出，默认维护返回不带原始转储。
+
+`source-restore --from-source <状态记录> --apply` 恢复上次配对前配置；增加 `--defaults` 撤销本次配对覆盖。均保留底层厂商维护规则，关闭 HDMI 自动进入，用户需要时重新开启。固件或目标变化导致恢复依据失效时拒绝恢复。`source-status` 与 `source-evidence` 只读，不使用 `--apply`。
+
+ADB 只复用现有本机授权；配对不会自动建立新授权、修改 HOME 或禁用组件。ADB 方式仅复用 APK 已支持的原厂面板及 HDMI 协议参数，不接受工具下发任意 shell／Intent。无标准输入且无可枚举厂商 HDMI 的固件，仍可能仅支持面板或需要新增协议，辅助识别不保证自动适配。
+
 ## 本机信号源配置
 
-电脑工具可读写本机配置，电视没有技术配置页面。安卓5及以上支持标准系统直通信号源；声明 `input-profile-v2` 能力的版本还支持下述原生端口与厂商对应关系。标准完整 ID 必须来自本机 `input-list`；按完整固件指纹隔离，固件改变后配置保留但停止生效。修改前将 `profile-get` 输出保存为恢复依据；修改、重置均校验 revision，状态变化则停止。
+普通用户可在“看电视 → 搜索与配对”完成搜索、试开与确认；电脑工具也可操作同一流程。下文原有 profile 接口继续维护固件底层对应规则，不提供电视端任意组件／命令编辑器。安卓5及以上支持标准系统直通信号源；声明 `input-profile-v2` 能力的版本还支持下述原生端口与厂商对应关系。标准完整 ID 必须来自本机 `input-list`；按完整固件指纹隔离，固件改变后配置保留但停止生效。修改前将 `profile-get` 输出保存为恢复依据；修改、重置均校验 revision，状态变化则停止。
 
 ```sh
 python3 device_maintenance.py input-list --serial "$TV_SERIAL" --user "$TV_USER" --record "$INPUT_DIR"
