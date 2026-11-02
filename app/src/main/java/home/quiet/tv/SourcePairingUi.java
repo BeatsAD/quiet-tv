@@ -45,8 +45,10 @@ final class SourcePairingUi {
         if(!active||!host.showing)return;
         try{
             JSONObject snapshot=pairing.snapshot(),test=snapshot.optJSONObject("test"),observation=snapshot.getJSONObject("observation");
-            if(test!=null&&"tv".equals(snapshot.optString("owner"))&&"DISPATCHED_UNVERIFIED".equals(test.optString("state"))
-                    &&!test.optString("request").equals(confirmed)){confirmed=test.getString("request");watching=true;confirm(test);return;}
+            if(test!=null&&"tv".equals(snapshot.optString("owner"))&&"DISPATCHED_UNVERIFIED".equals(test.optString("state"))){
+                if(!test.optString("request").equals(confirmed)){confirmed=test.getString("request");watching=true;confirm(test);}
+                return;
+            }
             if(test!=null&&"SAVED".equals(test.optString("state"))&&!test.optString("request").equals(notified)){
                 notified=test.optString("request");dismiss();watching=false;host.render();host.feedback("observed_input".equals(test.optString("savedKind"))?"输入测试结果已记录，常用 HDMI 未改变":"信号源配置已保存");return;
             }
@@ -122,7 +124,7 @@ final class SourcePairingUi {
         ManagementPanel.Sheet sheet=sheet(candidate.panel!=null?"信号源菜单正常打开了吗？":"端口、画面和声音正常吗？");
         if(candidate.panel!=null)sheet.text("确认后将保存为首页信号源入口，仍需在原厂菜单内选择端口。");
         else sheet.text(candidate.target!=null?"请核对实际接线端口。保存后作为常用信号源，开机自动进入需要单独开启。":"此输入可从首页信号源打开。本次只记录测试结果，不保存为常用 HDMI 或开机目标。");
-        Button uncertain=sheet.action("暂不确定",()->{sheet.dialog.dismiss();confirmed="";watching=false;});
+        Button uncertain=sheet.action("暂不确定",()->{sheet.dialog.dismiss();watching=false;});
         sheet.option(candidate.panel!=null?"正常，保存入口":candidate.target!=null?"正确且正常，保存":"正常，记录结果",()->{
             try{pairing.confirm("tv",request,true,candidate.panel==null,"user",candidate.panel!=null?"用户确认原厂信号源菜单正常打开":"用户确认实际端口、画面与声音正常");
                 sheet.dialog.dismiss();watching=true;main.removeCallbacks(poll);main.post(poll);}
