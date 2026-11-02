@@ -60,7 +60,7 @@ final class WallpaperPlayback {
             });
             if(local!=null){
                 opened=true;
-                DiagnosticLog.info("wallpaper.video.local",context+" phase=open session="+session+" reason=mitv_starwars_api22_firmware_1653");
+                DiagnosticLog.info("wallpaper.video.local",context+" phase=open session="+session+" reason=mitv_starwars_api22");
                 local.setSound(sound);local.setPaused(paused);local.prepare();return;
             }
             if(BuildConfig.LEGACY_19){
