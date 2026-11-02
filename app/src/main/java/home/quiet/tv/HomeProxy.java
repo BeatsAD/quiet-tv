@@ -102,12 +102,47 @@ final class HomeProxy {
         new SetupStore(context).put("status","proxy-configured");
     }}
     String resume(){synchronized(LOCK){
+        String previousMode=prefs.getString("mode","AUTO");
         try{
             if(!localIdentity() || !component().equals(new HomeController(context).inspect().actual))throw new IOException("代理或系统 HOME 已变化，请重新自动配置");
             long epoch=nextEpoch();Bundle data=values(epoch);data.putString(ProxyContract.ORIGINAL,state.selected());call(ProxyContract.PREPARE,data);
+            if(!previousMode.equals(prefs.getString("mode","AUTO")) || prefs.getLong("proxyEpoch",-1)!=epoch)throw new IOException("接管状态已变化，请重新核对");
             prefs.edit().putString("mode","AUTO").putBoolean("configured",true).commit();new DesktopRoutes(context).proxy();
             call(ProxyContract.ENABLE,values(epoch));if(!ready())throw new IOException("HOME 代理未就绪");return "";
-        }catch(Exception failure){prefs.edit().putString("mode","OFF").commit();pause();state.status(failure.getMessage());return failure.getMessage();}
+        }catch(Exception failure){if("AUTO".equals(prefs.getString("mode","AUTO")))prefs.edit().putString("mode",previousMode).commit();pause();state.status(failure.getMessage());return failure.getMessage();}
+    }}
+    private boolean upgradeAllowed(String revision){
+        return selected() && state.automatic() && !setupPending() && !prefs.getBoolean("proxyPausePending",false)
+                && revision.equals(prefs.getString(DesktopRoutes.PROXY_UPGRADE,"")) && new DesktopRoutes(context,false).current();
+    }
+    /** Automatic recovery never rewrites the user's AUTO/OFF choice or reconfigures a route. */
+    @android.annotation.SuppressLint("ApplySharedPref")
+    String restoreUpgrade(String revision){synchronized(LOCK){
+        if(!upgradeAllowed(revision))return "";
+        try{
+            SetupStore store=new SetupStore(context);org.json.JSONObject takeover=store.get().optJSONObject("takeover");
+            if(takeover!=null && !java.util.Arrays.asList("applied","restored","rolled-back").contains(takeover.optString("state")))throw new IOException("上次桌面切换尚未完成");
+            if(!state.selected().equals(store.originalHome()))throw new IOException("本机原桌面恢复记录不一致，请通过电脑核对");
+            if(!localIdentity() || !component().equals(new HomeController(context).inspect().actual))throw new IOException("代理或系统 HOME 已变化，请通过电脑核对");
+            if(!state.selected().equals(status().getString(ProxyContract.ORIGINAL,"")))throw new IOException("代理原桌面恢复记录不一致");
+            if(!ready()){
+                long epoch=nextEpoch();Bundle data=values(epoch);data.putString(ProxyContract.ORIGINAL,state.selected());
+                Bundle prepared=call(ProxyContract.PREPARE,data);
+                if(!prepared.getBoolean("valid") || epoch!=prepared.getLong(ProxyContract.EPOCH) || !ProxyContract.STOCK.equals(prepared.getString("mode")))throw new IOException("代理恢复基线未确认");
+                if(!upgradeAllowed(revision))return "";
+                call(ProxyContract.ENABLE,values(epoch));
+            }
+            if(!upgradeAllowed(revision))return "";
+            if(!ready())throw new IOException("代理升级恢复未确认");
+            if(!prefs.edit().remove(DesktopRoutes.PROXY_UPGRADE).commit()){
+                prefs.edit().putString(DesktopRoutes.PROXY_UPGRADE,revision).commit();throw new IOException("代理恢复结果未保存");
+            }
+            state.status("代理已恢复，当前版本实体场景待验证");return "";
+        }catch(Exception failure){
+            String problem=failure.getMessage()==null?"代理通信未完成":failure.getMessage();
+            if(upgradeAllowed(revision))state.status("配置已保留，代理恢复未完成："+problem);
+            DiagnosticLog.info("home_proxy.upgrade","result=pending reason="+problem);return problem;
+        }
     }}
     boolean accept(Intent intent){
         if(intent==null || !active() || !HomeGuardState.canShow(context))return false;

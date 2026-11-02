@@ -3,11 +3,15 @@ package home.quiet.tv;
 import android.content.*;
 import android.content.pm.*;
 import android.os.*;
+import home.quiet.proxy.ProxyContract;
+import java.util.*;
 import org.json.*;
 
 /** One plan in the existing device-protected preferences. No device mutation during detection. */
 final class DesktopRoutes {
     static final String VENDOR_ACTION="com.skyworth.noriceguide.show";
+    static final String PROXY_UPGRADE="proxyUpgradeRevision";
+    private static String attemptedProxyUpgrade="";
     private final Context context;
     private final HomeGuardState state;
     private final SharedPreferences prefs;
@@ -21,30 +25,50 @@ final class DesktopRoutes {
         catch(PackageManager.NameNotFoundException|SecurityException failure){return -1;}
     }
     private String revision(){
+        return revision(new HomeProxy(context).packageName(),true);
+    }
+    private String revision(String proxy,boolean includeProxy){
         ComponentName home=ComponentName.unflattenFromString(state.selected());JSONObject boot=bridge();
-        String proxy=new HomeProxy(context).packageName();
         return Build.FINGERPRINT+":"+BuildConfig.VERSION_CODE+":"+BuildConfig.DECLARES_HOME+":"+state.selected()+":"+(home==null?-1:version(home.getPackageName()))
-                +":"+(boot==null?-1:version(boot.optString("systemPackage")))+":"+proxy+":"+version(proxy);
+                +":"+(boot==null?-1:version(boot.optString("systemPackage")))+":"+(includeProxy?proxy+":":"")+version(proxy);
+    }
+    private String legacyRevision(){
+        String proxy=new HomeProxy(context).packageName();
+        // 1.2.4/1.2.5 knew only the fixed helper. Never adopt a different installed helper.
+        if(!ProxyContract.PACKAGE.equals(proxy) && (proxySelected() || version(proxy)>=0 || version(ProxyContract.PACKAGE)>=0))return "";
+        return revision(ProxyContract.PACKAGE,false);
     }
     boolean current(){return revision().equals(prefs.getString("routeRevision",""));}
     @android.annotation.SuppressLint("ApplySharedPref")
     void restoreAfterUpgrade(){
+        if(!HomeGuardState.unlocked(context))return;
         String previous=prefs.getString("routeRevision",""),current=revision();
-        if(!DesktopRoutePolicy.upgradeCompatible(previous,current,Build.FINGERPRINT,BuildConfig.VERSION_CODE))return;
-        SharedPreferences.Editor edit=prefs.edit().putString("routeRevision",current);
-        if(previous.equals(prefs.getString("vendorRevision","")))edit.putString("vendorRevision",current);
-        // Keep the configured route and pause choice, but do not carry old APK acceptance into this build.
-        for(String scene:new String[]{"home","reboot","coldBoot","wake"})edit.remove("routeTest_"+scene).remove("routeTestAt_"+scene).remove("routeTestEvidence_"+scene);
-        edit.remove("proxyVisibleAt").remove("proxyVisibleEpoch");
-        if(!edit.commit())return;
-        DiagnosticLog.info("home_guard.upgrade","configuration_preserved scenes_require_retest");
-        HomeProxy proxy=new HomeProxy(context);
-        if(proxySelected() && state.automatic() && !proxy.setupPending())proxy.resume();
+        if(DesktopRoutePolicy.upgradeCompatible(previous,current,legacyRevision(),Build.FINGERPRINT,BuildConfig.VERSION_CODE)){
+            Map<String,?> before=prefs.getAll();List<String> changed=new ArrayList<>(Arrays.asList("routeRevision","vendorRevision",PROXY_UPGRADE,"proxyVisibleAt","proxyVisibleEpoch"));
+            SharedPreferences.Editor edit=prefs.edit().putString("routeRevision",current);
+            if(previous.equals(prefs.getString("vendorRevision","")))edit.putString("vendorRevision",current);
+            // Configuration identity and an unfinished handshake must survive the same process exit.
+            if(proxySelected() && state.automatic() && !new HomeProxy(context).setupPending() && !prefs.getBoolean("proxyPausePending",false))edit.putString(PROXY_UPGRADE,current);
+            else edit.remove(PROXY_UPGRADE);
+            for(String scene:new String[]{"home","reboot","coldBoot","wake"})for(String prefix:new String[]{"routeTest_","routeTestAt_","routeTestEvidence_"}){String key=prefix+scene;changed.add(key);edit.remove(key);}
+            edit.remove("proxyVisibleAt").remove("proxyVisibleEpoch");
+            if(!edit.commit()){
+                // SharedPreferences changes its memory map even when the disk commit fails.
+                SharedPreferences.Editor rollback=prefs.edit();
+                for(String key:changed){Object value=before.get(key);if(value instanceof String)rollback.putString(key,(String)value);else if(value instanceof Long)rollback.putLong(key,(Long)value);else rollback.remove(key);}
+                rollback.commit();state.status("升级配置未保存，原配置已保留");return;
+            }
+            DiagnosticLog.info("home_guard.upgrade","configuration_preserved scenes_require_retest");
+        }
+        if(!proxyUpgradePending() || current.equals(attemptedProxyUpgrade))return;
+        attemptedProxyUpgrade=current;
+        new HomeProxy(context).restoreUpgrade(current);
     }
+    boolean proxyUpgradePending(){return proxySelected() && state.automatic() && revision().equals(prefs.getString(PROXY_UPGRADE,""));}
     private SharedPreferences.Editor edit(){
         SharedPreferences.Editor edit=prefs.edit();
         if(!current())for(String scene:new String[]{"home","reboot","coldBoot","wake"})edit.remove("routeTest_"+scene);
-        return edit.putString("routeRevision",revision());
+        return edit.putString("routeRevision",revision()).remove(PROXY_UPGRADE);
     }
     void direct(){
         if(!BuildConfig.DECLARES_HOME)throw new IllegalStateException("此兼容包只能使用原桌面中转");
@@ -138,6 +162,7 @@ final class DesktopRoutes {
                 .put("observationTargets",new JSONArray(state.eventHomes())).put("homeRoute",home()).put("observeHome",prefs.getBoolean("observeHome",true)).put("nativeObserverConfigured",state.nativeObserverConfigured())
                 .put("nativeObserverSelected",state.nativeObserverSelected()).put("directHomeSelected",current() && state.directHomeSelected())
                 .put("relaySource",prefs.getString("relaySource","UNKNOWN")).put("proxyPackage",new HomeProxy(context).packageName())
+                .put("proxyUpgradePending",proxyUpgradePending())
                 .put("proxyAvailable",new HomeProxy(context).available()).put("proxyReady",new HomeProxy(context).ready())
                 .put("proxyPausePending",prefs.getBoolean("proxyPausePending",false)).put("proxyVisibleAt",current() && prefs.getLong("proxyVisibleEpoch",-1)==prefs.getLong("proxyEpoch",-2)?prefs.getLong("proxyVisibleAt",0):0).put("bootRoute",vendorReady()?"VENDOR":state.enabled()?"GUARD":"UNKNOWN")
                 .put("wakeRoute",state.enabled()?"GUARD":"UNKNOWN").put("paused","OFF".equals(prefs.getString("mode","AUTO"))).put("automatic",state.automatic())

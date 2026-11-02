@@ -47,8 +47,11 @@
 | 图片、每日壁纸、手机上传、离线许可 | 保留；低版本二维码使用同内容 PNG，天气 API14/15 使用连接级 BCJSSE | 保留原有路径 |
 | 视频壁纸上传、预览、循环、旋转 | 系统 MediaPlayer；API14/15 使用有界 MP4/WebM 容器检查和系统播放器预检，API16+ 使用系统提取器 | 原 Media3 播放路径 |
 | 视频软硬解码自动选择与失败切换 | API14/15 由系统 MediaPlayer 选择；API16–19 在系统播放器解码失败或首帧超时后尝试一次系统软解，使用纯 Java ExoPlayer 2.18.7 适配，不含新增原生解码库 | 所有品牌共用 Media3 选择策略；优先兼容硬解，必要时尝试系统软解，硬解视频错误或首帧超时只回退一次；需系统提供对应软解码器 |
+| 视频播放进程与切换 | 保留独立解码服务 | 默认独立解码服务；小米 MiTV-ANTL0 / starwars / API22 使用 HOME 后台播放线程，不限制固件号，复用同一 Media3、渲染器及纹理输出 |
 | 默认 HOME 与海信特殊按键 | 保留标准 HOME 声明；海信补偿仍只匹配原有 API19 固件 | 保留原有守护及适配范围 |
 | 标准守护、HOME 代理、标准 TV Input 列表 | 与原 4.4 档位一致，不提供平台缺少的标准接口 | 保留原有范围 |
+
+上述小米兼容路径针对 1.3.2 能播放、1.3.3 在跨进程播放首帧前失败的回归，不再将完整固件显示字符串作为启用条件；适配范围不代表各固件均已验收。这是尚未发布的本地修复，目标电视离线，仍待原固件和原视频验收。两条路径均等待旧解码器释放完成才新建播放器，忽略旧会话回调，最多回退一次系统软解。HOME 内不启用解码服务的进程终止策略，释放受阻时保留输出并阻止新解码器启动。其他型号和系统版本继续原有路径。
 
 API14–18 仅为更新安装器交接请求写外部缓存权限，声明以 maxSdkVersion18 限定，标准包不增加该权限。API14/15/16 通过 PackageManager 查询实际安装状态，避免依赖 API17 才定义的 FLAG_INSTALLED。旧系统原子文件迁移保留文件名、JSON 格式和 `.bak` 恢复能力。API14/15 的视频检查不伪造系统没有提供的帧率；可从容器确定时检查帧率，无法确定时记录未知，并由实际播放器确认是否可准备与解码。解码分辨率、格式、后台恢复及物理 HOME 仍以具体固件为准。
 
@@ -112,6 +115,8 @@ Version 1.2.5 has standard ARM32/ARM64/universal and Android 4.4 profiles. Histo
 Android 4.4 的 `legacy19` 档位采用 Activity 1.9.3、RecyclerView 1.3.2、旧版主题及构建工具生成的位图图标。保留核心桌面、Dock、壁纸、网络、设置、关于、离线许可证和传统 TCP ADB；不包含 Conscrypt/SPAKE2 原生库，不提供六位码配对。信号源检测可调用的原厂入口，未匹配时保留系统设置与遥控器信号源键；不提供标准 TV Input 端口列表。未裁剪 Debug 包启用旧版 MultiDex，最终优化包需单独验证。
 
 旧小米 MiTV2-40 / hancock（Android 4.4.4，固件 7.7.21.1653）用户反馈外部信号源组件可以启动。开发源码已将 `com.xiaomi.mitv.tvplayer/.ExternalSourceActivity` 纳入原厂入口检测，三档共用；仅接受已启用、可导出、具备调用权限的系统组件，排除 HOME，不依赖桌面图标或重新启用原桌面。没有标准输入列表时可从信号源按钮进入该页面，不猜测或附加 HDMI 端口编号。查询返回空值按无匹配处理，继续检测其他入口；HOME 身份查询同样兼容空返回。用户观察仅证明页面能打开，实际端口、画面、声音和实体按键仍待对应电视验收。
+
+小米电视2 49寸的 [#132](https://github.com/BeatsAD/quiet-tv/issues/132) 映射作为开发候选，仅匹配 `MiTV2-49` / API18，并逐项核对系统组件可调用性。`legacy14` 的首页菜单及搜索保留 HDMI 1/2/3、AV、VGA、模拟 TV 和 DTMB，常用及开机目标仍只接受经过确认的 HDMI。其他型号与 API 不继承映射，已有显式端口配置优先。实际 `ro.product.model`、固件版本、组件全名和 Quiet TV 画面声音验收仍待报告者补充；内置候选不代表厂商真机验证通过，详见[信号源说明](agent/inputs.md#小米电视2-49寸候选)。
 
 The `legacy19` profile targets Android 4.4 with legacy UI resources and TCP ADB only. It contains no Conscrypt/SPAKE2 native libraries and offers no pairing control. Inputs fall back to system settings; direct vendor input switching and physical TV acceptance remain unverified.
 
@@ -413,3 +418,9 @@ MiBOX3 / JurassicPark（API22）新增直接 HOME 按键补偿开发路径，允
 发现过程在后台执行，离开桌面后不启动过期结果。失败分别提示标准服务未提供、空列表、全部隐藏/去重、读取受限、读取异常、原厂入口未识别/停用/受限，以及厂商枚举接口缺失。可以手动重新检测，不循环重试，不自动改权限、启用系统组件或模拟全局按键。诊断记录标准返回数、过滤数、去重数、单项失败及原厂组件状态，电脑维护快照也提供过滤原因。
 
 本轮新增原厂入口的接口依据为 [Aerial SystemState](https://github.com/pengchujin/aerial-tv/blob/fb0154ee1af96a7e4d54ad63d9c6ba579fda02ac/app/src/main/java/app/orchard/tv/system/SystemState.kt)，酷开入口的上游记录见 [#582](https://github.com/pengchujin/aerial-tv/issues/582)、[#779](https://github.com/pengchujin/aerial-tv/issues/779)。这些上游记录不计作 Quiet TV 真机验收。
+
+## 信号源搜索与配对（开发源码，未打包）
+
+“看电视”可用遥控器搜索、逐项试开并确认原厂面板或 HDMI，电脑 AI 使用同一维护接口。标准档读取 TV Input 和已适配厂商接口，Android 4.x 不加载标准输入框架；双方均可按实际本机 ADB 能力尝试已有协议。菜单确认与端口画面声音确认分开，旧配置只在确认保存后替换。
+
+辅助识别仅提供限时系统现场与用户观察，未知组件不能直接变成调用协议。连接、权限、命令支持、HDMI 画面声音及返回后的音频释放仍须逐固件核对；JVM／编译验证不代替真机。详见[操作说明](USAGE.zh-CN.md#信号源搜索与配对开发源码未打包)和[电脑接口](agent/inputs.md#遥控器与-ai-共用搜索配对)。

@@ -50,6 +50,14 @@ final class LegacyWindowHomeGuard {
                 ActivityInfo actual=c.getPackageManager().getActivityInfo(target,0);
                 if(actual.enabled && actual.applicationInfo.enabled)result.add(target.flattenToString());
             }
+            // LeTV's HOME trampoline opens a separate activity, not an activity-alias (#121 upstream).
+            if(a.packageName.equals("com.stv.deskplatform") && a.name.equals("com.stv.deskplatform.ui.activity.ExternalJumpActivity")){
+                ComponentName target=new ComponentName(a.packageName,"com.stv.deskplatform.ui.activity.Launcher");
+                try{
+                    ActivityInfo actual=c.getPackageManager().getActivityInfo(target,0);
+                    if(actual.enabled && actual.applicationInfo.enabled)result.add(target.flattenToString());
+                }catch(PackageManager.NameNotFoundException|SecurityException unavailable){/* The registered HOME still applies. */}
+            }
         }catch(PackageManager.NameNotFoundException|SecurityException unavailable){result.clear();}
         return result;
     }

@@ -24,6 +24,9 @@ abstract class SavedInputLaunch {
         if(matches!=1||!target.scope.equals(VendorTvInputs.scope(context,selected))||!before.equals(profile(context)))return null;
         return new Native(selected,target.scope,before);
     }
+    static SavedInputLaunch vendor(Context context,VendorTvInputs.Source source)throws Exception {
+        return new Native(source,VendorTvInputs.scope(context,source),profile(context));
+    }
     private static final class Native extends SavedInputLaunch {
         private final VendorTvInputs.Source source;
         private final String scope,profile;

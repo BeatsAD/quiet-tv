@@ -12,6 +12,7 @@ final class DeviceInputProfile {
     private final SharedPreferences prefs;
     private static final Object profileLock=new Object();
     private static String pending="",request="",pendingTarget="";
+    private static long requestAt;
     private static JSONObject last=new JSONObject();
     DeviceInputProfile(Context c){context=c;prefs=c.getSharedPreferences("device-input-profile",Context.MODE_PRIVATE);}
     static String digest(String text) throws Exception {
@@ -150,6 +151,7 @@ final class DeviceInputProfile {
             .put("state",sources.length()==0?"EMPTY":"READY").put("sources",new JSONArray()).put("vendorSources",sources)
             .put("configuration",new DeviceInputProfile(context).snapshot());
     }
+    static synchronized boolean hasLiveRequest(){return android.os.SystemClock.elapsedRealtime()-requestAt<30000&&"pending".equals(last.optString("result"));}
     static String request(Context c,String id) throws Exception {
         synchronized(DeviceInputProfile.class){if(!pending.isEmpty())throw new IllegalStateException("上一次信号源请求尚未处理");}
         if(id==null)throw new IllegalArgumentException("信号源不存在");
@@ -162,7 +164,7 @@ final class DeviceInputProfile {
         final String token=UUID.randomUUID().toString();
         synchronized(DeviceInputProfile.class){
             if(!pending.isEmpty())throw new IllegalStateException("上一次信号源请求尚未处理");
-            pending=id;request=token;pendingTarget=saved;last=new JSONObject().put("request",request).put("id",id).put("result","pending");
+            pending=id;request=token;pendingTarget=saved;requestAt=android.os.SystemClock.elapsedRealtime();last=new JSONObject().put("request",request).put("id",id).put("result","pending");
         }
         try{c.startActivity(new Intent(c,HomeActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));}
         catch(RuntimeException failure){synchronized(DeviceInputProfile.class){if(token.equals(request)){pending="";pendingTarget="";last.put("result","failed");}}throw failure;}

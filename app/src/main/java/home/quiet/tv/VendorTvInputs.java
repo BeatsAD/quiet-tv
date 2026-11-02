@@ -60,6 +60,17 @@ final class VendorTvInputs {
     }
 
     List<Source> load(){return inspect().sources;}
+    static List<Source> legacySources(Context context){
+        DeviceInputProfile profile=new DeviceInputProfile(context);
+        List<Source> sources=new VendorTvInputs(context).inspect().sources;
+        SourcePairingStore names=new SourcePairingStore(context);
+        for(java.util.Iterator<Source> it=sources.iterator();it.hasNext();){
+            Source source=it.next();
+            if(profile.hidden(source.key)||!profile.vendorTarget(source.key).isEmpty()){it.remove();continue;}
+            String label=names.label(source.key);if(label.isEmpty())label=profile.label(source.key);if(!label.isEmpty())source.label=label;
+        }
+        return sources;
+    }
     Discovery inspect(){return inspect(new DeviceInputProfile(context).active());}
     Discovery inspect(org.json.JSONObject profile){
         discovery=new Discovery();List<Source> sources=skyworth(false);
@@ -181,7 +192,7 @@ final class VendorTvInputs {
         }catch(RuntimeException failure){DiagnosticLog.error("input.vendor.dispatch.failed",failure);return false;}
     }
     private static List<Source> currentSources(Context context){
-        return android.os.Build.VERSION.SDK_INT<21?HdmiTarget.legacySources(context):Api21.sources(context);
+        return android.os.Build.VERSION.SDK_INT<21?legacySources(context):Api21.sources(context);
     }
     @androidx.annotation.RequiresApi(21)
     private static final class Api21 {

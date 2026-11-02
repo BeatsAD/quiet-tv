@@ -20,7 +20,7 @@ final class UpdateInstallPreparation {
                 default:return "安装文件读写失败，请重试或通过电脑更新";
             }
         }
-        String details(){return "reason="+reason+" step="+step+" location="+location+" requiredBytes="+requiredBytes+" availableBytes="+availableBytes;}
+        String details(){return "reason="+reason+" step="+step+" location="+location+" requiredBytes="+requiredBytes+" availableBytes="+availableBytes+" cause="+(getCause()==null?"none":getCause().getClass().getSimpleName());}
     }
     static final class Prepared {
         final File file;final long availableBytes;final boolean reused;

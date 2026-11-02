@@ -142,6 +142,7 @@ final class TvInputPanels {
         if(result!=PanelState.READY)SystemEntryMaintenance.failedPanel(context,requested);
         return result;
     }
+    PanelState testPanel(Panel requested){return launchPanel(requested);}
     private PanelState launchPanel(Panel requested){
         try{
             if(!requested.profile.feature.isEmpty()&&!pm.hasSystemFeature(requested.profile.feature))return PanelState.UNAVAILABLE;

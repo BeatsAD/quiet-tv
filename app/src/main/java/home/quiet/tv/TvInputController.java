@@ -75,7 +75,7 @@ final class TvInputController {
         mergeVendorSources(snapshot);
         return snapshot;
     }
-    private void mergeVendorSources(Snapshot snapshot){
+    void mergeVendorSources(Snapshot snapshot){
         Map<String,Integer> registered=new HashMap<>();Set<String> ids=new HashSet<>();boolean unknown=false;
         for(TvInputInfo input:snapshot.raw)try{ids.add(input.getId());}catch(RuntimeException unavailable){unknown=true;}
         // Include hidden entries: a vendor alias must not resurrect a user's hidden port.
@@ -93,7 +93,7 @@ final class TvInputController {
         Set<Integer> unresolved=new HashSet<>();for(Map.Entry<String,Integer> input:registered.entrySet())if(!covered.contains(input.getKey()))unresolved.add(input.getValue());
         for(Iterator<VendorTvInputs.Source> it=snapshot.vendor.sources.iterator();it.hasNext();){
             VendorTvInputs.Source source=it.next();
-            String target=profile.vendorTarget(source.key),label=profile.label(source.key);if(!label.isEmpty())source.label=label;
+            String target=profile.vendorTarget(source.key),label=new SourcePairingStore(context).label(source.key);if(label.isEmpty())label=profile.label(source.key);if(!label.isEmpty())source.label=label;
             // Supplement within a type only when every registered physical port has a unique,
             // explicit native alias. Missing/stale mappings retain the first-batch conservative rule.
             if(unknown||profile.hidden(source.key)||covered.contains(target)||unresolved.contains(source.type)||source.type<0&&!registered.isEmpty()||counts.get(source.key)>1)it.remove();
@@ -238,6 +238,7 @@ final class TvInputController {
         return correction(Build.MODEL,service.packageName,input.getType(),input.getId(),Build.DISPLAY);
     }
     String inputLabel(TvInputInfo input){
+        String paired=new SourcePairingStore(context).label(input.getId());if(!paired.isEmpty())return paired;
         String custom=new DeviceInputProfile(context).label(input.getId());if(!custom.isEmpty())return custom;
         Route route=correction(input);if(route!=null)return route.label;
         try{CharSequence label=input.loadLabel(context);if(label!=null&&label.length()>0)return label.toString();}

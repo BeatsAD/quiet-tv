@@ -402,8 +402,17 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             +" size="+(root==null?"0x0":root.getWidth()+"x"+root.getHeight())+(detail.isEmpty()?"":" "+detail));
     }
 
+    private String pairingPreparation="";
     private void openMaintenanceInput(){
-        if(!resumed)return;
+        if(!resumed||!hasWindowFocus())return;
+        SourcePairing pairing=SourcePairing.existing();
+        if(pairing!=null&&pairing.pending()){pairingPreparation=pairing.pendingRequest();pairing.preparePending((receipt,launch)->{
+            if(!inputActive()||!hasWindowFocus()){pairing.cancel(receipt.owner,true);return;}
+            leaveSystemEntryPrepared("input.pairing",()->{pairingPreparation="";pairing.dispatch(this,receipt,launch,()->{
+                systemEntryResult("DISPATCHED_UNVERIFIED".equals(receipt.state));
+                if(resumed&&"FAILED".equals(receipt.state)){wallpapers.resume();showInputIssue("信号源测试未完成","请返回“看电视”尝试其他入口。");}
+            });});
+        });return;}
         if(SystemEntryMaintenance.pending()){openMaintenanceEntry();return;}
         DeviceInputProfile.Request request=DeviceInputProfile.consume();if(request.id.isEmpty())return;
         if(Build.VERSION.SDK_INT<21){
@@ -442,7 +451,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     void checkBootApp(){getWindow().getDecorView().post(this::launchBootApp);}
 
     private void launchBootApp(){
-        if(SystemEntryMaintenance.pending())return;
+        if(SystemEntryMaintenance.pending()||SourcePairing.existing()!=null&&SourcePairing.existing().pending())return;
         BootAppStore store=new BootAppStore(this);if(!store.enabled())return;
         long started=SystemClock.uptimeMillis();
         if(isFinishing() || !resumed || !hasWindowFocus() || !HomeGuardState.canShow(this))return;
@@ -470,7 +479,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private void watchTv(){
         BootAppStore store=new BootAppStore(this);
         if(!store.watchTarget().isEmpty()){openSavedHdmi(false);return;}
-        leaveHome(()->startActivity(settingsIntent(DesktopSettingsActivity.class).putExtra("management-page",SettingsPages.STARTUP)));
+        if(new SourcePairingStore(this).entry()!=null){showInputs();return;}
+        openInputPairingSettings();
     }
     private void openSavedHdmi(boolean automatic){
         BootAppStore store=new BootAppStore(HomeActivity.this);
@@ -1153,6 +1163,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private void cancelInputWork(){cancelInputWork(false);}
     private void cancelInputWork(boolean keepPermission){
         if(!keepPermission&&tvInputs!=null)tvInputs.pendingTvInput=null;
+        if(!pairingPreparation.isEmpty()){SourcePairing pairing=SourcePairing.existing();if(pairing!=null)pairing.cancelPreparation(pairingPreparation);pairingPreparation="";}
         inputWork.cancel();automaticInputPending=false;++inputDiscoveryGeneration;++systemEntryGeneration;inputDiscoveryPending=false;
         if(!maintenanceInputRequest.isEmpty()){DeviceInputProfile.cancelled(maintenanceInputRequest);maintenanceInputRequest="";}
         if(!maintenanceEntryRequest.isEmpty()){SystemEntryMaintenance.cancelled(maintenanceEntryRequest);maintenanceEntryRequest="";}
@@ -1218,26 +1229,51 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         });
     }
 
+    private void openInputPairingSettings(){leaveHome(()->startActivity(settingsIntent(DesktopSettingsActivity.class).putExtra("management-page",SettingsPages.STARTUP)));}
     private void showInputs(){
         if(inputDiscoveryPending)return;
         HomeGuardService.bootSourceUserAction(this);
         DiagnosticLog.info("input.request","api="+Build.VERSION.SDK_INT+" standardSupported="+(Build.VERSION.SDK_INT>=21));
         cancelInputWork();inputDiscoveryPending=true;int request=++inputDiscoveryGeneration;
+        org.json.JSONObject paired=new SourcePairingStore(this).entry();
+        if(paired!=null&&"adb".equals(paired.optString("transport"))){Context app=getApplicationContext();
+            inputWork.submit(()->{SourceSearch.Candidate candidate=SourcePairing.preferred(app,paired);return candidate==null?null:candidate.prepare(app,null);},(launch,failure)->{
+                if(!finishInputDiscovery(request))return;
+                if(launch==null){showInputIssue("入口需要重新确认","请进入看电视重新配对。");return;}
+                leaveSystemEntry("input.paired_adb",()->inputWork.submit(()->launch.dispatch(app),(opened,error)->{
+                    systemEntryResult(Boolean.TRUE.equals(opened));if(!Boolean.TRUE.equals(opened)){wallpapers.resume();showInputIssue("信号源入口暂不可用","请检查本机调试连接，或进入看电视重新配对。");}
+                }));
+            });return;
+        }
         if(Build.VERSION.SDK_INT>=21){if(tvInputs==null)tvInputs=new TvInputs();tvInputs.show(request);return;}
         Context app=getApplicationContext();
-        inputWork.submit(()->new TvInputPanels(app).inspect(),(snapshot,failure)->{
+        inputWork.submit(()->new android.util.Pair<>(new TvInputPanels(app).inspect(),VendorTvInputs.legacySources(app)),(result,failure)->{
             if(!finishInputDiscovery(request))return;
             if(failure!=null){showInputIssue(tr("信号源读取失败","Input discovery failed"),tr("请重新检测","Detect again"));return;}
+            TvInputPanels.Snapshot snapshot=result.first;List<VendorTvInputs.Source> sources=result.second;
             TvInputPanels.Panel direct=snapshot.directPanel(true);
+            if(direct!=null&&!direct.confirmedPreference&&!sources.isEmpty())direct=null;
             if(direct!=null){openNativeInputs(direct);return;}
             List<TvInputPanels.Panel> panels=snapshot.availablePanels();
-            if(!panels.isEmpty()){
-                String[] labels=new String[panels.size()];for(int i=0;i<labels.length;i++)labels[i]=panels.get(i).profile.label(chinese);
+            if(!sources.isEmpty()||!panels.isEmpty()){
+                ArrayList<String> labels=new ArrayList<>();ArrayList<Runnable> actions=new ArrayList<>();
+                for(VendorTvInputs.Source source:sources){labels.add(source.label);actions.add(()->openLegacyInput(source.key));}
+                for(TvInputPanels.Panel panel:panels){labels.add(panel.profile.label(chinese));actions.add(()->openNativeInputs(panel));}
                 android.app.AlertDialog dialog=new android.app.AlertDialog.Builder(this)
-                    .setTitle(tr("系统信号源","System inputs")).setItems(labels,(d,index)->openNativeInputs(panels.get(index)))
+                    .setTitle(tr("系统信号源","System inputs")).setItems(labels.toArray(new String[0]),(d,index)->actions.get(index).run())
                     .setNegativeButton(tr("返回","Back"),null).create();dialog.show();ControlStyle.dialog(dialog,unit);return;
             }
             showInputIssue(tr("信号源入口不可用","Input entry unavailable"),tr("当前安卓版本不提供标准输入列表。","This Android version has no standard TV input list.")+"\n\n"+snapshot.problem(chinese));
+        });
+    }
+    private void openLegacyInput(String id){
+        leaveSystemEntry("input.vendor",()->{
+            Context app=getApplicationContext();
+            inputWork.submit(()->{
+                VendorTvInputs.Source selected=null;
+                for(VendorTvInputs.Source source:VendorTvInputs.legacySources(app))if(id.equals(source.key)){if(selected!=null)return null;selected=source;}
+                return selected==null?null:SavedInputLaunch.vendor(app,selected);
+            },(launch,failure)->dispatchSavedHdmi(launch,failure,false));
         });
     }
     private boolean finishInputDiscovery(int request){
@@ -1263,7 +1299,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         android.app.AlertDialog.Builder builder=new android.app.AlertDialog.Builder(this).setTitle(title).setMessage(message)
             .setNegativeButton(tr("返回","Back"),(d,w)->KeySounds.play(this,KeySoundPolicy.BACK))
             .setNeutralButton(tr("重新检测","Detect again"),(d,w)->main.post(this::showInputs));
-        if(new SystemSettingsRouter(this).available(Settings.ACTION_SETTINGS))builder.setPositiveButton(tr("系统设置","System settings"),(d,w)->{openSettings(Settings.ACTION_SETTINGS);KeySounds.play(this,KeySoundPolicy.CONFIRM);});
+        builder.setPositiveButton(tr("搜索与配对","Search and pair"),(d,w)->openInputPairingSettings());
         android.app.AlertDialog dialog=builder.create();
         dialog.setOnDismissListener(d->main.post(this::updateHeaderFocus));dialog.show();ControlStyle.dialog(dialog,unit);
     }
@@ -1339,7 +1375,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         }
         private void present(TvInputController.Snapshot snapshot,VendorTvInputs.Discovery discovery){
             List<VendorTvInputs.Source> vendor=discovery.sources;
-            TvInputPanels.Panel direct=vendor.isEmpty()?snapshot.directPanel():null;
+            TvInputPanels.Panel direct=snapshot.directPanel();
+            if(direct!=null&&!direct.confirmedPreference&&!vendor.isEmpty())direct=null;
             DiagnosticLog.info("input.menu.inspect","standard="+snapshot.state+" inputs="+snapshot.inputs.size()+" vendor="+vendor.size()+" panels="+snapshot.nativePanels.panels.size()+" profilesUnavailable="+snapshot.nativePanels.profilesUnavailable+" direct="+(direct!=null));
             if(direct!=null){openNativeInputs(direct);return;}
             ArrayList<TvInputInfo> inputs=snapshot.inputs;
@@ -1397,6 +1434,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
 
         private String inputName(TvInputInfo info){
+            String paired=new SourcePairingStore(HomeActivity.this).label(info.getId());if(!paired.isEmpty())return paired;
             String custom=new DeviceInputProfile(HomeActivity.this).label(info.getId());if(!custom.isEmpty())return custom;
             if(!info.isPassthroughInput())return tr("电视直播","Live TV");
             if(info.getType()==TvInputInfo.TYPE_HDMI || info.getType()==TvInputInfo.TYPE_DISPLAY_PORT)return new TvInputController(HomeActivity.this).inputLabel(info);

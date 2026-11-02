@@ -17,7 +17,7 @@ final class HdmiTarget {
     }
     static HdmiTarget decode(String saved){
         try{JSONObject value=new JSONObject(saved);String kind=value.getString("kind"),id=value.getString("id"),label=value.getString("label"),scope=value.getString("scope");
-            if((!"standard".equals(kind)&&!"vendor".equals(kind))||id.isEmpty()||label.isEmpty()||scope.isEmpty())return null;
+            if((!"standard".equals(kind)&&!"vendor".equals(kind)&&!"adb".equals(kind))||id.isEmpty()||label.isEmpty()||scope.isEmpty())return null;
             return new HdmiTarget(kind,id,label,scope);
         }catch(JSONException invalid){return null;}
     }
@@ -50,16 +50,11 @@ final class HdmiTarget {
         }
     }
     static List<VendorTvInputs.Source> legacySources(Context context){
-        DeviceInputProfile profile=new DeviceInputProfile(context);
-        List<VendorTvInputs.Source> sources=new VendorTvInputs(context).inspect().sources;
-        for(Iterator<VendorTvInputs.Source> it=sources.iterator();it.hasNext();){
-            VendorTvInputs.Source source=it.next();
-            if(!source.hdmi||profile.hidden(source.key)||!profile.vendorTarget(source.key).isEmpty()){it.remove();continue;}
-            String label=profile.label(source.key);if(!label.isEmpty())source.label=label;
-        }
+        List<VendorTvInputs.Source> sources=VendorTvInputs.legacySources(context);
+        for(Iterator<VendorTvInputs.Source> it=sources.iterator();it.hasNext();)if(!it.next().hdmi)it.remove();
         return sources;
     }
-    private static List<HdmiTarget> nativeTargets(Context context,List<VendorTvInputs.Source> sources){
+    static List<HdmiTarget> nativeTargets(Context context,List<VendorTvInputs.Source> sources){
         ArrayList<HdmiTarget> result=new ArrayList<>();
         for(VendorTvInputs.Source source:sources)try{
             if(!source.hdmi)continue;
@@ -73,14 +68,17 @@ final class HdmiTarget {
         for(Iterator<HdmiTarget> it=result.iterator();it.hasNext();){HdmiTarget target=it.next();if(counts.get(target.kind+":"+target.id)!=1)it.remove();}
         return result;
     }
+    static HdmiTarget adb(String id,String label,String scope){return new HdmiTarget("adb",id,label,scope);}
+    static HdmiTarget vendor(String id,String label,String scope){return new HdmiTarget("vendor",id,label,scope);}
+    HdmiTarget withLabel(String name){return new HdmiTarget(kind,id,name,scope);}
     boolean matches(HdmiTarget current){return current!=null&&kind.equals(current.kind)&&id.equals(current.id)&&scope.equals(current.scope);}
-    boolean availableNow(Context context){for(HdmiTarget current:available(context))if(matches(current))return true;return false;}
+    boolean availableNow(Context context){if("adb".equals(kind)){try{return AdbHdmi.prepare(context,this,null)!=null;}catch(Exception unavailable){return false;}}for(HdmiTarget current:available(context))if(matches(current))return true;return false;}
     /** Worker-only compatibility helper; UI callers keep the prepared dispatch receipt. */
     String foregroundComponent(Context context){
         try{return Build.VERSION.SDK_INT>=21?Api21.foreground(context,this):"";}
         catch(Exception unavailable){return "";}
     }
-    SavedInputLaunch prepare(Context context) throws Exception {return Build.VERSION.SDK_INT>=21?Api21.prepare(context,this):SavedInputLaunch.legacy(context,this);}
+    SavedInputLaunch prepare(Context context) throws Exception {if("adb".equals(kind))return AdbHdmi.prepare(context,this,null);return Build.VERSION.SDK_INT>=21?Api21.prepare(context,this):SavedInputLaunch.legacy(context,this);}
     boolean open(Context context){return open(context,false);}
     boolean open(Context context,boolean automatic){
         try{SavedInputLaunch launch=prepare(context);if(launch==null)return false;

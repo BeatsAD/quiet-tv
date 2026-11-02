@@ -32,7 +32,9 @@ final class DesktopTakeoverStatus {
                 return new DesktopTakeoverStatus("unconfigured","尚未配置","可先选择系统默认桌面；没有此入口时，通过电脑配置。");
             }
             if(!guard.supported())return own?new DesktopTakeoverStatus("pending","已选择默认桌面，待验证","此系统的守护能力受限，请通过电脑核对实体 HOME 和开机结果。"):limited();
-            DesktopRoutes routes=new DesktopRoutes(context,false);String problem=routes.configurationProblem();
+            DesktopRoutes routes=new DesktopRoutes(context,false);
+            if(routes.proxyUpgradePending())return new DesktopTakeoverStatus("repair","配置已保留，接管待恢复",guard.preferences.getString("status","请通过电脑继续恢复原有 HOME 代理。"));
+            String problem=routes.configurationProblem();
             if(!problem.isEmpty())return repair("请通过电脑检查并修复现有配置。");
             boolean passed=true;
             for(String scene:new String[]{"home","reboot","coldBoot","wake"}){
