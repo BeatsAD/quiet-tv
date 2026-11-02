@@ -194,6 +194,7 @@ __pycache__/
 !/scripts/computer_resources.py
 !/scripts/device_environment.py
 !/scripts/home_capabilities.py
+!/scripts/collect_letv_home.py
 
 # Browser client required by the native file-transfer tab.
 !/app/src/main/assets/file-transfer/
