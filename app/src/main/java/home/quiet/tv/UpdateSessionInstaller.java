@@ -49,6 +49,10 @@ final class UpdateSessionInstaller {
         }catch(IOException|RuntimeException error){throw new Failure(error instanceof UnsupportedOperationException?"session_unsupported":UpdateInstallPolicy.ioReason(error),"commit",id,available(context),error);}
     }
     static String action(Context context,int id){return context.getPackageName()+".UPDATE_INSTALL."+id;}
+    static boolean active(Context context,int id){
+        try{PackageInstaller.SessionInfo info=context.getPackageManager().getPackageInstaller().getSessionInfo(id);return info!=null&&info.isActive();}
+        catch(RuntimeException error){DiagnosticLog.error("update.install.session_query_failed","session="+id,error);return true;}
+    }
     static boolean abandon(Context context,int id){
         if(id<0)return true;
         try{
