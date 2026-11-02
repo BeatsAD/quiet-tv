@@ -12,6 +12,10 @@ final class DesktopRoutePolicy {
             return old>0 && old<build && current.equals(prefix+build+previous.substring(end));
         }catch(NumberFormatException invalid){return false;}
     }
+    static boolean upgradeCompatible(String previous,String current,String legacyCurrent,String fingerprint,long build){
+        return upgradeCompatible(previous,current,fingerprint,build)
+                || !legacyCurrent.isEmpty() && upgradeCompatible(previous,legacyCurrent,fingerprint,build);
+    }
     enum Result { DIRECT, RETAINED, UNSUPPORTED, UNKNOWN, CANCELLED }
     static boolean fallback(Result result,boolean active,boolean connected,boolean paused){
         return active && connected && !paused && (result==Result.RETAINED || result==Result.UNSUPPORTED);

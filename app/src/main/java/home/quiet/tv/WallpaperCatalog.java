@@ -8,6 +8,7 @@ import java.util.*;
 final class WallpaperCatalog {
     static final String DEFAULT = "default";
     static final String DAILY = "daily", BING = "bing-cn", BT = "bt-landscape";
+    private static final String[] LEGACY={"big-sur-coastline","big-sur-mountains","big-sur-road","golden-gate-sunset"};
     // BT is accepted only for reading legacy caches until a Bing image is committed.
     static boolean dailySource(String source) { return BING.equals(source)||BT.equals(source); }
     static String sourceLabel(String source,boolean chinese) { return chinese?"必应中国":"Bing China"; }
@@ -52,6 +53,7 @@ final class WallpaperCatalog {
         String label(boolean chinese) {
             if (DEFAULT.equals(id)) return chinese ? "默认颜色主题" : "Default color theme";
             if (DAILY.equals(id)) return chinese ? "每日壁纸" : "Daily wallpaper";
+            for(int i=0;i<LEGACY.length;i++)if(LEGACY[i].equals(id))return chinese?new String[]{"大苏尔海岸","大苏尔群山","大苏尔山路","金门大桥日落"}[i]:new String[]{"Big Sur Coastline","Big Sur Mountains","Big Sur Road","Golden Gate Sunset"}[i];
             return name;
         }
     }
@@ -65,11 +67,20 @@ final class WallpaperCatalog {
     String dailySource=BING,lastLocal=DEFAULT;
     final Map<String,DailyImage> dailyImages=new LinkedHashMap<>();
     final List<Entry> custom = new ArrayList<>();
+    private final Set<String> legacy=new LinkedHashSet<>();
+
+    static WallpaperCatalog migrate(boolean defaultTheme,int index,boolean rotating){
+        WallpaperCatalog result=new WallpaperCatalog();result.legacy.addAll(Arrays.asList(LEGACY).subList(0,3));
+        if(!defaultTheme && index>=0 && index<3){result.current=LEGACY[index];result.rotating=rotating;}
+        return result;
+    }
 
     List<Entry> entries() {
         List<Entry> result=new ArrayList<>();
         result.add(new Entry(DEFAULT,"",0,0,0));
         result.add(new Entry(DAILY,"",0,0,0));
+        for(String id:LEGACY)if(legacy.contains(id))result.add("golden-gate-sunset".equals(id)
+            ?new Entry(id,"",1920,1080,0,"video","video/avc",23000,30,0):new Entry(id,"",1920,1080,0));
         result.addAll(custom); return result;
     }
     Entry find(String id) { for (Entry entry:entries()) if (entry.id.equals(id)) return entry; return null; }
@@ -119,7 +130,7 @@ final class WallpaperCatalog {
         Entry entry=find(id); if (entry==null) return;
         List<Entry> pool=entry.video()?videos():pictures(); int position=0;
         for (int i=0;i<pool.size();i++) if (pool.get(i).id.equals(id)) position=i;
-        custom.remove(entry);
+        if(entry.custom())custom.remove(entry);else legacy.remove(id);
         pool=entry.video()?videos():pictures();
         if (current.equals(id)){
             if(rotating&&!pool.isEmpty()){current=pool.get(position%pool.size()).id;if(entry.video())lastVideo=current;}
@@ -138,6 +149,7 @@ final class WallpaperCatalog {
         JSONObject result=new JSONObject().put("version",2).put("current",current).put("rotating",rotating).put("sound",sound);
         result.put("lastVideo",lastVideo).put("staticBeforeVideo",staticBeforeVideo).put("rotationBeforeVideo",rotationBeforeVideo);
         result.put("rotationMinutes",rotationMinutes);
+        result.put("legacy",new JSONArray(legacy));
         JSONArray user=new JSONArray();
         for (Entry e:custom) user.put(new JSONObject().put("id",e.id).put("name",e.name).put("width",e.width).put("height",e.height).put("bytes",e.bytes).put("kind",e.kind).put("mime",e.videoMime).put("durationMs",e.durationMs).put("fps",e.fps).put("rotation",e.rotation).put("pixelRatio",e.pixelRatio));
         JSONObject images=new JSONObject();for(DailyImage image:dailyImages.values())images.put(image.source,image.json());
@@ -146,6 +158,9 @@ final class WallpaperCatalog {
     static WallpaperCatalog read(JSONObject json) throws JSONException {
         if (json.getInt("version")!=1&&json.getInt("version")!=2) throw new JSONException("Unsupported wallpaper catalog");
         WallpaperCatalog result=new WallpaperCatalog();
+        JSONArray savedLegacy=json.optJSONArray("legacy"),removed=json.optJSONArray("removed");
+        if(savedLegacy!=null){for(int i=0;i<savedLegacy.length();i++)if(Arrays.asList(LEGACY).contains(savedLegacy.optString(i)))result.legacy.add(savedLegacy.optString(i));}
+        else if(removed!=null){result.legacy.addAll(Arrays.asList(LEGACY));for(int i=0;i<removed.length();i++)result.legacy.remove(removed.optString(i));}
         result.current=json.optString("current",DEFAULT); result.rotating=json.optBoolean("rotating",false);result.sound=json.optBoolean("sound",false);
         result.lastVideo=json.optString("lastVideo","");result.staticBeforeVideo=json.optString("staticBeforeVideo",DEFAULT);result.rotationBeforeVideo=json.optBoolean("rotationBeforeVideo",false);
         result.rotationMinutes=json.optInt("rotationMinutes",5);
