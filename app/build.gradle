@@ -30,8 +30,9 @@ android {
         versionName('1.3.4' + (providers.gradleProperty('quietLocalTest').getOrElse('false').toBoolean() ? '.1' : ''))
     }
     buildFeatures { buildConfig true }
-    // Historical media is still needed by old catalogs; fresh catalogs do not display it.
+    // Keep local wallpaper originals out of every APK compatibility profile.
     androidResources {
+        ignoreAssetsPatterns.add('wallpapers')
         if (compatibility != 'legacy14') ignoreAssetsPatterns.addAll(['wechat.png', 'qq-group.png'])
     }
     sourceSets.main.java.srcDir(legacy ? 'src/legacy19/java' : 'src/standard/java')

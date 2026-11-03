@@ -29,9 +29,7 @@ final class WallpaperStore {
             try { catalog=WallpaperCatalog.read(new JSONObject(new String(catalogFile.readFully(),Charsets.UTF_8))); }
             catch(IOException|JSONException e) { Log.w("QuietTV","Wallpaper catalog could not be read");DiagnosticLog.error("wallpaper.catalog.failed",e); catalog=new WallpaperCatalog(); }
         } else {
-            android.content.SharedPreferences old=context.getSharedPreferences("wallpapers",0);
-            catalog=old.contains("index")||old.contains("default")||old.contains("rotating")
-                ?WallpaperCatalog.migrate(old.getBoolean("default",!old.contains("index")),old.getInt("index",0),old.getBoolean("rotating",true)):new WallpaperCatalog();
+            catalog=new WallpaperCatalog();
             try { persist(catalog); } catch(IOException e) { Log.w("QuietTV","Wallpaper migration will retry on next launch"); }
         }
         // A missing upload must never leave the home screen pointing at an absent file.
