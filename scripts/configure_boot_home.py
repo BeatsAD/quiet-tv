@@ -15,6 +15,7 @@ from verify_install import HOME, HOME_ARGS, component, help_text, resolver
 
 VIDAA = 'persist.vt.use_home_pkg'
 STOCK = 'com.jamdeo.tv.vod'
+EARLY_HOME = tcl.PACKAGE + '/' + tcl.PACKAGE + '.BootHomeActivity'
 
 
 class NoNativeRoute(ValueError):
@@ -124,10 +125,14 @@ def prepare(adb, user, tools, apk, journal):
     if metadata['home_mode'] != 'standard':
         raise ValueError('当前为无 HOME 的 relay 包，应使用现有兼容守护')
     aware = apk_boot_capability(tools, apk)
-    journal.event('boot_apk', metadata=metadata, directBootAware=aware['home'], earlyHomeAvailable=aware['placeholder'])
+    setter, homes = home_commands(adb, device['sdk'], user)
+    early_home = (aware['placeholder'] and EARLY_HOME in homes
+                  and all(h.startswith(tcl.PACKAGE + '/') for h in homes))
+    journal.event('boot_apk', metadata=metadata, directBootAware=aware['home'], earlyHomeAvailable=early_home)
     if device['sdk'] >= 24 and not any(aware.values()):
         raise ValueError('实际 APK 未提供解锁前 HOME 或轻量启动入口；需先选择适配发布包，未修改电视')
-    setter, homes = home_commands(adb, device['sdk'], user)
+    if device['sdk'] >= 24 and not aware['home'] and not early_home:
+        raise NoNativeRoute('轻量启动入口未启用或仍有其他 HOME 候选，未确认可用的解锁前 HOME；未修改电视')
     before = component(adb.shell(*resolver(adb, device['sdk'], user)))
     if HOME not in homes:
         raise NoNativeRoute('Quiet TV 不在本机 HOME 候选中，可独立评估已有兼容守护')
