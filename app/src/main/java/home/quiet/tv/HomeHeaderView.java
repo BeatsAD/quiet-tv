@@ -79,12 +79,13 @@ final class HomeHeaderView extends FrameLayout {
             }
             arranged=settings.layout();
         }
-        information.setGravity(gallery?Gravity.CENTER_HORIZONTAL:Gravity.START);
+        information.setGravity((gallery?Gravity.CENTER_HORIZONTAL:Gravity.START)|Gravity.TOP);
         for(TextView v:new TextView[]{greeting,clock,date,weather})v.setGravity(gallery?Gravity.CENTER:Gravity.CENTER_VERTICAL);
         clock.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(gallery?79:50));
         greeting.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(gallery?15:14));date.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(gallery?15:14));weather.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(gallery?15:14));
         UiCompat.letterSpacing(greeting,gallery?.02f:.14f);UiCompat.letterSpacing(date,gallery?.02f:.08f);
-        FrameLayout.LayoutParams ip=(FrameLayout.LayoutParams)information.getLayoutParams();ip.width=px(gallery?538:510);ip.leftMargin=px(gallery?211:50);ip.topMargin=px(gallery?(settings.showTime()?75:97):32);information.setLayoutParams(ip);
+        FrameLayout.LayoutParams ip=(FrameLayout.LayoutParams)information.getLayoutParams();int width=px(gallery?538:510),left=px(gallery?211:50),top=px(gallery?(settings.showTime()?75:97):32);
+        if(ip.width!=width||ip.leftMargin!=left||ip.topMargin!=top){ip.width=width;ip.leftMargin=left;ip.topMargin=top;information.setLayoutParams(ip);}
         greeting.setVisibility(settings.greetingEnabled()?VISIBLE:GONE);clock.setVisibility(settings.showTime()?VISIBLE:GONE);date.setVisibility(settings.showDate()?VISIBLE:GONE);
         avatar.show(settings.avatarEnabled()?avatars.existing(settings.avatarFile()):null,settings.avatarEnabled());
         boolean hasAvatar=avatar.getVisibility()==VISIBLE,hasGreeting=settings.greetingEnabled()||hasAvatar;
@@ -103,12 +104,12 @@ final class HomeHeaderView extends FrameLayout {
         }else{
             intro.setVisibility(hasGreeting||weather.getVisibility()==VISIBLE?VISIBLE:GONE);
             timeRow.setVisibility(settings.showTime()||settings.showDate()?VISIBLE:GONE);divider.setVisibility(settings.showTime()&&settings.showDate()?VISIBLE:GONE);
-            LinearLayout.LayoutParams wp=(LinearLayout.LayoutParams)weather.getLayoutParams();wp.leftMargin=hasGreeting?px(16):0;weather.setLayoutParams(wp);
+            LinearLayout.LayoutParams wp=(LinearLayout.LayoutParams)weather.getLayoutParams();int margin=hasGreeting?px(16):0;if(wp.leftMargin!=margin){wp.leftMargin=margin;weather.setLayoutParams(wp);}
         }
         information.setVisibility(hasGreeting||weather.getVisibility()==VISIBLE||settings.showTime()||settings.showDate()?VISIBLE:GONE);
         boolean[] shown={settings.showInput(),settings.showNetwork(),settings.showSettings()};int count=0;for(boolean show:shown)if(show)count++;
-        int n=0;for(int i=0;i<pills.size();i++){TextView pill=pills.get(i);pill.setVisibility(shown[i]?VISIBLE:GONE);if(shown[i]){FrameLayout.LayoutParams p=(FrameLayout.LayoutParams)pill.getLayoutParams();p.leftMargin=px(96-(count-1-n++)*48);pill.setLayoutParams(p);}}
-        buttons.setVisibility(count==0?GONE:VISIBLE);FrameLayout.LayoutParams bp=(FrameLayout.LayoutParams)buttons.getLayoutParams();bp.topMargin=px(gallery?24:67);buttons.setLayoutParams(bp);
+        int n=0;for(int i=0;i<pills.size();i++){TextView pill=pills.get(i);pill.setVisibility(shown[i]?VISIBLE:GONE);if(shown[i]){FrameLayout.LayoutParams p=(FrameLayout.LayoutParams)pill.getLayoutParams();int margin=px(96-(count-1-n++)*48);if(p.leftMargin!=margin){p.leftMargin=margin;pill.setLayoutParams(p);}}}
+        buttons.setVisibility(count==0?GONE:VISIBLE);FrameLayout.LayoutParams bp=(FrameLayout.LayoutParams)buttons.getLayoutParams();int buttonTop=px(gallery?24:67);if(bp.topMargin!=buttonTop){bp.topMargin=buttonTop;buttons.setLayoutParams(bp);}
     }
     void focusButton(int index){
         buttonLabel.setVisibility(index>=0?VISIBLE:INVISIBLE);if(index<0)return;

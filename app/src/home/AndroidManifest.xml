@@ -1,5 +1,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
+        <!-- Enabled only when this app is the sole normal HOME. Never competes with a launcher. -->
+        <activity android:name=".BootHomeActivity" android:enabled="false" android:exported="true"
+            android:directBootAware="true" android:launchMode="singleTask" android:excludeFromRecents="true"
+            android:screenOrientation="landscape" android:theme="@style/HomeTheme">
+            <intent-filter android:priority="-1">
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
         <activity android:name=".HomeActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

@@ -138,6 +138,7 @@ final class UpdateRepository {
     /** Single installation entry; UI only dispatches a prepared route while foreground. */
     void install(){
         if(installBusy)return;
+        if("file_dispatched".equals(prefs.getString("installPhase",""))){fileInstallReturned(Integer.MIN_VALUE,null);return;}
         if(!ready||available==null||verifying||downloading){installationFailed("更新状态已变化，请重新检查");return;}
         final int previous=installSession>=0?installSession:prefs.getInt("installCleanup",-1);
         if(UpdateInstallPolicy.session(Build.VERSION.SDK_INT)&&previous>=0){
@@ -202,7 +203,8 @@ final class UpdateRepository {
         if(installSession<0){
             installState="file_dispatched";
             if(!prefs.edit().putString("installPhase","file_dispatched").commit()){installationFailed("无法记录安装任务，请重试");return;}
-            if(!UpdateInstaller.launch(activity,installFile))installationFailed(UpdateInstallPolicy.message("confirmation_missing"));
+            UpdateInstaller.LaunchResult result=UpdateInstaller.launch(activity,installFile);
+            if(result!=UpdateInstaller.LaunchResult.DISPATCHED)installationFailed(UpdateInstallPolicy.message(result.reason));
             else notifyChanged();return;
         }
         final int id=installSession;installBusy=true;installState="committing";prefs.edit().putString("installPhase","committing").apply();notifyChanged();
@@ -224,9 +226,21 @@ final class UpdateRepository {
         if(!"file_dispatched".equals(prefs.getString("installPhase","")))return;
         int status=result==null?Integer.MIN_VALUE:result.getIntExtra("android.intent.extra.INSTALL_RESULT",Integer.MIN_VALUE);
         reconcile();boolean installed="success".equals(installState);
-        DiagnosticLog.info("update.install.file_result","attempt="+installAttempt+" result="+(resultCode==Integer.MIN_VALUE?"unavailable":resultCode)+" status="+(status==Integer.MIN_VALUE?"unavailable":status)+" outcome="+(installed?"installed":"not_confirmed"));
-        if(installed)notifyChanged();
-        else installationFailed("尚未确认更新完成，请重试或通过电脑更新","not_installed");
+        String reason=status<0&&status!=Integer.MIN_VALUE?UpdateInstallPolicy.fileResult(status):"pending";
+        DiagnosticLog.info("update.install.file_result","attempt="+installAttempt+" result="+(resultCode==Integer.MIN_VALUE?"unavailable":resultCode)+" status="+(status==Integer.MIN_VALUE?"unavailable":status)+" outcome="+(installed?"installed":reason));
+        if(installed){notifyChanged();return;}
+        // ACTION_VIEW installers can return RESULT_CANCELED immediately without an install result.
+        // Only an explicit platform failure ends this attempt; onResume alone is not a failure.
+        if(!"pending".equals(reason)){
+            installationFailed(UpdateInstallPolicy.message(reason),"cancelled".equals(reason)?"cancelled":"failed");return;
+        }
+        installState="file_dispatched";installNotice=true;notifyChanged();
+    }
+    /** Called only after the user confirms the previous file installer has closed. */
+    boolean retryFileInstall(){
+        reconcile();
+        if(installBusy||!ready||!"file_dispatched".equals(prefs.getString("installPhase",""))){notifyChanged();return false;}
+        prefs.edit().remove("installPhase").apply();installState="";installNotice=false;return true;
     }
     void installationResult(Intent intent){
         int id=prefs.getInt("installSession",-1);

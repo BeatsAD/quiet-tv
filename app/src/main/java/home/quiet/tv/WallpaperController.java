@@ -109,12 +109,10 @@ final class WallpaperController {
             if(video.visible()&&video.ready()&&current.getAlpha()<1f){
                 // Before PixelCopy, native output can only blur its existing poster.
                 if(!video.snapshotSupported()){
-                    Bitmap poster=current.getDrawable() instanceof BitmapDrawable?((BitmapDrawable)current.getDrawable()).getBitmap():null;
-                    result.ready(poster==null?null:WallpaperBlur.snapshot(width,height,poster,shade,ambient));return;
+                    result.ready(blurVideoFrame(width,height,null));return;
                 }
                 video.snapshot(width,height,frame->{
-                    if(frame==null){result.ready(null);return;}
-                    try{result.ready(WallpaperBlur.snapshot(width,height,frame,current,incoming,shade,ambient));}finally{frame.recycle();}
+                    try{result.ready(blurVideoFrame(width,height,frame));}finally{if(frame!=null)frame.recycle();}
                 });
             }else result.ready(WallpaperBlur.snapshot(width,height,null,current,incoming,shade,ambient));
         });video.observeFrames(wallpaperBlur::invalidate);
@@ -143,6 +141,12 @@ final class WallpaperController {
     void setThemeColor(int color){themeColor=color;if(ambient.getVisibility()==View.VISIBLE)ambient.setColor(color);}
     void observeDock(Runnable invalidation){dockInvalidation=invalidation;}
     private void invalidateDock(){if(dockInvalidation!=null)dockInvalidation.run();if(wallpaperBlur!=null)wallpaperBlur.invalidate();}
+    private Bitmap blurVideoFrame(int width,int height,Bitmap frame){
+        if(frame!=null)return WallpaperBlur.snapshot(width,height,frame,current,incoming,shade,ambient);
+        // A playing TextureView may not allow readback. Its hidden cover is still a valid blur source.
+        Bitmap poster=current.getDrawable() instanceof BitmapDrawable?((BitmapDrawable)current.getDrawable()).getBitmap():null;
+        return poster==null?null:WallpaperBlur.snapshot(width,height,poster,shade,ambient);
+    }
     void setDesktopEffects(int blur,int brightness,int fade){setDesktopEffects(blur,blur,0,brightness,fade);}
     void setDesktopEffects(int first,int second,float progress,int brightness,int fade){firstBlur=first;secondBlur=second;desktopProgress=progress;desktopBlur=Math.round(first+(second-first)*progress);desktopBrightness=brightness;desktopFade=fade;updateDesktopEffects();}
     void interaction(){wallpaperBlur.interaction();}
@@ -152,7 +156,7 @@ final class WallpaperController {
         float scale=Build.VERSION.SDK_INT>=31&&!separate&&video.visible()&&!video.nativeOutput()&&desktopBlur>0?2f:1f;
         if(background.getScaleX()!=scale){background.setScaleX(scale);background.setScaleY(scale);background.requestLayout();}
         // Reuse both page caches for live video; compiling blur filters during scroll stalls the render thread.
-        wallpaperBlur.nativeVideo(video.visible()&&video.ready()&&(video.nativeOutput()||Build.VERSION.SDK_INT>=31),video.outputGeneration());
+        wallpaperBlur.nativeVideo(video.visible()&&video.ready(),video.outputGeneration());
         if(separate)wallpaperBlur.amount(0);else wallpaperBlur.blend(firstBlur,secondBlur,desktopProgress);appearance.brightness(separate?100:desktopBrightness);if(separate){fadePending=false;appearance.finish();}
     }
     private int fadeDuration(int original){return temporaryMedia!=null||picker!=null?original:desktopFade;}
@@ -187,7 +191,7 @@ final class WallpaperController {
         final int version=++request;
         if(transition!=null){transition.end();transition=null;}
         if(WallpaperCatalog.DEFAULT.equals(id)){
-            boolean changed=!id.equals(shown);current.setImageDrawable(null);incoming.setImageDrawable(null);currentBlur=null;incomingBlur=null;shade.setVisibility(View.INVISIBLE);ambient.setVisibility(View.VISIBLE);ambient.setColor(themeColor);shown=id;shownKey=id;invalidateDock();revealDesktop(changed&&animate);stopVideo(prepared);return;
+            boolean changed=!id.equals(shown);current.setImageDrawable(null);incoming.setImageDrawable(null);currentBlur=null;incomingBlur=null;shade.setVisibility(View.INVISIBLE);ambient.setVisibility(View.VISIBLE);ambient.setColor(themeColor);shown=id;shownKey=id;wallpaperBlur.sourceChanged();invalidateDock();revealDesktop(changed&&animate);stopVideo(prepared);return;
         }
         WallpaperCatalog state=store.snapshot();
         if(selected!=null&&selected.video()){
@@ -220,12 +224,14 @@ final class WallpaperController {
                 Bitmap blurred=DockBackdropDrawable.prepare(bitmap,screen.widthPixels,screen.heightPixels);
                 main.post(()->{
                     if(version!=request||destroyed||UiCompat.destroyed(activity))return;
+                    wallpaperBlur.sourceChanged();
                     ambient.setVisibility(View.INVISIBLE);shade.setVisibility(View.VISIBLE);
                     if(!animate||shown==null||WallpaperCatalog.DEFAULT.equals(shown)||fadeDuration(450)==0){current.setImageBitmap(bitmap);currentBlur=blurred;incomingBlur=null;shown=id;shownKey=key;invalidateDock();revealDesktop(animate);}
                     else{
                         incoming.setImageBitmap(bitmap);incomingBlur=blurred;incoming.setAlpha(0f);
                         transition=ValueAnimator.ofFloat(0,1);transition.setDuration(fadeDuration(450));
-                        transition.addUpdateListener(a->{float fraction=(float)a.getAnimatedValue();incoming.setAlpha(fraction);if(fraction==1f){current.setImageBitmap(bitmap);currentBlur=incomingBlur;incomingBlur=null;incoming.setImageDrawable(null);incoming.setAlpha(0f);shown=id;shownKey=key;}invalidateDock();});transition.start();
+                        // end() can repeat the final update after the incoming cache has been cleared.
+                        transition.addUpdateListener(a->{float fraction=(float)a.getAnimatedValue();incoming.setAlpha(fraction);if(fraction==1f){current.setImageBitmap(bitmap);currentBlur=blurred;incomingBlur=null;incoming.setImageDrawable(null);incoming.setAlpha(0f);shown=id;shownKey=key;}invalidateDock();});transition.start();
                     }
                     cacheBackdrop(id,bitmap,blurred);stopVideo(prepared);
                 });
@@ -235,7 +241,7 @@ final class WallpaperController {
     private void showPoster(String id,Bitmap image,Bitmap blur,String key,Runnable prepared){
         if(image!=null){current.setImageBitmap(image);currentBlur=blur;ambient.setVisibility(View.INVISIBLE);shade.setVisibility(View.VISIBLE);}
         else if(current.getDrawable()==null){ambient.setVisibility(View.VISIBLE);ambient.setColor(themeColor);shade.setVisibility(View.INVISIBLE);}
-        incoming.setImageDrawable(null);incoming.setAlpha(0f);incomingBlur=null;shown=id;shownKey=key;invalidateDock();
+        incoming.setImageDrawable(null);incoming.setAlpha(0f);incomingBlur=null;shown=id;shownKey=key;wallpaperBlur.sourceChanged();invalidateDock();
         revealDesktop(false);
         cacheBackdrop(id,image,blur);if(prepared!=null)prepared.run();else stopVideo();
     }
@@ -307,7 +313,14 @@ final class WallpaperController {
     private void finishLeave(Runnable launch){leaving=false;if(active&&!destroyed)launch.run();}
     private void restoreSelected(){String id=store.snapshot().current;if(store.snapshot().dynamic()&&!id.equals(failedVideo))startVideo(id,false);else display(id,false);}
     private void schedule(){main.removeCallbacks(rotate);WallpaperCatalog state=store.snapshot();if(active&&temporaryMedia==null&&state.rotating&&picker==null)main.postDelayed(rotate,state.rotationMinutes*60*1000L);}
-    void resume(){if(!active&&!desktopRevealed)fadePending=true;active=true;wallpaperBlur.suspended(false);wallpaperBlur.interaction();wallpaperBlur.active(true);updateDesktopEffects();restoreDesktopPending=false;video.setSound(store.snapshot().sound);leaving=false;video.setPaused(false);restoreSelected();if(video.ready()&&videoFade==null&&current.getAlpha()>0f)revealVideo(videoRequest);daily.resume();schedule();recordVideoState("resume");}
+    void resume(){
+        // Losing the playback service is not a permanent failure of the selected video.
+        // Retry on the next foreground session, without looping while HOME stays active.
+        if(!active&&!failedVideo.isEmpty()&&videoFailure==VideoWallpaperPlayer.Failure.INTERRUPTED){
+            DiagnosticLog.info("wallpaper.video.recover","wallpaper="+VideoDiagnostics.wallpaper(failedVideo)+" reason=interrupted_on_resume");failedVideo="";
+        }
+        if(!active&&!desktopRevealed)fadePending=true;active=true;wallpaperBlur.suspended(false);wallpaperBlur.interaction();wallpaperBlur.active(true);updateDesktopEffects();restoreDesktopPending=false;video.setSound(store.snapshot().sound);leaving=false;video.setPaused(false);restoreSelected();if(video.ready()&&videoFade==null&&current.getAlpha()>0f)revealVideo(videoRequest);daily.resume();schedule();recordVideoState("resume");
+    }
     void environmentChanged(){if(temporaryMedia==null)daily.environmentChanged();}
     boolean pickerShowing(){return picker!=null;}
     void showTemporary(String id,Runnable prepared){
@@ -520,7 +533,7 @@ final class WallpaperController {
                     Bitmap blur=DockBackdropDrawable.prepare(image,screen.widthPixels,screen.heightPixels);
                     main.post(()->{
                         if(version!=videoRequest||destroyed){image.recycle();blur.recycle();return;}
-                        current.setImageBitmap(image);currentBlur=blur;shownKey=store.imageKey(id);invalidateDock();cacheBackdrop(id,image,blur);
+                        current.setImageBitmap(image);currentBlur=blur;shownKey=store.imageKey(id);wallpaperBlur.sourceChanged();invalidateDock();cacheBackdrop(id,image,blur);
                         // The poster and thumbnail cache own the captured bitmap after this point.
                         thumbnails.put(store.imageKey(id),image);View card=cards.get(id);
                         if(card instanceof FrameLayout)((ImageView)((FrameLayout)card).getChildAt(0)).setImageBitmap(image);

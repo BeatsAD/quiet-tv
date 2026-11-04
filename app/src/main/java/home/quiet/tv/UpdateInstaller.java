@@ -45,7 +45,32 @@ final class UpdateInstaller {
         }
         if(!abis.equals(new HashSet<>(artifact.abis)))throw new IOException("APK ABI mismatch");
     }
-    static boolean permitted(Activity activity){try{return Build.VERSION.SDK_INT<26||activity.getPackageManager().canRequestPackageInstalls();}catch(RuntimeException failure){DiagnosticLog.error("update.permission.failed",failure);return false;}}
+    enum Permission {ALLOWED,DENIED,UNKNOWN}
+    enum LaunchResult {
+        DISPATCHED(""),MISSING("confirmation_missing"),BLOCKED("blocked"),FAILED("launch_failed");
+        final String reason;
+        LaunchResult(String reason){this.reason=reason;}
+    }
+    static Permission permission(Activity activity){
+        try{return Build.VERSION.SDK_INT<26||activity.getPackageManager().canRequestPackageInstalls()?Permission.ALLOWED:Permission.DENIED;}
+        catch(RuntimeException failure){DiagnosticLog.error("update.permission.failed",failure);return Permission.UNKNOWN;}
+    }
+    static boolean permitted(Activity activity){return permission(activity)==Permission.ALLOWED;}
+    static LaunchResult openPermission(Activity activity){
+        Intent intent=new Intent("android.settings.MANAGE_UNKNOWN_APP_SOURCES",Uri.parse("package:"+activity.getPackageName()));
+        return dispatch("update.permission",()->activity.startActivity(intent));
+    }
+    private static LaunchResult dispatch(String entry,Runnable launch){
+        DiagnosticLog.info("external_activity.request","entry="+entry);
+        try{launch.run();}
+        catch(ActivityNotFoundException failure){return launchFailed(entry,LaunchResult.MISSING,failure);}
+        catch(SecurityException failure){return launchFailed(entry,LaunchResult.BLOCKED,failure);}
+        catch(RuntimeException failure){return launchFailed(entry,LaunchResult.FAILED,failure);}
+        DiagnosticLog.info("external_activity.dispatched","entry="+entry+" result=dispatched_unverified");return LaunchResult.DISPATCHED;
+    }
+    private static LaunchResult launchFailed(String entry,LaunchResult result,RuntimeException failure){
+        DiagnosticLog.error("external_activity.failed","entry="+entry+" reason="+result.reason,failure);return result;
+    }
     static File prepare(Context context,UpdateManifest.Artifact artifact,File source)throws IOException{
         if(Build.VERSION.SDK_INT>=24)return source;
         // Android 4.0-6 installers accept file://, but cannot read our private files directory.
@@ -67,7 +92,7 @@ final class UpdateInstaller {
         DiagnosticLog.info("update.install.storage_ready","location="+location+" requiredBytes="+artifact.bytes+" availableBytes="+prepared.availableBytes+" reused="+prepared.reused);
         return prepared.file;
     }
-    static boolean launch(Activity activity,File file){
+    static LaunchResult launch(Activity activity,File file){
         try{
             boolean legacy=Build.VERSION.SDK_INT<24;
             Uri uri=legacy?Uri.fromFile(file):FileProvider.getUriForFile(activity,activity.getPackageName()+".updates",file);
@@ -75,9 +100,13 @@ final class UpdateInstaller {
             Intent intent=new Intent(Intent.ACTION_VIEW).setDataAndType(uri,"application/vnd.android.package-archive");
             intent.putExtra(Intent.EXTRA_RETURN_RESULT,true);
             if(!legacy){intent.setClipData(ClipData.newRawUri("Quiet TV update",uri));intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);}
-            ComponentName resolved=intent.resolveActivity(activity.getPackageManager());
-            DiagnosticLog.info("update.install.dispatch","route="+(legacy?"legacy_file":"content")+" resolved="+(resolved==null?"none":resolved.flattenToShortString())+" allowed="+permitted(activity));
-            return ExternalActivityLauncher.dispatch("entry=update.install "+DiagnosticLog.intent(intent),()->activity.startActivityForResult(intent,REQUEST_INSTALL));
-        }catch(RuntimeException e){DiagnosticLog.error("update.install.failed",e);return false;}
+            // Package visibility and OEM query failures do not determine whether launch is possible.
+            ComponentName resolved=null;
+            try{resolved=intent.resolveActivity(activity.getPackageManager());}
+            catch(RuntimeException failure){DiagnosticLog.error("update.install.resolve_failed",failure);}
+            DiagnosticLog.info("update.install.dispatch","route="+(legacy?"legacy_file":"content")+" resolved="+(resolved==null?"none":resolved.flattenToShortString())+" permission="+permission(activity));
+            return dispatch("update.install",()->activity.startActivityForResult(intent,REQUEST_INSTALL));
+        }catch(SecurityException failure){return launchFailed("update.install",LaunchResult.BLOCKED,failure);}
+        catch(RuntimeException failure){return launchFailed("update.install",LaunchResult.FAILED,failure);}
     }
 }

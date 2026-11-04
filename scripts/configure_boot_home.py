@@ -21,8 +21,8 @@ class NoNativeRoute(ValueError):
     """No native route is available, with no change made or HOME confirmed unchanged."""
 
 
-def direct_boot_home(tree):
-    """Read the actual HomeActivity declaration, with application-level inheritance."""
+def direct_boot_home(tree, activity='HomeActivity'):
+    """Read the named HOME entry, including application-level Direct Boot inheritance."""
     stack, application, activities = [], {}, []
     for line in tree.splitlines():
         element = re.match(r'(\s*)E: ([\w-]+)(?:\s|$)', line)
@@ -34,7 +34,10 @@ def direct_boot_home(tree):
             if element[2] == 'application':
                 application = node
             elif element[2] == 'activity' and any(tag == 'application' for _, tag, _ in stack):
+                node['filters'] = []
                 activities.append(node)
+            elif element[2] == 'intent-filter' and stack and stack[-1][1] == 'activity':
+                stack[-1][2]['filters'].append(node)
             stack.append((depth, element[2], node))
         elif stack:
             attr = re.search(r'A: (?:android|http://schemas\.android\.com/apk/res/android):(name|directBootAware)[^=]*=(.*)', line)
@@ -44,16 +47,25 @@ def direct_boot_home(tree):
                     name = re.match(r'"([^\"]+)"', value)
                     if name:
                         stack[-1][2]['name'] = name[1]
+                        if stack[-1][1] in ('action', 'category'):
+                            for _, tag, parent in reversed(stack):
+                                if tag == 'intent-filter':
+                                    parent.setdefault(stack[-1][1], set()).add(name[1])
+                                    break
                 else:
                     stack[-1][2]['aware'] = bool(re.fullmatch(r'(?:\(type 0x12\))?(?:0xffffffff|0x1|true)', value.strip()))
-    homes = [a for a in activities if a.get('name') in ('.HomeActivity', 'home.quiet.tv.HomeActivity')]
-    return len(homes) == 1 and homes[0].get('aware', application.get('aware', False))
+    homes = [a for a in activities if a.get('name') in ('.' + activity, 'home.quiet.tv.' + activity)]
+    if len(homes) != 1 or not homes[0].get('aware', application.get('aware', False)):
+        return False
+    return any('android.intent.action.MAIN' in f.get('action', set())
+               and {'android.intent.category.HOME', 'android.intent.category.DEFAULT'} <= f.get('category', set())
+               for f in homes[0]['filters'])
 
 
 def apk_boot_capability(tools, apk):
     tree = tcl.checked(subprocess.run([tools.aapt2, 'dump', 'xmltree', str(apk), '--file', 'AndroidManifest.xml'],
         capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=60, check=False))
-    return direct_boot_home(tree)
+    return {'home': direct_boot_home(tree), 'placeholder': direct_boot_home(tree, 'BootHomeActivity')}
 
 
 def ensure_user(adb, user):
@@ -112,9 +124,9 @@ def prepare(adb, user, tools, apk, journal):
     if metadata['home_mode'] != 'standard':
         raise ValueError('当前为无 HOME 的 relay 包，应使用现有兼容守护')
     aware = apk_boot_capability(tools, apk)
-    journal.event('boot_apk', metadata=metadata, directBootAware=aware)
-    if device['sdk'] >= 24 and not aware:
-        raise ValueError('实际 APK 未声明解锁前 HOME；需先更新到支持 Direct Boot 的适配发布包，未修改电视')
+    journal.event('boot_apk', metadata=metadata, directBootAware=aware['home'], earlyHomeAvailable=aware['placeholder'])
+    if device['sdk'] >= 24 and not any(aware.values()):
+        raise ValueError('实际 APK 未提供解锁前 HOME 或轻量启动入口；需先选择适配发布包，未修改电视')
     setter, homes = home_commands(adb, device['sdk'], user)
     before = component(adb.shell(*resolver(adb, device['sdk'], user)))
     if HOME not in homes:

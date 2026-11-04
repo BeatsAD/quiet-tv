@@ -27,7 +27,7 @@ final class VideoWallpaperPlayer {
         default void retrying(){}
     }
     enum Failure {
-        UNSUPPORTED,DECODE,FILE,TIMEOUT,OUTPUT,RELEASING,UNKNOWN;
+        UNSUPPORTED,DECODE,FILE,TIMEOUT,OUTPUT,RELEASING,UNKNOWN,INTERRUPTED;
         String message(boolean chinese){
             switch(this){
                 case UNSUPPORTED:return chinese?"电视不支持此视频编码或规格":"Video encoding or format unsupported by this TV";
@@ -36,6 +36,7 @@ final class VideoWallpaperPlayer {
                 case TIMEOUT:return chinese?"视频加载超时":"Video loading timed out";
                 case OUTPUT:return chinese?"视频画面输出失败":"Video output failed";
                 case RELEASING:return chinese?"播放器资源尚未释放，暂时无法播放":"Player resources are still being released. Video is temporarily unavailable";
+                case INTERRUPTED:return chinese?"视频播放已中断":"Video playback interrupted";
                 default:return chinese?"视频播放失败":"Video playback failed";
             }
         }
@@ -213,7 +214,13 @@ final class VideoWallpaperPlayer {
         if(captured==null||!rendered||!current(captured)||captured.view.getWidth()==0||captured.view.getHeight()==0){callback.ready(null);return;}
         if(captured.textureOutput){
             Bitmap image=null;try{image=((TextureView)captured.view).getBitmap(width,height);}catch(RuntimeException|OutOfMemoryError ignored){}
-            callback.ready(image);return;
+            if(image==null){callback.ready(null);return;}
+            Bitmap copy=image;
+            copies.execute(()->{
+                boolean copied=false;try{copied=hasPixels(copy);}catch(RuntimeException|OutOfMemoryError ignored){}
+                boolean validCopy=copied;
+                main.post(()->{if(validCopy&&rendered&&current(captured,request))callback.ready(copy);else{copy.recycle();callback.ready(null);}});
+            });return;
         }
         if(Build.VERSION.SDK_INT<24){callback.ready(null);return;}
         // Preserve the native view's aspect; the wallpaper snapshot applies the viewport crop.
@@ -229,6 +236,16 @@ final class VideoWallpaperPlayer {
                 if(success&&rendered&&current(captured,request))callback.ready(image);else{image.recycle();callback.ready(null);}
             });}catch(RuntimeException e){image.recycle();main.post(()->callback.ready(null));}
         });
+    }
+    // API21-23 can return an allocated but transparent bitmap when texture copying fails.
+    // A decoded black frame is opaque and must remain valid.
+    static boolean hasPixels(Bitmap image){
+        int width=image.getWidth();int[] row=new int[width];
+        for(int y=0;y<image.getHeight();y++){
+            image.getPixels(row,0,width,0,y,width,1);
+            for(int pixel:row)if((pixel>>>24)!=0)return true;
+        }
+        return false;
     }
     @android.annotation.TargetApi(24) private static final class Api24 {
         interface Result {void ready(boolean success);}

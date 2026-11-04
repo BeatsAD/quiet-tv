@@ -9,6 +9,8 @@ import home.quiet.tv.Charsets;
 /** Rules annotate discovered packages; they never manufacture a device's app inventory. */
 final class SetupPresets {
     private static SetupPresets bundled;
+    private static String suppliedSource;
+    private static SetupPresets suppliedRules;
     private final JSONObject device;
     SetupPresets(String source,String brand,String model,String firmware) throws JSONException {
         JSONObject root=new JSONObject(source);JSONObject match=null;
@@ -31,9 +33,13 @@ final class SetupPresets {
     static synchronized SetupPresets load(Context context) {
         String supplied=context.getSharedPreferences("device-adaptation",Context.MODE_PRIVATE).getString("rules","");
         if(!supplied.isEmpty())try{
-            SetupPresets selected=new SetupPresets(supplied,Build.BRAND,Build.MODEL,Build.FINGERPRINT);
-            if(selected.matched())return selected;
+            if(!supplied.equals(suppliedSource)){
+                SetupPresets selected=new SetupPresets(supplied,Build.BRAND,Build.MODEL,Build.FINGERPRINT);
+                suppliedRules=selected;suppliedSource=supplied;
+            }
+            if(suppliedRules.matched())return suppliedRules;
         }catch(JSONException invalid){throw new IllegalStateException("本机适配规则无效",invalid);}
+        else{suppliedRules=null;suppliedSource=null;}
         return legacy(context);
     }
     // Frozen pre-migration rules keep existing installations and their restoration journals usable.

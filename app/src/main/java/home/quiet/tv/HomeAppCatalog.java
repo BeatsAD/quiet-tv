@@ -30,8 +30,8 @@ final class HomeAppCatalog {
         HashSet<String> hidden=new HashSet<>();JSONArray values=config.optJSONArray("hidden");
         if(values!=null)for(int i=0;i<values.length();i++)hidden.add(values.optString(i));
         PackageManager pm=context.getPackageManager();LinkedHashMap<String,ResolveInfo> choices=launchable();
-        ChildModeStore children=new ChildModeStore(context);HomeVisibilityStore visibility=new HomeVisibilityStore(context);
-        for(Iterator<String> ids=choices.keySet().iterator();ids.hasNext();){String id=ids.next();if(children.hidden(id) || visibility.hidden(id)!=hiddenApps || !hiddenApps&&hidden.contains(id)&&!pinned.contains(id))ids.remove();}
+        Set<String> childHidden=new ChildModeStore(context).hiddenPackages(choices.keySet()),ordinaryHidden=new HomeVisibilityStore(context).hiddenPackages();
+        for(Iterator<String> ids=choices.keySet().iterator();ids.hasNext();){String id=ids.next();if(childHidden.contains(id) || ordinaryHidden.contains(id)!=hiddenApps || !hiddenApps&&hidden.contains(id)&&!pinned.contains(id))ids.remove();}
         ArrayList<Entry> result=new ArrayList<>();
         for(Map.Entry<String,ResolveInfo> choice:choices.entrySet())result.add(new Entry(choice.getKey(),choice.getValue().loadLabel(pm).toString(),choice.getValue()));
         Collator collator=Collator.getInstance(Locale.SIMPLIFIED_CHINESE);
@@ -53,9 +53,14 @@ final class HomeAppCatalog {
     }
     /** Same launchable apps for Home, its editor and the Dock; TV entries win. */
     LinkedHashMap<String,ResolveInfo> launchable(){
+        return launchable(null);
+    }
+    ResolveInfo find(String pkg){return launchable(pkg).get(pkg);}
+    private LinkedHashMap<String,ResolveInfo> launchable(String pkg){
         PackageManager pm=context.getPackageManager();LinkedHashMap<String,ResolveInfo> result=new LinkedHashMap<>();
         for(String category:new String[]{Intent.CATEGORY_LEANBACK_LAUNCHER,Intent.CATEGORY_LAUNCHER,"android.intent.category.APPSTORE_LAUNCHER"}){
-            for(ResolveInfo info:pm.queryIntentActivities(new Intent(Intent.ACTION_MAIN).addCategory(category),0)){
+            Intent query=new Intent(Intent.ACTION_MAIN).addCategory(category);if(pkg!=null)query.setPackage(pkg);
+            for(ResolveInfo info:pm.queryIntentActivities(query,0)){
                 boolean vendor="android.intent.category.APPSTORE_LAUNCHER".equals(category);
                 if(usable(pm,info.activityInfo,vendor) && !result.containsKey(info.activityInfo.packageName))result.put(info.activityInfo.packageName,info);
             }
@@ -65,6 +70,7 @@ final class HomeAppCatalog {
             "com.xiaomi.smarthome.tv/com.xiaomi.smarthome.tv.ui.MainActivity"};
         for(String value:components){
             android.content.ComponentName component=android.content.ComponentName.unflattenFromString(value);
+            if(pkg!=null&&!pkg.equals(component.getPackageName()))continue;
             try{ActivityInfo activity=pm.getActivityInfo(component,0);
                 if(usable(pm,activity,true) && !result.containsKey(activity.packageName)){ResolveInfo info=new ResolveInfo();info.activityInfo=activity;result.put(activity.packageName,info);}
             }catch(PackageManager.NameNotFoundException|SecurityException ignored){}

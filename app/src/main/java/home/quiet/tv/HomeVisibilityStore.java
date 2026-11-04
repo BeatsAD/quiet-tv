@@ -13,6 +13,7 @@ final class HomeVisibilityStore {
     String signature(){return preferences.getString("hidden-apps","{}");}
     private JSONObject hidden(){try{return new JSONObject(signature());}catch(JSONException e){throw new IllegalStateException("无法读取隐藏应用",e);}}
     boolean hidden(String pkg){return hidden().has(pkg);}
+    Set<String> hiddenPackages(){JSONObject values=hidden();Set<String> result=new HashSet<>();for(Iterator<String> ids=values.keys();ids.hasNext();)result.add(ids.next());return result;}
     boolean hide(String pkg){
         ArrayList<String> dock=new DockStore(context).load();JSONObject values=hidden();
         try{if(!values.has(pkg))values.put(pkg,dock.indexOf(pkg));}catch(JSONException e){throw new IllegalStateException(e);}

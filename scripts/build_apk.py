@@ -24,10 +24,9 @@ SYSTEM_LABELS = {
 
 
 def apk_names(version, min_sdk, packaged_abis, home_mode='standard', build_number=None):
-    if re.fullmatch(r'\d+\.\d+\.\d+\.1', version):
-        if not isinstance(build_number, int) or build_number < 1:
-            raise ValueError('本地过渡测试包须指定递增构建号')
-        version += '-' + str(build_number)
+    if not isinstance(build_number, int) or build_number < 1:
+        raise ValueError('安装包须指定递增构建号')
+    version += '-' + str(build_number)
     abi_names = {'armeabi-v7a': 'ARM32', 'arm64-v8a': 'ARM64', 'x86': 'x86', 'x86_64': 'x86_64'}
     architecture = abi_names[packaged_abis[0]] if len(packaged_abis) == 1 else ''
     suffix = '_' + architecture if architecture else ''
