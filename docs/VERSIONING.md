@@ -9,9 +9,9 @@
 
 本页承接 [AGENTS.md](../AGENTS.md) 的安装包规则，适用于后续交付。历史安装包、校验记录、发布标签和下载链接保留原样。
 
-TCL 等受限固件可另行交付主程序 relay 实验档，复用公共代码及桌面守护，不声明 HOME。`scripts/build_apk.py --home-mode relay` 显式传入并核验真实清单，记录 `home_mode=relay` 与构建参数；安卓4.4不提供此档。文件名沿用系统／架构规则、状态用“实验版”，如 `QuietTV_<版本号>_安卓5.0及以上_实验版.apk`。普通包与 relay 同版本、同源码及签名，但构建号各自占用同一递增序列，不能同名覆盖。relay 不加入默认批次，按实际授权单独构建；发布前仍须完成本批审核与适用验证。签名更新清单和安装索引明确记录 HOME 形态，不从“实验”字样推断；已装 relay 仅匹配 relay 更新。
+TCL 等受限固件可另行交付主程序 relay 实验档，复用公共代码及桌面守护，不声明 HOME。`scripts/build_apk.py --home-mode relay` 显式传入并核验真实清单，记录 `home_mode=relay` 与构建参数；安卓4.4不提供此档。文件名沿用系统／架构规则、状态用“实验版”，如 `QuietTV_<版本号>-<构建号>_安卓5.0及以上_实验版.apk`。普通包与 relay 同版本、同源码及签名，但构建号各自占用同一递增序列，不能同名覆盖。relay 不加入默认批次，按实际授权单独构建；发布前仍须完成本批审核与适用验证。签名更新清单和安装索引明确记录 HOME 形态，不从“实验”字样推断；已装 relay 仅匹配 relay 更新。
 
-**实施状态：主程序归档脚本已去掉 APK 文件名中的构建号，输出中文本地名，在 JSON 的 `public_apk` 记录英文公开名；安卓范围使用 `4.0-4.4`、`5.0及以上`／`5.0AndAbove`，不再使用 `plus` 或 `to`。内部构建号、真实版本、签名、同名 SHA-256 文件及已登记 worktree 的构建号检查保留；同档位同版本不同内容须增加软件版本号。通用架构或不含原生库时省略架构标记。助手及正式版流程仍需单独验证。**
+**实施状态：主程序归档脚本按本批确认在 APK 文件名中保留构建号，输出中文本地名，在 JSON 的 `public_apk` 记录英文公开名；安卓范围使用 `4.0-4.4`、`5.0及以上`／`5.0AndAbove`，不再使用 `plus` 或 `to`。内部构建号、真实版本、签名、同名 SHA-256 文件及已登记 worktree 的构建号检查保留；同档位同版本不同内容须使用新的递增构建号。通用架构或不含原生库时省略架构标记。助手及正式版流程仍需单独验证。**
 
 **分包实施状态：当前开发源码无原生库，使用 `--batch --universal-only` 构建标准通用包和安卓4.0至4.4包。存在原生库架构差异时，使用 `--batch` 构建标准 ARM32、ARM64、通用及一个安卓4.0至4.4包。两种模式均固定源码并核对版本、签名、生产输入和递增构建号；四包模式另核对各架构原生库完整性。最终 APK 的功能、升级保留和厂商真机验收仍须单独记录，批次清单不代表设备验收。**
 
@@ -20,25 +20,25 @@ TCL 等受限固件可另行交付主程序 relay 实验档，复用公共代码
 主程序安装包固定格式：
 
 ```text
-QuietTV_<版本号>_<适用系统>[_<单架构标记>]_<发布状态>.apk
+QuietTV_<版本号>-<构建号>_<适用系统>[_<单架构标记>]_<发布状态>.apk
 ```
 
-方括号表示可选字段，不写入实际名称。固定使用 `QuietTV` 前缀及下划线分隔，文件名不含构建号、日期、提交哈希或“最新”；APK 内部 `versionCode` 仍递增，保留在归档元数据和排障记录中。`standard`、`legacy14`、`legacy19`、`api21`、`benchmark` 等技术字段写入归档记录。历史包、附件和下载链接不追溯改名。
+方括号表示可选字段，不写入实际名称。固定使用 `QuietTV` 前缀及下划线分隔，文件名包含实际构建号，不含日期、提交哈希或“最新”；APK 内部 `versionCode` 仍递增，保留在归档元数据和排障记录中。`standard`、`legacy14`、`legacy19`、`api21`、`benchmark` 等技术字段写入归档记录。历史包、附件和下载链接不追溯改名。
 
 ### 版本号与构建号
 
 - 版本号与实际 APK 的 `versionName` 一致，新版本使用 `主版本.次版本.修订号`。修复问题增加修订号，新增功能增加次版本，重大不兼容变化增加主版本。
-- 同版本各档位、架构共用软件版本号。同版本、系统、架构和状态只对应一份确定内容；修改后重新交付同档位包必须增加软件版本号，例如从 `1.3.1` 改为 `1.3.2`，同时增加内部构建号。历史1.3.0曾经批准同软件版本累加构建号，旧文件保留；该历史例外不适用于后续无构建号文件名。公开发布仍须完成本批材料审核。
+- 同版本各档位、架构共用软件版本号。同版本、构建号、系统、架构和状态只对应一份确定内容；修改后重新交付同档位包必须使用新的递增构建号。软件版本按发布计划递增；本批1.3.5使用新构建号，不覆盖此前同软件版本的本地候选。公开发布仍须完成本批材料审核。
 - 构建号与实际 APK 的 `versionCode` 一致，只使用不带前导零的正整数，例如 `31`，不使用 `b31`、`Build31`、`RC31`。
 - 主程序各系统档位、架构和构建类型共用递增交付序列；交付不同内容的新包时分配新号，不回退、复用或因版本变化归零。日常编译不必每次加号，同一归档原字节重发不分配新号。
 - 交付前核对源码配置、历史归档和远程发布中的已用号。文件名中的软件版本须与 APK 的 `versionName` 对应，归档中的构建号须与 APK 的 `versionCode` 对应，不能通过改名冒充新版本；安装时核对 APK 内部构建号。
-- 主程序版本配置在 `app/build.gradle`，当前基础版本为 `1.3.4`，本地电视过渡测试版为 `1.3.4.1`；后续交付使用新的递增构建号，公开发布须另行审核确认。历史1.3.0标准130与4.x兼容131保持原样，默认开发构建号仍为 `105`，不作为新包交付号；下次交付先核对所有已用号，再用 Gradle 参数 `quietBuildNumber` 分别指定递增构建号。1.1.2 已发布：标准档为 `1.1.2 / 34`，兼容档为 `1.1.2 / 35`，历史附件保持原样。standard、legacy14 与 legacy19 均为 targetSdk36；本页示例不预占构建号。助手版本独立配置在 `coocaa-home-shim/build.gradle` 和 `xiaomi-home-helper/build.gradle`。
+- 主程序版本配置在 `app/build.gradle`，当前基础版本为 `1.3.5`，此前本地电视过渡测试版为 `1.3.4.1`；后续交付使用新的递增构建号，公开发布须另行审核确认。历史1.3.0标准130与4.x兼容131保持原样，默认开发构建号仍为 `105`，不作为新包交付号；下次交付先核对所有已用号，再用 Gradle 参数 `quietBuildNumber` 分别指定递增构建号。1.1.2 已发布：标准档为 `1.1.2 / 34`，兼容档为 `1.1.2 / 35`，历史附件保持原样。standard、legacy14 与 legacy19 均为 targetSdk36；本页示例不预占构建号。助手版本独立配置在 `coocaa-home-shim/build.gradle` 和 `xiaomi-home-helper/build.gradle`。
 
 ### 本地电视过渡测试
 
 仅本地更新到电视测试时，在三段基础版本后追加 `.1`，例如 `1.3.2.1`。使用 `scripts/build_apk.py --local-test`，对应 Gradle 参数 `quietLocalTest=true`；基础版本不因本地测试递增。不同内容继续分配全局递增的 `versionCode`，系统、签名及数据兼容仍须核对，不能通过版本显示变化规避升级条件。应用内更新比较已安装过渡版本时使用三段基础版本；后续更高基础版本仍须同时满足更高构建号和原有签名等条件，公开更新清单仍只接受三段版本。
 
-本地过渡包文件名保留实际构建号，例如 `QuietTV_1.3.2.1-180_安卓5.0及以上_测试版.apk`；同一 `.1` 版本可归档后续更高构建号，保留全部历史原件。此为本地测试对上方三段版本及无构建号文件名规则的例外，公开版本规则不变。历史 `1.3.3` 至 `1.3.7` 本地候选保持原样，不改名或覆盖。本地过渡包不默认上传、发布或更新线上清单。
+本地过渡包文件名保留实际构建号，例如 `QuietTV_1.3.2.1-180_安卓5.0及以上_测试版.apk`；同一 `.1` 版本可归档后续更高构建号，保留全部历史原件。此为本地测试对上方三段版本规则的例外，公开版本规则不变。历史 `1.3.3` 至 `1.3.7` 本地候选保持原样，不改名或覆盖。本地过渡包不默认上传、发布或更新线上清单。
 
 ```sh
 python3 scripts/build_apk.py --local-test --variant benchmark --build-number "$LOCAL_TEST_BUILD_NUMBER" --summary "本次本地电视测试内容"
@@ -101,9 +101,9 @@ HOME 中转助手有默认身份 `home.quiet.tv.proxy` 和小米／Redmi 兼容�
 后续主程序使用以下格式。本节示例不预占新版本、不表示重新归档或修改已发布附件：
 
 ```text
-QuietTV_1.3.1_安卓5.0及以上_测试版.apk
-QuietTV_1.3.1_安卓4.0-4.4_测试版.apk
-QuietTV_1.3.1_安卓5.0及以上_ARM32_测试版.apk
+QuietTV_1.3.1-31_安卓5.0及以上_测试版.apk
+QuietTV_1.3.1-32_安卓4.0-4.4_测试版.apk
+QuietTV_1.3.1-33_安卓5.0及以上_ARM32_测试版.apk
 ```
 
 英文公开名记录在 `public_apk`，本地不额外复制英文 APK，不自动上传：
@@ -120,9 +120,9 @@ QuietTV_1.3.1_安卓5.0及以上_ARM32_测试版.apk
 状态映射为 `测试版` → `Test`、`实验版` → `Experimental`、`正式版` → `Release`；主程序脚本目前仅实现测试版及 relay 实验版。公开名示例：
 
 ```text
-QuietTV_1.3.1_Android5.0AndAbove_Test.apk
-QuietTV_1.3.1_Android4.0-4.4_Test.apk
-QuietTV_1.3.1_Android5.0AndAbove_ARM32_Test.apk
+QuietTV_1.3.1-31_Android5.0AndAbove_Test.apk
+QuietTV_1.3.1-32_Android4.0-4.4_Test.apk
+QuietTV_1.3.1-33_Android5.0AndAbove_ARM32_Test.apk
 ```
 
 安装索引、电脑选包及应用更新按实际 URL、签名元数据和 APK 内部版本识别，不从文件名猜测构建号或兼容范围；历史名继续可用。现有 GitHub 附件和下载链接保持原样。
@@ -139,7 +139,7 @@ QuietTV_1.1.1-35_安卓5及以上_正式版.apk
 QuietTV助手_2.0.1-12_酷开安卓8配套酷开桌面_实验版.apk
 ```
 
-历史 1.2.9 批次按 ARM32、ARM64、通用和安卓4.4顺序分配 105–108，包含天气地点、多源切换及首页启动优化；1.2.8 的90–93已发布，94和不含上述修复的95–98已用于本地候选，99–100已用于天气验证包，101–104已为审查修复前的候选批次分配（104构建未完成），均保留记录且不复用。该历史批次的英文名使用 `Android5plus` 等旧映射并保留构建号，不追溯改名；后续主程序使用上方无构建号新格式。上传前核对实际下载名及 APK 字节；本地校验文件中的文件名须与其对应的本地 APK 一致。
+历史 1.2.9 批次按 ARM32、ARM64、通用和安卓4.4顺序分配 105–108，包含天气地点、多源切换及首页启动优化；1.2.8 的90–93已发布，94和不含上述修复的95–98已用于本地候选，99–100已用于天气验证包，101–104已为审查修复前的候选批次分配（104构建未完成），均保留记录且不复用。该历史批次的英文名使用 `Android5plus` 等旧映射并保留构建号，不追溯改名；后续主程序使用上方包含构建号的格式。上传前核对实际下载名及 APK 字节；本地校验文件中的文件名须与其对应的本地 APK 一致。
 
 ## 构建与归档
 
@@ -161,7 +161,7 @@ python3 scripts/build_apk.py --build-number "$STANDARD_BUILD_NUMBER" --variant b
 
 - APK 放入本地不可变归档 `dist/apk/`，提供 `<完整APK文件名>.sha256` 及相同主文件名的 `.json`；优化包同时保留映射文件。
 - 归档记录包含本地归档名、对应公开名、真实包名、版本号、构建号、兼容档位、最低/目标 API、构建类型、实际架构、签名指纹、源码提交、生产输入指纹、时间、字节数、SHA-256、变更摘要和验收范围。助手额外记录配套关系。
-- 同名同字节且校验记录一致可复用；同名不同内容禁止覆盖，必须增加软件版本号和内部构建号。脚本也按真实版本、系统、实际架构和状态检查已登记 worktree 的历史归档，防止换目录或旧文件名绕过；同一本地归档的原字节及配套记录一致时可复用。无构建号文件名缺少有效 JSON 构建号元数据时停止归档，不从文件名推测或将用号归零。构建期间生产输入改变则停止归档。
+- 同名同字节且校验记录一致可复用；同名不同内容禁止覆盖，必须使用新的递增构建号。脚本也按真实版本、构建号、系统、实际架构和状态检查已登记 worktree 的历史归档，防止换目录或旧文件名绕过；同一本地归档的原字节及配套记录一致时可复用。无构建号文件名缺少有效 JSON 构建号元数据时停止归档，不从文件名推测或将用号归零。构建期间生产输入改变则停止归档。
 - Gradle 的构建输出目录是可更新的中间产物；归档、密钥和恢复记录保留本地，不随源码发布。
 
 整批构建前提交改动，固定源码提交；起始号高于所有已用号，命令如下（示例不预占号）：
@@ -194,7 +194,7 @@ python3 scripts/build_apk.py --batch --universal-only --build-number "$FIRST_BUI
 
 - 正文仅保留“新增功能”“问题修复”两个模块，分别只写相对上一发布版本的新增或改进、实际修复，不重复全部已有功能。不添加选包表、适用范围、兼容差异、技术说明、验证情况等其他内容。
 - 详细构建、签名、兼容差异、升级限制和验证记录保留本地，发布正文不附加这些说明。
-- 后续发布附件只上传安装包，不再上传独立的 `.apk.sha256`，也不要求用户配套下载校验文件。本地构建与不可变归档仍须生成、保留同名 SHA-256 文件和元数据；发布后核对 GitHub 提供的 APK 校验值及重新下载文件与本地归档一致。[GitHub 附件校验说明](https://github.blog/changelog/2025-06-03-releases-now-expose-digests-for-release-assets/)。GitHub 自动附带的源码下载链接仍会显示。
+- 本批发布附件按维护者明确确认上传两个安装包及各自同名 `.apk.sha256` 校验文件。校验文件中的文件名须对应实际公开附件名。本地构建与不可变归档仍须生成、保留同名 SHA-256 文件和元数据；发布后核对 GitHub 提供的 APK 校验值及重新下载文件与本地归档一致。[GitHub 附件校验说明](https://github.blog/changelog/2025-06-03-releases-now-expose-digests-for-release-assets/)。GitHub 自动附带的源码下载链接仍会显示。
 - 每次新建或更新 Release，必须先向用户提供本批完整正文预览，并逐项确认“新增功能”“问题修复”的具体文案，同时备齐标题、附件清单、版本、构建号、大小、SHA-256、源码基线、签名和验证结果。用户明确同意本批文案及材料可上传更新后，才允许创建发布标签、Release（含草稿）、上传附件、发布或修改线上正文；此前版本的确认、一般发布意向及本规则修改均不算本批确认。确认后文案或附件发生实质变更须重新送审，未获确认时继续完成本地准备。
 - 历史 Release、附件、标签、链接和本地校验记录保持原样，不追溯删除已有校验附件。完整发布边界以 [AGENTS.md](../AGENTS.md#github-release-审核与发布) 为准。
 
@@ -224,9 +224,9 @@ APK 字节、版本与签名均未变化。该历史批次的实际英文名 `.a
 
 Published 1.1.2 provides standard build 34 (minSdk21) and legacy19 build 35 (minSdk19), both targeting API36. GitHub uses the approved English filenames listed in the installation guide; local Chinese archives are unchanged. The matching checksum must name the actual download. Historical b30 legacy19 and b26 standard downloads keep their original names and tags. At b30 publication, native emulator and physical-TV acceptance were still pending; historical results for other builds do not validate this APK. See [compatibility](COMPATIBILITY.md) for the recorded scope.
 
-Future main-app downloads and immutable archives use `QuietTV_<version>_<system>[_<single ABI>]_<status>.apk`, without a build number. Local names use Chinese labels; `public_apk` records the English download name. The script does not upload APKs. Version and internal build must match the actual APK. Build numbers are positive integers without prefixes or leading zeros and increase across all main-app delivery variants. A different payload for the same version/system/ABI/status requires a higher software version as well as a higher internal build number. Historical cumulative 1.3.0 builds keep their original names; that exception does not apply to future deliveries. Never replace different bytes under the same public filename. Re-sending identical archived bytes does not allocate a new number. The helper uses `QuietTV助手`, its own version/build sequence, and an explicit target launcher; its filename retains the actual build number.
+Future main-app downloads and immutable archives use `QuietTV_<version>-<build>_<system>[_<single ABI>]_<status>.apk`, with the actual build number. Local names use Chinese labels; `public_apk` records the English download name. The script does not upload APKs. Version and internal build must match the actual APK. Build numbers are positive integers without prefixes or leading zeros and increase across all main-app delivery variants. A different payload for the same version/system/ABI/status requires a higher delivery build number and a distinct filename. Software versions follow the release plan. Historical builds keep their original names. Never replace different bytes under the same public filename. Re-sending identical archived bytes does not allocate a new number. The helper uses `QuietTV助手`, its own version/build sequence, and an explicit target launcher; its filename retains the actual build number.
 
-System labels include `安卓4.0-4.4` (legacy14, API14, local development with device checks deferred), historical `安卓4.4` (legacy19, API19), `安卓5.0及以上` (standard, API21), and `酷开安卓8` (experimental vendor package, API26). Other minimum APIs require matching labels. Omit the architecture marker for multi-ABI and native-library-free APKs. Use ARM32, ARM64, x86 or x86_64 only for actual single-ABI builds. Universal architecture does not imply compatibility with every OS or TV. Status is `测试版` (test), `实验版` (experimental), or `正式版` (formally signed release with agreed acceptance completed). Public labels use Android4.0-4.4, Android4.4, Android5.0AndAbove (or the actual higher minimum), and Test/Experimental/Release. Do not add build numbers, plus or to to new public names; preserve historical assets and URLs. Verify names and bytes before upload.
+System labels include `安卓4.0-4.4` (legacy14, API14, local development with device checks deferred), historical `安卓4.4` (legacy19, API19), `安卓5.0及以上` (standard, API21), and `酷开安卓8` (experimental vendor package, API26). Other minimum APIs require matching labels. Omit the architecture marker for multi-ABI and native-library-free APKs. Use ARM32, ARM64, x86 or x86_64 only for actual single-ABI builds. Universal architecture does not imply compatibility with every OS or TV. Status is `测试版` (test), `实验版` (experimental), or `正式版` (formally signed release with agreed acceptance completed). Public labels use Android4.0-4.4, Android4.4, Android5.0AndAbove (or the actual higher minimum), and Test/Experimental/Release. Keep the actual build number; do not add plus or to to new public names; preserve historical assets and URLs. Verify names and bytes before upload.
 
 When native libraries require ABI-specific packages, standard deliveries provide three standalone APKs: ARM32, ARM64 and a universal fallback containing all four native-library ABIs. Each device installs one APK. All three share the source commit, production inputs, software version, feature configuration and signing certificate; assign increasing build numbers in ARM32, ARM64, universal order. Keep one legacy14 APK while it has no native-library or actual ABI differences; determine the Coocaa package set per delivery. Select by the ABIs supported by the operating system, and use the universal fallback when uncertain. In-place switches still require a higher build number; do not uninstall, clear data or force a downgrade to switch to a lower-numbered package.
 
@@ -236,4 +236,4 @@ Current development profiles have no native libraries: use `--batch --universal-
 
 Recommend downloads per system profile. In-place upgrades require matching package/signature, a strictly higher delivery build number and compatible system/ABI. Check data compatibility when switching profiles; different package IDs or signing identities need an explicit migration plan. CI, source checks and archive metadata do not establish device installation or acceptance. Device operations and publication require authorization.
 
-Future GitHub Release bodies use only “新增功能” (new or improved features since the previous release) and “问题修复” (fixes in this release). Keep download mappings, build metadata, compatibility and validation records in the local review materials, outside the public Release body. Upload APKs only, retaining checksum files and metadata locally; compare GitHub digests and re-downloaded APKs with the archive after publication. Preserve historical assets. Before every Release creation or update, show the full body and obtain the user's explicit approval of that batch's feature and fix wording and release materials. Until approval, prepare locally only; do not create tags or Releases (including drafts), upload assets, publish or edit the live body. Prior approvals or this policy change do not approve a new batch; substantive wording or asset changes require renewed approval.
+Future GitHub Release bodies use only “新增功能” (new or improved features since the previous release) and “问题修复” (fixes in this release). Keep download mappings, build metadata, compatibility and validation records in the local review materials, outside the public Release body. For this approved naming and attachment scope, upload both APKs and their matching checksum files, retaining complete metadata locally; compare GitHub digests and re-downloaded APKs with the archive after publication. Preserve historical assets. Before every Release creation or update, show the full body and obtain the user's explicit approval of that batch's feature and fix wording and release materials. Until approval, prepare locally only; do not create tags or Releases (including drafts), upload assets, publish or edit the live body. Prior approvals or this policy change do not approve a new batch; substantive wording or asset changes require renewed approval.

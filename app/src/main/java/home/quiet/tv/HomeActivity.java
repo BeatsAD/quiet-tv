@@ -79,6 +79,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private View timeRow, topButtons;
     private boolean rightButtonsVisible=true,homeAppsVisible=true;
     private TextView clock, date, greeting, heroTitle, network, inputButton;
+    private int networkIcon;
     private KeyFeedback.Popup inputPopup;
     private String systemEntryPending="";
     private long systemEntryStarted;
@@ -166,7 +167,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             config = new JSONObject(readAsset("launcher.json"));
             chinese = !"en".equals(config.optString("language", "zh"));
             fixedGreeting = "home".equals(config.optString("greeting"));
-            outfit = Build.VERSION.SDK_INT>=26 ? Typeface.createFromAsset(getAssets(), "fonts/outfit.ttf") : Typeface.create("sans-serif",Typeface.NORMAL);
+            outfit = !chinese && Build.VERSION.SDK_INT>=26 ? Typeface.createFromAsset(getAssets(), "fonts/outfit.ttf") : Typeface.create("sans-serif",Typeface.NORMAL);
         } catch (Exception e) { throw new IllegalStateException("Invalid bundled launcher configuration", e); }
         row = getPreferences(0).getInt("row", 0);
         desktopSettings=new DesktopSettingsStore(this);
@@ -317,7 +318,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         wallpapers.setDesktopEffects(home,second,progress,Math.round(homeBrightness+(secondBrightness-homeBrightness)*progress),Math.round(homeFade+(secondFade-homeFade)*progress));
     }
 
-    private void setPillIcon(TextView pill,int resource){homeHeader.setPillIcon(pill,resource);}
+    private void setPillIcon(TextView pill,int resource){if(networkIcon!=resource){homeHeader.setPillIcon(pill,resource);networkIcon=resource;}}
     private void updateClock(){homeHeader.updateClock(fixedGreeting);}
 
     private void scheduleHomeUpdate(){
@@ -388,6 +389,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         applyDesktopSettings();updateClock();updateNetwork();
         wallpapers.resume();weather.resume();screensaver.availabilityChanged();
         loadApps("resume");if(ready)focusCurrent(false);
+        loader.execute(()->BootHomeActivity.reconcile(getApplicationContext()));
         beginPendingMove();
         if(tvInputs!=null)main.post(tvInputs::openPending);
         main.post(this::openMaintenanceInput);
@@ -549,6 +551,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         cancelInputWork();if(isHomeIntent(intent))HomeGuardService.cancelInputTransition();
         super.onNewIntent(intent);setIntent(intent);InputDiagnostics.home(this,isHomeIntent(intent),"new_intent");
         if(waitingForUnlock){resumeAfterUnlock();return;}
+        loader.execute(()->BootHomeActivity.reconcile(getApplicationContext()));
         if(!new HomeProxy(this).allowed(intent)){new HomeProxy(this).original(this);finish();return;}
         getWindow().getDecorView().post(()->{if(resumed && hasWindowFocus())new HomeProxy(this).visible(this);});
         homeResumeEvent("home.new_intent","home="+isHomeIntent(intent));

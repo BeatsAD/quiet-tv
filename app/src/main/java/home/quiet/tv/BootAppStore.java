@@ -64,7 +64,7 @@ final class BootAppStore {
     }}
     Intent launchIntent(String pkg){
         if(pkg.isEmpty() || pkg.equals(context.getPackageName()) || "home.quiet.tv.test".equals(pkg))return null;
-        ResolveInfo info=new HomeAppCatalog(context).launchable().get(pkg);
+        ResolveInfo info=new HomeAppCatalog(context).find(pkg);
         return info==null?null:new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
             .setComponent(new ComponentName(pkg,info.activityInfo.name))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);

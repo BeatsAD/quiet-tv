@@ -13,7 +13,7 @@ final class UpdatePanel {
     private final Activity activity;private final UpdateRepository updates;private final float unit;
     private Dialog dialog;private LinearLayout box,actions;private TextView heading,progressText,status;private ProgressBar progress;
     private String mode="";private boolean closed,permissionReturning;
-    private boolean fileResultReady;
+    private boolean fileWaitReady;
     private UpdateManifest.Artifact target;
     UpdatePanel(Activity activity){this.activity=activity;updates=UpdateRepository.get(activity);unit=activity.getResources().getDisplayMetrics().widthPixels/1920f;}
     private int px(float value){return Math.round(value*unit);}
@@ -42,7 +42,7 @@ final class UpdatePanel {
     void check(){closed=false;begin("checking","正在检查更新");Button cancel=button("取消",()->{updates.cancelCheck();dismiss();});show(cancel);updates.check(true);changed();}
     void changed(){
         if(closed||activity.isFinishing())return;
-        if(mode.equals("install")||updates.installNotice||(mode.equals("file_result")&&fileResultReady!=updates.ready)){installationChanged();return;}
+        if(mode.equals("install")||updates.installNotice||(mode.equals("file_wait")&&fileWaitReady!=updates.ready)){installationChanged();return;}
         if(dialog==null)return;
         if(mode.equals("checking")&&!updates.checking){
             if(!updates.checkError.isEmpty()){
@@ -97,22 +97,30 @@ final class UpdatePanel {
     }
     private void install(){
         if(target==null||updates.available==null||!target.sha256.equals(updates.available.sha256)||!updates.ready){check();return;}
-        if(!UpdateInstaller.permitted(activity)){
+        if(UpdateInstaller.permission(activity)!=UpdateInstaller.Permission.ALLOWED){
             permission(false);return;
         }
         dispatchInstall();
     }
     private void permission(boolean returning){
-        begin("permission",returning?"尚未允许安装更新":"允许 Quiet TV 安装更新");
-        box.addView(text("请在系统设置中允许 Quiet TV 安装应用，再返回确认安装。",25,0xffb5c0cf));
-        button("关闭",this::dismiss);button("其他更新方式",this::restricted);show(button("去系统设置",()->{
+        boolean unknown=UpdateInstaller.permission(activity)==UpdateInstaller.Permission.UNKNOWN;
+        begin("permission",unknown?"无法读取安装授权状态":returning?"尚未允许安装更新":"允许 Quiet TV 安装更新");
+        box.addView(text("可前往系统设置授权，或使用系统安装器确认安装。安装权限由电视系统检查。",25,0xffb5c0cf));
+        button("关闭",this::dismiss);button("使用系统安装器",this::dispatchInstall);show(button("去系统设置",()->{
             permissionReturning=true;
-            android.content.Intent intent=new android.content.Intent("android.settings.MANAGE_UNKNOWN_APP_SOURCES",android.net.Uri.parse("package:"+activity.getPackageName()));
             DiagnosticLog.info("update.permission","phase=request api="+Build.VERSION.SDK_INT);
-            if(!ExternalActivityLauncher.open(activity,"update.permission",intent)){permissionReturning=false;restricted("系统未提供安装来源授权入口，请在电视设置中允许安装应用");}
+            UpdateInstaller.LaunchResult result=UpdateInstaller.openPermission(activity);
+            if(result!=UpdateInstaller.LaunchResult.DISPATCHED){permissionReturning=false;permissionUnavailable(result);}
         }));
     }
+    private void permissionUnavailable(UpdateInstaller.LaunchResult result){
+        String title=result==UpdateInstaller.LaunchResult.MISSING?"系统未提供安装来源授权入口":result==UpdateInstaller.LaunchResult.BLOCKED?"系统限制了授权页访问":"安装授权页打开失败";
+        begin("permission",title);box.addView(text("可尝试使用系统安装器。若电视仍限制安装，请在电视设置中授权或通过电脑更新。",25,0xffb5c0cf));
+        button("关闭",this::dismiss);button("通过电脑更新",this::restricted);show(button("使用系统安装器",this::dispatchInstall));
+    }
     private void dispatchInstall(){
+        permissionReturning=false;
+        if(target==null||updates.available==null||!target.sha256.equals(updates.available.sha256)||!updates.ready){check();return;}
         begin("install","正在准备安装");show(null);updates.install();
     }
     private void installationChanged(){
@@ -120,7 +128,13 @@ final class UpdatePanel {
         if(state.equals("prepared")){updates.dispatchInstall(activity);return;}
         if(state.equals("confirmation")){updates.confirmInstall(activity);return;}
         if(state.equals("file_dispatched")){
-            if(!mode.equals("file_wait")){begin("file_wait","已请求系统安装");button("关闭",this::dismiss);show(button("核对结果",()->updates.fileInstallReturned(Integer.MIN_VALUE,null)));}return;
+            updates.installNotice=false;
+            if(!mode.equals("file_wait")||fileWaitReady!=updates.ready){
+                fileWaitReady=updates.ready;begin("file_wait","安装结果待核对");
+                box.addView(text("请在系统安装器中完成安装。未收到明确结果时，可核对已安装版本。",25,0xffb5c0cf));
+                button("关闭",this::dismiss);if(updates.ready)button("重新安装",this::retryFileInstall);
+                show(button("核对结果",()->updates.fileInstallReturned(Integer.MIN_VALUE,null)));
+            }return;
         }
         if(state.equals("confirming")){dismiss();return;}
         if(state.equals("preparing")||state.equals("committing")){
@@ -131,11 +145,16 @@ final class UpdatePanel {
         }
         updates.installNotice=false;
         if(state.equals("success")){begin("installed","更新已安装");show(button("关闭",this::dismiss));return;}
-        fileResultReady=updates.ready;begin(state.equals("not_installed")?"file_result":"error",updates.installError.isEmpty()?"安装结果待核对":updates.installError);
+        begin("error",updates.installError.isEmpty()?"安装结果待核对":updates.installError);
         Button focus=button("关闭",this::dismiss);
-        if(state.equals("failed")||state.equals("interrupted")||state.equals("not_installed"))button("通过电脑更新",()->restricted(updates.installError));
+        if(state.equals("failed")||state.equals("interrupted"))button("通过电脑更新",()->restricted(updates.installError));
         if(updates.ready)focus=button("重试",()->{if(target==null)ready();else install();});
         show(focus);
+    }
+    private void retryFileInstall(){
+        begin("file_retry","重新打开安装器？");
+        box.addView(text("请先确认上次安装器已关闭，避免重复安装。",25,0xffb5c0cf));
+        button("返回",this::installationChanged);show(button("已关闭，重新安装",()->{if(updates.retryFileInstall()){target=updates.available;install();}}));
     }
     private void restricted(){restricted("");}
     private void restricted(String reason){
@@ -147,7 +166,7 @@ final class UpdatePanel {
         }catch(com.google.zxing.WriterException ignored){}
         gap(14);box.addView(text("安装指引：beatsad.github.io/quiet-tv/",23,0xffb5c0cf));show(button("关闭",this::dismiss));
     }
-    void resumed(){closed=false;updates.fileInstallReturned(Integer.MIN_VALUE,null);changed();if(permissionReturning){permissionReturning=false;boolean allowed=UpdateInstaller.permitted(activity);DiagnosticLog.info("update.permission","phase=return allowed="+allowed);if(updates.ready&&allowed)ready();else if(!allowed)permission(true);}}
+    void resumed(){closed=false;updates.fileInstallReturned(Integer.MIN_VALUE,null);changed();if(permissionReturning){permissionReturning=false;UpdateInstaller.Permission permission=UpdateInstaller.permission(activity);DiagnosticLog.info("update.permission","phase=return state="+permission);if(updates.ready&&permission==UpdateInstaller.Permission.ALLOWED)ready();else if(permission!=UpdateInstaller.Permission.ALLOWED)permission(true);}}
     private void back(){if(mode.equals("verify")||(mode.equals("install")&&updates.installBusy))return;if(mode.equals("download")){cancelDownload();return;}if(mode.equals("checking"))updates.cancelCheck();if(mode.equals("cancel")){resumeDownload();return;}dismiss();}
     void suspend(){closed=true;if(updates.downloading)updates.cancelDownload();if(mode.equals("checking"))updates.cancelCheck();dismiss();}
     private void dismiss(){if(dialog!=null){dialog.dismiss();dialog=null;}mode="";}

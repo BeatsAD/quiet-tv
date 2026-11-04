@@ -6,7 +6,7 @@ import android.view.View;
 import android.widget.*;
 import java.util.concurrent.*;
 
-/** Filters only the wallpaper host; native video keeps two bounded page caches. */
+/** Filters only the wallpaper host; bitmap output keeps two bounded page caches. */
 final class WallpaperBlur {
     interface Result {void ready(Bitmap image);}
     interface Snapshot {void capture(int width,int height,Result result);}
@@ -33,7 +33,7 @@ final class WallpaperBlur {
         if(destroyed||nativeVideo==value&&sourceVersion==version)return;
         nativeVideo=value;sourceVersion=version;++generation;
         if(Build.VERSION.SDK_INT>=31)Api31.apply(host,nativeVideo?0:amount);
-        if(!nativeVideo)clear();else renderNative();
+        if(!nativeVideo)clear();else renderBitmap();
         invalidate();
     }
     void amount(int value){blend(value,value,0);}
@@ -43,30 +43,31 @@ final class WallpaperBlur {
         int next=Math.round(first+(second-first)*fraction);
         if(destroyed||!strength&&!moved&&next==amount)return;
         firstAmount=first;secondAmount=second;progress=fraction;amount=next;
-        if(nativeVideo){
+        if(bitmapOutput()){
             if(strength){++generation;}
-            if(moved)cancelCapture();
-            renderNative();if(first==0&&second==0){cancelCapture();clear();}else invalidate();
+            if(moved&&nativeVideo)cancelCapture();
+            renderBitmap();if(first==0&&second==0){cancelCapture();clear();}else if(strength||nativeVideo)invalidate();
             return;
         }
         ++generation;
-        if(!bitmapOutput()){Api31.apply(host,amount);return;}
-        if(amount==0){cancelCapture();clear();}else invalidate();
+        Api31.apply(host,amount);
     }
-    private void renderNative(){
+    private void renderBitmap(){
         boolean same=firstAmount==secondAmount;
         float first=firstAmount==0?0:same?1:secondAmount>0?(progress<1?1:0):1-progress;
         overlay.setAlpha(first);overlay.setVisibility(first>0&&overlay.getDrawable()!=null?View.VISIBLE:View.GONE);
         secondOverlay.setAlpha(progress);secondOverlay.setVisibility(!same&&secondAmount>0&&progress>0&&secondOverlay.getDrawable()!=null?View.VISIBLE:View.GONE);
     }
-    private void clear(){overlay.setVisibility(View.GONE);overlay.setImageDrawable(null);overlay.setAlpha(1);secondOverlay.setVisibility(View.GONE);secondOverlay.setImageDrawable(null);}
+    // ImageView.setAlpha(int) changes drawable opacity on a 0-255 scale; use View's float overload.
+    private void clear(){overlay.setVisibility(View.GONE);overlay.setImageDrawable(null);overlay.setAlpha(1f);secondOverlay.setVisibility(View.GONE);secondOverlay.setImageDrawable(null);}
+    void sourceChanged(){++generation;clear();invalidate();}
     String diagnostics(){return "blur="+amount+" blurVisible="+(overlay.getVisibility()==View.VISIBLE)+" blurAlpha="+overlay.getAlpha()+" secondBlurVisible="+(secondOverlay.getVisibility()==View.VISIBLE)+" secondBlurAlpha="+secondOverlay.getAlpha()+" blurBusy="+busy;}
     private void cancelCapture(){main.removeCallbacks(capture);scheduled=false;}
     // Input and page motion must keep refreshing the visible video cache.
     void interaction(){if(nativeVideo){cancelCapture();invalidate();}}
     void suspended(boolean value){if(suspended==value)return;suspended=value;++generation;cancelCapture();if(!value)invalidate();}
     void active(boolean value){active=value;if(!value){++generation;cancelCapture();}else invalidate();}
-    private boolean canCapture(){return !destroyed&&active&&!suspended&&bitmapOutput()&&(nativeVideo?firstAmount>0||secondAmount>0:amount>0);}
+    private boolean canCapture(){return !destroyed&&active&&!suspended&&bitmapOutput()&&(firstAmount>0||secondAmount>0);}
     void invalidate(){
         if(!canCapture())return;
         dirty=true;if(scheduled||busy)return;scheduled=true;
@@ -77,7 +78,7 @@ final class WallpaperBlur {
     private void capture(){
         scheduled=false;if(!canCapture()||host.getWidth()==0||host.getHeight()==0)return;
         final int version=generation,width=Math.min(320,host.getWidth()),height=Math.max(1,Math.round(width*host.getHeight()/(float)host.getWidth()));
-        final int first=nativeVideo?firstAmount:amount,second=nativeVideo?secondAmount:amount;final boolean nativeFrame=nativeVideo;
+        final int first=firstAmount,second=secondAmount;final boolean nativeFrame=nativeVideo;
         busy=true;dirty=false;capturedAt=SystemClock.uptimeMillis();
         try{source.capture(width,height,image->filter(image,version,width,height,first,second,nativeFrame));}
         catch(RuntimeException|OutOfMemoryError e){DiagnosticLog.error("wallpaper.blur.capture_failed",e);completed();}
@@ -100,7 +101,7 @@ final class WallpaperBlur {
                 if(ready!=null||other!=null){
                     if(valid(version,nativeFrame)){
                         overlay.setImageBitmap(ready);secondOverlay.setImageBitmap(other==ready?null:other);
-                        if(nativeFrame)renderNative();else{overlay.setAlpha(1);overlay.setVisibility(View.VISIBLE);}
+                        renderBitmap();
                     }else{if(ready!=null)ready.recycle();if(other!=null&&other!=ready)other.recycle();}
                 }
                 completed();

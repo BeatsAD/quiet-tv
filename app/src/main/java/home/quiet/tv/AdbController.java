@@ -170,8 +170,10 @@ final class AdbController implements Closeable {
                     jmFactory=AdbIdentity.jmFactory(uid,Build.VERSION.SDK_INT,Build.MODEL,shell("getprop ro.board.platform"),shell("getprop ro.jm.model.name"),systemRouter);
                     accepted=jmFactory;
                 }
+                String identityProfile=jmFactory?"jm_factory":accepted && uid==0
+                        ?identity.matches("(?s).*\\bcontext=u:r:hsc:s0\\s*$")?"hisense_hsc":"hisense_hshell":"shell";
                 DiagnosticLog.info("adb.identity","attempt="+diagnosticId(attempt)+" generation="+attempt+" uid="+uid
-                        +" profile="+(jmFactory?"jm_factory":accepted && uid==0?"hisense_hshell":"shell")+" accepted="+accepted);
+                        +" profile="+identityProfile+" accepted="+accepted);
                 if(!accepted){
                     identityContext(attempt);
                     throw new IOException("ADB 身份不受支持；仅接受普通 shell 或已匹配的工厂接口");

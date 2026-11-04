@@ -8,6 +8,13 @@ final class UpdateInstallPolicy {
     static boolean session(int sdk){return sdk>=21&&sdk<=23;}
     static boolean sessionFallback(int sdk,String reason){return session(sdk)&&"directory_unavailable".equals(reason);}
     static boolean fallback(String reason){return "session_unsupported".equals(reason)||"confirmation_missing".equals(reason);}
+    /** Legacy INSTALL_RESULT is distinct from PackageInstaller's public status codes. */
+    static String fileResult(int legacy){
+        if(legacy==-115)return "cancelled";
+        if(legacy==-7)return "conflict";
+        if(legacy==-4)return "storage_full";
+        return "unknown".equals(platformReason(legacy,null))?"install_failed":result(7,legacy,null);
+    }
     /** Online updates retain the platform's detailed reason; other APK installation keeps its existing policy. */
     static String result(int status,int legacy,String message){
         String platform=platformReason(legacy,message);
@@ -79,6 +86,7 @@ final class UpdateInstallPolicy {
             case "install_rejected":return "系统拒绝了本次安装，具体原因请查看诊断";
             case "interrupted":return "上次安装尚未完成，可重试";
             case "confirmation_missing":case "session_unsupported":return "无法打开系统安装器，可通过电脑更新";
+            case "launch_failed":return "系统安装器启动异常，请重试或通过电脑更新";
             case "io_failed":return "安装文件读写失败，请重试";
             default:return "系统安装失败，请重试或通过电脑更新";
         }

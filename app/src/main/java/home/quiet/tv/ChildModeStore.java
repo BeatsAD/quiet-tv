@@ -32,6 +32,19 @@ final class ChildModeStore {
         if(data!=null && !previous.equals(r.day) && !save(pkg,r))throw new IllegalStateException("每日额度保存失败");return r;
     }}
     boolean hidden(String pkg){return rule(pkg).hidden;}
+    Set<String> hiddenPackages(Collection<String> packages){synchronized(LOCK){
+        if(packages.isEmpty())return Collections.emptySet();
+        JSONObject values=rules();Set<String> hidden=new HashSet<>();String day=today();boolean changed=false;
+        try{
+            for(String pkg:packages){
+                JSONObject data=values.optJSONObject(pkg);ChildModePolicy.Rule rule=read(data);String previous=rule.day;rule.newDay(day);
+                if(rule.hidden)hidden.add(pkg);
+                if(data!=null&&!previous.equals(rule.day)){values.put(pkg,json(rule));changed=true;}
+            }
+            if(changed&&!commit(preferences.edit().putString("rules",values.toString()).putLong("revision",revision()+1)))throw new IllegalStateException("每日额度保存失败");
+            return hidden;
+        }catch(JSONException e){throw new IllegalStateException("无法保存儿童模式设置",e);}
+    }}
     static ChildModePolicy.Rule read(JSONObject data){
         ChildModePolicy.Rule r=new ChildModePolicy.Rule();if(data!=null){r.hidden=data.optBoolean("hidden");r.locked=data.optBoolean("locked");r.mode=data.optInt("mode");r.limit=data.optLong("limit",r.limit);r.singleUsed=data.optLong("singleUsed");r.dailyUsed=data.optLong("dailyUsed");r.singleExtra=data.optLong("singleExtra");r.dailyExtra=data.optLong("dailyExtra");r.day=data.optString("day");}
         if(data!=null)r.repeatDays=data.optInt("repeatDays",ChildModePolicy.EVERY_DAY);
@@ -45,9 +58,12 @@ final class ChildModeStore {
     }}
     boolean save(String pkg,ChildModePolicy.Rule rule){
         rule.validate();synchronized(LOCK){try{
-            JSONObject values=rules(),r=new JSONObject();r.put("hidden",rule.hidden).put("locked",rule.locked).put("mode",rule.mode).put("repeatDays",rule.repeatDays).put("limit",rule.limit).put("singleUsed",rule.singleUsed).put("dailyUsed",rule.dailyUsed).put("singleExtra",rule.singleExtra).put("dailyExtra",rule.dailyExtra).put("dailyExtraUsed",rule.dailyExtraUsed).put("day",rule.day);values.put(pkg,r);
+            JSONObject values=rules();values.put(pkg,json(rule));
             return commit(preferences.edit().putString("rules",values.toString()).putLong("revision",revision()+1));
         }catch(JSONException e){throw new IllegalStateException("无法保存儿童模式设置",e);}}
+    }
+    private static JSONObject json(ChildModePolicy.Rule rule)throws JSONException {
+        return new JSONObject().put("hidden",rule.hidden).put("locked",rule.locked).put("mode",rule.mode).put("repeatDays",rule.repeatDays).put("limit",rule.limit).put("singleUsed",rule.singleUsed).put("dailyUsed",rule.dailyUsed).put("singleExtra",rule.singleExtra).put("dailyExtra",rule.dailyExtra).put("dailyExtraUsed",rule.dailyExtraUsed).put("day",rule.day);
     }
     boolean consume(String pkg,long elapsed){
         synchronized(LOCK){ChildModePolicy.Rule r=read(rules().optJSONObject(pkg));

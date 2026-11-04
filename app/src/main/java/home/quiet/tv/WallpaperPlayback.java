@@ -172,7 +172,7 @@ final class WallpaperPlayback {
         DiagnosticLog.info("wallpaper.video.remote",context+" session="+session+" phase="+phase+" awaiting_release=true");
         // Unbinding asks the responsive service main Looper to retire even if this IPC send failed.
         if(bound){bound=false;source.unbindService(connection);}
-        if(!released)events.failed(VideoWallpaperPlayer.Failure.DECODE);
+        if(!released)events.failed(VideoWallpaperPlayer.Failure.INTERRUPTED);
     }
     private void ended(String phase){
         boolean first=!terminal;terminal=true;closeInput();
@@ -181,7 +181,7 @@ final class WallpaperPlayback {
         if(bound){bound=false;source.unbindService(connection);}
         if(first)DiagnosticLog.info(local!=null?"wallpaper.video.local":"wallpaper.video.remote",context+" session="+session+" phase="+phase);
         if(completion!=null){Runnable done=completion;completion=null;done.run();}
-        else if(first&&!released)events.failed(VideoWallpaperPlayer.Failure.DECODE);
+        else if(first&&!released)events.failed(VideoWallpaperPlayer.Failure.INTERRUPTED);
     }
     private void closeInput(){if(input!=null){try{input.close();}catch(IOException ignored){}input=null;}}
 }

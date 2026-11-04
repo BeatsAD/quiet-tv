@@ -132,7 +132,9 @@ final class HomePreviewView extends FrameLayout implements SharedPreferences.OnS
         });
     }
     private void applyLocalScene(HomePreviewCache.Scene ready){
+        boolean wallpaperChanged=ready.wallpaper!=(wallpaper.getDrawable() instanceof BitmapDrawable?((BitmapDrawable)wallpaper.getDrawable()).getBitmap():null);
         applied=ready;dockBackground=ready.dockBackground;wallpaper.setImageBitmap(ready.wallpaper);shade.setVisibility(ready.wallpaper==null?GONE:VISIBLE);ambient.setVisibility(ready.wallpaper==null?VISIBLE:GONE);band.removeAllViews();
+        if(wallpaperChanged)wallpaperBlur.sourceChanged();
         title.setText(ready.names.isEmpty()?chinese?"添加常用应用":"Add favorite apps":ready.names.get(0));
         ambient.setColor(ready.art.isEmpty()?0xff666972:HomeActivity.sampleColor(ready.art.get(0)));
         boolean empty=ready.art.isEmpty();hasDockApps=!empty;int count=empty?1:ready.art.size();
