@@ -108,10 +108,8 @@ def used_build_numbers(archive_dir=None):
 
 
 def check_delivery_version(actual, packaged_abis, status, sha256, archive_dir=None):
-    # Historical names also occupy the same version/system/ABI/status slot.
-    identity = {key: actual[key] for key in ('application_id', 'version_name', 'min_sdk')}
-    if re.fullmatch(r'\d+\.\d+\.\d+\.1', actual['version_name']):
-        identity['version_code'] = actual['version_code']
+    # A build number identifies one immutable payload, including historical names.
+    identity = {key: actual[key] for key in ('application_id', 'version_name', 'version_code', 'min_sdk')}
     for folder in archive_folders(archive_dir):
         for path in folder.rglob('*.json'):
             record = json.loads(path.read_text())
@@ -119,7 +117,7 @@ def check_delivery_version(actual, packaged_abis, status, sha256, archive_dir=No
             if (all(record.get(key) == value for key, value in identity.items())
                     and record.get('packaged_abis') == packaged_abis and previous_status == status
                     and record.get('sha256') != sha256):
-                raise FileExistsError(f'同版本、系统、架构和状态已有不同内容，请增加软件版本号：{path}')
+                raise FileExistsError(f'同版本、构建号、系统、架构和状态已有不同内容，请使用新的递增构建号：{path}')
 
 
 def archive_apk(summary, built_at=None, output_dir=None, abi='universal', archive_dir=None, min_sdk=21, production_digest=None, compatibility='standard', home_mode='standard'):
@@ -163,9 +161,9 @@ def archive_apk(summary, built_at=None, output_dir=None, abi='universal', archiv
                 and checksum.exists() and checksum.read_text() == checksum_text):
             print(f'复用已归档安装包：{destination}')
             return destination
-        raise FileExistsError(f'归档名称已占用，请增加软件版本号：{destination}')
+        raise FileExistsError(f'归档名称已占用，请使用新的递增构建号：{destination}')
     if receipt.exists() or checksum.exists():
-        raise FileExistsError(f'归档记录已存在，请核对原件；不同内容须增加软件版本号：{receipt}')
+        raise FileExistsError(f'归档记录已存在，请核对原件；不同内容须使用新的递增构建号：{receipt}')
     check_delivery_version(actual, packaged_abis, status, sha256, archive_dir)
     used = used_build_numbers(archive_dir)
     if used and actual['version_code'] <= max(used):

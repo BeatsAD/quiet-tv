@@ -11,7 +11,7 @@
 
 TCL 等受限固件可另行交付主程序 relay 实验档，复用公共代码及桌面守护，不声明 HOME。`scripts/build_apk.py --home-mode relay` 显式传入并核验真实清单，记录 `home_mode=relay` 与构建参数；安卓4.4不提供此档。文件名沿用系统／架构规则、状态用“实验版”，如 `QuietTV_<版本号>-<构建号>_安卓5.0及以上_实验版.apk`。普通包与 relay 同版本、同源码及签名，但构建号各自占用同一递增序列，不能同名覆盖。relay 不加入默认批次，按实际授权单独构建；发布前仍须完成本批审核与适用验证。签名更新清单和安装索引明确记录 HOME 形态，不从“实验”字样推断；已装 relay 仅匹配 relay 更新。
 
-**实施状态：主程序归档脚本按本批确认在 APK 文件名中保留构建号，输出中文本地名，在 JSON 的 `public_apk` 记录英文公开名；安卓范围使用 `4.0-4.4`、`5.0及以上`／`5.0AndAbove`，不再使用 `plus` 或 `to`。内部构建号、真实版本、签名、同名 SHA-256 文件及已登记 worktree 的构建号检查保留；同档位同版本不同内容须增加软件版本号。通用架构或不含原生库时省略架构标记。助手及正式版流程仍需单独验证。**
+**实施状态：主程序归档脚本按本批确认在 APK 文件名中保留构建号，输出中文本地名，在 JSON 的 `public_apk` 记录英文公开名；安卓范围使用 `4.0-4.4`、`5.0及以上`／`5.0AndAbove`，不再使用 `plus` 或 `to`。内部构建号、真实版本、签名、同名 SHA-256 文件及已登记 worktree 的构建号检查保留；同档位同版本不同内容须使用新的递增构建号。通用架构或不含原生库时省略架构标记。助手及正式版流程仍需单独验证。**
 
 **分包实施状态：当前开发源码无原生库，使用 `--batch --universal-only` 构建标准通用包和安卓4.0至4.4包。存在原生库架构差异时，使用 `--batch` 构建标准 ARM32、ARM64、通用及一个安卓4.0至4.4包。两种模式均固定源码并核对版本、签名、生产输入和递增构建号；四包模式另核对各架构原生库完整性。最终 APK 的功能、升级保留和厂商真机验收仍须单独记录，批次清单不代表设备验收。**
 
@@ -28,7 +28,7 @@ QuietTV_<版本号>-<构建号>_<适用系统>[_<单架构标记>]_<发布状态
 ### 版本号与构建号
 
 - 版本号与实际 APK 的 `versionName` 一致，新版本使用 `主版本.次版本.修订号`。修复问题增加修订号，新增功能增加次版本，重大不兼容变化增加主版本。
-- 同版本各档位、架构共用软件版本号。同版本、系统、架构和状态只对应一份确定内容；修改后重新交付同档位包必须增加软件版本号，例如从 `1.3.1` 改为 `1.3.2`，同时增加内部构建号。历史1.3.0曾经批准同软件版本累加构建号，旧文件保留；该历史例外不适用于后续公开交付。公开发布仍须完成本批材料审核。
+- 同版本各档位、架构共用软件版本号。同版本、构建号、系统、架构和状态只对应一份确定内容；修改后重新交付同档位包必须使用新的递增构建号。软件版本按发布计划递增；本批1.3.5使用新构建号，不覆盖此前同软件版本的本地候选。公开发布仍须完成本批材料审核。
 - 构建号与实际 APK 的 `versionCode` 一致，只使用不带前导零的正整数，例如 `31`，不使用 `b31`、`Build31`、`RC31`。
 - 主程序各系统档位、架构和构建类型共用递增交付序列；交付不同内容的新包时分配新号，不回退、复用或因版本变化归零。日常编译不必每次加号，同一归档原字节重发不分配新号。
 - 交付前核对源码配置、历史归档和远程发布中的已用号。文件名中的软件版本须与 APK 的 `versionName` 对应，归档中的构建号须与 APK 的 `versionCode` 对应，不能通过改名冒充新版本；安装时核对 APK 内部构建号。
@@ -161,7 +161,7 @@ python3 scripts/build_apk.py --build-number "$STANDARD_BUILD_NUMBER" --variant b
 
 - APK 放入本地不可变归档 `dist/apk/`，提供 `<完整APK文件名>.sha256` 及相同主文件名的 `.json`；优化包同时保留映射文件。
 - 归档记录包含本地归档名、对应公开名、真实包名、版本号、构建号、兼容档位、最低/目标 API、构建类型、实际架构、签名指纹、源码提交、生产输入指纹、时间、字节数、SHA-256、变更摘要和验收范围。助手额外记录配套关系。
-- 同名同字节且校验记录一致可复用；同名不同内容禁止覆盖，必须增加软件版本号和内部构建号。脚本也按真实版本、系统、实际架构和状态检查已登记 worktree 的历史归档，防止换目录或旧文件名绕过；同一本地归档的原字节及配套记录一致时可复用。无构建号文件名缺少有效 JSON 构建号元数据时停止归档，不从文件名推测或将用号归零。构建期间生产输入改变则停止归档。
+- 同名同字节且校验记录一致可复用；同名不同内容禁止覆盖，必须使用新的递增构建号。脚本也按真实版本、构建号、系统、实际架构和状态检查已登记 worktree 的历史归档，防止换目录或旧文件名绕过；同一本地归档的原字节及配套记录一致时可复用。无构建号文件名缺少有效 JSON 构建号元数据时停止归档，不从文件名推测或将用号归零。构建期间生产输入改变则停止归档。
 - Gradle 的构建输出目录是可更新的中间产物；归档、密钥和恢复记录保留本地，不随源码发布。
 
 整批构建前提交改动，固定源码提交；起始号高于所有已用号，命令如下（示例不预占号）：
@@ -224,7 +224,7 @@ APK 字节、版本与签名均未变化。该历史批次的实际英文名 `.a
 
 Published 1.1.2 provides standard build 34 (minSdk21) and legacy19 build 35 (minSdk19), both targeting API36. GitHub uses the approved English filenames listed in the installation guide; local Chinese archives are unchanged. The matching checksum must name the actual download. Historical b30 legacy19 and b26 standard downloads keep their original names and tags. At b30 publication, native emulator and physical-TV acceptance were still pending; historical results for other builds do not validate this APK. See [compatibility](COMPATIBILITY.md) for the recorded scope.
 
-Future main-app downloads and immutable archives use `QuietTV_<version>-<build>_<system>[_<single ABI>]_<status>.apk`, with the actual build number. Local names use Chinese labels; `public_apk` records the English download name. The script does not upload APKs. Version and internal build must match the actual APK. Build numbers are positive integers without prefixes or leading zeros and increase across all main-app delivery variants. A different payload for the same version/system/ABI/status requires a higher software version as well as a higher internal build number. Historical cumulative 1.3.0 builds keep their original names; that exception does not apply to future deliveries. Never replace different bytes under the same public filename. Re-sending identical archived bytes does not allocate a new number. The helper uses `QuietTV助手`, its own version/build sequence, and an explicit target launcher; its filename retains the actual build number.
+Future main-app downloads and immutable archives use `QuietTV_<version>-<build>_<system>[_<single ABI>]_<status>.apk`, with the actual build number. Local names use Chinese labels; `public_apk` records the English download name. The script does not upload APKs. Version and internal build must match the actual APK. Build numbers are positive integers without prefixes or leading zeros and increase across all main-app delivery variants. A different payload for the same version/system/ABI/status requires a higher delivery build number and a distinct filename. Software versions follow the release plan. Historical builds keep their original names. Never replace different bytes under the same public filename. Re-sending identical archived bytes does not allocate a new number. The helper uses `QuietTV助手`, its own version/build sequence, and an explicit target launcher; its filename retains the actual build number.
 
 System labels include `安卓4.0-4.4` (legacy14, API14, local development with device checks deferred), historical `安卓4.4` (legacy19, API19), `安卓5.0及以上` (standard, API21), and `酷开安卓8` (experimental vendor package, API26). Other minimum APIs require matching labels. Omit the architecture marker for multi-ABI and native-library-free APKs. Use ARM32, ARM64, x86 or x86_64 only for actual single-ABI builds. Universal architecture does not imply compatibility with every OS or TV. Status is `测试版` (test), `实验版` (experimental), or `正式版` (formally signed release with agreed acceptance completed). Public labels use Android4.0-4.4, Android4.4, Android5.0AndAbove (or the actual higher minimum), and Test/Experimental/Release. Keep the actual build number; do not add plus or to to new public names; preserve historical assets and URLs. Verify names and bytes before upload.
 
