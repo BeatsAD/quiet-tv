@@ -16,6 +16,8 @@
 
 旧 APK 内的 `setup-presets.json` 冻结为升级兼容默认值，不继续添加机型。已保存本机规则优先，旧用户未重新配置时保留原行为。专项接管记录保存当次规则快照；后续规则更新不能改变其恢复依据。信号源运行驱动及旧默认映射保留，电脑通过现有 `profile-set` 接口写入当前固件的修正。仅增加配置不能创造尚未实现的厂商服务协议。
 
+`home.disableRetestRequired=true` 暂停新增原桌面禁用，不撤销历史记录的恢复资格。MiTV4-ANSM0／MiTV-AZFU0 的历史实验规则缺少完整实机验收，现按此处理；既有用户路线和数据不自动修改。API24+ 新增禁用还要求 APK 提供 `boot-home-v1`，启动入口未被显式停用；操作后读回入口就绪和全部接管状态，任一不符保留未完成记录，不报告成功。
+
 同包名、同签名覆盖升级时，若仅主程序构建号递增而固件、HOME 形态、原桌面和助手版本均未改变，沿用已配置路线与暂停选择；旧包的实体场景验收标记清为待验证。升级完成会恢复已选择的 ADB 设置保持，不重新启用用户暂停的守护，也不默认开启原本关闭的 ADB 保持。缺少权限时不能视为恢复成功。原环境发生变化仍停止自动沿用，先重新核对。
 
 ## 安装和专项接管
@@ -33,7 +35,7 @@ python3 scripts/device_adaptation.py --serial "$TV_SERIAL" --user "$TV_USER" --r
 
 | route | 适用条件与动作 | 原能力承接 |
 |---|---|---|
-| `verified` | 精确规则、原 HOME、版本和用户匹配；保留安装数据，禁用原 HOME 后设置 Quiet TV | Sony 已收录原桌面、小米 alita／xmen／darkknight 规则；各自证据限制保留 |
+| `verified` | 精确规则、原 HOME、版本和用户匹配，且无需复验；保留安装数据，禁用原 HOME 后设置 Quiet TV | Sony 等已收录规则；小米历史实验规则标记待复验时阻止新增禁用 |
 | `google` | 实际已安装、启用且声明 HOME 的 Google TV／Android TV 桌面；系统完成初始化，恢复命令可用 | Google HOME 及实际存在的 setupwraith，顺序恢复 |
 | `jm` | 主用户，实际可用的系统 `HOME.JM` 组件，原属性可读 | `persist.sys.home.selectpkg` |
 | `vidaa` | 主用户，实际原 HOME 是聚好看，原属性是合法包名 | `persist.vt.use_home_pkg` |

@@ -60,6 +60,6 @@ final class HomeGuardSync {
         if(HomeGuardService.connected())return;
         boolean missing=!state.serviceEnabled();
         if(missing)HomeGuardRecovery.noteRevival(c);
-        HomeGuardRecovery.request(c,"系统同步恢复");
+        HomeGuardRecovery.ensureBinding(c,"系统同步恢复");
     }
 }

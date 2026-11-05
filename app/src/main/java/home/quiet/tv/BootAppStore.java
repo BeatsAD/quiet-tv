@@ -170,7 +170,8 @@ final class BootAppStore {
             return hdmiBoot()?HDMI:target();
         }
     }
-    String bootId(){
+    String bootId(){return bootId(context);}
+    static String bootId(Context context){
         if(Build.VERSION.SDK_INT>=24){
             try{int count=Settings.Global.getInt(context.getContentResolver(),"boot_count",-1);if(count>=0)return "count:"+count;}
             catch(SecurityException ignored){}

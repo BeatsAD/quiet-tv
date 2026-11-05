@@ -161,7 +161,7 @@ def prepare(adb, user, journal, route, path=CATALOG):
     policy = (selected or {}).get('home', {})
     steps = []
     if route == 'verified':
-        if (not policy.get('disableVerified') or policy.get('preserveOriginal')
+        if (not policy.get('disableVerified') or policy.get('disableRetestRequired') or policy.get('preserveOriginal')
                 or guard.canonical_home(policy.get('component', '')) != original
                 or ('versionCode' in policy and policy['versionCode'] != original_app['versionCode'])
                 or ('user' in policy and policy['user'] != user)):
@@ -194,6 +194,14 @@ def prepare(adb, user, journal, route, path=CATALOG):
     if targets and adb.shell('settings', 'get', 'global', 'device_provisioned').strip() != '1':
         raise ValueError('系统尚未完成初始化，不停用 HOME 候选')
     if targets:
+        if device['sdk'] >= 24 and 'boot-home-v1' not in snapshot.get('capabilities', []):
+            raise ValueError('停用原桌面需要提供解锁前入口核对接口的 APK，未继续禁用')
+        if device['sdk'] >= 24 and (snapshot.get('bootHome', {}).get('supported') is not True
+                                   or snapshot.get('bootHome', {}).get('setting') not in (0, 1)):
+            raise ValueError('解锁前启动入口不可用或被显式停用，未继续禁用原桌面')
+        if device['sdk'] >= 24 and any(h.split('/')[0] not in targets + [tcl.PACKAGE]
+                                       and not h.startswith('android/') and not h.endswith('FallbackHome') for h in homes):
+            raise ValueError('仍有其他 HOME 候选，无法确认唯一解锁前入口，未继续禁用原桌面')
         home.check_stock_change(adb, device, selected, catalog(path).get('references', []), original, targets)
     for name in targets:
         app = package(adb, user, name)
@@ -254,6 +262,11 @@ def apply_plan(adb, device, snapshot, plan, setter, journal):
             current = maintenance.inspect(adb, tcl.PACKAGE, device['user'])
             if current['takeoverRevision'] != revision or current['appVersion'] != snapshot['appVersion']:
                 raise ValueError('执行期间应用或记录改变')
+            if step['kind'] == 'package' and device['sdk'] >= 24 and (
+                    'boot-home-v1' not in current.get('capabilities', [])
+                    or current.get('bootHome', {}).get('supported') is not True
+                    or current.get('bootHome', {}).get('setting') not in (0, 1)):
+                raise ValueError('执行期间启动入口不可用，未继续禁用原桌面')
             if step['kind'] != 'home' and read_step(adb, device, step) != step['before']:
                 raise ValueError('执行期间状态变化')
             step['attempted'] = True
@@ -273,6 +286,9 @@ def apply_plan(adb, device, snapshot, plan, setter, journal):
             save()
         if any(read_step(adb, device, s) != s['after'] for s in plan['steps']):
             raise ValueError('最终接管状态再次变化')
+        boot.ensure_boot_entry(adb, device, journal, required=bool(targets))
+        if any(read_step(adb, device, s) != s['after'] for s in plan['steps']):
+            raise ValueError('核对启动入口后接管状态变化，保留未完成记录')
         plan['state'] = 'applied'
         save()
     except (ValueError, OSError, subprocess.TimeoutExpired, KeyboardInterrupt):

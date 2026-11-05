@@ -28,7 +28,13 @@ final class HomeInputDevices implements InputManager.InputDeviceListener {
         return physical(name,virtual) && (sources&InputDevice.SOURCE_MOUSE)==InputDevice.SOURCE_MOUSE && (sdk<29 || external);
     }
     static boolean safe(boolean known,boolean xiaomi,boolean mouse,boolean gamepad,boolean homeForeground){
-        return known && !(xiaomi && mouse) && !(gamepad && !homeForeground);
+        return blockedReason(known,xiaomi,mouse,gamepad,homeForeground).isEmpty();
+    }
+    static String blockedReason(boolean known,boolean xiaomi,boolean mouse,boolean gamepad,boolean homeForeground){
+        if(!known)return "input_topology_unknown";
+        if(xiaomi && mouse)return "xiaomi_mouse";
+        if(gamepad && !homeForeground)return "gamepad_outside_home";
+        return "";
     }
     private void refresh(){
         boolean pad=false,pointer=false;

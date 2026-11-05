@@ -43,7 +43,7 @@ https://beatsad.github.io/quiet-tv/agent.md
 
 首次接管或 HOME 修复先按[品牌与路线检测](agent/brands.md)只读分流；不能只凭品牌选路线。已有正常配置不重跑 `takeover`；仅更新保留 ADB 选择及守护暂停状态。命中专项问题再读 [HOME/ADB](agent/home.md)、[TCL 安装](agent/tcl.md)、[信号源](agent/inputs.md)或[适配规则](DEVICE_ADAPTATION.zh-CN.md)。
 
-按[任务工具](agent/session.md) `plan` 固定路线与验收；`repair` 只处理本次问题领域。无需操作用 `noop`，不启动安装器；工具按路线限制动作。
+按[任务工具](agent/session.md)使用 `plan --route auto` 和 `nextAction`，在授权内继续；旧工具沿用原流程。
 
 ## 执行与结束
 

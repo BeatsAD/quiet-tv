@@ -17,7 +17,7 @@ final class BootAppLifecycle {
             @Override public void onReceive(Context c,Intent intent){
                 BootAppStore store=new BootAppStore(c);String action=intent.getAction();
                 if(Intent.ACTION_DREAMING_STARTED.equals(action) || Intent.ACTION_DREAMING_STOPPED.equals(action)){
-                    dreaming=Intent.ACTION_DREAMING_STARTED.equals(action);HomeGuardRecovery.cancel();HomeGuardService.dreamChanged();HomeGuardUsageService.dreamChanged();return;
+                    dreaming=Intent.ACTION_DREAMING_STARTED.equals(action);HomeGuardRecovery.cancelHandover();HomeGuardService.dreamChanged();HomeGuardUsageService.dreamChanged();return;
                 }
                 if(Intent.ACTION_SCREEN_OFF.equals(action)){HomeGuardService.bootSourceUserAction(c,"screen_off");store.screenOff(homeEligible);return;}
                 if(Intent.ACTION_SCREEN_ON.equals(action))store.screenOn();

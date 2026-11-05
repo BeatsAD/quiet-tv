@@ -34,6 +34,7 @@ final class DesktopTakeoverStatus {
             if(!guard.supported())return own?new DesktopTakeoverStatus("pending","已选择默认桌面，待验证","此系统的守护能力受限，请通过电脑核对实体 HOME 和开机结果。"):limited();
             DesktopRoutes routes=new DesktopRoutes(context,false);
             if(routes.proxyUpgradePending())return new DesktopTakeoverStatus("repair","配置已保留，接管待恢复",guard.preferences.getString("status","请通过电脑继续恢复原有 HOME 代理。"));
+            if(guard.enabled() && HomeGuardRecovery.bindingBlocked(context))return new DesktopTakeoverStatus("repair","守护恢复待核对","无障碍设置已变化，已保留原接管方案；请通过电脑核对后恢复守护。");
             String problem=routes.configurationProblem();
             if(!problem.isEmpty())return repair("请通过电脑检查并修复现有配置。");
             boolean passed=true;

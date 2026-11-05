@@ -380,7 +380,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         if(!new HomeProxy(this).allowed(getIntent())){new HomeProxy(this).original(this);finish();}
         if(!systemEntryPending.isEmpty()){systemEntryLifecycle(systemEntryDispatched?"resume_return_unverified":"resume_before_dispatch");systemEntryPending="";}
         BootAppLifecycle.visible(this);
-        if(!HomeGuardService.connected())HomeGuardRecovery.request(this,"桌面恢复");
+        if(!HomeGuardService.connected())HomeGuardRecovery.ensureBinding(this,"桌面恢复");
         getWindow().getDecorView().post(()->{if(resumed && hasWindowFocus()){new HomeProxy(this).visible(this);if(!isFinishing()){HomeGuardRecovery.visible(this);launchBootApp();}}});
         IntentFilter time=new IntentFilter(Intent.ACTION_TIME_TICK);time.addAction(Intent.ACTION_TIME_CHANGED);time.addAction(Intent.ACTION_TIMEZONE_CHANGED);time.addAction(Intent.ACTION_SCREEN_OFF);
         registerReceiver(timeReceiver,time);
@@ -560,7 +560,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         main.post(this::openMaintenanceInput);
     }
 
-    private boolean isHomeIntent(Intent intent){return Intent.ACTION_MAIN.equals(intent.getAction()) && intent.hasCategory(Intent.CATEGORY_HOME);}
+    private boolean isHomeIntent(Intent intent){return (Intent.ACTION_MAIN.equals(intent.getAction()) || Intent.ACTION_VIEW.equals(intent.getAction())) && intent.hasCategory(Intent.CATEGORY_HOME);}
 
     private void resetHomeFocus(){
         cancelMove();

@@ -42,7 +42,7 @@ public final class HomeGuardUsageService extends Service {
         PendingIntent settings=PendingIntent.getActivity(this,0,new Intent(this,MaintenanceHelpActivity.class),PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
         Notification notification=new Notification.Builder(this).setSmallIcon(R.drawable.ic_manage_shield)
                 .setContentTitle("Quiet TV 桌面中转").setContentText("点击查看帮助与恢复").setContentIntent(settings).setOngoing(true).build();
-        startForeground(2601,notification);instance=this;handler.removeCallbacks(poll);handler.post(poll);
+        startForeground(2601,notification);instance=this;HomeGuardRecovery.bindingChanged();handler.removeCallbacks(poll);handler.post(poll);
         new HomeGuardState(this).status("前台检测已连接，等待原主页");return START_NOT_STICKY;
     }
     @Override public void onDestroy(){handler.removeCallbacks(poll);if(instance==this)instance=null;stopForeground(true);super.onDestroy();}

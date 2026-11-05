@@ -22,10 +22,10 @@ INDEX = "https://beatsad.github.io/quiet-tv/latest.json"
 RELEASES = "https://github.com/BeatsAD/quiet-tv/releases/download/"
 
 
-def read_index():
-    data = resources.read_json(INDEX + "?check=" + str(time.time_ns()))
-    if data.get("schemaVersion") != 1 or not isinstance(data.get("releases"), list):
-        raise ValueError("公开版本索引无效，未使用历史缓存")
+def read_index(snapshot=None):
+    data = json.loads(Path(snapshot).read_text(encoding='utf-8')) if snapshot else resources.read_json(INDEX + "?check=" + str(time.time_ns()))
+    if not isinstance(data, dict) or data.get("schemaVersion") != 1 or not isinstance(data.get("releases"), list):
+        raise ValueError("发布版本索引无效")
     return data
 
 
@@ -211,8 +211,17 @@ def run_install(args, adb, tools, journal):
         else:
             apk_path = download(asset, journal.directory / "selected.apk")
     metadata = tools.inspect(apk_path)
+    if getattr(args, 'release_index', None):
+        index = read_index(args.release_index)
+        asset = choose(index, sdk, abis, installed, metadata['home_mode'], metadata['version_name'])
+        if asset['sha256'] != expected:
+            raise ValueError('预览发布索引与 APK 不匹配，未安装')
     check_apk(metadata, expected, sdk, abis, installed, asset)
-    journal.event("apk_verified", apk=metadata)
+    index_path = journal.directory / 'release-index.json' if index is not None else None
+    if index_path:
+        index_path.write_text(json.dumps(index, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    journal.event("apk_verified", apk=metadata, path=str(apk_path.resolve()),
+                  index_path=str(index_path.resolve()) if index_path else '', index_sha256=tcl.digest(index_path) if index_path else '')
     vendor = (device["ro.product.brand"] + " " + device["ro.product.manufacturer"]).lower().split()
     is_tcl = bool(set(vendor).intersection(("tcl", "ffalcon", "iffalcon")))
     keep_adb = args.keep_adb and sdk >= 21
@@ -376,6 +385,7 @@ def main():
                             help="仅配置桌面，保留已有 ADB 选择")
     parser.add_argument("--apply", action="store_true", help="执行本次目标；省略时只读预览")
     parser.add_argument("--apk", type=Path, help="Agent 已核验发布来源的本地 APK；省略时按实时索引选择")
+    parser.add_argument("--release-index", type=Path, help="本次预览保存的发布索引；复用原 TCL relay 候选")
     parser.add_argument("--sha256", type=str.lower, help="本地 APK 的可信发布校验值，必须与 --apk 一起给出")
     parser.add_argument("--aapt2")
     parser.add_argument("--apksigner")
@@ -391,6 +401,8 @@ def main():
         parser.error("专项路线仅用于明确的接管操作")
     if args.native_observer and (args.goal != "takeover" or args.verify_only or args.adaptation_route):
         parser.error("原桌面观察仅用于标准接管，不与专项路线或只读验收混用")
+    if args.release_index and not args.apk:
+        parser.error("预览发布索引须与已核验的本地 APK 一起使用")
     if args.user < 0 or bool(args.apk) != bool(args.sha256) or args.sha256 and not re.fullmatch(r"[a-f0-9]{64}", args.sha256):
         parser.error("用户无效，或本地 APK 未同时提供完整 SHA-256")
     if args.keep_adb and args.goal != "takeover":
