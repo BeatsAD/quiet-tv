@@ -14,6 +14,7 @@ import sys
 import configure_boot_home as boot
 import configure_home_guard as guard
 import install_tcl as tcl
+import device_maintenance as maintenance
 from home_capabilities import CHECKS as TAKEOVER_CHECKS
 from verify_install import component, resolver
 
@@ -131,6 +132,9 @@ def record_result(state, check, status, source, note, evidence=None):
 
 
 def plan(state, route, checks, issue, note):
+    if route == 'auto':
+        route, reason = recommended_route(state, issue)
+        note = reason + '；' + note
     if route not in ROUTES[state['intent']]:
         raise ValueError('路线不符合原任务意图；目标改变须建立新任务并保留原恢复记录')
     if state.get('route') and state['steps'] and state['route'] != route:
@@ -148,6 +152,109 @@ def plan(state, route, checks, issue, note):
     previous = state.get('requiredChecks', []) if state.get('route') == route else []
     state.update(route=route, issue=issue, planNote=note,
                  requiredChecks=list(dict.fromkeys((*CHECKS[route], *previous, *checks))))
+
+
+def recommended_route(state, issue=None):
+    """Choose the task, never replace a saved HOME strategy or infer absent from unknown."""
+    if state.get('route'):
+        return state['route'], '继续本任务已选路线'
+    intent = state['intent']
+    if intent in ('restore', 'inspect', 'boot-ads'):
+        return intent, '沿用用户明确目标，其他领域不变'
+    current = state.get('latestSnapshot', state['baseline'])
+    dump = current.get('packageDump', '')
+    try:
+        usable = tcl.usable(tcl.user_state(dump, state['scope']['user']))
+    except ValueError:
+        usable = False
+    if 'packageDump' in current.get('unknown', {}):
+        return 'inspect', '应用状态读取失败，保持只读'
+    if usable:
+        if intent == 'repair':
+            return ('repair', '仅修复明确的问题领域') if issue or state.get('issue') else (
+                'inspect', '修复须明确 issue，不自动按 HOME 故障处理')
+        return 'update', '已有可用安装，优先保留现有接管、暂停状态和数据'
+    absent = re.fullmatch(r"(?:Unable to find package:|Unknown package:)\s*" + re.escape(state['package']), dump.strip())
+    if intent == 'setup' and absent:
+        return 'install', '已确认未安装，先试用再配置桌面'
+    return 'inspect', '未确认可用安装；停用、其他用户安装或未知状态不自动恢复'
+
+
+def next_action(state):
+    """A structured suggestion only. All writes still go through run and the existing checks."""
+    if unresolved(state):
+        return dict(action='review', reason='核对未确认步骤及实际现场，不重放命令')
+    if not state.get('route'):
+        route, reason = recommended_route(state)
+        return dict(action='plan', route=route, reason=reason)
+    progress = completion(state)
+    if progress['status'] == 'complete':
+        if state['intent'] == 'setup' and state['route'] == 'update':
+            inspection = state.get('desktopInspection', {})
+            if inspection.get('step', 0) < max(state.get('evidenceAfter', 0), state.get('apkEvidenceAfter', 0), 1):
+                return dict(action='run', tool='device_maintenance', arguments=['inspect'], reason='更新已完成，先读取现有接管和暂停状态，再判断原目标是否还有缺项')
+            code = inspection['status']['code']
+            if inspection.get('paused') is True or code == 'paused':
+                return dict(action='finish', reason='更新已完成，保留用户暂停选择，不自动恢复接管')
+            if code in ('repair', 'incomplete', 'unconfigured'):
+                return dict(action='plan', route='repair', issue='home', reason='现有接管尚未就绪，继续 HOME 专项核对；保留原路线，不自动重配')
+            if code in ('unknown', 'limited'):
+                return dict(action='verify', checks=['desktop_configured'], reason='此 APK 状态未知或能力受限，继续原版本诊断，不推断接管成功')
+            if code == 'pending' and not set(TAKEOVER_CHECKS).issubset(state.get('requiredChecks', [])):
+                return dict(action='plan', route='update', checks=list(TAKEOVER_CHECKS), reason='默认配置目标尚有实体场景待验证，只补验收，不重新接管；电源操作仍按授权执行')
+            return dict(action='finish', reason='本路线必要项已记录，保留现有接管方案')
+        return dict(action='finish', reason='汇总本路线结果；不扩大到重新接管')
+    route = state['route']
+    known = results(state)
+    if progress['failed'] or progress['limited']:
+        return dict(action='verify', checks=progress['failed'] + progress['limited'], reason='保留失败或受限结果，先核对证据')
+    if state['package'] != tcl.PACKAGE or route not in ('install', 'update'):
+        return dict(action='verify', checks=progress['missing'], reason='按原包名及已选专项路线继续，沿用原记录')
+    goal = 'update' if route == 'update' else 'trial'
+    if route == 'install' and state.get('trial'):
+        if known.get('basic_ui', {}).get('status') != 'PASS':
+            return dict(action='accept', check='basic_ui', source='user', reason='等待用户实际试用反馈，不能自动填通过')
+        entries = [name for name in ('settings', 'network', 'inputs') if known.get(name, {}).get('status') != 'PASS']
+        if entries:
+            return dict(action='verify', checks=entries, guide='guides/inputs.md', reason='测试并确认系统入口，保留已通过项')
+        if known.get('desktop_configured', {}).get('status') == 'PASS':
+            return dict(action='verify', checks=progress['missing'], guide='guides/acceptance.md', reason='配置已读回，实体按键和电源场景分别验收')
+        goal = 'takeover'
+    elif route == 'update' and known.get('apk', {}).get('status') == 'PASS':
+        return dict(action='verify', checks=progress['missing'], reason='核对升级后的数据、原路线和暂停状态，不重新接管')
+    preview = state.get('installerPreview', {})
+    if preview.get('step') == len(state['steps']) and preview.get('goal') == goal:
+        args = list(preview['arguments'])
+        if goal == 'takeover':
+            args = without_apk(args)  # run pins the trial APK itself.
+        else:
+            args = pinned_preview(args, preview)
+        return dict(action='run', tool='install_quiet_tv', arguments=[*args, '--apply'],
+                    reason='执行本次已核验预览，复用同一 APK；仍须在已有授权内调用')
+    return dict(action='run', tool='install_quiet_tv', arguments=['--goal', goal],
+                reason='先预览本次步骤；默认保留原桌面，不添加专项禁用或恢复参数')
+
+
+def without_apk(arguments):
+    result = []
+    skip = False
+    for arg in arguments:
+        if skip:
+            skip = False
+        elif arg in ('--apk', '--sha256'):
+            skip = True
+        elif not arg.startswith(('--apk=', '--sha256=')):
+            result.append(arg)
+    return result
+
+
+def pinned_preview(arguments, preview):
+    args = list(arguments)
+    if not option(args, '--apk'):
+        args += ['--apk', preview['apk'], '--sha256', preview['sha256']]
+    if preview.get('index') and not option(args, '--release-index'):
+        args += ['--release-index', preview['index']]
+    return args
 
 
 def allowed(state, tool, arguments):
@@ -212,6 +319,17 @@ def collect_step(state, step, action, reconcile=False):
     events = record / 'record.jsonl'
     if events.is_file():
         entries = [json.loads(line) for line in events.read_text(encoding='utf-8').splitlines() if line.strip()]
+        if step['tool'] == 'device_maintenance' and step.get('exit') == 0 and step['arguments'] == ['inspect'] and not reconcile:
+            observed = next((item.get('snapshot', {}) for item in reversed(entries) if item['event'] == 'maintenance_before'), {})
+            if (observed.get('package') == state['package'] and observed.get('user') == state['scope']['user']
+                    and observed.get('fingerprint') == state['scope'].get('fingerprint')):
+                state['desktopInspection'] = dict(step=step['id'], paused=observed.get('paused'), status=maintenance.desktop_status(observed))
+        if step['tool'] == 'install_quiet_tv' and step.get('exit') == 0 and '--apply' not in step['arguments'] and not reconcile:
+            preview = next((item for item in reversed(entries) if item['event'] == 'apk_verified' and item.get('path')), None)
+            if preview and action in ('trial', 'update', 'takeover'):
+                state['installerPreview'] = dict(step=step['id'], goal=action, arguments=step['arguments'],
+                                                 apk=preview['path'], sha256=preview['apk']['sha256'],
+                                                 index=preview.get('index_path'), indexSha256=preview.get('index_sha256'))
         if step['tool'] == 'boot_ads' and action == 'ads' and step.get('exit') == 0 and '--apply' in step['arguments'] and not reconcile:
             outcome = next((item for item in reversed(entries) if item['event'] == 'boot_ad_result' and item.get('verified') is True), None)
             if outcome:
@@ -405,15 +523,12 @@ def summary(directory, state):
     public_snapshot = {'home': current.get('home'), 'adbEnabled': current.get('adbEnabled'),
                        'packageState': package_state, 'versionCode': int(version[1]) if version else None,
                        'unknown': current['unknown']}
+    action = next_action(state)
     value = {'intent': state['intent'], 'package': state['package'], 'session': str(directory),
              'route': state.get('route'), 'issue': state.get('issue'), 'completion': completion(state),
              'results': results(state), 'trial': state.get('trial'), 'completedRoutes': state.get('completedRoutes', []),
              'peripherals': state.get('peripherals'),
-             'next': ('先核对未确认步骤并 review，不重放命令' if unresolved(state) else
-                      '先 plan 选择路线和必要验收' if not state.get('route') else
-                      '先安装试用，再 accept basic_ui 记录用户结果' if state['route'] == 'install'
-                      and results(state).get('basic_ui', {}).get('status') != 'PASS' else
-                      '补齐 completion.missing；受限项记录 LIMITED，最后 finish 汇总'),
+             'nextAction': action, 'next': action['reason'],
              'steps': [{key: step.get(key) for key in ('id', 'tool', 'status', 'exit', 'record', 'log', 'review')}
                        for step in state['steps']], 'current': public_snapshot, 'snapshotStatus': 'checked' if state.get('latestSnapshot') else 'before-command-only',
              'note': 'returned 只表示工具退出成功；实体 HOME、重启、网络 ADB、冷启动和待机仍须分别验收。'}
@@ -439,6 +554,17 @@ def run_step(directory, state, tool, arguments):
         raise ValueError('设备、用户、工具路径、包名和记录路径由任务固定，不在子命令重复指定')
     if state['package'] != tcl.PACKAGE and tool not in ('device_maintenance', 'device_selftest', 'configure_home_guard', 'device_environment', 'remote_calibration', 'boot_ads'):
         raise ValueError('此工具只支持普通包名；专用包沿用已验证的同包名流程')
+    preview = state.get('installerPreview', {})
+    if (tool == 'install_quiet_tv' and '--apply' in arguments and action in ('trial', 'update')
+            and preview.get('goal') == action and preview.get('step') == len(state['steps'])):
+        supplied = option(arguments, '--sha256')
+        if supplied and supplied.lower() != preview['sha256']:
+            raise ValueError('执行 APK 与预览不同，先重新预览；未安装或重新接管')
+        if digest(Path(option(arguments, '--apk') or preview['apk'])) != preview['sha256']:
+            raise ValueError('预览 APK 已变化，未执行')
+        if preview.get('index') and digest(Path(option(arguments, '--release-index') or preview['index'])) != preview['indexSha256']:
+            raise ValueError('预览发布索引已变化，未执行')
+        arguments = pinned_preview(arguments, preview)
     current = checked_snapshot(state)
     number = len(state['steps']) + 1
     record = directory / ('step-%04d' % number)
@@ -507,7 +633,7 @@ def main(argv=None):
     parser.add_argument('--step', type=int)
     parser.add_argument('--note', help='核对的原始记录、现场结果和下一步；不是验收通过标记')
     parser.add_argument('--tool', choices=RUNNERS)
-    parser.add_argument('--route', choices=tuple(CHECKS))
+    parser.add_argument('--route', choices=('auto', *CHECKS))
     parser.add_argument('--issue', choices=('home', 'adb', 'remote', 'settings', 'network', 'inputs', 'peripheral', 'apps'))
     parser.add_argument('--checks', default='', help='额外必要验收，逗号分隔；外设可用 peripheral:实际设备')
     parser.add_argument('--check', help='用户实际确认的验收项')

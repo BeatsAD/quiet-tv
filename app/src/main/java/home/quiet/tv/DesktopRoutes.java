@@ -79,7 +79,8 @@ final class DesktopRoutes {
         edit.putString("routeHome","DIRECT").putBoolean("observeHome",true).putBoolean("configured",true)
                 .putBoolean("directHomeKeys",state.directHomeAvailable()).apply();
         HomeGuardRecovery.cancel();HomeGuardService.cancelPending();
-        HomeGuardRecovery.request(context,"直接 HOME 开机补偿");
+        HomeGuardSync.refresh(context);
+        HomeGuardRecovery.ensureBinding(context,"直接 HOME 开机补偿");
         state.status("系统 HOME 已设置，开机补偿待核对");
     }
     void nativeObserver(){
@@ -90,7 +91,7 @@ final class DesktopRoutes {
         if(!state.nativeObserverConfigured())for(String scene:new String[]{"home","reboot","coldBoot","wake"})
             change.remove("routeTest_"+scene).remove("routeTestAt_"+scene).remove("routeTestEvidence_"+scene);
         if(!change.commit())throw new IllegalStateException("原桌面观察配置未保存");
-        HomeGuardSync.refresh(context);HomeGuardAdb.ensure(context);HomeGuardRecovery.request(context,"直接 HOME 原桌面观察");
+        HomeGuardSync.refresh(context);HomeGuardAdb.ensure(context);HomeGuardRecovery.ensureBinding(context,"直接 HOME 原桌面观察");
         state.status("系统 HOME 保留，原桌面观察已配置；按键、开机与唤醒待验证");
     }
     void directOnly(){
@@ -112,10 +113,11 @@ final class DesktopRoutes {
     void resume(){
         if(proxySelected()){String problem=new HomeProxy(context).resume();if(!problem.isEmpty())state.status(problem);return;}
 
-        prefs.edit().putString("mode","AUTO").putBoolean("configured",true).apply();
+        prefs.edit().remove("guardBindingChanged").putString("mode","AUTO").putBoolean("configured",true).apply();
         if(!"DIRECT".equals(home())){state.enable();return;}
         // Resume the selected direct route; do not silently add observation or key interception.
-        HomeGuardRecovery.request(context,"恢复开机补偿");
+        HomeGuardSync.refresh(context);
+        HomeGuardRecovery.ensureBinding(context,"恢复开机补偿");
         state.status("系统直接启动，开机补偿待核对");
     }
     String home(){return current()?prefs.getString("routeHome",state.enabled()?"RELAY":"UNKNOWN"):"UNKNOWN";}

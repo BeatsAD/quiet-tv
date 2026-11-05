@@ -19,6 +19,8 @@ final class HomeGuardRecoveryWindow {
     private int next,attempts;
     HomeGuardRecoveryWindow(Host host){this.host=host;}
     void start(){if(!started && !destroyed)restart();}
+    // A new external signal may check once after expiry, but never moves the deadline.
+    void request(){if(destroyed)return;if(!started)start();else check();}
     void restart(){
         if(destroyed)return;
         host.remove(tick);started=true;active=true;connectionChecked=false;waitingForUnlock=false;
