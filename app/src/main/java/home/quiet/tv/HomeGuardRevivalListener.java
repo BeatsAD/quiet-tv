@@ -33,6 +33,7 @@ public final class HomeGuardRevivalListener extends NotificationListenerService 
                 // No candidate/package/credential-protected state is touched before unlock.
                 if("OFF".equals(preferences.getString("mode","AUTO")))return "disabled_or_paused";
                 if(!HomeGuardState.unlocked(HomeGuardRevivalListener.this))return "locked";
+                if(HomeGuardRecovery.bindingBlocked(HomeGuardRevivalListener.this))return "secure_settings_changed";
                 HomeGuardState current=new HomeGuardState(HomeGuardRevivalListener.this);
                 if(!current.enabled())return "disabled_or_paused";
                 if(!current.recoveryReady())return "invalid_target";

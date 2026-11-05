@@ -39,6 +39,7 @@ public class QuietApplication extends Application {
         LegacyAdbHomeGuard.refresh(this);
         BroadcastReceiver screen=new BroadcastReceiver(){@Override public void onReceive(Context context,Intent intent){
             DiagnosticLog.info("screen",intent.getAction());
+            HomeGuardWake.screen(context,intent.getAction());
             if(Intent.ACTION_SCREEN_OFF.equals(intent.getAction())){KeySounds.stop();SettingsPageCapture.stopCurrent("screen_off");InputSourceObservation.stop("screen_off");SourcePairing pairing=SourcePairing.existing();if(pairing!=null)pairing.cancel("tv",true);}
             if(Intent.ACTION_USER_UNLOCKED.equals(intent.getAction()))KeySounds.prepare(context);
             if(!Intent.ACTION_SCREEN_OFF.equals(intent.getAction())){if(HomeGuardState.unlocked(context))new DesktopRoutes(context).restoreAfterUpgrade(true);BootHomeActivity.reconcile(context);}
