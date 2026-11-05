@@ -1,4 +1,4 @@
-plugins { id 'com.android.application' version '8.12.2' apply false }
+plugins { id 'com.android.application' version '9.4.1' apply false }
 
 // Independent outputs keep concurrent candidates away from the normal build directory.
 allprojects {
