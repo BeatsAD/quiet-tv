@@ -67,6 +67,8 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
         android.content.SharedPreferences daily=context.getSharedPreferences("adb",0);
         value.put("dailyManagement",new JSONObject().put("transport","tcp").put("port",daily.getInt("port",5555)).put("configured",daily.getBoolean("dailyManagement",false)));
         value.getJSONArray("capabilities").put("legacy-records-v1").put("proxy-setup-v1").put("remote-keymap-v1");
+        value.put("bootHome",BootHomeActivity.snapshot(context));
+        if(!BuildConfig.LEGACY_19 && BuildConfig.DECLARES_HOME && Build.VERSION.SDK_INT>=24)value.getJSONArray("capabilities").put("boot-home-v1");
         HomeProxy proxy=new HomeProxy(context);
         value.put("proxy",new JSONObject().put("selected","PROXY".equals(guard.preferences.getString("relaySource","")))
             .put("available",proxy.available()).put("component",proxy.component()).put("ready",proxy.ready())
@@ -169,6 +171,9 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
                 new DeviceInputProfile(context).save(intent.getStringExtra("profile_json"),intent.getStringExtra("revision"),"profile_reset".equals(operation));
             }else if("input_open".equals(operation)){
                 DeviceInputProfile.request(context,intent.getStringExtra("source"));
+            }else if("boot_home_reconcile".equals(operation)){
+                BootHomeActivity.reconcile(context);
+                if(!BootHomeActivity.snapshot(context).optBoolean("ready"))throw new IllegalStateException("解锁前 HOME 入口未就绪，保留记录并核对原桌面恢复");
             }else if("proxy_repair".equals(operation)){
                 HomeGuardState state=new HomeGuardState(context,false);
                 if(!"PROXY".equals(state.preferences.getString("relaySource","")))throw new IllegalStateException("当前未选择 HOME 代理");

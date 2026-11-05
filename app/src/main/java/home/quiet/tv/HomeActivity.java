@@ -560,7 +560,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         main.post(this::openMaintenanceInput);
     }
 
-    private boolean isHomeIntent(Intent intent){return Intent.ACTION_MAIN.equals(intent.getAction()) && intent.hasCategory(Intent.CATEGORY_HOME);}
+    private boolean isHomeIntent(Intent intent){return (Intent.ACTION_MAIN.equals(intent.getAction()) || Intent.ACTION_VIEW.equals(intent.getAction())) && intent.hasCategory(Intent.CATEGORY_HOME);}
 
     private void resetHomeFocus(){
         cancelMove();

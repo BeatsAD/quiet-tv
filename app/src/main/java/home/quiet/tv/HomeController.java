@@ -28,9 +28,14 @@ final class HomeController {
     HomeController(Context context){this(context,SetupPresets.load(context));}
     HomeController(Context context,SetupPresets presets){this.context=context;pm=context.getPackageManager();this.presets=presets;}
     static Intent homeIntent(){return new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME);}
-    static Intent launchIntent(Context context){return new Intent(context,HomeActivity.class).setAction(Intent.ACTION_MAIN)
-            .addCategory(BuildConfig.DECLARES_HOME?Intent.CATEGORY_HOME:Intent.CATEGORY_LAUNCHER)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);}
+    static Intent launchIntent(Context context){
+        ResolveInfo home=context.getPackageManager().resolveActivity(homeIntent(),PackageManager.MATCH_DEFAULT_ONLY);
+        boolean nativeHome=home!=null && home.activityInfo!=null && context.getPackageName().equals(home.activityInfo.packageName);
+        // Retained-stock and proxy routes must not replace the firmware's home process identity.
+        return new Intent(context,HomeActivity.class).setAction(BuildConfig.DECLARES_HOME && !nativeHome?Intent.ACTION_VIEW:Intent.ACTION_MAIN)
+                .addCategory(BuildConfig.DECLARES_HOME?Intent.CATEGORY_HOME:Intent.CATEGORY_LAUNCHER)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+    }
     private boolean ownEntryUsable(){
         if(BuildConfig.DECLARES_HOME)return component(new ComponentName(context,HomeActivity.class).flattenToString(),true);
         try{ActivityInfo info=pm.getActivityInfo(new ComponentName(context,HomeActivity.class),0);

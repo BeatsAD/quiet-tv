@@ -39,8 +39,9 @@ final class DesktopRoutes {
         return revision(ProxyContract.PACKAGE,false);
     }
     boolean current(){return revision().equals(prefs.getString("routeRevision",""));}
+    void restoreAfterUpgrade(){restoreAfterUpgrade(false);}
     @android.annotation.SuppressLint("ApplySharedPref")
-    void restoreAfterUpgrade(){
+    void restoreAfterUpgrade(boolean lifecycleChanged){
         if(!HomeGuardState.unlocked(context))return;
         String previous=prefs.getString("routeRevision",""),current=revision();
         if(DesktopRoutePolicy.upgradeCompatible(previous,current,legacyRevision(),Build.FINGERPRINT,BuildConfig.VERSION_CODE)){
@@ -60,7 +61,7 @@ final class DesktopRoutes {
             }
             DiagnosticLog.info("home_guard.upgrade","configuration_preserved scenes_require_retest");
         }
-        if(!proxyUpgradePending() || current.equals(attemptedProxyUpgrade))return;
+        if(!proxyUpgradePending() || !lifecycleChanged && current.equals(attemptedProxyUpgrade))return;
         attemptedProxyUpgrade=current;
         new HomeProxy(context).restoreUpgrade(current);
     }

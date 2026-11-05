@@ -257,10 +257,11 @@
         "versionCode": 1621,
         "user": 0,
         "disableVerified": true,
+        "disableRetestRequired": true,
         "uninstallVerified": false,
         "restoreInstallVerified": false,
         "keepAdb": true,
-        "evidence": "2026-10-26 用户明确要求在此机型及固件试用禁用原桌面并保持 ADB 的直接接管方案。诊断确认原桌面构建号 1621、用户 0、ADB 已连接，HOME 后约 5 秒才由守护返回 Quiet TV；本机禁用、恢复、实体 HOME、开机及待机效果尚未验证。"
+        "evidence": "2026-11-05：现有许可为历史实验，缺少完整验收；新停用待复验；历史资格仅供已有恢复记录兼容。2026-10-26 用户明确要求在此机型及固件试用禁用原桌面并保持 ADB 的直接接管方案。诊断确认原桌面构建号 1621、用户 0、ADB 已连接，HOME 后约 5 秒才由守护返回 Quiet TV；本机禁用、恢复、实体 HOME、开机及待机效果尚未验证。"
       }
     },
     {
@@ -272,10 +273,11 @@
         "versionCode": 919,
         "user": 0,
         "disableVerified": true,
+        "disableRetestRequired": true,
         "uninstallVerified": false,
         "restoreInstallVerified": false,
         "directTakeover": true,
-        "evidence": "2026-10-27 用户明确要求禁用原桌面，由系统直接启动 Quiet TV，不经过原桌面中转或系统选择框。诊断确认原桌面构建号 919、用户 0、Quiet TV 声明 HOME、ADB 已连接且提供 HOME 切换命令；禁用、恢复、实体 HOME、重启、冷启动及唤醒尚待本机验证。"
+        "evidence": "2026-11-05：现有许可为历史实验，缺少完整验收；新停用待复验；历史资格仅供已有恢复记录兼容。2026-10-27 用户明确要求禁用原桌面，由系统直接启动 Quiet TV，不经过原桌面中转或系统选择框。诊断确认原桌面构建号 919、用户 0、Quiet TV 声明 HOME、ADB 已连接且提供 HOME 切换命令；禁用、恢复、实体 HOME、重启、冷启动及唤醒尚待本机验证。"
       }
     }
   ],

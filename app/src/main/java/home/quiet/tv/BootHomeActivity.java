@@ -13,20 +13,28 @@ public final class BootHomeActivity extends Activity {
         @Override public void onReceive(Context context,Intent intent){forward();}
     };
 
-    /** Run on the catalog worker, after the foreground desktop has submitted its app list. */
+    @androidx.annotation.ChecksSdkIntAtLeast(api=24)
+    private static boolean supported(){return Build.VERSION.SDK_INT>=24 && !BuildConfig.LEGACY_19 && BuildConfig.DECLARES_HOME;}
+    private static boolean required(Context context){
+        PackageManager pm=context.getPackageManager();
+        int flags=PackageManager.MATCH_DIRECT_BOOT_AWARE|PackageManager.MATCH_DIRECT_BOOT_UNAWARE;
+        ResolveInfo resolved=pm.resolveActivity(HomeController.homeIntent(),flags|PackageManager.MATCH_DEFAULT_ONLY);
+        if(resolved==null || resolved.activityInfo==null || !context.getPackageName().equals(resolved.activityInfo.packageName))return false;
+        for(ResolveInfo candidate:pm.queryIntentActivities(HomeController.homeIntent(),flags))
+            if(candidate.activityInfo!=null && !context.getPackageName().equals(candidate.activityInfo.packageName)
+                    && candidate.priority>=-1 && !"android".equals(candidate.activityInfo.packageName)
+                    && !candidate.activityInfo.name.endsWith("FallbackHome"))return false;
+        return true;
+    }
+    /** Package replacement and locked boot must prepare the entry without opening credential storage. */
     static void reconcile(Context context){
-        if(Build.VERSION.SDK_INT<24 || BuildConfig.LEGACY_19 || !BuildConfig.DECLARES_HOME || !HomeGuardState.unlocked(context))return;
+        if(!supported())return;
         PackageManager pm=context.getPackageManager();ComponentName entry=new ComponentName(context,BootHomeActivity.class);
         try{
             int current=pm.getComponentEnabledSetting(entry);
             // Preserve an explicit external disable; our own inactive state is the manifest default.
             if(current!=PackageManager.COMPONENT_ENABLED_STATE_DEFAULT && current!=PackageManager.COMPONENT_ENABLED_STATE_ENABLED)return;
-            ResolveInfo resolved=pm.resolveActivity(HomeController.homeIntent(),PackageManager.MATCH_DEFAULT_ONLY);
-            boolean enable=resolved!=null && resolved.activityInfo!=null
-                && new ComponentName(context,HomeActivity.class).equals(new ComponentName(resolved.activityInfo.packageName,resolved.activityInfo.name));
-            if(enable)for(ResolveInfo candidate:pm.queryIntentActivities(HomeController.homeIntent(),0)){
-                if(candidate.activityInfo!=null && !context.getPackageName().equals(candidate.activityInfo.packageName) && candidate.priority>=-1){enable=false;break;}
-            }
+            boolean enable=required(context);
             int wanted=enable?PackageManager.COMPONENT_ENABLED_STATE_ENABLED:PackageManager.COMPONENT_ENABLED_STATE_DEFAULT;
             if(current!=wanted){
                 int flags=PackageManager.DONT_KILL_APP;
@@ -35,6 +43,19 @@ public final class BootHomeActivity extends Activity {
                 DiagnosticLog.info("home.boot_entry.config","enabled="+enable);
             }
         }catch(RuntimeException unavailable){DiagnosticLog.error("home.boot_entry.config_failed",unavailable);}
+    }
+
+    static org.json.JSONObject snapshot(Context context) throws org.json.JSONException {
+        org.json.JSONObject value=new org.json.JSONObject().put("supported",supported()).put("required",false).put("enabled",false).put("ready",!supported());
+        if(!supported())return value;
+        boolean needed=required(context);value.put("required",needed);
+        try{
+            PackageManager pm=context.getPackageManager();ComponentName entry=new ComponentName(context,BootHomeActivity.class);
+            ActivityInfo info=pm.getActivityInfo(entry,HomeController.METADATA);
+            int setting=pm.getComponentEnabledSetting(entry);
+            boolean enabled=setting==PackageManager.COMPONENT_ENABLED_STATE_ENABLED || setting==PackageManager.COMPONENT_ENABLED_STATE_DEFAULT && info.enabled;
+            return value.put("setting",setting).put("enabled",enabled).put("ready",!needed || enabled && info.directBootAware);
+        }catch(PackageManager.NameNotFoundException|SecurityException unavailable){return value.put("ready",!needed);}
     }
 
     @Override public void onCreate(Bundle state){
@@ -57,7 +78,7 @@ public final class BootHomeActivity extends Activity {
         ResolveInfo resolved=getPackageManager().resolveActivity(home,PackageManager.MATCH_DEFAULT_ONLY);
         if(resolved==null || resolved.activityInfo==null)return;
         ComponentName target=new ComponentName(resolved.activityInfo.packageName,resolved.activityInfo.name);
-        if(target.equals(getComponentName()))return;
+        if(target.equals(getComponentName()))target=new ComponentName(this,HomeActivity.class);
         // Resolve again after unlock; a user-selected original desktop or proxy remains authoritative.
         if(!"android".equals(target.getPackageName()))home.setComponent(target);
         try{
