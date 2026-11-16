@@ -44,6 +44,7 @@ final class UpdateInstallPreparation {
             // Only a positive measurement or an explicit ENOSPC establishes low capacity.
             // Rewriting this artifact's partial copy releases its existing allocation.
             long additional=bytes-(target.isFile()?Math.min(bytes,target.length()):0);
+            StorageEvidence.record(location,"installer_copy",additional,available,0,-1,-1,-1);
             if(available>0&&available<additional)throw new Failure("storage_full",step,location,bytes,available,null);
             step="copy";
             try(InputStream input=new FileInputStream(source);FileOutputStream output=new FileOutputStream(target)){

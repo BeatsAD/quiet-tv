@@ -50,7 +50,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     private void updateKeyFilter(){
         if(Build.VERSION.SDK_INT<21)return;
         AccessibilityServiceInfo info=getServiceInfo();if(info==null)return;
-        int flag=AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS;
+        int flag=AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS,previousFlags=info.flags;
         boolean observe=observeBootSource();
         RemoteKeyMap remote=new RemoteKeyMap(this);
         boolean wanted=HomeGuardState.canShow(this) && (homeKeys.pressed() || inputFilterSafe() && keyFilterCapable() && (filterHome() || observe || remote.observingFor()>0
@@ -61,11 +61,18 @@ public final class HomeGuardService extends AccessibilityService implements Shar
                 :!homeActionUsable()?(state==null?"service_not_ready":state.homeActionProblem()):!keyFilterCapable()?"filter_capability_unavailable"
                 :!inputReason.isEmpty()?inputReason:defaultHome() && !state.directHomeReady()?"native_home":"route_not_eligible";
         if(flags!=info.flags || events!=info.eventTypes){info.flags=flags;info.eventTypes=events;setServiceInfo(info);}
-        if(!reason.equals(keyFilterReason)){DiagnosticLog.info("home_guard.key_filter","enabled="+wanted+" bootObserve="+observe+" reason="+reason);keyFilterReason=reason;}
+        if(!reason.equals(keyFilterReason)||previousFlags!=flags){
+            String actual="unknown";
+            try{AccessibilityServiceInfo readback=getServiceInfo();if(readback!=null)actual=Integer.toString(readback.flags);}catch(RuntimeException unavailable){}
+            DiagnosticLog.info("home_guard.key_filter","enabled="+wanted+" previousFlags="+previousFlags+" requestedFlags="+flags+" actualFlags="+actual+" bootObserve="+observe+" reason="+reason);keyFilterReason=reason;
+        }
         keyFiltering=wanted;
         if(!wanted)homeKeys.reset();
     }
     @Override protected boolean onKeyEvent(KeyEvent event){
+        return InputDiagnostics.accessibility(event,keyFiltering,lastActivity,()->handleObservedKey(event));
+    }
+    private boolean handleObservedKey(KeyEvent event){
         RemoteKeyMap.observe(this,event,"accessibility");
         DiagnosticLog.navigationKey("existing_accessibility_callback",event);
         String remoteAction=new RemoteKeyMap(this).action(event);
@@ -184,6 +191,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     }
     static void inputSelected(Context c){inputSelected(c,false);}
     static void inputSelected(Context c,boolean automatic){
+        InputTransitionEvidence.selected(automatic?"automatic_input_callback":"input_callback");
         LegacyWindowHomeGuardService.inputSelected();
         if(!automatic)bootSourceUserAction(c,"input_selection");
         // The vendor source transition can briefly pass through its original HOME.
@@ -193,6 +201,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     }
     static void savedInputSelected(Context c){savedInputSelected(c,false);}
     static void savedInputSelected(Context c,boolean automatic){
+        InputTransitionEvidence.selected(automatic?"automatic_saved_input":"saved_input");
         LegacyWindowHomeGuardService.inputSelected();
         savedInputUntil=SystemClock.uptimeMillis()+HomeGuardPolicy.INPUT_TRANSITION_MS;
         if(!automatic)bootSourceUserAction(c,"saved_input_selection");
@@ -200,7 +209,8 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         HomeGuardRecovery.cancelHandover();
     }
     static boolean inputTransition(){long now=SystemClock.uptimeMillis();HomeGuardService service=instance;return now<savedInputUntil || service!=null && service.policy.inputTransition(now);}
-    static void cancelInputTransition(){boolean transition=inputTransition();savedInputUntil=0;HomeGuardService service=instance;if(service!=null){service.policy.cancelInput();service.transitionUntil=0;if(transition)service.cancel();}}
+    static String diagnosticInputState(){long now=SystemClock.uptimeMillis();HomeGuardService service=instance;return "savedInputRemainingMs="+Math.max(0,savedInputUntil-now)+" guardInputRemainingMs="+(service==null?"unknown":service.policy.inputDelay(now))+" guardSettleRemainingMs="+(service==null?"unknown":Math.max(0,service.transitionUntil-now));}
+    static void cancelInputTransition(){InputTransitionEvidence.cancelled();boolean transition=inputTransition();savedInputUntil=0;HomeGuardService service=instance;if(service!=null){service.policy.cancelInput();service.transitionUntil=0;if(transition)service.cancel();}}
     // Aerial 1.49: a vendor boot page may cover the first successful takeover much later.
     @android.annotation.SuppressLint("InlinedApi")
     private final Runnable bootRecheck=()->{

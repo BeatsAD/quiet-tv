@@ -15,16 +15,17 @@ final class ChildModeUi {
     TextView text(String value,float size,float height,int color){
         TextView text=new TextView(ui);text.setText(value);text.setTextColor(color);text.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,font(size));text.setTypeface(Typeface.DEFAULT);text.setIncludeFontPadding(false);text.setGravity(Gravity.CENTER_VERTICAL);text.setLayoutParams(new LinearLayout.LayoutParams(-1,p(height)));return text;
     }
-    GradientDrawable shape(int color,int border,float radius,float stroke){GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(p(radius));d.setStroke(Math.max(1,p(stroke)),border);return d;}
+    GradientDrawable shape(int color,int border,float radius,float stroke){GradientDrawable d=new SurfaceDrawable(ui.unit);d.setColor(color);d.setCornerRadius(p(radius));d.setStroke(Math.max(1,p(stroke)),border);return d;}
     Drawable focus(int color,int border,float radius,boolean primary){
-        return ControlStyle.action(ui.unit,radius/2,primary?0xff30343c:color,primary?0x25ffffff:border);
+        return new SettingsFocusDrawable(ui.unit,radius/2,primary?UiPalette.SELECTED:color,false,primary?UiPalette.EDGE:border);
     }
-    void choice(Button b,float radius){ControlStyle.choice(b,ui.unit,radius/2,0x04ffffff,0x1dffffff);}
+    void choice(Button b,float radius){ControlStyle.choice(b,ui.unit,radius/2,0x04ffffff,0x1dffffff);b.setGravity(Gravity.CENTER);b.setPadding(p(12),0,p(12),0);}
+    void selected(Button b,String label,boolean selected){b.setSelected(selected);b.setText(SettingsSelectionMark.label(label,selected,ui.unit));b.setContentDescription(label+(selected?"  已选择":""));}
     ImageView image(int resource,int color){ImageView image=new ImageView(ui);image.setImageDrawable(UiCompat.drawable(ui,resource));image.setColorFilter(color);image.setScaleType(ImageView.ScaleType.FIT_CENTER);image.setFocusable(false);androidx.core.view.ViewCompat.setImportantForAccessibility(image,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);return image;}
     Button button(String label,Runnable click,boolean primary){
-        Button b=ui.button(label,click);b.setSingleLine(true);b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,font(21.12f));b.setTypeface(Typeface.DEFAULT);b.setTextColor(ManagementUi.TEXT);b.setPadding(p(26.88f),0,p(26.88f),0);b.setBackgroundDrawable(focus(primary?0xffe7e9ec:0x06ffffff,primary?0xffe7e9ec:0x25ffffff,30,primary));return b;
+        Button b=ui.button(label,click);b.setSingleLine(true);b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,font(21.12f));b.setTypeface(Typeface.DEFAULT);b.setTextColor(SettingsFocusDrawable.textColors(ManagementUi.TEXT));b.setPadding(p(26.88f),0,p(26.88f),0);b.setBackgroundDrawable(focus(primary?UiPalette.TEXT:0x06ffffff,primary?UiPalette.TEXT:0x25ffffff,30,primary));return b;
     }
-    ImageView appIcon(android.graphics.drawable.Drawable art,float size,float radius){ImageView image=new ImageView(ui){private final Path clip=new Path();private final RectF imageBounds=new RectF();@Override protected void onDraw(Canvas canvas){imageBounds.set(0,0,getWidth(),getHeight());clip.reset();clip.addRoundRect(imageBounds,p(radius),p(radius),Path.Direction.CW);int save=canvas.save();canvas.clipPath(clip);super.onDraw(canvas);canvas.restoreToCount(save);}};image.setScaleType(ImageView.ScaleType.FIT_CENTER);image.setImageDrawable(art);image.setBackgroundDrawable(shape(0x09ffffff,0,radius,1));return image;}
+    ImageView appIcon(android.graphics.drawable.Drawable art,float size,float radius){ImageView image=new SurfaceCorners.Image(ui);image.setScaleType(ImageView.ScaleType.FIT_CENTER);image.setImageDrawable(art);image.setBackgroundDrawable(shape(0x09ffffff,0,radius,1));UiCompat.clipOutline(image);return image;}
     void place(FrameLayout parent,View view,float x,float y,float w,float h){FrameLayout.LayoutParams lp=new FrameLayout.LayoutParams(p(w),p(h));lp.leftMargin=p(x);lp.topMargin=p(y);parent.addView(view,lp);}
     void gap(LinearLayout parent,float height){parent.addView(new View(ui),new LinearLayout.LayoutParams(1,p(height)));}
     EditText number(String value,String hint,int digits){
@@ -32,7 +33,7 @@ final class ChildModeUi {
         input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);input.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(digits)});
         input.setGravity(Gravity.CENTER);input.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,font(23.04f));input.setIncludeFontPadding(false);
         input.setMinWidth(0);input.setMinimumWidth(0);input.setMinHeight(0);input.setMinimumHeight(0);input.setPadding(p(10),0,p(10),0);
-        input.setSelectAllOnFocus(true);ControlStyle.choice(input,ui.unit,5.76f,0x80080e15,0x25ffffff);
+        input.setSelectAllOnFocus(true);ControlStyle.choice(input,ui.unit,5.76f,0x80000000,0x25ffffff);
         if(android.os.Build.VERSION.SDK_INT>=21)input.setShowSoftInputOnFocus(false);return input;
     }
     private interface NumberKey {void enter(String value);}
@@ -101,12 +102,12 @@ final class ChildModeUi {
         }
         Sheet(String title,String description,int emblem,float width,boolean compact){
             this.width=width;dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
-            box.setClipChildren(false);body.setClipChildren(false);actions.setClipChildren(false);FrameLayout screen=new FrameLayout(ui);screen.setClipChildren(false);screen.setBackgroundColor(0xff0e0f13);
+            box.setClipChildren(false);body.setClipChildren(false);actions.setClipChildren(false);FrameLayout screen=new FrameLayout(ui);screen.setClipChildren(false);screen.setBackgroundColor(0xff000000);
             if(ui.stage.getWidth()>0 && ui.stage.getHeight()>0){
                 backdrop=Bitmap.createBitmap(Math.max(1,ui.stage.getWidth()/16),Math.max(1,ui.stage.getHeight()/16),Bitmap.Config.ARGB_8888);Canvas c=new Canvas(backdrop);c.scale(backdrop.getWidth()/(float)ui.stage.getWidth(),backdrop.getHeight()/(float)ui.stage.getHeight());ui.stage.draw(c);ImageView blurred=new ImageView(ui);blurred.setImageBitmap(backdrop);blurred.setScaleType(ImageView.ScaleType.FIT_XY);screen.addView(blurred,new FrameLayout.LayoutParams(-1,-1));
             }
             View dim=new View(ui);dim.setBackgroundColor(0xa6000000);screen.addView(dim,new FrameLayout.LayoutParams(-1,-1));
-            float padding=width>700?51.84f:57.6f,vertical=compact?30:width>700?51.84f:40.32f;box.setPadding(p(padding+1),p(vertical+1),p(padding+1),p(vertical+1));box.setBackgroundDrawable(ui.surface(0xff292c33,0xff1b1e24,0x38ffffff,compact?26:14.4f));FrameLayout.LayoutParams bp=new FrameLayout.LayoutParams(p(width),-2,Gravity.CENTER);screen.addView(box,bp);
+            float padding=width>700?51.84f:57.6f,vertical=compact?30:width>700?51.84f:40.32f;box.setPadding(p(padding+1),p(vertical+1),p(padding+1),p(vertical+1));box.setBackgroundDrawable(ui.surface(0xff000000,0xff000000,0x38ffffff,compact?26:14.4f));FrameLayout.LayoutParams bp=new FrameLayout.LayoutParams(p(width),-2,Gravity.CENTER);screen.addView(box,bp);
             ImageView icon=image(emblem,ManagementUi.MUTED);TextView heading=text(title,compact?32:36.48f,compact?44:51,ManagementUi.TEXT);heading.setGravity(Gravity.CENTER);UiCompat.letterSpacing(heading,.04f);
             if(compact){LinearLayout titleRow=ui.row();titleRow.setGravity(Gravity.CENTER);titleRow.addView(icon,new LinearLayout.LayoutParams(p(40),p(40)));LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-2,p(44));hp.leftMargin=p(14);titleRow.addView(heading,hp);box.addView(titleRow,new LinearLayout.LayoutParams(-1,p(44)));}
             else{LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(p(48),p(48));ip.gravity=Gravity.CENTER_HORIZONTAL;box.addView(icon,ip);gap(box,23.2f);box.addView(heading);}

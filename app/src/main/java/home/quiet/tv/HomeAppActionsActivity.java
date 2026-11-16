@@ -19,28 +19,44 @@ public final class HomeAppActionsActivity extends ManagementUi {
     private static final int DELETE=7202;
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private Dialog dialog;
+    private ManagementUi.Sheet sheet;
+    private boolean closing;
+    private String retainedFocus="";
+    private float retainedScroll;
     private LinearLayout box;
+    private FrameLayout sheetContent;
+    private LinearLayout menuBox;
+    private ScrollView menuScroll;
     private Bitmap backdrop;
     private String pkg,mode="menu",pickerMode="",candidate="";
     private boolean fromDock,pickerFromMenu,waitingForDelete;
     private int generation;
     private final HashMap<String,Bitmap> pictures=new HashMap<>();
+    @Override boolean unifiedSettings(){return true;}
     @Override boolean loadWallpaper(){return false;}
+    @Override void drawSheetBackdrop(Canvas canvas){if(backdrop==null)canvas.drawColor(0xe6000000);else canvas.drawBitmap(backdrop,null,new RectF(0,0,getResources().getDisplayMetrics().widthPixels,getResources().getDisplayMetrics().heightPixels),new Paint(3));}
     @Override public void onCreate(Bundle state){
-        super.onCreate(state);setContentView(new FrameLayout(this));
-        pkg=getIntent().getStringExtra("package");if(pkg==null)pkg="";
-        fromDock=getIntent().getBooleanExtra("dock",false);
-        backdrop=getIntent().getParcelableExtra("backdrop");
-        dialog=new KeyFeedback.Dialog(this);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
-        dialog.setCanceledOnTouchOutside(true);dialog.setOnCancelListener(d->{handleBack();KeyFeedback.returned(this);});
-        if(getIntent().getBooleanExtra("add",false))picker("add",false);else menu();
+        super.onCreate(state);stage.removeAllViews();stage.setBackgroundColor(Color.TRANSPARENT);
+        pkg=getIntent().getStringExtra("package");if(pkg==null)pkg="";fromDock=getIntent().getBooleanExtra("dock",false);backdrop=getIntent().getParcelableExtra("backdrop");
+        if(state!=null){pkg=state.getString("app-menu-package",pkg);fromDock=state.getBoolean("app-menu-dock",fromDock);mode=state.getString("app-menu-mode","menu");pickerMode=state.getString("app-menu-picker","");pickerFromMenu=state.getBoolean("app-menu-from-menu");candidate=state.getString("app-menu-candidate","");retainedFocus=state.getString("app-menu-focus","");retainedScroll=state.getFloat("app-menu-scroll");waitingForDelete=state.getBoolean("app-menu-waiting-delete");}
+        sheet=new Sheet("");sheet.settingsLayout("关闭",this::finish);sheet.settingsActions(false);dialog=sheet.dialog;box=sheet.body;sheetContent=(FrameLayout)sheet.box.getParent();dialog.setCanceledOnTouchOutside(true);
+        // Keep one full-screen surface and dim layer while switching menu and sheet content.
+        dialog.getWindow().setLayout(-1,-1);dialog.getWindow().getDecorView().setSystemUiVisibility(5894);
+        dialog.setOnCancelListener(d->finish());dialog.setOnKeyListener((d,key,event)->{if(key!=KeyEvent.KEYCODE_BACK&&key!=KeyEvent.KEYCODE_ESCAPE)return false;if(event.getAction()==KeyEvent.ACTION_UP){finish();KeyFeedback.back(this);}return true;});
+        if(state!=null&&mode.equals("picker"))picker(pickerMode,pickerFromMenu);
+        else if(state!=null&&mode.equals("cover"))coverMenu();
+        else if(state!=null&&mode.equals("unpin"))confirmUnpin();
+        else if(state!=null&&mode.equals("uninstall"))confirmUninstall();
+        else if(state!=null&&mode.equals("auth"))authorizeUninstall();
+        else if(getIntent().getBooleanExtra("add",false))picker("add",false);else menu();
+        if(waitingForDelete)dialog.hide();
     }
     private String name(String id){
         if(HomeAppCatalog.WATCH_TV.equals(id))return "看电视";
         if(HomeAppCatalog.WALLPAPER.equals(id))return "壁纸设置";
         if(HomeAppCatalog.DESKTOP_SETTINGS.equals(id))return "桌面设置";
         if(HomeAppCatalog.MANAGEMENT.equals(id))return "应用管理";
-        try{return getPackageManager().getApplicationLabel(getPackageManager().getApplicationInfo(id,0)).toString();}
+        try{return new AppNameStore(this).display(id,getPackageManager().getApplicationLabel(getPackageManager().getApplicationInfo(id,0)).toString());}
         catch(PackageManager.NameNotFoundException e){return id;}
     }
     private AppRepository.App metadata(String id){
@@ -55,48 +71,79 @@ public final class HomeAppActionsActivity extends ManagementUi {
         return app!=null && new AppOperations(this).hidingProtection(app).isEmpty() && new ChildModeStore(this).eligible(pkg) && new HomeAppCatalog(this).launchable().containsKey(pkg);
     }
     private void content(String page,String title){
-        mode=page;++generation;box=column();box.setPadding(px(16),px(16),px(16),px(16));box.setBackgroundDrawable(surface(0xff30343e,0xff23272f,0x38ffffff,16));
-        if((page.equals("menu")||page.equals("picker"))&&backdrop!=null)box.setBackgroundDrawable(new DockBackdropDrawable((canvas,paint)->{paint.setAlpha(255);canvas.drawBitmap(backdrop,null,new RectF(0,0,getResources().getDisplayMetrics().widthPixels,getResources().getDisplayMetrics().heightPixels),paint);},box,getWindow().getDecorView(),unit));
-        if(!title.isEmpty()){TextView heading=label(title,22);heading.setSingleLine(true);heading.setEllipsize(android.text.TextUtils.TruncateAt.END);heading.setPadding(px(8),px(4),px(8),px(14));box.addView(heading);}
-        dialog.setContentView(box);
+        mode=page;++generation;
+        if(page.equals("menu")){
+            if(menuBox!=null)sheetContent.removeView(menuBox);sheet.box.setVisibility(View.GONE);
+            menuBox=column();menuBox.setClickable(true);menuBox.setPadding(px(16),px(16),px(16),px(16));menuBox.setBackgroundDrawable(new MenuBackdrop());
+            menuScroll=new ScrollView(this){@Override protected void onMeasure(int w,int h){super.onMeasure(w,View.MeasureSpec.makeMeasureSpec(getResources().getDisplayMetrics().heightPixels-px(64),View.MeasureSpec.AT_MOST));}};menuScroll.setVerticalScrollBarEnabled(false);menuScroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
+            box=column();menuScroll.addView(box);menuBox.addView(menuScroll);sheetContent.addView(menuBox,new FrameLayout.LayoutParams(px(200),-2,Gravity.TOP|Gravity.LEFT));return;
+        }
+        if(menuBox!=null)menuBox.setVisibility(View.GONE);sheet.box.setVisibility(View.VISIBLE);
+        box=sheet.body;box.removeAllViews();sheet.actions.removeAllViews();sheet.settingsActions(false);sheet.heading.setText(title);sheet.heading.setSingleLine(true);sheet.heading.setEllipsize(android.text.TextUtils.TruncateAt.END);sheet.scroll.scrollTo(0,0);
     }
-    private void show(int width,View focus,boolean anchored){
-        Window window=dialog.getWindow();window.setWindowAnimations(R.style.QuietDialogAnimation);window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);window.setDimAmount(.35f);window.getDecorView().setSystemUiVisibility(5894);window.setLayout(px(width),-2);
-        if(anchored){
-            box.measure(View.MeasureSpec.makeMeasureSpec(px(width),View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec(px(490),View.MeasureSpec.AT_MOST));
-            int screenWidth=getResources().getDisplayMetrics().widthPixels,screenHeight=getResources().getDisplayMetrics().heightPixels;
-            int x=getIntent().getIntExtra("anchor-x",screenWidth/2),y=getIntent().getIntExtra("anchor-y",screenHeight/2),bottom=getIntent().getIntExtra("anchor-bottom",y);
-            WindowManager.LayoutParams p=window.getAttributes();p.gravity=Gravity.TOP|Gravity.LEFT;p.x=Math.max(px(16),Math.min(screenWidth-px(width+16),x-px(width/2f)));
-            p.y=y>box.getMeasuredHeight()+px(16)?y-box.getMeasuredHeight()-px(10):Math.min(screenHeight-box.getMeasuredHeight()-px(16),bottom+px(10));window.setAttributes(p);
-        }else{WindowManager.LayoutParams p=window.getAttributes();p.gravity=Gravity.CENTER;p.x=0;p.y=0;window.setAttributes(p);}
-        dialog.show();if(focus!=null)focus.requestFocus();
+    private void show(float width,View focus,boolean anchored){
+        if(mode.equals("menu")){showMenu(focus);return;}
+        sheet.box.getLayoutParams().width=px(width);sheet.show(null);View requested=retainedFocus.isEmpty()?null:sheet.box.findViewWithTag(retainedFocus);if(requested==null||!requested.isEnabled())requested=focus;retainedFocus="";View target=requested;
+        sheet.box.post(()->{if(closing)return;if(target!=null){target.requestFocusFromTouch();Rect area=new Rect();target.getDrawingRect(area);target.requestRectangleOnScreen(area,false);}if(retainedScroll>0){sheet.scroll.scrollTo(0,px(retainedScroll));retainedScroll=0;}});
     }
     private Button option(String label,int icon,Runnable action){
-        Button b=button(label,action);b.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);b.setPadding(px(14),0,px(12),0);b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(16));b.setFocusableInTouchMode(true);
-        StateListDrawable background=new StateListDrawable();background.addState(new int[]{android.R.attr.state_focused},surface(0xffeff0f4,0xffeff0f4,0,10));background.addState(new int[]{},surface(0,0,0,10));b.setBackgroundDrawable(background);
-        b.setTextColor(new ColorStateList(new int[][]{{-android.R.attr.state_enabled},{android.R.attr.state_focused},{}},new int[]{0xff777d88,0xff191d24,label.equals("卸载")?0xffe8aaa6:TEXT}));
-        if(icon!=0){Drawable image=androidx.core.graphics.drawable.DrawableCompat.wrap(UiCompat.drawable(this,icon)).mutate();androidx.core.graphics.drawable.DrawableCompat.setTintList(image,b.getTextColors());image.setBounds(0,0,px(21),px(21));b.setCompoundDrawables(image,null,null,null);b.setCompoundDrawablePadding(px(13));}
-        box.addView(b,new LinearLayout.LayoutParams(-1,px(43)));return b;
+        if(mode.equals("menu")){
+            Button b=button(label,action);b.setTag("app-menu-"+label);b.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);b.setPadding(px(14),0,px(12),0);b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(16));
+            StateListDrawable background=new StateListDrawable();background.addState(new int[]{android.R.attr.state_focused},menuSurface(0xffeff0f4,0xffeff0f4,0,10));background.addState(new int[0],menuSurface(0,0,0,10));b.setBackgroundDrawable(background);
+            b.setTextColor(new ColorStateList(new int[][]{{-android.R.attr.state_enabled},{android.R.attr.state_focused},{}},new int[]{0xff777d88,0xff191d24,label.equals("卸载应用")?0xffe8aaa6:0xffeff0f4}));
+            if(icon!=0){Drawable image=androidx.core.graphics.drawable.DrawableCompat.wrap(UiCompat.drawable(this,icon)).mutate();androidx.core.graphics.drawable.DrawableCompat.setTintList(image,b.getTextColors());image.setBounds(0,0,px(21),px(21));b.setCompoundDrawables(image,null,null,null);b.setCompoundDrawablePadding(px(13));}
+            box.addView(b,new LinearLayout.LayoutParams(-1,px(43)));return b;
+        }
+        Button b=button(label,action);b.setTag("app-menu-"+label);b.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);b.setPadding(px(12.96f),0,px(12.96f),0);QuickControlPreviewView.type(b,19.2f,26.88f,unit,UiPalette.TEXT);b.setPadding(px(12.96f),0,px(12.96f),0);b.setTextColor(SettingsFocusDrawable.textColors(UiPalette.TEXT));b.setBackgroundDrawable(new SettingsFocusDrawable(unit,999,UiPalette.CONTROL,false,UiPalette.EDGE));
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,px(39.3574f));if(box.getChildCount()>0)p.topMargin=px(7.2f);box.addView(b,p);return b;
     }
     private void menu(){
-        pickerMode="";content("menu","");boolean real=!pkg.startsWith("quiet:")&&!pkg.isEmpty();String protectedReason=protection();Button first;
+        pickerMode="";content("menu",name(pkg));boolean real=!pkg.startsWith("quiet:")&&!pkg.isEmpty();String protectedReason=protection();Button first;
         first=option("移动",R.drawable.ic_app_move,()->{setResult(RESULT_OK,new Intent().putExtra("action","move").putExtra("package",pkg).putExtra("dock",fromDock));finish();});
-        boolean canAdd=new DockStore(this).loadAvailable().size()<DockStore.CAPACITY;
+        boolean canAdd=new DockStore(this).loadAvailable().size()<new DockStore(this).capacity();
         if(fromDock){option("替换应用",R.drawable.ic_manage_refresh,()->picker("replace",true));Button add=option("添加应用",R.drawable.ic_manage_plus,()->picker("add",true));add.setEnabled(canAdd);}
-        Button home=option(fromDock?"移出首页":"添加到首页",fromDock?R.drawable.ic_manage_back:R.drawable.ic_manage_plus,()->{if(fromDock)unpin();else pin(pkg);});home.setEnabled(fromDock||canAdd);
+        Button home=option(fromDock?"移除首页位置":"添加到首页",fromDock?R.drawable.ic_manage_back:R.drawable.ic_manage_plus,()->{if(fromDock)confirmUnpin();else pin(pkg);});home.setEnabled(fromDock||canAdd);
         Button hide=option("隐藏",R.drawable.ic_child_hidden,this::hide);hide.setEnabled(canHide());
-        Button uninstall=option("卸载",R.drawable.ic_manage_trash,this::authorizeUninstall);uninstall.setEnabled(real&&protectedReason.isEmpty());
+        Button uninstall=option("卸载应用",R.drawable.ic_manage_trash,this::authorizeUninstall);uninstall.setEnabled(real&&protectedReason.isEmpty());
+        Button cover=option("更换封面",R.drawable.ic_home_wallpaper,this::coverMenu);cover.setEnabled(AppCoverPolicy.allowed(this,pkg));option("管理此应用",R.drawable.ic_manage_apps,()->{startActivity(new Intent(this,AppManagementActivity.class).putExtra("management-page",SettingsPages.APPS).putExtra("selected-package",pkg).putExtra("focus-app-details",true).putExtra("backdrop",backdrop));finish();});
         show(200,first,true);
+    }
+    private GradientDrawable menuSurface(int top,int bottom,int stroke,int radius){GradientDrawable shape=new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{top,bottom});shape.setCornerRadius(px(radius));shape.setStroke(px(1),stroke);return shape;}
+    private void showMenu(View focus){
+        menuBox.measure(View.MeasureSpec.makeMeasureSpec(px(200),View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec(getResources().getDisplayMetrics().heightPixels-px(32),View.MeasureSpec.AT_MOST));
+        int screenWidth=getResources().getDisplayMetrics().widthPixels,screenHeight=getResources().getDisplayMetrics().heightPixels,x=getIntent().getIntExtra("anchor-x",screenWidth/2),y=getIntent().getIntExtra("anchor-y",screenHeight/2),bottom=getIntent().getIntExtra("anchor-bottom",y);
+        FrameLayout.LayoutParams position=(FrameLayout.LayoutParams)menuBox.getLayoutParams();position.leftMargin=Math.max(px(16),Math.min(screenWidth-px(216),x-px(100)));position.topMargin=y>menuBox.getMeasuredHeight()+px(16)?y-menuBox.getMeasuredHeight()-px(10):Math.min(screenHeight-menuBox.getMeasuredHeight()-px(16),bottom+px(10));menuBox.setLayoutParams(position);
+        dialog.show();View requested=retainedFocus.isEmpty()?null:menuBox.findViewWithTag(retainedFocus);if(requested==null||!requested.isEnabled())requested=focus;retainedFocus="";View target=requested;menuBox.post(()->{if(closing)return;if(target!=null)target.requestFocusFromTouch();if(retainedScroll>0){menuScroll.scrollTo(0,px(retainedScroll));retainedScroll=0;}});
+    }
+    /** Keeps the 1.3.6 menu's round corners and wallpaper tint local to this surface. */
+    private final class MenuBackdrop extends Drawable {
+        private final Paint paint=new Paint(3);private final RectF area=new RectF();private final Path clip=new Path();private final int[] location=new int[2];private final GradientDrawable fallback=menuSurface(0xff30343e,0xff23272f,0x38ffffff,16);private Shader tint;
+        @Override protected void onBoundsChange(Rect bounds){area.set(bounds);clip.reset();clip.addRoundRect(area,22*unit,22*unit,Path.Direction.CW);tint=new LinearGradient(0,bounds.top,0,bounds.bottom,0x30e6e8ec,0x202c3038,Shader.TileMode.CLAMP);fallback.setBounds(bounds);}
+        @Override public void draw(Canvas canvas){if(backdrop==null){fallback.draw(canvas);return;}float radius=22*unit;paint.setStyle(Paint.Style.FILL);paint.setShader(null);paint.setColor(0x18000000);int save=canvas.save();canvas.translate(0,2*unit);canvas.drawRoundRect(area,radius,radius,paint);canvas.restoreToCount(save);save=canvas.save();canvas.clipPath(clip);menuBox.getLocationOnScreen(location);canvas.translate(-location[0],-location[1]);paint.setAlpha(255);canvas.drawBitmap(backdrop,null,new RectF(0,0,getResources().getDisplayMetrics().widthPixels,getResources().getDisplayMetrics().heightPixels),paint);canvas.restoreToCount(save);paint.setAlpha(255);paint.setShader(tint);canvas.drawRoundRect(area,radius,radius,paint);paint.setShader(null);float stroke=Math.max(1,.5f*unit);area.inset(stroke/2,stroke/2);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(stroke);paint.setColor(0x66ffffff);canvas.drawRoundRect(area,radius-stroke/2,radius-stroke/2,paint);area.inset(-stroke/2,-stroke/2);paint.setStyle(Paint.Style.FILL);}
+        @Override public void setAlpha(int alpha){}@Override public void setColorFilter(ColorFilter filter){}@Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
     }
     private void changed(String focus){setResult(RESULT_OK,new Intent().putExtra("action","changed").putExtra("package",focus));finish();}
     private void failure(String message){content("notice","未完成");box.addView(muted(message,14));Button close=option("返回",R.drawable.ic_manage_back,this::handleBack);show(400,close,false);}
     private void hide(){if(!canHide()){failure("此应用必须保留或已不可用");return;}if(new HomeVisibilityStore(this).hide(pkg)){Toast.makeText(this,"已隐藏，可在“应用管理 → 隐藏应用”中恢复",Toast.LENGTH_SHORT).show();changed("");}else failure("保存失败，请重试");}
-    private void unpin(){ArrayList<String> values=new DockStore(this).loadAvailable();values.remove(pkg);if(new DockStore(this).saveOrder(values))changed("");else failure("保存失败，请重试");}
+    private void confirmUnpin(){
+        if(!fromDock||!new DockStore(this).loadAvailable().contains(pkg)){failure("首页位置已变化，请重新选择");return;}
+        content("unpin","移除首页位置？");
+        LinearLayout identity=row();identity.setGravity(Gravity.CENTER_VERTICAL);
+        ResolveInfo entry=new HomeAppCatalog(this).find(pkg);Bitmap artwork=entry==null?HomeEntryArtwork.render(this,name(pkg),pkg):AppArtwork.load(this,entry);
+        DesktopSettingsStore appearance=new DesktopSettingsStore(this);boolean rectangle="rectangle".equals(appearance.iconShape());
+        ImageView image=new ImageView(this);image.setImageDrawable(new AppShapeDrawable(artwork,"circle".equals(appearance.iconShape()),AppCoverStore.get(this).contain(pkg)));image.setScaleType(ImageView.ScaleType.FIT_XY);image.setContentDescription(name(pkg));identity.addView(image,new LinearLayout.LayoutParams(px(78),px(rectangle?44:78)));
+        LinearLayout copy=column();TextView title=label(name(pkg),18);QuickControlPreviewView.type(title,24,33.6f,unit,UiPalette.TEXT);title.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));title.setMaxLines(2);title.setEllipsize(android.text.TextUtils.TruncateAt.END);copy.addView(title,new LinearLayout.LayoutParams(-1,-2));
+        TextView description=muted("应用和数据保留，可在「全部应用」中找到。",12);QuickControlPreviewView.type(description,17.28f,27.2f,unit,UiPalette.SECONDARY);copy.addView(description,new LinearLayout.LayoutParams(-1,-2));LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,-2,1);cp.leftMargin=px(12.96f);identity.addView(copy,cp);
+        LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(-1,-2);ip.topMargin=px(12.96f);box.addView(identity,ip);
+        sheet.settingsActions(true);Button cancel=sheet.action("取消",this::finish);cancel.setTag("app-unpin-cancel");
+        Button confirm=sheet.action("移除首页位置",this::unpin);confirm.setTag("app-unpin-confirm");confirm.setBackgroundDrawable(new SettingsFocusDrawable(unit,999,UiPalette.SELECTED,false,0x4dffffff));show(560,cancel,false);
+    }
+    private void unpin(){ArrayList<String> values=new DockStore(this).load();if(!values.remove(pkg)){failure("首页位置已变化，请重新选择");return;}if(new DockStore(this).saveOrder(values))changed("");else failure("保存失败，请重试");}
     private void pin(String id){
         ArrayList<String> values=new DockStore(this).loadAvailable();
         if(!available(id)){failure("应用状态已变化，请重新选择");return;}
         if(values.contains(id)){changed(id);return;}
-        candidate=id;if(values.size()>=DockStore.CAPACITY){menu();return;}
+        candidate=id;if(values.size()>=new DockStore(this).capacity()){menu();return;}
         values.add(id);if(new DockStore(this).saveOrder(values))changed(id);else failure("保存失败，请重试");
     }
     private boolean available(String id){for(HomeAppCatalog.Entry entry:new HomeAppCatalog(this).load(new DockStore(this).load()))if(id.equals(entry.id))return true;return false;}
@@ -105,56 +152,56 @@ public final class HomeAppActionsActivity extends ManagementUi {
         pickerMode=choice;pickerFromMenu=fromMenu;int request=++generation;
         worker.execute(()->{
             ArrayList<HomeAppCatalog.Entry> choices=new ArrayList<>();HashMap<String,Bitmap> artwork=new HashMap<>();String error=null;
-            try{ArrayList<String> pinned=new DockStore(this).load();for(HomeAppCatalog.Entry entry:new HomeAppCatalog(this).load(pinned))if(!pinned.contains(entry.id)){choices.add(entry);artwork.put(entry.id,entry.info==null?HomeEntryArtwork.render(this,entry.label,entry.id):AppArtwork.load(this,entry.info));}}
+            try{ArrayList<String> pinned=new DockStore(this).load();for(HomeAppCatalog.Entry entry:new HomeAppCatalog(this).load(pinned))if(!pinned.contains(entry.id)||"replace".equals(pickerMode)&&entry.id.equals(pkg)){choices.add(entry);artwork.put(entry.id,entry.info==null?HomeEntryArtwork.render(this,entry.label,entry.id):AppArtwork.load(this,entry.info));}}
             catch(RuntimeException e){error="无法读取应用列表";}
             String problem=error;runOnUiThread(()->{if(isFinishing()||UiCompat.destroyed(this)||request!=generation)return;if(problem!=null){failure(problem);return;}pictures.putAll(artwork);pickerGrid(choices);});
         });
     }
     private void pickerGrid(List<HomeAppCatalog.Entry> choices){
-        content("picker",pickerMode.equals("replace")?"替换应用":"添加应用");
-        ScrollView scroll=new ScrollView(this){@Override protected void onMeasure(int w,int h){super.onMeasure(w,View.MeasureSpec.makeMeasureSpec(px(340),View.MeasureSpec.AT_MOST));}};
-        scroll.setVerticalScrollBarEnabled(false);scroll.setHorizontalScrollBarEnabled(false);scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
-        LinearLayout grid=column();grid.setPadding(px(5),px(16),px(5),px(8));scroll.addView(grid);box.addView(scroll);View first=null;LinearLayout line=null;
+        content("picker","replace".equals(pickerMode)?"替换应用":"添加应用");LinearLayout grid=column();grid.setClipChildren(false);grid.setClipToPadding(false);box.addView(grid,new LinearLayout.LayoutParams(-1,-2));LinearLayout line=null;View first=null;DesktopSettingsStore appearance=new DesktopSettingsStore(this);boolean rectangle="rectangle".equals(appearance.iconShape());
         for(int i=0;i<choices.size();i++){
-            HomeAppCatalog.Entry entry=choices.get(i);if(i%5==0){line=row();line.setGravity(Gravity.TOP);grid.addView(line);}
-            LinearLayout card=column();card.setFocusable(true);card.setFocusableInTouchMode(true);card.setClickable(true);card.setPadding(px(5),px(5),px(5),px(7));StateListDrawable focusBorder=new StateListDrawable();focusBorder.addState(new int[]{android.R.attr.state_focused},surface(0,0,0xfff3f4f7,10));focusBorder.addState(new int[]{},new ColorDrawable(Color.TRANSPARENT));card.setBackgroundDrawable(focusBorder);card.setContentDescription("选择 "+entry.label);
-            ImageView image=new ImageView(this);androidx.core.graphics.drawable.RoundedBitmapDrawable cover=androidx.core.graphics.drawable.RoundedBitmapDrawableFactory.create(getResources(),pictures.get(entry.id));cover.setCornerRadius(px(11));cover.setAntiAlias(true);image.setImageDrawable(cover);image.setScaleType(ImageView.ScaleType.FIT_XY);LinearLayout.LayoutParams imageSize=new LinearLayout.LayoutParams(px(116),px(116*203f/360f));imageSize.gravity=Gravity.CENTER_HORIZONTAL;card.addView(image,imageSize);
-            TextView title=center(entry.label,12);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);card.addView(title,new LinearLayout.LayoutParams(-1,px(28)));
-            card.setOnClickListener(v->KeyFeedback.clicked(v,()->select(entry.id)));line.addView(card,new LinearLayout.LayoutParams(0,-2,1));if(first==null||entry.id.equals(candidate))first=card;
-            if(i==choices.size()-1)for(int n=i%5+1;n<5;n++)line.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));
+            HomeAppCatalog.Entry entry=choices.get(i);if(i%4==0){line=row();line.setGravity(Gravity.TOP);line.setClipChildren(false);LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2);if(i>0)rp.topMargin=px(10.56f);grid.addView(line,rp);}
+            LinearLayout card=column();card.setGravity(Gravity.CENTER_HORIZONTAL);card.setFocusable(true);card.setFocusableInTouchMode(true);card.setClickable(true);card.setTag("app-choice-"+entry.id);card.setId(androidx.core.view.ViewCompat.generateViewId());card.setDescendantFocusability(android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS);card.setPadding(px(10.35f),px(10.35f),px(10.35f),px(10.35f));card.setBackgroundDrawable(new SettingsFocusDrawable(unit,8.64f,0x06ffffff,false,0x22ffffff));card.setContentDescription("选择 "+entry.label);
+            ImageView image=new ImageView(this);image.setImageDrawable(new AppShapeDrawable(pictures.get(entry.id),"circle".equals(appearance.iconShape()),AppCoverStore.get(this).contain(entry.id)));image.setScaleType(ImageView.ScaleType.FIT_XY);card.addView(image,new LinearLayout.LayoutParams(-1,px(rectangle?78.164f:138.96f)));
+            TextView title=center(entry.label,12);QuickControlPreviewView.type(title,15.36f,21.5f,unit,UiPalette.TEXT);title.setTextColor(SettingsFocusDrawable.textColors(UiPalette.TEXT));title.setDuplicateParentStateEnabled(true);title.setSingleLine();title.setEllipsize(android.text.TextUtils.TruncateAt.END);LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(-1,px(16.125f));tp.topMargin=px(7.68f);card.addView(title,tp);
+            card.setOnClickListener(v->KeyFeedback.clicked(v,()->select(entry.id)));SettingsTouchClick.attach(card);
+            LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,-2,1);if(i%4>0)cp.leftMargin=px(10.56f);line.addView(card,cp);if(first==null||entry.id.equals(candidate))first=card;
+            if(i==choices.size()-1)for(int n=i%4+1;n<4;n++){LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(0,1,1);sp.leftMargin=px(10.56f);line.addView(new View(this),sp);}
         }
-        if(choices.isEmpty())box.addView(center("暂无可添加的应用",16));Button cancel=option("取消",0,()->{if(pickerFromMenu)menu();else finish();});show(700,first==null?cancel:first,false);
+        if(choices.isEmpty())box.addView(center("所有可用应用已在首页",16));show(707.82f,first,false);
     }
     private void select(String id){
-        if(!available(id)||new DockStore(this).loadAvailable().contains(id)){failure("应用状态已变化，请重新选择");return;}
+        if(!available(id)||new DockStore(this).loadAvailable().contains(id)&&!("replace".equals(pickerMode)&&id.equals(pkg))){failure("应用状态已变化，请重新选择");return;}
         if(!pickerMode.equals("replace")){pin(id);return;}
         ArrayList<String> values=new DockStore(this).loadAvailable();int index=values.indexOf(pkg);if(index<0){failure("原位置已变化，请重新选择");return;}
         values.set(index,id);if(new DockStore(this).saveOrder(values))changed(id);else failure("保存失败，请重试");
     }
     private void authorizeUninstall(){
         if(!protection().isEmpty()){failure(protection());return;}
-        if(new ChildModeStore(this).configured()){dialog.dismiss();ChildModeAuth.show(this,this::confirmUninstall,this::finish);}else confirmUninstall();
+        confirmUninstall();
     }
     private void confirmUninstall(){
         AppRepository.App app=metadata(pkg);if(app==null||!app.installed||!protection().isEmpty()){failure("应用状态已变化，不能卸载");return;}
-        content("uninstall","卸载 "+name(pkg)+"？");box.addView(muted("卸载后将删除此应用的数据",14));Button cancel=option("取消",0,this::menu);
-        option(app.system?"在应用管理中继续":"卸载",R.drawable.ic_manage_trash,()->{
+        content("uninstall","卸载应用？");sheet.text(name(pkg));TextView warning=muted(app.system?"此系统应用需在管理应用中继续处理，请先核对当前可用操作。":"卸载当前用户下的此应用，并删除该用户的应用数据。再次使用需要重新安装，数据不能恢复。",12);QuickControlPreviewView.type(warning,14.464f,23.8656f,unit,UiPalette.SECONDARY);box.addView(warning);sheet.settingsActions(true);Button cancel=sheet.action("取消",this::finish);
+        Button confirm=sheet.action(app.system?"在应用管理中继续":"确认卸载应用",()->{
             AppRepository.App latest=metadata(pkg);
             if(latest==null||!latest.installed||latest.system!=app.system||!protection().isEmpty()||new ChildModeStore(this).hidden(pkg)){failure("应用状态已变化，请重新确认");return;}
             if(app.system){startActivity(new Intent(this,AppManagementActivity.class).putExtra("selected-package",pkg));finish();return;}
-            Intent intent=new Intent(Intent.ACTION_DELETE,Uri.parse("package:"+pkg)).putExtra(Intent.EXTRA_RETURN_RESULT,true);
-            waitingForDelete=true;
-            if(ExternalActivityLauncher.dispatch("entry=app.uninstall "+DiagnosticLog.intent(intent),()->startActivityForResult(intent,DELETE)))dialog.dismiss();
-            else{waitingForDelete=false;failure("系统卸载入口不可用，应用已保留");}
-        });show(470,cancel,false);
+            ChildModeAuth.uninstall(this,pkg,stamp->{
+                try{new ChildModeStore(this).requireUninstallAuthorization(pkg,stamp);}catch(java.io.IOException error){failure(error.getMessage());return;}
+                Intent intent=new Intent(Intent.ACTION_DELETE,Uri.parse("package:"+pkg)).putExtra(Intent.EXTRA_RETURN_RESULT,true);
+                waitingForDelete=true;
+                if(ExternalActivityLauncher.dispatch("entry=app.uninstall "+DiagnosticLog.intent(intent),()->startActivityForResult(intent,DELETE)))dialog.dismiss();
+                else{waitingForDelete=false;failure("系统卸载入口不可用，应用已保留");}
+            },()->cancel.requestFocusFromTouch());
+        });confirm.setBackgroundDrawable(new SettingsFocusDrawable(unit,999,UiPalette.SELECTED,false,0x4dffffff));show(537.6f,cancel,false);
     }
     @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==DELETE){waitingForDelete=false;AppRepository.App current=metadata(pkg);if(current==null||!current.installed){new DockStore(this).remove(pkg);new HomeOrderStore(this).remove(pkg);new HomeVisibilityStore(this).remove(pkg);}changed("");}}
-    @Override public void handleBack(){
-        if(mode.equals("picker")){if(pickerFromMenu)menu();else finish();}
-        else if(mode.equals("notice")&&!pickerMode.isEmpty())picker(pickerMode,pickerFromMenu);
-        else if(!mode.equals("menu"))menu();else finish();
-        KeyFeedback.back(this);
+    private void coverMenu(){
+        startActivity(new Intent(this,DesktopSettingsActivity.class).putExtra("management-page",SettingsPages.ICONS).putExtra("selected-package",pkg).putExtra("backdrop",backdrop));finish();
     }
+    @Override public void handleBack(){finish();KeyFeedback.back(this);}
+    @Override protected void onSaveInstanceState(Bundle state){super.onSaveInstanceState(state);state.putString("app-menu-package",pkg);state.putBoolean("app-menu-dock",fromDock);state.putString("app-menu-mode",mode);state.putString("app-menu-picker",pickerMode);state.putBoolean("app-menu-from-menu",pickerFromMenu);state.putString("app-menu-candidate",candidate);state.putBoolean("app-menu-waiting-delete",waitingForDelete);View focus=dialog.getCurrentFocus();state.putString("app-menu-focus",focus!=null&&focus.getTag() instanceof String?(String)focus.getTag():"");state.putFloat("app-menu-scroll",(mode.equals("menu")?menuScroll:sheet.scroll).getScrollY()/unit);}
     @Override protected void onStop(){super.onStop();if(!waitingForDelete&&!isChangingConfigurations())finish();}
-    @Override protected void onDestroy(){++generation;ChildModeAuth.dismiss(this);if(dialog!=null)dialog.dismiss();worker.shutdownNow();super.onDestroy();}
+    @Override protected void onDestroy(){closing=true;++generation;ChildModeAuth.dismiss(this);if(dialog!=null)dialog.dismiss();worker.shutdown();super.onDestroy();}
 }

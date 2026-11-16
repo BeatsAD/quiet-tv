@@ -1,0 +1,510 @@
+{
+  "version": 1,
+  "revision": 1,
+  "items": [
+    {
+      "id": "music",
+      "aliases": [
+        "音乐"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "settings",
+      "aliases": [
+        "设置"
+      ],
+      "packages": [
+        "com.android.tv.settings"
+      ],
+      "autoMatch": true
+    },
+    {
+      "id": "cinema",
+      "aliases": [
+        "电影／影视",
+        "电影",
+        "影视"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "photos",
+      "aliases": [
+        "相册"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "app-store",
+      "aliases": [
+        "应用商店",
+        "Play Store",
+        "Google Play 商店"
+      ],
+      "packages": [
+        "com.android.vending"
+      ],
+      "autoMatch": true
+    },
+    {
+      "id": "games",
+      "aliases": [
+        "游戏"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "entertainment",
+      "aliases": [
+        "娱乐"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "fitness",
+      "aliases": [
+        "健身"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "citong",
+      "aliases": [
+        "刺桐娱乐"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "ant-media",
+      "aliases": [
+        "蚂蚁影视"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "starlight",
+      "aliases": [
+        "星辰"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "moying",
+      "aliases": [
+        "魔影"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "guiyi",
+      "aliases": [
+        "归一"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "daoke",
+      "aliases": [
+        "道壳"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "ok-video",
+      "aliases": [
+        "OK／OK 影视",
+        "OK",
+        "OK 影视"
+      ],
+      "packages": [],
+      "autoMatch": false
+    },
+    {
+      "id": "video-warehouse",
+      "aliases": [
+        "影视仓"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "hongguo",
+      "aliases": [
+        "红果 TV",
+        "红果TV"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "afusekt",
+      "aliases": [
+        "AfuseKt"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "honey-video",
+      "aliases": [
+        "蜂蜜影视"
+      ],
+      "packages": [],
+      "autoMatch": false
+    },
+    {
+      "id": "newbox",
+      "aliases": [
+        "New Box／NewBox",
+        "New Box",
+        "NewBox"
+      ],
+      "packages": [],
+      "autoMatch": false
+    },
+    {
+      "id": "super-live",
+      "aliases": [
+        "超级直播"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "naikan-live",
+      "aliases": [
+        "耐看直播"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "kanke",
+      "aliases": [
+        "看客"
+      ],
+      "packages": [],
+      "autoMatch": false
+    },
+    {
+      "id": "qianxun",
+      "aliases": [
+        "千寻"
+      ],
+      "packages": [],
+      "autoMatch": false
+    },
+    {
+      "id": "xinghai-live",
+      "aliases": [
+        "星海直播"
+      ],
+      "packages": [],
+      "autoMatch": false
+    },
+    {
+      "id": "bilibili",
+      "aliases": [
+        "哔哩哔哩",
+        "bilibili"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "bibi",
+      "aliases": [
+        "bibi"
+      ],
+      "packages": [],
+      "autoMatch": false
+    },
+    {
+      "id": "cloud-tv",
+      "aliases": [
+        "云视听小电视"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "mytvb",
+      "aliases": [
+        "MyTVB"
+      ],
+      "packages": [],
+      "autoMatch": false
+    },
+    {
+      "id": "huya",
+      "aliases": [
+        "虎牙"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "douyu",
+      "aliases": [
+        "斗鱼"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "smarttube",
+      "aliases": [
+        "SmartTube"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "xiaocao",
+      "aliases": [
+        "小草"
+      ],
+      "packages": [],
+      "autoMatch": false
+    },
+    {
+      "id": "dangbei-player",
+      "aliases": [
+        "当贝播放器"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "dangbei-market",
+      "aliases": [
+        "当贝市场"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "chick-emulator",
+      "aliases": [
+        "小鸡模拟器"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "clash",
+      "aliases": [
+        "Clash"
+      ],
+      "packages": [],
+      "autoMatch": false
+    },
+    {
+      "id": "douyin",
+      "aliases": [
+        "抖音"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "iqiyi",
+      "aliases": [
+        "爱奇艺"
+      ],
+      "packages": [],
+      "autoMatch": false
+    },
+    {
+      "id": "tencent-video",
+      "aliases": [
+        "腾讯视频"
+      ],
+      "packages": [],
+      "autoMatch": false
+    },
+    {
+      "id": "mango-tv",
+      "aliases": [
+        "芒果TV"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "youku-tv",
+      "aliases": [
+        "优酷TV"
+      ],
+      "packages": [],
+      "autoMatch": false
+    },
+    {
+      "id": "migu-tv",
+      "aliases": [
+        "咪咕视频TV"
+      ],
+      "packages": [],
+      "autoMatch": false
+    },
+    {
+      "id": "fntv",
+      "aliases": [
+        "飞牛TV"
+      ],
+      "packages": [],
+      "autoMatch": false
+    },
+    {
+      "id": "filmly",
+      "aliases": [
+        "网易爆米花",
+        "Filmly"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "xunlei",
+      "aliases": [
+        "迅雷"
+      ],
+      "packages": [],
+      "autoMatch": false
+    },
+    {
+      "id": "watch-tv",
+      "aliases": [
+        "看电视"
+      ],
+      "packages": [],
+      "autoMatch": false
+    },
+    {
+      "id": "yangshipin-tv",
+      "aliases": [
+        "央视频TV"
+      ],
+      "packages": [],
+      "autoMatch": false
+    },
+    {
+      "id": "kodi",
+      "aliases": [
+        "Kodi"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "aliyun-drive",
+      "aliases": [
+        "阿里云盘"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "baidu-drive",
+      "aliases": [
+        "百度云盘",
+        "百度网盘"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "quark-tv",
+      "aliases": [
+        "夸克网盘TV"
+      ],
+      "packages": [],
+      "autoMatch": false
+    },
+    {
+      "id": "lebo-cast",
+      "aliases": [
+        "乐播投屏"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "shortdrama",
+      "aliases": [
+        "短剧之家"
+      ],
+      "packages": [],
+      "autoMatch": false
+    },
+    {
+      "id": "biecuile",
+      "aliases": [
+        "Biecuile"
+      ],
+      "packages": [],
+      "autoMatch": false
+    },
+    {
+      "id": "netease-music",
+      "aliases": [
+        "网易云音乐"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "kugou",
+      "aliases": [
+        "酷狗音乐"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "kuwo",
+      "aliases": [
+        "酷我音乐"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "gulu-pro",
+      "aliases": [
+        "咕噜音乐PRO"
+      ],
+      "packages": [],
+      "autoMatch": false
+    },
+    {
+      "id": "qq-music",
+      "aliases": [
+        "QQ音乐"
+      ],
+      "packages": [],
+      "autoMatch": true
+    },
+    {
+      "id": "ximalaya",
+      "aliases": [
+        "喜马拉雅"
+      ],
+      "packages": [],
+      "autoMatch": true
+    }
+  ]
+}

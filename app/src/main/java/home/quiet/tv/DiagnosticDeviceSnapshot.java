@@ -22,6 +22,8 @@ final class DiagnosticDeviceSnapshot {
         snapshot.section("调试设置入口",snapshot::debugSettings);
         snapshot.section("信号源搜索与配对",()->snapshot.text.append(InputSourceObservation.configurationSummary(context)).append("\n专项观察：").append(InputSourceObservation.status(context)).append("\n详细证据请下载信号源诊断包。\n"));
         snapshot.section("系统设置页面采集",()->snapshot.text.append(SettingsPageCapture.summary()).append('\n'));
+        snapshot.section("蓝牙配对与连接",()->snapshot.text.append(BluetoothDiagnostics.snapshot(context)));
+        snapshot.section("系统操作关联",()->snapshot.text.append(SystemDiagnosticTimeline.read(context)).append("\n历史system.operation记录调用前后实际读回；system.configuration是进程观察到的配置变化，before=last_observed不是操作前瞬时值。电脑直接执行的升级、HOME及包操作需结合电脑端时间线。\n"));
         snapshot.section("系统默认桌面",snapshot::home);
         snapshot.section("原桌面记录",snapshot::original);
         snapshot.section("HOME 候选与状态",snapshot::homeCandidates);

@@ -1,0 +1,14 @@
+.adb-status{padding:1rem 0 1.25rem}
+.adb-status-heading{display:flex;align-items:center;gap:.75rem}
+.adb-management{--adb-status-ink:var(--muted)}
+.adb-management[data-tone=success]{--adb-status-ink:var(--green)}
+.adb-management[data-tone=warning]{--adb-status-ink:var(--warning-ink)}
+.adb-management[data-tone=progress]{--adb-status-ink:var(--blue)}
+.adb-management[data-tone=error]{--adb-status-ink:var(--error-ink)}
+.adb-status-heading{color:var(--adb-status-ink)}
+.adb-status-heading>.glyph{width:2rem;height:2rem;flex:none}
+.adb-status-heading>strong{font-size:1.5rem;line-height:1.5}
+.adb-status p{margin:.5rem 0 0;color:var(--muted);font-size:.9375rem;line-height:1.6;overflow-wrap:anywhere}
+.adb-management>.setting-section{margin-top:0}
+.adb-management .primary-button,.adb-management .secondary-button{min-height:3rem}
+.adb-status .adb-authorization-wait{font-variant-numeric:tabular-nums;color:var(--warning-ink)}

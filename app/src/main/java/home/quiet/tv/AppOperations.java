@@ -25,17 +25,19 @@ final class AppOperations {
         if(isHome(app.pkg))return "桌面组件请通过桌面配置与恢复原桌面处理";
         return "";
     }
+    private Set<String> homePackages;
     private boolean isHome(String pkg){
         if(presets.home().startsWith(pkg+"/"))return true;
-        for(android.content.pm.ResolveInfo value:context.getPackageManager().queryIntentActivities(HomeController.homeIntent(),HomeController.METADATA))
-            if(value.activityInfo!=null && pkg.equals(value.activityInfo.packageName))return true;
-        return false;
+        if(homePackages==null){Set<String> values=new HashSet<>();for(android.content.pm.ResolveInfo value:context.getPackageManager().queryIntentActivities(HomeController.homeIntent(),HomeController.METADATA))if(value.activityInfo!=null)values.add(value.activityInfo.packageName);homePackages=values;}
+        return homePackages.contains(pkg);
     }
     enum Action {
         ENABLE("重新启用"), DISABLE("禁用"), UNINSTALL("卸载"), RESTORE("恢复安装");
         final String label;Action(String value){label=value;}
     }
     private static final ReentrantLock MUTATION=new ReentrantLock();
+    static void begin()throws IOException{if(!MUTATION.tryLock())throw new IOException("已有应用操作正在执行");}
+    static void end(){MUTATION.unlock();}
     List<Action> actions(AppRepository.App app){
         ArrayList<Action> result=new ArrayList<>();
         if(!protection(app).isEmpty() || !app.verified || !app.metadataKnown)return result;
@@ -59,7 +61,8 @@ final class AppOperations {
         if(action==Action.RESTORE)return "系统仍保留安装包，将为当前用户恢复安装。此前删除的数据不会恢复。";
         return "仅为当前用户卸载，应用数据将删除。"+(app.system?"系统保留的安装包可以恢复安装，但不能恢复已删除的数据。":"再次使用需要重新安装。");
     }
-    String perform(AdbController adb,AppRepository.App confirmed,Action action) throws Exception {
+    String perform(AdbController adb,AppRepository.App confirmed,Action action) throws Exception {return perform(adb,confirmed,action,()->true);}
+    String perform(AdbController adb,AppRepository.App confirmed,Action action,java.util.concurrent.Callable<Boolean> allowed) throws Exception {
         if(!MUTATION.tryLock())throw new IOException("已有应用操作正在执行");
         try{
             if(!confirmed.pkg.matches("[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+"))throw new IOException("包名无效");
@@ -76,7 +79,7 @@ final class AppOperations {
             if(action==Action.ENABLE && enabled==0 && !adb.capabilities.defaultState)throw new IOException("系统无法恢复原默认状态");
             String command=action==Action.DISABLE?adb.capabilities.disableCommand:action==Action.ENABLE?(enabled==0?adb.capabilities.defaultStateCommand:adb.capabilities.enableCommand):action==Action.UNINSTALL?adb.capabilities.uninstallCommand:adb.capabilities.restore;
             String id=UUID.randomUUID().toString();record(id,user,before,action,null,"执行前");
-            adb.validateUser();String failure="";
+            adb.validateUser();if(!allowed.call())throw new InterruptedIOException("操作已取消或连接已结束");String failure="";
             try{adb.shell(command+" --user "+user+" "+before.pkg);}catch(Exception e){failure=e.getMessage()==null?e.toString():e.getMessage();}
             AppRepository.App after;
             try{adb.validateUser();after=repository.find(adb,before.pkg);}
@@ -85,7 +88,7 @@ final class AppOperations {
                 && after.versionCode==before.versionCode && (action==Action.DISABLE?after.enabledSetting==3:action==Action.ENABLE?after.enabledSetting==enabled:after.system);
             record(id,user,before,action,after,success?"已核对实际状态":"未达到目标状态");
             if(!success)throw new IOException("操作未完成："+failure);
-            if(!failure.isEmpty())throw new IOException("已观察到目标状态，但命令报错；请核对记录，不要重复操作");
+            if(!failure.isEmpty())throw new IOException("已观察到目标状态，但命令报错；请刷新应用列表核对，不要重复操作");
             return action.label+"成功";
         }finally{MUTATION.unlock();}
     }
@@ -112,11 +115,8 @@ final class AppOperations {
         JSONObject row=new JSONObject().put("id",id).put("time",System.currentTimeMillis()).put("user",user).put("fingerprint",Build.FINGERPRINT)
             .put("package",before.pkg).put("action",action.name()).put("before",state(before)).put("after",after==null?JSONObject.NULL:state(after)).put("result",result);
         try(FileOutputStream out=new FileOutputStream(new File(context.getFilesDir(),"app-operations.jsonl"),true)){out.write((row+"\n").getBytes("UTF-8"));out.getFD().sync();}
-    }
-    String history() throws IOException {
-        File file=new File(context.getFilesDir(),"app-operations.jsonl");if(!file.exists())return "暂无操作记录";
-        ArrayDeque<String> rows=new ArrayDeque<>();
-        try(BufferedReader reader=new BufferedReader(new InputStreamReader(new FileInputStream(file),"UTF-8"))){String line;while((line=reader.readLine())!=null)try{JSONObject row=new JSONObject(line);rows.add(row.optString("package")+"  "+row.optString("action")+"  "+row.optString("result"));if(rows.size()>30)rows.removeFirst();}catch(JSONException ignored){}}
-        StringBuilder text=new StringBuilder("最近操作（不是应用数据备份）\n");for(String row:rows)text.append('\n').append(row);return text.toString();
+        DiagnosticLog.info("system.operation."+("执行前".equals(result)?"begin":"result"),"operation="+id+" source=app_management action="+action.name()+" target="+before.pkg+" user="+user
+            +" beforeInstalled="+before.installed+" beforeEnabledSetting="+before.enabledSetting+" afterInstalled="+(after==null?"unknown":after.installed)
+            +" afterEnabledSetting="+(after==null?"unknown":after.enabledSetting)+" readback="+(after==null?"unknown":"adb_package_query")+" result="+result);
     }
 }

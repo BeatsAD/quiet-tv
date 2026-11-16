@@ -1,0 +1,75 @@
+.quiet-app .icon-library-page .section-heading{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.quiet-app .icon-batch-action{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:54px;border:1px solid #ffffffd9;border-radius:12px;padding:8px 12px;background:linear-gradient(135deg,#f4f9ff,#e3e7fa 56%,#d8cdef);color:#25263c;box-shadow:inset 0 1px 0 #ffffffb3,0 2px 8px #7364ab24}
+.quiet-app .icon-batch-action svg{flex-shrink:0;width:26px;height:26px;color:#30354d}
+.icon-batch-copy{display:flex;flex-direction:column;gap:2px;text-align:left;white-space:nowrap}
+.icon-batch-copy strong{font-size:14px;font-weight:650;line-height:18px}
+.icon-batch-copy small{color:#5a5c72;font-size:12px;line-height:16px}
+.quiet-app .icon-replace-comparison{display:grid;grid-template-columns:minmax(0,1fr) 24px minmax(0,1fr);gap:12px;padding:16px;align-items:center}
+.quiet-app .icon-replace-comparison>svg{width:22px;height:22px;color:var(--muted)}
+.quiet-app .icon-replace-comparison>button{display:flex;flex-direction:column;align-items:center;gap:10px;min-width:0;border:0;border-radius:12px;padding:8px 4px;background:var(--soft);color:var(--ink)}
+.quiet-app .icon-comparison-label{display:flex;align-items:center;gap:4px;color:var(--muted);font-size:13px}
+.quiet-app .icon-comparison-label svg{width:14px;height:14px;color:var(--blue)}
+.quiet-app .icon-replace-comparison img{width:100%;max-width:112px;height:64px;object-fit:contain}
+.quiet-app .icon-replace-comparison strong{max-width:100%;font-size:15px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.quiet-app .icon-library-page .icon-desktop-preview{padding:0 16px 16px}
+.quiet-app .icon-library-page .icon-desktop-preview .section-note{margin:0 0 8px}
+.icon-operation-dialog{text-align:center}
+.icon-operation-symbol{display:flex;justify-content:center;margin-bottom:1rem;color:var(--blue)}
+.icon-operation-symbol .glyph{width:2.25rem;height:2.25rem}
+.icon-operation-symbol.is-pending .glyph{animation:spin 1s linear infinite}
+.icon-operation-dialog progress{display:block;width:100%;margin-top:1rem;accent-color:var(--blue)}
+.icon-operation-dialog .status-confirm{background:var(--action);color:#fff}
+@media(prefers-reduced-motion:reduce){.icon-operation-symbol.is-pending .glyph{animation:none}}
+.quiet-app .icon-library-sheet .sheet-panel{max-height:min(680px,90dvh)}
+.quiet-app .icon-library-sheet .sheet-heading{flex-shrink:0;padding:0 6px 8px}
+.quiet-app .icon-library-sheet .sheet-heading h2{font-size:18px;font-weight:650}
+.quiet-app .icon-library-sheet .sheet-toolbar{flex-shrink:0;padding:0 16px 12px;border-bottom:1px solid var(--line)}
+.quiet-app .icon-library-sheet .quiet-sheet-body{padding:12px 16px;flex:1;min-height:0;overscroll-behavior:contain}
+.quiet-app .icon-library-sheet .sheet-footer{flex-shrink:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--surface)}
+.quiet-app .icon-library-sheet .sheet-footer .primary-button{margin:0;width:100%}
+.quiet-app .icon-library-sheet .sheet-footer .form-error,.quiet-app .icon-library-sheet .sheet-footer .section-note{margin:0 0 10px}
+.quiet-app .icon-target-context{margin:0 0 8px;color:var(--muted);font-size:13px}
+.quiet-app .icon-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.quiet-app .icon-filters button{display:flex;align-items:center;justify-content:center;gap:5px;min-width:0;min-height:44px;padding:6px;border:0;border-radius:10px;background:var(--soft);color:var(--ink);font-size:14px}
+.quiet-app .icon-filters button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.quiet-app .icon-filters svg{width:16px;height:16px;flex-shrink:0;color:var(--blue)}
+.quiet-app .icon-material-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px 10px;align-items:start}
+.quiet-app .icon-material{min-width:0;border:0;padding:0;background:transparent;color:var(--ink);text-align:center;font-size:13px;line-height:1.4}
+.quiet-app .icon-material>span:last-child{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:6px 0;min-height:26px}
+.quiet-app .icon-material-art{position:relative;display:flex;align-items:center;justify-content:center;width:100%;aspect-ratio:16/9;border:2px solid transparent;border-radius:12px;background:var(--soft);padding:4px}
+.quiet-app .icon-material-art img{position:absolute;inset:4px;width:calc(100% - 8px);height:calc(100% - 8px);object-fit:contain}
+.quiet-app .shape-square .icon-material-art,.quiet-app .shape-circle .icon-material-art{aspect-ratio:1}
+.quiet-app .shape-circle .icon-material-art img{border-radius:50%}
+.quiet-app .icon-material[aria-pressed=true] .icon-material-art{border-color:var(--blue)}
+.quiet-app .icon-material-check{position:absolute;display:grid;place-items:center;bottom:3px;right:3px;width:20px;height:20px;border-radius:50%;background:var(--blue);color:#fff}
+.quiet-app .icon-material-check svg{width:14px;height:14px}
+.quiet-app .icon-selected-preview{display:flex;align-items:center;gap:12px;margin-bottom:12px;font-size:15px}
+.quiet-app .icon-selected-preview img{width:76px;height:44px;object-fit:contain;border-radius:8px;background:var(--soft)}
+.quiet-app .icon-selected-preview span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.quiet-app .icon-selected-preview small{display:block;color:var(--muted);font-size:12px;margin-top:4px}
+.quiet-app .icon-target-list{display:flex;flex-direction:column}
+.quiet-app .icon-target-list button{display:flex;align-items:center;gap:12px;min-height:64px;width:100%;border:0;border-bottom:1px solid var(--line);padding:8px 0;background:transparent;color:var(--ink);font-size:16px;text-align:left}
+.quiet-app .icon-target-list img{width:64px;height:40px;object-fit:contain}
+.quiet-app .icon-target-list span{flex:1}
+.quiet-app .icon-target-list svg{color:var(--blue)}
+.quiet-app .icon-batch-tabs{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:3px;padding:3px;margin-bottom:10px;background:var(--soft);border-radius:12px}
+.quiet-app .icon-batch-tabs button{position:relative;z-index:1;min-width:0;min-height:44px;border:0;border-radius:10px;padding:4px;background:transparent;color:var(--muted);font-size:14px;white-space:nowrap;transition:background .18s,color .18s}
+.quiet-app .icon-batch-tabs button[aria-selected=true]{color:#fff;font-weight:600}
+.quiet-app .icon-batch-sheet .quiet-sheet-body{padding-top:0;padding-bottom:0}
+.quiet-app .icon-batch-row{display:flex;align-items:center;gap:8px;min-height:64px;padding:8px 0;border-bottom:1px solid var(--line)}
+.quiet-app .icon-batch-check{display:grid;place-items:center;flex-shrink:0;width:44px;min-height:44px;padding:0;border:0;background:transparent;color:var(--blue)}
+.quiet-app .icon-batch-check svg{width:22px;height:22px}
+.quiet-app .icon-batch-row>img,.quiet-app .icon-batch-candidate{width:58px;height:40px;flex-shrink:0;object-fit:contain}
+.quiet-app .icon-batch-candidate{display:flex;align-items:center;justify-content:center;min-height:44px;border:0;background:transparent;border-radius:8px;padding:0}
+.quiet-app .icon-batch-candidate:disabled{opacity:1}
+.quiet-app .icon-batch-candidate img{width:100%;height:40px;object-fit:contain}
+.quiet-app .icon-batch-row>svg{width:16px;height:16px;color:var(--muted);flex-shrink:0}
+.quiet-app .icon-batch-label{flex:1;min-width:0}
+.quiet-app .icon-batch-label strong{display:block;font-size:15px;font-weight:500;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.quiet-app .icon-batch-label small{display:block;margin-top:4px;font-size:12px;color:var(--muted)}
+.quiet-app .icon-batch-pick{flex-shrink:0;min-height:2.75rem;font-size:.875rem;white-space:nowrap}
+.quiet-app .icon-batch-overwrite{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;margin-bottom:12px;font-size:15px}
+.quiet-app .icon-rematch{margin:8px 0;min-height:44px}
+.quiet-app .icon-library-sheet button:focus-visible,.quiet-app .icon-library-page button:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+@media(max-width:350px){.quiet-app .icon-filters button,.quiet-app .icon-batch-tabs button{font-size:13px}.quiet-app .icon-batch-row{gap:6px}.quiet-app .icon-batch-row>img,.quiet-app .icon-batch-candidate{width:48px}.quiet-app .icon-batch-check{width:44px}.quiet-app .icon-replace-comparison{gap:8px}}
+@media(prefers-reduced-motion:reduce){.quiet-app .icon-batch-tabs button{transition:none}}

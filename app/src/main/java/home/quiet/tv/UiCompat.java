@@ -15,7 +15,7 @@ final class UiCompat {
     @SuppressWarnings("deprecation")
     static Drawable drawable(Context context,int resource){return Build.VERSION.SDK_INT>=21?context.getDrawable(resource):context.getResources().getDrawable(resource);}
     static void letterSpacing(TextView text,float value){if(Build.VERSION.SDK_INT>=21)text.setLetterSpacing(value);}
-    static void clipOutline(View view){if(Build.VERSION.SDK_INT>=21)view.setClipToOutline(true);}
+    static void clipOutline(View view){if(Build.VERSION.SDK_INT<18)view.setLayerType(View.LAYER_TYPE_SOFTWARE,null);if(Build.VERSION.SDK_INT>=21&&!(view.getBackground() instanceof SurfaceDrawable))view.setClipToOutline(true);}
     static void announce(View view,String text){
         if(Build.VERSION.SDK_INT>=16)view.announceForAccessibility(text);
         else {android.view.accessibility.AccessibilityEvent event=android.view.accessibility.AccessibilityEvent.obtain(android.view.accessibility.AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED);event.getText().add(text);event.setPackageName(view.getContext().getPackageName());event.setClassName(view.getClass().getName());view.sendAccessibilityEventUnchecked(event);}

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <files-path name="updates" path="updates/" />
+    <cache-path name="selected_apk_install" path="selected-apks/" />
     <files-path name="received_apk_install" path="received-files/" />
 </paths>

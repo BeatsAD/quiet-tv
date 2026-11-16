@@ -6,6 +6,7 @@ import android.os.Bundle;
 
 /** Process startup, rather than opening the export dialog, starts recording. */
 public class QuietApplication extends Application {
+    @Override public void onLowMemory(){super.onLowMemory();DiagnosticLog.trim(-1);}
     protected boolean playbackProcess(){
         // Do not start HOME recovery, ADB, or the shared log writer in the codec process.
         try(java.io.FileInputStream input=new java.io.FileInputStream("/proc/self/cmdline")){
@@ -20,15 +21,17 @@ public class QuietApplication extends Application {
             return false;
         }
     }
+    @Override public void onTrimMemory(int level){super.onTrimMemory(level);if(!playbackProcess())DiagnosticLog.trim(level);}
     @Override public void onCreate(){
-        super.onCreate();if(playbackProcess())return;DiagnosticLog.init(this);
+        super.onCreate();if(playbackProcess())return;DiagnosticLog.init(this);BluetoothDiagnostics.init(this);SystemDiagnosticTimeline.init(this);
+        if(HomeGuardState.unlocked(this))DesktopBackups.initialize(this);
         BootHomeActivity.reconcile(this);
         if(HomeGuardState.unlocked(this))new DesktopRoutes(this).restoreAfterUpgrade();
         HomeGuardRecovery.ensureBinding(this,"进程启动");
         registerActivityLifecycleCallbacks(new ActivityLifecycleCallbacks(){
-            public void onActivityCreated(Activity activity,Bundle state){KeyFeedback.attach(activity.getWindow().getDecorView());DiagnosticLog.info("page.create",activity.getClass().getSimpleName());}
-            public void onActivityResumed(Activity activity){KeySounds.prepare(activity);DiagnosticLog.info("page.resume",activity.getClass().getSimpleName());if(activity instanceof HomeActivity)HomeGuardService.homeResumed(((HomeActivity)activity).desktopInitialized());}
-            public void onActivityPaused(Activity activity){DiagnosticLog.info("page.pause",activity.getClass().getSimpleName());if(activity instanceof HomeActivity)HomeGuardService.homeResumed(false);}
+            public void onActivityCreated(Activity activity,Bundle state){KeyFeedback.attach(activity.getWindow().getDecorView());DiagnosticLog.info("page.create",activity.getClass().getSimpleName());DesktopBackups.redirect(activity);}
+            public void onActivityResumed(Activity activity){if(DesktopBackups.resumed(activity))return;KeySounds.prepare(activity);SettingsPageCapture.returned(activity);DiagnosticLog.info("page.resume",activity.getClass().getSimpleName());if(activity instanceof HomeActivity)HomeGuardService.homeResumed(((HomeActivity)activity).desktopInitialized());}
+            public void onActivityPaused(Activity activity){DesktopBackups.paused(activity);DiagnosticLog.info("page.pause",activity.getClass().getSimpleName());if(activity instanceof HomeActivity)HomeGuardService.homeResumed(false);}
             public void onActivityStarted(Activity activity){}
             public void onActivityStopped(Activity activity){}
             public void onActivitySaveInstanceState(Activity activity,Bundle state){}
@@ -41,7 +44,7 @@ public class QuietApplication extends Application {
             DiagnosticLog.info("screen",intent.getAction());
             HomeGuardWake.screen(context,intent.getAction());
             if(Intent.ACTION_SCREEN_OFF.equals(intent.getAction())){HomeGuardRecovery.cancelHandover();KeySounds.stop();SettingsPageCapture.stopCurrent("screen_off");InputSourceObservation.stop("screen_off");SourcePairing pairing=SourcePairing.existing();if(pairing!=null)pairing.cancel("tv",true);}
-            if(Intent.ACTION_USER_UNLOCKED.equals(intent.getAction()))KeySounds.prepare(context);
+            if(Intent.ACTION_USER_UNLOCKED.equals(intent.getAction())){DesktopBackups.initialize(context);KeySounds.prepare(context);}
             if(!Intent.ACTION_SCREEN_OFF.equals(intent.getAction())){if(HomeGuardState.unlocked(context))new DesktopRoutes(context).restoreAfterUpgrade(true);BootHomeActivity.reconcile(context);}
             if(!Intent.ACTION_SCREEN_OFF.equals(intent.getAction())){HomeGuardSync.refresh(context);HomeGuardAdb.ensure(context);HomeGuardRecovery.ensureBinding(context,"亮屏或解锁恢复");if(HomeGuardState.unlocked(context))ManagementAdb.get(context).request();}
         }};

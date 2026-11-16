@@ -7,11 +7,18 @@ import java.util.*;
 import org.json.*;
 
 final class ChildModeStore {
-    private static final Object LOCK=new Object();
+    static final Object LOCK=new Object();
     final SharedPreferences preferences;
     private final Context context;
     ChildModeStore(Context context){this.context=context.getApplicationContext();preferences=this.context.getSharedPreferences("child-mode",Context.MODE_PRIVATE);}
+    boolean enabled(){return preferences.getBoolean("enabled",true);}
+    boolean setEnabled(boolean enabled){
+        synchronized(LOCK){if(!commit(preferences.edit().putBoolean("enabled",enabled).putLong("revision",revision()+1)))return false;}
+        ChildUsageService.cancel();ChildUsageService.changed();return true;
+    }
     boolean configured(){return !preferences.getString("credential","").isEmpty();}
+    int restTheme(){return preferences.getInt("rest-theme",0);}
+    boolean restTheme(int theme){if(theme<0||theme>2)throw new IllegalArgumentException("休息屏保无效");synchronized(LOCK){return commit(preferences.edit().putInt("rest-theme",theme).putLong("revision",revision()+1));}}
     String credential(){return preferences.getString("credential","");}
     String recovery(){return preferences.getString("recovery","");}
     boolean verifyRecovery(String value){return ChildModeCredentials.numeric(value) && !recovery().isEmpty() && java.security.MessageDigest.isEqual(value.getBytes(home.quiet.tv.Charsets.US_ASCII),recovery().getBytes(home.quiet.tv.Charsets.US_ASCII));}
@@ -31,14 +38,29 @@ final class ChildModeStore {
         // Persist the date as well as the reset, including after an overnight restart without use.
         if(data!=null && !previous.equals(r.day) && !save(pkg,r))throw new IllegalStateException("每日额度保存失败");return r;
     }}
-    boolean hidden(String pkg){return rule(pkg).hidden;}
+    boolean appEnabled(String pkg,boolean quiz){return rule(pkg).enabled(quiz);}
+    Set<String> uninstallParentPackages(Collection<String> packages)throws java.io.IOException{
+        if(!enabled()||packages.isEmpty())return Collections.emptySet();
+        JSONObject values=rules();Set<String> protectedApps=new HashSet<>();ChildQuizState learning=null;
+        for(String pkg:packages){ChildModePolicy.Rule rule=read(values.optJSONObject(pkg));boolean quiz=false;
+            if(rule.enabled==null&&!rule.enabled(false)){if(learning==null)learning=ChildQuizStore.get(context).read();quiz=learning.enabled(pkg)||learning.pending(pkg);}
+            if(rule.uninstallNeedsParent(true,quiz))protectedApps.add(pkg);
+        }
+        return protectedApps;
+    }
+    boolean uninstallNeedsParent(String pkg)throws java.io.IOException{return uninstallParentPackages(Collections.singleton(pkg)).contains(pkg);}
+    void requireUninstallAuthorization(String pkg,String stamp)throws java.io.IOException{
+        if(uninstallNeedsParent(pkg)&&(!configured()||!credential().equals(stamp)))throw new java.io.IOException("儿童模式已生效，请重新确认并完成家长验证");
+    }
+    ChildModePolicy.Rule effectiveRule(String pkg){synchronized(LOCK){ChildModePolicy.Rule rule=rule(pkg);return enabled()&&!Boolean.FALSE.equals(rule.enabled)?rule:new ChildModePolicy.Rule();}}
+    boolean hidden(String pkg){return effectiveRule(pkg).hidden;}
     Set<String> hiddenPackages(Collection<String> packages){synchronized(LOCK){
-        if(packages.isEmpty())return Collections.emptySet();
+        if(!enabled() || packages.isEmpty())return Collections.emptySet();
         JSONObject values=rules();Set<String> hidden=new HashSet<>();String day=today();boolean changed=false;
         try{
             for(String pkg:packages){
                 JSONObject data=values.optJSONObject(pkg);ChildModePolicy.Rule rule=read(data);String previous=rule.day;rule.newDay(day);
-                if(rule.hidden)hidden.add(pkg);
+                if(rule.hidden&&!Boolean.FALSE.equals(rule.enabled))hidden.add(pkg);
                 if(data!=null&&!previous.equals(rule.day)){values.put(pkg,json(rule));changed=true;}
             }
             if(changed&&!commit(preferences.edit().putString("rules",values.toString()).putLong("revision",revision()+1)))throw new IllegalStateException("每日额度保存失败");
@@ -47,13 +69,14 @@ final class ChildModeStore {
     }}
     static ChildModePolicy.Rule read(JSONObject data){
         ChildModePolicy.Rule r=new ChildModePolicy.Rule();if(data!=null){r.hidden=data.optBoolean("hidden");r.locked=data.optBoolean("locked");r.mode=data.optInt("mode");r.limit=data.optLong("limit",r.limit);r.singleUsed=data.optLong("singleUsed");r.dailyUsed=data.optLong("dailyUsed");r.singleExtra=data.optLong("singleExtra");r.dailyExtra=data.optLong("dailyExtra");r.day=data.optString("day");}
-        if(data!=null)r.repeatDays=data.optInt("repeatDays",ChildModePolicy.EVERY_DAY);
+        if(data!=null){r.repeatDays=data.optInt("repeatDays",ChildModePolicy.EVERY_DAY);if(data.has("enabled")){Object enabled=data.opt("enabled");if(!(enabled instanceof Boolean))throw new IllegalStateException("应用儿童模式状态无效");r.enabled=(Boolean)enabled;}}
         // Older daily rules spent their base quota before any extra. Retain their remaining balance.
         if(data!=null)r.dailyExtraUsed=data.optLong("dailyExtraUsed",Math.min(r.dailyExtra,Math.max(0,r.dailyUsed-r.limit)));
         r.validate();return r;
     }
-    boolean saveSettings(String pkg,ChildModePolicy.Rule edited){synchronized(LOCK){
-        ChildModePolicy.Rule current=rule(pkg);current.hidden=edited.hidden;current.locked=edited.locked;current.mode=edited.mode;current.limit=edited.limit;current.repeatDays=edited.repeatDays;
+    boolean saveSettings(String pkg,ChildModePolicy.Rule edited){return saveSettings(pkg,edited,null);}
+    boolean saveSettings(String pkg,ChildModePolicy.Rule edited,ChildModePolicy.Rule expected){synchronized(LOCK){
+        ChildModePolicy.Rule current=rule(pkg);if(expected!=null&&((current.enabled==null?expected.enabled!=null:!current.enabled.equals(expected.enabled))||current.hidden!=expected.hidden||current.locked!=expected.locked||current.mode!=expected.mode||current.limit!=expected.limit||current.repeatDays!=expected.repeatDays))return false;current.enabled=edited.enabled;current.hidden=edited.hidden;current.locked=edited.locked;current.mode=edited.mode;current.limit=edited.limit;current.repeatDays=edited.repeatDays;
         boolean saved=save(pkg,current);if(saved)ChildUsageService.changed();return saved;
     }}
     boolean save(String pkg,ChildModePolicy.Rule rule){
@@ -63,10 +86,16 @@ final class ChildModeStore {
         }catch(JSONException e){throw new IllegalStateException("无法保存儿童模式设置",e);}}
     }
     private static JSONObject json(ChildModePolicy.Rule rule)throws JSONException {
-        return new JSONObject().put("hidden",rule.hidden).put("locked",rule.locked).put("mode",rule.mode).put("repeatDays",rule.repeatDays).put("limit",rule.limit).put("singleUsed",rule.singleUsed).put("dailyUsed",rule.dailyUsed).put("singleExtra",rule.singleExtra).put("dailyExtra",rule.dailyExtra).put("dailyExtraUsed",rule.dailyExtraUsed).put("day",rule.day);
+        return new JSONObject().put("enabled",rule.enabled).put("hidden",rule.hidden).put("locked",rule.locked).put("mode",rule.mode).put("repeatDays",rule.repeatDays).put("limit",rule.limit).put("singleUsed",rule.singleUsed).put("dailyUsed",rule.dailyUsed).put("singleExtra",rule.singleExtra).put("dailyExtra",rule.dailyExtra).put("dailyExtraUsed",rule.dailyExtraUsed).put("day",rule.day);
+    }
+    void moveHiddenToAppManagement(){
+        JSONObject values=rules();for(Iterator<String> keys=values.keys();keys.hasNext();){String pkg=keys.next();ChildModePolicy.Rule original=rule(pkg);if(!original.hidden)continue;
+            if(enabled()&&!Boolean.FALSE.equals(original.enabled)&&!new HomeVisibilityStore(context).hide(pkg))throw new IllegalStateException("隐藏状态移交未完成，请重新进入");
+            ChildModePolicy.Rule next=original.copy();next.hidden=false;if(!saveSettings(pkg,next,original))throw new IllegalStateException("隐藏状态移交未完成，请重新进入");
+        }
     }
     boolean consume(String pkg,long elapsed){
-        synchronized(LOCK){ChildModePolicy.Rule r=read(rules().optJSONObject(pkg));
+        synchronized(LOCK){if(!enabled())return true;ChildModePolicy.Rule r=read(rules().optJSONObject(pkg));
             r.consume(elapsed,today(),sinceMidnight());return save(pkg,r);
         }
     }
@@ -80,7 +109,7 @@ final class ChildModeStore {
             return !new HomeGuardState(context).protects(pkg);
         }catch(PackageManager.NameNotFoundException e){return false;}
     }
-    void fault(String reason){commit(preferences.edit().putString("timerFault",reason));ChildUsageService.changed();}
+    void fault(String reason){if(!reason.equals(fault()))DiagnosticLog.info("child.timer.fault","recorded="+!reason.isEmpty());commit(preferences.edit().putString("timerFault",reason));ChildUsageService.changed();}
     String fault(){return preferences.getString("timerFault","");}
     static String today(){return new SimpleDateFormat("yyyy-MM-dd",Locale.ROOT).format(new Date());}
     static long sinceMidnight(){Calendar start=Calendar.getInstance();start.set(Calendar.HOUR_OF_DAY,0);start.set(Calendar.MINUTE,0);start.set(Calendar.SECOND,0);start.set(Calendar.MILLISECOND,0);return Math.max(0,System.currentTimeMillis()-start.getTimeInMillis());}

@@ -58,17 +58,17 @@ final class HomeGuardRecovery {
     static void observed(String source,String decision,long age){observed(source,"selected_home",decision,age);}
     static void observed(String source,String target,String decision,long age){
         String previous="usage".equals(source)?lastUsageDecision:lastAccessibilityDecision;
-        String signature=decision+"|"+target;if(previous.equals(signature))return;
+        String signature=decision+"|"+target+"|"+InputTransitionEvidence.id();if(previous.equals(signature))return;
         String id=DiagnosticOperation.nextId(System.currentTimeMillis());
         if("usage".equals(source)){lastUsageDecision=signature;lastUsageObservation=id;}
         else{lastAccessibilityDecision=signature;lastAccessibilityObservation=id;}
-        DiagnosticLog.info("home_guard.observation","observation="+id+" source="+source+" target="+target+" decision="+decision+" ageMs="+age);
+        DiagnosticLog.info("home_guard.observation","observation="+id+" source="+source+" target="+target+" decision="+decision+" ageMs="+age+" "+InputTransitionEvidence.fields()+" "+HomeGuardService.diagnosticInputState());
     }
     private static DiagnosticOperation diagnostic(String source,HomeGuardState state){return diagnostic(source,state,state.selected());}
     private static DiagnosticOperation diagnostic(String source,HomeGuardState state,String target){
         DiagnosticOperation trace=new DiagnosticOperation("home_guard.handover",System.currentTimeMillis(),SystemClock.elapsedRealtime(),DiagnosticLog::info);
         String observation="原主页事件".equals(source)?lastAccessibilityObservation:("用量统计原主页".equals(source) || "HOME 后原主页前台证据".equals(source))?lastUsageObservation:("已确认的厂商开机页面".equals(source) || "开机目标被原桌面覆盖".equals(source))?lastAccessibilityObservation:"";
-        DiagnosticLog.info("home_guard.source","attempt="+trace.id+" source="+source+" observation="+observation+" target="+target);
+        DiagnosticLog.info("home_guard.source","attempt="+trace.id+" source="+source+" observation="+observation+" target="+target+" "+InputTransitionEvidence.fields());
         trace.stage("ELIGIBILITY",SystemClock.elapsedRealtime());return trace;
     }
     private static void finishDiagnostic(DiagnosticOperation trace,String result,String reason){

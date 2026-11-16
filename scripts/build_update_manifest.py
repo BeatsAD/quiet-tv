@@ -19,7 +19,8 @@ REPOSITORY = 'https://github.com/BeatsAD/quiet-tv/'
 
 def artifact(receipt, url, channel, version):
     record = json.loads(receipt.read_text())
-    apk = receipt.with_name(record['apk'])
+    archived = Path(record['apk'])
+    apk = archived if archived.is_absolute() else receipt.parent / archived
     if apk.stat().st_size != record['bytes'] or hashlib.sha256(apk.read_bytes()).hexdigest() != record['sha256']:
         raise ValueError('归档 APK 字节与记录不一致')
     actual = build_apk.manifest_info(apk)
@@ -34,8 +35,10 @@ def artifact(receipt, url, channel, version):
         raise ValueError('归档签名不一致')
     if channel == 'stable' and record['build_type'] != 'release':
         raise ValueError('正式渠道只接受 release 归档，正式验收仍需另行确认')
-    if channel == 'test' and record['build_type'] not in ('debug', 'benchmark'):
+    if channel in ('test', 'independent') and record['build_type'] not in ('debug', 'benchmark'):
         raise ValueError('测试渠道构建类型不一致')
+    if (channel == 'independent') != (actual['application_id'] == 'home.quiet.tv.scopeqa'):
+        raise ValueError('独立测试渠道必须匹配 2.0 独立包名')
     if not url.startswith(REPOSITORY + 'releases/download/') or not url.endswith('.apk') or '?' in url or '#' in url or '/../' in url:
         raise ValueError('下载地址必须是本仓库已审核的固定 Release APK 地址')
     with zipfile.ZipFile(apk) as archive:
@@ -70,7 +73,7 @@ def generate(releases, revision, private_key, public_key=PUBLIC_KEY):
         version, channel = spec['versionName'], spec['channel']
         if not re.fullmatch(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)', version):
             raise ValueError('版本必须为三段数字')
-        if channel not in ('test', 'stable', 'experimental'):
+        if channel not in ('test', 'stable', 'experimental', 'independent'):
             raise ValueError('未知发布渠道')
         for field in ('features', 'fixes'):
             if not isinstance(spec[field], list) or any(not isinstance(v, str) or not v.strip() or len(v) > 2000 for v in spec[field]):
@@ -138,6 +141,10 @@ def main():
             parser.error('新清单 revision 必须高于目标文件现有 revision')
     text = generate(args.release, args.revision, args.key)
     manifest = json.loads(base64.b64decode(json.loads(text)['payload']))
+    independent = [r['channel'] == 'independent' for r in manifest['releases']]
+    if (args.output.name != 'updates-independent.json' and any(independent)
+            or args.output.name == 'updates-independent.json' and independent and not all(independent)):
+        parser.error('2.0 独立更新只写入 updates-independent.json，不混入旧客户端清单')
     if args.output.name == 'updates.json' and any(a['minSdk'] < 19 for r in manifest['releases'] for a in r['artifacts']):
         parser.error('API14 安装包必须写入 updates-v2.json；updates.json 保留给旧客户端')
     args.output.parent.mkdir(parents=True, exist_ok=True)

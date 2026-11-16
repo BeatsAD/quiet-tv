@@ -1,0 +1,102 @@
+package home.quiet.tv;
+
+import android.content.*;
+import android.os.*;
+import java.io.*;
+import java.util.*;
+import java.util.concurrent.*;
+import org.json.*;
+
+/** Shared weather, startup, HOME and input engines. System scene results remain user evidence. */
+final class PhoneSettingsGeneral {
+    private final Context context;private final PhoneSettingsTasks tasks;private final String scope;private final Runnable changed;private final Handler main=new Handler(Looper.getMainLooper());private final PhoneSettingsActions actions;
+    PhoneSettingsGeneral(Context context,PhoneSettingsTasks tasks,String scope,Runnable changed){this.context=context;this.tasks=tasks;this.scope=scope;this.changed=changed;actions=new PhoneSettingsActions(context);}
+    JSONObject weather()throws JSONException{
+        WeatherStore store=new WeatherStore(context);WeatherData data=store.cached(true);return new JSONObject().put("weatherEnabled",store.enabled()).put("autoLocation",store.automatic()).put("provider",store.provider()).put("meteoFallback",store.meteoFallback()).put("city",store.city()).put("cityCode",store.adcode()).put("locationKey",store.key(true));
+    }
+    JSONObject weatherInfo()throws JSONException{
+        WeatherData data=new WeatherStore(context).cached(true);long now=System.currentTimeMillis();boolean usable=data!=null&&data.usable(now);
+        JSONObject value=new JSONObject().put("weatherText",data==null?"":Math.round(data.temperature)+"°  "+data.description+"  "+data.city).put("weatherFetchedAt",data==null?0:data.fetchedAt).put("weatherSource",data==null?"":WeatherClient.providerName(data.provider)).put("locatedCity",data==null?"":data.city).put("weatherPreviewAvailable",usable);
+        WeatherStore store=new WeatherStore(context);String provider=data==null?store.provider():data.provider;
+        WeatherIllumination illumination=WeatherIllumination.at(now,data==null?Double.NaN:data.latitude,data==null?Double.NaN:data.longitude,WallpaperStore.get(context).snapshot().weatherDayNight);
+        android.net.ConnectivityManager network=(android.net.ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);android.net.NetworkInfo connection=network==null?null:network.getActiveNetworkInfo();
+        value.put("weatherSceneLabel",WeatherWallpaperScene.name(WeatherWallpaperScene.key(data==null?"":data.description,data==null?"999":data.icon,false,12),true))
+            .put("weatherPeriod",WallpaperStore.get(context).snapshot().weatherDayNight?illumination.period(true):"白天效果")
+            .put("weatherBackgroundState",!usable?"暂用静态背景，天气可用后自动恢复":connection==null||!connection.isConnected()?"天气更新暂停，沿用上次天气":"跟随当前城市天气")
+            .put("weatherObservedAt",data==null?0:data.observedAt).put("weatherWebsite",WeatherClient.website(provider)).put("weatherTerms",WeatherClient.terms(provider)).put("weatherUsesMeteo",provider.equals("openmeteo")||store.meteoFallback());
+        if(usable){WeatherIllumination light=illumination;value.put("weatherScene",WeatherWallpaperScene.key(data.description,data.icon,false,12)).put("weatherNight",Math.round(light.night*100)/100d).put("weatherWarm",Math.round(light.warm*100)/100d);double wind=data.atmosphere.windSpeed;if(!Double.isNaN(wind))value.put("weatherWind",wind);}
+        return value;
+    }
+    JSONObject places(String query)throws IOException{if(query==null||query.length()>60)throw new PhoneSettingsServer.BadInput();try{return new JSONObject().put("places",WeatherRegions.load(context).items(WeatherRegions.load(context).search(query,50)));}catch(JSONException e){throw new IOException(e);}}
+    JSONObject startup()throws JSONException{BootAppStore boot=new BootAppStore(context);return new JSONObject().put("boot",boot.hdmiBoot()?BootAppStore.HDMI:boot.target()).put("bootLabel",boot.label()).put("watchTarget",boot.watchTarget()).put("watchLabel",boot.watchLabel()).put("watchTested",boot.tested());}
+    JSONObject guard()throws JSONException{return DesktopTakeoverStatus.read(context).snapshot();}
+    JSONObject management()throws JSONException{ManagementAdb management=ManagementAdb.get(context);return new JSONObject().put("connected",management.state()==AdbConnectionKeeper.State.CONNECTED).put("detail",management.description()).put("state",management.state().name()).put("label",management.label()).put("tone",management.tone()).put("debugging",management.debugging()).put("port",management.port()).put("paused",management.paused()).put("waitingAuthorization",management.waitingAuthorization()).put("authorizationSeconds",management.authorizationSeconds()).put("timedOut",management.timedOut());}
+    JSONObject inputs()throws IOException{try{return SourcePairing.get(context).snapshot();}catch(Exception e){throw new IOException("信号源状态无法读取",e);}}
+    void closed(){SourcePairing pairing=SourcePairing.existing();if(pairing!=null&&scope.equals(pairing.owner()))pairing.cancel(scope,true);}
+    JSONObject write(String domain,String field,Object value,PhoneSettingsServer.Active active)throws IOException{
+        if(!active.valid())throw new PhoneSettingsServer.Ended();
+        {
+            if(domain.equals("weather")){
+                if(field.equals("refresh")&&Boolean.TRUE.equals(value))return refreshWeather(active);
+                new WeatherStore(context).savePhoneSetting(field,value);changed.run();return null;
+            }
+            if(domain.equals("boot")){
+                if(!field.equals("boot")||!(value instanceof String))throw new IllegalArgumentException();BootAppStore store=new BootAppStore(context);String target=(String)value;
+                if(target.equals(BootAppStore.HDMI))store.hdmiBoot(true);else{String label="QuietTV 首页";if(!target.isEmpty()){android.content.pm.ResolveInfo app=new HomeAppCatalog(context).find(target);if(app==null||store.launchIntent(target)==null)throw new PhoneSettingsServer.Rejected("此应用已不可用");label=app.loadLabel(context.getPackageManager()).toString();}if(!active.valid())throw new PhoneSettingsServer.Ended();store.select(target,label);}changed.run();return null;
+            }
+            if(domain.equals("management")){
+                if(!Boolean.TRUE.equals(value)||!Arrays.asList("connect","disconnect","check").contains(field))throw new IllegalArgumentException();
+                return actions.onMain(()->{
+                    ManagementAdb management=ManagementAdb.get(context);String message;
+                    if(field.equals("connect")){management.requestAuthorization();message="正在连接当前电视，如出现系统调试授权弹窗，请在电视允许。";}
+                    else if(field.equals("disconnect")){management.pause();message="已断开连接，自动重连已暂停。";}
+                    else{management.check();message="已重新读取 ADB 状态。";}
+                    changed.run();return new JSONObject().put("message",message);
+                },active);
+            }
+            if(domain.equals("guard")&&(field.equals("pause")||field.equals("restore")))return legacyDesktop(field.equals("restore"),active);
+            if(domain.equals("guard"))return actions.onMain(()->{
+                String message;
+                if(field.equals("system")){Intent intent=MaintenanceHelpActivity.homeSettingsIntent(context);if(intent==null)throw new PhoneSettingsServer.Rejected("此电视没有默认桌面选择入口，请沿电视说明通过电脑配置");intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);if(!ExternalActivityLauncher.open(context,"phone.home_settings",intent))throw new PhoneSettingsServer.Rejected("默认桌面选择入口不可用");message="已打开电视系统选择，请完成后检查实际 HOME 行为";}
+                else if(field.equals("pause")||field.equals("restore"))message=MaintenanceHelpActivity.perform(context,field.equals("restore"));else throw new IllegalArgumentException();changed.run();return new JSONObject().put("message",message).put("state","waitingTelevision");
+            },active);
+            if(domain.equals("inputs"))return actions.onMain(()->{
+                SourcePairing pairing=SourcePairing.get(context);JSONObject result=new JSONObject();
+                if(field.equals("search")&&Boolean.TRUE.equals(value))result.put("searchId",pairing.search(scope));
+                else if(field.equals("cancel")&&Boolean.TRUE.equals(value)){if(!scope.equals(pairing.owner()))throw new PhoneSettingsServer.Rejected("当前信号源任务属于电视或其他连接");pairing.cancel(scope,true);}
+                else if(field.equals("test")&&value instanceof JSONObject){JSONObject request=(JSONObject)value;if(request.length()!=3)throw new IllegalArgumentException();String id=request.getString("id"),expected=request.getString("revision"),label=request.getString("label");SourceSearch.Candidate candidate=pairing.candidate(id);if(candidate==null)throw new PhoneSettingsServer.Rejected("搜索入口已变化，请重新搜索");result.put("request",pairing.request(scope,id,candidate.scope,expected,label));}
+                else if(field.equals("confirm")&&value instanceof JSONObject){JSONObject request=(JSONObject)value;if(request.length()!=3||!(request.opt("worked") instanceof Boolean)||!(request.opt("physical") instanceof Boolean))throw new IllegalArgumentException();pairing.confirm(scope,request.getString("request"),request.getBoolean("worked"),request.getBoolean("physical"),"user",request.getBoolean("worked")?"用户从手机确认实际端口、画面和声音":"用户从手机报告入口或画面异常");}
+                else if(field.equals("observe")&&value instanceof Boolean)result.put("observation",pairing.observe(scope,(Boolean)value));
+                else if((field.equals("restore")||field.equals("defaults"))&&value instanceof String)pairing.restore(scope,(String)value,field.equals("defaults"));
+                else throw new IllegalArgumentException();return result.put("message","信号源请求已受理，请按实际电视画面核对");
+            },active);
+            throw new IllegalArgumentException();
+        }
+    }
+    JSONObject desktopSwitch(String field,Object value,PhoneSettingsServer.Active active)throws IOException{
+        if(!(value instanceof JSONObject)||!Arrays.asList("switch","manage","verify").contains(field))throw new PhoneSettingsServer.BadInput();
+        JSONObject request=(JSONObject)value;boolean verify=field.equals("verify");
+        if(request.length()!=(verify?3:2)||!(request.opt("revision") instanceof String))throw new PhoneSettingsServer.BadInput();
+        String action=verify?request.optString("scene"):request.optString("action"),revision=request.optString("revision");
+        if(verify){if(!(request.opt("scene") instanceof String)||!(request.opt("result") instanceof String)||!Arrays.asList("home","reboot","coldBoot","wake").contains(action)||!Arrays.asList("通过","失败","待验证").contains(request.optString("result")))throw new PhoneSettingsServer.BadInput();}
+        else if(!(request.opt("action") instanceof String)||!(field.equals("switch")?Arrays.asList("stock","quiet","quiet-disable").contains(action):DesktopSwitchPlan.managementAction(action)))throw new PhoneSettingsServer.BadInput();
+        if(tasks.restoring())throw new PhoneSettingsServer.Rejected("桌面正在恢复，请稍后核对。");
+        PhoneSettingsTasks.Job job=tasks.begin(scope+"/desktopSwitch",verify?"记录使用验证":"桌面管理",field+":"+request.toString(),active);
+        tasks.start(job,work->{work.check();work.cancellable=false;work.stage(verify?"正在记录用户确认结果":"正在核对并处理电视桌面",-1);try{
+            DesktopSwitch engine=DesktopSwitch.get(context);JSONObject result=verify?engine.verify(action,request.optString("result"),revision,work::active):field.equals("manage")?engine.manage(action,revision,work::active):engine.execute(action,revision,work::active);
+            work.stage(verify?"已记录用户确认的实际结果":result.optString("message","请核对电视画面和 HOME 行为"),100);changed.run();return result;
+        }catch(Exception failure){throw new PhoneSettingsTasks.Problem(DesktopSwitch.message(failure),true);}});return tasks.receipt(job);
+    }
+    private JSONObject legacyDesktop(boolean restore,PhoneSettingsServer.Active active)throws IOException {
+        PhoneSettingsTasks.Job job=tasks.begin(scope+"/desktopSwitch",restore?"恢复原桌面":"暂停桌面接管",restore?"legacy-restore":"legacy-pause",active);
+        tasks.start(job,work->{work.check();work.cancellable=false;try{String message=DesktopSwitch.get(context).legacy(restore,work::active);changed.run();return new JSONObject().put("message",message).put("state","waitingTelevision");}catch(Exception failure){throw new PhoneSettingsTasks.Problem(DesktopSwitch.message(failure),true);}});return tasks.receipt(job);
+    }
+    private JSONObject refreshWeather(PhoneSettingsServer.Active active)throws IOException{
+        if(!new WeatherStore(context).enabled())throw new PhoneSettingsServer.Rejected("请先开启天气");PhoneSettingsTasks.Job job=tasks.begin(scope+"/weather","更新电视天气","refresh",active);
+        tasks.start(job,work->{CountDownLatch done=new CountDownLatch(1);boolean[] armed={false},loading={false};String[] message={""};WeatherController[] controller={null};
+            main.post(()->{if(!work.active()){done.countDown();return;}controller[0]=new WeatherController(context,true,(data,error,busy)->{if(busy)loading[0]=true;if(armed[0]&&!busy&&(loading[0]||!error.isEmpty())){message[0]=error;done.countDown();}});controller[0].resume();armed[0]=true;controller[0].refresh(true);});
+            try{work.stage("正在按电视位置和来源更新天气",-1);long deadline=SystemClock.elapsedRealtime()+90_000;while(!done.await(200,TimeUnit.MILLISECONDS)){work.check();if(SystemClock.elapsedRealtime()>deadline)throw new PhoneSettingsTasks.Problem("天气刷新尚未确认，已保留可用缓存，请稍后核对",true);}work.check();if(!message[0].isEmpty())throw new PhoneSettingsTasks.Problem("天气未更新，已保留可用缓存："+message[0],false);changed.run();work.stage("电视天气已更新",100);return new JSONObject();}
+            finally{main.post(()->{if(controller[0]!=null)controller[0].destroy();});}
+        });return tasks.receipt(job);
+    }
+}

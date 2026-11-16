@@ -27,14 +27,15 @@ final class ScreensaverController {
     private final ScreensaverStore store;
     private final Host host;
     private final Handler main=new Handler(Looper.getMainLooper());
-    private final LinearLayout information;
-    private final TextView clock,date,weather;
+    private final FrameLayout information;
+    private final TextView clock,weather;
     private final boolean chinese;
     private final Map<Integer,Long> wakeKeys=new HashMap<>();
     private State state=State.OFF;
     private boolean eligible,screenOff,wakeTouch,destroyed;
     private int generation;
     private ScreensaverSettings settings;
+    private String mediaKey="";
     private WeatherData weatherData;
     private final Runnable idle=this::enter;
     private final Runnable tick=new Runnable(){public void run(){if(state==State.ACTIVE){render();main.postDelayed(this,60000-System.currentTimeMillis()%60000);}}};
@@ -45,12 +46,13 @@ final class ScreensaverController {
     ScreensaverController(Activity activity,FrameLayout root,WallpaperController wallpapers,float unit,boolean chinese,Host host){
         this.activity=activity;this.wallpapers=wallpapers;this.host=host;this.chinese=chinese;media=WallpaperStore.get(activity);store=ScreensaverStore.get(activity);
         WallpaperUi ui=new WallpaperUi(activity,unit);
-        information=new LinearLayout(activity);information.setOrientation(LinearLayout.VERTICAL);information.setVisibility(View.GONE);information.setFocusable(false);
-        clock=ui.text("",80);clock.setTypeface(Typeface.create("sans-serif-light",Typeface.NORMAL));
-        date=ui.text("",14);weather=ui.text("",18);
-        for(TextView view:new TextView[]{clock,date,weather}){view.setSingleLine(true);view.setTextColor(Color.WHITE);view.setShadowLayer(ui.px(12),0,ui.px(1),0x66000000);information.addView(view,new LinearLayout.LayoutParams(-2,-2));}
-        ((LinearLayout.LayoutParams)date.getLayoutParams()).topMargin=ui.px(8);((LinearLayout.LayoutParams)weather.getLayoutParams()).topMargin=ui.px(20);
-        FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.START);p.leftMargin=ui.px(67);p.topMargin=ui.px(65);root.addView(information,p);
+        information=new FrameLayout(activity);information.setVisibility(View.GONE);information.setFocusable(false);
+        clock=ui.text("",96);clock.setTypeface(Build.VERSION.SDK_INT>=26?Typeface.createFromAsset(activity.getAssets(),"fonts/outfit.ttf"):Typeface.create("sans-serif-light",Typeface.NORMAL));if(Build.VERSION.SDK_INT>=26)ClockFont.apply(clock);clock.setGravity(Gravity.CENTER);
+        weather=ui.text("",19);weather.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,19.2f*unit);
+        for(TextView view:new TextView[]{clock,weather}){view.setSingleLine(true);view.setTextColor(UiPalette.TEXT);view.setShadowLayer(ui.px(12),0,ui.px(2),0x77000000);}
+        information.addView(clock,new FrameLayout.LayoutParams(-2,Math.round(115.2f*unit),Gravity.CENTER));
+        FrameLayout.LayoutParams weatherPosition=new FrameLayout.LayoutParams(-2,-2,Gravity.LEFT|Gravity.BOTTOM);weatherPosition.leftMargin=Math.round(76.8f*unit);weatherPosition.bottomMargin=Math.round(43.2f*unit);information.addView(weather,weatherPosition);
+        root.addView(information,new FrameLayout.LayoutParams(-1,-1));
         IntentFilter filter=new IntentFilter(Intent.ACTION_SCREEN_OFF);filter.addAction(Intent.ACTION_SCREEN_ON);activity.registerReceiver(screen,filter);
     }
     private boolean allowed(){PowerManager power=(PowerManager)activity.getSystemService(Context.POWER_SERVICE);return !destroyed&&!screenOff&&host.allowed()&&power!=null&&(Build.VERSION.SDK_INT>=20?power.isInteractive():power.isScreenOn());}
@@ -69,18 +71,27 @@ final class ScreensaverController {
     void enter(){
         main.removeCallbacks(idle);if(state!=State.OFF||!allowed())return;
         settings=read();if(settings==null){Toast.makeText(activity,chinese?"屏保配置无法读取":"Unable to read screensaver settings",Toast.LENGTH_SHORT).show();return;}
-        host.captureFocus();state=State.ENTERING;int version=++generation;host.weatherDemand(settings.showWeather);
-        wallpapers.showTemporary(settings.mediaId,()->{
+        host.captureFocus();present();
+    }
+    private String mediaKey(ScreensaverSettings value,WallpaperCatalog catalog){return value.mode+":"+media.imageKey(value.resolved(catalog))+":"+catalog.weather+":"+catalog.weatherDayNight;}
+    private void present(){
+        state=State.ENTERING;int version=++generation;main.removeCallbacks(tick);host.weatherDemand(settings.showWeather);
+        WallpaperCatalog catalog=media.snapshot();mediaKey=mediaKey(settings,catalog);wallpapers.showTemporary(settings.resolved(catalog),ScreensaverSettings.FOLLOW.equals(settings.mode)&&catalog.weather&&WallpaperGpuSupport.available(activity),catalog.weatherDayNight,()->{
             if(version!=generation||state!=State.ENTERING)return;
-            state=State.ACTIVE;host.desktopVisible(false);information.setVisibility(View.VISIBLE);render();main.postDelayed(tick,60000-System.currentTimeMillis()%60000);
+            DiagnosticLog.info("screensaver.transition","state=active evidence=background_callback");state=State.ACTIVE;host.desktopVisible(false);information.setVisibility(View.VISIBLE);render();main.postDelayed(tick,60000-System.currentTimeMillis()%60000);
         });
+    }
+    void settingsChanged(){
+        ScreensaverSettings next=read();if(next==null)return;boolean changed=settings!=next;settings=next;
+        if(state==State.OFF){if(changed)interaction();return;}if(state==State.EXITING)return;
+        if(!mediaKey.equals(mediaKey(settings,media.snapshot())))present();else{host.weatherDemand(settings.showWeather);if(state==State.ACTIVE)render();}
     }
     private void exit(){
         if(state==State.OFF||state==State.EXITING)return;
-        state=State.EXITING;int version=++generation;main.removeCallbacks(tick);host.weatherDemand(false);
+        DiagnosticLog.info("screensaver.transition","state=exiting");state=State.EXITING;int version=++generation;main.removeCallbacks(tick);host.weatherDemand(false);
         wallpapers.restoreDesktop(()->{
             if(version!=generation||state!=State.EXITING)return;
-            information.setVisibility(View.GONE);host.desktopVisible(true);state=State.OFF;host.restoreFocus();interaction();
+            information.setVisibility(View.GONE);host.desktopVisible(true);state=State.OFF;DiagnosticLog.info("screensaver.transition","state=off evidence=background_callback");host.restoreFocus();interaction();
         });
     }
     void pause(){
@@ -113,10 +124,11 @@ final class ScreensaverController {
     void timeChanged(){if(state==State.ACTIVE)render();}
     private void render(){
         if(settings==null)return;
-        Date now=new Date();clock.setText(new SimpleDateFormat("HH:mm",Locale.US).format(now));date.setText(new SimpleDateFormat(chinese?"M月d日  EEEE":"EEEE, MMMM d",chinese?Locale.SIMPLIFIED_CHINESE:Locale.US).format(now));
-        clock.setVisibility(settings.showTime?View.VISIBLE:View.GONE);date.setVisibility(settings.showTime?View.VISIBLE:View.GONE);
+        Date now=new Date();clock.setText(new SimpleDateFormat("HH:mm",Locale.US).format(now));boolean clockOnly=ScreensaverSettings.CLOCK.equals(settings.mode);information.setBackgroundColor(clockOnly?0xff000000:Color.TRANSPARENT);
+        clock.setVisibility(settings.showTime||clockOnly?View.VISIBLE:View.GONE);
         boolean visible=settings.showWeather&&weatherData!=null&&weatherData.usable(System.currentTimeMillis());weather.setVisibility(visible?View.VISIBLE:View.GONE);
-        if(visible)weather.setText(String.format(Locale.ROOT,"%s  %s  %s",weatherData.temperatureText(),weatherData.description,weatherData.city));
+        if(visible)weather.setText(String.format(Locale.ROOT,"%s  %s  %s",weatherData.city,weatherData.temperatureText(),weatherData.description));
     }
     void destroy(){pause();destroyed=true;activity.unregisterReceiver(screen);main.removeCallbacksAndMessages(null);}
+    @android.annotation.TargetApi(26) private static final class ClockFont {static void apply(TextView view){view.setFontVariationSettings("'wght' 300");}}
 }

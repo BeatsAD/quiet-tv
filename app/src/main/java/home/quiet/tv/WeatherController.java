@@ -21,7 +21,8 @@ final class WeatherController {
     private final BroadcastReceiver network=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent i){if(connected())refresh(false);}};
     private WeatherData data;
     private Future<?> request;
-    private boolean active,loading,rateLimited,screensaverWeather;
+    private DiagnosticOperation diagnostic;
+    private boolean active,loading,rateLimited,screensaverWeather,wallpaperWeather;
     private int generation;
     private long nextAttempt;
     private static long lastAttempt;
@@ -42,29 +43,34 @@ final class WeatherController {
         cancel();
     }
     void destroy(){pause();worker.shutdownNow();}
-    private boolean needed(){return store.enabled()||screensaverWeather;}
+    private boolean needed(){return store.enabled()||screensaverWeather||wallpaperWeather;}
     void screensaverWeather(boolean enabled){
         if(screensaverWeather==enabled)return;screensaverWeather=enabled;
+        if(needed()){render();refresh(false);}else{main.removeCallbacks(refresh);cancel();render();}
+    }
+    void wallpaperWeather(boolean enabled){
+        if(wallpaperWeather==enabled)return;wallpaperWeather=enabled;
         if(needed()){render();refresh(false);}else{main.removeCallbacks(refresh);cancel();render();}
     }
     String errorMessage(){return error;}
     void settingsChanged(){cancel();key=store.key(chinese);data=store.cached(chinese);if(!rateLimited)nextAttempt=0;error="";render();refresh(true);}
     void refresh(boolean force){
         main.removeCallbacks(refresh);
-        if(!active||!needed()||loading){render();return;}
+        if(!active||!needed()||loading){skip(loading?"already_loading":"inactive_or_not_needed");render();return;}
         long elapsed=SystemClock.elapsedRealtime(),now=System.currentTimeMillis();
-        if(elapsed<nextAttempt&&(!force||rateLimited)){schedule(nextAttempt-elapsed);render();return;}
-        if(!force&&data!=null&&data.usable(now)&&now-data.fetchedAt>=0&&now-data.fetchedAt<WeatherData.REFRESH_MS){schedule(WeatherData.REFRESH_MS-(now-data.fetchedAt));render();return;}
+        if(elapsed<nextAttempt&&(!force||rateLimited)){skip(rateLimited?"rate_limited":"backoff");schedule(nextAttempt-elapsed);render();return;}
+        if(!force&&data!=null&&data.usable(now)&&now-data.fetchedAt>=0&&now-data.fetchedAt<WeatherData.REFRESH_MS){if(DiagnosticProbe.allow("weather.cache",60000))DiagnosticLog.info("weather.cache","fresh=true ageMs="+(now-data.fetchedAt));schedule(WeatherData.REFRESH_MS-(now-data.fetchedAt));render();return;}
         if(!connected()){DiagnosticLog.info("weather.refresh.skipped","reason=offline");error=tr("天气暂不可用","Weather unavailable");render();return;}
         // A remote cannot create a burst by repeatedly pressing Refresh.
         if(lastAttempt>0&&elapsed-lastAttempt<10000){schedule(10000-(elapsed-lastAttempt));return;}
-        lastAttempt=elapsed;loading=true;error="";render();final int version=++generation;final String selected=key;
+        String provider=store.provider();diagnostic=new DiagnosticOperation("weather.refresh","automatic="+store.automatic()+" provider="+(java.util.Arrays.asList("auto","qweather","uapi","openweather","openmeteo").contains(provider)?provider:"other"));lastAttempt=elapsed;loading=true;error="";render();final int version=++generation;final String selected=key;
         if(store.automatic())locations.resolve(location->{
             if(!active||version!=generation)return;
             fetch(version,selected,"",location);
         });else fetch(version,selected,store.adcode(),null);
     }
     private void fetch(int version,String selected,String adcode,android.location.Location location){
+        final DiagnosticOperation trace=diagnostic;if(trace!=null)trace.stage("FETCH");
         request=worker.submit(()->{
             try{
                 WeatherRegions.Region place=store.automatic()?null:store.selected();
@@ -73,11 +79,11 @@ final class WeatherController {
                 final WeatherRegions.Region resolved=place;
                 WeatherData result=location==null?client.weather(place,store.provider(),store.meteoFallback(),adcode.isEmpty()?"ip":"manual",chinese)
                     :client.locatedWeather(location.getLatitude(),location.getLongitude(),store.provider(),store.meteoFallback(),chinese);
-                main.post(()->{if(!accept(version,selected))return;loading=false;data=result;
+                main.post(()->{if(!accept(version,selected)){if(trace!=null)trace.finish("CANCELLED","stale_result");return;}loading=false;data=result;
                     if(resolved!=null&&resolved.located()){store.select(resolved);key=store.key(chinese);}
-                    store.save(chinese,result);nextAttempt=0;rateLimited=false;error="";render();schedule(WeatherData.REFRESH_MS);});
+                    store.save(chinese,result);if(trace!=null)trace.finish("COMPLETED","cache_updated");nextAttempt=0;rateLimited=false;error="";render();schedule(WeatherData.REFRESH_MS);});
             }catch(java.io.IOException|org.json.JSONException e){
-                DiagnosticLog.error("weather.refresh.failed",e);
+                if(trace!=null)trace.finish("FAILED",e.getClass().getSimpleName());DiagnosticLog.error("weather.refresh.failed",e);
                 main.post(()->{
                     if(!accept(version,selected))return;loading=false;
                     long delay=5*60*1000L;
@@ -92,9 +98,10 @@ final class WeatherController {
             }
         });
     }
+    private void skip(String reason){if(DiagnosticProbe.allow("weather.skipped",60000))DiagnosticLog.info("weather.refresh.skipped","reason="+reason);}
     private boolean accept(int version,String selected){return active&&version==generation&&selected.equals(store.key(chinese));}
     private void schedule(long delay){main.removeCallbacks(refresh);if(active&&needed())main.postDelayed(refresh,Math.max(1000,delay));}
-    private void cancel(){++generation;locations.cancel();if(request!=null)request.cancel(true);client.cancel();loading=false;}
+    private void cancel(){if(diagnostic!=null)diagnostic.finish("CANCELLED","inactive_or_settings_changed");++generation;locations.cancel();if(request!=null)request.cancel(true);client.cancel();loading=false;}
     private boolean connected(){ConnectivityManager manager=(ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);NetworkInfo info=manager==null?null:manager.getActiveNetworkInfo();return info!=null&&info.isConnected();}
     private void render(){
         if(!needed()){listener.changed(null,"",false);return;}

@@ -2,7 +2,10 @@
 
 | 文件 / File | 来源 / Source | 说明 / Notes |
 | --- | --- | --- |
-| [quiet-tv-icon.svg](quiet-tv-icon.svg) | 按用户选定的方案 1「Q 字电视」重建的矢量图标 / Vector reconstruction of selected concept 1 | 深蓝底、雾白 Q 形屏幕、浅蓝尾部；与 Android `launcher_icon.xml` 和关于页内联 SVG 保持相同几何与配色 / Shared geometry and palette across Android and About |
+| [quiet-tv-icon.svg](quiet-tv-icon.svg) | 按用户选定的方案 1「Q 字电视」重建的矢量图标 / Vector reconstruction of selected concept 1 | 历史深蓝矢量标识，供既有展示页使用；当前 2.0 默认应用图标采用以下 PNG 资源 / Historical vector artwork; current 2.0 app artwork is listed below |
+| [quiettv_launcher.png](../../app/src/main/res/drawable-nodpi/quiettv_launcher.png) | [在线图库苹果风格 v6 确认稿](https://beatsad.github.io/quiet-tv-icons/images/apple/v6/icons/quiettv-square.png) | 512×512 RGBA8 无损 PNG；冰蓝近色乳白磨砂 Q 与炭黑底板；2.0 默认应用图标和原生关于页共用 / Approved default app and native About artwork |
+| [quiettv_launcher_banner.png](../../app/src/main/res/drawable-nodpi/quiettv_launcher_banner.png) | [同款圆角矩形确认稿](https://beatsad.github.io/quiet-tv-icons/images/apple/v6/icons/quiettv-rectangle.png) | 720×405 RGBA8 无损 PNG；电视入口直接使用 16:9 构图 / Matching 16:9 television banner |
+| [quiettv-assistant-launcher.png](../../phone-web/public/assets/quiettv-assistant-launcher.png) | 与 [默认应用图标](../../app/src/main/res/drawable-nodpi/quiettv_launcher.png) 逐字节一致 | 手机扫码设置的连接页与版本更新页共用 512×512 冰蓝磨砂图标，并同步到电视内置网页 / Shared phone web connection and update artwork |
 | [home.png](home.png) | 本地 `evidence/public-showcase-20261019/home.png` | Sony KD-65X9000H，2026-10-19，1920×1080，原始 ADB 截图，逐字节复制 / Original ADB capture, copied unchanged |
 | [wallpaper-settings.png](wallpaper-settings.png) | 本地 `evidence/public-showcase-20261019/wallpaper-settings.png` | 同机型与日期，原始 ADB 截图，逐字节复制 / Same device and date, copied unchanged |
 | [cover.png](cover.png) | 内置 imagegen 工具，参考原封面重新构图 / Built-in imagegen, recomposed from the original cover | 2172×724，3:1 横幅；保留标题、副标题与深蓝客厅电视场景；AI 品牌插画，不作为设备验证证据 / 2172×724, 3:1 banner retaining the title, subtitle and dark blue living-room TV scene; AI brand illustration, not hardware evidence |

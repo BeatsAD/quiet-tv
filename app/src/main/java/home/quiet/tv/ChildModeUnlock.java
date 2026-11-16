@@ -24,14 +24,14 @@ final class ChildModeUnlock {
 
     ChildModeUnlock(AppManagementActivity activity,Active active,Runnable authorized,Runnable cancel){
         this.activity=activity;this.active=active;this.authorized=authorized;store=new ChildModeStore(activity);
-        view=activity.column();view.setPadding(p(22),p(12),p(22),p(12));view.setBackgroundDrawable(activity.surface(0xff20232a,0xff171a20,0x26ffffff,14));
+        view=activity.column();view.setPadding(p(22),p(12),p(22),p(12));view.setBackgroundDrawable(activity.surface(0xff000000,0xff000000,0x26ffffff,14));
         LinearLayout fields=view,pad=activity.column();
         title=activity.center("",20);fields.addView(title,new LinearLayout.LayoutParams(-1,p(26)));
         pin=activity.input("","输入 6 位数字");pin.setSaveEnabled(false);pin.setId(androidx.core.view.ViewCompat.generateViewId());pin.setTag("child-pin");pin.setGravity(Gravity.CENTER);
-        pin.setInputType(InputType.TYPE_CLASS_NUMBER|InputType.TYPE_NUMBER_VARIATION_PASSWORD);pin.setFilters(new InputFilter[]{new InputFilter.LengthFilter(6),android.text.method.DigitsKeyListener.getInstance("0123456789")});
+        ChildModeAuth.mask(pin);pin.setFilters(new InputFilter[]{new InputFilter.LengthFilter(6),android.text.method.DigitsKeyListener.getInstance("0123456789")});
         if(android.os.Build.VERSION.SDK_INT>=21)pin.setShowSoftInputOnFocus(false);
         LinearLayout.LayoutParams pp=new LinearLayout.LayoutParams(-1,p(34));pp.topMargin=p(8);fields.addView(pin,pp);
-        error=activity.muted("",11);error.setGravity(Gravity.CENTER);error.setTextColor(0xffe3aba1);androidx.core.view.ViewCompat.setAccessibilityLiveRegion(error,androidx.core.view.ViewCompat.ACCESSIBILITY_LIVE_REGION_POLITE);fields.addView(error,new LinearLayout.LayoutParams(-1,p(18)));
+        error=activity.muted("",11);error.setGravity(Gravity.CENTER);error.setTextColor(UiPalette.TEXT);androidx.core.view.ViewCompat.setAccessibilityLiveRegion(error,androidx.core.view.ViewCompat.ACCESSIBILITY_LIVE_REGION_POLITE);fields.addView(error,new LinearLayout.LayoutParams(-1,p(18)));
         pin.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int start,int count,int after){}public void onTextChanged(CharSequence s,int start,int before,int count){}public void afterTextChanged(Editable value){if(!busy){error.setText("");if(mode==0&&value.length()==6)submit();}}});
         LinearLayout.LayoutParams padLayout=new LinearLayout.LayoutParams(-1,-2);padLayout.topMargin=p(4);fields.addView(pad,padLayout);
         for(int row=0;row<4;row++){

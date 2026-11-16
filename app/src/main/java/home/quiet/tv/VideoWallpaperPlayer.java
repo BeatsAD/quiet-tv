@@ -49,7 +49,9 @@ final class VideoWallpaperPlayer {
     }
     private static final String TAG="QuietTVWallpaper";
     private final Activity activity;
-    private boolean compositeOutput;
+    private boolean compositeOutput,progressiveBlur,focusPaused;
+    private int progressiveStrength;
+    private File sourceFile;
     private final FrameLayout host,frame;
     private final Handler main=new Handler(Looper.getMainLooper());
     private final ExecutorService copies=Executors.newSingleThreadExecutor();
@@ -111,7 +113,7 @@ final class VideoWallpaperPlayer {
     private boolean interactive(){PowerManager power=(PowerManager)activity.getSystemService(Context.POWER_SERVICE);return power!=null&&(Build.VERSION.SDK_INT>=20?power.isInteractive():power.isScreenOn());}
     private int displayState(){return Build.VERSION.SDK_INT>=20?Api20.state(activity):0;}
     boolean displayReady(){return interactive()&&(Build.VERSION.SDK_INT<20||displayState()==Display.STATE_ON);}
-    private boolean outputAllowed(){return !screenOff&&displayReady()&&host.isShown()&&host.getWindowVisibility()==View.VISIBLE;}
+    private boolean outputAllowed(){return !screenOff&&displayReady()&&host.isShown()&&host.getWindowVisibility()==View.VISIBLE&&(!progressiveBlur||host.hasWindowFocus());}
     void diagnosticState(String phase){
         Target t=target;
         DiagnosticLog.info("wallpaper.video.state",context(generation)+" phase="+phase+" uptimeMs="+SystemClock.uptimeMillis()+" displayState="+displayState()+" interactive="+interactive()
@@ -148,7 +150,7 @@ final class VideoWallpaperPlayer {
         screenOff=!interactive();start();if(target!=null)firstFrame(target);
         if(target!=null&&!rendered&&outputAllowed()){main.removeCallbacks(timeout);main.postDelayed(timeout,8000);}
     }
-    private void windowFocusChanged(boolean focused){if(focused)resumeOutput();if(enabled)diagnosticState(focused?"focus_gain":"focus_loss");}
+    private void windowFocusChanged(boolean focused){if(progressiveBlur){if(!focused&&enabled&&!paused){focusPaused=true;setPaused(true);}else if(focused&&focusPaused){focusPaused=false;setPaused(false);}}if(focused)resumeOutput();if(enabled)diagnosticState(focused?"focus_gain":"focus_loss");}
     @android.annotation.TargetApi(20) private static final class Api20 {
         static int state(Activity activity){return activity.getWindowManager().getDefaultDisplay().getState();}
         static Runnable observe(Activity activity,Handler handler,Runnable changed){
@@ -162,7 +164,7 @@ final class VideoWallpaperPlayer {
         HandlerThread thread=new HandlerThread("QuietTV-wallpaper");thread.start();return new Handler(thread.getLooper());
     }
     static boolean textureOutput(int sdk,boolean legacy,boolean composite){return composite||(legacy?sdk<17:sdk<27);}
-    private boolean textureOutput(boolean composite){return textureOutput(Build.VERSION.SDK_INT,BuildConfig.LEGACY_19,composite||BuildConfig.LEGACY_19&&entry!=null&&entry.rotation!=0);}
+    private boolean textureOutput(boolean composite){return textureOutput(Build.VERSION.SDK_INT,BuildConfig.LEGACY_19,composite||progressiveBlur||BuildConfig.LEGACY_19&&entry!=null&&entry.rotation!=0);}
     boolean outputModeChanges(boolean composite){return textureOutput(compositeOutput)!=textureOutput(composite);}
     /** The caller submits an opaque cover before replacing a visible output. */
     void setCompositeOutput(boolean composite){
@@ -170,6 +172,13 @@ final class VideoWallpaperPlayer {
         if(change&&enabled){release();start();}
     }
 
+    void progressive(boolean enabled,int strength){
+        boolean requested=enabled&&WallpaperGpuSupport.available(activity);progressiveStrength=Math.max(0,Math.min(100,strength));
+        if(progressiveBlur==requested){if(target!=null&&target.view instanceof WallpaperGpuView)((WallpaperGpuView)target.view).strength(progressiveStrength);return;}
+        progressiveBlur=requested;if(!this.enabled||target==null)return;
+        final int request=++generation;rendered=false;main.removeCallbacks(timeout);Listener previous=listener;if(previous!=null)previous.stopped();
+        Runnable replace=()->{if(request!=generation||destroyed||!this.enabled)return;release();start();};if(previous!=null)previous.cover(replace);else replace.run();
+    }
     VideoWallpaperPlayer(Activity activity,FrameLayout host){this(activity,host,false);}
     VideoWallpaperPlayer(Activity activity,FrameLayout host,boolean compositeOutput){
         this.activity=activity;this.host=host;this.compositeOutput=compositeOutput;
@@ -181,7 +190,9 @@ final class VideoWallpaperPlayer {
         IntentFilter filter=new IntentFilter(Intent.ACTION_SCREEN_OFF);filter.addAction(Intent.ACTION_SCREEN_ON);activity.registerReceiver(screen,filter);
         lastDisplayState=displayState();if(Build.VERSION.SDK_INT>=20)stopDisplayObserver=Api20.observe(activity,main,this::displayChanged);
     }
-    void play(WallpaperCatalog.Entry entry,Listener listener){
+    void play(WallpaperCatalog.Entry entry,Listener listener){play(entry,null,listener);}
+    void play(WallpaperCatalog.Entry entry,File source,Listener listener){
+        sourceFile=source;
         if(destroyed)return;
         if(releaseBlocked()){listener.failed(Failure.RELEASING);return;}
         if(requested(entry.id)){this.listener=listener;if(rendered)listener.ready();else start();return;}
@@ -198,9 +209,16 @@ final class VideoWallpaperPlayer {
         main.removeCallbacks(timeout);
         // Detach native output before an obscured window can destroy its Surface on the UI thread.
         // Keep the SurfaceView attached under the cover; resume must await a fresh decoder frame.
+        if(target!=null&&target.view instanceof WallpaperGpuView)((WallpaperGpuView)target.view).active(!value);
         if(value&&enabled&&target!=null&&(!target.textureOutput||target.request!=generation)){release(target.request!=generation);return;}
         if(!releaseBlocked())worker.post(()->{if(request==generation&&decoder!=null&&decoder.owner==owner)try{decoder.player.setPaused(value);}catch(RuntimeException e){DiagnosticLog.error("wallpaper.video.pause_failed",diagnosticContext+" paused="+value+" "+VideoDiagnostics.failureDetails(e),e);main.post(()->fail(request,Failure.DECODE));}});
         if(!value){start();if(target!=null)firstFrame(target);if(enabled&&!rendered&&!screenOff)main.postDelayed(timeout,8000);}
+    }
+    void sourceSnapshot(Snapshot callback){
+        Target captured=target;if(captured==null||!(captured.view instanceof WallpaperGpuView)){snapshot(callback);return;}
+        if(!rendered||!current(captured)||captured.view.getWidth()==0||captured.view.getHeight()==0){callback.ready(null);return;}
+        int request=generation;float scale=Math.min(1f,WallpaperBackdropCache.MAX_EDGE/(float)Math.max(captured.view.getWidth(),captured.view.getHeight()));
+        ((WallpaperGpuView)captured.view).sourceSnapshot(Math.max(1,Math.round(captured.view.getWidth()*scale)),Math.max(1,Math.round(captured.view.getHeight()*scale)),bitmap->{if(bitmap==null){callback.ready(null);return;}if(rendered&&current(captured,request))callback.ready(bitmap);else{bitmap.recycle();callback.ready(null);}});
     }
     void snapshot(Snapshot callback){
         Target captured=target;
@@ -211,32 +229,33 @@ final class VideoWallpaperPlayer {
     }
     void snapshot(int width,int height,Snapshot callback){
         Target captured=target;final int request=generation;
-        if(captured==null||!rendered||!current(captured)||captured.view.getWidth()==0||captured.view.getHeight()==0){callback.ready(null);return;}
+        if(captured==null||!rendered||!current(captured)||captured.view.getWidth()==0||captured.view.getHeight()==0){snapshotEvidence("output_unavailable");callback.ready(null);return;}
         if(captured.textureOutput){
             Bitmap image=null;try{image=((TextureView)captured.view).getBitmap(width,height);}catch(RuntimeException|OutOfMemoryError ignored){}
-            if(image==null){callback.ready(null);return;}
+            if(image==null){snapshotEvidence("texture_bitmap_null");callback.ready(null);return;}
             Bitmap copy=image;
             copies.execute(()->{
                 boolean copied=false;try{copied=hasPixels(copy);}catch(RuntimeException|OutOfMemoryError ignored){}
                 boolean validCopy=copied;
-                main.post(()->{if(validCopy&&rendered&&current(captured,request))callback.ready(copy);else{copy.recycle();callback.ready(null);}});
+                main.post(()->{if(validCopy&&rendered&&current(captured,request)){snapshotEvidence("texture_pixels_ready");callback.ready(copy);}else{snapshotEvidence(validCopy?"texture_generation_or_state_changed":"texture_pixels_transparent");copy.recycle();callback.ready(null);}});
             });return;
         }
-        if(Build.VERSION.SDK_INT<24){callback.ready(null);return;}
+        if(Build.VERSION.SDK_INT<24){snapshotEvidence("native_snapshot_unsupported");callback.ready(null);return;}
         // Preserve the native view's aspect; the wallpaper snapshot applies the viewport crop.
         float scale=Math.min(width/(float)captured.view.getWidth(),height/(float)captured.view.getHeight());
         int copyWidth=Math.max(1,Math.round(captured.view.getWidth()*scale)),copyHeight=Math.max(1,Math.round(captured.view.getHeight()*scale));
         Surface surface=((SurfaceView)captured.view).getHolder().getSurface();
         // Android 12 copies before posting the callback. Keep the request itself off the UI and decoder Loopers.
         copies.execute(()->{
-            if(request!=generation){main.post(()->callback.ready(null));return;}
+            if(request!=generation){snapshotEvidence("copy_generation_changed");main.post(()->callback.ready(null));return;}
             Bitmap image;
-            try{image=Bitmap.createBitmap(copyWidth,copyHeight,Bitmap.Config.ARGB_8888);}catch(OutOfMemoryError e){main.post(()->callback.ready(null));return;}
+            try{image=Bitmap.createBitmap(copyWidth,copyHeight,Bitmap.Config.ARGB_8888);}catch(OutOfMemoryError e){snapshotEvidence("copy_allocation_failed");main.post(()->callback.ready(null));return;}
             try{Api24.copy(surface,image,main,success->{
                 if(success&&rendered&&current(captured,request))callback.ready(image);else{image.recycle();callback.ready(null);}
-            });}catch(RuntimeException e){image.recycle();main.post(()->callback.ready(null));}
+            });}catch(RuntimeException e){snapshotEvidence("pixel_copy_exception");image.recycle();main.post(()->callback.ready(null));}
         });
     }
+    private void snapshotEvidence(String reason){if(DiagnosticProbe.allow("wallpaper.snapshot",1000))DiagnosticProbe.observed("wallpaper.snapshot",context(generation)+" reason="+reason+" evidence=readback_not_presentation");}
     // API21-23 can return an allocated but transparent bitmap when texture copying fails.
     // A decoded black frame is opaque and must remain valid.
     static boolean hasPixels(Bitmap image){
@@ -251,7 +270,7 @@ final class VideoWallpaperPlayer {
         interface Result {void ready(boolean success);}
         static void copy(Surface surface,Bitmap image,Handler handler,Result result){
             Trace.beginSection("QuietTV.PixelCopy");
-            try{PixelCopy.request(surface,image,status->result.ready(status==PixelCopy.SUCCESS),handler);}finally{Trace.endSection();}
+            try{PixelCopy.request(surface,image,status->{if(DiagnosticProbe.allow("wallpaper.pixel_copy",1000))DiagnosticProbe.observed("wallpaper.blur.pixel_copy","status="+status+" width="+image.getWidth()+" height="+image.getHeight()+" success="+(status==PixelCopy.SUCCESS));result.ready(status==PixelCopy.SUCCESS);},handler);}finally{Trace.endSection();}
         }
     }
     void stop(){enabled=false;release();if(target==null)frame.setVisibility(View.GONE);entry=null;listener=null;}
@@ -293,7 +312,7 @@ final class VideoWallpaperPlayer {
         if(releaseBlocked()){fail(generation,Failure.RELEASING);return;}
         boolean textureOutput=textureOutput(compositeOutput);
         if(target!=null){
-            if(target.preparing||target.textureOutput)return;
+            if(target.preparing)return;if(target.textureOutput){if(target.texture!=null)begin(target,entry);return;}
             if(!target.textureOutput&&!textureOutput){
                 target.aspect=VideoGeometry.aspect(entry.width,entry.height,entry.pixelRatio,entry.rotation);layout();
                 if(target.surface!=null&&target.surface.isValid())begin(target,entry);
@@ -326,7 +345,8 @@ final class VideoWallpaperPlayer {
             // Composited previews and legacy rotation retain their texture path.
             textureOutput=textureOutput(compositeOutput);
             if(!BuildConfig.LEGACY_19&&VideoGeometry.manualRotation(Build.VERSION.SDK_INT,entry.rotation))unappliedRotation=entry.rotation;
-            if(textureOutput){TextureView textureView=new TextureView(activity);textureView.setSurfaceTextureListener(this);view=textureView;}
+            if(textureOutput&&progressiveBlur){WallpaperGpuView gpu=new WallpaperGpuView(activity,new WallpaperGpuView.Listener(){public void ready(){}public void failed(String detail){}},new WallpaperGpuView.VideoSurface(){public void available(SurfaceTexture input,int width,int height){onSurfaceTextureAvailable(input,width,height);}public void presented(SurfaceTexture input){onSurfaceTextureUpdated(input);}public void destroyed(SurfaceTexture input){onSurfaceTextureDestroyed(input);}public void failed(String detail){if(current(Target.this)){DiagnosticLog.info("wallpaper.video.gpu_unavailable",detail);fail(Target.this.request,Failure.OUTPUT);}}});gpu.strength(progressiveStrength);gpu.active(!paused);view=gpu;}
+            else if(textureOutput){TextureView textureView=new TextureView(activity);textureView.setSurfaceTextureListener(this);view=textureView;}
             else{SurfaceView surfaceView=new SurfaceView(activity);if(Build.VERSION.SDK_INT>=34)Api34.attachedLifecycle(surfaceView);surfaceView.getHolder().addCallback(this);view=surfaceView;}
             view.setKeepScreenOn(false);view.setFocusable(false);androidx.core.view.ViewCompat.setImportantForAccessibility(view,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);
         }
@@ -378,7 +398,7 @@ final class VideoWallpaperPlayer {
             updated=true;firstFrame(this);if(framesChanged!=null)framesChanged.run();
         }
         void releaseTexture(){
-            if(released||texture==null)return;released=true;texture.release();
+            if(released||texture==null)return;released=true;if(view instanceof WallpaperGpuView)((WallpaperGpuView)view).releaseInput(texture);else texture.release();
         }
     }
     @androidx.annotation.RequiresApi(34) private static final class Api34 {
@@ -388,8 +408,8 @@ final class VideoWallpaperPlayer {
         if(!current(next)||next.preparing||paused||!outputAllowed())return;
         if(releaseBlocked()){fail(generation,Failure.RELEASING);return;}
         next.preparing=true;final int request=next.request;final String diagnosticContext="request="+request+" wallpaper="+VideoDiagnostics.wallpaper(selected.id);
-        File file=selected.custom()?WallpaperStore.get(activity).file(selected.id):null;
-        Log.i(TAG,"prepare request="+next.request);DiagnosticLog.info("wallpaper.video.prepare",diagnosticContext+" mime="+VideoDiagnostics.mime(selected.videoMime)+" size="+selected.width+"x"+selected.height+" fps="+selected.fps+" backend="+(BuildConfig.LEGACY_19?"platform":"media3")+" output="+(next.textureOutput?"texture":"surface")+" source="+(file==null?"asset":"local")+" filePresent="+(file==null?"unknown":file.isFile())+" bytes="+(file==null?-1:file.length()));
+        File file=sourceFile!=null?sourceFile:selected.custom()?WallpaperStore.get(activity).file(selected.id):null;
+        Log.i(TAG,"prepare request="+next.request);DiagnosticLog.info("media.evidence.use",diagnosticContext+" transfer="+selected.diagnosticTransfer+" fingerprint="+selected.diagnosticFingerprint+" fingerprintStage=imported_source_bytes actualFileContent=not_rehashed");DiagnosticLog.info("wallpaper.video.prepare",diagnosticContext+" mime="+VideoDiagnostics.mime(selected.videoMime)+" size="+selected.width+"x"+selected.height+" fps="+selected.fps+" backend="+(BuildConfig.LEGACY_19?"platform":"media3")+" output="+(next.textureOutput?"texture":"surface")+" source="+(file==null?"asset":"local")+" filePresent="+(file==null?"unknown":file.isFile())+" bytes="+(file==null?-1:file.length()));
         worker.post(()->handoff.submit(done->{
             if(request!=generation||next.retired){done.run();return;}
             releaseDecoder(()->{
@@ -451,6 +471,7 @@ final class VideoWallpaperPlayer {
         else if(!releaseBlocked())worker.post(()->handoff.submit(this::releasePlayer));
     }
     private void retire(Target old){
+        if(old.view instanceof WallpaperGpuView)((WallpaperGpuView)old.view).destroy();
         if(old.retired){if(old.outputId.retire().getCount()==0)old.releaseTexture();return;}
         old.retired=true;
         if(old.outputId.retire().getCount()==0){old.releaseTexture();return;}

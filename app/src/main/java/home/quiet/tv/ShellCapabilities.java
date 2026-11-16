@@ -8,7 +8,9 @@ final class ShellCapabilities {
     static final ShellCapabilities NONE=new ShellCapabilities("","");
     final boolean enable,disable,uninstall,defaultState;
     final String resolve,home,restore,enableCommand,disableCommand,uninstallCommand,defaultStateCommand;
+    private final String disableExactCommand,untilUsedCommand;
     ShellCapabilities(String pm,String cmd){
+        disableExactCommand=command(pm,cmd,"disable");untilUsedCommand=command(pm,cmd,"disable-until-used");
         enableCommand=command(pm,cmd,"enable");disableCommand=command(pm,cmd,"disable-user");
         uninstallCommand=command(pm,cmd,"uninstall");defaultStateCommand=command(pm,cmd,"default-state");
         enable=!enableCommand.isEmpty();disable=!disableCommand.isEmpty();
@@ -16,6 +18,7 @@ final class ShellCapabilities {
         resolve=command(pm,cmd,"resolve-activity");home=command(pm,cmd,"set-home-activity");
         restore=command(pm,cmd,"install-existing");
     }
+    String enabledCommand(int state){switch(state){case 0:return defaultStateCommand;case 1:return enableCommand;case 2:return disableExactCommand;case 3:return disableCommand;case 4:return untilUsedCommand;default:return "";}}
     boolean supports(AppOperations.Action action){
         switch(action){case ENABLE:return enable;case DISABLE:return disable && enable;case UNINSTALL:return uninstall;case RESTORE:return !restore.isEmpty();default:return false;}
     }

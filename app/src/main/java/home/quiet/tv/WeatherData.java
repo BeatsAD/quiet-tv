@@ -16,12 +16,13 @@ final class WeatherData {
     final double temperature,latitude,longitude;
     final String placeCode;
     final long fetchedAt, observedAt;
+    final WeatherAtmosphere atmosphere;
     WeatherData(JSONObject json,long fetchedAt,String source)throws JSONException {
         city=required(json,"city");province=json.optString("province","");adcode=json.optString("adcode","");
         latitude=json.optDouble("latitude",Double.NaN);longitude=json.optDouble("longitude",Double.NaN);placeCode=json.optString("placeCode",adcode);
         description=required(json,"weather");icon=json.optString("weather_icon","999");temperature=json.getDouble("temperature");
         if(Double.isNaN(temperature)||Double.isInfinite(temperature))throw new JSONException("Invalid temperature");
-        this.fetchedAt=fetchedAt;locationSource=source;provider=json.optString("provider","uapi");
+        this.fetchedAt=fetchedAt;locationSource=source;provider=json.optString("provider","uapi");atmosphere=new WeatherAtmosphere(json);
         observedAt=json.has("observedAt")?json.getLong("observedAt"):reportTime(json.optString("report_time",""),fetchedAt);
     }
     private WeatherData(JSONObject json)throws JSONException {
@@ -29,7 +30,7 @@ final class WeatherData {
         latitude=json.optDouble("latitude",Double.NaN);longitude=json.optDouble("longitude",Double.NaN);placeCode=json.optString("placeCode",adcode);
         description=required(json,"weather");icon=json.optString("weather_icon","999");temperature=json.getDouble("temperature");
         if(Double.isNaN(temperature)||Double.isInfinite(temperature))throw new JSONException("Invalid temperature");
-        fetchedAt=json.getLong("fetchedAt");observedAt=json.optLong("observedAt",0);locationSource=required(json,"source");provider=json.optString("provider","uapi");
+        fetchedAt=json.getLong("fetchedAt");observedAt=json.optLong("observedAt",0);locationSource=required(json,"source");provider=json.optString("provider","uapi");atmosphere=new WeatherAtmosphere(json);
     }
     static WeatherData read(JSONObject json)throws JSONException{return new WeatherData(json);}
     private static String required(JSONObject json,String key)throws JSONException{
@@ -46,7 +47,7 @@ final class WeatherData {
     JSONObject json()throws JSONException{
         JSONObject result=new JSONObject().put("city",city).put("province",province).put("adcode",adcode).put("weather",description)
             .put("weather_icon",icon).put("temperature",temperature).put("fetchedAt",fetchedAt).put("observedAt",observedAt).put("source",locationSource).put("provider",provider).put("placeCode",placeCode);
-        if(WeatherRegions.coordinates(latitude,longitude))result.put("latitude",latitude).put("longitude",longitude);return result;
+        if(WeatherRegions.coordinates(latitude,longitude))result.put("latitude",latitude).put("longitude",longitude);atmosphere.write(result);return result;
     }
     static long reportTime(String text,long received){
         // Keep untrusted timestamps within the same bound as other weather text fields.

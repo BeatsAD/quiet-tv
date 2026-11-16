@@ -26,13 +26,24 @@ public final class ChildBlockActivity extends ManagementUi {
     }};
     static Intent intent(Context context,String pkg){return new Intent(context,ChildBlockActivity.class).putExtra("package",pkg);}
     static boolean gate(Context context,String pkg){
-        ChildModeStore store=new ChildModeStore(context);ChildModePolicy.Rule r=store.rule(pkg);
+        ChildModeStore store=new ChildModeStore(context);ChildModePolicy.Rule r=store.effectiveRule(pkg);
         if(r.hidden)return true;
         if(r.locked || r.limited() && (r.remaining()<=0 || !ChildUsageService.ready(context))){context.startActivity(intent(context,pkg));return true;}
+        if(store.enabled()&&store.eligible(pkg))try{
+            ChildQuizStore learning=ChildQuizStore.get(context);ChildQuizState state=learning.read();
+            if(!store.appEnabled(pkg,state.enabled(pkg)||state.session()!=null&&state.pending(pkg))){ChildUsageService.cancel();return false;}
+            if(state.session()!=null){context.startActivity(ChildQuizActivity.intent(context,state.session().optString("package",pkg)));return true;}
+            if(state.enabled(pkg)){
+                if(!ChildUsageService.ready(context)){context.startActivity(intent(context,pkg));return true;}
+                if(state.session()==null&&state.untilDue(pkg)==0)state=learning.change(value->value.watch(pkg,0,ChildModeStore.today(),true));
+                if(state.session()!=null){context.startActivity(ChildQuizActivity.intent(context,pkg));return true;}
+                ChildUsageService.watch(pkg);return false;
+            }
+        }catch(java.io.IOException unavailable){context.startActivity(ChildQuizActivity.intent(context,pkg));return true;}
         if(r.limited())ChildUsageService.watch(pkg);else ChildUsageService.cancel();return false;
     }
-    @Override public void onCreate(Bundle state){super.onCreate(state);theme=state==null?new java.util.Random().nextInt(3):state.getInt("rest-theme",0);renderedDay=state==null?"":state.getString("blocked-date","");store=new ChildModeStore(this);pkg=getIntent().getStringExtra("package");if(pkg==null || !store.eligible(pkg)){finish();return;}render();}
-    @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);String next=intent.getStringExtra("package");if(!java.util.Objects.equals(pkg,next)){clearRest();theme=new java.util.Random().nextInt(3);renderedDay="";restoredToday=false;}pkg=next;launched=false;if(pkg==null || !store.eligible(pkg)){finish();return;}render();}
+    @Override public void onCreate(Bundle state){super.onCreate(state);theme=state==null?new ChildModeStore(this).restTheme():state.getInt("rest-theme",0);renderedDay=state==null?"":state.getString("blocked-date","");store=new ChildModeStore(this);pkg=getIntent().getStringExtra("package");if(pkg==null || !store.eligible(pkg)){finish();return;}render();}
+    @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);String next=intent.getStringExtra("package");if(!java.util.Objects.equals(pkg,next)){clearRest();theme=new ChildModeStore(this).restTheme();renderedDay="";restoredToday=false;}pkg=next;launched=false;if(pkg==null || !store.eligible(pkg)){finish();return;}render();}
     @Override protected void onResume(){super.onResume();if(pkg!=null && !isFinishing()){ChildUsageService.blockVisible(pkg);if(!launched)render();clock.postDelayed(refreshDay,1000);}}
     @Override protected void onPause(){clock.removeCallbacks(refreshDay);super.onPause();}
     @Override boolean loadWallpaper(){return false;}
@@ -41,13 +52,14 @@ public final class ChildBlockActivity extends ManagementUi {
     private void clearRest(){if(rest!=null){rest.release();stage.removeView(rest);rest=null;}}
     @Override protected void onStop(){ChildModeAuth.dismiss(this);if(grantDialog!=null)grantDialog.dismiss();clearRest();super.onStop();}
     private void render(){
-        if(pkg==null)return;ChildModePolicy.Rule r=store.rule(pkg);
+        if(pkg==null)return;if(theme!=store.restTheme()){clearRest();theme=store.restTheme();}ChildModePolicy.Rule r=store.effectiveRule(pkg);
         String today=ChildModeStore.today();if(!renderedDay.isEmpty()&&!renderedDay.equals(today)){
             restoredToday=r.mode==ChildModePolicy.DAILY&&r.remaining()>0;
             ChildModeAuth.dismiss(this);if(grantDialog!=null)grantDialog.dismiss();
         }
         renderedDay=today;renderedRevision=store.revision();renderedReady=ChildUsageService.ready(this);
-        boolean needsService=!r.locked && r.limited() && !ChildUsageService.ready(this);
+        boolean quiz=false;try{quiz=store.enabled()&&ChildQuizStore.get(this).read().enabled(pkg);}catch(java.io.IOException ignored){}
+        boolean needsService=!r.locked && (r.limited()||quiz) && !ChildUsageService.ready(this);
         boolean unscheduled=r.mode==ChildModePolicy.DAILY&&!r.scheduled()&&r.remaining()<=0;
         if(!r.hidden && !r.locked && r.limited() && r.remaining()<=0 && !needsService && !unscheduled){
             root.setVisibility(android.view.View.GONE);
@@ -70,7 +82,7 @@ public final class ChildBlockActivity extends ManagementUi {
     }
     private void grant(){
         ChildModeUi visual=new ChildModeUi(this);ChildModeUi.Sheet sheet=visual.new Sheet("追加使用时间","",R.drawable.ic_child_time,633.6f);
-        TextView error=visual.text("",16.32f,28,0xffe3aba1);error.setGravity(Gravity.CENTER);androidx.core.view.ViewCompat.setAccessibilityLiveRegion(error,androidx.core.view.ViewCompat.ACCESSIBILITY_LIVE_REGION_POLITE);
+        TextView error=visual.text("",16.32f,28,UiPalette.TEXT);error.setGravity(Gravity.CENTER);androidx.core.view.ViewCompat.setAccessibilityLiveRegion(error,androidx.core.view.ViewCompat.ACCESSIBILITY_LIVE_REGION_POLITE);
         LinearLayout presets=row();visual.gap(sheet.body,19.2f);sheet.body.addView(presets,new LinearLayout.LayoutParams(-1,visual.p(48)));
         for(int minutes:new int[]{15,30}){Button b=visual.button(minutes+" 分钟",()->add(minutes,sheet,error),false);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-1,1);if(presets.getChildCount()>0)lp.leftMargin=visual.p(12);presets.addView(b,lp);}
         visual.gap(sheet.body,19.2f);EditText custom=visual.number("","自定义分钟",4);sheet.body.addView(custom,new LinearLayout.LayoutParams(-1,visual.p(64)));
@@ -80,9 +92,9 @@ public final class ChildBlockActivity extends ManagementUi {
     }
     private void add(int minutes,ChildModeUi.Sheet sheet,TextView error){try{if(!store.grant(pkg,minutes*ChildModePolicy.MINUTE)){error.setText("保存失败，请重试");return;}sheet.dialog.dismiss();launch();}catch(IllegalArgumentException e){error.setText(e.getMessage());}}
     private void launch(){
-        ChildModePolicy.Rule r=store.rule(pkg);if(r.hidden)return;
+        ChildModePolicy.Rule r=store.effectiveRule(pkg);if(r.hidden)return;
         ResolveInfo target=new HomeAppCatalog(this).launchable().get(pkg);if(target==null){message("应用暂不可用");return;}
-        if(!r.locked && r.limited()){if(!ChildUsageService.ready(this) || r.remaining()<=0){render();return;}ChildUsageService.watch(pkg);}else ChildUsageService.cancel();
+        if(!r.locked){if(ChildBlockActivity.gate(this,pkg))return;}else ChildUsageService.cancel();
         try{launched=true;startActivity(new Intent(Intent.ACTION_MAIN).setComponent(new ComponentName(pkg,target.activityInfo.name)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));finish();}
         catch(android.content.ActivityNotFoundException|SecurityException e){launched=false;message("应用暂不可用");}
     }

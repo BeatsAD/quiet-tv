@@ -1,0 +1,27 @@
+{
+  "generator": "scripts/generate_weather_materials.py",
+  "seed": 74719,
+  "size": 256,
+  "license": "CC0-1.0; original Quiet TV mathematical data, no third-party images",
+  "cloud_channels": "linear R thickness, G normal X, B normal Z, A relief; periodic in both axes",
+  "moon": "original artistic albedo, not a geographic lunar surface map",
+  "assets": {
+    "cumulus-material.rgba": {
+      "bytes": 262144,
+      "sha256": "7f01f80d84df5566da2206e0aed13ef6daedf3936e3f3b8c0b9163e0608088a0"
+    },
+    "stratus-material.rgba": {
+      "bytes": 262144,
+      "sha256": "c74903bfeb92a553f2916853d116e5c8315a05ba33486b253aa5b4fc6c0b1a7f"
+    },
+    "cumulus-volume.rgba": {
+      "bytes": 3538944,
+      "sha256": "906f8b81df4b8ac7e3dbd1cc075fb3513093017341df7e014a50061a8462a2c2"
+    },
+    "moon-albedo.rgba": {
+      "bytes": 262144,
+      "sha256": "a93f238af6bb91a78a0ce546551adf38a1de380e7294aa5d25c531a10fc51e99"
+    }
+  },
+  "volume_channels": "96 cubed; linear R density, GBA surface normal XYZ; original ellipsoid unions with periodic 3D erosion"
+}

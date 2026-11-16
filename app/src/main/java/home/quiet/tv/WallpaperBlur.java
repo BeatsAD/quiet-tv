@@ -20,6 +20,8 @@ final class WallpaperBlur {
     private float progress;
     private boolean active,scheduled,busy,dirty,destroyed,nativeVideo,suspended;
     private long capturedAt=-1000;
+    private final String trace=Integer.toHexString(System.identityHashCode(this));
+    private long captures,nullFrames,discarded,submitted,lastSuccess=-1;
     WallpaperBlur(FrameLayout host,Snapshot source){
         this.host=host;this.source=source;overlay=image();secondOverlay=image();
         host.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{if(r-l!=or-ol||b-t!=ob-ot){++generation;if(!bitmapOutput())Api31.apply(host,amount);invalidate();}});
@@ -27,13 +29,15 @@ final class WallpaperBlur {
     private ImageView image(){
         ImageView image=new ImageView(host.getContext());image.setScaleType(ImageView.ScaleType.FIT_XY);image.setVisibility(View.GONE);image.setFocusable(false);androidx.core.view.ViewCompat.setImportantForAccessibility(image,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);host.addView(image,new FrameLayout.LayoutParams(-1,-1));return image;
     }
-    private boolean bitmapOutput(){return Build.VERSION.SDK_INT<31||nativeVideo;}
+    // Fixed page caches avoid compiling a different GPU blur kernel on every scroll frame.
+    private boolean bitmapOutput(){return Build.VERSION.SDK_INT<31||nativeVideo||firstAmount!=secondAmount;}
     void nativeVideo(boolean value){nativeVideo(value,0);}
     void nativeVideo(boolean value,int version){
         if(destroyed||nativeVideo==value&&sourceVersion==version)return;
         nativeVideo=value;sourceVersion=version;++generation;
-        if(Build.VERSION.SDK_INT>=31)Api31.apply(host,nativeVideo?0:amount);
-        if(!nativeVideo)clear();else renderBitmap();
+        record("source","reason=backend_or_output_generation");
+        if(Build.VERSION.SDK_INT>=31)Api31.apply(host,bitmapOutput()?0:amount);
+        if(!bitmapOutput())clear();else renderBitmap();
         invalidate();
     }
     void amount(int value){blend(value,value,0);}
@@ -42,15 +46,18 @@ final class WallpaperBlur {
         boolean strength=first!=firstAmount||second!=secondAmount,moved=progress!=fraction;
         int next=Math.round(first+(second-first)*fraction);
         if(destroyed||!strength&&!moved&&next==amount)return;
+        boolean changed=next!=amount,wasBitmap=bitmapOutput();
         firstAmount=first;secondAmount=second;progress=fraction;amount=next;
+        boolean switched=wasBitmap!=bitmapOutput();
+        if(switched){++generation;cancelCapture();if(Build.VERSION.SDK_INT>=31)Api31.apply(host,bitmapOutput()?0:amount);if(!bitmapOutput())clear();}
+        if(strength)record("apply","backend="+(bitmapOutput()?"bitmap":"render_effect"));
         if(bitmapOutput()){
             if(strength){++generation;}
             if(moved&&nativeVideo)cancelCapture();
             renderBitmap();if(first==0&&second==0){cancelCapture();clear();}else if(strength||nativeVideo)invalidate();
             return;
         }
-        ++generation;
-        Api31.apply(host,amount);
+        if(changed&&!switched){++generation;Api31.apply(host,amount);record("native_submit","backend=render_effect evidence=api_return_not_presentation");}
     }
     private void renderBitmap(){
         boolean same=firstAmount==secondAmount;
@@ -60,14 +67,21 @@ final class WallpaperBlur {
     }
     // ImageView.setAlpha(int) changes drawable opacity on a 0-255 scale; use View's float overload.
     private void clear(){overlay.setVisibility(View.GONE);overlay.setImageDrawable(null);overlay.setAlpha(1f);secondOverlay.setVisibility(View.GONE);secondOverlay.setImageDrawable(null);}
-    void sourceChanged(){++generation;clear();invalidate();}
-    String diagnostics(){return "blur="+amount+" blurVisible="+(overlay.getVisibility()==View.VISIBLE)+" blurAlpha="+overlay.getAlpha()+" secondBlurVisible="+(secondOverlay.getVisibility()==View.VISIBLE)+" secondBlurAlpha="+secondOverlay.getAlpha()+" blurBusy="+busy;}
+    void sourceChanged(){++generation;record("invalidate","reason=source_changed");clear();invalidate();}
+    boolean previewReady(){return !bitmapOutput()||(firstAmount==0||overlay.getDrawable()!=null)&&(secondAmount==0||secondOverlay.getDrawable()!=null);}
+    String diagnostics(){return "blur="+amount+" first="+firstAmount+" second="+secondAmount+" progress="+progress+" generation="+generation+" sourceVersion="+sourceVersion+" blurVisible="+(overlay.getVisibility()==View.VISIBLE)+" blurAlpha="+overlay.getAlpha()+" secondBlurVisible="+(secondOverlay.getVisibility()==View.VISIBLE)+" secondBlurAlpha="+secondOverlay.getAlpha()+" blurBusy="+busy
+        +" captures="+captures+" nullFrames="+nullFrames+" discarded="+discarded+" submitted="+submitted+" lastSuccessUptimeMs="+lastSuccess;}
+    private void record(String phase,String detail){try{
+        if(!DiagnosticProbe.active()&&(phase.equals("capture")||phase.equals("submit")||phase.equals("empty")&&nullFrames>1||phase.equals("discard")&&discarded>1))return;
+        if(DiagnosticProbe.allow("wallpaper.blur."+phase,1000))DiagnosticProbe.observed("wallpaper.blur.stage","trace="+trace+" phase="+phase+" "+detail+" "+diagnostics()+" active="+active+" suspended="+suspended+" destroyed="+destroyed+" evidence=view_state_not_presentation");
+    }catch(RuntimeException unavailable){}}
+    private String invalidReason(int version,boolean nativeFrame){return destroyed?"destroyed":!active?"inactive":suspended?"suspended":version!=generation?"generation_changed":nativeFrame!=nativeVideo?"backend_changed":"capture_disabled";}
     private void cancelCapture(){main.removeCallbacks(capture);scheduled=false;}
     // Input and page motion must keep refreshing the visible video cache.
     void interaction(){if(nativeVideo){cancelCapture();invalidate();}}
-    void suspended(boolean value){if(suspended==value)return;suspended=value;++generation;cancelCapture();if(!value)invalidate();}
-    void active(boolean value){active=value;if(!value){++generation;cancelCapture();}else invalidate();}
-    private boolean canCapture(){return !destroyed&&active&&!suspended&&bitmapOutput()&&(firstAmount>0||secondAmount>0);}
+    void suspended(boolean value){if(suspended==value)return;suspended=value;++generation;record("invalidate","reason=suspension_changed");cancelCapture();if(!value)invalidate();}
+    void active(boolean value){boolean changed=active!=value;active=value;if(changed)record("state","reason=activity_changed");if(!value){++generation;cancelCapture();}else invalidate();}
+    private boolean canCapture(){return !destroyed&&active&&!suspended&&bitmapOutput()&&(nativeVideo?(firstAmount>0&&progress<1||secondAmount>0&&progress>0):firstAmount>0||secondAmount>0);}
     void invalidate(){
         if(!canCapture())return;
         dirty=true;if(scheduled||busy)return;scheduled=true;
@@ -80,7 +94,8 @@ final class WallpaperBlur {
         final int version=generation,width=Math.min(320,host.getWidth()),height=Math.max(1,Math.round(width*host.getHeight()/(float)host.getWidth()));
         final int first=firstAmount,second=secondAmount;final boolean nativeFrame=nativeVideo;
         busy=true;dirty=false;capturedAt=SystemClock.uptimeMillis();
-        try{source.capture(width,height,image->filter(image,version,width,height,first,second,nativeFrame));}
+        final long captureId=++captures,started=capturedAt;record("capture","capture="+captureId+" requestedGeneration="+version+" width="+width+" height="+height);
+        try{source.capture(width,height,image->filter(image,version,width,height,first,second,nativeFrame,captureId,started));}
         catch(RuntimeException|OutOfMemoryError e){DiagnosticLog.error("wallpaper.blur.capture_failed",e);completed();}
     }
     private void completed(){busy=false;if(dirty||nativeVideo&&Build.VERSION.SDK_INT>=24)invalidate();}
@@ -88,21 +103,24 @@ final class WallpaperBlur {
     private static void blur(Bitmap image,int width,int height,int strength){
         int[] pixels=new int[width*height];image.getPixels(pixels,0,width,0,0,width,height);DockBackdropDrawable.blurPixels(pixels,width,height,Math.max(1,Math.round(strength*width/2000f)));image.setPixels(pixels,0,width,0,0,width,height);
     }
-    private void filter(Bitmap image,int version,int width,int height,int first,int second,boolean nativeFrame){
-        if(image==null){completed();return;}
-        if(!valid(version,nativeFrame)){image.recycle();completed();return;}
+    private void filter(Bitmap image,int version,int width,int height,int first,int second,boolean nativeFrame,long captureId,long started){
+        if(image==null){nullFrames++;record("empty","capture="+captureId+" reason=source_returned_null captureMs="+(SystemClock.uptimeMillis()-started));completed();return;}
+        if(!valid(version,nativeFrame)){discarded++;record("discard","capture="+captureId+" stage=before_filter reason="+invalidReason(version,nativeFrame));image.recycle();completed();return;}
+        final long queued=SystemClock.uptimeMillis();
         worker.execute(()->{
+            long filterStarted=SystemClock.uptimeMillis();
             Bitmap a=first>0?image:null,b=null;
             try{
                 b=second==0?null:first==0?image:second==first?a:image.copy(Bitmap.Config.ARGB_8888,true);
                 if(a!=null)blur(a,width,height,first);if(b!=null&&b!=a)blur(b,width,height,second);
             }catch(RuntimeException|OutOfMemoryError e){if(a!=null&&a!=image)a.recycle();if(b!=null&&b!=a&&b!=image)b.recycle();image.recycle();a=null;b=null;DiagnosticLog.error("wallpaper.blur.filter_failed",e);}
-            Bitmap ready=a,other=b;main.post(()->{
+            final long filtered=SystemClock.uptimeMillis();Bitmap ready=a,other=b;main.post(()->{
                 if(ready!=null||other!=null){
                     if(valid(version,nativeFrame)){
                         overlay.setImageBitmap(ready);secondOverlay.setImageBitmap(other==ready?null:other);
                         renderBitmap();
-                    }else{if(ready!=null)ready.recycle();if(other!=null&&other!=ready)other.recycle();}
+                        submitted++;lastSuccess=SystemClock.uptimeMillis();record("submit","capture="+captureId+" requestedGeneration="+version+" captureMs="+(queued-started)+" queueWaitMs="+(filterStarted-queued)+" filterMs="+(filtered-filterStarted)+" commitWaitMs="+(lastSuccess-filtered));
+                    }else{discarded++;record("discard","capture="+captureId+" stage=before_submit reason="+invalidReason(version,nativeFrame));if(ready!=null)ready.recycle();if(other!=null&&other!=ready)other.recycle();}
                 }
                 completed();
             });

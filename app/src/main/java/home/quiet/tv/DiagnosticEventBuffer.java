@@ -1,14 +1,16 @@
 package home.quiet.tv;
 
 import java.util.*;
+import org.json.*;
 
 /** Bounded admission only. Formatting, redaction and encoding belong to the writer thread. */
 final class DiagnosticEventBuffer {
     static final int CAPACITY=32,NORMAL_LIMIT=24,REPEAT_KEYS=16;
     static final long REPEAT_MS=1000;
     static final class Entry {
-        final long at;final String level,event,detail;final boolean important;
-        Entry(long at,String level,String event,String detail,boolean important){this.at=at;this.level=level;this.event=event;this.detail=detail;this.important=important;}
+        final long at,elapsed;final String level,event,detail;final boolean important;
+        Entry(long at,String level,String event,String detail,boolean important){this(at,-1,level,event,detail,important);}
+        Entry(long at,long elapsed,String level,String event,String detail,boolean important){this.at=at;this.elapsed=elapsed;this.level=level;this.event=event;this.detail=detail;this.important=important;}
         String line(){return at+" "+level+" "+event+" "+detail;}
     }
     private static final class Repeat {
@@ -18,6 +20,23 @@ final class DiagnosticEventBuffer {
     private final ArrayDeque<Entry> entries=new ArrayDeque<>();
     private final LinkedHashMap<String,Repeat> repeats=new LinkedHashMap<>();
     private int dropped,droppedTotal,suppressedTotal,evictedSuppressed;
+    private final Map<String,long[]> quality=new LinkedHashMap<>();
+    private void quality(String event,int column,long at){
+        String channel=event.contains(".")?event.substring(0,event.indexOf('.')):event;
+        if(!quality.containsKey(channel)&&quality.size()>=24)channel="other";
+        long[] values=quality.get(channel);if(values==null){values=new long[9];quality.put(channel,values);}
+        values[column]++;if(column<=2)values[6]=at;
+        if(column==2||column==3||column==5){if(values[7]==0)values[7]=at;values[8]=at;}
+    }
+    synchronized JSONObject coverage()throws JSONException{
+        JSONObject result=new JSONObject();
+        for(Map.Entry<String,long[]> entry:quality.entrySet()){
+            long[] v=entry.getValue();result.put(entry.getKey(),new JSONObject().put("acceptedToQueue",v[0]).put("suppressed",v[1]).put("rejected",v[2])
+                .put("evicted",v[3]).put("written",v[4]).put("writeFailed",v[5]).put("lastObservedAtMs",v[6]).put("firstMissingAtMs",v[7]==0?JSONObject.NULL:v[7]).put("lastMissingAtMs",v[8]==0?JSONObject.NULL:v[8]));
+        }
+        return result;
+    }
+    synchronized void written(List<Entry> values,boolean success){for(Entry entry:values)quality(entry.event,success?4:5,entry.at);}
     private static String bounded(String value,int limit){return value==null?"":value.length()>limit?value.substring(0,limit):value;}
     private static boolean repeatable(String level,String event){
         if(event.startsWith("process.uncaught") || event.endsWith(".begin") || event.endsWith(".result"))return false;
@@ -28,16 +47,16 @@ final class DiagnosticEventBuffer {
         event=bounded(event,96);detail=bounded(detail,1000);
         Repeat previous=repeatable(level,event)?repeats.get(event):null;
         if(previous!=null && previous.level.equals(level) && previous.detail.equals(detail)
-                && elapsed>=previous.at && elapsed-previous.at<REPEAT_MS){previous.suppressed++;suppressedTotal++;return false;}
+            && elapsed>=previous.at && elapsed-previous.at<REPEAT_MS){previous.suppressed++;suppressedTotal++;quality(event,1,wall);return false;}
         boolean important="ERROR".equals(level) || event.endsWith(".begin") || event.endsWith(".result") || "process.start".equals(event);
-        if(!important && entries.size()>=NORMAL_LIMIT){dropped++;droppedTotal++;return false;}
+        if(!important && entries.size()>=NORMAL_LIMIT){dropped++;droppedTotal++;quality(event,2,wall);return false;}
         if(entries.size()>=CAPACITY){
             boolean removed=false;
-            for(Iterator<Entry> iterator=entries.iterator();iterator.hasNext();)if(!iterator.next().important){iterator.remove();removed=true;break;}
+            for(Iterator<Entry> iterator=entries.iterator();iterator.hasNext();){Entry old=iterator.next();if(!old.important){quality(old.event,3,wall);iterator.remove();removed=true;break;}}
             dropped++;droppedTotal++;
-            if(!removed)return false;
+            if(!removed){quality(event,2,wall);return false;}
         }
-        entries.addLast(new Entry(wall,level,event,detail,important));
+        entries.addLast(new Entry(wall,elapsed,level,event,detail,important));quality(event,0,wall);
         if(repeatable(level,event)){
             if(previous==null){
                 if(repeats.size()>=REPEAT_KEYS){Iterator<Repeat> iterator=repeats.values().iterator();evictedSuppressed+=iterator.next().suppressed;iterator.remove();}
@@ -59,7 +78,7 @@ final class DiagnosticEventBuffer {
         return batch;
     }
     synchronized boolean hasEntries(){return !entries.isEmpty();}
-    synchronized void discard(){dropped+=entries.size();droppedTotal+=entries.size();entries.clear();}
+    synchronized void discard(){for(Entry entry:entries)quality(entry.event,3,System.currentTimeMillis());dropped+=entries.size();droppedTotal+=entries.size();entries.clear();}
     synchronized int droppedTotal(){return droppedTotal;}
     synchronized int suppressedTotal(){return suppressedTotal;}
 }

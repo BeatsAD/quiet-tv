@@ -149,6 +149,10 @@ final class SystemSettingsRouter {
             ResolveInfo resolved=type==LaunchType.SERVICE?pm.resolveService(intent,0):pm.resolveActivity(intent,0);
             ComponentInfo info=resolved==null?null:type==LaunchType.SERVICE?resolved.serviceInfo:resolved.activityInfo;
             if(info!=null)values.add(info);
+            if(type==LaunchType.ACTIVITY&&intent.getComponent()==null&&Settings.ACTION_SETTINGS.equals(intent.getAction())){
+                List<ResolveInfo> entries=pm.queryIntentActivities(intent,0);
+                if(entries!=null)for(ResolveInfo entry:entries)if(entry!=null&&entry.activityInfo!=null)values.add(entry.activityInfo);
+            }
         }
         return values;
     }
@@ -226,6 +230,7 @@ final class SystemSettingsRouter {
                     context.startActivity(launch);
                 }
                 SettingsRouteMemory.Attempt attempt=new SettingsRouteMemory.Attempt(action,slot,route,scope,trial);
+                attempt.diagnosticId=diagnostic.id;
                 DiagnosticLog.info("settings.dispatch","attempt="+diagnostic.id+" resolved="+target.flattenToShortString()+" type="+route.type+" page="+route.page+" result=dispatched_unverified");
                 try{SettingsPageCapture.observe(context,attempt);}catch(RuntimeException unavailable){DiagnosticLog.error("settings.capture.unavailable",unavailable);}
                 boolean fallback=settingsFallback(action,route.page);

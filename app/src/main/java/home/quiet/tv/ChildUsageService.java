@@ -6,16 +6,19 @@ import android.content.*;
 import android.os.*;
 import android.view.accessibility.AccessibilityEvent;
 
-/** Observes package/window identity only, and times an app explicitly launched from Quiet TV. */
+/** Observes package/window identity only; never reads screen contents or accessibility text. */
 public final class ChildUsageService extends AccessibilityService {
     private static volatile ChildUsageService instance;
     private static final java.util.concurrent.CopyOnWriteArrayList<Runnable> listeners=new java.util.concurrent.CopyOnWriteArrayList<>();
     static void listen(Runnable listener){listeners.addIfAbsent(listener);}
     static void unlisten(Runnable listener){listeners.remove(listener);}
-    static void changed(){for(Runnable listener:listeners)listener.run();}
+    private static final Handler notifications=new Handler(Looper.getMainLooper());
+    static void changed(){if(Looper.myLooper()!=Looper.getMainLooper()){notifications.post(ChildUsageService::changed);return;}ChildUsageService service=instance;if(service!=null){service.handler.removeCallbacks(service.reconcile);service.handler.post(service.reconcile);}for(Runnable listener:listeners)listener.run();}
     private final Handler handler=new Handler(Looper.getMainLooper());
     private ChildModeStore store;
+    private ChildQuizStore learning;
     private String target="",foreground="",blocking="",usageDay="";
+    private volatile String observed="";
     private long last,pending,lastBlock;
     private boolean registered;
     private final Runnable checkBlock=()->{
@@ -27,14 +30,25 @@ public final class ChildUsageService extends AccessibilityService {
         if(!interactive()){last=0;flush();return;}
         long now=SystemClock.elapsedRealtime();pending+=Math.max(0,now-last);last=now;
         try{
-            ChildModePolicy.Rule r=store.rule(target);
+            ChildModePolicy.Rule r=store.effectiveRule(target);
             if(r.hidden || r.locked){flush();block();return;}
-            if(!r.limited()){stopSession();return;}
+            ChildQuizState quiz=quiz();if(!store.appEnabled(target,quiz.enabled(target)||quiz.session()!=null&&quiz.pending(target))){stopSession();return;}boolean questions=quiz.enabled(target)||quiz.session()!=null;
+            if(!r.limited()&&!questions){stopSession();return;}
             if(pending>=r.remaining()){flush();block();return;}
-            if(pending>=5000 && !flush())return;
+            if((pending>=5000||questions&&pending>=quiz.untilDue(target))&&!flush())return;
+            if(questions&&quiz().session()!=null){block(true);return;}
             handler.postDelayed(this,1000);
-        }catch(RuntimeException e){store.fault("计时数据无法读取，请检查儿童模式设置");stopSession();}
+        }catch(java.io.IOException e){store.fault("学习数据无法读取，请检查儿童模式设置");block(true);}catch(RuntimeException e){store.fault("计时数据无法读取，请检查儿童模式设置");stopSession();}
     }};
+    private final Runnable reconcile=()->{
+        if(store==null)return;if(!store.enabled()){stopSession();return;}
+        String pkg=observed;if(!store.eligible(pkg)||!interactive()||!store.fault().isEmpty())return;
+        try{ChildModePolicy.Rule rule=store.effectiveRule(pkg);ChildQuizState state=quiz();if(!store.appEnabled(pkg,state.enabled(pkg)||state.session()!=null&&state.pending(pkg))){stopSession();return;}if(!rule.limited()&&!rule.hidden&&!rule.locked&&!state.enabled(pkg)&&state.session()==null){stopSession();return;}if(!pkg.equals(target)){pause();target=pkg;usageDay=ChildModeStore.today();}foreground=pkg;handler.removeCallbacks(tick);if(rule.hidden||rule.locked||rule.remaining()<=0){block();return;}if(state.session()!=null){block(true);return;}last=SystemClock.elapsedRealtime();handler.postDelayed(tick,1000);}catch(java.io.IOException|RuntimeException e){store.fault("儿童模式状态无法读取，请检查设置");}
+    };
+    static String currentApp(Context context){ChildUsageService service=instance;return service!=null&&new ChildModeStore(context).eligible(service.observed)?service.observed:"";}
+    static void startNow(Context context,String request,String explicitPackage)throws java.io.IOException{
+        ChildUsageService service=instance;ChildModeStore child=new ChildModeStore(context);if(!child.enabled())throw new PhoneSettingsServer.Rejected("请先开启儿童模式");if(service==null||!ready(context)||!service.interactive())throw new PhoneSettingsServer.Rejected("计时服务尚未就绪，或电视当前未亮屏");String pkg=explicitPackage.isEmpty()?currentApp(context):explicitPackage;if(pkg.isEmpty()||!child.eligible(pkg))throw new PhoneSettingsServer.Rejected("当前没有可发起答题的观看应用");if(!child.appEnabled(pkg,true))throw new PhoneSettingsServer.Rejected("请先为此应用开启儿童模式");ChildModePolicy.Rule rule=child.effectiveRule(pkg);if(rule.hidden||rule.locked||rule.remaining()<=0)throw new PhoneSettingsServer.Rejected("此应用当前受使用限制，请先处理限制");ChildQuizStore.get(context).change(state->{try{state.startNow(pkg,request);}catch(java.io.IOException e){throw new PhoneSettingsServer.Rejected(e.getMessage());}});service.handler.post(()->{service.pause();service.target=pkg;service.usageDay=ChildModeStore.today();try{if(service.quiz().pending(pkg))service.block(true);}catch(java.io.IOException e){service.store.fault("答题请求已保存，显示结果待核对");}});changed();
+    }
     private final BroadcastReceiver screen=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent i){
         if(Intent.ACTION_SCREEN_OFF.equals(i.getAction()))last=0;
         pause();
@@ -62,44 +76,54 @@ public final class ChildUsageService extends AccessibilityService {
     static boolean connected(){return instance!=null;}
     static boolean ready(Context context){return connected() && new ChildModeStore(context).fault().isEmpty();}
     static boolean watch(String pkg){
-        ChildUsageService service=instance;if(service==null)return false;
+        ChildUsageService service=instance;if(service==null || !service.store.enabled())return false;
         service.stopSession();service.target=pkg;service.foreground="";service.usageDay=ChildModeStore.today();return true;
     }
-    static void cancel(){ChildUsageService service=instance;if(service!=null)service.stopSession();}
+    static void cancel(){ChildUsageService service=instance;if(service!=null){if(Looper.myLooper()==Looper.getMainLooper())service.stopSession();else service.handler.post(service::stopSession);}}
     static void blockVisible(String pkg){ChildUsageService service=instance;if(service!=null && service.blocking.equals(pkg)){service.handler.removeCallbacks(service.checkBlock);service.blocking="";}}
     private boolean interactive(){
         PowerManager power=(PowerManager)getSystemService(POWER_SERVICE);KeyguardManager keyguard=(KeyguardManager)getSystemService(KEYGUARD_SERVICE);
         return power!=null && (Build.VERSION.SDK_INT>=20?power.isInteractive():power.isScreenOn()) && (keyguard==null || !UiCompat.keyguardLocked(keyguard));
     }
     @Override public void onAccessibilityEvent(AccessibilityEvent event){
-        if(store==null || event==null || event.getEventType()!=AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || event.getPackageName()==null || target.isEmpty())return;
+        if(store==null || event==null || event.getEventType()!=AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || event.getPackageName()==null)return;
         long age=SystemClock.uptimeMillis()-event.getEventTime();if(age<0 || age>3000)return;
         String pkg=event.getPackageName().toString();
+        observed=pkg;if(!store.enabled()){stopSession();return;}
+        if(target.isEmpty()||!pkg.equals(target)&&store.eligible(pkg)){pause();handler.removeCallbacks(reconcile);handler.post(reconcile);return;}
         if(pkg.equals(foreground))return;
         pause();foreground=pkg;
         if(!pkg.equals(target) || !interactive())return;
-        try{ChildModePolicy.Rule rule=store.rule(target);if(rule.hidden||rule.locked||rule.remaining()<=0){block();return;}}
-        catch(RuntimeException e){store.fault("计时数据无法读取");return;}
+        try{ChildQuizState state=quiz();if(!store.appEnabled(target,state.enabled(target)||state.session()!=null&&state.pending(target))){stopSession();return;}ChildModePolicy.Rule rule=store.effectiveRule(target);if(rule.hidden||rule.locked||rule.remaining()<=0){block();return;}if(quiz().session()!=null){block(true);return;}}
+        catch(java.io.IOException e){store.fault("学习数据无法读取");block(true);return;}catch(RuntimeException e){store.fault("计时数据无法读取");return;}
         last=SystemClock.elapsedRealtime();handler.postDelayed(tick,1000);
     }
     private boolean flush(){
         if(pending==0 || target.isEmpty())return true;
-        long delta=pending;pending=0;String today=ChildModeStore.today();
+        long watched=pending;pending=0;String today=ChildModeStore.today();
         // A rule read may already have persisted midnight's reset. Split pending time independently.
-        if(!usageDay.isEmpty()&&today.compareTo(usageDay)>0)delta=Math.min(delta,ChildModeStore.sinceMidnight());usageDay=today;
-        if(store.consume(target,delta))return true;
-        store.fault("使用时长保存失败，请检查存储空间");handler.removeCallbacks(tick);return false;
+        boolean nextDay=!usageDay.isEmpty()&&today.compareTo(usageDay)>0;usageDay=today;
+        try{
+            ChildModePolicy.Rule rule=store.effectiveRule(target);long qualifying=Math.min(watched,rule.remaining());long amount=ChildModePolicy.pendingUsage(rule.mode,qualifying,nextDay,ChildModeStore.sinceMidnight());
+            if(rule.limited()&&!store.consume(target,amount)){store.fault("使用时长保存失败，请检查存储空间");handler.removeCallbacks(tick);return false;}
+            if(store.enabled()&&!rule.hidden&&!rule.locked){ChildQuizState quiz=quiz();if(quiz.enabled(target)&&store.appEnabled(target,true)){boolean mayStart=store.effectiveRule(target).remaining()>0;learning.change(value->value.watch(target,qualifying,today,mayStart));}}
+            return true;
+        }catch(java.io.IOException|RuntimeException e){store.fault("学习或计时记录保存失败，请检查存储空间");handler.removeCallbacks(tick);return false;}
     }
     private void pause(){
         handler.removeCallbacks(tick);
         if(!target.isEmpty() && target.equals(foreground) && last>0 && interactive())pending+=Math.max(0,SystemClock.elapsedRealtime()-last);
         last=0;if(store!=null)flush();
     }
-    private void stopSession(){pause();target="";foreground="";pending=0;}
-    private void block(){
+    private void stopSession(){pause();target="";foreground="";pending=0;blocking="";handler.removeCallbacks(checkBlock);}
+    private ChildQuizState quiz()throws java.io.IOException{if(learning==null)learning=ChildQuizStore.get(this);return learning.read();}
+    private void block(){block(false);}
+    private void block(boolean quiz){
         handler.removeCallbacks(tick);long now=SystemClock.elapsedRealtime();if(now-lastBlock<1500)return;lastBlock=now;
+        if(!target.equals(blocking))DiagnosticLog.info("child.block.request","app="+DiagnosticLog.anonymous("app",target)+" kind="+(quiz?"quiz":"limit"));
         blocking=target;
-        try{startActivity(ChildBlockActivity.intent(this,target).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP));handler.removeCallbacks(checkBlock);handler.postDelayed(checkBlock,2000);}
+        try{if(quiz){ChildQuizState state=quiz();if(state.session()!=null)blocking=state.session().optString("package",target);}startActivity((quiz?ChildQuizActivity.intent(this,blocking):ChildBlockActivity.intent(this,target)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP));DiagnosticLog.info("child.block.dispatched","kind="+(quiz?"quiz":"limit")+" visualVerified=false");handler.removeCallbacks(checkBlock);handler.postDelayed(checkBlock,2000);}
+        catch(java.io.IOException e){store.fault("本轮题目无法读取");blocking="";}
         catch(SecurityException|android.content.ActivityNotFoundException e){store.fault("系统不允许显示到时限制页");blocking="";}
     }
     @Override public void onInterrupt(){DiagnosticLog.info("child.timer.service","state=interrupted");pause();foreground="";if(store!=null)store.fault("计时服务已中断，请重新启用");}

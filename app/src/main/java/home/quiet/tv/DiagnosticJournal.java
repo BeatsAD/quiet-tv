@@ -2,8 +2,9 @@ package home.quiet.tv;
 
 import java.io.*;
 import home.quiet.tv.Charsets;
-import java.util.List;
+import java.util.*;
 import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 
 /** Two fixed files, at most 2 MiB total; rotation never enumerates or deletes files. */
 final class DiagnosticJournal {
@@ -55,6 +56,24 @@ final class DiagnosticJournal {
         }finally{if(output!=null)output.close();}
     }
     void copyTo(OutputStream output) throws IOException {copy(files[1-active],output);copy(files[active],output);}
+    static final class Tail {
+        final List<String> lines;final int total,omitted;final long sequence;
+        Tail(List<String> lines,int total,long sequence){this.lines=lines;this.total=total;omitted=total-lines.size();this.sequence=sequence;}
+    }
+    Tail tail(int byteLimit,int lineLimit)throws IOException{
+        ArrayDeque<String> rows=new ArrayDeque<>();int bytes=0,total=0;
+        for(File file:new File[]{files[1-active],files[active]}){
+            if(!file.exists())continue;if(file.length()>SEGMENT_BYTES)throw new IOException("Diagnostic segment exceeds limit");
+            try(BufferedReader reader=new BufferedReader(new InputStreamReader(new FileInputStream(file),Charsets.UTF_8))){
+                String line;while((line=reader.readLine())!=null){
+                    if(line.startsWith(PREFIX))continue;total++;int size=line.getBytes(Charsets.UTF_8).length+1;
+                    rows.addLast(line);bytes+=size;
+                    while(!rows.isEmpty()&&(bytes>byteLimit||rows.size()>lineLimit))bytes-=rows.removeFirst().getBytes(Charsets.UTF_8).length+1;
+                }
+            }
+        }
+        return new Tail(new ArrayList<>(rows),total,sequence);
+    }
     private void copy(File file,OutputStream output) throws IOException {
         if(!file.exists())return;
         try(InputStream input=new FileInputStream(file)){
@@ -66,7 +85,14 @@ final class DiagnosticJournal {
     static String clean(String text){
         if(text==null)return "";
         String value=CONTROL.matcher(text.substring(0,Math.min(text.length(),1000))).replaceAll(" ");
-        value=URL.matcher(value).replaceAll("[url]");value=IP.matcher(value).replaceAll("[ip]");
+        value=URL.matcher(value).replaceAll("[url]");
+        Matcher address=IP.matcher(value);StringBuffer safe=new StringBuffer();
+        while(address.find()){
+            String prefix=value.substring(Math.max(0,address.start()-32),address.start());
+            String replacement=prefix.matches("(?s).*(?:version|versionName|targetVersion|observedVersion|currentVersion)=\\s*$")?address.group():"[ip]";
+            address.appendReplacement(safe,Matcher.quoteReplacement(replacement));
+        }
+        address.appendTail(safe);value=safe.toString();
         value=EMAIL.matcher(value).replaceAll("[email]");return SECRET.matcher(value).replaceAll("$1[redacted]");
     }
     static byte[] entry(String text){return (clean(text)+"\n").getBytes(Charsets.UTF_8);}

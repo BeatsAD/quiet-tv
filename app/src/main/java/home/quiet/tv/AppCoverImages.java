@@ -48,7 +48,29 @@ final class AppCoverImages {
     }
     static Bitmap load(File file,int width){
         BitmapFactory.Options options=new BitmapFactory.Options();options.inJustDecodeBounds=true;BitmapFactory.decodeFile(file.getPath(),options);
-        if(options.outWidth!=720||options.outHeight!=406)return null;
-        options.inJustDecodeBounds=false;options.inSampleSize=width<720?2:1;return BitmapFactory.decodeFile(file.getPath(),options);
+        if(!(options.outWidth==720&&(options.outHeight==406||options.outHeight==405)||options.outWidth==512&&options.outHeight==512))return null;
+        options.inJustDecodeBounds=false;options.inSampleSize=1;while(options.outWidth/(options.inSampleSize*2)>=width)options.inSampleSize*=2;return BitmapFactory.decodeFile(file.getPath(),options);
+    }
+    static void prepareIcon(File input,File output,String shape)throws IOException{
+        if(!IconLibraryCatalog.contains(IconLibraryCatalog.SHAPES,shape))throw new IOException("图标形状无效 / Invalid icon shape");
+        if(input.length()==0||input.length()>AppCoverStore.MAX_UPLOAD)throw new IOException("图片不能超过 2 MB / Maximum image size: 2 MB");
+        BitmapFactory.Options options=new BitmapFactory.Options();options.inJustDecodeBounds=true;BitmapFactory.decodeFile(input.getPath(),options);
+        int w=options.outWidth,h=options.outHeight;
+        if(w<=0||h<=0||w>16384||h>16384||(long)w*h>40000000L||!("image/png".equals(options.outMimeType)||"image/jpeg".equals(options.outMimeType)||"image/webp".equals(options.outMimeType)))throw new IOException("请选择有效的 JPG、PNG 或静态 WebP / Invalid image");
+        checkContainer(input,options.outMimeType);ExifInterface exif=new ExifInterface(input);int rotation=exif.getRotationDegrees();boolean swap=rotation==90||rotation==270;
+        int width="rectangle".equals(shape)?720:512,height="rectangle".equals(shape)?405:512,minWidth="rectangle".equals(shape)?360:256,minHeight="rectangle".equals(shape)?203:256;
+        if((swap?h:w)<minWidth||(swap?w:h)<minHeight)throw new IOException("图片尺寸过小 / Image dimensions are too small");
+        options.inJustDecodeBounds=false;options.inSampleSize=1;options.inPreferredConfig=Bitmap.Config.ARGB_8888;options.inScaled=false;
+        while(w/(options.inSampleSize*2)>=width&&h/(options.inSampleSize*2)>=height)options.inSampleSize*=2;
+        Bitmap source=null,oriented=null,result=null;
+        try{
+            source=BitmapFactory.decodeFile(input.getPath(),options);if(source==null)throw new IOException("无法读取图标 / Cannot decode icon");
+            Matrix matrix=new Matrix();if(exif.isFlipped())matrix.postScale(-1,1);matrix.postRotate(rotation);oriented=Bitmap.createBitmap(source,0,0,source.getWidth(),source.getHeight(),matrix,true);
+            result=Bitmap.createBitmap(width,height,Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(result);
+            if("circle".equals(shape)){Path circle=new Path();circle.addCircle(width/2f,height/2f,width/2f,Path.Direction.CW);canvas.clipPath(circle);}
+            float[] fit=LibraryCover.fit(oriented.getWidth(),oriented.getHeight(),width,height);canvas.drawBitmap(oriented,null,new RectF(fit[0],fit[1],fit[2],fit[3]),new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG));
+            try(FileOutputStream out=new FileOutputStream(output)){if(!result.compress(Bitmap.CompressFormat.PNG,100,out))throw new IOException("无法保存图标 / Cannot encode icon");out.getFD().sync();}
+            if(output.length()==0||output.length()>AppCoverStore.MAX_UPLOAD)throw new IOException("处理后的图片超过 2 MB / Processed image exceeds 2 MB");
+        }finally{if(result!=null)result.recycle();if(oriented!=null&&oriented!=source)oriented.recycle();if(source!=null)source.recycle();}
     }
 }

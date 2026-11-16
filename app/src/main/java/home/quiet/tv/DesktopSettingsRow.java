@@ -12,42 +12,79 @@ final class DesktopSettingsRow extends LinearLayout {
     private final TextView title,value,description;
     private final ImageView start,end;
     private final ManagementUi ui;
-    private boolean checkable,checked;
+    private boolean checkable,checked,childStyle,fullColorIcon;
     DesktopSettingsRow(ManagementUi ui,String text,String symbol,boolean navigation){
-        super(ui);this.ui=ui;setOrientation(HORIZONTAL);setGravity(Gravity.CENTER_VERTICAL);
-        setPadding(ui.px(navigation?14:18),0,ui.px(navigation?14:18),0);
+        super(ui);this.ui=ui;setOrientation(HORIZONTAL);setGravity(Gravity.CENTER_VERTICAL);setClipToPadding(false);
+        setPadding(ui.px(ui.unifiedSettings()?9.6f:navigation?14:18),0,ui.px(ui.unifiedSettings()?9.6f:navigation?14:18),0);
         setId(androidx.core.view.ViewCompat.generateViewId());setFocusable(true);setFocusableInTouchMode(true);setClickable(true);
         setSoundEffectsEnabled(false);setBackgroundDrawable(ui.listSurface());
+        if(ui.unifiedSettings())SettingsTouchClick.attach(this);
         start=new ImageView(ui);int resource="shield".equals(symbol)?R.drawable.ic_manage_shield:0;
-        if(resource!=0){start.setImageDrawable(UiCompat.drawable(ui,resource));start.setColorFilter(0xffa2a8b3);}else start.setImageDrawable(new Glyph(symbol,0xffa2a8b3));
+        if(resource!=0){start.setImageDrawable(UiCompat.drawable(ui,resource));start.setColorFilter(UiPalette.SECONDARY);}else start.setImageDrawable(new Glyph(symbol,UiPalette.SECONDARY));
         LayoutParams ip=new LayoutParams(ui.px(navigation?17:18),ui.px(navigation?17:18));ip.rightMargin=ui.px(13);addView(start,ip);
         LinearLayout copy=new LinearLayout(ui);copy.setOrientation(VERTICAL);copy.setGravity(Gravity.CENTER_VERTICAL);addView(copy,new LayoutParams(0,-1,1));
-        title=ui.label(text,16);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);copy.addView(title,new LayoutParams(-1,-2));
+        title=ui.label(text,ui.unifiedSettings()?13:16);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);copy.addView(title,new LayoutParams(-1,-2));
+        if(ui.unifiedSettings())title.setTextSize(TypedValue.COMPLEX_UNIT_PX,13.92f*ui.unit);
         description=ui.muted("",12);description.setMaxLines(2);description.setEllipsize(android.text.TextUtils.TruncateAt.END);description.setVisibility(GONE);
         LayoutParams dp=new LayoutParams(-1,-2);dp.topMargin=ui.px(4);copy.addView(description,dp);
-        value=ui.muted("",13);value.setTextColor(0xffa2a8b3);value.setSingleLine(true);value.setMaxWidth(ui.px(300));value.setEllipsize(android.text.TextUtils.TruncateAt.END);addView(value,new LayoutParams(-2,-1));
-        end=new ImageView(ui);LayoutParams ep=new LayoutParams(ui.px(18),ui.px(24));ep.leftMargin=ui.px(12);addView(end,ep);end.setVisibility(GONE);
+        value=ui.muted("",ui.unifiedSettings()?11:13);value.setTextColor(UiPalette.SECONDARY);value.setSingleLine(true);value.setMaxWidth(ui.px(300));value.setEllipsize(android.text.TextUtils.TruncateAt.END);addView(value,new LayoutParams(-2,-1));
+        if(ui.unifiedSettings()){value.setTextSize(TypedValue.COMPLEX_UNIT_PX,11.52f*ui.unit);value.setTextColor(UiPalette.SECONDARY);}
+        end=new ImageView(ui);LayoutParams ep=new LayoutParams(ui.px(ui.unifiedSettings()?9.6f:18),ui.px(ui.unifiedSettings()?18:24));ep.leftMargin=ui.px(ui.unifiedSettings()?9:12);addView(end,ep);end.setVisibility(GONE);
         for(int i=0;i<getChildCount();i++)androidx.core.view.ViewCompat.setImportantForAccessibility(getChildAt(i),androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);
         androidx.core.view.ViewCompat.setImportantForAccessibility(copy,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
         setContentDescription(text);
     }
     @Override public boolean performClick(){boolean accepted=super.performClick();if(accepted)KeyFeedback.confirm(getContext());return accepted;}
     void icon(int resource){start.setImageDrawable(UiCompat.drawable(ui,resource));start.clearColorFilter();}
+    void icon(Drawable drawable){start.setImageDrawable(drawable);start.clearColorFilter();}
+    void brandIcon(int resource){fullColorIcon=true;icon(resource);start.setVisibility(VISIBLE);LayoutParams size=(LayoutParams)start.getLayoutParams();size.width=size.height=ui.px(24);size.rightMargin=ui.px(12);start.setLayoutParams(size);}
     void value(String text){value.setText(text);updateDescription();}
     String value(){return value.getText().toString();}
     void hideIcon(){start.setVisibility(GONE);}
+    void childStyle(){childStyle=true;textSizes(12.48f,10.56f);LayoutParams icon=(LayoutParams)start.getLayoutParams();icon.width=icon.height=ui.px(19.2f);icon.rightMargin=ui.px(12);start.setLayoutParams(icon);if(checkable)checked(checked);}
     void compact(){start.setVisibility(GONE);title.setTextSize(TypedValue.COMPLEX_UNIT_PX,ui.px(14));value.setMaxWidth(ui.px(90));setPadding(ui.px(10),0,ui.px(10),0);}
-    void description(String text){description.setText(text);description.setVisibility(text.isEmpty()?GONE:VISIBLE);title.setTextSize(TypedValue.COMPLEX_UNIT_PX,ui.px(text.isEmpty()?16:17));updateDescription();}
+    void displayStyle(){title.setTextSize(TypedValue.COMPLEX_UNIT_PX,12.48f*ui.unit);value.setTextSize(TypedValue.COMPLEX_UNIT_PX,10.56f*ui.unit);value.setMaxWidth(ui.px(126));}
+    void tileStyle(){hideIcon();displayStyle();title.setSingleLine(false);title.setEllipsize(null);setBackgroundDrawable(new SettingsFocusDrawable(ui.unit,12,UiPalette.CONTROL,false,UiPalette.EDGE));}
+    void compactTile(){tileStyle();setPadding(ui.px(9.6f),0,ui.px(9.6f),0);((LayoutParams)end.getLayoutParams()).leftMargin=ui.px(8);if(ui.chinese())title.setSingleLine(true);}
+    void description(String text){description.setText(text);description.setVisibility(text.isEmpty()?GONE:VISIBLE);title.setTextSize(TypedValue.COMPLEX_UNIT_PX,ui.px(ui.unifiedSettings()?(text.isEmpty()?13:14):(text.isEmpty()?16:17)));updateDescription();}
     private void updateDescription(){setContentDescription(title.getText()+(value.length()==0?"":"  "+value.getText())+(description.length()==0?"":"  "+description.getText()));}
-    void tail(String symbol){end.setImageDrawable(new Glyph(symbol,0xffa2a8b3));end.setVisibility(VISIBLE);}
-    void checked(boolean enabled){checkable=true;checked=enabled;end.setVisibility(VISIBLE);LayoutParams p=(LayoutParams)end.getLayoutParams();p.width=ui.px(44);end.setLayoutParams(p);end.setImageDrawable(new Toggle(enabled));}
+    void tail(String symbol){
+        boolean expanded="settings-up".equals(symbol);String glyph=expanded?"arrow":symbol;
+        end.setImageDrawable(new Glyph(ui.unifiedSettings()&&"arrow".equals(glyph)?"settings-arrow":glyph,UiPalette.FAINT));
+        end.setRotation(expanded?-90:0);end.setVisibility(VISIBLE);
+    }
+    void checked(boolean enabled){checkable=true;checked=enabled;end.setVisibility(VISIBLE);LayoutParams p=(LayoutParams)end.getLayoutParams();p.width=ui.px(childStyle?36.48f:ui.unifiedSettings()?33:44);if(childStyle)p.height=ui.px(20.16f);end.setLayoutParams(p);end.setImageDrawable(new Toggle(enabled,ui.unifiedSettings()&&isFocused()&&hasWindowFocus(),ui.unifiedSettings(),childStyle,isEnabled()));if(ui.unifiedSettings()&&getLayoutParams()!=null){getLayoutParams().height=ui.px(childStyle?44.16f:42);requestLayout();}}
+    boolean checkedControl(){return checkable;}
     boolean checked(){return checked;}
-    void available(boolean enabled){setEnabled(enabled);setAlpha(enabled?1f:.55f);}
+    @Override protected void drawableStateChanged(){
+        super.drawableStateChanged();
+        if(ui==null||!ui.unifiedSettings()||title==null)return;
+        boolean focused=isEnabled()&&isFocused()&&hasWindowFocus();
+        title.setTextColor(!isEnabled()?UiPalette.FAINT:focused?UiPalette.INK:UiPalette.TEXT);value.setTextColor(!isEnabled()?UiPalette.FAINT:focused?UiPalette.INK_SECONDARY:UiPalette.SECONDARY);description.setTextColor(!isEnabled()?UiPalette.FAINT:focused?UiPalette.INK_SECONDARY:UiPalette.SECONDARY);
+        if(fullColorIcon)start.clearColorFilter();else if(!isEnabled())start.setColorFilter(UiPalette.FAINT);else if(focused)start.setColorFilter(UiPalette.INK);else start.clearColorFilter();
+        if(checkable){end.clearColorFilter();end.setImageDrawable(new Toggle(checked,focused,true,childStyle,isEnabled()));}else if(!isEnabled())end.setColorFilter(UiPalette.FAINT);else if(focused)end.setColorFilter(UiPalette.INK_FAINT);else end.clearColorFilter();
+    }
+    void displayDescription(String text){description(text);displayStyle();if(!text.isEmpty()){QuickControlPreviewView.type(description,13.44f,20.832f,ui.unit,isFocused()&&hasWindowFocus()?UiPalette.INK_SECONDARY:UiPalette.SECONDARY);((LayoutParams)description.getLayoutParams()).topMargin=ui.px(6);if(getLayoutParams()!=null)getLayoutParams().height=ui.px(57.12f);}}
+    void textSizes(float titleSize,float valueSize){title.setTextSize(TypedValue.COMPLEX_UNIT_PX,titleSize*ui.unit);value.setTextSize(TypedValue.COMPLEX_UNIT_PX,valueSize*ui.unit);}
+    void available(boolean enabled){setEnabled(enabled);setAlpha(ui.unifiedSettings()?1f:enabled?1f:.55f);}
     @Override public void onInitializeAccessibilityNodeInfo(AccessibilityNodeInfo info){super.onInitializeAccessibilityNodeInfo(info);info.setClassName(checkable?Switch.class.getName():Button.class.getName());info.setCheckable(checkable);if(checkable)info.setChecked(checked);}
     private static final class Toggle extends Drawable {
-        final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);final boolean on;
-        Toggle(boolean on){this.on=on;}
-        @Override public void draw(Canvas c){Rect r=getBounds();int save=c.save();c.translate(r.left,r.top);c.scale(r.width()/44f,r.height()/24f);paint.setColor(on?0xffe1e6ed:0xff535860);c.drawRoundRect(new RectF(0,0,44,24),12,12,paint);paint.setColor(on?0xff26303b:0xffe1e3e5);c.drawCircle(on?32:12,12,9,paint);c.restoreToCount(save);}
+        final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);final boolean on,focused,settings,child,enabled;
+        Toggle(boolean on,boolean focused,boolean settings){this(on,focused,settings,false);}
+        Toggle(boolean on,boolean focused,boolean settings,boolean child){this(on,focused,settings,child,true);}
+        Toggle(boolean on,boolean focused,boolean settings,boolean child,boolean enabled){this.on=on;this.focused=focused;this.settings=settings;this.child=child;this.enabled=enabled;}
+        @Override public void draw(Canvas c){
+            Rect r=getBounds();int save=c.save();c.translate(r.left,r.top);
+            if(settings){
+                float width=child?48.64f:44,height=child?26.88f:24,x=child?13.1467f+(on?19.84f:0):on?32:12,y=child?13.1467f:12,radius=child?8.64f:9;
+                c.scale(r.width()/width,r.height()/height);paint.setColor(on?UiPalette.SWITCH_ON:focused?0x26000000:0x26ffffff);c.drawRoundRect(new RectF(0,0,width,height),height/2,height/2,paint);
+                paint.setColor(enabled?Color.WHITE:UiPalette.FAINT);paint.setShadowLayer(2,0,1,0x33000000);c.drawCircle(x,y,radius,paint);paint.clearShadowLayer();paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(.5f);paint.setColor(0x14000000);c.drawCircle(x,y,radius-.25f,paint);paint.setStyle(Paint.Style.FILL);
+            }else if(child){
+                c.scale(r.width()/48.64f,r.height()/26.88f);paint.setColor(on?UiPalette.SECONDARY:0x10ffffff);c.drawRoundRect(new RectF(0,0,48.64f,26.88f),20,20,paint);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(1);paint.setColor(on?UiPalette.SECONDARY:0x26ffffff);c.drawRoundRect(new RectF(.5f,.5f,48.14f,26.38f),20,20,paint);paint.setStyle(Paint.Style.FILL);paint.setColor(on?0xff000000:UiPalette.FAINT);c.drawCircle(13.1467f+(on?19.84f:0),13.1467f,8.64f,paint);
+            }else{
+                c.scale(r.width()/44f,r.height()/24f);paint.setColor(on?UiPalette.TEXT:UiPalette.INK_SECONDARY);c.drawRoundRect(new RectF(0,0,44,24),12,12,paint);paint.setColor(on?0xff000000:UiPalette.TEXT);c.drawCircle(on?32:12,12,9,paint);
+            }c.restoreToCount(save);
+        }
         @Override public void setAlpha(int a){paint.setAlpha(a);}
         @Override public void setColorFilter(ColorFilter f){paint.setColorFilter(f);}
         @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
@@ -57,7 +94,7 @@ final class DesktopSettingsRow extends LinearLayout {
         final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);final String kind;
         Glyph(String kind,int color){this.kind=kind;p.setColor(color);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(1.6f);p.setStrokeCap(Paint.Cap.ROUND);p.setStrokeJoin(Paint.Join.ROUND);}
         private void line(Canvas c,float... points){Path path=new Path();path.moveTo(points[0],points[1]);for(int i=2;i<points.length;i+=2)path.lineTo(points[i],points[i+1]);c.drawPath(path,p);}
-        @Override public void draw(Canvas c){Rect r=getBounds();int save=c.save();float size=Math.min(r.width(),r.height());c.translate(r.left+(r.width()-size)/2f,r.top+(r.height()-size)/2f);c.scale(size/24f,size/24f);
+        @Override public void draw(Canvas c){Rect r=getBounds();int save=c.save();if("settings-arrow".equals(kind)){c.translate(r.left,r.top);c.scale(r.width()/24f,r.height()/24f);line(c,5,6,19,12,5,18);c.restoreToCount(save);return;}float size=Math.min(r.width(),r.height());c.translate(r.left+(r.width()-size)/2f,r.top+(r.height()-size)/2f);c.scale(size/24f,size/24f);
             switch(kind){
                 case "sound":line(c,3,9,7,9,12,5,12,19,7,15,3,15,3,9);Path waves=new Path();waves.addArc(new RectF(9,7,19,17),-60,120);waves.addArc(new RectF(6,3,22,21),-55,110);c.drawPath(waves,p);break;
                 case "desktop":c.drawRoundRect(new RectF(3,4,21,20),2,2,p);line(c,3,9,21,9);line(c,9,9,9,20);break;

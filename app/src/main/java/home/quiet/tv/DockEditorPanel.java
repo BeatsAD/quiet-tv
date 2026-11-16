@@ -60,7 +60,7 @@ final class DockEditorPanel extends ManagementPanel {
             LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,-2,1);if(i>0)cp.leftMargin=px(20);cards.addView(card,cp);
             TextView number=muted(String.format(Locale.ROOT,"%02d",i+1),10);card.addView(number);gap(card,10);
             FrameLayout art=new FrameLayout(this);art.setDuplicateParentStateEnabled(true);art.setBackgroundDrawable(focusSurface(12));art.setPadding(px(3),px(3),px(3),px(3));card.addView(art,new LinearLayout.LayoutParams(-1,height));
-            ImageView image=new ImageView(this);image.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            ImageView image=new SurfaceCorners.Image(this);image.setScaleType(ImageView.ScaleType.FIT_CENTER);
             if(occupied){image.setBackgroundDrawable(surface(AppArtwork.NEUTRAL,AppArtwork.NEUTRAL,0,10));UiCompat.clipOutline(image);image.setScaleType(ImageView.ScaleType.FIT_CENTER);art.addView(image,new FrameLayout.LayoutParams(-1,-1));loadArtwork(image,pkg,info);}
             else{image.setImageDrawable(UiCompat.drawable(this,R.drawable.ic_manage_plus));art.addView(image,new FrameLayout.LayoutParams(px(28),px(28),Gravity.CENTER));}
             if(unavailable || occupied && new ChildModeStore(this).hidden(pkg)){ColorMatrix matrix=new ColorMatrix();matrix.setSaturation(0);image.setColorFilter(new ColorMatrixColorFilter(matrix));image.setAlpha(.45f);}

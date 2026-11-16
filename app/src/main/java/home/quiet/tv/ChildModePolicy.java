@@ -8,12 +8,16 @@ final class ChildModePolicy {
     static final int NONE=0,SINGLE=1,DAILY=2;
     static final int EVERY_DAY=127,WEEKDAYS=31,WEEKEND=96;
     static final long MINUTE=60_000L,DAY=24*60*MINUTE;
+    static long pendingUsage(int mode,long elapsed,boolean nextDay,long sinceMidnight){return mode==DAILY&&nextDay?Math.min(elapsed,Math.max(0,sinceMidnight)):elapsed;}
     static final class Rule {
+        Boolean enabled;
         boolean hidden,locked;
         int mode,repeatDays=EVERY_DAY;
         long limit=60*MINUTE,singleUsed,dailyUsed,singleExtra,dailyExtra,dailyExtraUsed;
         String day="",currentDay="";
-        Rule copy(){Rule r=new Rule();r.hidden=hidden;r.locked=locked;r.mode=mode;r.repeatDays=repeatDays;r.limit=limit;r.singleUsed=singleUsed;r.dailyUsed=dailyUsed;r.singleExtra=singleExtra;r.dailyExtra=dailyExtra;r.dailyExtraUsed=dailyExtraUsed;r.day=day;r.currentDay=currentDay;return r;}
+        Rule copy(){Rule r=new Rule();r.enabled=enabled;r.hidden=hidden;r.locked=locked;r.mode=mode;r.repeatDays=repeatDays;r.limit=limit;r.singleUsed=singleUsed;r.dailyUsed=dailyUsed;r.singleExtra=singleExtra;r.dailyExtra=dailyExtra;r.dailyExtraUsed=dailyExtraUsed;r.day=day;r.currentDay=currentDay;return r;}
+        boolean enabled(boolean quiz){return enabled!=null?enabled:hidden||locked||limited()||quiz;}
+        boolean uninstallNeedsParent(boolean global,boolean quiz){return global&&enabled(quiz);}
         boolean limited(){return mode==SINGLE || mode==DAILY;}
         void validate(){if(mode<NONE || mode>DAILY || repeatDays<1 || repeatDays>EVERY_DAY || limit<MINUTE || limit>DAY || singleUsed<0 || dailyUsed<0 || singleExtra<0 || singleExtra>DAY || dailyExtra<0 || dailyExtra>DAY || dailyExtraUsed<0 || dailyExtraUsed>dailyExtra || dailyExtraUsed>dailyUsed)throw new IllegalArgumentException("儿童模式规则无效");}
         void newDay(String today){
@@ -38,7 +42,7 @@ final class ChildModePolicy {
             boolean changed=!day.isEmpty() && today.compareTo(day)>0;newDay(today);
             if(!limited())return;
             long amount=Math.min(elapsed,remaining());
-            if(mode==DAILY && changed)amount=Math.min(amount,Math.max(0,sinceMidnight));
+            amount=pendingUsage(mode,amount,changed,sinceMidnight);
             if(mode==SINGLE)singleUsed+=amount;else{dailyExtraUsed+=Math.max(0,amount-baseRemaining());dailyUsed+=amount;}
         }
         void grant(long amount){

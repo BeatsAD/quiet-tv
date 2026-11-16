@@ -32,11 +32,10 @@ final class AboutDeviceInfo {
         Resources(String memory,String storage){this.memory=memory;this.storage=storage;}
     }
     static Resources resources(Context context){
-        String memory="系统不支持读取总量",storage=UNAVAILABLE;
+        String memory=UNAVAILABLE,storage=UNAVAILABLE;
         if(Build.VERSION.SDK_INT>=16)try{
             ActivityManager manager=(ActivityManager)context.getSystemService(Context.ACTIVITY_SERVICE);
-            long bytes=manager==null?0:Api16.memory(manager);
-            memory=bytes>0?"系统可用总量  "+capacity(bytes):UNAVAILABLE;
+            memory=manager==null?UNAVAILABLE:Api16.memory(manager);
         }catch(RuntimeException unavailable){memory=UNAVAILABLE;}
         try{
             StatFs fs=new StatFs(context.getFilesDir().getAbsolutePath());
@@ -73,9 +72,9 @@ final class AboutDeviceInfo {
         return result.length()==0?UNAVAILABLE:result.toString();
     }
     static long blockBytes(int blockSize,int count){return blockSize>0 && count>=0?(long)blockSize*count:-1;}
-    static String capacity(long bytes){return bytes<0?UNAVAILABLE:String.format(Locale.ROOT,"%.1f GB",bytes/1_000_000_000d);}
+    static String capacity(long bytes){return bytes<0?UNAVAILABLE:bytes<1_000_000_000L?String.format(Locale.ROOT,"%.0f MB",bytes/1_000_000d):String.format(Locale.ROOT,"%.1f GB",bytes/1_000_000_000d);}
     static String storage(long total,long available){
-        return total<=0 || available<0 || available>total?UNAVAILABLE:"可用 "+capacity(available)+" / 共 "+capacity(total);
+        return total<=0 || available<0 || available>total?UNAVAILABLE:"已使用 "+capacity(total-available)+" / 共 "+capacity(total);
     }
     static String screenValue(int width,int height,float refresh){
         if(width<=0 || height<=0)return UNAVAILABLE;
@@ -85,7 +84,7 @@ final class AboutDeviceInfo {
         return resolution+"  "+rate+" Hz";
     }
     @android.annotation.TargetApi(16) private static final class Api16 {
-        static long memory(ActivityManager manager){ActivityManager.MemoryInfo info=new ActivityManager.MemoryInfo();manager.getMemoryInfo(info);return info.totalMem;}
+        static String memory(ActivityManager manager){ActivityManager.MemoryInfo info=new ActivityManager.MemoryInfo();manager.getMemoryInfo(info);return storage(info.totalMem,info.availMem);}
     }
     @android.annotation.TargetApi(18) private static final class Api18 {
         static long total(StatFs fs){return fs.getTotalBytes();}

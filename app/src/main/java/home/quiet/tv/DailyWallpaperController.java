@@ -1,156 +1,128 @@
 package home.quiet.tv;
 
 import android.content.Context;
-import android.graphics.*;
-import android.net.*;
 import android.os.*;
-import android.util.Log;
 import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.*;
 
-/** Foreground-only updates. A generation owns both the cache commit and its UI result. */
+/** Foreground-only updates shared by every TV surface, with guarded cache commits. */
 final class DailyWallpaperController {
-    interface Completed { void done(boolean success,String message); }
-    private static final long COOLDOWN_MS=15*60*1000L;
-    private final Context context;
+    interface Completed {void done(boolean success,String message);}
+    static final long COOLDOWN_MS=15*60*1000L;
+    static final long AUTO_RETRY_MS=15*60*1000L;
     private final WallpaperStore store;
     private final boolean chinese;
     private final Runnable changed;
     private final Handler main=new Handler(Looper.getMainLooper());
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private final DailyWallpaperClient client;
-    private static final class Failure {
-        final long retryAt;
-        final boolean limited;
-        final String message;
-        Failure(long retryAt,boolean limited,String message){this.retryAt=retryAt;this.limited=limited;this.message=message;}
-    }
-    private final Map<String,Failure> failures=new HashMap<>();
-    private final Set<String> unreadable=new HashSet<>();
-    private static final class CacheInvalid extends IOException {}
-    private Future<?> task;
+    private final DailyWallpaperLoader loader;
+    private Future<?> task,prefetchTask;
+    private boolean warming;
+    private String warmingDay="",loadingDay="";
     private volatile int generation;
-    private boolean active,busy;
-    private String pendingSource,message="",messageSource="";
-
-    DailyWallpaperController(Context context,WallpaperStore store,boolean chinese,Runnable changed){this.context=context.getApplicationContext();this.store=store;this.chinese=chinese;this.changed=changed;client=new DailyWallpaperClient(this.context);}
+    private boolean active,busy,lastSuccess=true;
+    private long operation;
+    private DiagnosticOperation diagnostic;
+    private String message="",messageSource="";
+    private final Runnable dayCheck=new Runnable(){public void run(){if(active){environmentChanged();scheduleDay();}}};
+    DailyWallpaperController(Context context,WallpaperStore store,boolean chinese,Runnable changed){
+        this.store=store;this.chinese=chinese;this.changed=changed;client=new DailyWallpaperClient(context.getApplicationContext());loader=new DailyWallpaperLoader(context.getApplicationContext(),store,client);
+    }
     private String tr(String zh,String en){return chinese?zh:en;}
-    static String today(){return new SimpleDateFormat("yyyy-MM-dd",Locale.US).format(new Date());}
+    static String today(){return today(WallpaperCatalog.BING);}
+    static String today(String source){return day(source,System.currentTimeMillis());}
+    static String day(String source,long now){SimpleDateFormat format=new SimpleDateFormat("yyyy-MM-dd",Locale.US);if(WallpaperCatalog.MOVIE.equals(source))format.setTimeZone(TimeZone.getTimeZone("Asia/Shanghai"));return format.format(new Date(now));}
+    static boolean crossedDay(String source,String requestedDay,long now){return WallpaperCatalog.MOVIE.equals(source)&&!requestedDay.equals(day(source,now));}
     boolean busy(){return busy;}
+    String error(){return !lastSuccess&&messageSource.equals(DailyWallpaperLoader.source(store.snapshot()))?message:"";}
     String status(String source){
-        if(busy&&source.equals(pendingSource))return tr("正在获取壁纸…","Getting wallpaper…");
+        if(source.equals(store.dailyPending()))return tr("正在获取壁纸…","Getting wallpaper…");
         if(source.equals(messageSource)&&!message.isEmpty())return message;
-        Failure failure=failures.get(source);if(failure!=null)return failureStatus(failure);
         WallpaperCatalog.DailyImage image=store.snapshot().dailyImages.get(source);
-        return store.cached(image)?cachedStatus(image):tr("启用后每天自动更新，断网保留上一张","Updates daily; keeps the previous image offline");
+        if(!store.cached(image))return tr("启用后每天自动更新，断网保留上一张","Updates daily; keeps the previous image offline");
+        String date=image.dateLabel();return date.isEmpty()?tr("壁纸已保存到本地  断网可用","Wallpaper cached  Available offline"):tr("图片日期 "+date+"  断网可用","Image date "+date+"  Available offline");
     }
-    private String cachedStatus(WallpaperCatalog.DailyImage image){
-        String date=image.dateLabel();
-        return date.isEmpty()?tr("壁纸已保存到本地  断网可用","Wallpaper cached  Available offline"):tr("图片日期 "+date+"  断网可用","Image date "+date+"  Available offline");
-    }
-    private boolean online(){
-        ConnectivityManager manager=(ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);
-        NetworkInfo info=manager==null?null:manager.getActiveNetworkInfo();return info!=null&&info.isConnected();
-    }
-    private long retryTime(String source){Failure failure=failures.get(source);return failure==null?0:failure.retryAt;}
-    private String failureStatus(Failure failure){
-        long remaining=failure.retryAt-SystemClock.elapsedRealtime();
-        if(failure.limited&&remaining>0){long minutes=(remaining+59999)/60000;return failure.message+"  "+tr("请在 "+minutes+" 分钟后重试","Try again in "+minutes+" min");}
-        return failure.message+"  "+tr("稍后重试","Try again later");
-    }
-    void resume(){active=true;environmentChanged();}
-    void pause(){active=false;cancel();}
+    void resume(){active=true;environmentChanged();scheduleDay();}
+    private void scheduleDay(){main.removeCallbacks(dayCheck);WallpaperCatalog state=store.snapshot();String source=DailyWallpaperLoader.source(state);long now=System.currentTimeMillis();Calendar next=Calendar.getInstance(WallpaperCatalog.MOVIE.equals(source)?TimeZone.getTimeZone("Asia/Shanghai"):TimeZone.getDefault());next.add(Calendar.DAY_OF_YEAR,1);next.set(Calendar.HOUR_OF_DAY,0);next.set(Calendar.MINUTE,0);next.set(Calendar.SECOND,1);next.set(Calendar.MILLISECOND,0);long delay=next.getTimeInMillis()-now;
+        if(WallpaperCatalog.MOVIE.equals(source)){String day=today(source);boolean current=DailyWallpaperLoader.current(source,day,state.dailyImages.get(source));if(!current||!store.moviePrefetched(day)){long retry=store.movieNextCheck(day);delay=Math.min(delay,retry>now?retry-now:!current&&retry==0?1000:AUTO_RETRY_MS);}}
+        if(active)main.postDelayed(dayCheck,Math.max(1000,delay));}
+    void pause(){active=false;main.removeCallbacks(dayCheck);cancel();}
     void destroy(){pause();worker.shutdownNow();main.removeCallbacksAndMessages(null);}
-    void cancel(){++generation;client.cancel();if(task!=null)task.cancel(true);task=null;busy=false;pendingSource=null;}
-    void cacheUnreadable(){unreadable.add(WallpaperCatalog.BING);environmentChanged();}
+    void cancel(){if(diagnostic!=null)diagnostic.finish("CANCELLED","inactive_or_superseded");++generation;client.cancel();if(task!=null)task.cancel(true);if(prefetchTask!=null)prefetchTask.cancel(true);task=null;prefetchTask=null;warming=false;store.finishDaily(operation);busy=false;}
+    void cacheUnreadable(){message="";if(active&&!busy&&store.dailyPending().isEmpty())start(DailyWallpaperLoader.source(store.snapshot()),false,true,null);}
     void environmentChanged(){
-        WallpaperCatalog state=store.snapshot();
-        if(!active||busy||!WallpaperCatalog.DAILY.equals(state.current)||!online())return;
-        WallpaperCatalog.DailyImage image=state.dailyImages.get(WallpaperCatalog.BING);
-        if(WallpaperCatalog.BING.equals(state.dailySource)&&store.cached(image)&&!unreadable.contains(WallpaperCatalog.BING)&&today().equals(image.day))return;
-        if(SystemClock.elapsedRealtime()<retryTime(WallpaperCatalog.BING))return;
-        start(false,null);
-    }
-    void apply(Completed completed){start(true,completed);}
-    void prepare(Completed completed){start(false,completed);}
-    private void start(boolean apply,Completed completed){
-        if(!active||busy)return;
-        final String source=WallpaperCatalog.BING;
-        WallpaperCatalog state=store.snapshot();WallpaperCatalog.DailyImage old=state.dailyImages.get(source);
-        boolean cached=store.cached(old)&&!unreadable.contains(source),connected=online();String day=today();
-        boolean reuse=cached&&(!connected||day.equals(old.day));
-        Failure previous=failures.get(source);
-        if(!reuse&&previous!=null&&SystemClock.elapsedRealtime()<previous.retryAt){
-            finishMessage(source,failureStatus(previous),false,completed);return;
+        WallpaperCatalog state=store.snapshot();String source=DailyWallpaperLoader.source(state);
+        boolean movie=WallpaperCatalog.MOVIE.equals(source);String day=today(source);
+        if(active&&busy&&movie&&!day.equals(loadingDay))cancel();
+        if(!active||busy||!store.dailyPending().isEmpty()||!WallpaperCatalog.DAILY.equals(state.current)||!movie&&SystemClock.elapsedRealtime()<store.dailyRetry(source))return;
+        if(warming){if(movie&&day.equals(warmingDay))return;cancel();}
+        WallpaperCatalog.DailyImage image=state.dailyImages.get(source);
+        if(store.cached(image)&&DailyWallpaperLoader.current(source,day,image)){
+            if(movie&&!store.moviePrefetched(day)&&loader.online()&&System.currentTimeMillis()>=store.movieNextCheck(day)){store.movieChecked(day,System.currentTimeMillis());prefetch(day);scheduleDay();}
+            return;
         }
-        if(!connected&&!reuse){finishMessage(source,tr("网络不可用  此来源暂无缓存","Offline  No cache for this source"),false,completed);return;}
-        final int attempt=++generation;busy=true;pendingSource=source;message="";messageSource=source;changed.run();
+        if(movie?System.currentTimeMillis()<store.movieNextCheck(day):!loader.online())return;
+        start(source,false,false,null);
+    }
+    void apply(Completed completed){apply(DailyWallpaperLoader.source(store.snapshot()),completed);}
+    void apply(String source,Completed completed){start(source,true,false,completed);}
+    void prepare(Completed completed){start(DailyWallpaperLoader.source(store.snapshot()),false,false,completed);}
+    void refresh(Completed completed){start(DailyWallpaperLoader.source(store.snapshot()),false,true,completed);}
+    private void start(String source,boolean apply,boolean force,Completed completed){
+        if(!active){finish(source,tr("页面已关闭，请重新打开","Reopen this page to continue"),false,completed);return;}
+        if(warming)cancel();
+        final long lease,expected;
+        try{synchronized(store){expected=store.manualVersion();lease=store.beginDaily(source);if(!apply&&!force&&completed==null&&WallpaperCatalog.MOVIE.equals(source))store.movieChecked(today(source),System.currentTimeMillis());}}catch(IOException error){finish(source,error.getMessage(),false,completed);return;}
+        if(diagnostic!=null)diagnostic.finish("CANCELLED","superseded");
+        DiagnosticOperation trace=new DiagnosticOperation("wallpaper.daily.operation","source="+(WallpaperCatalog.MOVIE.equals(source)?"movie":WallpaperCatalog.BING.equals(source)?"bing":"other")+" apply="+apply+" force="+force);diagnostic=trace;
+        final String requestedDay=today(source);loadingDay=requestedDay;DiagnosticLog.info("wallpaper.daily.context","attempt="+trace.id+" requestedDay="+requestedDay);
+        final int attempt=++generation;operation=lease;busy=true;message="";messageSource=source;changed.run();
         task=worker.submit(()->{
-            String stage="image";File download=null;
             try{
-                WallpaperCatalog.DailyImage ready=old;File prepared=null;
-                if(reuse){validate(store.dailyFile(old.source,old.slot));}
-                else{
-                    stage="metadata";valid(attempt);DailyWallpaperClient.Candidate candidate=client.latest(source);valid(attempt);
-                    boolean keepCached=cached&&candidate.reuses(old),duplicate=keepCached;String key=keepCached?old.key:null;
-                    if(!keepCached){
-                        stage="save";download=new File(store.dailyDirectory(),"download.tmp");
-                        stage="download";key=client.download(candidate,download);valid(attempt);duplicate=cached&&old.key.equals(key);
-                    }
-                    if(duplicate){stage="image";validate(store.dailyFile(old.source,old.slot));}
-                    else{
-                        stage="save";if(store.dailyDirectory().getUsableSpace()<24L*1024*1024)throw new IOException("Insufficient wallpaper storage");
-                        prepared=new File(store.dailyDirectory(),"prepared.tmp");
-                        stage="image";int[] size=WallpaperImages.prepare(download,prepared,Math.min(1920,WallpaperImages.importLimit(context)));valid(attempt);
-                        if(prepared.length()>DailyWallpaperClient.MAX_IMAGE_BYTES)throw new IOException("Prepared wallpaper too large");
-                        ready=new WallpaperCatalog.DailyImage();ready.width=size[0];ready.height=size[1];
-                    }
-                    // Copy cached metadata before changing its date; the committed catalog is untouched.
-                    if(duplicate)ready=copy(old);
-                    if(!keepCached){ready.source=source;ready.key=key;ready.url=candidate.url;ready.title=candidate.title;ready.copyright=candidate.copyright;ready.link=candidate.link;ready.upstream=candidate.upstream;}
-                    ready.day=day;ready.checked=System.currentTimeMillis();
-                }
-                valid(attempt);WallpaperCatalog.DailyImage image=ready;File file=prepared;
+                trace.stage("LOAD_CACHE_OR_NETWORK");DailyWallpaperLoader.Check check=()->valid(attempt,lease);DailyWallpaperLoader.Result result=apply&&!force?loader.select(source,check,requestedDay):loader.load(source,force,check,requestedDay);
                 main.post(()->{
-                    if(attempt!=generation||!active)return;
                     try{
-                        store.commitDaily(image,file,apply);failures.remove(source);unreadable.remove(source);busy=false;task=null;pendingSource=null;
-                        finishMessage(source,cachedStatus(image),true,completed);
-                    }catch(IOException e){failed(attempt,source,"save",e,completed);}
+                        valid(attempt,lease);
+                        if(crossedDay(source,requestedDay,System.currentTimeMillis())){
+                            if(store.manualVersion()!=expected)throw new InterruptedIOException("背景已变化，请重新选择");
+                            trace.finish("CANCELLED","crossed_day");cancel();start(source,apply,force,completed);return;
+                        }
+                        trace.stage("COMMIT");if(!store.commitDailyIfCurrent(result.image,result.prepared,apply,expected,lease))throw new InterruptedIOException("背景已变化，请重新选择");
+                        String contentDay=result.image.dateLabel();DiagnosticLog.info("wallpaper.daily.context","attempt="+trace.id+" contentDay="+(contentDay.matches("[0-9-]{8,10}")?contentDay:"unknown"));trace.finish("COMPLETED",result.offline?"offline_cache":"committed");store.dailyRetry(source,0);store.finishDaily(lease);busy=false;task=null;
+                        finish(source,result.offline?tr("电视离线，正在使用缓存","TV offline. Using cached wallpaper"):!apply&&WallpaperCatalog.MOVIE.equals(source)&&!DailyWallpaperLoader.current(source,today(source),result.image)?tr("暂未获取到今日电影，沿用上一张","Today's movie is not available yet. Keeping the previous image"):force&&result.unchanged?tr("暂无新图片，保留当前背景","No new image. Current background kept"):tr("壁纸已保存到本地  断网可用","Wallpaper cached  Available offline"),true,completed);
+                        if(WallpaperCatalog.MOVIE.equals(source))prefetch(today(source));
+                        if(apply&&!force)environmentChanged();
+                    }catch(IOException error){failed(attempt,lease,source,error,completed);}
+                    finally{result.close();store.finishDaily(lease);}
                 });
-            }catch(IOException|OutOfMemoryError e){String failedStage=stage;main.post(()->failed(attempt,source,failedStage,e,completed));}
-            finally{if(download!=null&&download.exists()&&!download.delete())Log.w("QuietTV","Daily wallpaper download temporary file retained");}
+            }catch(IOException|OutOfMemoryError error){main.post(()->failed(attempt,lease,source,error,completed));}
         });
     }
-    private static WallpaperCatalog.DailyImage copy(WallpaperCatalog.DailyImage image) throws IOException {
-        try{return WallpaperCatalog.DailyImage.read(image.json());}catch(org.json.JSONException e){throw new IOException(e);}
+    private void prefetch(String day){
+        WallpaperCatalog state=store.snapshot();
+        if(!active||warming||store.moviePrefetched(day)||!loader.online()||SystemClock.elapsedRealtime()<store.dailyRetry(WallpaperCatalog.MOVIE)||!WallpaperCatalog.DAILY.equals(state.current)||!WallpaperCatalog.MOVIE.equals(DailyWallpaperLoader.source(state)))return;
+        warming=true;warmingDay=day;final int attempt=generation;final long expected=store.manualVersion();
+        prefetchTask=worker.submit(()->{
+            boolean success=false;
+            try{
+                loader.prefetchMovie(day,()->{
+                    WallpaperCatalog current=store.snapshot();
+                    if(attempt!=generation||Thread.currentThread().isInterrupted()||!day.equals(today(WallpaperCatalog.MOVIE))||store.manualVersion()!=expected||!WallpaperCatalog.DAILY.equals(current.current)||!WallpaperCatalog.MOVIE.equals(DailyWallpaperLoader.source(current)))throw new InterruptedIOException("Cinema preparation cancelled");
+                });success=true;
+            }catch(IOException|OutOfMemoryError failure){DiagnosticLog.info("wallpaper.cinema.prepare_failed","error="+failure.getClass().getSimpleName());}
+            final boolean complete=success;
+            main.post(()->{if(attempt!=generation)return;warming=false;prefetchTask=null;if(complete&&active&&day.equals(today(WallpaperCatalog.MOVIE))&&store.manualVersion()==expected)store.moviePrefetchedDay(day);scheduleDay();});
+        });
     }
-    private void valid(int attempt) throws InterruptedIOException {if(attempt!=generation||Thread.currentThread().isInterrupted())throw new InterruptedIOException();}
-    private static void validate(File file) throws IOException {
-        BitmapFactory.Options options=new BitmapFactory.Options();options.inSampleSize=4;Bitmap bitmap=BitmapFactory.decodeFile(file.getPath(),options);
-        if(bitmap==null)throw new CacheInvalid();bitmap.recycle();
+    private void valid(int attempt,long lease)throws InterruptedIOException{if(attempt!=generation||Thread.currentThread().isInterrupted()||!store.dailyActive(lease))throw new InterruptedIOException("壁纸操作已取消");}
+    private void failed(int attempt,long lease,String source,Throwable error,Completed completed){
+        if(attempt==generation&&diagnostic!=null)diagnostic.finish(error instanceof InterruptedIOException?"CANCELLED":"FAILED",error.getClass().getSimpleName());store.finishDaily(lease);if(attempt!=generation||!active)return;busy=false;task=null;
+        String reason=error instanceof InterruptedIOException?tr("背景已变化，请重新选择","Background changed. Select again"):error instanceof OutOfMemoryError?tr("内存不足，无法处理壁纸","Not enough memory to process wallpaper"):error instanceof DailyWallpaperClient.Unavailable?tr("近期必应图片均未开放壁纸下载","Recent Bing images are unavailable for wallpaper download"):error instanceof DailyWallpaperClient.Limited?tr("壁纸来源请求过于频繁，请稍后重试","Wallpaper source rate limited. Try later"):tr("壁纸获取失败，请检查电视网络或稍后重试","Unable to get wallpaper. Check the TV network or try later");
+        DiagnosticLog.info("wallpaper.daily.failed","source="+source+" error="+error.getClass().getSimpleName());
+        finish(source,reason+"  "+tr("已保留当前背景","Current background kept"),false,completed);
     }
-    private void failed(int attempt,String source,String stage,Throwable error,Completed completed){
-        if(attempt!=generation||!active)return;
-        if(error instanceof CacheInvalid)unreadable.add(source);
-        long delay=error instanceof DailyWallpaperClient.Limited?Math.max(COOLDOWN_MS,((DailyWallpaperClient.Limited)error).retryMs):COOLDOWN_MS;
-        boolean limited=error instanceof DailyWallpaperClient.Limited;
-        String reason;
-        if(error instanceof DailyWallpaperClient.Unavailable)reason=tr("近期必应图片均未开放壁纸下载","Recent Bing images are unavailable for wallpaper download");
-        else if(limited)reason=tr("壁纸来源请求过于频繁","Wallpaper source rate limited");
-        else if(error instanceof OutOfMemoryError)reason=tr("内存不足，无法处理壁纸","Not enough memory to process wallpaper");
-        else if("save".equals(stage))reason=tr("壁纸保存失败，请检查存储空间","Unable to save wallpaper. Check storage");
-        else if("image".equals(stage))reason=tr("壁纸图片处理失败","Unable to process wallpaper image");
-        else reason=tr("壁纸请求失败，请检查网络或稍后重试","Wallpaper request failed. Check network or try later");
-        Failure failure=new Failure(SystemClock.elapsedRealtime()+delay,limited,reason+"  "+tr("已保留当前壁纸","Current wallpaper kept"));
-        failures.put(source,failure);busy=false;task=null;pendingSource=null;
-        DiagnosticLog.info("wallpaper.daily.failed","source="+source+" stage="+stage);DiagnosticLog.error("wallpaper.daily.error",error);
-        // Keep causes useful without logging URLs, response bodies or exception messages.
-        Log.w("QuietTV","Daily wallpaper failed: source="+source+" stage="+stage+" error="+error.getClass().getSimpleName()
-            +(error instanceof DailyWallpaperClient.HttpFailure?" http="+((DailyWallpaperClient.HttpFailure)error).status:limited?" http=429":""));
-        finishMessage(source,failureStatus(failure),false,completed);
-    }
-    private void finishMessage(String source,String value,boolean success,Completed completed){messageSource=source;message=value;changed.run();if(completed!=null)completed.done(success,value);}
+    private void finish(String source,String value,boolean success,Completed completed){scheduleDay();messageSource=source;message=value;lastSuccess=success;changed.run();if(completed!=null)completed.done(success,value);}
 }

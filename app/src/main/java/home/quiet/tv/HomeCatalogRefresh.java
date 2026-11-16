@@ -28,6 +28,7 @@ final class HomeCatalogRefresh {
     }
     private Input applied,inFlight;
     boolean loading(){return inFlight!=null;}
+    boolean current(Input requested){return requested.equals(applied);}
     boolean start(Input requested){
         if(loading()||requested.equals(applied))return false;
         inFlight=requested;return true;

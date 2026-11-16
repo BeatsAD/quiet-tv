@@ -17,11 +17,12 @@ final class ScreensaverStore {
             if(file.getBaseFile().exists()||new File(file.getBaseFile().getPath()+".bak").exists()){
                 try{state=ScreensaverSettings.read(new JSONObject(new String(file.readFully(),Charsets.UTF_8)));}
                 catch(JSONException e){throw new IOException("Unable to read screensaver settings",e);}
-            }else{save(new ScreensaverSettings(catalog.current,0,true,true));}
+            }else{save(new ScreensaverSettings(catalog.current,10,true,true,ScreensaverSettings.FOLLOW));}
         }
         reconcile(catalog);
     }
     synchronized ScreensaverSettings snapshot(WallpaperCatalog catalog)throws IOException{initialize(catalog);return state;}
+    synchronized ScreensaverSettings backupSnapshot(WallpaperCatalog catalog)throws IOException{initialize(catalog);try{return ScreensaverSettings.read(new JSONObject(new String(file.readFully(),Charsets.UTF_8)));}catch(JSONException failure){throw new IOException("屏保配置无法读取，自动备份已暂停",failure);}}
     synchronized ScreensaverSettings current(){return state;}
     synchronized void reconcile(WallpaperCatalog catalog)throws IOException{
         if(state!=null){ScreensaverSettings valid=state.validated(catalog);if(valid!=state)save(valid);}
@@ -33,7 +34,7 @@ final class ScreensaverStore {
             stream=file.startWrite();stream.write(expected);stream.getFD().sync();file.finishWrite(stream);stream=null;
             // AtomicFile logs rename failures rather than throwing them. Verify before publishing.
             if(!java.util.Arrays.equals(expected,file.readFully()))throw new IOException("Screensaver settings were not committed");
-            state=next;
+            state=next;DesktopBackups.changed();
         }
         catch(IOException|JSONException e){if(stream!=null)file.failWrite(stream);throw new IOException("Unable to save screensaver settings",e);}
     }

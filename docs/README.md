@@ -10,6 +10,7 @@
 - 使用：[中文](USAGE.zh-CN.md) / [English](USAGE.en.md)
 - [兼容范围 / Compatibility](COMPATIBILITY.md)
 - [桌面配置与恢复 / Setup and recovery](SETUP.md)
+- [新旧桌面切换](DESKTOP_SWITCH.md)：原桌面启用状态、直接 HOME 与中转接管的切换和恢复
 - [电脑适配与维护](AGENT_ADAPT.zh-CN.md)：检测、修复、信号源配置和自检报告
 - [应用管理 / App management](APP_MANAGEMENT.md)
 - [版本、签名与归档 / Versioning and archives](VERSIONING.md)

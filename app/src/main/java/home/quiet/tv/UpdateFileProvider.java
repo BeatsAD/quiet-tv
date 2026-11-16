@@ -1,6 +1,6 @@
 package home.quiet.tv;
 
-/** Provider has access only to the dedicated update directory. */
+/** Provider shares only controlled update, received-APK and selected-APK directories. */
 public final class UpdateFileProvider extends androidx.core.content.FileProvider {
     public UpdateFileProvider(){super();}
 }

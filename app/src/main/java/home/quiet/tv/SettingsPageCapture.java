@@ -7,11 +7,14 @@ import java.io.File;
 import java.util.*;
 import java.util.concurrent.*;
 
-/** Automatic read-only observations after a settings dispatch; no separate user operation. */
+/** Read-only settings observations restricted to the user's existing diagnostic window. */
 final class SettingsPageCapture {
-    private static final long LIMIT_MS=180000,INTERVAL_MS=2000;
+    private static final long LIMIT_MS=DiagnosticIncident.AFTER_MS,INTERVAL_MS=2000;
     private static SettingsPageCapture current;
     private static String skipped="";
+    private static SettingsRouteMemory.Attempt lastAttempt;
+    private static boolean returned;
+    private static String owner="";
     private final Context context;
     private final AdbController adb;
     private final SettingsRouteMemory.Attempt attempt;
@@ -29,7 +32,10 @@ final class SettingsPageCapture {
     static synchronized boolean running(){return current!=null&&current.running;}
     static synchronized String summary(){return !skipped.isEmpty()?skipped:current==null?"本进程尚无系统设置页面观察记录；历史结果见 settings.capture 事件。":current.describe();}
     static synchronized void observe(Context context,SettingsRouteMemory.Attempt attempt){
+        lastAttempt=attempt;returned=false;
+        owner=context.getClass().getSimpleName()+":"+System.identityHashCode(context);
         if(running())current.stop("next_entry");
+        if(!DiagnosticProbe.active()){skipped="设置页面连续观察未开启：请先记录问题，再在30秒内打开设置。";DiagnosticLog.info("settings.capture.skipped","reason=no_active_diagnostic_window");return;}
         // Ordinary settings navigation must not create a new key or require a diagnostic setup flow.
         String reason=!new File(context.getFilesDir(),"local-adb.p12").isFile()?"no_existing_adb_key":
             !context.getSharedPreferences("adb",0).getBoolean("autoConnect",true)?"adb_paused":
@@ -38,26 +44,32 @@ final class SettingsPageCapture {
         skipped="";SettingsPageCapture capture=new SettingsPageCapture(context,attempt);current=capture;capture.connect();
     }
     static synchronized void stopCurrent(String reason){if(current!=null)current.stop(reason);}
+    static synchronized void returned(Context source){
+        if(lastAttempt==null||returned||!owner.equals(source.getClass().getSimpleName()+":"+System.identityHashCode(source)))return;returned=true;
+        DiagnosticLog.info("settings.return","attempt="+lastAttempt.diagnosticId+" source="+source.getClass().getSimpleName()+" elapsedMs="+(SystemClock.elapsedRealtime()-lastAttempt.started)
+            +" capture="+(current==null?"none":current.id)+" observation="+(skipped.isEmpty()?"see_capture_events":"unavailable")+" evidence=source_activity_resumed_not_setting_changed");
+    }
     private synchronized String describe(){return "采集状态："+state+"\n采集编号："+id+"\n采样次数："+samples+"  结构变化："+changes+"  前台未知："+unknown
         +"\nAndroid 用户："+(capturedUser<0?"未确认":Integer.toString(capturedUser))
         +"\n受阻查询："+(unavailable.isEmpty()?"未记录":unavailable)
-        +"\n范围：打开系统设置后自动观察，最多180秒，每次快照后间隔2秒，导出时结束；仅本机当前用户的组件、action、Fragment候选及组件访问状态。不保存原始转储、Intent数据/extra值、页面文字或网络列表。"
+        +"\n范围：仅在主动标记的30秒诊断窗口内观察设置页面，每次快照后间隔2秒，窗口结束或导出时停止；仅本机当前用户的组件、action、Fragment候选及组件访问状态。不保存原始转储、Intent数据/extra值、页面文字或网络列表。"
         +"\n限制：采样可能遗漏短暂页面；Fragment候选不证明可见，普通View内部切换可能不可见；未知不代表没有页面。组件可见不证明允许直接启动或真机显示成功。";}
     private void connect(){
-        DiagnosticLog.info("settings.capture.begin","capture="+id+" limitMs="+LIMIT_MS+" intervalMs="+INTERVAL_MS);
+        DiagnosticLog.info("settings.capture.begin","capture="+id+" attempt="+attempt.diagnosticId+" limitMs="+LIMIT_MS+" intervalMs="+INTERVAL_MS);
         main.postDelayed(deadline,LIMIT_MS);
         final int request=adb.prepare();
         worker.execute(()->{
             try{
+                if(!observing())return;
                 adb.connect(context.getSharedPreferences("adb",0).getInt("port",5555),request,false);
-                synchronized(this){if(!running)return;capturedUser=adb.user;state="正在自动观察设置页面";
+                synchronized(this){if(!observing())return;capturedUser=adb.user;state="正在诊断窗口内观察设置页面";
                     DiagnosticLog.info("settings.capture.connected","capture="+id+" user="+capturedUser);}
                 sample();
             }catch(Exception failure){fail("connect",failure);}
         });
     }
     private void sample(){
-        if(!running)return;
+        if(!observing())return;
         if(SystemClock.elapsedRealtime()-started>=LIMIT_MS){stop("time_limit");return;}
         try{
             adb.validateUser();
@@ -82,6 +94,7 @@ final class SettingsPageCapture {
         }catch(Exception failure){fail("snapshot",failure);}
     }
     private String query(String source,String command) throws Exception {
+        if(!observing())return "";
         try{
             String output=adb.diagnosticShell(command);
             // Some Android dumpsys services print denial/unknown-service text with exit code zero.
@@ -96,6 +109,7 @@ final class SettingsPageCapture {
             return "";
         }
     }
+    private boolean observing(){if(!running)return false;if(DiagnosticProbe.active())return true;stop("diagnostic_window_end");return false;}
     private void inspect(String value){
         if(value.isEmpty() || inspected.size()>=24 || !inspected.add(value))return;
         try{
@@ -115,7 +129,7 @@ final class SettingsPageCapture {
     private synchronized void stop(String reason){
         if(!running)return;running=false;
         state=reason.startsWith("connect_")?"连接失败，请检查本机 TCP ADB 与授权":reason.startsWith("snapshot_")?"采集受阻，详见日志":
-            "time_limit".equals(reason)?"观察时限结束":"screen_off".equals(reason)?"息屏后已停止":"export".equals(reason)?"导出时已结束观察":"观察已结束";
+            "diagnostic_window_end".equals(reason)?"诊断窗口结束":"time_limit".equals(reason)?"观察时限结束":"screen_off".equals(reason)?"息屏后已停止":"export".equals(reason)?"导出时已结束观察":"观察已结束";
         DiagnosticLog.info("settings.capture.result","capture="+id+" reason="+reason+" samples="+samples+" changes="+changes+" unknown="+unknown+" elapsedMs="+(SystemClock.elapsedRealtime()-started));
         main.removeCallbacks(deadline);adb.close();worker.shutdownNow();
     }

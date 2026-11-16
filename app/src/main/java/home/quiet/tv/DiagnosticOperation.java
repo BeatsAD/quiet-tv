@@ -8,6 +8,7 @@ import java.util.concurrent.atomic.AtomicLong;
 final class DiagnosticOperation {
     interface Sink {void write(String event,String detail);}
     private static final AtomicLong sequence=new AtomicLong();
+    private static final ThreadLocal<String> parent=new ThreadLocal<>();
     final String id;
     private final String kind;
     private final long startedAt,startedElapsed;
@@ -15,10 +16,22 @@ final class DiagnosticOperation {
     private String stage="START",result="RUNNING",reason="";
     private long stageElapsed,endedElapsed,endedAt;
     DiagnosticOperation(String kind,long wall,long elapsed,Sink sink){
-        this.kind=kind;this.startedAt=wall;this.startedElapsed=elapsed;this.stageElapsed=elapsed;this.sink=sink;
+        this.kind=kind;this.startedAt=wall;this.startedElapsed=elapsed;this.stageElapsed=elapsed;String inherited=parentDetail();this.sink=(event,detail)->sink.write(event,detail+inherited);
         id=nextId(wall);
-        sink.write(kind+".begin","attempt="+id+" startedAt="+wall);
+        this.sink.write(kind+".begin","attempt="+id+" startedAt="+wall);
     }
+    DiagnosticOperation(String kind,String detail){
+        this(kind,System.currentTimeMillis(),clock(),sink(detail));
+    }
+    private static long clock(){return DiagnosticLog.initialized()?android.os.SystemClock.elapsedRealtime():0;}
+    private static Sink sink(String detail){String fixed=detail;return (event,value)->DiagnosticLog.info(event,value+" "+fixed);}
+    private static String parentDetail(){String value=parent.get();return value==null?"":" parent="+value;}
+    static String current(){String value=parent.get();return value==null?"none":value;}
+    static String enter(String id){String previous=parent.get();parent.set(id);return previous;}
+    static void restore(String previous){if(previous==null)parent.remove();else parent.set(previous);}
+    void stage(String next){stage(next,clock());}
+    void finish(String outcome,String why){finish(outcome,why,System.currentTimeMillis(),clock());}
+    static String domain(String value){return java.util.Arrays.asList("appearance","feedback","greeting","wallpaper","dock","buttons","weather","catalog","quick","screensaver","uploads","tasks","audio","apps","child","childUsage","quiz","parent","weatherInfo","boot","guard","management","inputs","files","memos","backup","update","diagnostics","components","desktopSwitch","icons").contains(value)?value:"other";}
     static String nextId(long wall){return Long.toHexString(wall)+"-"+sequence.incrementAndGet();}
     synchronized void stage(String next,long now){
         if(!"RUNNING".equals(result) || stage.equals(next))return;

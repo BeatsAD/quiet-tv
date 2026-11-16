@@ -38,7 +38,7 @@ public final class MaintenanceHelpActivity extends ManagementUi {
             int size=384;com.google.zxing.common.BitMatrix matrix=new com.google.zxing.qrcode.QRCodeWriter().encode(INSTALL_PAGE,com.google.zxing.BarcodeFormat.QR_CODE,size,size,java.util.Collections.singletonMap(com.google.zxing.EncodeHintType.MARGIN,2));
             int[] pixels=new int[size*size];for(int y=0;y<size;y++)for(int x=0;x<size;x++)pixels[y*size+x]=matrix.get(x,y)?android.graphics.Color.BLACK:android.graphics.Color.WHITE;
             qrBitmap=android.graphics.Bitmap.createBitmap(pixels,size,size,android.graphics.Bitmap.Config.ARGB_8888);
-            ImageView qr=new ImageView(this);qr.setImageBitmap(qrBitmap);qr.setContentDescription("电脑配置说明二维码");computer.addView(qr,new LinearLayout.LayoutParams(px(194),px(194)));
+            ImageView qr=new QrCodeView(this,unit);qr.setImageBitmap(qrBitmap);qr.setContentDescription("电脑配置说明二维码");computer.addView(qr,new LinearLayout.LayoutParams(px(194),px(194)));
         }catch(com.google.zxing.WriterException unavailable){computer.addView(muted("请在电脑上打开下方网址",14));}
         gap(computer,10);computer.addView(center("扫码查看说明，在电脑上将请求复制给 AI 助手。",14));gap(computer,10);computer.addView(center(INSTALL_PAGE,11));
         android.view.View back=header.getChildAt(0);back.setId(androidx.core.view.ViewCompat.generateViewId());
@@ -60,27 +60,33 @@ public final class MaintenanceHelpActivity extends ManagementUi {
         sheet.action("继续",()->{sheet.dialog.dismiss();perform(restore);});sheet.show(cancel);
     }
     private void perform(boolean restore){
-        HomeGuardState state=new HomeGuardState(this);state.pause("用户从帮助页暂停接管");refresh();
-        if(state.preferences.getBoolean("proxyPausePending",false)){message("接管暂停尚未确认，请通过电脑恢复。");return;}
-        if(!restore){message("已暂停自动接管。");return;}
+        DesktopSwitch engine=DesktopSwitch.get(this);engine.worker.execute(()->{String result;try{result=engine.legacy(restore,()->!isFinishing()&&!UiCompat.destroyed(this));}catch(Exception failure){result=DesktopSwitch.message(failure);}String text=result;runOnUiThread(()->{if(!isFinishing()&&!UiCompat.destroyed(this)){message(text);refresh();}});});
+    }
+    static String perform(ManagementUi ui,boolean restore)throws java.io.IOException{return perform((android.content.Context)ui,restore);}
+    static String perform(android.content.Context ui,boolean restore)throws java.io.IOException{
+        HomeGuardState state=new HomeGuardState(ui);
+        if(!state.pause("用户从帮助页暂停接管"))throw new java.io.IOException("暂停未保存，当前设置保持原样，请重试");
+        if(state.preferences.getBoolean("proxyPausePending",false))return "接管暂停尚未确认，请通过电脑恢复。";
+        if(!restore)return "已暂停自动接管，系统默认桌面保持当前设置。";
         try{
-            HomeController home=new HomeController(this);String original=DeviceMaintenanceReceiver.original(this);
+            HomeController home=new HomeController(ui);String original=DeviceMaintenanceReceiver.original(ui);
             HomeController.State current=home.inspect();
-            if(LegacyAdbHomeGuard.configured(this) && LegacyAdbHomeGuard.usable(this,original)
+            if(LegacyAdbHomeGuard.configured(ui) && LegacyAdbHomeGuard.usable(ui,original)
                     && (!current.known || original.equals(current.actual))){
-                startActivity(new Intent(Intent.ACTION_MAIN).setComponent(ComponentName.unflattenFromString(original)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-                message("已停止守护并打开原桌面，系统默认 HOME 未修改。");return;
+                ui.startActivity(new Intent(Intent.ACTION_MAIN).setComponent(ComponentName.unflattenFromString(original)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                return "已停止守护并打开原桌面，系统默认 HOME 未修改。";
             }
-            if(original.isEmpty() || !home.component(original,true)){message("原桌面记录缺失或暂不可用，请通过电脑恢复。");return;}
+            if(original.isEmpty() || !home.component(original,true))return "已暂停接管，原桌面记录缺失或暂不可用，请通过电脑恢复。";
             if(current.known && original.equals(current.actual)){
-                startActivity(new Intent(Intent.ACTION_MAIN).setComponent(ComponentName.unflattenFromString(original)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));return;
+                ui.startActivity(new Intent(Intent.ACTION_MAIN).setComponent(ComponentName.unflattenFromString(original)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));return "已暂停接管并打开原桌面，请核对实际 HOME 行为。";
             }
             // The app has no system privilege to choose HOME; the system owns this confirmation.
-            Intent settings=new Intent(android.provider.Settings.ACTION_HOME_SETTINGS);
-            if(!ExternalActivityLauncher.open(this,"maintenance.restore",settings)){
-                startActivity(new Intent(Intent.ACTION_MAIN).setComponent(ComponentName.unflattenFromString(original)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-                message("已暂停并打开原桌面，默认桌面仍需通过电脑恢复。");
+            Intent settings=new Intent(android.provider.Settings.ACTION_HOME_SETTINGS);if(!(ui instanceof android.app.Activity))settings.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            if(!ExternalActivityLauncher.open(ui,"maintenance.restore",settings)){
+                ui.startActivity(new Intent(Intent.ACTION_MAIN).setComponent(ComponentName.unflattenFromString(original)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                return "已暂停并打开原桌面，默认桌面仍需通过电脑恢复。";
             }
-        }catch(Exception failure){message("已暂停接管，恢复未完成，请通过电脑继续。");}
+            return "已暂停接管并请求打开系统选择，请完成默认桌面设置后核对 HOME 行为。";
+        }catch(Exception failure){return "已暂停接管，恢复未完成，请通过电脑继续。";}
     }
 }

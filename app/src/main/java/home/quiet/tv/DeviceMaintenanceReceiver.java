@@ -90,11 +90,12 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
     }
     @android.annotation.SuppressLint("ApplySharedPref") // A successful reply requires durable restoration state.
     private Reply perform(Context context,Intent intent){
-        Reply reply=new Reply();
+        Reply reply=new Reply();String diagnostic="",diagnosticAction="";
         try{
             if(intent==null || !(context.getPackageName()+".DEVICE_MAINTENANCE").equals(intent.getAction()))return reply;
             if(intent.getIntExtra("user",-1)!=android.os.Process.myUid()/100000)throw new IllegalArgumentException("目标用户不一致");
             String operation=intent.getStringExtra("operation");
+            if(SystemDiagnosticTimeline.maintenance(operation)){diagnosticAction=operation;diagnostic=SystemDiagnosticTimeline.begin(context,"computer_maintenance",operation);}
             SourcePairing activePairing=SourcePairing.existing();
             if(activePairing!=null&&java.util.Arrays.asList("input_open","profile_set","profile_reset","entry_test").contains(operation)&&activePairing.blocksExternalInput())
                 throw new IllegalStateException("信号源配对正在进行，请先确认或停止该任务");
@@ -205,6 +206,7 @@ public final class DeviceMaintenanceReceiver extends BroadcastReceiver {
             if("takeover_plan".equals(operation))result.put("restorePlan",new ComputerRestorePlan(context).plan());
             reply.data=result.toString();reply.code=Activity.RESULT_OK;
         }catch(Exception failure){reply.data="维护未完成："+failure.getMessage();}
+        finally{if(!diagnostic.isEmpty())SystemDiagnosticTimeline.end(context,diagnostic,"computer_maintenance",diagnosticAction,reply.code);}
         return reply;
     }
 }

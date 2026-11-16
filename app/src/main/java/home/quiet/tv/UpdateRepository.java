@@ -30,28 +30,32 @@ final class UpdateRepository {
     private File installFile;
     private Intent installConfirmation;
     boolean installBusy,installNotice;
-    String installState="",installError="";
+    private UpdateState.Install installState=UpdateState.Install.IDLE;
+    String installError="";
     private boolean installFallback;
     private String installAttempt="";
     private String installRoute="";
+    private long diagnosticInstallStarted=-1;
     private long lastWall,lastElapsed,lastProgress;
     UpdateManifest.Artifact available;
-    boolean checking,downloading,verifying,ready,switching;
+    boolean checking,downloading,verifying,ready,switching,checked;
     long received,total;
     String checkError="",downloadError="",unavailableReason="";
+    private String lastState="";
     private UpdateRepository(Context context){
         this.context=context;prefs=context.getSharedPreferences("application-updates",0);
         directory=new File(context.getFilesDir(),"updates");cache=new File(context.getFilesDir(),"update-manifest.json");
         installAttempt=prefs.getString("installAttempt","");
+        diagnosticInstallStarted=prefs.getLong("diagnosticInstallStarted",-1);
         installRoute=prefs.getString("installRoute",Build.VERSION.SDK_INT<24?"legacy_file":"content");
         if(UpdateInstallPolicy.session(Build.VERSION.SDK_INT)){
             installSession=prefs.getInt("installSession",-1);installFallback=prefs.getBoolean("installFallback",false);
             if(installSession>=0)installRoute="session";
             if(!prefs.getString("installPhase","").isEmpty()){
-                installState="interrupted";installError=UpdateInstallPolicy.message("interrupted");installNotice=true;
+                installState=UpdateState.Install.INTERRUPTED;installError=UpdateInstallPolicy.message("interrupted");installNotice=true;
             }
         }
-        if("file_dispatched".equals(prefs.getString("installPhase",""))){installState="file_dispatched";installNotice=true;}
+        if(snapshot().savedInstall==UpdateState.Install.FILE_DISPATCHED){installState=UpdateState.Install.FILE_DISPATCHED;installNotice=true;}
         worker.execute(()->{try{
             key=read(context.getAssets().open("updates/public-key.der"),4096);
             if(cache.isFile()){manifest=UpdateManifest.verify(read(new FileInputStream(cache),UpdateManifest.MAX_BYTES),key,prefs.getLong("revision",0));prefs.edit().putLong("revision",manifest.revision).apply();}
@@ -59,9 +63,15 @@ final class UpdateRepository {
             main.post(()->{reconcile();notifyChanged();});
         });
     }
+    UpdateState snapshot(){return new UpdateState(checking,checkError,downloading,verifying,switching,ready,downloadError,installState,
+        prefs.getString("installPhase",""),installAttempt,installSession,installBusy,installConfirmation!=null);}
     void add(Listener listener){listeners.add(listener);listener.changed();}
     void remove(Listener listener){listeners.remove(listener);}
-    private void notifyChanged(){for(Listener listener:new ArrayList<>(listeners))listener.changed();}
+    private void notifyChanged(){
+        String observation=snapshot().diagnostics();
+        if(!observation.equals(lastState)){lastState=observation;DiagnosticLog.info("update.state",observation);}
+        for(Listener listener:new ArrayList<>(listeners))listener.changed();
+    }
     boolean online(){try{ConnectivityManager manager=(ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);NetworkInfo network=manager==null?null:manager.getActiveNetworkInfo();return network!=null&&network.isConnected();}catch(RuntimeException e){return false;}}
     void foreground(){reconcile();notifyChanged();if(!checking&&!downloading&&online()&&UpdatePolicy.due(now(),prefs.getLong("success",0),prefs.getLong("failure",0)))check(false);}
     private long now(){long wall=System.currentTimeMillis(),elapsed=SystemClock.elapsedRealtime();
@@ -75,8 +85,9 @@ final class UpdateRepository {
             available=selected;unavailableReason=manifest==null||selected!=null?"":manifest.unavailableReason(device);if(changed){ready=false;received=0;downloadError="";}
             String installedTarget=prefs.getString("pendingVersion","");long installedCode=prefs.getLong("pendingCode",0);
             if(!installedTarget.isEmpty()&&device.code>=installedCode&&UpdateManifest.compare(device.version,installedTarget)>=0){
+                diagnosticReadback(true);
                 prefs.edit().remove("pendingVersion").remove("pendingCode").remove("installSession").remove("installPhase").remove("installHash").remove("installFallback").remove("installRoute").apply();
-                installSession=-1;installConfirmation=null;installState="success";installNotice=true;
+                installSession=-1;installConfirmation=null;installState=UpdateState.Install.SUCCESS;installNotice=true;
                 DiagnosticLog.info("update.install.reconciled","result=installed version="+device.version+" build="+device.code);
             }
             if(installTarget==null&&available!=null&&available.sha256.equals(prefs.getString("installHash","")))installTarget=available;
@@ -106,7 +117,7 @@ final class UpdateRepository {
             }catch(IOException|RuntimeException e){error=UpdateFailure.message(stage,e);DiagnosticLog.info("update.check.failed",UpdateFailure.details(stage,e));}
             final String failure=error;
             main.post(()->{if(generation!=checkGeneration)return;checking=false;checkTransfer=null;checkError=failure;
-                if(failure.isEmpty()){manifest=found[0];prefs.edit().putLong("revision",manifest.revision).putLong("success",now()).remove("failure").putInt("manifestSource",source[0]).apply();reconcile();}
+                if(failure.isEmpty()){manifest=found[0];checked=true;prefs.edit().putLong("revision",manifest.revision).putLong("success",now()).remove("failure").putInt("manifestSource",source[0]).apply();reconcile();}
                 else prefs.edit().putLong("failure",now()).apply();notifyChanged();});
         });
     }
@@ -138,7 +149,7 @@ final class UpdateRepository {
     /** Single installation entry; UI only dispatches a prepared route while foreground. */
     void install(){
         if(installBusy)return;
-        if("file_dispatched".equals(prefs.getString("installPhase",""))){fileInstallReturned(Integer.MIN_VALUE,null);return;}
+        if(snapshot().savedInstall==UpdateState.Install.FILE_DISPATCHED){fileInstallReturned(Integer.MIN_VALUE,null);return;}
         if(!ready||available==null||verifying||downloading){installationFailed("更新状态已变化，请重新检查");return;}
         final int previous=installSession>=0?installSession:prefs.getInt("installCleanup",-1);
         if(UpdateInstallPolicy.session(Build.VERSION.SDK_INT)&&previous>=0){
@@ -151,10 +162,10 @@ final class UpdateRepository {
                     if(!previousAttempt.equals(installAttempt))return;
                     installBusy=false;
                     // A terminal callback may have arrived while the session was queried.
-                    if("success".equals(installState)){notifyChanged();return;}
+                    if(installState==UpdateState.Install.SUCCESS){notifyChanged();return;}
                     if(active&&prefs.getInt("installSession",-1)!=previous&&prefs.getInt("installCleanup",-1)!=previous){notifyChanged();return;}
                     if(active){
-                        if(!"confirmation".equals(installState)&&!"confirming".equals(installState))installState="submitted";
+                        if(installState!=UpdateState.Install.CONFIRMATION&&installState!=UpdateState.Install.CONFIRMING)installState=UpdateState.Install.SUBMITTED;
                         installNotice=true;notifyChanged();return;
                     }
                     if(!released){installationFailed("上次安装任务无法结束，请重试或通过电脑更新");return;}
@@ -164,17 +175,22 @@ final class UpdateRepository {
                 });
             });return;
         }
-        final UpdateManifest.Artifact target=available;installAttempt=Long.toHexString(System.nanoTime());installTarget=target;installFile=null;installConfirmation=null;
-        installSession=-1;installFallback=false;installBusy=true;installNotice=false;installState="preparing";installError="";
+        final UpdateManifest.Artifact target=available;installAttempt=Long.toHexString(System.nanoTime());installTarget=target;installFile=null;installConfirmation=null;diagnosticInstallStarted=SystemClock.elapsedRealtime();
+        installSession=-1;installFallback=false;installBusy=true;installNotice=false;installState=UpdateState.Install.PREPARING;installError="";
         installRoute=Build.VERSION.SDK_INT<24?"legacy_file":"content";
-        SharedPreferences.Editor record=prefs.edit().remove("installSession").putString("installPhase","preparing").putString("installHash",target.sha256).putString("installAttempt",installAttempt).putBoolean("installFallback",false)
-                .putString("installRoute",installRoute).putString("pendingVersion",target.version()).putLong("pendingCode",target.code);
+        SharedPreferences.Editor record=prefs.edit().remove("installSession").putString("installPhase",UpdateState.Install.PREPARING.wire).putString("installHash",target.sha256).putString("installAttempt",installAttempt).putBoolean("installFallback",false)
+                .putString("installRoute",installRoute).putString("pendingVersion",target.version()).putLong("pendingCode",target.code).putLong("diagnosticInstallStarted",diagnosticInstallStarted)
+                .putString("diagnosticIdentity",InstallDiagnostics.identity(target)).putString("diagnosticPackage",target.pkg).putString("diagnosticVersion",target.version()).putLong("diagnosticCode",target.code)
+                .putStringSet("diagnosticSigners",new HashSet<>(target.signers));
         record.apply();notifyChanged();
         worker.execute(()->{
             String stage="verify";File prepared=null;int session=-1;Exception error=null;
             DiagnosticLog.info("update.install.prepare","attempt="+installAttempt+" "+installDetail(target));
+            InstallDiagnostics.stage("online_update",installAttempt,installRoute,"begin",-1,diagnosticInstallStarted,InstallDiagnostics.identity(target),"");
+            InstallDiagnostics.baseline(context,"online_update",installAttempt,installRoute,target.pkg,target.version(),target.code,target.signers,-1);
             try{
                 UpdateInstaller.validate(context,target,file(target));stage="prepare";
+                diagnosticStage("verified",-1,"");
                 try{prepared=UpdateInstaller.prepare(context,target,file(target));}
                 catch(UpdateInstallPreparation.Failure failure){
                     if(!UpdateInstallPolicy.sessionFallback(Build.VERSION.SDK_INT,failure.reason))throw failure;
@@ -182,7 +198,8 @@ final class UpdateRepository {
                     installFallback=true;installRoute="session";
                     prefs.edit().putBoolean("installFallback",true).putString("installRoute",installRoute).apply();
                     DiagnosticLog.info("update.install.fallback","attempt="+installAttempt+" from=legacy_file to=session "+failure.details());
-                    session=UpdateSessionInstaller.prepare(context,target,file(target),id->{installSession=id;return prefs.edit().putInt("installSession",id).commit();});
+                    session=UpdateSessionInstaller.prepare(context,target,file(target),id->{installSession=id;boolean saved=prefs.edit().putInt("installSession",id).commit();diagnosticStage("created",id,"recorded="+saved);return saved;});
+                    diagnosticStage("written",session,"fsync=true");
                 }
             }catch(IOException|RuntimeException failure){error=failure;}
             final File result=prepared;final int id=session;final Exception failure=error;final String failedStage=stage;
@@ -191,56 +208,59 @@ final class UpdateRepository {
                 if(failure instanceof UpdateSessionInstaller.Failure){sessionFailed((UpdateSessionInstaller.Failure)failure);return;}
                 if(failure!=null){
                     if("verify".equals(failedStage)){ready=false;prefs.edit().remove("readyHash").apply();}
-                    installationFailed(preparationMessage(failedStage,failure));
+                    diagnosticStage("failed",installSession,"failedStage="+failedStage+" type="+failure.getClass().getSimpleName());installationFailed(preparationMessage(failedStage,failure));
                     DiagnosticLog.error("update.install.prepare_failed",installDetail(target)+" stage="+failedStage+" "+preparationDetails(failure),failure);return;
                 }
-                installFile=result;installSession=id;installState="prepared";installNotice=true;notifyChanged();
+                diagnosticStage("prepared",id,"");installFile=result;installSession=id;installState=UpdateState.Install.PREPARED;installNotice=true;notifyChanged();
             });
         });
     }
     void dispatchInstall(android.app.Activity activity){
-        if(!"prepared".equals(installState)||installBusy)return;installNotice=false;
+        if(!snapshot().canDispatch)return;installNotice=false;
         if(installSession<0){
-            installState="file_dispatched";
-            if(!prefs.edit().putString("installPhase","file_dispatched").commit()){installationFailed("无法记录安装任务，请重试");return;}
+            installState=UpdateState.Install.FILE_DISPATCHED;
+            if(!prefs.edit().putString("installPhase",UpdateState.Install.FILE_DISPATCHED.wire).commit()){installationFailed("无法记录安装任务，请重试");return;}
             UpdateInstaller.LaunchResult result=UpdateInstaller.launch(activity,installFile);
+            diagnosticStage("dispatch",-1,"launchResult="+result.name());
             if(result!=UpdateInstaller.LaunchResult.DISPATCHED)installationFailed(UpdateInstallPolicy.message(result.reason));
             else notifyChanged();return;
         }
-        final int id=installSession;installBusy=true;installState="committing";prefs.edit().putString("installPhase","committing").apply();notifyChanged();
+        final int id=installSession;installBusy=true;installState=UpdateState.Install.COMMITTING;prefs.edit().putString("installPhase",UpdateState.Install.COMMITTING.wire).apply();notifyChanged();
         worker.execute(()->{
             UpdateSessionInstaller.Failure error=null;
-            try{UpdateSessionInstaller.commit(context,id);}catch(UpdateSessionInstaller.Failure failure){error=failure;}
+            try{UpdateSessionInstaller.commit(context,id);diagnosticStage("submitted",id,"");}catch(UpdateSessionInstaller.Failure failure){error=failure;}
             final UpdateSessionInstaller.Failure failure=error;
             main.post(()->{
                 if(installSession!=id)return; // A result may arrive before commit returns.
                 installBusy=false;
                 if(failure!=null){sessionFailed(failure);return;}
-                if("committing".equals(installState)){installState="submitted";prefs.edit().putString("installPhase","submitted").apply();}
+                if(installState==UpdateState.Install.COMMITTING){installState=UpdateState.Install.SUBMITTED;prefs.edit().putString("installPhase",UpdateState.Install.SUBMITTED.wire).apply();}
                 DiagnosticLog.info("update.install.session","step=commit session="+id);notifyChanged();
             });
         });
     }
     /** A file installer may omit its result or finish immediately. The installed version is authoritative. */
     void fileInstallReturned(int resultCode,Intent result){
-        if(!"file_dispatched".equals(prefs.getString("installPhase","")))return;
+        if(snapshot().savedInstall!=UpdateState.Install.FILE_DISPATCHED)return;
         int status=result==null?Integer.MIN_VALUE:result.getIntExtra("android.intent.extra.INSTALL_RESULT",Integer.MIN_VALUE);
-        reconcile();boolean installed="success".equals(installState);
+        reconcile();boolean installed=(installState==UpdateState.Install.SUCCESS);
         String reason=status<0&&status!=Integer.MIN_VALUE?UpdateInstallPolicy.fileResult(status):"pending";
         DiagnosticLog.info("update.install.file_result","attempt="+installAttempt+" result="+(resultCode==Integer.MIN_VALUE?"unavailable":resultCode)+" status="+(status==Integer.MIN_VALUE?"unavailable":status)+" outcome="+(installed?"installed":reason));
+        diagnosticStage("file_return",-1,"statusNamespace=activity_result result="+InstallDiagnostics.number(resultCode)+" legacyStatus="+InstallDiagnostics.number(status)+" platformReason="+UpdateInstallPolicy.platformReason(status,null));
+        diagnosticReadback(installed);
         if(installed){notifyChanged();return;}
         // ACTION_VIEW installers can return RESULT_CANCELED immediately without an install result.
         // Only an explicit platform failure ends this attempt; onResume alone is not a failure.
         if(!"pending".equals(reason)){
-            installationFailed(UpdateInstallPolicy.message(reason),"cancelled".equals(reason)?"cancelled":"failed");return;
+            installationFailed(UpdateInstallPolicy.message(reason),"cancelled".equals(reason)?UpdateState.Install.CANCELLED:UpdateState.Install.FAILED);return;
         }
-        installState="file_dispatched";installNotice=true;notifyChanged();
+        installState=UpdateState.Install.FILE_DISPATCHED;installNotice=true;notifyChanged();
     }
     /** Called only after the user confirms the previous file installer has closed. */
     boolean retryFileInstall(){
         reconcile();
-        if(installBusy||!ready||!"file_dispatched".equals(prefs.getString("installPhase",""))){notifyChanged();return false;}
-        prefs.edit().remove("installPhase").apply();installState="";installNotice=false;return true;
+        if(!snapshot().canRetryFile){notifyChanged();return false;}
+        prefs.edit().remove("installPhase").apply();installState=UpdateState.Install.IDLE;installNotice=false;return true;
     }
     void installationResult(Intent intent){
         int id=prefs.getInt("installSession",-1);
@@ -254,24 +274,27 @@ final class UpdateRepository {
         String message=intent.getStringExtra("android.content.pm.extra.STATUS_MESSAGE");
         String reason=status==-1?"confirmation":status==0?"success":UpdateInstallPolicy.result(status,legacy,message);
         DiagnosticLog.info("update.install.result","attempt="+installAttempt+" route=session session="+id+" status="+status+" legacyStatus="+(legacy==Integer.MIN_VALUE?"unavailable":legacy)+" platformReason="+UpdateInstallPolicy.platformReason(legacy,message)+" reason="+reason);
+        diagnosticStage("result",id,InstallDiagnostics.result(status,legacy,message));
+        if(status!=-1)diagnosticReadback(null);
         if(status==-1){
             installConfirmation=intent.getParcelableExtra(Intent.EXTRA_INTENT);
             if(installConfirmation==null){fallbackInstall("confirmation_missing");return;}
-            installState="confirmation";installNotice=true;prefs.edit().putString("installPhase","confirmation").apply();notifyChanged();return;
+            installState=UpdateState.Install.CONFIRMATION;installNotice=true;prefs.edit().putString("installPhase",UpdateState.Install.CONFIRMATION.wire).apply();notifyChanged();return;
         }
         installSession=-1;installConfirmation=null;prefs.edit().remove("installSession").remove("installPhase").apply();
         if("invalid".equals(reason)){ready=false;prefs.edit().remove("readyHash").apply();}
         if(status==0){
-            installState="awaiting_version";installError="安装结果待核对，请重新打开 Quiet TV";reconcile();
-            if(!"success".equals(installState))installNotice=true;
+            installState=UpdateState.Install.AWAITING_VERSION;installError="安装结果待核对，请重新打开 Quiet TV";reconcile();
+            if(installState!=UpdateState.Install.SUCCESS)installNotice=true;
             notifyChanged();
-        }else installationFailed(UpdateInstallPolicy.message(reason),"cancelled".equals(reason)?"cancelled":"failed");
+        }else installationFailed(UpdateInstallPolicy.message(reason),"cancelled".equals(reason)?UpdateState.Install.CANCELLED:UpdateState.Install.FAILED);
     }
     void confirmInstall(android.app.Activity activity){
-        if(!"confirmation".equals(installState)||installConfirmation==null)return;
-        Intent confirmation=installConfirmation;installConfirmation=null;installNotice=false;installState="confirming";
+        if(!snapshot().canConfirm)return;
+        Intent confirmation=installConfirmation;installConfirmation=null;installNotice=false;installState=UpdateState.Install.CONFIRMING;
+        diagnosticStage("confirm",installSession,"");
         try{
-            activity.startActivity(confirmation);prefs.edit().putString("installPhase","confirming").apply();
+            activity.startActivity(confirmation);prefs.edit().putString("installPhase",UpdateState.Install.CONFIRMING.wire).apply();
             DiagnosticLog.info("update.install.session","step=confirm session="+installSession);notifyChanged();
         }catch(ActivityNotFoundException failure){fallbackInstall("confirmation_missing");}
         catch(RuntimeException failure){
@@ -281,6 +304,7 @@ final class UpdateRepository {
         }
     }
     private void sessionFailed(UpdateSessionInstaller.Failure failure){
+        diagnosticStage("failed",failure.session,"failedStage="+failure.step+" reason="+failure.reason);
         DiagnosticLog.error("update.install.prepare_failed","attempt="+installAttempt+" requiredBytes="+(installTarget==null?-1:installTarget.bytes)+" "+failure.details(),failure);
         if("invalid".equals(failure.reason)){ready=false;prefs.edit().remove("readyHash").apply();}
         if(UpdateInstallPolicy.fallback(failure.reason)){fallbackInstall(failure.reason);return;}
@@ -288,13 +312,14 @@ final class UpdateRepository {
         installationFailed(UpdateInstallPolicy.message(failure.reason));
     }
     private void fallbackInstall(String reason){
+        diagnosticStage("fallback",installSession,"reason="+reason);
         final int id=installSession;clearInstallSession();
         final UpdateManifest.Artifact target=installTarget;
         if(!UpdateInstallPolicy.fallback(reason)||installFallback||target==null){
             worker.execute(()->releaseInstallSession(id));installationFailed(UpdateInstallPolicy.message(reason));return;
         }
-        installFallback=true;installBusy=true;installNotice=false;installState="preparing";installRoute="legacy_file";
-        prefs.edit().putBoolean("installFallback",true).putString("installPhase","preparing").putString("installRoute",installRoute).apply();
+        installFallback=true;installBusy=true;installNotice=false;installState=UpdateState.Install.PREPARING;installRoute="legacy_file";
+        prefs.edit().putBoolean("installFallback",true).putString("installPhase",UpdateState.Install.PREPARING.wire).putString("installRoute",installRoute).apply();
         DiagnosticLog.info("update.install.fallback","attempt="+installAttempt+" from=session to=legacy_file reason="+reason+" session="+id);notifyChanged();
         worker.execute(()->{
             if(!releaseInstallSession(id)){
@@ -311,7 +336,7 @@ final class UpdateRepository {
                     DiagnosticLog.error("update.install.prepare_failed","route=legacy_file stage="+failedStage+" "+preparationDetails(failure),failure);
                     installationFailed(preparationMessage(failedStage,failure));return;
                 }
-                installFile=result;installState="prepared";installNotice=true;notifyChanged();
+                installFile=result;installState=UpdateState.Install.PREPARED;installNotice=true;notifyChanged();
             });
         });
     }
@@ -327,8 +352,16 @@ final class UpdateRepository {
         SharedPreferences.Editor record=prefs.edit().remove("installSession").remove("installPhase");
         if(id>=0)record.putInt("installCleanup",id);record.apply();
     }
-    private void installationFailed(String message){installationFailed(message,"failed");}
-    private void installationFailed(String message,String state){installState=state;installError=message;installNotice=true;prefs.edit().remove("installPhase").apply();notifyChanged();}
+    private void diagnosticStage(String stage,int id,String detail){
+        InstallDiagnostics.stage("online_update",installAttempt,installRoute,stage,id,diagnosticInstallStarted,prefs.getString("diagnosticIdentity","identity=unknown"),detail);
+    }
+    private void diagnosticReadback(Boolean existingCheck){
+        final String attempt=installAttempt,route=installRoute,pkg=prefs.getString("diagnosticPackage",""),version=prefs.getString("diagnosticVersion","");
+        final long code=prefs.getLong("diagnosticCode",-1);final Set<String> signers=new HashSet<>(prefs.getStringSet("diagnosticSigners",Collections.emptySet()));
+        if(!pkg.isEmpty())worker.execute(()->InstallDiagnostics.readback(context,"online_update",attempt,route,pkg,version,code,signers,-1,existingCheck));
+    }
+    private void installationFailed(String message){installationFailed(message,UpdateState.Install.FAILED);}
+    private void installationFailed(String message,UpdateState.Install state){installState=state;installError=message;installNotice=true;prefs.edit().remove("installPhase").apply();notifyChanged();}
     private static String preparationMessage(String stage,Exception error){return "verify".equals(stage)?"安装包校验失败，请重新下载":error instanceof UpdateInstallPreparation.Failure?((UpdateInstallPreparation.Failure)error).userMessage():UpdateInstallPolicy.message("io_failed");}
     private static String preparationDetails(Exception error){return error instanceof UpdateInstallPreparation.Failure?((UpdateInstallPreparation.Failure)error).details():"reason="+(error instanceof UpdateTransfer.IntegrityException?"invalid":"io_failed");}
     private String installDetail(UpdateManifest.Artifact target){return "version="+target.version()+" build="+target.code+" api="+Build.VERSION.SDK_INT+" route="+installRoute;}
@@ -336,6 +369,6 @@ final class UpdateRepository {
         HttpsURLConnection request=(HttpsURLConnection)url.openConnection();
         if(Build.VERSION.SDK_INT<=25){if(legacyTls==null)legacyTls=UpdateTls.create(context);request.setSSLSocketFactory(legacyTls);}
         return request;
-    },"legacy14".equals(BuildConfig.UPDATE_COMPATIBILITY));}
+    },"legacy14".equals(BuildConfig.UPDATE_COMPATIBILITY),BuildConfig.INDEPENDENT_BUILD);}
     private static byte[] read(InputStream input,int limit)throws IOException{try(InputStream in=input;ByteArrayOutputStream out=new ByteArrayOutputStream()){byte[] buffer=new byte[4096];int n;while((n=in.read(buffer))!=-1){if(out.size()+n>limit)throw new IOException("Update cache too large");out.write(buffer,0,n);}return out.toByteArray();}}
 }

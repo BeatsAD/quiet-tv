@@ -14,17 +14,17 @@ final class HomeVisibilityStore {
     private JSONObject hidden(){try{return new JSONObject(signature());}catch(JSONException e){throw new IllegalStateException("无法读取隐藏应用",e);}}
     boolean hidden(String pkg){return hidden().has(pkg);}
     Set<String> hiddenPackages(){JSONObject values=hidden();Set<String> result=new HashSet<>();for(Iterator<String> ids=values.keys();ids.hasNext();)result.add(ids.next());return result;}
-    boolean hide(String pkg){
+    boolean hide(String pkg){synchronized(DesktopSettingsStore.MUTATIONS){
         ArrayList<String> dock=new DockStore(context).load();JSONObject values=hidden();
         try{if(!values.has(pkg))values.put(pkg,dock.indexOf(pkg));}catch(JSONException e){throw new IllegalStateException(e);}
         dock.remove(pkg);return save(values,dock);
-    }
-    boolean restore(String pkg){
+    }}
+    boolean restore(String pkg){synchronized(DesktopSettingsStore.MUTATIONS){
         JSONObject values=hidden();if(!values.has(pkg))return true;
         ArrayList<String> dock=new DockStore(context).loadAvailable();int index=values.optInt(pkg,-1);values.remove(pkg);
-        if(index>=0&&dock.size()<DockStore.CAPACITY&&!dock.contains(pkg))dock.add(Math.min(index,dock.size()),pkg);
+        if(index>=0&&dock.size()<new DockStore(context).capacity()&&!dock.contains(pkg))dock.add(Math.min(index,dock.size()),pkg);
         return save(values,dock);
-    }
+    }}
     boolean wasPinned(String pkg){return hidden().optInt(pkg,-1)>=0;}
     void remove(String pkg){JSONObject values=hidden();if(values.has(pkg)){values.remove(pkg);preferences.edit().putString("hidden-apps",values.toString()).apply();}}
     private boolean save(JSONObject hidden,List<String> dock){

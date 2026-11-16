@@ -61,6 +61,8 @@ def release_index(releases, profiles=None):
                            'url': asset['browser_download_url'], 'homeMode': 'unknown'}
             profile = (profiles or {}).get(entry['url'])
             if profile:
+                if profile['packageName'] == 'home.quiet.tv.scopeqa':
+                    continue
                 if profile['bytes'] != entry['bytes'] or (entry['sha256'] and profile['sha256'] != entry['sha256']):
                     raise ValueError('公开附件与签名配置不一致：' + asset['name'])
                 entry.update({key: profile[key] for key in ('homeMode', 'packageName', 'compatibility', 'minSdk', 'abis', 'versionCode', 'signerSha256', 'sha256')})
@@ -81,6 +83,12 @@ def build_site(output, releases):
     modern_feed = ROOT / 'updates/updates-v2.json'
     if modern_feed.is_file():
         profiles.update({a['url']: a for r in verify_feed(modern_feed)['releases'] for a in r['artifacts']})
+    independent_feed = ROOT / 'updates/updates-independent.json'
+    if independent_feed.is_file():
+        independent = verify_feed(independent_feed)
+        if any(r['channel'] != 'independent' or any(a['packageName'] != 'home.quiet.tv.scopeqa' for a in r['artifacts']) for r in independent['releases']):
+            raise ValueError('2.0 独立清单包含其他更新渠道或包名')
+        profiles.update({a['url']: a for r in independent['releases'] for a in r['artifacts']})
     index = release_index(releases, profiles)
     source = ROOT / 'prototypes/install-guide'
     output.mkdir(parents=True, exist_ok=True)
@@ -100,6 +108,8 @@ def build_site(output, releases):
     shutil.copyfile(ROOT / 'updates/updates.json', output / 'updates.json')
     if modern_feed.is_file():
         shutil.copyfile(modern_feed, output / 'updates-v2.json')
+    if independent_feed.is_file():
+        shutil.copyfile(independent_feed, output / 'updates-independent.json')
     index['guides'] = {}
     by_source = {str((ROOT / source).resolve()): destination for destination, source in GUIDES.items()}
     for destination, source in GUIDES.items():

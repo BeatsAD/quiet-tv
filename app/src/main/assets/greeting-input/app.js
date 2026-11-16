@@ -11,7 +11,7 @@ if (english) {
   document.querySelector('h1').textContent = 'Home greeting';
   document.querySelector('label[for="code"]').textContent = 'Six-digit code shown on your TV';
   connect.querySelector('button').textContent = 'Connect to TV';
-  document.querySelector('label[for="text"]').textContent = 'Text to show on Home';
+  document.querySelector('label[for="text"]').textContent = 'Text to show on Home (max 8 characters)';
   text.placeholder = 'Leave empty for a greeting based on the time of day';
   document.querySelector('.hint').textContent = 'After sending, select Save on your TV.';
   send.textContent = 'Send to TV';
@@ -52,6 +52,7 @@ connect.addEventListener('submit', async event => {
 editor.addEventListener('submit', async event => {
   event.preventDefault();send.disabled = true;
   const value = text.value.replace(/[\r\n\t]/g, ' ').trim();
+  if (value.length > 8) {status.textContent = tr('问候语最多8个字。', 'Maximum 8 characters.');send.disabled = false;return;}
   const body = JSON.stringify({text: value});
   if (new Blob([body]).size > 8192) {status.textContent = tr('文字过长，请精简后重试。', 'Text is too long. Please shorten it.');send.disabled = false;return;}
   try {

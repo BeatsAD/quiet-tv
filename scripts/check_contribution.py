@@ -67,7 +67,7 @@ def main():
             'docs/AGENT_INSTALL.zh-CN.md', 'docs/AGENT_ADAPT.zh-CN.md', 'docs/DEVICE_ADAPTATION.zh-CN.md', 'scripts/build_install_guide.py',
             'scripts/configure_boot_home.py', 'scripts/device_adaptation.py', 'scripts/home_capabilities.py', 'scripts/vendor_adaptation.py', 'scripts/device-presets.json', 'scripts/device_maintenance.py', 'scripts/device_selftest.py', '.github/workflows/pages.yml')
                        for name in changed),
-        'android': tooling or any(name.startswith(('app/', 'gradle/', 'coocaa-home-shim/', 'xiaomi-home-helper/', 'home-proxy/'))
+        'android': tooling or any(name.startswith(('app/', 'phone-web/', 'gradle/', 'coocaa-home-shim/', 'xiaomi-home-helper/', 'home-proxy/'))
                                  or name in ('build.gradle', 'settings.gradle', 'gradle.properties',
                                              'gradlew', 'gradlew.bat', 'scripts/bundle_about.py', 'LICENSE')
                                  or name.startswith('prototypes/about/') for name in project_changes)

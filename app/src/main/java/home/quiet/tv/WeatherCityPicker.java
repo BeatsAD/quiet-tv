@@ -48,7 +48,8 @@ final class WeatherCityPicker {
     WeatherCityPicker(AppManagementActivity ui,WeatherStore store,Runnable saved){this.ui=ui;this.store=store;this.saved=saved;regions=WeatherRegions.load(ui);searchClient=new WeatherClient(ui);}
     private String tr(String zh,String en){return ui.tr(zh,en);}
     private void identify(View view,String tag){view.setId(androidx.core.view.ViewCompat.generateViewId());view.setTag(tag);}
-    void show(){
+    void show(){show(null);}
+    void show(Runnable closed){
         if(editor!=null)return;View origin=ui.getCurrentFocus();province=null;city=null;draft=null;
         editor=ui.new Sheet(tr("选择天气地区","Choose weather location"));
         LinearLayout row=ui.row();
@@ -70,7 +71,7 @@ final class WeatherCityPicker {
             if(key==KeyEvent.KEYCODE_DPAD_DOWN&&event.getAction()==KeyEvent.ACTION_DOWN){if(results.getChildCount()>0&&results.getChildAt(0).isFocusable())results.getChildAt(0).requestFocus();else scan.requestFocus();return true;}return false;
         });
         editor.dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN|WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-        editor.dialog.setOnDismissListener(d->{++searchGeneration;if(searchRequest!=null)searchRequest.cancel(true);searchClient.cancel();main.removeCallbacks(search);hideKeyboard();if(dropdown!=null)dropdown.dismiss();if(phone!=null)phone.dialog.dismiss();stopServer(false);editor=null;query=null;if(origin!=null&&origin.isShown())origin.requestFocus();});
+        editor.dialog.setOnDismissListener(d->{++searchGeneration;if(searchRequest!=null)searchRequest.cancel(true);searchClient.cancel();main.removeCallbacks(search);hideKeyboard();if(dropdown!=null)dropdown.dismiss();if(phone!=null)phone.dialog.dismiss();stopServer(false);editor=null;query=null;if(origin!=null&&origin.isShown())origin.requestFocus();if(closed!=null)closed.run();});
         WeatherRegions.Region selected=store.selected();if(selected!=null)select(selected);else update();
         editor.show(provinceButton);editor.dialog.getWindow().setLayout(ui.px(650),-2);
     }
@@ -84,14 +85,14 @@ final class WeatherCityPicker {
         cityButton.setText(city==null?tr("选择城市","Choose city"):city.name);
         districtButton.setText(draft!=null&&draft.level==2?draft.name:tr("选择区县","Choose district"));
         cityButton.setEnabled(province!=null);cityButton.setAlpha(province==null?.4f:1);
-        boolean hasDistricts=city!=null&&!regions.children(city.code).isEmpty();districtButton.setEnabled(hasDistricts);districtButton.setAlpha(hasDistricts?1:.4f);
+        boolean hasDistricts=city!=null&&!regions.children(city.code).isEmpty();districtButton.setEnabled(hasDistricts);districtButton.setAlpha(1f);
         save.setEnabled(draft!=null);save.setAlpha(draft==null?.4f:1);selection.setText(draft==null?"":tr("已选  ","Selected  ")+draft.label());
     }
     private void select(WeatherRegions.Region region){
         draft=region;city=region.level==2?regions.find(region.parent):region;province=city==null?null:regions.find(city.parent);update();
     }
     private void menu(Button anchor,List<WeatherRegions.Region> choices,Selection selected){
-        if(dropdown!=null)dropdown.dismiss();hideKeyboard();LinearLayout list=ui.column();list.setPadding(ui.px(6),ui.px(6),ui.px(6),ui.px(6));list.setBackgroundDrawable(ui.surface(0xfa25262e,0xfa25262e,0,14));
+        if(dropdown!=null)dropdown.dismiss();hideKeyboard();LinearLayout list=ui.column();list.setPadding(ui.px(6),ui.px(6),ui.px(6),ui.px(6));list.setBackgroundDrawable(ui.surface(0xfa000000,0xfa000000,0,14));
         ScrollView scroll=new ScrollView(ui);scroll.setFillViewport(false);scroll.addView(list);PopupWindow popup=new PopupWindow(scroll,Math.max(anchor.getWidth(),ui.px(180)),ui.px(Math.min(212,choices.size()*40+12)),true);dropdown=popup;
         popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));popup.setOutsideTouchable(true);if(Build.VERSION.SDK_INT>=21)popup.setElevation(ui.px(14));
         for(WeatherRegions.Region region:choices){
@@ -127,9 +128,9 @@ final class WeatherCityPicker {
     private void showPhone(){
         if(phone!=null)return;hideKeyboard();received=false;phone=ui.new Sheet(tr("手机扫码输入","Phone input"));LinearLayout row=ui.row(),details=ui.column();
         TextView instructions=ui.label(tr("手机与电视连接同一局域网\n扫码搜索地区，发送后在电视保存","Connect your phone to the TV’s local network.\nSearch a location, then save it on TV."),13);instructions.setLineSpacing(ui.px(6),1);details.addView(instructions);ui.gap(details,14);address=ui.label("",14);details.addView(address);ui.gap(details,6);code=ui.label("",13);details.addView(code);ui.gap(details,12);status=ui.muted(tr("也可打开地址，输入电视上的连接码","Or open the address and enter the TV code"),11);details.addView(status);
-        row.addView(details,new LinearLayout.LayoutParams(0,-2,1));qr=new ImageView(ui);qr.setContentDescription(tr("天气地区输入二维码","Weather location input QR code"));qr.setScaleType(ImageView.ScaleType.FIT_CENTER);qr.setBackgroundColor(Color.WHITE);qr.setPadding(ui.px(8),ui.px(8),ui.px(8),ui.px(8));LinearLayout.LayoutParams qp=new LinearLayout.LayoutParams(ui.px(240),ui.px(240));qp.leftMargin=ui.px(22);row.addView(qr,qp);phone.body.addView(row);
+        row.addView(details,new LinearLayout.LayoutParams(0,-2,1));qr=new QrCodeView(ui,ui.unit);qr.setContentDescription(tr("天气地区输入二维码","Weather location input QR code"));qr.setScaleType(ImageView.ScaleType.FIT_CENTER);qr.setPadding(ui.px(8),ui.px(8),ui.px(8),ui.px(8));LinearLayout.LayoutParams qp=new LinearLayout.LayoutParams(ui.px(240),ui.px(240));qp.leftMargin=ui.px(22);row.addView(qr,qp);phone.body.addView(row);
         reconnect=phone.action(tr("重新连接","Reconnect"),this::startServer);Button back=phone.action(tr("返回选择","Back to selection"),()->phone.dialog.dismiss());
-        phone.dialog.setOnDismissListener(d->{phone=null;stopServer(received);clearQr();if(editor!=null){if(received)save.requestFocus();else scan.requestFocus();}});phone.show(back);phone.dialog.getWindow().setLayout(ui.px(610),-2);startServer();
+        phone.dialog.setOnDismissListener(d->{phone=null;stopServer(received);clearQr();if(editor!=null){editor.dialog.show();if(received)save.requestFocus();else scan.requestFocus();}});if(editor!=null)editor.dialog.hide();phone.show(back);phone.dialog.getWindow().setLayout(ui.px(610),-2);startServer();
     }
     private void startServer(){
         stopServer(false);int attempt=generation;received=false;reconnect.setVisibility(View.GONE);clearQr();code.setText("");host=WallpaperUploadPanel.lanAddress(ui);

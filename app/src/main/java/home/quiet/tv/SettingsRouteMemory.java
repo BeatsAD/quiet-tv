@@ -13,6 +13,7 @@ final class SettingsRouteMemory {
         final SystemSettingsRouter.Route route;
         final boolean trial;
         final long started=SystemClock.elapsedRealtime();
+        String diagnosticId="unknown";
         private Result result=Result.DISPATCHED_UNVERIFIED;
         Attempt(String action,String slot,SystemSettingsRouter.Route route,String scope,boolean trial){
             this.action=action;this.slot=slot;this.route=route;identity=route.identity;this.scope=scope;this.trial=trial;
@@ -26,7 +27,7 @@ final class SettingsRouteMemory {
             if(result()!=Result.DISPATCHED_UNVERIFIED)return;
             ComponentName name=ComponentName.unflattenFromString(component),target=route.launch.getComponent();
             if(name!=null&&(route.type==SystemSettingsRouter.LaunchType.ACTIVITY?target.equals(name):target.getPackageName().equals(name.getPackageName()))){
-                result=Result.WINDOW_OBSERVED;DiagnosticLog.info("settings.result","result=window_observed function_verified=false");
+                result=Result.WINDOW_OBSERVED;DiagnosticLog.info("settings.result","attempt="+diagnosticId+" result=window_observed target="+component+" function_verified=false");
             }
         }
     }
@@ -57,13 +58,13 @@ final class SettingsRouteMemory {
         if(attempt==null||!attempt.trial)return false;
         synchronized(attempt){
             Result state=attempt.result();if(state!=Result.DISPATCHED_UNVERIFIED&&state!=Result.WINDOW_OBSERVED)return false;
-            if(!successful){attempt.result=Result.REJECTED;failed(attempt.slot,attempt.route);DiagnosticLog.info("settings.result","result="+source+"_rejected");return true;}
+            if(!successful){attempt.result=Result.REJECTED;failed(attempt.slot,attempt.route);DiagnosticLog.info("settings.result","attempt="+attempt.diagnosticId+" result="+source+"_rejected");return true;}
             if(attempt.fallback())return false;
             try{
                 if(!attempt.scope.equals(scope(context,attempt.route))||!new SystemSettingsRouter(context).callable(attempt.action,attempt.route))return false;
                 JSONObject record=new JSONObject().put("identity",attempt.identity).put("scope",attempt.scope).put("confirmed",true).put("source",source);
                 if(!prefs.edit().putString(attempt.slot,record.toString()).commit())return false;
-                attempt.result=Result.CONFIRMED;DiagnosticLog.info("settings.result","result="+source+"_confirmed");return true;
+                attempt.result=Result.CONFIRMED;DiagnosticLog.info("settings.result","attempt="+attempt.diagnosticId+" result="+source+"_confirmed");return true;
             }catch(Exception changed){return false;}
         }
     }
