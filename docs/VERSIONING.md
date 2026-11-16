@@ -17,7 +17,7 @@
 
 本页承接 [AGENTS.md](../AGENTS.md) 的安装包规则，适用于后续交付。历史安装包、校验记录、发布标签和下载链接保留原样。
 
-TCL 等受限固件可另行交付主程序 relay 实验档，复用公共代码及桌面守护，不声明 HOME。`scripts/build_apk.py --home-mode relay` 显式传入并核验真实清单，记录 `home_mode=relay` 与构建参数；安卓4.4不提供此档。文件名沿用系统／架构规则、状态用“实验版”，如 `QuietTV_<版本号>-<构建号>_安卓5.0及以上_实验版.apk`。普通包与 relay 同版本、同源码及签名，但构建号各自占用同一递增序列，不能同名覆盖。relay 不加入默认批次，按实际授权单独构建；发布前仍须完成本批审核与适用验证。签名更新清单和安装索引明确记录 HOME 形态，不从“实验”字样推断；已装 relay 仅匹配 relay 更新。
+TCL 等受限固件可另行交付主程序 relay 实验档，复用公共代码及桌面守护，不声明 HOME。`scripts/build_apk.py --home-mode relay` 显式传入并核验真实清单，记录 `home_mode=relay` 与构建参数；安卓4.4不提供此档。文件名沿用系统／架构规则、状态用“实验版”，如 `QuietTV_<版本号>-<构建号>_安卓5及以上_实验版.apk`。普通包与 relay 同版本、同源码及签名，但构建号各自占用同一递增序列，不能同名覆盖。relay 不加入默认批次，按实际授权单独构建；发布前仍须完成本批审核与适用验证。签名更新清单和安装索引明确记录 HOME 形态，不从“实验”字样推断；已装 relay 仅匹配 relay 更新。
 
 **实施状态：主程序归档脚本按本批确认在 APK 文件名中保留构建号，输出中文本地名，在 JSON 的 `public_apk` 记录英文公开名；安卓范围使用 `4.0-4.4`、`5.0及以上`／`5.0AndAbove`，不再使用 `plus` 或 `to`。内部构建号、真实版本、签名、同名 SHA-256 文件及已登记 worktree 的构建号检查保留；同档位同版本不同内容须使用新的递增构建号。通用架构或不含原生库时省略架构标记。助手及正式版流程仍需单独验证。**
 
@@ -46,7 +46,7 @@ QuietTV_<版本号>-<构建号>_<适用系统>[_<单架构标记>]_<发布状态
 
 仅本地更新到电视测试时，在三段基础版本后追加 `.1`，例如 `1.3.2.1`。使用 `scripts/build_apk.py --local-test`，对应 Gradle 参数 `quietLocalTest=true`；基础版本不因本地测试递增。不同内容继续分配全局递增的 `versionCode`，系统、签名及数据兼容仍须核对，不能通过版本显示变化规避升级条件。应用内更新比较已安装过渡版本时使用三段基础版本；后续更高基础版本仍须同时满足更高构建号和原有签名等条件，公开更新清单仍只接受三段版本。
 
-本地过渡包文件名保留实际构建号，例如 `QuietTV_1.3.2.1-180_安卓5.0及以上_测试版.apk`；同一 `.1` 版本可归档后续更高构建号，保留全部历史原件。此为本地测试对上方三段版本规则的例外，公开版本规则不变。历史 `1.3.3` 至 `1.3.7` 本地候选保持原样，不改名或覆盖。本地过渡包不默认上传、发布或更新线上清单。
+本地过渡包文件名保留实际构建号，例如 `QuietTV_1.3.2.1-180_安卓5及以上_测试版.apk`；同一 `.1` 版本可归档后续更高构建号，保留全部历史原件。此为本地测试对上方三段版本规则的例外，公开版本规则不变。历史 `1.3.3` 至 `1.3.7` 本地候选保持原样，不改名或覆盖。本地过渡包不默认上传、发布或更新线上清单。
 
 ```sh
 python3 scripts/build_apk.py --local-test --variant benchmark --build-number "$LOCAL_TEST_BUILD_NUMBER" --summary "本次本地电视测试内容"
@@ -60,12 +60,12 @@ This local-TV-only mode appends `.1` to the three-part base version. Each new pa
 | --- | --- | --- |
 | `安卓4.0-4.4` | `legacy14`，minSdk14，`home.quiet.tv` | 当前开发兼容包，旧系统实际运行验收延期 |
 | `安卓4.4` | `legacy19`，minSdk19，`home.quiet.tv` | 历史兼容档位，保留构建与升级回归 |
-| `安卓5.0及以上` | `standard`，minSdk21，`home.quiet.tv` | 安卓5.0及以上优先选择的标准包 |
+| `安卓5及以上` | `standard`，minSdk21，`home.quiet.tv` | 安卓5及以上优先选择的标准包 |
 | `酷开安卓8` | 专用包名 `com.coocaa.quiettv`，minSdk26 | 已确认适配条件的固件专项验证，不按品牌推定兼容 |
-| `酷开安卓5.0及以上` | 专用包名 `com.coocaa.quiettv`，standard，minSdk21 | 源码允许构建，跳板与守护按本机能力配置，真机待验收 |
+| `酷开安卓5及以上` | 专用包名 `com.coocaa.quiettv`，standard，minSdk21 | 源码允许构建，跳板与守护按本机能力配置，真机待验收 |
 | `酷开安卓4.4` | 专用包名 `com.coocaa.quiettv`，legacy19，minSdk19 | 使用API19裁减功能，不包含守护、跳板或独立酷开助手 |
 
-同一标准包可覆盖多个安卓大版本，仅在存在实际兼容差异时新增档位。其他最低 API 的标签同步变化：minSdk23 为 `安卓6.0及以上`，minSdk26 为 `安卓8.0及以上`，minSdk31 为 `安卓12.0及以上`。最低 API 满足不代表目标电视的 HOME、遥控器、输入源及重启唤醒已通过验收。
+同一标准包可覆盖多个安卓大版本，仅在存在实际兼容差异时新增档位。其他最低 API 的标签同步变化：minSdk23 为 `安卓6及以上`，minSdk26 为 `安卓8及以上`，minSdk31 为 `安卓12及以上`。最低 API 满足不代表目标电视的 HOME、遥控器、输入源及重启唤醒已通过验收。
 
 通用架构包及纯 DEX/资源包省略架构标记。单架构包在状态前加 `ARM32`（`armeabi-v7a`）、`ARM64`（`arm64-v8a`）、`x86` 或 `x86_64`，并核对实际 APK 内容。通用架构不代表所有系统及固件均已兼容。兼容档位目前不含原生库，归档中的 `packaged_abis` 为空；构建时的 `--abi` 请求不能代替实际内容或实机架构验收。
 
@@ -109,9 +109,9 @@ HOME 中转助手有默认身份 `home.quiet.tv.proxy` 和小米／Redmi 兼容�
 后续主程序使用以下格式。本节示例不预占新版本、不表示重新归档或修改已发布附件：
 
 ```text
-QuietTV_1.3.1-31_安卓5.0及以上_测试版.apk
+QuietTV_1.3.1-31_安卓5及以上_测试版.apk
 QuietTV_1.3.1-32_安卓4.0-4.4_测试版.apk
-QuietTV_1.3.1-33_安卓5.0及以上_ARM32_测试版.apk
+QuietTV_1.3.1-33_安卓5及以上_ARM32_测试版.apk
 ```
 
 英文公开名记录在 `public_apk`，本地不额外复制英文 APK，不自动上传：
@@ -120,10 +120,10 @@ QuietTV_1.3.1-33_安卓5.0及以上_ARM32_测试版.apk
 | --- | --- |
 | `安卓4.0-4.4` | `Android4.0-4.4` |
 | `安卓4.4` | `Android4.4` |
-| `安卓5.0及以上` | `Android5.0AndAbove` |
-| `安卓6.0及以上` | `Android6.0AndAbove` |
-| `安卓8.0及以上` | `Android8.0AndAbove` |
-| `安卓12.0及以上` | `Android12.0AndAbove` |
+| `安卓5及以上` | `Android5.0AndAbove` |
+| `安卓6及以上` | `Android6.0AndAbove` |
+| `安卓8及以上` | `Android8.0AndAbove` |
+| `安卓12及以上` | `Android12.0AndAbove` |
 
 状态映射为 `测试版` → `Test`、`实验版` → `Experimental`、`正式版` → `Release`；主程序脚本目前仅实现测试版及 relay 实验版。公开名示例：
 
@@ -234,7 +234,7 @@ Published 1.1.2 provides standard build 34 (minSdk21) and legacy19 build 35 (min
 
 Future main-app downloads and immutable archives use `QuietTV_<version>-<build>_<system>[_<single ABI>]_<status>.apk`, with the actual build number. Local names use Chinese labels; `public_apk` records the English download name. The script does not upload APKs. Version and internal build must match the actual APK. Build numbers are positive integers without prefixes or leading zeros and increase across all main-app delivery variants. A different payload for the same version/system/ABI/status requires a higher delivery build number and a distinct filename. Software versions follow the release plan. Historical builds keep their original names. Never replace different bytes under the same public filename. Re-sending identical archived bytes does not allocate a new number. The helper uses `QuietTV助手`, its own version/build sequence, and an explicit target launcher; its filename retains the actual build number.
 
-System labels include `安卓4.0-4.4` (legacy14, API14, local development with device checks deferred), historical `安卓4.4` (legacy19, API19), `安卓5.0及以上` (standard, API21), and `酷开安卓8` (experimental vendor package, API26). Other minimum APIs require matching labels. Omit the architecture marker for multi-ABI and native-library-free APKs. Use ARM32, ARM64, x86 or x86_64 only for actual single-ABI builds. Universal architecture does not imply compatibility with every OS or TV. Status is `测试版` (test), `实验版` (experimental), or `正式版` (formally signed release with agreed acceptance completed). Public labels use Android4.0-4.4, Android4.4, Android5.0AndAbove (or the actual higher minimum), and Test/Experimental/Release. Keep the actual build number; do not add plus or to to new public names; preserve historical assets and URLs. Verify names and bytes before upload.
+System labels include `安卓4.0-4.4` (legacy14, API14, local development with device checks deferred), historical `安卓4.4` (legacy19, API19), `安卓5及以上` (standard, API21), and `酷开安卓8` (experimental vendor package, API26). Other minimum APIs require matching labels. Omit the architecture marker for multi-ABI and native-library-free APKs. Use ARM32, ARM64, x86 or x86_64 only for actual single-ABI builds. Universal architecture does not imply compatibility with every OS or TV. Status is `测试版` (test), `实验版` (experimental), or `正式版` (formally signed release with agreed acceptance completed). Public labels use Android4.0-4.4, Android4.4, Android5.0AndAbove (or the actual higher minimum), and Test/Experimental/Release. Keep the actual build number; do not add plus or to to new public names; preserve historical assets and URLs. Verify names and bytes before upload.
 
 When native libraries require ABI-specific packages, standard deliveries provide three standalone APKs: ARM32, ARM64 and a universal fallback containing all four native-library ABIs. Each device installs one APK. All three share the source commit, production inputs, software version, feature configuration and signing certificate; assign increasing build numbers in ARM32, ARM64, universal order. Keep one legacy14 APK while it has no native-library or actual ABI differences; determine the Coocaa package set per delivery. Select by the ABIs supported by the operating system, and use the universal fallback when uncertain. In-place switches still require a higher build number; do not uninstall, clear data or force a downgrade to switch to a lower-numbered package.
 
