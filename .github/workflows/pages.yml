@@ -26,6 +26,7 @@ on:
       - scripts/vendor_adaptation.py
       - scripts/device-presets.json
       - updates/updates.json
+      - updates/updates-v2.json
       - updates/updates-independent.json
       - .github/workflows/pages.yml
   release:
