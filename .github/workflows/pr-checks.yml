@@ -47,6 +47,7 @@ jobs:
       - name: Verify signed update feed
         run: |
           python3 scripts/build_update_manifest.py --verify updates/updates.json
+          python3 scripts/build_update_manifest.py --verify updates/updates-v2.json
           python3 scripts/build_update_manifest.py --verify updates/updates-independent.json
       - name: Check installation site and latest release index
         if: steps.scope.outputs.install == 'true'

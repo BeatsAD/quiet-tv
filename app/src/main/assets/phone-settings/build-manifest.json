@@ -49,7 +49,7 @@
     "public/assets/file-folder.svg": "ceee8c7ec763f01505483702abaa19030e10b11d132b72079ec8d8574c8222dc",
     "public/assets/qq-group.webp": "9d31d757ec3ec26b66cf11b8c40903270332bc3a8fca7dccd3c6ec4c1f5a36d9",
     "public/assets/quiettv-assistant-launcher.png": "38b216dcb09b2b5be65302d280b709d1c6590d19a96473de794eb74deac5109e",
-    "public/release-notes.txt": "2eaec7167199099d85bf236d48fa80ae5b93416c272074d3dba7d5a6bd96f933",
+    "public/release-notes.txt": "66f159c4966f30982d6776b4be992e4db2c5b83f899a12bb9951e6ec3763e79f",
     "public/tmdb.svg": "8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c"
   },
   "assets": {
@@ -58,7 +58,7 @@
     "assets/qq-group.webp": "9d31d757ec3ec26b66cf11b8c40903270332bc3a8fca7dccd3c6ec4c1f5a36d9",
     "assets/quiettv-assistant-launcher.png": "38b216dcb09b2b5be65302d280b709d1c6590d19a96473de794eb74deac5109e",
     "index.html": "a3c517aff2e6db16cf3b0c165395ab1f6d8c455894079c9a99385446849d8cbe",
-    "release-notes.txt": "2eaec7167199099d85bf236d48fa80ae5b93416c272074d3dba7d5a6bd96f933",
+    "release-notes.txt": "66f159c4966f30982d6776b4be992e4db2c5b83f899a12bb9951e6ec3763e79f",
     "styles.css": "94cb3eb61a04b918bea8b505d3fe34f8b313d903c5cb05372379843d139a3f1b",
     "tmdb.svg": "8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c"
   }
