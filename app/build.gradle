@@ -5,8 +5,10 @@ def legacy = compatibility != 'standard'
 def homeMode = providers.gradleProperty('quietHomeMode').getOrElse('standard')
 if (!(homeMode in ['standard', 'relay'])) throw new GradleException('Unsupported quietHomeMode')
 if (legacy && homeMode != 'standard') throw new GradleException('Android 4.x does not support the relay package')
-def launcherId = providers.gradleProperty('quietApplicationId').getOrElse('home.quiet.tv')
-if (!(launcherId in ['home.quiet.tv', 'com.coocaa.quiettv', 'com.ts.launcher'])) throw new GradleException('Unsupported quietApplicationId')
+def independent = providers.gradleProperty('quietIndependent').getOrElse('false').toBoolean()
+def launcherId = providers.gradleProperty('quietApplicationId').getOrElse(independent ? 'home.quiet.tv.scopeqa' : 'home.quiet.tv')
+if (independent != (launcherId == 'home.quiet.tv.scopeqa')) throw new GradleException('Independent builds require home.quiet.tv.scopeqa and quietIndependent=true')
+if (!(launcherId in ['home.quiet.tv', 'com.coocaa.quiettv', 'com.ts.launcher', 'home.quiet.tv.scopeqa'])) throw new GradleException('Unsupported quietApplicationId')
 if (launcherId == 'com.ts.launcher' && (legacy || homeMode != 'standard')) throw new GradleException('Xiaomi main application requires Android 5+ and standard HOME mode')
 if (launcherId == 'com.ts.launcher' && providers.gradleProperty('quietHomeProxy').getOrElse('false') == 'true') throw new GradleException('Xiaomi main application owns HOME; do not build a HOME proxy with it')
 def minimumSdk = providers.gradleProperty('quietMinSdk').getOrElse(legacy ? (compatibility == 'legacy14' ? '14' : '19') : '21').toInteger()
@@ -19,20 +21,26 @@ android {
         applicationId launcherId
         minSdk minimumSdk
         if (legacy) multiDexEnabled true
-        manifestPlaceholders = [leanbackRequired: !legacy, homeGuardAvailable: !legacy, legacyAdbGuardAvailable: legacy]
+        manifestPlaceholders = [leanbackRequired: !legacy, homeGuardAvailable: !legacy, legacyAdbGuardAvailable: legacy, quietAppLabel: independent ? 'Quiet TV 2.0 测试' : 'Quiet TV']
+        buildConfigField 'boolean', 'INDEPENDENT_BUILD', independent.toString()
         buildConfigField 'boolean', 'LEGACY_19', legacy.toString()
         buildConfigField 'boolean', 'DECLARES_HOME', (homeMode == 'standard').toString()
         resValue 'string', 'home_guard_account_type', launcherId + '.guard'
+        def cinemaUrl = providers.gradleProperty('quietCinemaFeedUrl').getOrElse('https://beatsad.github.io/quiet-tv-cinema-feed/latest.signed.json')
+        if (!(cinemaUrl ==~ /https:\/\/[^\s"\\]+/)) throw new GradleException('Cinema feed requires an HTTPS URL')
+        buildConfigField 'String', 'CINEMA_FEED_URL', '"' + cinemaUrl + '"'
         buildConfigField 'String', 'UPDATE_COMPATIBILITY', '"' + compatibility + '"'
         buildConfigField 'String', 'UPDATE_ABI', '"' + providers.gradleProperty('quietAbi').getOrElse('universal') + '"'
         targetSdk 36
         versionCode providers.gradleProperty('quietBuildNumber').getOrElse('105').toInteger()
-        versionName('1.3.6' + (providers.gradleProperty('quietLocalTest').getOrElse('false').toBoolean() ? '.1' : ''))
+        versionName('2.0.0' + (!independent && providers.gradleProperty('quietLocalTest').getOrElse('false').toBoolean() ? '.1' : ''))
     }
     buildFeatures { buildConfig true }
     // Keep local wallpaper originals out of every APK compatibility profile.
     androidResources {
         ignoreAssetsPatterns.add('wallpapers')
+        ignoreAssetsPatterns.addAll(['*.rgba', '*.rg8', 'blue.png', 'impostors.json', 'materials.json'])
+        if (legacy) ignoreAssetsPatterns.add('weather-gpu')
         if (compatibility != 'legacy14') ignoreAssetsPatterns.addAll(['wechat.png', 'qq-group.png'])
     }
     sourceSets.main.java.srcDir(legacy ? 'src/legacy19/java' : 'src/standard/java')
@@ -58,9 +66,9 @@ android {
         'home/quiet/tv/SetupFocus.java',
         'home/quiet/tv/WirelessPairing.java'
     buildTypes {
-        debug { debuggable true; buildConfigField 'String', 'UPDATE_CHANNEL', launcherId == 'com.coocaa.quiettv' || homeMode == 'relay' ? '"experimental"' : '"test"' }
+        debug { debuggable true; buildConfigField 'String', 'UPDATE_CHANNEL', independent ? '"independent"' : launcherId == 'com.coocaa.quiettv' || homeMode == 'relay' ? '"experimental"' : '"test"' }
         benchmark {
-            buildConfigField 'String', 'UPDATE_CHANNEL', launcherId == 'com.coocaa.quiettv' || homeMode == 'relay' ? '"experimental"' : '"test"'
+            buildConfigField 'String', 'UPDATE_CHANNEL', independent ? '"independent"' : launcherId == 'com.coocaa.quiettv' || homeMode == 'relay' ? '"experimental"' : '"test"'
             debuggable false
             minifyEnabled true
             shrinkResources true
@@ -70,7 +78,7 @@ android {
         }
         // Formal releases require an explicitly configured persistent signing key.
         release {
-            buildConfigField 'String', 'UPDATE_CHANNEL', '"stable"'
+            buildConfigField 'String', 'UPDATE_CHANNEL', independent ? '"independent"' : '"stable"'
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
@@ -78,6 +86,7 @@ android {
     }
     ['debug', 'benchmark', 'release'].each { name ->
         sourceSets.getByName(name).manifest.srcFile(legacy ? 'src/legacy19/AndroidManifest.xml' : homeMode == 'standard' ? 'src/home/AndroidManifest.xml' : 'src/relay/AndroidManifest.xml')
+        if (!legacy) sourceSets.getByName(name).res.srcDir('src/standard/res')
     }
     def selectedAbi = providers.gradleProperty('quietAbi').getOrElse('universal')
     if (selectedAbi != 'universal') {
@@ -115,16 +124,31 @@ dependencies {
 }
 
 // Ship the reviewed About screen and its offline licenses, without preview controls.
-def aboutAssets = layout.buildDirectory.dir('generated/aboutAssets')
+def aboutAssets = layout.buildDirectory.dir('generated/aboutSharedAssets')
 android.sourceSets.main.assets.srcDir(aboutAssets)
 tasks.register('bundleAbout', Exec) {
     inputs.files('../prototypes/about/index.html', '../prototypes/about/styles.css', '../prototypes/about/app.js', '../prototypes/about/assets/source.svg', '../prototypes/about/assets/wechat.webp', '../prototypes/about/assets/qq-group.webp', '../prototypes/about/assets/wechat.png', '../prototypes/about/assets/qq-group.png')
     inputs.files('../scripts/bundle_about.py', '../LICENSE', '../THIRD_PARTY_NOTICES.md')
+    inputs.file('src/main/assets/phone-settings/tmdb.svg')
     inputs.files(fileTree('src/main/assets/fonts'), fileTree('src/main/assets/licenses'))
     outputs.dir(aboutAssets)
     commandLine 'python3', file('../scripts/bundle_about.py'), aboutAssets.get().dir('about').asFile
 }
 tasks.named('preBuild').configure { dependsOn 'bundleAbout' }
+
+// Ordinary Android builds use checked-in web assets; Node is needed only to regenerate them.
+tasks.register('verifyPhoneSettingsAssets', Exec) {
+    commandLine 'python3', file('../phone-web/check_assets.py')
+}
+tasks.named('preBuild').configure { dependsOn 'verifyPhoneSettingsAssets' }
+
+tasks.register('verifyIconLibraryAssets', Exec) {
+    inputs.file('../scripts/validate_icon_library.py')
+    inputs.file('../scripts/build_icon_library.py')
+    inputs.dir('src/main/assets/icon-library')
+    commandLine 'python3', file('../scripts/validate_icon_library.py')
+}
+tasks.named('preBuild').configure { dependsOn 'verifyIconLibraryAssets' }
 
 // Credentials are opt-in build inputs outside Git, never generated Java constants.
 def weatherAssets = layout.buildDirectory.dir('generated/weatherAssets')
@@ -168,3 +192,5 @@ tasks.configureEach {
         inputs.property('quietPackageProfile', "${compatibility}:${minimumSdk}:${launcherId}:${homeMode}")
     }
 }
+
+apply from: rootProject.file('gradle/diagnostics.gradle')

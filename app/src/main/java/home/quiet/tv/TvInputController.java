@@ -268,6 +268,7 @@ final class TvInputController {
     }
 
     boolean openKnownInput(TvInputInfo input){
+        InputTransitionEvidence.target("known_tv_input",input.getId());
         Intent intent=knownInputIntent(input);if(intent==null)return false;
         try{context.startActivity(intent);DiagnosticLog.info("input.xiaomi.dispatch",intent.getComponent().flattenToShortString());return true;}
         catch(RuntimeException failure){DiagnosticLog.error("input.xiaomi.failed",failure);return false;}

@@ -34,8 +34,10 @@ public class WallpaperService extends Service {
     // Only the codec Looper owns these fields.
     private WallpaperEngine player;
     private Surface output;
+    @android.annotation.SuppressLint("StaticFieldLeak") // DiagnosticSession retains the application context only, once per process.
+    private static DiagnosticSession diagnosticSession;
     @Override public void onCreate(){
-        super.onCreate();thread=new HandlerThread("QuietTV-media3-codec");thread.start();worker=new Handler(thread.getLooper());
+        super.onCreate();if(diagnosticSession==null)diagnosticSession=new DiagnosticSession(this,false);thread=new HandlerThread("QuietTV-media3-codec");thread.start();worker=new Handler(thread.getLooper());
         endpoint=new Messenger(new Handler(Looper.getMainLooper()){@Override public void handleMessage(Message message){receive(message);}});
     }
     @Override public IBinder onBind(Intent intent){return endpoint.getBinder();}
@@ -92,6 +94,7 @@ public class WallpaperService extends Service {
     private void send(int what,int reason,Bundle data){send(session,what,reason,data);}
     private void send(int expected,int what,int reason,Bundle data){
         if(expected!=session)return;
+        if(data==null)data=new Bundle();if(diagnosticSession!=null)data.putString("diagnosticOrigin",diagnosticSession.forwardedOrigin());
         Messenger callback=reply;if(callback==null)return;
         Message message=Message.obtain(null,what,expected,reason);if(data!=null)message.setData(data);
         try{callback.send(message);}catch(RemoteException e){main.post(()->terminateProcess("client_died"));}

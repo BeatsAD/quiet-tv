@@ -1,5 +1,7 @@
 <p align="center"><img src="docs/assets/cover.png" alt="Quiet TV 项目封面" width="100%"></p>
 
+QuietTV 2.0 的天气资源与 ARM64/API26+ 组网核心采用按需下载，入口、构建和发布约定见[按需组件](docs/OPTIONAL_COMPONENTS.md)。
+
 <h1 align="center">Quiet TV</h1>
 
 <p align="center"><strong>一个简洁、可自定义的 Android 电视桌面。</strong></p>
@@ -94,7 +96,7 @@
 安装仓库中的[电视桌面切换助手](skills/quiet-tv-switch/SKILL.md)，在支持 Skill 和终端操作的 AI 工具中输入：
 
 ```text
-请用 $quiet-tv-switch 帮我安装 Quiet TV 并切换电视桌面，保留原桌面和恢复方法。
+请通过我的电脑配置和维护 Quiet TV，先读取 https://beatsad.github.io/quiet-tv/agent.md，保留应用数据、原桌面和恢复记录。
 ```
 
 ### 2. 使用安装指令
@@ -105,11 +107,9 @@
 
 从 [GitHub Releases](https://github.com/BeatsAD/quiet-tv/releases) 下载适合电视系统和架构的 APK，按[安装指南](docs/INSTALL.zh-CN.md)完成安装和桌面设置。
 
-1.3.1 测试版提供安卓5及以上通用包（146，最低 API21）和安卓4.0至4.4统一兼容包（147，最低 API14），均无原生库，无需区分 ARM32／ARM64；按电视系统选包。兼容包不提供标准桌面守护、HOME 代理或标准 TV Input 列表，信号源使用系统设置或实体遥控器。
+当前下载以最新版索引和 Release 附件为准，按电视系统选择标准包或安卓4.0至4.4兼容包。兼容包不提供标准桌面守护、HOME 代理或标准 TV Input 列表，信号源使用系统设置或实体遥控器。
 
-已安装 1.3.0 标准版或 legacy14 兼容版的用户可检查应用内更新；旧 legacy19 客户端不能自动跨到 legacy14，需从索引手动下载匹配包。安装前核对包名、签名和递增构建号，不卸载、不清数据。
-
-两包同源同签名，构建、Lint、元数据及校验通过，31 项轮播和文件传输单测通过，公开 Validate 检查通过。本批最终 146/147 未进行设备安装，新增功能、覆盖升级数据保留、真实 Android 4.x 运行及厂商真机验收经确认延期；开发阶段模拟器结果不代替本批最终包验收。
+2.0 主程序沿用 `home.quiet.tv`；独立测试包 `home.quiet.tv.scopeqa` 不能覆盖原应用。原包名覆盖升级须匹配签名、使用更高构建号并保留应用数据；旧 legacy19 客户端不自动跨到 legacy14。发布及设备验收范围以本批实际记录为准。
 
 安装时保留原桌面；不同厂商的桌面切换能力可能有所不同。
 

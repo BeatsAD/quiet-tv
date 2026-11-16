@@ -9,13 +9,14 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.json.*;
 
-/** A session-only server: explicit assets, bounded connections, one streamed image at a time. */
+/** A session-only server: explicit assets, bounded connections, one streamed file at a time. */
 final class WallpaperUploadServer extends NanoHTTPD {
     static final long MAX_UPLOAD=60L*1024*1024;
     static final long IDLE_MS=10L*60*1000;
     interface Assets { InputStream open(String name) throws IOException; }
     interface Active { boolean valid(); }
     interface Importer { String accept(InputStream input,long length,String name,Active active) throws IOException;
+        default String acceptImage(InputStream input,long length,String name,String shape,Active active)throws IOException{return accept(input,length,name,active);}
         default String acceptVideo(InputStream input,long length,String name,Active active) throws IOException {throw new IOException("此入口只支持图片 / Images only");}
         default String acceptVideo(InputStream input,long length,String name,Active active,long upload) throws IOException {return acceptVideo(input,length,name,active);} }
     private static final AtomicBoolean IMPORTING=new AtomicBoolean();
@@ -29,6 +30,7 @@ final class WallpaperUploadServer extends NanoHTTPD {
     private long blockedUntil;
     private volatile boolean closed,draining;
     private final Set<ClientHandler> clients=new HashSet<>();
+    private final Map<String,String[]> receipts=new LinkedHashMap<>();
     private volatile long touched=System.nanoTime();
 
     WallpaperUploadServer(String host,int port,Assets assets,Importer importer) {
@@ -73,6 +75,8 @@ final class WallpaperUploadServer extends NanoHTTPD {
         if(connecting)return connect(session);
         if(authorized)touched=System.nanoTime();
         if(session.getMethod()==Method.GET) {
+            if(authorized&&route.startsWith("uploads/")){String id=route.substring(8);if(!id.matches("[a-f0-9]{32}"))return error(Response.Status.BAD_REQUEST,"Invalid upload identity");synchronized(receipts){String[] receipt=receipts.get(id);return receipt==null?error(Response.Status.NOT_FOUND,"上传结果尚未确认 / Upload not confirmed"):secure(newFixedLengthResponse(Response.Status.OK,"application/json; charset=utf-8",receipt[1]));}}
+
             if(authorized&&"info".equals(route)&&information!=null)return secure(newFixedLengthResponse(Response.Status.OK,"application/json; charset=utf-8",information));
             String name,mime;
             switch(route){case"":name="index.html";mime="text/html; charset=utf-8";break;case"app.js":name="app.js";mime="application/javascript; charset=utf-8";break;case"styles.css":name="styles.css";mime="text/css; charset=utf-8";break;default:return error(Response.Status.NOT_FOUND,"Not found");}
@@ -92,12 +96,17 @@ final class WallpaperUploadServer extends NanoHTTPD {
         if(session.getHeaders().containsKey("transfer-encoding"))return uploadError(video,upload,Response.Status.BAD_REQUEST,"transfer_encoding_unsupported","Unsupported transfer encoding");
         if(!IMPORTING.compareAndSet(false,true))return uploadError(video,upload,Response.Status.SERVICE_UNAVAILABLE,"import_busy","正在处理另一个文件，请稍后重试 / Another upload is in progress");
         try {
+            String request=session.getHeaders().get("x-wallpaper-request");if(request!=null&&!request.matches("[a-f0-9]{32}"))return error(Response.Status.BAD_REQUEST,"Invalid upload identity");
             String name=session.getHeaders().get("x-wallpaper-name");
             if(name==null || name.length()>1024)return uploadError(video,upload,Response.Status.BAD_REQUEST,"invalid_name_header","无效的文件名称 / Invalid file name");
             name=URLDecoder.decode(name,"UTF-8");
+            String shape=session.getHeaders().get("x-quiet-icon-shape");
+            String fingerprint=kind+"\n"+length+"\n"+name+(shape==null?"":"\n"+shape);
+            if(request!=null)synchronized(receipts){String[] previous=receipts.get(request);if(previous!=null)return previous[0].equals(fingerprint)?secure(newFixedLengthResponse(Response.Status.CREATED,"application/json; charset=utf-8",previous[1])):error(Response.Status.CONFLICT,"上传编号已用于其他文件 / Upload identity conflict");}
             long deadline=System.nanoTime()+60000000000L;
             Active active=()->{if(video)touched=System.nanoTime();return !closed&&(video||System.nanoTime()<deadline);};
-            String result=video?importer.acceptVideo(session.getInputStream(),length,name,active,upload):importer.accept(session.getInputStream(),length,name,active);
+            String result=video?importer.acceptVideo(session.getInputStream(),length,name,active,upload):importer.acceptImage(session.getInputStream(),length,name,shape,active);
+            if(request!=null)synchronized(receipts){if(receipts.size()>=256)receipts.remove(receipts.keySet().iterator().next());receipts.put(request,new String[]{fingerprint,result});}
             return secure(newFixedLengthResponse(Response.Status.CREATED,"application/json; charset=utf-8",result));
         } catch(IOException|IllegalArgumentException e){
             if(video)DiagnosticLog.error("wallpaper.upload.response_failed","upload="+upload+" "+VideoDiagnostics.failureDetails(e),e);

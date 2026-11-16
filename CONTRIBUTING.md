@@ -1,5 +1,18 @@
 # 贡献指南 / Contributing
 
+## 2.0 主线与独立测试包
+
+主程序的基础版本为 `2.0.0`，包名继续使用 `home.quiet.tv`。需要与现有安装并存的独立测试包时，使用以下入口：
+
+```sh
+python3 scripts/build_independent.py --build-number <递增独立构建号>
+# 旧系统增加 --compatibility legacy14 或 legacy19
+```
+
+该入口固定包名 `home.quiet.tv.scopeqa`、版本 `2.0.0` 和“Quiet TV 2.0 测试”名称；`--local-test` 只记录测试用途，独立包仍使用三段版本。构建号沿独立包自身序列递增，不能用于原包名的覆盖升级。工具仅构建及不可变归档，不安装或发布；已占用的号（含失败构建）不复用。
+
+日志和归档位于 `output/build-cache/` 及 `dist/apk/desktop-v2-independent`；元数据记录源码指纹、提交、签名、包名、档位和 SHA-256，源码在构建中改变则停止归档。底层开关为 `-PquietIndependent=true`，不能与生产包名搭配。独立包使用单独的签名更新清单，见[应用内更新](docs/UPDATES.md)。原包名的 2.0.0 使用主程序构建与全局构建号，覆盖升级前核对签名、数据兼容及 HOME 配置；历史 1.3.6 发布保持原样。
+
 [中文首页](README.md) · [English home](README.en.md) · [行为准则 / Code of conduct](CODE_OF_CONDUCT.md)
 
 ## 开发环境与构建 / Build

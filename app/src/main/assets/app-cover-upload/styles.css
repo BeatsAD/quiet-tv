@@ -2,10 +2,10 @@
   color-scheme: dark;
   font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
   font-size: 16px;
-  color: #f4f5f7;
-  background: #0a0e15;
-  --panel: #222831;
-  --muted: #aeb9c8;
+  color: #ffffff;
+  background: #000000;
+  --panel: #000000;
+  --muted: #ffffffb3;
   --line: #ffffff26;
 }
 * { box-sizing: border-box; }
@@ -16,7 +16,7 @@ body {
   display: grid;
   place-items: center;
   align-content: center;
-  background: radial-gradient(ellipse at 10% 0%, #26374c 0%, transparent 65%), #0a0e15;
+  background: radial-gradient(ellipse at 10% 0%, #000000 0%, transparent 65%), #000000;
 }
 main {
   width: 100%;
@@ -36,16 +36,16 @@ h1 { font-size: 1.75rem; font-weight: 500; line-height: 1.35; margin: 0 0 1.5rem
   place-items: center;
   width: 100%;
   aspect-ratio: 16 / 9;
-  background: #151c25;
-  border: 1px dashed #6b7788;
+  background: #000000;
+  border: 1px dashed #ffffff73;
   border-radius: 1rem;
   overflow: hidden;
   cursor: pointer;
 }
 .preview img { position: absolute; width: 100%; height: 100%; object-fit: cover; }
 #placeholder { display: grid; justify-items: center; gap: .5rem; color: var(--muted); }
-.plus { font-size: 2.5rem; font-weight: 300; line-height: 1; color: #f4f5f7; }
-.change { position: absolute; bottom: .75rem; right: .75rem; border: 1px solid var(--line); border-radius: 2rem; background: #20252deb; padding: .6rem 1rem; font-size: .875rem; }
+.plus { font-size: 2.5rem; font-weight: 300; line-height: 1; color: #ffffff; }
+.change { position: absolute; bottom: .75rem; right: .75rem; border: 1px solid var(--line); border-radius: 2rem; background: #000000eb; padding: .6rem 1rem; font-size: .875rem; }
 .file-input { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; clip: rect(0, 0, 0, 0); clip-path: inset(50%); overflow: hidden; white-space: nowrap; }
 #fileinfo { color: var(--muted); font-size: .875rem; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; margin: 1rem 0 1.5rem; }
 button {
@@ -56,28 +56,39 @@ button {
   padding: .85rem 1.25rem;
   border: 1px solid transparent;
   border-radius: 2rem;
-  background: #f1f2f4;
-  color: #1e242c;
+  background: #ffffff;
+  color: #000000;
   cursor: pointer;
 }
-button:disabled { background: #424b59; color: #aeb9c8; cursor: default; }
-button:focus-visible, .preview:focus-within, input:focus-visible { outline: 2px solid #f4f5f7; outline-offset: 4px; }
+button:disabled { background:rgba(255,255,255,.05);color:rgba(255,255,255,.45); cursor: default; }
+button:focus-visible, .preview:focus-within, input:focus-visible { outline: 2px solid #ffffff; outline-offset: 4px; }
 .preview:has(input:disabled) { cursor: default; }
-#progress { height: .3rem; background: #424b59; margin: 1rem 0; border-radius: 1rem; overflow: hidden; }
-#progress span { display: block; height: 100%; background: #f1f2f4; width: 0; transition: width .15s; }
+#progress { height: .3rem; background: #00000099; margin: 1rem 0; border-radius: 1rem; overflow: hidden; }
+#progress span { display: block; height: 100%; background: #ffffff; width: 0; transition: width .15s; }
 #status, #error, #pair-error { font-size: .875rem; line-height: 1.7; margin: 1rem 0 0; overflow-wrap: anywhere; }
 #status { color: var(--muted); }
 #status:empty { display: none; }
-#error, #pair-error { color: #ffb4ab; }
-.check { width: 3.5rem; height: 3.5rem; border: 1px solid #ffffff38; border-radius: 50%; background: #343c48; display: grid; place-items: center; font-size: 1.75rem; margin: 0 auto 1rem; }
+#error, #pair-error { color: #ffffffb3; }
+.check { width: 3.5rem; height: 3.5rem; border: 1px solid #ffffff38; border-radius: 50%; background: #00000099; display: grid; place-items: center; font-size: 1.75rem; margin: 0 auto 1rem; }
 #success { text-align: center; }
 #success h1 { margin-bottom: .75rem; }
 #result { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 1rem; margin: 0 0 1.5rem; }
 #pair-form label { display: block; color: var(--muted); }
-#code { display: block; width: 100%; min-height: 3.5rem; margin: .75rem 0 1.5rem; padding: .75rem; border: 1px solid #6b7788; border-radius: .875rem; font: inherit; font-family: monospace; font-size: 1.75rem; letter-spacing: .3em; text-align: center; background: #151c25; color: #f4f5f7; }
+#code { display: block; width: 100%; min-height: 3.5rem; margin: .75rem 0 1.5rem; padding: .75rem; border: 1px solid #ffffff73; border-radius: .875rem; font: inherit; font-family: monospace; font-size: 1.75rem; letter-spacing: .3em; text-align: center; background: #000000; color: #ffffff; }
 #code::placeholder { color: var(--muted); font: 1rem "PingFang SC", "Microsoft YaHei", sans-serif; letter-spacing: .1em; }
 [hidden] { display: none !important; }
-@media (hover: hover) { button:not(:disabled):hover { background: #ffffff; } .preview:hover { border-color: #f4f5f7; } }
+@media (hover: hover) { button:not(:disabled):hover { background: #ffffff; } .preview:hover { border-color: #ffffff; } }
 @media (min-width: 768px) { body { padding: 2rem; } main { padding: 2rem; } h1 { font-size: 2rem; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
-.preview{cursor:default;border-style:solid}.preview canvas{display:block;width:100%;height:auto;touch-action:none;cursor:grab}.preview canvas:active{cursor:grabbing}.control-label{display:flex;justify-content:space-between;gap:1rem;color:var(--muted);font-size:.875rem;margin-top:.75rem}input[type=range]{width:100%;min-height:2rem;accent-color:#f1f2f4}button.secondary{margin-top:1rem;background:#343c48;color:#f4f5f7;border-color:var(--line)}#fileinfo{margin-bottom:1rem}#ai-hint{font-size:.875rem;margin-bottom:1.5rem}#placeholder{padding:1rem;text-align:center}
+.preview{cursor:default;border-style:solid}.preview canvas{display:block;width:100%;height:auto;touch-action:none;cursor:grab}.preview canvas:active{cursor:grabbing}.control-label{display:flex;justify-content:space-between;gap:1rem;color:var(--muted);font-size:.875rem;margin-top:.75rem}input[type=range]{width:100%;min-height:2rem;accent-color:#ffffff}button.secondary{margin-top:1rem;background:#00000099;color:#ffffff;border-color:var(--line)}#fileinfo{margin-bottom:1rem}#ai-hint{font-size:.875rem;margin-bottom:1.5rem}#placeholder{padding:1rem;text-align:center}
+
+/* Shared black/white foreground roles, including browser-native form states. */
+input,select,textarea{border-color:rgba(255,255,255,.12)}
+input[type=file]{color:rgba(255,255,255,.7);background:transparent;border:0}
+input[type=range]{background:transparent;border:0;accent-color:#fff}
+input::placeholder,textarea::placeholder{color:rgba(255,255,255,.45)}
+input:disabled,select:disabled,textarea:disabled,button:disabled{opacity:1;color:rgba(255,255,255,.45);background-color:rgba(255,255,255,.05)}
+
+#shape-controls{display:flex;gap:.5rem;margin:1rem 0}#shape-controls button{flex:1;min-width:0;min-height:2.75rem;padding:.5rem;font-size:.9rem;color:var(--muted);background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:.875rem}#shape-controls button[aria-pressed=true]{color:#111;background:#fff;border-color:#fff}.icon-mode .preview{aspect-ratio:auto;min-height:10rem}.icon-mode .preview canvas{margin:auto;height:auto;width:100%;max-width:100%;background-color:#242426;background-image:linear-gradient(45deg,#333 25%,transparent 25%),linear-gradient(-45deg,#333 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#333 75%),linear-gradient(-45deg,transparent 75%,#333 75%);background-size:16px 16px;background-position:0 0,0 8px,8px -8px,-8px 0}.icon-mode #result{max-height:55vh;width:auto;max-width:100%;margin-left:auto;margin-right:auto}
+
+.icon-mode #crop-controls .control-label:nth-of-type(n+2),.icon-mode #pan-x,.icon-mode #pan-y{display:none}

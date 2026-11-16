@@ -9,6 +9,7 @@ import re
 import subprocess
 import zipfile
 from install_tcl import manifest_home_mode
+from workspace_storage import build_workspace
 
 ROOT = Path(__file__).resolve().parents[1]
 ABIS = ('universal', 'arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64')
@@ -16,10 +17,10 @@ COMPATIBILITY = ('standard', 'legacy14', 'legacy19')
 SYSTEM_LABELS = {
     14: ('安卓4.0-4.4', 'Android4.0-4.4'),
     19: ('安卓4.4', 'Android4.4'),
-    21: ('安卓5.0及以上', 'Android5.0AndAbove'),
-    23: ('安卓6.0及以上', 'Android6.0AndAbove'),
-    26: ('安卓8.0及以上', 'Android8.0AndAbove'),
-    31: ('安卓12.0及以上', 'Android12.0AndAbove'),
+    21: ('安卓5及以上', 'Android5.0AndAbove'),
+    23: ('安卓6及以上', 'Android6.0AndAbove'),
+    26: ('安卓8及以上', 'Android8.0AndAbove'),
+    31: ('安卓12及以上', 'Android12.0AndAbove'),
 }
 
 
@@ -39,12 +40,16 @@ def source_digest():
     paths = [p for source in ('main', 'standard', 'legacy19', 'home', 'relay')
              for p in (ROOT / 'app/src' / source).rglob('*') if p.is_file()]
     paths += [p for p in (ROOT / 'home-proxy/src/contract/java').rglob('*') if p.is_file()]
+    paths += [p for source in ('src', 'public') for p in (ROOT / 'phone-web' / source).rglob('*') if p.is_file()]
+    paths += [ROOT / 'phone-web' / name for name in ('package.json', 'package-lock.json', 'index.html', 'tsconfig.json', 'vite.config.ts', 'build.mjs', 'check_assets.py')]
     paths += [ROOT / name for name in ['app/build.gradle', 'app/proguard-rules.pro', 'build.gradle', 'settings.gradle',
-              'gradle.properties', 'gradle/security-constraints.gradle', 'scripts/bundle_about.py', 'scripts/build_apk.py', 'scripts/install_tcl.py',
+              'gradle.properties', 'gradle/security-constraints.gradle', 'gradle/diagnostics.gradle', 'scripts/bundle_diagnostics.py', 'scripts/bundle_about.py', 'scripts/validate_icon_library.py', 'scripts/build_icon_library.py', 'scripts/build_apk.py', 'scripts/workspace_storage.py', 'scripts/build_independent.py', 'scripts/install_tcl.py',
               'prototypes/about/index.html', 'prototypes/about/styles.css', 'prototypes/about/app.js',
               'prototypes/about/assets/wechat.png', 'prototypes/about/assets/qq-group.png',
               'prototypes/about/assets/source.svg', 'prototypes/about/assets/wechat.webp', 'prototypes/about/assets/qq-group.webp',
               'LICENSE', 'THIRD_PARTY_NOTICES.md']]
+    paths += [p for p in (ROOT / 'remote-core').glob('*') if p.is_file() and p.suffix in ('.go', '.mod', '.sum', '.c') and not p.name.endswith('_test.go')]
+    paths += [ROOT / 'scripts/build_components.py', ROOT / 'scripts/build_remote_core.sh']
     digest = hashlib.sha256()
     for path in sorted(set(paths)):
         digest.update(str(path.relative_to(ROOT)).encode() + b'\0' + path.read_bytes() + b'\0')
@@ -130,6 +135,9 @@ def archive_apk(summary, built_at=None, output_dir=None, abi='universal', archiv
     sha256 = hashlib.sha256(data).hexdigest()
     with zipfile.ZipFile(apk) as archive:
         packaged_abis = sorted({p.split('/')[1] for p in archive.namelist() if p.startswith('lib/') and p.endswith('.so')})
+        diagnostic_identity = json.loads(archive.read('assets/diagnostic-build.json')) if 'assets/diagnostic-build.json' in archive.namelist() else None
+    if production_digest and (not diagnostic_identity or diagnostic_identity.get('sourceSha256') != production_digest):
+        raise ValueError('APK 内诊断源码指纹与本次生产源码不符，停止归档')
     if abi != 'universal' and packaged_abis and packaged_abis != [abi]:
         raise ValueError(f'APK ABI 与请求不符：{packaged_abis} != {abi}')
     certs = signer_digest(apk, min_sdk)
@@ -186,6 +194,7 @@ def archive_apk(summary, built_at=None, output_dir=None, abi='universal', archiv
         'workspace_dirty_at_archive': bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT, text=True).strip()),
         'workspace_diff_sha256': hashlib.sha256(subprocess.check_output(['git', 'diff', 'HEAD', '--binary'], cwd=ROOT)).hexdigest(),
         'production_sources_sha256': production_digest,
+        'diagnostic_build_identity': diagnostic_identity,
         'build_parameters': {'quietBuildNumber': actual['version_code'], 'quietCompatibility': compatibility,
                              'quietMinSdk': min_sdk, 'quietAbi': abi, 'quietHomeMode': home_mode, 'quietLocalTest': local_test},
         'validation_scope': '构建、APK 元数据与签名校验；安装、功能、升级数据及真机验收另行记录',
@@ -218,18 +227,18 @@ def build_apk(summary, variant='debug', abi='universal', min_sdk=None, compatibi
         raise ValueError('不支持的构建类型或 ABI')
     if build_number is not None and (not isinstance(build_number, int) or build_number < 1):
         raise ValueError('构建号必须为正整数')
-    before = source_digest()
-    identity = f'b{build_number}' if build_number is not None else before[:12]
-    build_root = ROOT / 'output/candidate-builds' / f'{compatibility}-{home_mode}-{variant}-{abi}-api{min_sdk}-{identity}'
-    subprocess.run([str(ROOT / 'gradlew'), ':app:assemble' + variant.capitalize(), '--console=plain',
-                    '-PquietBuildRoot=' + str(build_root), '-PquietAbi=' + abi, '-PquietMinSdk='+str(min_sdk),
-                    '-PquietCompatibility=' + compatibility, '-PquietHomeMode=' + home_mode,
-                    '-PquietLocalTest=' + str(local_test).lower()]
-                   + (['-PquietBuildNumber=' + str(build_number)] if build_number is not None else []), cwd=ROOT, check=True)
-    if source_digest() != before:
-        raise RuntimeError('生产源码在构建期间改变，产物未归档，请重新构建')
-    return archive_apk(summary, datetime.now().astimezone().isoformat(timespec='seconds'),
-                       build_root / 'app/outputs/apk' / variant, abi, min_sdk=min_sdk, production_digest=before, compatibility=compatibility, home_mode=home_mode)
+    configuration = f'{compatibility}-{home_mode}-{variant}-{abi}-api{min_sdk}-local{int(local_test)}'
+    with build_workspace(ROOT, 'production', configuration) as (build_root, lock_fd):
+        before = source_digest()
+        subprocess.run([str(ROOT / 'gradlew'), ':app:assemble' + variant.capitalize(), '--console=plain',
+                        '-PquietBuildRoot=' + str(build_root), '-PquietAbi=' + abi, '-PquietMinSdk='+str(min_sdk),
+                        '-PquietCompatibility=' + compatibility, '-PquietHomeMode=' + home_mode,
+                        '-PquietLocalTest=' + str(local_test).lower()]
+                       + (['-PquietBuildNumber=' + str(build_number)] if build_number is not None else []), cwd=ROOT, check=True, pass_fds=(lock_fd,))
+        if source_digest() != before:
+            raise RuntimeError('生产源码在构建期间改变，产物未归档，请重新构建')
+        return archive_apk(summary, datetime.now().astimezone().isoformat(timespec='seconds'),
+                           build_root / 'app/outputs/apk' / variant, abi, min_sdk=min_sdk, production_digest=before, compatibility=compatibility, home_mode=home_mode)
 
 
 def verify_batch(apks):

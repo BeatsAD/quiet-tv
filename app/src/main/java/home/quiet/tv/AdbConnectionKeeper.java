@@ -19,6 +19,7 @@ final class AdbConnectionKeeper {
     private final Runnable changed;
     private ScheduledFuture<?> next;
     private boolean running,connecting;
+    private volatile boolean paused;
     private int generation;
     private volatile State state=State.DISCONNECTED;
     private volatile String detail="";
@@ -26,9 +27,12 @@ final class AdbConnectionKeeper {
     State state(){return state==State.CONNECTED && !client.connected()?State.DISCONNECTED:state;}
     String detail(){return detail;}
     void request(){requestConnection(false);}
-    void requestAuthorization(){requestConnection(true);}
+    void requestAuthorization(){synchronized(this){paused=false;requestConnection(true);}}
+    boolean paused(){return paused;}
+    synchronized void pause(){paused=true;disconnect();}
+    synchronized void checkConnected(){if(client.connected())requestConnection(false);}
     private synchronized void requestConnection(boolean requestAuthorization){
-        if(running)return;
+        if(paused || running)return;
         if(next!=null){next.cancel(false);next=null;}
         running=true;int request=++generation;
         if(!client.connected()){state=State.CONNECTING;detail="正在连接本机 ADB";changed.run();}

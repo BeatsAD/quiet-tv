@@ -22,11 +22,11 @@ ROOT = Path(__file__).resolve().parent
 TOOLS = ('install_quiet_tv.py', 'verify_install.py', 'install_tcl.py', 'tcl_cast.py',
          'configure_home_guard.py', 'configure_boot_home.py', 'device_maintenance.py',
          'device_selftest.py', 'device_adaptation.py', 'vendor_adaptation.py',
-         'device-presets.json', 'agent_session.py', 'computer_resources.py', 'device_environment.py', 'remote_calibration.py', 'home_capabilities.py', 'boot_ads.py', 'collect_letv_home.py')
+         'device-presets.json', 'agent_session.py', 'computer_resources.py', 'device_environment.py', 'remote_calibration.py', 'home_capabilities.py', 'boot_ads.py', 'collect_letv_home.py', 'bluetooth_diagnostics.py')
 GUIDES = {'agent.md': 'docs/AGENT.md', 'maintenance.md': 'docs/AGENT_ADAPT.zh-CN.md',
           'guides/rules.md': 'docs/DEVICE_ADAPTATION.zh-CN.md',
           **{'guides/' + name + '.md': 'docs/agent/' + name + '.md' for name in
-             ('connect', 'adb', 'adb-devices', 'install', 'update', 'home', 'tcl', 'restore', 'acceptance', 'inputs', 'session', 'remote', 'brands', 'boot-ads')}}
+             ('connect', 'adb', 'adb-devices', 'install', 'update', 'home', 'tcl', 'restore', 'acceptance', 'inputs', 'session', 'remote', 'brands', 'boot-ads', 'bluetooth')}}
 RUNNERS = ('install_quiet_tv', 'install_tcl', 'configure_home_guard', 'configure_boot_home',
            'device_maintenance', 'device_selftest', 'device_adaptation', 'vendor_adaptation', 'device_environment', 'remote_calibration', 'boot_ads', 'collect_letv_home')
 PACKAGES = ('home.quiet.tv', 'com.ts.launcher', 'com.coocaa.quiettv')

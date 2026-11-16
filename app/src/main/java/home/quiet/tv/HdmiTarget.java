@@ -81,6 +81,7 @@ final class HdmiTarget {
     SavedInputLaunch prepare(Context context) throws Exception {if("adb".equals(kind))return AdbHdmi.prepare(context,this,null);return Build.VERSION.SDK_INT>=21?Api21.prepare(context,this):SavedInputLaunch.legacy(context,this);}
     boolean open(Context context){return open(context,false);}
     boolean open(Context context,boolean automatic){
+        InputTransitionEvidence.target("saved_hdmi",kind+":"+id);
         try{SavedInputLaunch launch=prepare(context);if(launch==null)return false;
             if(!automatic)HomeGuardService.bootSourceUserAction(context,"saved_hdmi");
             boolean opened=launch.dispatch(context);if(opened)HomeGuardService.savedInputSelected(context,automatic);return opened;

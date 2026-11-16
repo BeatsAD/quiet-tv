@@ -9,6 +9,8 @@ import java.io.IOException;
 
 /** Private, bound-only codec process. The service main Looper never calls MediaPlayer. */
 public class WallpaperService extends Service {
+    @android.annotation.SuppressLint("StaticFieldLeak") // Retains application context only.
+    private static DiagnosticSession diagnosticSession;
     static final int OPEN=1,SOUND=2,PAUSE=3,RELEASE=4;
     static final int PREPARED=11,FRAME=12,SIZE=13,FAILED=14,RELEASED=15,NOTE=16,LOG=17,SOFTWARE_AVAILABLE=18,RETRY_SOFTWARE=19;
     static final long OPERATION_TIMEOUT_MS=2500;
@@ -34,7 +36,7 @@ public class WallpaperService extends Service {
     private AudioManager audio;
     private AudioManager.OnAudioFocusChangeListener audioFocus;
     @Override public void onCreate(){
-        super.onCreate();thread=new HandlerThread("QuietTV-legacy-codec");thread.start();worker=new Handler(thread.getLooper());
+        super.onCreate();if(diagnosticSession==null)diagnosticSession=new DiagnosticSession(this,false);thread=new HandlerThread("QuietTV-legacy-codec");thread.start();worker=new Handler(thread.getLooper());
         endpoint=new Messenger(new Handler(Looper.getMainLooper()){@Override public void handleMessage(Message message){receive(message);}});
     }
     @Override public IBinder onBind(Intent intent){return endpoint.getBinder();}
@@ -142,6 +144,7 @@ public class WallpaperService extends Service {
     private void send(int what,int reason,Bundle data){send(session,what,reason,data);}
     private void send(int expected,int what,int reason,Bundle data){
         if(expected!=session)return;
+        if(data==null)data=new Bundle();if(diagnosticSession!=null)data.putString("diagnosticOrigin",diagnosticSession.forwardedOrigin());
         Messenger callback=reply;if(callback==null)return;
         Message message=Message.obtain(null,what,expected,reason);if(data!=null)message.setData(data);
         try{callback.send(message);}catch(RemoteException e){main.post(()->terminateProcess("client_died"));}

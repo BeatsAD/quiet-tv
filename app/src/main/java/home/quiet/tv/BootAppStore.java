@@ -17,7 +17,8 @@ final class BootAppStore {
     private final SharedPreferences preferences;
     BootAppStore(Context context){this.context=context;preferences=context.getSharedPreferences("boot-app",0);}
     String target(){return preferences.getString("package","");}
-    String label(){return hdmiBoot()?watchLabel():preferences.getString("label",target());}
+    String label(){return hdmiBoot()?watchLabel():new AppNameStore(context).display(target(),systemLabel());}
+    private String systemLabel(){try{return context.getPackageManager().getApplicationInfo(target(),0).loadLabel(context.getPackageManager()).toString();}catch(android.content.pm.PackageManager.NameNotFoundException e){return preferences.getString("label",target());}}
     boolean hdmiBoot(){return preferences.getBoolean("hdmi-boot",false);}
     boolean enabled(){return hdmiBoot()||!target().isEmpty();}
     String watchTarget(){return preferences.getString("watch-hdmi","");}
@@ -73,10 +74,10 @@ final class BootAppStore {
     void select(String pkg,String label) throws IOException {synchronized(BootAppStore.class){
         String boot=bootId();
         if(!pkg.isEmpty() && (boot.isEmpty() || launchIntent(pkg)==null))throw new IOException("此应用或当前系统暂不支持开机自启");
-        if(!preferences.edit().putBoolean("cover-pending",false).putBoolean("cover-armed",false).putBoolean("cover-stopped",true)
+        commit(preferences,preferences.edit().putBoolean("cover-pending",false).putBoolean("cover-armed",false).putBoolean("cover-stopped",true)
                 .putBoolean("hdmi-boot",false).putString("package",pkg).putString("label",label).putString("handled-boot",boot)
                 .putString("wake-boot",boot).putBoolean("sleeping",false).putLong("wake-at",-1)
-                .putLong("handled-wake",preferences.getLong("wake-generation",0)).commit())throw new IOException("自启设置保存失败，请重试");
+                .putLong("handled-wake",preferences.getLong("wake-generation",0)));
     }}
     private boolean syncBoot(String boot){
         if(boot.isEmpty())return false;

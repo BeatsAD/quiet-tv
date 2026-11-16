@@ -9,7 +9,7 @@ import android.widget.*;
 
 /** Styles and small, version-independent artwork used by the wallpaper surfaces. */
 final class WallpaperUi {
-    static final int INK=0xfff4f5f7,MUTED=0xffaeb9c8;
+    static final int INK=UiPalette.TEXT,MUTED=UiPalette.SECONDARY;
     static final int TOOLBAR_WIDTH=78,TOOLBAR_HEIGHT=30,CATEGORY_PADDING=4,TOOLBAR_PADDING=16;
     final Context context;
     final float unit;
@@ -21,7 +21,7 @@ final class WallpaperUi {
         view.setTypeface(Typeface.create(size>=23?"sans-serif-medium":"sans-serif",Typeface.NORMAL));return view;
     }
     GradientDrawable surface(int color,float radius,int stroke,float width){
-        GradientDrawable bg=new GradientDrawable();bg.setColor(color);bg.setCornerRadius(px(radius));bg.setStroke(px(width),stroke);return bg;
+        GradientDrawable bg=new SurfaceDrawable(unit);bg.setColor(color);bg.setCornerRadius(px(radius));bg.setStroke(px(width),stroke);return bg;
     }
     Drawable focusSurface(int color,float radius){
         return ControlStyle.action(unit,radius,color,0x38ffffff);
@@ -29,7 +29,7 @@ final class WallpaperUi {
     TextView button(String value,boolean primary,Runnable action){
         TextView view=new KeyFeedback.Text(context);view.setText(value);view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(12));view.setIncludeFontPadding(false);view.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));view.setId(androidx.core.view.ViewCompat.generateViewId());view.setFocusable(true);view.setGravity(Gravity.CENTER);
         view.setTextColor(INK);view.setMinHeight(px(primary?43:38));view.setPadding(px(primary?17:13),px(9),px(primary?17:13),px(9));
-        view.setBackgroundDrawable(focusSurface(0xff242a33,100));
+        view.setBackgroundDrawable(focusSurface(0xff000000,100));
         view.setOnClickListener(v->action.run());return view;
     }
     static void toolbarFocus(TextView... controls){
@@ -52,7 +52,7 @@ final class WallpaperUi {
     void toolbarSize(TextView view){
         // Match the category capsule after each part has been rounded to pixels.
         view.setLayoutParams(new LinearLayout.LayoutParams(-2,px(TOOLBAR_HEIGHT)+2*px(CATEGORY_PADDING)));
-        view.setBackgroundDrawable(ControlStyle.action(unit,100,0xff242a33,0x38ffffff,0));
+        view.setBackgroundDrawable(ControlStyle.action(unit,100,0xff000000,0x38ffffff,0));
         view.setSingleLine(true);view.setMinHeight(0);view.setPadding(px(TOOLBAR_PADDING),0,px(TOOLBAR_PADDING),0);view.setCompoundDrawablePadding(px(4));
     }
     TextView compactButton(String value,Runnable action){
@@ -60,7 +60,7 @@ final class WallpaperUi {
         view.setSingleLine(true);view.setMinHeight(0);view.setPadding(px(5),0,px(5),0);
         view.setBackgroundDrawable(focusSurface(Color.TRANSPARENT,100));return view;
     }
-    Drawable capsule(){return surface(0xd92b2e34,100,0x28ffffff,.7f);}
+    Drawable capsule(){return surface(0xd9000000,100,0x28ffffff,.7f);}
     Drawable icon(int resource,int size,int color){
         Drawable art=UiCompat.drawable(context,resource).mutate();art.setColorFilter(color,PorterDuff.Mode.SRC_IN);art.setBounds(0,0,px(size),px(size));return art;
     }
@@ -72,13 +72,13 @@ final class WallpaperUi {
         };art.setBounds(0,0,px(size),px(size));return art;
     }
     ImageView image(float outerRadius,float inset){
-        // Subtract after pixel rounding so the inner and outer corner centers coincide.
-        int radius=px(outerRadius)-px(inset);
+        // Resolve the outer tier before insetting the image, so its mask matches the border.
+        int padding=px(inset);
         return new ImageView(context){
             final Path clip=new Path();final RectF imageBounds=new RectF();
-            {setScaleType(ScaleType.CENTER_CROP);androidx.core.view.ViewCompat.setImportantForAccessibility(this,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);}
+            {if(android.os.Build.VERSION.SDK_INT<18)setLayerType(View.LAYER_TYPE_SOFTWARE,null);setScaleType(ScaleType.CENTER_CROP);androidx.core.view.ViewCompat.setImportantForAccessibility(this,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);}
             @Override protected void onDraw(Canvas canvas){
-                imageBounds.set(0,0,getWidth(),getHeight());clip.reset();clip.addRoundRect(imageBounds,radius,radius,Path.Direction.CW);
+                imageBounds.set(-padding,-padding,getWidth()+padding,getHeight()+padding);float radius=Math.max(0,SurfaceCorners.radius(imageBounds,px(outerRadius),unit)-padding);imageBounds.set(0,0,getWidth(),getHeight());SurfaceCorners.path(clip,imageBounds,radius);
                 int saved=canvas.save();canvas.clipPath(clip);super.onDraw(canvas);canvas.restoreToCount(saved);
             }
         };
@@ -86,7 +86,7 @@ final class WallpaperUi {
     static Drawable shade(){
         return new Drawable(){
             final Paint paint=new Paint();
-            @Override protected void onBoundsChange(Rect bounds){paint.setShader(new LinearGradient(0,0,0,bounds.height(),new int[]{0x9e05090f,0x1405090f,0x9905090f,0xff0a0e15},new float[]{0,.42f,.64f,1},Shader.TileMode.CLAMP));}
+            @Override protected void onBoundsChange(Rect bounds){paint.setShader(new LinearGradient(0,0,0,bounds.height(),new int[]{0x9e000000,0x14000000,0x99000000,0xff000000},new float[]{0,.42f,.64f,1},Shader.TileMode.CLAMP));}
             @Override public void draw(Canvas canvas){canvas.drawRect(getBounds(),paint);}
             @Override public void setAlpha(int alpha){paint.setAlpha(alpha);}
             @Override public void setColorFilter(ColorFilter filter){paint.setColorFilter(filter);}

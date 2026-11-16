@@ -33,13 +33,11 @@ final class HomeAppCatalog {
         Set<String> childHidden=new ChildModeStore(context).hiddenPackages(choices.keySet()),ordinaryHidden=new HomeVisibilityStore(context).hiddenPackages();
         for(Iterator<String> ids=choices.keySet().iterator();ids.hasNext();){String id=ids.next();if(childHidden.contains(id) || ordinaryHidden.contains(id)!=hiddenApps || !hiddenApps&&hidden.contains(id)&&!pinned.contains(id))ids.remove();}
         ArrayList<Entry> result=new ArrayList<>();
-        for(Map.Entry<String,ResolveInfo> choice:choices.entrySet())result.add(new Entry(choice.getKey(),choice.getValue().loadLabel(pm).toString(),choice.getValue()));
+        for(Map.Entry<String,ResolveInfo> choice:choices.entrySet())result.add(new Entry(choice.getKey(),new AppNameStore(context).display(choice.getKey(),choice.getValue().loadLabel(pm).toString()),choice.getValue()));
         Collator collator=Collator.getInstance(Locale.SIMPLIFIED_CHINESE);
         Collections.sort(result,(a,b)->{int compared=collator.compare(a.label,b.label);return compared!=0?compared:a.id.compareTo(b.id);});
         boolean chinese=!"en".equals(config.optString("language","zh"));
         if(!hiddenApps){
-            result.add(0,new Entry(WALLPAPER,chinese?"壁纸设置":"Wallpaper Settings",null));
-            result.add(1,new Entry(DESKTOP_SETTINGS,chinese?"桌面设置":"Desktop Settings",null));
             if(new DesktopSettingsStore(context).showWatchTv())result.add(0,new Entry(WATCH_TV,chinese?"看电视":"Watch TV",null));
         }
         return result;

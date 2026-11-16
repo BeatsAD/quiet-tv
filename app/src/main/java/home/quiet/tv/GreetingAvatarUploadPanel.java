@@ -2,7 +2,8 @@ package home.quiet.tv;
 
 import android.graphics.*;
 import android.os.*;
-import android.view.View;
+import android.view.*;
+import android.widget.*;
 import com.google.zxing.*;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
@@ -20,7 +21,7 @@ final class GreetingAvatarUploadPanel {
     private final Handler main=new Handler(Looper.getMainLooper());
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private final AtomicBoolean receiving=new AtomicBoolean();
-    private ImageUploadDialog view;
+    private UploadView view;
     private WallpaperUploadServer server;
     private volatile int generation;
     private boolean received;
@@ -34,13 +35,9 @@ final class GreetingAvatarUploadPanel {
     }};
     GreetingAvatarUploadPanel(AppManagementActivity ui,GreetingAvatarStore store,Receiver receiver){this.ui=ui;this.store=store;this.receiver=receiver;}
     private String tr(String zh,String en){return ui.tr(zh,en);}
-    void show(){
+    void show(LinearLayout container,Runnable closed){
         if(view!=null)return;received=false;
-        view=new ImageUploadDialog(ui,ui.chinese(),WallpaperUi.backdrop(ui.stage,ui.root),tr("手机上传头像","Upload avatar"),
-            tr("JPG / PNG / 静态 WebP  原图不超过 10 MB","JPG / PNG / static WebP  Original up to 10 MB"),null,this::close,this::start,
-            tr("选择照片并裁剪，发送后在电视上保存","Choose and crop a photo, then save on your TV"));
-        view.dialog.setOnDismissListener(d->{ImageUploadDialog old=view;view=null;stop(received);old.release();});
-        view.dialog.show();start();
+        view=new UploadView(container,closed);view.back.requestFocusFromTouch();start();
     }
     private void start(){
         stop(false);int attempt=generation;received=false;receiving.set(false);if(view==null)return;
@@ -89,6 +86,24 @@ final class GreetingAvatarUploadPanel {
         ++generation;main.removeCallbacks(check);WallpaperUploadServer old=server;server=null;
         if(old!=null){old.invalidate();worker.execute(()->{if(graceful)old.finishAfterResponse();else old.stop();});}
     }
-    void close(){if(view!=null)view.dialog.dismiss();else stop(false);}
+    boolean showing(){return view!=null;}
+    void close(){UploadView old=view;view=null;if(old!=null){stop(received);old.qr.setImageDrawable(null);old.container.removeView(old.box);old.closed.run();}else stop(false);}
     void destroy(){close();worker.shutdown();}
+    private final class UploadView {
+        final LinearLayout container,box;
+        final ImageView qr;
+        final TextView address,status,code;
+        final Button retry,back;
+        final Runnable closed;
+        UploadView(LinearLayout container,Runnable closed){
+            this.container=container;this.closed=closed;box=ui.row();box.setPadding(ui.px(13.44f),ui.px(13.44f),ui.px(13.44f),ui.px(13.44f));box.setBackgroundDrawable(ui.surface(UiPalette.CONTROL,UiPalette.CONTROL,UiPalette.EDGE,12));LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-1,-2);bp.topMargin=ui.px(10.56f);bp.bottomMargin=ui.px(14.4f);container.addView(box,bp);
+            qr=new QrCodeView(ui,ui.unit);qr.setContentDescription(tr("头像上传二维码","Avatar upload QR code"));qr.setPadding(ui.px(4),ui.px(4),ui.px(4),ui.px(4));qr.setScaleType(ImageView.ScaleType.FIT_CENTER);box.addView(qr,new LinearLayout.LayoutParams(ui.px(86.4f),ui.px(86.4f)));
+            LinearLayout details=ui.column();LinearLayout.LayoutParams dp=new LinearLayout.LayoutParams(0,-2,1);dp.leftMargin=ui.px(19.2f);box.addView(details,dp);details.addView(ui.label(tr("手机上传头像","Upload avatar"),14));address=ui.muted("",11);details.addView(address);code=ui.label("",12);details.addView(code);status=ui.muted(tr("选择照片并裁剪  接收后仍需保存","Crop a photo  Save after receiving"),11);details.addView(status);
+            LinearLayout actions=ui.row();details.addView(actions);retry=action(tr("重新连接","Reconnect"),"greeting-avatar-reconnect",GreetingAvatarUploadPanel.this::start);actions.addView(retry,new LinearLayout.LayoutParams(-2,ui.px(34.56f)));back=action(tr("返回编辑","Back to edit"),"greeting-avatar-back",GreetingAvatarUploadPanel.this::close);actions.addView(back,new LinearLayout.LayoutParams(-2,ui.px(34.56f)));back.setNextFocusLeftId(retry.getId());retry.setNextFocusRightId(back.getId());
+            View entry=container.getRootView().findViewWithTag("greeting-avatar-upload"),cancel=container.getRootView().findViewWithTag("greeting-cancel");if(entry!=null){back.setNextFocusUpId(entry.getId());retry.setNextFocusUpId(entry.getId());}if(cancel!=null){back.setNextFocusDownId(cancel.getId());retry.setNextFocusDownId(cancel.getId());}
+        }
+        private Button action(String title,String tag,Runnable action){Button result=ui.button(title,action);result.setId(androidx.core.view.ViewCompat.generateViewId());result.setTag(tag);result.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,11.712f*ui.unit);result.setPadding(ui.px(13.71f),0,ui.px(13.71f),0);result.setBackgroundDrawable(new SettingsFocusDrawable(ui.unit,999,UiPalette.CONTROL,false,UiPalette.EDGE));result.setTextColor(SettingsFocusDrawable.textColors(UiPalette.TEXT));return result;}
+        void resetConnection(){address.setText(tr("正在开启上传…","Starting upload…"));address.setVisibility(View.VISIBLE);code.setText("");qr.setImageDrawable(null);}
+        void connected(String url,String digits){address.setText(url);code.setText(tr("连接码  ","Connection code  ")+digits);}
+    }
 }

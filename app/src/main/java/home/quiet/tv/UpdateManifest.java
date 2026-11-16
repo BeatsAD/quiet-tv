@@ -21,7 +21,7 @@ final class UpdateManifest {
         final List<Artifact> artifacts=new ArrayList<>();
         Release(JSONObject json)throws JSONException,IOException{
             version=json.getString("versionName");channel=json.getString("channel");versionParts(version);
-            if(!Arrays.asList("test","stable","experimental").contains(channel))throw new IOException("Invalid update channel");
+            if(!Arrays.asList("test","stable","experimental","independent").contains(channel))throw new IOException("Invalid update channel");
             features=strings(json.getJSONArray("features"));fixes=strings(json.getJSONArray("fixes"));
             JSONArray values=json.getJSONArray("artifacts");
             for(int n=0;n<values.length();n++)artifacts.add(new Artifact(this,values.getJSONObject(n)));
@@ -40,8 +40,9 @@ final class UpdateManifest {
             abis=strings(json.getJSONArray("abis"));signers=strings(json.getJSONArray("signerSha256"));
             if(id.isEmpty()||batch.isEmpty()||code<1||bytes<1||minSdk<14||!sha256.matches("[a-f0-9]{64}")||signers.isEmpty())throw new IOException("Invalid APK metadata");
             for(String signer:signers)if(!signer.matches("[a-f0-9]{64}"))throw new IOException("Invalid APK signer");
-            if(!Arrays.asList("home.quiet.tv","com.coocaa.quiettv").contains(pkg)||!Arrays.asList("standard","legacy14","legacy19").contains(compatibility)
+            if(!Arrays.asList("home.quiet.tv","com.coocaa.quiettv","home.quiet.tv.scopeqa").contains(pkg)||!Arrays.asList("standard","legacy14","legacy19").contains(compatibility)
                     ||!Arrays.asList("standard","relay").contains(homeMode))throw new IOException("Unknown APK profile");
+            if("independent".equals(release.channel)!=pkg.equals("home.quiet.tv.scopeqa"))throw new IOException("Independent update identity mismatch");
             if(("legacy14".equals(compatibility)&&(minSdk!=14||!homeMode.equals("standard")||!abis.isEmpty()))
                     ||("legacy19".equals(compatibility)&&(minSdk!=19||!homeMode.equals("standard")||!abis.isEmpty()))
                     ||("standard".equals(compatibility)&&minSdk<21))throw new IOException("Inconsistent APK profile");
@@ -51,10 +52,11 @@ final class UpdateManifest {
             catch(java.net.URISyntaxException e){throw new IOException("Invalid APK URL",e);}
         }
         String version(){return release.version;}
+        boolean newer(Device device){int version=compare(version(),device.version);return version>0||version==0&&"independent".equals(device.channel)&&"independent".equals(release.channel)&&code>device.code;}
         boolean matches(Device device){
             return pkg.equals(device.pkg)&&sameProfile(compatibility,device.compatibility)&&homeMode.equals(device.homeMode)&&minSdk<=device.sdk
                     &&(release.channel.equals(device.channel)||("test".equals(device.channel)&&"stable".equals(release.channel)))
-                    &&new HashSet<>(signers).equals(new HashSet<>(device.signers))&&code>device.code&&compare(version(),device.version)>0
+                    &&new HashSet<>(signers).equals(new HashSet<>(device.signers))&&code>device.code&&newer(device)
                     &&(abis.isEmpty()||!Collections.disjoint(abis,device.abis))
                     &&(abis.isEmpty()||abis.size()>1||(!device.abi.equals("universal")&&abis.contains(device.abi)));
         }
@@ -62,6 +64,13 @@ final class UpdateManifest {
             if(device.abi.equals("universal"))return abis.size()>1?0:1;
             if(abis.size()==1&&abis.contains(device.abi))return 0;
             return abis.size()>1||abis.isEmpty()?1:2;
+        }
+        boolean preferredTo(Artifact current,Device device){
+            int version=compare(version(),current.version());if(version!=0)return version>0;
+            boolean independent="independent".equals(device.channel);
+            if(independent&&!batch.equals(current.batch))return code>current.code;
+            int rank=architectureRank(device),other=current.architectureRank(device);
+            return rank<other||independent&&rank==other&&code>current.code;
         }
     }
     static final class Device {
@@ -96,13 +105,13 @@ final class UpdateManifest {
     Artifact select(Device device){
         Artifact best=null;
         for(Release release:releases)for(Artifact value:release.artifacts)if(value.matches(device)){
-            if(best==null||compare(value.version(),best.version())>0||(compare(value.version(),best.version())==0&&value.architectureRank(device)<best.architectureRank(device)))best=value;
+            if(best==null||value.preferredTo(best,device))best=value;
         }
         return best;
     }
     String unavailableReason(Device device){
         List<Artifact> candidates=new ArrayList<>();
-        for(Release release:releases)if(compare(release.version,device.version)>0)candidates.addAll(release.artifacts);
+        for(Release release:releases)for(Artifact artifact:release.artifacts)if(artifact.newer(device))candidates.add(artifact);
         if(candidates.isEmpty())return "";
         for(Iterator<Artifact> it=candidates.iterator();it.hasNext();){Artifact a=it.next();if(!a.pkg.equals(device.pkg))it.remove();}if(candidates.isEmpty())return "新版尚未提供当前包名的安装包";
         for(Iterator<Artifact> it=candidates.iterator();it.hasNext();){Artifact a=it.next();if(!sameProfile(a.compatibility,device.compatibility)||!a.homeMode.equals(device.homeMode))it.remove();}if(candidates.isEmpty())return "新版尚未提供当前系统档位或桌面形态的安装包";

@@ -18,7 +18,8 @@ final class WeatherClient {
     private android.content.res.AssetManager assets;
     private SSLSocketFactory legacyTls;
     private boolean tlsLogged;
-    private final WeatherRegions regions;
+    private volatile WeatherRegions regions;
+    private Context context;
     private final WeatherConfiguration configuration;
     private final Transport transport;
     static final class ApiException extends IOException {
@@ -26,7 +27,7 @@ final class WeatherClient {
         ApiException(int status,long retryAfterMs){super("Weather service unavailable ("+status+")");this.status=status;this.retryAfterMs=retryAfterMs;}
     }
     WeatherClient(Context context){
-        this(WeatherRegions.load(context),WeatherConfiguration.load(context),null);assets=context.getAssets();
+        this(null,WeatherConfiguration.load(context),null);this.context=context.getApplicationContext();assets=context.getAssets();
         try{
             android.content.pm.PackageInfo info=context.getPackageManager().getPackageInfo(context.getPackageName(),android.content.pm.PackageManager.GET_SIGNATURES);
             if(info.signatures!=null&&info.signatures.length>0){
@@ -36,12 +37,13 @@ final class WeatherClient {
         }catch(android.content.pm.PackageManager.NameNotFoundException|java.security.NoSuchAlgorithmException ignored){}
     }
     WeatherClient(WeatherRegions regions,WeatherConfiguration configuration,Transport transport){this.regions=regions;this.configuration=configuration;this.transport=transport==null?this::request:transport;}
+    private WeatherRegions regions(){WeatherRegions value=regions;if(value==null)regions=value=WeatherRegions.load(context);return value;}
     static String providerName(String provider){switch(provider){case "qweather":return "和风天气";case "openmeteo":return "Open-Meteo";case "openweather":return "OpenWeather";case "auto":return "自动";default:return "UAPI";}}
     static String website(String provider){switch(provider){case "qweather":return "https://www.qweather.com";case "openmeteo":return "https://open-meteo.com/";case "openweather":return "https://openweathermap.org/";default:return "https://uapis.cn";}}
     static String terms(String provider){switch(provider){case "qweather":return "https://dev.qweather.com/docs/terms/tos/";case "openmeteo":return "https://open-meteo.com/en/terms";case "openweather":return "https://openweather.co.uk/privacy-policy";default:return "https://uapis.cn/docs/getting-started/privacy-policy";}}
     boolean available(String provider){return "auto".equals(provider)||"uapi".equals(provider)||"openmeteo".equals(provider)||("qweather".equals(provider)&&configuration.configured())||("openweather".equals(provider)&&!configuration.openWeatherKey.isEmpty());}
     WeatherData weather(String adcode,String source,boolean chinese)throws IOException,JSONException{
-        WeatherRegions.Region place=regions.find(adcode);
+        WeatherRegions.Region place=regions().find(adcode);
         if(place==null&&!adcode.isEmpty())place=new WeatherRegions.Region(adcode,adcode,"","","",2);
         return weather(place,"auto",false,source,chinese);
     }
@@ -49,7 +51,7 @@ final class WeatherClient {
         checkInterrupted();if(!available(mode))throw new ApiException(503,0);
         WeatherData ip=null;
         if(selected==null){
-            ip=uapiWeather(null,"ip",chinese);selected=regions.find(ip.adcode);
+            ip=uapiWeather(null,"ip",chinese);selected=regions().find(ip.adcode);
             if(selected==null)selected=new WeatherRegions.Region(ip.adcode,ip.city,ip.province,"","",2);
         }
         String[] order="auto".equals(mode)?new String[]{"qweather","uapi","openweather","openmeteo"}:new String[]{mode};
@@ -103,7 +105,7 @@ final class WeatherClient {
             JSONObject item=items.getJSONObject(i);String code=item.optString("adcode"),level=item.optString("level"),name=item.optString("name");JSONObject center=item.optJSONObject("center");
             if(!"CN".equals(item.optString("country_code"))||!code.matches("[0-9]{6}")||name.trim().isEmpty()||!("city".equals(level)||"district".equals(level)||"street".equals(level))||center==null)continue;
             double lat=center.optDouble("lat",Double.NaN),lon=center.optDouble("lng",Double.NaN);if(!WeatherRegions.coordinates(lat,lon))continue;
-            WeatherRegions.Region local=regions.find(code);
+            WeatherRegions.Region local=regions().find(code);
             boolean street="street".equals(level);
             result.add(new WeatherRegions.Region(street?"point:"+lat+","+lon:code,name,item.optString("province",""),item.optString("city",""),local==null?"":local.parent,"city".equals(level)?1:2,lat,lon,street?"":code,""));
         }
@@ -141,21 +143,24 @@ final class WeatherClient {
         if(!adcode.isEmpty()&&!adcode.equals(response.optString("adcode")))throw new JSONException("Weather region mismatch");
         response.put("provider","uapi");String district=response.optString("district","");if(!district.isEmpty())response.put("city",district);
         if(place!=null){response.put("city",place.name).put("placeCode",place.code);if(place.located())response.put("latitude",place.latitude).put("longitude",place.longitude);}
-        return new WeatherData(response,System.currentTimeMillis(),source);
+        WeatherAtmosphere.uapi(response).write(response);return new WeatherData(response,System.currentTimeMillis(),source);
     }
     private WeatherData openMeteo(WeatherRegions.Region place,String source,boolean chinese)throws IOException,JSONException{
-        JSONObject response=get("openmeteo","/v1/forecast?latitude="+decimal(place.latitude)+"&longitude="+decimal(place.longitude)+"&current=temperature_2m,weather_code,is_day&temperature_unit=celsius&timeformat=unixtime&forecast_days=1&cell_selection=nearest");
+        JSONObject response=get("openmeteo","/v1/forecast?latitude="+decimal(place.latitude)+"&longitude="+decimal(place.longitude)+"&current=temperature_2m,weather_code,is_day,cloud_cover,wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation&temperature_unit=celsius&wind_speed_unit=ms&precipitation_unit=mm&timeformat=unixtime&forecast_days=1&cell_selection=nearest");
         checkPosition(response,"latitude","longitude",place);
         JSONObject current=response.getJSONObject("current"),units=response.getJSONObject("current_units");if(!"°C".equals(units.getString("temperature_2m")))throw new JSONException("Unexpected temperature unit");
         String[] condition=meteoCondition(current.getInt("weather_code"),current.getInt("is_day")==1,chinese);
-        return new WeatherData(normalized(place,"openmeteo").put("weather",condition[0]).put("weather_icon",condition[1]).put("temperature",current.getDouble("temperature_2m")).put("observedAt",current.getLong("time")*1000L),System.currentTimeMillis(),source);
+        JSONObject data=normalized(place,"openmeteo").put("weather",condition[0]).put("weather_icon",condition[1]).put("temperature",current.getDouble("temperature_2m")).put("observedAt",current.getLong("time")*1000L);WeatherAtmosphere.openMeteo(current,units).write(data);
+        return new WeatherData(data,System.currentTimeMillis(),source);
     }
     private WeatherData openWeather(WeatherRegions.Region place,String source,boolean chinese)throws IOException,JSONException{
         JSONObject response=get("openweather","/data/2.5/weather?lat="+decimal(place.latitude)+"&lon="+decimal(place.longitude)+"&units=metric&lang="+(chinese?"zh_cn":"en"));
         checkPosition(response.getJSONObject("coord"),"lat","lon",place);
-        JSONObject condition=response.getJSONArray("weather").getJSONObject(0);int id=condition.getInt("id");String icon=id>=200&&id<300?"302":id>=300&&id<600?"305":id>=600&&id<700?"400":id>=700&&id<800?"501":id==800?(condition.optString("icon").endsWith("n")?"150":"100"):id>800&&id<900?"101":"999";
-        return new WeatherData(normalized(place,"openweather").put("weather",condition.getString("description")).put("weather_icon",icon).put("temperature",response.getJSONObject("main").getDouble("temp")).put("observedAt",response.getLong("dt")*1000L),System.currentTimeMillis(),source);
+        JSONObject condition=response.getJSONArray("weather").getJSONObject(0);int id=condition.getInt("id");String icon=openWeatherIcon(id,condition.optString("icon").endsWith("n"));
+        JSONObject data=normalized(place,"openweather").put("weather",condition.getString("description")).put("weather_icon",icon).put("temperature",response.getJSONObject("main").getDouble("temp")).put("observedAt",response.getLong("dt")*1000L);WeatherAtmosphere.openWeather(response).write(data);
+        return new WeatherData(data,System.currentTimeMillis(),source);
     }
+    static String openWeatherIcon(int id,boolean night){return id>=200&&id<300?"302":id>=300&&id<600?"305":id>=600&&id<700?"400":id>=700&&id<800?"501":id==800?(night?"150":"100"):id==804?"104":id>800&&id<804?"101":"999";}
     private static void checkPosition(JSONObject point,String latKey,String lonKey,WeatherRegions.Region selected)throws JSONException{
         double lat=point.getDouble(latKey),lon=point.getDouble(lonKey);
         if(!WeatherRegions.coordinates(lat,lon)||Math.abs(lat-selected.latitude)>.25||Math.abs(lon-selected.longitude)*Math.cos(Math.toRadians(selected.latitude))>.25)throw new JSONException("Weather coordinate mismatch");

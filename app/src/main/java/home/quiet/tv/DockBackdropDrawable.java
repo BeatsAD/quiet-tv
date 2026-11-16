@@ -11,13 +11,24 @@ final class DockBackdropDrawable extends Drawable {
     private final Background background;
     private final View host,root;
     private final float unit;
-    private final float radius;
+    private float radius;
+    private boolean glass=true;
+    private boolean capsule;
+    private boolean personalized;
     private final boolean card;
     private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);
     private final Path clip=new Path();
+    private final Path outline=new Path();
+    private float outlineWidth;
     private final RectF rect=new RectF();
     private final int[] location=new int[2],origin=new int[2];
-    private Shader tint;
+    private Shader tint,focusTint;
+    private Bitmap capsuleSample;
+    private Canvas capsuleCanvas;
+    private BitmapShader capsuleShader;
+    private final Matrix capsuleMatrix=new Matrix();
+    private final Paint samplePaint=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);
+    private boolean focused,selected;
 
     DockBackdropDrawable(WallpaperController wallpapers,View host,View root,float unit){
         this(wallpapers::drawDockBackground,host,root,unit);
@@ -26,25 +37,67 @@ final class DockBackdropDrawable extends Drawable {
         this(background,host,root,unit,false);
     }
     DockBackdropDrawable(Background background,View host,View root,float unit,boolean card){
-        this.background=background;this.host=host;this.root=root;this.unit=unit;this.card=card;radius=(card?16:22)*unit;
+        this.background=background;this.host=host;this.root=root;this.unit=unit;this.card=card;radius=(card?SurfaceCorners.CARD:SurfaceCorners.PANEL)*unit;
     }
+    DockBackdropDrawable(Background background,View host,View root,float unit,boolean capsule,boolean glass){
+        this(background,host,root,unit,false);this.capsule=capsule;this.glass=glass;personalized=true;
+    }
+    void radiusPixels(float radius){if(this.radius==radius)return;this.radius=radius;onBoundsChange(getBounds());invalidateSelf();}
     @Override protected void onBoundsChange(Rect bounds){
-        rect.set(bounds);clip.reset();clip.addRoundRect(rect,radius,radius,Path.Direction.CW);
-        tint=new LinearGradient(0,bounds.top,0,bounds.bottom,new int[]{0x30e6e8ec,0x202c3038},null,Shader.TileMode.CLAMP);
+        rect.set(bounds);if(capsule)radius=rect.height()/2;else if(card)radius=SurfaceCorners.artworkRadius(rect.width(),rect.height());SurfaceCorners.path(clip,rect,radius);
+        updateOutline();
+        tint=new LinearGradient(0,bounds.top,0,bounds.bottom,personalized?new int[]{0x2e000000,0x4d000000}:new int[]{0x30ffffff,0x20000000},null,Shader.TileMode.CLAMP);
+        if(capsule)focusTint=SettingsFocusDrawable.focusFill(bounds.top,bounds.bottom);
+        if(capsule&&bounds.width()>0&&bounds.height()>0){
+            if(capsuleSample==null||capsuleSample.getWidth()!=bounds.width()||capsuleSample.getHeight()!=bounds.height()){
+                capsuleSample=Bitmap.createBitmap(bounds.width(),bounds.height(),Bitmap.Config.ARGB_8888);
+                capsuleCanvas=new Canvas(capsuleSample);capsuleShader=new BitmapShader(capsuleSample,Shader.TileMode.CLAMP,Shader.TileMode.CLAMP);
+            }
+            capsuleMatrix.setTranslate(bounds.left,bounds.top);capsuleShader.setLocalMatrix(capsuleMatrix);
+        }
+    }
+    boolean capsule(){return capsule;}
+    private void updateOutline(){
+        outlineWidth=card?unit:capsule?(focused?.75f*unit:Math.max(.5f,.5f*unit)):Math.max(1,.5f*unit);
+        RectF edge=new RectF(rect);edge.inset(outlineWidth/2,outlineWidth/2);SurfaceCorners.path(outline,edge,radius-outlineWidth/2);
+    }
+    @Override public boolean isStateful(){return capsule;}
+    @Override protected boolean onStateChange(int[] states){
+        if(!capsule)return false;boolean enabled=false,window=false,active=false,chosen=false;
+        for(int state:states){if(state==android.R.attr.state_enabled)enabled=true;if(state==android.R.attr.state_selected)chosen=true;if(state==android.R.attr.state_window_focused)window=true;if(state==android.R.attr.state_focused||state==android.R.attr.state_activated)active=true;}
+        boolean next=enabled&&window&&active,selection=enabled&&chosen;if(next==focused&&selection==selected)return false;focused=next;selected=selection;updateOutline();invalidateSelf();return true;
     }
     @Override public void draw(Canvas canvas){
+        if(capsule){drawCapsule(canvas);return;}
         paint.setShader(null);paint.setStyle(Paint.Style.FILL);paint.setColor(0x18000000);
-        if(!card){canvas.save();canvas.translate(0,2*unit);canvas.drawRoundRect(rect,radius,radius,paint);canvas.restore();}
+        if(!card){canvas.save();canvas.translate(0,2*unit);canvas.drawPath(clip,paint);canvas.restore();}
         int save=canvas.save();canvas.clipPath(clip);
         host.getLocationOnScreen(location);root.getLocationOnScreen(origin);
         canvas.translate((origin[0]-location[0])/root.getScaleX(),(origin[1]-location[1])/root.getScaleY());
-        background.draw(canvas,paint);
+        if(glass&&!SettingsFocusMotion.reduced())background.draw(canvas,paint);else canvas.drawColor(0xe6000000);
         canvas.restoreToCount(save);
-        paint.setAlpha(255);if(card)paint.setColor(0x1fffffff);else paint.setShader(tint);canvas.drawRoundRect(rect,radius,radius,paint);paint.setShader(null);
-        float stroke=card?unit:Math.max(1,.5f*unit);rect.inset(stroke/2,stroke/2);
-        paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(stroke);paint.setColor(card?0x38ffffff:0x66ffffff);
-        canvas.drawRoundRect(rect,radius-stroke/2,radius-stroke/2,paint);
-        rect.inset(-stroke/2,-stroke/2);paint.setStyle(Paint.Style.FILL);
+        paint.setAlpha(255);if(card)paint.setColor(0x1fffffff);else paint.setShader(tint);canvas.drawPath(clip,paint);paint.setShader(null);
+        paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(outlineWidth);paint.setColor(card?0x38ffffff:personalized?0x4dffffff:0x66ffffff);
+        canvas.drawPath(outline,paint);paint.setStyle(Paint.Style.FILL);
+    }
+    private void drawCapsule(Canvas canvas){
+        if(capsuleSample==null)return;
+        // Composite the wallpaper and tint before applying the circular edge once.
+        // Re-clipping each opaque background pass leaves a dark anti-alias fringe.
+        capsuleCanvas.drawColor(Color.TRANSPARENT,PorterDuff.Mode.CLEAR);
+        int save=capsuleCanvas.save();capsuleCanvas.translate(-rect.left,-rect.top);
+        int backgroundSave=capsuleCanvas.save();host.getLocationOnScreen(location);root.getLocationOnScreen(origin);
+        capsuleCanvas.translate((origin[0]-location[0])/root.getScaleX(),(origin[1]-location[1])/root.getScaleY());
+        samplePaint.setShader(null);samplePaint.setAlpha(255);
+        if(glass&&!SettingsFocusMotion.reduced())background.draw(capsuleCanvas,samplePaint);else capsuleCanvas.drawColor(0xe6000000);
+        capsuleCanvas.restoreToCount(backgroundSave);
+        samplePaint.setAlpha(255);samplePaint.setShader(tint);capsuleCanvas.drawRect(rect,samplePaint);samplePaint.setShader(null);
+        if(focused){samplePaint.setShader(focusTint);capsuleCanvas.drawRect(rect,samplePaint);samplePaint.setShader(null);}
+        else if(selected){samplePaint.setColor(SettingsFocusDrawable.selectedFill());capsuleCanvas.drawRect(rect,samplePaint);}
+        capsuleCanvas.restoreToCount(save);
+        paint.setStyle(Paint.Style.FILL);paint.setAlpha(255);paint.setShader(capsuleShader);canvas.drawPath(clip,paint);paint.setShader(null);
+        paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(outlineWidth);paint.setColor(focused?0xb8ffffff:selected?0x66ffffff:0x36ffffff);
+        canvas.drawPath(outline,paint);paint.setStyle(Paint.Style.FILL);
     }
     @Override public void setAlpha(int alpha){}
     @Override public void setColorFilter(ColorFilter filter){}

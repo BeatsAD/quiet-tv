@@ -10,24 +10,40 @@ final class WeatherStore {
     private final Context context;
     WeatherStore(Context context){this.context=context;preferences=context.getSharedPreferences("weather",0);}
     boolean enabled(){return preferences.getBoolean("enabled",true);}
-    void enabled(boolean value){preferences.edit().putBoolean("enabled",value).apply();}
+    void enabled(boolean value){synchronized(DesktopSettingsStore.MUTATIONS){preferences.edit().putBoolean("enabled",value).apply();}}
+    void savePhoneEnabled(boolean value)throws java.io.IOException{synchronized(DesktopSettingsStore.MUTATIONS){boolean present=preferences.contains("enabled"),old=enabled();if(!preferences.edit().putBoolean("enabled",value).commit()){SharedPreferences.Editor rollback=preferences.edit();if(present)rollback.putBoolean("enabled",old);else rollback.remove("enabled");rollback.commit();throw new java.io.IOException("天气设置保存未确认");}}}
+    void savePhoneSetting(String field,Object value)throws java.io.IOException{synchronized(DesktopSettingsStore.MUTATIONS){
+        SharedPreferences.Editor editor=preferences.edit();
+        try{switch(field){
+            case "weatherEnabled":case "autoLocation":case "meteoFallback":if(!(value instanceof Boolean))throw new IllegalArgumentException();break;
+            default:break;
+        }
+        switch(field){
+            case "weatherEnabled":editor.putBoolean("enabled",(Boolean)value);break;
+            case "provider":if(!(value instanceof String)||!java.util.Arrays.asList("auto","qweather","uapi","openweather","openmeteo").contains(value)||!new WeatherClient(context).available((String)value))throw new IllegalArgumentException();editor.putString("provider",(String)value);break;
+            case "meteoFallback":editor.putBoolean("meteo-fallback",(Boolean)value);break;
+            case "cityCode":if(!(value instanceof String))throw new IllegalArgumentException();WeatherRegions.Region place=WeatherRegions.load(context).find((String)value);if(place==null||place.level==0)throw new IllegalArgumentException();editor.putString("adcode",place.code).putString("city",place.name).putString("place",WeatherRegions.placeJson(place).toString());break;
+            case "autoLocation":if((Boolean)value)editor.remove("adcode").remove("city").remove("place");else{WeatherData current=cached(true);if(current==null)throw new PhoneSettingsServer.Rejected("请先更新电视定位或手动选择城市");WeatherRegions.Region selected=null;if(WeatherRegions.coordinates(current.latitude,current.longitude))selected=new WeatherRegions.Region(current.placeCode.isEmpty()?"point:"+current.latitude+","+current.longitude:current.placeCode,current.city,current.province,"","",2,current.latitude,current.longitude,current.adcode,"");else if(current.adcode.matches("[0-9]{6}"))selected=WeatherRegions.load(context).find(current.adcode);if(selected==null)throw new PhoneSettingsServer.Rejected("定位信息不足，请手动选择城市");editor.putString("adcode",selected.code).putString("city",selected.name).putString("place",WeatherRegions.placeJson(selected).toString());}break;
+            default:throw new IllegalArgumentException();
+        }BootAppStore.commit(preferences,editor);}catch(JSONException e){throw new IllegalArgumentException();}
+    }}
     String adcode(){return preferences.getString("adcode","");}
     String city(){return preferences.getString("city","");}
     boolean automatic(){return adcode().isEmpty();}
-    void automaticMode(){preferences.edit().remove("adcode").remove("city").remove("place").apply();}
-    void select(String adcode,String city){preferences.edit().putString("adcode",adcode).putString("city",city).remove("place").apply();}
-    void select(WeatherRegions.Region place){
+    void automaticMode(){synchronized(DesktopSettingsStore.MUTATIONS){preferences.edit().remove("adcode").remove("city").remove("place").apply();}}
+    void select(String adcode,String city){synchronized(DesktopSettingsStore.MUTATIONS){preferences.edit().putString("adcode",adcode).putString("city",city).remove("place").apply();}}
+    void select(WeatherRegions.Region place){synchronized(DesktopSettingsStore.MUTATIONS){
         try{preferences.edit().putString("adcode",place.code).putString("city",place.name).putString("place",WeatherRegions.placeJson(place).toString()).apply();}
         catch(JSONException e){throw new IllegalArgumentException("Invalid selected place",e);}
-    }
+    }}
     WeatherRegions.Region selected(){
         try{String saved=preferences.getString("place","");if(!saved.isEmpty())return WeatherRegions.readPlace(new JSONObject(saved));}catch(JSONException ignored){}
         return WeatherRegions.load(context).find(adcode());
     }
     String provider(){return preferences.getString("provider","auto");}
-    void provider(String value){preferences.edit().putString("provider",value).apply();}
+    void provider(String value){synchronized(DesktopSettingsStore.MUTATIONS){preferences.edit().putString("provider",value).apply();}}
     boolean meteoFallback(){return preferences.getBoolean("meteo-fallback",false);}
-    void meteoFallback(boolean value){preferences.edit().putBoolean("meteo-fallback",value).apply();}
+    void meteoFallback(boolean value){synchronized(DesktopSettingsStore.MUTATIONS){preferences.edit().putBoolean("meteo-fallback",value).apply();}}
     boolean fixAutomaticCity(boolean chinese){
         WeatherData data=cached(chinese);
         if(data==null)return false;

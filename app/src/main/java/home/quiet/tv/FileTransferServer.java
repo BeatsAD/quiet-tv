@@ -11,7 +11,7 @@ import org.json.*;
 /** One explicit LAN session; only files offered on the TV can be downloaded. */
 final class FileTransferServer extends NanoHTTPD {
     interface Assets {InputStream open(String name)throws IOException;}
-    interface Listener {void progress(long bytes,long expected);void received(FileTransferStore.Entry entry);default void started(){}default void finished(boolean success){}}
+    interface Listener {void progress(long bytes,long expected);void received(FileTransferStore.Entry entry);default void started(){}default void started(String name,long expected){started();}default void finished(boolean success){}}
     private final String host,token,code;
     private final FileTransferStore store;
     private final Assets assets;
@@ -74,7 +74,7 @@ final class FileTransferServer extends NanoHTTPD {
             String name=FileTransferPolicy.name(URLDecoder.decode(encoded,"UTF-8"));
             if(!uploading.compareAndSet(false,true))return error(Response.Status.CONFLICT,"已有文件正在传输，请稍后再试");
             int generation=uploadGeneration.incrementAndGet();long deadline=System.nanoTime()+600000000000L;
-            listener.started();boolean success=false;
+            listener.started(name,length);boolean success=false;
             try{FileTransferStore.Entry entry=store.receive(request.getInputStream(),length,name,()->!closed&&generation==uploadGeneration.get()&&System.nanoTime()<deadline,listener::progress);
                 listener.received(entry);success=true;return newFixedLengthResponse(Response.Status.CREATED,"application/json; charset=utf-8",entry.json().toString());
             }finally{uploading.set(false);listener.finished(success);}

@@ -6,6 +6,7 @@ import org.json.*;
 
 /** Independent, bundled administrative data; never caches QWeather GeoAPI responses. */
 final class WeatherRegions {
+    private static final java.util.regex.Pattern ADCODE=java.util.regex.Pattern.compile("[0-9]{6}");
     private static WeatherRegions bundled;
     static synchronized WeatherRegions load(android.content.Context context){
         if(bundled==null)try(InputStream input=context.getAssets().open("weather/regions.json");InputStream places=context.getAssets().open("weather/places.json")){bundled=new WeatherRegions(input);bundled.addPlaces(places);}
@@ -18,7 +19,7 @@ final class WeatherRegions {
         final double latitude,longitude;
         final String adcode,aliases;
         Region(String code,String name,String province,String city,String parent,int level){
-            this(code,name,province,city,parent,level,Double.NaN,Double.NaN,code.matches("[0-9]{6}")?code:"","");
+            this(code,name,province,city,parent,level,Double.NaN,Double.NaN,ADCODE.matcher(code).matches()?code:"","");
         }
         Region(String code,String name,String province,String city,String parent,int level,double latitude,double longitude,String adcode,String aliases){
             this.code=code;this.name=name;this.province=province;this.city=city;this.parent=parent;this.level=level;
@@ -66,7 +67,7 @@ final class WeatherRegions {
     private static byte[] read(InputStream input)throws IOException{ByteArrayOutputStream out=new ByteArrayOutputStream();byte[] buffer=new byte[4096];int n;while((n=input.read(buffer))!=-1)out.write(buffer,0,n);return out.toByteArray();}
     static Region readPlace(JSONObject json)throws JSONException{
         String code=json.getString("code"),name=json.getString("name"),adcode=json.optString("adcode","");
-        if(code.length()>100||name.trim().isEmpty()||name.length()>120||(!adcode.isEmpty()&&!adcode.matches("[0-9]{6}")))throw new JSONException("Invalid weather place");
+        if(code.length()>100||name.trim().isEmpty()||name.length()>120||(!adcode.isEmpty()&&!ADCODE.matcher(adcode).matches()))throw new JSONException("Invalid weather place");
         double lat=json.optDouble("latitude",Double.NaN),lon=json.optDouble("longitude",Double.NaN);
         if(json.has("latitude")||json.has("longitude")){if(!coordinates(lat,lon))throw new JSONException("Invalid place coordinates");}
         return new Region(code,name,json.optString("province",""),json.optString("city",""),json.optString("parent",""),json.optInt("level",2),lat,lon,adcode,"");

@@ -18,6 +18,10 @@ evidence/
 !/app/src/main/assets/child-rest/forest.webp
 !/app/src/main/assets/child-rest/cloud.webp
 !/app/src/main/assets/child-rest/space.webp
+# Lossless API21+ artwork overlays; original PNGs remain available to Android 4.x.
+!/app/src/standard/res/
+!/app/src/standard/res/drawable-nodpi/
+!/app/src/standard/res/drawable-nodpi/*.webp
 # Historical wallpaper sources stay available; Gradle excludes them from APK assets.
 !/app/src/main/assets/wallpapers/golden-gate-sunset.mp4
 !/app/src/main/assets/wallpapers/golden-gate-sunset.jpg
@@ -49,6 +53,10 @@ __pycache__/
 /management-fixture/
 /scripts/*
 !/scripts/build_apk.py
+!/scripts/build_independent.py
+!/scripts/generate_weather_materials.py
+!/scripts/generate_weather_impostors.py
+!/scripts/weather-materials/
 !/scripts/bundle_about.py
 !/scripts/check_contribution.py
 !/scripts/configure_home_guard.py
@@ -195,6 +203,8 @@ __pycache__/
 !/scripts/device_environment.py
 !/scripts/home_capabilities.py
 !/scripts/collect_letv_home.py
+!/scripts/bluetooth_diagnostics.py
+!/scripts/bundle_diagnostics.py
 
 # Browser client required by the native file-transfer tab.
 !/app/src/main/assets/file-transfer/
@@ -204,3 +214,58 @@ __pycache__/
 !/app/src/main/res/raw/key_move.wav
 !/app/src/main/res/raw/key_confirm.wav
 !/app/src/main/res/raw/key_back.wav
+!/app/src/main/res/raw/key_bell_*.wav
+!/app/src/main/res/raw/key_drop_*.wav
+!/scripts/generate_key_sound_themes.py
+
+# The browser settings page is a bundled production input.
+!/app/src/main/assets/phone-settings/
+!/app/src/main/assets/phone-settings/*
+
+# Native V13 weather and progressive blur production shaders and textures.
+!/app/src/main/assets/weather-gpu/
+!/app/src/main/assets/weather-gpu/*
+!/app/src/main/assets/licenses/open-water-MIT.txt
+!/app/src/main/assets/licenses/quiet-weather-materials-CC0.txt
+
+# Browser transfer page required by desktop backup import and export.
+!/app/src/main/assets/desktop-backup/
+!/app/src/main/assets/desktop-backup/*
+
+# SVG source matching the shared native selection mark.
+!/app/src/main/assets/icons/
+!/app/src/main/assets/icons/selection-check.svg
+
+# Consistent SVG sources for Home header actions and network states.
+!/app/src/main/assets/icons/header-*.svg
+
+!/scripts/workspace_storage.py
+
+# Optional-component production build inputs.
+!/scripts/build_components.py
+!/scripts/build_remote_core.sh
+!/app/src/main/assets/components/
+!/app/src/main/assets/components/public-key.der
+
+/remote-core/*_test.go
+
+!/docs/OPTIONAL_COMPONENTS.md
+!/docs/DESKTOP_SWITCH.md
+
+# Native icon library production index and integration documentation.
+!/app/src/main/assets/icon-library/
+!/app/src/main/assets/icon-library/catalog.json
+!/docs/ICON_LIBRARY.md
+!/scripts/validate_icon_library.py
+
+# Signed online icon metadata; raster artwork is served separately.
+!/scripts/build_icon_library.py
+!/app/src/main/assets/icon-library/online.json
+!/app/src/main/assets/icon-library/public-key.der
+
+# Runtime application identity rules.
+!/app/src/main/assets/icon-library/matches.json
+
+# Production diagnostic source identity generator and usage reference.
+!/scripts/bundle_diagnostics.py
+!/docs/DIAGNOSTICS.md

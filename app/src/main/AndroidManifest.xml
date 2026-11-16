@@ -4,10 +4,14 @@
     <uses-feature android:name="android.software.leanback" android:required="${leanbackRequired}" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-feature android:name="android.hardware.wifi" android:required="false" />
+    <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
     <uses-feature android:name="android.hardware.location.network" android:required="false" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.READ_TV_LISTINGS" />
@@ -28,6 +32,7 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <!-- A HOME and application manager must enumerate installed apps, including those without launcher entries. -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
@@ -46,7 +51,12 @@
         <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.APPSTORE_LAUNCHER" /></intent>
         <intent><action android:name="android.intent.action.VIEW" /><data android:scheme="content" /></intent>
     </queries>
-    <application android:name=".QuietApplication" android:label="Quiet TV" android:theme="@style/AppTheme" android:icon="@drawable/launcher_icon" android:banner="@drawable/launcher_banner" android:allowBackup="false" android:enableOnBackInvokedCallback="true" android:supportsRtl="true">
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+    <application android:name=".QuietApplication" android:label="${quietAppLabel}" android:theme="@style/AppTheme" android:icon="@drawable/launcher_icon" android:banner="@drawable/launcher_banner" android:allowBackup="false" android:enableOnBackInvokedCallback="true" android:supportsRtl="true">
+        <service android:name=".TvRemoteService" android:exported="false" android:foregroundServiceType="connectedDevice" tools:targetApi="26" />
+        <provider android:name=".ComponentProvider" android:authorities="${applicationId}.components" android:exported="true" android:permission="android.permission.DUMP" />
         <activity android:name=".ApkInstallActivity" android:exported="false" android:theme="@android:style/Theme.Translucent.NoTitleBar" />
         <receiver android:name=".ApkInstallReceiver" android:exported="false" />
         <receiver android:name=".UpdateInstallReceiver" android:exported="false" />
@@ -58,6 +68,7 @@
         <activity android:name=".AboutActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".WeatherSettingsActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".DockEditorActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".HomeToolsActivity" android:exported="false" android:excludeFromRecents="true" android:theme="@style/HomeActionsTheme" />
         <activity android:name=".HomeAppActionsActivity" android:exported="false" android:excludeFromRecents="true" android:theme="@style/HomeActionsTheme" />
         <activity android:name=".HomeSortActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".WatchTvActivity" android:exported="false" android:screenOrientation="landscape" />
@@ -125,6 +136,8 @@
         </receiver>
         <activity android:name=".ChildModeActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".ChildBlockActivity" android:exported="false" android:launchMode="singleTop" android:excludeFromRecents="true" android:screenOrientation="landscape" />
+        <activity android:name=".ChildQuizActivity" android:exported="false" android:excludeFromRecents="true" android:screenOrientation="landscape" />
+        <activity android:name=".DesktopRecoveryActivity" android:exported="false" android:excludeFromRecents="true" android:screenOrientation="landscape" />
         <service android:name=".LegacyHomeKeyService" android:exported="true" android:enabled="false"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" android:label="@string/legacy_home_key_name">
             <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>

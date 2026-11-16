@@ -12,6 +12,7 @@ final class UpdateFailure {
         }
         throw error;
     }
+    static final class UnpublishedException extends IOException {}
     static final class HttpException extends IOException {
         final int status;
         HttpException(int status){super("Update HTTP failure");this.status=status;}
@@ -20,11 +21,12 @@ final class UpdateFailure {
         ManifestException(IOException cause){super("Update manifest rejected",cause);}
     }
     static String message(String stage,Throwable error){
-        if("cache".equals(stage))return "更新信息保存失败，请检查电视存储空间后重试";
-        if("key".equals(stage))return "无法读取更新校验信息，请重试";
+        if("cache".equals(stage)){return "更新信息保存失败，请检查电视存储空间后重试";}
+        if("key".equals(stage)){return "无法读取更新校验信息，请重试";}
         String tls=WallpaperTls.failureCode(error);
         if(tls.startsWith("certificate")||tls.startsWith("tls")||tls.equals("peer_verification"))return "安全连接失败，请检查电视时间或系统证书";
         for(int n=0;error!=null&&n<8;n++,error=error.getCause()){
+            if(error instanceof UnpublishedException)return "2.0 更新尚未发布，请稍后检查";
             if(error instanceof ManifestException)return "更新清单校验失败，请稍后重试";
             if(error instanceof SocketTimeoutException)return "检查更新超时，请检查网络后重试";
             if(error instanceof UnknownHostException)return "更新服务地址解析失败，请检查网络";

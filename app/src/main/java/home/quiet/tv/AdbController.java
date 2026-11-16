@@ -33,8 +33,13 @@ final class AdbController implements Closeable {
     private static KeyStore cachedKeys;
     private volatile Stage stage=Stage.IDLE;
     private volatile Failure failure=Failure.NONE;
+    private volatile boolean authorizationRequested,connectionTimedOut;
+    private volatile long authorizationDeadline;
     Stage stage(){return stage;}
     Failure failure(){return failure;}
+    boolean waitingAuthorization(){return stage==Stage.HANDSHAKE&&authorizationRequested;}
+    int authorizationSeconds(){long remaining=authorizationDeadline-android.os.SystemClock.elapsedRealtime();return waitingAuthorization()?(int)Math.max(0,(remaining+999)/1000):0;}
+    boolean connectionTimedOut(){return connectionTimedOut;}
     int generation(){return generation.get();}
     private final CopyOnWriteArrayList<Status> listeners=new CopyOnWriteArrayList<>();
     void addStatusListener(Status listener){listeners.addIfAbsent(listener);}
@@ -50,7 +55,7 @@ final class AdbController implements Closeable {
         if(closed || generation.get()!=attempt){value.close();throw new IOException("连接已取消");}transport=value;
     }
     synchronized int prepare(){
-        disconnect();failure=Failure.NONE;identityDiagnostics="";
+        disconnect();failure=Failure.NONE;identityDiagnostics="";connectionTimedOut=false;authorizationRequested=false;authorizationDeadline=0;
         if(diagnosticAttempt!=null)previousAttempt=diagnosticAttempt.snapshot(android.os.SystemClock.elapsedRealtime());
         diagnosticGeneration=generation.get();
         diagnosticAttempt=new DiagnosticOperation("adb.attempt",System.currentTimeMillis(),android.os.SystemClock.elapsedRealtime(),DiagnosticLog::info);
@@ -115,7 +120,7 @@ final class AdbController implements Closeable {
         connect(port,attempt,true);
     }
     void connect(int port,int attempt,boolean requestAuthorization) throws Exception {
-        try{connectAttempt(port,attempt,requestAuthorization);}catch(Exception failure){failedDiagnostic(attempt,failure);throw failure;}
+        try{connectAttempt(port,attempt,requestAuthorization);}catch(Exception failure){synchronized(this){if(diagnosticGeneration==attempt)connectionTimedOut="TIMEOUT".equals(DiagnosticOperation.failureResult(failure));}failedDiagnostic(attempt,failure);throw failure;}
     }
     private void connectAttempt(int port,int attempt,boolean requestAuthorization) throws Exception {
         if(port<1 || port>65535)throw new IOException("端口必须在 1～65535 之间");
@@ -146,9 +151,14 @@ final class AdbController implements Closeable {
                         .setCertificate(keys.getCertificate("adb")).build();
                 synchronized(this){if(closed || generation.get()!=attempt){c.close();throw new IOException("连接已取消");}connection=c;}
                 if(closed || generation.get()!=attempt)throw new IOException("连接已取消");
-                publish(Stage.HANDSHAKE,requestAuthorization?"正在进行 ADB 握手／等待授权（最多 60 秒）  如出现调试授权弹窗，请选择允许":"正在核对已有 ADB 授权",attempt);
+                synchronized(this){
+                    if(closed || generation.get()!=attempt)throw new IOException("连接已取消");
+                    authorizationRequested=requestAuthorization;authorizationDeadline=android.os.SystemClock.elapsedRealtime()+60000;
+                    publish(Stage.HANDSHAKE,requestAuthorization?"等待电视系统调试授权（最多 60 秒）":"正在核对已有 ADB 授权",attempt);
+                }
                 try{handshake(c,relay,timer,requestAuthorization);}
-                catch(io.github.muntashirakon.adb.AdbAuthenticationFailedException unauthorized){throw new IOException("本机 ADB 尚未授权，请在应用管理中主动连接",unauthorized);}
+                catch(io.github.muntashirakon.adb.AdbAuthenticationFailedException unauthorized){throw new IOException("Quiet TV 尚未获得本机 ADB 授权，请主动连接并在电视系统窗口允许",unauthorized);}
+                synchronized(this){if(generation.get()==attempt)authorizationDeadline=0;}
                 stage="本机身份核对";publish(Stage.LOCAL,"正在核对本机身份",attempt);
                 verifyLocalDevice();
                 stage="ADB 身份核对";publish(Stage.SHELL,"正在核对 ADB shell 身份",attempt);
@@ -280,11 +290,29 @@ final class AdbController implements Closeable {
         if(output.contains("Can't find service")||output.startsWith("Unknown command"))throw new InputAdb.UnsupportedQuery("Input query unsupported");
         return output;
     }
+    String bluetoothDiagnosticShell(String command) throws Exception {
+        if(!bluetoothDiagnosticQuery(command,"")&&!bluetoothDiagnosticQuery(command,DeviceMaintenanceReceiver.original(context)))
+            throw new IllegalArgumentException("Unsupported Bluetooth diagnostic query");
+        String output=shell(command,512*1024,3000);
+        String unavailable=BluetoothDiagnosticEvidence.queryFailure(output);
+        if("permission".equals(unavailable))throw new SecurityException("Bluetooth query restricted");
+        if(!unavailable.isEmpty())throw new IOException("Bluetooth query unsupported");
+        return output;
+    }
+    static boolean bluetoothDiagnosticQuery(String command,String original){
+        if(Arrays.asList("logcat --help","dumpsys bluetooth_manager","dumpsys bluetooth","dumpsys input","dumpsys accessibility",
+                "dumpsys activity services com.android.bluetooth",BluetoothSystemCapture.LOGCAT,BluetoothSystemCapture.LOGCAT_CRASH,BluetoothSystemCapture.LOGCAT_DEFAULT).contains(command))return true;
+        String stock=original.contains("/")?original.substring(0,original.indexOf('/')):"";
+        return stock.matches("[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+")&&(("dumpsys activity services "+stock).equals(command)||("dumpsys package "+stock).equals(command));
+    }
     private String shell(String command,int maximumBytes) throws Exception {
+        return shell(command,maximumBytes,20000);
+    }
+    private String shell(String command,int maximumBytes,int timeoutMs) throws Exception {
         int request=generation.get();AdbConnection c=connection;if(c==null)throw new IOException("需要连接 ADB");
         // A timeout closes the transport. Mutating commands are never automatically retried.
         Closeable active=transport;if(active==null)throw new IOException("ADB 连接已断开，请重新连接");
-        AdbTimeout timeout=new AdbTimeout(timer,active,20000);
+        AdbTimeout timeout=new AdbTimeout(timer,active,timeoutMs);
         String marker="__QUIET_EXIT_"+UUID.randomUUID().toString().replace("-","")+"=";
         // Android 5 toolbox does not provide printf; echo is a shell builtin there.
         String wrapped="( "+command+" ); quiet_result=$?; echo; echo \""+marker+"$quiet_result\"";
@@ -300,7 +328,7 @@ final class AdbController implements Closeable {
                 if(position>=0 && value.substring(position).endsWith("\n"))break;
             }
             timeout.close();
-            if(timeout.expired())throw new SocketTimeoutException("ADB 命令响应超时（20 秒），已关闭本次连接，请重新连接");
+            if(timeout.expired())throw new SocketTimeoutException("ADB 命令响应超时（"+(timeoutMs/1000)+" 秒），已关闭本次连接，请重新连接");
             String value=output.toString("UTF-8");int position=value.lastIndexOf(marker);
             if(position<0){recordIdentityResult(request,command,"incomplete",null,value);recorded=true;throw new IOException("ADB 结果不完整，请重新连接并查询状态");}
             if(generation.get()!=request)throw new IOException("查询已取消，请重新连接");
@@ -313,8 +341,8 @@ final class AdbController implements Closeable {
             timeout.close();
             if(timeout.expired()){
                 finishDiagnostic(request,"TIMEOUT","shell_deadline");
-                DiagnosticLog.info("adb.timeout","stage="+stage+" limit_ms=20000");
-                e=new SocketTimeoutException("ADB 命令响应超时（20 秒），已关闭本次连接，请重新连接");
+                DiagnosticLog.info("adb.timeout","stage="+stage+" limit_ms="+timeoutMs);
+                e=new SocketTimeoutException("ADB 命令响应超时（"+(timeoutMs/1000)+" 秒），已关闭本次连接，请重新连接");
             }
             if(!recorded)recordIdentityResult(request,command,"failed_"+e.getClass().getSimpleName(),null,output.toString("UTF-8"));
             throw e;

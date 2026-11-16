@@ -1,0 +1,9 @@
+// Embed identity from the actual production inputs, including uncommitted local builds.
+def diagnosticAssets = layout.buildDirectory.dir('generated/diagnosticAssets')
+android.sourceSets.main.assets.srcDir(diagnosticAssets)
+def bundleDiagnostics = tasks.register('bundleDiagnostics', Exec) {
+    outputs.dir(diagnosticAssets)
+    outputs.upToDateWhen { false }
+    commandLine 'python3', rootProject.file('scripts/bundle_diagnostics.py'), diagnosticAssets.get().asFile
+}
+tasks.named('preBuild').configure { dependsOn(bundleDiagnostics) }

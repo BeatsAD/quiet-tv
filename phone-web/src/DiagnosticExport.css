@@ -1,0 +1,22 @@
+.diagnostic-export{--diagnostic-surface:var(--soft)}
+.quiet-app[data-theme=light] .diagnostic-export{--diagnostic-surface:#f2f2f7}
+.diagnostic-intro{margin:9px 0 20px;color:var(--muted);font-size:14px;line-height:1.6}
+.diagnostic-export>.setting-section{margin-top:0}
+.diagnostic-export .setting-group{background:var(--diagnostic-surface)}
+.diagnostic-file{min-height:64px!important;gap:12px}
+.diagnostic-file-icon{color:var(--blue);width:22px;height:22px}
+.diagnostic-file-info{flex:1;min-width:0}
+.diagnostic-file-info strong{display:block;font-size:16px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+.diagnostic-file-info small{display:block;margin-top:2px;color:var(--muted);font-size:14px;line-height:1.5;white-space:pre-wrap}
+.diagnostic-status{min-height:52px!important}
+.diagnostic-status .row-title{font-weight:600}
+.diagnostic-state{display:flex;align-items:center;gap:6px;flex:none;color:var(--muted);font-size:14px;white-space:nowrap}
+.diagnostic-state .glyph{width:18px;height:18px}
+.diagnostic-spinner{color:var(--blue);animation:spin 1.2s linear infinite}
+.quiet-app .diagnostic-export .primary-button{min-height:48px;margin:24px 0 0;text-decoration:none}
+.diagnostic-export .primary-button:disabled{background:var(--action)!important;color:white!important}
+.diagnostic-export .primary-button[aria-disabled=true]{background:var(--soft)!important;color:var(--muted)!important;cursor:default}
+.diagnostic-footer{display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;min-height:44px;margin-top:8px}
+.diagnostic-footer .text-action{min-height:44px;font-size:16px!important}
+.diagnostic-footer p{margin:0;color:var(--muted);font-size:14px;text-align:center;line-height:1.6}
+@media(prefers-reduced-motion:reduce){.diagnostic-spinner{animation:none}}

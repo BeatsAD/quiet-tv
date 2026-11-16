@@ -9,6 +9,7 @@ final class ExternalActivityLauncher {
         return dispatch("entry="+entry+" "+DiagnosticLog.intent(intent),()->context.startActivity(intent));
     }
     static boolean dispatch(String detail,Runnable launch){
+        detail="attempt="+DiagnosticOperation.nextId(android.os.SystemClock.elapsedRealtime())+" source=external_entry "+detail;
         DiagnosticLog.info("external_activity.request",detail);
         try{launch.run();}
         catch(RuntimeException failure){DiagnosticLog.error("external_activity.failed",detail,failure);return false;}

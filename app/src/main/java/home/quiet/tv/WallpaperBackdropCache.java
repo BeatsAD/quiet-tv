@@ -8,11 +8,25 @@ import java.io.*;
 /** One bounded, atomically saved cover and its prepared Dock background. */
 final class WallpaperBackdropCache {
     static final int MAX_EDGE=960;
+    private static String preparedKey;
+    private static Picture prepared;
+    private static final Object preparedLock=new Object();
     private final AtomicFile file;
     static final class Picture {
         final Bitmap image,blur;
-        Picture(Bitmap image,Bitmap blur){this.image=image;this.blur=blur;}
+        final boolean fullResolution;
+        Picture(Bitmap image,Bitmap blur){this(image,blur,false);}
+        Picture(Bitmap image,Bitmap blur,boolean fullResolution){this.image=image;this.blur=blur;this.fullResolution=fullResolution;}
     }
+    // One selected image is shared by the settings preview and HOME. Views retain
+    // their own references; replacing this entry must never recycle a visible image.
+    static Picture prepared(String key){synchronized(preparedLock){return key.equals(preparedKey)&&prepared!=null&&!prepared.image.isRecycled()?prepared:null;}}
+    static void prepare(String key,Bitmap image,Bitmap blur,boolean fullResolution){synchronized(preparedLock){
+        if(image==null||image.isRecycled())return;
+        Picture previous=prepared(key);
+        if(previous!=null&&previous.fullResolution&&(!fullResolution||previous.image==image&&previous.blur!=null&&blur==null))return;
+        preparedKey=key;prepared=new Picture(image,blur,fullResolution);
+    }}
     WallpaperBackdropCache(Context context){file=new AtomicFile(new File(context.getFilesDir(),"wallpaper-backdrop"));}
     static String key(WallpaperStore store,String id,int width,int height){return "1|"+store.imageKey(id)+"|"+width+"x"+height;}
     Picture read(String key){synchronized(WallpaperBackdropCache.class){

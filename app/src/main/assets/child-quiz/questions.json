@@ -1,0 +1,1026 @@
+{
+  "format": 1,
+  "version": "2026.11.1",
+  "questions": [
+    {
+      "id": "g1-add20-001",
+      "grade": "一年级",
+      "topic": "20以内加减法",
+      "a": 8,
+      "b": 6,
+      "operation": "+",
+      "prompt": "8 + 6 = ?",
+      "choices": [
+        14,
+        15,
+        12,
+        19
+      ],
+      "answer": 14,
+      "explanation": "把 8 和 6 合起来，一共是 14。"
+    },
+    {
+      "id": "g1-add20-002",
+      "grade": "一年级",
+      "topic": "20以内加减法",
+      "a": 12,
+      "b": 7,
+      "operation": "−",
+      "prompt": "12 − 7 = ?",
+      "choices": [
+        6,
+        3,
+        10,
+        5
+      ],
+      "answer": 5,
+      "explanation": "从 12 里面减去 7，还剩 5。"
+    },
+    {
+      "id": "g1-add20-003",
+      "grade": "一年级",
+      "topic": "20以内加减法",
+      "a": 9,
+      "b": 5,
+      "operation": "+",
+      "prompt": "9 + 5 = ?",
+      "choices": [
+        12,
+        19,
+        14,
+        15
+      ],
+      "answer": 14,
+      "explanation": "把 9 和 5 合起来，一共是 14。"
+    },
+    {
+      "id": "g1-add20-004",
+      "grade": "一年级",
+      "topic": "20以内加减法",
+      "a": 15,
+      "b": 4,
+      "operation": "−",
+      "prompt": "15 − 4 = ?",
+      "choices": [
+        16,
+        11,
+        12,
+        9
+      ],
+      "answer": 11,
+      "explanation": "从 15 里面减去 4，还剩 11。"
+    },
+    {
+      "id": "g1-add20-005",
+      "grade": "一年级",
+      "topic": "20以内加减法",
+      "a": 7,
+      "b": 8,
+      "operation": "+",
+      "prompt": "7 + 8 = ?",
+      "choices": [
+        15,
+        16,
+        13,
+        20
+      ],
+      "answer": 15,
+      "explanation": "把 7 和 8 合起来，一共是 15。"
+    },
+    {
+      "id": "g1-add20-006",
+      "grade": "一年级",
+      "topic": "20以内加减法",
+      "a": 13,
+      "b": 6,
+      "operation": "−",
+      "prompt": "13 − 6 = ?",
+      "choices": [
+        8,
+        5,
+        12,
+        7
+      ],
+      "answer": 7,
+      "explanation": "从 13 里面减去 6，还剩 7。"
+    },
+    {
+      "id": "g1-add20-007",
+      "grade": "一年级",
+      "topic": "20以内加减法",
+      "a": 6,
+      "b": 9,
+      "operation": "+",
+      "prompt": "6 + 9 = ?",
+      "choices": [
+        13,
+        20,
+        15,
+        16
+      ],
+      "answer": 15,
+      "explanation": "把 6 和 9 合起来，一共是 15。"
+    },
+    {
+      "id": "g1-add20-008",
+      "grade": "一年级",
+      "topic": "20以内加减法",
+      "a": 11,
+      "b": 8,
+      "operation": "−",
+      "prompt": "11 − 8 = ?",
+      "choices": [
+        8,
+        3,
+        4,
+        1
+      ],
+      "answer": 3,
+      "explanation": "从 11 里面减去 8，还剩 3。"
+    },
+    {
+      "id": "g1-add20-009",
+      "grade": "一年级",
+      "topic": "20以内加减法",
+      "a": 14,
+      "b": 3,
+      "operation": "−",
+      "prompt": "14 − 3 = ?",
+      "choices": [
+        11,
+        12,
+        9,
+        16
+      ],
+      "answer": 11,
+      "explanation": "从 14 里面减去 3，还剩 11。"
+    },
+    {
+      "id": "g1-add20-010",
+      "grade": "一年级",
+      "topic": "20以内加减法",
+      "a": 5,
+      "b": 7,
+      "operation": "+",
+      "prompt": "5 + 7 = ?",
+      "choices": [
+        13,
+        10,
+        17,
+        12
+      ],
+      "answer": 12,
+      "explanation": "把 5 和 7 合起来，一共是 12。"
+    },
+    {
+      "id": "g1-add20-011",
+      "grade": "一年级",
+      "topic": "20以内加减法",
+      "a": 16,
+      "b": 2,
+      "operation": "−",
+      "prompt": "16 − 2 = ?",
+      "choices": [
+        12,
+        19,
+        14,
+        15
+      ],
+      "answer": 14,
+      "explanation": "从 16 里面减去 2，还剩 14。"
+    },
+    {
+      "id": "g1-add20-012",
+      "grade": "一年级",
+      "topic": "20以内加减法",
+      "a": 10,
+      "b": 9,
+      "operation": "+",
+      "prompt": "10 + 9 = ?",
+      "choices": [
+        24,
+        19,
+        20,
+        17
+      ],
+      "answer": 19,
+      "explanation": "把 10 和 9 合起来，一共是 19。"
+    },
+    {
+      "id": "g2-add100-001",
+      "grade": "二年级",
+      "topic": "100以内加减法",
+      "a": 28,
+      "b": 16,
+      "operation": "+",
+      "prompt": "28 + 16 = ?",
+      "choices": [
+        44,
+        45,
+        42,
+        49
+      ],
+      "answer": 44,
+      "explanation": "把 28 和 16 合起来，一共是 44。"
+    },
+    {
+      "id": "g2-add100-002",
+      "grade": "二年级",
+      "topic": "100以内加减法",
+      "a": 42,
+      "b": 17,
+      "operation": "−",
+      "prompt": "42 − 17 = ?",
+      "choices": [
+        26,
+        23,
+        30,
+        25
+      ],
+      "answer": 25,
+      "explanation": "从 42 里面减去 17，还剩 25。"
+    },
+    {
+      "id": "g2-add100-003",
+      "grade": "二年级",
+      "topic": "100以内加减法",
+      "a": 39,
+      "b": 25,
+      "operation": "+",
+      "prompt": "39 + 25 = ?",
+      "choices": [
+        62,
+        69,
+        64,
+        65
+      ],
+      "answer": 64,
+      "explanation": "把 39 和 25 合起来，一共是 64。"
+    },
+    {
+      "id": "g2-add100-004",
+      "grade": "二年级",
+      "topic": "100以内加减法",
+      "a": 65,
+      "b": 28,
+      "operation": "−",
+      "prompt": "65 − 28 = ?",
+      "choices": [
+        42,
+        37,
+        38,
+        35
+      ],
+      "answer": 37,
+      "explanation": "从 65 里面减去 28，还剩 37。"
+    },
+    {
+      "id": "g2-add100-005",
+      "grade": "二年级",
+      "topic": "100以内加减法",
+      "a": 27,
+      "b": 38,
+      "operation": "+",
+      "prompt": "27 + 38 = ?",
+      "choices": [
+        65,
+        66,
+        63,
+        70
+      ],
+      "answer": 65,
+      "explanation": "把 27 和 38 合起来，一共是 65。"
+    },
+    {
+      "id": "g2-add100-006",
+      "grade": "二年级",
+      "topic": "100以内加减法",
+      "a": 73,
+      "b": 46,
+      "operation": "−",
+      "prompt": "73 − 46 = ?",
+      "choices": [
+        28,
+        25,
+        32,
+        27
+      ],
+      "answer": 27,
+      "explanation": "从 73 里面减去 46，还剩 27。"
+    },
+    {
+      "id": "g2-add100-007",
+      "grade": "二年级",
+      "topic": "100以内加减法",
+      "a": 36,
+      "b": 29,
+      "operation": "+",
+      "prompt": "36 + 29 = ?",
+      "choices": [
+        63,
+        70,
+        65,
+        66
+      ],
+      "answer": 65,
+      "explanation": "把 36 和 29 合起来，一共是 65。"
+    },
+    {
+      "id": "g2-add100-008",
+      "grade": "二年级",
+      "topic": "100以内加减法",
+      "a": 81,
+      "b": 48,
+      "operation": "−",
+      "prompt": "81 − 48 = ?",
+      "choices": [
+        38,
+        33,
+        34,
+        31
+      ],
+      "answer": 33,
+      "explanation": "从 81 里面减去 48，还剩 33。"
+    },
+    {
+      "id": "g2-add100-009",
+      "grade": "二年级",
+      "topic": "100以内加减法",
+      "a": 54,
+      "b": 23,
+      "operation": "−",
+      "prompt": "54 − 23 = ?",
+      "choices": [
+        31,
+        32,
+        29,
+        36
+      ],
+      "answer": 31,
+      "explanation": "从 54 里面减去 23，还剩 31。"
+    },
+    {
+      "id": "g2-add100-010",
+      "grade": "二年级",
+      "topic": "100以内加减法",
+      "a": 45,
+      "b": 27,
+      "operation": "+",
+      "prompt": "45 + 27 = ?",
+      "choices": [
+        73,
+        70,
+        77,
+        72
+      ],
+      "answer": 72,
+      "explanation": "把 45 和 27 合起来，一共是 72。"
+    },
+    {
+      "id": "g2-add100-011",
+      "grade": "二年级",
+      "topic": "100以内加减法",
+      "a": 96,
+      "b": 52,
+      "operation": "−",
+      "prompt": "96 − 52 = ?",
+      "choices": [
+        42,
+        49,
+        44,
+        45
+      ],
+      "answer": 44,
+      "explanation": "从 96 里面减去 52，还剩 44。"
+    },
+    {
+      "id": "g2-add100-012",
+      "grade": "二年级",
+      "topic": "100以内加减法",
+      "a": 50,
+      "b": 39,
+      "operation": "+",
+      "prompt": "50 + 39 = ?",
+      "choices": [
+        94,
+        89,
+        90,
+        87
+      ],
+      "answer": 89,
+      "explanation": "把 50 和 39 合起来，一共是 89。"
+    },
+    {
+      "id": "g2-times-001",
+      "grade": "二年级",
+      "topic": "乘法口诀",
+      "a": 2,
+      "b": 3,
+      "operation": "×",
+      "prompt": "2 × 3 = ?",
+      "choices": [
+        6,
+        7,
+        4,
+        11
+      ],
+      "answer": 6,
+      "explanation": "2 × 3 表示 3 个 2 相加，结果是 6。"
+    },
+    {
+      "id": "g2-times-002",
+      "grade": "二年级",
+      "topic": "乘法口诀",
+      "a": 4,
+      "b": 7,
+      "operation": "×",
+      "prompt": "4 × 7 = ?",
+      "choices": [
+        29,
+        26,
+        33,
+        28
+      ],
+      "answer": 28,
+      "explanation": "4 × 7 表示 7 个 4 相加，结果是 28。"
+    },
+    {
+      "id": "g2-times-003",
+      "grade": "二年级",
+      "topic": "乘法口诀",
+      "a": 6,
+      "b": 8,
+      "operation": "×",
+      "prompt": "6 × 8 = ?",
+      "choices": [
+        46,
+        53,
+        48,
+        49
+      ],
+      "answer": 48,
+      "explanation": "6 × 8 表示 8 个 6 相加，结果是 48。"
+    },
+    {
+      "id": "g2-times-004",
+      "grade": "二年级",
+      "topic": "乘法口诀",
+      "a": 9,
+      "b": 5,
+      "operation": "×",
+      "prompt": "9 × 5 = ?",
+      "choices": [
+        50,
+        45,
+        46,
+        43
+      ],
+      "answer": 45,
+      "explanation": "9 × 5 表示 5 个 9 相加，结果是 45。"
+    },
+    {
+      "id": "g2-times-005",
+      "grade": "二年级",
+      "topic": "乘法口诀",
+      "a": 3,
+      "b": 6,
+      "operation": "×",
+      "prompt": "3 × 6 = ?",
+      "choices": [
+        18,
+        19,
+        16,
+        23
+      ],
+      "answer": 18,
+      "explanation": "3 × 6 表示 6 个 3 相加，结果是 18。"
+    },
+    {
+      "id": "g2-times-006",
+      "grade": "二年级",
+      "topic": "乘法口诀",
+      "a": 8,
+      "b": 4,
+      "operation": "×",
+      "prompt": "8 × 4 = ?",
+      "choices": [
+        33,
+        30,
+        37,
+        32
+      ],
+      "answer": 32,
+      "explanation": "8 × 4 表示 4 个 8 相加，结果是 32。"
+    },
+    {
+      "id": "g2-times-007",
+      "grade": "二年级",
+      "topic": "乘法口诀",
+      "a": 7,
+      "b": 9,
+      "operation": "×",
+      "prompt": "7 × 9 = ?",
+      "choices": [
+        61,
+        68,
+        63,
+        64
+      ],
+      "answer": 63,
+      "explanation": "7 × 9 表示 9 个 7 相加，结果是 63。"
+    },
+    {
+      "id": "g2-times-008",
+      "grade": "二年级",
+      "topic": "乘法口诀",
+      "a": 5,
+      "b": 5,
+      "operation": "×",
+      "prompt": "5 × 5 = ?",
+      "choices": [
+        30,
+        25,
+        26,
+        23
+      ],
+      "answer": 25,
+      "explanation": "5 × 5 表示 5 个 5 相加，结果是 25。"
+    },
+    {
+      "id": "g2-times-009",
+      "grade": "二年级",
+      "topic": "乘法口诀",
+      "a": 6,
+      "b": 6,
+      "operation": "×",
+      "prompt": "6 × 6 = ?",
+      "choices": [
+        36,
+        37,
+        34,
+        41
+      ],
+      "answer": 36,
+      "explanation": "6 × 6 表示 6 个 6 相加，结果是 36。"
+    },
+    {
+      "id": "g2-times-010",
+      "grade": "二年级",
+      "topic": "乘法口诀",
+      "a": 9,
+      "b": 9,
+      "operation": "×",
+      "prompt": "9 × 9 = ?",
+      "choices": [
+        82,
+        79,
+        86,
+        81
+      ],
+      "answer": 81,
+      "explanation": "9 × 9 表示 9 个 9 相加，结果是 81。"
+    },
+    {
+      "id": "g2-times-011",
+      "grade": "二年级",
+      "topic": "乘法口诀",
+      "a": 3,
+      "b": 8,
+      "operation": "×",
+      "prompt": "3 × 8 = ?",
+      "choices": [
+        22,
+        29,
+        24,
+        25
+      ],
+      "answer": 24,
+      "explanation": "3 × 8 表示 8 个 3 相加，结果是 24。"
+    },
+    {
+      "id": "g2-times-012",
+      "grade": "二年级",
+      "topic": "乘法口诀",
+      "a": 7,
+      "b": 4,
+      "operation": "×",
+      "prompt": "7 × 4 = ?",
+      "choices": [
+        33,
+        28,
+        29,
+        26
+      ],
+      "answer": 28,
+      "explanation": "7 × 4 表示 4 个 7 相加，结果是 28。"
+    },
+    {
+      "id": "g3-times-001",
+      "grade": "三年级",
+      "topic": "乘法口诀",
+      "a": 8,
+      "b": 7,
+      "operation": "×",
+      "prompt": "8 × 7 = ?",
+      "choices": [
+        56,
+        57,
+        54,
+        61
+      ],
+      "answer": 56,
+      "explanation": "8 × 7 表示 7 个 8 相加，结果是 56。"
+    },
+    {
+      "id": "g3-times-002",
+      "grade": "三年级",
+      "topic": "乘法口诀",
+      "a": 9,
+      "b": 6,
+      "operation": "×",
+      "prompt": "9 × 6 = ?",
+      "choices": [
+        55,
+        52,
+        59,
+        54
+      ],
+      "answer": 54,
+      "explanation": "9 × 6 表示 6 个 9 相加，结果是 54。"
+    },
+    {
+      "id": "g3-times-003",
+      "grade": "三年级",
+      "topic": "乘法口诀",
+      "a": 7,
+      "b": 7,
+      "operation": "×",
+      "prompt": "7 × 7 = ?",
+      "choices": [
+        47,
+        54,
+        49,
+        50
+      ],
+      "answer": 49,
+      "explanation": "7 × 7 表示 7 个 7 相加，结果是 49。"
+    },
+    {
+      "id": "g3-times-004",
+      "grade": "三年级",
+      "topic": "乘法口诀",
+      "a": 6,
+      "b": 9,
+      "operation": "×",
+      "prompt": "6 × 9 = ?",
+      "choices": [
+        59,
+        54,
+        55,
+        52
+      ],
+      "answer": 54,
+      "explanation": "6 × 9 表示 9 个 6 相加，结果是 54。"
+    },
+    {
+      "id": "g3-times-005",
+      "grade": "三年级",
+      "topic": "乘法口诀",
+      "a": 4,
+      "b": 8,
+      "operation": "×",
+      "prompt": "4 × 8 = ?",
+      "choices": [
+        32,
+        33,
+        30,
+        37
+      ],
+      "answer": 32,
+      "explanation": "4 × 8 表示 8 个 4 相加，结果是 32。"
+    },
+    {
+      "id": "g3-times-006",
+      "grade": "三年级",
+      "topic": "乘法口诀",
+      "a": 5,
+      "b": 9,
+      "operation": "×",
+      "prompt": "5 × 9 = ?",
+      "choices": [
+        46,
+        43,
+        50,
+        45
+      ],
+      "answer": 45,
+      "explanation": "5 × 9 表示 9 个 5 相加，结果是 45。"
+    },
+    {
+      "id": "g3-times-007",
+      "grade": "三年级",
+      "topic": "乘法口诀",
+      "a": 3,
+      "b": 7,
+      "operation": "×",
+      "prompt": "3 × 7 = ?",
+      "choices": [
+        19,
+        26,
+        21,
+        22
+      ],
+      "answer": 21,
+      "explanation": "3 × 7 表示 7 个 3 相加，结果是 21。"
+    },
+    {
+      "id": "g3-times-008",
+      "grade": "三年级",
+      "topic": "乘法口诀",
+      "a": 8,
+      "b": 8,
+      "operation": "×",
+      "prompt": "8 × 8 = ?",
+      "choices": [
+        69,
+        64,
+        65,
+        62
+      ],
+      "answer": 64,
+      "explanation": "8 × 8 表示 8 个 8 相加，结果是 64。"
+    },
+    {
+      "id": "g3-times-009",
+      "grade": "三年级",
+      "topic": "乘法口诀",
+      "a": 9,
+      "b": 4,
+      "operation": "×",
+      "prompt": "9 × 4 = ?",
+      "choices": [
+        36,
+        37,
+        34,
+        41
+      ],
+      "answer": 36,
+      "explanation": "9 × 4 表示 4 个 9 相加，结果是 36。"
+    },
+    {
+      "id": "g3-times-010",
+      "grade": "三年级",
+      "topic": "乘法口诀",
+      "a": 6,
+      "b": 7,
+      "operation": "×",
+      "prompt": "6 × 7 = ?",
+      "choices": [
+        43,
+        40,
+        47,
+        42
+      ],
+      "answer": 42,
+      "explanation": "6 × 7 表示 7 个 6 相加，结果是 42。"
+    },
+    {
+      "id": "g3-times-011",
+      "grade": "三年级",
+      "topic": "乘法口诀",
+      "a": 5,
+      "b": 8,
+      "operation": "×",
+      "prompt": "5 × 8 = ?",
+      "choices": [
+        38,
+        45,
+        40,
+        41
+      ],
+      "answer": 40,
+      "explanation": "5 × 8 表示 8 个 5 相加，结果是 40。"
+    },
+    {
+      "id": "g3-times-012",
+      "grade": "三年级",
+      "topic": "乘法口诀",
+      "a": 9,
+      "b": 9,
+      "operation": "×",
+      "prompt": "9 × 9 = ?",
+      "choices": [
+        86,
+        81,
+        82,
+        79
+      ],
+      "answer": 81,
+      "explanation": "9 × 9 表示 9 个 9 相加，结果是 81。"
+    },
+    {
+      "id": "g3-two-digit-001",
+      "grade": "三年级",
+      "topic": "两位数乘法",
+      "a": 12,
+      "b": 13,
+      "operation": "×",
+      "prompt": "12 × 13 = ?",
+      "choices": [
+        156,
+        157,
+        154,
+        161
+      ],
+      "answer": 156,
+      "explanation": "12 × 13 表示 13 个 12 相加，结果是 156。"
+    },
+    {
+      "id": "g3-two-digit-002",
+      "grade": "三年级",
+      "topic": "两位数乘法",
+      "a": 14,
+      "b": 12,
+      "operation": "×",
+      "prompt": "14 × 12 = ?",
+      "choices": [
+        169,
+        166,
+        173,
+        168
+      ],
+      "answer": 168,
+      "explanation": "14 × 12 表示 12 个 14 相加，结果是 168。"
+    },
+    {
+      "id": "g3-two-digit-003",
+      "grade": "三年级",
+      "topic": "两位数乘法",
+      "a": 21,
+      "b": 15,
+      "operation": "×",
+      "prompt": "21 × 15 = ?",
+      "choices": [
+        313,
+        320,
+        315,
+        316
+      ],
+      "answer": 315,
+      "explanation": "21 × 15 表示 15 个 21 相加，结果是 315。"
+    },
+    {
+      "id": "g3-two-digit-004",
+      "grade": "三年级",
+      "topic": "两位数乘法",
+      "a": 23,
+      "b": 14,
+      "operation": "×",
+      "prompt": "23 × 14 = ?",
+      "choices": [
+        327,
+        322,
+        323,
+        320
+      ],
+      "answer": 322,
+      "explanation": "23 × 14 表示 14 个 23 相加，结果是 322。"
+    },
+    {
+      "id": "g3-two-digit-005",
+      "grade": "三年级",
+      "topic": "两位数乘法",
+      "a": 16,
+      "b": 12,
+      "operation": "×",
+      "prompt": "16 × 12 = ?",
+      "choices": [
+        192,
+        193,
+        190,
+        197
+      ],
+      "answer": 192,
+      "explanation": "16 × 12 表示 12 个 16 相加，结果是 192。"
+    },
+    {
+      "id": "g3-two-digit-006",
+      "grade": "三年级",
+      "topic": "两位数乘法",
+      "a": 25,
+      "b": 13,
+      "operation": "×",
+      "prompt": "25 × 13 = ?",
+      "choices": [
+        326,
+        323,
+        330,
+        325
+      ],
+      "answer": 325,
+      "explanation": "25 × 13 表示 13 个 25 相加，结果是 325。"
+    },
+    {
+      "id": "g3-two-digit-007",
+      "grade": "三年级",
+      "topic": "两位数乘法",
+      "a": 32,
+      "b": 11,
+      "operation": "×",
+      "prompt": "32 × 11 = ?",
+      "choices": [
+        350,
+        357,
+        352,
+        353
+      ],
+      "answer": 352,
+      "explanation": "32 × 11 表示 11 个 32 相加，结果是 352。"
+    },
+    {
+      "id": "g3-two-digit-008",
+      "grade": "三年级",
+      "topic": "两位数乘法",
+      "a": 18,
+      "b": 15,
+      "operation": "×",
+      "prompt": "18 × 15 = ?",
+      "choices": [
+        275,
+        270,
+        271,
+        268
+      ],
+      "answer": 270,
+      "explanation": "18 × 15 表示 15 个 18 相加，结果是 270。"
+    },
+    {
+      "id": "g3-two-digit-009",
+      "grade": "三年级",
+      "topic": "两位数乘法",
+      "a": 24,
+      "b": 21,
+      "operation": "×",
+      "prompt": "24 × 21 = ?",
+      "choices": [
+        504,
+        505,
+        502,
+        509
+      ],
+      "answer": 504,
+      "explanation": "24 × 21 表示 21 个 24 相加，结果是 504。"
+    },
+    {
+      "id": "g3-two-digit-010",
+      "grade": "三年级",
+      "topic": "两位数乘法",
+      "a": 31,
+      "b": 12,
+      "operation": "×",
+      "prompt": "31 × 12 = ?",
+      "choices": [
+        373,
+        370,
+        377,
+        372
+      ],
+      "answer": 372,
+      "explanation": "31 × 12 表示 12 个 31 相加，结果是 372。"
+    },
+    {
+      "id": "g3-two-digit-011",
+      "grade": "三年级",
+      "topic": "两位数乘法",
+      "a": 22,
+      "b": 23,
+      "operation": "×",
+      "prompt": "22 × 23 = ?",
+      "choices": [
+        504,
+        511,
+        506,
+        507
+      ],
+      "answer": 506,
+      "explanation": "22 × 23 表示 23 个 22 相加，结果是 506。"
+    },
+    {
+      "id": "g3-two-digit-012",
+      "grade": "三年级",
+      "topic": "两位数乘法",
+      "a": 34,
+      "b": 21,
+      "operation": "×",
+      "prompt": "34 × 21 = ?",
+      "choices": [
+        719,
+        714,
+        715,
+        712
+      ],
+      "answer": 714,
+      "explanation": "34 × 21 表示 21 个 34 相加，结果是 714。"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Pre-rendered from docs/assets/quiet-tv-icon.svg and the bundled Outfit font. -->
+<!-- Use the approved 16:9 artwork directly, preserving its composition and padding. -->
 <bitmap xmlns:android="http://schemas.android.com/apk/res/android"
-    android:src="@drawable/quiet_tv_banner"
+    android:src="@drawable/quiettv_launcher_banner"
     android:gravity="fill"
     android:filter="true" />

@@ -23,12 +23,16 @@ final class KeyFeedback {
         if(roots.containsKey(root))return;
         Navigation navigation=new Navigation();roots.put(root,navigation);root.setSoundEffectsEnabled(false);
         root.getViewTreeObserver().addOnGlobalFocusChangeListener((before,after)->{
+            InputDiagnostics.focusChanged(root,before,after,navigation.pending);
             if(after!=null)after.setSoundEffectsEnabled(false);
             if(navigation.pending&&before!=after&&after!=null&&after.hasWindowFocus())KeySounds.play(after.getContext(),KeySoundPolicy.MOVE);
         });
     }
     static boolean dispatch(View root,KeyEvent key,Dispatch next){
         if(input!=null&&input.key==key)return next.run();
+        return InputDiagnostics.window(root,key,"window",()->dispatchFeedback(root,key,next));
+    }
+    private static boolean dispatchFeedback(View root,KeyEvent key,Dispatch next){
         attach(root);View focus=root.findFocus();if(focus!=null)focus.setSoundEffectsEnabled(false);
         Navigation navigation=roots.get(root);
         if(direction(key.getKeyCode())&&key.getAction()==KeyEvent.ACTION_DOWN){
@@ -69,11 +73,13 @@ final class KeyFeedback {
         dialog.setOnCancelListener(d->KeySounds.play(dialog.getContext(),KeySoundPolicy.BACK));
     }
     static class Alert extends android.app.AlertDialog {
+        @Override public boolean dispatchGenericMotionEvent(MotionEvent event){InputDiagnostics.motion(event);return super.dispatchGenericMotionEvent(event);}
         Alert(Context context){super(context);setOnCancelListener(d->KeySounds.play(context,KeySoundPolicy.BACK));}
         @Override protected void onCreate(Bundle state){super.onCreate(state);getWindow().setWindowAnimations(R.style.QuietDialogAnimation);attach(getWindow().getDecorView());}
         @Override public boolean dispatchKeyEvent(KeyEvent key){return dispatch(getWindow().getDecorView(),key,()->super.dispatchKeyEvent(key));}
     }
     static class Dialog extends android.app.Dialog {
+        @Override public boolean dispatchGenericMotionEvent(MotionEvent event){InputDiagnostics.motion(event);return super.dispatchGenericMotionEvent(event);}
         Dialog(Context context){super(context);setOnCancelListener(d->KeySounds.play(context,KeySoundPolicy.BACK));}
         @Override protected void onCreate(Bundle state){super.onCreate(state);getWindow().setWindowAnimations(R.style.QuietDialogAnimation);attach(getWindow().getDecorView());}
         @Override public boolean dispatchKeyEvent(KeyEvent key){return dispatch(getWindow().getDecorView(),key,()->super.dispatchKeyEvent(key));}

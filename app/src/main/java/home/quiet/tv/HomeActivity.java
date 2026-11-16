@@ -33,13 +33,23 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private static final String MANAGEMENT_ENTRY = HomeAppCatalog.MANAGEMENT;
     private static final String ADD_DOCK_ENTRY = "quiet:add-dock";
     static final int APP_COLUMNS = 5;
+    static int gridColumns(String size,String shape){return "rectangle".equals(shape)?("small".equals(size)?6:"large".equals(size)?4:5):7;}
+    private int appColumns=APP_COLUMNS;
+    private PhoneSettingsServer.Active phoneActionAuthority;private String phoneWeatherKey="";
+    private String appearanceKey="",pendingHomeAction="",quickReturn="",pendingButtonFocus="",pendingAppFocus="";
+    private boolean pendingDockFocus;
+    private int dockLimit=5;
+    private Integer brightnessDraft;
+    private String phoneWallpaperKey="";
+    private final Runnable phoneConfiguration=this::phoneConfigurationChanged;
+    private static java.lang.ref.WeakReference<HomeActivity> liveHome=new java.lang.ref.WeakReference<>(null);
     private static final float CONTENT_MARGIN = 48;
     // The complete first screen scrolls as one item; preserve its original composition.
     private static final float HOME_HEADER_HEIGHT = 540;
     private static final float HOME_TITLE_TOP = 314, HOME_DOCK_TOP = 386;
     private static final float APP_TOP = 24, APP_TITLE_HEIGHT = APP_TOP;
     private static final float APP_GAP = 16, APP_LABEL_GAP = 6, APP_LABEL_HEIGHT = 20;
-    private static final float FOCUS_SCALE = 1.065f, FOCUS_STROKE = 3;
+    private static final float FOCUS_SCALE = 1.065f, FOCUS_STROKE = 2;
     // A critically damped spring settles without bouncing past the target.
     private static final android.animation.TimeInterpolator FOCUS_MOTION = t -> (float)((1-(1+8*t)*Math.exp(-8*t))/(1-9*Math.exp(-8)));
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -51,7 +61,12 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private final ArrayList<TextView> visiblePills = new ArrayList<>();
     private final HashMap<String,App> artworkCache = new HashMap<>();
     private final HomeCatalogRefresh catalogRefresh=new HomeCatalogRefresh();
-    private long packageRevision;
+    private volatile long packageRevision;
+    private volatile long previewCatalogRevision=-1;
+    private volatile Map<String,App> previewCatalog=Collections.emptyMap();
+    private Map<String,?> appliedDesktopValues=Collections.emptyMap();
+    private String dockGeometryKey="";private DockLayout[] dockGeometries;
+    private DockLayout renderedDockGeometry;
     private int catalogSequence,focusGeneration,hdmiLaunchGeneration;
     private ViewTreeObserver.OnPreDrawListener focusRestore;
     private boolean waitingForUnlock,unlockRecreateRequested;
@@ -74,6 +89,9 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private int saverRow,saverColumn,saverTop,saverRestoreColumn;
     private String saverPackage="";
     private HomeHeaderView homeHeader;
+    private volatile HomeQuickControlOverlay quickControls;
+    private boolean quickControlsOpening,quickDesktopSwitching;
+    private Bundle restoredQuickControls;
     private TextView weatherText;
     private DesktopSettingsStore desktopSettings;
     private View timeRow, topButtons;
@@ -122,15 +140,13 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private ArrayList<String> moveDefaults;
     private HomeCatalogRefresh.Input moveInput;
     private final Runnable confirmHold=()->{
-        if(screensaverAllowed()&&heldPackage.equals("system:"+topEntry())&&("settings".equals(topEntry())||"network".equals(topEntry()))&&!confirmLong){
-            boolean network="network".equals(topEntry());confirmLong=true;cancelConfirm();visiblePills.get(topColumn).setPressed(false);showSettingsTest(network?Settings.ACTION_WIFI_SETTINGS:Settings.ACTION_SETTINGS);return;
-        }
+        if(screensaverAllowed()&&row<0&&heldPackage.equals("button:"+topEntry())&&!confirmLong){confirmLong=true;String id=topEntry();cancelConfirm();visiblePills.get(topColumn).setPressed(false);if(!"settings".equals(id))openHomeTools(true,id);return;}
         App app=currentApp();
         if(screensaverAllowed()&&app!=null&&app.pkg.equals(heldPackage)&&!confirmLong){confirmLong=true;cancelConfirm();pressDock(false);openAppActions(app);}
     };
     private JSONObject config;
     private final BroadcastReceiver timeReceiver = new BroadcastReceiver() {
-        @Override public void onReceive(Context c, Intent i) { if(Intent.ACTION_SCREEN_OFF.equals(i.getAction())){cancelInputWork();return;}updateClock();if(screensaver!=null)screensaver.timeChanged();if(wallpapers!=null)wallpapers.environmentChanged(); }
+        @Override public void onReceive(Context c, Intent i) { if(Intent.ACTION_SCREEN_OFF.equals(i.getAction())){homeHeader.clockActive(false);cancelInputWork();return;}if(Intent.ACTION_SCREEN_ON.equals(i.getAction()))homeHeader.clockActive(resumed);updateClock();if(screensaver!=null)screensaver.timeChanged();if(wallpapers!=null)wallpapers.environmentChanged(); }
     };
     private final BroadcastReceiver packageReceiver = new BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) {
@@ -147,7 +163,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private String tr(String zh, String en) { return chinese ? zh : en; }
 
     @Override public void onCreate(Bundle state) {
-        super.onCreate(state);InputDiagnostics.home(this,isHomeIntent(getIntent()),"create");BackNavigation.install(this,this::handleBack);
+        super.onCreate(state);if(state!=null){quickReturn=state.getString("quick-return","");pendingHomeAction=state.getString("quick-pending","");pendingButtonFocus=state.getString("button-pending-focus","");pendingAppFocus=state.getString("app-pending-focus","");pendingDockFocus=state.getBoolean("quick-return-dock");restoredQuickControls=state.getBundle("inline-quick-controls");}InputDiagnostics.home(this,isHomeIntent(getIntent()),"create");BackNavigation.install(this,this::handleBack);
         unit = getResources().getDisplayMetrics().widthPixels / 960f;
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN
                 | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
@@ -162,6 +178,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             androidx.core.content.ContextCompat.registerReceiver(this,unlockReceiver,new IntentFilter(Intent.ACTION_USER_UNLOCKED),androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
             resumeAfterUnlock();return;
         }
+        ChildMobileServer.restore(this);
         LegacyHomeKeyService.prepare(this);
         try {
             config = new JSONObject(readAsset("launcher.json"));
@@ -211,8 +228,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     private GradientDrawable surface(int color, float radius) {
-        GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                new int[]{color, Color.argb(Color.alpha(color), Math.max(0,Color.red(color)-5), Math.max(0,Color.green(color)-5), Math.max(0,Color.blue(color)-5))});
+        GradientDrawable bg = new SurfaceDrawable(unit,GradientDrawable.Orientation.TL_BR,
+                new int[]{color, Color.argb(Math.round(Color.alpha(color)*.9f),Color.red(color),Color.green(color),Color.blue(color))});
         bg.setCornerRadius(px(radius)); return bg;
     }
 
@@ -247,17 +264,22 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         });
         setContentView(root);
         wallpapers = new WallpaperController(this, root, unit, chinese);
+        wallpapers.observeBackdrop(()->{if(homeHeader!=null)homeHeader.movie(wallpapers.displayedMovie());if(quickControls!=null)quickControls.refreshBackdrop();});
         list = new RecyclerView(this){
             @Override public void draw(Canvas canvas){int save=canvas.save();canvas.clipRect(0,0,getWidth(),getHeight());super.draw(canvas);canvas.restoreToCount(save);}
         };
-        list.setClipChildren(true); list.setClipToPadding(false);
+        list.setClipChildren(false); list.setClipToPadding(false);
         list.setOverScrollMode(View.OVER_SCROLL_NEVER); list.setItemAnimator(null);
         list.setVerticalScrollBarEnabled(false); list.setHorizontalScrollBarEnabled(false);
         list.setFocusable(false); list.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
         list.setPadding(px(CONTENT_MARGIN),0,px(CONTENT_MARGIN),px(8));
-        layout = new GridLayoutManager(this,APP_COLUMNS);
+        // The inline panel shares HOME's window; its focus must not scroll the background.
+        layout = new GridLayoutManager(this,appColumns){
+            @Override public boolean onRequestChildFocus(RecyclerView parent,RecyclerView.State state,View child,View focused){return quickControlsOpening||quickControls!=null||super.onRequestChildFocus(parent,state,child,focused);}
+            @Override public boolean requestChildRectangleOnScreen(RecyclerView parent,View child,Rect rect,boolean immediate,boolean focusedChildVisible){return !quickControlsOpening&&quickControls==null&&super.requestChildRectangleOnScreen(parent,child,rect,immediate,focusedChildVisible);}
+        };
         layout.setSpanSizeLookup(new GridLayoutManager.SpanSizeLookup() {
-            @Override public int getSpanSize(int position) { return position < 2 ? APP_COLUMNS : 1; }
+            @Override public int getSpanSize(int position) { return position < 2 ? appColumns : 1; }
         });
         list.setLayoutManager(layout);
         root.addView(list,new FrameLayout.LayoutParams(-1,-1));
@@ -269,57 +291,55 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             }
         });
         list.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->updateWallpaperBlur());
-        homeHeader=new HomeHeaderView(this,unit,chinese,outfit);
+        homeHeader=new HomeHeaderView(this,unit,chinese,outfit);liveHome=new java.lang.ref.WeakReference<>(this);PhoneSettingsSession.get(this).observeConfiguration(phoneConfiguration);
         greeting=homeHeader.greeting;weatherText=homeHeader.weather;clock=homeHeader.clock;date=homeHeader.date;timeRow=homeHeader.timeRow;topButtons=homeHeader.buttons;
-        pills.addAll(homeHeader.pills);inputButton=pills.get(0);network=pills.get(1);
-        inputButton.setOnClickListener(v->KeyFeedback.clicked(v,this::showInputs));network.setOnClickListener(v->KeyFeedback.clicked(v,()->openSettings(Settings.ACTION_WIFI_SETTINGS)));pills.get(2).setOnClickListener(v->KeyFeedback.clicked(v,()->openSettings(Settings.ACTION_SETTINGS)));
-        pills.get(2).setOnLongClickListener(v->{showSettingsTest(Settings.ACTION_SETTINGS);return true;});
-        network.setOnLongClickListener(v->{showSettingsTest(Settings.ACTION_WIFI_SETTINGS);return true;});
-        weather=new WeatherController(this,chinese,(data,message,loading)->{homeHeader.weather(data);if(screensaver!=null)screensaver.weatherChanged(data);});
+        homeHeader.buttonBackdrop(wallpapers::drawDockBackground,root);pills.addAll(homeHeader.pills);for(int i=0;i<pills.size();i++){final int index=i;TextView pill=pills.get(i);pill.setOnClickListener(v->KeyFeedback.clicked(v,()->{if(index<homeHeader.buttonIds.size())executeHomeButton(homeHeader.buttonIds.get(index));}));pill.setOnLongClickListener(v->{if(index<homeHeader.buttonIds.size()&&!"settings".equals(homeHeader.buttonIds.get(index)))openHomeTools(true,homeHeader.buttonIds.get(index));return true;});}
+        weather=new WeatherController(this,chinese,(data,message,loading)->{homeHeader.weather(data);wallpapers.weatherChanged();if(screensaver!=null)screensaver.weatherChanged(data);});
         appAdapter=new AppAdapter();list.setAdapter(appAdapter);
         applyDesktopSettings();updateClock(); updateNetwork();
         screensaver=new ScreensaverController(this,root,wallpapers,unit,chinese,new ScreensaverController.Host(){
             @Override public boolean allowed(){return screensaverAllowed();}
             @Override public void captureFocus(){cancelConfirm();cancelFocusRestore("screensaver");if(scrollAnimation!=null)scrollAnimation.cancel();list.stopScroll();saverRow=row;saverColumn=column;saverTop=topColumn;saverRestoreColumn=restoreColumn;saverPackage=activePackage;}
-            @Override public void restoreFocus(){row=Math.min(saverRow,gridRows());if(row<0&&!rightButtonsVisible)row=0;column=Math.max(0,Math.min(saverColumn,maxColumn(row)));topColumn=Math.min(saverTop,Math.max(0,visiblePills.size()-1));restoreColumn=saverRestoreColumn;activePackage=saverPackage;focusCurrent(false);}
+            @Override public void restoreFocus(){row=Math.min(saverRow,gridRows());if(row<0&&!rightButtonsVisible)row=0;column=Math.max(0,Math.min(saverColumn,maxColumn(row)));topColumn=Math.min(saverTop,Math.max(0,visiblePills.size()-1));restoreColumn=saverRestoreColumn;activePackage=saverPackage;focusCurrent(false);main.post(HomeActivity.this::returnToQuick);}
             @Override public void desktopVisible(boolean visible){list.setVisibility(visible?View.VISIBLE:View.INVISIBLE);}
             @Override public void weatherDemand(boolean enabled){weather.screensaverWeather(enabled);}
         });
     }
 
-    private void applyDesktopSettings(){
+    private void applyDesktopSettings(){applyDesktopSettings(true);}
+    private void applyDesktopSettings(boolean restoreFocus){
+        appliedDesktopValues=new HashMap<>(getSharedPreferences("desktop-settings",0).getAll());
         updateWallpaperBlur();
         homeHeader.apply();
         boolean showApps=desktopSettings.showHomeApps();
         if(homeAppsVisible!=showApps){homeAppsVisible=showApps;row=0;column=0;activePackage="";}
-        if(heroTitle!=null)heroTitle.setVisibility(homeAppsVisible&&desktopSettings.showAppTitle()?View.VISIBLE:View.GONE);
+        updateHeroTitle();
         applyDockAppearance();
-        TextView previous=visiblePills.isEmpty()?null:visiblePills.get(topColumn);
-        boolean[] shown={desktopSettings.showInput(),desktopSettings.showNetwork(),desktopSettings.showSettings()};
-        visiblePills.clear();
-        for(int i=0;i<pills.size();i++){
-            TextView pill=pills.get(i);pill.setVisibility(shown[i]?View.VISIBLE:View.GONE);
-            if(shown[i])visiblePills.add(pill);
-        }
+        TextView previous=visiblePills.isEmpty()?null:visiblePills.get(Math.min(topColumn,visiblePills.size()-1));visiblePills.clear();network=null;inputButton=null;
+        for(int i=0;i<homeHeader.buttonIds.size();i++){TextView pill=pills.get(i);visiblePills.add(pill);String id=homeHeader.buttonIds.get(i);if("network".equals(id))network=pill;if("source".equals(id))inputButton=pill;}
+        int nextLimit=desktopSettings.appearance("dock-limit");if(nextLimit!=dockLimit&&row==0)activePackage="";dockLimit=nextLimit;
+        String nextAppearance=desktopSettings.iconSize()+desktopSettings.iconShape()+":"+desktopSettings.appearance("dock-scale")+":"+desktopSettings.dockGlass()+desktopSettings.dockMagnify()+desktopSettings.appearance("dock-magnification")+desktopSettings.appTitlePosition();
+        if(!appearanceKey.equals(nextAppearance)){appearanceKey=nextAppearance;appColumns=gridColumns(desktopSettings.iconSize(),desktopSettings.iconShape());layout.setSpanCount(appColumns);if(row>0&&!activePackage.isEmpty())for(int i=0;i<apps.size();i++)if(activePackage.equals(apps.get(i).pkg)){row=1+i/appColumns;column=i%appColumns;break;}if(appAdapter!=null)appAdapter.notifyDataSetChanged();}
         int restored=visiblePills.indexOf(previous);
         topColumn=restored>=0?restored:Math.max(0,Math.min(topColumn,visiblePills.size()-1));
         rightButtonsVisible=!visiblePills.isEmpty();
         topButtons.setVisibility(rightButtonsVisible?View.VISIBLE:View.GONE);
         if(!rightButtonsVisible && row<0){row=0;column=Math.min(restoreColumn,maxColumn(0));}
-        if(ready)focusCurrent(false);
+        for(Tile tile:visibleTiles.values())if(tile.showLabel)tile.invalidate();
+        if(restoreFocus&&ready&&resumed)focusCurrent(false);
     }
 
     private void updateWallpaperBlur(){
         View header=layout.findViewByPosition(0);
         float progress=header==null?(layout.findFirstVisibleItemPosition()>0||row>0?1:0):Math.max(0,Math.min(1,-header.getTop()/(float)px(HOME_HEADER_HEIGHT)));
         int home=desktopSettings.homeWallpaperBlur(),second=desktopSettings.secondWallpaperBlur();
-        int homeBrightness=desktopSettings.homeWallpaperBrightness(),secondBrightness=desktopSettings.secondWallpaperBrightness();
+        int homeBrightness=brightnessDraft==null?desktopSettings.homeWallpaperBrightness():brightnessDraft,secondBrightness=desktopSettings.secondWallpaperBrightness();
         int homeFade=desktopSettings.homeWallpaperFade(),secondFade=desktopSettings.secondWallpaperFade();
-        wallpapers.setDesktopEffects(home,second,progress,Math.round(homeBrightness+(secondBrightness-homeBrightness)*progress),Math.round(homeFade+(secondFade-homeFade)*progress));
+        wallpapers.setDesktopEffects(home,second,progress,Math.round(homeBrightness+(secondBrightness-homeBrightness)*progress),Math.round(homeFade+(secondFade-homeFade)*progress));if(weather!=null)weather.wallpaperWeather(WallpaperGpuSupport.available(this)&&WallpaperStore.get(this).weatherEnabled());
     }
 
-    private void setPillIcon(TextView pill,int resource){if(networkIcon!=resource){homeHeader.setPillIcon(pill,resource);networkIcon=resource;}}
-    private void updateClock(){homeHeader.updateClock(fixedGreeting);}
+    private void setPillIcon(TextView pill,int resource){homeHeader.setPillIcon(pill,resource);networkIcon=resource;}
+    private void updateClock(){homeHeader.updateClock(fixedGreeting);homeHeader.movie(wallpapers.displayedMovie());}
 
     private void scheduleHomeUpdate(){
         if(!resumed || !ready || !homeReadyDrawn)return;
@@ -329,7 +349,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private void updateNetwork() {
         scheduleHomeUpdate();
         if(wallpapers!=null)wallpapers.environmentChanged();
-        if(network.getVisibility()!=View.VISIBLE)return;
+        if(network==null||network.getVisibility()!=View.VISIBLE)return;
         ConnectivityManager cm=(ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE);
         boolean ethernet,wifi;
         if(Build.VERSION.SDK_INT>=23){
@@ -382,17 +402,19 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         BootAppLifecycle.visible(this);
         if(!HomeGuardService.connected())HomeGuardRecovery.ensureBinding(this,"桌面恢复");
         getWindow().getDecorView().post(()->{if(resumed && hasWindowFocus()){new HomeProxy(this).visible(this);if(!isFinishing()){HomeGuardRecovery.visible(this);launchBootApp();}}});
-        IntentFilter time=new IntentFilter(Intent.ACTION_TIME_TICK);time.addAction(Intent.ACTION_TIME_CHANGED);time.addAction(Intent.ACTION_TIMEZONE_CHANGED);time.addAction(Intent.ACTION_SCREEN_OFF);
+        IntentFilter time=new IntentFilter(Intent.ACTION_TIME_TICK);time.addAction(Intent.ACTION_TIME_CHANGED);time.addAction(Intent.ACTION_TIMEZONE_CHANGED);time.addAction(Intent.ACTION_SCREEN_OFF);time.addAction(Intent.ACTION_SCREEN_ON);
         registerReceiver(timeReceiver,time);
         if(Build.VERSION.SDK_INT>=24)stopNetworkCallback=Api24.observe(this);
         else registerReceiver(legacyNetworkReceiver,new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
-        applyDesktopSettings();updateClock();updateNetwork();
+        applyDesktopSettings();updateClock();homeHeader.clockActive(true);updateNetwork();
         wallpapers.resume();weather.resume();screensaver.availabilityChanged();
-        loadApps("resume");if(ready)focusCurrent(false);
+        if(quickControls!=null)quickControls.resume();
+        loader.execute(()->{try{new QuickControlStore(new java.io.File(getFilesDir(),"quick-controls")).read();}catch(java.io.IOException error){DiagnosticLog.info("quick.controls.preload_failed","use checked read on open");}});
+        loadApps("resume");if(ready&&resumed)focusCurrent(false);
         loader.execute(()->BootHomeActivity.reconcile(getApplicationContext()));
         beginPendingMove();
         if(tvInputs!=null)main.post(tvInputs::openPending);
-        main.post(this::openMaintenanceInput);
+        main.post(this::openMaintenanceInput);main.post(this::runPendingHomeAction);main.post(this::returnToQuick);
         homeResumeEvent("home.resume.end","");
     }
 
@@ -445,9 +467,9 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         long started=SystemClock.uptimeMillis();
         homeResumeEvent("home.window_focus","focused="+focused+" "+InputDiagnostics.focus(this));
         try{
-            super.onWindowFocusChanged(focused);if(!focused)cancelInputWork(true);if(wallpapers!=null)wallpapers.windowFocusChanged(focused);if(screensaver!=null){if(!focused)cancelConfirm();screensaver.availabilityChanged();}systemEntryLifecycle("window_focus="+focused);if(focused && resumed && systemEntryDispatched)systemEntryPending="";if(focused && resumed){new HomeProxy(this).visible(this);if(!isFinishing()){HomeGuardRecovery.visible(this);launchBootApp();}}
+            super.onWindowFocusChanged(focused);if(!focused)cancelInputWork(true);if(wallpapers!=null)wallpapers.windowFocusChanged(focused);if(screensaver!=null){if(!focused)cancelConfirm();screensaver.availabilityChanged();}systemEntryLifecycle("window_focus="+focused);if(focused && resumed && systemEntryDispatched)systemEntryPending="";if(focused && resumed){runPendingHomeAction();new HomeProxy(this).visible(this);if(!isFinishing()){HomeGuardRecovery.visible(this);launchBootApp();}}
         }finally{homeResumeEvent("home.window_focus.end","focused="+focused+" callbackMs="+(SystemClock.uptimeMillis()-started));}
-        if(focused&&resumed)main.post(this::openMaintenanceInput);
+        if(focused&&resumed)main.post(this::openMaintenanceInput);main.post(this::runPendingHomeAction);main.post(this::returnToQuick);
     }
 
     void checkBootApp(){getWindow().getDecorView().post(this::launchBootApp);}
@@ -468,21 +490,21 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
     private void launchStartupApp(String pkg){
         BootAppStore store=new BootAppStore(this);
+        String attempt=DiagnosticOperation.nextId(SystemClock.elapsedRealtime());
         leaveHome(()->{try{
             Intent intent=store.launchIntent(pkg);
             if(intent==null){Log.i(BootAppStore.TAG,"target unavailable");wallpapers.resume();Toast.makeText(this,tr("自启应用不可用，请在应用管理中重新设置","Startup app unavailable"),Toast.LENGTH_LONG).show();return;}
             if(ChildBlockActivity.gate(this,pkg)){Log.i(BootAppStore.TAG,"blocked by child mode");return;}
             if(new HomeGuardState(this).protects(pkg))HomeGuardService.allowOriginal();
+            String evidence="attempt="+attempt+" source=boot_app target="+pkg+" "+DiagnosticLog.intent(intent);
+            DiagnosticLog.info("app.autostart.request",evidence);
             startActivity(intent);store.dispatched(pkg,pkg+"/");
-            Log.i(BootAppStore.TAG,"launch requested");DiagnosticLog.info("app.autostart.dispatched",pkg);
-        }catch(RuntimeException e){Log.w(BootAppStore.TAG,"launch rejected");DiagnosticLog.error("app.autostart.failed",e);wallpapers.resume();Toast.makeText(this,tr("自启应用暂时无法打开","Unable to open startup app"),Toast.LENGTH_SHORT).show();}});
+            Log.i(BootAppStore.TAG,"launch requested");DiagnosticLog.info("app.autostart.dispatched",evidence+" result=dispatched_unverified");
+        }catch(RuntimeException e){Log.w(BootAppStore.TAG,"launch rejected");DiagnosticLog.error("app.autostart.failed","attempt="+attempt+" source=boot_app target="+pkg,e);wallpapers.resume();Toast.makeText(this,tr("自启应用暂时无法打开","Unable to open startup app"),Toast.LENGTH_SHORT).show();}});
     }
 
     private void watchTv(){
-        BootAppStore store=new BootAppStore(this);
-        if(!store.watchTarget().isEmpty()){openSavedHdmi(false);return;}
-        if(new SourcePairingStore(this).entry()!=null){showInputs();return;}
-        openInputPairingSettings();
+        openHomeTools(false,"watchTv");
     }
     private void openSavedHdmi(boolean automatic){
         BootAppStore store=new BootAppStore(HomeActivity.this);
@@ -517,9 +539,10 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     @Override protected void onPause() {
         animateHomeReturn=false;
+        if(quickControls!=null)quickControls.pause();
         cancelInputWork(true);
         if(waitingForUnlock){super.onPause();return;}
-        cancelConfirm();screensaver.pause();
+        cancelConfirm();screensaver.pause();homeHeader.clockActive(false);
         cancelFocusRestore("pause");
         root.removeCallbacks(checkHomeUpdates);homeReadyDrawn=false;
         if(!HomeGuardState.canShow(this))new HomeProxy(this).defer(getIntent());
@@ -537,9 +560,10 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     @Override protected void onDestroy(){
-        inputWork.close();
+        if(liveHome.get()==this)liveHome.clear();inputWork.close();
         if(waitingForUnlock){unregisterReceiver(unlockReceiver);loader.shutdownNow();super.onDestroy();return;}
-        cancelFocusRestore("destroy");
+        if(quickControls!=null){quickControls.destroy();quickControls=null;}
+        PhoneSettingsSession.get(this).forgetConfiguration(phoneConfiguration);cancelFocusRestore("destroy");
         BootAppLifecycle.destroyed(this);unregisterReceiver(packageReceiver);loader.shutdownNow();screensaver.destroy();wallpapers.destroy();weather.destroy();super.onDestroy();
     }
     @Override protected void onStop(){
@@ -556,8 +580,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         getWindow().getDecorView().post(()->{if(resumed && hasWindowFocus())new HomeProxy(this).visible(this);});
         homeResumeEvent("home.new_intent","home="+isHomeIntent(intent));
         cancelConfirm();screensaver.pause();if(resumed)wallpapers.resume();screensaver.availabilityChanged();
-        if(isHomeIntent(intent))resetHomeFocus();else if(ready)focusCurrent(false);
-        main.post(this::openMaintenanceInput);
+        if(isHomeIntent(intent)){closeQuickControls(false);resetHomeFocus();}else if(ready&&resumed)focusCurrent(false);
+        main.post(this::openMaintenanceInput);main.post(this::runPendingHomeAction);main.post(this::returnToQuick);
     }
 
     private boolean isHomeIntent(Intent intent){return (Intent.ACTION_MAIN.equals(intent.getAction()) || Intent.ACTION_VIEW.equals(intent.getAction())) && intent.hasCategory(Intent.CATEGORY_HOME);}
@@ -568,16 +592,16 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         animateHomeReturn=ready&&root.isShown()&&root.getWindowVisibility()==View.VISIBLE&&list.canScrollVertically(-1);
         row=0;column=Math.max(0,Math.min(restoreColumn,maxColumn(0)));
         // Do not let an in-flight catalog refresh restore the old grid application.
-        activePackage="";saveFocus();focusCurrent(false);
+        pendingAppFocus="";activePackage="";saveFocus();focusCurrent(false);
     }
 
     private static class App {
-        String pkg,label,artworkKey; ComponentName component; Bitmap banner; int color;
+        String pkg,label,artworkKey; ComponentName component; Bitmap banner; int color; boolean libraryCover;
     }
 
     private HomeCatalogRefresh.Input catalogInput(){
         return new HomeCatalogRefresh.Input(new DockStore(this).load(),new HomeOrderStore(this).signature(),
-            new ChildModeStore(this).revision(),AppCoverStore.get(this).revision(),packageRevision,homeAppsVisible,new HomeVisibilityStore(this).signature()+new BootAppStore(this).watchRevision()+":"+desktopSettings.showWatchTv());
+            new ChildModeStore(this).revision(),AppCoverStore.get(this).revision(),packageRevision,homeAppsVisible,new HomeVisibilityStore(this).signature()+new AppNameStore(this).signature()+new BootAppStore(this).watchRevision()+":"+desktopSettings.showWatchTv()+":"+desktopSettings.appearance("dock-limit"));
     }
 
     private void loadApps(String reason) {
@@ -603,16 +627,12 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 catch (PackageManager.NameNotFoundException e) { continue; }
                 key += ":cover:"+AppCoverStore.get(this).key(info.activityInfo.packageName);
                 App cached=artworkCache.get(key);
-                if(cached!=null){found.add(cached);freshCache.put(key,cached);continue;}
+                if(cached!=null){cached.label=entry.label;found.add(cached);freshCache.put(key,cached);continue;}
                 App app=new App();app.pkg=info.activityInfo.packageName;app.label=entry.label;app.artworkKey=key;
                 app.component=new ComponentName(app.pkg,info.activityInfo.name);
-                app.banner=AppArtwork.load(this,info);app.color=sampleColor(app.banner);found.add(app);freshCache.put(key,app);
+                app.libraryCover=AppCoverStore.get(this).contain(app.pkg);app.banner=AppArtwork.load(this,info);app.color=sampleColor(app.banner);found.add(app);freshCache.put(key,app);
             }
             artworkCache.clear();artworkCache.putAll(freshCache);
-            App wallpaperApp=new App();wallpaperApp.pkg=WALLPAPER_ENTRY;wallpaperApp.label=tr("壁纸设置","Wallpaper Settings");
-            wallpaperApp.banner=wallpapers.entryBanner();wallpaperApp.color=HomeEntryArtwork.WALLPAPER_COLOR;found.add(0,wallpaperApp);
-            App desktopApp=new App();desktopApp.pkg=DESKTOP_SETTINGS_ENTRY;desktopApp.label=tr("桌面设置","Desktop Settings");
-            desktopApp.banner=HomeEntryArtwork.render(this,desktopApp.label,true);desktopApp.color=HomeEntryArtwork.DESKTOP_COLOR;found.add(1,desktopApp);
             if(desktopSettings.showWatchTv()){
                 App watch=new App();watch.pkg=HomeAppCatalog.WATCH_TV;watch.label=tr("看电视","Watch TV");watch.banner=HomeEntryArtwork.render(this,watch.label,watch.pkg);watch.color=HomeEntryArtwork.WATCH_TV_COLOR;found.add(0,watch);
             }
@@ -625,16 +645,17 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 long applyStarted=SystemClock.uptimeMillis();
                 if(!catalogRefresh.finish(catalogInput())){
                     DiagnosticLog.info("home.catalog.stale","request="+sequence+" elapsedMs="+(SystemClock.uptimeMillis()-started));
-                    if(resumed)loadApps("changed_during_load");return;
+                    if(resumed||root.getWindowVisibility()==View.VISIBLE)loadApps("changed_during_load");return;
                 }
                 ArrayList<App> nextDock=new ArrayList<>(),nextApps=new ArrayList<>();
-                for(String pkg:pinned)for(App app:found)if(pkg.equals(app.pkg))nextDock.add(app);
+                for(String pkg:pinned)for(App app:found)if(pkg.equals(app.pkg)&&nextDock.size()<desktopSettings.appearance("dock-limit"))nextDock.add(app);
                 HashMap<String,App> byId=new HashMap<>();for(App app:found)byId.put(app.pkg,app);
                 for(String id:gridOrder)nextApps.add(byId.get(id));
+                previewCatalog=Collections.unmodifiableMap(new HashMap<>(byId));previewCatalogRevision=packageRevision;
                 // Keep an actionable empty state on HOME, without saving it as a pinned app.
                 if(homeAppsVisible&&nextDock.isEmpty()){
                     App add=new App();add.pkg=ADD_DOCK_ENTRY;add.label=tr("添加常用应用","Add favorite apps");
-                    add.banner=HomeEntryArtwork.addFavorite(add.label);add.color=0xff666972;nextDock.add(add);
+                    add.banner=HomeEntryArtwork.addFavorite(add.label);add.color=UiPalette.FAINT;nextDock.add(add);
                 }
                 boolean dockChanged=!sameApps(dock,nextDock),gridChanged=!sameApps(apps,nextApps);
                 if(dockChanged||gridChanged){
@@ -656,20 +677,23 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                         @Override public void onChanged(int position,int count,Object payload){appAdapter.notifyItemRangeChanged(position+2,count,payload);}
                     });
                 }
+                boolean appFocusPending=!pendingAppFocus.isEmpty();
+                if(appFocusPending)activePackage=pendingAppFocus;
                 if(row>=0){
                     // Removed favorites still exist in the grid; keep the original slot instead of following them.
                     if(!keepAppActionPositionUntilRefresh&&!activePackage.isEmpty()) {
                         boolean foundInDock=false;
                         if(row==0&&homeAppsVisible)for(int n=0;n<dock.size();n++)if(activePackage.equals(dock.get(n).pkg)){column=n;foundInDock=true;break;}
-                        if(!foundInDock)for(int n=0;n<apps.size();n++)if(activePackage.equals(apps.get(n).pkg)){row=1+n/APP_COLUMNS;column=n%APP_COLUMNS;break;}
+                        if(!foundInDock)for(int n=0;n<apps.size();n++)if(activePackage.equals(apps.get(n).pkg)){row=1+n/appColumns;column=n%appColumns;break;}
                     }
                     row=Math.max(0,Math.min(row,gridRows()));column=Math.min(column,maxColumn(row));
                 }
-                keepAppActionPositionUntilRefresh=false;
+                pendingAppFocus="";keepAppActionPositionUntilRefresh=false;
                 boolean first=!ready;ready=true;
                 appAdapter.notifyItemChanged(1);
                 if(screensaver!=null)screensaver.availabilityChanged();
-                if(resumed&&(first||dockChanged||gridChanged))focusCurrent(false);
+                if(resumed&&(first||dockChanged||gridChanged||appFocusPending))focusCurrent(false);
+                if(first)main.post(this::returnToQuick);
                 beginPendingMove();
                 long appliedAt=SystemClock.uptimeMillis();
                 DiagnosticLog.info("home.catalog.applied","request="+sequence+" elapsedMs="+(appliedAt-started)
@@ -678,7 +702,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 Log.i(TAG,"Loaded dock="+dock.size()+" apps="+apps.size());
             });
             } catch (RuntimeException e) {
-                main.post(()->{catalogRefresh.failed();Log.w(TAG,"App refresh failed; retaining current tiles",e);DiagnosticLog.error("app.catalog.failed",e);});
+                main.post(()->{catalogRefresh.failed();pendingAppFocus="";if(resumed&&ready)focusCurrent(false);Log.w(TAG,"App refresh failed; retaining current tiles",e);DiagnosticLog.error("app.catalog.failed",e);});
             }
         });
     }
@@ -687,7 +711,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private static boolean sameApps(List<App> a,List<App> b){if(a.size()!=b.size())return false;for(int i=0;i<a.size();i++)if(!sameApp(a.get(i),b.get(i)))return false;return true;}
 
     static int sampleColor(Bitmap bitmap) {
-        double best=0;int chosen=0xff5a6680;
+        double best=0;int chosen=UiPalette.FAINT;
         float[] hsv=new float[3];
         for(int y=10;y<bitmap.getHeight();y+=12)for(int x=10;x<bitmap.getWidth();x+=12){
             int color=bitmap.getPixel(x,y);Color.colorToHSV(color,hsv);
@@ -697,22 +721,26 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         return chosen;
     }
 
-    private int gridRows(){return (apps.size()+APP_COLUMNS-1)/APP_COLUMNS;}
-    private int maxColumn(int r){if(r<0)return visiblePills.size()-1;if(r==0)return homeAppsVisible?Math.max(0,dock.size()-1):0;return Math.min(APP_COLUMNS-1,apps.size()-(r-1)*APP_COLUMNS-1);}
+    private int gridRows(){return (apps.size()+appColumns-1)/appColumns;}
+    private int maxColumn(int r){if(r<0)return visiblePills.size()-1;if(r==0)return homeAppsVisible?Math.max(0,dock.size()-1):0;return Math.min(appColumns-1,apps.size()-(r-1)*appColumns-1);}
 
     private void saveFocus(){if(row>=0)getPreferences(0).edit().putInt("row",row).putInt("column",column).putString("package",activePackage).apply();}
 
+    @Override protected void onSaveInstanceState(Bundle state){super.onSaveInstanceState(state);state.putString("quick-return",quickReturn);state.putString("quick-pending",phoneActionAuthority==null?pendingHomeAction:"");state.putString("button-pending-focus",pendingButtonFocus);state.putString("app-pending-focus",pendingAppFocus);state.putBoolean("quick-return-dock",pendingDockFocus);if(quickControls!=null){Bundle quick=new Bundle();quickControls.save(quick);state.putBundle("inline-quick-controls",quick);}else if(restoredQuickControls!=null)state.putBundle("inline-quick-controls",restoredQuickControls);}
+
     @Override protected void onActivityResult(int request,int result,Intent data){
         super.onActivityResult(request,result,data);
+        if(request==HomeToolsActivity.REQUEST&&result==RESULT_OK&&data!=null){pendingHomeAction=data.getStringExtra("home-action");pendingButtonFocus=data.getStringExtra("focus-button");if(pendingButtonFocus==null)pendingButtonFocus="";pendingDockFocus=data.getBooleanExtra("focus-dock",false);if(data.getBooleanExtra("quick-origin",false)&&pendingHomeAction!=null)quickReturn=pendingHomeAction;main.post(this::runPendingHomeAction);main.post(this::returnToQuick);}
         if(request==HomeAppActionsActivity.REQUEST&&result==RESULT_OK&&data!=null){
             if("move".equals(data.getStringExtra("action"))){pendingMove=data.getStringExtra("package");pendingMoveDock=data.getBooleanExtra("dock",false);}
-            else{activePackage=data.getStringExtra("package");if(activePackage==null)activePackage="";keepAppActionPositionUntilRefresh=activePackage.isEmpty();++packageRevision;}
+            else{activePackage=data.getStringExtra("package");if(activePackage==null)activePackage="";pendingAppFocus=activePackage;keepAppActionPositionUntilRefresh=activePackage.isEmpty();++packageRevision;}
         }
         if(request==WallpaperFilesActivity.REQUEST&&result==Activity.RESULT_OK&&data!=null&&wallpapers!=null)getWindow().getDecorView().post(()->{if(!isFinishing()&&!UiCompat.destroyed(this))wallpapers.imported(data.getStringExtra("wallpaper"));});
     }
     public void handleBack(){
         cancelInputWork();
         cancelConfirm();
+        if(quickControls!=null){quickControls.back();return;}
         if(screensaver!=null&&screensaver.showing()){screensaver.key(new KeyEvent(KeyEvent.ACTION_DOWN,KeyEvent.KEYCODE_BACK));return;}
         if(moveSaving)return;
         if(!movingPackage.isEmpty()){cancelMove();KeyFeedback.returned(this);return;}
@@ -720,7 +748,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         else if(row>0){row=0;column=Math.min(restoreColumn,maxColumn(0));activePackage="";focusCurrent(true);KeyFeedback.returned(this);}
     }
     private void openAppActions(App app){
-        if(app==null||moveSaving)return;saveFocus();KeySounds.play(this,KeySoundPolicy.CONFIRM);
+        if(app==null||moveSaving||!pendingAppFocus.isEmpty())return;saveFocus();KeySounds.play(this,KeySoundPolicy.CONFIRM);
         int[] location=new int[2];int x=getResources().getDisplayMetrics().widthPixels/2,y=px(280),bottom=y;
         if(selected!=null){selected.getLocationOnScreen(location);x=location[0]+selected.getWidth()/2;y=location[1];bottom=y+selected.getHeight();}
         Intent intent=new Intent(this,HomeAppActionsActivity.class).putExtra("package",app.pkg).putExtra("dock",row==0)
@@ -729,7 +757,21 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         addSettingsBackdrop(intent);
         leaveHome(()->startActivityForResult(intent,HomeAppActionsActivity.REQUEST));
     }
-    private Intent settingsIntent(Class<?> page){return addSettingsBackdrop(new Intent(this,page));}
+    static void coverToolHeader(boolean covered){HomeActivity home=liveHome.get();if(home!=null&&home.homeHeader!=null)home.homeHeader.buttons.setAlpha(covered?0:1);}
+    private Intent settingsIntent(Class<?> page){return addSettingsBackdrop(new Intent(this,page).putExtra("home-network-icon",networkIcon));}
+    /** Reuse the rendered catalog only while it still describes the current desktop. */
+    static HomePreviewCache.Scene previewScene(HomePreviewCache.Key key,String pkg,String size,String shape){
+        HomeActivity home=liveHome.get();
+        if(home==null||home.waitingForUnlock||!home.ready||UiCompat.destroyed(home)||!home.catalogRefresh.current(home.catalogInput()))return null;
+        HomePreviewCache.Key current=HomePreviewCache.Key.read(home,home.chinese,HomePreviewCache.get(home).packages());
+        if(!key.apps.equals(current.apps)||!key.configuration.equals(current.configuration))return null;
+        Map<String,App> available=new HashMap<>();for(App app:home.apps)available.put(app.pkg,app);
+        List<Bitmap> art=new ArrayList<>(),gridArt=new ArrayList<>();List<String> names=new ArrayList<>(),gridNames=new ArrayList<>(),ids=new ArrayList<>(),gridIds=new ArrayList<>();
+        for(String id:key.apps.pinned){App app=available.get(id);if(app!=null){art.add(app.banner);names.add(app.label);ids.add(id);}}
+        for(String id:HomePreviewView.previewGridIds(home.appIds(home.apps),pkg,size,shape)){App app=available.get(id);gridArt.add(app.banner);gridNames.add(app.label);gridIds.add(id);}
+        return new HomePreviewCache.Scene(key,art,names,gridArt,gridNames,ids,gridIds);
+    }
+    static void seedPreviewBackground(WallpaperController target){HomeActivity home=liveHome.get();if(home!=null&&!home.waitingForUnlock&&!UiCompat.destroyed(home))target.seedPreview(home.wallpapers);}
     private Intent addSettingsBackdrop(Intent intent){
         // Reuse bounded prepared pixels, including the current shade, without copying the native 4K output.
         Bitmap backdrop=Bitmap.createBitmap(320,Math.max(1,Math.round(320f*root.getHeight()/root.getWidth())),Bitmap.Config.ARGB_8888);
@@ -743,22 +785,22 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         List<App> values=pendingMoveDock?dock:apps;int index=-1;for(int i=0;i<values.size();i++)if(pendingMove.equals(values.get(i).pkg))index=i;
         if(index>=0){
             moveDock=pendingMoveDock;movingPackage=pendingMove;beforeMove=new ArrayList<>(values);moveDefaults=appIds(values);moveInput=catalogInput();activePackage=movingPackage;
-            cancelConfirm();screensaver.availabilityChanged();row=moveDock?0:1+index/APP_COLUMNS;column=moveDock?index:index%APP_COLUMNS;appAdapter.notifyItemChanged(moveDock?0:1);focusCurrent(false);
+            cancelConfirm();screensaver.availabilityChanged();row=moveDock?0:1+index/appColumns;column=moveDock?index:index%appColumns;appAdapter.notifyItemChanged(moveDock?0:1);focusCurrent(false);
             Toast.makeText(this,tr("方向键移动  确定放下  返回取消","Move with arrows  OK to save  Back to cancel"),Toast.LENGTH_SHORT).show();
         }pendingMove="";
     }
     private void moveSelected(int dx,int dy){
         ArrayList<App> values=moveDock?dock:apps;ArrayList<String> ids=appIds(values);int from=ids.indexOf(movingPackage);
-        int target=moveDock?Math.max(0,Math.min(ids.size()-1,from+dx)):HomeOrderStore.moveTarget(from,ids.size(),APP_COLUMNS,dx,dy);
+        int target=moveDock?Math.max(0,Math.min(ids.size()-1,from+dx)):HomeOrderStore.moveTarget(from,ids.size(),appColumns,dx,dy);
         if(from<0||target==from||moveDock&&dy!=0)return;
-        HomeOrderStore.move(values,from,target);activePackage=movingPackage;row=moveDock?0:1+target/APP_COLUMNS;column=moveDock?target:target%APP_COLUMNS;
+        HomeOrderStore.move(values,from,target);activePackage=movingPackage;row=moveDock?0:1+target/appColumns;column=moveDock?target:target%appColumns;
         if(moveDock)appAdapter.notifyItemChanged(0);else appAdapter.notifyItemRangeChanged(Math.min(from,target)+2,Math.abs(from-target)+1);
         focusCurrent(false);KeyFeedback.moved(this);
     }
     private void cancelMove(){
         if(movingPackage.isEmpty()||moveSaving)return;
         String id=movingPackage;ArrayList<App> values=moveDock?dock:apps;values.clear();values.addAll(beforeMove);int index=appIds(values).indexOf(id);
-        movingPackage="";beforeMove=null;screensaver.availabilityChanged();row=moveDock?0:1+Math.max(0,index)/APP_COLUMNS;column=moveDock?Math.max(0,index):Math.max(0,index)%APP_COLUMNS;activePackage=id;
+        movingPackage="";beforeMove=null;screensaver.availabilityChanged();row=moveDock?0:1+Math.max(0,index)/appColumns;column=moveDock?Math.max(0,index):Math.max(0,index)%appColumns;activePackage=id;
         if(appAdapter!=null){appAdapter.notifyItemChanged(moveDock?0:1);if(!moveDock)appAdapter.notifyItemRangeChanged(2,apps.size());focusCurrent(false);}
     }
     private void saveMove(){
@@ -775,6 +817,9 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     // Public Activity override; AndroidX core marks its inherited bridge class library-only.
     @android.annotation.SuppressLint("RestrictedApi")
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
+        return InputDiagnostics.dispatch(this,event,"home_window",()->dispatchObservedKey(event));
+    }
+    private boolean dispatchObservedKey(KeyEvent event){
         if(!waitingForUnlock&&screensaver!=null){
             if(screensaver.key(event)){cancelConfirm();pressDock(false);return true;}
             screensaver.interaction();
@@ -807,6 +852,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         if(inputPopup!=null && inputPopup.isShowing()){cancelConfirm();return super.dispatchKeyEvent(event);}
         if(!ready)return super.dispatchKeyEvent(event);
         if(ScreensaverController.systemKey(key))return super.dispatchKeyEvent(event);
+        if(quickControls!=null){cancelConfirm();return quickControls.key(event)||super.dispatchKeyEvent(event);}
         if(!confirm)cancelConfirm();
         if(moveSaving)return true;
         if(!movingPackage.isEmpty()){
@@ -815,7 +861,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         }
         String remoteAction=new RemoteKeyMap(this).action(event);
         if("system".equals(remoteAction))return super.dispatchKeyEvent(event);
-        if(remoteAction.isEmpty())remoteAction=key==KeyEvent.KEYCODE_MENU?"settings":key==KeyEvent.KEYCODE_TV_INPUT?"inputs":"";
+        if(remoteAction.isEmpty()&&key==KeyEvent.KEYCODE_MENU){if(event.getAction()==KeyEvent.ACTION_UP&&!event.isCanceled()){if(row<0){if(!"settings".equals(topEntry()))openHomeTools(true,topEntry());}else if(homeHeader.buttonIds.isEmpty()||!homeAppsVisible)openHomeTools(false,"");else{App app=currentApp();if(app!=null&&!ADD_DOCK_ENTRY.equals(app.pkg))openAppActions(app);else openHomeTools(false,"");}}return true;}
+        if(remoteAction.isEmpty())remoteAction=key==KeyEvent.KEYCODE_TV_INPUT?"inputs":"";
         if(!remoteAction.isEmpty()){
             if(event.getAction()==KeyEvent.ACTION_UP && !event.isCanceled()){
                 if("settings".equals(remoteAction))openSettings(Settings.ACTION_SETTINGS);
@@ -827,6 +874,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         }
         if(key==KeyEvent.KEYCODE_DPAD_LEFT || key==KeyEvent.KEYCODE_DPAD_RIGHT || key==KeyEvent.KEYCODE_DPAD_UP || key==KeyEvent.KEYCODE_DPAD_DOWN){
             if(event.getAction()==KeyEvent.ACTION_UP)return true;
+            pendingAppFocus="";
             main.removeCallbacks(confirmHold);heldPackage="";
             int previousRow=row,previousTop=topColumn,previousColumn=column;
             if(row<0){
@@ -834,8 +882,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 if(key==KeyEvent.KEYCODE_DPAD_RIGHT)topColumn=Math.min(visiblePills.size()-1,topColumn+1);
                 if(key==KeyEvent.KEYCODE_DPAD_DOWN){row=0;column=Math.min(restoreColumn,maxColumn(0));}
             }else{
-                if(key==KeyEvent.KEYCODE_DPAD_LEFT)column=Math.max(0,column-1);
-                if(key==KeyEvent.KEYCODE_DPAD_RIGHT)column=Math.min(maxColumn(row),column+1);
+                if(key==KeyEvent.KEYCODE_DPAD_LEFT)column=row==0&&column==0?maxColumn(row):Math.max(0,column-1);
+                if(key==KeyEvent.KEYCODE_DPAD_RIGHT)column=row==0&&column==maxColumn(row)?0:Math.min(maxColumn(row),column+1);
                 if(key==KeyEvent.KEYCODE_DPAD_UP){if(row==0){if(rightButtonsVisible){restoreColumn=column;row=-1;}}else{row--;column=Math.min(row==0?restoreColumn:column,maxColumn(row));}}
                 if(key==KeyEvent.KEYCODE_DPAD_DOWN && row<gridRows()){if(row==0){restoreColumn=column;column=0;}row++;column=Math.min(column,maxColumn(row));}
             }
@@ -850,7 +898,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             if(event.getAction()==KeyEvent.ACTION_DOWN){
                 if(!pendingConfirmFocus.isEmpty()&&!pendingConfirmFocus.equals(confirmFocus()))cancelConfirm();
                 if(pendingConfirm!=null){main.removeCallbacks(pendingConfirm);pendingConfirm=null;}
-                if(event.getRepeatCount()==0){pressDock(true);confirmLong=false;App app=currentApp();heldPackage=row>=0&&app!=null?app.pkg:("settings".equals(topEntry())||"network".equals(topEntry()))?"system:"+topEntry():"";if(!heldPackage.isEmpty())main.postDelayed(confirmHold,600);}
+                if(event.getRepeatCount()==0){pressDock(true);confirmLong=false;App app=currentApp();heldPackage=row>=0&&app!=null?app.pkg:row<0?"button:"+topEntry():"";if(!heldPackage.isEmpty())main.postDelayed(confirmHold,600);}
                 confirmGesture.down(key,event.getDownTime(),event.getRepeatCount());
                 if(event.getRepeatCount()>0){if(pendingConfirm!=null)main.removeCallbacks(pendingConfirm);pendingConfirm=null;}
             }else if(event.getAction()==KeyEvent.ACTION_UP){
@@ -859,7 +907,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 if(confirmLong){confirmLong=false;cancelConfirm();return true;}
                 HomeConfirmGesture.Result result=confirmGesture.up(key,event.getDownTime(),event.getEventTime(),event.isCanceled(),ViewConfiguration.getLongPressTimeout());
                 if(pendingConfirm!=null)main.removeCallbacks(pendingConfirm);pendingConfirm=null;
-                if(result==HomeConfirmGesture.Result.DOUBLE){cancelConfirm();screensaver.enter();KeyFeedback.confirm(this);}
+                if(result==HomeConfirmGesture.Result.WAIT&&row<0&&"control".equals(topEntry())){cancelConfirm();visiblePills.get(topColumn).performClick();}
+                else if(result==HomeConfirmGesture.Result.DOUBLE){cancelConfirm();screensaver.enter();KeyFeedback.confirm(this);}
                 else if(result==HomeConfirmGesture.Result.WAIT){
                     KeyEvent confirmation=new KeyEvent(event);pendingConfirmFocus=confirmFocus();pendingConfirm=()->{
                         boolean valid=confirmGesture.pending()&&screensaverAllowed()&&pendingConfirmFocus.equals(confirmFocus());cancelConfirm();
@@ -872,16 +921,17 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         return super.dispatchKeyEvent(event);
     }
 
-    private boolean screensaverAllowed(){return ready&&resumed&&!moveSaving&&movingPackage.isEmpty()&&hasWindowFocus()&&!isFinishing()&&wallpapers!=null&&!wallpapers.pickerShowing()&&(inputPopup==null||!inputPopup.isShowing())&&!(getCurrentFocus() instanceof EditText);}
+    private boolean screensaverAllowed(){return quickControls==null&&ready&&resumed&&!moveSaving&&movingPackage.isEmpty()&&hasWindowFocus()&&!isFinishing()&&wallpapers!=null&&!wallpapers.pickerShowing()&&(inputPopup==null||!inputPopup.isShowing())&&!(getCurrentFocus() instanceof EditText);}
     private String confirmFocus(){App app=currentApp();return row+":"+column+":"+topColumn+":"+(app==null?"":app.pkg);}
     private void cancelConfirm(){main.removeCallbacks(confirmHold);heldPackage="";if(pendingConfirm!=null)main.removeCallbacks(pendingConfirm);pendingConfirm=null;pendingConfirmFocus="";confirmGesture.cancel();}
     private void focusCurrent(boolean animate) {
+        if(quickControls!=null){quickControls.syncHeader();return;}
         if(pendingConfirm!=null&&!pendingConfirmFocus.equals(confirmFocus()))cancelConfirm();
         if(!ready)return;
         // HOME arrives between pause and resume; wait to start the existing page motion.
         if(animateHomeReturn){if(!resumed)return;animate=true;animateHomeReturn=false;}
         AppAdapter adapter=(AppAdapter)list.getAdapter();
-        int gridStride=px(adapter.gridHeight)+px(APP_GAP);
+        int gridStride=px(adapter.gridHeight())+px(APP_GAP);
         int bottom=Math.max(px(20),list.getHeight()-px(APP_TITLE_HEIGHT)-gridRows()*gridStride);
         if(list.getPaddingBottom()!=bottom)list.setPadding(px(CONTENT_MARGIN),0,px(CONTENT_MARGIN),bottom);
         if(row<0||row==0&&!homeAppsVisible){
@@ -890,7 +940,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             if(row==0){activePackage="";saveFocus();}
             focusApp(animate);Log.i(TAG,"Focus top="+topColumn);return;
         }
-        int position=row==0?0:2+(row-1)*APP_COLUMNS;
+        int position=row==0?0:2+(row-1)*appColumns;
         int offset=row==0?0:px(row==1?APP_TITLE_HEIGHT:APP_TOP);
         if(scrollAnimation!=null && scrollAnimation.isRunning() && scrollTarget!=position){scrollAnimation.cancel();list.stopScroll();}
         boolean needsScroll=row<=1;
@@ -905,12 +955,13 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             else{
                 int first=layout.findFirstVisibleItemPosition();View view=layout.findViewByPosition(first);
                 if(view!=null){
-                    int before=first==0?0:px(HOME_HEADER_HEIGHT)+(first==1?0:px(APP_TITLE_HEIGHT)+(first-2)/APP_COLUMNS*gridStride);
+                    int before=first==0?0:px(HOME_HEADER_HEIGHT)+(first==1?0:px(APP_TITLE_HEIGHT)+(first-2)/appColumns*gridStride);
                     int current=before-layout.getDecoratedTop(view);
                     int target=position==0?0:px(HOME_HEADER_HEIGHT)+px(APP_TITLE_HEIGHT)+(row-1)*gridStride-offset;
                     if(target!=current){
                         final int[] moved={0};scrollAnimation=ValueAnimator.ofInt(0,target-current);
                         scrollAnimation.setDuration(420);scrollAnimation.setInterpolator(FOCUS_MOTION);
+                        wallpapers.interaction(420);
                         scrollAnimation.addUpdateListener(a->{int distance=(int)a.getAnimatedValue();list.scrollBy(0,distance-moved[0]);moved[0]=distance;});scrollAnimation.start();
                     }
                 }else layout.scrollToPositionWithOffset(position,offset);
@@ -929,7 +980,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private void clearSelected(boolean animate){
         if(selected==null)return;
-        Tile previous=selected;selected=null;previous.invalidate();
+        Tile previous=selected;selected=null;previous.setSelected(false);previous.invalidate();
         if(!dockTiles.contains(previous))transformTile(previous,1,0,0,animate,260);
     }
 
@@ -952,17 +1003,17 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             }
             App app=currentApp();if(app==null){cancelFocusRestore("no_app");return true;}
             Tile tile=row==0&&column<dockTiles.size()?dockTiles.get(column):null;
-            if(row>0){RecyclerView.ViewHolder holder=list.findViewHolderForAdapterPosition(2+(row-1)*APP_COLUMNS+column);tile=holder!=null?(Tile)holder.itemView:null;}
+            if(row>0){RecyclerView.ViewHolder holder=list.findViewHolderForAdapterPosition(2+(row-1)*appColumns+column);tile=holder!=null?(Tile)holder.itemView:null;}
             if(tile==null||!androidx.core.view.ViewCompat.isAttachedToWindow(tile)){
                 if(scrollAnimation==null||!scrollAnimation.isRunning())cancelFocusRestore("tile_unavailable");
                 return true;
             }
             cancelFocusRestore("superseded");
-            Tile previous=selected;if(previous!=tile)clearSelected(animate);selected=tile;
+            Tile previous=selected;if(previous!=tile)clearSelected(animate);selected=tile;tile.setSelected(true);
             updateDock(animate);if(previous!=tile)tile.invalidate();
             if(row>0){tile.setPivotX(tile.getWidth()/2f);tile.setPivotY(tile.getHeight()/2f);transformTile(tile,FOCUS_SCALE,0,-px(2),animate,320);}
-            activePackage=app.pkg;
-            if(row==0 && heroTitle!=null)heroTitle.setText(app.label);
+            if(pendingAppFocus.isEmpty())activePackage=app.pkg;
+            updateHeroTitle();
             wallpapers.setThemeColor(app.color);
             updateHeaderFocus();saveFocus();Log.i(TAG,"Focus row="+row+" column="+column+" package="+app.pkg);
             if(!animate)DiagnosticLog.info("home.focus.restored","request="+generation+" row="+row+" column="+column);
@@ -972,10 +1023,10 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
 
-    private App currentApp(){if(row==0)return !homeAppsVisible||dock.isEmpty()?null:dock.get(Math.min(column,dock.size()-1));int n=(row-1)*APP_COLUMNS+column;return n>=0&&n<apps.size()?apps.get(n):null;}
+    private App currentApp(){if(row==0)return !homeAppsVisible||dock.isEmpty()?null:dock.get(Math.min(column,dock.size()-1));int n=(row-1)*appColumns+column;return n>=0&&n<apps.size()?apps.get(n):null;}
     private void selectTile(Tile tile){
         List<App> values=tile.showLabel?apps:dock;int index=values.indexOf(tile.app);if(index<0)return;
-        row=tile.showLabel?1+index/APP_COLUMNS:0;column=tile.showLabel?index%APP_COLUMNS:index;activePackage=tile.app.pkg;focusCurrent(false);
+        pendingAppFocus="";row=tile.showLabel?1+index/appColumns:0;column=tile.showLabel?index%appColumns:index;activePackage=tile.app.pkg;focusCurrent(false);
     }
 
     @Override public boolean dispatchTouchEvent(MotionEvent event){
@@ -985,11 +1036,13 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         return super.dispatchTouchEvent(event);
     }
     @Override public boolean dispatchGenericMotionEvent(MotionEvent event){
+        InputDiagnostics.motion(event);
         if(!waitingForUnlock&&screensaver!=null){cancelConfirm();if(screensaver.pointer(event))return true;screensaver.interaction();}return super.dispatchGenericMotionEvent(event);
     }
     private void leaveHome(Runnable launch){cancelInputWork();leaveHomePrepared(launch);}
     private void leaveHomePrepared(Runnable launch){cancelConfirm();screensaver.pause();HomeGuardService.bootSourceUserAction(this);wallpapers.beforeLeave(()->{if(resumed&&!isFinishing()&&!UiCompat.destroyed(this))launch.run();});}
     private void launchSelected(){
+        if(!pendingAppFocus.isEmpty())return;
         App app=currentApp();if(app==null)return;saveFocus();
         if(!movingPackage.isEmpty()){saveMove();KeyFeedback.confirm(this);return;}
         if(ADD_DOCK_ENTRY.equals(app.pkg)){openAppActions(app);return;}
@@ -1003,86 +1056,97 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             try{
                 if(ChildBlockActivity.gate(this,app.pkg))return;
                 if(new HomeGuardState(this).protects(app.pkg))HomeGuardService.allowOriginal();
-                DiagnosticLog.info("app.launch.request",app.pkg);
-                startActivity(new Intent(Intent.ACTION_MAIN).setComponent(app.component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-                DiagnosticLog.info("app.launch.dispatched",app.pkg);
+                Intent intent=new Intent(Intent.ACTION_MAIN).setComponent(app.component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                String evidence="attempt="+DiagnosticOperation.nextId(SystemClock.elapsedRealtime())+" source=desktop_tile target="+app.pkg+" "+DiagnosticLog.intent(intent);
+                DiagnosticLog.info("app.launch.request",evidence);
+                startActivity(intent);
+                DiagnosticLog.info("app.launch.dispatched",evidence+" result=dispatched_unverified");
             }catch(RuntimeException e){DiagnosticLog.error("app.launch.failed",e);wallpapers.resume();Toast.makeText(this,tr("应用暂不可用，请检查儿童模式设置","App unavailable"),Toast.LENGTH_SHORT).show();}
         });
     }
 
     private void invalidateDockBackdrop() {
+        if(homeHeader!=null&&wallpapers!=null)homeHeader.movie(wallpapers.displayedMovie());
+        for(TextView pill:pills)pill.invalidate();
         if(dockBand!=null)dockBand.invalidate();
         for(Tile tile:dockTiles)if(tile.app!=null&&ADD_DOCK_ENTRY.equals(tile.app.pkg))tile.invalidate();
     }
 
-    private void updateDock(boolean animate) {
-        if(dockTiles.isEmpty()||dockBand==null||dockBand.getWidth()==0)return;
-        int focus=row==0&&homeAppsVisible?Math.min(column,dockTiles.size()-1):-1;
-        if(animate&&focus==dockFocus)return;
-        Tile first=dockTiles.get(0);if(first.getWidth()==0)return;
-        if(dockPress!=null)dockPress.cancel();dockFocus=focus;
-        float gap=dockTiles.size()>1?dockTiles.get(1).getLeft()-first.getRight():px(18);
-        float[] shifts=DockMotion.translations(dockTiles.size(),focus,first.getWidth(),gap,first.getLeft(),dockBand.getWidth(),px(8));
-        for(int i=0;i<dockTiles.size();i++){
-            Tile item=dockTiles.get(i);item.animate().cancel();item.setPivotX(item.getWidth()/2f);item.setPivotY(item.getHeight());
-            float scale=DockMotion.scale(i,focus),rise=focus<0?0:i==focus?-px(2):Math.abs(i-focus)==1?-px(1):0;
-            if(animate){
-                if(item.getScaleX()!=scale||item.getScaleY()!=scale||item.getTranslationX()!=shifts[i]||item.getTranslationY()!=rise)
-                    item.animate().scaleX(scale).scaleY(scale).translationX(shifts[i]).translationY(rise).setDuration(focus<0?220:260).setInterpolator(FOCUS_MOTION);
-            }
-            else{item.setScaleX(scale);item.setScaleY(scale);item.setTranslationX(shifts[i]);item.setTranslationY(rise);}
-        }
+    private DockLayout dockGeometry(int focus){
+        boolean empty=dock.size()==1&&ADD_DOCK_ENTRY.equals(dock.get(0).pkg);String size=desktopSettings.iconSize(),shape=desktopSettings.iconShape(),title=desktopSettings.appTitlePosition();int scale=desktopSettings.appearance("dock-scale"),magnification=desktopSettings.appearance("dock-magnification");boolean magnify=desktopSettings.dockMagnify();
+        String key=dock.size()+":"+empty+":"+size+":"+shape+":"+title+":"+scale+":"+magnification+":"+magnify;
+        if(!key.equals(dockGeometryKey)){dockGeometryKey=key;dockGeometries=new DockLayout[dock.size()+1];}
+        int index=Math.max(0,Math.min(dock.size(),focus+1));DockLayout value=dockGeometries[index];
+        if(value==null)dockGeometries[index]=value=empty?DockLayout.empty(focus,size,scale,magnify,magnification):DockLayout.create(dock.size(),focus,size,shape,scale,magnify,magnification,title);
+        return value;
     }
-
+    private void updateHeroTitle(){
+        if(heroTitle==null)return;
+        App app=homeAppsVisible&&!dock.isEmpty()?dock.get(Math.min(Math.max(column,0),dock.size()-1)):null;
+        boolean show=app!=null&&!ADD_DOCK_ENTRY.equals(app.pkg)&&"top-left".equals(desktopSettings.appTitlePosition());
+        heroTitle.setVisibility(show?View.VISIBLE:View.GONE);heroTitle.setText(show?app.label:"");
+        float applicationTop=homeAppsVisible&&!dock.isEmpty()?dockGeometry(0).top:540;
+        homeHeader.applicationAreaTop(show?Math.min(HOME_TITLE_TOP,applicationTop-64):applicationTop);
+        if(show){FrameLayout.LayoutParams p=(FrameLayout.LayoutParams)heroTitle.getLayoutParams();int top=px(Math.min(HOME_TITLE_TOP,dockGeometry(row==0?column:-1).top-64));if(p.topMargin!=top){p.topMargin=top;heroTitle.setLayoutParams(p);}}
+    }
+    private void updateDock(boolean animate) {
+        updateHeroTitle();
+        if(dockTiles.isEmpty()||!(dockBand instanceof DockBand)||dockTiles.get(0).getWidth()==0)return;
+        int focus=row==0&&homeAppsVisible?Math.min(column,dockTiles.size()-1):-1;if(animate&&focus==dockFocus)return;dockFocus=focus;if(dockPress!=null)dockPress.cancel();
+        DockLayout geometry=dockGeometry(focus);renderedDockGeometry=geometry;boolean motion=animate&&!SettingsFocusMotion.reduced();((DockBand)dockBand).surface(geometry,motion);
+        for(int i=0;i<dockTiles.size();i++){Tile tile=dockTiles.get(i);tile.animate().cancel();tile.setPivotX(0);tile.setPivotY(0);float scale=px(geometry.cardWidth[i])/(float)tile.getWidth(),dx=px(geometry.x[i]-CONTENT_MARGIN)-tile.getLeft(),dy=px(geometry.y[i])-tile.getTop();
+            if("below".equals(desktopSettings.appTitlePosition())&&!ADD_DOCK_ENTRY.equals(tile.app.pkg)){
+                // Text keeps its screen size even when a neighbouring card yields space.
+                int height=(int)Math.ceil(tile.imageHeight()+px(geometry.labelGap+geometry.labelSize*1.4f)/(Math.min(tile.getScaleX(),scale)*.98f));
+                ViewGroup.LayoutParams bounds=tile.getLayoutParams();if(bounds.height<height){bounds.height=height;tile.setLayoutParams(bounds);}
+            }
+            if(motion)tile.animate().scaleX(scale).scaleY(scale).translationX(dx).translationY(dy).setDuration(180).setInterpolator(DockCurve.value());else{tile.setScaleX(scale);tile.setScaleY(scale);tile.setTranslationX(dx);tile.setTranslationY(dy);}tile.invalidate();}
+    }
+    @android.annotation.TargetApi(21) private static final class DockCurve {static android.animation.TimeInterpolator value(){return new android.view.animation.PathInterpolator(.25f,.1f,.25f,1);}}
     private void pressDock(boolean pressed) {
         if(dockPress!=null)dockPress.cancel();
         if(row!=0||!homeAppsVisible||dockTiles.isEmpty())return;
-        Tile item=dockTiles.get(Math.min(column,dockTiles.size()-1));item.animate().cancel();float from=item.getScaleX(),target=(DockMotion.scale(column,column))*(pressed?.98f:1);
+        Tile item=dockTiles.get(Math.min(column,dockTiles.size()-1));item.animate().cancel();float from=item.getScaleX(),target=px(dockGeometry(column).cardWidth[column])/(float)item.getWidth()*(pressed?.98f:1);
         dockPress=ValueAnimator.ofFloat(from,target);dockPress.setDuration(pressed?80:120);dockPress.setInterpolator(FOCUS_MOTION);
         dockPress.addUpdateListener(a->{float value=(float)a.getAnimatedValue();item.setScaleX(value);item.setScaleY(value);});dockPress.start();
     }
 
     private void updateHeaderFocus() {
         if(!ready)return;
+        if(quickControls!=null){quickControls.syncHeader();return;}
         View header=layout.findViewByPosition(0);boolean visible=row<0 && header!=null && header.getTop()==0;
         homeHeader.focusButton(visible&&!visiblePills.isEmpty()?pills.indexOf(visiblePills.get(topColumn)):-1);
-        for(TextView pill:pills){boolean focused=visible && visiblePills.indexOf(pill)==topColumn;pill.setActivated(focused);if(!focused)pill.setPressed(false);}
+        for(TextView pill:pills){boolean focused=visible && visiblePills.indexOf(pill)==topColumn;if(pill.isActivated()!=focused){pill.setActivated(focused);SettingsFocusMotion.update(pill,focused);}if(!focused)pill.setPressed(false);}
     }
 
     private void applyDockAppearance(){
-        if(dockBand==null)return;
-        boolean show=homeAppsVisible && !dock.isEmpty() && dockBand.getChildCount()>0;
-        dockBand.setVisibility(show?View.VISIBLE:View.GONE);
-        boolean empty=dock.size()==1&&ADD_DOCK_ENTRY.equals(dock.get(0).pkg);
-        dockBand.setBackgroundDrawable(show && !empty && desktopSettings.showDockBackground()?new DockBackdropDrawable(wallpapers,dockBand,root,unit):null);
+        if(dockBand==null)return;boolean show=homeAppsVisible&&!dock.isEmpty();dockBand.setVisibility(show?View.VISIBLE:View.GONE);dockBand.setBackgroundDrawable(null);dockBand.invalidate();
     }
-
     private final class DockBand extends FrameLayout {
-        boolean restoreLayout;
-        DockBand(){super(HomeActivity.this);setVisibility(View.GONE);}
-        @Override protected void onLayout(boolean changed,int left,int top,int right,int bottom){
-            super.onLayout(changed,left,top,right,bottom);
-            if(restoreLayout&&dockBand==this){restoreLayout=false;updateDock(false);}
-        }
-        @Override protected void onSizeChanged(int width,int height,int oldWidth,int oldHeight){super.onSizeChanged(width,height,oldWidth,oldHeight);restoreLayout=true;}
+        boolean restoreLayout;DockBackdropDrawable material;ValueAnimator geometryAnimation;final RectF surfaceBounds=new RectF();float surfaceRadius;
+        DockBand(){super(HomeActivity.this);setVisibility(View.GONE);setWillNotDraw(false);}
+        void surface(DockLayout target,boolean animate){if(geometryAnimation!=null)geometryAnimation.cancel();RectF end=new RectF(px(target.left-CONTENT_MARGIN),px(target.top),px(target.left-CONTENT_MARGIN+target.width),px(target.top+target.height));float radius=target.radius*unit;material=new DockBackdropDrawable(wallpapers::drawDockBackground,this,root,unit,false,desktopSettings.dockGlass());
+            if(!animate||surfaceBounds.isEmpty()){surfaceBounds.set(end);surfaceRadius=radius;invalidate();return;}RectF start=new RectF(surfaceBounds);float startRadius=surfaceRadius;geometryAnimation=ValueAnimator.ofFloat(0,1);geometryAnimation.setDuration(180);geometryAnimation.setInterpolator(DockCurve.value());geometryAnimation.addUpdateListener(a->{float f=(float)a.getAnimatedValue();surfaceBounds.set(start.left+(end.left-start.left)*f,start.top+(end.top-start.top)*f,start.right+(end.right-start.right)*f,start.bottom+(end.bottom-start.bottom)*f);surfaceRadius=startRadius+(radius-startRadius)*f;for(Tile tile:dockTiles)tile.invalidate();invalidate();});geometryAnimation.start();}
+        @Override protected void onDraw(Canvas c){super.onDraw(c);boolean empty=dock.size()==1&&ADD_DOCK_ENTRY.equals(dock.get(0).pkg);if(material==null||empty||!desktopSettings.showDockBackground())return;material.setBounds(Math.round(surfaceBounds.left),Math.round(surfaceBounds.top),Math.round(surfaceBounds.right),Math.round(surfaceBounds.bottom));material.radiusPixels(surfaceRadius);material.draw(c);}
+        @Override protected void onLayout(boolean changed,int left,int top,int right,int bottom){super.onLayout(changed,left,top,right,bottom);if(restoreLayout&&dockBand==this){restoreLayout=false;updateDock(false);}}
+        @Override protected void onDetachedFromWindow(){if(geometryAnimation!=null)geometryAnimation.cancel();super.onDetachedFromWindow();}
     }
 
     private final class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>{
-        private final float gridHeight=((960-2*CONTENT_MARGIN)/APP_COLUMNS-APP_GAP)*203f/360f+APP_LABEL_GAP+APP_LABEL_HEIGHT;
-        private final float dockPadding=18, dockGap=18, dockWidth=(864-2*dockPadding-(DockStore.CAPACITY-1)*dockGap)/DockStore.CAPACITY, dockHeight=dockWidth*203f/360f;
+        private float gridHeight(){return ((960-2*CONTENT_MARGIN)/appColumns-APP_GAP)/("rectangle".equals(desktopSettings.iconShape())?16/9f:1)+APP_LABEL_GAP+APP_LABEL_HEIGHT;}
         @Override public int getItemViewType(int position){return position==0?0:position==1?1:2;}
         @Override public int getItemCount(){return 2+apps.size();}
         @Override public RecyclerView.ViewHolder onCreateViewHolder(android.view.ViewGroup parent,int type){
             View view;
             if(type==0){
-                FrameLayout header=new FrameLayout(HomeActivity.this);header.setClipChildren(false);header.setLayoutParams(new RecyclerView.LayoutParams(-1,px(HOME_HEADER_HEIGHT)));
-                heroTitle=text("",40,400,0xfff1f2f6);heroTitle.setVisibility(homeAppsVisible&&desktopSettings.showAppTitle()?View.VISIBLE:View.GONE);place(header,heroTitle,820,56,2,HOME_TITLE_TOP);
+                FrameLayout header=new FrameLayout(HomeActivity.this);header.setClipChildren(false);RecyclerView.LayoutParams hp=new RecyclerView.LayoutParams(-1,px(HOME_HEADER_HEIGHT));hp.leftMargin=hp.rightMargin=-px(CONTENT_MARGIN);header.setLayoutParams(hp);
+                heroTitle=text("",40,400,UiPalette.TEXT);heroTitle.setVisibility(View.GONE);place(header,heroTitle,820,56,CONTENT_MARGIN+2,HOME_TITLE_TOP);
                 DockBand band=new DockBand();dockBand=band;
                 wallpapers.observeDock(HomeActivity.this::invalidateDockBackdrop);
-                band.setClipChildren(false);place(header,band,-1,dockHeight+2*dockPadding,0,HOME_DOCK_TOP);
+                band.setClipChildren(false);place(header,band,960-2*CONTENT_MARGIN,HOME_HEADER_HEIGHT,CONTENT_MARGIN,0);
                 header.setTag(band);view=header;
             }else if(type==1){view=new View(HomeActivity.this);view.setLayoutParams(new RecyclerView.LayoutParams(-1,px(APP_TITLE_HEIGHT)));}
-            else{Tile tile=new Tile(true);RecyclerView.LayoutParams p=new RecyclerView.LayoutParams(-1,px(gridHeight));p.leftMargin=px(APP_GAP/2);p.rightMargin=px(APP_GAP/2);p.bottomMargin=px(APP_GAP);tile.setLayoutParams(p);view=tile;}
+            else{Tile tile=new Tile(true);RecyclerView.LayoutParams p=new RecyclerView.LayoutParams(-1,px(gridHeight()));p.leftMargin=px(APP_GAP/2);p.rightMargin=px(APP_GAP/2);p.bottomMargin=px(APP_GAP);tile.setLayoutParams(p);view=tile;}
             return new RecyclerView.ViewHolder(view){};
         }
         @Override public void onBindViewHolder(RecyclerView.ViewHolder holder,int position){
@@ -1090,44 +1154,44 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 FrameLayout header=(FrameLayout)holder.itemView;
                 if(homeHeader.getParent()!=header){
                     if(homeHeader.getParent()!=null)((ViewGroup)homeHeader.getParent()).removeView(homeHeader);
-                    place(header,homeHeader,960,HOME_HEADER_HEIGHT,-CONTENT_MARGIN,0);
+                    place(header,homeHeader,960,HOME_HEADER_HEIGHT,0,0);
                 }
                 header.setAlpha(1);
                 DockBand band=(DockBand)holder.itemView.getTag();dockBand=band;
                 if(dockPress!=null)dockPress.cancel();
                 for(Tile old:dockTiles){old.animate().cancel();if(old.app!=null&&visibleTiles.get(old.app.pkg)==old)visibleTiles.remove(old.app.pkg);if(selected==old)selected=null;}
                 band.removeAllViews();dockTiles.clear();dockFocus=-2;band.restoreLayout=true;
-                float width=dockWidth,height=dockHeight;
-                FrameLayout.LayoutParams bandParams=(FrameLayout.LayoutParams)band.getLayoutParams();
-                bandParams.width=px(2*dockPadding+dock.size()*width+Math.max(0,dock.size()-1)*dockGap);bandParams.height=px(height+2*dockPadding);
-                bandParams.gravity=Gravity.TOP|Gravity.CENTER_HORIZONTAL;bandParams.leftMargin=0;band.setLayoutParams(bandParams);
-                for(int n=0;n<dock.size();n++){Tile tile=new Tile();tile.bind(dock.get(n));dockTiles.add(tile);place(band,tile,width,height,dockPadding+n*(width+dockGap),dockPadding);}
+                DockLayout base=dockGeometry(-1);
+                for(int n=0;n<dock.size();n++){Tile tile=new Tile();tile.bind(dock.get(n));dockTiles.add(tile);place(band,tile,base.cardWidth[n],base.cardHeight[n]+base.labelGap+base.labelSize*1.4f,base.x[n]-CONTENT_MARGIN,base.y[n]);}
                 applyDockAppearance();
-                heroTitle.setText(dock.isEmpty()?"":dock.get(Math.min(Math.max(column,0),dock.size()-1)).label);
-            }else if(position>=2)((Tile)holder.itemView).bind(apps.get(position-2));
+                updateHeroTitle();
+            }else if(position>=2){holder.itemView.getLayoutParams().height=px(gridHeight());((Tile)holder.itemView).bind(apps.get(position-2));}
         }
         @Override public void onViewRecycled(RecyclerView.ViewHolder holder){if(holder.itemView instanceof Tile){Tile tile=(Tile)holder.itemView;if(tile.app!=null && visibleTiles.get(tile.app.pkg)==tile)visibleTiles.remove(tile.app.pkg);}}
     }
 
     private final class Tile extends View {
-        App app;final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);final RectF imageRect=new RectF();Shader highlight;
+        App app;final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);final RectF imageRect=new RectF(),containedArtwork=new RectF();
         private BitmapShader artwork;private final Matrix artworkMatrix=new Matrix();
         final boolean showLabel;
         final android.text.TextPaint labelPaint=new android.text.TextPaint(Paint.ANTI_ALIAS_FLAG);
+        final Paint.FontMetrics drawLabelMetrics=new Paint.FontMetrics();
+        private float drawLabelWidth=-1,drawLabelSize=-1;private String drawLabelSource="",drawLabelText="";
         private String label="";
         private float labelBaseline;
         Tile(){this(false);}
         Tile(boolean showLabel){super(HomeActivity.this);this.showLabel=showLabel;
             labelPaint.setTextSize(px(14));labelPaint.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));
-            labelPaint.setColor(0xfff1f2f6);labelPaint.setTextAlign(Paint.Align.CENTER);labelPaint.setShadowLayer(px(1),0,px(1),0x99000000);
+            labelPaint.setColor(UiPalette.TEXT);labelPaint.setTextAlign(Paint.Align.CENTER);labelPaint.setShadowLayer(px(1),0,px(1),0x99000000);
             setOnClickListener(v->{if(app!=null){if(!movingPackage.isEmpty()){saveMove();return;}selectTile(this);launchSelected();}});
             setOnLongClickListener(v->{if(app==null||!movingPackage.isEmpty())return true;selectTile(this);openAppActions(app);return true;});}
         void bind(App value){if(app!=null && visibleTiles.get(app.pkg)==this)visibleTiles.remove(app.pkg);transformTile(this,1,0,0,false,0);app=value;setBackgroundDrawable(ADD_DOCK_ENTRY.equals(app.pkg)?new DockBackdropDrawable(wallpapers::drawDockBackground,this,root,unit,true):null);artwork=new BitmapShader(app.banner,Shader.TileMode.CLAMP,Shader.TileMode.CLAMP);updateArtwork();visibleTiles.put(app.pkg,this);setContentDescription(app.label);updateLabel();invalidate();}
-        float imageHeight(){return getWidth()*203f/360f;}
-        @Override protected void onSizeChanged(int w,int h,int oldw,int oldh){super.onSizeChanged(w,h,oldw,oldh);highlight=new LinearGradient(0,0,w,imageHeight(),new int[]{0x30ffffff,0x09ffffff},null,Shader.TileMode.CLAMP);updateArtwork();updateLabel();}
+        float imageHeight(){return app!=null&&ADD_DOCK_ENTRY.equals(app.pkg)?getHeight():getWidth()/("rectangle".equals(desktopSettings.iconShape())?16/9f:1);}
+        @Override protected void onSizeChanged(int w,int h,int oldw,int oldh){super.onSizeChanged(w,h,oldw,oldh);updateArtwork();updateLabel();}
         private void updateArtwork(){
             if(artwork==null)return;
-            artworkMatrix.setScale(getWidth()/(float)app.banner.getWidth(),imageHeight()/app.banner.getHeight());artwork.setLocalMatrix(artworkMatrix);
+            if(app.libraryCover){float[] fit=LibraryCover.fit(app.banner.getWidth(),app.banner.getHeight(),getWidth(),imageHeight());containedArtwork.set(fit[0],fit[1],fit[2],fit[3]);}
+            float scale=Math.max(getWidth()/(float)app.banner.getWidth(),imageHeight()/app.banner.getHeight());artworkMatrix.setScale(scale,scale);artworkMatrix.postTranslate((getWidth()-app.banner.getWidth()*scale)/2,(imageHeight()-app.banner.getHeight()*scale)/2);artwork.setLocalMatrix(artworkMatrix);
         }
         private void updateLabel(){
             if(!showLabel || app==null)return;
@@ -1135,30 +1199,102 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             Paint.FontMetrics metrics=labelPaint.getFontMetrics();
             labelBaseline=imageHeight()+px(APP_LABEL_GAP)+(px(APP_LABEL_HEIGHT)-metrics.bottom-metrics.top)/2;
         }
-        @Override protected void onDraw(Canvas c){super.onDraw(c);if(app==null)return;float h=imageHeight(),radius=px(11);RectF rect=imageRect;rect.set(0,0,getWidth(),h);
+        @Override protected void onDraw(Canvas c){super.onDraw(c);if(app==null)return;float h=imageHeight(),radius="circle".equals(desktopSettings.iconShape())?Math.min(getWidth(),h)/2:SurfaceCorners.artworkRadius(getWidth(),h),ry=radius;RectF rect=imageRect;rect.set(0,0,getWidth(),h);
             boolean add=ADD_DOCK_ENTRY.equals(app.pkg);
-            if(add)radius=px(16);
-            {
-                // Paint anti-aliasing does not control clipPath edges on older TV renderers.
-                if(!add){paint.setColor(0xff191a20);c.drawRoundRect(rect,radius,radius,paint);}
-                paint.setAlpha(255);paint.setShader(artwork);c.drawRoundRect(rect,radius,radius,paint);paint.setShader(null);
+            if(add){radius=SurfaceCorners.artworkRadius(getWidth(),h);ry=radius;}
+            // AppArtwork and custom covers already contain an opaque background.
+            // Keep artwork sampling identical across focus states; only the outline changes here.
+            boolean focused=selected==this&&row>=0;
+            paint.setAlpha(255);if(app.libraryCover){paint.setShader(null);c.drawBitmap(app.banner,null,containedArtwork,paint);}else{paint.setShader(artwork);SurfaceCorners.draw(c,rect,radius,ry,paint);paint.setShader(null);}
+            if(focused){
+                float stroke=add||!showLabel?px(1.5f):px(FOCUS_STROKE),inset=stroke/2f;rect.inset(inset,inset);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(stroke);paint.setColor(add?0xd9ffffff:Color.WHITE);SurfaceCorners.draw(c,rect,Math.max(0,radius-inset),Math.max(0,ry-inset),paint);paint.setStyle(Paint.Style.FILL);
             }
-            if(selected==this && row>=0){
-                if(!add){paint.setShader(highlight);c.drawRoundRect(rect,radius,radius,paint);paint.setShader(null);}
-                float stroke=add?px(1.5f):px(FOCUS_STROKE),inset=stroke/2f;rect.inset(inset,inset);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(stroke);paint.setColor(add?0xd9ffffff:Color.WHITE);c.drawRoundRect(rect,Math.max(0,radius-inset),Math.max(0,radius-inset),paint);paint.setStyle(Paint.Style.FILL);
+            if(!add&&(showLabel&&desktopSettings.showAllAppsNames()||!showLabel&&"below".equals(desktopSettings.appTitlePosition()))){
+                float scale=Math.max(.01f,getScaleX());DockLayout geometry=showLabel?null:renderedDockGeometry;if(!showLabel&&geometry==null)return;float textSize=showLabel?px(14):geometry.labelSize*unit/scale,textWidth=Math.max(0,getWidth()-px(4)/scale);labelPaint.setTextSize(textSize);if(textSize!=drawLabelSize||textWidth!=drawLabelWidth||!app.label.equals(drawLabelSource)){drawLabelSize=textSize;drawLabelWidth=textWidth;drawLabelSource=app.label;drawLabelText=android.text.TextUtils.ellipsize(app.label,labelPaint,textWidth,android.text.TextUtils.TruncateAt.END).toString();}String value=drawLabelText;labelPaint.getFontMetrics(drawLabelMetrics);Paint.FontMetrics metrics=drawLabelMetrics;float line=showLabel?px(APP_LABEL_HEIGHT):geometry.labelSize*1.4f*unit/scale;float gap=showLabel?px(APP_LABEL_GAP):geometry.labelGap*unit/scale;float baseline=h+gap+(line-metrics.descent-metrics.ascent)/2;c.drawText(value,getWidth()/2f,baseline,labelPaint);
             }
-            if(showLabel&&desktopSettings.showAllAppsNames())c.drawText(label,getWidth()/2f,labelBaseline,labelPaint);
             if(app.pkg.equals(movingPackage)){
-                paint.setColor(0xffeff0f4);float width=px(58),height=px(20);RectF badge=new RectF(getWidth()-width-px(5),px(5),getWidth()-px(5),px(5)+height);c.drawRoundRect(badge,px(5),px(5),paint);
-                paint.setColor(0xff191d24);paint.setTypeface(Typeface.DEFAULT);paint.setTextAlign(Paint.Align.CENTER);paint.setTextSize(px(11));c.drawText(tr("移动中","Moving"),badge.centerX(),badge.centerY()+px(4),paint);
+                paint.setColor(UiPalette.TEXT);float width=px(58),height=px(20);RectF badge=new RectF(getWidth()-width-px(5),px(5),getWidth()-px(5),px(5)+height);SurfaceCorners.draw(c,badge,px(SurfaceCorners.CONTROL),px(SurfaceCorners.CONTROL),paint);
+                paint.setColor(0xff000000);paint.setTypeface(Typeface.DEFAULT);paint.setTextAlign(Paint.Align.CENTER);paint.setTextSize(px(11));c.drawText(tr("移动中","Moving"),badge.centerX(),badge.centerY()+px(4),paint);
             }
         }
 
     }
 
+    // A transparent tools Activity pauses HOME while its Dock remains visible underneath.
+    private void phoneConfigurationChanged(){if(waitingForUnlock||wallpapers==null||UiCompat.destroyed(this))return;if(!appliedDesktopValues.equals(getSharedPreferences("desktop-settings",0).getAll())){applyDesktopSettings(false);updateClock();updateNetwork();}WeatherStore phoneWeather=new WeatherStore(this);WeatherData cachedWeather=phoneWeather.cached(chinese);String weatherKey=phoneWeather.key(chinese)+phoneWeather.enabled()+":"+(cachedWeather==null?0:cachedWeather.fetchedAt);if(!weatherKey.equals(phoneWeatherKey)){phoneWeatherKey=weatherKey;weather.settingsChanged();}if(ready&&(resumed||root.getWindowVisibility()==View.VISIBLE))loadApps("phone_settings");WallpaperStore media=WallpaperStore.get(this);WallpaperCatalog catalog=media.snapshot();String key=catalog.current+catalog.rotating+catalog.sound+catalog.weather+catalog.weatherDayNight+":"+catalog.rotationMinutes+":"+media.imageKey(catalog.current)+":"+media.manualVersion();if(!key.equals(phoneWallpaperKey)){phoneWallpaperKey=key;wallpapers.settingsChanged();}if(screensaver!=null)screensaver.settingsChanged();DiagnosticLog.info("home.configuration.applied","parent="+DiagnosticOperation.current()+" evidence=configuration_callback_not_presentation");}
+    static boolean phoneAction(Context context,String id,PhoneSettingsServer.Active authority){HomeActivity home=liveHome.get();if(home==null||!home.ready||UiCompat.destroyed(home)||(!"screensaver".equals(id)&&!(id.startsWith("app:")&&AppCoverStore.packageName(id.substring(4))))||!home.pendingHomeAction.isEmpty()||!authority.valid())return false;home.pendingHomeAction=id;home.phoneActionAuthority=authority;try{context.startActivity(new Intent(context,HomeActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));home.main.post(home::runPendingHomeAction);return true;}catch(RuntimeException unavailable){home.pendingHomeAction="";home.phoneActionAuthority=null;return false;}}
+    static Bitmap previewArtwork(Context context,String pkg){HomeActivity home=liveHome.get();if(home==null||home.previewCatalogRevision!=home.packageRevision||UiCompat.destroyed(home))return null;App app=home.previewCatalog.get(pkg);return app!=null&&app.artworkKey.endsWith(":cover:"+AppCoverStore.get(context).key(pkg))&&!app.banner.isRecycled()?app.banner:null;}
+    static byte[] phoneBackground()throws java.io.IOException {HomeActivity home=liveHome.get();if(home==null||home.root==null||home.root.getWidth()<1)throw new java.io.IOException("背景预览不可用");Bitmap image=Bitmap.createBitmap(320,Math.max(1,Math.round(320f*home.root.getHeight()/home.root.getWidth())),Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(image);canvas.scale(image.getWidth()/(float)home.root.getWidth(),image.getHeight()/(float)home.root.getHeight());home.wallpapers.drawDockBackground(canvas,new Paint(Paint.FILTER_BITMAP_FLAG));java.io.ByteArrayOutputStream output=new java.io.ByteArrayOutputStream();image.compress(Bitmap.CompressFormat.JPEG,85,output);image.recycle();return output.toByteArray();}
+    static void capturePhoneBackground(WallpaperGpuView.Capture callback){HomeActivity home=liveHome.get();if(home==null||home.wallpapers==null||home.waitingForUnlock||UiCompat.destroyed(home)){callback.ready(null);return;}home.wallpapers.phoneBackground(callback);}
+    static void previewHomeBrightness(Integer value){HomeActivity home=liveHome.get();if(home==null)return;home.main.post(()->{if(UiCompat.destroyed(home)||home.waitingForUnlock)return;home.brightnessDraft=value;home.updateWallpaperBlur();});}
+    private void openHomeTools(boolean buttons,String id){if(!buttons&&id.isEmpty()){showQuickControls(null,"");return;}saveFocus();leaveHome(()->startActivityForResult(settingsIntent(HomeToolsActivity.class).putExtra("mode",buttons?"buttons":"control").putExtra("home-button",id).putExtra("chinese",chinese),HomeToolsActivity.REQUEST));}
+    private void showQuickControls(Bundle saved,String focus){
+        if(quickControls!=null)return;ManagementUi.performanceAction("quick_controls");cancelInputWork();cancelConfirm();cancelFocusRestore("quick_controls");screensaver.pause();
+        if(scrollAnimation!=null)scrollAnimation.cancel();list.stopScroll();int control=homeHeader.buttonIds.indexOf("control");row=control>=0?-1:0;if(control>=0)topColumn=control;focusCurrent(false);saveFocus();
+        if(saved==null&&!focus.isEmpty()){saved=new Bundle();saved.putBoolean("quick-phone-expanded",true);saved.putString("quick-focus",focus);}
+        quickControlsOpening=true;
+        try{quickControls=new HomeQuickControlOverlay(this,root,list,homeHeader,unit,chinese,wallpapers::drawDockBackground,saved);quickControls.resume();}
+        finally{quickControlsOpening=false;}
+    }
+    void closeQuickControls(boolean dock){
+        quickReturn="";restoredQuickControls=null;
+        HomeQuickControlOverlay quick=quickControls;if(quick==null)return;quickControls=null;quick.destroy();cancelConfirm();
+        int index=homeHeader.buttonIds.indexOf("control");row=!dock&&index>=0?-1:0;if(row<0)topColumn=index;else column=Math.min(restoreColumn,maxColumn(0));focusCurrent(false);screensaver.availabilityChanged();
+    }
+    void activateQuickHeader(String id){closeQuickControls(false);if(!"control".equals(id))executeHomeButton(id);}
+    void executeQuickControl(String id){
+        if(quickControls==null)return;
+        if("original".equals(id)){switchQuickDesktop();return;}
+        if("keySounds".equals(id)||"mute".equals(id)){
+            try{if("keySounds".equals(id))desktopSettings.savePhoneValue("key-sounds",!desktopSettings.keySounds());else{WallpaperStore store=WallpaperStore.get(this);WallpaperCatalog state=store.snapshot();if(state.weather||state.rotating){Toast.makeText(this,state.weather?"天气联动保持静音":"轮换背景保持静音",Toast.LENGTH_SHORT).show();return;}store.sound(!state.sound);}PhoneSettingsSession.get(this).configurationChanged();}catch(IOException error){Toast.makeText(this,error.getMessage(),Toast.LENGTH_LONG).show();}return;
+        }
+        closeQuickControls(false);
+        if("screensaver".equals(id)){screensaver.enter();return;}
+        if(QuickControlStore.SETTINGS.equals(id)){leaveHome(()->startActivity(settingsIntent(DesktopSettingsActivity.class)));return;}
+        if("child".equals(id)||"apps".equals(id)||"clock".equals(id)||"weather".equals(id)||"wallpaper".equals(id)){
+            int page="child".equals(id)?SettingsPages.CHILD:"apps".equals(id)?SettingsPages.APPS:"weather".equals(id)?SettingsPages.WEATHER:SettingsPages.DESKTOP;
+            leaveHome(()->startActivity(settingsIntent(AppManagementActivity.class).putExtra("management-page",page).putExtra("quick-selected",id).putExtra("desktop-background-entry","wallpaper".equals(id)).putExtra("desktop-clock-entry","clock".equals(id))));return;
+        }
+        if("network".equals(id)||"bluetooth".equals(id)||"systemSettings".equals(id)){leaveHome(()->new SystemSettingsRouter(this).open("network".equals(id)?Settings.ACTION_WIFI_SETTINGS:"bluetooth".equals(id)?Settings.ACTION_BLUETOOTH_SETTINGS:Settings.ACTION_SETTINGS));return;}
+        leaveHome(()->startActivity(settingsIntent(HomeToolsActivity.class).putExtra("mode","control").putExtra("home-button",id).putExtra("inline-quick-origin",true).putExtra("chinese",chinese)));
+    }
+    private void switchQuickDesktop(){
+        if(quickDesktopSwitching){Toast.makeText(this,"正在切换原桌面，请稍候",Toast.LENGTH_SHORT).show();return;}
+        HomeQuickControlOverlay quick=quickControls;DesktopSwitch engine=DesktopSwitch.get(this);quickDesktopSwitching=true;
+        engine.worker.execute(()->{
+            String problem=null;
+            try{
+                JSONObject state=engine.state();String error=state.optString("problem");if(!error.isEmpty())throw new IOException(error);
+                engine.execute("stock",state.optString("revision"),()->quickControls==quick&&!isFinishing()&&!UiCompat.destroyed(this));
+            }catch(Exception failure){problem=DesktopSwitch.message(failure);}
+            String error=problem;main.post(()->{
+                quickDesktopSwitching=false;if(quickControls!=quick||isFinishing()||UiCompat.destroyed(this))return;
+                if(error==null)closeQuickControls(false);else Toast.makeText(this,error,Toast.LENGTH_LONG).show();
+            });
+        });
+    }
+    private void runPendingHomeAction(){
+        if(!resumed||!ready||!hasWindowFocus())return;
+        if(pendingDockFocus){pendingDockFocus=false;pendingButtonFocus="";quickReturn="";applyDesktopSettings();row=0;column=Math.min(restoreColumn,maxColumn(0));activePackage="";focusCurrent(false);}
+        else if(!pendingButtonFocus.isEmpty()){applyDesktopSettings();int index=homeHeader.buttonIds.indexOf(pendingButtonFocus);pendingButtonFocus="";if(index>=0){row=-1;topColumn=index;focusCurrent(false);}}
+        if(pendingHomeAction==null||pendingHomeAction.isEmpty())return;String action=pendingHomeAction;pendingHomeAction="";PhoneSettingsServer.Active authority=phoneActionAuthority;phoneActionAuthority=null;if(authority!=null&&!authority.valid())return;if(action.startsWith("app:")){String pkg=action.substring(4);Intent launch=new BootAppStore(this).launchIntent(pkg);if(launch==null||new HomeVisibilityStore(this).hidden(pkg))return;leaveHome(()->{if(authority==null||!authority.valid())return;if(ChildBlockActivity.gate(this,pkg))return;if(new HomeGuardState(this).protects(pkg))HomeGuardService.allowOriginal();ExternalActivityLauncher.open(this,"phone.app.open",launch);});return;}executeHomeButton(action);
+    }
+    private void returnToQuick(){
+        if(quickReturn.isEmpty()&&restoredQuickControls==null||pendingHomeAction!=null&&!pendingHomeAction.isEmpty()||!resumed||!ready||!hasWindowFocus()||inputDiscoveryPending||screensaver.showing()||wallpapers.pickerShowing()||inputPopup!=null&&inputPopup.isShowing())return;
+        String id=quickReturn;quickReturn="";Bundle saved=restoredQuickControls;restoredQuickControls=null;showQuickControls(saved,id);
+    }
+    private void executeHomeButton(String id){
+        if(quickControls!=null){activateQuickHeader(id);return;}
+        if("settings".equals(id))ManagementUi.performanceAction("desktop_settings");
+        switch(id){case "settings":leaveHome(()->startActivity(settingsIntent(DesktopSettingsActivity.class)));break;case "systemSettings":openSettings(Settings.ACTION_SETTINGS);break;case "network":openSettings(Settings.ACTION_WIFI_SETTINGS);break;case "source":openHomeTools(false,"source");break;case "screensaver":screensaver.enter();break;case "wallpaper":wallpapers.showPicker();break;
+            case "keySounds":desktopSettings.keySounds(!desktopSettings.keySounds());break;
+            case "mute":try{WallpaperStore store=WallpaperStore.get(this);WallpaperCatalog state=store.snapshot();if(state.rotating){Toast.makeText(this,"轮换背景保持静音",Toast.LENGTH_SHORT).show();return;}store.sound(!state.sound);}catch(java.io.IOException error){Toast.makeText(this,error.getMessage(),Toast.LENGTH_LONG).show();}break;
+            default:openHomeTools(false,"control".equals(id)?"":id);break;
+        }
+    }
     private String topEntry(){
         if(row>=0 || topColumn<0 || topColumn>=visiblePills.size())return "none";
-        int index=pills.indexOf(visiblePills.get(topColumn));return index==0?"input":index==1?"network":index==2?"settings":"none";
+        int index=pills.indexOf(visiblePills.get(topColumn));return index>=0&&index<homeHeader.buttonIds.size()?homeHeader.buttonIds.get(index):"none";
     }
     private void systemEntryLifecycle(String state){
         if(!systemEntryPending.isEmpty())DiagnosticLog.info("home.action.lifecycle","entry="+systemEntryPending+" elapsedMs="+(android.os.SystemClock.elapsedRealtime()-systemEntryStarted)+" state="+state);
@@ -1181,6 +1317,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         cancelInputWork();leaveSystemEntryPrepared(entry,action);
     }
     private void leaveSystemEntryPrepared(String entry,Runnable action){
+        if(entry.startsWith("input."))InputTransitionEvidence.begin("home_"+entry,"unknown");
         final int request=systemEntryGeneration;
         systemEntryPending=entry;systemEntryDispatched=false;systemEntryStarted=android.os.SystemClock.elapsedRealtime();
         DiagnosticLog.info("home.action.request","entry="+entry+" ready="+ready+" resumed="+resumed+" windowFocus="+hasWindowFocus()+" api="+Build.VERSION.SDK_INT);
@@ -1188,6 +1325,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
     private void systemEntryResult(boolean dispatched){systemEntryResult(dispatched,false);}
     private void systemEntryResult(boolean dispatched,boolean automatic){
+        if(systemEntryPending.startsWith("input."))DiagnosticLog.info("input.transition.dispatch",InputTransitionEvidence.fields()+" entry="+systemEntryPending+" dispatched="+dispatched+" automatic="+automatic);
         systemEntryDispatched=dispatched;
         if(dispatched && systemEntryPending.startsWith("input."))HomeGuardService.savedInputSelected(this,automatic);
         systemEntryLifecycle(dispatched?"dispatched_unverified":"not_dispatched");
@@ -1388,7 +1526,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 int br=b.getType()==TvInputInfo.TYPE_HDMI?0:b.isPassthroughInput()?1:2;
                 return ar==br?inputName(a).compareTo(inputName(b)):Integer.compare(ar,br);
             });
-            LinearLayout menu=new KeyFeedback.Menu(HomeActivity.this);menu.setOrientation(LinearLayout.VERTICAL);menu.setPadding(px(7),px(7),px(7),px(7));menu.setBackgroundDrawable(surface(0xfa25262e,18));
+            LinearLayout menu=new KeyFeedback.Menu(HomeActivity.this);menu.setOrientation(LinearLayout.VERTICAL);menu.setPadding(px(7),px(7),px(7),px(7));menu.setBackgroundDrawable(surface(0xfa000000,18));
             ArrayList<TextView> choices=new ArrayList<>();HashSet<String> tuners=new HashSet<>();
             for(TvInputInfo info:inputs){
                 if(!info.isPassthroughInput() && !tuners.add("live"))continue;
@@ -1398,7 +1536,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             for(TvInputPanels.Panel nativeChoice:snapshot.availablePanels())addInputChoice(menu,choices,nativeChoice.profile.label(chinese),()->openNativeInputs(nativeChoice));
             DiagnosticLog.info("input.menu","choices="+choices.size());
             if(choices.isEmpty()){showUnavailableInputs(snapshot,discovery);return;}
-            if(snapshot.itemFailures>0){TextView note=text(tr("部分输入信息读取失败","Some inputs could not be read"),12,400,0xffb0b4be);note.setPadding(px(12),px(8),px(12),px(8));menu.addView(note);}
+            if(snapshot.itemFailures>0){TextView note=text(tr("部分输入信息读取失败","Some inputs could not be read"),12,400,UiPalette.SECONDARY);note.setPadding(px(12),px(8),px(12),px(8));menu.addView(note);}
             inputPopup=new KeyFeedback.Popup(HomeActivity.this,menu,px(222),-2);inputPopup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));inputPopup.setElevation(px(14));inputPopup.setOutsideTouchable(true);
             inputPopup.setOnDismissListener(()->main.post(()->updateHeaderFocus()));
             for(int n=0;n<choices.size();n++){
@@ -1408,11 +1546,11 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                     if(key==KeyEvent.KEYCODE_DPAD_UP || key==KeyEvent.KEYCODE_DPAD_DOWN){if(event.getAction()==KeyEvent.ACTION_DOWN)choices.get(Math.max(0,Math.min(choices.size()-1,index+(key==KeyEvent.KEYCODE_DPAD_UP?-1:1)))).requestFocus();return true;}return false;
                 });
             }
-            inputPopup.showAsDropDown(inputButton,0,px(9));choices.get(0).requestFocus();
+            if(inputButton!=null&&inputButton.getVisibility()==View.VISIBLE)inputPopup.showAsDropDown(inputButton,0,px(9));else inputPopup.showAtLocation(root,Gravity.TOP|Gravity.RIGHT,px(48),px(77));choices.get(0).requestFocus();
         }
 
         private void addInputChoice(LinearLayout menu,ArrayList<TextView> choices,String title,Runnable action){
-            TextView choice=text(title,15,400,0xffeeeeef);choice.setPadding(px(16),0,px(12),0);choice.setGravity(Gravity.CENTER_VERTICAL);choice.setFocusable(true);choice.setFocusableInTouchMode(true);choice.setBackgroundDrawable(ControlStyle.listRow(unit,11));
+            TextView choice=text(title,15,400,UiPalette.TEXT);choice.setPadding(px(16),0,px(12),0);choice.setGravity(Gravity.CENTER_VERTICAL);choice.setFocusable(true);choice.setFocusableInTouchMode(true);choice.setBackgroundDrawable(ControlStyle.listRow(unit,11));
             final int choiceIndex=choices.size();choice.setOnClickListener(v->{DiagnosticLog.info("input.menu.select","index="+choiceIndex);inputPopup.closeQuietly();action.run();KeyFeedback.confirm(HomeActivity.this);});
             choices.add(choice);menu.addView(choice,new LinearLayout.LayoutParams(-1,px(40)));
         }

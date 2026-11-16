@@ -23,13 +23,23 @@ final class FileTransferSource {
     }
     static String size(long bytes){return bytes<0?"大小未知":bytes>=1024*1024?String.format(Locale.ROOT,"%.1f MB",bytes/(1024f*1024)):bytes>=1024?String.format(Locale.ROOT,"%.1f KB",bytes/1024f):bytes+" B";}
     static Item file(File file){return new Item(file.getName(),file.isDirectory()?-1:file.length(),file.isDirectory(),Uri.fromFile(file),file);}
+    static boolean partialMediaAccess(Context context){
+        return Build.VERSION.SDK_INT>=34&&context.checkSelfPermission(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)==PackageManager.PERMISSION_GRANTED
+                &&(context.checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES)!=PackageManager.PERMISSION_GRANTED||context.checkSelfPermission(Manifest.permission.READ_MEDIA_VIDEO)!=PackageManager.PERMISSION_GRANTED);
+    }
     static String[] missingPermissions(Context context){
-        if(Build.VERSION.SDK_INT<23)return new String[0];
+        if(Build.VERSION.SDK_INT<23||partialMediaAccess(context))return new String[0];
         String[] needed=Build.VERSION.SDK_INT>=33?new String[]{Manifest.permission.READ_MEDIA_IMAGES,Manifest.permission.READ_MEDIA_VIDEO}:new String[]{Manifest.permission.READ_EXTERNAL_STORAGE};
         ArrayList<String> missing=new ArrayList<>();for(String permission:needed)if(context.checkSelfPermission(permission)!=PackageManager.PERMISSION_GRANTED)missing.add(permission);
+        if(Build.VERSION.SDK_INT>=34&&!missing.isEmpty())missing.add(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED);
         return missing.toArray(new String[0]);
     }
-    static boolean requestPermission(Activity activity,int request){if(Build.VERSION.SDK_INT<23)return false;String[] missing=missingPermissions(activity);if(missing.length==0)return false;activity.requestPermissions(missing,request);return true;}
+    static boolean requestPermission(Activity activity,int request){return requestPermission(activity,request,false);}
+    static boolean requestPermission(Activity activity,int request,boolean reselect){
+        if(Build.VERSION.SDK_INT<23)return false;
+        String[] needed=reselect&&partialMediaAccess(activity)?new String[]{Manifest.permission.READ_MEDIA_IMAGES,Manifest.permission.READ_MEDIA_VIDEO,Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED}:missingPermissions(activity);
+        if(needed.length==0)return false;activity.requestPermissions(needed,request);return true;
+    }
     static List<Item> volumes(Context context,boolean usb){
         List<Item> result=volumes(usb);
         if(Build.VERSION.SDK_INT>=30){

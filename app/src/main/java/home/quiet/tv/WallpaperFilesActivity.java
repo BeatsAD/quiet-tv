@@ -29,9 +29,9 @@ public final class WallpaperFilesActivity extends androidx.activity.ComponentAct
     @Override public boolean dispatchKeyEvent(KeyEvent key){return KeyFeedback.dispatch(getWindow().getDecorView(),key,()->super.dispatchKeyEvent(key));}
     @Override public void onCreate(Bundle saved){
         super.onCreate(saved);BackNavigation.install(this,()->{if(folder!=null&&!busy)browse(folder.equals(boundary)?null:folder.getParentFile());else finish();});getWindow().getDecorView().setSystemUiVisibility(5894);
-        root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(32,24,32,24);root.setBackgroundColor(0xff151a21);setContentView(root);
+        root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(32,24,32,24);root.setBackgroundColor(0xff000000);setContentView(root);
         Button back=new KeyFeedback.Button(this);back.setText("取消");back.setOnClickListener(v->{finish();KeyFeedback.returned(this);});root.addView(back);
-        status=new TextView(this);status.setTextColor(0xffeeeeee);status.setTextSize(20);status.setPadding(0,16,0,16);root.addView(status);
+        status=new TextView(this);status.setTextColor(UiPalette.TEXT);status.setTextSize(20);status.setPadding(0,16,0,16);root.addView(status);
         list=new KeyFeedback.List(this);root.addView(list,new LinearLayout.LayoutParams(-1,0,1));
         choose=new KeyFeedback.Button(this);choose.setText("系统选择文件");choose.setOnClickListener(v->systemPicker());root.addView(choose);files();
     }

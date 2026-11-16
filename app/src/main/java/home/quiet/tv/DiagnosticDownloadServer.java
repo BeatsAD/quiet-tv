@@ -10,11 +10,11 @@ import java.util.*;
 /** Only a single immutable export is served, under a random path for a finite session. */
 final class DiagnosticDownloadServer extends NanoHTTPD {
     static final long SESSION_MS=10L*60*1000;
-    static final long MAX_EXPORT_BYTES=2L*DiagnosticJournal.SEGMENT_BYTES+32768;
-    static final String FILE_NAME="QuietTV-diagnostics.txt";
+    static final long MAX_EXPORT_BYTES=DiagnosticBundle.MAX_BYTES;
+    static final String FILE_NAME=DiagnosticExports.FILE_NAME;
     interface Assets {InputStream open(String name) throws IOException;}
     private final File file;
-    private String fileName=FILE_NAME,mime="text/plain; charset=utf-8";
+    private String fileName=FILE_NAME,mime=DiagnosticExports.MIME;
     private long maximumBytes=MAX_EXPORT_BYTES;
     private final Assets assets;
     private final String host,token;
@@ -35,6 +35,9 @@ final class DiagnosticDownloadServer extends NanoHTTPD {
     DiagnosticDownloadServer(String host,File file,Assets assets,boolean inputExport){
         this(host,file,assets);
         if(inputExport){fileName="QuietTV-inputs.zip";mime="application/zip";maximumBytes=InputSourceObservation.MAX_BYTES;}
+    }
+    static DiagnosticDownloadServer bundle(String host,File file,Assets assets){
+        DiagnosticDownloadServer server=new DiagnosticDownloadServer(host,file,assets);server.fileName="QuietTV-diagnostics.zip";server.mime="application/zip";server.maximumBytes=DiagnosticBundle.MAX_BYTES;return server;
     }
     void listen() throws IOException {start(10000,true);}
     String address(){return "http://"+host+":"+getListeningPort()+"/"+token+"/";}

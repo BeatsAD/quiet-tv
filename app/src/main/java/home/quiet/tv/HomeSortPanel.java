@@ -45,9 +45,10 @@ final class HomeSortPanel extends ManagementPanel {
         LinearLayout.LayoutParams grid=new LinearLayout.LayoutParams(-1,0,1);grid.leftMargin=px(-10);grid.rightMargin=px(-10);body.addView(list,grid);
         IntentFilter filter=new IntentFilter(Intent.ACTION_PACKAGE_ADDED);filter.addAction(Intent.ACTION_PACKAGE_REMOVED);filter.addAction(Intent.ACTION_PACKAGE_CHANGED);filter.addDataScheme("package");registerReceiver(packagesChanged,filter);
     }
-    @Override protected void onResume(){super.onResume();if(!loaded||!new DockStore(this).load().equals(pinnedSnapshot)||coverRevision!=AppCoverStore.get(this).revision()||childRevision!=new ChildModeStore(this).revision()||!visibilitySnapshot.equals(new HomeVisibilityStore(this).signature()))refresh();}
+    private final Runnable namesChanged=()->{if(showing&&!visibilitySnapshot.equals(new HomeVisibilityStore(this).signature()+new AppNameStore(this).signature()))refresh();};
+    @Override protected void onResume(){super.onResume();PhoneSettingsSession.get(activity).observeConfiguration(namesChanged);if(!loaded||!new DockStore(this).load().equals(pinnedSnapshot)||coverRevision!=AppCoverStore.get(this).revision()||childRevision!=new ChildModeStore(this).revision()||!visibilitySnapshot.equals(new HomeVisibilityStore(this).signature()+new AppNameStore(this).signature()))refresh();}
     @Override void focusManagementContent(){list.requestFocus();if(loaded)focusEntry(selected);}
-    @Override protected void onPause(){stopMoving();super.onPause();}
+    @Override protected void onPause(){PhoneSettingsSession.get(activity).forgetConfiguration(namesChanged);stopMoving();super.onPause();}
     @Override protected void onDestroy(){unregisterReceiver(packagesChanged);worker.shutdown();super.onDestroy();}
     @android.annotation.SuppressLint("NotifyDataSetChanged") // A package refresh can replace both metadata and membership.
     private void refresh(){
@@ -64,7 +65,7 @@ final class HomeSortPanel extends ManagementPanel {
                 }
                 runOnUiThread(()->{
                     if(isDestroyed() || isFinishing())return;
-                    coverRevision=covers;childRevision=children;visibilitySnapshot=new HomeVisibilityStore(this).signature();pinnedSnapshot=new ArrayList<>(pinned);defaults.clear();defaults.addAll(ids);order.clear();order.addAll(saved);lastSaved.clear();lastSaved.addAll(saved);
+                    coverRevision=covers;childRevision=children;visibilitySnapshot=new HomeVisibilityStore(this).signature()+new AppNameStore(this).signature();pinnedSnapshot=new ArrayList<>(pinned);defaults.clear();defaults.addAll(ids);order.clear();order.addAll(saved);lastSaved.clear();lastSaved.addAll(saved);
                     entries.clear();for(HomeAppCatalog.Entry entry:available)entries.put(entry.id,entry);artwork.clear();artwork.putAll(pictures);
                     if(restored!=null){selected=restored.getString("selected","");restored=null;}
                     if(!order.contains(moving))moving="";
@@ -158,7 +159,7 @@ final class HomeSortPanel extends ManagementPanel {
             FrameLayout art=new FrameLayout(activity){@Override protected void onMeasure(int w,int h){super.onMeasure(w,View.MeasureSpec.makeMeasureSpec(Math.round(View.MeasureSpec.getSize(w)*203f/360f),View.MeasureSpec.EXACTLY));}};
             art.setDuplicateParentStateEnabled(true);art.setPadding(px(3),px(3),px(3),px(3));card.addView(art,new LinearLayout.LayoutParams(-1,-2));
             ImageView image=new ImageView(activity);image.setBackgroundDrawable(surface(0,0,0,10));UiCompat.clipOutline(image);art.addView(image,new FrameLayout.LayoutParams(-1,-1));
-            TextView badge=center("正在移动",10);badge.setTextColor(0xff22262e);badge.setPadding(px(6),0,px(6),0);badge.setBackgroundDrawable(surface(0xffeff0f4,0xffeff0f4,0,4));
+            TextView badge=center("正在移动",10);badge.setTextColor(UiPalette.INK);badge.setPadding(px(6),0,px(6),0);badge.setBackgroundDrawable(surface(UiPalette.TEXT,UiPalette.TEXT,0,4));
             FrameLayout.LayoutParams bp=new FrameLayout.LayoutParams(-2,px(23),Gravity.TOP|Gravity.END);bp.setMargins(px(7),px(7),px(7),0);art.addView(badge,bp);
             gap(card,8);LinearLayout caption=row();card.addView(caption,new LinearLayout.LayoutParams(-1,px(21)));
             TextView title=label("",13);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);caption.addView(title,new LinearLayout.LayoutParams(0,-1,1));
@@ -169,8 +170,8 @@ final class HomeSortPanel extends ManagementPanel {
             String id=order.get(position);HomeAppCatalog.Entry entry=entries.get(id);boolean picked=id.equals(moving);
             holder.title.setText(entry.label);holder.number.setText(String.format(Locale.ROOT,"%02d",position+1));holder.badge.setVisibility(picked?View.VISIBLE:View.GONE);
             android.graphics.drawable.StateListDrawable background=new android.graphics.drawable.StateListDrawable();
-            background.addState(new int[]{android.R.attr.state_focused},surface(0xff3b3e46,0xff1b1d24,TEXT,12));
-            background.addState(new int[]{},surface(0xff373b43,0xff1b1d24,picked?TEXT:0x24ffffff,12));holder.art.setBackgroundDrawable(background);
+            background.addState(new int[]{android.R.attr.state_focused},surface(UiPalette.INK_SECONDARY,0xff000000,TEXT,12));
+            background.addState(new int[]{},surface(UiPalette.INK_SECONDARY,0xff000000,picked?TEXT:0x24ffffff,12));holder.art.setBackgroundDrawable(background);
             holder.card.setContentDescription(entry.label+"，第 "+(position+1)+" 个位置"+(picked?"，正在移动":""));
             holder.card.setOnFocusChangeListener((v,focus)->{if(focus)selected=id;});holder.card.setOnClickListener(v->{pick(id);KeyFeedback.confirm(activity);});
             FrameLayout.LayoutParams ip=(FrameLayout.LayoutParams)holder.image.getLayoutParams();ip.width=-1;ip.height=-1;ip.gravity=Gravity.CENTER;

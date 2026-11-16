@@ -38,7 +38,7 @@ final class HomeOrderStore {
             return project(known,defaults);
         }
     }
-    boolean save(List<String> visible,List<String> defaults,boolean reset){
+    boolean save(List<String> visible,List<String> defaults,boolean reset){synchronized(DesktopSettingsStore.MUTATIONS){
         if(visible.size()!=new HashSet<>(visible).size() || !new HashSet<>(visible).equals(new HashSet<>(defaults)))throw new IllegalArgumentException("Home order must contain every visible entry once");
         synchronized(LOCK){
             SharedPreferences.Editor editor=preferences.edit();
@@ -50,7 +50,7 @@ final class HomeOrderStore {
             // A failed disk write still changes the SharedPreferences memory snapshot.
             SharedPreferences.Editor rollback=preferences.edit();if(wasCustom)rollback.putString("packages",previous);else rollback.remove("packages");rollback.apply();return false;
         }
-    }
+    }}
     void remove(String id){
         synchronized(LOCK){ArrayList<String> saved=load();if(saved.remove(id))preferences.edit().putString("packages",new JSONArray(saved).toString()).apply();}
     }

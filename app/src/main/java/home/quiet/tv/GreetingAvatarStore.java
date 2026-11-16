@@ -19,7 +19,7 @@ final class GreetingAvatarStore {
     File file(String name){return validName(name)?new File(directory,name):null;}
     static boolean validName(String name){return name!=null&&name.matches("avatar-[a-f0-9-]{36}\\.png");}
     File existing(String name){File file=file(name);return file!=null&&file.isFile()?file:null;}
-    static void discard(File file){if(file!=null&&file.exists()&&!file.delete())DiagnosticLog.info("greeting.avatar.retained","file");}
+    static void discard(File file){if(file!=null&&file.exists()&&!DesktopBackups.retains(file)&&!file.delete())DiagnosticLog.info("greeting.avatar.retained","file");}
     static void prepare(File input,File output) throws IOException {
         if(input.length()<=0||input.length()>MAX_UPLOAD)throw new IOException("头像不能超过 2 MB / Maximum avatar size: 2 MB");
         BitmapFactory.Options options=new BitmapFactory.Options();options.inJustDecodeBounds=true;BitmapFactory.decodeFile(input.getPath(),options);

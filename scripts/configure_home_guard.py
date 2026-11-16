@@ -218,13 +218,29 @@ class ComputerAdb:
                               errors="replace", timeout=timeout, check=False)
 
     def run(self, *arguments, timeout=20):
-        result = self._result(*arguments, timeout=timeout)
-        output = (result.stdout + "\n" + result.stderr).strip()
-        if result.returncode or ERROR_OUTPUT.search(output):
-            raise CommandFailure(result.returncode, output or "ADB 命令失败，状态未确认")
-        return output
+        diagnostic = self._diagnostic_begin(arguments, False)
+        success = False
+        try:
+            result = self._result(*arguments, timeout=timeout)
+            output = (result.stdout + "\n" + result.stderr).strip()
+            if result.returncode or ERROR_OUTPUT.search(output):
+                raise CommandFailure(result.returncode, output or "ADB 命令失败，状态未确认")
+            success = True
+            return output
+        finally:
+            self._diagnostic_end(diagnostic, success)
 
     def shell(self, *arguments):
+        diagnostic = self._diagnostic_begin(arguments, True)
+        success = False
+        try:
+            body = self._shell_result(arguments)
+            success = True
+            return body
+        finally:
+            self._diagnostic_end(diagnostic, success)
+
+    def _shell_result(self, arguments):
         # adb joins shell arguments; quote for Android's POSIX shell, including on Windows hosts.
         command = " ".join(shlex.quote(str(value)) for value in arguments)
         marker = "__QUIET_GUARD_EXIT_" + uuid.uuid4().hex + "="
@@ -241,6 +257,25 @@ class ComputerAdb:
         if exit_code or ERROR_OUTPUT.search(body):
             raise CommandFailure(exit_code, body)
         return body
+
+    def _diagnostic_begin(self, arguments, is_shell):
+        if not os.environ.get('QUIETTV_BLUETOOTH_CASE'):
+            return None
+        try:
+            import bluetooth_diagnostics
+            return bluetooth_diagnostics.begin_command(self.executable, self.serial, arguments, is_shell)
+        except Exception as error:
+            print('蓝牙诊断未记录操作前现场：'+type(error).__name__+'；不改变原操作结果。', file=sys.stderr)
+            return None
+
+    def _diagnostic_end(self, token, success):
+        if token is None:
+            return
+        try:
+            import bluetooth_diagnostics
+            bluetooth_diagnostics.end_command(token, success)
+        except Exception as error:
+            print('蓝牙诊断未记录操作后现场：'+type(error).__name__+'；需另行保存现场。', file=sys.stderr)
 
     def permission_help(self, tool):
         operation = {"pm": "grant", "appops": "set"}[tool]

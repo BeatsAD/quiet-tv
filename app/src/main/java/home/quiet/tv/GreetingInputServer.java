@@ -11,6 +11,7 @@ import org.json.*;
 /** A short-lived, single-submission text session. Never writes desktop preferences. */
 final class GreetingInputServer extends NanoHTTPD {
     static final int MAX_BODY=8192;
+    static final int MAX_TEXT=8;
     static final long IDLE_MS=10L*60*1000;
     interface Assets { InputStream open(String name) throws IOException; }
     interface Receiver { boolean accept(String text) throws IOException; }
@@ -74,6 +75,7 @@ final class GreetingInputServer extends NanoHTTPD {
                 else if(Character.isLowSurrogate(c))return error(Response.Status.BAD_REQUEST,"无效的文字编码 / Invalid text encoding");
             }
             text=text.trim();
+            if(text.length()>MAX_TEXT)return error(Response.Status.BAD_REQUEST,"问候语最多8个字 / Maximum 8 characters");
             synchronized(this){
                 if(closed||expired())return error(Response.Status.GONE,"会话已结束 / Session ended");
                 if(received)return error(Response.Status.CONFLICT,"文字已接收，请在电视保存 / Text already received");

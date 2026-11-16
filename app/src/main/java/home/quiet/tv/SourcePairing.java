@@ -104,6 +104,8 @@ final class SourcePairing {
             catch(Exception changed){receipt.state="FAILED";error="入口或配置已变化，请重新测试";record();main.post(finished);return;}
             receipt.state="DISPATCHING";
         }
+        InputTransitionEvidence.begin("source_pairing",receipt.candidate);
+        DiagnosticLog.info("input.transition.link",InputTransitionEvidence.fields()+" sourceRequest="+receipt.request);
         HomeGuardService.bootSourceUserAction(activity,"input_pairing_test");HomeGuardService.savedInputSelected(activity);
         Runnable dispatch=()->{
             synchronized(SourcePairing.this){if(test!=receipt||!"DISPATCHING".equals(receipt.state)){main.post(finished);return;}}
@@ -199,8 +201,9 @@ final class SourcePairing {
             .put("label",test.label).put("savedKind",test.savedKind).put("failure",test.failure).put("source",test.source).put("observed",test.observed).put("scope",test.scope));
         return result;
     }
+    private String notifiedRevision="";
     private void record(){try{
-        JSONObject value=snapshot();InputSourceObservation.savePairing(context,value);
+        JSONObject value=snapshot();InputSourceObservation.savePairing(context,value);String revision=value.optString("revision");if(!revision.equals(notifiedRevision)){notifiedRevision=revision;PhoneSettingsSession.get(context).configurationChanged();}
         DiagnosticLog.info("input.pairing.state","search="+searchId+" state="+searchState+" request="+(test==null?"none":test.request)+" test="+(test==null?"none":test.state));
     }catch(Exception failure){DiagnosticLog.error("input.pairing.record_failed",failure);}}
     static boolean validEntry(Context context,JSONObject entry){

@@ -28,10 +28,10 @@ final class ChildRestView extends FrameLayout {
 
     ChildRestView(ManagementUi ui,int theme,boolean daily,Runnable onLeave,Runnable onParent){
         super(ui);this.theme=theme;setTag("child-rest-"+ART[theme]);
-        ink=theme==2?0xfffff3dc:theme==1?0xff203851:0xff202523;
-        muted=theme==2?0xffd1c9f0:theme==1?0xff536f89:0xff62675f;
-        accent=theme==2?0xffffc68a:theme==1?0xff287ff2:0xff728964;
-        setBackgroundColor(theme==2?0xff25264e:0xfffaf3e4);
+        ink=theme==2?UiPalette.TEXT:UiPalette.INK;
+        muted=theme==2?UiPalette.SECONDARY:UiPalette.INK_SECONDARY;
+        accent=theme==2?0xe6ffffff:UiPalette.INK;
+        setBackgroundColor(theme==2?Color.BLACK:Color.WHITE);
         background=new ImageView(ui);background.setScaleType(ImageView.ScaleType.CENTER_CROP);
         androidx.core.view.ViewCompat.setImportantForAccessibility(background,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);addView(background,new LayoutParams(-1,-1));
         content=new FrameLayout(ui);content.setClipChildren(false);content.setClipToPadding(false);addView(content);
@@ -39,12 +39,12 @@ final class ChildRestView extends FrameLayout {
         title=text(theme==1?"看了这么久，我们休息一下吧":"看了这么久，\n我们休息一下吧",ink,true);
         title.setLineSpacing(0,1.13f);if(Build.VERSION.SDK_INT>=28)title.setFallbackLineSpacing(false);
         note=text(theme==0?"伸个懒腰，和小熊一起放松一下。":theme==1?"让眼睛歇一歇，和小云朵伸个懒腰。":"小小探险家，也需要休息一下。",muted,false);
-        leave=ui.button("好呀，去休息",onLeave);leave.setId(androidx.core.view.ViewCompat.generateViewId());leave.setTextColor(theme==2?0xff25264e:Color.WHITE);
-        parent=ui.button("家长授权",onParent);parent.setId(androidx.core.view.ViewCompat.generateViewId());parent.setTextColor(new android.content.res.ColorStateList(new int[][]{{android.R.attr.state_focused},{}},new int[]{ManagementUi.TEXT,muted}));
+        leave=ui.button("好呀，去休息",onLeave);leave.setId(androidx.core.view.ViewCompat.generateViewId());leave.setTextColor(SettingsFocusDrawable.textColors(theme==2?UiPalette.INK:UiPalette.TEXT));
+        parent=ui.button("家长授权",onParent);parent.setId(androidx.core.view.ViewCompat.generateViewId());parent.setTextColor(SettingsFocusDrawable.textColors(muted));
         leave.setContentDescription("好呀，去休息，返回桌面");parent.setContentDescription("家长授权");
         leave.setSingleLine(true);parent.setSingleLine(true);leave.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
         leave.setBackgroundDrawable(control(accent));parent.setBackgroundDrawable(control(Color.TRANSPARENT));
-        Drawable lock=UiCompat.drawable(ui,R.drawable.ic_child_lock).mutate();lock.setColorFilter(muted,PorterDuff.Mode.SRC_IN);parent.setCompoundDrawables(lock,null,null,null);parent.setOnFocusChangeListener((view,focused)->lock.setColorFilter(focused?ManagementUi.TEXT:muted,PorterDuff.Mode.SRC_IN));
+        Drawable lock=androidx.core.graphics.drawable.DrawableCompat.wrap(UiCompat.drawable(ui,R.drawable.ic_child_lock)).mutate();androidx.core.graphics.drawable.DrawableCompat.setTintList(lock,SettingsFocusDrawable.textColors(muted));parent.setCompoundDrawables(lock,null,null,null);
         content.addView(leave);content.addView(parent);
         leave.setNextFocusDownId(parent.getId());leave.setNextFocusUpId(parent.getId());leave.setNextFocusLeftId(parent.getId());leave.setNextFocusRightId(parent.getId());
         parent.setNextFocusUpId(leave.getId());parent.setNextFocusDownId(leave.getId());parent.setNextFocusLeftId(leave.getId());parent.setNextFocusRightId(leave.getId());
@@ -55,7 +55,7 @@ final class ChildRestView extends FrameLayout {
         TextView v=new TextView(getContext());v.setText(value);v.setTextColor(color);v.setIncludeFontPadding(false);v.setGravity(Gravity.CENTER_VERTICAL);v.setTypeface(Typeface.DEFAULT,bold?Typeface.BOLD:Typeface.NORMAL);content.addView(v);return v;
     }
     private Drawable control(int color){
-        return ControlStyle.action(getResources().getDisplayMetrics().widthPixels/960f,100,color,0);
+        return new SettingsFocusDrawable(getResources().getDisplayMetrics().widthPixels/960f,100,color,false,theme==2?UiPalette.EDGE:0x1f000000);
     }
     private void place(View v,float x,float y,float w,float h,float font){
         LayoutParams p=new LayoutParams(Math.round(w*scale),Math.round(h*scale));p.leftMargin=Math.round(x*scale);p.topMargin=Math.round(y*scale);v.setLayoutParams(p);

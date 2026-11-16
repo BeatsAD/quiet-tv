@@ -8,7 +8,8 @@ import java.util.*;
 
 /** An explicit empty array is a user choice and must never re-import bundled defaults. */
 final class DockStore {
-    static final int CAPACITY = 5;
+    static final int CAPACITY = 12;
+    int capacity(){return new DesktopSettingsStore(context).appearance("dock-limit");}
     private final Context context;
     private final SharedPreferences preferences;
     DockStore(Context context){
@@ -33,16 +34,16 @@ final class DockStore {
         ArrayList<String> pinned=load();
         return HomeAppCatalog.pinnedIds(new HomeAppCatalog(context).load(pinned),pinned);
     }
-    void save(List<String> packages){
+    void save(List<String> packages){synchronized(DesktopSettingsStore.MUTATIONS){
         if(packages.size()>CAPACITY || new HashSet<>(packages).size()!=packages.size())throw new IllegalArgumentException("Dock 最多 "+CAPACITY+" 个且不能重复");
         preferences.edit().putString("packages",new JSONArray(packages).toString()).apply();DiagnosticLog.info("dock.saved","count="+packages.size());
-    }
-    boolean saveOrder(List<String> packages){
+    }}
+    boolean saveOrder(List<String> packages){synchronized(DesktopSettingsStore.MUTATIONS){
         if(packages.size()>CAPACITY || new HashSet<>(packages).size()!=packages.size())throw new IllegalArgumentException("Dock 最多 "+CAPACITY+" 个且不能重复");
         String previous=preferences.getString("packages","[]");
         if(preferences.edit().putString("packages",new JSONArray(packages).toString()).commit()){DiagnosticLog.info("dock.order.saved","count="+packages.size());return true;}
         DiagnosticLog.info("dock.order.failed","preferences write failed");
         preferences.edit().putString("packages",previous).apply();return false;
-    }
+    }}
     void remove(String pkg){ArrayList<String> packages=load();if(packages.remove(pkg))save(packages);}
 }

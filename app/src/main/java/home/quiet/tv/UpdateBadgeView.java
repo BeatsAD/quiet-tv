@@ -9,16 +9,16 @@ final class UpdateBadgeView extends View {
     private final View anchor;private final float unit;private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
     private boolean available;
     UpdateBadgeView(Context context,View anchor,float unit){super(context);this.anchor=anchor;this.unit=unit;androidx.core.view.ViewCompat.setImportantForAccessibility(this,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);setFocusable(false);setClickable(false);}
-    void available(boolean value){available=value;anchor.setContentDescription(value?"版本更新，有新版本":"版本更新");invalidate();}
+    void available(boolean value){available=value;String title=anchor instanceof android.widget.TextView?((android.widget.TextView)anchor).getText().toString():"版本更新";anchor.setContentDescription(title+(value?"，有新版本":""));invalidate();}
     @Override protected void onDraw(Canvas canvas){
         super.onDraw(canvas);if(!available||anchor.getWidth()==0)return;
         int[] button=new int[2],overlay=new int[2];anchor.getLocationInWindow(button);getLocationInWindow(overlay);
         float right=button[0]-overlay[0]+anchor.getWidth()+8*unit,top=button[1]-overlay[1]-8*unit;
         RectF bounds=new RectF(right-38*unit,top,right,top+14*unit);
         float radius=bounds.height()/2;
-        paint.setStyle(Paint.Style.FILL);paint.setColor(0xffd9363e);canvas.drawRoundRect(bounds,radius,radius,paint);
+        paint.setStyle(Paint.Style.FILL);paint.setColor(UiPalette.TEXT);canvas.drawRoundRect(bounds,radius,radius,paint);
         paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(Math.max(1,0.75f*unit));paint.setColor(Color.WHITE);canvas.drawRoundRect(bounds,radius,radius,paint);
         paint.setStyle(Paint.Style.FILL);paint.setTextSize(8*unit);paint.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));paint.setTextAlign(Paint.Align.CENTER);
-        Paint.FontMetrics font=paint.getFontMetrics();canvas.drawText("新版本",bounds.centerX(),bounds.centerY()-(font.ascent+font.descent)/2,paint);
+        paint.setColor(UiPalette.INK);Paint.FontMetrics font=paint.getFontMetrics();canvas.drawText("新版本",bounds.centerX(),bounds.centerY()-(font.ascent+font.descent)/2,paint);
     }
 }

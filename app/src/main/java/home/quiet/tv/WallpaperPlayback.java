@@ -98,12 +98,14 @@ final class WallpaperPlayback {
     private void receive(Message message){
         if(message.arg1!=session||terminal)return;
         if(message.what==WallpaperService.RELEASED){ended("release_complete");return;}
+        String diagnosticOrigin=message.getData().getString("diagnosticOrigin","");
         if(message.what==WallpaperService.LOG){
             Bundle data=message.getData();String event=data.getString("event"),detail=data.getString("detail");
+            detail=data.getString("diagnosticOrigin","originRole=unknown")+" playbackSession="+session+" "+detail;
             if(data.getBoolean("error"))DiagnosticLog.error(event,detail,null);else DiagnosticLog.info(event,detail);return;
         }
         if(message.what==WallpaperService.NOTE){
-            DiagnosticLog.info("wallpaper.video.remote",context+" session="+session+" phase="+VideoDiagnostics.token(message.getData().getString("phase")));return;
+            DiagnosticLog.info("wallpaper.video.remote",message.getData().getString("diagnosticOrigin","originRole=unknown")+" "+context+" session="+session+" phase="+VideoDiagnostics.token(message.getData().getString("phase")));return;
         }
         if(released)return;
         switch(message.what){
