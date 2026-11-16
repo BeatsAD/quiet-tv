@@ -63,7 +63,10 @@ final class DesktopBackupSnapshot {
         DesktopBackupRecord.require(file.length()==bytes&&file.lastModified()==modified,"素材已变化，请重新操作");String hash=DesktopBackupRecord.hex(digest.digest());hashes.put(path,new Stamp(file,hash));return hash;
     }
     static File file(Context context,String path)throws IOException{
-        DesktopBackupRecord.require(DesktopBackupRecord.sourcePath(path),"备份素材路径无效");File root=context.getFilesDir().getCanonicalFile(),file=new File(root,path).getCanonicalFile();DesktopBackupRecord.require(file.getPath().startsWith(root.getPath()+File.separator),"备份素材路径不可用");return file;
+        if(!DesktopBackupRecord.sourcePath(path))throw new IOException("备份素材路径无效");
+        File root=context.getFilesDir().getCanonicalFile(),file=new File(root,path).getCanonicalFile();
+        if(!file.getCanonicalPath().startsWith(root.getCanonicalPath()+File.separator))throw new IOException("备份素材路径不可用");
+        return file;
     }
     private void applyPreferences(String name,Set<String> keys,JSONObject values,boolean buttons)throws IOException,JSONException{
         SharedPreferences prefs=context.getSharedPreferences(name,0);SharedPreferences.Editor edit=prefs.edit();for(String key:keys){if(!values.has(key)){edit.remove(key);continue;}Object value=values.get(key);if(value instanceof Boolean)edit.putBoolean(key,(Boolean)value);else if(value instanceof Number)edit.putInt(key,((Number)value).intValue());else edit.putString(key,(String)value);}

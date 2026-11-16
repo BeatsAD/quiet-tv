@@ -83,6 +83,6 @@ function IconOperationDialog({status,task,checking,uncertain,onCheck,onClose}:{s
 }
 
 export function IconUploadPreview({file,shape,busy,onUpload}:{file:File;shape:string;busy:boolean;onUpload:()=>void}){
-  const [src,setSrc]=useState('');useEffect(()=>{const url=URL.createObjectURL(file);setSrc(url);return()=>URL.revokeObjectURL(url);},[file]);
+  const [src,setSrc]=useState('');useEffect(()=>{const type=file.type==='image/jpeg'?'image/jpeg':file.type==='image/webp'?'image/webp':'image/png';const url=URL.createObjectURL(new Blob([file],{type}));setSrc(url);return()=>URL.revokeObjectURL(url);},[file]);
   return <><p className="sheet-intro">{file.name}</p><div className={`icon-upload-preview ${shape}`}><img src={src} alt="上传图标预览"/></div><p className="section-note">{iconTitles[shape]}  等比适配  保留透明背景</p><button className="primary-button" disabled={busy} onClick={onUpload}>确认上传并替换图标</button></>;
 }
