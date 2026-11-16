@@ -1,0 +1,73 @@
+{
+  "encoding": "relief-weighted",
+  "uvRects": [
+    [
+      0,
+      0,
+      1,
+      1
+    ],
+    [
+      0,
+      0,
+      1,
+      1
+    ],
+    [
+      0,
+      0,
+      1,
+      1
+    ],
+    [
+      0,
+      0,
+      1,
+      1
+    ]
+  ],
+  "aspectRatios": [
+    2.0,
+    2.0,
+    2.0,
+    2.0
+  ],
+  "generator": "scripts/generate_weather_impostors.py",
+  "source": "scripts/weather-materials/cloud-source.png",
+  "sourceSha256": "cf9c7b7426df931b23d21aff2c32de73d4b90629130a6b60f46f7178aaff0888",
+  "sourceEncoding": "opaque black radiance reference; continuous coverage encoded offline",
+  "array": [
+    512,
+    256,
+    4
+  ],
+  "cells": 4,
+  "padding": 16,
+  "maximumMip": 9,
+  "cellRows": "each array layer bottom to top",
+  "channels": "R continuous coverage from black radiance; GBA coverage-weighted relief XY and diffuse visibility",
+  "license": "CC0-1.0; original Quiet TV AI-assisted cloud artwork",
+  "bytes": 2097152,
+  "sha256": "e3b53a86fde0716f9589520207903acb75cc6dbb918accabbc3b0e740204a36c",
+  "nearVolume": {
+    "size": 64,
+    "components": 2,
+    "format": "RG8",
+    "channels": "RG blanket density/ambient",
+    "sourceSha256": "906f8b81df4b8ac7e3dbd1cc075fb3513093017341df7e014a50061a8462a2c2",
+    "bytes": 524288,
+    "sha256": "b83a96b40ff3e22a61354dd8f92874e7d9c7be94d3bba77997bcbb8ccd244762"
+  },
+  "bankGroups": {
+    "broken": [
+      0,
+      1
+    ],
+    "blanket": [
+      2
+    ],
+    "wet": [
+      3
+    ]
+  }
+}
