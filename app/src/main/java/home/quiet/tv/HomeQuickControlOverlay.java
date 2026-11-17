@@ -70,6 +70,7 @@ final class HomeQuickControlOverlay implements HomeQuickControlView.Host {
             pill.setSelected(i<header.buttonIds.size()&&"control".equals(header.buttonIds.get(i))&&controls.getVisibility()==View.VISIBLE);
             if(pill.isActivated()!=focused){pill.setActivated(focused);SettingsFocusMotion.update(pill,focused);}
         }
+        header.controlVisibility();
     }
     boolean key(KeyEvent event){
         int key=event.getKeyCode();boolean confirm=key==KeyEvent.KEYCODE_DPAD_CENTER||key==KeyEvent.KEYCODE_ENTER||key==KeyEvent.KEYCODE_NUMPAD_ENTER;
@@ -93,11 +94,11 @@ final class HomeQuickControlOverlay implements HomeQuickControlView.Host {
         return false;
     }
     void back(){if(!controls.cancelAdjustments()){home.closeQuickControls(false);KeyFeedback.returned(home);}}
-    private void execute(String id){if("brightness".equals(id)){controls.beginBrightness();return;}if("volume".equals(id)){controls.beginVolume();return;}home.executeQuickControl(id);}
+    private void execute(String id){if(QuickControlStore.range(id)){controls.beginRange(id);return;}home.executeQuickControl(id);}
     void destroy(){
         closed=true;if(contentDraw!=null)contentDraw.run();controls.destroy();controls.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);controls.setFocusable(false);controls.setFocusableInTouchMode(false);controls.clearFocus();
         for(TextView pill:header.pills){pill.setOnFocusChangeListener(null);pill.setOnTouchListener(null);pill.setFocusable(false);pill.setFocusableInTouchMode(false);pill.setLongClickable(true);pill.setSelected(false);pill.setActivated(false);SettingsFocusMotion.update(pill,false);}
-        desktop.setDescendantFocusability(desktopFocus);home.setVolumeControlStream(volumeStream);worker.shutdown();
+        header.controlVisibility();desktop.setDescendantFocusability(desktopFocus);home.setVolumeControlStream(volumeStream);worker.shutdown();
         if(home.isFinishing()||UiCompat.destroyed(home))root.removeView(layer);else UiMotion.exit(controls,-6*home.getResources().getDisplayMetrics().widthPixels/960f,()->root.removeView(layer));
     }
     @Override public boolean quickPanelFocusAllowed(){return !closed&&!header.buttons.hasFocus()&&controls.isShown();}

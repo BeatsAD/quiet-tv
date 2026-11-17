@@ -30,6 +30,14 @@ final class AppArtwork {
         return render(icon==null?new QuickControlIcon("app-window"):icon,false,width(context));
     }
 
+    static Drawable originalIcon(Context context,String pkg)throws PackageManager.NameNotFoundException{
+        PackageManager pm=context.getPackageManager();ResolveInfo entry=new HomeAppCatalog(context).find(pkg);
+        ApplicationInfo app=entry==null?pm.getApplicationInfo(pkg,0):entry.activityInfo.applicationInfo;
+        Drawable icon=resource(pm,app,entry==null?app.icon:entry.activityInfo.getIconResource());
+        if(icon==null)icon=entry==null?app.loadIcon(pm):entry.loadIcon(pm);
+        return icon==null?new QuickControlIcon("app-window"):icon;
+    }
+
     private static Bitmap custom(Context context,String pkg){
         java.io.File file=AppCoverStore.get(context).file(pkg);if(file==null)return null;
         try{return AppCoverImages.load(file,width(context));}
@@ -65,7 +73,7 @@ final class AppArtwork {
         source.recycle();return result;
     }
 
-    private static int background(Bitmap source,boolean banner){
+    static int background(Bitmap source,boolean banner){
         // Alpha-weighted bins ignore transparent padding and isolated accent pixels.
         int[] weight=new int[4096];long[] red=new long[4096],green=new long[4096],blue=new long[4096];
         float[] hsv=new float[3];int total=0;

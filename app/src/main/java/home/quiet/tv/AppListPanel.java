@@ -177,10 +177,10 @@ final class AppListPanel extends ManagementPanel {
         boolean coverAllowed=AppCoverPolicy.allowed(this,app.pkg);
         if(!coverAllowed&&!protectedReason.isEmpty()){protectionNote(AppNameStore.allowed(this,app)?"系统操作受保护":protectedReason,true);return;}
         if(busy){details.addView(center("正在核对实际状态…",12));return;}
-        if(!hidden&&!childHidden&&canHide(app))addAction(actions,button("隐藏应用",()->hideApp(app)));
+        if(!hidden&&!childHidden&&canHide(app))addAction(actions,button("隐藏应用",()->confirmHideApp(app)));
         if(coverAllowed){
             addAction(actions,button("更换封面",()->coverUploads.show(app.pkg,app.label,()->coverUpdated(app.pkg))));
-            Button restore=button("恢复默认",()->restoreCover(app));boolean custom=AppCoverStore.get(this).custom(app.pkg);restore.setEnabled(custom);restore.setFocusable(custom);restore.setAlpha(1f);addAction(actions,restore);
+            Button restore=button("恢复默认封面",()->restoreCover(app));boolean custom=AppCoverStore.get(this).custom(app.pkg);restore.setEnabled(custom);restore.setFocusable(custom);restore.setAlpha(1f);addAction(actions,restore);
         }
         List<AppOperations.Action> available=operations.actions(app);
         if(!available.isEmpty()){
@@ -194,11 +194,17 @@ final class AppListPanel extends ManagementPanel {
 
     }
     private boolean canHide(AppRepository.App app){return operations.hidingProtection(app).isEmpty()&&new ChildModeStore(this).eligible(app.pkg)&&AppCoverPolicy.allowed(this,app.pkg);}
-    private void hideApp(AppRepository.App app){
+    private void confirmHideApp(AppRepository.App app){
         if(busy)return;
         if(!canHide(app)||new ChildModeStore(this).hidden(app.pkg)){feedback("此应用必须保留或已不可用");return;}
-        if(new HomeVisibilityStore(this).hide(app.pkg)){applyFilter();focusList(true);feedback("已隐藏，可在“隐藏应用”中恢复");}
-        else feedback("保存失败，请重试");
+        Sheet sheet=settingsSheet("隐藏应用？");AppActionConfirmationUi.content(activity,sheet.delegate,app.pkg,app.label,AppActionConfirmationUi.HIDE,false);Button cancel=sheet.action("取消",sheet.dialog::dismiss);
+        Button confirm=sheet.action("确认隐藏",()->{
+            if(!active||busy)return;busy=true;sheetBusy(sheet,true);
+            worker.execute(()->{
+                String failure=null;try{if(!active||!canHide(app)||new ChildModeStore(this).hidden(app.pkg))throw new java.io.IOException("应用状态已变化，请刷新后重试");if(!new HomeVisibilityStore(this).hide(app.pkg))throw new java.io.IOException("保存失败，请重试");}catch(Exception error){failure=error.getMessage()==null?"隐藏未完成，请重试":error.getMessage();}
+                String error=failure;ui(()->{busy=false;if(!active)return;sheetBusy(sheet,false);if(error==null){sheet.dialog.dismiss();applyFilter();focusList(true);feedback("已隐藏，可在“隐藏应用”中恢复");}else inlineFailure(sheet,new java.io.IOException(error));});
+            });
+        });AppActionConfirmationUi.actions(activity,sheet.delegate,cancel,confirm,false);sheet.show(cancel);
     }
     private void restoreHiddenApp(AppRepository.App app){
         if(busy)return;busy=true;renderDetails();
@@ -227,13 +233,13 @@ final class AppListPanel extends ManagementPanel {
     private Button primary(Sheet sheet,String text,Runnable action){Button b=sheet.action(text,action);b.setBackgroundDrawable(new SettingsFocusDrawable(unit,999,UiPalette.SELECTED,false,0x4dffffff));return b;}
     private void sheetBusy(Sheet sheet,boolean value){sheet.dialog.setCancelable(!value);sheet.delegate.box.setEnabled(!value);View close=sheet.delegate.box.findViewWithTag("sheet-close");if(close!=null)close.setEnabled(!value);for(int i=0;i<sheet.delegate.actions.getChildCount();i++)sheet.delegate.actions.getChildAt(i).setEnabled(!value);}
     private void confirmOperation(AppRepository.App app,AppOperations.Action action){
-        Sheet sheet=settingsSheet(action.label+"应用？");sheet.text(app.label+"\n"+operations.explanation(app,action));
+        Sheet sheet=settingsSheet(action.label+"应用？");AppActionConfirmationUi.content(activity,sheet.delegate,app.pkg,app.label,operations.explanation(app,action),action==AppOperations.Action.UNINSTALL);
         Button cancel=sheet.action("取消",sheet.dialog::dismiss);
-        primary(sheet,"确认"+action.label,()->{
+        Button confirm=sheet.action("确认"+action.label,()->{
             if(busy)return;
             if(action==AppOperations.Action.UNINSTALL)ChildModeAuth.uninstall(activity,app.pkg,stamp->performOperation(sheet,app,action,stamp),()->cancel.requestFocusFromTouch());
             else performOperation(sheet,app,action,"");
-        });sheet.show(cancel);
+        });AppActionConfirmationUi.actions(activity,sheet.delegate,cancel,confirm,action==AppOperations.Action.UNINSTALL);sheet.show(cancel);
     }
     private void performOperation(Sheet sheet,AppRepository.App app,AppOperations.Action action,String stamp){
         if(!active||busy)return;busy=true;sheetBusy(sheet,true);sheet.body.removeAllViews();sheet.text("正在核对并执行，请稍候…");
@@ -244,13 +250,13 @@ final class AppListPanel extends ManagementPanel {
         });
     }
     private void confirmSystemUninstall(AppRepository.App app){
-        Sheet sheet=settingsSheet("卸载应用？");sheet.text(app.label+"\n"+operations.explanation(app,AppOperations.Action.UNINSTALL));Button cancel=sheet.action("取消",sheet.dialog::dismiss);
-        primary(sheet,"确认卸载",()->ChildModeAuth.uninstall(activity,app.pkg,stamp->{
+        Sheet sheet=settingsSheet("卸载应用？");AppActionConfirmationUi.content(activity,sheet.delegate,app.pkg,app.label,operations.explanation(app,AppOperations.Action.UNINSTALL),true);Button cancel=sheet.action("取消",sheet.dialog::dismiss);
+        Button confirm=sheet.action("确认卸载",()->ChildModeAuth.uninstall(activity,app.pkg,stamp->{
             if(!active)return;
             try{AppRepository.App current=repository.find(app.pkg);if(current==null||!current.installed||current.system||current.versionCode!=app.versionCode||!operations.protection(current).isEmpty())throw new java.io.IOException("应用状态已变化，请刷新后重新确认");new ChildModeStore(this).requireUninstallAuthorization(app.pkg,stamp);
                 Intent intent=new Intent(Intent.ACTION_DELETE,android.net.Uri.parse("package:"+app.pkg));if(ExternalActivityLauncher.open(activity,"app.uninstall",intent)){dirty=true;cache.invalidate();sheet.dialog.dismiss();}else message("系统卸载入口不可用。");
             }catch(Exception error){inlineFailure(sheet,error);}
-        },()->cancel.requestFocusFromTouch()));sheet.show(cancel);
+        },()->cancel.requestFocusFromTouch()));AppActionConfirmationUi.actions(activity,sheet.delegate,cancel,confirm,true);sheet.show(cancel);
     }
     private void bootAppAction(AppRepository.App app,ViewGroup actions){
         BootAppStore store=new BootAppStore(this);boolean chosen=app.pkg.equals(store.target());
@@ -292,8 +298,8 @@ final class AppListPanel extends ManagementPanel {
     }
     private void coverUpdated(String pkg){if(isDestroyed()||!active||!selected.equals(pkg))return;renderDetails();View cover=details.findViewWithTag("app-action-更换封面");if(cover!=null)cover.requestFocusFromTouch();else focusList();}
     private void restoreCover(AppRepository.App app){
-        Sheet sheet=settingsSheet("恢复默认封面？");sheet.text(app.label+" 将使用应用自带的封面。");Button cancel=sheet.action("取消",sheet.dialog::dismiss);
-        primary(sheet,"恢复默认",()->{if(busy)return;busy=true;sheetBusy(sheet,true);worker.execute(()->{String failure=null;try{AppCoverPolicy.require(this,app.pkg);AppCoverStore.get(this).restore(app.pkg);}catch(java.io.IOException e){failure=e.getMessage();}String error=failure;ui(()->{busy=false;if(!active)return;sheetBusy(sheet,false);renderDetails();if(error==null){sheet.dialog.dismiss();feedback("已恢复默认封面");}else inlineFailure(sheet,new java.io.IOException(error));});});});sheet.show(cancel);
+        Sheet sheet=settingsSheet("恢复默认封面？");AppActionConfirmationUi.content(activity,sheet.delegate,app.pkg,app.label,AppActionConfirmationUi.RESTORE_COVER,false);Button cancel=sheet.action("取消",sheet.dialog::dismiss);
+        Button confirm=sheet.action("恢复默认封面",()->{if(busy)return;busy=true;sheetBusy(sheet,true);worker.execute(()->{String failure=null;try{AppCoverPolicy.require(this,app.pkg);AppCoverStore.get(this).restore(app.pkg);}catch(java.io.IOException e){failure=e.getMessage();}String error=failure;ui(()->{busy=false;if(!active)return;sheetBusy(sheet,false);renderDetails();if(error==null){sheet.dialog.dismiss();feedback("已恢复默认封面");}else inlineFailure(sheet,new java.io.IOException(error));});});});AppActionConfirmationUi.actions(activity,sheet.delegate,cancel,confirm,false);sheet.show(cancel);
     }
     @Override public void handleBack(){if(details.hasFocus())focusList();else super.handleBack();}
     // Public Activity override; AndroidX core marks its inherited bridge class library-only.

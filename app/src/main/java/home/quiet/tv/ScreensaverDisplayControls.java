@@ -20,7 +20,7 @@ final class ScreensaverDisplayControls {
     private final DesktopMediaImportPanel importer;
     private ScreensaverSettings settings;
     private DisplayAppearanceChoice waiting,content,timePosition,weatherPosition;
-    private DesktopSettingsRow choose,time,weather;
+    private DesktopSettingsRow choose,time,weather,sound;
     private LinearLayout library;
     private DesktopMediaLibrary materials;
     private String candidate="",draftMode="",draftTimePosition="",draftWeatherPosition="",error="";
@@ -38,6 +38,7 @@ final class ScreensaverDisplayControls {
         choose=row(tr("选择屏保素材","Screensaver media"),"saver-media");choose.tail("arrow");choose.setOnClickListener(v->{expanded=!expanded;renderLibrary();refresh();scene();});group.addView(choose,new LinearLayout.LayoutParams(-1,ui.px(44.72f)));
         materials=new DesktopMediaLibrary(ui,"screensaver",importer,new DesktopMediaLibrary.Actions(){public String selected(){return ScreensaverDisplayControls.this.selected();}public void select(String id){candidate=id;apply();}public void imported(String id,boolean apply)throws IOException{ScreensaverDisplayControls.this.imported(id,apply);}public void removed(){candidate="";settings=store.current();refresh();scene();choose.requestFocusFromTouch();}},rewired);library=materials.library;group.addView(library);LinearLayout indicators=ui.row();indicators.setClipToPadding(false);indicators.setPadding(ui.px(9.6f),ui.px(3.2f),ui.px(9.6f),ui.px(9.6f));group.addView(indicators);time=row(tr("显示时钟","Show clock"),"saver-clock");time.compactTile();time.setOnClickListener(v->{try{saveSettings(settings.time(!settings.showTime));}catch(IOException error){ui.feedback(error.getMessage());}});indicators.addView(time,new LinearLayout.LayoutParams(0,ui.px(42),1));
         weather=row(tr("显示天气","Show weather"),"saver-weather");weather.compactTile();weather.setOnClickListener(v->{try{saveSettings(settings.weather(!settings.showWeather));}catch(IOException error){ui.feedback(error.getMessage());}});LinearLayout.LayoutParams weatherPosition=new LinearLayout.LayoutParams(0,ui.px(42),1);weatherPosition.leftMargin=ui.px(6);indicators.addView(weather,weatherPosition);
+        sound=row(tr("屏保声音","Screensaver sound"),"saver-sound");sound.setOnClickListener(v->{try{saveSettings(settings.sound(!settings.sound));}catch(IOException error){ui.feedback(error.getMessage());}});group.addView(sound,new LinearLayout.LayoutParams(-1,ui.px(44.72f)));
         timePosition=positionChoice(true,bridge);group.addView(timePosition);this.weatherPosition=positionChoice(false,bridge);group.addView(this.weatherPosition);
         refresh();
     }
@@ -48,6 +49,7 @@ final class ScreensaverDisplayControls {
     void refresh(){
         if(settings==null||choose==null)return;ScreensaverSettings current=store.current();if(current!=null)settings=current;
         boolean custom=ScreensaverSettings.CUSTOM.equals(settings.mode);choose.setVisibility(custom?View.VISIBLE:View.GONE);choose.tail(expanded?"settings-up":"arrow");library.setVisibility(custom&&expanded?View.VISIBLE:View.GONE);time.setVisibility(ScreensaverSettings.CLOCK.equals(settings.mode)?View.GONE:View.VISIBLE);time.checked(settings.showTime);weather.checked(settings.showWeather);
+        sound.setVisibility(settings.video(media.snapshot())?View.VISIBLE:View.GONE);sound.checked(settings.sound);
         timePosition.setVisibility(settings.showTime||ScreensaverSettings.CLOCK.equals(settings.mode)?View.VISIBLE:View.GONE);weatherPosition.setVisibility(settings.showWeather?View.VISIBLE:View.GONE);
         WallpaperCatalog.Entry entry=media.snapshot().find(candidate.isEmpty()?settings.mediaId:candidate);choose.value(entry==null?tr("素材不可用","Unavailable"):entry.label(ui.chinese()));waiting.refresh();content.refresh();timePosition.refresh();weatherPosition.refresh();rewired.run();
     }

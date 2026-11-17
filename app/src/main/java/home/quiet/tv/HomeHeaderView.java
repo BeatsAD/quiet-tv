@@ -59,9 +59,10 @@ final class HomeHeaderView extends FrameLayout {
         dateColumn.addView(date,new LinearLayout.LayoutParams(-1,px(22)));LinearLayout.LayoutParams lunarPosition=new LinearLayout.LayoutParams(-1,px(18));lunarPosition.topMargin=px(2);dateColumn.addView(lunarDate,lunarPosition);
         divider=new View(context);divider.setBackgroundColor(0x70ffffff);
         buttons=new FrameLayout(context);buttons.setClipChildren(false);buttons.setClipToPadding(false);place(buttons,125.76f,35.52f,0,24);
-        for(int i=0;i<4;i++){
+        for(int i=0;i<5;i++){
             TextView pill=text("",14,400,UiPalette.TEXT);pill.setGravity(Gravity.CENTER);
             pill.setBackgroundDrawable(new SettingsFocusDrawable(unit,999,0x2e000000,false,0x4dffffff));
+            pill.setOnHoverListener((view,event)->{view.setHovered(event.getActionMasked()!=MotionEvent.ACTION_HOVER_EXIT);controlVisibility();return false;});
             pills.add(pill);FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(px(35.52f),px(35.52f));p.leftMargin=px(i*45.12f);buttons.addView(pill,p);
         }
         buttonLabel=text("",12,400,UiPalette.TEXT);buttonLabel.setGravity(Gravity.CENTER);buttonLabel.setVisibility(INVISIBLE);
@@ -156,15 +157,21 @@ final class HomeHeaderView extends FrameLayout {
             LinearLayout.LayoutParams wp=(LinearLayout.LayoutParams)weather.getLayoutParams();int margin=hasGreeting?px(16):0;if(wp.leftMargin!=margin){wp.leftMargin=margin;weather.setLayoutParams(wp);}
         }
         information.setVisibility(hasGreeting||weather.getVisibility()==VISIBLE||settings.showTime()||settings.showDate()?VISIBLE:GONE);
-        if(buttonIds.isEmpty())buttonIds.add("control");
+        if(buttonIds.isEmpty()){buttonIds.add("transfer");buttonIds.add("control");}
         try{List<String> ids=HomeButtonStore.visibleIds(new HomeButtonStore(getContext()).read().ids);buttonIds.clear();buttonIds.addAll(ids);}catch(java.io.IOException error){DiagnosticLog.info("home.buttons.unavailable","keep existing view");}
         int count=buttonIds.size();
-        FrameLayout.LayoutParams bounds=(FrameLayout.LayoutParams)buttons.getLayoutParams();bounds.width=px(count>3?170.88f:125.76f);bounds.leftMargin=0;bounds.rightMargin=px(24);bounds.gravity=Gravity.RIGHT|Gravity.TOP;buttons.setLayoutParams(bounds);
+        FrameLayout.LayoutParams bounds=(FrameLayout.LayoutParams)buttons.getLayoutParams();bounds.width=px(Math.max(125.76f,35.52f+(count-1)*45.12f));bounds.leftMargin=0;bounds.rightMargin=px(24);bounds.gravity=Gravity.RIGHT|Gravity.TOP;buttons.setLayoutParams(bounds);
         for(int i=0;i<pills.size();i++){TextView pill=pills.get(i);boolean show=i<count;pill.setVisibility(show?VISIBLE:GONE);if(show){String id=buttonIds.get(i);if(!id.equals(pill.getTag())){pill.setTag(id);pill.setContentDescription(HomeButtonStore.title(id,chinese));setPillIcon(pill,headerGlyph(id));}FrameLayout.LayoutParams p=(FrameLayout.LayoutParams)pill.getLayoutParams();int margin=bounds.width-p.width-px((count-1-i)*45.12f);if(p.leftMargin!=margin){p.leftMargin=margin;pill.setLayoutParams(p);}}}
         buttons.setVisibility(count==0?GONE:VISIBLE);
-        syncSeconds();
+        controlVisibility();syncSeconds();
     }
     @Override public void onWindowFocusChanged(boolean focused){super.onWindowFocusChanged(focused);for(TextView pill:pills)SettingsFocusMotion.update(pill,focused&&(pill.isFocused()||pill.isActivated()));}
+    private final ViewTreeObserver.OnTouchModeChangeListener controlTouchMode=touch->controlVisibility();
+    private String controlPreview;
+    void previewControlVisibility(String value){controlPreview=value;controlVisibility();}
+    void controlVisibility(){
+        for(TextView pill:pills){boolean hidden="control".equals(pill.getTag())&&(controlPreview==null?settings.controlFocusOnly():"focus".equals(controlPreview))&&!pill.isActivated()&&!pill.isFocused()&&!pill.isSelected()&&!pill.isHovered()&&!(pill.isClickable()&&isInTouchMode());pill.setAlpha(hidden?0f:1f);}
+    }
     void focusButton(int index){
         buttonLabel.setVisibility(INVISIBLE);if(index<0||index>=buttonIds.size())return;
         buttonLabel.setText(HomeButtonStore.title(buttonIds.get(index),chinese));
@@ -182,8 +189,8 @@ final class HomeHeaderView extends FrameLayout {
     void clockActive(boolean active){clockActive=active;syncSeconds();}
     private boolean secondsVisible(){android.os.PowerManager power=(android.os.PowerManager)getContext().getSystemService(Context.POWER_SERVICE);return clockActive&&getWindowToken()!=null&&getWindowVisibility()==VISIBLE&&isShown()&&settings.showTime()&&settings.showSeconds()&&power!=null&&power.isScreenOn();}
     private void syncSeconds(){removeCallbacks(secondsTick);if(settings!=null&&clock!=null&&secondsVisible()){updateTime(Calendar.getInstance());postDelayed(secondsTick,1000-System.currentTimeMillis()%1000);}}
-    @Override protected void onAttachedToWindow(){super.onAttachedToWindow();syncSeconds();}
-    @Override protected void onDetachedFromWindow(){removeCallbacks(secondsTick);super.onDetachedFromWindow();}
+    @Override protected void onAttachedToWindow(){super.onAttachedToWindow();getViewTreeObserver().addOnTouchModeChangeListener(controlTouchMode);controlVisibility();syncSeconds();}
+    @Override protected void onDetachedFromWindow(){removeCallbacks(secondsTick);if(getViewTreeObserver().isAlive())getViewTreeObserver().removeOnTouchModeChangeListener(controlTouchMode);super.onDetachedFromWindow();}
     @Override protected void onVisibilityChanged(View changed,int visibility){super.onVisibilityChanged(changed,visibility);syncSeconds();}
     @Override protected void onWindowVisibilityChanged(int visibility){super.onWindowVisibilityChanged(visibility);syncSeconds();}
     void weather(WeatherData data){weatherAvailable=data!=null;if(data==null){weather.setText("");weather.setCompoundDrawables(null,null,null,null);}else{WeatherIcon icon=new WeatherIcon(data.icon);icon.setBounds(0,0,px(18),px(18));weather.setCompoundDrawables(icon,null,null,null);weather.setText(String.format(Locale.ROOT,"%s  %s  %s",data.temperatureText(),data.description,data.city));}apply();}

@@ -29,6 +29,9 @@ final class PhoneSettingsSession {
     String failure(){return failure;}
     String address(){return server==null?"":server.address();}
     String shortAddress(){return server==null?"":server.shortAddress();}
+    String filesAddress(){String base=address();return base.isEmpty()?"":base+"#tab=tools&tool=files";}
+    String fileTransferStatus(){return configuration==null?"":configuration.fileTransferStatus();}
+    void offerFile(String id)throws IOException{PhoneSettingsConfiguration current=configuration;if(current==null||!Arrays.asList("waiting","connected").contains(state()))throw new IOException("请先开启手机连接");current.offerFile(id);}
     void start(){
         if(starting)return;
         if(server!=null){String state=server.state();if(("waiting".equals(state)||"connected".equals(state))&&host.equals(WallpaperUploadPanel.lanAddress(context)))return;server.stop();if(configuration!=null)configuration.closed();}starting=true;failure="";int job=++generation;fire();

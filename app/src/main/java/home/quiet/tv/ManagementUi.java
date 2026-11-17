@@ -12,7 +12,7 @@ import android.widget.*;
 import java.util.concurrent.*;
 
 /** Native management surfaces keep settings focus separate from the existing HOME style. */
-abstract class ManagementUi extends androidx.activity.ComponentActivity {
+abstract class ManagementUi extends androidx.activity.ComponentActivity implements GlassStyle.Listener {
     static final int TEXT=UiPalette.TEXT,MUTED=UiPalette.SECONDARY;
     LinearLayout root,header,managementInfo;
     FrameLayout stage;
@@ -28,6 +28,8 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     private ExecutorService backdropLoader;
     private boolean backdropClosed;
     private ImageView backdropImage;
+    private Bitmap ownedBackdrop;
+    private GlassStyle glassStyle;
     private volatile int backdropGeneration;
     private volatile String backdropIdentity;
     private final long createdAt=SystemClock.uptimeMillis();
@@ -40,7 +42,7 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     int px(float value){return Math.round(value*unit);}
     static void performanceAction(String action){if(BuildConfig.INDEPENDENT_BUILD)android.util.Log.i("QuietTVPerf","action="+action+" uptimeMs="+SystemClock.uptimeMillis());}
     @Override public void onCreate(Bundle state){
-        super.onCreate(state);BackNavigation.install(this,this::handleBack);unit=getResources().getDisplayMetrics().widthPixels/960f;
+        super.onCreate(state);glassStyle=GlassStyle.get(this);glassStyle.observe(this);BackNavigation.install(this,this::handleBack);unit=getResources().getDisplayMetrics().widthPixels/960f;
         getWindow().getDecorView().setSystemUiVisibility(5894);
         stage=new FrameLayout(this);stage.setBackgroundColor(0xff000000);setContentView(stage);
         if(unifiedSettings()){stage.setClipChildren(false);SettingsFocusMotion.attach(stage);}
@@ -56,30 +58,33 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     private void prepareBackdrop(){
         ImageView image=new ImageView(this);backdropImage=image;image.setScaleType(ImageView.ScaleType.CENTER_CROP);stage.addView(image,new FrameLayout.LayoutParams(-1,-1));
         Bitmap supplied=getIntent().getParcelableExtra("backdrop");
-        if(supplied!=null){image.setImageBitmap(supplied);if(!unifiedSettings())return;}
+        if(supplied!=null&&glassStyle.rendering()){image.setImageBitmap(supplied);if(!unifiedSettings())return;}
         // A direct settings entry still draws immediately; file IO and decoding are not on its first-frame path.
-        backdropLoader=Executors.newSingleThreadExecutor();
         refreshBackdrop();
     }
+    private void clearBackdrop(){if(glassStyle!=null&&!glassStyle.rendering())getIntent().removeExtra("backdrop");if(backdropImage!=null){backdropImage.animate().cancel();backdropImage.setImageDrawable(null);backdropImage.setAlpha(1f);}if(ownedBackdrop!=null){ownedBackdrop.recycle();ownedBackdrop=null;}backdropIdentity=null;}
+    @Override public void glassChanged(){if(!glassStyle.rendering()||hasWindowFocus())refreshBackdrop();}
     void refreshBackdrop(){
-        if(backdropLoader==null||backdropClosed)return;int request=++backdropGeneration;
+        if(backdropImage==null||backdropClosed)return;int request=++backdropGeneration,styleRevision=glassStyle.revision();
+        if(!glassStyle.rendering()){clearBackdrop();return;}
+        if(backdropLoader==null)backdropLoader=Executors.newSingleThreadExecutor();
         backdropLoader.execute(()->{
-            if(request!=backdropGeneration)return;Bitmap decoded=null;String identity=null;boolean empty=false;
+            if(request!=backdropGeneration||!glassStyle.valid(styleRevision))return;Bitmap decoded=null;String identity=null;boolean empty=false;
             try{
                 WallpaperStore store=WallpaperStore.get(this);WallpaperCatalog state=store.snapshot();WallpaperCatalog.Entry entry=state.find(state.current);
                 identity=store.imageKey(state.current)+(WallpaperCatalog.DAILY.equals(state.current)?":"+state.lastLocal:"");
                 if(identity.equals(backdropIdentity))return;empty=entry==null||WallpaperCatalog.DEFAULT.equals(entry.id);
                 if(entry!=null&&!WallpaperCatalog.DEFAULT.equals(entry.id)){
                     Bitmap source=WallpaperImages.decode(this,store,entry,480,270);
-                    try{decoded=unifiedSettings()?settingsBackdrop(source,480,Math.max(1,Math.round(480f*getResources().getDisplayMetrics().heightPixels/getResources().getDisplayMetrics().widthPixels)),BuildConfig.LEGACY_19):source;}
+                    try{decoded=unifiedSettings()?settingsBackdrop(source,480,Math.max(1,Math.round(480f*getResources().getDisplayMetrics().heightPixels/getResources().getDisplayMetrics().widthPixels)),BuildConfig.LEGACY_19,glassStyle,styleRevision):source;}
                     finally{if(unifiedSettings())source.recycle();}
                 }
             }catch(java.io.IOException|RuntimeException|OutOfMemoryError error){DiagnosticLog.info("management.backdrop.unavailable","keep themed background");}
             Bitmap ready=decoded;String key=identity;boolean themed=empty;
             runOnUiThread(()->{
-                if(backdropClosed||isFinishing()||UiCompat.destroyed(this)||request!=backdropGeneration){if(ready!=null)ready.recycle();return;}
-                if(ready!=null){backdropIdentity=key;backdropImage.animate().cancel();backdropImage.setAlpha(0f);backdropImage.setImageBitmap(ready);backdropImage.animate().alpha(1f).setDuration(getResources().getInteger(R.integer.quiet_motion_panel_ms)).setListener(new android.animation.AnimatorListenerAdapter(){@Override public void onAnimationEnd(android.animation.Animator animation){if(!backdropClosed&&key.equals(backdropIdentity)&&backdropImage.getAlpha()>.999f)refreshSheetBackdrops();}}).start();}
-                else if(themed){if(backdropIdentity!=null){backdropImage.animate().cancel();backdropImage.setImageDrawable(null);backdropImage.setAlpha(1f);refreshSheetBackdrops();}backdropIdentity=key;}
+                if(backdropClosed||isFinishing()||UiCompat.destroyed(this)||request!=backdropGeneration||!glassStyle.valid(styleRevision)){if(ready!=null)ready.recycle();return;}
+                if(ready!=null){Bitmap previous=ownedBackdrop;ownedBackdrop=ready;backdropIdentity=key;backdropImage.animate().cancel();backdropImage.setAlpha(0f);backdropImage.setImageBitmap(ready);if(previous!=null)previous.recycle();backdropImage.animate().alpha(1f).setDuration(getResources().getInteger(R.integer.quiet_motion_panel_ms)).setListener(new android.animation.AnimatorListenerAdapter(){@Override public void onAnimationEnd(android.animation.Animator animation){if(!backdropClosed&&key.equals(backdropIdentity)&&backdropImage.getAlpha()>.999f)refreshSheetBackdrops();}}).start();}
+                else if(themed){if(backdropIdentity!=null){backdropImage.animate().cancel();clearBackdrop();refreshSheetBackdrops();}backdropIdentity=key;}
             });
         });
     }
@@ -106,12 +111,14 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     private void refreshSheetBackdrops(){for(SettingsSheetBackdrop surface:sheetBackdrops)surface.refresh();}
     // The settings backdrop follows the prototype's 2cqw overscan and 20px blur on a 1280px canvas.
     // Decode the selected image/poster rather than reusing HOME's blur, brightness and Dock tint.
-    static Bitmap settingsBackdrop(Bitmap source,int width,int height,boolean reduced){
+    static Bitmap settingsBackdrop(Bitmap source,int width,int height,boolean reduced){return settingsBackdrop(source,width,height,reduced,null,0);}
+    static Bitmap settingsBackdrop(Bitmap source,int width,int height,boolean reduced,GlassStyle glass,int revision){
+        if(glass!=null&&!glass.valid(revision))return null;
         int inset=Math.max(1,Math.round(width*.02f)),w=width+inset*2,h=height+inset*2;
         Bitmap expanded=Bitmap.createBitmap(w,h,Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(expanded);canvas.drawColor(Color.BLACK);
         float scale=Math.max(w/(float)source.getWidth(),h/(float)source.getHeight()),sw=source.getWidth()*scale,sh=source.getHeight()*scale;
         canvas.drawBitmap(source,null,new RectF((w-sw)/2,(h-sh)/2,(w+sw)/2,(h+sh)/2),new Paint(Paint.FILTER_BITMAP_FLAG));
-        if(!reduced)SettingsSheetBackdrop.gaussian(expanded,20f*width/1280f);
+        if(!reduced&&!SettingsSheetBackdrop.gaussian(expanded,20f*width/1280f,glass,revision)){expanded.recycle();return null;}
         Bitmap result=Bitmap.createBitmap(expanded,inset,inset,width,height);if(result!=expanded)expanded.recycle();return result;
     }
     void drawSheetBackdrop(Canvas canvas){stage.draw(canvas);}
@@ -123,9 +130,9 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     boolean chinese(){return true;}
     String tr(String chinese,String english){return chinese()?chinese:english;}
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);managementEntry=true;refreshBackdrop();}
-    @Override protected void onResume(){super.onResume();if(backdropIdentity!=null)refreshBackdrop();UpdateRepository.get(this).add(updateListener);UpdateRepository.get(this).foreground();if(managementEntry && managementPage>=0){managementEntry=false;managementTab().requestFocus();}}
+    @Override protected void onResume(){super.onResume();if(backdropImage!=null)refreshBackdrop();UpdateRepository.get(this).add(updateListener);UpdateRepository.get(this).foreground();if(managementEntry && managementPage>=0){managementEntry=false;managementTab().requestFocus();}}
     @Override protected void onStop(){UpdateRepository.get(this).remove(updateListener);if(managementMorePopup!=null)managementMorePopup.closeQuietly();super.onStop();}
-    @Override protected void onDestroy(){backdropClosed=true;settingsWriter.shutdown();afterContent=null;if(contentDraw!=null){contentDraw.run();contentDraw=null;}if(backdropLoader!=null)backdropLoader.shutdownNow();super.onDestroy();}
+    @Override protected void onDestroy(){backdropClosed=true;if(glassStyle!=null)glassStyle.forget(this);clearBackdrop();settingsWriter.shutdown();afterContent=null;if(contentDraw!=null){contentDraw.run();contentDraw=null;}if(backdropLoader!=null)backdropLoader.shutdownNow();super.onDestroy();}
     @Override public void onWindowFocusChanged(boolean focused){super.onWindowFocusChanged(focused);if(unifiedSettings())SettingsFocusMotion.update(getCurrentFocus(),focused);DiagnosticLog.info("input.window","page="+getClass().getSimpleName()+" "+InputDiagnostics.focus(this));if(focused)reportContentReady();}
     @Override public boolean dispatchTouchEvent(android.view.MotionEvent event){InputDiagnostics.pointer(this,event);return super.dispatchTouchEvent(event);}
     void managementConnected(){}
@@ -302,6 +309,7 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
         private boolean fullWindow;
         private SettingsSheetBackdrop backdrop;
         void contentWidth(float minimum,float maximum){if(fixedSize)return;contentSized=true;contentMinimum=minimum;contentMaximum=maximum;box.requestLayout();}
+        void lightSurface(){backdrop.light();}
         // Keep the panel and its chrome anchored; only the content viewport scrolls.
         void fixedSize(float width,float height){
             fixedSize=true;contentSized=false;
@@ -309,6 +317,10 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
             FrameLayout.LayoutParams frame=(FrameLayout.LayoutParams)box.getLayoutParams();
             frame.width=Math.min(px(width),screen.widthPixels-px(48));frame.height=Math.min(px(height),screen.heightPixels-px(48));box.setLayoutParams(frame);
             LinearLayout.LayoutParams content=(LinearLayout.LayoutParams)scroll.getLayoutParams();content.height=0;content.weight=1;scroll.setLayoutParams(content);
+        }
+        void fullScreen(){
+            fixedSize=true;contentSized=false;FrameLayout.LayoutParams frame=(FrameLayout.LayoutParams)box.getLayoutParams();frame.width=frame.height=-1;box.setLayoutParams(frame);
+            box.setPadding(px(36),px(28),px(36),px(24));LinearLayout.LayoutParams content=(LinearLayout.LayoutParams)scroll.getLayoutParams();content.height=0;content.weight=1;content.setMargins(0,0,0,0);scroll.setLayoutParams(content);scroll.setPadding(0,0,0,0);scroll.setFillViewport(true);
         }
         Sheet(String title){
             box.setOrientation(LinearLayout.VERTICAL);if(unifiedSettings())box.setClipChildren(false);

@@ -99,6 +99,7 @@ final class WallpaperUi {
     }
     /** Blur one small snapshot on opening, rather than continuously filtering a TV-sized frame. */
     static Bitmap backdrop(View background,View foreground){
+        if(!GlassStyle.get(background.getContext()).rendering())return null;
         int width=320,height=Math.max(1,background.getHeight()*width/Math.max(1,background.getWidth()));
         Bitmap image=Bitmap.createBitmap(width,height,Bitmap.Config.ARGB_8888);
         Canvas canvas=new Canvas(image);canvas.scale((float)width/Math.max(1,background.getWidth()),(float)height/Math.max(1,background.getHeight()));

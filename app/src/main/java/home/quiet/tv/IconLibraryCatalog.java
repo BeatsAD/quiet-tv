@@ -10,13 +10,26 @@ import org.json.*;
 
 /** Local layered artwork and signed, precomposed online artwork share one finite index. */
 final class IconLibraryCatalog {
-    static final int MAX_BYTES=256*1024;
+    static final int MAX_BYTES=2*1024*1024;
     static final String KEY_ID="quiettv-icons-1";
     static final String[] STYLES={"apple","google","flat","skeuo","soft","3d","pixel"};
     static final String[] SHAPES={"rectangle","circle","square"};
     static final String[] FORMS={"text","icon","transparent"};
     private static final String[] ICON_FORMS={"icon","transparent"};
     static String[] forms(String shape){return "rectangle".equals(shape)?FORMS:ICON_FORMS;}
+    static boolean styleId(String value){return value!=null&&value.matches("[a-z0-9][a-z0-9-]{0,47}");}
+    static final class Style {
+        final String id,zh,en;
+        Style(String id,String zh,String en)throws IOException{if(!styleId(id)||zh.isEmpty()||zh.length()>40||en.isEmpty()||en.length()>80)throw new IOException("图标风格定义无效");this.id=id;this.zh=zh;this.en=en;}
+        String label(boolean chinese){return chinese?zh:en;}
+    }
+    static String legacyStyleName(String id,boolean chinese){String[] names=chinese?new String[]{"苹果风格","谷歌风格","扁平化","拟物化","轻拟物","3D 风格","像素风格"}:new String[]{"Apple","Google","Flat","Skeuomorphic","Soft","3D","Pixel"};int index=Arrays.asList(STYLES).indexOf(id);return index<0?id:names[index];}
+    private static List<Style> styles(List<Item> items,JSONArray definitions)throws JSONException,IOException{
+        LinkedHashSet<String> used=new LinkedHashSet<>();for(Item item:items)used.add(item.style);ArrayList<Style> result=new ArrayList<>();Set<String> declared=new HashSet<>();
+        if(definitions!=null){if(definitions.length()>64)throw new IOException("图标风格数量过多");for(int i=0;i<definitions.length();i++){JSONObject value=definitions.getJSONObject(i);Style style=new Style(value.getString("id"),value.getString("name"),value.getString("nameEn"));if(!declared.add(style.id))throw new IOException("图标风格重复");if(used.contains(style.id))result.add(style);}if(!declared.containsAll(used))throw new IOException("图标缺少风格定义");}
+        else for(String id:used)result.add(new Style(id,legacyStyleName(id,true),legacyStyleName(id,false)));
+        return Collections.unmodifiableList(result);
+    }
     static final class Asset {
         final String path,sha256;final int width,height,bytes;
         Asset(JSONObject value,int width,int height,boolean thumbnail)throws JSONException,IOException{
@@ -45,7 +58,7 @@ final class IconLibraryCatalog {
         Item(JSONObject value)throws JSONException,IOException{
             id=value.getString("id");zh=value.getString("name");en=value.getString("nameEn");style=value.getString("style");
             foreground=value.optString("foreground");background=value.optString("background");
-            if(!id.matches("[a-z][a-z0-9-]{0,47}")||zh.isEmpty()||zh.length()>40||en.isEmpty()||en.length()>80||!contains(STYLES,style))throw new IOException("图标素材清单无效");
+            if(!id.matches("[a-z][a-z0-9-]{0,47}")||zh.isEmpty()||zh.length()>40||en.isEmpty()||en.length()>80||!styleId(style))throw new IOException("图标素材清单无效");
             if(value.has("variants")){
                 JSONArray all=value.getJSONArray("variants");if(all.length()<1||all.length()>7||!foreground.isEmpty()||!background.isEmpty())throw new IOException("在线图标组合无效");
                 for(int n=0;n<all.length();n++){Variant variant=new Variant(all.getJSONObject(n));if(variants.put(variant.shape+":"+variant.form,variant)!=null)throw new IOException("图标组合重复");}
@@ -59,12 +72,13 @@ final class IconLibraryCatalog {
     }
     final int version,revision;
     final List<Item> items;
+    final List<Style> styles;
     final JSONObject matches;
     IconLibraryCatalog(JSONObject value)throws JSONException,IOException{
         version=value.getInt("version");revision=value.getInt("revision");if((version!=1&&version!=2)||revision<1)throw new IOException("图标素材版本不支持");
         ArrayList<Item> result=new ArrayList<>();Set<String> seen=new HashSet<>();JSONArray list=value.getJSONArray("items");
         if(list.length()>1024)throw new IOException("图标素材数量过多");
-        for(int i=0;i<list.length();i++){Item item=new Item(list.getJSONObject(i));if(!seen.add(item.style+":"+item.id))throw new IOException("图标素材重复");result.add(item);}items=Collections.unmodifiableList(result);
+        for(int i=0;i<list.length();i++){Item item=new Item(list.getJSONObject(i));if(!seen.add(item.style+":"+item.id))throw new IOException("图标素材重复");result.add(item);}items=Collections.unmodifiableList(result);styles=styles(items,value.has("styles")?value.getJSONArray("styles"):null);
         matches=value.has("matches")?value.getJSONObject("matches"):null;
         if(matches!=null){if(version!=2)throw new IOException("本地图标目录不支持在线匹配规则");new IconLibraryMatcher(matches,this).requireCoverage(this);}
     }
@@ -72,9 +86,12 @@ final class IconLibraryCatalog {
         IconLibraryCatalog local=readLocal(context),online=IconLibraryRepository.get(context).catalog();
         if(online==null)return local;
         LinkedHashMap<String,Item> merged=new LinkedHashMap<>();for(Item item:online.items)merged.put(item.style+":"+item.id,item);for(Item item:local.items)merged.put(item.style+":"+item.id,item);
-        return new IconLibraryCatalog(Math.max(local.revision,online.revision),new ArrayList<>(merged.values()),online.matches);
+        LinkedHashMap<String,Style> styles=new LinkedHashMap<>();for(Style style:online.styles)styles.put(style.id,style);for(Style style:local.styles)if(!styles.containsKey(style.id))styles.put(style.id,style);
+        return new IconLibraryCatalog(Math.max(local.revision,online.revision),new ArrayList<>(merged.values()),online.matches,new ArrayList<>(styles.values()));
     }
-    private IconLibraryCatalog(int revision,List<Item> items,JSONObject matches){this.version=2;this.revision=revision;this.items=Collections.unmodifiableList(items);this.matches=matches;}
+    private IconLibraryCatalog(int revision,List<Item> items,JSONObject matches,List<Style> styles){this.version=2;this.revision=revision;this.items=Collections.unmodifiableList(items);this.matches=matches;this.styles=Collections.unmodifiableList(styles);}
+    String[] styleIds(){String[] result=new String[styles.size()];for(int i=0;i<result.length;i++)result[i]=styles.get(i).id;return result;}
+    String styleName(String id,boolean chinese){for(Style style:styles)if(style.id.equals(id))return style.label(chinese);return legacyStyleName(id,chinese);}
     private static IconLibraryCatalog readLocal(Context context)throws IOException{
         try(InputStream input=context.getAssets().open("icon-library/catalog.json");ByteArrayOutputStream out=new ByteArrayOutputStream()){
             byte[] buffer=new byte[4096];int n;while((n=input.read(buffer))!=-1){if(out.size()+n>256*1024)throw new IOException("图标素材清单过大");out.write(buffer,0,n);}return new IconLibraryCatalog(new JSONObject(out.toString("UTF-8")));

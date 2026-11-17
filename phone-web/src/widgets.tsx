@@ -62,7 +62,7 @@ export function ConfirmDialog({title,busy,disabled,confirmLabel='确认删除',b
 }
 export function fileSize(bytes?:number){if(bytes===undefined||bytes<0)return '大小未知';return bytes>=1e6?`${(bytes/1e6).toFixed(1)} MB`:bytes>=1000?`${Math.round(bytes/1000)} KB`:`${bytes} B`;}
 
-export function quickGlyph(id:string){const names:Record<string,string>={control:'MixerHorizontalIcon',settings:'GearIcon',systemSettings:'GearIcon',network:'WifiIcon',bluetooth:'BluetoothIcon',source:'HdmiIcon',keySounds:'KeyboardIcon',mute:'WallpaperSoundIcon',volume:'SpeakerLoudIcon',brightness:'SunIcon',wallpaper:'ImageIcon',original:'HomeIcon',transfer:'FolderSyncIcon',memoShortcut:'NotebookIcon',screensaver:'MonitorPlayIcon',boot:'PowerIcon',child:'ChildIcon',apps:'DashboardIcon',clock:'ClockIcon',weather:'SunIcon'};return names[id]||'DashboardIcon';}
+export function quickGlyph(id:string){const names:Record<string,string>={control:'MixerHorizontalIcon',settings:'GearIcon',systemSettings:'GearIcon',network:'WifiIcon',bluetooth:'BluetoothIcon',source:'HdmiIcon',keySounds:'KeyboardIcon',mute:'WallpaperSoundIcon',volume:'SpeakerLoudIcon',brightness:'SunIcon',homeBlur:'MixerHorizontalIcon',dockScale:'DashboardIcon',dockMagnification:'PlusIcon',wallpaper:'ImageIcon',original:'HomeIcon',transfer:'FolderSyncIcon',memoShortcut:'NotebookIcon',screensaver:'MonitorPlayIcon',boot:'PowerIcon',child:'ChildIcon',apps:'DashboardIcon',clock:'ClockIcon',weather:'SunIcon'};return names[id]||'DashboardIcon';}
 
 export const ResourceImageRefresh=createContext(0);
 type ResourceImageProps=Omit<ImgHTMLAttributes<HTMLImageElement>,'onLoad'|'onError'>&{onLoad?:()=>void;onError?:()=>void};

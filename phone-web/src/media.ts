@@ -1,3 +1,4 @@
+export const wallpaperAccept='image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp,video/*,.mp4,.mov,.mkv,.webm,.m4v,.3gp,.3g2,.ts,.m2ts,.mts,.mpg,.mpeg,.vob,.flv';
 /** Match the TV cover policy and preserve original upload filenames. */
 export function mediaLabel(filename:string){return filename.replace(/\.[^.]+$/,'').replace(/[\x00-\x1f\x7f-\x9f/\\]/g,' ').trim().slice(0,48).replace(/[\uD800-\uDBFF]$/,'')||'我的壁纸';}
 export const coverWidth=720,coverHeight=406;
@@ -19,4 +20,9 @@ export function staticCover(buffer:ArrayBuffer,type:string){
 export function mediaRenameTarget(hash:string){
   const params=new URLSearchParams(hash.replace(/^#/,'')),id=params.get('rename'),source=params.get('source')||'wallpaper';
   return id&&/^user-[a-f0-9-]{36}$/.test(id)&&['wallpaper','screensaver'].includes(source)?{id,source}:null;
+}
+
+export function wallpaperProblem(file:File,limits:Record<string,number>={}){
+  const video=file.type.startsWith('video/')||/\.(mp4|mov|mkv|webm|m4v|3gp|3g2|ts|m2ts|mts|mpg|mpeg|vob|flv)$/i.test(file.name);
+  return !file.size?'文件不能为空':!video&&!/\.(jpe?g|png|webp)$/i.test(file.name)&&!['image/jpeg','image/png','image/webp'].includes(file.type)?'不支持的图片格式':!video&&limits.wallpaper>0&&file.size>limits.wallpaper?'文件超过大小上限或电视可用空间':'';
 }

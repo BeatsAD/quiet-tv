@@ -12,7 +12,7 @@ const labels:Record<string,Record<string,string>>={
   weather:{refresh:'刷新天气',cityCode:'保存天气城市'},diagnostics:{export:'生成诊断文件'},management:{connect:'连接 ADB',disconnect:'断开 ADB',check:'检查 ADB 状态'},
   guard:{pause:'暂停桌面接管',restore:'恢复原桌面',system:'打开默认桌面设置'},desktopSwitch:{switch:'切换桌面',manage:'桌面管理',verify:'记录使用验证'},
   inputs:{search:'搜索信号源',test:'发送信号源测试',confirm:'保存配对结果',restore:'恢复配对配置',defaults:'恢复配对默认设置',observe:'记录信号源',cancel:'结束信号源任务'},
-  update:{check:'检查更新',download:'下载安装包',install:'准备安装更新',cancelCheck:'取消更新检查',cancelDownload:'取消安装包下载'},components:{start:'下载天气资源',cancel:'取消组件下载'}
+  update:{check:'检查更新',download:'下载安装包',install:'准备安装更新',cancelCheck:'取消更新检查',cancelDownload:'取消安装包下载'},components:{start:'下载天气资源',cancel:'取消组件下载',uninstall:'卸载天气资源'}
 };
 export function operationLabel(domain:string,field:string,metadata:Metadata|null){return labels[domain]?.[field]||metadata?.fields[field]?.title||'保存设置';}
 export function quietResult(domain:string,field:string,value:Value){return domain==='icons'||domain==='uploads'||domain==='files'&&field==='browse'||domain==='memos'&&field==='toggle'||domain==='backup'&&field==='automatic'||domain==='quiz'&&field==='quizApp'||domain==='child'&&field==='rule'&&['enabled','locked'].includes(String((value as Record<string,unknown>)?.field));}
@@ -44,6 +44,11 @@ export function taskNotice(label:string,task:Task):OperationNotice|null{
 export function deferredNotice(domain:string,field:string,values:Record<string,Value>):OperationNotice|null{
   if(domain==='components'){
     const weather=values.weather as Record<string,unknown>|undefined,state=weather?.state,detail=String(weather?.message||'');
+    if(field==='uninstall'){
+      if((state==='missing'||state==='unsupported')&&!weather?.canUninstall)return {kind:'success',title:'天气资源已卸载'};
+      if(state==='remove_failed')return {kind:'error',title:'天气资源卸载未完成',detail};
+      return null;
+    }
     if(state==='ready')return {kind:'success',title:'天气资源已就绪'};
     if(state==='failed')return {kind:'error',title:'天气资源下载失败',detail};
     if(state==='cancelled')return {kind:'info',title:'下载已取消'};

@@ -4,6 +4,8 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.os.*;
 import android.text.InputFilter;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.*;
 import android.view.inputmethod.*;
 import android.widget.*;
@@ -50,24 +52,25 @@ final class GreetingEditorPanel {
     private void identify(View view,String tag){view.setId(androidx.core.view.ViewCompat.generateViewId());view.setTag(tag);}
     void show(){
         if(editor!=null)return;baseText=store.greetingText("");enabled=store.greetingEnabled();draftAvatar=avatars.existing(store.avatarFile());avatarEnabled=store.avatarEnabled()&&draftAvatar!=null;
-        editor=ui.new Sheet(tr("问候语与头像","Greeting and avatar"));close=editor.settingsLayout(tr("关闭","Close"),()->editor.dialog.dismiss());editor.fixedSize(480,440);
+        editor=ui.new Sheet(tr("问候语与头像","Greeting and avatar"));close=editor.settingsLayout(tr("关闭","Close"),()->editor.dialog.dismiss());close.setVisibility(View.GONE);editor.fixedSize(408,372);
         toggle=makeSwitch(tr("显示问候语","Show greeting"),"greeting-toggle");toggle.setOnClickListener(v->{enabled=!enabled;updateEnabled();});editor.body.addView(toggle,new LinearLayout.LayoutParams(-1,ui.px(42)));
-        LinearLayout field=ui.column();LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-1,-2);fp.topMargin=ui.px(10.56f);fp.bottomMargin=ui.px(14.4f);editor.body.addView(field,fp);
-        TextView label=ui.label(tr("问候语（最多8个字）","Greeting (max 8 characters)"),13);label.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,12.48f*ui.unit);label.setTextColor(UiPalette.SECONDARY);field.addView(label,new LinearLayout.LayoutParams(-1,ui.px(17.45f)));ui.gap(field,7.68f);
+        LinearLayout field=ui.column();LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-1,-2);fp.setMargins(ui.px(9.6f),ui.px(10.56f),ui.px(9.6f),ui.px(14.4f));editor.body.addView(field,fp);
+        LinearLayout caption=ui.row();TextView label=ui.label(tr("问候语内容","Greeting text"),13);label.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,12.48f*ui.unit);label.setTextColor(UiPalette.SECONDARY);caption.addView(label,new LinearLayout.LayoutParams(0,ui.px(17.45f),1));
+        TextView count=ui.muted("",11);identify(count,"greeting-count");count.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);count.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,11.52f*ui.unit);caption.addView(count,new LinearLayout.LayoutParams(-2,ui.px(17.45f)));field.addView(caption);ui.gap(field,7.68f);LinearLayout input=ui.row();field.addView(input,new LinearLayout.LayoutParams(-1,ui.px(34.56f)));
         edit=ui.input(store.greetingText(fallback),tr("留空时自动问候","Leave empty for automatic greetings"));identify(edit,"greeting-text");edit.setContentDescription(tr("问候语内容","Greeting text"));edit.setFilters(new InputFilter[]{new InputFilter.LengthFilter(GreetingInputServer.MAX_TEXT)});
-        edit.setImeOptions(EditorInfo.IME_ACTION_DONE|EditorInfo.IME_FLAG_NO_EXTRACT_UI);edit.setBackgroundDrawable(new SettingsFocusDrawable(ui.unit,12,0x1f000000,false,UiPalette.EDGE));field.addView(edit,new LinearLayout.LayoutParams(-1,ui.px(44.06f)));
-        scan=inline(tr("手机输入","Phone input"),"greeting-scan",this::showPhone,false);editor.body.addView(scan,new LinearLayout.LayoutParams(-2,ui.px(34.56f)));
+        edit.setImeOptions(EditorInfo.IME_ACTION_DONE|EditorInfo.IME_FLAG_NO_EXTRACT_UI);edit.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,13.44f*ui.unit);edit.setPadding(ui.px(11.52f),ui.px(6.4f),ui.px(11.52f),ui.px(6.4f));edit.setBackgroundDrawable(new SettingsFocusDrawable(ui.unit,12,0x1f000000,false,UiPalette.EDGE));input.addView(edit,new LinearLayout.LayoutParams(0,-1,1));
+        count.setText(edit.length()+"/"+GreetingInputServer.MAX_TEXT);edit.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int start,int before,int after){}public void onTextChanged(CharSequence s,int start,int before,int after){}public void afterTextChanged(Editable text){count.setText(text.length()+"/"+GreetingInputServer.MAX_TEXT);}});
+        scan=inline(tr("手机输入","Phone input"),"greeting-scan",this::showPhone,false);LinearLayout.LayoutParams scanSize=new LinearLayout.LayoutParams(-2,-1);scanSize.leftMargin=ui.px(9.6f);input.addView(scan,scanSize);
         phoneSlot=ui.column();editor.body.addView(phoneSlot,new LinearLayout.LayoutParams(-1,-2));
-        avatarToggle=makeSwitch(tr("显示圆形头像","Show round avatar"),"greeting-avatar-toggle");avatarToggle.setOnClickListener(v->{avatarEnabled=!avatarEnabled;if(!avatarEnabled)avatarUpload.close();updateEnabled();});editor.body.addView(avatarToggle,new LinearLayout.LayoutParams(-1,ui.px(42)));
-        avatarRow=ui.row();avatarRow.setPadding(ui.px(9.6f),ui.px(9.6f),ui.px(9.6f),ui.px(9.6f));avatar=new GreetingAvatarView(ui);identify(avatar,"greeting-avatar-preview");avatarRow.addView(avatar,new LinearLayout.LayoutParams(ui.px(48),ui.px(48)));
-        TextView instructions=ui.muted(tr("头像使用手机上传并裁剪","Upload and crop on your phone"),12);instructions.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,11.52f*ui.unit);instructions.setMaxWidth(ui.px(180));LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(-2,-2);ip.leftMargin=ui.px(9.6f);avatarRow.addView(instructions,ip);
+        avatarToggle=makeSwitch(tr("显示头像","Show avatar"),"greeting-avatar-toggle");avatarToggle.setOnClickListener(v->{avatarEnabled=!avatarEnabled;if(!avatarEnabled)avatarUpload.close();updateEnabled();});editor.body.addView(avatarToggle,new LinearLayout.LayoutParams(-1,ui.px(42)));
+        avatarRow=ui.row();avatarRow.setPadding(ui.px(9.6f),ui.px(7.68f),ui.px(9.6f),ui.px(7.68f));avatar=new GreetingAvatarView(ui);identify(avatar,"greeting-avatar-preview");avatarRow.addView(avatar,new LinearLayout.LayoutParams(ui.px(44.16f),ui.px(44.16f)));
         upload=inline(tr("手机上传","Phone upload"),"greeting-avatar-upload",()->{hideKeyboard();closePhone(false);avatarUpload.show(avatarSlot,()->{if(editor!=null&&!saving)upload.requestFocusFromTouch();});},false);
         remove=inline(tr("移除头像","Remove avatar"),"greeting-avatar-remove",()->{avatarUpload.close();discardDraft();draftAvatar=null;avatarEnabled=false;draftStatus.setVisibility(View.GONE);updateEnabled();avatarToggle.requestFocusFromTouch();},false);
         for(Button button:new Button[]{upload,remove}){LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-2,ui.px(34.56f));bp.leftMargin=ui.px(9.6f);avatarRow.addView(button,bp);}editor.body.addView(avatarRow,new LinearLayout.LayoutParams(-1,-2));
         avatarSlot=ui.column();editor.body.addView(avatarSlot,new LinearLayout.LayoutParams(-1,-2));
         draftStatus=ui.muted("",12);draftStatus.setVisibility(View.GONE);androidx.core.view.ViewCompat.setAccessibilityLiveRegion(draftStatus,androidx.core.view.ViewCompat.ACCESSIBILITY_LIVE_REGION_POLITE);editor.body.addView(draftStatus,new LinearLayout.LayoutParams(-1,-2));
         cancel=inline(tr("取消","Cancel"),"greeting-cancel",()->editor.dialog.dismiss(),false);save=inline(tr("保存","Save"),"greeting-save",this::save,true);
-        editor.actions.addView(cancel,new LinearLayout.LayoutParams(-2,-1));LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-2,-1);sp.leftMargin=ui.px(6);editor.actions.addView(save,sp);
+        cancel.setMinWidth(ui.px(72));save.setMinWidth(ui.px(72));editor.actions.addView(cancel,new LinearLayout.LayoutParams(-2,-1));LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-2,-1);sp.leftMargin=ui.px(6);editor.actions.addView(save,sp);
         edit.setOnKeyListener((v,key,event)->{
             if(key==KeyEvent.KEYCODE_DPAD_CENTER||key==KeyEvent.KEYCODE_ENTER){if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0)((InputMethodManager)ui.getSystemService(android.content.Context.INPUT_METHOD_SERVICE)).showSoftInput(edit,InputMethodManager.SHOW_IMPLICIT);return true;}
             if(event.getAction()!=KeyEvent.ACTION_DOWN)return false;if(key==KeyEvent.KEYCODE_DPAD_DOWN){scan.requestFocusFromTouch();return true;}if(key==KeyEvent.KEYCODE_DPAD_UP){toggle.requestFocusFromTouch();return true;}return false;
@@ -83,9 +86,9 @@ final class GreetingEditorPanel {
         editor.dialog.setOnDismissListener(d->{hideKeyboard();avatarUpload.close();closePhone(false);stopServer(false);if(!saving&&!ui.isChangingConfigurations())discardDraft();editor=null;edit=null;View entry=ui.root.findViewWithTag("greeting");if(entry!=null)entry.requestFocusFromTouch();});
         updateEnabled();editor.show(toggle);
     }
-    private DesktopSettingsRow makeSwitch(String text,String tag){DesktopSettingsRow result=ui.setting(text,"",tag);result.setBackgroundDrawable(new SettingsFocusDrawable(ui.unit,12,UiPalette.CONTROL,true));result.checked(false);return result;}
+    private DesktopSettingsRow makeSwitch(String text,String tag){DesktopSettingsRow result=ui.setting(text,"",tag);result.setBackgroundDrawable(new SettingsFocusDrawable(ui.unit,12,Color.TRANSPARENT,true));result.checked(false);return result;}
     private Button inline(String text,String tag,Runnable action,boolean primary){
-        Button button=ui.button(text,action);identify(button,tag);button.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,11.712f*ui.unit);button.setPadding(ui.px(13.71f),0,ui.px(13.71f),0);button.setBackgroundDrawable(new SettingsFocusDrawable(ui.unit,999,primary?UiPalette.SELECTED:UiPalette.CONTROL,false,primary?0x4dffffff:UiPalette.EDGE));button.setTextColor(SettingsFocusDrawable.textColors(UiPalette.TEXT));return button;
+        Button button=ui.button(text,action);identify(button,tag);button.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,11.712f*ui.unit);button.setPadding(ui.px(18),0,ui.px(18),0);button.setBackgroundDrawable(new SettingsFocusDrawable(ui.unit,12,primary?UiPalette.SELECTED:UiPalette.CONTROL,false,primary?0x4dffffff:UiPalette.EDGE));button.setTextColor(SettingsFocusDrawable.textColors(UiPalette.TEXT));return button;
     }
     private void discardDraft(){File file=draftAvatar;if(file!=null&&!file.getName().equals(store.avatarFile())){draftAvatar=null;worker.execute(()->GreetingAvatarStore.discard(file));}}
     private boolean receiveAvatar(File candidate){
@@ -94,7 +97,7 @@ final class GreetingEditorPanel {
     private void save(){
         if(saving)return;String text=edit.getText().toString();
         if(text.length()>GreetingInputServer.MAX_TEXT){draftStatus.setText(tr("问候语最多8个字","Greeting is limited to 8 characters"));draftStatus.setVisibility(View.VISIBLE);edit.requestFocusFromTouch();return;}
-        if(avatarEnabled&&draftAvatar==null){draftStatus.setText(tr("请先上传头像，或关闭显示圆形头像","Upload an avatar, or turn off Show round avatar"));draftStatus.setVisibility(View.VISIBLE);upload.requestFocusFromTouch();return;}
+        if(avatarEnabled&&draftAvatar==null){draftStatus.setText(tr("请先上传头像，或关闭显示头像","Upload an avatar, or turn off Show avatar"));draftStatus.setVisibility(View.VISIBLE);upload.requestFocusFromTouch();return;}
         closePhone(false);avatarUpload.close();saving=true;editor.dialog.setCancelable(false);updateEnabled();File selected=draftAvatar;boolean showText=enabled,showAvatar=avatarEnabled;
         worker.execute(()->{
             String error=null;try{
@@ -112,7 +115,7 @@ final class GreetingEditorPanel {
         editor.box.setEnabled(!saving);
         toggle.checked(enabled);avatarToggle.checked(avatarEnabled);for(View view:new View[]{toggle,edit,scan,avatarToggle,upload,remove,cancel,save,close})view.setEnabled(!saving);
         avatarRow.setVisibility(avatarEnabled?View.VISIBLE:View.GONE);boolean has=draftAvatar!=null;upload.setText(has?tr("更换照片","Change photo"):tr("手机上传","Phone upload"));avatar.show(draftAvatar,true);
-        toggle.setNextFocusUpId(close.getId());toggle.setNextFocusDownId(edit.getId());edit.setNextFocusUpId(toggle.getId());edit.setNextFocusDownId(scan.getId());scan.setNextFocusUpId(edit.getId());scan.setNextFocusDownId(phone==null?avatarToggle.getId():phoneBack.getId());
+        toggle.setNextFocusUpId(toggle.getId());toggle.setNextFocusDownId(edit.getId());edit.setNextFocusUpId(toggle.getId());edit.setNextFocusDownId(scan.getId());scan.setNextFocusUpId(edit.getId());scan.setNextFocusDownId(phone==null?avatarToggle.getId():phoneBack.getId());
         avatarToggle.setNextFocusUpId(phone==null?scan.getId():phoneBack.getId());avatarToggle.setNextFocusDownId(avatarEnabled?upload.getId():cancel.getId());upload.setNextFocusUpId(avatarToggle.getId());upload.setNextFocusRightId(remove.getId());upload.setNextFocusDownId(cancel.getId());remove.setNextFocusLeftId(upload.getId());remove.setNextFocusUpId(avatarToggle.getId());remove.setNextFocusDownId(save.getId());
         close.setNextFocusDownId(toggle.getId());cancel.setNextFocusLeftId(cancel.getId());cancel.setNextFocusRightId(save.getId());save.setNextFocusLeftId(cancel.getId());save.setNextFocusRightId(save.getId());cancel.setNextFocusUpId(avatarEnabled?upload.getId():avatarToggle.getId());save.setNextFocusUpId(avatarEnabled?remove.getId():avatarToggle.getId());cancel.setNextFocusDownId(cancel.getId());save.setNextFocusDownId(save.getId());
     }

@@ -15,10 +15,10 @@ final class DesktopBackupRecord {
     private static final java.util.regex.Pattern COVER_ASSET=java.util.regex.Pattern.compile("app-covers/cover-[a-f0-9-]{36}\\.png");
     private static final java.util.regex.Pattern STORED_ASSET=java.util.regex.Pattern.compile("desktop-backups/assets/[a-f0-9]{64}");
     private static final java.util.regex.Pattern SHORTCUT=java.util.regex.Pattern.compile("quiet:[a-z-]{1,48}");
-    static final int VERSION=5,MAX_CONFIG_BYTES=2*1024*1024;
+    static final int VERSION=6,MAX_CONFIG_BYTES=2*1024*1024;
     static final String FORMAT="quiet-tv-desktop";
-    static final Set<String> DESKTOP_BOOLEAN=names("show-time show-date show-seconds show-lunar-date show-movie-info greeting-enabled greeting-avatar-enabled key-sounds show-app-title show-home-apps show-watch-tv show-dock-background show-all-apps-names dock-magnify dock-glass show-buttons show-input show-network show-settings");
-    static final Set<String> DESKTOP_STRING=names("home-layout greeting-text greeting-avatar-file icon-size icon-shape home-blur-mode home-buttons app-title-position key-sound-theme clock-style");
+    static final Set<String> DESKTOP_BOOLEAN=names("show-time show-date show-seconds show-lunar-date show-movie-info greeting-enabled greeting-avatar-enabled key-sounds show-app-title show-home-apps show-watch-tv show-dock-background show-all-apps-names dock-magnify dock-glass global-glass show-buttons show-input show-network show-settings");
+    static final Set<String> DESKTOP_STRING=names("home-layout greeting-text greeting-avatar-file icon-size icon-shape home-blur-mode home-buttons app-title-position key-sound-theme clock-style quick-control-visibility");
     static final Set<String> DESKTOP_INTEGER=names("icon-radius dock-radius dock-scale dock-limit dock-magnification home-wallpaper-blur second-wallpaper-blur home-wallpaper-brightness second-wallpaper-brightness home-wallpaper-fade second-wallpaper-fade");
     static final Set<String> DESKTOP_KEYS=union(DESKTOP_BOOLEAN,DESKTOP_STRING,DESKTOP_INTEGER);
     static final Set<String> WEATHER_KEYS=names("enabled adcode city place provider meteo-fallback");
@@ -76,7 +76,7 @@ final class DesktopBackupRecord {
         JSONObject desktop=config.getJSONObject("desktop");only(desktop,DESKTOP_KEYS);for(String name:DESKTOP_BOOLEAN)bool(desktop,name);for(String name:DESKTOP_STRING)string(desktop,name,4096);
         choice(desktop,"home-layout","classic","gallery");choice(desktop,"icon-size","small","medium","large");choice(desktop,"icon-shape","rectangle","square","circle");choice(desktop,"home-blur-mode","uniform","progressive");
         choice(desktop,"app-title-position","hidden","below","top-left");
-        choice(desktop,"clock-style",DesktopSettingsStore.CLOCK_STYLES);
+        choice(desktop,"clock-style",DesktopSettingsStore.CLOCK_STYLES);choice(desktop,"quick-control-visibility",DesktopSettingsStore.CONTROL_VISIBILITY);
         choice(desktop,"key-sound-theme",KeySoundTheme.ids());
         for(String name:DESKTOP_INTEGER){int low=name.endsWith("brightness")?20:name.equals("dock-scale")?70:name.equals("dock-magnification")?100:0,high=name.endsWith("fade")?1200:name.endsWith("radius")?50:name.equals("dock-scale")?130:name.equals("dock-magnification")?160:name.equals("dock-limit")?12:100;integer(desktop,name,low,high);if(desktop.has(name)){int n=desktop.getInt(name);if(name.endsWith("fade"))require(n%100==0,"备份淡入时间无效");if(name.equals("dock-scale")||name.equals("dock-magnification"))require(n%5==0,"备份缩放数值无效");if(name.equals("dock-limit"))require(n==5||n==7||n==10||n==12,"备份 Dock 上限无效");}}
         String avatar=desktop.optString("greeting-avatar-file","");require(avatar.isEmpty()||GreetingAvatarStore.validName(avatar),"备份头像名称无效");if(desktop.has("home-buttons"))strings(new JSONArray(desktop.getString("home-buttons")),3,HomeButtonStore.ALL,false);
@@ -85,8 +85,11 @@ final class DesktopBackupRecord {
         if(dock.has(AppNameStore.KEY)){require(dock.get(AppNameStore.KEY) instanceof String,"备份应用名称类型无效");AppNameStore.validate(dock.getString(AppNameStore.KEY));}
         JSONObject order=config.getJSONObject("order");only(order,ORDER_KEYS);if(order.has("packages"))strings(new JSONArray(order.getString("packages")),MAX_CONFIG_BYTES,null,true);
         strings(config.getJSONArray("shortcuts"),QuickControlStore.ALL.size(),QuickControlStore.ALL,false);
-        JSONObject walls=config.getJSONObject("wallpaper");WallpaperCatalog catalog=WallpaperCatalog.read(walls);require(canonical(catalog.json()).equals(canonical(walls)),"备份壁纸清单无效");require(catalog.dailyImages.isEmpty(),"备份不接受动态缓存");for(WallpaperCatalog.Entry entry:catalog.custom)require(entry.width>0&&entry.height>0&&entry.bytes>0&&entry.name.length()<=256,"备份素材信息无效");
-        JSONObject savedSaver=config.getJSONObject("screensaver");ScreensaverSettings saver=ScreensaverSettings.read(savedSaver);JSONObject normalizedSaver=saver.json();for(String key:new String[]{"timePosition","weatherPosition"})if(!savedSaver.has(key))normalizedSaver.remove(key);require(catalog.find(saver.mediaId)!=null&&canonical(normalizedSaver).equals(canonical(savedSaver)),"备份屏保信息无效");
+        JSONObject walls=config.getJSONObject("wallpaper");WallpaperCatalog catalog=WallpaperCatalog.read(walls);JSONObject normalizedWalls=catalog.json();
+        // Diagnostics were added without changing wallpaper identities in older backups.
+        JSONArray savedMedia=walls.getJSONArray("custom"),normalizedMedia=normalizedWalls.getJSONArray("custom");for(int i=0;i<savedMedia.length()&&i<normalizedMedia.length();i++)for(String key:new String[]{"diagnosticFingerprint","diagnosticTransfer"})if(!savedMedia.getJSONObject(i).has(key))normalizedMedia.getJSONObject(i).remove(key);
+        require(canonical(normalizedWalls).equals(canonical(walls)),"备份壁纸清单无效");require(catalog.dailyImages.isEmpty(),"备份不接受动态缓存");for(WallpaperCatalog.Entry entry:catalog.custom)require(entry.width>0&&entry.height>0&&entry.bytes>0&&entry.name.length()<=256,"备份素材信息无效");
+        JSONObject savedSaver=config.getJSONObject("screensaver");ScreensaverSettings saver=ScreensaverSettings.read(savedSaver);JSONObject normalizedSaver=saver.json();for(String key:new String[]{"timePosition","weatherPosition","sound"})if(!savedSaver.has(key))normalizedSaver.remove(key);require(catalog.find(saver.mediaId)!=null&&canonical(normalizedSaver).equals(canonical(savedSaver)),"备份屏保信息无效");
         JSONObject covers=config.getJSONObject("covers");for(Iterator<String> keys=covers.keys();keys.hasNext();){String pkg=keys.next();require(AppCoverStore.packageName(pkg),"备份封面应用无效");LibraryCover.validate(covers.getJSONObject(pkg),version);}
     }
     static Set<String> requiredAssets(JSONObject config)throws IOException,JSONException{

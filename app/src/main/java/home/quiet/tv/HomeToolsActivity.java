@@ -30,15 +30,16 @@ public final class HomeToolsActivity extends ManagementUi implements HomeQuickCo
     @Override boolean loadWallpaper(){return false;}
     @Override boolean managementChrome(){return false;}
     @Override boolean chinese(){return getIntent().getBooleanExtra("chinese",true);}
+    @Override public void glassChanged(){super.glassChanged();if(!GlassStyle.get(this).rendering()){backdrop=null;getIntent().removeExtra("backdrop");}if(stage!=null)stage.invalidate();}
     @Override public void onCreate(Bundle saved){
         super.onCreate(saved);setVolumeControlStream(android.media.AudioManager.STREAM_MUSIC);stage.setBackgroundColor(Color.TRANSPARENT);
-        backdrop=getIntent().getParcelableExtra("backdrop");mode=saved==null?getIntent().getStringExtra("mode"):saved.getString("home-tool-mode");if(mode==null)mode="control";
+        backdrop=GlassStyle.get(this).rendering()?getIntent().getParcelableExtra("backdrop"):null;if(backdrop==null)getIntent().removeExtra("backdrop");mode=saved==null?getIntent().getStringExtra("mode"):saved.getString("home-tool-mode");if(mode==null)mode="control";
         origin=saved==null?getIntent().getStringExtra("home-button"):saved.getString("home-tool-origin","");if(origin==null)origin="";
         quickNavigation=saved==null?"control".equals(mode)&&origin.isEmpty():saved.getBoolean("quick-navigation");
         headerFocus=saved==null?false:saved.getBoolean("quick-header-focus",true);
         controls=new HomeQuickControlView(this,unit,chinese(),this,this::execute);stage.addView(controls,controls.position());controls.restore(saved);
         if(quickNavigation)createQuickHeader(saved);
-        buttons=new HomeButtonEditor(this,()->{},()->{if(!closing&&"buttons".equals(mode))finishButtons();},()->{mode="control";controls.setVisibility(View.VISIBLE);controls.reload();memos.refreshCount();});
+        buttons=new HomeButtonEditor(this,()->{},()->{if(!closing&&"buttons".equals(mode))finishButtons();});
         memos=new MemoPanel(this,()->controls.memoCount(memos.unfinished()),()->{if(!closing){if(returnToInline())return;mode="control";controls.setVisibility(View.VISIBLE);controls.reload();controls.focus("memoShortcut");}});
         files=new FileToolsSheet(this,()->{if(!closing){if(returnToInline())return;if("transfer".equals(getIntent().getStringExtra("home-button"))){setResult(RESULT_OK,new Intent().putExtra("focus-button","transfer"));finish();}else{mode="control";controls.setVisibility(View.VISIBLE);controls.reload("transfer");controls.focus("transfer");}}});
         boot=new BootToolsSheet(this,()->{if(!closing){if(returnToInline())return;if("boot".equals(getIntent().getStringExtra("home-button"))){setResult(RESULT_OK,new Intent().putExtra("focus-button","boot"));finish();}else{mode="control";controls.setVisibility(View.VISIBLE);controls.reload("boot");controls.focus("boot");}}});
@@ -100,14 +101,13 @@ public final class HomeToolsActivity extends ManagementUi implements HomeQuickCo
     private void execute(String id){
         origin=id;
         if(QuickControlStore.SETTINGS.equals(id)){controls.cancelAdjustments();controls.setVisibility(View.GONE);startActivityForResult(new Intent(this,DesktopSettingsActivity.class).putExtra("backdrop",backdrop).putExtra("home-network-icon",getIntent().getIntExtra("home-network-icon",R.drawable.ic_wifi_off)),7204);return;}
-        if("brightness".equals(id)){controls.focus(id);controls.beginBrightness();return;}
-        if("volume".equals(id)){controls.focus(id);controls.beginVolume();return;}
+        if(QuickControlStore.range(id)){controls.beginRange(id);return;}
         if("child".equals(id)||"apps".equals(id)||"clock".equals(id)||"weather".equals(id)){settings("child".equals(id)?SettingsPages.CHILD:"apps".equals(id)?SettingsPages.APPS:"weather".equals(id)?SettingsPages.WEATHER:SettingsPages.DESKTOP,id);return;}
         if("memoShortcut".equals(id)){controls.cancelAdjustments();controls.setVisibility(View.GONE);mode="memos";memos.show();return;}
         if("transfer".equals(id)){controls.cancelAdjustments();controls.setVisibility(View.GONE);mode="files";files.show();return;}
         if("wallpaper".equals(id)){settings(SettingsPages.DESKTOP,"",true);return;}
         if("boot".equals(id)){controls.cancelAdjustments();controls.setVisibility(View.GONE);mode="boot";boot.show();return;}
-        if("source".equals(id)||"watchTv".equals(id)){controls.cancelAdjustments();controls.setVisibility(View.GONE);mode="source";sources.show(false);return;}
+        if("source".equals(id)||"watchTv".equals(id)){controls.cancelAdjustments();controls.setVisibility(View.GONE);mode="source";sources.show();return;}
         if("network".equals(id)||"bluetooth".equals(id)||"systemSettings".equals(id)){controls.cancelAdjustments();new SystemSettingsRouter(this).open("network".equals(id)?Settings.ACTION_WIFI_SETTINGS:"bluetooth".equals(id)?Settings.ACTION_BLUETOOTH_SETTINGS:Settings.ACTION_SETTINGS);return;}
         if("original".equals(id)){controls.cancelAdjustments();new HomeProxy(this).original(this);return;}
         if("keySounds".equals(id)||"mute".equals(id)){

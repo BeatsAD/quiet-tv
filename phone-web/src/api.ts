@@ -57,7 +57,7 @@ export class PhoneClient {
     if(requiresTask(domain,field)&&typeof operation?.taskId!=='string'){this.onOperation?.({kind:'info',title:'结果待核对',detail:'电视未返回操作任务，请重新读取当前状态'});return;}
     if(typeof operation?.taskId==='string'){this.resultTasks.set(operation.taskId,{label,state:''});this.reportTasks();return;}
     if(attempt.version!==undefined&&!resultFields.has(field))return;
-    if(domain==='components'&&field==='start'||domain==='update'&&['check','download','install'].includes(field)||domain==='inputs'&&field==='search')this.deferredResults.add(`${domain}/${field}`);
+    if(domain==='components'&&['start','uninstall'].includes(field)||domain==='update'&&['check','download','install'].includes(field)||domain==='inputs'&&field==='search')this.deferredResults.add(`${domain}/${field}`);
     if(domain==='update'&&field.startsWith('cancel'))this.deferredResults.delete(`update/${field==='cancelCheck'?'check':'download'}`);if(domain==='components'&&field==='cancel')this.deferredResults.delete('components/start');if(domain==='inputs'&&field==='cancel')this.deferredResults.delete('inputs/search');
     this.onOperation?.(completedNotice(label,operation,domain,field));this.reportDeferred();
   }

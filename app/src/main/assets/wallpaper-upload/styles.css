@@ -99,3 +99,5 @@ input::placeholder,textarea::placeholder{color:rgba(255,255,255,.45)}
 input:disabled,select:disabled,textarea:disabled,button:disabled{opacity:1;color:rgba(255,255,255,.45);background-color:rgba(255,255,255,.05)}
 
 .choose{display:block;border:1px solid var(--line);border-radius:1rem;padding:1rem;cursor:pointer;text-align:center;min-height:3.25rem}#queue{list-style:none;margin:1rem 0;padding:0}#queue li{padding:1rem 0;border-top:1px solid var(--line);overflow-wrap:anywhere}#queue label{display:block;font-size:.875rem}#queue input{display:block;width:100%;min-height:3.25rem;padding:.75rem;margin-top:.5rem;border:1px solid var(--line);border-radius:.75rem;background:transparent;color:inherit;font:inherit}#queue p{font-size:.875rem;line-height:1.6;margin:.5rem 0 0}#queue .detail{color:var(--muted)}
+
+#files-label{margin-top:.75rem} .choose[aria-disabled=true]{opacity:.45;cursor:default}

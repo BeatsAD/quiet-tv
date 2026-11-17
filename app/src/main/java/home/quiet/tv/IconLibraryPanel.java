@@ -13,8 +13,7 @@ import java.util.concurrent.*;
 
 /** Retained native library. Browsing selects; a separate confirmation commits. */
 final class IconLibraryPanel extends ManagementPanel {
-    private static final String[] STYLE_ZH={"苹果风","谷歌风","扁平化","拟物化","轻拟物","3D 风格","像素风格"},STYLE_EN={"Apple","Google","Flat","Skeuomorphic","Soft","3D","Pixel"};
-    private static final String[] SHAPE_ZH={"长方形","圆形","方形"},SHAPE_EN={"Rectangle","Circle","Square"};
+    private static final String[] SHAPE_ZH={"圆角矩形","圆形","圆角正方形"},SHAPE_EN={"Rounded rectangle","Circle","Rounded square"};
     private static final String[] FORM_ZH={"文字＋图标","纯图标","透明背景"},FORM_EN={"Text + icon","Icon only","Transparent"};
     private static final int COLUMNS=6;
     private final ExecutorService worker=Executors.newSingleThreadExecutor(),thumbnailWorkers=Executors.newFixedThreadPool(2);
@@ -28,21 +27,22 @@ final class IconLibraryPanel extends ManagementPanel {
     private IconLibraryCatalog catalog;
     private List<IconLibraryCatalog.Item> items=Collections.emptyList();
     private String pkg="",theme="",style="apple",shape="rectangle",form="icon",focusTag="icons-target",galleryFocusTag="";
-    private volatile boolean destroyed;private boolean busy,reloadPending;
+    private volatile boolean destroyed;private boolean busy,reloadPending,refreshing;
+    private String refreshMessage="";
     private volatile int loading,thumbnails;
     private int scroll;
     private RecyclerView library;
     private GalleryAdapter adapter;
     private TextView empty,status;
-    private Button restore,batchAction,uploadAction;
+    private Button restore,batchAction,uploadAction,refresh;
     private IconLibraryReplaceSheet replacement;
     private ManagementUi.Sheet restoreSheet;
     private PopupWindow popup;
     private IconUploadSession upload;
     private IconLibraryBatchSheet batch;
-    private final Runnable catalogChanged=()->{if(showing){if(busy||replacement!=null||restoreSheet!=null)reloadPending=true;else load();}};
+    private final Runnable catalogChanged=()->{if(showing){if(busy||refreshing||popup!=null||replacement!=null||restoreSheet!=null)reloadPending=true;else{remember();load();}}};
     private final Runnable phoneChanged=this::refreshCurrentIfChanged;
-    private final BroadcastReceiver packages=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent intent){if(showing){if(busy||replacement!=null||restoreSheet!=null)reloadPending=true;else load();}}};
+    private final BroadcastReceiver packages=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent intent){if(showing){if(busy||refreshing||popup!=null||replacement!=null||restoreSheet!=null)reloadPending=true;else{remember();load();}}}};
     private static final class Target {
         final String pkg,label;final ResolveInfo info;
         Target(String pkg,String label,ResolveInfo info){this.pkg=pkg;this.label=label;this.info=info;}
@@ -51,7 +51,7 @@ final class IconLibraryPanel extends ManagementPanel {
     IconLibraryPanel(AppManagementActivity activity,Context artworkContext){super(activity);covers=AppCoverStore.get(activity);this.artworkContext=artworkContext;}
     private String tr(String zh,String en){return activity.tr(zh,en);}
     @Override public void onCreate(Bundle saved){
-        if(saved!=null){pkg=saved.getString("package","");theme=saved.getString("theme","");style=valid(saved.getString("style"),IconLibraryCatalog.STYLES);shape=valid(saved.getString("shape"),IconLibraryCatalog.SHAPES);form=valid(saved.getString("form"),IconLibraryCatalog.FORMS);scroll=saved.getInt("scroll");focusTag=saved.getString("focus","icons-target");}
+        if(saved!=null){pkg=saved.getString("package","");theme=saved.getString("theme","");style=IconLibraryCatalog.styleId(saved.getString("style"))?saved.getString("style"):"apple";shape=valid(saved.getString("shape"),IconLibraryCatalog.SHAPES);form=valid(saved.getString("form"),IconLibraryCatalog.FORMS);scroll=saved.getInt("scroll");focusTag=saved.getString("focus","icons-target");}
         else{String requested=activity.getIntent().getStringExtra("selected-package");if(requested!=null)pkg=requested;}
         pageRoot=column();pageRoot.setClipChildren(false);pageRoot.setClipToPadding(false);activity.attachPanel(pageRoot);
         LinearLayout left=column();left.setClipChildren(false);left.setClipToPadding(false);pageRoot.addView(left,new LinearLayout.LayoutParams(-1,0,1));
@@ -59,8 +59,9 @@ final class IconLibraryPanel extends ManagementPanel {
         LinearLayout toolbar=row();toolbar.setTag("icon-library-toolbar");toolbar.setClipChildren(false);toolbar.setClipToPadding(false);left.addView(toolbar,new LinearLayout.LayoutParams(-1,px(36)));
         batchAction=control(toolbar,tr("一键替换","Replace all"),"icons-batch",true,this::batch);controlGlyph(batchAction,"grid-2x2-check");
         uploadAction=control(toolbar,tr("扫码上传","Scan to upload"),"icons-upload",false,this::upload);controlGlyph(uploadAction,"qr-code");
-        selector(toolbar,"icons-target",this::pickApps);selector(toolbar,"icons-style",()->pick(1,IconLibraryCatalog.STYLES,activity.chinese()?STYLE_ZH:STYLE_EN));selector(toolbar,"icons-shape",()->pick(2,IconLibraryCatalog.SHAPES,activity.chinese()?SHAPE_ZH:SHAPE_EN));selector(toolbar,"icons-form",this::pickForms);
+        selector(toolbar,"icons-target",this::pickApps);selector(toolbar,"icons-style",this::pickStyles);selector(toolbar,"icons-shape",()->pick(2,IconLibraryCatalog.SHAPES,activity.chinese()?SHAPE_ZH:SHAPE_EN));selector(toolbar,"icons-form",this::pickForms);
         restore=control(toolbar,tr("恢复默认","Restore default"),"icons-restore",false,this::restore);
+        refresh=control(toolbar,tr("刷新","Refresh"),"icons-refresh",false,this::refreshOnline);
         FrameLayout gallery=new FrameLayout(activity);LinearLayout.LayoutParams gp=new LinearLayout.LayoutParams(-1,0,1);gp.topMargin=px(14);left.addView(gallery,gp);
         library=new RecyclerView(activity);library.setTag("icon-library-grid");library.setLayoutManager(new GridLayoutManager(activity,COLUMNS));library.setItemAnimator(null);library.setClipToPadding(true);library.setPadding(0,0,0,0);library.addItemDecoration(new RecyclerView.ItemDecoration(){@Override public void getItemOffsets(Rect out,View view,RecyclerView parent,RecyclerView.State state){int position=parent.getChildAdapterPosition(view);if(position<0)return;int col=position%COLUMNS,gap=px(4);out.set(col*gap/COLUMNS,0,gap-(col+1)*gap/COLUMNS,0);}});library.setVerticalScrollBarEnabled(true);adapter=new GalleryAdapter();library.setAdapter(adapter);gallery.addView(library,new FrameLayout.LayoutParams(-1,-1));
         empty=center(tr("正在读取图标库…","Loading icon library…"),14);empty.setPadding(px(16),0,px(16),0);empty.setTag("icon-library-empty");gallery.addView(empty,new FrameLayout.LayoutParams(-1,-1));
@@ -120,11 +121,20 @@ final class IconLibraryPanel extends ManagementPanel {
     private void ui(Runnable action){main.post(()->{if(!destroyed&&!isDestroyed())action.run();});}
     private void load(){
         int run=++loading;worker.execute(()->{try{IconLibraryCatalog loaded=null;String catalogError=null;try{loaded=IconLibraryCatalog.read(artworkContext);}catch(IOException|RuntimeException failure){catalogError=failure.getMessage();}final IconLibraryCatalog next=loaded;final String artworkError=catalogError;ArrayList<Target> apps=new ArrayList<>();for(Map.Entry<String,ResolveInfo> entry:new HomeAppCatalog(activity).launchable().entrySet())if(!AppCoverPolicy.ownReadOnly(activity,entry.getKey())&&entry.getValue().activityInfo.applicationInfo.enabled&&AppAvailability.installed(getPackageManager(),entry.getValue().activityInfo.applicationInfo))apps.add(new Target(entry.getKey(),entry.getValue().loadLabel(getPackageManager()).toString(),entry.getValue()));Collections.sort(apps,(a,b)->java.text.Collator.getInstance().compare(a.label,b.label));List<String> dock=new DockStore(activity).load();
-            ui(()->{if(run!=loading||!showing)return;catalog=next;targets.clear();targets.addAll(apps);if(target()==null){pkg="";for(String id:dock)for(Target app:targets)if(pkg.isEmpty()&&id.equals(app.pkg))pkg=id;if(pkg.isEmpty()&&!targets.isEmpty())pkg=targets.get(0).pkg;}updateSelectors();filter();if(scroll>0)library.scrollToPosition(Math.min(scroll,Math.max(0,items.size()-1)));if(artworkError!=null)status.setText(tr("图标素材无法读取，仍可扫码上传","Artwork unavailable; phone upload is available"));refreshCurrent();});
+            ui(()->{if(run!=loading||!showing)return;catalog=next;targets.clear();targets.addAll(apps);if(target()==null){pkg="";for(String id:dock)for(Target app:targets)if(pkg.isEmpty()&&id.equals(app.pkg))pkg=id;if(pkg.isEmpty()&&!targets.isEmpty())pkg=targets.get(0).pkg;}updateSelectors();filter();if(scroll>0)library.scrollToPosition(Math.min(scroll,Math.max(0,items.size()-1)));if(artworkError!=null)status.setText(tr("图标素材无法读取，仍可扫码上传","Artwork unavailable; phone upload is available"));refreshCurrent();if(!refreshMessage.isEmpty()){if(artworkError==null)status.setText(refreshMessage);refreshMessage="";}});
         }catch(RuntimeException failure){ui(()->{if(run!=loading)return;empty.setText(tr("图标库读取失败","Unable to load icon library"));empty.setVisibility(View.VISIBLE);adapter.notifyDataSetChanged();status.setText(failure.getMessage());enabled();});}});
     }
     private Target target(){for(Target target:targets)if(target.pkg.equals(pkg))return target;return null;}
-    private void updateSelectors(){form=valid(form,IconLibraryCatalog.forms(shape));Target target=target();selectors.get(0).setText(target==null?tr("选择应用","Choose app"):target.label);selectors.get(0).setContentDescription(tr("目标应用：","Target app: ")+selectors.get(0).getText());String[] values={style,shape,form};String[][] options={IconLibraryCatalog.STYLES,IconLibraryCatalog.SHAPES,IconLibraryCatalog.FORMS},titles=activity.chinese()?new String[][]{STYLE_ZH,SHAPE_ZH,FORM_ZH}:new String[][]{STYLE_EN,SHAPE_EN,FORM_EN};for(int i=0;i<3;i++)selectors.get(i+1).setText(titles[i][Arrays.asList(options[i]).indexOf(values[i])]);}
+    private void updateSelectors(){
+        form=valid(form,IconLibraryCatalog.forms(shape));if(catalog!=null&&!catalog.styles.isEmpty()&&!IconLibraryCatalog.contains(catalog.styleIds(),style)){style=catalog.styles.get(0).id;scroll=0;}
+        Target target=target();selectors.get(0).setText(target==null?tr("选择应用","Choose app"):target.label);selectors.get(0).setContentDescription(tr("目标应用：","Target app: ")+selectors.get(0).getText());
+        selectors.get(1).setText(catalog==null?IconLibraryCatalog.legacyStyleName(style,activity.chinese()):catalog.styleName(style,activity.chinese()));selectors.get(2).setText((activity.chinese()?SHAPE_ZH:SHAPE_EN)[Arrays.asList(IconLibraryCatalog.SHAPES).indexOf(shape)]);selectors.get(3).setText((activity.chinese()?FORM_ZH:FORM_EN)[Arrays.asList(IconLibraryCatalog.FORMS).indexOf(form)]);
+    }
+    private void pickStyles(){if(catalog==null||catalog.styles.isEmpty())return;String[] values=catalog.styleIds(),labels=new String[values.length];for(int i=0;i<values.length;i++)labels[i]=catalog.styleName(values[i],activity.chinese());pick(1,values,labels);}
+    private void refreshOnline(){
+        if(refreshing)return;remember();refreshing=true;refreshMessage="";refresh.setText(tr("刷新中…","Refreshing…"));status.setText(tr("正在刷新图标库…","Refreshing icon library…"));enabled();
+        IconLibraryRepository.get(artworkContext).refresh((changed,error)->ui(()->{refreshing=false;refresh.setText(tr("刷新","Refresh"));enabled();refreshMessage=!error.isEmpty()?tr(error,"Unable to refresh. Try again later."):changed?tr("图标库已更新","Icon library updated"):tr("已是最新图标库","Icon library is up to date");if(changed)reloadPending=true;if(reloadPending)reloadIfPending();else{status.setText(refreshMessage);refreshMessage="";}}));
+    }
     @android.annotation.SuppressLint("NotifyDataSetChanged") private void filter(){
         cancelArtwork();++thumbnails;items=catalog==null?Collections.emptyList():catalog.style(style,shape,form);adapter.notifyDataSetChanged();
         empty.setVisibility(items.isEmpty()?View.VISIBLE:View.GONE);empty.setText(catalog!=null&&catalog.items.isEmpty()?tr("图标素材待接入","Icon artwork will be added in the next stage"):tr("此组合暂无图标","No artwork for these options"));
@@ -138,7 +148,7 @@ final class IconLibraryPanel extends ManagementPanel {
     private void select(IconLibraryCatalog.Item item){theme=item.id;galleryFocusTag="icon-item-"+item.id;status.setText(tr("确定  打开替换确认    返回  上一级","OK  Confirm replacement    Back  Previous"));}
     private void refreshCurrentIfChanged(){if(showing)refreshCurrent();}
     private void refreshCurrent(){enabled();}
-    private void enabled(){if(restore==null)return;boolean focused=restore.isFocused();restore.setEnabled(!busy&&target()!=null&&covers.custom(pkg));for(Button selector:selectors)selector.setEnabled(!busy);batchAction.setEnabled(!busy);uploadAction.setEnabled(!busy&&target()!=null);library.setEnabled(!busy);if(focused&&!restore.isEnabled()&&showing)focusLibrary();}
+    private void enabled(){if(restore==null)return;boolean focused=restore.isFocused();restore.setEnabled(!busy&&target()!=null&&covers.custom(pkg));for(Button selector:selectors)selector.setEnabled(!busy);selectors.get(1).setEnabled(!busy&&catalog!=null&&!catalog.styles.isEmpty());refresh.setEnabled(!busy&&!refreshing);batchAction.setEnabled(!busy);uploadAction.setEnabled(!busy&&target()!=null);library.setEnabled(!busy);if(focused&&!restore.isEnabled()&&showing)focusLibrary();}
     private void pickApps(){if(targets.isEmpty()){status.setText(tr("没有可替换图标的应用","No eligible apps"));return;}String[] labels=new String[targets.size()];int current=0;for(int i=0;i<targets.size();i++){labels[i]=targets.get(i).label;if(targets.get(i).pkg.equals(pkg))current=i;}menu(selectors.get(0),labels,current,index->{pkg=targets.get(index).pkg;scroll=0;updateSelectors();filter();library.scrollToPosition(0);refreshCurrent();});}
     private interface Pick {void select(int index);}
     private void pickForms(){String[] labels=activity.chinese()?FORM_ZH:FORM_EN;pick(3,IconLibraryCatalog.forms(shape),"rectangle".equals(shape)?labels:Arrays.copyOfRange(labels,1,labels.length));}
@@ -150,7 +160,7 @@ final class IconLibraryPanel extends ManagementPanel {
             android.graphics.drawable.StateListDrawable background=new android.graphics.drawable.StateListDrawable();background.addState(new int[]{android.R.attr.state_enabled,android.R.attr.state_focused,android.R.attr.state_window_focused},surface(UiPalette.TEXT,UiPalette.TEXT,0,6));background.addState(new int[]{android.R.attr.state_enabled,android.R.attr.state_pressed},surface(UiPalette.SELECTED,UiPalette.SELECTED,0,6));background.addState(new int[0],new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
             option.setBackgroundDrawable(background);rows.addView(option,new LinearLayout.LayoutParams(-1,px(32)));if(i==current)selected=option;
         }
-        menu.setOnDismissListener(()->{if(popup==menu)popup=null;selectorArrow(origin,false);if(showing)origin.requestFocus();});selectorArrow(origin,true);menu.showAsDropDown(origin,0,px(4));if(selected!=null)selected.requestFocus();
+        menu.setOnDismissListener(()->{if(popup==menu)popup=null;selectorArrow(origin,false);if(showing)origin.requestFocus();reloadIfPending();});selectorArrow(origin,true);menu.showAsDropDown(origin,0,px(4));if(selected!=null)selected.requestFocus();
     }
     private IconLibraryCatalog.Item item(){for(IconLibraryCatalog.Item item:items)if(item.id.equals(theme))return item;return null;}
     private void apply(){
@@ -170,7 +180,7 @@ final class IconLibraryPanel extends ManagementPanel {
         });accept.setTag("icon-restore-confirm");accept.setId(androidx.core.view.ViewCompat.generateViewId());cancel.setNextFocusRightId(accept.getId());accept.setNextFocusLeftId(cancel.getId());cancel.setNextFocusLeftId(cancel.getId());accept.setNextFocusRightId(accept.getId());close.setNextFocusDownId(cancel.getId());cancel.setNextFocusUpId(close.getId());accept.setNextFocusUpId(close.getId());
         confirm.dialog.setOnDismissListener(d->{if(restoreSheet==confirm)restoreSheet=null;if(showing){refreshCurrent();if(restore.isEnabled())restore.requestFocus();else focusLibrary();reloadIfPending();}});confirm.show(cancel);
     }
-    private void reloadIfPending(){if(reloadPending&&showing&&!busy&&replacement==null&&restoreSheet==null){reloadPending=false;load();}}
+    private void reloadIfPending(){if(reloadPending&&showing&&!busy&&!refreshing&&popup==null&&replacement==null&&restoreSheet==null){reloadPending=false;remember();load();}}
     private void focusLibrary(){focusLibraryPosition(Math.max(0,adapter.position(galleryFocusTag)));}
     private void focusLibraryPosition(int position){if(items.isEmpty())return;position=Math.min(position,items.size()-1);RecyclerView.ViewHolder visible=library.findViewHolderForAdapterPosition(position);if(visible!=null){visible.itemView.requestFocus();return;}int requested=position;library.scrollToPosition(requested);library.post(()->{if(destroyed||!showing)return;RecyclerView.ViewHolder holder=library.findViewHolderForAdapterPosition(requested);if(holder!=null)holder.itemView.requestFocus();});}
     private void batch(){if(busy)return;if(batch!=null)batch.close();batch=new IconLibraryBatchSheet(activity,artworkContext,style,shape,form,this::uploaded);batch.show();}

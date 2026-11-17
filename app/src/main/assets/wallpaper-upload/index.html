@@ -22,7 +22,9 @@
   <section id="editor" aria-labelledby="editor-title" hidden>
     <h1 id="editor-title">上传壁纸</h1>
     <label class="choose" for="photo" id="choose-label">选择图片或视频（可多选）</label>
-    <input id="photo" class="file-input" type="file" multiple accept="image/jpeg,image/png,image/webp,video/*,.mp4,.mov,.mkv,.webm,.m4v,.3gp,.3g2,.ts,.m2ts,.mts,.mpg,.mpeg,.vob,.flv" aria-label="选择壁纸图片或视频（可多选）">
+    <input id="photo" class="file-input" type="file" multiple accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp,video/*,.mp4,.mov,.mkv,.webm,.m4v,.3gp,.3g2,.ts,.m2ts,.mts,.mpg,.mpeg,.vob,.flv" aria-label="选择壁纸图片或视频（可多选）">
+    <label class="choose" for="files" id="files-label">从文件选择</label>
+    <input id="files" class="file-input" type="file" multiple accept="*/*" aria-label="从文件选择图片或视频（可多选）">
     <p id="fileinfo"></p>
     <ul id="queue" aria-label="壁纸上传列表"></ul>
     <button id="send" disabled>上传并保存全部</button>

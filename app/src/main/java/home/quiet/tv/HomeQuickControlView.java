@@ -34,18 +34,19 @@ final class HomeQuickControlView extends LinearLayout {
     private final ScrollView scroll;
     private final SettingsSheetBackdrop backdrop;
     private final LinearLayout modules,phoneBody;
-    private final SettingsRangeDraft brightness=new SettingsRangeDraft(20,100,5),volume=new SettingsRangeDraft(0,15,1);
+    private final Map<String,RangeSlider> rangeViews=new LinkedHashMap<>();
+    private final Set<String> forcedRanges=new LinkedHashSet<>();
+    private final Map<String,int[]> restoredRanges=new HashMap<>();
+    private final Map<String,Integer> savingValues=new HashMap<>();
     private final AudioManager audio;
     private final Map<String,View> targets=new LinkedHashMap<>();
     private List<String> ids=Collections.emptyList();
-    private RangeSlider slider,volumeSlider;
     private List<String> grid=Collections.emptyList(),ranges=Collections.emptyList();
     private final TextView adjustHint;private int scrollLimit;
-    private boolean brightnessSaving;
     private final android.os.Handler settingsMain=new android.os.Handler(android.os.Looper.getMainLooper());
-    private boolean destroyed,loading,rendered,contentReady,forceBrightness,forceVolume,pendingBegin,pendingVolumeBegin,networkObserved,resumed;
+    private boolean destroyed,loading,rendered,contentReady,networkObserved,resumed;
     private String focus="",restoredFocus="",phoneRender="",qrAddress="";
-    private int restoreScroll,memoCount=-1;private Integer restoredBrightnessBase,restoredBrightnessValue,restoredVolumeBase,restoredVolumeValue;
+    private int restoreScroll,memoCount=-1;private String pendingRange="";
     private Bitmap qr;
     private ImageView qrView;
     private final java.util.concurrent.ExecutorService qrWorker=java.util.concurrent.Executors.newSingleThreadExecutor();
@@ -64,7 +65,7 @@ final class HomeQuickControlView extends LinearLayout {
     private android.graphics.drawable.Drawable phoneSurface(){android.graphics.drawable.GradientDrawable bg=new SurfaceDrawable(unit);bg.setColor(PHONE_CARD);bg.setCornerRadius(p(12));return bg;}
     private void feedback(String message){Toast.makeText(context,message,Toast.LENGTH_LONG).show();}
     HomeQuickControlView(android.app.Activity context,float unit,boolean chinese,Host ui,Value<String> execute){
-        super(context);this.context=context;this.unit=unit;this.chinese=chinese;this.ui=ui;this.execute=execute;desktop=new DesktopSettingsStore(context);phone=PhoneSettingsSession.get(context);audio=(AudioManager)context.getSystemService(Context.AUDIO_SERVICE);volume.maximum(volumeMaximum());
+        super(context);this.context=context;this.unit=unit;this.chinese=chinese;this.ui=ui;this.execute=execute;desktop=new DesktopSettingsStore(context);phone=PhoneSettingsSession.get(context);audio=(AudioManager)context.getSystemService(Context.AUDIO_SERVICE);
         setAlpha(0f);setOrientation(VERTICAL);setPadding(p(16),p(16),p(16),p(16));setClipChildren(false);setClipToPadding(false);setFocusable(true);setFocusableInTouchMode(true);setDescendantFocusability(FOCUS_AFTER_DESCENDANTS);
         backdrop=ui.quickBackdrop(this);backdrop.prepare();setBackgroundDrawable(backdrop);
         LinearLayout heading=row();heading.setPadding(p(4),0,p(4),p(4));TextView title=text("快捷控制",24,33.6f);QuickControlPreviewView.weight(title,650);heading.addView(title,new LayoutParams(0,-2,1));
@@ -93,7 +94,7 @@ final class HomeQuickControlView extends LinearLayout {
         super.onMeasure(w,h);
     }
     private TextView text(String value,float size,float line){TextView t=label(value);QuickControlPreviewView.controlType(t,size,line,unit,UiPalette.TEXT);return t;}
-    private void identify(View view,String id){view.setId(androidx.core.view.ViewCompat.generateViewId());view.setTag(id);targets.put(id,view);view.setFocusable(true);view.setFocusableInTouchMode(true);view.setSoundEffectsEnabled(false);view.setOnFocusChangeListener((v,has)->{if(has){focus=id;ui.quickPanelFocused();View frame=v instanceof RangeSlider?((RangeSlider)v).card:v;Rect r=new Rect();frame.getDrawingRect(r);frame.requestRectangleOnScreen(r,false);}if(v instanceof RangeSlider){if(!has)((RangeSlider)v).cancel();((RangeSlider)v).focusChanged();}else{float scale=has&&hasWindowFocus()&&!SettingsFocusMotion.reduced()?1.015f:1;UiMotion.scale(v,scale,140);}});}
+    private void identify(View view,String id){view.setId(androidx.core.view.ViewCompat.generateViewId());view.setTag(id);targets.put(id,view);view.setFocusable(true);view.setFocusableInTouchMode(true);view.setSoundEffectsEnabled(false);view.setOnFocusChangeListener((v,has)->{if(has){focus=id;ui.quickPanelFocused();View frame=v instanceof RangeSlider?((RangeSlider)v).card:v;Rect r=new Rect();frame.getDrawingRect(r);r.inset(0,-p(4));frame.requestRectangleOnScreen(r,false);}if(v instanceof RangeSlider){if(!has)((RangeSlider)v).cancel();((RangeSlider)v).focusChanged();}else{float scale=has&&hasWindowFocus()&&!SettingsFocusMotion.reduced()?1.015f:1;UiMotion.scale(v,scale,140);}});}
 
     private Button button(String value,String id,Runnable action){Button b=actionButton(value,()->{focus=id;action.run();});identify(b,id);b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,p(16));b.setTextColor(UiPalette.TEXT);b.setIncludeFontPadding(true);b.setPadding(p(8),0,p(8),0);b.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);b.setBackgroundDrawable(new QuickControlSurface(unit*.75f,Color.TRANSPARENT));return b;}
     void reload(){reload(null);}
@@ -102,10 +103,10 @@ final class HomeQuickControlView extends LinearLayout {
         if(loading||destroyed)return;loading=true;QuickControlStore.Snapshot cached=ui.cachedShortcuts();if(cached!=null)post(()->{if(!destroyed)shortcuts(cached);});
         ui.readShortcuts(value->{loading=false;shortcuts(value);},error->{loading=false;rendered=false;cancelAdjustments();modules.removeAllViews();modules.addView(text(error,16,24));modules.addView(button("重新读取","reload",this::reload),new LayoutParams(-1,p(44)));focus("reload");contentReady=true;});
     }
-    private void shortcuts(QuickControlStore.Snapshot value){QuickControlStore.Snapshot latest=ui.cachedShortcuts();if(latest!=null&&latest.revision!=value.revision)value=latest;boolean changed=!rendered||!ids.equals(value.ids)||forceBrightness&&slider==null||forceVolume&&volumeSlider==null;ids=value.ids;if(changed)render();else if(!restoredFocus.isEmpty()){String next=restoredFocus;restoredFocus="";focus(next);}}
+    private void shortcuts(QuickControlStore.Snapshot value){QuickControlStore.Snapshot latest=ui.cachedShortcuts();if(latest!=null&&latest.revision!=value.revision)value=latest;boolean changed=!rendered||!ids.equals(value.ids);for(String id:forcedRanges)if(!rangeViews.containsKey(id))changed=true;ids=value.ids;if(changed)render();else if(!restoredFocus.isEmpty()){String next=restoredFocus;restoredFocus="";focus(next);}}
     private ImageView icon(String glyph){ImageView v=new ImageView(context);QuickControlIcon drawable=new QuickControlIcon(glyph);drawable.color(UiPalette.TEXT);v.setImageDrawable(drawable);v.setDuplicateParentStateEnabled(true);return v;}
     private void render(){
-        cancelAdjustments();String remembered=restoredFocus.isEmpty()?focus:restoredFocus;restoredFocus="";int y=scroll.getScrollY();modules.removeAllViews();targets.keySet().removeAll(QuickControlStore.ALL);targets.remove(QuickControlStore.SETTINGS);slider=null;volumeSlider=null;
+        cancelAdjustments();String remembered=restoredFocus.isEmpty()?focus:restoredFocus;restoredFocus="";int y=scroll.getScrollY();modules.removeAllViews();targets.keySet().removeAll(QuickControlStore.ALL);targets.remove(QuickControlStore.SETTINGS);rangeViews.clear();
         grid=QuickControlStore.grid(ids);
         for(int rowIndex=0;rowIndex<(grid.size()+2)/3;rowIndex++){
             LinearLayout row=row();row.setClipChildren(false);row.setClipToPadding(false);LayoutParams rp=new LayoutParams(-1,p(64));if(rowIndex>0)rp.topMargin=p(8);modules.addView(row,rp);
@@ -117,36 +118,28 @@ final class HomeQuickControlView extends LinearLayout {
                 row.addView(card,lp);card.setOnClickListener(v->execute.accept(id));SettingsTouchClick.attach(card);
             }
         }
-        ranges=QuickControlStore.ranges(ids);if(forceBrightness&&!ranges.contains("brightness"))ranges.add("brightness");if(forceVolume&&!ranges.contains("volume"))ranges.add("volume");for(String id:ranges)addRange(id);
-        if(restoredBrightnessBase!=null&&slider!=null){brightness.begin(restoredBrightnessBase);brightness.preview(restoredBrightnessValue);slider.setActivated(true);HomeActivity.previewHomeBrightness(brightness.value());restoredBrightnessBase=restoredBrightnessValue=null;}
-        if(restoredVolumeBase!=null&&volumeSlider!=null){volume.begin(restoredVolumeBase);volume.preview(restoredVolumeValue);volumeSlider.setActivated(true);restoredVolumeBase=restoredVolumeValue=null;}
-        refresh();if(pendingBegin){pendingBegin=false;beginBrightness();remembered="brightness";}if(pendingVolumeBegin){pendingVolumeBegin=false;beginVolume();remembered="volume";}focus=remembered;focus(remembered);int requested=restoreScroll>0?restoreScroll:y;restoreScroll=0;scroll.post(()->scroll.scrollTo(0,requested));
+        ranges=QuickControlStore.ranges(ids);for(String id:forcedRanges)if(!ranges.contains(id))ranges.add(id);for(String id:ranges)addRange(id);
+        for(Map.Entry<String,int[]> entry:restoredRanges.entrySet()){RangeSlider track=rangeViews.get(entry.getKey());if(track!=null){track.draft.begin(entry.getValue()[0]);track.preview(entry.getValue()[1]);track.setActivated(true);}}restoredRanges.clear();
+        refresh();if(!pendingRange.isEmpty()){String next=pendingRange;pendingRange="";beginRange(next);remembered=next;}focus=remembered;focus(remembered);int requested=restoreScroll>0?restoreScroll:y;restoreScroll=0;scroll.post(()->scroll.scrollTo(0,requested));
         rendered=true;contentReady=true;
     }
     private void fillRow(LinearLayout row){while(row.getChildCount()<3){LayoutParams lp=new LayoutParams(0,1,1);lp.leftMargin=p(8);row.addView(new View(context),lp);}}
     private void addRange(String id){
         LinearLayout card=column();card.setClipChildren(false);card.setClipToPadding(false);card.setPadding(p(12),p(7.333f),p(12),p(7.333f));card.setBackgroundDrawable(new QuickControlSurface(unit*.75f));LayoutParams cp=new LayoutParams(-1,p(74.667f));cp.topMargin=p(8);modules.addView(card,cp);
         LinearLayout line=row();line.setGravity(Gravity.CENTER_VERTICAL);TextView title=text(QuickControlStore.title(id,chinese),16,22);line.addView(title,new LayoutParams(0,-2,1));TextView level=text("",16,22);line.addView(level);card.addView(line,new LayoutParams(-1,p(20)));
-        LinearLayout controls=row();controls.setGravity(Gravity.CENTER_VERTICAL);boolean sound="volume".equals(id);ImageView low=icon(sound?"range-speaker-low":"range-sun-low"),high=icon(sound?"range-speaker-high":"range-sun-high");controls.addView(low,new LayoutParams(p(24),p(24)));
-        RangeSlider track=new RangeSlider(id,card,low,title,level);identify(track,id);track.setContentDescription(QuickControlStore.title(id,chinese)+"  左右调整  确定保存  上下保存并切换  返回取消");LayoutParams trackSize=new LayoutParams(0,p(24),1);trackSize.leftMargin=trackSize.rightMargin=p(10);controls.addView(track,trackSize);controls.addView(high,new LayoutParams(p(24),p(24)));LayoutParams rowSize=new LayoutParams(-1,p(24));rowSize.topMargin=p(16);card.addView(controls,rowSize);if(!sound)slider=track;else{volumeSlider=track;track.setEnabled(volumeAvailable());}
+        LinearLayout controls=row();controls.setGravity(Gravity.CENTER_VERTICAL);ImageView low=icon(QuickControlPreviewView.rangeGlyph(id,false)),high=icon(QuickControlPreviewView.rangeGlyph(id,true));controls.addView(low,new LayoutParams(p(24),p(24)));
+        RangeSlider track=new RangeSlider(id,card,low,title,level);identify(track,id);track.setContentDescription(QuickControlStore.title(id,chinese)+"  左右调整  确定保存  上下保存并切换  返回取消");LayoutParams trackSize=new LayoutParams(0,p(24),1);trackSize.leftMargin=trackSize.rightMargin=p(10);controls.addView(track,trackSize);controls.addView(high,new LayoutParams(p(24),p(24)));LayoutParams rowSize=new LayoutParams(-1,p(24));rowSize.topMargin=p(16);card.addView(controls,rowSize);rangeViews.put(id,track);
     }
     void memoCount(int count){memoCount=count;refresh();}
-    private boolean editing(){return brightness.editing()||volume.editing();}
     void refresh(){
         if(destroyed)return;WallpaperCatalog wall=WallpaperStore.get(context).snapshot();
         for(String id:new String[]{"keySounds","mute"}){View target=targets.get(id);if(target instanceof ViewGroup){boolean on="keySounds".equals(id)?desktop.keySounds():wall.audible();target.setContentDescription(QuickControlStore.title(id,chinese)+"  "+(on?"已开启":"已关闭"));QuickControlSurface surface=(QuickControlSurface)target.getBackground();surface.on(on);int color=on?UiPalette.INK:UiPalette.TEXT;ImageView glyph=(ImageView)((ViewGroup)target).getChildAt(0);QuickControlIcon drawable=new QuickControlIcon(QuickControlPreviewView.glyph(id));drawable.color(color);glyph.setImageDrawable(drawable);((TextView)((ViewGroup)target).getChildAt(1)).setTextColor(color);}}
-        adjustHint.setVisibility(GONE);if(slider!=null)slider.refresh();if(volumeSlider!=null)volumeSlider.refresh();
+        adjustHint.setVisibility(GONE);for(RangeSlider track:rangeViews.values())track.refresh();
     }
-    void beginBrightness(){if(brightnessSaving)return;if(slider==null){forceBrightness=true;pendingBegin=true;if(!loading)reload();return;}slider.begin();}
-    void beginVolume(){if(volumeSlider==null){forceVolume=true;pendingVolumeBegin=true;if(!loading)reload();return;}volumeSlider.begin();}
-    boolean cancelBrightness(){if(!brightness.editing())return false;brightness.cancel();HomeActivity.previewHomeBrightness(null);if(slider!=null)slider.setActivated(false);refresh();return true;}
-    private boolean cancelVolume(){if(!volume.editing())return false;if(volume.value()!=volume.original())writeVolume(volume.original());volume.cancel();if(volumeSlider!=null)volumeSlider.setActivated(false);refresh();return true;}
-    boolean cancelAdjustments(){boolean light=cancelBrightness(),sound=cancelVolume();return light||sound;}
-    private boolean commitBrightness(){
-        if(!brightness.editing())return true;int candidate=brightness.value(),original=brightness.original();brightness.commit();slider.setActivated(false);
-        if(candidate==original){HomeActivity.previewHomeBrightness(null);refresh();return true;}
-        brightnessSaving=true;qrWorker.execute(()->{String failure="";try{desktop.saveWallpaperEffect(false,"brightness",candidate,original);}catch(IOException error){failure=error.getMessage();}String result=failure;settingsMain.post(()->{HomeActivity.previewHomeBrightness(null);if(destroyed)return;brightnessSaving=false;if(result.isEmpty())phone.configurationChanged();else feedback(result);refresh();});});return true;
-    }
+    void beginBrightness(){beginRange("brightness");}
+    void beginVolume(){beginRange("volume");}
+    void beginRange(String id){if(!QuickControlStore.range(id)||savingValues.containsKey(id))return;RangeSlider track=rangeViews.get(id);if(track==null){forcedRanges.add(id);pendingRange=id;if(!loading)reload();return;}track.begin();focus(id);}
+    boolean cancelAdjustments(){boolean cancelled=false;for(RangeSlider track:rangeViews.values())cancelled=track.cancel()||cancelled;return cancelled;}
     private int volumeMaximum(){return audio==null?0:audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC);}
     private int volumeValue(){return audio==null?0:audio.getStreamVolume(AudioManager.STREAM_MUSIC);}
     private boolean volumeAvailable(){return audio!=null&&volumeMaximum()>0&&(android.os.Build.VERSION.SDK_INT<21||!Api21.fixed(audio));}
@@ -154,20 +147,25 @@ final class HomeQuickControlView extends LinearLayout {
     private boolean writeVolume(int value){try{audio.setStreamVolume(AudioManager.STREAM_MUSIC,value,0);return true;}catch(RuntimeException unavailable){feedback("音量由系统控制，请使用电视音量键");return false;}}
     private final class RangeSlider extends View {
         final String id;final boolean sound;final SettingsRangeDraft draft;final LinearLayout card;final ImageView glyph;final TextView title,level;private final Paint paint=new Paint(3);
-        RangeSlider(String id,LinearLayout card,ImageView glyph,TextView title,TextView level){super(context);this.id=id;sound="volume".equals(id);draft=sound?volume:brightness;this.card=card;this.glyph=glyph;this.title=title;this.level=level;setBackgroundColor(Color.TRANSPARENT);}
-        int current(){return sound?volumeValue():desktop.homeWallpaperBrightness();}
-        int minimum(){return sound?0:20;}int maximum(){return sound?volumeMaximum():100;}
-        void begin(){if(!isEnabled())return;if(sound)draft.maximum(maximum());if(sound)cancelBrightness();else cancelVolume();if(!draft.editing())draft.begin(current());setActivated(true);HomeQuickControlView.this.refresh();}
-        void cancel(){if(sound)cancelVolume();else cancelBrightness();}
-        boolean commit(){if(!sound)return commitBrightness();draft.commit();setActivated(false);HomeQuickControlView.this.refresh();return true;}
-        void preview(int value){if(sound){int next=Math.max(0,Math.min(maximum(),value));if(!writeVolume(next))return;draft.preview(next);}else{draft.preview(value);HomeActivity.previewHomeBrightness(draft.value());}HomeQuickControlView.this.refresh();}
+        RangeSlider(String id,LinearLayout card,ImageView glyph,TextView title,TextView level){super(context);this.id=id;sound="volume".equals(id);this.card=card;this.glyph=glyph;this.title=title;this.level=level;draft=new SettingsRangeDraft(minimum(),maximum(),sound?1:5);setBackgroundColor(Color.TRANSPARENT);}
+        int current(){return sound?volumeValue():QuickControlStore.rangeValue(id,desktop);}
+        int minimum(){return QuickControlStore.rangeMinimum(id);}int maximum(){return sound?volumeMaximum():"dockScale".equals(id)?HomeActivity.maximumQuickDockScale(context):QuickControlStore.rangeMaximum(id);}
+        boolean available(){return sound?volumeAvailable():!"dockMagnification".equals(id)||desktop.dockMagnify();}
+        boolean begin(){if(!isEnabled()||savingValues.containsKey(id))return false;for(RangeSlider track:rangeViews.values())if(track!=this)track.cancel();draft.maximum(maximum());if(!draft.editing())draft.begin(current());setActivated(true);HomeQuickControlView.this.refresh();return true;}
+        boolean cancel(){if(!draft.editing())return false;if(sound&&draft.value()!=draft.original())writeVolume(draft.original());draft.cancel();setActivated(false);if(!sound)HomeActivity.previewQuickAdjustment(id,null);refresh();return true;}
+        boolean commit(){
+            if(!draft.editing())return true;int candidate=draft.value(),original=draft.original();draft.commit();setActivated(false);if(sound){HomeQuickControlView.this.refresh();return true;}
+            if(candidate==original){HomeActivity.previewQuickAdjustment(id,null);HomeQuickControlView.this.refresh();return true;}
+            savingValues.put(id,candidate);qrWorker.execute(()->{String failure="";try{String key=QuickControlStore.rangeProperty(id);if("brightness".equals(id)||"homeBlur".equals(id))desktop.saveWallpaperEffect(false,key,candidate,original);else desktop.saveAppearance(key,candidate);}catch(IOException error){failure=error.getMessage();}String result=failure;settingsMain.post(()->{savingValues.remove(id);HomeActivity.previewQuickAdjustment(id,null);if(destroyed)return;if(result.isEmpty())phone.configurationChanged();else feedback(result);HomeQuickControlView.this.refresh();});});return true;
+        }
+        void preview(int value){if(sound){int next=Math.max(0,Math.min(maximum(),value));if(!writeVolume(next))return;draft.preview(next);}else{draft.preview(value);HomeActivity.previewQuickAdjustment(id,draft.value());}HomeQuickControlView.this.refresh();}
         void focusChanged(){boolean focused=isFocused()&&hasWindowFocus();((QuickControlSurface)card.getBackground()).focused(focused);card.setActivated(false);float scale=focused&&!SettingsFocusMotion.reduced()?1.01f:1;UiMotion.scale(card,scale,140);title.setTextColor(UiPalette.TEXT);level.setTextColor(UiPalette.TEXT);}
-        void refresh(){int value=draft.editing()?draft.value():current();level.setText(sound?(isEnabled()?Math.round(100f*value/Math.max(1,maximum()))+"%":"系统控制"):value+"%");focusChanged();invalidate();}
+        void refresh(){if(!available()&&draft.editing())cancel();setEnabled(available());draft.maximum(maximum());int value=savingValues.containsKey(id)?savingValues.get(id):draft.editing()?draft.value():current();value=Math.max(minimum(),Math.min(maximum(),value));level.setText(!isEnabled()?(sound?"系统控制":"未开启聚焦放大"):sound?Math.round(100f*value/Math.max(1,maximum()))+"%":value+"%");setContentDescription(QuickControlStore.title(id,chinese)+"  "+level.getText()+"  左右调整  确定保存  上下保存并切换  返回取消");focusChanged();invalidate();}
         @Override public void onWindowFocusChanged(boolean focused){super.onWindowFocusChanged(focused);focusChanged();}
-        @Override protected void onDraw(Canvas c){float left=p(7),right=getWidth()-p(7),mid=getHeight()/2f,x=left+(right-left)*(Math.max(minimum(),draft.editing()?draft.value():current())-minimum())/Math.max(1,maximum()-minimum());boolean focused=false;paint.setColor(0x55ffffff);RectF track=new RectF(left,mid-p(1.5f),right,mid+p(1.5f));c.drawRoundRect(track,p(2),p(2),paint);track.right=x;paint.setColor(focused?UiPalette.INK:Color.WHITE);c.drawRoundRect(track,p(2),p(2),paint);paint.setColor(Color.WHITE);paint.setShadowLayer(p(2),0,p(1),0x33000000);c.drawCircle(x,mid,p(7),paint);paint.clearShadowLayer();paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(p(.5f));paint.setColor(0x14000000);c.drawCircle(x,mid,p(7)-paint.getStrokeWidth()/2,paint);paint.setStyle(Paint.Style.FILL);}
-        @Override public boolean onKeyDown(int key,KeyEvent e){if(key==KeyEvent.KEYCODE_DPAD_CENTER||key==KeyEvent.KEYCODE_ENTER||key==KeyEvent.KEYCODE_NUMPAD_ENTER){if(e.getRepeatCount()==0){if(draft.editing())commit();else begin();}return true;}if(key==KeyEvent.KEYCODE_DPAD_LEFT||key==KeyEvent.KEYCODE_DPAD_RIGHT){if(!draft.editing())begin();int before=draft.value();draft.move(key==KeyEvent.KEYCODE_DPAD_LEFT?-1:1,e.getRepeatCount()>0?e.getEventTime()-e.getDownTime():0);int next=draft.value();draft.preview(before);preview(next);return true;}if(key==KeyEvent.KEYCODE_DPAD_UP||key==KeyEvent.KEYCODE_DPAD_DOWN){if(!commit())return true;navigate(this,key==KeyEvent.KEYCODE_DPAD_UP?FOCUS_UP:FOCUS_DOWN);return true;}if(draft.editing()&&(key==KeyEvent.KEYCODE_BACK||key==KeyEvent.KEYCODE_ESCAPE)){cancel();return true;}return super.onKeyDown(key,e);}
+        @Override protected void onDraw(Canvas c){float left=p(7),right=getWidth()-p(7),mid=getHeight()/2f;int value=savingValues.containsKey(id)?savingValues.get(id):draft.editing()?draft.value():current();float x=left+(right-left)*(Math.max(minimum(),Math.min(maximum(),value))-minimum())/Math.max(1,maximum()-minimum());paint.setColor(0x55ffffff);RectF track=new RectF(left,mid-p(1.5f),right,mid+p(1.5f));c.drawRoundRect(track,p(2),p(2),paint);track.right=x;paint.setColor(Color.WHITE);c.drawRoundRect(track,p(2),p(2),paint);paint.setColor(Color.WHITE);paint.setShadowLayer(p(2),0,p(1),0x33000000);c.drawCircle(x,mid,p(7),paint);paint.clearShadowLayer();paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(p(.5f));paint.setColor(0x14000000);c.drawCircle(x,mid,p(7)-paint.getStrokeWidth()/2,paint);paint.setStyle(Paint.Style.FILL);}
+        @Override public boolean onKeyDown(int key,KeyEvent e){if(key==KeyEvent.KEYCODE_DPAD_CENTER||key==KeyEvent.KEYCODE_ENTER||key==KeyEvent.KEYCODE_NUMPAD_ENTER){if(e.getRepeatCount()==0){if(draft.editing())commit();else begin();}return true;}if(key==KeyEvent.KEYCODE_DPAD_LEFT||key==KeyEvent.KEYCODE_DPAD_RIGHT){if(!draft.editing()&&!begin())return true;int before=draft.value();draft.move(key==KeyEvent.KEYCODE_DPAD_LEFT?-1:1,e.getRepeatCount()>0?e.getEventTime()-e.getDownTime():0);int next=draft.value();draft.preview(before);preview(next);return true;}if(key==KeyEvent.KEYCODE_DPAD_UP||key==KeyEvent.KEYCODE_DPAD_DOWN){if(!commit())return true;navigate(this,key==KeyEvent.KEYCODE_DPAD_UP?FOCUS_UP:FOCUS_DOWN);return true;}if(draft.editing()&&(key==KeyEvent.KEYCODE_BACK||key==KeyEvent.KEYCODE_ESCAPE)){cancel();return true;}return super.onKeyDown(key,e);}
         @Override public boolean onKeyUp(int key,KeyEvent e){if(key==KeyEvent.KEYCODE_DPAD_CENTER||key==KeyEvent.KEYCODE_ENTER||key==KeyEvent.KEYCODE_NUMPAD_ENTER||key==KeyEvent.KEYCODE_DPAD_LEFT||key==KeyEvent.KEYCODE_DPAD_RIGHT)return true;return super.onKeyUp(key,e);}
-        @Override public boolean onTouchEvent(MotionEvent e){if(!isEnabled())return false;if(e.getAction()==MotionEvent.ACTION_DOWN){requestFocusFromTouch();begin();getParent().requestDisallowInterceptTouchEvent(true);}if(e.getAction()==MotionEvent.ACTION_DOWN||e.getAction()==MotionEvent.ACTION_MOVE||e.getAction()==MotionEvent.ACTION_UP){preview(Math.round(minimum()+(maximum()-minimum())*(e.getX()-p(7))/Math.max(1,getWidth()-p(14))));if(e.getAction()==MotionEvent.ACTION_UP){commit();performClick();}return true;}if(e.getAction()==MotionEvent.ACTION_CANCEL){cancel();return true;}return true;}
+        @Override public boolean onTouchEvent(MotionEvent e){if(!isEnabled()||savingValues.containsKey(id))return false;if(e.getAction()==MotionEvent.ACTION_DOWN){requestFocusFromTouch();if(!begin())return false;getParent().requestDisallowInterceptTouchEvent(true);}if(e.getAction()==MotionEvent.ACTION_DOWN||e.getAction()==MotionEvent.ACTION_MOVE||e.getAction()==MotionEvent.ACTION_UP){int step=sound?1:5;preview(minimum()+Math.round((maximum()-minimum())*(e.getX()-p(7))/Math.max(1,getWidth()-p(14))/step)*step);if(e.getAction()==MotionEvent.ACTION_UP){commit();performClick();}return true;}if(e.getAction()==MotionEvent.ACTION_CANCEL){cancel();return true;}return true;}
         @Override public boolean performClick(){super.performClick();return true;}
     }
     private void renderPhone(){
@@ -231,8 +229,8 @@ final class HomeQuickControlView extends LinearLayout {
     private android.content.IntentFilter networkFilter(){android.content.IntentFilter filter=new android.content.IntentFilter(android.net.ConnectivityManager.CONNECTIVITY_ACTION);filter.addAction("android.media.VOLUME_CHANGED_ACTION");return filter;}
     void resume(){resumed=true;if(getVisibility()==VISIBLE)phone.start();phone.observe(sessionChanged);phone.observeConfiguration(configurationChanged);if(!networkObserved){androidx.core.content.ContextCompat.registerReceiver(context,networkChanged,networkFilter(),androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);networkObserved=true;}context.getSharedPreferences("desktop-settings",0).registerOnSharedPreferenceChangeListener(preferencesChanged);configurationChanged.run();post(()->{if(resumed&&!destroyed)renderPhone();});}
     void pause(){resumed=false;if(!context.isChangingConfigurations())cancelAdjustments();if(networkObserved){context.unregisterReceiver(networkChanged);networkObserved=false;}phone.forget(sessionChanged);phone.forgetConfiguration(configurationChanged);context.getSharedPreferences("desktop-settings",0).unregisterOnSharedPreferenceChangeListener(preferencesChanged);}
-    void save(Bundle state){state.putString("quick-focus",focus);state.putFloat("quick-scroll",scroll.getScrollY()/unit);state.putBoolean("quick-force-brightness",forceBrightness);state.putBoolean("quick-force-volume",forceVolume);if(volume.editing()){state.putInt("quick-volume-base",volume.original());state.putInt("quick-volume-value",volume.value());}if(brightness.editing()){state.putInt("quick-brightness-base",brightness.original());state.putInt("quick-brightness-value",brightness.value());}}
-    void restore(Bundle state){if(state==null)return;focus=state.getString("quick-focus","");restoredFocus=focus;restoreScroll=Math.round(state.getFloat("quick-scroll",0)*unit);forceBrightness=state.getBoolean("quick-force-brightness");forceVolume=state.getBoolean("quick-force-volume");if(state.containsKey("quick-volume-base")){restoredVolumeBase=state.getInt("quick-volume-base");restoredVolumeValue=state.getInt("quick-volume-value");}if(state.containsKey("quick-brightness-base")){restoredBrightnessBase=state.getInt("quick-brightness-base");restoredBrightnessValue=state.getInt("quick-brightness-value");}}
+    void save(Bundle state){state.putString("quick-focus",focus);state.putFloat("quick-scroll",scroll.getScrollY()/unit);state.putStringArrayList("quick-forced-ranges",new ArrayList<>(forcedRanges));for(RangeSlider track:rangeViews.values())if(track.draft.editing()){state.putInt("quick-"+track.id+"-base",track.draft.original());state.putInt("quick-"+track.id+"-value",track.draft.value());}}
+    void restore(Bundle state){if(state==null)return;focus=state.getString("quick-focus","");restoredFocus=focus;restoreScroll=Math.round(state.getFloat("quick-scroll",0)*unit);ArrayList<String> forced=state.getStringArrayList("quick-forced-ranges");if(forced!=null)for(String id:forced)if(QuickControlStore.range(id))forcedRanges.add(id);if(state.getBoolean("quick-force-brightness"))forcedRanges.add("brightness");if(state.getBoolean("quick-force-volume"))forcedRanges.add("volume");for(String id:QuickControlStore.RANGES)if(state.containsKey("quick-"+id+"-base"))restoredRanges.put(id,new int[]{state.getInt("quick-"+id+"-base"),state.getInt("quick-"+id+"-value")});}
     void refreshBackdrop(){if(!destroyed)backdrop.refresh();}
     void destroy(){destroyed=true;animate().cancel();getViewTreeObserver().removeOnPreDrawListener(revealOnPreDraw);pause();qrWorker.shutdown();qrView=null;if(qr!=null){qr.recycle();qr=null;}}
 }

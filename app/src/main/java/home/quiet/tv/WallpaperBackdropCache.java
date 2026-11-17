@@ -27,12 +27,13 @@ final class WallpaperBackdropCache {
         if(previous!=null&&previous.fullResolution&&(!fullResolution||previous.image==image&&previous.blur!=null&&blur==null))return;
         preparedKey=key;prepared=new Picture(image,blur,fullResolution);
     }}
+    static void clearGlass(){synchronized(preparedLock){if(prepared!=null)prepared=new Picture(prepared.image,null,prepared.fullResolution);}}
     WallpaperBackdropCache(Context context){file=new AtomicFile(new File(context.getFilesDir(),"wallpaper-backdrop"));}
     static String key(WallpaperStore store,String id,int width,int height){return "1|"+store.imageKey(id)+"|"+width+"x"+height;}
-    Picture read(String key){synchronized(WallpaperBackdropCache.class){
+    Picture read(String key,boolean glass){synchronized(WallpaperBackdropCache.class){
         try(DataInputStream input=new DataInputStream(file.openRead())){
             if(!key.equals(input.readUTF()))return null;
-            Bitmap image=readBitmap(input,MAX_EDGE),blur=readBitmap(input,320);
+            Bitmap image=readBitmap(input,MAX_EDGE),blur=glass?readBitmap(input,320):null;
             return new Picture(image,blur);
         }catch(FileNotFoundException ignored){return null;}
         catch(IOException|RuntimeException|OutOfMemoryError e){DiagnosticLog.info("wallpaper.backdrop.unavailable","cached cover unreadable");return null;}

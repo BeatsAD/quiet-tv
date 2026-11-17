@@ -6,11 +6,11 @@ export const fieldPresentation:Record<string,{title:string;icon?:string}>={
   homeBlurMode:{title:'首页模糊方式'},homeBlur:{title:'模糊度'},homeBrightness:{title:'亮度'},homeFade:{title:'淡入时间'},
   secondBlur:{title:'模糊度'},secondBrightness:{title:'亮度'},secondFade:{title:'淡入时间'},secondNames:{title:'第二屏应用名称'},
   layout:{title:'排版',icon:'DashboardIcon'},iconSize:{title:'图标大小'},iconShape:{title:'图标外形'},
-  dockScale:{title:'Dock 栏大小'},dockMagnification:{title:'放大幅度'},dockLimit:{title:'显示应用上限'},dockMagnify:{title:'聚焦放大'},dockGlass:{title:'玻璃特效'},dockBackground:{title:'Dock 背景'},
+  dockScale:{title:'Dock 栏大小'},dockMagnification:{title:'放大幅度'},dockLimit:{title:'显示应用上限'},dockMagnify:{title:'聚焦放大'},globalGlass:{title:'全局玻璃效果'},dockBackground:{title:'Dock 背景'},
   showGreeting:{title:'问候语'},showAvatar:{title:'显示头像'},showTime:{title:'时间'},clockStyle:{title:'时钟样式'},showDate:{title:'日期'},showSeconds:{title:'显示秒数'},showLunarDate:{title:'显示农历'},homeApps:{title:'首页应用区域'},appNames:{title:'首页应用名称'},
   weatherEnabled:{title:'天气',icon:'SunIcon'},autoLocation:{title:'自动定位',icon:'TargetIcon'},provider:{title:'天气来源',icon:'LayersIcon'},meteoFallback:{title:'Open-Meteo 备用',icon:'SunIcon'},
   keySounds:{title:'按键音',icon:'SpeakerLoudIcon'},keySoundTheme:{title:'按键音色'},wallSound:{title:'背景声音'},wallMode:{title:'切换方式'},rotation:{title:'轮换间隔'},dayNight:{title:'随昼夜变化'},
-  idle:{title:'闲置等待时间'},saverContent:{title:'屏保内容'},saverClock:{title:'显示时钟'},saverWeather:{title:'显示天气'},
+  idle:{title:'闲置等待时间'},saverContent:{title:'屏保内容'},saverSound:{title:'屏保声音'},quickControlVisibility:{title:'快捷控制按钮'},saverClock:{title:'显示时钟'},saverWeather:{title:'显示天气'},
   quizInterval:{title:'答题间隔'},quizGrade:{title:'年级'},restTheme:{title:'休息屏保'},boot:{title:'开机去向'},volume:{title:'音量'},
 };
 
