@@ -35,7 +35,7 @@ export class PhoneClient {
     }catch(error){if(error instanceof ApiError)throw error;throw new Error(controller.signal.aborted?'电视响应超时，正在重新连接并核对结果':'暂时无法连接电视，正在重连，请保持手机与电视处于同一局域网');}finally{clearTimeout(timer);}
   }
   private merge(frame:Frame){
-    if(this.frame&&this.frame.generation!==frame.generation){this.status='ended';this.problem='连接已更换，请重新扫码';this.publish();throw new ApiError(410,this.problem);}
+    if(this.frame&&this.frame.generation!==frame.generation){this.status='ended';this.problem='连接已更换，请重新打开收藏的网址';this.publish();throw new ApiError(410,this.problem);}
     if(this.frame&&frame.lastSequence<this.frame.lastSequence)return;
     if(this.frame&&frame.domains.quiz?.quizGrade!==undefined&&frame.domains.quiz.quizGrade!==this.frame.domains.quiz?.quizGrade)this.needsMetadata=true;
     if(this.frame&&frame.domains.tasks){const old=this.tasks();const next=(frame.domains.tasks.jobs||[]) as unknown as Task[];if(next.some(task=>task.state==='completed'&&old.find(previous=>previous.id===task.id)?.state!=='completed'))this.needsMetadata=true;}
@@ -86,7 +86,7 @@ export class PhoneClient {
   }
   flush(key:string){const pending=this.pending.get(key);if(pending){clearTimeout(pending.timer);pending.ready=true;void this.drain();}}
   private acceptReceipt(result:Receipt,attempt:Attempt){
-    const request=attempt.request;if(result.generation!==this.frame?.generation)throw new ApiError(410,'连接已更换，请重新扫码');
+    const request=attempt.request;if(result.generation!==this.frame?.generation)throw new ApiError(410,'连接已更换，请重新打开收藏的网址');
     if(result.requestStatus==='rejected')throw new ApiError(result.errorStatus||400,result.message||'电视未接受此操作，请核对设置');
     if(result.requestStatus!=='completed')throw new ApiError(500,'电视尚未确认操作结果，请先核对当前设置');
     // Older TVs return a full frame; new receipts carry only the committed domain.
@@ -102,7 +102,7 @@ export class PhoneClient {
     if(attempt.version!==undefined&&this.pending.get(request.field)?.version===attempt.version)this.pending.delete(request.field);
     this.attempt=undefined;this.status='connected';this.problem='';
     this.reportResult(result,attempt);
-    if(result.operation?.endsConnection){this.status='ended';this.problem='恢复请求已受理，本次连接已结束。请重新扫码核对电视恢复记录。';}
+    if(result.operation?.endsConnection){this.status='ended';this.problem='恢复请求已受理，本次连接已结束。请重新打开收藏的网址核对电视恢复记录。';}
   }
   private rejectAttempt(error:unknown,attempt:Attempt){
     const detail=error instanceof Error?error.message:'操作结果待核对',known=error instanceof ApiError&&error.status<500,key=`${known}:${detail}`;if(attempt.announce!==false&&attempt.request.domain!=='icons'&&attempt.request.domain!=='uploads'&&attempt.feedbackState!==key){attempt.feedbackState=key;this.onOperation?.({kind:known?'error':'info',title:known?`${operationLabel(attempt.request.domain,attempt.request.field,this.metadata)}失败`:'结果待核对',detail});}
@@ -168,7 +168,7 @@ export class PhoneClient {
     const generation=this.frame?.generation;
     try{
       const result=await this.fetch('api/parent',{action,pin,newPin});
-      if(this.status==='ended'||this.frame?.generation!==generation)throw new ApiError(410,'连接已更换，请重新扫码');
+      if(this.status==='ended'||this.frame?.generation!==generation)throw new ApiError(410,'连接已更换，请重新打开收藏的网址');
       if(this.frame&&typeof result.authorized==='boolean'){
         // Ignore reads started before this confirmed grant; they may still report it as unauthorized.
         this.version++;

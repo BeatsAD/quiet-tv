@@ -91,7 +91,7 @@ final class StartupDestinationPanel extends ManagementPanel {
     private void finishTest(boolean opened){
         if(!opened){HomeGuardService.cancelInputTransition();enableAfterTest=false;save(()->store.testDispatched(""));message("信号源暂时无法打开，请使用遥控器信号源键。");return;}
         HomeGuardService.savedInputSelected(activity);
-        if(!store.tested())Toast.makeText(activity,tr("观看后按 HOME 返回，再进入“看电视”确认画面和声音","After watching, return with HOME and reopen Watch TV to confirm picture and sound"),Toast.LENGTH_LONG).show();
+        if(!store.tested())OperationFeedback.get(activity).show(OperationFeedback.Kind.INFO,tr("观看后按 HOME 返回，再进入“看电视”确认画面和声音","After watching, return with HOME and reopen Watch TV to confirm picture and sound"));
     }
 
     private String bootMessage(){

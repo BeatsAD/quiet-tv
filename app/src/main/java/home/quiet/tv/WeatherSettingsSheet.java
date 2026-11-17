@@ -36,7 +36,7 @@ final class WeatherSettingsSheet {
     private void create(){
         origin=ui.getCurrentFocus();sheet=ui.new Sheet(root.equals("location")?tr("天气位置","Weather location"):tr("来源与服务","Sources and services"));ManagementUi.Sheet current=sheet;
         if(root.equals("sources"))sheet.contentWidth(520,640);
-        sheet.settingsLayout(tr("关闭","Close"),this::close);if(root.equals("sources"))sheet.fixedSize(520,340);sheet.dialog.setOnKeyListener((d,key,event)->{if(key!=KeyEvent.KEYCODE_BACK&&key!=KeyEvent.KEYCODE_ESCAPE)return false;if(event.getAction()==KeyEvent.ACTION_UP){if(providers!=null&&providers.back())return true;if(page.equals("consent")){pendingProvider="";page=root;render();}else close();}return true;});
+        sheet.settingsLayout(tr("关闭","Close"),this::close);if(root.equals("sources"))sheet.contentSize(520,340);sheet.dialog.setOnKeyListener((d,key,event)->{if(key!=KeyEvent.KEYCODE_BACK&&key!=KeyEvent.KEYCODE_ESCAPE)return false;if(event.getAction()==KeyEvent.ACTION_UP){if(providers!=null&&providers.back())return true;if(page.equals("consent")){pendingProvider="";page=root;render();}else close();}return true;});
         sheet.dialog.setOnDismissListener(d->{if(sheet==current){sheet=null;pendingProvider="";updateDemand();if(active)closed.run();if(active&&origin!=null&&origin.isShown())origin.requestFocusFromTouch();}});render();sheet.show(null);updateDemand();
     }
     void showCity(){
@@ -64,7 +64,7 @@ final class WeatherSettingsSheet {
     private void chooseProvider(String value)throws IOException{
         if(!sources.available(value))throw new IOException(tr("此来源尚未配置，当前来源已保留","This source is not configured. The current source is retained."));
         if(value.equals("openmeteo")&&!store.meteoFallback()){pendingProvider=value;page="consent";render();return;}
-        store.provider(value);controller.settingsChanged();changed.run();ManagementUi.Sheet current=sheet;sheet.body.post(()->{if(sheet==current&&!page.equals("consent"))render();});
+        store.savePhoneSetting("provider",value);controller.settingsChanged();changed.run();ui.success(tr("天气来源已更新","Weather source updated"));ManagementUi.Sheet current=sheet;sheet.body.post(()->{if(sheet==current&&!page.equals("consent"))render();});
     }
     private void automatic(){
         if(store.automatic()){if(!store.fixAutomaticCity(ui.chinese())){showCity();return;}}

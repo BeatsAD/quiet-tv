@@ -62,6 +62,8 @@ final class DesktopSettingsStore {
     // Older configurations and backups have only the visibility switch.
     String appTitlePosition(){return preferences.getString("app-title-position",preferences.getBoolean("show-app-title",true)?"below":"hidden");}
     boolean showHomeApps(){return preferences.getBoolean("show-home-apps",true);}
+    boolean hideHomeAppsOnSecondScreen(){return preferences.getBoolean("hide-home-apps-on-second-screen",false);}
+    String appListSignature(){return showWatchTv()+":"+appearance("dock-limit")+":"+hideHomeAppsOnSecondScreen();}
     boolean showWatchTv(){return preferences.getBoolean("show-watch-tv",false);}
     static final String[] CONTROL_VISIBILITY={"always","focus"};
     String quickControlVisibility(){return "focus".equals(preferences.getString("quick-control-visibility","always"))?"focus":"always";}
@@ -96,7 +98,7 @@ final class DesktopSettingsStore {
         saveValue(key,value);
     }}
     void savePhoneValue(String key,Object value)throws IOException {
-        boolean valid=java.util.Arrays.asList("key-sounds","show-time","show-date","show-seconds","show-lunar-date","show-movie-info","show-app-title","show-home-apps","show-all-apps-names","show-dock-background","greeting-enabled","greeting-avatar-enabled").contains(key)&&value instanceof Boolean
+        boolean valid=java.util.Arrays.asList("key-sounds","show-time","show-date","show-seconds","show-lunar-date","show-movie-info","show-app-title","show-home-apps","hide-home-apps-on-second-screen","show-all-apps-names","show-dock-background","greeting-enabled","greeting-avatar-enabled").contains(key)&&value instanceof Boolean
             ||"home-wallpaper-brightness".equals(key)&&value instanceof Integer&&(Integer)value>=20&&(Integer)value<=100
             ||"greeting-text".equals(key)&&value instanceof String&&((String)value).length()<=GreetingInputServer.MAX_TEXT
             ||"home-layout".equals(key)&&java.util.Arrays.asList("classic","gallery").contains(value)

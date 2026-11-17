@@ -194,7 +194,8 @@ final class WallpaperController implements GlassStyle.Listener {
     private int px(float value){return Math.round(value*unit);}
     private String tr(String zh,String en){return chinese?zh:en;}
     void observeMessages(Message listener){messages=listener;}
-    private void notice(String message){if(previewOnly&&!message.isEmpty())previewFailed(message);if(messages!=null)messages.show(message);else if(!message.isEmpty())Toast.makeText(activity,message,Toast.LENGTH_SHORT).show();}
+    private void notice(String message){notice(OperationFeedback.Kind.ERROR,message);}
+    private void notice(OperationFeedback.Kind kind,String message){if(previewOnly&&!message.isEmpty())previewFailed(message);if(messages!=null)messages.show(message);else if(!message.isEmpty())OperationFeedback.get(activity).show(kind,message);}
     void setThemeColor(int color){themeColor=color;if(ambient.getVisibility()==View.VISIBLE)ambient.setColor(color);}
     void observeDock(Runnable invalidation){dockInvalidation=invalidation;}
     MovieWallpaperFeed displayedMovie(){
@@ -624,7 +625,7 @@ final class WallpaperController implements GlassStyle.Listener {
     private void showRotationMenu(){
         if(picker==null||rotationMenu!=null)return;
         WallpaperCatalog state=store.snapshot();List<WallpaperCatalog.Entry> pool=dynamicTab?state.videos():state.pictures();
-        if(pool.size()<2){notice(tr(dynamicTab?"至少需要两个视频才能轮播":"至少需要两张图片才能轮播",dynamicTab?"Add at least two videos for rotation":"Add at least two photos for rotation"));return;}
+        if(pool.size()<2){notice(OperationFeedback.Kind.INFO,tr(dynamicTab?"至少需要两个视频才能轮播":"至少需要两张图片才能轮播",dynamicTab?"Add at least two videos for rotation":"Add at least two photos for rotation"));return;}
         int selected=state.rotating&&state.dynamic()==dynamicTab?state.rotationMinutes:0;
         LinearLayout menu=new LinearLayout(activity);menu.setOrientation(LinearLayout.VERTICAL);menu.setPadding(px(6),px(6),px(6),px(6));menu.setBackgroundDrawable(ui.surface(0xe6000000,14,0x38ffffff,1));
         PopupWindow popup=new PopupWindow(menu,Math.max(auto.getWidth(),px(150)),-2,true);rotationMenu=popup;
@@ -800,13 +801,13 @@ final class WallpaperController implements GlassStyle.Listener {
         });
     }
     private void commitVideo(String id){
-        try{daily.cancel();boolean rotating=rotationCommit>0;if(rotating)store.rotation(true,rotationCommit,id);else store.select(id);rotationCommit=0;if(id.equals(shown)&&current.getDrawable() instanceof BitmapDrawable)cacheBackdrop(id,((BitmapDrawable)current.getDrawable()).getBitmap(),currentBlur);if(picker!=null)refreshCards(id,cards.get(id)!=null&&cards.get(id).hasFocus());schedule();if(!rotating)notice(tr("已应用动态壁纸","Video wallpaper applied"));}
+        try{daily.cancel();boolean rotating=rotationCommit>0;if(rotating)store.rotation(true,rotationCommit,id);else store.select(id);rotationCommit=0;if(id.equals(shown)&&current.getDrawable() instanceof BitmapDrawable)cacheBackdrop(id,((BitmapDrawable)current.getDrawable()).getBitmap(),currentBlur);if(picker!=null)refreshCards(id,cards.get(id)!=null&&cards.get(id).hasFocus());schedule();if(!rotating)notice(OperationFeedback.Kind.SUCCESS,tr("已应用动态壁纸","Video wallpaper applied"));}
         catch(IOException e){stopVideo();restoreSelected();schedule();notice(tr("壁纸设置保存失败","Unable to save wallpaper settings"));}
     }
     private void applySelected(){WallpaperCatalog.Entry entry=store.snapshot().find(preview);if(entry==null)return;
         if(entry.video())startVideo(preview,true);
-        else if(WallpaperCatalog.DAILY.equals(preview))daily.apply((success,message)->{if(picker!=null){refreshCards(WallpaperCatalog.DAILY,true);notice(success?tr("已应用每日壁纸","Daily wallpaper applied"):message);}});
-        else runSaved(()->{daily.cancel();store.select(preview);display(preview,true);refreshCards(preview,true);notice(tr("已应用壁纸","Wallpaper applied"));});
+        else if(WallpaperCatalog.DAILY.equals(preview))daily.apply((success,message)->{if(picker!=null){refreshCards(WallpaperCatalog.DAILY,true);notice(success?OperationFeedback.Kind.SUCCESS:OperationFeedback.Kind.ERROR,success?tr("已应用每日壁纸","Daily wallpaper applied"):message);}});
+        else runSaved(()->{daily.cancel();store.select(preview);display(preview,true);refreshCards(preview,true);notice(OperationFeedback.Kind.SUCCESS,tr("已应用壁纸","Wallpaper applied"));});
     }
     private void category(boolean videos){if(dynamicTab==videos){focusCard(preview);return;}stopVideo();dynamicTab=videos;refreshCards(store.snapshot().current,true);}
     private void toggleVideo(){
@@ -911,7 +912,7 @@ final class WallpaperController implements GlassStyle.Listener {
         if(picker==null||confirmation!=null&&confirmation.isShowing())return;
         WallpaperCatalog state=store.snapshot();WallpaperCatalog.Entry entry=state.find(id);if(entry==null)return;
         if(WallpaperCatalog.DAILY.equals(id))return;
-        if(WallpaperCatalog.DEFAULT.equals(id)){notice(tr("默认颜色主题不能删除","The default color theme cannot be deleted"));return;}
+        if(WallpaperCatalog.DEFAULT.equals(id)){notice(OperationFeedback.Kind.INFO,tr("默认颜色主题不能删除","The default color theme cannot be deleted"));return;}
         stopVideo();List<String> before=focusableCards();int index=before.indexOf(id);String[] returnTo={id};
         AlertDialog dialog=new KeyFeedback.Alert(activity);dialog.setTitle(tr("删除「","Delete “")+entry.label(chinese)+tr("」？","”?"));
         dialog.setMessage(tr("删除电视中保存的壁纸，手机或电脑中的原文件不受影响。","Delete this TV copy. The original on your phone or computer is unchanged.")+(entry.id.equals(state.current)?entry.video()?tr("\n删除后恢复之前的静态壁纸。","\nRestores your previous static wallpaper."):state.rotating?tr("\n将切换到下一张有效图片；不足两张时关闭轮播。","\nSwitch to the next available photo; stop slideshow below two images."):tr("\n这张壁纸正在使用，删除后切回默认颜色主题。","\nThis wallpaper is in use. Deleting it restores the default color theme."):""));

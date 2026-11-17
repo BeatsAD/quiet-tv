@@ -71,7 +71,8 @@ final class PhoneSettingsConfiguration implements PhoneSettingsState.Source {
                 .put("iconLibrary",icons.metadata()).put("dailyWallpaper",dailyInfo()).put("actions",new JSONObject().put("backup.list",true).put("diagnostics.export",true).put("guard.open",true).put("inputs.open",true).put("quick.run",true).put("quick.reset",true).put("quick.add",true).put("wallpaper.daily",true)).put("pollIntervalMs",1000).put("serverTimeMs",System.currentTimeMillis()).put("timeZone",java.util.TimeZone.getDefault().getID());JSONObject extra=help.metadata();for(Iterator<String> keys=extra.keys();keys.hasNext();){String key=keys.next();metadata.put(key,extra.get(key));}return metadata;
         }catch(JSONException e){throw new IOException(e);}
     }
-    void closed(){general.closed();updates.close();}
+    void connectionEnded(){children.parent.end();}
+    void closed(){connectionEnded();general.closed();updates.close();}
     void delivered(String id){backups.delivered(id);}
     PhoneSettingsServer.Download download(String route)throws IOException{String[] parts=route.split("/",2);if(parts.length!=2)throw new PhoneSettingsServer.BadInput();switch(parts[0]){case "file":return files.download(parts[1]);case "backup":return backups.download(parts[1]);case "diagnostics":return help.download(parts[1]);default:throw new PhoneSettingsServer.BadInput();}}
     JSONObject places(String query)throws IOException{return general.places(query);}

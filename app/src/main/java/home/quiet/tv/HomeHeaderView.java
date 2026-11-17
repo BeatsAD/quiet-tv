@@ -1,5 +1,6 @@
 package home.quiet.tv;
 
+import android.animation.*;
 import android.content.Context;
 import android.graphics.Typeface;
 import android.graphics.drawable.*;
@@ -37,6 +38,9 @@ final class HomeHeaderView extends FrameLayout {
     private float applicationAreaTop=386;
     private boolean weatherAvailable;
     private boolean clockActive;
+    private boolean controlExpanded=true;
+    private float controlProgress=1f;
+    private ValueAnimator controlAnimation;
     private String calendarDay="",lunarDay="";
     private final SimpleDateFormat minuteFormat=new SimpleDateFormat("HH:mm",Locale.US),secondFormat=new SimpleDateFormat("HH:mm:ss",Locale.US);
     private final Runnable secondsTick=new Runnable(){public void run(){if(secondsVisible()){updateTime(Calendar.getInstance());postDelayed(this,1000-System.currentTimeMillis()%1000);}}};
@@ -59,7 +63,7 @@ final class HomeHeaderView extends FrameLayout {
         dateColumn.addView(date,new LinearLayout.LayoutParams(-1,px(22)));LinearLayout.LayoutParams lunarPosition=new LinearLayout.LayoutParams(-1,px(18));lunarPosition.topMargin=px(2);dateColumn.addView(lunarDate,lunarPosition);
         divider=new View(context);divider.setBackgroundColor(0x70ffffff);
         buttons=new FrameLayout(context);buttons.setClipChildren(false);buttons.setClipToPadding(false);place(buttons,125.76f,35.52f,0,24);
-        for(int i=0;i<5;i++){
+        for(int i=0;i<4;i++){
             TextView pill=text("",14,400,UiPalette.TEXT);pill.setGravity(Gravity.CENTER);
             pill.setBackgroundDrawable(new SettingsFocusDrawable(unit,999,0x2e000000,false,0x4dffffff));
             pill.setOnHoverListener((view,event)->{view.setHovered(event.getActionMasked()!=MotionEvent.ACTION_HOVER_EXIT);controlVisibility();return false;});
@@ -157,7 +161,7 @@ final class HomeHeaderView extends FrameLayout {
             LinearLayout.LayoutParams wp=(LinearLayout.LayoutParams)weather.getLayoutParams();int margin=hasGreeting?px(16):0;if(wp.leftMargin!=margin){wp.leftMargin=margin;weather.setLayoutParams(wp);}
         }
         information.setVisibility(hasGreeting||weather.getVisibility()==VISIBLE||settings.showTime()||settings.showDate()?VISIBLE:GONE);
-        if(buttonIds.isEmpty()){buttonIds.add("transfer");buttonIds.add("control");}
+        if(buttonIds.isEmpty())buttonIds.add("control");
         try{List<String> ids=HomeButtonStore.visibleIds(new HomeButtonStore(getContext()).read().ids);buttonIds.clear();buttonIds.addAll(ids);}catch(java.io.IOException error){DiagnosticLog.info("home.buttons.unavailable","keep existing view");}
         int count=buttonIds.size();
         FrameLayout.LayoutParams bounds=(FrameLayout.LayoutParams)buttons.getLayoutParams();bounds.width=px(Math.max(125.76f,35.52f+(count-1)*45.12f));bounds.leftMargin=0;bounds.rightMargin=px(24);bounds.gravity=Gravity.RIGHT|Gravity.TOP;buttons.setLayoutParams(bounds);
@@ -165,13 +169,40 @@ final class HomeHeaderView extends FrameLayout {
         buttons.setVisibility(count==0?GONE:VISIBLE);
         controlVisibility();syncSeconds();
     }
-    @Override public void onWindowFocusChanged(boolean focused){super.onWindowFocusChanged(focused);for(TextView pill:pills)SettingsFocusMotion.update(pill,focused&&(pill.isFocused()||pill.isActivated()));}
+    @Override public void onWindowFocusChanged(boolean focused){super.onWindowFocusChanged(focused);for(TextView pill:pills)SettingsFocusMotion.update(pill,focused&&(pill.isFocused()||pill.isActivated()));controlVisibility();}
     private final ViewTreeObserver.OnTouchModeChangeListener controlTouchMode=touch->controlVisibility();
     private String controlPreview;
     void previewControlVisibility(String value){controlPreview=value;controlVisibility();}
     void controlVisibility(){
-        for(TextView pill:pills){boolean hidden="control".equals(pill.getTag())&&(controlPreview==null?settings.controlFocusOnly():"focus".equals(controlPreview))&&!pill.isActivated()&&!pill.isFocused()&&!pill.isSelected()&&!pill.isHovered()&&!(pill.isClickable()&&isInTouchMode());pill.setAlpha(hidden?0f:1f);}
+        if(buttons==null)return;
+        boolean expanded=!(controlPreview==null?settings.controlFocusOnly():"focus".equals(controlPreview));
+        for(TextView pill:pills)if(pill.getVisibility()==VISIBLE){
+            expanded|=pill.isActivated()||pill.isFocused()||pill.isSelected()||pill.isHovered();
+            if("control".equals(pill.getTag()))expanded|=pill.isClickable()&&isInTouchMode();
+        }
+        boolean animate=UiMotion.enabled(this)&&hasWindowFocus()&&getWindowVisibility()==VISIBLE;
+        float target=expanded?1f:0f;
+        if(controlExpanded==expanded){
+            if(controlAnimation!=null&&!animate)cancelControlAnimation();
+            if(controlAnimation==null)drawControl(target);
+            return;
+        }
+        controlExpanded=expanded;cancelControlAnimation();
+        if(!animate){drawControl(target);return;}
+        // Move the row as one group so fading buttons never overlap their neighbours.
+        // A separate animator leaves each button's existing focus scale uninterrupted.
+        ValueAnimator animation=ValueAnimator.ofFloat(controlProgress,target);controlAnimation=animation;
+        animation.setDuration(Math.max(1,Math.round(180*Math.abs(target-controlProgress))));animation.setInterpolator(UiMotion.curve());
+        animation.addUpdateListener(a->drawControl((float)a.getAnimatedValue()));
+        animation.addListener(new AnimatorListenerAdapter(){@Override public void onAnimationEnd(Animator ended){if(controlAnimation==ended){controlAnimation=null;drawControl(target);}}});
+        animation.start();
     }
+    private void drawControl(float progress){
+        controlProgress=progress;float offset=px(45.12f)*(1-progress);boolean moved=buttons.getTranslationX()!=offset;buttons.setTranslationX(offset);
+        // Glass backgrounds sample screen coordinates and must follow the moving row.
+        for(TextView pill:pills){pill.setAlpha("control".equals(pill.getTag())?progress:1f);if(moved&&pill.getVisibility()==VISIBLE)pill.invalidate();}
+    }
+    private void cancelControlAnimation(){ValueAnimator previous=controlAnimation;controlAnimation=null;if(previous!=null)previous.cancel();}
     void focusButton(int index){
         buttonLabel.setVisibility(INVISIBLE);if(index<0||index>=buttonIds.size())return;
         buttonLabel.setText(HomeButtonStore.title(buttonIds.get(index),chinese));
@@ -190,8 +221,8 @@ final class HomeHeaderView extends FrameLayout {
     private boolean secondsVisible(){android.os.PowerManager power=(android.os.PowerManager)getContext().getSystemService(Context.POWER_SERVICE);return clockActive&&getWindowToken()!=null&&getWindowVisibility()==VISIBLE&&isShown()&&settings.showTime()&&settings.showSeconds()&&power!=null&&power.isScreenOn();}
     private void syncSeconds(){removeCallbacks(secondsTick);if(settings!=null&&clock!=null&&secondsVisible()){updateTime(Calendar.getInstance());postDelayed(secondsTick,1000-System.currentTimeMillis()%1000);}}
     @Override protected void onAttachedToWindow(){super.onAttachedToWindow();getViewTreeObserver().addOnTouchModeChangeListener(controlTouchMode);controlVisibility();syncSeconds();}
-    @Override protected void onDetachedFromWindow(){removeCallbacks(secondsTick);if(getViewTreeObserver().isAlive())getViewTreeObserver().removeOnTouchModeChangeListener(controlTouchMode);super.onDetachedFromWindow();}
+    @Override protected void onDetachedFromWindow(){removeCallbacks(secondsTick);cancelControlAnimation();drawControl(controlExpanded?1f:0f);if(getViewTreeObserver().isAlive())getViewTreeObserver().removeOnTouchModeChangeListener(controlTouchMode);super.onDetachedFromWindow();}
     @Override protected void onVisibilityChanged(View changed,int visibility){super.onVisibilityChanged(changed,visibility);syncSeconds();}
-    @Override protected void onWindowVisibilityChanged(int visibility){super.onWindowVisibilityChanged(visibility);syncSeconds();}
+    @Override protected void onWindowVisibilityChanged(int visibility){super.onWindowVisibilityChanged(visibility);controlVisibility();syncSeconds();}
     void weather(WeatherData data){weatherAvailable=data!=null;if(data==null){weather.setText("");weather.setCompoundDrawables(null,null,null,null);}else{WeatherIcon icon=new WeatherIcon(data.icon);icon.setBounds(0,0,px(18),px(18));weather.setCompoundDrawables(icon,null,null,null);weather.setText(String.format(Locale.ROOT,"%s  %s  %s",data.temperatureText(),data.description,data.city));}apply();}
 }

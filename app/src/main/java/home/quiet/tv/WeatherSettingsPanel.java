@@ -8,6 +8,7 @@ import android.widget.*;
 /** Lifecycle adapter for the existing weather editor and its permission callbacks. */
 final class WeatherSettingsPanel extends ManagementPanel {
     private DesktopWeatherPanel weather;
+    private DesktopSettingsRow hideHomeApps;
     private android.app.Dialog originalSheet;
     private android.app.Dialog systemSettingsSheet;
     private SettingsRouteMemory.Attempt systemSettingsAttempt;
@@ -24,6 +25,7 @@ final class WeatherSettingsPanel extends ManagementPanel {
         if(general){
             gap(weather.body,12);weather.body.addView(activity.section(activity.tr("桌面与启动","Desktop and startup")));
             LinearLayout desktop=activity.group();weather.body.addView(desktop);
+            hideHomeApps=activity.setting(activity.tr("第二屏隐藏首屏应用","Hide Home apps on second screen"),"desktop","second-screen-hide-home");hideHomeApps.checked(new DesktopSettingsStore(this).hideHomeAppsOnSecondScreen());hideHomeApps.setOnClickListener(v->{DesktopSettingsStore settings=new DesktopSettingsStore(this);try{settings.savePhoneValue("hide-home-apps-on-second-screen",!settings.hideHomeAppsOnSecondScreen());PhoneSettingsSession.get(activity).configurationChanged();}catch(java.io.IOException error){message(error.getMessage());}hideHomeApps.checked(settings.hideHomeAppsOnSecondScreen());});activity.addSetting(desktop,hideHomeApps);
             DesktopSettingsRow guard=activity.setting(activity.tr("桌面管理","Desktop management"),"shield","desktop-guard");guard.value(DesktopSwitch.get(activity).state().optString("summary","状态待核对"));guard.tail("arrow");guard.setOnClickListener(v->activity.guardTool());activity.addSetting(desktop,guard);
             DesktopSettingsRow backup=activity.setting(activity.tr("桌面备份与恢复","Desktop backup and restore"),"","desktop-backups");backup.tail("arrow");backup.setOnClickListener(v->activity.backupTool());activity.addSetting(desktop,backup);refreshBackup();
             DesktopSettingsRow startup=activity.setting(activity.tr("开机去向","Startup destination"),"desktop","startup-destination");BootAppStore boot=new BootAppStore(this);startup.value(boot.enabled()?boot.label():activity.tr("Quiet TV 首页","Quiet TV Home"));startup.tail("arrow");startup.setOnClickListener(v->activity.startupTool());activity.addSetting(desktop,startup);
@@ -31,7 +33,7 @@ final class WeatherSettingsPanel extends ManagementPanel {
             DesktopSettingsRow adb=activity.setting("ADB 管理","","adb-management");adb.tail("arrow");adb.setOnClickListener(v->activity.adbTool());activity.addSetting(inputs,adb);refreshAdb();
             DesktopSettingsRow source=activity.setting(activity.tr("信号源配置","Input configuration"),"tools","input-configuration");source.tail("arrow");source.setOnClickListener(v->activity.sourceTool());activity.addSetting(inputs,source);refreshSource();
             DesktopSettingsRow system=activity.setting(activity.tr("原设置","TV system settings"),"tools","general-system-settings");system.tail("arrow");system.value(activity.tr("打不开时长按","Long-press if it does not open"));system.setOnClickListener(v->openSystemSettings(false));system.setOnLongClickListener(v->{systemSettingsOptions();return true;});activity.addSetting(inputs,system);
-            Collections.addAll(rows,guard,backup,startup,adb,source,system);
+            Collections.addAll(rows,hideHomeApps,guard,backup,startup,adb,source,system);
         }
         activity.wireRows(rows.toArray(new DesktopSettingsRow[0]),managementTab());
         if(state!=null){scrollY=state.getInt("scroll");focusTag=state.getString("focus");weather.restore(state);}
@@ -63,7 +65,7 @@ final class WeatherSettingsPanel extends ManagementPanel {
         if(attempt!=null&&(attempt.result()==SettingsRouteMemory.Result.DISPATCHED_UNVERIFIED||attempt.result()==SettingsRouteMemory.Result.WINDOW_OBSERVED)){
             labels.add(activity.tr("已正常打开，记住此方式","It worked; remember this way"));actions.add(()->{
                 boolean saved=new SettingsRouteMemory(activity).confirm(attempt,true);systemSettingsAttempt=null;
-                feedback(activity.tr(saved?"已记住当前电视的打开方式":"入口已变化或测试已过期，请重新打开设置",saved?"Opening method saved for this TV":"The entry changed or the test expired; open settings again"));
+                if(saved)success(activity.tr("已记住当前电视的打开方式","Opening method saved for this TV"));else error(activity.tr("入口已变化或测试已过期，请重新打开设置","The entry changed or the test expired; open settings again"));
             });
         }
         if(!systemSettingsTried.isEmpty()){labels.add(activity.tr("重新检测入口","Detect entries again"));actions.add(()->openSystemSettings(false));}
@@ -72,7 +74,7 @@ final class WeatherSettingsPanel extends ManagementPanel {
         systemSettingsSheet=dialog;dialog.setOnDismissListener(d->{systemSettingsSheet=null;focusTag="general-system-settings";if(showing&&!isFinishing())pageRoot.findViewWithTag(focusTag).requestFocusFromTouch();});
         dialog.show();ControlStyle.dialog(dialog,unit,(canvas,paint)->activity.drawSheetBackdrop(canvas),activity::filterSheetBackdrop);
     }
-    private void refreshDesktopSwitch(){if(general&&pageRoot!=null){DesktopSettingsRow row=(DesktopSettingsRow)pageRoot.findViewWithTag("general-tool-original");if(row!=null)row.value(DesktopSwitch.get(activity).state().optString("mode","待核对"));}}
+    private void refreshDesktopSwitch(){if(general&&pageRoot!=null){hideHomeApps.checked(new DesktopSettingsStore(this).hideHomeAppsOnSecondScreen());DesktopSettingsRow row=(DesktopSettingsRow)pageRoot.findViewWithTag("general-tool-original");if(row!=null)row.value(DesktopSwitch.get(activity).state().optString("mode","待核对"));}}
     void settingsChanged(){weather.settingsChanged();}
 
     void startupToolReturned(){if(general){BootAppStore boot=new BootAppStore(this);DesktopSettingsRow row=(DesktopSettingsRow)pageRoot.findViewWithTag("startup-destination");row.value(boot.enabled()?boot.label():activity.tr("Quiet TV 首页","Quiet TV Home"));row.requestFocusFromTouch();}}

@@ -128,15 +128,18 @@ final class HomePreviewView extends FrameLayout implements SharedPreferences.OnS
     void fadeIn(int millis){if(active)backgrounds.previewFade(millis);}
     void destroy(){destroyed=true;revealPreview();getViewTreeObserver().removeOnPreDrawListener(firstFrame);pause();backgrounds.destroy();++generation;worker.shutdownNow();coverPreview=null;applied=null;band.removeAllViews();grid.removeAllViews();}
     private HomePreviewCache.Key sceneKey(){
-        HomePreviewCache.Key key=HomePreviewCache.Key.read(getContext(),chinese,cache.packages());if(coverPreviewPackage.isEmpty())return key;
-        DesktopSettingsStore settings=new DesktopSettingsStore(getContext());return new HomePreviewCache.Key(key.apps,key.wallpaper,key.configuration,coverPreviewPackage+":"+string(settings,"icon-size")+":"+string(settings,"icon-shape"));
+        HomePreviewCache.Key key=HomePreviewCache.Key.read(getContext(),chinese,cache.packages());DesktopSettingsStore settings=new DesktopSettingsStore(getContext());
+        String context=coverPreviewPackage.isEmpty()?"":coverPreviewPackage+":"+string(settings,"icon-size")+":"+string(settings,"icon-shape");
+        if(settings.hideHomeAppsOnSecondScreen()&&appearancePreview.containsKey("dock-limit"))context+=":dock-limit:"+number(settings,"dock-limit");
+        return context.isEmpty()?key:new HomePreviewCache.Key(key.apps,key.wallpaper,key.configuration,context);
     }
     private void loadLocalScene(){
         final HomePreviewCache.Key key=sceneKey();final Context context=getContext().getApplicationContext();
         DesktopSettingsStore settings=new DesktopSettingsStore(context);final String previewPackage=coverPreviewPackage,size=string(settings,"icon-size"),shape=string(settings,"icon-shape");
+        final int dockLimit=number(settings,"dock-limit");boolean draftGrid=settings.hideHomeAppsOnSecondScreen()&&dockLimit!=settings.appearance("dock-limit");
         if(applied!=null&&applied.key.equals(key)){if(pendingKey!=null){++generation;pendingKey=null;}return;}
         HomePreviewCache.Scene saved=cache.scene(),previous=applied!=null?applied:saved;
-        HomePreviewCache.Scene local=previous!=null&&previous.key.sameApps(key)?new HomePreviewCache.Scene(key,previous.art,previous.names,previous.gridArt,previous.gridNames,previous.ids,previous.gridIds):HomeActivity.previewScene(key,previewPackage,size,shape);
+        HomePreviewCache.Scene local=previous!=null&&previous.key.sameApps(key)?new HomePreviewCache.Scene(key,previous.art,previous.names,previous.gridArt,previous.gridNames,previous.ids,previous.gridIds):draftGrid?null:HomeActivity.previewScene(key,previewPackage,size,shape);
         if(local!=null){if(DiagnosticProbe.allow("preview.cache",2000))DiagnosticLog.info("preview.cache","hit=true");++generation;pendingKey=null;failedKey=null;cache.save(local,cache.generation());applyLocalScene(local);return;}
         if(key.equals(failedKey)||key.equals(pendingKey))return;
         final int request=++generation;final long cacheGeneration=cache.generation();pendingKey=key;failedKey=null;
@@ -148,6 +151,7 @@ final class HomePreviewView extends FrameLayout implements SharedPreferences.OnS
                 ArrayList<HomeAppCatalog.Entry> catalogApps=new HomeAppCatalog(context).load(packages);Map<String,Bitmap> artwork=new HashMap<>();
                 for(String pkg:packages)for(HomeAppCatalog.Entry app:catalogApps)if(pkg.equals(app.id)){ids.add(pkg);names.add(app.label);Bitmap image=app.info==null?HomeEntryArtwork.render(context,app.label,app.id):previewArtwork(context,app);art.add(image);artwork.put(pkg,image);break;}
                 ArrayList<String> orderedIds=HomeOrderStore.project(new HomeOrderStore(context).load(),HomeAppCatalog.gridIds(catalogApps));
+                orderedIds=HomeAppCatalog.gridIds(orderedIds,packages,dockLimit,settings.showHomeApps(),settings.hideHomeAppsOnSecondScreen());
                 for(String id:previewGridIds(orderedIds,previewPackage,size,shape))for(HomeAppCatalog.Entry app:catalogApps)if(id.equals(app.id)){
                     gridIds.add(id);gridNames.add(app.label);Bitmap image=artwork.get(id);gridArt.add(image!=null?image:app.info==null?HomeEntryArtwork.render(context,app.label,app.id):previewArtwork(context,app));break;
                 }

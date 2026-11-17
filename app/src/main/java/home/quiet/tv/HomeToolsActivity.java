@@ -73,6 +73,7 @@ public final class HomeToolsActivity extends ManagementUi implements HomeQuickCo
     private void syncQuickHeader(){
         if(quickHeader==null)return;boolean shown="control".equals(mode)&&controls.getVisibility()==View.VISIBLE;
         for(int i=0;i<quickHeader.buttonIds.size();i++){boolean open=shown&&"control".equals(quickHeader.buttonIds.get(i));View pill=quickHeader.pills.get(i);pill.setSelected(open);pill.setActivated(headerFocus&&i==headerIndex);}
+        quickHeader.controlVisibility();
     }
     private void focusHeader(int index){headerFocus=true;headerIndex=index;controls.cancelAdjustments();syncQuickHeader();quickHeader.pills.get(index).requestFocusFromTouch();}
     private void closeQuick(){setResult(RESULT_OK,new Intent().putExtra("focus-button","control"));finish();}
@@ -114,7 +115,7 @@ public final class HomeToolsActivity extends ManagementUi implements HomeQuickCo
             try{if("keySounds".equals(id)){DesktopSettingsStore store=new DesktopSettingsStore(this);store.savePhoneValue("key-sounds",!store.keySounds());}
                 else{WallpaperStore store=WallpaperStore.get(this);WallpaperCatalog state=store.snapshot();if(state.weather||state.rotating){feedback(state.weather?"天气联动保持静音":"轮换背景保持静音");return;}store.sound(!state.sound);}
                 PhoneSettingsSession.get(this).configurationChanged();controls.refresh();
-            }catch(IOException error){feedback(error.getMessage());}return;
+            }catch(IOException error){error(error.getMessage());}return;
         }
         if("screensaver".equals(id)){
             controls.cancelAdjustments();setResult(RESULT_OK,new Intent().putExtra("home-action",id).putExtra("quick-origin",true));finish();

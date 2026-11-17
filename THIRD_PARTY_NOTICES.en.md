@@ -12,6 +12,8 @@ Quiet TV is independently maintained and based on [cleanyourtv](https://github.c
 | libadb-android | Apache-2.0, retaining its inherited BSD/MIT notices; see the [complete license directory](app/src/main/assets/licenses/) |
 | Bouncy Castle | MIT, [full text](app/src/main/assets/licenses/bouncycastle-LICENSE.md) |
 | NanoHTTPD | BSD-3-Clause, [full text](app/src/main/assets/licenses/nanohttpd-LICENSE.txt) |
+| JmDNS 3.6.5 (stable local hostname) | Apache-2.0, [full text](app/src/main/assets/licenses/libadb-Apache-2.0.txt), [upstream](https://github.com/jmdns/jmdns) |
+| SLF4J (JmDNS logging API) | MIT, [full text](app/src/main/assets/licenses/slf4j-MIT.txt) |
 | Lucide icons | ISC/MIT, [full text](app/src/main/assets/licenses/Lucide-LICENSE.txt) |
 | Outfit typeface | SIL OFL 1.1, [full text](app/src/main/assets/fonts/OFL.txt) |
 | China administrative division data | WTFPL 2.0, [full text](app/src/main/assets/licenses/china-regions-WTFPL.txt) |

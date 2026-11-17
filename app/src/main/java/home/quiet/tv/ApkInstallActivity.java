@@ -16,7 +16,7 @@ public final class ApkInstallActivity extends ManagementUi {
     private static final int INSTALL=7410,PERMISSION=7411;
     private static final ExecutorService worker=Executors.newSingleThreadExecutor();
     private volatile boolean closed;
-    private boolean resumed,waiting,viewRoute,fallback,installerOpened,autoBeginPending;
+    private boolean resumed,waiting,viewRoute,fallback,installerOpened,autoBeginPending,installationVerified;
     private String fileId;
     private ApkPackage apk;
     private File prepared;
@@ -40,7 +40,7 @@ public final class ApkInstallActivity extends ManagementUi {
         status=label("",13);QuickControlPreviewView.type(status,17.28f,28.288f,unit,UiPalette.SECONDARY);LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,-2);sp.topMargin=px(12.96f);sheet.body.addView(status,sp);
         sheet.action("返回文件",()->{finish();KeyFeedback.returned(this);});install=sheet.action("安装",this::begin);install.setEnabled(false);sheet.show(back);
         fileId=getIntent().getStringExtra("file");waiting=saved!=null&&saved.getBoolean("waiting");viewRoute=saved!=null&&saved.getBoolean("viewRoute");fallback=saved!=null&&saved.getBoolean("fallback");baseline=saved==null?-1:saved.getLong("baseline",-1);installerOpened=saved!=null&&saved.getBoolean("installer-opened");autoBeginPending=saved!=null&&saved.getBoolean("auto-begin-pending");
-        if(saved!=null){diagnosticAttempt=saved.getString("diagnosticAttempt","unknown");diagnosticStarted=saved.getLong("diagnosticStarted",-1);}
+        if(saved!=null){diagnosticAttempt=saved.getString("diagnosticAttempt","unknown");diagnosticStarted=saved.getLong("diagnosticStarted",-1);installationVerified=saved.getBoolean("installation-verified");}
         if(saved!=null&&saved.getString("prepared")!=null)prepared=new File(saved.getString("prepared"));
         worker.execute(()->{
             try{
@@ -62,13 +62,13 @@ public final class ApkInstallActivity extends ManagementUi {
     }
     private String sourceName()throws IOException{String name=getIntent().getStringExtra("source-name");return name==null?store().entry(fileId).name:name;}
     private void action(String label,Runnable run){install.setText(label);install.setEnabled(true);install.setOnClickListener(v->run.run());}
-    private void ready(){waiting=false;status.setText("确认后由系统安装器完成安装");action(apk.update?"更新应用":"安装",this::begin);}
+    private void ready(){waiting=false;if(installationVerified){status.setText("应用已安装");OperationFeedback.status(status,OperationFeedback.Kind.SUCCESS);install.setEnabled(false);return;}status.setText("确认后由系统安装器完成安装");status.setCompoundDrawables(null,null,null,null);action(apk.update?"更新应用":"安装",this::begin);}
     private String errorMessage(Exception error){
         if(error instanceof ApkPackage.Invalid)return error.getMessage();
         if(error instanceof UpdateInstallPreparation.Failure){String reason=((UpdateInstallPreparation.Failure)error).reason;return "storage_full".equals(reason)?"电视存储空间不足，无法准备安装文件":"copy_mismatch".equals(reason)?"安装文件副本校验失败":"安装文件目录不可用或读写失败";}
         return UpdateInstallPolicy.message(UpdateInstallPolicy.ioReason(error));
     }
-    private void fail(String message){waiting=false;status.setText(message);install.setEnabled(false);}
+    private void fail(String message){waiting=false;status.setText(message);OperationFeedback.status(status,OperationFeedback.Kind.ERROR);install.setEnabled(false);}
     @SuppressWarnings("deprecation")
     private boolean installationAllowed(){
         if(Build.VERSION.SDK_INT>=26)return UpdateInstaller.permitted(this);
@@ -89,14 +89,14 @@ public final class ApkInstallActivity extends ManagementUi {
     }
     private void beginWhenReady(){if(resumed&&autoBeginPending&&apk!=null&&!waiting){autoBeginPending=false;begin();}}
     private void begin(){
-        if(apk==null||waiting)return;autoBeginPending=false;
+        if(apk==null||waiting)return;autoBeginPending=false;installationVerified=false;
         diagnosticAttempt=java.util.UUID.randomUUID().toString();diagnosticStarted=android.os.SystemClock.elapsedRealtime();
         InstallDiagnostics.stage("received_apk",diagnosticAttempt,sessions()&&!fallback?"session":"file","begin",-1,diagnosticStarted,InstallDiagnostics.identity(apk),"receivedTransfer="+fileId);
         if(!installationAllowed()){
             InstallDiagnostics.stage("received_apk",diagnosticAttempt,"unknown","permission_required",-1,diagnosticStarted,InstallDiagnostics.identity(apk),"");
             permissionRequired();showPermissionDialog();return;
         }
-        waiting=true;install.setEnabled(false);status.setText("正在检查并准备安装…");
+        waiting=true;install.setEnabled(false);status.setText("正在检查并准备安装…");OperationFeedback.status(status,OperationFeedback.Kind.PROGRESS);
         worker.execute(()->{
             try{
                 File source=sourceFile();ApkPackage fresh=ApkPackage.inspect(this,source,sourceName());
@@ -159,7 +159,7 @@ public final class ApkInstallActivity extends ManagementUi {
     }
     private void checkResult(String unresolved){
         waiting=false;install.setEnabled(false);
-        worker.execute(()->{boolean installed=apk.installed(this,baseline);diagnosticReadback(installed);if(installed)removeCopy();runOnUiThread(()->{if(!closed){status.setText(installed?"应用已安装":unresolved);install.setEnabled(false);}});});
+        worker.execute(()->{boolean installed=apk.installed(this,baseline);diagnosticReadback(installed);if(installed)removeCopy();runOnUiThread(()->{if(!closed){installationVerified=installed;status.setText(installed?"应用已安装":unresolved);OperationFeedback.status(status,installed?OperationFeedback.Kind.SUCCESS:OperationFeedback.Kind.INFO);install.setEnabled(false);}});});
     }
     private void diagnosticReadback(boolean installed){
         String attempt=diagnosticAttempt;if(sessions()&&!fallback)attempt=ApkInstallSession.prefs(this).getString("diagnosticAttempt",attempt);
@@ -172,7 +172,7 @@ public final class ApkInstallActivity extends ManagementUi {
             diagnosticReadback(installed);
             runOnUiThread(()->{if(closed)return;
                 if(ApkInstallSession.status(this)>=0){refreshSession(false);return;}
-                if(installed){waiting=false;status.setText("应用已安装");install.setEnabled(false);}
+                if(installed){installationVerified=true;waiting=false;status.setText("应用已安装");OperationFeedback.status(status,OperationFeedback.Kind.SUCCESS);install.setEnabled(false);}
                 else if(active){waiting=true;status.setText("安装仍在进行，请稍后核对");action("核对结果",this::checkSessionReturn);}
                 else {waiting=false;status.setText("安装尚未完成或已取消，可重新选择安装");action("重新安装",this::begin);}
             });
@@ -192,7 +192,7 @@ public final class ApkInstallActivity extends ManagementUi {
     }
     @Override protected void onResume(){super.onResume();resumed=true;if(sessions()){ApkInstallSession.changed=()->refreshSession(true);if(apk!=null)refreshSession(false);}beginWhenReady();}
     @Override protected void onPause(){resumed=false;if(sessions())ApkInstallSession.changed=null;super.onPause();}
-    @Override protected void onSaveInstanceState(Bundle saved){super.onSaveInstanceState(saved);saved.putBoolean("waiting",waiting);saved.putString("diagnosticAttempt",diagnosticAttempt);saved.putLong("diagnosticStarted",diagnosticStarted);saved.putBoolean("installer-opened",installerOpened);saved.putBoolean("auto-begin-pending",autoBeginPending);saved.putLong("baseline",baseline);saved.putBoolean("viewRoute",viewRoute);saved.putBoolean("fallback",fallback);if(prepared!=null)saved.putString("prepared",prepared.getAbsolutePath());}
-    @Override public void finish(){setResult(RESULT_OK,new Intent().putExtra("installer-opened",installerOpened));super.finish();}
+    @Override protected void onSaveInstanceState(Bundle saved){super.onSaveInstanceState(saved);saved.putBoolean("waiting",waiting);saved.putBoolean("installation-verified",installationVerified);saved.putString("diagnosticAttempt",diagnosticAttempt);saved.putLong("diagnosticStarted",diagnosticStarted);saved.putBoolean("installer-opened",installerOpened);saved.putBoolean("auto-begin-pending",autoBeginPending);saved.putLong("baseline",baseline);saved.putBoolean("viewRoute",viewRoute);saved.putBoolean("fallback",fallback);if(prepared!=null)saved.putString("prepared",prepared.getAbsolutePath());}
+    @Override public void finish(){setResult(RESULT_OK,new Intent().putExtra("installer-opened",installerOpened).putExtra("installation-verified",installationVerified));super.finish();}
     @Override protected void onDestroy(){closed=true;if(sheet!=null){sheet.dialog.setOnDismissListener(null);sheet.dialog.dismiss();}super.onDestroy();}
 }

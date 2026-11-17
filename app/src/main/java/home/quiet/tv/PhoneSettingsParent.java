@@ -8,9 +8,10 @@ import org.json.*;
 /** Short-lived authority is private to this connected browser generation, never a stored web PIN. */
 final class PhoneSettingsParent {
     static final class Grant {final String stamp;final long expires;Grant(String stamp,long now){this.stamp=stamp;expires=now+5*60_000L;}boolean valid(String current,long now){return now<expires&&!stamp.isEmpty()&&stamp.equals(current);}}
-    private final Context context;private volatile Grant grant;
+    private final Context context;private volatile Grant grant;private volatile PhoneSettingsServer.Active connection;
     PhoneSettingsParent(Context context){this.context=context;}
-    boolean authorized(){ChildModeStore store=new ChildModeStore(context);Grant current=grant;return current!=null&&current.valid(store.credential(),SystemClock.elapsedRealtime());}
+    void end(){connection=null;grant=null;}
+    boolean authorized(){ChildModeStore store=new ChildModeStore(context);Grant current=grant;PhoneSettingsServer.Active connected=connection;return connected!=null&&connected.valid()&&current!=null&&current.valid(store.credential(),SystemClock.elapsedRealtime());}
     void require(PhoneSettingsServer.Active active)throws IOException{if(!active.valid())throw new PhoneSettingsServer.Ended();if(!authorized())throw new PhoneSettingsServer.Rejected("请先完成家长验证");}
     JSONObject state()throws JSONException{ChildModeStore store=new ChildModeStore(context);return new JSONObject().put("configured",store.configured()).put("authorized",authorized()).put("retrySeconds",Math.max(0,(store.retryAfter()-SystemClock.elapsedRealtime()+999)/1000));}
     JSONObject execute(JSONObject value,PhoneSettingsServer.Active active)throws IOException{
@@ -29,7 +30,7 @@ final class PhoneSettingsParent {
             synchronized(ChildModeStore.LOCK){
                 if(!active.valid())throw new PhoneSettingsServer.Ended();if(!before.equals(store.credential()))throw new PhoneSettingsServer.Rejected("家长凭据已变化，请重新验证");
                 if(!valid){trace.finish("REJECTED","credential_mismatch");store.failed();throw new PhoneSettingsServer.Rejected(action.equals("recover")?"恢复码不正确":"密码不正确，请重试");}
-                if(action.equals("change"))require(active);if(prepared!=null&&!store.saveCredential(prepared,newPin))throw new IOException("家长密码保存未确认，请验证新密码后核对");store.verified();if(prepared!=null)ChildUsageService.changed();grant=new Grant(store.credential(),SystemClock.elapsedRealtime());
+                if(action.equals("change"))require(active);if(prepared!=null&&!store.saveCredential(prepared,newPin))throw new IOException("家长密码保存未确认，请验证新密码后核对");store.verified();if(prepared!=null)ChildUsageService.changed();connection=active;grant=new Grant(store.credential(),SystemClock.elapsedRealtime());
                 trace.finish("COMPLETED","authorized");JSONObject result=state();if(action.equals("setup"))result.put("recovery",store.recovery());return result;
             }
         }catch(IOException e){trace.finish("UNKNOWN",e.getClass().getSimpleName());throw e;}catch(JSONException e){trace.finish("REJECTED","invalid_request");throw new PhoneSettingsServer.BadInput();}catch(IllegalStateException e){trace.finish("FAILED","credential_unavailable");throw new PhoneSettingsServer.Rejected("家长凭据无法读取，请使用恢复码重设");}

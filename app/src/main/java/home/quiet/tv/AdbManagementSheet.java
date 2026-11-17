@@ -45,7 +45,7 @@ final class AdbManagementSheet {
         if(sheet==null)return;
         AdbConnectionKeeper.State value=connection.state();status.setText(connection.label());description.setText(connection.description()+(connection.waitingAuthorization()?"\n剩余等待 "+connection.authorizationSeconds()+" 秒":""));debugging.setText(connection.debugging());port.setText(String.valueOf(connection.port()));
         int color;switch(connection.tone()){case "success":color=UiPalette.STATUS_SUCCESS;break;case "warning":color=UiPalette.STATUS_WARNING;break;case "progress":color=UiPalette.STATUS_PROGRESS;break;case "error":color=UiPalette.STATUS_ERROR;break;default:color=UiPalette.SECONDARY;}
-        status.setTextColor(color);QuickControlIcon glyph=new QuickControlIcon(value==AdbConnectionKeeper.State.CONNECTED?"check-circle":"unplug");glyph.color(color);icon.setImageDrawable(glyph);
+        status.setTextColor(color);QuickControlIcon glyph=new QuickControlIcon(value==AdbConnectionKeeper.State.CONNECTED?"circle-check":connection.tone().equals("progress")?"loader-circle":connection.tone().equals("error")?"circle-exclamation-point":"unplug");glyph.color(color);icon.setImageDrawable(glyph);
         primary.setText(value==AdbConnectionKeeper.State.CONNECTED?"断开连接":value==AdbConnectionKeeper.State.CONNECTING?"取消连接":"连接 ADB");
         check.setEnabled(value!=AdbConnectionKeeper.State.CONNECTING);
     }

@@ -19,7 +19,7 @@ final class SettingsSheetBackdrop extends Drawable implements GlassStyle.Listene
     private final Matrix imageMatrix=new Matrix();
     private Shader shade;
     private float shadeBottom;
-    private boolean prepared,light;
+    private boolean prepared,light,capsule;
     private volatile int generation;
     private final GlassStyle glassStyle;
     private final DockBackdropDrawable.Background background;
@@ -54,6 +54,7 @@ final class SettingsSheetBackdrop extends Drawable implements GlassStyle.Listene
     @Override public void glassChanged(){release();shade=null;panel.setAlpha(1f);if(glassStyle.rendering()&&panel.isShown()&&panel.getWindowToken()!=null&&panel.hasWindowFocus())prepare(true,null);invalidateSelf();}
     void refresh(){prepare(true,null);}
     void light(){light=true;shade=null;invalidateSelf();}
+    SettingsSheetBackdrop capsule(){capsule=true;return this;}
     void prepare(){prepare(false,null);}
     boolean ready(){return prepared||!glassStyle.rendering();}
     private Bitmap snapshot(){
@@ -85,9 +86,10 @@ final class SettingsSheetBackdrop extends Drawable implements GlassStyle.Listene
     }
     @Override public void draw(Canvas canvas){
         if(!glassStyle.rendering()&&image!=null)release();
-        area.set(getBounds());float radius=(light?18:SurfaceCorners.PANEL)*unit;paint.setShader(null);paint.setColor(light?0xffcdd4e2:Color.BLACK);if(glassStyle.rendering())paint.setShadowLayer(7.68f*unit,0,2.4f*unit,0x21000000);SurfaceCorners.draw(canvas,area,radius,radius,paint);paint.clearShadowLayer();
+        area.set(getBounds());float radius=capsule?area.height()/2:(light?18:SurfaceCorners.PANEL)*unit;paint.setShader(null);paint.setColor(light?0xffcdd4e2:Color.BLACK);if(glassStyle.rendering()&&!capsule)paint.setShadowLayer(7.68f*unit,0,2.4f*unit,0x21000000);SurfaceCorners.draw(canvas,area,radius,radius,paint);paint.clearShadowLayer();
         if(image!=null){if(shaderImage!=image){shaderImage=image;imageShader=new BitmapShader(image,Shader.TileMode.CLAMP,Shader.TileMode.CLAMP);}panel.getLocationOnScreen(position);imageMatrix.setScale(screenWidth/image.getWidth(),screenHeight/image.getHeight());imageMatrix.postTranslate(-position[0],-position[1]);imageShader.setLocalMatrix(imageMatrix);paint.setShader(imageShader);SurfaceCorners.draw(canvas,area,radius,radius,paint);paint.setShader(null);paint.setColor(light?0xf2d4dae8:0x35000000);SurfaceCorners.draw(canvas,area,radius,radius,paint);if(shade==null||shadeBottom!=area.bottom){shadeBottom=area.bottom;shade=new LinearGradient(0,0,0,area.bottom,light?0x0cffffff:0x1f000000,light?0x15001058:0x33000000,Shader.TileMode.CLAMP);}paint.setShader(shade);}
         else paint.setColor(light?0xffcdd4e2:0xff202124);
+        if(capsule){paint.setShader(null);paint.setColor(image==null?0xff454641:0x88545550);SurfaceCorners.draw(canvas,area,radius,radius,paint);return;}
         SurfaceCorners.draw(canvas,area,radius,radius,paint);paint.setShader(null);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(.75f*unit);paint.setColor(light?0xe6ffffff:0x4dffffff);area.inset(.375f*unit,.375f*unit);SurfaceCorners.draw(canvas,area,radius-.375f*unit,radius-.375f*unit,paint);paint.setStyle(Paint.Style.FILL);
     }
     @Override public void setAlpha(int alpha){paint.setAlpha(alpha);invalidateSelf();}

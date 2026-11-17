@@ -15,7 +15,7 @@ import java.util.concurrent.*;
 
 /** A management tab with independent, explicitly opened LAN sessions and read-only sources. */
 final class FileTransferPanel extends ManagementPanel {
-    static final int PAGE=6,PICK=7401,TREE=7402,PERMISSION=7403;
+    static final int PAGE=6,PICK=7401,TREE=7402,PERMISSION=7403,PREVIEW=7404;
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private final Handler main=new Handler(Looper.getMainLooper());
     private FileTransferStore store;
@@ -99,7 +99,7 @@ final class FileTransferPanel extends ManagementPanel {
     private void rememberLocalDirectory(){
         final File selected=folder;final int target=source;if(selected==null || target==0)return;
         worker.execute(()->{String problem=null;try{FileTransferSource.LocalDirectories.remember(activity,target==2,selected);}catch(IOException|SecurityException error){problem="目录未能保存，请检查存储连接或权限";}
-            final String notice=problem;main.post(()->{if(!destroyed&&showing&&source==target)message(notice==null?"已记住当前目录":notice);});
+            final String notice=problem;main.post(()->{if(!destroyed&&showing&&source==target){if(notice==null)success("已记住当前目录");else error(notice);}});
         });
     }
     private void resetLocalDirectory(){
@@ -205,10 +205,11 @@ final class FileTransferPanel extends ManagementPanel {
         }
     }
     private void dismissFileDialog(){if(fileDialog!=null){fileDialog.dismiss();fileDialog=null;}}
-    private void confirmDelete(FileTransferStore.Entry entry){Sheet sheet=new Sheet("删除接收文件？");sheet.text(entry.name+"\n已导入的壁纸不受影响。");Button cancel=sheet.action("取消",sheet.dialog::dismiss);sheet.action("删除",()->{sheet.dialog.dismiss();worker.execute(()->{try{store.remove(entry.id);activity.getSharedPreferences("file-transfer-wallpapers",0).edit().remove(entry.id).apply();main.post(()->{selected=null;renderActions();refresh(false);});}catch(IOException error){main.post(()->message("文件删除未完成"));}});});sheet.show(cancel);}
+    private void confirmDelete(FileTransferStore.Entry entry){Sheet sheet=new Sheet("删除接收文件？");sheet.text(entry.name+"\n已导入的壁纸不受影响。");Button cancel=sheet.action("取消",sheet.dialog::dismiss);sheet.action("删除",()->{sheet.dialog.dismiss();worker.execute(()->{try{store.remove(entry.id);activity.getSharedPreferences("file-transfer-wallpapers",0).edit().remove(entry.id).apply();main.post(()->{selected=null;renderActions();refresh(false);success("接收文件已删除");});}catch(IOException error){main.post(()->message("文件删除未完成"));}});});sheet.show(cancel);}
     private void pick(){Intent intent=new Intent(Build.VERSION.SDK_INT>=19?Intent.ACTION_OPEN_DOCUMENT:Intent.ACTION_GET_CONTENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE);try{activity.startActivityForResult(intent,PICK);}catch(ActivityNotFoundException|SecurityException error){if(Build.VERSION.SDK_INT>=19)try{activity.startActivityForResult(new Intent(Intent.ACTION_GET_CONTENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE),PICK);return;}catch(ActivityNotFoundException|SecurityException unavailable){}message("系统文件选择器不可用，请选择可读取的本地存储或使用局域网传输");}}
     private void pickTree(){if(Build.VERSION.SDK_INT<21){pick();return;}treeRequestSource=source==2?2:1;try{activity.startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION|Intent.FLAG_GRANT_PREFIX_URI_PERMISSION),TREE);}catch(ActivityNotFoundException|SecurityException error){message("目录授权入口不可用，请尝试选择文件或局域网传输");}}
     @Override void activityResult(int request,int result,Intent data){
+        if(request==PREVIEW){if(result==android.app.Activity.RESULT_OK&&data!=null&&data.getBooleanExtra("wallpaper-applied",false))activity.success("已设为壁纸");return;}
         if(result!=android.app.Activity.RESULT_OK||data==null||data.getData()==null)return;
         if(request==TREE&&Build.VERSION.SDK_INT>=21){
             final Uri granted=data.getData();final int target=treeRequestSource,flags=data.getFlags();
@@ -240,7 +241,7 @@ final class FileTransferPanel extends ManagementPanel {
     private volatile long lastProgress;
     private void progress(long bytes,long total,int job){long now=SystemClock.elapsedRealtime();if(now-lastProgress<400&&bytes!=total)return;lastProgress=now;main.post(()->{if(!destroyed&&(job<0?-job==sessionGeneration:job==jobGeneration))status.setText("正在接收  "+FileTransferSource.size(bytes)+(total>0?" / "+FileTransferSource.size(total):""));});}
     private void install(String id){activity.startActivity(new Intent(activity,ApkInstallActivity.class).putExtra("file",id));}
-    private void preview(String id){Bitmap backdrop=Bitmap.createBitmap(320,Math.max(1,Math.round(320f*getResources().getDisplayMetrics().heightPixels/getResources().getDisplayMetrics().widthPixels)),Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(backdrop);canvas.scale(320f/getResources().getDisplayMetrics().widthPixels,320f/getResources().getDisplayMetrics().widthPixels);activity.drawSheetBackdrop(canvas);activity.startActivity(new Intent(activity,FileTransferPreviewActivity.class).putExtra("file",id).putExtra("backdrop",backdrop));backdrop.recycle();}
+    private void preview(String id){Bitmap backdrop=Bitmap.createBitmap(320,Math.max(1,Math.round(320f*getResources().getDisplayMetrics().heightPixels/getResources().getDisplayMetrics().widthPixels)),Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(backdrop);canvas.scale(320f/getResources().getDisplayMetrics().widthPixels,320f/getResources().getDisplayMetrics().widthPixels);activity.drawSheetBackdrop(canvas);activity.startActivityForResult(new Intent(activity,FileTransferPreviewActivity.class).putExtra("file",id).putExtra("backdrop",backdrop),PREVIEW);backdrop.recycle();}
     private void offer(String id){if(server==null){startSession(()->offer(id));return;}try{server.offer(id);status.setText("文件已准备好，扫码下载");showCode();}catch(IOException error){message("文件已移除，请重新选择");}}
     private void startSession(Runnable ready){
         if(store==null||!showing)return;String host=WallpaperUploadPanel.lanAddress(activity);if(host==null){status.setText("未连接局域网，请连接 Wi-Fi 或网线");return;}

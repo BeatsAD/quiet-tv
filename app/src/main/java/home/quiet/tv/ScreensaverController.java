@@ -63,7 +63,7 @@ final class ScreensaverController {
     }
     void enter(){
         main.removeCallbacks(idle);if(state!=State.OFF||!allowed())return;
-        settings=read();if(settings==null){Toast.makeText(activity,chinese?"屏保配置无法读取":"Unable to read screensaver settings",Toast.LENGTH_SHORT).show();return;}
+        settings=read();if(settings==null){OperationFeedback.get(activity).show(OperationFeedback.Kind.ERROR,chinese?"屏保配置无法读取":"Unable to read screensaver settings");return;}
         host.captureFocus();present();
     }
     private String mediaKey(ScreensaverSettings value,WallpaperCatalog catalog){return value.mode+":"+media.imageKey(value.resolved(catalog))+":"+catalog.weather+":"+catalog.weatherDayNight;}

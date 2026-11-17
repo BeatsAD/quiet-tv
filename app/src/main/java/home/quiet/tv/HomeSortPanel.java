@@ -74,7 +74,7 @@ final class HomeSortPanel extends ManagementPanel {
                     if(listFocused)focusEntry(selected,true);
                     if(refreshAgain){refreshAgain=false;refresh();}
                 });
-            }catch(Exception e){runOnUiThread(()->{if(isDestroyed() || isFinishing())return;refreshing=false;feedback("无法读取应用，请重新进入");});}
+            }catch(Exception e){runOnUiThread(()->{if(isDestroyed() || isFinishing())return;refreshing=false;error("无法读取应用，请重新进入");});}
         });
     }
     private void updateHint(){statusHint.setText(moving.isEmpty()?"确定选中应用，方向键调整顺序":"方向键移动  确定放下保存  返回取消");}
@@ -103,7 +103,7 @@ final class HomeSortPanel extends ManagementPanel {
             runOnUiThread(()->{
                 pendingSaves--;if(success){lastSaved.clear();lastSaved.addAll(value);}
                 if(isDestroyed() || isFinishing())return;
-                if(!success && pendingSaves==0){order.clear();order.addAll(lastSaved);moving="";render(order.contains(selected)?selected:order.isEmpty()?"":order.get(0));feedback("保存失败，已恢复上次保存的顺序");}
+                if(!success && pendingSaves==0){order.clear();order.addAll(lastSaved);moving="";render(order.contains(selected)?selected:order.isEmpty()?"":order.get(0));error("保存失败，已恢复上次保存的顺序");}
                 if(pendingSaves==0 && afterSave!=null){Runnable action=afterSave;afterSave=null;action.run();}
                 else if(pendingSaves==0 && refreshAgain)refresh();
             });

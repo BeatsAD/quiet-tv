@@ -55,7 +55,7 @@ public final class FileTransferPreviewActivity extends Activity {
         try(InputStream input=new FileInputStream(source)){return WallpaperImport.accept(this,input,source.length(),name,movie,()->!closed,"source=file_transfer receivedTransfer="+transfer);}
     }
     private void apply(){
-        if(entry==null||closed)return;apply.setEnabled(false);worker.execute(()->{try{WallpaperStore.get(this).select(entry.id);runOnUiThread(()->{if(!closed){Toast.makeText(this,"已设为壁纸",Toast.LENGTH_SHORT).show();finish();}});}catch(IOException error){runOnUiThread(()->{if(!closed){status.setText("壁纸保存失败，请重试");apply.setEnabled(true);}});}});
+        if(entry==null||closed)return;apply.setEnabled(false);worker.execute(()->{try{WallpaperStore.get(this).select(entry.id);runOnUiThread(()->{if(!closed){setResult(RESULT_OK,new Intent().putExtra("wallpaper-applied",true));finish();}});}catch(IOException error){runOnUiThread(()->{if(!closed){status.setText("壁纸保存失败，请重试");OperationFeedback.status(status,OperationFeedback.Kind.ERROR);apply.setEnabled(true);}});}});
     }
     @Override protected void onResume(){super.onResume();if(video!=null){video.setSound(WallpaperStore.get(this).snapshot().sound);video.setPaused(false);}}
     @Override protected void onPause(){if(video!=null)video.setPaused(true);super.onPause();}

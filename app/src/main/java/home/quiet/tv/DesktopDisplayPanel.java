@@ -159,7 +159,7 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
             if(activeAdjustment!=this||!draft.editing())return true;int candidate=draft.value(),original=draft.original();
             draft.commit();activeAdjustment=null;saveError="";
             if(candidate==original){finishSave(candidate);return true;}
-            saving=true;activity.saveSetting(()->{if(appearance)desktopStore.saveAppearance(property,candidate);else desktopStore.saveWallpaperEffect(second,property,candidate,original);},error->{saving=false;if(error.isEmpty())finishSave(candidate);else{if(activeAdjustment==null&&preview!=null){if(appearance)preview.clearAppearancePreview(property);else preview.clearEffectPreview();}render(committed());previewSaveFailed(error);}});
+            saving=true;activity.saveSetting(()->{if(appearance)desktopStore.saveAppearance(property,candidate);else desktopStore.saveWallpaperEffect(second,property,candidate,original);},error->{saving=false;if(error.isEmpty()){finishSave(candidate);success(tr("外观设置已保存","Appearance saved"));}else{if(activeAdjustment==null&&preview!=null){if(appearance)preview.clearAppearancePreview(property);else preview.clearEffectPreview();}render(committed());previewSaveFailed(error);}});
             render(candidate);renderPreviewFeedback();return true;
         }
         private void finishSave(int candidate){if(activeAdjustment==null&&preview!=null){if(appearance)preview.clearAppearancePreview(property);else preview.clearEffectPreview();if("fade".equals(property))preview.fadeIn(candidate);}render(candidate);renderPreviewFeedback();}
@@ -213,7 +213,7 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
         preview.pause();preview.setVisibility(View.GONE);previewTitle.setText(tr("屏保预览","Screensaver preview"));saverPreview.setVisibility(View.VISIBLE);saverPreview.show(settings,candidate);resumeMediaPreview();renderPreviewFeedback();
     }
     private void previewNotice(String text){if(saverError!=null){saverError.setText(text);saverError.setVisibility(View.GONE);}renderPreviewFeedback();}
-    private void previewSaveFailed(String text){saveError=text;feedback(text);renderPreviewFeedback();}
+    private void previewSaveFailed(String text){saveError=text;error(text);renderPreviewFeedback();}
     private void renderPreviewFeedback(){
         if(previewFeedback==null||preview==null)return;
         PreviewSyncState state=saverScene&&saverPreview!=null?saverPreview.sync:preview.sync;

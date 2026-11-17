@@ -38,13 +38,13 @@ public class QuietApplication extends Application {
             public void onActivityDestroyed(Activity activity){}
         });
         HomeGuardSync.refresh(this);HomeGuardAdb.watch(this);
-        if(HomeGuardState.unlocked(this))ManagementAdb.get(this).request();
+        if(HomeGuardState.unlocked(this)){ManagementAdb.get(this).request();PhoneSettingsSession.get(this).restore();}
         LegacyAdbHomeGuard.refresh(this);
         BroadcastReceiver screen=new BroadcastReceiver(){@Override public void onReceive(Context context,Intent intent){
             DiagnosticLog.info("screen",intent.getAction());
             HomeGuardWake.screen(context,intent.getAction());
             if(Intent.ACTION_SCREEN_OFF.equals(intent.getAction())){HomeGuardRecovery.cancelHandover();KeySounds.stop();SettingsPageCapture.stopCurrent("screen_off");InputSourceObservation.stop("screen_off");SourcePairing pairing=SourcePairing.existing();if(pairing!=null)pairing.cancel("tv",true);}
-            if(Intent.ACTION_USER_UNLOCKED.equals(intent.getAction())){DesktopBackups.initialize(context);KeySounds.prepare(context);}
+            if(Intent.ACTION_USER_UNLOCKED.equals(intent.getAction())){DesktopBackups.initialize(context);KeySounds.prepare(context);PhoneSettingsSession.get(context).restore();}
             if(!Intent.ACTION_SCREEN_OFF.equals(intent.getAction())){if(HomeGuardState.unlocked(context))new DesktopRoutes(context).restoreAfterUpgrade(true);BootHomeActivity.reconcile(context);}
             if(!Intent.ACTION_SCREEN_OFF.equals(intent.getAction())){HomeGuardSync.refresh(context);HomeGuardAdb.ensure(context);HomeGuardRecovery.ensureBinding(context,"亮屏或解锁恢复");if(HomeGuardState.unlocked(context))ManagementAdb.get(context).request();}
         }};

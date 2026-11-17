@@ -41,7 +41,7 @@ final class SourceToolsSheet {
     private LinearLayout group(String title){if(!title.isEmpty())heading(title);LinearLayout group=ui.listGroup();group.setBackgroundDrawable(ui.surface(UiPalette.CONTROL,UiPalette.CONTROL,UiPalette.EDGE,15));block(group,0,16);return group;}
     private DesktopSettingsRow row(LinearLayout group,String title,String value,String tag,Runnable operation,boolean enabled){DesktopSettingsRow row=new DesktopSettingsRow(ui,title,"",false);row.hideIcon();row.setTag(tag);row.value(value);row.tail("arrow");row.available(enabled&&!busy);row.setAlpha(1f);row.textSizes(13.92f,11.52f);identify(row,tag);row.setOnClickListener(v->{if(!busy)operation.run();});group.addView(row,new LinearLayout.LayoutParams(-1,p(screen.equals("more")?50:59.629f)));return row;}
     private void save(Write write){try{write.run();error="";render();}catch(Exception failure){fail(failure.getMessage());}}
-    private void fail(String value){error=value==null||value.isEmpty()?"信号源操作未完成，请重试":value;busy=false;render();}
+    private void fail(String value){error=value==null||value.isEmpty()?"信号源操作未完成，请重试":value;busy=false;render();ui.error("信号源操作未完成");}
     void show(){if(open())return;screen=searchParent="home";focus="source-target";error=port=request=candidateId=groupKey=lastKey=pendingWrite=dismissedPending="";raw=enableAfterTest=busy=calibratingSaved=false;active=true;create();}
     private void create(){
         origin=ui.getCurrentFocus();sheet=ui.new Sheet("信号源配置");ManagementUi.Sheet own=sheet;close=sheet.settingsLayout("关闭",this::back);identify(close,"sheet-close");sheet.settingsActions(false);
@@ -50,9 +50,9 @@ final class SourceToolsSheet {
         try{snapshot=pairing.snapshot();}catch(Exception failure){error="无法读取当前信号源状态";}String target=focus;render();sheet.show(null);focus=target;restoreFocus();resume();
     }
     private void restoreFocus(){if(!open())return;String target=focus;sheet.body.post(()->{if(!open())return;View view=sheet.box.findViewWithTag(target);if(view==null||!view.isEnabled()||!view.isShown())view=close;view.requestFocusFromTouch();android.graphics.Rect rect=new android.graphics.Rect();view.getDrawingRect(rect);view.requestRectangleOnScreen(rect,false);});}
-    private void go(String next,String target){if(next.equals("logs"))logsParent=screen;if(next.equals("home"))calibratingSaved=false;diagnostics.hide();screen=next;focus=target;error="";render();}
+    private void go(String next,String target){OperationFeedback.get(ui).hide();if(next.equals("logs"))logsParent=screen;if(next.equals("home"))calibratingSaved=false;diagnostics.hide();screen=next;focus=target;error="";render();}
     private void render(){
-        if(!open())return;String navigation=screen.equals("home")?"关闭":"返回";close.setText(navigation);close.setContentDescription(navigation);sheet.fixedSize(448,screen.equals("home")?224:screen.equals("more")?228:440);if(screen.equals("logs")){diagnostics.show(sheet,true);return;}
+        if(!open())return;String navigation=screen.equals("home")?"关闭":"返回";close.setText(navigation);close.setContentDescription(navigation);sheet.contentSize(448,screen.equals("home")?224:screen.equals("more")?228:440);if(screen.equals("logs")){diagnostics.show(sheet,true);return;}
         String target=focus;sheet.heading.setText(screen.equals("more")?"更多设置":screen.equals("restore-options")?"恢复信号源配置":screen.equals("diagnostics")?"诊断与反馈":screen.equals("calibrate")&&calibratingSaved?"校正端口名称":"信号源配置");sheet.body.removeAllViews();progress=null;sheet.settingsActions(false);
         if(screen.equals("home"))home();else if(screen.equals("more"))more();else if(screen.equals("restore-options"))restoreOptions();else if(screen.equals("search"))searchBody();else if(screen.equals("methods"))methods();else if(screen.equals("test"))testBody();else if(screen.equals("confirm"))confirmation();else if(screen.equals("calibrate"))calibration(false);else if(screen.equals("quality")||screen.equals("diagnostics"))quality();else if(screen.equals("observe"))observationStart();else if(screen.equals("observing"))observing();else if(screen.equals("observed"))observed();else if(screen.equals("observe-port"))calibration(true);else if(screen.equals("finishing"))copy("正在保存记录…",true);else if(screen.equals("restore"))restoreBody();else if(screen.equals("boot"))bootConfirmation();else if(screen.equals("saved-confirm"))savedConfirmation();
         if(busy)copy("正在处理…",true);if(!error.isEmpty()){TextView problem=text(error,15.36f,23.04f,UiPalette.TEXT);problem.setPadding(p(17.92f),p(12.8f),p(17.92f),p(12.8f));problem.setBackgroundDrawable(ui.surface(0x1affffff,0x1affffff,UiPalette.EDGE_STRONG,6.72f));block(problem,16,0);}focus=target;restoreFocus();
@@ -142,7 +142,7 @@ final class SourceToolsSheet {
                     if(!same){enableAfterTest=false;go("home","source-target");fail("上次任务已结束或发生变化，请核对当前信号源配置");}
                     else if(!value.optString("error").isEmpty())fail(value.optString("error"));
                     else if(operation.equals("confirm")&&!state.equals("SAVED"))fail("测试结果未保存，请重新核对");
-                    else{boolean conflict=enableAfterTest&&!expectedStartup.equals(boot.target());if(enableAfterTest&&!conflict&&boot.tested())boot.hdmiBoot(true);enableAfterTest=false;go("home","source-target");if(conflict)fail("信号源已保存，开机目标已变化，请重新设置");}
+                    else{boolean conflict=enableAfterTest&&!expectedStartup.equals(boot.target());if(enableAfterTest&&!conflict&&boot.tested())boot.hdmiBoot(true);enableAfterTest=false;go("home","source-target");if(conflict)fail("信号源已保存，开机目标已变化，请重新设置");else ui.success("信号源配置已保存");}
                 }
             }
             else if("tv".equals(value.optString("owner"))&&test!=null&&state.equals("DISPATCHED_UNVERIFIED")&&(!request.equals(test.optString("request"))||screen.equals("test"))){request=test.optString("request");candidateId=test.optString("candidate");screen="confirm";focus="source-uncertain";busy=false;render();}

@@ -56,15 +56,15 @@ final class IconLibraryReplaceSheet {
             request.check();AppCoverPolicy.require(activity,pkg);metadata=LibraryCover.metadata(item,shape,form,revision);original=AppArtwork.load(activity,target);candidate=covers.prepared();IconLibraryArtwork.prepare(artwork,item,shape,form,candidate,activity.chinese(),request);next=AppCoverImages.load(candidate,360);if(next==null)throw new IOException(tr("图标读取失败","Unable to read icon"));request.check();
             if(!expected.equals(covers.key(pkg)))throw new IOException(tr("当前图标已变化，请重新打开确认","Icon changed; reopen confirmation"));
             Bitmap old=original,chosen=next;original=null;next=null;main.post(()->{if(closed){old.recycle();chosen.recycle();return;}current=old;selected=chosen;before.setImageBitmap(current);after.setImageBitmap(selected);status.setVisibility(View.GONE);confirm.setEnabled(true);});
-        }catch(IOException|JSONException|RuntimeException failure){String message=failure.getMessage();main.post(()->{if(!closed){status.setText(message==null?tr("图标读取失败","Unable to read icon"):message);confirm.setEnabled(false);}});}
+        }catch(IOException|JSONException|RuntimeException failure){String message=failure.getMessage();main.post(()->{if(!closed){status.setText(message==null?tr("图标读取失败","Unable to read icon"):message);OperationFeedback.status(status,OperationFeedback.Kind.ERROR);confirm.setEnabled(false);}});}
         finally{if(original!=null)original.recycle();if(next!=null)next.recycle();}
     }
     private void commit(){
-        if(closed||committing||selected==null||candidate==null)return;committing=true;sheet.dialog.setCancelable(false);sheet.box.setEnabled(false);close.setEnabled(false);cancel.setEnabled(false);confirm.setEnabled(false);status.setText(tr("正在替换图标…","Replacing icon…"));status.setVisibility(View.VISIBLE);
+        if(closed||committing||selected==null||candidate==null)return;committing=true;sheet.dialog.setCancelable(false);sheet.box.setEnabled(false);close.setEnabled(false);cancel.setEnabled(false);confirm.setEnabled(false);status.setText(tr("正在替换图标…","Replacing icon…"));OperationFeedback.status(status,OperationFeedback.Kind.PROGRESS);status.setVisibility(View.VISIBLE);
         worker.execute(()->{String error=null;boolean applied=false;try{AppCoverPolicy.require(activity,pkg);applied=covers.applyLibrary(pkg,candidate,metadata,expected);}catch(IOException|RuntimeException failure){error=failure.getMessage();if(error==null)error=tr("图标替换失败","Unable to replace icon");}String failure=error;boolean saved=applied;main.post(()->{
             committing=false;if(saved)PhoneSettingsSession.get(activity).configurationChanged();if(closed)return;
-            if(failure==null){close();changed.run();activity.feedback(saved?tr("已替换「"+label+"」图标","Icon replaced for "+label):tr("已使用此图标","This icon is already applied"));}
-            else{sheet.dialog.setCancelable(true);sheet.box.setEnabled(true);close.setEnabled(true);cancel.setEnabled(true);status.setText(failure);cancel.requestFocus();}
+            if(failure==null){close();changed.run();if(saved)activity.success(tr("已替换「"+label+"」图标","Icon replaced for "+label));else activity.feedback(tr("已使用此图标","This icon is already applied"));}
+            else{sheet.dialog.setCancelable(true);sheet.box.setEnabled(true);close.setEnabled(true);cancel.setEnabled(true);status.setText(failure);OperationFeedback.status(status,OperationFeedback.Kind.ERROR);confirm.setEnabled(true);cancel.requestFocus();}
         });});
     }
     void close(){if(committing||closed)return;ManagementUi.Sheet own=sheet;release();own.dialog.setOnDismissListener(null);own.dialog.dismiss();}

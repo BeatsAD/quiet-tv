@@ -118,7 +118,7 @@ final class AppCoverUploadPanel {
     private void commit(){
         if(committing||!chosen||pending==null)return;File ready=pending;String target=pkg;busy(true);
         worker.execute(()->{String error=null;try{AppCoverPolicy.require(activity,target);store.apply(target,ready);}catch(IOException e){error=e.getMessage();}String failure=error;
-            main.post(()->{busy(false);if(failure==null){pending=null;close();if(!destroyed&&!activity.isFinishing())activity.feedback("已更换应用封面");}else if(sheet!=null){notice=failure;updateConnection();updateApply();if(apply!=null)apply.requestFocus();}else if(!retaining)discardPending();});});
+            main.post(()->{busy(false);if(failure==null){pending=null;close();if(!destroyed&&!activity.isFinishing())activity.success("已更换应用封面");}else if(sheet!=null){notice=failure;updateConnection();updateApply();activity.error("封面保存失败，当前选择已保留");if(apply!=null)apply.requestFocus();}else if(!retaining)discardPending();});});
     }
     private void confirmRestore(){if(committing)return;restoring=true;notice="";render();}
     private void cancelRestore(){if(committing||sheet==null)return;restoring=false;notice="";render();View restore=sheet.body.findViewWithTag("cover-restore");if(restore!=null)restore.requestFocusFromTouch();}
@@ -129,7 +129,7 @@ final class AppCoverUploadPanel {
         Button cancel=sheet.action("取消",this::cancelRestore),confirm=sheet.action("恢复默认封面",this::restore);AppActionConfirmationUi.actions(activity,sheet,cancel,confirm,false);cancel.post(cancel::requestFocusFromTouch);
     }
     private void restore(){
-        if(committing)return;busy(true);String target=pkg;worker.execute(()->{String error=null;try{AppCoverPolicy.require(activity,target);store.restore(target);}catch(IOException e){error=e.getMessage();}String failure=error;main.post(()->{busy(false);if(failure==null){close();if(!destroyed&&!activity.isFinishing())activity.feedback("已恢复默认封面");}else if(sheet!=null){notice=failure;status.setText(failure);status.setVisibility(View.VISIBLE);}});});
+        if(committing)return;busy(true);String target=pkg;worker.execute(()->{String error=null;try{AppCoverPolicy.require(activity,target);store.restore(target);}catch(IOException e){error=e.getMessage();}String failure=error;main.post(()->{busy(false);if(failure==null){close();if(!destroyed&&!activity.isFinishing())activity.success("已恢复默认封面");}else if(sheet!=null){notice=failure;status.setText(failure);OperationFeedback.status(status,OperationFeedback.Kind.ERROR);status.setVisibility(View.VISIBLE);}});});
     }
     private void stopServer(){++generation;main.removeCallbacks(check);WallpaperUploadServer old=server;server=null;if(old!=null){old.invalidate();worker.execute(old::stop);}}
     private void releaseQr(){if(qrView!=null)qrView.setImageDrawable(null);if(qr!=null){qr.recycle();qr=null;}}
