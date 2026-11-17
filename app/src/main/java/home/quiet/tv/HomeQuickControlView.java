@@ -179,14 +179,14 @@ final class HomeQuickControlView extends LinearLayout {
             LinearLayout connection=row();connection.setGravity(Gravity.CENTER_VERTICAL);connection.setPadding(p(8),p(8),p(8),p(8));connection.setBackgroundDrawable(phoneSurface());ImageView image=new QrCodeView(context,unit);image.setContentDescription("手机设置连接二维码");
             if(!starting)prepareQr(phone.address(),image);connection.addView(image,new LayoutParams(p(136),p(136)));
             LinearLayout copy=column();TextView title=text(phone.paired()?"手机设置桌面":"手机扫码设置桌面",18,26);title.setTextColor(0xff171717);QuickControlPreviewView.weight(title,600);copy.addView(title,new LayoutParams(-1,-2));
-            TextView hint=text(starting?"正在生成二维码…":phone.paired()?"已配对，可收藏网址直接打开":"同一局域网，首次扫码配对",16,24);hint.setTextColor(0xff484846);copy.addView(hint,new LayoutParams(-1,-2));
+            TextView hint=text(starting?"正在生成二维码…":phone.paired()?"收藏可直连，新浏览器扫码授权":"同一局域网，首次扫码配对",16,24);hint.setTextColor(0xff484846);copy.addView(hint,new LayoutParams(-1,-2));
             String address=starting?"":phone.shortAddress();int scheme=address.indexOf("://");if(scheme>=0)address=address.substring(scheme+3);TextView link=text(address,14,21);link.setTextColor(0xff5b5b58);copy.addView(link,new LayoutParams(-1,-2));
             if(state.equals("connected")){
                 LinearLayout status=row();ImageView checked=icon("check-circle");((QuickControlIcon)checked.getDrawable()).color(0xff1d7c47);status.addView(checked,new LayoutParams(p(20),p(20)));
                 TextView connected=text("手机已连接",16,24);connected.setTextColor(0xff1d7c47);QuickControlPreviewView.weight(connected,600);LayoutParams label=new LayoutParams(-2,-2);label.leftMargin=p(6);status.addView(connected,label);copy.addView(status,new LayoutParams(-1,-2));
             }
             if(phone.paired()){
-                Button end=button("解除配对","phone-end",phone::revoke);end.setTextColor(0xff343432);end.setGravity(Gravity.CENTER);
+                Button end=button("解除全部配对","phone-end",phone::revoke);end.setTextColor(0xff343432);end.setGravity(Gravity.CENTER);
                 android.graphics.drawable.GradientDrawable normal=new SurfaceDrawable(unit);normal.setColor(0x05000000);normal.setCornerRadius(p(7));normal.setStroke(p(1),0xff92928e);
                 android.graphics.drawable.GradientDrawable focused=new SurfaceDrawable(unit);focused.setColor(0xffdeded8);focused.setCornerRadius(p(7));focused.setStroke(p(1.5f),0xff343432);
                 android.graphics.drawable.StateListDrawable background=new android.graphics.drawable.StateListDrawable();background.addState(new int[]{android.R.attr.state_focused},focused);background.addState(new int[0],normal);end.setBackgroundDrawable(background);

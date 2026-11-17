@@ -11,6 +11,10 @@ final class HomePreviewCache implements ComponentCallbacks2 {
     private final Set<Runnable> listeners=new HashSet<>();
     private long packages,generation;
     private Scene scene;
+    private Bitmap settingsBackdrop;
+    private long settingsBackdropId;
+    synchronized long keepSettingsBackdrop(Bitmap image){settingsBackdrop=image;return ++settingsBackdropId;}
+    synchronized Bitmap settingsBackdrop(long id){return id==settingsBackdropId?settingsBackdrop:null;}
     static synchronized HomePreviewCache get(Context context){
         if(instance==null)instance=new HomePreviewCache(context.getApplicationContext());return instance;
     }
@@ -29,7 +33,7 @@ final class HomePreviewCache implements ComponentCallbacks2 {
     synchronized void save(Scene value,long expectedGeneration){if(generation==expectedGeneration&&value.key.apps.packages==packages)scene=value;}
     synchronized void listen(Runnable listener){listeners.add(listener);}
     synchronized void unlisten(Runnable listener){listeners.remove(listener);}
-    synchronized void clear(){scene=null;++generation;}
+    synchronized void clear(){scene=null;settingsBackdrop=null;++settingsBackdropId;++generation;}
     @Override public void onConfigurationChanged(Configuration configuration){clear();}
     @Override public void onLowMemory(){clear();}
     @Override public void onTrimMemory(int level){if(level>=ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW)clear();}

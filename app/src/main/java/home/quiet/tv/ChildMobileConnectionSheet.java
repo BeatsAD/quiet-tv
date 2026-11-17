@@ -42,7 +42,7 @@ final class ChildMobileConnectionSheet {
     private void render(){
         if(!active)return;String state=session.state();if("qr-expired".equals(state)){session.start();state=session.state();}
         boolean available="waiting".equals(state)||"connected".equals(state);
-        String message="connected".equals(state)?"手机已连接":"waiting".equals(state)?session.paired()?"已配对，打开收藏网址即可":"同一局域网，首次扫码配对":"starting".equals(state)?"正在生成二维码…":"error".equals(state)?session.failure():"network-changed".equals(state)?"网络已变化，按确定重新连接":"连接已结束，按确定重新连接";
+        String message="connected".equals(state)?"手机已连接":"waiting".equals(state)?session.paired()?"收藏可直连，新浏览器扫码授权":"同一局域网，首次扫码配对":"starting".equals(state)?"正在生成二维码…":"error".equals(state)?session.failure():"network-changed".equals(state)?"网络已变化，按确定重新连接":"连接已结束，按确定重新连接";
         status.setText(message);card.setContentDescription("手机扫码管理儿童模式  扫码打开网页  "+message);card.setFocusable(!available&&!"starting".equals(state));card.setFocusableInTouchMode(card.isFocusable());
         if(!available){generation++;address="";clearImage();return;}
         String next=session.address()+"#tab=child";if(next.equals(address))return;address=next;int job=++generation;clearImage();
@@ -60,7 +60,7 @@ final class ChildMobileConnectionSheet {
         if(settings!=null){settings.show();return;}ManagementUi.Sheet sheet=ui.new Sheet("已连接手机");sheet.settingsLayout("关闭",sheet.dialog::dismiss);settings=sheet.dialog;sheet.dialog.setOnDismissListener(d->settings=null);
         boolean connected="connected".equals(session.state());sheet.text(connected?"手机网页已连接":"尚未连接手机网页");
         sheet.option(connected?"结束网页连接":"重新连接网页",()->authorize.run(()->{session.restart();sheet.dialog.dismiss();}));
-        if(session.paired())sheet.option("解除网页配对",()->authorize.run(()->{session.revoke();sheet.dialog.dismiss();}));
+        if(session.paired())sheet.option("解除全部网页配对",()->authorize.run(()->{session.revoke();sheet.dialog.dismiss();}));
         try{if(ui.getSharedPreferences("child-mobile",0).getBoolean("enabled",false)){ChildMobileServer server=ChildMobileServer.get(ui);JSONArray phones=server.phones();for(int i=0;i<phones.length();i++){JSONObject phone=phones.getJSONObject(i);String id=phone.getString("id");sheet.option("撤销手机助手  "+phone.getString("fingerprint"),()->authorize.run(()->{try{server.revoke(id);sheet.dialog.dismiss();show();ui.success("已撤销此手机的连接授权");}catch(IOException error){ui.error(error.getMessage());}}));}sheet.option("停止手机助手连接服务",()->authorize.run(()->{try{server.end();sheet.dialog.dismiss();ui.success("手机助手连接服务已停止");}catch(IOException error){ui.error(error.getMessage());}}));}}catch(IOException|JSONException error){sheet.text("手机助手连接状态读取失败");}sheet.show(null);
     }
     void pause(){active=false;generation++;session.forget(sessionChanged);if(registered){ui.unregisterReceiver(network);registered=false;}if(settings!=null)settings.dismiss();address="";clearImage();}
