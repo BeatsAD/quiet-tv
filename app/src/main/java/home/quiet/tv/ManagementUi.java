@@ -59,12 +59,13 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity implemen
     }
     private void prepareBackdrop(){
         ImageView image=new ImageView(this);backdropImage=image;image.setScaleType(ImageView.ScaleType.CENTER_CROP);stage.addView(image,new FrameLayout.LayoutParams(-1,-1));
-        Bitmap supplied=getIntent().getParcelableExtra("backdrop");
+        Bitmap supplied=entryBackdrop();
         if(supplied!=null&&glassStyle.rendering()){image.setImageBitmap(supplied);if(!unifiedSettings())return;}
         // A direct settings entry still draws immediately; file IO and decoding are not on its first-frame path.
         refreshBackdrop();
     }
-    private void clearBackdrop(){if(glassStyle!=null&&!glassStyle.rendering())getIntent().removeExtra("backdrop");if(backdropImage!=null){backdropImage.animate().cancel();backdropImage.setImageDrawable(null);backdropImage.setAlpha(1f);}if(ownedBackdrop!=null){ownedBackdrop.recycle();ownedBackdrop=null;}backdropIdentity=null;}
+    Bitmap entryBackdrop(){Bitmap image=HomePreviewCache.get(this).settingsBackdrop(getIntent().getLongExtra("backdrop-key",-1));return image!=null?image:getIntent().getParcelableExtra("backdrop");}
+    private void clearBackdrop(){if(glassStyle!=null&&!glassStyle.rendering()){getIntent().removeExtra("backdrop");getIntent().removeExtra("backdrop-key");}if(backdropImage!=null){backdropImage.animate().cancel();backdropImage.setImageDrawable(null);backdropImage.setAlpha(1f);}if(ownedBackdrop!=null){ownedBackdrop.recycle();ownedBackdrop=null;}backdropIdentity=null;}
     @Override public void glassChanged(){if(!glassStyle.rendering()||hasWindowFocus())refreshBackdrop();}
     void refreshBackdrop(){
         if(backdropImage==null||backdropClosed)return;int request=++backdropGeneration,styleRevision=glassStyle.revision();

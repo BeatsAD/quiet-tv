@@ -14,6 +14,7 @@ final class PhoneSettingsSession {
     static synchronized PhoneSettingsSession get(Context context){if(instance==null)instance=new PhoneSettingsSession(context.getApplicationContext());return instance;}
     private final Context context;private final Handler main=new Handler(Looper.getMainLooper());private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private final PhonePairing pairing;private PhoneSettingsDiscovery discovery;
+    private final Set<BrowserBackend> browserBackends=new CopyOnWriteArraySet<>();private volatile String offeredFile="";
     private final PhoneSettingsTasks tasks=new PhoneSettingsTasks();
     private final Set<Runnable> observers=new HashSet<>(),configurationObservers=new HashSet<>(),mediaNameObservers=new HashSet<>();private volatile PhoneSettingsServer server;private boolean starting;private volatile int generation;private String failure="",host="",fallback="";
     private PhoneSettingsSession(Context context){
@@ -35,20 +36,19 @@ final class PhoneSettingsSession {
     void configurationChanged(){if(Looper.myLooper()!=Looper.getMainLooper()){String operation=DiagnosticOperation.current();main.post(()->{String previous=DiagnosticOperation.enter(operation);try{configurationChanged();}finally{DiagnosticOperation.restore(previous);}});return;}for(Runnable observer:new ArrayList<>(configurationObservers))observer.run();DiagnosticLog.info("phone.configuration.notified","parent="+DiagnosticOperation.current()+" observers="+configurationObservers.size()+" evidence=callbacks_not_presentation");fire();}
     String state(){if(starting)return "starting";if(!failure.isEmpty())return "error";if(server==null)return "closed";String state=server.state();return paired()&&!"connected".equals(state)?"waiting":state;}
     String failure(){return failure;}
-    String address(){return server==null?"":server.address();}
+    String address(){return server==null?"":server.pairingAddress();}
     String shortAddress(){return server==null?"":server.shortAddress()+"/";}
     String filesAddress(){String base=address();return base.isEmpty()?"":base+"#tab=tools&tool=files";}
-    String fileTransferStatus(){return configuration==null?"":configuration.fileTransferStatus();}
-    void offerFile(String id)throws IOException{PhoneSettingsConfiguration current=configuration;if(current==null||!Arrays.asList("waiting","connected").contains(state()))throw new IOException("请先开启手机连接");current.offerFile(id);}
+    String fileTransferStatus(){for(BrowserBackend backend:browserBackends){String status=backend.configuration.fileTransferStatus();if(!status.isEmpty())return status;}return "";}
+    void offerFile(String id)throws IOException{if(server==null||!Arrays.asList("waiting","connected").contains(state()))throw new IOException("请先开启手机连接");new FileTransferStore(new File(context.getFilesDir(),"received-files")).entry(id);offeredFile=id;for(BrowserBackend backend:browserBackends)backend.syncOffer();}
     void start(){
         if(starting)return;
-        if(server!=null){String state=server.state();if(host.equals(WallpaperUploadPanel.lanAddress(context))){if(!paired()&&!"waiting".equals(state)&&!"connected".equals(state))server.reopen();return;}server.stop();if(configuration!=null)configuration.closed();}starting=true;failure="";int job=++generation;fire();
+        if(server!=null){String state=server.state();if(host.equals(WallpaperUploadPanel.lanAddress(context))){if(!"waiting".equals(state)&&!"connected".equals(state))server.reopen();return;}server.stop();}starting=true;failure="";int job=++generation;fire();
         worker.execute(()->{if(discovery!=null){discovery.close();discovery=null;}PhoneSettingsServer candidate=null;PhoneSettingsDiscovery advertised=null;String error="",network=WallpaperUploadPanel.lanAddress(context);
             try{
                 if(network==null||network.isEmpty()||network.equals("127.0.0.1")||network.equals("0.0.0.0"))throw new IOException("请先连接局域网");
                 boolean chinese;try(InputStream input=context.getAssets().open("launcher.json");ByteArrayOutputStream output=new ByteArrayOutputStream()){byte[] bytes=new byte[4096];int n;while((n=input.read(bytes))!=-1)output.write(bytes,0,n);JSONObject launcher=new JSONObject(output.toString("UTF-8"));chinese=!"en".equals(launcher.optString("language"));fallback="home".equals(launcher.optString("greeting"))?(chinese?"欢迎回家":"Welcome home"):"";}catch(JSONException problem){throw new IOException("桌面配置不可用",problem);}
-                configuration=new PhoneSettingsConfiguration(context,chinese,fallback,tasks,this::configurationChanged,this::mediaNamesChanged,()->revokeForRestore(job));protocol=new PhoneSettingsState(configuration);
-                String fixedHost=pairing.hostname();candidate=new PhoneSettingsServer(network,8766,fixedHost,pairing,name->context.getAssets().open("phone-settings/"+name),backend,this::fire);candidate.listen();advertised=new PhoneSettingsDiscovery(context,network,fixedHost,8766);
+                boolean language=chinese;String fixedHost=pairing.hostname();candidate=new PhoneSettingsServer(network,8766,fixedHost,pairing,name->context.getAssets().open("phone-settings/"+name),()->new BrowserBackend(job,language),this::fire);candidate.listen();advertised=new PhoneSettingsDiscovery(context,network,fixedHost,8766);
             }catch(IOException|RuntimeException problem){DiagnosticLog.error("phone.session.start_failed",problem);if(candidate!=null)candidate.stop();candidate=null;error="固定网址暂不可用，请检查局域网连接或端口占用后重试";}
             PhoneSettingsServer ready=candidate;PhoneSettingsDiscovery published=advertised;String message=error,connectedHost=network;main.post(()->{if(job!=generation){if(ready!=null)ready.stop();if(published!=null)worker.execute(published::close);return;}discovery=published;server=ready;host=connectedHost;starting=false;failure=message;fire();main.removeCallbacks(check);if(ready!=null)main.postDelayed(check,2000);});
         });
@@ -71,8 +71,6 @@ final class PhoneSettingsSession {
             return new JSONObject().put("revision",revision.toString()).put("keySounds",desktop.keySounds()).put("brightness",desktop.homeWallpaperBrightness()).put("greeting",desktop.greetingText(fallback)).put("wallpaper",catalog.current).put("wallpapers",library);
         }catch(JSONException|java.security.NoSuchAlgorithmException error){throw new IOException("设置读取失败",error);}
     }}}
-    private volatile PhoneSettingsState protocol;
-    private volatile PhoneSettingsConfiguration configuration;
     private byte[] currentBackground()throws IOException{
         CountDownLatch done=new CountDownLatch(1);java.util.concurrent.atomic.AtomicReference<Bitmap> captured=new java.util.concurrent.atomic.AtomicReference<>();java.util.concurrent.atomic.AtomicBoolean waiting=new java.util.concurrent.atomic.AtomicBoolean(true);
         main.post(()->{try{HomeActivity.capturePhoneBackground(image->{synchronized(waiting){if(waiting.get())captured.set(image);else if(image!=null)image.recycle();done.countDown();}});}catch(RuntimeException|OutOfMemoryError unavailable){done.countDown();}});
@@ -80,9 +78,12 @@ final class PhoneSettingsSession {
         Bitmap image=captured.get();if(Thread.currentThread().isInterrupted()){if(image!=null)image.recycle();throw new IOException("背景预览已中断");}if(image==null)throw new IOException("电视当前背景暂不可用，请返回 QuietTV 桌面后重试");
         try{ByteArrayOutputStream output=new ByteArrayOutputStream();if(!image.compress(Bitmap.CompressFormat.JPEG,85,output))throw new IOException("背景预览不可用");return output.toByteArray();}catch(RuntimeException|OutOfMemoryError unavailable){throw new IOException("背景预览不可用",unavailable);}finally{image.recycle();}
     }
-    private final PhoneSettingsServer.Backend backend=new PhoneSettingsServer.Backend(){
+    private final class BrowserBackend implements PhoneSettingsServer.Backend {
+        private final PhoneSettingsConfiguration configuration;private final PhoneSettingsState protocol;
+        BrowserBackend(int job,boolean chinese){configuration=new PhoneSettingsConfiguration(context,chinese,fallback,tasks,PhoneSettingsSession.this::configurationChanged,PhoneSettingsSession.this::mediaNamesChanged,()->revokeForRestore(job));protocol=new PhoneSettingsState(configuration);browserBackends.add(this);try{syncOffer();}catch(IOException missing){DiagnosticLog.info("phone.file.offer_unavailable","source=browser_connect");}}
+        synchronized void syncOffer()throws IOException{String id=offeredFile;if(!id.isEmpty())configuration.offerFile(id);}
         public PhoneSettingsState protocol(){return protocol;}
-        public void connectionEnded(){PhoneSettingsConfiguration current=configuration;if(current!=null)current.connectionEnded();}
+        public void connectionEnded(){configuration.closed();browserBackends.remove(this);}
         public PhoneSettingsServer.Download previewVideo(String id)throws IOException{return configuration.previewVideo(id);}
         public byte[] resource(String route)throws IOException{return configuration.resource(route);}
         public void delivered(String id){configuration.delivered(id);}
@@ -117,5 +118,5 @@ final class PhoneSettingsSession {
             if(WallpaperCatalog.DEFAULT.equals(id))return onMain(HomeActivity::phoneBackground);
             Bitmap bitmap=null;try{bitmap=WallpaperImages.decode(context,wallpapers,entry,480,270);ByteArrayOutputStream output=new ByteArrayOutputStream();if(!bitmap.compress(Bitmap.CompressFormat.JPEG,85,output))throw new IOException("背景预览不可用");return output.toByteArray();}catch(OutOfMemoryError error){throw new IOException("背景预览不可用",error);}finally{if(bitmap!=null)bitmap.recycle();}
         }
-    };
+    }
 }

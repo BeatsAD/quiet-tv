@@ -94,7 +94,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private String saverPackage="";
     private HomeHeaderView homeHeader;
     private volatile HomeQuickControlOverlay quickControls;
-    private boolean quickControlsOpening,quickDesktopSwitching;
+    private boolean quickControlsOpening,quickDesktopSwitching,quickSettingsOpening;
     private Bundle restoredQuickControls;
     private TextView weatherText;
     private DesktopSettingsStore desktopSettings;
@@ -416,6 +416,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         else registerReceiver(legacyNetworkReceiver,new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
         applyDesktopSettings();updateClock();homeHeader.clockActive(true);updateNetwork();
         wallpapers.resume();weather.resume();screensaver.availabilityChanged();
+        if(quickSettingsOpening){quickSettingsOpening=false;closeQuickControls(false);}
         if(quickControls!=null)quickControls.resume();
         loader.execute(()->{try{new QuickControlStore(new java.io.File(getFilesDir(),"quick-controls")).read();}catch(java.io.IOException error){DiagnosticLog.info("quick.controls.preload_failed","use checked read on open");}});
         loadApps("resume");if(ready&&resumed)focusCurrent(false);
@@ -594,6 +595,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         BootAppLifecycle.destroyed(this);unregisterReceiver(packageReceiver);loader.shutdownNow();screensaver.destroy();wallpapers.destroy();weather.destroy();super.onDestroy();
     }
     @Override protected void onStop(){
+        if(quickSettingsOpening){quickSettingsOpening=false;closeQuickControls(false);}
         cancelInputWork();
         if(!waitingForUnlock){homeResumeEvent("home.stop","");wallpapers.hidden();}
         super.onStop();
@@ -754,7 +756,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     private void saveFocus(){if(row>=0)getPreferences(0).edit().putInt("row",row).putInt("column",column).putString("package",activePackage).apply();}
 
-    @Override protected void onSaveInstanceState(Bundle state){super.onSaveInstanceState(state);state.putString("quick-return",quickReturn);state.putString("quick-pending",phoneActionAuthority==null?pendingHomeAction:"");state.putString("button-pending-focus",pendingButtonFocus);state.putString("app-pending-focus",pendingAppFocus);state.putBoolean("quick-return-dock",pendingDockFocus);if(quickControls!=null){Bundle quick=new Bundle();quickControls.save(quick);state.putBundle("inline-quick-controls",quick);}else if(restoredQuickControls!=null)state.putBundle("inline-quick-controls",restoredQuickControls);}
+    @Override protected void onSaveInstanceState(Bundle state){super.onSaveInstanceState(state);state.putString("quick-return",quickReturn);state.putString("quick-pending",phoneActionAuthority==null?pendingHomeAction:"");state.putString("button-pending-focus",pendingButtonFocus);state.putString("app-pending-focus",pendingAppFocus);state.putBoolean("quick-return-dock",pendingDockFocus);if(quickControls!=null&&!quickSettingsOpening){Bundle quick=new Bundle();quickControls.save(quick);state.putBundle("inline-quick-controls",quick);}else if(restoredQuickControls!=null)state.putBundle("inline-quick-controls",restoredQuickControls);}
 
     @Override protected void onActivityResult(int request,int result,Intent data){
         super.onActivityResult(request,result,data);
@@ -800,13 +802,20 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         for(String id:HomePreviewView.previewGridIds(home.appIds(home.apps),pkg,size,shape)){App app=available.get(id);gridArt.add(app.banner);gridNames.add(app.label);gridIds.add(id);}
         return new HomePreviewCache.Scene(key,art,names,gridArt,gridNames,ids,gridIds);
     }
+    static Bitmap previewSnapshot(){
+        HomeActivity home=liveHome.get();
+        if(home==null||!home.ready||home.waitingForUnlock||UiCompat.destroyed(home)||home.root.getWidth()==0||home.root.getHeight()==0)return null;
+        Bitmap image=Bitmap.createBitmap(480,Math.max(1,Math.round(480f*home.root.getHeight()/home.root.getWidth())),Bitmap.Config.ARGB_8888);
+        Canvas canvas=new Canvas(image);canvas.scale(image.getWidth()/(float)home.root.getWidth(),image.getHeight()/(float)home.root.getHeight());
+        home.wallpapers.drawDockBackground(canvas,new Paint(Paint.FILTER_BITMAP_FLAG));home.list.draw(canvas);return image;
+    }
     static void seedPreviewBackground(WallpaperController target){HomeActivity home=liveHome.get();if(home!=null&&!home.waitingForUnlock&&!UiCompat.destroyed(home))target.seedPreview(home.wallpapers);}
     private Intent addSettingsBackdrop(Intent intent){
         if(!GlassStyle.get(this).rendering())return intent;
         // Reuse bounded prepared pixels, including the current shade, without copying the native 4K output.
         Bitmap backdrop=Bitmap.createBitmap(320,Math.max(1,Math.round(320f*root.getHeight()/root.getWidth())),Bitmap.Config.ARGB_8888);
         Canvas backdropCanvas=new Canvas(backdrop);backdropCanvas.scale(backdrop.getWidth()/(float)root.getWidth(),backdrop.getHeight()/(float)root.getHeight());
-        wallpapers.drawDockBackground(backdropCanvas,new Paint(Paint.FILTER_BITMAP_FLAG));intent.putExtra("backdrop",backdrop);
+        wallpapers.drawDockBackground(backdropCanvas,new Paint(Paint.FILTER_BITMAP_FLAG));intent.putExtra("backdrop-key",HomePreviewCache.get(this).keepSettingsBackdrop(backdrop));
         return intent;
     }
     private ArrayList<String> appIds(List<App> values){ArrayList<String> ids=new ArrayList<>();for(App app:values)ids.add(app.pkg);return ids;}
@@ -1276,15 +1285,15 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
     void activateQuickHeader(String id){closeQuickControls(false);if(!"control".equals(id))executeHomeButton(id);}
     void executeQuickControl(String id){
-        if(quickControls==null)return;
+        if(quickControls==null||quickSettingsOpening)return;
         if("original".equals(id)){switchQuickDesktop();return;}
         if("keySounds".equals(id)||"mute".equals(id)){
             try{if("keySounds".equals(id))desktopSettings.savePhoneValue("key-sounds",!desktopSettings.keySounds());else{WallpaperStore store=WallpaperStore.get(this);WallpaperCatalog state=store.snapshot();if(state.weather||state.rotating){OperationFeedback.get(this).show(OperationFeedback.Kind.INFO,state.weather?"天气联动保持静音":"轮换背景保持静音");return;}store.sound(!state.sound);}PhoneSettingsSession.get(this).configurationChanged();}catch(IOException error){OperationFeedback.get(this).show(OperationFeedback.Kind.ERROR,error.getMessage());}return;
         }
+        if(QuickControlStore.SETTINGS.equals(id)){quickSettingsOpening=true;leaveHome(()->startActivity(settingsIntent(DesktopSettingsActivity.class)));return;}
         closeQuickControls(false);
         if("source".equals(id)){openSource();return;}
         if("screensaver".equals(id)){screensaver.enter();return;}
-        if(QuickControlStore.SETTINGS.equals(id)){leaveHome(()->startActivity(settingsIntent(DesktopSettingsActivity.class)));return;}
         if("child".equals(id)||"apps".equals(id)||"clock".equals(id)||"weather".equals(id)||"wallpaper".equals(id)){
             int page="child".equals(id)?SettingsPages.CHILD:"apps".equals(id)?SettingsPages.APPS:"weather".equals(id)?SettingsPages.WEATHER:SettingsPages.DESKTOP;
             leaveHome(()->startActivity(settingsIntent(AppManagementActivity.class).putExtra("management-page",page).putExtra("quick-selected",id).putExtra("desktop-background-entry","wallpaper".equals(id)).putExtra("desktop-clock-entry","clock".equals(id))));return;

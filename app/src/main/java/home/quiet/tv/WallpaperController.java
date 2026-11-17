@@ -137,7 +137,7 @@ final class WallpaperController implements GlassStyle.Listener {
         video=new VideoWallpaperPlayer(activity,background,true);
         current=image();current.setBackgroundColor(Color.BLACK);incoming=image();incoming.setAlpha(0f);background.addView(current,new FrameLayout.LayoutParams(-1,-1));background.addView(incoming,new FrameLayout.LayoutParams(-1,-1));
         weatherCover=image();weatherCover.setVisibility(View.GONE);background.addView(weatherCover,new FrameLayout.LayoutParams(-1,-1));
-        if(previewOnly&&store.snapshot().weather){weatherStill=activity.getIntent().getParcelableExtra("backdrop");if(weatherStill!=null)weatherCover.setImageBitmap(weatherStill);}
+        if(previewOnly&&store.snapshot().weather){weatherStill=activity instanceof ManagementUi?((ManagementUi)activity).entryBackdrop():activity.getIntent().getParcelableExtra("backdrop");if(weatherStill!=null)weatherCover.setImageBitmap(weatherStill);}
         if(WallpaperGpuSupport.available(activity))createGpu();
         shade=new View(activity);shade.setBackgroundDrawable(WallpaperAppearance.desktopShade());background.addView(shade,new FrameLayout.LayoutParams(-1,-1));
         ambient=new Ambient(activity,homeUnit);ambient.colorChanged=()->{++ambientVersion;invalidateDock();};background.addView(ambient,new FrameLayout.LayoutParams(-1,-1));ambient.setColor(themeColor);ambient.setVisibility(View.VISIBLE);

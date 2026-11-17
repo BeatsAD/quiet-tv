@@ -16,7 +16,7 @@ final class DisplayAppearanceChoice extends LinearLayout {
     private String operationError="";
     private final ManagementUi ui;private final Access access;private final boolean inline;private final String key,title;private final String[] values,names;private final Preview preview;private final Runnable rewired;
     private final ArrayList<View[]> rows=new ArrayList<>();private String committed,draft;private boolean opened,updating;private TextView pendingLabel;
-    private boolean dialogStyle,optionsOnly,twoColumns,solidSelection,available=true,saving,asyncSave;
+    private boolean dialogStyle,optionsOnly,twoColumns,solidSelection,available=true,saving,asyncSave,rendered;
     private DesktopSettingsRow trigger;
     private View expandedContent;
     private UiMotion.Exit collapsing;
@@ -26,12 +26,12 @@ final class DisplayAppearanceChoice extends LinearLayout {
         this(ui,key,title,values,names,new Access(){public String read(){return "quick-control-visibility".equals(key)?store.quickControlVisibility():"clock-style".equals(key)?store.clockStyle():"app-title-position".equals(key)?store.appTitlePosition():"icon-size".equals(key)?store.iconSize():"icon-shape".equals(key)?store.iconShape():String.valueOf(store.appearance(key));}public void save(String value)throws IOException{store.saveAppearance(key,"dock-limit".equals(key)?Integer.valueOf(value):value);}},values.length<=3,preview,rewired);asyncSave=true;
     }
     DisplayAppearanceChoice(ManagementUi ui,String key,String title,String[] values,String[] names,Access access,boolean inline,Preview preview,Runnable rewired){
-        super(ui);this.ui=ui;failure=ui::error;this.access=access;this.inline=inline;this.key=key;this.title=title;this.values=values;this.names=names;this.preview=preview;this.rewired=rewired;setOrientation(VERTICAL);setClipChildren(false);setClipToPadding(false);committed=current();draft=committed;render();
+        super(ui);this.ui=ui;failure=ui::error;this.access=access;this.inline=inline;this.key=key;this.title=title;this.values=values;this.names=names;this.preview=preview;this.rewired=rewired;setOrientation(VERTICAL);setClipChildren(false);setClipToPadding(false);committed=current();draft=committed;
     }
     private int p(float n){return ui.px(n*.75f);}
     private String current(){return access.read();}
     private boolean inside(View v){while(v!=null){if(v==this)return true;v=v.getParent() instanceof View?(View)v.getParent():null;}return false;}
-    @Override protected void onAttachedToWindow(){super.onAttachedToWindow();getViewTreeObserver().addOnGlobalFocusChangeListener(outside);}
+    @Override protected void onAttachedToWindow(){super.onAttachedToWindow();if(!rendered)render();getViewTreeObserver().addOnGlobalFocusChangeListener(outside);}
     @Override protected void onDetachedFromWindow(){if(collapsing!=null){collapsing.finish();collapsing=null;}if(pendingReflow!=null){pendingReflow.removeListener();pendingReflow=null;}getViewTreeObserver().removeOnGlobalFocusChangeListener(outside);super.onDetachedFromWindow();}
     private Object value(String text){return "dock-limit".equals(key)?Integer.valueOf(text):text;}
     private TextView label(String text,float size,float height){TextView t=ui.label(text,12);QuickControlPreviewView.controlType(t,size,height,ui.unit,UiPalette.TEXT);return t;}
@@ -44,6 +44,7 @@ final class DisplayAppearanceChoice extends LinearLayout {
         return 2;
     }
     private void render(){
+        rendered=true;
         if(pendingReflow!=null)pendingReflow.removeListener();pendingReflow=UiMotion.reflow(this,()->pendingReflow=null);updating=true;boolean wasExpanded=expandedContent!=null;
         if(collapsing!=null){collapsing.finish();collapsing=null;}
         if(wasExpanded&&!opened&&!inline&&!optionsOnly)collapsing=UiMotion.collapse(expandedContent,()->collapsing=null);
@@ -84,15 +85,16 @@ final class DisplayAppearanceChoice extends LinearLayout {
     }
     void cancel(boolean focus){if(updating)return;boolean wasOpen=opened;if(opened||!draft.equals(committed))operationError="";opened=false;draft=committed;preview.clear(key);if(pendingLabel!=null)pendingLabel.setText("");if(wasOpen)render();if(focus)focusValue(committed);}
     List<View[]> navigation(){
+        if(!rendered)render();
         ArrayList<View[]> active=new ArrayList<>();
         for(View[] row:rows){ArrayList<View> controls=new ArrayList<>();for(View view:row)if(view.getVisibility()==View.VISIBLE&&view.isFocusable()&&view.isEnabled())controls.add(view);if(!controls.isEmpty())active.add(controls.toArray(new View[0]));}
         return active;
     }
     DisplayAppearanceChoice errors(Failure handler){failure=handler;return this;}
-    DisplayAppearanceChoice dialogStyle(){dialogStyle=true;render();return this;}
-    DisplayAppearanceChoice optionsOnly(){optionsOnly=true;render();return this;}
-    DisplayAppearanceChoice twoColumns(){twoColumns=true;render();return this;}
-    DisplayAppearanceChoice solidSelection(){solidSelection=true;render();return this;}
+    DisplayAppearanceChoice dialogStyle(){dialogStyle=true;if(rendered)render();return this;}
+    DisplayAppearanceChoice optionsOnly(){optionsOnly=true;if(rendered)render();return this;}
+    DisplayAppearanceChoice twoColumns(){twoColumns=true;if(rendered)render();return this;}
+    DisplayAppearanceChoice solidSelection(){solidSelection=true;if(rendered)render();return this;}
     boolean isOpen(){return opened;}
     boolean drafting(){return !draft.equals(committed);}
     String error(){return operationError;}

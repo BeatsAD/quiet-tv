@@ -35,7 +35,9 @@ final class HomePreviewView extends FrameLayout implements SharedPreferences.OnS
     final PreviewSyncState sync=new PreviewSyncState();
     private HomePreviewCache.Scene applied;
     private HomePreviewCache.Key pendingKey,failedKey;
-    private boolean active,hasDockApps,secondScreen,destroyed;
+    private boolean active,hasDockApps,secondScreen,destroyed,firstFrameComplete;
+    private Runnable firstFrameReady;
+    void firstFrameReady(Runnable listener){firstFrameReady=listener;if(firstFrameComplete&&listener!=null)listener.run();}
     private String draftProperty;
     private boolean draftSecond;
     private int draftValue;
@@ -61,7 +63,7 @@ final class HomePreviewView extends FrameLayout implements SharedPreferences.OnS
     private final ViewTreeObserver.OnPreDrawListener firstFrame=this::prepareFirstFrame;
     private boolean prepareFirstFrame(){
         if(destroyed||!isShown()){revealPreview();return true;}
-        loadLocalScene();if(applied!=null)resume();
+        loadLocalScene();
         boolean ready=((applied!=null&&applied.key.equals(sceneKey()))||failedKey!=null)&&backgrounds.previewCoverReady();
         if(!ready){
             // Keep warm-up draws behind a local cover; a transparent window can
@@ -69,7 +71,7 @@ final class HomePreviewView extends FrameLayout implements SharedPreferences.OnS
             startupCover.setVisibility(VISIBLE);
             return true;
         }
-        revealPreview();getViewTreeObserver().removeOnPreDrawListener(firstFrame);return true;
+        revealPreview();getViewTreeObserver().removeOnPreDrawListener(firstFrame);firstFrameComplete=true;Runnable complete=firstFrameReady;firstFrameReady=null;if(complete!=null)complete.run();return true;
     }
     private void revealPreview(){startupCover.setVisibility(GONE);}
     private void place(View v,int width,int height,int x,int y){FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(width,height);p.leftMargin=x;p.topMargin=y;scene.addView(v,p);}
@@ -126,7 +128,7 @@ final class HomePreviewView extends FrameLayout implements SharedPreferences.OnS
     void pause(){revealPreview();PhoneSettingsSession.get(getContext()).forgetConfiguration(contentChanged);if(!active)return;active=false;header.clockActive(false);sync.invalidate();backgrounds.pause();backgrounds.hidden();backgrounds.previewFinish();++generation;pendingKey=null;failedKey=null;getContext().unregisterReceiver(changes);cache.unlisten(contentChanged);for(String name:CONTENT_PREFERENCES)getContext().getSharedPreferences(name,0).unregisterOnSharedPreferenceChangeListener(this);main.removeCallbacks(tick);main.removeCallbacks(contentChanged);}
     @Override public void onSharedPreferenceChanged(SharedPreferences preferences,String key){main.removeCallbacks(contentChanged);main.post(contentChanged);}
     void fadeIn(int millis){if(active)backgrounds.previewFade(millis);}
-    void destroy(){destroyed=true;revealPreview();getViewTreeObserver().removeOnPreDrawListener(firstFrame);pause();backgrounds.destroy();++generation;worker.shutdownNow();coverPreview=null;applied=null;band.removeAllViews();grid.removeAllViews();}
+    void destroy(){destroyed=true;firstFrameReady=null;revealPreview();getViewTreeObserver().removeOnPreDrawListener(firstFrame);pause();backgrounds.destroy();++generation;worker.shutdownNow();coverPreview=null;applied=null;band.removeAllViews();grid.removeAllViews();}
     private HomePreviewCache.Key sceneKey(){
         HomePreviewCache.Key key=HomePreviewCache.Key.read(getContext(),chinese,cache.packages());DesktopSettingsStore settings=new DesktopSettingsStore(getContext());
         String context=coverPreviewPackage.isEmpty()?"":coverPreviewPackage+":"+string(settings,"icon-size")+":"+string(settings,"icon-shape");
