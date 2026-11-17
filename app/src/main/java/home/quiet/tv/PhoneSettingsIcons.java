@@ -50,6 +50,19 @@ final class PhoneSettingsIcons {
         catch(OutOfMemoryError error){throw new IOException("图标预览无法读取",error);}finally{if(image!=null)image.recycle();}
     }
     JSONObject command(String action,JSONObject value,PhoneSettingsServer.Active active)throws IOException{
+        if("refresh".equals(action)){
+            if(value.length()!=0)throw new PhoneSettingsServer.BadInput();
+            PhoneSettingsTasks.Job job=tasks.begin(scope+"/icons/refresh","刷新图标库","refresh",active);
+            synchronized(job){if(!job.scheduled&&!job.terminal()){
+                if(!active.valid())throw new PhoneSettingsServer.Ended();job.scheduled=job.started=true;job.cancellable=false;job.state="running";job.stage("正在刷新图标库…",-1);
+                IconLibraryRepository.get(context).refresh((updated,error)->{
+                    if(!job.active())tasks.fail(job,"连接已结束，请重新读取图标库");
+                    else if(!error.isEmpty())tasks.fail(job,error);
+                    else tasks.complete(job,new JSONObject(),updated?"图标库已更新":"已是最新图标库");
+                    changed.run();
+                });
+            }}return tasks.receipt(job);
+        }
         if("match".equals(action)){
             if(value.length()!=3)throw new PhoneSettingsServer.BadInput();batch=IconLibraryBatch.prepare(context,context,value.optString("style"),value.optString("shape"),value.optString("form"));try{return batch.json();}catch(JSONException invalid){throw new IOException(invalid);}
         }

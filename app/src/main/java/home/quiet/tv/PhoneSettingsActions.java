@@ -24,6 +24,7 @@ final class PhoneSettingsActions {
             String action="network".equals(id)?Settings.ACTION_WIFI_SETTINGS:"bluetooth".equals(id)?Settings.ACTION_BLUETOOTH_SETTINGS:"systemSettings".equals(id)?Settings.ACTION_SETTINGS:null;
             if(action!=null){if(!new SystemSettingsRouter(context).open(action))throw new PhoneSettingsServer.Rejected("此电视没有可调用的系统入口");return new JSONObject().put("message","已请求打开电视设置，请在电视操作后返回核对").put("state","waitingTelevision");}
             if("original".equals(id)){new HomeProxy(context).original(context);return new JSONObject().put("message","已请求进入原桌面，请在电视核对").put("state","waitingTelevision");}
+            if("source".equals(id)){if(new BootAppStore(context).watchTarget().isEmpty()&&new SourcePairingStore(context).entry()==null)throw new PhoneSettingsServer.Rejected("请先配置信号源");if(!HomeActivity.phoneAction(context,id,active))throw new PhoneSettingsServer.Rejected("桌面尚未就绪，请先在电视打开 QuietTV 首页");return new JSONObject().put("message","已请求打开已保存的信号源，请核对电视画面和声音").put("state","waitingTelevision");}
             if("screensaver".equals(id)){if(!HomeActivity.phoneAction(context,id,active))throw new PhoneSettingsServer.Rejected("桌面尚未就绪，请先在电视打开 QuietTV 首页");return new JSONObject().put("message","已请求电视预览屏保").put("state","waitingTelevision");}
             throw new PhoneSettingsServer.Rejected("请使用对应的手机设置入口");
         },active);

@@ -120,6 +120,7 @@ __pycache__/
 !/docs/SETUP.md
 !/docs/APP_MANAGEMENT.md
 !/docs/VERSIONING.md
+!/docs/DEVELOPMENT.md
 !/docs/PHOSPHOR-LICENSE.txt
 !/docs/assets/
 /docs/assets/*
