@@ -86,12 +86,12 @@ public final class HomeAppActionsActivity extends ManagementUi {
         sheet.box.getLayoutParams().width=px(width);sheet.show(null);View requested=retainedFocus.isEmpty()?null:sheet.box.findViewWithTag(retainedFocus);if(requested==null||!requested.isEnabled())requested=focus;retainedFocus="";View target=requested;
         sheet.box.post(()->{if(closing)return;if(target!=null){target.requestFocusFromTouch();Rect area=new Rect();target.getDrawingRect(area);target.requestRectangleOnScreen(area,false);}if(retainedScroll>0){sheet.scroll.scrollTo(0,px(retainedScroll));retainedScroll=0;}});
     }
-    private Button option(String label,int icon,Runnable action){
+    private Button option(String label,String icon,Runnable action){
         if(mode.equals("menu")){
             Button b=button(label,action);b.setTag("app-menu-"+label);b.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);b.setPadding(px(14),0,px(12),0);b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(16));
             StateListDrawable background=new StateListDrawable();background.addState(new int[]{android.R.attr.state_focused},menuSurface(0xffeff0f4,0xffeff0f4,0,10));background.addState(new int[0],menuSurface(0,0,0,10));b.setBackgroundDrawable(background);
             b.setTextColor(new ColorStateList(new int[][]{{-android.R.attr.state_enabled},{android.R.attr.state_focused},{}},new int[]{0xff777d88,0xff191d24,label.equals("卸载应用")?0xffe8aaa6:0xffeff0f4}));
-            if(icon!=0){Drawable image=androidx.core.graphics.drawable.DrawableCompat.wrap(UiCompat.drawable(this,icon)).mutate();androidx.core.graphics.drawable.DrawableCompat.setTintList(image,b.getTextColors());image.setBounds(0,0,px(21),px(21));b.setCompoundDrawables(image,null,null,null);b.setCompoundDrawablePadding(px(13));}
+            if(!icon.isEmpty()){Drawable image=androidx.core.graphics.drawable.DrawableCompat.wrap(new QuickControlIcon(icon)).mutate();androidx.core.graphics.drawable.DrawableCompat.setTintList(image,b.getTextColors());image.setBounds(0,0,px(12),px(12));b.setCompoundDrawables(image,null,null,null);b.setCompoundDrawablePadding(px(13));}
             box.addView(b,new LinearLayout.LayoutParams(-1,px(43)));return b;
         }
         Button b=button(label,action);b.setTag("app-menu-"+label);b.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);b.setPadding(px(12.96f),0,px(12.96f),0);QuickControlPreviewView.type(b,19.2f,26.88f,unit,UiPalette.TEXT);b.setPadding(px(12.96f),0,px(12.96f),0);b.setTextColor(SettingsFocusDrawable.textColors(UiPalette.TEXT));b.setBackgroundDrawable(new SettingsFocusDrawable(unit,999,UiPalette.CONTROL,false,UiPalette.EDGE));
@@ -99,13 +99,13 @@ public final class HomeAppActionsActivity extends ManagementUi {
     }
     private void menu(){
         pickerMode="";content("menu",name(pkg));boolean real=!pkg.startsWith("quiet:")&&!pkg.isEmpty();String protectedReason=protection();Button first;
-        first=option("移动",R.drawable.ic_app_move,()->{setResult(RESULT_OK,new Intent().putExtra("action","move").putExtra("package",pkg).putExtra("dock",fromDock));finish();});
+        first=option("移动","move",()->{setResult(RESULT_OK,new Intent().putExtra("action","move").putExtra("package",pkg).putExtra("dock",fromDock));finish();});
         boolean canAdd=new DockStore(this).loadAvailable().size()<new DockStore(this).capacity();
-        if(fromDock){option("替换应用",R.drawable.ic_manage_refresh,()->picker("replace",true));Button add=option("添加应用",R.drawable.ic_manage_plus,()->picker("add",true));add.setEnabled(canAdd);}
-        Button home=option(fromDock?"移除首页位置":"添加到首页",fromDock?R.drawable.ic_manage_back:R.drawable.ic_manage_plus,()->{if(fromDock)confirmUnpin();else pin(pkg);});home.setEnabled(fromDock||canAdd);
-        Button hide=option("隐藏",R.drawable.ic_child_hidden,this::hide);hide.setEnabled(canHide());
-        Button uninstall=option("卸载应用",R.drawable.ic_manage_trash,this::authorizeUninstall);uninstall.setEnabled(real&&protectedReason.isEmpty());
-        Button cover=option("更换封面",R.drawable.ic_home_wallpaper,this::coverMenu);cover.setEnabled(AppCoverPolicy.allowed(this,pkg));option("管理此应用",R.drawable.ic_manage_apps,()->{startActivity(new Intent(this,AppManagementActivity.class).putExtra("management-page",SettingsPages.APPS).putExtra("selected-package",pkg).putExtra("focus-app-details",true).putExtra("backdrop",backdrop));finish();});
+        if(fromDock){option("替换应用","replace",()->picker("replace",true));Button add=option("添加应用","plus",()->picker("add",true));add.setEnabled(canAdd);}
+        Button home=option(fromDock?"移除首页位置":"添加到首页",fromDock?"pin-off":"pin",()->{if(fromDock)confirmUnpin();else pin(pkg);});home.setEnabled(fromDock||canAdd);
+        Button hide=option("隐藏","eye-off",this::hide);hide.setEnabled(canHide());
+        Button uninstall=option("卸载应用","trash",this::authorizeUninstall);uninstall.setEnabled(real&&protectedReason.isEmpty());
+        Button cover=option("更换封面","image",this::coverMenu);cover.setEnabled(AppCoverPolicy.allowed(this,pkg));option("管理此应用","layout-grid",()->{startActivity(new Intent(this,AppManagementActivity.class).putExtra("management-page",SettingsPages.APPS).putExtra("selected-package",pkg).putExtra("focus-app-details",true).putExtra("backdrop",backdrop));finish();});
         show(200,first,true);
     }
     private GradientDrawable menuSurface(int top,int bottom,int stroke,int radius){GradientDrawable shape=new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{top,bottom});shape.setCornerRadius(px(radius));shape.setStroke(px(1),stroke);return shape;}
@@ -123,7 +123,7 @@ public final class HomeAppActionsActivity extends ManagementUi {
         @Override public void setAlpha(int alpha){}@Override public void setColorFilter(ColorFilter filter){}@Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
     }
     private void changed(String focus){setResult(RESULT_OK,new Intent().putExtra("action","changed").putExtra("package",focus));finish();}
-    private void failure(String message){content("notice","未完成");box.addView(muted(message,14));Button close=option("返回",R.drawable.ic_manage_back,this::handleBack);show(400,close,false);}
+    private void failure(String message){content("notice","未完成");box.addView(muted(message,14));Button close=option("返回","arrow-left",this::handleBack);show(400,close,false);}
     private void hide(){if(!canHide()){failure("此应用必须保留或已不可用");return;}if(new HomeVisibilityStore(this).hide(pkg)){Toast.makeText(this,"已隐藏，可在“应用管理 → 隐藏应用”中恢复",Toast.LENGTH_SHORT).show();changed("");}else failure("保存失败，请重试");}
     private void confirmUnpin(){
         if(!fromDock||!new DockStore(this).loadAvailable().contains(pkg)){failure("首页位置已变化，请重新选择");return;}

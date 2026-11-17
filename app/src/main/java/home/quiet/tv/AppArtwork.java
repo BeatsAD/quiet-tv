@@ -18,7 +18,7 @@ final class AppArtwork {
         if(Build.VERSION.SDK_INT>=21){banner=resource(pm,activity.applicationInfo,activity.getBannerResource());if(banner==null)banner=activity.loadBanner(pm);}
         Drawable art=banner!=null?banner:resource(pm,activity.applicationInfo,activity.getIconResource());
         if(art==null)art=info.loadIcon(pm);
-        return render(art!=null?art:UiCompat.drawable(context,R.drawable.ic_manage_apps),banner!=null,width(context));
+        return render(art!=null?art:new QuickControlIcon("app-window"),banner!=null,width(context));
     }
 
     static Bitmap load(Context context,String pkg,ApplicationInfo info){
@@ -27,7 +27,7 @@ final class AppArtwork {
         if(entry!=null)return load(context,entry);
         Drawable icon=info==null?null:resource(context.getPackageManager(),info,info.icon);
         if(icon==null && info!=null)icon=info.loadIcon(context.getPackageManager());
-        return render(icon==null?UiCompat.drawable(context,R.drawable.ic_manage_apps):icon,false,width(context));
+        return render(icon==null?new QuickControlIcon("app-window"):icon,false,width(context));
     }
 
     private static Bitmap custom(Context context,String pkg){

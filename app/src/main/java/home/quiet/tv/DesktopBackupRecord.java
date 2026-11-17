@@ -86,7 +86,7 @@ final class DesktopBackupRecord {
         JSONObject order=config.getJSONObject("order");only(order,ORDER_KEYS);if(order.has("packages"))strings(new JSONArray(order.getString("packages")),MAX_CONFIG_BYTES,null,true);
         strings(config.getJSONArray("shortcuts"),QuickControlStore.ALL.size(),QuickControlStore.ALL,false);
         JSONObject walls=config.getJSONObject("wallpaper");WallpaperCatalog catalog=WallpaperCatalog.read(walls);require(canonical(catalog.json()).equals(canonical(walls)),"备份壁纸清单无效");require(catalog.dailyImages.isEmpty(),"备份不接受动态缓存");for(WallpaperCatalog.Entry entry:catalog.custom)require(entry.width>0&&entry.height>0&&entry.bytes>0&&entry.name.length()<=256,"备份素材信息无效");
-        ScreensaverSettings saver=ScreensaverSettings.read(config.getJSONObject("screensaver"));require(catalog.find(saver.mediaId)!=null&&canonical(saver.json()).equals(canonical(config.getJSONObject("screensaver"))),"备份屏保信息无效");
+        JSONObject savedSaver=config.getJSONObject("screensaver");ScreensaverSettings saver=ScreensaverSettings.read(savedSaver);JSONObject normalizedSaver=saver.json();for(String key:new String[]{"timePosition","weatherPosition"})if(!savedSaver.has(key))normalizedSaver.remove(key);require(catalog.find(saver.mediaId)!=null&&canonical(normalizedSaver).equals(canonical(savedSaver)),"备份屏保信息无效");
         JSONObject covers=config.getJSONObject("covers");for(Iterator<String> keys=covers.keys();keys.hasNext();){String pkg=keys.next();require(AppCoverStore.packageName(pkg),"备份封面应用无效");LibraryCover.validate(covers.getJSONObject(pkg),version);}
     }
     static Set<String> requiredAssets(JSONObject config)throws IOException,JSONException{

@@ -42,6 +42,7 @@ __pycache__/
 !/app/src/main/assets/weather-input/
 !/app/src/main/assets/weather-input/*
 !/app/src/main/assets/licenses/china-regions-WTFPL.txt
+!/app/src/main/assets/licenses/Lucide-NOTICE.txt
 /.playwright-cli/
 
 # Local development and tests remain on disk, outside the public source tree.

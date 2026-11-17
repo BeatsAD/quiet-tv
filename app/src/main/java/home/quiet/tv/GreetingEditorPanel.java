@@ -50,7 +50,7 @@ final class GreetingEditorPanel {
     private void identify(View view,String tag){view.setId(androidx.core.view.ViewCompat.generateViewId());view.setTag(tag);}
     void show(){
         if(editor!=null)return;baseText=store.greetingText("");enabled=store.greetingEnabled();draftAvatar=avatars.existing(store.avatarFile());avatarEnabled=store.avatarEnabled()&&draftAvatar!=null;
-        editor=ui.new Sheet(tr("问候语与头像","Greeting and avatar"));close=editor.settingsLayout(tr("关闭","Close"),()->editor.dialog.dismiss());
+        editor=ui.new Sheet(tr("问候语与头像","Greeting and avatar"));close=editor.settingsLayout(tr("关闭","Close"),()->editor.dialog.dismiss());editor.fixedSize(480,440);
         toggle=makeSwitch(tr("显示问候语","Show greeting"),"greeting-toggle");toggle.setOnClickListener(v->{enabled=!enabled;updateEnabled();});editor.body.addView(toggle,new LinearLayout.LayoutParams(-1,ui.px(42)));
         LinearLayout field=ui.column();LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-1,-2);fp.topMargin=ui.px(10.56f);fp.bottomMargin=ui.px(14.4f);editor.body.addView(field,fp);
         TextView label=ui.label(tr("问候语（最多8个字）","Greeting (max 8 characters)"),13);label.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,12.48f*ui.unit);label.setTextColor(UiPalette.SECONDARY);field.addView(label,new LinearLayout.LayoutParams(-1,ui.px(17.45f)));ui.gap(field,7.68f);

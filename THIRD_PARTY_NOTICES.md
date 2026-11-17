@@ -16,8 +16,8 @@ Quiet TV 基于 [cleanyourtv](https://github.com/Gathin23/cleanyourtv)（原名 
 | Radix Icons（手机扫码设置） | MIT，[许可原文](app/src/main/assets/licenses/phone-radix-icons-MIT.txt) |
 | Google Material Symbols（APK 图标） | Apache-2.0，[许可原文](app/src/main/assets/licenses/libadb-Apache-2.0.txt)，[来源与转换说明](app/src/main/assets/licenses/material-symbols-NOTICE.txt) |
 | Pictogrammers Material Design Icons（图片文件图标） | Apache-2.0，[许可原文](app/src/main/assets/licenses/libadb-Apache-2.0.txt)，[来源与转换说明](app/src/main/assets/licenses/mdi-file-image-NOTICE.txt) |
-| Phosphor Icons（快捷控制） | MIT，Copyright (c) 2023 Phosphor Icons，[许可原文](app/src/main/assets/licenses/Phosphor-LICENSE.txt) |
-| Lucide 图标 | ISC／MIT，[许可原文](app/src/main/assets/licenses/Lucide-LICENSE.txt) |
+| Phosphor Icons（既有资源） | MIT，Copyright (c) 2023 Phosphor Icons，[许可原文](app/src/main/assets/licenses/Phosphor-LICENSE.txt) |
+| Lucide 图标（首页、快捷控制、其他页面及手机扫码网页功能图标） | ISC／MIT，[许可原文](app/src/main/assets/licenses/Lucide-LICENSE.txt)，[固定源码与图标映射](app/src/main/assets/licenses/Lucide-NOTICE.txt) |
 | [Open Water](https://github.com/Leonxlnx/open-water)（天气噪声与光照计算） | MIT，Copyright (c) 2026 Leonxlnx，[许可原文](app/src/main/assets/licenses/open-water-MIT.txt) |
 | Outfit 字体 | SIL OFL 1.1，[许可原文](app/src/main/assets/fonts/OFL.txt) |
 | 中国行政区划数据 | WTFPL 2.0，[许可原文](app/src/main/assets/licenses/china-regions-WTFPL.txt) |

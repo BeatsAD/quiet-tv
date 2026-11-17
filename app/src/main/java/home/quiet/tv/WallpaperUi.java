@@ -64,6 +64,10 @@ final class WallpaperUi {
     Drawable icon(int resource,int size,int color){
         Drawable art=UiCompat.drawable(context,resource).mutate();art.setColorFilter(color,PorterDuff.Mode.SRC_IN);art.setBounds(0,0,px(size),px(size));return art;
     }
+    Drawable icon(String name,int size,int color){
+        Drawable art=androidx.core.graphics.drawable.DrawableCompat.wrap(new QuickControlIcon(name)).mutate();androidx.core.graphics.drawable.DrawableCompat.setTintList(art,new ColorStateList(new int[][]{{-android.R.attr.state_enabled},{}},new int[]{UiPalette.FAINT,color}));art.setBounds(0,0,px(size),px(size));return art;
+    }
+    void icon(TextView view,String name){view.setCompoundDrawables(icon(name,12,view.getCurrentTextColor()),null,null,null);view.setCompoundDrawablePadding(px(7));}
     void icon(TextView view,int resource){view.setCompoundDrawables(icon(resource,16,view.getCurrentTextColor()),null,null,null);view.setCompoundDrawablePadding(px(7));}
     Drawable calendar(int size){
         Drawable art=new Drawable(){final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);final RectF page=new RectF(3,5,21,22);

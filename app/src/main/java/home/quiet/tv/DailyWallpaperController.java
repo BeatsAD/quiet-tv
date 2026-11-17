@@ -38,12 +38,13 @@ final class DailyWallpaperController {
     static boolean crossedDay(String source,String requestedDay,long now){return WallpaperCatalog.MOVIE.equals(source)&&!requestedDay.equals(day(source,now));}
     boolean busy(){return busy;}
     String error(){return !lastSuccess&&messageSource.equals(DailyWallpaperLoader.source(store.snapshot()))?message:"";}
-    String status(String source){
+    String status(String source){return status(source,true);}
+    String status(String source,boolean includeDate){
         if(source.equals(store.dailyPending()))return tr("正在获取壁纸…","Getting wallpaper…");
         if(source.equals(messageSource)&&!message.isEmpty())return message;
         WallpaperCatalog.DailyImage image=store.snapshot().dailyImages.get(source);
         if(!store.cached(image))return tr("启用后每天自动更新，断网保留上一张","Updates daily; keeps the previous image offline");
-        String date=image.dateLabel();return date.isEmpty()?tr("壁纸已保存到本地  断网可用","Wallpaper cached  Available offline"):tr("图片日期 "+date+"  断网可用","Image date "+date+"  Available offline");
+        String date=includeDate?image.dateLabel():"";return date.isEmpty()?tr("壁纸已保存到本地  断网可用","Wallpaper cached  Available offline"):tr("图片日期 "+date+"  断网可用","Image date "+date+"  Available offline");
     }
     void resume(){active=true;environmentChanged();scheduleDay();}
     private void scheduleDay(){main.removeCallbacks(dayCheck);WallpaperCatalog state=store.snapshot();String source=DailyWallpaperLoader.source(state);long now=System.currentTimeMillis();Calendar next=Calendar.getInstance(WallpaperCatalog.MOVIE.equals(source)?TimeZone.getTimeZone("Asia/Shanghai"):TimeZone.getDefault());next.add(Calendar.DAY_OF_YEAR,1);next.set(Calendar.HOUR_OF_DAY,0);next.set(Calendar.MINUTE,0);next.set(Calendar.SECOND,1);next.set(Calendar.MILLISECOND,0);long delay=next.getTimeInMillis()-now;

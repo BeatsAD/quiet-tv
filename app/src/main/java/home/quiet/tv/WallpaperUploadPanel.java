@@ -42,8 +42,8 @@ final class WallpaperUploadPanel {
     }};
     WallpaperUploadPanel(Activity activity,WallpaperStore store,boolean chinese){this.activity=activity;this.store=store;this.chinese=chinese;}
     private String tr(String zh,String en){return chinese?zh:en;}
-    void show(Bitmap backdrop,Closed callback){
-        if(dialog!=null){backdrop.recycle();return;}this.callback=callback;lastImported=null;
+    void show(DockBackdropDrawable.Background backdrop,Closed callback){
+        if(dialog!=null)return;this.callback=callback;lastImported=null;
         view=new ImageUploadDialog(activity,chinese,backdrop,
             tr("把喜欢的壁纸，留在电视上","Keep your favorite wallpaper on TV"),
             tr("图片  JPG / PNG / 静态 WebP  最大 60 MB  最高保留 4K\n视频  常见视频格式  大小受电视剩余空间限制","Images  JPG / PNG / static WebP  Up to 60 MB  Saved up to 4K\nVideo  Common video formats  Limited by TV storage"),null,this::close,this::start,tr("选择图片或视频，上传后在电视上应用","Upload an image or video, then apply it on your TV"));

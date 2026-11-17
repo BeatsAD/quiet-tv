@@ -85,7 +85,7 @@ public class AppManagementActivity extends ManagementUi {
         if(isFinishing()||UiCompat.destroyed(this))return;
         ManagementPanel previous=current;int oldPage=page;
         if(previous!=null){rememberContentFocus();if(resumed){previous.onPause();previous.onStop();}}
-        page=next;managementPageSelected(next);
+        page=next;root.setPadding(px(next==SettingsPages.ICONS?26:48),px(30),px(next==SettingsPages.ICONS?26:48),px(24));managementPageSelected(next);
         if(panels[next]==null){
             panels[next]=next==SettingsPages.ICONS?new IconLibraryPanel(this):next==SettingsPages.QUICK?new QuickControlEditorPanel(this):next==SettingsPages.APPS?new AppListPanel(this):next==SettingsPages.CHILD?new ChildModePanel(this):next==SettingsPages.TOOLS?new ToolsSettingsPanel(this):next==SettingsPages.ABOUT?new VersionUpdatePanel(this):next==SettingsPages.DIAGNOSTICS?new DiagnosticLogPanel(this):next==SettingsPages.FILES?new FileTransferPanel(this):next==SettingsPages.DESKTOP?new DesktopDisplayPanel(this):next==SettingsPages.STARTUP?new StartupDestinationPanel(this):next==SettingsPages.WEATHER||next==SettingsPages.GENERAL?new WeatherSettingsPanel(this,next==SettingsPages.GENERAL):new SettingsHubPanel(this,next);
             current=panels[next];current.onCreate(savedPanels[next]);

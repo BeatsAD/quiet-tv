@@ -69,9 +69,9 @@ final class HomeGuardState {
     @android.annotation.SuppressLint("ApplySharedPref")
     boolean pause(String reason){
         Map<String,?> previous=preferences.getAll();
-        if(!preferences.edit().putString("mode","OFF").putBoolean("enabled",false).putBoolean("adbGuardEnabled",false).putString("status",reason).remove(DesktopRoutes.PROXY_UPGRADE).commit()){
+        if(!preferences.edit().putString("mode","OFF").putBoolean("enabled",false).putBoolean("adbGuardEnabled",false).putString("status",reason).remove("originalVisitBoot").remove(DesktopRoutes.PROXY_UPGRADE).commit()){
             SharedPreferences.Editor rollback=preferences.edit();
-            for(String key:new String[]{"mode","enabled","adbGuardEnabled","status",DesktopRoutes.PROXY_UPGRADE}){Object value=previous.get(key);if(value instanceof Boolean)rollback.putBoolean(key,(Boolean)value);else if(value instanceof String)rollback.putString(key,(String)value);else rollback.remove(key);}
+            for(String key:new String[]{"mode","enabled","adbGuardEnabled","status","originalVisitBoot",DesktopRoutes.PROXY_UPGRADE}){Object value=previous.get(key);if(value instanceof Boolean)rollback.putBoolean(key,(Boolean)value);else if(value instanceof String)rollback.putString(key,(String)value);else rollback.remove(key);}
             rollback.commit();DiagnosticLog.info("home_guard.pause_failed","preferences unchanged");return false;
         }
         if(unlocked(context))new BootAppStore(context).userAction("guard_paused");DiagnosticLog.info("home_guard.pause",reason);HomeGuardWake.cancel(context);LegacyAdbHomeGuard.stop(context);HomeGuardRecovery.cancel();HomeGuardService.cancelPending();HomeGuardSync.pause(context);HomeGuardUsageService.pause(context);DesktopRoutes.disableVendor(context);if(!new HomeProxy(context).pause())status(reason+"；代理暂停回执待确认，主程序启动入口已关闭");return true;
@@ -161,6 +161,23 @@ final class HomeGuardState {
         if(observationActivity(selected(),-1))homes.add(selected());
         String alias=resolveEventHome(selected());if(observationActivity(alias,-1))homes.add(alias);
         addObservationTargets(homes,observationRules(),"targets");return homes;
+    }
+    boolean patchwallRecovery(){return HomeGuardPolicy.patchwallRecovery(Build.MANUFACTURER,Build.BRAND,Build.MODEL,Build.DEVICE,Build.VERSION.SDK_INT,BuildConfig.LEGACY_19,selected());}
+    // These are recovery targets only. Ordinary window events still match the selected HOME exactly.
+    Set<String> recoveryHomes(){
+        Set<String> homes=eventHomes();
+        if(patchwallRecovery())for(String cls:new String[]{"BootActivity","StrategicLayerActivity"}){
+            String target="com.mitv.tvhome/com.mitv.tvhome."+cls;
+            if(observationActivity(target,-1))homes.add(target);
+        }
+        return homes;
+    }
+    boolean originalVisit(){String boot=BootAppStore.bootId(context);return patchwallRecovery() && !boot.isEmpty() && boot.equals(preferences.getString("originalVisitBoot",""));}
+    @android.annotation.SuppressLint("ApplySharedPref")
+    void originalVisit(boolean allow){
+        if(!patchwallRecovery())return;
+        if(allow)preferences.edit().putString("originalVisitBoot",BootAppStore.bootId(context)).commit();
+        else if(preferences.contains("originalVisitBoot"))preferences.edit().remove("originalVisitBoot").commit();
     }
     Set<String> bootHomes(){Set<String> homes=new LinkedHashSet<>();addObservationTargets(homes,observationRules(),"bootTargets");return homes;}
     long bootStockMs(){org.json.JSONObject rules=observationRules();return rules==null?0:rules.optInt("bootStockMs",0);}

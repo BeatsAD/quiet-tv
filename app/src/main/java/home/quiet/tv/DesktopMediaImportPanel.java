@@ -60,6 +60,7 @@ final class DesktopMediaImportPanel {
             ViewGroup title=(ViewGroup)closeButton.getParent();title.getLayoutParams().height=ui.px(30);sheet.heading.getLayoutParams().height=ui.px(30);
             closeButton.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,12*ui.unit);closeButton.getLayoutParams().width=ui.px(48);closeButton.getLayoutParams().height=ui.px(28);
         }
+        sheet.fixedSize(target.equals("wallpaper")?480:448,440);
         sheet.dialog.setOnKeyListener((d,key,event)->{if(key!=KeyEvent.KEYCODE_BACK&&key!=KeyEvent.KEYCODE_ESCAPE)return false;if(event.getAction()==KeyEvent.ACTION_UP)close();return true;});sheet.dialog.setOnCancelListener(d->close());sheet.dialog.setOnDismissListener(d->{if(sheet==current)release();});render();sheet.show(sheet.body.findViewWithTag("import-source-"+source));
     }
     private void captureName(){if(nameField!=null)name=nameField.getText().toString();}
@@ -119,7 +120,7 @@ final class DesktopMediaImportPanel {
         sheet.body.addView(text(tr("已保存 ","Saved ")+receivedIds.size()+tr(" 个素材"," items"),16.64f,UiPalette.TEXT));
         ScrollView scroll=new ScrollView(ui);LinearLayout list=ui.column();scroll.addView(list);sheet.body.addView(scroll,new LinearLayout.LayoutParams(-1,p(Math.min(179.2f,receivedIds.size()*44.8f))));
         WallpaperCatalog catalog=WallpaperStore.get(ui).snapshot();for(String id:receivedIds){WallpaperCatalog.Entry entry=catalog.find(id);if(entry==null)continue;
-            Button row=button((id.equals(savedId)?"✓  ":"")+entry.label(ui.chinese())+"  "+(entry.video()?tr("视频","Video"):tr("图片","Image")),"import-saved-"+id,()->{if(receiving.get()||committing)return;savedId=id;name=entry.label(ui.chinese());type=entry.video()?"video":"image";pending=null;render();});row.setEnabled(!receiving.get()&&!committing);list.addView(row,new LinearLayout.LayoutParams(-1,p(44.8f)));
+            Button row=button(entry.label(ui.chinese())+"  "+(entry.video()?tr("视频","Video"):tr("图片","Image")),"import-saved-"+id,()->{if(receiving.get()||committing)return;savedId=id;name=entry.label(ui.chinese());type=entry.video()?"video":"image";pending=null;render();});if(id.equals(savedId)){android.graphics.drawable.Drawable tick=androidx.core.graphics.drawable.DrawableCompat.wrap(new QuickControlIcon("check")).mutate();androidx.core.graphics.drawable.DrawableCompat.setTintList(tick,row.getTextColors());tick.setBounds(0,0,ui.px(12),ui.px(12));row.setCompoundDrawables(tick,null,null,null);row.setCompoundDrawablePadding(p(6));}row.setEnabled(!receiving.get()&&!committing);list.addView(row,new LinearLayout.LayoutParams(-1,p(44.8f)));
         }
     }
     private void changeSource(String id){if(source.equals(id)||committing||receiving.get()||!savedId.isEmpty()&&!target.equals("wallpaper"))return;captureName();if(target.equals("wallpaper")&&!savedId.isEmpty()){pending=null;savedId="";name="";nameDirty=false;}source=id;expired=false;notice="";browsing=false;boundary=folder=null;stopServer();render();restoreFocus("import-source-"+source);if(source.equals("phone"))startPhone();}

@@ -245,6 +245,17 @@ class SelfTest:
         self.check('standby', 'PASS' if sleeping and awake(self.adb.shell('dumpsys', 'power')) is True else 'SKIP',
                    '分别记录睡眠与唤醒状态；没有两项证据时不判通过')
         self.foreground_result('home_after_standby', self.timeline(15))
+        # Query the app only after observing the real wake result: a broadcast may revive its process.
+        recovered = maintenance.inspect(self.adb, self.args.package, self.args.user)
+        self.report['afterStandby'] = recovered
+        routes = recovered.get('routes', {})
+        permissions = routes.get('recoveryPermissions', {})
+        if routes.get('automatic') is True and permissions.get('notificationRequired') is True:
+            ready = (routes.get('accessibilityBound') is True and permissions.get('notificationAllowed') is True
+                     and permissions.get('notificationBound') is True and not permissions.get('problem'))
+            self.check('standby_guard_binding', 'PASS' if ready else 'FAIL',
+                       '唤醒画面观察后核对通知与无障碍绑定；不代替前台恢复结果', permissions=permissions,
+                       accessibilityBound=routes.get('accessibilityBound'))
 
     def run(self):
         if self.adb.run('get-state') != 'device':

@@ -19,4 +19,8 @@
         <item name="android:windowEnterAnimation">@anim/quiet_dialog_enter</item>
         <item name="android:windowExitAnimation">@anim/quiet_dialog_exit</item>
     </style>
+    <style name="QuietSheetAnimation">
+        <item name="android:windowEnterAnimation">@anim/quiet_sheet_hold</item>
+        <item name="android:windowExitAnimation">@anim/quiet_sheet_exit</item>
+    </style>
 </resources>

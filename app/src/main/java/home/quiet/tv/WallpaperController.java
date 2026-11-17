@@ -564,7 +564,7 @@ final class WallpaperController {
     void destroy(){cancelPreview();destroyed=true;if(gpu!=null)gpu.destroy();appearance.finish();wallpaperBlur.destroy();finishStartupCover();++request;pendingVideoStart=null;cancelCover();cancelVideoFade();video.destroy();restoredCover=null;daily.destroy();uploads.destroy();decoder.shutdownNow();main.removeCallbacksAndMessages(null);if(transition!=null){transition.cancel();transition.removeAllUpdateListeners();}current.setImageDrawable(null);incoming.setImageDrawable(null);weatherCover.setImageDrawable(null);weatherStill=null;if(phoneWeatherStill!=null){phoneWeatherStill.recycle();phoneWeatherStill=null;}currentBlur=null;incomingBlur=null;dockInvalidation=null;backdropInvalidation=null;liveBackdrop=null;thumbnails.evictAll();}
 
     synchronized Bitmap entryBanner(){
-        if(entry==null)entry=HomeEntryArtwork.render(activity,tr("壁纸设置","Wallpaper Settings"),HomeAppCatalog.WALLPAPER);
+        if(entry==null)entry=HomeEntryArtwork.render(activity,tr("更换壁纸","Wallpaper Settings"),HomeAppCatalog.WALLPAPER);
         return entry;
     }
     private TextView label(String value,int size){return ui.text(value,size);}
@@ -676,8 +676,8 @@ final class WallpaperController {
         ((androidx.activity.ComponentDialog)picker).getOnBackPressedDispatcher().addCallback((androidx.activity.ComponentDialog)picker,new androidx.activity.OnBackPressedCallback(true){@Override public void handleOnBackPressed(){handlePickerBack();}});
         picker.requestWindowFeature(Window.FEATURE_NO_TITLE);content=new FrameLayout(activity);
         LinearLayout layout=new LinearLayout(activity);layout.setOrientation(LinearLayout.VERTICAL);layout.setPadding(px(36),px(32),px(36),px(32));content.addView(layout,new FrameLayout.LayoutParams(-1,-1));
-        LinearLayout header=row();TextView back=button("",false,this::handlePickerBack);back.setPadding(px(10),px(10),px(10),px(10));back.setCompoundDrawables(ui.icon(R.drawable.wp_chevron_left,17,WallpaperUi.INK),null,null,null);back.setBackgroundDrawable(ui.focusSurface(0xa6000000,100));back.setContentDescription(tr("返回桌面","Back to home"));header.addView(back,new LinearLayout.LayoutParams(px(37),px(37)));gap(header,13);
-        TextView heading=label(tr("壁纸设置","Wallpaper Settings"),28);header.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
+        LinearLayout header=row();TextView back=button("",false,this::handlePickerBack);back.setPadding(px(9),px(9),px(9),px(9));back.setCompoundDrawables(ui.icon("arrow-left",18,WallpaperUi.INK),null,null,null);back.setBackgroundDrawable(ui.focusSurface(0xa6000000,100));back.setContentDescription(tr("返回桌面","Back to home"));header.addView(back,new LinearLayout.LayoutParams(px(37),px(37)));gap(header,13);
+        TextView heading=label(tr("更换壁纸","Wallpaper Settings"),28);header.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
         LinearLayout categories=row();int categoryPadding=px(WallpaperUi.CATEGORY_PADDING);categories.setPadding(categoryPadding,categoryPadding,categoryPadding,categoryPadding);categories.setBackgroundDrawable(ui.surface(0xe6000000,100,0x38ffffff,1));
         staticTab=ui.categoryTab(tr("静态壁纸","Static"),()->category(false));videoTab=ui.categoryTab(tr("动态壁纸","Video"),()->category(true));
         categories.addView(staticTab,new LinearLayout.LayoutParams(px(WallpaperUi.TOOLBAR_WIDTH),px(WallpaperUi.TOOLBAR_HEIGHT)));gap(categories,4);categories.addView(videoTab,new LinearLayout.LayoutParams(px(WallpaperUi.TOOLBAR_WIDTH),px(WallpaperUi.TOOLBAR_HEIGHT)));
@@ -687,7 +687,7 @@ final class WallpaperController {
         dynamicToggle=button("",false,this::toggleVideo);header.addView(dynamicToggle);
         soundToggle=button("",false,()->runSaved(()->{store.sound(!store.snapshot().sound);video.setSound(audible());details();}));header.addView(soundToggle);
         localFile=button(tr("本地 / U盘","Files / USB"),false,()->{picker.dismiss();activity.startActivityForResult(new android.content.Intent(activity,WallpaperFilesActivity.class),WallpaperFilesActivity.REQUEST);});header.addView(localFile);
-        gap(header,8);upload=button(tr("上传壁纸","Upload"),false,()->{daily.cancel();stopVideo();uploads.show(WallpaperUi.backdrop(root,content),id->{if(picker==null)return;if(id!=null&&store.snapshot().find(id)!=null){preview=id;dynamicTab=store.snapshot().find(id).video();}refreshCards(preview,true);});});ui.icon(upload,R.drawable.wp_upload);header.addView(upload);
+        gap(header,8);upload=button(tr("上传壁纸","Upload"),false,()->{daily.cancel();stopVideo();uploads.show((canvas,paint)->{drawDockBackground(canvas,paint);if(content!=null)content.draw(canvas);},id->{if(picker==null)return;if(id!=null&&store.snapshot().find(id)!=null){preview=id;dynamicTab=store.snapshot().find(id).video();}refreshCards(preview,true);});});ui.icon(upload,"upload");header.addView(upload);
         heading.setSingleLine();heading.setEllipsize(android.text.TextUtils.TruncateAt.END);for(TextView control:new TextView[]{auto,dynamicToggle,soundToggle,localFile,upload})ui.toolbarSize(control);
         layout.addView(header);
         layout.addView(new View(activity),new LinearLayout.LayoutParams(1,0,1));
@@ -793,7 +793,7 @@ final class WallpaperController {
             String id=wallpaper.id;FrameLayout card=new FrameLayout(activity);card.setId(androidx.core.view.ViewCompat.generateViewId());card.setFocusable(true);card.setContentDescription(wallpaper.label(chinese));card.setPadding(px(CARD_INSET),px(CARD_INSET),px(CARD_INSET),px(CARD_INSET));card.setBackgroundDrawable(border(false,false));
             LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(px(184),px(147));cp.rightMargin=px(14);rail.addView(card,cp);cards.put(id,card);
             ImageView image=ui.image(CARD_RADIUS,CARD_INSET);card.addView(image,new FrameLayout.LayoutParams(-1,px(95)));
-            if(wallpaper.video()){image.setImageBitmap(defaultThumbnail());TextView play=label("▶",22);play.setGravity(Gravity.CENTER);androidx.core.view.ViewCompat.setImportantForAccessibility(play,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);card.addView(play,new FrameLayout.LayoutParams(-1,px(95)));}
+            if(wallpaper.video()){image.setImageBitmap(defaultThumbnail());ImageView play=new ImageView(activity);QuickControlIcon playIcon=new QuickControlIcon("play");playIcon.color(WallpaperUi.INK);play.setImageDrawable(playIcon);play.setScaleType(ImageView.ScaleType.FIT_CENTER);androidx.core.view.ViewCompat.setImportantForAccessibility(play,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);FrameLayout.LayoutParams pp=new FrameLayout.LayoutParams(px(18),px(18),Gravity.TOP|Gravity.CENTER_HORIZONTAL);pp.topMargin=(px(95)-px(18))/2;card.addView(play,pp);}
             if(WallpaperCatalog.DEFAULT.equals(id))image.setImageBitmap(defaultThumbnail());else{
                 String thumbnailKey=store.imageKey(id);Bitmap cached=thumbnails.get(thumbnailKey);if(cached!=null)image.setImageBitmap(cached);
                 else if(!WallpaperCatalog.DAILY.equals(id)||store.cached(state.dailyImages.get(state.dailySource)))decoder.execute(()->{try{Bitmap bitmap=WallpaperImages.decode(activity,store,wallpaper,360,203);thumbnails.put(thumbnailKey,bitmap);main.post(()->{if(picker!=null&&version==pickerVersion)image.setImageBitmap(bitmap);});}catch(IOException|OutOfMemoryError ignored){}});
@@ -846,7 +846,7 @@ final class WallpaperController {
         for(TextView toggle:new TextView[]{dynamicToggle,soundToggle}){Drawable icon=toggle.getCompoundDrawables()[0];icon.setBounds(0,0,px(22),px(13));toggle.setCompoundDrawables(icon,null,null,null);toggle.setCompoundDrawablePadding(px(4));}
         int count=dynamicTab?state.videos().size():state.pictures().size();
         boolean rotating=state.rotating&&state.dynamic()==dynamicTab;String unavailable=tr(dynamicTab?"至少需要两个视频才能轮播":"至少需要两张图片才能轮播",dynamicTab?"Add at least two videos for rotation":"Add at least two photos for rotation");
-        auto.setText(tr("轮播：","Rotate: ")+rotationLabel(rotating?state.rotationMinutes:0));auto.setCompoundDrawables(null,null,ui.icon(R.drawable.ic_wallpaper_dropdown,11,WallpaperUi.INK),null);auto.setCompoundDrawablePadding(px(4));auto.setEnabled(count>=2);auto.setAlpha(count>=2?1:.4f);auto.setContentDescription(count<2?unavailable:auto.getText());
+        auto.setText(tr("轮播：","Rotate: ")+rotationLabel(rotating?state.rotationMinutes:0));auto.setCompoundDrawables(null,null,ui.icon("chevron-down",12,WallpaperUi.INK),null);auto.setCompoundDrawablePadding(px(4));auto.setEnabled(count>=2);auto.setAlpha(count>=2?1:.4f);auto.setContentDescription(count<2?unavailable:auto.getText());
         WallpaperUi.toolbarFocus(staticTab,videoTab,auto,dynamicToggle,soundToggle,localFile,upload);
         if(entry==null){title.setText(tr("还没有动态壁纸","No video wallpapers"));subtitle.setText(unavailable);subtitle.setVisibility(View.VISIBLE);for(TextView control:new TextView[]{staticTab,videoTab,dynamicToggle,soundToggle,localFile,upload})control.setNextFocusDownId(upload.getId());return;}
         title.setText(entry.label(chinese));boolean isDaily=WallpaperCatalog.DAILY.equals(preview);
@@ -888,7 +888,7 @@ final class WallpaperController {
         boolean[] releasing={initiatingKey!=KeyEvent.KEYCODE_UNKNOWN};
         dialog.setOnKeyListener((d,key,event)->{if(!releasing[0]||key!=initiatingKey)return false;if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0&&event.getDownTime()>downTime){releasing[0]=false;return false;}if(event.getAction()==KeyEvent.ACTION_UP)releasing[0]=false;return true;});
         dialog.setOnDismissListener(d->{if(confirmation==dialog)confirmation=null;if(active)focusCard(returnTo[0]);});
-        confirmation=dialog;dialog.show();ControlStyle.dialog(dialog,unit);View cancel=dialog.getButton(AlertDialog.BUTTON_NEGATIVE);cancel.setOnClickListener(v->{dialog.dismiss();KeyFeedback.back(activity);});cancel.post(()->{if(dialog.isShowing())cancel.requestFocusFromTouch();});
+        confirmation=dialog;dialog.show();ControlStyle.dialog(dialog,unit,(canvas,paint)->{drawDockBackground(canvas,paint);if(content!=null)content.draw(canvas);},decoder);View cancel=dialog.getButton(AlertDialog.BUTTON_NEGATIVE);cancel.setOnClickListener(v->{dialog.dismiss();KeyFeedback.back(activity);});cancel.post(()->{if(dialog.isShowing())cancel.requestFocusFromTouch();});
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
             try{
                 String thumbnailKey=store.imageKey(entry.id);store.remove(entry.id);thumbnails.remove(thumbnailKey);before.remove(entry.id);returnTo[0]=before.isEmpty()?WallpaperCatalog.DEFAULT:before.get(Math.max(0,Math.min(index,before.size()-1)));

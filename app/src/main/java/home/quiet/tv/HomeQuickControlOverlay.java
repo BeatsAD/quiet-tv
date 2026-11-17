@@ -29,6 +29,7 @@ final class HomeQuickControlOverlay implements HomeQuickControlView.Host {
         layer=new FrameLayout(home){
             private boolean headerGesture;
             @Override public boolean dispatchTouchEvent(MotionEvent event){
+                if(closed)return false;
                 int[] location=new int[2];header.buttons.getLocationOnScreen(location);
                 if(event.getActionMasked()==MotionEvent.ACTION_DOWN){Rect bounds=new Rect();headerGesture=header.buttons.getGlobalVisibleRect(bounds)&&bounds.contains((int)event.getRawX(),(int)event.getRawY());}
                 if(!headerGesture)return super.dispatchTouchEvent(event);
@@ -84,15 +85,20 @@ final class HomeQuickControlOverlay implements HomeQuickControlView.Host {
                 }else if(key==KeyEvent.KEYCODE_DPAD_DOWN){if("control".equals(header.buttonIds.get(index))){controls.setVisibility(View.VISIBLE);controls.requestFocus();controls.focus(null);}else home.closeQuickControls(true);}
             }return true;
         }
+        if(key==KeyEvent.KEYCODE_DPAD_UP&&event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0&&controls.firstRowFocused()){
+            int index=header.buttonIds.indexOf("control");
+            if(index>=0){header.pills.get(index).requestFocus();syncHeader();return true;}
+        }
         if(confirm||direction){controls.dispatchKeyEvent(event);return true;}
         return false;
     }
     void back(){if(!controls.cancelAdjustments()){home.closeQuickControls(false);KeyFeedback.returned(home);}}
     private void execute(String id){if("brightness".equals(id)){controls.beginBrightness();return;}if("volume".equals(id)){controls.beginVolume();return;}home.executeQuickControl(id);}
     void destroy(){
-        closed=true;if(contentDraw!=null)contentDraw.run();controls.destroy();root.removeView(layer);
+        closed=true;if(contentDraw!=null)contentDraw.run();controls.destroy();controls.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);controls.setFocusable(false);controls.setFocusableInTouchMode(false);controls.clearFocus();
         for(TextView pill:header.pills){pill.setOnFocusChangeListener(null);pill.setOnTouchListener(null);pill.setFocusable(false);pill.setFocusableInTouchMode(false);pill.setLongClickable(true);pill.setSelected(false);pill.setActivated(false);SettingsFocusMotion.update(pill,false);}
         desktop.setDescendantFocusability(desktopFocus);home.setVolumeControlStream(volumeStream);worker.shutdown();
+        if(home.isFinishing()||UiCompat.destroyed(home))root.removeView(layer);else UiMotion.exit(controls,-6*home.getResources().getDisplayMetrics().widthPixels/960f,()->root.removeView(layer));
     }
     @Override public boolean quickPanelFocusAllowed(){return !closed&&!header.buttons.hasFocus()&&controls.isShown();}
     @Override public void quickPanelFocused(){syncHeader();}

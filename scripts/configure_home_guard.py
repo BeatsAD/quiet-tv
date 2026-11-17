@@ -10,6 +10,7 @@ import re
 import shlex
 import subprocess
 import sys
+import time
 import uuid
 
 ERROR_OUTPUT = re.compile(r"(?im)^\s*(?:error:|exception|securityexception|failure|bad argument:|operation not allowed:|unknown (?:command|operation|op)\b|invalid operation)")
@@ -415,6 +416,40 @@ def confirm_adb(adb, args, confirmed):
             raise ValueError("ADB 调试开关未读回为开启，或前台用户已变化")
 
 
+def confirm_required_services(adb, args, selected, record=None):
+    """MFTR0's notification recovery is required; observe binding without replaying setup writes."""
+    deadline = time.monotonic() + 10
+    while True:
+        if adb.current_user() != args.user:
+            raise ValueError("前台用户已改变，停止守护绑定核验")
+        output = adb.shell("am", "broadcast", "--include-stopped-packages", "--user", args.user,
+                           "-a", args.package + ".CONFIGURE_HOME_GUARD",
+                           "-n", args.package + "/home.quiet.tv.HomeGuardSetupReceiver",
+                           "--ei", "user", args.user, "--ez", "inspect", "true")
+        state = broadcast_data(output)
+        if record is not None:
+            record({"type": "guard_binding_readback", "output": output})
+        if (not re.search(r"\bresult=-1\b", output) or not state or state.get("schemaVersion") != 1
+                or state.get("package") != args.package or state.get("paused") is not False
+                or state.get("supported") is not True or selected not in state.get("candidates", [])
+                or canonical_home(state.get("selected", "")) != selected):
+            raise ValueError("守护绑定核验身份或路线已变化，保留当前配置")
+        permissions = state.get("permissions", {})
+        if permissions.get("notificationRequired") is not True:
+            raise ValueError("小米待机恢复条件已变化，请重新核对配置")
+        if (state.get("configurationProblem") == "" and state.get("accessibilityAllowed") is True
+                and state.get("accessibilityBound") is True and permissions.get("notificationAllowed") is True
+                and permissions.get("notificationBound") is True):
+            print("小米待机恢复的通知授权、通知绑定和无障碍绑定已读回；实体唤醒仍待验收。")
+            return
+        if time.monotonic() >= deadline:
+            raise ValueError("小米待机恢复未就绪：通知授权=" + str(permissions.get("notificationAllowed"))
+                             + "，通知绑定=" + str(permissions.get("notificationBound"))
+                             + "，无障碍绑定=" + str(state.get("accessibilityBound"))
+                             + "；保留当前配置，不能以同步恢复代替本机通知恢复验收")
+        time.sleep(0.5)
+
+
 def configure_adb_only(args, adb, sdk, package, inspection, port):
     """Keep maintenance access without enabling or changing any HOME guard route."""
     if not inspection.get("adbOnlySupported"):
@@ -572,6 +607,12 @@ def configure(args, adb):
     if sdk >= 23:
         plan.append(["appops", "set", *ops_user, args.package, "SYSTEM_ALERT_WINDOW", "allow"])
     vendor = " ".join(adb.shell("getprop", key) for key in ("ro.product.manufacturer", "ro.product.brand")).lower().split()
+    if (args.apply and sdk == 34 and set(vendor).intersection(("xiaomi", "redmi"))
+            and selected == "com.mitv.tvhome/com.mitv.tvhome.MainActivityUserMode"
+            and adb.shell("getprop", "ro.product.model") == "MiTV-MFTR0"
+            and adb.shell("getprop", "ro.product.device") == "freeguy"
+            and (not inspection or inspection.get("patchwallRecoverySupported") is not True)):
+        raise ValueError("已安装 APK 缺少此小米机型的待机恢复适配，请先更新；未修改权限")
     if not direct_home and (inspection and inspection.get("homeEventUsageSupported") is True or sdk <= 23 or "xiaomi" in vendor or "redmi" in vendor or selected.startswith("com.jamdeo.tv.vod/")
             or sdk == 25 and selected.startswith("com.amazon.tv.launcher/")):
         plan.append(["appops", "set", *ops_user, args.package, "GET_USAGE_STATS", "allow"])
@@ -691,7 +732,11 @@ def configure(args, adb):
                 output = adb.shell(*broadcast)
                 record_result({"command": broadcast, "after_hisense_refresh": True, "output": output})
                 print(output)
-            if not re.search(r"\bresult=-1\b", output):
+            required_binding = (confirmed and confirmed.get("enabled") is True
+                                and confirmed.get("permissions", {}).get("notificationRequired") is True)
+            if required_binding:
+                confirm_required_services(adb, args, selected, record_result)
+            if not re.search(r"\bresult=-1\b", output) and not required_binding:
                 raise ValueError("应用未确认全部权限配置完成；已完成的授权保留，请检查上方结果")
             confirmed = broadcast_data(output)
             if keep_adb is not None:

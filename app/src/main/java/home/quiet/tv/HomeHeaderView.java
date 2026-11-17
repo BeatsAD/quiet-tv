@@ -86,9 +86,9 @@ final class HomeHeaderView extends FrameLayout {
     }
     private void place(View child,float width,float height,float x,float y){FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(width<0?(int)width:px(width),height<0?(int)height:px(height));p.leftMargin=px(x);p.topMargin=px(y);addView(child,p);}
     static GradientDrawable pillSurface(float unit){GradientDrawable bg=new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x38ffffff,0x1cffffff,0x12ffffff});bg.setCornerRadius(22*unit);bg.setStroke(Math.max(1,Math.round(.5f*unit)),0x78ffffff);return bg;}
-    private void setPillIcon(TextView pill,String glyph){Drawable icon=new QuickControlIcon(glyph);int size=px(17.52f);icon.setBounds(0,0,size,size);int padding=(px(35.52f)-size)/2;pill.setPadding(padding,0,padding,0);pill.setCompoundDrawables(icon,null,null,null);}
+    private void setPillIcon(TextView pill,String glyph){Drawable icon=new QuickControlIcon(glyph);int size=px(18);icon.setBounds(0,0,size,size);int padding=(px(35.52f)-size)/2;pill.setPadding(padding,0,padding,0);pill.setCompoundDrawables(icon,null,null,null);}
     void setPillIcon(TextView pill,int resource){setPillIcon(pill,resource==R.drawable.ic_wifi?"header-wifi":resource==R.drawable.ic_ethernet?"header-ethernet":"header-wifi-off");}
-    private String headerGlyph(String id){switch(id){case "source":return "header-input";case "control":return "header-control";case "settings":case "systemSettings":return "header-settings";case "network":return "header-wifi";default:return HomeButtonStore.glyph(id);}}
+    private String headerGlyph(String id){return HomeButtonStore.glyph(id);}
     void buttonBackdrop(DockBackdropDrawable.Background background,View origin){for(TextView pill:pills)pill.setBackgroundDrawable(new DockBackdropDrawable(background,pill,origin,unit,true,true));}
     private void detach(View v){if(v.getParent()!=null)((android.view.ViewGroup)v.getParent()).removeView(v);}
     private void add(LinearLayout parent,View v,int width,int height,int top){detach(v);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(width<0?width:px(width),height<0?height:px(height));p.topMargin=px(top);parent.addView(v,p);}

@@ -2,10 +2,14 @@ package home.quiet.tv;
 
 import android.graphics.*;
 import android.graphics.drawable.Drawable;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
+import android.view.ViewTreeObserver;
 
 /** One bounded settings snapshot supplies the sheet's frosted surface, without another player. */
 final class SettingsSheetBackdrop extends Drawable {
+    static final float DIM_AMOUNT=0x35/255f;
     private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);
     private final RectF area=new RectF();
     private final View panel;
@@ -21,13 +25,31 @@ final class SettingsSheetBackdrop extends Drawable {
     private final java.util.concurrent.Executor filter;
     private final float unit,screenWidth,screenHeight;
     private final int[] position=new int[2];
+    private final Handler main=new Handler(Looper.getMainLooper());
+    private boolean followFocus,watchingFocus,windowFocused;
+    private final ViewTreeObserver.OnPreDrawListener focus=this::windowFrame;
+    // Legacy controls may not invalidate on window focus; keep the first capture pending until it arrives.
+    private boolean windowFrame(){
+        boolean focused=panel.hasWindowFocus();
+        if(focused&&!windowFocused){windowFocused=true;prepareForFocusedWindow(()->{if(panel.hasWindowFocus())panel.setAlpha(1f);});}
+        else if(!focused){windowFocused=false;if(image==null)panel.getRootView().postInvalidate();}
+        return true;
+    }
     SettingsSheetBackdrop(ManagementUi ui,View panel){
         this(panel,ui.unit,(canvas,paint)->ui.drawSheetBackdrop(canvas),ui::filterSheetBackdrop);
         panel.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener(){@Override public void onViewAttachedToWindow(View view){ui.watchBackdrop(SettingsSheetBackdrop.this,true);}@Override public void onViewDetachedFromWindow(View view){ui.watchBackdrop(SettingsSheetBackdrop.this,false);}});
     }
     SettingsSheetBackdrop(View panel,float unit,DockBackdropDrawable.Background background,java.util.concurrent.Executor filter){
         this.panel=panel;this.unit=unit;this.background=background;this.filter=filter;screenWidth=panel.getResources().getDisplayMetrics().widthPixels;screenHeight=panel.getResources().getDisplayMetrics().heightPixels;
+        panel.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener(){
+            @Override public void onViewAttachedToWindow(View view){if(followFocus)watchFocus();}
+            @Override public void onViewDetachedFromWindow(View view){if(watchingFocus&&view.getViewTreeObserver().isAlive())view.getViewTreeObserver().removeOnPreDrawListener(focus);watchingFocus=false;windowFocused=false;release();}
+        });
     }
+    // Plain dialogs and AlertDialogs keep their layouts/listeners; observe their window through the panel.
+    void followWindowFocus(){followFocus=true;if(panel.getWindowToken()!=null)watchFocus();}
+    private void watchFocus(){if(watchingFocus)return;watchingFocus=true;windowFocused=false;if(image==null)panel.setAlpha(0f);panel.getViewTreeObserver().addOnPreDrawListener(focus);panel.invalidate();}
+    void release(){++generation;shaderImage=null;imageShader=null;paint.setShader(null);if(image!=null){image.recycle();image=null;}prepared=false;}
     void refresh(){prepare(true,null);}
     void prepare(){prepare(false,null);}
     boolean ready(){return prepared||SettingsFocusMotion.reduced();}
@@ -47,7 +69,7 @@ final class SettingsSheetBackdrop extends Drawable {
         // Keep the last filtered image visible until its replacement is ready.
         filter.execute(()->{
             Bitmap blurred=null;try{gaussian(snapshot,20f*snapshot.getWidth()/1280f);blurred=snapshot;}catch(RuntimeException|OutOfMemoryError error){snapshot.recycle();DiagnosticLog.info("management.sheet.filter_failed","keep stable surface");}
-            Bitmap ready=blurred;panel.post(()->{if(version!=generation||panel.getWindowToken()==null){if(ready!=null)ready.recycle();return;}if(ready!=null)image=ready;prepared=true;invalidateSelf();if(complete!=null)complete.run();});
+            Bitmap ready=blurred;main.post(()->{if(version!=generation||panel.getWindowToken()==null){if(ready!=null)ready.recycle();return;}if(ready!=null){Bitmap previous=image;shaderImage=null;imageShader=null;paint.setShader(null);image=ready;if(previous!=null)previous.recycle();}prepared=true;invalidateSelf();if(complete!=null)complete.run();});
         });
     }
     static void gaussian(Bitmap image,float sigma){

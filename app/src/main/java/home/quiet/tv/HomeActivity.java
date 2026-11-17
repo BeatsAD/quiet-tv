@@ -1358,7 +1358,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         android.app.AlertDialog dialog=new android.app.AlertDialog.Builder(this)
             .setTitle(attempt!=null&&attempt.fallback()?tr("当前是系统设置首页入口","Current entry opens the settings home"):Settings.ACTION_WIFI_SETTINGS.equals(action)?tr("网络入口测试","Network entry test"):tr("系统设置入口测试","System settings entry test"))
             .setItems(labels.toArray(new String[0]),(d,which)->operations.get(which).run()).setNegativeButton(tr("返回","Back"),null).create();
-        dialog.show();ControlStyle.dialog(dialog,unit);
+        dialog.show();styleDialog(dialog);
     }
     private void testSettings(String action){
         settingsTrial=null;
@@ -1402,7 +1402,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 for(TvInputPanels.Panel panel:panels){labels.add(panel.profile.label(chinese));actions.add(()->openNativeInputs(panel));}
                 android.app.AlertDialog dialog=new android.app.AlertDialog.Builder(this)
                     .setTitle(tr("系统信号源","System inputs")).setItems(labels.toArray(new String[0]),(d,index)->actions.get(index).run())
-                    .setNegativeButton(tr("返回","Back"),null).create();dialog.show();ControlStyle.dialog(dialog,unit);return;
+                    .setNegativeButton(tr("返回","Back"),null).create();dialog.show();styleDialog(dialog);return;
             }
             showInputIssue(tr("信号源入口不可用","Input entry unavailable"),tr("当前安卓版本不提供标准输入列表。","This Android version has no standard TV input list.")+"\n\n"+snapshot.problem(chinese));
         });
@@ -1435,6 +1435,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             if(state!=TvInputPanels.PanelState.READY){wallpapers.resume();showInputIssue(tr("信号源入口不可用","Input entry unavailable"),nativeInputProblem(state));}
         });
     }
+    private void styleDialog(android.app.AlertDialog dialog){ControlStyle.dialog(dialog,unit,(canvas,paint)->{wallpapers.drawDockBackground(canvas,paint);root.draw(canvas);},loader);}
     private void showInputIssue(String title,String message){
         DiagnosticLog.info("input.problem","dialog_shown");
         android.app.AlertDialog.Builder builder=new android.app.AlertDialog.Builder(this).setTitle(title).setMessage(message)
@@ -1442,7 +1443,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             .setNeutralButton(tr("重新检测","Detect again"),(d,w)->main.post(this::showInputs));
         builder.setPositiveButton(tr("搜索与配对","Search and pair"),(d,w)->openInputPairingSettings());
         android.app.AlertDialog dialog=builder.create();
-        dialog.setOnDismissListener(d->main.post(this::updateHeaderFocus));dialog.show();ControlStyle.dialog(dialog,unit);
+        dialog.setOnDismissListener(d->main.post(this::updateHeaderFocus));dialog.show();styleDialog(dialog);
     }
 
     @android.annotation.TargetApi(24)
@@ -1510,7 +1511,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 if(setup!=null)dialog.setPositiveButton(tr("信号源设置","Set up input"),(d,w)->leaveSystemEntry("input.setup",()->{
                     try{startActivity(setup);systemEntryResult(true);}catch(RuntimeException unavailable){systemEntryResult(false);wallpapers.resume();showInputProblem(tr("信号源设置不可用","Input setup unavailable"));}
                 }));
-                ControlStyle.dialog(dialog.show(),unit);return;
+                styleDialog(dialog.show());return;
             }
             showInputProblem(tr("信号源暂不可用，请重新检测或使用电视遥控器信号源键。","Input unavailable; detect again or use the TV remote input key."));
         }

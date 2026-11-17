@@ -1,15 +1,11 @@
 package home.quiet.tv;
 
 import android.Manifest;
-import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.net.Uri;
 import android.os.*;
 import android.view.*;
 import android.widget.*;
 import java.io.IOException;
-import java.text.SimpleDateFormat;
-import java.util.*;
 
 /** Location and source tools share preferences and keep consent in the same native sheet. */
 final class WeatherSettingsSheet {
@@ -31,7 +27,6 @@ final class WeatherSettingsSheet {
     WeatherSettingsSheet(AppManagementActivity ui,Runnable changed){this(ui,changed,()->{});}
     WeatherSettingsSheet(AppManagementActivity ui,Runnable changed,Runnable closed){this.ui=ui;this.changed=changed;this.closed=closed;store=new WeatherStore(ui);sources=new WeatherClient(ui);controller=new WeatherController(ui,ui.chinese(),(data,message,busy)->{error=message;refresh();changed.run();});cities=new WeatherCityPicker(ui,store,()->{controller.settingsChanged();refresh();changed.run();});}
     private String tr(String zh,String en){return ui.tr(zh,en);}
-    private String sourceName(String value){return "qweather".equals(value)?tr("和风天气","QWeather"):WeatherClient.providerName(value);}
     private TextView copy(String value){TextView text=ui.muted(value,14);text.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,13.44f*ui.unit);text.setLineSpacing(ui.px(3.84f),1);return text;}
     private DesktopSettingsRow row(LinearLayout parent,String text,String tag,Runnable action,boolean toggle){DesktopSettingsRow row=new DesktopSettingsRow(ui,text,"",false);row.displayStyle();row.textSizes(14.016f,11.52f);row.hideIcon();row.setTag(tag);row.setOnClickListener(v->action.run());if(!toggle)row.tail("arrow");parent.addView(row,new LinearLayout.LayoutParams(-1,ui.px(toggle?42:45)));return row;}
     void show(){showSources();}
@@ -41,7 +36,7 @@ final class WeatherSettingsSheet {
     private void create(){
         origin=ui.getCurrentFocus();sheet=ui.new Sheet(root.equals("location")?tr("天气位置","Weather location"):tr("来源与服务","Sources and services"));ManagementUi.Sheet current=sheet;
         if(root.equals("sources"))sheet.contentWidth(520,640);
-        sheet.settingsLayout(tr("关闭","Close"),this::close);sheet.dialog.setOnKeyListener((d,key,event)->{if(key!=KeyEvent.KEYCODE_BACK&&key!=KeyEvent.KEYCODE_ESCAPE)return false;if(event.getAction()==KeyEvent.ACTION_UP){if(providers!=null&&providers.back())return true;if(page.equals("consent")){pendingProvider="";page=root;render();}else close();}return true;});
+        sheet.settingsLayout(tr("关闭","Close"),this::close);if(root.equals("sources"))sheet.fixedSize(520,340);sheet.dialog.setOnKeyListener((d,key,event)->{if(key!=KeyEvent.KEYCODE_BACK&&key!=KeyEvent.KEYCODE_ESCAPE)return false;if(event.getAction()==KeyEvent.ACTION_UP){if(providers!=null&&providers.back())return true;if(page.equals("consent")){pendingProvider="";page=root;render();}else close();}return true;});
         sheet.dialog.setOnDismissListener(d->{if(sheet==current){sheet=null;pendingProvider="";updateDemand();if(active)closed.run();if(active&&origin!=null&&origin.isShown())origin.requestFocusFromTouch();}});render();sheet.show(null);updateDemand();
     }
     void showCity(){
@@ -54,18 +49,17 @@ final class WeatherSettingsSheet {
             sheet.body.addView(ui.label(tr("启用 Open-Meteo？","Enable Open-Meteo?"),15));sheet.body.addView(copy(tr("天气数据为模型估算，免费接口仅限非商业使用且有请求限额。连接情况取决于当前网络。","Model estimates. The free API is for non-commercial use and has request limits. Availability depends on your network.")));
             Button cancel=sheet.action(tr("取消","Cancel"),()->{pendingProvider="";page=root;render();});cancel.setTag("weather-consent-cancel");Button enable=sheet.action(tr("启用","Enable"),()->{store.meteoFallback(true);if(!pendingProvider.isEmpty())store.provider(pendingProvider);pendingProvider="";page=root;render();controller.settingsChanged();changed.run();});enable.setTag("weather-consent-enable");ui.emphasize(enable,true);
         }else{
-            LinearLayout group=ui.group();sheet.body.addView(group,new LinearLayout.LayoutParams(-1,-2));
+            LinearLayout group=page.equals("location")?ui.group():ui.column();sheet.body.addView(group,new LinearLayout.LayoutParams(-1,-2));
             if(page.equals("location")){
                 automatic=row(group,tr("自动定位","Automatic location"),"weather-sheet-auto",this::automatic,true);
                 city=row(group,tr("手动选择位置","Choose location manually"),"weather-sheet-city",this::showCity,false);
             }else{
-                providers=new DisplayAppearanceChoice(ui,"weather-sheet-provider",tr("天气来源","Weather source"),new String[]{"auto","qweather","uapi","openweather","openmeteo"},new String[]{tr("自动切换","Automatic fallback"),tr("和风天气","QWeather"),"UAPI","OpenWeather","Open-Meteo"},new DisplayAppearanceChoice.Access(){public String read(){return store.provider();}public void save(String value)throws IOException{chooseProvider(value);}},false,new DisplayAppearanceChoice.Preview(){public void value(String key,Object value){}public void clear(String key){}},()->{}).dialogStyle().errors(message->{error=message;refresh();});group.addView(providers,new LinearLayout.LayoutParams(-1,-2));
+                providers=new DisplayAppearanceChoice(ui,"weather-sheet-provider",tr("天气来源","Weather source"),new String[]{"auto","qweather","uapi","openweather","openmeteo"},new String[]{tr("自动切换","Automatic fallback"),tr("和风天气","QWeather"),"UAPI","OpenWeather","Open-Meteo"},new DisplayAppearanceChoice.Access(){public String read(){return store.provider();}public void save(String value)throws IOException{chooseProvider(value);}},false,new DisplayAppearanceChoice.Preview(){public void value(String key,Object value){}public void clear(String key){}},()->{}).dialogStyle().optionsOnly().errors(message->{error=message;refresh();});group.addView(providers,new LinearLayout.LayoutParams(-1,-2));
                 if(store.provider().equals("auto"))fallback=row(group,tr("Open-Meteo 备用","Open-Meteo fallback"),"weather-sheet-fallback",()->{if(store.meteoFallback()){store.meteoFallback(false);controller.settingsChanged();changed.run();render();}else{page="consent";render();}},true);
-                ui.gap(sheet.body,14);serviceInformation();
             }
             status=copy("");androidx.core.view.ViewCompat.setAccessibilityLiveRegion(status,androidx.core.view.ViewCompat.ACCESSIBILITY_LIVE_REGION_POLITE);sheet.body.addView(status);refresh();
         }
-        sheet.body.post(()->{if(sheet!=current||version!=renderGeneration||!sheet.dialog.isShowing())return;View target=tag==null?null:sheet.box.findViewWithTag(tag);if(target==null||!target.isShown()||!target.isEnabled())target=sheet.box.findViewWithTag(page.equals("consent")?"weather-consent-cancel":page.equals("location")?"weather-sheet-auto":"appearance-weather-sheet-provider");if(target!=null)target.requestFocusFromTouch();});
+        sheet.body.post(()->{if(sheet!=current||version!=renderGeneration||!sheet.dialog.isShowing())return;View target=tag==null?null:sheet.box.findViewWithTag(tag);if(target==null||!target.isShown()||!target.isEnabled())target=sheet.box.findViewWithTag(page.equals("consent")?"weather-consent-cancel":page.equals("location")?"weather-sheet-auto":"appearance-weather-sheet-provider-"+store.provider());if(target!=null)target.requestFocusFromTouch();});
     }
     private void chooseProvider(String value)throws IOException{
         if(!sources.available(value))throw new IOException(tr("此来源尚未配置，当前来源已保留","This source is not configured. The current source is retained."));
@@ -78,20 +72,6 @@ final class WeatherSettingsSheet {
         controller.settingsChanged();refresh();changed.run();
     }
     private void refresh(){if(sheet==null||page.equals("consent"))return;if(city!=null){WeatherData data=store.cached(ui.chinese());city.value(store.automatic()?(data==null?tr("未定位","Not located"):data.city):store.city());}if(automatic!=null)automatic.checked(store.automatic());if(fallback!=null)fallback.checked(store.meteoFallback());if(providers!=null)providers.refresh();if(status!=null){status.setText(error);status.setVisibility(error.isEmpty()?View.GONE:View.VISIBLE);}}
-    private void serviceInformation(){
-        WeatherData snapshot=store.cached(ui.chinese());String actual=snapshot==null?store.provider():snapshot.provider;
-        detail(tr("天气来源","Weather source"),snapshot==null?(actual.equals("auto")?tr("自动选择可用来源","Automatically selects an available source"):sourceName(actual)):tr("天气服务由 ","Weather service provided by ")+sourceName(actual));
-        if(store.provider().equals("auto"))detail(tr("切换顺序","Fallback order"),tr("和风天气  UAPI  OpenWeather，跳过未配置来源。启用后最后尝试 Open-Meteo。","QWeather, UAPI, OpenWeather; skips unconfigured sources. Open-Meteo is tried last when enabled."));
-        detail(tr("定位与隐私","Location and privacy"),tr("优先使用系统坐标；不可用时根据网络 IP 推测城市。联网搜索向 UAPI 查询地点；天气请求会向所选来源发送地点或坐标。手机输入仅在当前局域网会话中接收。","Uses system coordinates or estimates the city from the network IP. Place search queries UAPI. Weather requests send the place or coordinates to the selected service. Phone input stays within the current LAN session."));
-        if(actual.equals("openmeteo")||store.meteoFallback()){
-            detail("Open-Meteo",tr("天气数据由 Open-Meteo 提供，依据 CC BY 4.0 使用。当前天气为模型估算；免费接口仅限非商业使用。","Weather data by Open-Meteo, used under CC BY 4.0. Current conditions are model estimates; the free API is for non-commercial use only."));
-            link(tr("CC BY 4.0 许可","CC BY 4.0 license"),"weather-license","weather.license","https://creativecommons.org/licenses/by/4.0/");
-        }
-        if(snapshot!=null)detail(tr("数据时间","Data time"),snapshot.observedAt>0?new SimpleDateFormat("MM-dd HH:mm",Locale.US).format(new Date(snapshot.observedAt)):tr("接口未提供可识别时间","Data time unavailable"));
-        link(tr("天气服务官网","Weather service website"),"weather-website","weather.website",WeatherClient.website(actual));link(tr("隐私与条款","Privacy and terms"),"weather-terms","weather.terms",WeatherClient.terms(actual));
-    }
-    private void detail(String heading,String value){if(sheet.body.getChildCount()>0)ui.gap(sheet.body,12);sheet.body.addView(ui.label(heading,15));sheet.body.addView(copy(value));}
-    private void link(String title,String tag,String entry,String url){Button button=ui.button(title,()->{if(!ExternalActivityLauncher.open(ui,entry,new Intent(Intent.ACTION_VIEW,Uri.parse(url))))ui.feedback(tr("链接暂时无法打开","Unable to open this link"));});button.setTag(tag);sheet.body.addView(button,new LinearLayout.LayoutParams(-1,ui.px(42)));}
     void permissionResult(int request){if(request==LOCATION_REQUEST&&sheet!=null&&active){controller.resume();controller.settingsChanged();}}
     boolean isOpen(){return sheet!=null;}
     void settingsChanged(){if(sheet!=null)controller.settingsChanged();}

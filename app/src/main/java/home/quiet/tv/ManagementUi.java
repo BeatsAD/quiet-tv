@@ -50,7 +50,7 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
         root=column();root.setPadding(px(48),px(unifiedSettings()?30:28),px(48),px(16));stage.addView(root,new FrameLayout.LayoutParams(-1,-1));
         if(unifiedSettings()){root.setPadding(px(48),px(30),px(48),px(24));root.setClipChildren(false);root.setClipToPadding(false);}
         header=row();root.addView(header,new LinearLayout.LayoutParams(-1,px(38)));
-        Button back=iconButton("返回",R.drawable.ic_manage_back,()->{handleBack();KeyFeedback.back(this);});header.addView(back,new LinearLayout.LayoutParams(px(34),px(34)));
+        Button back=iconButton("返回","arrow-left",18,()->{handleBack();KeyFeedback.back(this);});header.addView(back,new LinearLayout.LayoutParams(px(34),px(34)));
         TextView title=label("应用管理",27);title.setPadding(px(14),0,0,0);header.addView(title,new LinearLayout.LayoutParams(0,-1,1));
     }
     private void prepareBackdrop(){
@@ -203,13 +203,22 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     }
     LinearLayout listGroup(){LinearLayout box=unifiedSettings()?column():new SurfaceCorners.Column(this);box.setOrientation(LinearLayout.VERTICAL);if(unifiedSettings()){box.setPadding(px(.75f),px(.75f),px(.75f),px(.75f));box.setBackgroundDrawable(surface(0x0fffffff,0x0fffffff,UiPalette.EDGE,15));box.setClipChildren(false);box.setClipToPadding(false);}else{box.setPadding(px(4),px(4),px(4),px(4));box.setBackgroundDrawable(surface(0x12ffffff,0x06ffffff,0x1cffffff,16));UiCompat.clipOutline(box);}return box;}
     private Drawable uiGlyph(int resource){
-        Drawable glyph=androidx.core.graphics.drawable.DrawableCompat.wrap(UiCompat.drawable(this,resource)).mutate();
+        return uiGlyph(UiCompat.drawable(this,resource));
+    }
+    private Drawable uiGlyph(Drawable source){
+        Drawable glyph=androidx.core.graphics.drawable.DrawableCompat.wrap(source).mutate();
         androidx.core.graphics.drawable.DrawableCompat.setTintList(glyph,unifiedSettings()?SettingsFocusDrawable.textColors(UiPalette.TEXT):new ColorStateList(new int[][]{{-android.R.attr.state_enabled},{}},new int[]{UiPalette.FAINT,UiPalette.TEXT}));
         return glyph;
     }
     Button iconButton(String description,int resource,Runnable action){
+        return iconButton(description,uiGlyph(resource),16,action);
+    }
+    Button iconButton(String description,String glyph,int size,Runnable action){
+        return iconButton(description,uiGlyph(new QuickControlIcon(glyph)),size,action);
+    }
+    private Button iconButton(String description,Drawable icon,int size,Runnable action){
         Button b=button("",action);b.setContentDescription(description);
-        Drawable icon=uiGlyph(resource);icon.setBounds(0,0,px(16),px(16));b.setCompoundDrawables(icon,null,null,null);
+        icon.setBounds(0,0,px(size),px(size));b.setCompoundDrawables(icon,null,null,null);
         b.addOnLayoutChangeListener((view,left,top,right,bottom,oldLeft,oldTop,oldRight,oldBottom)->{
             int horizontal=(right-left-icon.getBounds().width())/2,vertical=(bottom-top-icon.getBounds().height())/2;
             view.setPadding(horizontal,vertical,horizontal,vertical);
@@ -272,7 +281,7 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
     ImageView icon(android.graphics.drawable.Drawable art,int size){ImageView image=new SurfaceCorners.Image(this);image.setScaleType(ImageView.ScaleType.FIT_CENTER);image.setBackgroundDrawable(surface(UiPalette.CONTROL,UiPalette.CONTROL,0,size*.24f));UiCompat.clipOutline(image);image.setImageDrawable(art);image.setLayoutParams(new LinearLayout.LayoutParams(px(size),px(size)));return image;}
     EditText input(String text,String hint){EditText edit=new EditText(this);edit.setText(text);edit.setHint(hint);edit.setSingleLine(true);edit.setTextColor(unifiedSettings()?SettingsFocusDrawable.textColors(UiPalette.TEXT):ColorStateList.valueOf(TEXT));edit.setHintTextColor(unifiedSettings()?SettingsFocusDrawable.textColors(UiPalette.SECONDARY):ColorStateList.valueOf(MUTED));edit.setTextSize(TypedValue.COMPLEX_UNIT_PX,unifiedSettings()?15.36f*unit:px(14));edit.setPadding(px(unifiedSettings()?11.52f:14),px(unifiedSettings()?9.6f:10),px(unifiedSettings()?11.52f:14),px(unifiedSettings()?9.6f:10));edit.setBackgroundDrawable(focusSurface(unifiedSettings()?12:10));return edit;}
     final class Sheet {
-        final Dialog dialog=new KeyFeedback.Dialog(ManagementUi.this){@Override public void onWindowFocusChanged(boolean focused){super.onWindowFocusChanged(focused);if(unifiedSettings())SettingsFocusMotion.update(getCurrentFocus(),focused);if(focused&&backdrop!=null){backdrop.prepareForFocusedWindow(()->{if(dialog.isShowing()&&dialog.getWindow().getDecorView().hasWindowFocus())box.setAlpha(1f);});}}};
+        final Dialog dialog=new KeyFeedback.Dialog(ManagementUi.this){@Override int motionStyle(){return backdrop==null?super.motionStyle():R.style.QuietSheetAnimation;}@Override public void onWindowFocusChanged(boolean focused){super.onWindowFocusChanged(focused);if(unifiedSettings())SettingsFocusMotion.update(getCurrentFocus(),focused);if(focused&&backdrop!=null){backdrop.prepareForFocusedWindow(()->{if(dialog.isShowing()&&dialog.getWindow().getDecorView().hasWindowFocus())UiMotion.sheet(box);});}}};
         final LinearLayout body=column(),actions=row(),box=new LinearLayout(ManagementUi.this){
             @Override protected void onMeasure(int width,int height){
                 if(contentSized||fullWindow&&getLayoutParams().width==ViewGroup.LayoutParams.WRAP_CONTENT){
@@ -288,19 +297,28 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
         final TextView heading;
         final ScrollView scroll;
         float bodyMaximum=240;
-        private boolean contentSized;
+        private boolean contentSized,fixedSize;
         private float contentMinimum,contentMaximum;
         private boolean fullWindow;
         private SettingsSheetBackdrop backdrop;
-        void contentWidth(float minimum,float maximum){contentSized=true;contentMinimum=minimum;contentMaximum=maximum;box.requestLayout();}
+        void contentWidth(float minimum,float maximum){if(fixedSize)return;contentSized=true;contentMinimum=minimum;contentMaximum=maximum;box.requestLayout();}
+        // Keep the panel and its chrome anchored; only the content viewport scrolls.
+        void fixedSize(float width,float height){
+            fixedSize=true;contentSized=false;
+            android.util.DisplayMetrics screen=getResources().getDisplayMetrics();
+            FrameLayout.LayoutParams frame=(FrameLayout.LayoutParams)box.getLayoutParams();
+            frame.width=Math.min(px(width),screen.widthPixels-px(48));frame.height=Math.min(px(height),screen.heightPixels-px(48));box.setLayoutParams(frame);
+            LinearLayout.LayoutParams content=(LinearLayout.LayoutParams)scroll.getLayoutParams();content.height=0;content.weight=1;scroll.setLayoutParams(content);
+        }
         Sheet(String title){
             box.setOrientation(LinearLayout.VERTICAL);if(unifiedSettings())box.setClipChildren(false);
-            dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);box.setPadding(px(30),px(27),px(30),px(25));box.setBackgroundDrawable(surface(0xff000000,0xff000000,0x38ffffff,21));
-            if(unifiedSettings()){box.setPadding(px(18),px(18),px(18),px(18));box.setBackgroundDrawable(surface(0xd9000000,0xeb000000,0x4dffffff,18));box.setClipChildren(false);box.setClipToPadding(false);}
+            dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);box.setPadding(px(30),px(27),px(30),px(25));
+            if(unifiedSettings()){box.setPadding(px(18),px(18),px(18),px(18));box.setClipChildren(false);box.setClipToPadding(false);}
+            backdrop=new SettingsSheetBackdrop(ManagementUi.this,box);box.setBackgroundDrawable(backdrop);
             heading=center(title,23);if(unifiedSettings()){heading.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);heading.setTextSize(TypedValue.COMPLEX_UNIT_PX,18*unit);}box.addView(heading,new LinearLayout.LayoutParams(-1,-2));gap(box,unifiedSettings()?12:18);
-            scroll=new ScrollView(ManagementUi.this){@Override protected void onMeasure(int w,int h){super.onMeasure(w,View.MeasureSpec.makeMeasureSpec(View.MeasureSpec.getMode(h)==View.MeasureSpec.UNSPECIFIED?px(bodyMaximum):Math.min(px(bodyMaximum),View.MeasureSpec.getSize(h)),View.MeasureSpec.AT_MOST));}@Override protected void dispatchDraw(Canvas canvas){if(!unifiedSettings()){super.dispatchDraw(canvas);return;}int save=canvas.save();canvas.clipRect(getScrollX(),getScrollY(),getScrollX()+getWidth(),getScrollY()+getHeight());super.dispatchDraw(canvas);canvas.restoreToCount(save);}};scroll.setFillViewport(false);scroll.addView(body);box.addView(scroll,new LinearLayout.LayoutParams(-1,-2));
+            scroll=new ScrollView(ManagementUi.this){@Override protected void onMeasure(int w,int h){if(fixedSize)super.onMeasure(w,h);else super.onMeasure(w,View.MeasureSpec.makeMeasureSpec(View.MeasureSpec.getMode(h)==View.MeasureSpec.UNSPECIFIED?px(bodyMaximum):Math.min(px(bodyMaximum),View.MeasureSpec.getSize(h)),View.MeasureSpec.AT_MOST));}@Override protected void dispatchDraw(Canvas canvas){if(!unifiedSettings()){super.dispatchDraw(canvas);return;}int save=canvas.save();canvas.clipRect(getScrollX(),getScrollY(),getScrollX()+getWidth(),getScrollY()+getHeight());super.dispatchDraw(canvas);canvas.restoreToCount(save);}};scroll.setFillViewport(false);scroll.addView(body);box.addView(scroll,new LinearLayout.LayoutParams(-1,-2));
             actions.setGravity(unifiedSettings()?Gravity.END|Gravity.CENTER_VERTICAL:Gravity.CENTER);LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,px(unifiedSettings()?33:42));ap.topMargin=px(unifiedSettings()?18:24);box.addView(actions,ap);
-            dialog.setContentView(box);Window window=dialog.getWindow();window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);window.setDimAmount(.65f);
+            dialog.setContentView(box);Window window=dialog.getWindow();window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);window.setDimAmount(SettingsSheetBackdrop.DIM_AMOUNT);
             // Bound long package histories and app pickers without clipping the dialog actions.
         }
         void text(String text){TextView description=center(text,13);description.setTextColor(fullWindow?UiPalette.SECONDARY:UiPalette.SECONDARY);description.setLineSpacing(px(5),1);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);if(fullWindow){description.setGravity(Gravity.START);description.setTextSize(TypedValue.COMPLEX_UNIT_PX,12.96f*unit);Paint.FontMetrics fm=description.getPaint().getFontMetrics();float leading=Math.max(0,22.032f*unit-(fm.descent-fm.ascent));description.setLineSpacing(leading,1);description.setPadding(0,Math.round(leading/2),0,Math.round(leading/2));description.setMinimumHeight(px(22.032f));p.topMargin=px(12.96f);p.bottomMargin=px(12.96f);}body.addView(description,p);}
@@ -308,7 +326,7 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
         Button option(String text,Runnable action){Button b=button(text,action);b.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);b.setBackgroundDrawable(useSettingListStyle()?listSurface():focusSurface(9));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,px(43));p.bottomMargin=px(6);body.addView(b,p);return b;}
         Button option(String text,int resource,Runnable action){Button b=option(text,action);Drawable icon=uiGlyph(resource);icon.setBounds(0,0,px(17),px(17));b.setCompoundDrawables(icon,null,null,null);b.setCompoundDrawablePadding(px(10));return b;}
         Button settingsLayout(String closeLabel,Runnable close){
-            fullWindow=true;box.setClickable(true);box.setPadding(px(18.75f),px(18.75f),px(18.75f),px(18.75f));backdrop=new SettingsSheetBackdrop(ManagementUi.this,box);box.setBackgroundDrawable(backdrop);
+            fullWindow=true;box.setClickable(true);box.setPadding(px(18.75f),px(18.75f),px(18.75f),px(18.75f));box.setBackgroundDrawable(backdrop);
             box.removeView(heading);LinearLayout title=row();heading.setTextSize(TypedValue.COMPLEX_UNIT_PX,19.2f*unit);heading.setTextColor(UiPalette.TEXT);heading.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));heading.setSingleLine(true);heading.setEllipsize(android.text.TextUtils.TruncateAt.END);title.addView(heading,new LinearLayout.LayoutParams(0,px(26.88f),1));
             Button dismiss=button(closeLabel,close);dismiss.setContentDescription(closeLabel);dismiss.setTag("sheet-close");dismiss.setId(androidx.core.view.ViewCompat.generateViewId());dismiss.setTextSize(TypedValue.COMPLEX_UNIT_PX,10.08f*unit);dismiss.setPadding(0,0,0,0);dismiss.setBackgroundDrawable(new SettingsFocusDrawable(unit,999,UiPalette.CONTROL,false,UiPalette.EDGE));title.addView(dismiss,new LinearLayout.LayoutParams(px(41.2f),px(25.2f)));box.addView(title,0,new LinearLayout.LayoutParams(-1,px(26.88f)));
             actions.getLayoutParams().height=px(34.56f);settingsActions(true);scroll.setVerticalScrollBarEnabled(false);scroll.setClipChildren(false);scroll.setClipToPadding(false);body.setClipChildren(false);body.setClipToPadding(false);
@@ -322,7 +340,7 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity {
         // A first show waits for clean glass after focus transfer. Content changes
         // in an already focused dialog must reveal without another focus callback.
         void show(View focus){Window window=dialog.getWindow();int width=px(unifiedSettings()?448:444);if(contentSized&&!fullWindow){box.measure(View.MeasureSpec.makeMeasureSpec(getResources().getDisplayMetrics().widthPixels,View.MeasureSpec.AT_MOST),View.MeasureSpec.makeMeasureSpec(getResources().getDisplayMetrics().heightPixels,View.MeasureSpec.AT_MOST));width=box.getMeasuredWidth();}window.setLayout(fullWindow?-1:width,fullWindow?-1:-2);window.getDecorView().setSystemUiVisibility(5894);
-            if(backdrop!=null){if(dialog.isShowing()&&window.getDecorView().hasWindowFocus()){backdrop.prepareForFocusedWindow(()->{if(dialog.isShowing()&&dialog.getWindow().getDecorView().hasWindowFocus())box.setAlpha(1f);});}else box.setAlpha(0f);}
+            if(backdrop!=null){if(dialog.isShowing()&&window.getDecorView().hasWindowFocus()){backdrop.prepareForFocusedWindow(()->{if(dialog.isShowing()&&dialog.getWindow().getDecorView().hasWindowFocus())UiMotion.sheet(box);});}else{UiMotion.settle(box);box.setAlpha(0f);}}
             dialog.show();if(unifiedSettings())SettingsFocusMotion.attach(window.getDecorView());if(focus!=null)focus.requestFocus();}
     }
     void message(String text){Sheet sheet=new Sheet("提示");sheet.text(text);TextView copy=(TextView)sheet.body.getChildAt(0);float width=240;for(String line:text.split("\n",-1))width=Math.max(width,(copy.getPaint().measureText(line)+sheet.box.getPaddingLeft()+sheet.box.getPaddingRight())/unit);sheet.contentWidth(Math.min(420,width),420);Button close=sheet.action("确定",sheet.dialog::dismiss);sheet.show(close);}

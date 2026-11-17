@@ -45,7 +45,7 @@ final class SourceToolsSheet {
     private void fail(String value){error=value==null||value.isEmpty()?"信号源操作未完成，请重试":value;busy=false;render();}
     void show(boolean configuration){if(open())return;this.configuration=configuration;screen="home";focus="source-visible";error=port=request=candidateId=groupKey=lastKey=pendingWrite=dismissedPending="";raw=enableAfterTest=busy=false;active=true;create();}
     private void create(){
-        origin=ui.getCurrentFocus();sheet=ui.new Sheet(configuration?"信号源配置":"看电视");ManagementUi.Sheet own=sheet;close=sheet.settingsLayout("关闭",this::back);identify(close,"sheet-close");sheet.settingsActions(false);
+        origin=ui.getCurrentFocus();sheet=ui.new Sheet(configuration?"信号源配置":"看电视");ManagementUi.Sheet own=sheet;close=sheet.settingsLayout("关闭",this::back);sheet.fixedSize(448,440);identify(close,"sheet-close");sheet.settingsActions(false);
         sheet.dialog.setOnKeyListener((dialog,key,event)->{if(key!=KeyEvent.KEYCODE_BACK&&key!=KeyEvent.KEYCODE_ESCAPE)return false;if(event.getAction()==KeyEvent.ACTION_UP)back();return true;});
         sheet.dialog.setOnDismissListener(dialog->{if(sheet!=own)return;stopUi();sheet=null;if(origin!=null&&origin.isShown())origin.requestFocusFromTouch();closed.run();});
         try{snapshot=pairing.snapshot();}catch(Exception failure){error="无法读取当前信号源状态";}String target=focus;render();sheet.show(null);focus=target;restoreFocus();resume();

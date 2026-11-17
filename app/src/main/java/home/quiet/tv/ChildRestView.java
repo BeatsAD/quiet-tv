@@ -44,7 +44,7 @@ final class ChildRestView extends FrameLayout {
         leave.setContentDescription("好呀，去休息，返回桌面");parent.setContentDescription("家长授权");
         leave.setSingleLine(true);parent.setSingleLine(true);leave.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
         leave.setBackgroundDrawable(control(accent));parent.setBackgroundDrawable(control(Color.TRANSPARENT));
-        Drawable lock=androidx.core.graphics.drawable.DrawableCompat.wrap(UiCompat.drawable(ui,R.drawable.ic_child_lock)).mutate();androidx.core.graphics.drawable.DrawableCompat.setTintList(lock,SettingsFocusDrawable.textColors(muted));parent.setCompoundDrawables(lock,null,null,null);
+        Drawable lock=androidx.core.graphics.drawable.DrawableCompat.wrap(new QuickControlIcon("lock-keyhole")).mutate();androidx.core.graphics.drawable.DrawableCompat.setTintList(lock,SettingsFocusDrawable.textColors(muted));parent.setCompoundDrawables(lock,null,null,null);
         content.addView(leave);content.addView(parent);
         leave.setNextFocusDownId(parent.getId());leave.setNextFocusUpId(parent.getId());leave.setNextFocusLeftId(parent.getId());leave.setNextFocusRightId(parent.getId());
         parent.setNextFocusUpId(leave.getId());parent.setNextFocusDownId(leave.getId());parent.setNextFocusLeftId(leave.getId());parent.setNextFocusRightId(leave.getId());
@@ -72,7 +72,7 @@ final class ChildRestView extends FrameLayout {
             eyebrow.setGravity(Gravity.CENTER);title.setGravity(Gravity.CENTER);note.setGravity(Gravity.CENTER);
             place(eyebrow,300,572,1320,62,40);place(title,160,644,1600,120,80);place(note,280,774,1360,68,36);place(leave,704,858,512,112,40);place(parent,1610,968,240,70,30);
         }else{place(eyebrow,128,220,850,66,40);place(title,128,290,850,250,92);place(note,128,550,850,74,36);place(leave,128,664,640,124,42);place(parent,128,818,310,76,34);}
-        Drawable lock=parent.getCompoundDrawables()[0];lock.setBounds(0,0,Math.round(38*scale),Math.round(38*scale));parent.setCompoundDrawables(lock,null,null,null);parent.setCompoundDrawablePadding(Math.round(16*scale));
+        Drawable lock=parent.getCompoundDrawables()[0];lock.setBounds(0,0,Math.round(24*scale),Math.round(24*scale));parent.setCompoundDrawables(lock,null,null,null);parent.setCompoundDrawablePadding(Math.round(16*scale));
         int group=lock.getBounds().width()+parent.getCompoundDrawablePadding()+Math.round(parent.getPaint().measureText(parent.getText().toString()));
         int inset=Math.max(0,(parent.getLayoutParams().width-group)/2);parent.setPadding(inset,0,inset,0);
         int padding=Math.round(18*scale);leave.setPadding(padding,0,padding,0);

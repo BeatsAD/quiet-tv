@@ -19,15 +19,16 @@ public final class FileTransferPreviewActivity extends Activity {
     private ImageView image;
     private TextView status;
     private Button apply;
-    private Bitmap bitmap;
+    private Bitmap bitmap,background;
+    private final ExecutorService filter=Executors.newSingleThreadExecutor();
     private float unit;
     private int px(int value){return Math.round(value*unit);}
     private void style(Button button){button.setTextColor(ManagementUi.TEXT);button.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(14));button.setBackgroundDrawable(ControlStyle.action(unit,24,0xff000000,0x22ffffff));}
     @Override public boolean dispatchKeyEvent(KeyEvent key){return KeyFeedback.dispatch(getWindow().getDecorView(),key,()->{boolean handled=super.dispatchKeyEvent(key);if(key.getKeyCode()==KeyEvent.KEYCODE_BACK&&isFinishing())KeyFeedback.back(this);return handled;});}
     @Override public void onCreate(Bundle saved){
-        super.onCreate(saved);unit=getResources().getDisplayMetrics().widthPixels/960f;getWindow().getDecorView().setSystemUiVisibility(5894);getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));getWindow().addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);getWindow().setDimAmount(.65f);
+        super.onCreate(saved);unit=getResources().getDisplayMetrics().widthPixels/960f;getWindow().getDecorView().setSystemUiVisibility(5894);getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));getWindow().addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);getWindow().setDimAmount(SettingsSheetBackdrop.DIM_AMOUNT);
         FrameLayout root=new FrameLayout(this);setContentView(root);WallpaperUi ui=new WallpaperUi(this,unit);
-        LinearLayout card=new LinearLayout(this);card.setOrientation(LinearLayout.VERTICAL);card.setPadding(px(24),px(22),px(24),px(22));card.setBackgroundDrawable(ui.surface(0xff000000,22,0x38ffffff,1));root.addView(card,new FrameLayout.LayoutParams(px(500),-2,Gravity.CENTER));
+        LinearLayout card=new LinearLayout(this);card.setOrientation(LinearLayout.VERTICAL);card.setPadding(px(24),px(22),px(24),px(22));background=getIntent().getParcelableExtra("backdrop");SettingsSheetBackdrop backdrop=new SettingsSheetBackdrop(card,unit,(canvas,paint)->{if(background!=null)canvas.drawBitmap(background,null,new android.graphics.RectF(0,0,getResources().getDisplayMetrics().widthPixels,getResources().getDisplayMetrics().heightPixels),paint);},filter);card.setBackgroundDrawable(backdrop);backdrop.followWindowFocus();root.addView(card,new FrameLayout.LayoutParams(px(500),-2,Gravity.CENTER));
         TextView title=ui.text("预览壁纸",22);card.addView(title,new LinearLayout.LayoutParams(-1,px(36)));
         FrameLayout media=new FrameLayout(this);LinearLayout.LayoutParams mp=new LinearLayout.LayoutParams(-1,px(205));mp.topMargin=px(10);mp.bottomMargin=px(12);card.addView(media,mp);video=new VideoWallpaperPlayer(this,media,true);
         image=new ImageView(this);image.setScaleType(ImageView.ScaleType.FIT_CENTER);media.addView(image,new FrameLayout.LayoutParams(-1,-1));
@@ -58,5 +59,5 @@ public final class FileTransferPreviewActivity extends Activity {
     }
     @Override protected void onResume(){super.onResume();if(video!=null){video.setSound(WallpaperStore.get(this).snapshot().sound);video.setPaused(false);}}
     @Override protected void onPause(){if(video!=null)video.setPaused(true);super.onPause();}
-    @Override protected void onDestroy(){closed=true;video.destroy();image.setImageDrawable(null);if(bitmap!=null)bitmap.recycle();worker.shutdown();super.onDestroy();}
+    @Override protected void onDestroy(){closed=true;video.destroy();image.setImageDrawable(null);if(bitmap!=null)bitmap.recycle();if(background!=null)background.recycle();filter.shutdownNow();worker.shutdown();super.onDestroy();}
 }

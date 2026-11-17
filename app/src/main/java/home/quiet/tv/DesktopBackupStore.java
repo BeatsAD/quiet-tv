@@ -38,6 +38,12 @@ final class DesktopBackupStore {
     private void checkIndex()throws IOException{File base=indexFile.getBaseFile();String current=!base.exists()&&!new File(base+".bak").exists()?null:DesktopBackupRecord.hash(indexFile.readFully());DesktopBackupRecord.require(indexSignature==null?current==null:indexSignature.equals(current),"备份记录已变化或无法读取，请重新读取；原记录未覆盖");}
     synchronized List<Entry> entries()throws IOException{checkIndex();return new ArrayList<>(entries);}
     synchronized Entry find(String id)throws IOException{checkIndex();for(Entry entry:entries)if(entry.record.id.equals(id))return entry;throw new IOException("备份记录已不可用，请重新读取");}
+    synchronized void remove(String id)throws IOException{
+        find(id);DesktopBackupRecord.require(!recoveryPending(),"桌面恢复尚未完成，请核对恢复结果后再删除备份");
+        try{JSONArray records=new JSONArray();for(Entry entry:entries)if(!entry.record.id.equals(id))records.put(new JSONObject().put("record",entry.record.json).put("sources",entry.sources));JSONObject next=new JSONObject(index.toString());next.put("records",records);save(next);}
+        catch(JSONException failure){throw new IOException("备份记录未删除，请重新读取",failure);}
+        // Only remove the selected restore point. Live, shared and imported media files stay intact.
+    }
     synchronized boolean automatic(){return index.optBoolean("automatic",true);}
     synchronized String software(){return index.optString("software");}
     synchronized void software(String version)throws IOException{try{JSONObject next=new JSONObject(index.toString());next.put("software",version);save(next);}catch(JSONException failure){throw new IOException("升级保护标记未保存",failure);}}

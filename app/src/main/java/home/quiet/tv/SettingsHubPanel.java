@@ -20,12 +20,12 @@ final class SettingsHubPanel extends ManagementPanel {
         if(section==SettingsPages.QUICK){
             LinearLayout controls=group(body,activity.tr("常用控制","Quick controls"));
             sounds=setting(controls,activity.tr("按键音","Key sounds"),"sound","quick-sounds",()->{DesktopSettingsStore store=new DesktopSettingsStore(this);store.keySounds(!store.keySounds());sounds.checked(store.keySounds());});sounds.checked(new DesktopSettingsStore(this).keySounds());
-            setting(controls,activity.tr("更换背景","Change background"),"desktop","quick-wallpaper",()->activity.selectManagementPage(SettingsPages.DESKTOP));
+            setting(controls,activity.tr("更换壁纸","Change background"),"desktop","quick-wallpaper",()->activity.selectManagementPage(SettingsPages.DESKTOP));
             setting(controls,activity.tr("网络设置","Network settings"),"tools","quick-network",()->{if(!new SystemSettingsRouter(activity).open(android.provider.Settings.ACTION_WIFI_SETTINGS))message("当前电视没有可用的网络设置入口");});
             gap(body,12);LinearLayout tools=group(body,activity.tr("工具","Tools"));
-            setting(tools,activity.tr("文件传输助手","File transfer"),"logs","quick-files",()->activity.selectManagementPage(SettingsPages.FILES));
+            setting(tools,activity.tr("文件传输","File transfer"),"logs","quick-files",()->activity.selectManagementPage(SettingsPages.FILES));
             memos=new MemoPanel(activity,()->memoRow.value(memos.unfinished()<0?activity.tr("读取失败","Unavailable"):memos.unfinished()+activity.tr(" 条未完成"," unfinished")));
-            memoRow=setting(tools,activity.tr("我的备忘录","My notes"),"logs","quick-memos",memos::show);
+            memoRow=setting(tools,activity.tr("备忘录","My notes"),"logs","quick-memos",memos::show);
             setting(tools,activity.tr("信号源","Inputs"),"desktop","quick-source",()->activity.selectManagementPage(SettingsPages.STARTUP));
         }else{
             LinearLayout software=group(body,activity.tr("软件更新","Software updates"));

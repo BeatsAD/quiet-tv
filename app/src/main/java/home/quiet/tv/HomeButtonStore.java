@@ -57,5 +57,5 @@ final class HomeButtonStore {
     }}
     private static void validate(List<String> ids)throws IOException {if(ids==null||ids.size()>3||new HashSet<>(ids).size()!=ids.size()||!ALL.containsAll(ids))throw new IOException("首页按钮最多三个且不能重复");}
     static String title(String id,boolean chinese){if("settings".equals(id))return chinese?"桌面设置":"Desktop settings";if("control".equals(id))return chinese?"快捷控制":"Quick controls";if("systemSettings".equals(id))return chinese?"系统设置":"System settings";return QuickControlStore.title(id,chinese);}
-    static String glyph(String id){switch(id){case "settings":case "systemSettings":return "left-settings";case "control":return "sliders";case "network":case "transfer":return "left-network";case "source":case "boot":return "left-input";case "original":return "left-desktop";case "memoShortcut":return "left-save";case "wallpaper":case "mute":case "screensaver":return "left-wallpaper";default:return QuickControlPreviewView.glyph(id);}}
+    static String glyph(String id){switch(id){case "settings":return "desktop-layout";case "control":return "header-control";default:return QuickControlPreviewView.glyph(id);}}
 }

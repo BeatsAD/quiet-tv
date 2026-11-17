@@ -15,7 +15,7 @@ final class ScreensaverPreviewView extends FrameLayout {
     private final ManagementUi ui;
     private final WallpaperStore store;
     private final ImageView image;
-    private final TextView clock,weather;
+    private final ScreensaverInformationView information;
     private final VideoWallpaperPlayer video;
     private WallpaperGpuView sky;
     private final Message message;
@@ -37,21 +37,19 @@ final class ScreensaverPreviewView extends FrameLayout {
         androidx.core.view.ViewCompat.setImportantForAccessibility(this,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
         image=new ImageView(ui);image.setScaleType(ImageView.ScaleType.CENTER_CROP);addView(image,new LayoutParams(-1,-1));
         video=new VideoWallpaperPlayer(ui,this,true);video.setSound(false);if(WallpaperGpuSupport.available(ui)){sky=new WallpaperGpuView(ui,new WallpaperGpuView.Listener(){public void ready(){if(usingWeather){weatherReady=true;readyAfterDraw(sync.request());}message.show("");}public void failed(String detail){if(usingWeather)sync.failed(sync.request(),ui.tr("天气效果暂不可用，预览未同步","Weather preview unavailable"));if(sky!=null){sky.active(false);sky.displayView().setVisibility(GONE);}message.show(ui.tr("天气效果暂不可用，已使用静态背景","Weather effect unavailable; using the static background"));}});sky.displayView().setVisibility(GONE);addView(sky.displayView(),new LayoutParams(-1,-1));}
-        clock=ui.label("",12);clock.setIncludeFontPadding(false);clock.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,67.2f*ui.unit);clock.setTypeface(Build.VERSION.SDK_INT>=26?Typeface.createFromAsset(ui.getAssets(),"fonts/outfit.ttf"):Typeface.create("sans-serif-light",Typeface.NORMAL));if(Build.VERSION.SDK_INT>=26)ClockFont.apply(clock);clock.setGravity(Gravity.CENTER);clock.setTextColor(UiPalette.TEXT);clock.setShadowLayer(ui.px(9),0,ui.px(1.5f),0x77000000);addView(clock,new LayoutParams(-2,ui.px(80.64f),Gravity.CENTER));
-        weather=ui.label("",12);weather.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,10.56f*ui.unit);weather.setTextColor(UiPalette.TEXT);weather.setShadowLayer(ui.px(2.25f),0,ui.px(.75f),0xff000000);weather.setSingleLine();addView(weather,new LayoutParams(-2,-2,Gravity.LEFT|Gravity.BOTTOM));
+        information=new ScreensaverInformationView(ui,67.2f*ui.unit,10.56f*ui.unit);addView(information,new LayoutParams(-1,-1));
     }
     @Override public void onWindowFocusChanged(boolean focused){super.onWindowFocusChanged(focused);if(video!=null&&active)video.setPaused(!focused);}
     @Override protected void onMeasure(int width,int height){super.onMeasure(width,MeasureSpec.makeMeasureSpec(Math.round(MeasureSpec.getSize(width)*9f/16),MeasureSpec.EXACTLY));}
-    @Override protected void onSizeChanged(int w,int h,int ow,int oh){LayoutParams p=(LayoutParams)weather.getLayoutParams();p.leftMargin=Math.round(w*.08f);p.bottomMargin=Math.round(h*.08f);weather.setLayoutParams(p);}
     void show(ScreensaverSettings settings,String candidate){this.settings=settings;this.candidate=candidate==null?"":candidate;renderInformation();load();}
     private void renderInformation(){
-        if(settings==null)return;clock.setText(new SimpleDateFormat("HH:mm",Locale.US).format(new Date()));clock.setVisibility(settings.showTime||ScreensaverSettings.CLOCK.equals(settings.mode)?VISIBLE:GONE);
-        WeatherData data=new WeatherStore(ui).cached(ui.chinese());boolean available=settings.showWeather&&data!=null&&data.usable(System.currentTimeMillis());weather.setVisibility(available?VISIBLE:GONE);if(available)weather.setText(data.city+"  "+data.temperatureText()+"  "+data.description);
+        if(settings==null)return;WeatherData data=new WeatherStore(ui).cached(ui.chinese());boolean available=data!=null&&data.usable(System.currentTimeMillis());
+        information.show(settings,new SimpleDateFormat("HH:mm",Locale.US).format(new Date()),available?data.city+"  "+data.temperatureText()+"  "+data.description:"");
     }
     private void load(){
         if(!active||settings==null||destroyed)return;
         WallpaperCatalog current=store.snapshot();String wanted=ScreensaverSettings.CUSTOM.equals(settings.mode)&&!candidate.isEmpty()?candidate:settings.resolved(current);
-        long previous=sync.request();long operation=sync.begin(Arrays.asList(settings.mode,settings.showTime,settings.showWeather,wanted,store.imageKey(wanted),current.weather,current.weatherDayNight),PreviewSyncState.BACKGROUND);
+        long previous=sync.request();long operation=sync.begin(Arrays.asList(settings.mode,settings.showTime,settings.showWeather,settings.timePosition,settings.weatherPosition,wanted,store.imageKey(wanted),current.weather,current.weatherDayNight),PreviewSyncState.BACKGROUND);
         if(previous!=operation&&readyDraw!=null){readyDraw.run();readyDraw=null;}
         boolean clockOnly=ScreensaverSettings.CLOCK.equals(settings.mode);usingWeather=false;setBackgroundColor(0xff000000);image.setVisibility(clockOnly?GONE:VISIBLE);
         if(clockOnly){if(sky!=null){sky.active(false);sky.displayView().setVisibility(GONE);}++generation;pending="";video.stop();readyAfterDraw(operation);return;}
@@ -78,5 +76,4 @@ final class ScreensaverPreviewView extends FrameLayout {
     void resume(){if(active)return;active=true;tick.run();load();}
     void pause(){if(!active)return;active=false;weatherReady=false;sync.invalidate();gpuFrameOperation=-1;if(readyDraw!=null){readyDraw.run();readyDraw=null;}if(sky!=null)sky.afterFrame(null);++generation;pending="";main.removeCallbacks(tick);video.stop();if(sky!=null)sky.active(false);}
     void destroy(){pause();destroyed=true;worker.shutdownNow();video.destroy();if(sky!=null)sky.destroy();image.setImageDrawable(null);}
-    @android.annotation.TargetApi(26) private static final class ClockFont {static void apply(TextView view){view.setFontVariationSettings("'wght' 300");}}
 }
