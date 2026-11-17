@@ -12,6 +12,8 @@ Quiet TV 基于 [cleanyourtv](https://github.com/Gathin23/cleanyourtv)（原名 
 | libadb-android | Apache-2.0，保留其继承的 BSD／MIT 声明，见[完整许可目录](app/src/main/assets/licenses/) |
 | Bouncy Castle | MIT，[许可原文](app/src/main/assets/licenses/bouncycastle-LICENSE.md) |
 | NanoHTTPD | BSD-3-Clause，[许可原文](app/src/main/assets/licenses/nanohttpd-LICENSE.txt) |
+| JmDNS 3.6.5（固定局域网网址） | Apache-2.0，[许可原文](app/src/main/assets/licenses/libadb-Apache-2.0.txt)，[上游](https://github.com/jmdns/jmdns) |
+| SLF4J（JmDNS 日志接口） | MIT，[许可原文](app/src/main/assets/licenses/slf4j-MIT.txt) |
 | React、React DOM（手机扫码设置） | MIT，[许可原文](app/src/main/assets/licenses/phone-react-MIT.txt) |
 | Radix Icons（手机扫码设置） | MIT，[许可原文](app/src/main/assets/licenses/phone-radix-icons-MIT.txt) |
 | Google Material Symbols（APK 图标） | Apache-2.0，[许可原文](app/src/main/assets/licenses/libadb-Apache-2.0.txt)，[来源与转换说明](app/src/main/assets/licenses/material-symbols-NOTICE.txt) |

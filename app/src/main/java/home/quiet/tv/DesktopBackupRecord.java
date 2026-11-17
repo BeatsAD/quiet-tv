@@ -17,7 +17,7 @@ final class DesktopBackupRecord {
     private static final java.util.regex.Pattern SHORTCUT=java.util.regex.Pattern.compile("quiet:[a-z-]{1,48}");
     static final int VERSION=6,MAX_CONFIG_BYTES=2*1024*1024;
     static final String FORMAT="quiet-tv-desktop";
-    static final Set<String> DESKTOP_BOOLEAN=names("show-time show-date show-seconds show-lunar-date show-movie-info greeting-enabled greeting-avatar-enabled key-sounds show-app-title show-home-apps show-watch-tv show-dock-background show-all-apps-names dock-magnify dock-glass global-glass show-buttons show-input show-network show-settings");
+    static final Set<String> DESKTOP_BOOLEAN=names("show-time show-date show-seconds show-lunar-date show-movie-info greeting-enabled greeting-avatar-enabled key-sounds show-app-title show-home-apps hide-home-apps-on-second-screen show-watch-tv show-dock-background show-all-apps-names dock-magnify dock-glass global-glass show-buttons show-input show-network show-settings");
     static final Set<String> DESKTOP_STRING=names("home-layout greeting-text greeting-avatar-file icon-size icon-shape home-blur-mode home-buttons app-title-position key-sound-theme clock-style quick-control-visibility");
     static final Set<String> DESKTOP_INTEGER=names("icon-radius dock-radius dock-scale dock-limit dock-magnification home-wallpaper-blur second-wallpaper-blur home-wallpaper-brightness second-wallpaper-brightness home-wallpaper-fade second-wallpaper-fade");
     static final Set<String> DESKTOP_KEYS=union(DESKTOP_BOOLEAN,DESKTOP_STRING,DESKTOP_INTEGER);

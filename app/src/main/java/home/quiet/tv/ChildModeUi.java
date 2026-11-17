@@ -93,9 +93,20 @@ final class ChildModeUi {
     }
     final class Sheet {
         final Dialog dialog=new KeyFeedback.Dialog(ui);
-        final LinearLayout box=ui.column(),body=ui.column(),actions=ui.row();
+        final LinearLayout box=new LinearLayout(ui){
+            {setOrientation(LinearLayout.VERTICAL);}
+            @Override protected void onMeasure(int width,int height){
+                if(heightMaximum>0){
+                    int maximum=Math.min(p(heightMaximum),ui.getResources().getDisplayMetrics().heightPixels-p(48));
+                    if(View.MeasureSpec.getMode(height)!=View.MeasureSpec.UNSPECIFIED)maximum=Math.min(maximum,View.MeasureSpec.getSize(height));
+                    height=View.MeasureSpec.makeMeasureSpec(Math.max(0,maximum),View.MeasureSpec.AT_MOST);
+                }
+                super.onMeasure(width,height);
+            }
+        },body=ui.column(),actions=ui.row();
         final Button close;
         private final float width;
+        private float heightMaximum;
         private final SettingsSheetBackdrop backdrop;
         Sheet(String title,String description,String emblem,float width){
             this(title,description,emblem,width,false);
@@ -118,10 +129,10 @@ final class ChildModeUi {
         }
         Button action(String label,Runnable click,boolean primary){Button b=button(label,click,primary);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-1,1);if(actions.getChildCount()>0)p.leftMargin=ChildModeUi.this.p(15.36f);actions.addView(b,p);return b;}
         void scrollBody(float panelHeight){
-            FrameLayout.LayoutParams frame=(FrameLayout.LayoutParams)box.getLayoutParams();frame.height=Math.min(p(panelHeight),ui.getResources().getDisplayMetrics().heightPixels-p(48));box.setLayoutParams(frame);
+            heightMaximum=panelHeight;
             int position=box.indexOfChild(body);box.removeView(body);
             ScrollView scroll=new ScrollView(ui);
-            scroll.setFocusable(false);scroll.setClipToPadding(true);scroll.setClipChildren(true);scroll.setVerticalScrollBarEnabled(false);box.setClipChildren(true);scroll.addView(body);box.addView(scroll,position,new LinearLayout.LayoutParams(-1,0,1));
+            scroll.setFocusable(false);scroll.setClipToPadding(true);scroll.setClipChildren(true);scroll.setVerticalScrollBarEnabled(false);box.setClipChildren(true);scroll.addView(body);box.addView(scroll,position,new LinearLayout.LayoutParams(-1,-2,1));
         }
         void show(View focus){dialog.show();dialog.getWindow().setLayout(-1,-1);dialog.getWindow().getDecorView().setSystemUiVisibility(5894);if(focus!=null)focus.requestFocus();}
         void release(){backdrop.release();}

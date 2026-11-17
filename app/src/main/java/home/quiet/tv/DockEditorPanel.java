@@ -91,7 +91,7 @@ final class DockEditorPanel extends ManagementPanel {
             runOnUiThread(()->{
                 pendingSaves--;if(success)lastSaved=new ArrayList<>(value);
                 if(isDestroyed() || isFinishing())return;
-                if(!success && pendingSaves==0){int focus=slots.indexOf(getCurrentFocus());String selected=focus>=0 && focus<packages.size()?packages.get(focus):"";packages=new ArrayList<>(lastSaved);moving=false;movingIndex=Math.max(0,packages.indexOf(selected));render(movingIndex);feedback("保存失败，已恢复上次保存的顺序");}
+                if(!success && pendingSaves==0){int focus=slots.indexOf(getCurrentFocus());String selected=focus>=0 && focus<packages.size()?packages.get(focus):"";packages=new ArrayList<>(lastSaved);moving=false;movingIndex=Math.max(0,packages.indexOf(selected));render(movingIndex);error("保存失败，已恢复上次保存的顺序");}
                 if(pendingSaves==0 && afterSave!=null){Runnable action=afterSave;afterSave=null;action.run();}
             });
         });

@@ -83,6 +83,7 @@ public class AppManagementActivity extends ManagementUi {
     }
     private void showPage(int next){
         if(isFinishing()||UiCompat.destroyed(this))return;
+        OperationFeedback.get(this).hide();
         ManagementPanel previous=current;int oldPage=page;
         if(previous!=null){rememberContentFocus();if(resumed){previous.onPause();previous.onStop();}}
         page=next;root.setPadding(px(next==SettingsPages.ICONS?26:48),px(30),px(next==SettingsPages.ICONS?26:48),px(24));managementPageSelected(next);

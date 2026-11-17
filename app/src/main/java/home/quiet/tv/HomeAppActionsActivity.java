@@ -124,8 +124,9 @@ public final class HomeAppActionsActivity extends ManagementUi {
         @Override public void setAlpha(int alpha){}@Override public void setColorFilter(ColorFilter filter){}@Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
     }
     private void changed(String focus){setResult(RESULT_OK,new Intent().putExtra("action","changed").putExtra("package",focus));finish();}
-    private void failure(String message){content("notice","未完成");box.addView(muted(message,14));Button close=option("返回","arrow-left",this::handleBack);show(400,close,false);}
-    private void hide(){if(!canHide()){failure("此应用必须保留或已不可用");return;}if(new HomeVisibilityStore(this).hide(pkg)){Toast.makeText(this,"已隐藏，可在“应用管理 → 隐藏应用”中恢复",Toast.LENGTH_SHORT).show();changed("");}else failure("保存失败，请重试");}
+    private void changed(String focus,String notice,boolean success){setResult(RESULT_OK,new Intent().putExtra("action","changed").putExtra("package",focus).putExtra("feedback",notice).putExtra("feedback-success",success));finish();}
+    private void failure(String message){if(dialog!=null&&dialog.isShowing()){error(message);return;}content("notice","未完成");box.addView(muted(message,14));Button close=option("返回","arrow-left",this::handleBack);show(400,close,false);}
+    private void hide(){if(!canHide()){failure("此应用必须保留或已不可用");return;}if(new HomeVisibilityStore(this).hide(pkg))changed("","已隐藏，可在隐藏应用中恢复",true);else failure("保存失败，请重试");}
     private void confirmUnpin(){
         if(!fromDock||!new DockStore(this).loadAvailable().contains(pkg)){failure("首页位置已变化，请重新选择");return;}
         content("unpin","移除首页位置？");
@@ -139,13 +140,13 @@ public final class HomeAppActionsActivity extends ManagementUi {
         sheet.settingsActions(true);Button cancel=sheet.action("取消",this::finish);cancel.setTag("app-unpin-cancel");
         Button confirm=sheet.action("移除首页位置",this::unpin);confirm.setTag("app-unpin-confirm");confirm.setBackgroundDrawable(new SettingsFocusDrawable(unit,999,UiPalette.SELECTED,false,0x4dffffff));show(560,cancel,false);
     }
-    private void unpin(){ArrayList<String> values=new DockStore(this).load();if(!values.remove(pkg)){failure("首页位置已变化，请重新选择");return;}if(new DockStore(this).saveOrder(values))changed("");else failure("保存失败，请重试");}
+    private void unpin(){ArrayList<String> values=new DockStore(this).load();if(!values.remove(pkg)){failure("首页位置已变化，请重新选择");return;}if(new DockStore(this).saveOrder(values))changed("","已从首页移除，应用保留",true);else failure("保存失败，请重试");}
     private void pin(String id){
         ArrayList<String> values=new DockStore(this).loadAvailable();
         if(!available(id)){failure("应用状态已变化，请重新选择");return;}
         if(values.contains(id)){changed(id);return;}
         candidate=id;if(values.size()>=new DockStore(this).capacity()){menu();return;}
-        values.add(id);if(new DockStore(this).saveOrder(values))changed(id);else failure("保存失败，请重试");
+        values.add(id);if(new DockStore(this).saveOrder(values))changed(id,"已添加到首页",true);else failure("保存失败，请重试");
     }
     private boolean available(String id){for(HomeAppCatalog.Entry entry:new HomeAppCatalog(this).load(new DockStore(this).load()))if(id.equals(entry.id))return true;return false;}
     private void picker(String choice,boolean fromMenu){
@@ -175,7 +176,7 @@ public final class HomeAppActionsActivity extends ManagementUi {
         if(!available(id)||new DockStore(this).loadAvailable().contains(id)&&!("replace".equals(pickerMode)&&id.equals(pkg))){failure("应用状态已变化，请重新选择");return;}
         if(!pickerMode.equals("replace")){pin(id);return;}
         ArrayList<String> values=new DockStore(this).loadAvailable();int index=values.indexOf(pkg);if(index<0){failure("原位置已变化，请重新选择");return;}
-        values.set(index,id);if(new DockStore(this).saveOrder(values))changed(id);else failure("保存失败，请重试");
+        values.set(index,id);if(new DockStore(this).saveOrder(values))changed(id,"首页应用已替换",true);else failure("保存失败，请重试");
     }
     private void authorizeUninstall(){
         if(!protection().isEmpty()){failure(protection());return;}
@@ -197,7 +198,7 @@ public final class HomeAppActionsActivity extends ManagementUi {
             },()->cancel.requestFocusFromTouch());
         });confirm.setBackgroundDrawable(new SettingsFocusDrawable(unit,999,UiPalette.SELECTED,false,0x4dffffff));show(537.6f,cancel,false);
     }
-    @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==DELETE){waitingForDelete=false;AppRepository.App current=metadata(pkg);if(current==null||!current.installed){new DockStore(this).remove(pkg);new HomeOrderStore(this).remove(pkg);new HomeVisibilityStore(this).remove(pkg);}changed("");}}
+    @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==DELETE){waitingForDelete=false;AppRepository.App current=metadata(pkg);boolean removed=current==null||!current.installed;if(removed){new DockStore(this).remove(pkg);new HomeOrderStore(this).remove(pkg);new HomeVisibilityStore(this).remove(pkg);}changed("",removed?"应用已卸载":result==RESULT_CANCELED?"已取消卸载":"卸载尚未完成，请核对应用状态",removed);}}
     private void coverMenu(){
         startActivity(new Intent(this,DesktopSettingsActivity.class).putExtra("management-page",SettingsPages.ICONS).putExtra("selected-package",pkg).putExtra("backdrop",backdrop));finish();
     }

@@ -116,7 +116,7 @@ final class VersionUpdatePanel extends ManagementPanel {
     private WebResourceResponse blocked(){return new WebResourceResponse("text/plain","UTF-8",new ByteArrayInputStream(new byte[0]));}
     private void openUpstream(){
         try{startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(UPSTREAM)));}
-        catch(ActivityNotFoundException e){Toast.makeText(this,"当前电视没有可用的浏览器",Toast.LENGTH_LONG).show();}
+        catch(ActivityNotFoundException e){OperationFeedback.get(activity).show(OperationFeedback.Kind.ERROR,"当前电视没有可用的浏览器");}
     }
     private void returnToAbout(){
         license=false;licenseReady=false;++navigation;web.stopLoading();web.setVisibility(View.INVISIBLE);

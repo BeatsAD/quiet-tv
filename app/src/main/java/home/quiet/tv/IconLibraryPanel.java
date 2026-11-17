@@ -142,7 +142,7 @@ final class IconLibraryPanel extends ManagementPanel {
         IconLibraryCatalog.Item chosen=null;for(IconLibraryCatalog.Item item:items)if(item.id.equals(theme))chosen=item;if(chosen==null&&!items.isEmpty())chosen=items.get(0);if(chosen!=null)select(chosen);else theme="";enabled();
     }
     private void upload(){
-        Target target=target();if(busy||target==null)return;if(upload!=null)upload.destroy();upload=new IconUploadSession(activity,pkg,target.label,shape,()->{uploaded();feedback(tr("已替换「"+target.label+"」图标","Icon replaced for "+target.label));});upload.show();
+        Target target=target();if(busy||target==null)return;if(upload!=null)upload.destroy();upload=new IconUploadSession(activity,pkg,target.label,shape,()->{uploaded();success(tr("已替换「"+target.label+"」图标","Icon replaced for "+target.label));});upload.show();
     }
     private void uploaded(){if(destroyed||!showing)return;refreshCurrent();status.setText(tr("已替换图标","Icon replaced"));}
     private void cancelArtwork(){for(IconLibraryTransfer.Request request:artworkRequests)request.cancel();artworkRequests.clear();}
@@ -175,7 +175,7 @@ final class IconLibraryPanel extends ManagementPanel {
         Button accept=confirm.action(tr("恢复默认","Restore default"),()->{
             if(busy)return;busy=true;enabled();confirm.dialog.setCancelable(false);confirm.box.setEnabled(false);close.setEnabled(false);cancel.setEnabled(false);for(int i=0;i<confirm.actions.getChildCount();i++)confirm.actions.getChildAt(i).setEnabled(false);confirm.text(tr("正在恢复默认图标…","Restoring default icon…"));
             worker.execute(()->{String error=null;try{AppCoverPolicy.require(activity,id);synchronized(covers){if(!expected.equals(covers.key(id)))throw new IOException(tr("当前图标已变化，请重新确认","Icon changed; confirm again"));covers.restore(id);}}catch(IOException|RuntimeException failure){error=failure.getMessage();if(error==null)error=tr("恢复默认失败","Unable to restore default icon");}String failure=error;ui(()->{
-                busy=false;if(failure==null){PhoneSettingsSession.get(activity).configurationChanged();confirm.dialog.dismiss();if(showing)feedback(tr("已恢复「"+label+"」默认图标","Default icon restored for "+label));}
+                busy=false;if(failure==null){PhoneSettingsSession.get(activity).configurationChanged();confirm.dialog.dismiss();if(showing)success(tr("已恢复「"+label+"」默认图标","Default icon restored for "+label));}
                 else if(restoreSheet==confirm){confirm.dialog.setCancelable(true);confirm.box.setEnabled(true);close.setEnabled(true);cancel.setEnabled(true);confirm.text(failure);cancel.requestFocus();}refreshCurrent();
             });});
         });accept.setTag("icon-restore-confirm");accept.setId(androidx.core.view.ViewCompat.generateViewId());cancel.setNextFocusRightId(accept.getId());accept.setNextFocusLeftId(cancel.getId());cancel.setNextFocusLeftId(cancel.getId());accept.setNextFocusRightId(accept.getId());close.setNextFocusDownId(cancel.getId());cancel.setNextFocusUpId(close.getId());accept.setNextFocusUpId(close.getId());

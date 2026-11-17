@@ -50,7 +50,7 @@ final class SourcePairingUi {
                 return;
             }
             if(test!=null&&"SAVED".equals(test.optString("state"))&&!test.optString("request").equals(notified)){
-                notified=test.optString("request");dismiss();watching=false;host.render();host.feedback("observed_input".equals(test.optString("savedKind"))?"输入测试结果已记录，常用 HDMI 未改变":"信号源配置已保存");return;
+                notified=test.optString("request");dismiss();watching=false;host.render();host.success("observed_input".equals(test.optString("savedKind"))?"输入测试结果已记录，常用 HDMI 未改变":"信号源配置已保存");return;
             }
             if(!watching)return;
             if("RUNNING".equals(observation.optString("state"))||"PREPARING".equals(observation.optString("state"))){

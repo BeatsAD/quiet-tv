@@ -50,13 +50,13 @@ final class DesktopGuardSheet {
     void handleBack(){back();}
     private void create(){
         origin=ui.getCurrentFocus();sheet=ui.new Sheet("桌面管理");sheet.contentWidth(560,560);ManagementUi.Sheet own=sheet;
-        close=sheet.settingsLayout("关闭",this::back);sheet.fixedSize(560,470);identify(close,"sheet-close");sheet.settingsActions(false);
+        close=sheet.settingsLayout("关闭",this::back);sheet.contentSize(560,470);identify(close,"sheet-close");sheet.settingsActions(false);
         sheet.dialog.setOnKeyListener((dialog,key,event)->{if(key!=KeyEvent.KEYCODE_BACK&&key!=KeyEvent.KEYCODE_ESCAPE)return false;if(event.getAction()==KeyEvent.ACTION_UP)back();return true;});
         sheet.dialog.setOnDismissListener(dialog->{if(sheet!=own)return;stop();diagnostics.hide();releaseGuide();sheet=null;if(origin!=null&&origin.isShown())origin.requestFocusFromTouch();closed.run();});
         render();sheet.show(null);start();restoreFocus();
     }
     private void restoreFocus(){if(!open())return;String key=focus;sheet.body.post(()->{if(!open())return;View target=key.isEmpty()?null:sheet.box.findViewWithTag(key);if(target==null||!target.isEnabled()||!target.isShown())target=sheet.box.findViewWithTag("guard-primary");if(target==null||!target.isEnabled()||!target.isShown())target=close;if(target!=null){target.requestFocusFromTouch();android.graphics.Rect r=new android.graphics.Rect();target.getDrawingRect(r);target.requestRectangleOnScreen(r,false);}});}
-    private void go(String value,String target){diagnostics.hide();screen=value;focus=target;error=result="";confirmation=null;render();}
+    private void go(String value,String target){OperationFeedback.get(ui).hide();diagnostics.hide();screen=value;focus=target;error=result="";confirmation=null;render();}
     private void render(){
         if(!open())return;String target=focus;sheet.heading.setText("桌面管理");sheet.body.removeAllViews();releaseGuide();sheet.settingsActions(false);
         close.setText(screen.equals("home")&&sharedReturn==null?"关闭":"返回");close.setContentDescription(close.getText());
@@ -96,7 +96,7 @@ final class DesktopGuardSheet {
     private void execute(){
         if(working||confirmation==null)return;working=true;String id=confirmation.optString("id"),revision=confirmationRevision;render();
         engine.worker.execute(()->{String failure="";JSONObject next=null;try{next=engine.manage(id,revision,()->!destroyed);}catch(Exception e){failure=DesktopSwitch.message(e);}
-            JSONObject response=next;String problem=failure;ui.runOnUiThread(()->{working=false;if(!open())return;if(response!=null)state=response;error=problem;result=response==null?"":response.optString("message");screen="home";focus="";confirmation=null;render();refresh();});});
+            JSONObject response=next;String problem=failure;ui.runOnUiThread(()->{working=false;if(!open())return;if(response!=null)state=response;error=problem;result=response==null?"":response.optString("message");screen="home";focus="";confirmation=null;render();refresh();if(!problem.isEmpty())ui.error("桌面操作未完成，请核对当前状态");else ui.success("桌面配置已更新，实际表现请按使用验证核对");});});
     }
     private void more(){
         heading("更多管理");LinearLayout group=ui.listGroup();sheet.body.addView(group,new LinearLayout.LayoutParams(-1,-2));
@@ -113,7 +113,7 @@ final class DesktopGuardSheet {
     private static String sceneTitle(String id){return id.equals("home")?"实体 HOME":id.equals("reboot")?"重启":id.equals("coldBoot")?"断电开机":"待机唤醒";}
     private void verification(){heading("使用验证");copy("按电视实际表现分别确认；服务连接不会自动记为通过。",true);LinearLayout group=ui.listGroup();sheet.body.addView(group,new LinearLayout.LayoutParams(-1,-2));for(String id:new String[]{"home","reboot","coldBoot","wake"})row(group,sceneTitle(id),object("verification").optString(id,"待验证"),"guard-scene-"+id,()->go("scene:"+id,"guard-result-pass"),true);}
     private void scene(){String id=screen.substring(6);heading(sceneTitle(id));copy("请完成对应的实体操作后，再记录电视实际表现。",false);if(!state.optBoolean("canVerify")){copy("当前路线尚不支持记录验证结果，请通过电脑核对。",true);return;}LinearLayout line=actions();for(String value:new String[]{"通过","失败","待验证"})action(line,value,"guard-result-"+value,()->saveVerification(id,value),false);}
-    private void saveVerification(String id,String value){if(working)return;working=true;String revision=state.optString("revision");engine.worker.execute(()->{String problem="";JSONObject next=null;try{next=engine.verify(id,value,revision,()->!destroyed);}catch(Exception e){problem=DesktopSwitch.message(e);}String failure=problem;JSONObject response=next;ui.runOnUiThread(()->{working=false;if(!open())return;if(response!=null)state=response;screen="verify";error=failure;result=failure.isEmpty()?"已记录用户确认的实际结果。":"";render();});});}
+    private void saveVerification(String id,String value){if(working)return;working=true;String revision=state.optString("revision");engine.worker.execute(()->{String problem="";JSONObject next=null;try{next=engine.verify(id,value,revision,()->!destroyed);}catch(Exception e){problem=DesktopSwitch.message(e);}String failure=problem;JSONObject response=next;ui.runOnUiThread(()->{working=false;if(!open())return;if(response!=null)state=response;screen="verify";error=failure;result=failure.isEmpty()?"已记录用户确认的实际结果。":"";render();if(failure.isEmpty())ui.success("使用验证结果已记录");else ui.error("验证结果未保存，请重试");});});}
     private void system(){Intent intent=MaintenanceHelpActivity.homeSettingsIntent(ui);if(intent==null||!ExternalActivityLauncher.open(ui,"maintenance.home_settings",intent)){go("computer","guard-computer-back");return;}result="请在电视系统中完成选择，返回后核对 HOME 行为。";refresh();render();}
     private void computer(){
         LinearLayout transfer=ui.row();transfer.setGravity(Gravity.CENTER_VERTICAL);transfer.setPadding(p(17.92f),p(17.92f),p(17.92f),p(17.92f));transfer.setBackgroundDrawable(ui.surface(UiPalette.CONTROL,UiPalette.CONTROL,UiPalette.EDGE,9.6f));block(transfer,14.08f,19.2f);

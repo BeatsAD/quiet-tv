@@ -36,6 +36,10 @@ final class WeatherStore {
         try{preferences.edit().putString("adcode",place.code).putString("city",place.name).putString("place",WeatherRegions.placeJson(place).toString()).apply();}
         catch(JSONException e){throw new IllegalArgumentException("Invalid selected place",e);}
     }}
+    void selectConfirmed(WeatherRegions.Region place)throws java.io.IOException{synchronized(DesktopSettingsStore.MUTATIONS){
+        try{BootAppStore.commit(preferences,preferences.edit().putString("adcode",place.code).putString("city",place.name).putString("place",WeatherRegions.placeJson(place).toString()));}
+        catch(JSONException error){throw new java.io.IOException("地区信息无法保存",error);}
+    }}
     WeatherRegions.Region selected(){
         try{String saved=preferences.getString("place","");if(!saved.isEmpty())return WeatherRegions.readPlace(new JSONObject(saved));}catch(JSONException ignored){}
         return WeatherRegions.load(context).find(adcode());

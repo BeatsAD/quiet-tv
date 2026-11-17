@@ -65,8 +65,8 @@ final class DiagnosticLogPanel extends ManagementPanel {
     }
     private void markIncident(){
         incident.setEnabled(false);worker.execute(()->{
-            try{DiagnosticLog.markIncident();main.post(()->{incident.setEnabled(true);if(showing)Toast.makeText(owner,"已标记，30秒内继续复现，结束后导出完整包；仅保留最近一次标记",Toast.LENGTH_LONG).show();});}
-            catch(Exception unavailable){main.post(()->{incident.setEnabled(true);if(showing)Toast.makeText(owner,"问题记录失败，请重试",Toast.LENGTH_SHORT).show();});}
+            try{DiagnosticLog.markIncident();main.post(()->{incident.setEnabled(true);if(showing)OperationFeedback.get(owner).show(OperationFeedback.Kind.SUCCESS,"已标记，30秒内继续复现，结束后导出完整包；仅保留最近一次标记");});}
+            catch(Exception unavailable){main.post(()->{incident.setEnabled(true);if(showing)OperationFeedback.get(owner).show(OperationFeedback.Kind.ERROR,"问题记录失败，请重试");});}
         });
     }
     @Override protected void onPause(){super.onPause();restartExport=false;stopServer();if(registered){owner.unregisterReceiver(screen);registered=false;}}

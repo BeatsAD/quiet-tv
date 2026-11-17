@@ -87,7 +87,7 @@ final class BootToolsSheet {
         LinearLayout actions=ui.row();actions.setGravity(Gravity.END);Button cancel=button(chosen.hdmi?"取消":"取消替换","boot-cancel",()->{++generation;loading=false;pending=null;expected=error="";focus=tag(chosen);render();},false);actions.addView(cancel,new LinearLayout.LayoutParams(-2,-1));Button confirm=button(chosen.hdmi?"开启":"确认替换","boot-confirm",()->commit(chosen),true);confirm.setEnabled(!loading);LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-2,-1);bp.leftMargin=ui.px(7.68f);actions.addView(confirm,bp);LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,ui.px(34.56f));ap.topMargin=ui.px(18);card.addView(actions,ap);
     }
     private void choose(Target value){
-        if(loading||!value.available)return;error="";if(current().equals(value.id)){ui.feedback("开机直达已更新");return;}
+        if(loading||!value.available)return;error="";if(current().equals(value.id)){ui.feedback("当前已使用此开机目标");return;}
         expected=current();if(value.hdmi||store.enabled()){pending=value.id;focus="boot-cancel";render();}else commit(value);
     }
     private void commit(Target value){
@@ -96,8 +96,8 @@ final class BootToolsSheet {
     }
     private void save(Target value){
         try{synchronized(BootAppStore.class){if(!expected.equals(current()))throw new IOException("开机目标已变化，请重新选择");if(value.hdmi){if(!store.tested()||!value.id.equals("hdmi:"+store.watchTarget()))throw new IOException("请先测试当前 HDMI 并确认画面和声音");store.hdmiBoot(true);}else{if(!value.id.isEmpty()&&!availableApp(value.id))throw new IOException("此应用暂不可用，请重新选择");store.select(value.id,value.id.isEmpty()?"":value.label);}}
-            pending=null;expected=error="";focus=tag(value);render();ui.feedback("开机直达已更新");
-        }catch(IOException|RuntimeException failure){error=failure.getMessage()==null?"开机目标保存失败，请重试":failure.getMessage();render();}
+            pending=null;expected=error="";focus=tag(value);render();ui.success(value.id.isEmpty()?"已恢复开机进入首页":"开机直达已设为 "+value.label);
+        }catch(IOException|RuntimeException failure){error=failure.getMessage()==null?"开机目标保存失败，请重试":failure.getMessage();render();ui.error("开机目标未保存");}
     }
     private boolean availableApp(String id){for(HomeAppCatalog.Entry value:new HomeAppCatalog(ui).load(Collections.emptyList()))if(id.equals(value.id)&&value.info!=null&&(value.info.activityInfo.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0)return store.launchIntent(id)!=null;return false;}
     void resume(){PhoneSettingsSession.get(ui).observeConfiguration(phoneChanged);if(open())load();}

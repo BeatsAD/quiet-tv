@@ -36,7 +36,7 @@ final class DiagnosticExportUi {
     void show(ManagementUi.Sheet value,boolean source){if(sheet==value)return;hide();sheet=value;inputs=source;active=true;start();}
     private void render(){
         if(sheet==null||destroyed)return;sheet.heading.setText("导出诊断");sheet.body.removeAllViews();sheet.settingsActions(false);
-        if(busy){copy("正在生成诊断包…",false);return;}
+        if(busy){TextView loading=text("正在生成诊断包…",17.28f,29.376f,UiPalette.TEXT);OperationFeedback.status(loading,OperationFeedback.Kind.PROGRESS);block(loading,17.28f,17.28f);return;}
         copy(inputs?"导出本次信号源配对与测试记录。":"导出应用日志与设备信息，后台记录无需手动开启。",true);
         if(server!=null&&bitmap!=null){LinearLayout transfer=ui.row();transfer.setGravity(Gravity.CENTER_VERTICAL);transfer.setPadding(p(17.92f),p(17.92f),p(17.92f),p(17.92f));transfer.setBackgroundDrawable(ui.surface(UiPalette.CONTROL,UiPalette.CONTROL,UiPalette.EDGE,9.6f));block(transfer,14.08f,19.2f);
             ImageView qr=new QrCodeView(ui,ui.unit);qr.setImageBitmap(bitmap);qr.setContentDescription("诊断包下载二维码");qr.setPadding(p(5.12f),p(5.12f),p(5.12f),p(5.12f));transfer.addView(qr,new LinearLayout.LayoutParams(p(115.2f),p(115.2f)));
@@ -49,10 +49,10 @@ final class DiagnosticExportUi {
         if(!inputs&&Build.VERSION.SDK_INT>=31&&!BluetoothDiagnostics.permitted(ui)){Button permission=button("允许读取蓝牙状态","diagnostic-bluetooth",()->ui.requestPermissions(new String[]{BluetoothDiagnostics.CONNECT},BLUETOOTH_PERMISSION),false);LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-2,-1);bp.leftMargin=p(8);actions.addView(permission,bp);}
         if(!notice.isEmpty())copy(notice,true);
         if(inputs||InputSourceObservation.hasEvidence(ui)){Button other=button(inputs?"应用诊断包":"信号源诊断包","diagnostic-kind",()->{inputs=!inputs;start();},false);LinearLayout.LayoutParams op=new LinearLayout.LayoutParams(-2,-1);op.leftMargin=p(8);actions.addView(other,op);}
-        if(!failure.isEmpty()){TextView problem=text(failure,15.36f,23.04f,UiPalette.TEXT);LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-1,-2);fp.topMargin=p(16);sheet.body.addView(problem,fp);}
+        if(!failure.isEmpty()){TextView problem=text(failure,15.36f,23.04f,UiPalette.TEXT);OperationFeedback.status(problem,OperationFeedback.Kind.ERROR);LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-1,-2);fp.topMargin=p(16);sheet.body.addView(problem,fp);}
     }
     private void mark(){
-        if(busy)return;busy=true;render();worker.execute(()->{String result;try{DiagnosticLog.markIncident();result="已标记，继续记录30秒；随后重新生成诊断包";}catch(Exception e){DiagnosticLog.error("diagnostic.mark_failed",e);result="标记失败，请重试";}String message=result;main.post(()->{if(sheet==null||destroyed)return;busy=false;notice=message;render();});});
+        if(busy)return;busy=true;render();worker.execute(()->{String result;boolean success;try{DiagnosticLog.markIncident();success=true;result="已标记，继续记录30秒；随后重新生成诊断包";}catch(Exception e){DiagnosticLog.error("diagnostic.mark_failed",e);success=false;result="标记失败，请重试";}String message=result;boolean marked=success;main.post(()->{if(sheet==null||destroyed)return;busy=false;notice="";render();if(marked)ui.success(message);else ui.error(message);});});
     }
     private void start(){
         stop();if(sheet==null||destroyed||!active)return;failure="";busy=true;render();String address=WallpaperUploadPanel.lanAddress(ui);if(address==null){fail("未连接局域网，请连接 Wi-Fi 或网线后重试");return;}host=address;

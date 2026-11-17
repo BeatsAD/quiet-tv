@@ -94,4 +94,13 @@ final class HomeAppCatalog {
     static ArrayList<String> gridIds(List<Entry> entries){
         ArrayList<String> ids=new ArrayList<>();for(Entry entry:entries)ids.add(entry.id);return ids;
     }
+    /** Filter the displayed Dock only; keep the complete saved grid order intact. */
+    static ArrayList<String> gridIds(List<String> ordered,List<String> pinned,int dockLimit,boolean homeApps,boolean hideHomeApps){
+        ArrayList<String> ids=new ArrayList<>(ordered);
+        if(homeApps&&hideHomeApps){
+            int displayed=0;
+            for(String id:pinned)if(ids.remove(id)&&++displayed>=dockLimit)break;
+        }
+        return ids;
+    }
 }

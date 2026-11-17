@@ -27,8 +27,8 @@ final class PreviewFeedbackView extends LinearLayout {
     }
     void render(String text,PreviewSyncState.Status phase,boolean visible,String workingLabel){
         if(!note.getText().toString().equals(text))note.setText(text);
-        int color=phase==PreviewSyncState.Status.SYNCED?0xff6ad49c:phase==PreviewSyncState.Status.FAILED?0xffef8585:0xff64b5f6;
-        String label=phase==PreviewSyncState.Status.SYNCED?(chinese?"已同步":"Synced"):phase==PreviewSyncState.Status.FAILED?(chinese?"同步失败":"Sync failed"):workingLabel!=null?workingLabel:(chinese?"同步中":"Syncing");
+        int color=phase==PreviewSyncState.Status.SYNCED?UiPalette.STATUS_SUCCESS:phase==PreviewSyncState.Status.FAILED?UiPalette.STATUS_ERROR:UiPalette.STATUS_PROGRESS;
+        String label=phase==PreviewSyncState.Status.SYNCED?(chinese?"预览就绪":"Preview ready"):phase==PreviewSyncState.Status.FAILED?(chinese?"未完成":"Incomplete"):workingLabel!=null?workingLabel:(chinese?"预览加载中":"Loading preview");
         if(!status.getText().toString().equals(label))status.setText(label);
         status.setTextColor(color);icon.render(color,phase);state.setVisibility(visible?VISIBLE:INVISIBLE);syncing=visible&&phase==PreviewSyncState.Status.SYNCING;animateIcon();
     }

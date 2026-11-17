@@ -6,14 +6,14 @@ import java.io.IOException;
 import java.util.*;
 import org.json.*;
 
-/** User shortcuts retain their order; file transfer and quick controls are fixed Home entries. */
+/** User shortcuts retain their order; quick controls are always rendered separately. */
 final class HomeButtonStore {
     static final List<String> DEFAULT=Collections.unmodifiableList(Collections.<String>emptyList());
     static final List<String> ALL;
     static {ArrayList<String> ids=new ArrayList<>(Arrays.asList("settings","control","systemSettings"));for(String id:QuickControlStore.ALL)if(!ids.contains(id))ids.add(id);ALL=Collections.unmodifiableList(ids);}
     static final List<String> EDITABLE;
-    static {ArrayList<String> ids=new ArrayList<>(ALL);ids.remove("settings");ids.remove("control");ids.remove("transfer");EDITABLE=Collections.unmodifiableList(ids);}
-    static List<String> visibleIds(List<String> shortcuts){ArrayList<String> ids=new ArrayList<>(shortcuts);ids.remove("settings");ids.remove("control");if(!ids.contains("transfer"))ids.add("transfer");ids.add("control");return ids;}
+    static {ArrayList<String> ids=new ArrayList<>(ALL);ids.remove("settings");ids.remove("control");EDITABLE=Collections.unmodifiableList(ids);}
+    static List<String> visibleIds(List<String> shortcuts){ArrayList<String> ids=new ArrayList<>(shortcuts);ids.remove("settings");ids.remove("control");ids.add("control");return ids;}
     static final Object LOCK=new Object();
     private final SharedPreferences preferences;
     HomeButtonStore(Context context){preferences=context.getSharedPreferences("desktop-settings",0);}
@@ -39,11 +39,11 @@ final class HomeButtonStore {
             if(!legacy)ids.addAll(DEFAULT);
             else{boolean master=flag(values,"show-buttons",true);if(flag(values,"show-input",master))ids.add("source");if(flag(values,"show-network",master))ids.add("network");if(flag(values,"show-settings",master))ids.add("systemSettings");}
         }
-        validate(ids);ids.remove("settings");ids.remove("control");ids.remove("transfer");return new Snapshot(ids,revision);
+        validate(ids);ids.remove("settings");ids.remove("control");return new Snapshot(ids,revision);
     }
     private static boolean flag(Map<String,?> values,String key,boolean fallback)throws IOException {Object value=values.get(key);if(value==null)return fallback;if(!(value instanceof Boolean))throw new IOException("首页按钮配置无效，原配置已保留");return (Boolean)value;}
     Snapshot save(long expected,List<String> ids)throws IOException {synchronized(LOCK){
-        validate(ids);if(ids.contains("settings")||ids.contains("control")||ids.contains("transfer"))throw new IOException("文件传输和快捷控制固定保留，桌面设置位于面板第九格");Snapshot current=load();if(current.ids.equals(ids))return current;
+        validate(ids);if(ids.contains("settings")||ids.contains("control"))throw new IOException("快捷控制固定保留，桌面设置位于面板第九格");Snapshot current=load();if(current.ids.equals(ids))return current;
         if(current.revision!=expected)throw new IOException("首页按钮已在其他位置修改，请重新读取");
         if(current.revision==Long.MAX_VALUE)throw new IOException("首页按钮版本无法继续保存");
         Map<String,?> before=preferences.getAll();long revision=current.revision+1;

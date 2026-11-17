@@ -16,6 +16,7 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity implemen
     static final int TEXT=UiPalette.TEXT,MUTED=UiPalette.SECONDARY;
     LinearLayout root,header,managementInfo;
     FrameLayout stage;
+    private OperationFeedback operationFeedback;
     float unit;
     private static final int[] MANAGEMENT_ORDER=SettingsPages.ORDER;
     private final Button[] managementTabs=new Button[SettingsPages.COUNT];
@@ -45,6 +46,7 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity implemen
         super.onCreate(state);glassStyle=GlassStyle.get(this);glassStyle.observe(this);BackNavigation.install(this,this::handleBack);unit=getResources().getDisplayMetrics().widthPixels/960f;
         getWindow().getDecorView().setSystemUiVisibility(5894);
         stage=new FrameLayout(this);stage.setBackgroundColor(0xff000000);setContentView(stage);
+        operationFeedback=OperationFeedback.get(this);
         if(unifiedSettings()){stage.setClipChildren(false);SettingsFocusMotion.attach(stage);}
         if(!managementChrome()){root=column();return;}
         if(loadWallpaper())prepareBackdrop();
@@ -131,8 +133,8 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity implemen
     String tr(String chinese,String english){return chinese()?chinese:english;}
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);managementEntry=true;refreshBackdrop();}
     @Override protected void onResume(){super.onResume();if(backdropImage!=null)refreshBackdrop();UpdateRepository.get(this).add(updateListener);UpdateRepository.get(this).foreground();if(managementEntry && managementPage>=0){managementEntry=false;managementTab().requestFocus();}}
-    @Override protected void onStop(){UpdateRepository.get(this).remove(updateListener);if(managementMorePopup!=null)managementMorePopup.closeQuietly();super.onStop();}
-    @Override protected void onDestroy(){backdropClosed=true;if(glassStyle!=null)glassStyle.forget(this);clearBackdrop();settingsWriter.shutdown();afterContent=null;if(contentDraw!=null){contentDraw.run();contentDraw=null;}if(backdropLoader!=null)backdropLoader.shutdownNow();super.onDestroy();}
+    @Override protected void onStop(){if(operationFeedback!=null)operationFeedback.hide();UpdateRepository.get(this).remove(updateListener);if(managementMorePopup!=null)managementMorePopup.closeQuietly();super.onStop();}
+    @Override protected void onDestroy(){OperationFeedback.clear(this);backdropClosed=true;if(glassStyle!=null)glassStyle.forget(this);clearBackdrop();settingsWriter.shutdown();afterContent=null;if(contentDraw!=null){contentDraw.run();contentDraw=null;}if(backdropLoader!=null)backdropLoader.shutdownNow();super.onDestroy();}
     @Override public void onWindowFocusChanged(boolean focused){super.onWindowFocusChanged(focused);if(unifiedSettings())SettingsFocusMotion.update(getCurrentFocus(),focused);DiagnosticLog.info("input.window","page="+getClass().getSimpleName()+" "+InputDiagnostics.focus(this));if(focused)reportContentReady();}
     @Override public boolean dispatchTouchEvent(android.view.MotionEvent event){InputDiagnostics.pointer(this,event);return super.dispatchTouchEvent(event);}
     void managementConnected(){}
@@ -291,6 +293,11 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity implemen
         final Dialog dialog=new KeyFeedback.Dialog(ManagementUi.this){@Override int motionStyle(){return backdrop==null?super.motionStyle():R.style.QuietSheetAnimation;}@Override public void onWindowFocusChanged(boolean focused){super.onWindowFocusChanged(focused);if(unifiedSettings())SettingsFocusMotion.update(getCurrentFocus(),focused);if(focused&&backdrop!=null){backdrop.prepareForFocusedWindow(()->{if(dialog.isShowing()&&dialog.getWindow().getDecorView().hasWindowFocus())UiMotion.sheet(box);});}}};
         final LinearLayout body=column(),actions=row(),box=new LinearLayout(ManagementUi.this){
             @Override protected void onMeasure(int width,int height){
+                if(heightMaximum>0){
+                    int maximum=Math.min(px(heightMaximum),getResources().getDisplayMetrics().heightPixels-px(48));
+                    if(View.MeasureSpec.getMode(height)!=View.MeasureSpec.UNSPECIFIED)maximum=Math.min(maximum,View.MeasureSpec.getSize(height));
+                    height=View.MeasureSpec.makeMeasureSpec(Math.max(0,maximum),View.MeasureSpec.AT_MOST);
+                }
                 if(contentSized||fullWindow&&getLayoutParams().width==ViewGroup.LayoutParams.WRAP_CONTENT){
                     int limit=px(contentSized?contentMaximum:448);if(contentSized)limit=Math.min(limit,getResources().getDisplayMetrics().widthPixels-px(48));
                     int maximum=View.MeasureSpec.getMode(width)==View.MeasureSpec.UNSPECIFIED?limit:Math.min(limit,View.MeasureSpec.getSize(width));
@@ -304,31 +311,46 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity implemen
         final TextView heading;
         final ScrollView scroll;
         float bodyMaximum=240;
+        private float feedbackReserved;
         private boolean contentSized,fixedSize;
-        private float contentMinimum,contentMaximum;
+        private float contentMinimum,contentMaximum,heightMaximum;
         private boolean fullWindow;
         private SettingsSheetBackdrop backdrop;
         void contentWidth(float minimum,float maximum){if(fixedSize)return;contentSized=true;contentMinimum=minimum;contentMaximum=maximum;box.requestLayout();}
         void lightSurface(){backdrop.light();}
         // Keep the panel and its chrome anchored; only the content viewport scrolls.
         void fixedSize(float width,float height){
-            fixedSize=true;contentSized=false;
+            fixedSize=true;contentSized=false;heightMaximum=0;
             android.util.DisplayMetrics screen=getResources().getDisplayMetrics();
             FrameLayout.LayoutParams frame=(FrameLayout.LayoutParams)box.getLayoutParams();
             frame.width=Math.min(px(width),screen.widthPixels-px(48));frame.height=Math.min(px(height),screen.heightPixels-px(48));box.setLayoutParams(frame);
             LinearLayout.LayoutParams content=(LinearLayout.LayoutParams)scroll.getLayoutParams();content.height=0;content.weight=1;scroll.setLayoutParams(content);
         }
+        // Wrap short content; the weighted viewport gives long content room to scroll.
+        void contentSize(float width,float maximumHeight){
+            fixedSize=false;contentSized=false;heightMaximum=maximumHeight;
+            FrameLayout.LayoutParams frame=(FrameLayout.LayoutParams)box.getLayoutParams();
+            frame.width=Math.min(px(width),getResources().getDisplayMetrics().widthPixels-px(48));frame.height=-2;box.setLayoutParams(frame);
+            LinearLayout.LayoutParams content=(LinearLayout.LayoutParams)scroll.getLayoutParams();content.height=-2;content.weight=1;scroll.setLayoutParams(content);
+        }
+        void fitContent(float minimum,float maximum){
+            fixedSize=false;contentSized=true;contentMinimum=minimum;contentMaximum=maximum;
+            FrameLayout.LayoutParams frame=(FrameLayout.LayoutParams)box.getLayoutParams();frame.width=frame.height=ViewGroup.LayoutParams.WRAP_CONTENT;box.setLayoutParams(frame);
+            LinearLayout.LayoutParams content=(LinearLayout.LayoutParams)scroll.getLayoutParams();content.height=ViewGroup.LayoutParams.WRAP_CONTENT;content.weight=0;scroll.setLayoutParams(content);scroll.setFillViewport(false);
+            settingsActions(actions.getVisibility()==View.VISIBLE);box.requestLayout();
+        }
         void fullScreen(){
-            fixedSize=true;contentSized=false;FrameLayout.LayoutParams frame=(FrameLayout.LayoutParams)box.getLayoutParams();frame.width=frame.height=-1;box.setLayoutParams(frame);
+            fixedSize=true;contentSized=false;heightMaximum=0;FrameLayout.LayoutParams frame=(FrameLayout.LayoutParams)box.getLayoutParams();frame.width=frame.height=-1;box.setLayoutParams(frame);
             box.setPadding(px(36),px(28),px(36),px(24));LinearLayout.LayoutParams content=(LinearLayout.LayoutParams)scroll.getLayoutParams();content.height=0;content.weight=1;content.setMargins(0,0,0,0);scroll.setLayoutParams(content);scroll.setPadding(0,0,0,0);scroll.setFillViewport(true);
         }
         Sheet(String title){
+            OperationFeedback.get(ManagementUi.this).watch(dialog,box,actions,height->{feedbackReserved=height;box.requestLayout();});
             box.setOrientation(LinearLayout.VERTICAL);if(unifiedSettings())box.setClipChildren(false);
             dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);box.setPadding(px(30),px(27),px(30),px(25));
             if(unifiedSettings()){box.setPadding(px(18),px(18),px(18),px(18));box.setClipChildren(false);box.setClipToPadding(false);}
             backdrop=new SettingsSheetBackdrop(ManagementUi.this,box);box.setBackgroundDrawable(backdrop);
             heading=center(title,23);if(unifiedSettings()){heading.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);heading.setTextSize(TypedValue.COMPLEX_UNIT_PX,18*unit);}box.addView(heading,new LinearLayout.LayoutParams(-1,-2));gap(box,unifiedSettings()?12:18);
-            scroll=new ScrollView(ManagementUi.this){@Override protected void onMeasure(int w,int h){if(fixedSize)super.onMeasure(w,h);else super.onMeasure(w,View.MeasureSpec.makeMeasureSpec(View.MeasureSpec.getMode(h)==View.MeasureSpec.UNSPECIFIED?px(bodyMaximum):Math.min(px(bodyMaximum),View.MeasureSpec.getSize(h)),View.MeasureSpec.AT_MOST));}@Override protected void dispatchDraw(Canvas canvas){if(!unifiedSettings()){super.dispatchDraw(canvas);return;}int save=canvas.save();canvas.clipRect(getScrollX(),getScrollY(),getScrollX()+getWidth(),getScrollY()+getHeight());super.dispatchDraw(canvas);canvas.restoreToCount(save);}};scroll.setFillViewport(false);scroll.addView(body);box.addView(scroll,new LinearLayout.LayoutParams(-1,-2));
+            scroll=new ScrollView(ManagementUi.this){@Override protected void onMeasure(int w,int h){if(fixedSize)super.onMeasure(w,h);else super.onMeasure(w,View.MeasureSpec.makeMeasureSpec(View.MeasureSpec.getMode(h)==View.MeasureSpec.UNSPECIFIED?px(Math.max(48,bodyMaximum-feedbackReserved)):Math.min(px(Math.max(48,bodyMaximum-feedbackReserved)),View.MeasureSpec.getSize(h)),View.MeasureSpec.AT_MOST));}@Override protected void dispatchDraw(Canvas canvas){if(!unifiedSettings()){super.dispatchDraw(canvas);return;}int save=canvas.save();canvas.clipRect(getScrollX(),getScrollY(),getScrollX()+getWidth(),getScrollY()+getHeight());super.dispatchDraw(canvas);canvas.restoreToCount(save);}};scroll.setFillViewport(false);scroll.addView(body);box.addView(scroll,new LinearLayout.LayoutParams(-1,-2));
             actions.setGravity(unifiedSettings()?Gravity.END|Gravity.CENTER_VERTICAL:Gravity.CENTER);LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,px(unifiedSettings()?33:42));ap.topMargin=px(unifiedSettings()?18:24);box.addView(actions,ap);
             dialog.setContentView(box);Window window=dialog.getWindow();window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);window.setDimAmount(SettingsSheetBackdrop.DIM_AMOUNT);
             // Bound long package histories and app pickers without clipping the dialog actions.
@@ -355,7 +377,9 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity implemen
             if(backdrop!=null){if(dialog.isShowing()&&window.getDecorView().hasWindowFocus()){backdrop.prepareForFocusedWindow(()->{if(dialog.isShowing()&&dialog.getWindow().getDecorView().hasWindowFocus())UiMotion.sheet(box);});}else{UiMotion.settle(box);box.setAlpha(0f);}}
             dialog.show();if(unifiedSettings())SettingsFocusMotion.attach(window.getDecorView());if(focus!=null)focus.requestFocus();}
     }
-    void message(String text){Sheet sheet=new Sheet("提示");sheet.text(text);TextView copy=(TextView)sheet.body.getChildAt(0);float width=240;for(String line:text.split("\n",-1))width=Math.max(width,(copy.getPaint().measureText(line)+sheet.box.getPaddingLeft()+sheet.box.getPaddingRight())/unit);sheet.contentWidth(Math.min(420,width),420);Button close=sheet.action("确定",sheet.dialog::dismiss);sheet.show(close);}
-    private TextView feedback;
-    void feedback(String text){if(feedback!=null)stage.removeView(feedback);TextView toast=center(text,13);toast.setPadding(px(20),px(12),px(20),px(12));toast.setBackgroundDrawable(surface(0xff000000,0xff000000,0x30ffffff,28));FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(-2,-2,Gravity.BOTTOM|Gravity.CENTER_HORIZONTAL);p.bottomMargin=px(32);stage.addView(toast,p);feedback=toast;UiCompat.announce(toast,text);toast.postDelayed(()->{stage.removeView(toast);if(feedback==toast)feedback=null;},3000);}
+    void message(String text){error(text);}
+    void feedback(String text){OperationFeedback.info(this,text);}
+    void success(String text){OperationFeedback.success(this,text);}
+    void error(String text){OperationFeedback.error(this,text);}
+    void progress(String text){OperationFeedback.get(this).show(OperationFeedback.Kind.PROGRESS,text);}
 }

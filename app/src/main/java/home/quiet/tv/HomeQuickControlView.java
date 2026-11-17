@@ -63,7 +63,7 @@ final class HomeQuickControlView extends LinearLayout {
     private TextView label(String value){TextView view=new TextView(context);view.setText(value);view.setIncludeFontPadding(false);view.setGravity(Gravity.CENTER_VERTICAL);return view;}
     private Button actionButton(String value,Runnable action){Button b=new KeyFeedback.Button(context);b.setText(value);b.setAllCaps(false);b.setMinimumWidth(0);b.setMinWidth(0);b.setMinimumHeight(0);b.setMinHeight(0);b.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));if(android.os.Build.VERSION.SDK_INT>=21)b.setStateListAnimator(null);b.setOnClickListener(v->action.run());SettingsTouchClick.attach(b);return b;}
     private android.graphics.drawable.Drawable phoneSurface(){android.graphics.drawable.GradientDrawable bg=new SurfaceDrawable(unit);bg.setColor(PHONE_CARD);bg.setCornerRadius(p(12));return bg;}
-    private void feedback(String message){Toast.makeText(context,message,Toast.LENGTH_LONG).show();}
+    private void feedback(String message){OperationFeedback.get(context).show(OperationFeedback.Kind.ERROR,message);}
     HomeQuickControlView(android.app.Activity context,float unit,boolean chinese,Host ui,Value<String> execute){
         super(context);this.context=context;this.unit=unit;this.chinese=chinese;this.ui=ui;this.execute=execute;desktop=new DesktopSettingsStore(context);phone=PhoneSettingsSession.get(context);audio=(AudioManager)context.getSystemService(Context.AUDIO_SERVICE);
         setAlpha(0f);setOrientation(VERTICAL);setPadding(p(16),p(16),p(16),p(16));setClipChildren(false);setClipToPadding(false);setFocusable(true);setFocusableInTouchMode(true);setDescendantFocusability(FOCUS_AFTER_DESCENDANTS);
@@ -156,7 +156,7 @@ final class HomeQuickControlView extends LinearLayout {
         boolean commit(){
             if(!draft.editing())return true;int candidate=draft.value(),original=draft.original();draft.commit();setActivated(false);if(sound){HomeQuickControlView.this.refresh();return true;}
             if(candidate==original){HomeActivity.previewQuickAdjustment(id,null);HomeQuickControlView.this.refresh();return true;}
-            savingValues.put(id,candidate);qrWorker.execute(()->{String failure="";try{String key=QuickControlStore.rangeProperty(id);if("brightness".equals(id)||"homeBlur".equals(id))desktop.saveWallpaperEffect(false,key,candidate,original);else desktop.saveAppearance(key,candidate);}catch(IOException error){failure=error.getMessage();}String result=failure;settingsMain.post(()->{savingValues.remove(id);HomeActivity.previewQuickAdjustment(id,null);if(destroyed)return;if(result.isEmpty())phone.configurationChanged();else feedback(result);HomeQuickControlView.this.refresh();});});return true;
+            savingValues.put(id,candidate);qrWorker.execute(()->{String failure="";try{String key=QuickControlStore.rangeProperty(id);if("brightness".equals(id)||"homeBlur".equals(id))desktop.saveWallpaperEffect(false,key,candidate,original);else desktop.saveAppearance(key,candidate);}catch(IOException error){failure=error.getMessage();}String result=failure;settingsMain.post(()->{savingValues.remove(id);HomeActivity.previewQuickAdjustment(id,null);if(destroyed)return;if(result.isEmpty()){phone.configurationChanged();OperationFeedback.success(context,"设置已保存");}else feedback(result);HomeQuickControlView.this.refresh();});});return true;
         }
         void preview(int value){if(sound){int next=Math.max(0,Math.min(maximum(),value));if(!writeVolume(next))return;draft.preview(next);}else{draft.preview(value);HomeActivity.previewQuickAdjustment(id,draft.value());}HomeQuickControlView.this.refresh();}
         void focusChanged(){boolean focused=isFocused()&&hasWindowFocus();((QuickControlSurface)card.getBackground()).focused(focused);card.setActivated(false);float scale=focused&&!SettingsFocusMotion.reduced()?1.01f:1;UiMotion.scale(card,scale,140);title.setTextColor(UiPalette.TEXT);level.setTextColor(UiPalette.TEXT);}
@@ -170,7 +170,7 @@ final class HomeQuickControlView extends LinearLayout {
     }
     private void renderPhone(){
         if(resumed&&isShown()&&phone.state().equals("qr-expired"))phone.start();
-        String state=phone.state();String signature=state+phone.address()+phone.failure();if(signature.equals(phoneRender))return;phoneRender=signature;String previous=focus;
+        String state=phone.state();String signature=state+phone.address()+phone.failure()+phone.paired();if(signature.equals(phoneRender))return;phoneRender=signature;String previous=focus;
         // Keep a stable panel focus while removing the currently focused connection button.
         if(phoneBody.hasFocus()){int descendants=getDescendantFocusability();setDescendantFocusability(FOCUS_BLOCK_DESCENDANTS);requestFocus();setDescendantFocusability(descendants);}
         phoneBody.removeAllViews();qrView=null;targets.keySet().removeAll(Arrays.asList("phone-end","phone-restart"));
@@ -178,13 +178,15 @@ final class HomeQuickControlView extends LinearLayout {
         if(starting||state.equals("waiting")||state.equals("connected")){
             LinearLayout connection=row();connection.setGravity(Gravity.CENTER_VERTICAL);connection.setPadding(p(8),p(8),p(8),p(8));connection.setBackgroundDrawable(phoneSurface());ImageView image=new QrCodeView(context,unit);image.setContentDescription("手机设置连接二维码");
             if(!starting)prepareQr(phone.address(),image);connection.addView(image,new LayoutParams(p(136),p(136)));
-            LinearLayout copy=column();TextView title=text("手机扫码设置桌面",18,26);title.setTextColor(0xff171717);QuickControlPreviewView.weight(title,600);copy.addView(title,new LayoutParams(-1,-2));
-            TextView hint=text(starting?"正在生成二维码…":"同一局域网",16,24);hint.setTextColor(0xff484846);copy.addView(hint,new LayoutParams(-1,-2));
+            LinearLayout copy=column();TextView title=text(phone.paired()?"手机设置桌面":"手机扫码设置桌面",18,26);title.setTextColor(0xff171717);QuickControlPreviewView.weight(title,600);copy.addView(title,new LayoutParams(-1,-2));
+            TextView hint=text(starting?"正在生成二维码…":phone.paired()?"已配对，可收藏网址直接打开":"同一局域网，首次扫码配对",16,24);hint.setTextColor(0xff484846);copy.addView(hint,new LayoutParams(-1,-2));
             String address=starting?"":phone.shortAddress();int scheme=address.indexOf("://");if(scheme>=0)address=address.substring(scheme+3);TextView link=text(address,14,21);link.setTextColor(0xff5b5b58);copy.addView(link,new LayoutParams(-1,-2));
             if(state.equals("connected")){
                 LinearLayout status=row();ImageView checked=icon("check-circle");((QuickControlIcon)checked.getDrawable()).color(0xff1d7c47);status.addView(checked,new LayoutParams(p(20),p(20)));
                 TextView connected=text("手机已连接",16,24);connected.setTextColor(0xff1d7c47);QuickControlPreviewView.weight(connected,600);LayoutParams label=new LayoutParams(-2,-2);label.leftMargin=p(6);status.addView(connected,label);copy.addView(status,new LayoutParams(-1,-2));
-                Button end=button("结束连接","phone-end",phone::restart);end.setTextColor(0xff343432);end.setGravity(Gravity.CENTER);
+            }
+            if(phone.paired()){
+                Button end=button("解除配对","phone-end",phone::revoke);end.setTextColor(0xff343432);end.setGravity(Gravity.CENTER);
                 android.graphics.drawable.GradientDrawable normal=new SurfaceDrawable(unit);normal.setColor(0x05000000);normal.setCornerRadius(p(7));normal.setStroke(p(1),0xff92928e);
                 android.graphics.drawable.GradientDrawable focused=new SurfaceDrawable(unit);focused.setColor(0xffdeded8);focused.setCornerRadius(p(7));focused.setStroke(p(1.5f),0xff343432);
                 android.graphics.drawable.StateListDrawable background=new android.graphics.drawable.StateListDrawable();background.addState(new int[]{android.R.attr.state_focused},focused);background.addState(new int[0],normal);end.setBackgroundDrawable(background);

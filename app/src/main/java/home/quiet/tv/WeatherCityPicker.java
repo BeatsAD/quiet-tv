@@ -62,7 +62,7 @@ final class WeatherCityPicker {
         ui.gap(editor.body,10);selection=ui.muted("",12);identify(selection,"weather-selection");editor.body.addView(selection);results=ui.column();editor.body.addView(results);
         scan=editor.action(tr("手机扫码输入","Phone input"),this::showPhone);identify(scan,"weather-phone");editor.actions.addView(new View(ui),new LinearLayout.LayoutParams(0,1,1));
         Button cancel=editor.action(tr("取消","Cancel"),()->editor.dialog.dismiss());identify(cancel,"weather-cancel");
-        save=editor.action(tr("保存","Save"),()->{if(draft==null)return;store.select(draft);saved.run();editor.dialog.dismiss();});identify(save,"weather-save");
+        save=editor.action(tr("保存","Save"),()->{if(draft==null)return;try{store.selectConfirmed(draft);saved.run();editor.dialog.dismiss();ui.success(tr("天气位置已保存","Weather location saved"));}catch(java.io.IOException failure){ui.error(tr("位置保存失败，本次选择已保留","Unable to save location. Your selection is retained."));}});identify(save,"weather-save");
         for(Button button:new Button[]{scan,cancel,save})button.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
         query.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int start,int count,int after){}public void onTextChanged(CharSequence s,int start,int before,int count){++searchGeneration;main.removeCallbacks(search);main.postDelayed(search,180);}public void afterTextChanged(Editable value){}});
         query.setOnEditorActionListener((v,id,event)->{if(id!=EditorInfo.IME_ACTION_SEARCH)return false;hideKeyboard();showResults(true);return true;});

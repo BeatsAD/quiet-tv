@@ -65,6 +65,9 @@ abstract class ManagementPanel extends ContextWrapper {
     void gap(LinearLayout parent,int height){activity.gap(parent,height);}
     void message(String text){if(showing)activity.message(text);}
     void feedback(String text){if(showing)activity.feedback(text);}
+    void success(String text){if(showing)activity.success(text);}
+    void error(String text){if(showing)activity.error(text);}
+    void progress(String text){if(showing)activity.progress(text);}
     final class Sheet {
         final ManagementUi.Sheet delegate;
         final android.app.Dialog dialog;

@@ -52,7 +52,7 @@ final class GreetingEditorPanel {
     private void identify(View view,String tag){view.setId(androidx.core.view.ViewCompat.generateViewId());view.setTag(tag);}
     void show(){
         if(editor!=null)return;baseText=store.greetingText("");enabled=store.greetingEnabled();draftAvatar=avatars.existing(store.avatarFile());avatarEnabled=store.avatarEnabled()&&draftAvatar!=null;
-        editor=ui.new Sheet(tr("问候语与头像","Greeting and avatar"));close=editor.settingsLayout(tr("关闭","Close"),()->editor.dialog.dismiss());close.setVisibility(View.GONE);editor.fixedSize(408,372);
+        editor=ui.new Sheet(tr("问候语与头像","Greeting and avatar"));close=editor.settingsLayout(tr("关闭","Close"),()->editor.dialog.dismiss());close.setVisibility(View.GONE);editor.contentSize(408,372);
         toggle=makeSwitch(tr("显示问候语","Show greeting"),"greeting-toggle");toggle.setOnClickListener(v->{enabled=!enabled;updateEnabled();});editor.body.addView(toggle,new LinearLayout.LayoutParams(-1,ui.px(42)));
         LinearLayout field=ui.column();LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-1,-2);fp.setMargins(ui.px(9.6f),ui.px(10.56f),ui.px(9.6f),ui.px(14.4f));editor.body.addView(field,fp);
         LinearLayout caption=ui.row();TextView label=ui.label(tr("问候语内容","Greeting text"),13);label.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,12.48f*ui.unit);label.setTextColor(UiPalette.SECONDARY);caption.addView(label,new LinearLayout.LayoutParams(0,ui.px(17.45f),1));
@@ -92,22 +92,22 @@ final class GreetingEditorPanel {
     }
     private void discardDraft(){File file=draftAvatar;if(file!=null&&!file.getName().equals(store.avatarFile())){draftAvatar=null;worker.execute(()->GreetingAvatarStore.discard(file));}}
     private boolean receiveAvatar(File candidate){
-        if(editor==null||saving||destroyed)return false;discardDraft();draftAvatar=candidate;avatarEnabled=true;draftStatus.setText(tr("头像已接收，请保存","Avatar received. Select Save to apply."));draftStatus.setVisibility(View.VISIBLE);updateEnabled();return true;
+        if(editor==null||saving||destroyed)return false;discardDraft();draftAvatar=candidate;avatarEnabled=true;draftStatus.setText(tr("头像已接收，请保存","Avatar received. Select Save to apply."));OperationFeedback.status(draftStatus,OperationFeedback.Kind.INFO);draftStatus.setVisibility(View.VISIBLE);updateEnabled();return true;
     }
     private void save(){
         if(saving)return;String text=edit.getText().toString();
         if(text.length()>GreetingInputServer.MAX_TEXT){draftStatus.setText(tr("问候语最多8个字","Greeting is limited to 8 characters"));draftStatus.setVisibility(View.VISIBLE);edit.requestFocusFromTouch();return;}
         if(avatarEnabled&&draftAvatar==null){draftStatus.setText(tr("请先上传头像，或关闭显示头像","Upload an avatar, or turn off Show avatar"));draftStatus.setVisibility(View.VISIBLE);upload.requestFocusFromTouch();return;}
-        closePhone(false);avatarUpload.close();saving=true;editor.dialog.setCancelable(false);updateEnabled();File selected=draftAvatar;boolean showText=enabled,showAvatar=avatarEnabled;
+        closePhone(false);avatarUpload.close();saving=true;editor.dialog.setCancelable(false);draftStatus.setText(tr("正在保存…","Saving…"));OperationFeedback.status(draftStatus,OperationFeedback.Kind.PROGRESS);draftStatus.setVisibility(View.VISIBLE);updateEnabled();File selected=draftAvatar;boolean showText=enabled,showAvatar=avatarEnabled;
         worker.execute(()->{
             String error=null;try{
                 if(selected!=null&&(!selected.isFile()||selected.length()==0))throw new IOException("Avatar unavailable");
                 File old=avatars.file(store.avatarFile());store.saveGreeting(showText,text,showAvatar,selected==null?"":selected.getName(),baseText);
                 if(old!=null&&(selected==null||!old.equals(selected)))GreetingAvatarStore.discard(old);
-            }catch(IOException e){error=tr("保存失败，请检查电视存储空间后重试","Unable to save. Check storage and retry.");}
+            }catch(IOException e){error=e.getMessage()!=null&&e.getMessage().contains("其他位置")?tr("问候语已在其他位置修改，请重新读取后保存","Greeting changed elsewhere. Reload before saving."):tr("保存失败，草稿已保留，请重试","Save failed. Your draft is retained. Retry.");}
             String failure=error;main.post(()->{saving=false;if(destroyed||editor==null){if(selected!=null&&!selected.getName().equals(store.avatarFile()))GreetingAvatarStore.discard(selected);return;}
-                editor.dialog.setCancelable(true);if(failure!=null){draftStatus.setText(failure);draftStatus.setVisibility(View.VISIBLE);updateEnabled();save.requestFocusFromTouch();return;}
-                draftAvatar=null;saved.run();editor.dialog.dismiss();ui.feedback(tr("问候语设置已保存","Greeting settings saved"));
+                editor.dialog.setCancelable(true);if(failure!=null){draftStatus.setText(failure);OperationFeedback.status(draftStatus,OperationFeedback.Kind.ERROR);draftStatus.setVisibility(View.VISIBLE);updateEnabled();save.requestFocusFromTouch();return;}
+                draftAvatar=null;saved.run();editor.dialog.dismiss();ui.success(tr("问候语设置已保存","Greeting settings saved"));
             });
         });
     }
@@ -145,7 +145,7 @@ final class GreetingEditorPanel {
     private boolean receive(int attempt,String text)throws IOException{
         FutureTask<Boolean> accepted=new FutureTask<>(()->{
             if(attempt!=generation||phone==null||editor==null||ui.isFinishing())return false;
-            edit.setText(text);edit.setSelection(edit.length());closePhone(true);edit.requestFocusFromTouch();draftStatus.setText(tr("文字已接收，请保存","Text received. Select Save to apply."));draftStatus.setVisibility(View.VISIBLE);return true;
+            edit.setText(text);edit.setSelection(edit.length());closePhone(true);edit.requestFocusFromTouch();draftStatus.setText(tr("文字已接收，请保存","Text received. Select Save to apply."));OperationFeedback.status(draftStatus,OperationFeedback.Kind.INFO);draftStatus.setVisibility(View.VISIBLE);return true;
         });main.post(accepted);
         try{return accepted.get(3,TimeUnit.SECONDS);}catch(InterruptedException e){Thread.currentThread().interrupt();accepted.cancel(false);throw new IOException("Input interrupted",e);}catch(ExecutionException|TimeoutException e){accepted.cancel(false);throw new IOException("Input unavailable",e);}
     }

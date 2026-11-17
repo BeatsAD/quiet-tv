@@ -44,7 +44,7 @@ final class HomePreviewCache implements ComponentCallbacks2 {
             String wallpaper=store.imageKey(catalog.current)+":"+store.imageKey(catalog.staticBeforeVideo)+":"+store.imageKey(catalog.lastLocal);
             HomeCatalogRefresh.Input apps=new HomeCatalogRefresh.Input(new DockStore(context).load(),new HomeOrderStore(context).signature(),
                 new ChildModeStore(context).revision(),AppCoverStore.get(context).revision(),packages,settings.showHomeApps(),
-                new HomeVisibilityStore(context).signature()+new AppNameStore(context).signature()+new BootAppStore(context).watchRevision()+":"+settings.showWatchTv());
+                new HomeVisibilityStore(context).signature()+new AppNameStore(context).signature()+new BootAppStore(context).watchRevision()+":"+settings.appListSignature());
             android.util.DisplayMetrics screen=context.getResources().getDisplayMetrics();
             return new Key(apps,wallpaper,screen.widthPixels+":"+screen.heightPixels+":"+screen.densityDpi+":"+chinese);
         }

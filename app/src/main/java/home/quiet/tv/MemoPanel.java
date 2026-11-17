@@ -27,7 +27,7 @@ final class MemoPanel {
     private EditText edit;
     private List<MemoStore.Note> notes=Collections.emptyList();
     private boolean editing,existing,confirm,busy,destroyed,readable;
-    private String editId,draft="",listFocus="memo-add";
+    private String editId,draft="",original="",listFocus="memo-add";
     private int listScroll;private long phoneEpoch=-1;
     private final Runnable phoneChanged=this::phoneChanged;
     private void phoneChanged(){long epoch=MemoStore.changeEpoch();if(epoch==phoneEpoch||destroyed)return;phoneEpoch=epoch;if(sheet==null)refreshCount();else if(!editing&&!busy)load();}
@@ -37,7 +37,7 @@ final class MemoPanel {
     private int px(float value){return ui.px(value);}
     private void identify(View view,String tag){view.setTag(tag);view.setId(androidx.core.view.ViewCompat.generateViewId());controls.add(view);}
     void show(){
-        if(sheet!=null)return;sheet=ui.new Sheet(tr("备忘录","My notes"));close=sheet.settingsLayout(tr("关闭","Close"),this::back);sheet.fixedSize(320,360);sheet.actions.setVisibility(View.GONE);
+        if(sheet!=null)return;sheet=ui.new Sheet(tr("备忘录","My notes"));close=sheet.settingsLayout(tr("关闭","Close"),this::back);sheet.contentSize(320,360);sheet.actions.setVisibility(View.GONE);
         error=ui.muted("",12);error.setTextColor(UiPalette.TEXT);error.setTextSize(TypedValue.COMPLEX_UNIT_PX,11.52f*ui.unit);error.setPadding(px(13.44f),px(9.6f),px(13.44f),px(9.6f));error.setMinimumHeight(px(40.608f));error.setBackgroundDrawable(ui.surface(0x1affffff,0x1affffff,UiPalette.EDGE_STRONG,6.72f));error.setVisibility(View.GONE);error.setMaxLines(2);androidx.core.view.ViewCompat.setAccessibilityLiveRegion(error,androidx.core.view.ViewCompat.ACCESSIBILITY_LIVE_REGION_POLITE);LinearLayout.LayoutParams errorParams=new LinearLayout.LayoutParams(-1,-2);errorParams.topMargin=px(11.52f);errorParams.bottomMargin=px(11.52f);sheet.box.addView(error,sheet.box.indexOfChild(sheet.actions),errorParams);
         sheet.dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN|WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         sheet.dialog.setOnKeyListener((d,key,event)->{if(key!=KeyEvent.KEYCODE_BACK&&key!=KeyEvent.KEYCODE_ESCAPE)return false;if(event.getAction()==KeyEvent.ACTION_UP&&!busy){back();KeyFeedback.back(ui);}return true;});
@@ -78,7 +78,7 @@ final class MemoPanel {
     private MemoStore.Note find(String id){for(MemoStore.Note note:notes)if(note.id.equals(id))return note;return null;}
     int unfinished(){if(!readable)return -1;int count=0;for(MemoStore.Note note:notes)if(!note.done)count++;return count;}
     void refreshCount(){if(sheet!=null)return;worker.execute(()->{List<MemoStore.Note> loaded=null;try{loaded=store.list();}catch(IOException error){/* An unreadable store is not an empty list. */}List<MemoStore.Note> result=loaded;main.post(()->{if(destroyed||sheet!=null)return;readable=result!=null;if(readable)notes=result;changed.run();});});}
-    private void openEditor(MemoStore.Note note){if(note==null)rememberList("memo-add");editing=true;existing=note!=null;editId=note==null?UUID.randomUUID().toString():note.id;draft=note==null?"":note.text;confirm=false;renderEditor("memo-text");}
+    private void openEditor(MemoStore.Note note){if(note==null)rememberList("memo-add");editing=true;existing=note!=null;editId=note==null?UUID.randomUUID().toString():note.id;original=draft=note==null?"":note.text;confirm=false;renderEditor("memo-text");}
     private void captureDraft(){if(edit!=null)draft=edit.getText().toString();}
     private void renderEditor(String focus){
         reset(true);sheet.heading.setText(existing?tr("编辑记事","Edit note"):tr("添加记事","Add note"));
@@ -95,25 +95,29 @@ final class MemoPanel {
     private Button action(String text,String tag,Runnable action,boolean primary){Button result=button(text,tag,action,primary);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,-1);if(sheet.actions.getChildCount()>0)p.leftMargin=px(6);sheet.actions.addView(result,p);return result;}
     private void save(){
         captureDraft();hideKeyboard();String id=editId,text=draft;
-        if(confirm){int index=0;while(index<notes.size()&&!notes.get(index).id.equals(id))index++;final int next=index;submit(()->store.remove(id,find(id)),()->{String target=notes.isEmpty()?"memo-add":"memo-edit-"+notes.get(Math.min(next,notes.size()-1)).id;renderList(target);});}
-        else submit(()->store.save(id,text,existing?find(id):null),()->renderList("memo-edit-"+id));
+        if(confirm){int index=0;while(index<notes.size()&&!notes.get(index).id.equals(id))index++;final int next=index;submit(tr("记事已删除","Note deleted"),()->store.remove(id,find(id)),()->{String target=notes.isEmpty()?"memo-add":"memo-edit-"+notes.get(Math.min(next,notes.size()-1)).id;renderList(target);});}
+        else submit(tr("记事已保存","Note saved"),()->store.save(id,text,existing?find(id):null),()->renderList("memo-edit-"+id));
     }
     private interface Operation {List<MemoStore.Note> run()throws IOException;}
     private void submit(Operation operation,Runnable applied){
+        submit("",operation,applied);
+    }
+    private void submit(String resultText,Operation operation,Runnable applied){
         if(busy)return;busy=true;error.setVisibility(View.GONE);sheet.box.setEnabled(false);sheet.dialog.setCancelable(false);enable(close,false);for(View view:controls)enable(view,false);
+        if(!resultText.isEmpty())ui.progress(tr("正在保存…","Saving…"));
         worker.execute(()->{List<MemoStore.Note> result=null;String conflict="";try{result=operation.run();}catch(IOException failure){if(failure instanceof MemoStore.Changed)conflict=failure.getMessage();}List<MemoStore.Note> committed=result;String message=conflict;main.post(()->{
             busy=false;if(destroyed||sheet==null)return;sheet.box.setEnabled(true);sheet.dialog.setCancelable(true);enable(close,true);for(View view:controls)enable(view,true);
-            if(committed==null){if(save!=null)enable(save,confirm||!draft.trim().isEmpty());failure(message.isEmpty()?tr("保存失败，记事与草稿已保留，请重试","Save failed. Notes and draft are retained. Retry."):message);if(save!=null)save.requestFocusFromTouch();else focus(listFocus,"memo-add",true);return;}
-            notes=committed;changed.run();applied.run();
+            if(committed==null){if(save!=null)enable(save,confirm||!draft.trim().isEmpty());ui.error(message.isEmpty()?tr("保存失败，记事与草稿已保留，请重试","Save failed. Notes and draft are retained. Retry."):message);if(save!=null)save.requestFocusFromTouch();else focus(listFocus,"memo-add",true);return;}
+            notes=committed;changed.run();applied.run();if(!resultText.isEmpty())ui.success(resultText);
         });});
     }
     private void enable(View view,boolean enabled){view.setEnabled(enabled);if(view instanceof Button)view.setAlpha(1f);}
-    private void failure(String message){error.setText(message);error.setVisibility(View.VISIBLE);sheet.settingsActions(sheet.actions.getChildCount()>0);sheet.bodyMaximum-=82;}
+    private void failure(String message){error.setText(message);OperationFeedback.status(error,OperationFeedback.Kind.ERROR);error.setVisibility(View.VISIBLE);sheet.settingsActions(sheet.actions.getChildCount()>0);sheet.bodyMaximum-=82;}
     private void focus(String tag,String fallback,boolean restoreScroll){sheet.box.post(()->{if(sheet==null)return;if(restoreScroll)sheet.scroll.scrollTo(0,listScroll);else sheet.scroll.scrollTo(0,0);View target=sheet.box.findViewWithTag(tag);if(target==null||!target.isEnabled())target=sheet.box.findViewWithTag(fallback);if(target!=null)target.requestFocusFromTouch();});}
     private void cancelEdit(){hideKeyboard();editing=false;load();}
-    private void back(){if(busy)return;if(editing&&readable)cancelEdit();else if(sheet!=null)sheet.dialog.dismiss();}
+    private void back(){if(busy)return;if(editing&&readable){captureDraft();if(!draft.equals(original)){ManagementUi.Sheet confirm=ui.new Sheet(tr("放弃未保存的修改？","Discard unsaved changes?"));confirm.text(tr("本次输入尚未保存。","Your edits have not been saved."));Button keep=confirm.action(tr("继续编辑","Keep editing"),confirm.dialog::dismiss);confirm.action(tr("放弃修改","Discard"),()->{confirm.dialog.dismiss();cancelEdit();});confirm.show(keep);}else cancelEdit();}else if(sheet!=null)sheet.dialog.dismiss();}
     private void hideKeyboard(){if(edit!=null)((InputMethodManager)ui.getSystemService(android.content.Context.INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(edit.getWindowToken(),0);}
-    void saveState(Bundle state){if(sheet==null)return;captureDraft();state.putBoolean("memos-open",true);state.putBoolean("memos-editing",editing);state.putBoolean("memos-existing",existing);state.putBoolean("memos-confirm",confirm);state.putString("memos-id",editId);state.putString("memos-draft",draft);state.putString("memos-focus",listFocus);state.putInt("memos-scroll",editing?listScroll:sheet.scroll.getScrollY());}
-    void restoreState(Bundle state){if(state==null||!state.getBoolean("memos-open"))return;editing=state.getBoolean("memos-editing");existing=state.getBoolean("memos-existing");confirm=state.getBoolean("memos-confirm");editId=state.getString("memos-id");draft=state.getString("memos-draft","");listFocus=state.getString("memos-focus","memo-add");listScroll=state.getInt("memos-scroll");show();}
+    void saveState(Bundle state){if(sheet==null)return;captureDraft();state.putBoolean("memos-open",true);state.putBoolean("memos-editing",editing);state.putBoolean("memos-existing",existing);state.putBoolean("memos-confirm",confirm);state.putString("memos-id",editId);state.putString("memos-draft",draft);state.putString("memos-original",original);state.putString("memos-focus",listFocus);state.putInt("memos-scroll",editing?listScroll:sheet.scroll.getScrollY());}
+    void restoreState(Bundle state){if(state==null||!state.getBoolean("memos-open"))return;editing=state.getBoolean("memos-editing");existing=state.getBoolean("memos-existing");confirm=state.getBoolean("memos-confirm");editId=state.getString("memos-id");draft=state.getString("memos-draft","");original=state.getString("memos-original","");listFocus=state.getString("memos-focus","memo-add");listScroll=state.getInt("memos-scroll");show();}
     void destroy(){destroyed=true;PhoneSettingsSession.get(ui).forgetConfiguration(phoneChanged);if(sheet!=null)sheet.dialog.dismiss();worker.shutdown();}
 }

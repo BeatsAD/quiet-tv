@@ -60,7 +60,7 @@ public final class MaintenanceHelpActivity extends ManagementUi {
         sheet.action("继续",()->{sheet.dialog.dismiss();perform(restore);});sheet.show(cancel);
     }
     private void perform(boolean restore){
-        DesktopSwitch engine=DesktopSwitch.get(this);engine.worker.execute(()->{String result;try{result=engine.legacy(restore,()->!isFinishing()&&!UiCompat.destroyed(this));}catch(Exception failure){result=DesktopSwitch.message(failure);}String text=result;runOnUiThread(()->{if(!isFinishing()&&!UiCompat.destroyed(this)){message(text);refresh();}});});
+        DesktopSwitch engine=DesktopSwitch.get(this);engine.worker.execute(()->{String result;try{result=engine.legacy(restore,()->!isFinishing()&&!UiCompat.destroyed(this));}catch(Exception failure){result=DesktopSwitch.message(failure);}String text=result;runOnUiThread(()->{if(!isFinishing()&&!UiCompat.destroyed(this)){feedback(text);refresh();}});});
     }
     static String perform(ManagementUi ui,boolean restore)throws java.io.IOException{return perform((android.content.Context)ui,restore);}
     static String perform(android.content.Context ui,boolean restore)throws java.io.IOException{

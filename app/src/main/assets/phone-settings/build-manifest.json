@@ -11,7 +11,7 @@
     "src/AdbManagement.css": "4d112bec600abe2fd475bfed154f71b20102ee2cd3e35009b8ac99444d1604b0",
     "src/AdbManagement.tsx": "f29c722e013945d7a6fcde5dd9cdd6c0ad8f86fb17a3991ad6136d26a7c09d77",
     "src/AnalogClock.tsx": "e87eaa7f7a4c00073b817750ecdc5b5915c69d223b9253837a80fad3104a8468",
-    "src/App.tsx": "dd146da68a2bc1162e5794a125b676b9e44038a046b5c6cab4f7cb45b84cb0f8",
+    "src/App.tsx": "004aec5387a3f15bf3f2eb9cce7ddf98924ee2f32c73d9c5ac4ab36441337a22",
     "src/AppActionConfirmation.tsx": "b42395816e8d09a3bb13c126d114366a73a4902161347899e525ef7815b7d4f4",
     "src/AppRename.tsx": "3c97a99f72ada5d486facfaf932e6b70513f743f6ae19ff4a4c5ecd161d6812f",
     "src/ChildQuiz.tsx": "98617e497839a389f39a1011311c40e4a1b330c054cf76c509ae75bf1f988c98",
@@ -35,7 +35,7 @@
     "src/TaskResult.tsx": "9145ef925f831ee18a2913871bde84849c343e051083966247ff2c317c4eb57b",
     "src/Tools.tsx": "c3b23096108f702e7fa685c7d1e494fd38fdc2ea7ec1d811e4253b8fd807d393",
     "src/WallpaperUpload.tsx": "6c5117ea90915f7b2f294331dda06657ba639adbffbecb105dde1cfcb5537901",
-    "src/api.ts": "8eee205a8e855e35e7ac3283b8ad322cd77493d70e9f11371749fd00ec9811b6",
+    "src/api.ts": "e98b53c5d0057c481fbe1c6f201b4972970f2cbd445e42c8382645254744dabd",
     "src/env.d.ts": "65996936fbb042915f7b74a200fcdde7e410f32a669b1ab9597cfaa4b0faddb5",
     "src/icon-library.css": "67b80b317d971bd4593a52bd2d683002126d3a74daa827ea8410d75943d5bc63",
     "src/icons.tsx": "f78256e1541cf238610899b8e44e365c1bac6d15aecab6c55d6ffe178c11ee51",
@@ -55,7 +55,7 @@
     "public/tmdb.svg": "8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c"
   },
   "assets": {
-    "app.js": "3624b15653afac583c37e5a679d08886ef81df650737f92ad7eb43300e5b2219",
+    "app.js": "0f5e9e6f92ee213d5f746122cc44798df1cd09d68a9bdb4847cd9adaa037c9d6",
     "assets/file-folder.svg": "ceee8c7ec763f01505483702abaa19030e10b11d132b72079ec8d8574c8222dc",
     "assets/qq-group.webp": "9d31d757ec3ec26b66cf11b8c40903270332bc3a8fca7dccd3c6ec4c1f5a36d9",
     "assets/quiettv-assistant-launcher.png": "38b216dcb09b2b5be65302d280b709d1c6590d19a96473de794eb74deac5109e",
