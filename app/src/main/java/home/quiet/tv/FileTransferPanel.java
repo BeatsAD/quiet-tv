@@ -180,14 +180,14 @@ final class FileTransferPanel extends ManagementPanel {
         final LinearLayout box=column();
         final ArrayList<Button> buttons=new ArrayList<>();
         FileActions(String name,long bytes){
-            dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);box.setPadding(px(24),px(20),px(24),px(22));box.setBackgroundDrawable(surface(0xff000000,0xff000000,0x38ffffff,16));
+            dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);box.setPadding(px(24),px(20),px(24),px(22));SettingsSheetBackdrop backdrop=new SettingsSheetBackdrop(activity,box);box.setBackgroundDrawable(backdrop);backdrop.followWindowFocus();
             box.addView(label("文件操作",20),new LinearLayout.LayoutParams(-1,-2));gap(box,16);
             LinearLayout file=row();file.setGravity(Gravity.CENTER_VERTICAL);box.addView(file,new LinearLayout.LayoutParams(-1,-2));
             ImageView icon=new ImageView(activity);icon.setImageDrawable(UiCompat.drawable(activity,FileTransferPolicy.apk(name)?R.drawable.ic_transfer_apk:FileTransferPolicy.image(name)?R.drawable.ic_transfer_image:R.drawable.ic_transfer_file));file.addView(icon,new LinearLayout.LayoutParams(px(34),px(42)));
             LinearLayout info=column();LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(0,-2,1);ip.leftMargin=px(14);file.addView(info,ip);
             TextView title=label(name,13);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);title.setContentDescription(name);info.addView(title,new LinearLayout.LayoutParams(-1,-2));gap(info,5);
             info.addView(muted((FileTransferPolicy.apk(name)?"应用安装包":FileTransferPolicy.image(name)?"图片":FileTransferPolicy.video(name)?"视频":"文件")+"  "+FileTransferSource.size(bytes),11));gap(box,22);
-            dialog.setContentView(box);Window window=dialog.getWindow();window.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);window.setDimAmount(.65f);
+            dialog.setContentView(box);Window window=dialog.getWindow();window.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);window.setDimAmount(SettingsSheetBackdrop.DIM_AMOUNT);
         }
         Button option(String text,Runnable action){return option(text,false,action);}
         Button option(String text,boolean destructive,Runnable action){
@@ -240,7 +240,7 @@ final class FileTransferPanel extends ManagementPanel {
     private volatile long lastProgress;
     private void progress(long bytes,long total,int job){long now=SystemClock.elapsedRealtime();if(now-lastProgress<400&&bytes!=total)return;lastProgress=now;main.post(()->{if(!destroyed&&(job<0?-job==sessionGeneration:job==jobGeneration))status.setText("正在接收  "+FileTransferSource.size(bytes)+(total>0?" / "+FileTransferSource.size(total):""));});}
     private void install(String id){activity.startActivity(new Intent(activity,ApkInstallActivity.class).putExtra("file",id));}
-    private void preview(String id){activity.startActivity(new Intent(activity,FileTransferPreviewActivity.class).putExtra("file",id));}
+    private void preview(String id){Bitmap backdrop=Bitmap.createBitmap(320,Math.max(1,Math.round(320f*getResources().getDisplayMetrics().heightPixels/getResources().getDisplayMetrics().widthPixels)),Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(backdrop);canvas.scale(320f/getResources().getDisplayMetrics().widthPixels,320f/getResources().getDisplayMetrics().widthPixels);activity.drawSheetBackdrop(canvas);activity.startActivity(new Intent(activity,FileTransferPreviewActivity.class).putExtra("file",id).putExtra("backdrop",backdrop));backdrop.recycle();}
     private void offer(String id){if(server==null){startSession(()->offer(id));return;}try{server.offer(id);status.setText("文件已准备好，扫码下载");showCode();}catch(IOException error){message("文件已移除，请重新选择");}}
     private void startSession(Runnable ready){
         if(store==null||!showing)return;String host=WallpaperUploadPanel.lanAddress(activity);if(host==null){status.setText("未连接局域网，请连接 Wi-Fi 或网线");return;}

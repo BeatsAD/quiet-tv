@@ -138,8 +138,8 @@ final class ChildModePanel extends ManagementPanel {
         ChildModePolicy.Rule edited=store.rule(selected);if(edited.locked)return;ChildModePolicy.Rule expectedSettings=edited.copy();String expectedCredential=store.credential();
         final int originalDays=edited.repeatDays;
         final boolean[] customTime={!Arrays.asList(30L,60L,120L).contains(edited.limit/ChildModePolicy.MINUTE)},customDays={edited.repeatDays!=127&&edited.repeatDays!=31&&edited.repeatDays!=96};
-        ChildModeUi.Sheet sheet=visual.new Sheet("使用时长",appName(current()),R.drawable.ic_child_time,825.6f,true);
-        sheet.box.setTag("child-time-sheet");sheet.scrollBody(570);
+        ChildModeUi.Sheet sheet=visual.new Sheet("使用时长",appName(current()),"timer",825.6f,true);
+        sheet.box.setTag("child-time-sheet");sheet.scrollBody(840);
         final Runnable[] refresh={null};ArrayList<Button> modeButtons=new ArrayList<>(),repeatButtons=new ArrayList<>(),dayButtons=new ArrayList<>(),durationButtons=new ArrayList<>();
         visual.gap(sheet.body,22);LinearLayout modes=row();sheet.body.addView(modes,new LinearLayout.LayoutParams(-1,visual.p(56)));
         String[] labels={"不限制","单次限时","循环限时"};for(int i=0;i<3;i++){

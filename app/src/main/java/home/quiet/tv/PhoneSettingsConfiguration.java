@@ -61,7 +61,7 @@ final class PhoneSettingsConfiguration implements PhoneSettingsState.Source {
             choice(fields,"keySoundTheme","feedback","按键音色",KeySoundTheme.ids(),KeySoundTheme.titles(true));
             JSONArray quickCatalog=new JSONArray(),buttonCatalog=new JSONArray();JSONObject quickIcons=new JSONObject();java.util.Set<String> glyphs=new java.util.LinkedHashSet<>();
             for(String id:QuickControlStore.ALL){String glyph=QuickControlPreviewView.glyph(id);glyphs.add(glyph);quickCatalog.put(new JSONObject().put("id",id).put("title",QuickControlStore.title(id,true)).put("shortTitle",QuickControlStore.shortTitle(id,true)).put("glyph",glyph));}
-            java.util.Collections.addAll(glyphs,"range-sun-low","range-sun-high","range-speaker-low","range-speaker-high","speaker-off","device-mobile");for(String glyph:glyphs)quickIcons.put(glyph,QuickControlIcon.description(glyph));
+            java.util.Collections.addAll(glyphs,"range-sun-low","range-sun-high","range-speaker-low","range-speaker-high","speaker-off","device-mobile","header-control");for(String glyph:glyphs)quickIcons.put(glyph,QuickControlIcon.description(glyph));
             for(String id:HomeButtonStore.EDITABLE)buttonCatalog.put(new JSONObject().put("id",id).put("title",HomeButtonStore.title(id,true)));
             mediaFields(fields);childFields(fields);generalFields(fields);JSONObject audio=actions.audio();range(fields,"volume","audio","音量",0,audio.getInt("maximum"),1,"",1);if(!audio.getBoolean("available"))fields.getJSONObject("volume").put("disabledReason","此电视音量由外部设备或系统控制");
             JSONObject metadata=new JSONObject().put("device",new JSONObject().put("name",android.os.Build.MODEL).put("version",BuildConfig.VERSION_NAME).put("build",BuildConfig.VERSION_CODE).put("sdk",android.os.Build.VERSION.SDK_INT).put("channel",BuildConfig.UPDATE_CHANNEL))
@@ -142,13 +142,14 @@ final class PhoneSettingsConfiguration implements PhoneSettingsState.Source {
         boolean weather=WallpaperGpuSupport.available(context);choice(fields,"wallMode","wallpaper","切换方式",weather?new Object[]{"fixed","rotation","daily","weather"}:new Object[]{"fixed","rotation","daily"},weather?new String[]{"固定一张","自动轮换","每日更新","随天气变化"}:new String[]{"固定一张","自动轮换","每日更新"});
         choice(fields,"dailySource","wallpaper","图片来源",new Object[]{WallpaperCatalog.BING,WallpaperCatalog.MICROSOFT,WallpaperCatalog.MOVIE},new String[]{"必应","微软壁纸","每日电影"});
         choice(fields,"rotation","wallpaper","轮换间隔",new Object[]{1,5,10,15,30,60,"custom"},new String[]{"1 分钟","5 分钟","10 分钟","15 分钟","30 分钟","60 分钟","自定义"});
-        WallpaperCatalog catalog=WallpaperStore.get(context).snapshot();fields.put("dayNight",field("wallpaper","随昼夜变化","toggle"));fields.put("showMovieInfo",field("appearance","显示影片信息","toggle").put("description","影片名称与文字介绍"));
+        WallpaperCatalog catalog=WallpaperStore.get(context).snapshot();fields.put("dayNight",field("wallpaper","随昼夜变化","toggle"));fields.put("showMovieInfo",field("appearance","显示影片信息","toggle"));
         if(catalog.dynamic()){fields.put("wallSound",field("wallpaper","背景声音","toggle"));if(catalog.rotating||catalog.weather)fields.getJSONObject("wallSound").put("disabledReason","当前方式保持静音");}
         Object[] waits=new Object[ScreensaverSettings.WAITS.length];String[] labels=new String[waits.length];for(int i=0;i<waits.length;i++){waits[i]=ScreensaverSettings.WAITS[i];labels[i]=ScreensaverSettings.WAITS[i]==0?"关闭":waits[i]+" 分钟后";}
         choice(fields,"idle","screensaver","闲置等待时间",waits,labels);choice(fields,"saverContent","screensaver","屏保内容",new Object[]{ScreensaverSettings.FOLLOW,ScreensaverSettings.CLOCK,ScreensaverSettings.CUSTOM},new String[]{"跟随桌面","时钟","自定义"});
         fields.put("saverClock",field("screensaver","显示时钟","toggle")).put("saverWeather",field("screensaver","显示天气","toggle")).put("saverMedia",field("screensaver","屏保素材","select"));
+        choice(fields,"saverClockPosition","screensaver","时钟位置",ScreensaverSettings.POSITIONS,new String[]{"左上角","右上角","居中","左下角","右下角"});choice(fields,"saverWeatherPosition","screensaver","天气位置",ScreensaverSettings.POSITIONS,new String[]{"左上角","右上角","居中","左下角","右下角"});
     }
-    static JSONObject saverValues(ScreensaverSettings saver)throws JSONException{return new JSONObject().put("idle",saver.idleMinutes).put("saverContent",saver.mode).put("saverClock",saver.showTime).put("saverWeather",saver.showWeather).put("saverMedia",saver.mediaId);}
+    static JSONObject saverValues(ScreensaverSettings saver)throws JSONException{return new JSONObject().put("idle",saver.idleMinutes).put("saverContent",saver.mode).put("saverClock",saver.showTime).put("saverWeather",saver.showWeather).put("saverMedia",saver.mediaId).put("saverClockPosition",saver.timePosition).put("saverWeatherPosition",saver.weatherPosition);}
     public PhoneSettingsState.Result write(String domain,String field,Object value,String expected,PhoneSettingsServer.Active active)throws IOException {
         if(!active.valid())throw new PhoneSettingsServer.Ended();
         if(domain.equals("desktopSwitch"))return new PhoneSettingsState.Result(read(domain),general.desktopSwitch(field,value,active));
@@ -248,6 +249,8 @@ final class PhoneSettingsConfiguration implements PhoneSettingsState.Source {
                     case "saverContent":if(!(value instanceof String))throw new IllegalArgumentException();next=current.content((String)value);break;
                     case "saverClock":next=current.time((Boolean)value);break;
                     case "saverWeather":next=current.weather((Boolean)value);break;
+                    case "saverClockPosition":if(!(value instanceof String))throw new IllegalArgumentException();next=current.timePosition((String)value);break;
+                    case "saverWeatherPosition":if(!(value instanceof String))throw new IllegalArgumentException();next=current.weatherPosition((String)value);break;
                     case "saverMedia":if(!(value instanceof String)||WallpaperStore.get(context).snapshot().find((String)value)==null)throw new IllegalArgumentException();next=current.media((String)value);break;
                     default:throw new IllegalArgumentException();
                 }

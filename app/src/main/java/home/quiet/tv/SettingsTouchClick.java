@@ -16,8 +16,9 @@ final class SettingsTouchClick implements View.OnTouchListener {
             case MotionEvent.ACTION_DOWN:tracking=true;dragged=false;x=event.getRawX();y=event.getRawY();break;
             case MotionEvent.ACTION_MOVE:if(tracking&&(Math.abs(event.getRawX()-x)>slop||Math.abs(event.getRawY()-y)>slop))dragged=true;break;
             case MotionEvent.ACTION_POINTER_DOWN:dragged=true;break;
-            case MotionEvent.ACTION_CANCEL:tracking=false;view.setPressed(false);break;
+            case MotionEvent.ACTION_CANCEL:tracking=false;view.cancelLongPress();view.setPressed(false);break;
             case MotionEvent.ACTION_UP:
+                view.cancelLongPress();
                 boolean tap=tracking&&!dragged&&!(view.isLongClickable()&&event.getEventTime()-event.getDownTime()>=ViewConfiguration.getLongPressTimeout())&&event.getX()>=0&&event.getX()<view.getWidth()&&event.getY()>=0&&event.getY()<view.getHeight();tracking=false;
                 view.setPressed(false);if(tap){view.requestFocusFromTouch();view.performClick();return true;}return true;
         }

@@ -27,7 +27,7 @@ final class ChildModeAuth {
     }
     private static Dialog show(ManagementUi ui,Runnable authorized,boolean reset,Runnable cancelled){
         ChildModeStore store=new ChildModeStore(ui);boolean firstSetup=!store.configured(),setup=reset || firstSetup;ChildModeUi style=new ChildModeUi(ui);
-        ChildModeUi.Sheet sheet=style.new Sheet(setup?"设置家长密码":"家长验证",setup?"所有应用共用一组 6 位数字密码":"请输入 6 位家长密码",R.drawable.ic_child_lock,633.6f);
+        ChildModeUi.Sheet sheet=style.new Sheet(setup?"设置家长密码":"家长验证",setup?"所有应用共用一组 6 位数字密码":"请输入 6 位家长密码","lock-keyhole",633.6f);
         EditText pin=field(style,true,"输入 6 位数字");style.gap(sheet.body,23.04f);sheet.body.addView(pin,new LinearLayout.LayoutParams(-1,style.p(64.16f)));
         Button[] keys=keypad(style,sheet,pin);TextView error=error(style,sheet,pin);
         ExecutorService worker=Executors.newSingleThreadExecutor();
@@ -66,7 +66,7 @@ final class ChildModeAuth {
         Button saved=sheet.action("已保存",sheet.dialog::dismiss);OPEN.put(ui,sheet.dialog);sheet.dialog.setOnDismissListener(d->{boolean current=OPEN.get(ui)==sheet.dialog;if(current)OPEN.remove(ui);if(current&&ui.getLifecycle().getCurrentState().isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED))done.run();});sheet.show(saved);
     }
     private static void recover(ManagementUi ui,Runnable authorized,Runnable cancelled){
-        ChildModeStore store=new ChildModeStore(ui);ChildModeUi style=new ChildModeUi(ui);ChildModeUi.Sheet sheet=style.new Sheet("使用恢复码","输入本机的 6 位数字恢复码",R.drawable.ic_child_lock,633.6f);
+        ChildModeStore store=new ChildModeStore(ui);ChildModeUi style=new ChildModeUi(ui);ChildModeUi.Sheet sheet=style.new Sheet("使用恢复码","输入本机的 6 位数字恢复码","lock-keyhole",633.6f);
         EditText input=field(style,true,"输入 6 位数字");style.gap(sheet.body,23.04f);sheet.body.addView(input,new LinearLayout.LayoutParams(-1,style.p(64.16f)));input.setContentDescription("恢复码");Button[] keys=keypad(style,sheet,input);TextView error=error(style,sheet,input);
         final boolean[] continued={false};
         Button cancel=sheet.action("取消",sheet.dialog::dismiss,false),confirm=sheet.action("确认",()->{if(!store.verifyRecovery(input.getText().toString())){error.setText("恢复码不正确");return;}continued[0]=true;sheet.dialog.dismiss();show(ui,authorized,true,cancelled);},true);arrows(style,confirm);navigate(input,keys,cancel,confirm,null);
@@ -78,13 +78,13 @@ final class ChildModeAuth {
         if(android.os.Build.VERSION.SDK_INT>=21)view.setShowSoftInputOnFocus(false);return view;
     }
     private static TextView error(ChildModeUi style,ChildModeUi.Sheet sheet,EditText input){style.gap(sheet.body,13.44f);TextView text=style.text("",16.32f,25,UiPalette.TEXT);text.setGravity(Gravity.CENTER);androidx.core.view.ViewCompat.setAccessibilityLiveRegion(text,androidx.core.view.ViewCompat.ACCESSIBILITY_LIVE_REGION_POLITE);sheet.body.addView(text);input.addTextChangedListener(new android.text.TextWatcher(){public void beforeTextChanged(CharSequence s,int start,int count,int after){}public void onTextChanged(CharSequence s,int start,int before,int count){}public void afterTextChanged(android.text.Editable e){text.setText("");}});return text;}
-    private static void arrows(ChildModeUi style,Button button){android.graphics.drawable.Drawable arrow=UiCompat.drawable(style.ui,R.drawable.ic_child_arrow);arrow.setColorFilter(ManagementUi.TEXT,android.graphics.PorterDuff.Mode.SRC_IN);arrow.setBounds(0,0,style.p(26.88f),style.p(26.88f));button.setCompoundDrawables(null,null,arrow,null);button.setCompoundDrawablePadding(style.p(12.48f));button.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{int side=Math.max(0,Math.round((r-l-button.getPaint().measureText(button.getText().toString())-style.p(26.88f)-style.p(12.48f))/2));if(button.getPaddingLeft()!=side)button.setPadding(side,0,side,0);});}
+    private static void arrows(ChildModeUi style,Button button){android.graphics.drawable.Drawable arrow=androidx.core.graphics.drawable.DrawableCompat.wrap(new QuickControlIcon("arrow-right")).mutate();androidx.core.graphics.drawable.DrawableCompat.setTintList(arrow,button.getTextColors());arrow.setBounds(0,0,style.p(24),style.p(24));button.setCompoundDrawables(null,null,arrow,null);button.setCompoundDrawablePadding(style.p(12.48f));button.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{int side=Math.max(0,Math.round((r-l-button.getPaint().measureText(button.getText().toString())-style.p(24)-style.p(12.48f))/2));if(button.getPaddingLeft()!=side)button.setPadding(side,0,side,0);});}
     private static Button[] keypad(ChildModeUi style,ChildModeUi.Sheet sheet,EditText input){
         Button[] keys=new Button[12];style.gap(sheet.body,19.2f);
         for(int row=0;row<4;row++){if(row>0)style.gap(sheet.body,9.6f);LinearLayout line=style.ui.row();line.setClipChildren(false);sheet.body.addView(line,new LinearLayout.LayoutParams(-1,style.p(48)));
             for(int column=0;column<3;column++){int index=row*3+column;String value=index<9?String.valueOf(index+1):index==9?"清空":index==10?"0":"退格";
                 Button key=style.button(value,()->{String text=input.getText().toString();input.setText(value.equals("清空")?"":value.equals("退格")?text.isEmpty()?"":text.substring(0,text.length()-1):(text+value).substring(0,Math.min(6,text.length()+1)));input.setSelection(input.length());},false);key.setId(androidx.core.view.ViewCompat.generateViewId());key.setContentDescription(value);key.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,style.font(index==9?15.36f:23.04f));key.setPadding(0,0,0,0);key.setBackgroundDrawable(style.focus(0x10ffffff,0x22ffffff,9.6f,false));
-                if(index==11){key.setText("");android.graphics.drawable.Drawable back=UiCompat.drawable(style.ui,R.drawable.ic_child_backspace);back.setBounds(0,0,style.p(24.96f),style.p(24.96f));key.setCompoundDrawables(back,null,null,null);key.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->key.setPadding((r-l-style.p(24.96f))/2,0,0,0));}
+                if(index==11){key.setText("");android.graphics.drawable.Drawable back=androidx.core.graphics.drawable.DrawableCompat.wrap(new QuickControlIcon("delete")).mutate();androidx.core.graphics.drawable.DrawableCompat.setTintList(back,key.getTextColors());back.setBounds(0,0,style.p(24),style.p(24));key.setCompoundDrawables(back,null,null,null);key.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->key.setPadding((r-l-style.p(24))/2,0,0,0));}
                 LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-1,1);if(column>0)lp.leftMargin=style.p(9.6f);line.addView(key,lp);keys[index]=key;
             }
         }

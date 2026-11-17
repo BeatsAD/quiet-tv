@@ -22,9 +22,9 @@ final class ToolsSettingsPanel extends ManagementPanel {
     @Override public void onCreate(Bundle state){
         pageRoot=column();scroll=activity.settingsScroll();scroll.setFocusable(false);scroll.setVerticalScrollBarEnabled(false);activity.addSettingsScroll(pageRoot,scroll);LinearLayout body=column();scroll.addView(body);activity.attachPanel(pageRoot);
         LinearLayout tools=activity.group();body.addView(tools);ArrayList<DesktopSettingsRow> rows=new ArrayList<>();
-        filesRow=activity.setting(activity.tr("文件传输助手","File transfer"),"logs","general-tool-transfer");filesRow.tail("arrow");filesRow.value(activity.tr("读取中","Loading"));filesRow.setOnClickListener(v->activity.selectManagementPage(SettingsPages.FILES));activity.addSetting(tools,filesRow);
+        filesRow=activity.setting(activity.tr("文件传输","File transfer"),"logs","general-tool-transfer");filesRow.tail("arrow");filesRow.value(activity.tr("读取中","Loading"));filesRow.setOnClickListener(v->activity.selectManagementPage(SettingsPages.FILES));activity.addSetting(tools,filesRow);
         memos=new MemoPanel(activity,()->memoRow.value(memos.unfinished()<0?activity.tr("读取失败","Unavailable"):memos.unfinished()+activity.tr(" 条未完成"," unfinished")),()->toolReturned("general-tool-memos"));
-        memoRow=activity.setting(activity.tr("我的备忘录","My notes"),"logs","general-tool-memos");memoRow.tail("arrow");memoRow.value(activity.tr("读取中","Loading"));memoRow.setOnClickListener(v->memos.show());activity.addSetting(tools,memoRow);
+        memoRow=activity.setting(activity.tr("备忘录","My notes"),"logs","general-tool-memos");memoRow.tail("arrow");memoRow.value(activity.tr("读取中","Loading"));memoRow.setOnClickListener(v->memos.show());activity.addSetting(tools,memoRow);
         remoteRow=activity.setting("Tailscale 组网","tools","component-tailscale");remoteRow.tail("arrow");remoteRow.value(OptionalComponentsUi.label(home.quiet.components.ComponentRepository.get(activity).state("tailscale")));remoteRow.setOnClickListener(v->OptionalComponentsUi.show(activity,"tailscale"));activity.addSetting(tools,remoteRow);
         Collections.addAll(rows,filesRow,memoRow,remoteRow);activity.wireRows(rows.toArray(new DesktopSettingsRow[0]),managementTab());
         if(state!=null){scrollY=state.getInt("scroll");focusTag=state.getString("focus");}memos.restoreState(state);

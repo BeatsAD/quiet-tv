@@ -39,8 +39,11 @@
 .quiet-app .icon-material-art{position:relative;display:flex;align-items:center;justify-content:center;width:100%;aspect-ratio:16/9;border:2px solid transparent;border-radius:12px;background:var(--soft);padding:4px}
 .quiet-app .icon-material-art img{position:absolute;inset:4px;width:calc(100% - 8px);height:calc(100% - 8px);object-fit:contain}
 .quiet-app .shape-square .icon-material-art,.quiet-app .shape-circle .icon-material-art{aspect-ratio:1}
+.quiet-app .shape-circle .icon-material-art{border-radius:50%}
 .quiet-app .shape-circle .icon-material-art img{border-radius:50%}
-.quiet-app .icon-material[aria-pressed=true] .icon-material-art{border-color:var(--blue)}
+.quiet-app .icon-material[aria-pressed=true] .icon-material-art{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}
+.quiet-app .icon-material:focus-visible{outline:none}
+.quiet-app .icon-material:focus-visible .icon-material-art{outline:2px solid var(--ink);outline-offset:3px}
 .quiet-app .icon-material-check{position:absolute;display:grid;place-items:center;bottom:3px;right:3px;width:20px;height:20px;border-radius:50%;background:var(--blue);color:#fff}
 .quiet-app .icon-material-check svg{width:14px;height:14px}
 .quiet-app .icon-selected-preview{display:flex;align-items:center;gap:12px;margin-bottom:12px;font-size:15px}

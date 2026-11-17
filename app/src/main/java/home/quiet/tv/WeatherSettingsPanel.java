@@ -70,7 +70,7 @@ final class WeatherSettingsPanel extends ManagementPanel {
         android.app.AlertDialog dialog=new android.app.AlertDialog.Builder(activity).setTitle(activity.tr("原设置","TV system settings"))
             .setItems(labels.toArray(new String[0]),(d,index)->actions.get(index).run()).setNegativeButton(activity.tr("返回","Back"),null).create();
         systemSettingsSheet=dialog;dialog.setOnDismissListener(d->{systemSettingsSheet=null;focusTag="general-system-settings";if(showing&&!isFinishing())pageRoot.findViewWithTag(focusTag).requestFocusFromTouch();});
-        dialog.show();ControlStyle.dialog(dialog,unit);
+        dialog.show();ControlStyle.dialog(dialog,unit,(canvas,paint)->activity.drawSheetBackdrop(canvas),activity::filterSheetBackdrop);
     }
     private void refreshDesktopSwitch(){if(general&&pageRoot!=null){DesktopSettingsRow row=(DesktopSettingsRow)pageRoot.findViewWithTag("general-tool-original");if(row!=null)row.value(DesktopSwitch.get(activity).state().optString("mode","待核对"));}}
     void settingsChanged(){weather.settingsChanged();}

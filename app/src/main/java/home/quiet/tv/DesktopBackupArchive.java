@@ -10,6 +10,7 @@ import org.json.*;
 /** A bounded JSON manifest, optionally followed by deduplicated, hash-checked ZIP assets. */
 final class DesktopBackupArchive {
     interface Active {boolean valid();}
+    interface Progress {void update(long bytes,long total);}
     private final Context context;
     private final DesktopBackupStore store;
     private final DesktopBackupSnapshot snapshots;
@@ -20,16 +21,23 @@ final class DesktopBackupArchive {
     private static long plus(long a,long b)throws IOException{DesktopBackupRecord.require(b>=0&&a<=Long.MAX_VALUE-b,"备份大小无效");return a+b;}
     private static void active(Active active)throws IOException{DesktopBackupRecord.require(active.valid(),"备份操作已取消");}
     void export(DesktopBackupStore.Entry entry,boolean media,OutputStream output,Active active)throws IOException{
+        export(entry,media,output,active,(bytes,total)->{});
+    }
+    void export(DesktopBackupStore.Entry entry,boolean media,OutputStream output,Active active,Progress progress)throws IOException{
         new DesktopBackupRecord(entry.record.json);active(active);byte[] manifest=DesktopBackupRecord.media(entry.record,media).json.toString().getBytes(Charsets.UTF_8);DesktopBackupRecord.require(manifest.length<=DesktopBackupRecord.MAX_CONFIG_BYTES,"备份配置不能超过 2 MB");
         if(!media){try{for(int i=0;i<entry.record.assets.length();i++){active(active);JSONObject asset=entry.record.assets.getJSONObject(i);DesktopBackupRecord.require(snapshots.hash(source(entry,asset),true).equals(asset.getString("sha256")),"备份素材校验失败");}}catch(JSONException failure){throw new IOException("备份素材信息无法读取",failure);}active(active);output.write(manifest);output.flush();return;}
-        try(ZipOutputStream zip=new ZipOutputStream(new FilterOutputStream(output){@Override public void close()throws IOException{flush();}})){zip.setLevel(0);zip.putNextEntry(new ZipEntry("backup.json"));zip.write(manifest);zip.closeEntry();Set<String> seen=new HashSet<>();for(int i=0;i<entry.record.assets.length();i++){JSONObject asset=entry.record.assets.getJSONObject(i);String hash=asset.getString("sha256");if(!seen.add(hash))continue;active(active);zip.putNextEntry(new ZipEntry("assets/"+hash));try(InputStream input=new FileInputStream(source(entry,asset))){copy(input,zip,asset.getLong("bytes"),hash,active);}zip.closeEntry();}active(active);zip.finish();}
+        // Buffer ZIP headers and payload together; FilterOutputStream's default bulk write writes one byte at a time.
+        try(ZipOutputStream zip=new ZipOutputStream(new BufferedOutputStream(output,64*1024){@Override public void close()throws IOException{flush();}})){long total=0,done=0;Set<String> seen=new HashSet<>();for(int i=0;i<entry.record.assets.length();i++){JSONObject asset=entry.record.assets.getJSONObject(i);if(seen.add(asset.getString("sha256")))total=plus(total,asset.getLong("bytes"));}progress.update(0,total);zip.setLevel(0);zip.putNextEntry(new ZipEntry("backup.json"));zip.write(manifest);zip.closeEntry();seen.clear();for(int i=0;i<entry.record.assets.length();i++){JSONObject asset=entry.record.assets.getJSONObject(i);String hash=asset.getString("sha256");if(!seen.add(hash))continue;active(active);zip.putNextEntry(new ZipEntry("assets/"+hash));try(InputStream input=new FileInputStream(source(entry,asset))){copy(input,zip,asset.getLong("bytes"),hash,active,progress,done,total);}done=plus(done,asset.getLong("bytes"));zip.closeEntry();}active(active);zip.finish();}
         catch(JSONException failure){throw new IOException("备份素材信息无法读取",failure);}
     }
     private File source(DesktopBackupStore.Entry entry,JSONObject asset)throws IOException,JSONException{
         if(store!=null)return store.source(entry,asset);File file=DesktopBackupSnapshot.file(context,entry.sources.getString(asset.getString("path")));DesktopBackupRecord.require(file.isFile()&&file.length()==asset.getLong("bytes")&&snapshots.hash(file,true).equals(asset.getString("sha256")),"备份素材缺失或已损坏");return file;
     }
     private void copy(InputStream input,OutputStream output,long expected,String hash,Active active)throws IOException{
-        long total=0;MessageDigest digest=DesktopBackupRecord.digest();byte[] buffer=new byte[64*1024];int read;while((read=input.read(buffer))!=-1){active(active);total=plus(total,read);DesktopBackupRecord.require(total<=expected,"素材大小不匹配");output.write(buffer,0,read);digest.update(buffer,0,read);}DesktopBackupRecord.require(total==expected&&DesktopBackupRecord.hex(digest.digest()).equals(hash),"素材校验失败，备份未完成");
+        copy(input,output,expected,hash,active,(bytes,total)->{},0,expected);
+    }
+    private void copy(InputStream input,OutputStream output,long expected,String hash,Active active,Progress progress,long before,long all)throws IOException{
+        long total=0;MessageDigest digest=DesktopBackupRecord.digest();byte[] buffer=new byte[64*1024];int read;while((read=input.read(buffer))!=-1){active(active);total=plus(total,read);DesktopBackupRecord.require(total<=expected,"素材大小不匹配");output.write(buffer,0,read);digest.update(buffer,0,read);progress.update(plus(before,total),all);}DesktopBackupRecord.require(total==expected&&DesktopBackupRecord.hex(digest.digest()).equals(hash),"素材校验失败，备份未完成");
     }
     private byte[] manifest(InputStream input,Active active)throws IOException{
         ByteArrayOutputStream bytes=new ByteArrayOutputStream();byte[] buffer=new byte[8192];int read;while((read=input.read(buffer))!=-1){active(active);DesktopBackupRecord.require(bytes.size()+read<=DesktopBackupRecord.MAX_CONFIG_BYTES,"备份配置不能超过 2 MB");bytes.write(buffer,0,read);}return bytes.toByteArray();

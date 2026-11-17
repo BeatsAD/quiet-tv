@@ -189,6 +189,7 @@ final class DesktopRoutes {
                 .put("usageObserverBound",HomeGuardUsageService.connected()).put("tclPolicyStatus",prefs.getString("tclPolicyStatus","未配置"))
                 .put("listenerRecovery",prefs.getString("listenerRecovery","未触发")).put("listenerRecoveryAttempt",prefs.getInt("listenerRecoveryAttempt",0))
                 .put("accessibilityAllowed",state.serviceEnabled()).put("accessibilityBound",HomeGuardService.connected())
+                .put("recoveryPermissions",HomeGuardRecovery.permissions(context))
                 .put("usageRequired",HomeGuardService.usageRequired(context)).put("usageAllowed",HomeGuardService.usageAllowed(context))
                 .put("configurationProblem",state.enabled()?HomeGuardRecovery.configurationProblem(context):"")
                 .put("syncRecovery",HomeGuardSync.summary(context)).put("syncRecoveryReady",HomeGuardSync.ready(context)).put("keepAdb",HomeGuardAdb.enabled(context))

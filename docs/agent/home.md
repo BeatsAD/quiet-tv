@@ -141,6 +141,16 @@ python3 agent_session.py finish --session "$NEW_SESSION_DIR"
 
 
 
+### 小米 MiTV-MFTR0 / freeguy / Android 14
+
+此机型的本地实现参照 [Aerial 的机型记录](https://github.com/pengchujin/aerial-tv/blob/d5a347302e3499771045f85a6e0a8317881525cf/docs/devices/xiaomi-mitv-mftr0.md)，保留 PatchWall，沿用兼容守护。系统默认 HOME 仍为 `com.mitv.tvhome/.MainActivityUserMode` 可以是正常状态，须验实际接管。规则仅匹配该型号、设备代号、API34及此原主页，不扩大到其他小米机型，也不授予停用原桌面的资格。
+
+服务重新连接或收到亮屏／解锁信号后，延迟有限复查当前前台；即使进程没有留下息屏记录，也可根据最近的真实前台事件恢复。恢复检查只接受已安装系统 PatchWall 的原主页、`BootActivity`、`StrategicLayerActivity`，后两者仅用于恢复窗口，不加入普通窗口守护。其他应用、设置、播放器、HDMI、未知或过期前台不触发接管。主动访问原桌面的放行在本次开机内跨进程保留，回到 Quiet TV、离开原桌面、明确 HOME 或暂停后结束。
+
+此机型配置先核对 APK 的 `patchwallRecoverySupported`，旧包缺失时报告需更新，不先写权限。必须取得通知访问，不能仅以同步恢复已配置作为通过。电脑先尝试系统通知授权，应用在显式配置时合并登记自身监听服务，保留其他监听；随后最多等待10秒，只读核对通知授权、通知绑定和无障碍绑定。超时保留现场并报告未完成，不重放配置写入。`permissions.notificationRequired`、`notificationAllowed`、`notificationBound` 和 `accessibilityBound` 分别记录要求、授权及绑定；维护快照在 `routes.recoveryPermissions` 中提供同一证据。
+
+本机验收须分别从 Quiet TV、其他应用和原桌面页面待机，再用实体遥控器唤醒；先记录前台与恢复耗时，再查询应用，避免查询启动进程掩盖故障。`device_selftest.py --standby --apply` 在前台观察之后另核对两类绑定；模拟睡眠与本地测试不能替代目标电视待机验收。此适配尚未在 Quiet TV 的目标真机验收，不把 Aerial 的结果计为本应用通过。
+
 ## ADB 常开与重启验收
 
 ### 安卓 4.x 的调试开关恢复

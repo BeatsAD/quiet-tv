@@ -23,11 +23,11 @@ final class ControlStyle extends Drawable {
         view.setBackgroundDrawable(new ControlStyle(unit,radius,color,border,true,false));
         view.setTextColor(SettingsFocusDrawable.textColors(UiPalette.SECONDARY,UiPalette.INK));
     }
-    static void dialog(AlertDialog dialog,float unit){
+    static void dialog(AlertDialog dialog,float unit,DockBackdropDrawable.Background background,java.util.concurrent.Executor filter){
         KeyFeedback.observeAlert(dialog);
-        android.graphics.drawable.GradientDrawable panel=new SurfaceDrawable(unit);
-        panel.setColor(0xe6000000);panel.setCornerRadius(12*unit);panel.setStroke(Math.max(1,Math.round(unit)),UiPalette.EDGE);
-        dialog.getWindow().setBackgroundDrawable(panel);
+        android.view.View panel=dialog.getWindow().getDecorView();
+        SettingsSheetBackdrop backdrop=new SettingsSheetBackdrop(panel,unit,background,filter);
+        dialog.getWindow().setBackgroundDrawable(backdrop);dialog.getWindow().setDimAmount(SettingsSheetBackdrop.DIM_AMOUNT);backdrop.followWindowFocus();
         alertText(dialog.getWindow().getDecorView());
         for(int which:new int[]{AlertDialog.BUTTON_POSITIVE,AlertDialog.BUTTON_NEGATIVE,AlertDialog.BUTTON_NEUTRAL}){
             TextView button=dialog.getButton(which);

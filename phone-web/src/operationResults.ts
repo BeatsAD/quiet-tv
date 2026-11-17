@@ -8,7 +8,7 @@ const labels:Record<string,Record<string,string>>={
   quick:{quickControls:'保存快捷控制',reset:'恢复默认快捷控制',run:'发送电视操作'},buttons:{homeButtons:'保存首页按钮'},dock:{dockApps:'保存 Dock 应用',gridOrder:'保存应用顺序'},
   child:{rule:'保存儿童设置',grant:'追加使用时间',permission:'打开计时授权',quizNow:'发送答题请求'},quiz:{quizSettings:'保存答题设置',quizAppSettings:'保存答题设置',selectedCustomIds:'保存所选题目',question:'保存题目',deleteQuestion:'删除题目'},
   memos:{save:'保存备忘录',remove:'删除备忘录',toggle:'更新备忘录'},files:{receive:'保存文件',remove:'删除文件',wallpaper:'应用壁纸',install:'安装应用',permission:'打开目录授权'},
-  backup:{create:'创建备份',export:'导出备份',prepareFromFile:'校验备份',admit:'导入备份',restore:'恢复备份',retry:'核对恢复记录'},
+  backup:{remove:'删除备份',create:'创建备份',export:'导出备份',prepareFromFile:'校验备份',admit:'导入备份',restore:'恢复备份',retry:'核对恢复记录'},
   weather:{refresh:'刷新天气',cityCode:'保存天气城市'},diagnostics:{export:'生成诊断文件'},management:{connect:'连接 ADB',disconnect:'断开 ADB',check:'检查 ADB 状态'},
   guard:{pause:'暂停桌面接管',restore:'恢复原桌面',system:'打开默认桌面设置'},desktopSwitch:{switch:'切换桌面',manage:'桌面管理',verify:'记录使用验证'},
   inputs:{search:'搜索信号源',test:'发送信号源测试',confirm:'保存配对结果',restore:'恢复配对配置',defaults:'恢复配对默认设置',observe:'记录信号源',cancel:'结束信号源任务'},
@@ -16,7 +16,7 @@ const labels:Record<string,Record<string,string>>={
 };
 export function operationLabel(domain:string,field:string,metadata:Metadata|null){return labels[domain]?.[field]||metadata?.fields[field]?.title||'保存设置';}
 export function quietResult(domain:string,field:string,value:Value){return domain==='icons'||domain==='uploads'||domain==='files'&&field==='browse'||domain==='memos'&&field==='toggle'||domain==='backup'&&field==='automatic'||domain==='quiz'&&field==='quizApp'||domain==='child'&&field==='rule'&&['enabled','locked'].includes(String((value as Record<string,unknown>)?.field));}
-export function requiresTask(domain:string,field:string){return domain==='desktopSwitch'||domain==='guard'&&['pause','restore'].includes(field)||domain==='apps'&&field!=='renameApp'||domain==='wallpaper'&&['dailyRefresh','dailySource'].includes(field)||domain==='weather'&&field==='refresh'||domain==='backup'&&['create','export','prepareFromFile','admit'].includes(field)||domain==='diagnostics'&&field==='export'||domain==='files'&&['receive','wallpaper','install'].includes(field);}
+export function requiresTask(domain:string,field:string){return domain==='desktopSwitch'||domain==='guard'&&['pause','restore'].includes(field)||domain==='apps'&&field!=='renameApp'||domain==='wallpaper'&&['dailyRefresh','dailySource'].includes(field)||domain==='weather'&&field==='refresh'||domain==='backup'&&['create','export','prepareFromFile','admit','remove'].includes(field)||domain==='diagnostics'&&field==='export'||domain==='files'&&['receive','wallpaper','install'].includes(field);}
 export function completedNotice(label:string,operation?:Record<string,unknown>,domain='',field=''):OperationNotice{
   const detail=typeof operation?.message==='string'?operation.message:undefined;
   if(domain==='apps'&&field==='renameApp'&&operation?.persisted!==true||domain==='catalog'&&field==='renameMedia'&&operation?.renamed!==true)return {kind:'info',title:'名称保存结果待核对'};

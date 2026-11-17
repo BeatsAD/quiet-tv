@@ -79,8 +79,7 @@ final class HomeQuickControlView extends LinearLayout {
     private boolean reveal(){
         if(destroyed||!contentReady||!backdrop.ready()||getVisibility()!=VISIBLE)return true;
         getViewTreeObserver().removeOnPreDrawListener(revealOnPreDraw);
-        if(SettingsFocusMotion.reduced())setAlpha(1f);
-        else animate().alpha(1f).setDuration(160).setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
+        UiMotion.reveal(this,-px(6));
         ui.quickContentReady(this);return true;
     }
     FrameLayout.LayoutParams position(){FrameLayout.LayoutParams lp=new FrameLayout.LayoutParams(p(384),-2,Gravity.RIGHT|Gravity.TOP);lp.rightMargin=p(48);lp.topMargin=px(72);lp.bottomMargin=px(12);return lp;}
@@ -94,7 +93,7 @@ final class HomeQuickControlView extends LinearLayout {
         super.onMeasure(w,h);
     }
     private TextView text(String value,float size,float line){TextView t=label(value);QuickControlPreviewView.controlType(t,size,line,unit,UiPalette.TEXT);return t;}
-    private void identify(View view,String id){view.setId(androidx.core.view.ViewCompat.generateViewId());view.setTag(id);targets.put(id,view);view.setFocusable(true);view.setFocusableInTouchMode(true);view.setSoundEffectsEnabled(false);view.setOnFocusChangeListener((v,has)->{if(has){focus=id;ui.quickPanelFocused();View frame=v instanceof RangeSlider?((RangeSlider)v).card:v;Rect r=new Rect();frame.getDrawingRect(r);frame.requestRectangleOnScreen(r,false);}if(v instanceof RangeSlider){if(!has)((RangeSlider)v).cancel();((RangeSlider)v).focusChanged();}else{v.animate().cancel();float scale=has&&hasWindowFocus()&&!SettingsFocusMotion.reduced()?1.015f:1;v.animate().scaleX(scale).scaleY(scale).setDuration(120).start();}});}
+    private void identify(View view,String id){view.setId(androidx.core.view.ViewCompat.generateViewId());view.setTag(id);targets.put(id,view);view.setFocusable(true);view.setFocusableInTouchMode(true);view.setSoundEffectsEnabled(false);view.setOnFocusChangeListener((v,has)->{if(has){focus=id;ui.quickPanelFocused();View frame=v instanceof RangeSlider?((RangeSlider)v).card:v;Rect r=new Rect();frame.getDrawingRect(r);frame.requestRectangleOnScreen(r,false);}if(v instanceof RangeSlider){if(!has)((RangeSlider)v).cancel();((RangeSlider)v).focusChanged();}else{float scale=has&&hasWindowFocus()&&!SettingsFocusMotion.reduced()?1.015f:1;UiMotion.scale(v,scale,140);}});}
 
     private Button button(String value,String id,Runnable action){Button b=actionButton(value,()->{focus=id;action.run();});identify(b,id);b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,p(16));b.setTextColor(UiPalette.TEXT);b.setIncludeFontPadding(true);b.setPadding(p(8),0,p(8),0);b.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);b.setBackgroundDrawable(new QuickControlSurface(unit*.75f,Color.TRANSPARENT));return b;}
     void reload(){reload(null);}
@@ -113,7 +112,7 @@ final class HomeQuickControlView extends LinearLayout {
             for(int col=0;col<3;col++){
                 int index=rowIndex*3+col;String id=index<grid.size()?grid.get(index):"";LayoutParams lp=new LayoutParams(0,-1,1);if(col>0)lp.leftMargin=p(8);
                 if(id.isEmpty()){row.addView(new View(context),lp);continue;}
-                LinearLayout card=column();card.setGravity(Gravity.CENTER);card.setPadding(p(4),p(5),p(4),p(5));card.setClipChildren(false);card.setDescendantFocusability(FOCUS_BLOCK_DESCENDANTS);identify(card,id);card.setContentDescription(QuickControlStore.title(id,chinese));card.setClickable(true);card.setBackgroundDrawable(new QuickControlSurface(unit*.75f));
+                LinearLayout card=new LinearLayout(context){@Override public void setPressed(boolean pressed){boolean changed=pressed!=isPressed();super.setPressed(pressed);if(changed)UiMotion.scale(this,(isFocused()&&hasWindowFocus()&&!SettingsFocusMotion.reduced()?1.015f:1)*(pressed&&!SettingsFocusMotion.reduced()?.985f:1),pressed?80:140);}};card.setOrientation(VERTICAL);card.setGravity(Gravity.CENTER);card.setPadding(p(4),p(5),p(4),p(5));card.setClipChildren(false);card.setDescendantFocusability(FOCUS_BLOCK_DESCENDANTS);identify(card,id);card.setContentDescription(QuickControlStore.title(id,chinese));card.setClickable(true);card.setBackgroundDrawable(new QuickControlSurface(unit*.75f));
                 card.addView(icon(QuickControlPreviewView.glyph(id)),new LayoutParams(p(24),p(24)));TextView name=text(QuickControlStore.shortTitle(id,chinese),16,22);name.setGravity(Gravity.CENTER);name.setSingleLine();name.setEllipsize(android.text.TextUtils.TruncateAt.END);LayoutParams np=new LayoutParams(-1,-2);np.topMargin=p(6);card.addView(name,np);
                 row.addView(card,lp);card.setOnClickListener(v->execute.accept(id));SettingsTouchClick.attach(card);
             }
@@ -135,7 +134,7 @@ final class HomeQuickControlView extends LinearLayout {
     private boolean editing(){return brightness.editing()||volume.editing();}
     void refresh(){
         if(destroyed)return;WallpaperCatalog wall=WallpaperStore.get(context).snapshot();
-        for(String id:new String[]{"keySounds","mute"}){View target=targets.get(id);if(target instanceof ViewGroup){boolean on="keySounds".equals(id)?desktop.keySounds():wall.audible();target.setContentDescription(QuickControlStore.title(id,chinese)+"  "+(on?"已开启":"已关闭"));QuickControlSurface surface=(QuickControlSurface)target.getBackground();surface.on(on);int color=on?UiPalette.INK:UiPalette.TEXT;ImageView glyph=(ImageView)((ViewGroup)target).getChildAt(0);QuickControlIcon drawable=new QuickControlIcon(on?"range-speaker-high":"speaker-off");drawable.color(color);glyph.setImageDrawable(drawable);((TextView)((ViewGroup)target).getChildAt(1)).setTextColor(color);}}
+        for(String id:new String[]{"keySounds","mute"}){View target=targets.get(id);if(target instanceof ViewGroup){boolean on="keySounds".equals(id)?desktop.keySounds():wall.audible();target.setContentDescription(QuickControlStore.title(id,chinese)+"  "+(on?"已开启":"已关闭"));QuickControlSurface surface=(QuickControlSurface)target.getBackground();surface.on(on);int color=on?UiPalette.INK:UiPalette.TEXT;ImageView glyph=(ImageView)((ViewGroup)target).getChildAt(0);QuickControlIcon drawable=new QuickControlIcon(QuickControlPreviewView.glyph(id));drawable.color(color);glyph.setImageDrawable(drawable);((TextView)((ViewGroup)target).getChildAt(1)).setTextColor(color);}}
         adjustHint.setVisibility(GONE);if(slider!=null)slider.refresh();if(volumeSlider!=null)volumeSlider.refresh();
     }
     void beginBrightness(){if(brightnessSaving)return;if(slider==null){forceBrightness=true;pendingBegin=true;if(!loading)reload();return;}slider.begin();}
@@ -162,7 +161,7 @@ final class HomeQuickControlView extends LinearLayout {
         void cancel(){if(sound)cancelVolume();else cancelBrightness();}
         boolean commit(){if(!sound)return commitBrightness();draft.commit();setActivated(false);HomeQuickControlView.this.refresh();return true;}
         void preview(int value){if(sound){int next=Math.max(0,Math.min(maximum(),value));if(!writeVolume(next))return;draft.preview(next);}else{draft.preview(value);HomeActivity.previewHomeBrightness(draft.value());}HomeQuickControlView.this.refresh();}
-        void focusChanged(){boolean focused=isFocused()&&hasWindowFocus();((QuickControlSurface)card.getBackground()).focused(focused);card.setActivated(false);card.animate().cancel();float scale=focused&&!SettingsFocusMotion.reduced()?1.01f:1;card.animate().scaleX(scale).scaleY(scale).setDuration(120).start();title.setTextColor(UiPalette.TEXT);level.setTextColor(UiPalette.TEXT);}
+        void focusChanged(){boolean focused=isFocused()&&hasWindowFocus();((QuickControlSurface)card.getBackground()).focused(focused);card.setActivated(false);float scale=focused&&!SettingsFocusMotion.reduced()?1.01f:1;UiMotion.scale(card,scale,140);title.setTextColor(UiPalette.TEXT);level.setTextColor(UiPalette.TEXT);}
         void refresh(){int value=draft.editing()?draft.value():current();level.setText(sound?(isEnabled()?Math.round(100f*value/Math.max(1,maximum()))+"%":"系统控制"):value+"%");focusChanged();invalidate();}
         @Override public void onWindowFocusChanged(boolean focused){super.onWindowFocusChanged(focused);focusChanged();}
         @Override protected void onDraw(Canvas c){float left=p(7),right=getWidth()-p(7),mid=getHeight()/2f,x=left+(right-left)*(Math.max(minimum(),draft.editing()?draft.value():current())-minimum())/Math.max(1,maximum()-minimum());boolean focused=false;paint.setColor(0x55ffffff);RectF track=new RectF(left,mid-p(1.5f),right,mid+p(1.5f));c.drawRoundRect(track,p(2),p(2),paint);track.right=x;paint.setColor(focused?UiPalette.INK:Color.WHITE);c.drawRoundRect(track,p(2),p(2),paint);paint.setColor(Color.WHITE);paint.setShadowLayer(p(2),0,p(1),0x33000000);c.drawCircle(x,mid,p(7),paint);paint.clearShadowLayer();paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(p(.5f));paint.setColor(0x14000000);c.drawCircle(x,mid,p(7)-paint.getStrokeWidth()/2,paint);paint.setStyle(Paint.Style.FILL);}
@@ -212,6 +211,7 @@ final class HomeQuickControlView extends LinearLayout {
     private void showQr(){if(qrView!=null&&qr!=null){qrView.setImageBitmap(qr);((android.graphics.drawable.BitmapDrawable)qrView.getDrawable()).setFilterBitmap(false);}}
     @Override protected void onVisibilityChanged(View changed,int visibility){super.onVisibilityChanged(changed,visibility);if(phone!=null){if(visibility==VISIBLE&&resumed){phone.start();renderPhone();}else if(visibility!=VISIBLE)cancelAdjustments();}}
     String focusId(){return focus;}
+    boolean firstRowFocused(){View current=findFocus();int index=current==null?-1:grid.indexOf(current.getTag());return index>=0&&index<3;}
     private View next(View current,int direction){
         String id=current.getTag() instanceof String?(String)current.getTag():"";int index=grid.indexOf(id);
         List<View> vertical=new ArrayList<>();for(String key:ranges){View v=targets.get(key);if(v!=null&&v.isEnabled())vertical.add(v);}for(String key:new String[]{"phone-end","phone-restart"}){View v=targets.get(key);if(v!=null&&v.isShown())vertical.add(v);}

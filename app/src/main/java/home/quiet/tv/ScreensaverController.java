@@ -27,8 +27,7 @@ final class ScreensaverController {
     private final ScreensaverStore store;
     private final Host host;
     private final Handler main=new Handler(Looper.getMainLooper());
-    private final FrameLayout information;
-    private final TextView clock,weather;
+    private final ScreensaverInformationView information;
     private final boolean chinese;
     private final Map<Integer,Long> wakeKeys=new HashMap<>();
     private State state=State.OFF;
@@ -45,13 +44,7 @@ final class ScreensaverController {
     }};
     ScreensaverController(Activity activity,FrameLayout root,WallpaperController wallpapers,float unit,boolean chinese,Host host){
         this.activity=activity;this.wallpapers=wallpapers;this.host=host;this.chinese=chinese;media=WallpaperStore.get(activity);store=ScreensaverStore.get(activity);
-        WallpaperUi ui=new WallpaperUi(activity,unit);
-        information=new FrameLayout(activity);information.setVisibility(View.GONE);information.setFocusable(false);
-        clock=ui.text("",96);clock.setTypeface(Build.VERSION.SDK_INT>=26?Typeface.createFromAsset(activity.getAssets(),"fonts/outfit.ttf"):Typeface.create("sans-serif-light",Typeface.NORMAL));if(Build.VERSION.SDK_INT>=26)ClockFont.apply(clock);clock.setGravity(Gravity.CENTER);
-        weather=ui.text("",19);weather.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,19.2f*unit);
-        for(TextView view:new TextView[]{clock,weather}){view.setSingleLine(true);view.setTextColor(UiPalette.TEXT);view.setShadowLayer(ui.px(12),0,ui.px(2),0x77000000);}
-        information.addView(clock,new FrameLayout.LayoutParams(-2,Math.round(115.2f*unit),Gravity.CENTER));
-        FrameLayout.LayoutParams weatherPosition=new FrameLayout.LayoutParams(-2,-2,Gravity.LEFT|Gravity.BOTTOM);weatherPosition.leftMargin=Math.round(76.8f*unit);weatherPosition.bottomMargin=Math.round(43.2f*unit);information.addView(weather,weatherPosition);
+        information=new ScreensaverInformationView(activity,96*unit,19.2f*unit);information.setVisibility(View.GONE);
         root.addView(information,new FrameLayout.LayoutParams(-1,-1));
         IntentFilter filter=new IntentFilter(Intent.ACTION_SCREEN_OFF);filter.addAction(Intent.ACTION_SCREEN_ON);activity.registerReceiver(screen,filter);
     }
@@ -124,11 +117,9 @@ final class ScreensaverController {
     void timeChanged(){if(state==State.ACTIVE)render();}
     private void render(){
         if(settings==null)return;
-        Date now=new Date();clock.setText(new SimpleDateFormat("HH:mm",Locale.US).format(now));boolean clockOnly=ScreensaverSettings.CLOCK.equals(settings.mode);information.setBackgroundColor(clockOnly?0xff000000:Color.TRANSPARENT);
-        clock.setVisibility(settings.showTime||clockOnly?View.VISIBLE:View.GONE);
-        boolean visible=settings.showWeather&&weatherData!=null&&weatherData.usable(System.currentTimeMillis());weather.setVisibility(visible?View.VISIBLE:View.GONE);
-        if(visible)weather.setText(String.format(Locale.ROOT,"%s  %s  %s",weatherData.city,weatherData.temperatureText(),weatherData.description));
+        boolean clockOnly=ScreensaverSettings.CLOCK.equals(settings.mode);information.setBackgroundColor(clockOnly?0xff000000:Color.TRANSPARENT);
+        boolean visible=weatherData!=null&&weatherData.usable(System.currentTimeMillis());
+        information.show(settings,new SimpleDateFormat("HH:mm",Locale.US).format(new Date()),visible?String.format(Locale.ROOT,"%s  %s  %s",weatherData.city,weatherData.temperatureText(),weatherData.description):"");
     }
     void destroy(){pause();destroyed=true;activity.unregisterReceiver(screen);main.removeCallbacksAndMessages(null);}
-    @android.annotation.TargetApi(26) private static final class ClockFont {static void apply(TextView view){view.setFontVariationSettings("'wght' 300");}}
 }

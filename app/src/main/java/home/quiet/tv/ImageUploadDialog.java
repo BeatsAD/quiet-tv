@@ -8,25 +8,26 @@ import android.widget.*;
 /** The wallpaper and app-cover uploaders use this exact native layout. */
 final class ImageUploadDialog {
     final Dialog dialog;
-    final ImageView background,qr;
+    final ImageView qr;
     final TextView address,status,retry;
     private final TextView code;
     private final Activity activity;
     private final WallpaperUi ui;
     private final boolean chinese;
-    private final Bitmap backdrop;
-    ImageUploadDialog(Activity activity,boolean chinese,Bitmap backdrop,String title,String requirements,String note,Runnable closeAction,Runnable reconnect){
-        this(activity,chinese,backdrop,title,requirements,note,closeAction,reconnect,null);
+    private final SettingsSheetBackdrop backdrop;
+    private final java.util.concurrent.ExecutorService filter=java.util.concurrent.Executors.newSingleThreadExecutor();
+    ImageUploadDialog(Activity activity,boolean chinese,DockBackdropDrawable.Background background,String title,String requirements,String note,Runnable closeAction,Runnable reconnect){
+        this(activity,chinese,background,title,requirements,note,closeAction,reconnect,null);
     }
-    ImageUploadDialog(Activity activity,boolean chinese,Bitmap backdrop,String title,String requirements,String note,Runnable closeAction,Runnable reconnect,String selection){
-        this.activity=activity;this.ui=new WallpaperUi(activity,activity.getResources().getDisplayMetrics().widthPixels/960f);this.chinese=chinese;this.backdrop=backdrop;
+    ImageUploadDialog(Activity activity,boolean chinese,DockBackdropDrawable.Background background,String title,String requirements,String note,Runnable closeAction,Runnable reconnect,String selection){
+        this.activity=activity;this.ui=new WallpaperUi(activity,activity.getResources().getDisplayMetrics().widthPixels/960f);this.chinese=chinese;
         dialog=new KeyFeedback.Dialog(activity);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
-        FrameLayout stage=new FrameLayout(activity);background=new ImageView(activity);background.setScaleType(ImageView.ScaleType.FIT_XY);background.setImageBitmap(backdrop);stage.addView(background,new FrameLayout.LayoutParams(-1,-1));
-        View dim=new View(activity);dim.setBackgroundColor(0xbf000000);stage.addView(dim,new FrameLayout.LayoutParams(-1,-1));
-        FrameLayout panel=new FrameLayout(activity);panel.setBackgroundDrawable(ui.surface(0xff000000,23,0x20ffffff,1));if(android.os.Build.VERSION.SDK_INT>=21)panel.setElevation(ui.px(18));
+        FrameLayout stage=new FrameLayout(activity);
+        View dim=new View(activity);dim.setBackgroundColor(0x35000000);stage.addView(dim,new FrameLayout.LayoutParams(-1,-1));
+        FrameLayout panel=new FrameLayout(activity);backdrop=new SettingsSheetBackdrop(panel,ui.unit,background,filter);panel.setBackgroundDrawable(backdrop);backdrop.followWindowFocus();if(android.os.Build.VERSION.SDK_INT>=21)panel.setElevation(ui.px(18));
         LinearLayout box=column();box.setPadding(ui.px(30),ui.px(30),ui.px(30),ui.px(30));
         LinearLayout header=new LinearLayout(activity);header.setGravity(Gravity.CENTER_VERTICAL);TextView heading=ui.text(title,23);heading.setSingleLine();heading.setEllipsize(android.text.TextUtils.TruncateAt.END);header.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
-        TextView close=ui.button("",false,()->{closeAction.run();KeyFeedback.back(activity);});close.setContentDescription(tr("关闭上传","Close upload"));close.setPadding(ui.px(8),ui.px(8),ui.px(8),ui.px(8));close.setCompoundDrawables(ui.icon(R.drawable.wp_x,17,WallpaperUi.INK),null,null,null);close.setBackgroundDrawable(ui.focusSurface(UiPalette.INK_SECONDARY,100));
+        TextView close=ui.button("",false,()->{closeAction.run();KeyFeedback.back(activity);});close.setContentDescription(tr("关闭上传","Close upload"));close.setPadding(ui.px(8),ui.px(8),ui.px(8),ui.px(8));close.setCompoundDrawables(ui.icon("x",12,WallpaperUi.INK),null,null,null);close.setBackgroundDrawable(ui.focusSurface(UiPalette.INK_SECONDARY,100));
         header.addView(close,new LinearLayout.LayoutParams(ui.px(33),ui.px(33)));box.addView(header,new LinearLayout.LayoutParams(-1,ui.px(42)));
         LinearLayout connection=new LinearLayout(activity);connection.setGravity(Gravity.CENTER_VERTICAL);connection.setMinimumHeight(ui.px(258));LinearLayout steps=column();
         step(steps,"1",tr("连接同一个局域网","Connect to the same local network"),tr("电视可使用 Wi-Fi 或网线连接","Your TV can use Wi-Fi or Ethernet"),46);
@@ -67,5 +68,5 @@ final class ImageUploadDialog {
         if(detail!=null){TextView hint=ui.text(detail,11);hint.setTextColor(WallpaperUi.MUTED);hint.setPadding(0,ui.px(5),0,0);body.addView(hint);}row.addView(body,new LinearLayout.LayoutParams(0,-2,1));row.setMinimumHeight(ui.px(minimum));
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);if(parent.getChildCount()>0)p.topMargin=ui.px(12);parent.addView(row,p);return body;
     }
-    void release(){background.setImageDrawable(null);qr.setImageDrawable(null);if(!backdrop.isRecycled())backdrop.recycle();}
+    void release(){qr.setImageDrawable(null);backdrop.release();filter.shutdownNow();}
 }

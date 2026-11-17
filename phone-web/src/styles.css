@@ -236,8 +236,15 @@ button.setting-row:hover { background:var(--hover); }.row-icon { color:var(--blu
 .preview-status{display:flex;align-items:center;justify-content:center;gap:8px;margin:8px 0 0;font-size:13px;line-height:1.5;color:var(--muted);text-align:center}
 .preview-status .text-action{flex:none;min-height:44px}
 .saver-preview{height:auto;aspect-ratio:16/9;background:#000}
-.saver-preview strong{font-size:12cqw;line-height:1.2;top:33%}
-.saver-preview .saver-weather{bottom:20%;font-size:3.5cqw}
+.saver-preview .saver-information{position:absolute;display:flex;flex-direction:column;align-items:flex-start;gap:1.04cqw;width:max-content;max-width:84%;color:#fff}
+.saver-preview .saver-top-left{left:8%;top:8%}
+.saver-preview .saver-top-right{right:8%;top:8%;align-items:flex-end}
+.saver-preview .saver-center{left:50%;top:50%;transform:translate(-50%,-50%);align-items:center}
+.saver-preview .saver-bottom-left{left:8%;bottom:8%}
+.saver-preview .saver-bottom-right{right:8%;bottom:8%;align-items:flex-end}
+.saver-preview .saver-information strong{position:static;font-size:6cqw;line-height:1.2;font-weight:400;white-space:nowrap}
+.saver-preview .saver-center strong{font-size:12cqw}
+.saver-preview .saver-information .saver-weather{position:static;max-width:100%;font-size:3.5cqw;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .filter-row .text-action,.section-heading .text-action{min-height:44px}
 
 /* Compact choices keep their dimensions while the selected label gains an inline mark. */
@@ -341,6 +348,40 @@ html:has(.quiet-app[data-theme=light]),body:has(.quiet-app[data-theme=light]),#r
 
 /* Result feedback stays at the top of the active panel and never takes input focus. */
 .sheet-panel{position:relative}
+
+/* These pages keep the phone's vertical flow and native touch targets. */
+.weather-source-options .setting-group{background:transparent;border:0;border-radius:0}
+.weather-source-options .choice-list-option{padding-inline:0}
+.weather-source-options>.setting-row{padding-inline:0}
+.weather-source-options .switch::before{inset:-9px -1px}
+.weather-service-details{margin-top:1rem;color:var(--muted);font-size:.875rem;line-height:1.6}
+.weather-service-details summary{display:list-item;min-height:2.75rem;padding:.625rem 0;cursor:pointer;color:var(--blue)}
+.weather-service-details p{margin:.5rem 0;overflow-wrap:anywhere}
+.weather-service-links{display:flex;flex-wrap:wrap;gap:0 1rem}
+.weather-service-links .text-action{min-height:2.75rem}
+.daily-picture-heading{display:flex;flex-direction:column;gap:.75rem}
+.daily-picture-source{display:flex;align-items:center;flex-wrap:wrap;gap:.75rem;color:var(--muted);font-size:.875rem}
+.daily-picture-source img{max-width:6.75rem;object-fit:contain}
+.daily-picture-heading h3{margin:0;font-size:1.5rem;font-weight:650;line-height:1.4;overflow-wrap:anywhere}
+.daily-picture-rating{display:flex;flex-wrap:wrap;gap:.5rem 1rem;color:var(--muted);font-size:.875rem}
+.daily-picture-rating strong{color:var(--ink);font-size:1rem}
+.daily-picture-overview{margin:1.25rem 0;font-size:1rem;line-height:1.75;white-space:pre-line;overflow-wrap:anywhere}
+.daily-picture-metadata{display:flex;flex-wrap:wrap;gap:.5rem 1rem;margin:1.25rem 0;color:var(--muted);font-size:.875rem}
+.daily-picture-metadata>div{display:flex;flex-wrap:wrap;gap:.5rem}
+.daily-picture-metadata dd{margin:0;color:var(--ink)}
+.daily-picture-attribution{margin:1rem 0;color:var(--muted);font-size:.875rem;line-height:1.6;overflow-wrap:anywhere}
+.backup-record{padding:.25rem 1rem .5rem;border-bottom:1px solid var(--line)}
+.backup-record:last-child{border-bottom:0}
+.backup-record-summary{display:flex;align-items:center;gap:.75rem;width:100%;min-height:2.75rem;padding:.75rem 0;text-align:left;color:var(--ink)}
+.backup-record-summary>span{flex:1;min-width:0}
+.backup-record-summary strong{display:block;font-size:1rem;font-weight:500;overflow-wrap:anywhere}
+.backup-record-summary small{display:block;margin-top:.375rem;color:var(--muted);font-size:.875rem;line-height:1.5;overflow-wrap:anywhere}
+.backup-record-summary>.glyph{flex:none;color:var(--muted)}
+.backup-record-actions{display:flex;gap:.5rem}
+.backup-record-actions button{flex:1;display:flex;align-items:center;justify-content:center;gap:.5rem;min-height:2.75rem;border-radius:.5rem;background:var(--soft)}
+.backup-record-actions button:disabled{opacity:.5}
+.backup-record-actions .danger{color:var(--danger-ink) !important}
+.backup-record button:focus-visible,.weather-service-details summary:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 .operation-toast{position:absolute;z-index:100;top:calc(var(--header-height,0px) + .75rem);left:50%;transform:translateX(-50%);box-sizing:border-box;display:flex;align-items:center;gap:.65rem;width:max-content;max-width:calc(100% - 2rem);padding:.75rem 1.15rem;border:1px solid #ffffff14;border-radius:.75rem;background:#303032f5;color:#fff;box-shadow:0 .4rem 1.2rem #0004;pointer-events:none;font-size:1rem;line-height:1.4;text-align:left;animation:operation-toast-in 150ms ease-out}
 .sheet-panel>.operation-toast{top:4.5rem}
 .confirmation-dialog>.operation-toast{position:fixed;top:.75rem;max-width:min(28rem,calc(100vw - 2rem))}

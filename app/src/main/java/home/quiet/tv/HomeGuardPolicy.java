@@ -49,6 +49,11 @@ final class HomeGuardPolicy {
         return false;
     }
     static boolean xiaomiRecovery(String manufacturer,String brand,int sdk,boolean legacy){return supported(manufacturer,brand,sdk,legacy) && xiaomi(manufacturer,brand);}
+    // Aerial's MFTR0/freeguy adaptation: retain PatchWall and recover through its real windows.
+    static boolean patchwallRecovery(String manufacturer,String brand,String model,String device,int sdk,boolean legacy,String selected){
+        return !legacy && sdk==34 && xiaomi(manufacturer,brand) && "MiTV-MFTR0".equals(model) && "freeguy".equals(device)
+            && "com.mitv.tvhome/com.mitv.tvhome.MainActivityUserMode".equals(selected);
+    }
     static boolean usageFallback(int sdk,boolean legacy){return !legacy && sdk>=21 && sdk<=23;}
     static boolean usageFallback(int sdk,boolean legacy,String selected){
         // VIDAA's launcher may omit accessibility window events, including on newer Android.

@@ -50,7 +50,7 @@ final class DesktopGuardSheet {
     void handleBack(){back();}
     private void create(){
         origin=ui.getCurrentFocus();sheet=ui.new Sheet("桌面管理");sheet.contentWidth(560,560);ManagementUi.Sheet own=sheet;
-        close=sheet.settingsLayout("关闭",this::back);identify(close,"sheet-close");sheet.settingsActions(false);
+        close=sheet.settingsLayout("关闭",this::back);sheet.fixedSize(560,470);identify(close,"sheet-close");sheet.settingsActions(false);
         sheet.dialog.setOnKeyListener((dialog,key,event)->{if(key!=KeyEvent.KEYCODE_BACK&&key!=KeyEvent.KEYCODE_ESCAPE)return false;if(event.getAction()==KeyEvent.ACTION_UP)back();return true;});
         sheet.dialog.setOnDismissListener(dialog->{if(sheet!=own)return;stop();diagnostics.hide();releaseGuide();sheet=null;if(origin!=null&&origin.isShown())origin.requestFocusFromTouch();closed.run();});
         render();sheet.show(null);start();restoreFocus();

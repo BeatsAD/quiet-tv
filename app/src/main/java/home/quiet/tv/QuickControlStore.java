@@ -55,8 +55,8 @@ final class QuickControlStore {
         catch(IOException error){if(output!=null)atomic.failWrite(output);throw error;}
     }
     static String title(String id,boolean chinese){if(SETTINGS.equals(id))return chinese?"桌面设置":"Desktop settings";int index=ALL.indexOf(id);if(index<0)return "";return (chinese?ZH:EN)[index];}
-    static String shortTitle(String id,boolean chinese){if(!chinese)return title(id,false);switch(id){case "network":return "网络";case "mute":return "背景声音";case "original":return "原桌面";case "transfer":return "文件传输";case "memoShortcut":return "便签";case "wallpaper":return "换背景";case "boot":return "开机应用";default:return title(id,true);}}
+    static String shortTitle(String id,boolean chinese){return title(id,chinese);}
     static boolean range(String id){return "brightness".equals(id)||"volume".equals(id);}
-    private static final String[] ZH={"按键音","背景明暗","网络设置","信号源","壁纸声音","原厂桌面","文件传输助手","我的备忘录","更换背景","立即屏保","开机直达","蓝牙","音量","儿童模式","应用管理","时钟","天气","系统设置"};
+    private static final String[] ZH={"按键音","背景明暗","网络设置","信号源","壁纸声音","原桌面","文件传输","备忘录","更换壁纸","立即屏保","开机直达","蓝牙","音量","儿童模式","应用管理","时钟","天气","系统设置"};
     private static final String[] EN={"Key sounds","Background brightness","Network","Inputs","Wallpaper sound","Original launcher","File transfer","My notes","Change background","Screensaver","Startup destination","Bluetooth","Volume","Child mode","Manage apps","Clock","Weather","System settings"};
 }

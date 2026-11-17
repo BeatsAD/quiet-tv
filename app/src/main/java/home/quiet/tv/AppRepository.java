@@ -64,7 +64,7 @@ final class AppRepository {
             if(info!=null && info.applicationInfo!=null){
                 ApplicationInfo ai=info.applicationInfo;App old=cached.get(pkg);app.updatedAt=info.lastUpdateTime;app.versionCode=android.os.Build.VERSION.SDK_INT>=28?info.getLongVersionCode():info.versionCode;
                 boolean reusable=old!=null&&old.metadataKnown&&old.versionCode==app.versionCode&&old.updatedAt==app.updatedAt;
-                app.label=reusable?old.originalName:ai.loadLabel(pm).toString();app.genericIcon=ai.icon==0;app.icon=reusable?old.icon:app.genericIcon?UiCompat.drawable(context,R.drawable.ic_manage_apps):ai.loadIcon(pm);app.version=info.versionName==null?String.valueOf(app.versionCode):info.versionName;
+                app.label=reusable?old.originalName:ai.loadLabel(pm).toString();app.genericIcon=ai.icon==0;app.icon=reusable?old.icon:app.genericIcon?new QuickControlIcon("app-window"):ai.loadIcon(pm);app.version=info.versionName==null?String.valueOf(app.versionCode):info.versionName;
                 app.metadataKnown=true;app.apkSizeBytes=reusable?old.apkSizeBytes:apkSize(ai);
                 app.versionCode=android.os.Build.VERSION.SDK_INT>=28?info.getLongVersionCode():info.versionCode;
                 app.system=(ai.flags&(ApplicationInfo.FLAG_SYSTEM|ApplicationInfo.FLAG_UPDATED_SYSTEM_APP))!=0;app.installed=AppAvailability.installed(pm,ai);app.enabled=ai.enabled;
@@ -75,7 +75,7 @@ final class AppRepository {
             // Only retained system APKs are candidates; operation always rechecks before install-existing.
             if(app.system && !app.installed && info!=null && info.applicationInfo!=null){String source=info.applicationInfo.sourceDir;app.recoverable=source!=null && new java.io.File(source).isFile();}
             app.originalName=app.label;app.label=new AppNameStore(context).display(pkg,app.originalName);
-            if(app.icon==null){app.genericIcon=true;app.icon=UiCompat.drawable(context,R.drawable.ic_manage_apps);}apps.add(app);
+            if(app.icon==null){app.genericIcon=true;app.icon=new QuickControlIcon("app-window");}apps.add(app);
         }
         if(online)adb.validateUser();
         Collections.sort(apps,(a,b)->java.text.Collator.getInstance(Locale.SIMPLIFIED_CHINESE).compare(a.label,b.label));return apps;

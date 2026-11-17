@@ -410,7 +410,7 @@ final class HomeGuardRecovery {
         cancelRetry();
         restoredInStandby=false;
         restoredAt=-1;
-        HomeGuardState state=new HomeGuardState(c);if(!state.automatic())return;
+        HomeGuardState state=new HomeGuardState(c);state.originalVisit(false);if(!state.automatic())return;
         state.preferences.edit().putBoolean("homeInFront",true).apply();
         HomeGuardService.homeVisible();
         // A slow first frame may arrive after the confirmation deadline; actual visibility wins.
@@ -436,7 +436,7 @@ final class HomeGuardRecovery {
         if(!writeAllowed(c))throw new java.io.IOException("写安全设置权限未授予");
         state.preferences.edit().remove("guardBindingChanged").apply();
         HomeGuardAdb.watch(c);
-        if(Build.VERSION.SDK_INT<27 && notificationSupported(c) && !notificationAllowed(c)){
+        if((Build.VERSION.SDK_INT<27 || state.patchwallRecovery()) && notificationSupported(c) && !notificationAllowed(c)){
             String current=Settings.Secure.getString(c.getContentResolver(),"enabled_notification_listeners");
             String desired=HomeGuardPolicy.services(current,listener(c),true);
             try{
@@ -456,6 +456,7 @@ final class HomeGuardRecovery {
         if(!writeAllowed(c))return "写安全设置权限未授予";
         if(HomeGuardService.usageRequired(c) && !HomeGuardService.usageAllowed(c))return "桌面前台检测未授权";
         if(Build.VERSION.SDK_INT>=23 && !Settings.canDrawOverlays(c))return "后台启动权限未确认";
+        if(new HomeGuardState(c,false).patchwallRecovery() && !notificationAllowed(c))return "此小米机型的待机恢复需要通知访问";
         if(notificationSupported(c) && !notificationAllowed(c) && !HomeGuardSync.ready(c))return "通知访问未授予";
         if(!notificationSupported(c) && HomeGuardSync.supported(c) && !HomeGuardSync.ready(c))return "同步恢复："+HomeGuardSync.summary(c);
         return "";
@@ -467,6 +468,7 @@ final class HomeGuardRecovery {
                 .put("usageRequired",HomeGuardService.usageRequired(c)).put("usageAllowed",HomeGuardService.usageAllowed(c))
                 .put("backgroundLaunchAllowed",Build.VERSION.SDK_INT<23 || Settings.canDrawOverlays(c))
                 .put("notificationSupported",notificationSupported(c)).put("notificationAllowed",notificationAllowed(c))
+                .put("notificationRequired",new HomeGuardState(c,false).patchwallRecovery()).put("notificationBound",HomeGuardRevivalListener.connected())
                 .put("syncReady",HomeGuardSync.ready(c)).put("problem",permissionProblem(c));
     }
     /** Called only from the foreground setup's already-authorized local ADB worker. */
