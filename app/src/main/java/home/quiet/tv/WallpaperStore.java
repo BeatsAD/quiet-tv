@@ -150,6 +150,11 @@ final class WallpaperStore {
         persist(next);DesktopBackups.changed();return true;
     }
     synchronized void select(String id) throws IOException { WallpaperCatalog next=catalog.copy();next.selectFixed(id);persist(next);manualVersion++;DesktopBackups.changed(); }
+    synchronized void removeWeather()throws IOException{
+        if(!catalog.weather)return;String fallback=catalog.current;WallpaperCatalog.Entry entry=catalog.find(fallback);
+        if(entry==null||entry.video()||WallpaperCatalog.DAILY.equals(fallback)||entry.custom()&&(!file(fallback).isFile()||file(fallback).length()==0||!file(fallback).canRead()))fallback=WallpaperCatalog.DEFAULT;
+        WallpaperCatalog next=catalog.copy();next.selectFixed(fallback);persist(next);manualVersion++;DesktopBackups.changed();
+    }
     synchronized void background(String mode,String id,int minutes,boolean dayNight)throws IOException{
         if("weather".equals(mode)&&!home.quiet.components.ComponentRepository.get(context).isReady("weather"))throw new IOException("需要先下载天气资源才能使用");
         WallpaperCatalog next=catalog.copy();WallpaperCatalog.Entry item=next.find(id);if(item==null)throw new IOException("背景素材已不可用，请重新选择");

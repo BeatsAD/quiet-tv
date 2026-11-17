@@ -50,7 +50,7 @@
 .tv-entry>.glyph { width:1.825cqw; height:1.825cqw; color:#fff; }
 .tv-app-title { position:absolute; left:5.208333%; width:85.416667%; height:5.833333cqw; line-height:5.833333cqw; color:#fff; font-size:4.166667cqw; font-weight:400; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow:0 1px 3px #0008; }
 .tv-dock { position:absolute; border-radius:2.083333cqw; }
-.with-dock-background { background:#0003; box-shadow:inset 0 0 0 .078125cqw #ffffff4d; }.with-dock-background[data-glass=false] { background:#000e; }
+.with-dock-background { background:#0003; box-shadow:inset 0 0 0 .078125cqw #ffffff4d; }.with-dock-background[data-glass=false] { background:#202124; }
 .tv-dock-cell { position:absolute; }.tv-app { position:relative; width:100%; height:100%; color:#fff; }
 .tv-cover { display:flex; align-items:center; justify-content:center; width:100%; height:100%; overflow:hidden; border-radius:var(--preview-card-radius); }
 .tv-cover>img { display:block; width:auto; height:53.2%; max-width:85%; object-fit:contain; border-radius:0; }.tv-cover.has-custom-cover>img { width:100%; height:100%; max-width:none; object-fit:cover; }.tv-cover>.glyph { width:30%; height:53.2%; }
@@ -414,3 +414,5 @@ html:has(.quiet-app[data-theme=light]),body:has(.quiet-app[data-theme=light]),#r
 
 /* Desktop management shares TV state, with the phone's existing sheet and touch controls. */
 .desktop-management-status{padding:.5rem 0 .25rem}.desktop-management-caption{display:block;color:var(--muted);font-size:.875rem;margin-bottom:.625rem}.desktop-management-hero{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}.desktop-management-hero strong{font-size:1.875rem;line-height:1.3;font-weight:650;overflow-wrap:anywhere;min-width:0}.desktop-management-hero>span{font-size:.9375rem;white-space:nowrap}.desktop-management-status p{margin:.625rem 0 0;color:var(--muted);font-size:.875rem;line-height:1.6}.desktop-management .setting-section{margin-top:1.5rem}.desktop-management .setting-row{min-height:3.125rem}.desktop-management .row-value{max-width:57%}.desktop-management-actions{margin-top:1.5rem}.desktop-management-actions .primary-button{min-height:3rem}.desktop-management-actions .secondary-button{min-height:2.75rem}.desktop-management-note{text-align:center;margin-top:1rem!important}.desktop-management-guide,.desktop-management-back{display:flex;min-height:2.75rem;margin-top:.75rem}.desktop-management .row-title{overflow-wrap:anywhere}.desktop-management .row-note{white-space:normal}.desktop-management .confirmation-dialog .section-note{text-align:left}
+
+.tv-preview[data-glass=false] .tv-entry, .tv-preview[data-glass=false] .tv-empty-card { background:#202124; backdrop-filter:none; }

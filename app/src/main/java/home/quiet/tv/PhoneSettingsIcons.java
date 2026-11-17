@@ -27,15 +27,20 @@ final class PhoneSettingsIcons {
             String encoded=java.net.URLEncoder.encode(pkg,"UTF-8"),key=covers.key(pkg);
             targets.put(new JSONObject().put("id",pkg).put("name",new AppNameStore(context).display(pkg,entry.getValue().loadLabel(context.getPackageManager()).toString())).put("coverKey",key).put("customCover",covers.custom(pkg)).put("coverFit",covers.contain(pkg)?"contain":"cover").put("cover","api/resources/cover/"+encoded+"?v="+key).put("icon","api/resources/icon/"+encoded));
         }
-        return new JSONObject().put("revision",catalog==null?0:catalog.revision).put("problem",problem).put("styles",new JSONArray(java.util.Arrays.asList(IconLibraryCatalog.STYLES))).put("shapes",new JSONArray(java.util.Arrays.asList(IconLibraryCatalog.SHAPES))).put("items",items).put("targets",targets);
+        JSONObject styleNames=new JSONObject();if(catalog!=null)for(IconLibraryCatalog.Style style:catalog.styles)styleNames.put(style.id,style.zh);
+        return new JSONObject().put("revision",catalog==null?0:catalog.revision).put("problem",problem).put("styles",new JSONArray(catalog==null?java.util.Collections.emptyList():java.util.Arrays.asList(catalog.styleIds()))).put("styleNames",styleNames).put("shapes",new JSONArray(java.util.Arrays.asList(IconLibraryCatalog.SHAPES))).put("items",items).put("targets",targets);
     }
     static IconLibraryCatalog.Item selection(IconLibraryCatalog catalog,String style,String id,String shape,String form)throws IOException{
-        if(!IconLibraryCatalog.contains(IconLibraryCatalog.STYLES,style)||!IconLibraryCatalog.contains(IconLibraryCatalog.SHAPES,shape)||!IconLibraryCatalog.contains(IconLibraryCatalog.forms(shape),form))throw new PhoneSettingsServer.BadInput();
+        if(!IconLibraryCatalog.styleId(style)||!IconLibraryCatalog.contains(IconLibraryCatalog.SHAPES,shape)||!IconLibraryCatalog.contains(IconLibraryCatalog.forms(shape),form))throw new PhoneSettingsServer.BadInput();
         for(IconLibraryCatalog.Item item:catalog.items)if(item.style.equals(style)&&item.id.equals(id)&&item.supports(shape,form))return item;
         throw new PhoneSettingsServer.Rejected("图标素材已变化，请重新选择");
     }
     byte[] resource(String route)throws IOException{
         String[] parts=route.split("/",-1);if(parts.length!=5||!Arrays.asList("thumb","preview").contains(parts[4]))throw new PhoneSettingsServer.BadInput();
+        if(IconLibraryFrame.original(parts[1])){
+            String pkg=IconLibraryFrame.packageName(parts[1]);AppCoverPolicy.require(context,pkg);String label=new AppNameStore(context).display(pkg,new HomeAppCatalog(context).find(pkg).loadLabel(context.getPackageManager()).toString());
+            Bitmap generated=IconLibraryFrame.render(context,pkg,label,parts[0],parts[2],parts[3],parts[4].equals("thumb")?240:parts[2].equals("rectangle")?720:512);try{ByteArrayOutputStream output=new ByteArrayOutputStream();if(!generated.compress(Bitmap.CompressFormat.PNG,100,output))throw new IOException("生成图标预览无法读取");return output.toByteArray();}finally{generated.recycle();}
+        }
         IconLibraryCatalog.Item item=selection(IconLibraryCatalog.read(context),parts[0],parts[1],parts[2],parts[3]);Bitmap image=null;
         if(item.online()&&item.variant(parts[2],parts[3]).shape.equals(parts[2])){
             IconLibraryCatalog.Variant variant=item.variant(parts[2],parts[3]);IconLibraryCatalog.Asset asset=parts[4].equals("thumb")?variant.thumbnail:variant.image;

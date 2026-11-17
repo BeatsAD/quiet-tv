@@ -104,7 +104,7 @@ final class AppCoverStore {
             for(ArtworkChange change:changes){
                 if(!seen.add(change.pkg)||!packageName(change.pkg)||!key(change.pkg).equals(change.expected))throw new IOException("当前图标已变化，请重新匹配");
                 File file=change.file;JSONObject entry=new JSONObject(change.metadata.toString()).put("file",file==null?"":file.getName());LibraryCover.validate(entry,DesktopBackupRecord.VERSION);
-                if(!LibraryCover.library(entry)||file==null||!directory.getCanonicalFile().equals(file.getCanonicalFile().getParentFile())||file.length()==0||file.length()>MAX_UPLOAD||!LibraryCover.pngSize(file,entry.getInt("width"),entry.getInt("height")))throw new IOException("批量图标文件无效");
+                if((!LibraryCover.library(entry)&&!LibraryCover.generated(entry))||file==null||!directory.getCanonicalFile().equals(file.getCanonicalFile().getParentFile())||file.length()==0||file.length()>MAX_UPLOAD||!LibraryCover.pngSize(file,entry.getInt("width"),entry.getInt("height")))throw new IOException("批量图标文件无效");
                 if(!LibraryCover.same(index.optJSONObject(change.pkg),entry)){next.put(change.pkg,entry);applied++;}
             }
             if(applied==0)return 0;if(revision()==Long.MAX_VALUE)throw new IOException("封面版本无法更新");next.put("revision",revision()+1);persist(next);return applied;

@@ -30,7 +30,7 @@ final class AppCoverUploadPanel {
     private ImageView qrView;
     private TextView connection,status;
     private Button retry,apply;
-    private boolean committing,destroyed,upload,chosen;
+    private boolean committing,destroyed,upload,chosen,restoring;
     private boolean retaining;
     private Bundle retained;
     private Bitmap preview,qr;
@@ -43,15 +43,19 @@ final class AppCoverUploadPanel {
     private int px(float value){return activity.px(value);}
     void show(String pkg,String label,Runnable updated){
         if(sheet!=null||committing||destroyed)return;retaining=false;retained=null;this.pkg=pkg;this.label=label;this.updated=updated;origin=activity.getCurrentFocus();
-        sheet=activity.new Sheet("应用封面");ManagementUi.Sheet current=sheet;sheet.settingsLayout("关闭",this::close);sheet.dialog.setOnDismissListener(d->{if(sheet==current)release();});
-        upload=true;chosen=false;notice="";render();sheet.show(sheet.box.findViewWithTag("sheet-close"));start();
+        sheet=activity.new Sheet("应用封面");ManagementUi.Sheet current=sheet;sheet.settingsLayout("关闭",this::dismiss);sheet.dialog.setOnDismissListener(d->{if(sheet==current)release();});
+        sheet.dialog.setOnKeyListener((d,key,event)->{if(!restoring||key!=KeyEvent.KEYCODE_BACK&&key!=KeyEvent.KEYCODE_ESCAPE)return false;if(event.getAction()==KeyEvent.ACTION_UP&&!committing)cancelRestore();return true;});
+        BackNavigation.install(sheet.dialog,()->{if(!committing)dismiss();});
+        upload=true;chosen=false;restoring=false;notice="";render();sheet.show(sheet.box.findViewWithTag("sheet-close"));start();
     }
     private TextView text(String value,float size,int color){TextView t=activity.label(value,12);t.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,size*activity.unit);t.setTextColor(color);return t;}
     private void render(){
         if(sheet==null)return;sheet.body.removeAllViews();sheet.actions.removeAllViews();sheet.settingsActions(upload);sheet.contentWidth(upload?390:280,upload?520:380);qrView=null;connection=null;status=null;retry=null;apply=null;previewCard=null;
+        sheet.heading.setText(restoring?"恢复默认封面？":"应用封面");
+        if(restoring){renderRestoreConfirmation();return;}
         if(!upload){
             Button phone=sheet.option("手机上传封面",()->{upload=true;notice="";render();start();});styleMenuOption(phone,false);
-            Button restore=sheet.option("恢复默认封面",this::restore);styleMenuOption(restore,true);phone.requestFocus();return;
+            Button restore=sheet.option("恢复默认封面",this::confirmRestore);restore.setTag("cover-restore");styleMenuOption(restore,true);phone.requestFocus();return;
         }
         LinearLayout transfer=activity.row();transfer.setGravity(Gravity.CENTER_VERTICAL);transfer.setPadding(px(14.35f),px(14.35f),px(14.35f),px(14.35f));transfer.setBackgroundDrawable(activity.surface(UiPalette.CONTROL,UiPalette.CONTROL,UiPalette.EDGE,9.6f));
         qrView=new QrCodeView(activity,activity.unit);qrView.setPadding(px(3.84f),px(3.84f),px(3.84f),px(3.84f));qrView.setScaleType(ImageView.ScaleType.FIT_CENTER);qrView.setContentDescription("上传地址二维码");qrView.setImageBitmap(qr);transfer.addView(qrView,new LinearLayout.LayoutParams(px(86.4f),px(86.4f)));
@@ -116,19 +120,27 @@ final class AppCoverUploadPanel {
         worker.execute(()->{String error=null;try{AppCoverPolicy.require(activity,target);store.apply(target,ready);}catch(IOException e){error=e.getMessage();}String failure=error;
             main.post(()->{busy(false);if(failure==null){pending=null;close();if(!destroyed&&!activity.isFinishing())activity.feedback("已更换应用封面");}else if(sheet!=null){notice=failure;updateConnection();updateApply();if(apply!=null)apply.requestFocus();}else if(!retaining)discardPending();});});
     }
+    private void confirmRestore(){if(committing)return;restoring=true;notice="";render();}
+    private void cancelRestore(){if(committing||sheet==null)return;restoring=false;notice="";render();View restore=sheet.body.findViewWithTag("cover-restore");if(restore!=null)restore.requestFocusFromTouch();}
+    private void dismiss(){if(restoring)cancelRestore();else close();}
+    private void renderRestoreConfirmation(){
+        sheet.settingsActions(true);AppActionConfirmationUi.content(activity,sheet,pkg,label,AppActionConfirmationUi.RESTORE_COVER,false);
+        status=text(notice,11,UiPalette.STATUS_ERROR);status.setVisibility(notice.isEmpty()?View.GONE:View.VISIBLE);sheet.body.addView(status);
+        Button cancel=sheet.action("取消",this::cancelRestore),confirm=sheet.action("恢复默认封面",this::restore);AppActionConfirmationUi.actions(activity,sheet,cancel,confirm,false);cancel.post(cancel::requestFocusFromTouch);
+    }
     private void restore(){
-        if(committing)return;busy(true);String target=pkg;worker.execute(()->{String error=null;try{AppCoverPolicy.require(activity,target);store.restore(target);}catch(IOException e){error=e.getMessage();}String failure=error;main.post(()->{busy(false);if(failure==null){close();if(!destroyed&&!activity.isFinishing())activity.feedback("已恢复默认封面");}else if(sheet!=null){sheet.text(failure);}});});
+        if(committing)return;busy(true);String target=pkg;worker.execute(()->{String error=null;try{AppCoverPolicy.require(activity,target);store.restore(target);}catch(IOException e){error=e.getMessage();}String failure=error;main.post(()->{busy(false);if(failure==null){close();if(!destroyed&&!activity.isFinishing())activity.feedback("已恢复默认封面");}else if(sheet!=null){notice=failure;status.setText(failure);status.setVisibility(View.VISIBLE);}});});
     }
     private void stopServer(){++generation;main.removeCallbacks(check);WallpaperUploadServer old=server;server=null;if(old!=null){old.invalidate();worker.execute(old::stop);}}
     private void releaseQr(){if(qrView!=null)qrView.setImageDrawable(null);if(qr!=null){qr.recycle();qr=null;}}
     private void discardPending(){File discarded=pending;pending=null;store.discardCandidate(discarded);chosen=false;if(preview!=null){preview.recycle();preview=null;}}
-    void saveState(Bundle state){if(sheet!=null){Bundle value=new Bundle();value.putString("package",pkg);value.putString("label",label);value.putBoolean("upload",upload);value.putBoolean("chosen",chosen);value.putBoolean("committing",committing);if(pending!=null)value.putString("candidate",pending.getName());retained=value;}if(retained!=null)state.putBundle("app-cover",retained);}
+    void saveState(Bundle state){if(sheet!=null){Bundle value=new Bundle();value.putString("package",pkg);value.putString("label",label);value.putBoolean("upload",upload);value.putBoolean("restore-confirmation",restoring);value.putBoolean("chosen",chosen);value.putBoolean("committing",committing);if(pending!=null)value.putString("candidate",pending.getName());retained=value;}if(retained!=null)state.putBundle("app-cover",retained);}
     void restoreState(Bundle state,Runnable updated){
         if(state==null)return;String target=state.getString("package","");if(!AppCoverPolicy.allowed(activity,target))return;
         File ready=store.candidate(state.getString("candidate"));if(ready!=null&&ready.equals(store.file(target))&&state.getBoolean("committing"))return;
         show(target,state.getString("label",target),updated);if(sheet==null)return;
         if(ready!=null&&ready.isFile()){pending=ready;try{preview=AppCoverImages.load(ready,360);}catch(RuntimeException|OutOfMemoryError e){preview=null;}if(preview==null){discardPending();notice="无法读取待确认封面，请重新上传";}}
-        chosen=preview!=null&&state.getBoolean("chosen");upload=state.getBoolean("upload",true);render();if(!upload)stopServer();
+        chosen=preview!=null&&state.getBoolean("chosen");upload=state.getBoolean("upload",true);restoring=state.getBoolean("restore-confirmation");render();if(!upload)stopServer();
     }
     void stop(boolean configuration){if(configuration&&sheet!=null){saveState(new Bundle());retaining=true;}close();}
     private void release(){sheet=null;stopServer();releaseQr();if(!retaining)retained=null;if(!committing&&!retaining)discardPending();else if(preview!=null){preview.recycle();preview=null;}if(origin!=null&&origin.getWindowToken()!=null)origin.requestFocus();origin=null;if(updated!=null&&!destroyed)updated.run();}

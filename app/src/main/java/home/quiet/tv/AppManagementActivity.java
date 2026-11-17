@@ -58,7 +58,7 @@ public class AppManagementActivity extends ManagementUi {
     void backupTool(){backups.show();}
     void guardTool(){guard.show();}
     void adbTool(){adbManagement.show();}
-    void sourceTool(){sources.show(!(this instanceof WatchTvActivity));}
+    void sourceTool(){sources.show();}
     void helpTool(String kind){help.show(kind);}
     void startupApp(String pkg){selectManagementPage(0);((AppListPanel)panels[0]).editStartupApp(pkg);}
     void weatherSettingsChanged(){for(int route:new int[]{SettingsPages.WEATHER,SettingsPages.GENERAL})if(panels[route]!=null)((WeatherSettingsPanel)panels[route]).settingsChanged();}

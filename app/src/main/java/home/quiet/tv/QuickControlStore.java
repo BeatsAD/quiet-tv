@@ -8,9 +8,10 @@ import org.json.*;
 /** Shortcut membership is independent of the tools' own content and desktop preferences. */
 final class QuickControlStore {
     static final String SETTINGS="desktopSettings";
-    static final List<String> ALL=Collections.unmodifiableList(Arrays.asList("keySounds","brightness","network","source","mute","original","transfer","memoShortcut","wallpaper","screensaver","boot","bluetooth","volume","child","apps","clock","weather","systemSettings",SETTINGS));
+    static final List<String> ALL=Collections.unmodifiableList(Arrays.asList("keySounds","brightness","network","source","mute","original","transfer","memoShortcut","wallpaper","screensaver","boot","bluetooth","volume","child","apps","clock","weather","systemSettings","homeBlur","dockScale","dockMagnification",SETTINGS));
     static final List<String> DEFAULT=Collections.unmodifiableList(Arrays.asList("network","bluetooth","keySounds","source","wallpaper","screensaver","mute","transfer",SETTINGS,"brightness","volume"));
     static final int MAX_BUTTONS=8;
+    static final List<String> RANGES=Collections.unmodifiableList(Arrays.asList("brightness","volume","homeBlur","dockScale","dockMagnification"));
     // Legacy files and backups did not store the required entry's position.
     static List<String> normalize(List<String> ids){List<String> result=new ArrayList<>(ids);if(!result.contains(SETTINGS)){int at=result.size();while(at>0&&range(result.get(at-1)))at--;result.add(at,SETTINGS);}return result;}
     static int buttonCount(List<String> ids){int n=0;for(String id:ids)if(!range(id)&&!SETTINGS.equals(id))n++;return n;}
@@ -19,7 +20,7 @@ final class QuickControlStore {
     static List<String> overflow(List<String> ids){List<String> result=buttons(ids);result.remove(SETTINGS);return result.subList(Math.min(MAX_BUTTONS,result.size()),result.size());}
     static List<String> grid(List<String> ids){List<String> result=new ArrayList<>();int count=0;for(String id:buttons(ids))if(SETTINGS.equals(id)||count++<MAX_BUTTONS)result.add(id);return result;}
     static boolean canAdd(List<String> ids,String id,String replace){return !SETTINGS.equals(id)&&!SETTINGS.equals(replace)&&!ids.contains(id)&&(range(id)||buttonCount(ids)-(replace!=null&&!replace.isEmpty()&&!range(replace)?1:0)<MAX_BUTTONS);}
-    static void validateLimit(List<String> ids)throws IOException{validate(ids);if(!ids.contains(SETTINGS))throw new IOException("桌面设置必须保留，可调整位置");if(buttonCount(ids)>MAX_BUTTONS)throw new IOException("普通快捷按钮最多 8 个，请先选定保留内容；亮度和音量各可添加一次");}
+    static void validateLimit(List<String> ids)throws IOException{validate(ids);if(!ids.contains(SETTINGS))throw new IOException("桌面设置必须保留，可调整位置");if(buttonCount(ids)>MAX_BUTTONS)throw new IOException("普通快捷按钮最多 8 个，请先选定保留内容；快捷调节各可添加一次");}
     static final class Snapshot {
         final List<String> ids;final long revision;
         Snapshot(List<String> ids,long revision){this.ids=Collections.unmodifiableList(new ArrayList<>(ids));this.revision=revision;}
@@ -56,7 +57,11 @@ final class QuickControlStore {
     }
     static String title(String id,boolean chinese){if(SETTINGS.equals(id))return chinese?"桌面设置":"Desktop settings";int index=ALL.indexOf(id);if(index<0)return "";return (chinese?ZH:EN)[index];}
     static String shortTitle(String id,boolean chinese){return title(id,chinese);}
-    static boolean range(String id){return "brightness".equals(id)||"volume".equals(id);}
-    private static final String[] ZH={"按键音","背景明暗","网络设置","信号源","壁纸声音","原桌面","文件传输","备忘录","更换壁纸","立即屏保","开机直达","蓝牙","音量","儿童模式","应用管理","时钟","天气","系统设置"};
-    private static final String[] EN={"Key sounds","Background brightness","Network","Inputs","Wallpaper sound","Original launcher","File transfer","My notes","Change background","Screensaver","Startup destination","Bluetooth","Volume","Child mode","Manage apps","Clock","Weather","System settings"};
+    static boolean range(String id){return RANGES.contains(id);}
+    static int rangeMinimum(String id){return "brightness".equals(id)?20:"dockScale".equals(id)?70:"dockMagnification".equals(id)?100:0;}
+    static int rangeMaximum(String id){return "dockScale".equals(id)?130:"dockMagnification".equals(id)?160:100;}
+    static int rangeValue(String id,DesktopSettingsStore desktop){switch(id){case "brightness":return desktop.homeWallpaperBrightness();case "homeBlur":return desktop.homeWallpaperBlur();case "dockScale":return desktop.appearance("dock-scale");case "dockMagnification":return desktop.appearance("dock-magnification");default:throw new IllegalArgumentException("Unknown desktop adjustment");}}
+    static String rangeProperty(String id){switch(id){case "brightness":return "brightness";case "homeBlur":return "blur";case "dockScale":return "dock-scale";case "dockMagnification":return "dock-magnification";default:throw new IllegalArgumentException("Unknown desktop adjustment");}}
+    private static final String[] ZH={"按键音","背景明暗","网络设置","信号源","壁纸声音","原桌面","文件传输","备忘录","更换壁纸","立即屏保","开机直达","蓝牙","音量","儿童模式","应用管理","时钟","天气","系统设置","首页背景模糊度","Dock 栏大小","Dock 聚焦放大幅度"};
+    private static final String[] EN={"Key sounds","Background brightness","Network","Inputs","Wallpaper sound","Original launcher","File transfer","My notes","Change background","Screensaver","Startup destination","Bluetooth","Volume","Child mode","Manage apps","Clock","Weather","System settings","Home background blur","Dock size","Dock magnification"};
 }

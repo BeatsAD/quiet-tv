@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 
 KEY_ID = 'quiettv-icons-1'
+MAX_CATALOG_BYTES = 2 * 1024 * 1024
 PATH = re.compile(r'images/[a-z0-9-]+/v[1-9][0-9]*/(?:icons|thumbnails)/[a-z0-9-]+\.png')
 
 
@@ -20,8 +21,8 @@ def encoded(value):
 
 def envelope(root, name='latest.signed.json'):
     data = (root / name).read_bytes()
-    if len(data) > 256 * 1024:
-        raise ValueError('Icon directory exceeds 256 KiB')
+    if len(data) > MAX_CATALOG_BYTES:
+        raise ValueError('Icon directory exceeds 2 MiB')
     signed = json.loads(data)
     if signed['keyId'] != KEY_ID:
         raise ValueError('Unknown icon signing key')
@@ -51,17 +52,38 @@ def validate_matches(rules, themes):
         raise ValueError('Matching rules must cover every catalog theme')
 
 
+def validate_styles(catalog):
+    used = {item['style'] for item in catalog['items']}
+    if any(not isinstance(value, str) or not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,47}', value) for value in used):
+        raise ValueError('Invalid style ID')
+    if 'styles' not in catalog:
+        return
+    definitions = catalog['styles']
+    if not isinstance(definitions, list) or len(definitions) > 64:
+        raise ValueError('Invalid style definitions')
+    seen = set()
+    for style in definitions:
+        if not isinstance(style, dict) or not isinstance(style.get('id'), str) or not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,47}', style['id']) or style['id'] in seen:
+            raise ValueError('Invalid or repeated style ID')
+        if not isinstance(style.get('name'), str) or not style['name'].strip() or len(style['name']) > 40 or not isinstance(style.get('nameEn'), str) or not style['nameEn'].strip() or len(style['nameEn']) > 80:
+            raise ValueError('Invalid style name')
+        seen.add(style['id'])
+    if not used.issubset(seen):
+        raise ValueError('Missing style definitions')
+
+
 def validate(root, name='latest.signed.json', artwork=True):
     catalog = envelope(root, name)
     if catalog['version'] != 2 or type(catalog['revision']) is not int or catalog['revision'] < 1 or len(catalog['items']) > 1024:
         raise ValueError('Invalid catalog version or item count')
+    validate_styles(catalog)
     seen, count = set(), 0
     for item in catalog['items']:
         key = (item['style'], item['id'])
         if key in seen or not re.fullmatch(r'[a-z][a-z0-9-]{0,47}', item['id']):
             raise ValueError('Invalid or repeated icon ID')
         seen.add(key)
-        if item['style'] not in ('apple', 'google', 'flat', 'skeuo', 'soft', '3d', 'pixel') or not item['source'].strip() or not 1 <= len(item['name']) <= 40 or not 1 <= len(item['nameEn']) <= 80:
+        if not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,47}', item['style']) or not item['source'].strip() or not 1 <= len(item['name']) <= 40 or not 1 <= len(item['nameEn']) <= 80:
             raise ValueError('Invalid icon metadata')
         variants = set()
         if not 1 <= len(item['variants']) <= 7:
@@ -121,6 +143,7 @@ def publish(catalog, args):
     destination.mkdir(parents=True, exist_ok=True)
     catalog = dict(catalog, revision=args.revision, matches=json.loads(args.matches.read_bytes()))
     validate_matches(catalog['matches'], {item['id'] for item in catalog['items']})
+    validate_styles(catalog)
     payload = encoded(catalog)
     public = subprocess.run(['openssl', 'pkey', '-in', str(args.key), '-pubout', '-outform', 'DER'], check=True, capture_output=True).stdout
     if (destination / 'public-key.der').exists() and (destination / 'public-key.der').read_bytes() != public:
@@ -135,8 +158,8 @@ def publish(catalog, args):
             raise ValueError('Matching rules revision must increase for changes')
     signature = subprocess.run(['openssl', 'dgst', '-sha256', '-sign', str(args.key)], input=payload, check=True, capture_output=True).stdout
     signed = encoded(dict(keyId=KEY_ID, payload=base64.b64encode(payload).decode(), signature=base64.b64encode(signature).decode())) + b'\n'
-    if len(signed) > 256 * 1024:
-        raise ValueError('Icon directory exceeds 256 KiB')
+    if len(signed) > MAX_CATALOG_BYTES:
+        raise ValueError('Icon directory exceeds 2 MiB')
     (destination / 'latest.signed.json').write_bytes(signed)
     (destination / 'public-key.der').write_bytes(public)
     (destination / 'catalog.json').write_bytes(payload + b'\n')

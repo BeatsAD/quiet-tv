@@ -69,7 +69,7 @@ final class ScreensaverController {
     private String mediaKey(ScreensaverSettings value,WallpaperCatalog catalog){return value.mode+":"+media.imageKey(value.resolved(catalog))+":"+catalog.weather+":"+catalog.weatherDayNight;}
     private void present(){
         state=State.ENTERING;int version=++generation;main.removeCallbacks(tick);host.weatherDemand(settings.showWeather);
-        WallpaperCatalog catalog=media.snapshot();mediaKey=mediaKey(settings,catalog);wallpapers.showTemporary(settings.resolved(catalog),ScreensaverSettings.FOLLOW.equals(settings.mode)&&catalog.weather&&WallpaperGpuSupport.available(activity),catalog.weatherDayNight,()->{
+        WallpaperCatalog catalog=media.snapshot();mediaKey=mediaKey(settings,catalog);wallpapers.showTemporary(settings.resolved(catalog),ScreensaverSettings.FOLLOW.equals(settings.mode)&&catalog.weather&&WallpaperGpuSupport.available(activity),catalog.weatherDayNight,settings.sound&&settings.video(catalog),()->{
             if(version!=generation||state!=State.ENTERING)return;
             DiagnosticLog.info("screensaver.transition","state=active evidence=background_callback");state=State.ACTIVE;host.desktopVisible(false);information.setVisibility(View.VISIBLE);render();main.postDelayed(tick,60000-System.currentTimeMillis()%60000);
         });
@@ -77,7 +77,7 @@ final class ScreensaverController {
     void settingsChanged(){
         ScreensaverSettings next=read();if(next==null)return;boolean changed=settings!=next;settings=next;
         if(state==State.OFF){if(changed)interaction();return;}if(state==State.EXITING)return;
-        if(!mediaKey.equals(mediaKey(settings,media.snapshot())))present();else{host.weatherDemand(settings.showWeather);if(state==State.ACTIVE)render();}
+        if(!mediaKey.equals(mediaKey(settings,media.snapshot())))present();else{wallpapers.temporarySound(settings.sound&&settings.video(media.snapshot()));host.weatherDemand(settings.showWeather);if(state==State.ACTIVE)render();}
     }
     private void exit(){
         if(state==State.OFF||state==State.EXITING)return;

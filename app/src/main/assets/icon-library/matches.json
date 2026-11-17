@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "revision": 1,
+  "revision": 2,
   "items": [
     {
       "id": "music",
@@ -43,7 +43,8 @@
       "aliases": [
         "应用商店",
         "Play Store",
-        "Google Play 商店"
+        "Google Play 商店",
+        "Google Play Store"
       ],
       "packages": [
         "com.android.vending"
@@ -146,7 +147,11 @@
         "红果 TV",
         "红果TV"
       ],
-      "packages": [],
+      "packages": [
+        "com.hongguotv",
+        "com.hongguotv.nativeapp",
+        "com.hongguotv.nativeapp.playbackfix"
+      ],
       "autoMatch": true
     },
     {
@@ -269,7 +274,12 @@
       "aliases": [
         "SmartTube"
       ],
-      "packages": [],
+      "packages": [
+        "app.smarttube",
+        "org.smarttube.beta",
+        "org.smarttube.stable",
+        "app.smarttube.fdroid"
+      ],
       "autoMatch": true
     },
     {
@@ -406,7 +416,9 @@
       "aliases": [
         "Kodi"
       ],
-      "packages": [],
+      "packages": [
+        "org.xbmc.kodi"
+      ],
       "autoMatch": true
     },
     {
@@ -495,7 +507,9 @@
       "aliases": [
         "QQ音乐"
       ],
-      "packages": [],
+      "packages": [
+        "com.tencent.qqmusic"
+      ],
       "autoMatch": true
     },
     {

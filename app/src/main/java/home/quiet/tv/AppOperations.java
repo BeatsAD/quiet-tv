@@ -9,6 +9,7 @@ import org.json.*;
 
 /** Fixed current-user operations; device rules are supplied by computer configuration. */
 final class AppOperations {
+    static final String DATA_LOSS="已删除的数据无法恢复。";
     private final Context context;
     private final SetupPresets presets;
     AppOperations(Context context){this(context,SetupPresets.load(context));}
@@ -56,10 +57,10 @@ final class AppOperations {
         return result;
     }
     String explanation(AppRepository.App app,Action action){
-        if(action==Action.DISABLE)return "仅禁用当前用户下的此应用，保留安装与数据；可恢复原启用状态。";
+        if(action==Action.DISABLE)return "禁用后此应用暂时无法使用，安装和数据保留。\n可在“管理应用 → 已禁用”中重新启用。";
         if(action==Action.ENABLE)return "重新启用此应用；有本机禁用记录时恢复记录中的启用状态。";
         if(action==Action.RESTORE)return "系统仍保留安装包，将为当前用户恢复安装。此前删除的数据不会恢复。";
-        return "仅为当前用户卸载，应用数据将删除。"+(app.system?"系统保留的安装包可以恢复安装，但不能恢复已删除的数据。":"再次使用需要重新安装。");
+        return "将卸载此应用，并删除当前用户的应用数据。\n"+DATA_LOSS+"\n"+(app.system?"系统保留的安装包可以恢复安装，已删除的数据不会恢复。":"再次使用需要重新安装。");
     }
     String perform(AdbController adb,AppRepository.App confirmed,Action action) throws Exception {return perform(adb,confirmed,action,()->true);}
     String perform(AdbController adb,AppRepository.App confirmed,Action action,java.util.concurrent.Callable<Boolean> allowed) throws Exception {

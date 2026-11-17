@@ -63,6 +63,9 @@ final class DesktopSettingsStore {
     String appTitlePosition(){return preferences.getString("app-title-position",preferences.getBoolean("show-app-title",true)?"below":"hidden");}
     boolean showHomeApps(){return preferences.getBoolean("show-home-apps",true);}
     boolean showWatchTv(){return preferences.getBoolean("show-watch-tv",false);}
+    static final String[] CONTROL_VISIBILITY={"always","focus"};
+    String quickControlVisibility(){return "focus".equals(preferences.getString("quick-control-visibility","always"))?"focus":"always";}
+    boolean controlFocusOnly(){return "focus".equals(quickControlVisibility());}
     boolean showDockBackground(){return preferences.getBoolean("show-dock-background",true);}
     boolean showAllAppsNames(){return preferences.getBoolean("show-all-apps-names",true);}
     String iconSize(){String value=preferences.getString("icon-size","medium");return "small".equals(value)||"large".equals(value)?value:"medium";}
@@ -78,14 +81,16 @@ final class DesktopSettingsStore {
         catch(org.json.JSONException error){return 5;} // DockStore reports malformed saved content when loading it.
     }
     boolean dockMagnify(){return preferences.getBoolean("dock-magnify",true);}
-    boolean dockGlass(){return preferences.getBoolean("dock-glass",true);}
-    void saveAppearance(String key,Object value)throws IOException {synchronized(MUTATIONS){
+    boolean globalGlass(){return GlassStyle.read(preferences);}
+    boolean dockGlass(){return globalGlass();}
+    void saveAppearance(String key,Object value)throws IOException {if("dock-glass".equals(key))key=GlassStyle.KEY;synchronized(MUTATIONS){
         boolean valid=false;
-        if("icon-size".equals(key))valid=java.util.Arrays.asList("small","medium","large").contains(value);
+        if("quick-control-visibility".equals(key))valid=java.util.Arrays.asList(CONTROL_VISIBILITY).contains(value);
+        else if("icon-size".equals(key))valid=java.util.Arrays.asList("small","medium","large").contains(value);
         else if("clock-style".equals(key))valid=validClockStyle(value);
         else if("app-title-position".equals(key))valid=java.util.Arrays.asList("hidden","below","top-left").contains(value);
         else if("icon-shape".equals(key))valid=java.util.Arrays.asList("rectangle","square","circle").contains(value);
-        else if("dock-magnify".equals(key)||"dock-glass".equals(key))valid=value instanceof Boolean;
+        else if("dock-magnify".equals(key)||GlassStyle.KEY.equals(key))valid=value instanceof Boolean;
         else if(value instanceof Integer){int n=(Integer)value;switch(key){case "dock-scale":valid=n>=70&&n<=130&&n%5==0;break;case "dock-magnification":valid=n>=100&&n<=160&&n%5==0;break;case "dock-limit":valid=n==5||n==7||n==10||n==12;break;}}
         if(!valid)throw new IOException("外观参数无效");
         saveValue(key,value);

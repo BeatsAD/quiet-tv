@@ -32,7 +32,7 @@ final class WallpaperGl {
     void bind(int unit,int target,int texture){glActiveTexture(GL_TEXTURE0+unit);glBindTexture(target,texture);}
     void draw(){glDrawArrays(GL_TRIANGLES,0,6);}
     void removeTexture(int id){glDeleteTextures(1,new int[]{id},0);textures.remove(id);}
-    void destroy(){for(Target target:new ArrayList<>(targets))target.destroy();for(int id:textures)glDeleteTextures(1,new int[]{id},0);textures.clear();for(int id:programs)glDeleteProgram(id);programs.clear();glDeleteBuffers(1,quad,0);glDeleteVertexArrays(1,new int[]{vao},0);}
+    void destroy(){try{for(Target target:new ArrayList<>(targets))target.destroy();for(int id:textures)glDeleteTextures(1,new int[]{id},0);textures.clear();for(int id:programs)glDeleteProgram(id);programs.clear();glDeleteBuffers(1,quad,0);glDeleteVertexArrays(1,new int[]{vao},0);}finally{if(componentResources!=null){componentResources.close();componentResources=null;}}}
     int bitmap(Bitmap source){Matrix matrix=new Matrix();matrix.setScale(1,-1);Bitmap flipped=Bitmap.createBitmap(source,0,0,source.getWidth(),source.getHeight(),matrix,false);try{int id=texture(GL_TEXTURE_2D);GLUtils.texImage2D(GL_TEXTURE_2D,0,flipped,0);return id;}finally{if(flipped!=source)flipped.recycle();}}
     void check(){int error=glGetError();if(error!=GL_NO_ERROR)throw new IllegalStateException("GLES error 0x"+Integer.toHexString(error));}
 }

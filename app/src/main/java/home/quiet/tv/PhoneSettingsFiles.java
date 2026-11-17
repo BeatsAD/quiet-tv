@@ -10,12 +10,13 @@ import org.json.*;
 /** The received-file store and the TV's existing read-only, permission-scoped source browser. */
 final class PhoneSettingsFiles {
     private final Context context;private final PhoneSettingsTasks tasks;private final String scope;private final Runnable changed;
-    private final Map<String,Node> nodes=new HashMap<>();private JSONArray listing=new JSONArray();private String folder="",source="received",parent="";
+    private final Map<String,Node> nodes=new HashMap<>();private JSONArray listing=new JSONArray();private String folder="",source="received",parent="",offeredFile="";private long offerVersion;
     private static final class Node{final FileTransferSource.Item item;final File root;final Uri tree;final String parent;Node(FileTransferSource.Item item,File root,Uri tree,String parent){this.item=item;this.root=root;this.tree=tree;this.parent=parent;}}
     PhoneSettingsFiles(Context context,PhoneSettingsTasks tasks,String scope,Runnable changed){this.context=context;this.tasks=tasks;this.scope=scope;this.changed=changed;}
     private FileTransferStore store()throws IOException{return new FileTransferStore(new File(context.getFilesDir(),"received-files"));}
     long maximum()throws IOException{FileTransferStore store=store();if(store.list().size()>=FileTransferPolicy.MAX_FILES)return 0;return Math.max(0,Math.min(FileTransferPolicy.MAX_FILE,Math.min(FileTransferPolicy.MAX_TOTAL-store.used()-4096,new File(context.getFilesDir(),"received-files").getUsableSpace()-FileTransferPolicy.RESERVE)));}
-    JSONObject state()throws IOException{try{JSONArray entries=new JSONArray();for(FileTransferStore.Entry file:store().list())entries.put(file.json());synchronized(this){return new JSONObject().put("receivedFiles",entries).put("sourceFiles",listing).put("fileSource",source).put("fileFolder",folder).put("fileParent",parent);}}catch(JSONException e){throw new IOException(e);}}
+    JSONObject state()throws IOException{try{JSONArray entries=new JSONArray();for(FileTransferStore.Entry file:store().list())entries.put(file.json());synchronized(this){return new JSONObject().put("receivedFiles",entries).put("sourceFiles",listing).put("fileSource",source).put("fileFolder",folder).put("fileParent",parent).put("offeredFile",offeredFile).put("fileOfferVersion",offerVersion);}}catch(JSONException e){throw new IOException(e);}}
+    void offer(String id)throws IOException{store().entry(id);synchronized(this){offeredFile=id;offerVersion++;}changed.run();}
     JSONObject receive(InputStream input,long length,String name,PhoneSettingsServer.Active active,FileTransferPolicy.Progress progress)throws IOException{FileTransferStore.Entry entry=store().receive(input,length,name,active::valid,progress);changed.run();try{return entry.json();}catch(JSONException e){throw new IOException(e);}}
     PhoneSettingsServer.Download download(String id)throws IOException{
         if(!id.startsWith("source-")){FileTransferStore.Entry entry=store().entry(id);return new PhoneSettingsServer.Download(new FileInputStream(store().file(id)),entry.bytes,entry.name,"application/octet-stream");}

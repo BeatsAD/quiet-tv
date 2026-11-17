@@ -9,14 +9,14 @@ if(english){
   document.documentElement.lang='en';document.title='Quiet TV  Upload wallpaper';
   $('editor-title').textContent='Upload wallpaper';$('choose-label').textContent='Choose images and videos (multiple)';
   $('photo').setAttribute('aria-label','Choose wallpaper images and videos (multiple)');$('queue').setAttribute('aria-label','Wallpaper uploads');
-  $('send').textContent='Upload and save all';$('cancel').textContent='Stop uploading';$('progress').setAttribute('aria-label','Upload progress');
+  $('files-label').textContent='Choose from files';$('files').setAttribute('aria-label','Choose image or video files (multiple)');$('send').textContent='Upload and save all';$('cancel').textContent='Stop uploading';$('progress').setAttribute('aria-label','Upload progress');
   $('pair-title').textContent='Connect to TV';document.querySelector('label[for=code]').textContent='Connection code';$('code').placeholder='6 digits';$('connect').textContent='Connect to TV';
 }
 function error(text){$('error').textContent=text;$('error').hidden=false;}
 async function capabilities(){
-  limits=null;$('photo').disabled=true;$('send').disabled=true;
+  limits=null;$('photo').disabled=$('files').disabled=true;$('send').disabled=true;
   try{const response=await fetch(new URL('info',uploadBase));if(!response.ok)throw Error();const data=await response.json();if(data.purpose!=='wallpaper')throw Error();limits=data;
-    $('fileinfo').textContent=message('图片与视频可混合多选。图片最大 ','Select images and videos together. Images up to ')+(data.imageMaxBytes/1024/1024)+message(' MB；视频大小受电视可用空间限制。上传期间请保持电视上传页打开。',' MB; videos are limited by TV storage. Keep the TV upload screen open.');$('photo').disabled=false;
+    $('fileinfo').textContent=message('图片与视频可混合多选。图片最大 ','Select images and videos together. Images up to ')+(data.imageMaxBytes/1024/1024)+message(' MB；视频大小受电视可用空间限制。上传期间请保持电视上传页打开。',' MB; videos are limited by TV storage. Keep the TV upload screen open.');$('photo').disabled=$('files').disabled=false;
   }catch{error(message('会话不可用，请在电视重新打开上传页面。','Session unavailable. Reopen upload on your TV.'));}
 }
 if(!needsCode)void capabilities();
@@ -28,28 +28,30 @@ $('pair-form').addEventListener('submit',async event=>{
   }catch{$('pair-error').textContent=message('连接失败，请保持电视上传页面打开。','Connection failed. Keep the TV upload screen open.');$('pair-error').hidden=false;}
   finally{$('connect').disabled=false;}
 });
+function retryable(item){return !item.invalid&&['ready','failed'].includes(item.state);}
 function render(){
   $('queue').replaceChildren();
   for(const [index,item] of items.entries()){
     const row=document.createElement('li'),label=document.createElement('label'),input=document.createElement('input'),detail=document.createElement('p'),status=document.createElement('p');
-    row.dataset.uploadState=item.state;label.textContent=message('素材名称 ','Media name ')+(index+1);input.type='text';input.maxLength=48;input.value=item.name;input.disabled=running||item.state!=='ready';input.setAttribute('aria-label',label.textContent);input.autocomplete='off';
+    row.dataset.uploadState=item.state;label.textContent=message('素材名称 ','Media name ')+(index+1);input.type='text';input.maxLength=48;input.value=item.name;input.disabled=running||!retryable(item);input.setAttribute('aria-label',label.textContent);input.autocomplete='off';
     input.addEventListener('input',()=>{item.name=input.value;});label.append(input);detail.className='detail';detail.textContent=item.file.name+'  '+(item.file.size/1024/1024).toFixed(1)+' MB';status.textContent=item.message;status.setAttribute('role','status');
     row.append(label,detail,status);$('queue').append(row);item.status=status;
   }
-  $('photo').disabled=running||!limits;$('send').disabled=running||!items.some(item=>item.state==='ready');$('cancel').hidden=!running;
+  $('photo').disabled=$('files').disabled=running||!limits;for(const id of ['choose-label','files-label'])$(id).setAttribute('aria-disabled',String(running||!limits));$('choose-label').textContent=items.length?message('继续添加图片或视频','Add more images or videos'):message('选择图片或视频（可多选）','Choose images and videos (multiple)');$('send').disabled=running||!items.some(retryable)||items.some(item=>item.state==='unknown');$('send').textContent=items.some(item=>!item.invalid&&item.state==='failed')?message('重试未完成上传','Retry unfinished uploads'):message('上传并保存全部','Upload and save all');$('cancel').hidden=!running;
 }
 function update(item,state,text){item.state=state;item.message=text;if(item.status){item.status.textContent=text;item.status.parentElement.dataset.uploadState=state;}}
-$('photo').addEventListener('change',()=>{
-  if(running||!limits)return;const chosen=Array.from($('photo').files);$('photo').value='';if(!chosen.length)return;
-  items=chosen.map(file=>{
+function addFiles(event){
+  const input=event.target;if(running||!limits)return;const chosen=Array.from(input.files);input.value='';if(!chosen.length)return;
+  items.push(...chosen.map(file=>{
     const video=file.type.startsWith('video/')||/\.(mp4|mov|mkv|webm|m4v|3gp|3g2|ts|m2ts|mts|mpg|mpeg|vob|flv)$/i.test(file.name);
     const maximum=video?limits.videoMaxBytes:limits.imageMaxBytes;
     const invalid=!file.size?message('文件不能为空','Empty file'):!video&&!/\.(jpe?g|png|webp)$/i.test(file.name)&&!['image/jpeg','image/png','image/webp'].includes(file.type)?message('不支持的图片格式','Unsupported image format'):maximum>0&&file.size>maximum?message('文件超过大小上限或电视可用空间','File exceeds the size limit or available TV storage'):'';
     const name=file.name.replace(/\.[^.]+$/,'').replace(/[\u0000-\u001f\u007f-\u009f/\\]/g,' ').trim().slice(0,48).replace(/[\uD800-\uDBFF]$/,'')||message('我的壁纸','My wallpaper');
     const random=new Uint8Array(16);crypto.getRandomValues(random);const request=Array.from(random,n=>n.toString(16).padStart(2,'0')).join('');
-    return {file,name,video,request,state:invalid?'failed':'ready',message:invalid||message('等待上传','Waiting to upload')};
-  });$('error').hidden=true;$('status').textContent=message('已选择 ','Selected ')+items.length+message(' 项',' files');$('progress').hidden=true;render();
-});
+    return {file,name,video,request,invalid:!!invalid,state:invalid?'failed':'ready',message:invalid||message('等待上传','Waiting to upload')};
+  }));$('error').hidden=true;$('status').textContent=message('已选择 ','Selected ')+items.length+message(' 项',' files');$('progress').hidden=true;render();
+}
+$('photo').addEventListener('change',addFiles);$('files').addEventListener('change',addFiles);
 function send(item,index){return new Promise(resolve=>{
   const request=new XMLHttpRequest();xhr=request;
   const extension=item.file.name.match(/\.[a-z0-9]{2,5}$/i);
@@ -72,11 +74,11 @@ function send(item,index){return new Promise(resolve=>{
   request.send(item.file);
 });}
 $('send').addEventListener('click',async()=>{
-  if(running||!items.some(item=>item.state==='ready'))return;
-  if(items.some(item=>item.state==='ready'&&(!item.name.trim()||item.name.trim().length>48||/[\u0000-\u001f\u007f-\u009f/\\]/.test(item.name)))){error(message('请填写每项素材名称，最多 48 个字符，不能包含斜线或控制字符','Enter a name for each file (up to 48 characters, no slashes or control characters)'));return;}
+  if(running||!items.some(retryable)||items.some(item=>item.state==='unknown'))return;
+  if(items.some(item=>retryable(item)&&(!item.name.trim()||item.name.trim().length>48||/[\u0000-\u001f\u007f-\u009f/\\]/.test(item.name)))){error(message('请填写每项素材名称，最多 48 个字符，不能包含斜线或控制字符','Enter a name for each file (up to 48 characters, no slashes or control characters)'));return;}
   running=true;stopped=false;$('error').hidden=true;$('progress').hidden=false;render();
   try{for(const [index,item] of items.entries()){
-    if(stopped)break;if(item.state!=='ready')continue;
+    if(stopped)break;if(!retryable(item))continue;
     update(item,'uploading',message('正在上传','Uploading'));$('status').textContent=`${index+1}/${items.length}  ${item.file.name}`;$('progress').setAttribute('aria-valuenow','0');$('progress').querySelector('span').style.width='0%';await send(item,index);
   }}finally{running=false;$('progress').hidden=true;render();const count=state=>items.filter(item=>item.state===state).length;
     $('status').textContent=message('已保存 ','Saved ')+count('saved')+message(' 项  失败 ','  Failed ')+count('failed')+message(' 项  待核对 ','  Check ')+count('unknown')+message(' 项','')+(count('pending')?message('  待电视保存 ','  Pending TV save ')+count('pending'):'')+(stopped?message('  后续上传已停止','  Remaining uploads stopped'):'');

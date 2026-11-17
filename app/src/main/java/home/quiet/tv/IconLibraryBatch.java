@@ -10,35 +10,42 @@ import org.json.*;
 final class IconLibraryBatch {
     interface Control {void check()throws IOException;void progress(int done,int total);void committing()throws IOException;IconLibraryTransfer.Request request();}
     static final class Row {
-        final String pkg,label,key,status,id,reason;final List<String> candidates;final boolean custom,automatic;
-        Row(String pkg,String label,String key,String status,String id,String reason,List<String> candidates,boolean custom,boolean automatic){this.pkg=pkg;this.label=label;this.key=key;this.status=status;this.id=id;this.reason=reason;this.candidates=candidates;this.custom=custom;this.automatic=automatic;}
+        final String pkg,label,key,status,id,reason,originalKey;final List<String> candidates;final boolean custom,automatic;
+        Row(String pkg,String label,String key,String status,String id,String reason,List<String> candidates,boolean custom,boolean automatic,String originalKey){this.originalKey=originalKey;this.pkg=pkg;this.label=label;this.key=key;this.status=status;this.id=id;this.reason=reason;this.candidates=candidates;this.custom=custom;this.automatic=automatic;}
         JSONObject json()throws JSONException{return new JSONObject().put("package",pkg).put("name",label).put("coverKey",key).put("status",status).put("id",id).put("reason",reason).put("candidates",new JSONArray(candidates)).put("custom",custom).put("automatic",automatic);}
     }
     static final class Plan {
         final String id=UUID.randomUUID().toString(),style,shape,form;final IconLibraryCatalog catalog;final int matchRevision;final List<Row> rows;
         Plan(String style,String shape,String form,IconLibraryCatalog catalog,int revision,List<Row> rows){this.style=style;this.shape=shape;this.form=form;this.catalog=catalog;this.matchRevision=revision;this.rows=Collections.unmodifiableList(rows);}
         IconLibraryCatalog.Item item(String id){for(IconLibraryCatalog.Item item:catalog.items)if(item.id.equals(id)&&item.style.equals(style))return item;return null;}
-        List<String> choices(Row row){if(!row.status.equals("unmatched"))return row.candidates;List<String> ids=new ArrayList<>();for(IconLibraryCatalog.Item item:catalog.items)if(item.style.equals(style)&&item.supports(shape,form))ids.add(item.id);return ids;}
+        List<String> choices(Row row){if(!row.status.equals("unmatched")&&!(row.custom&&row.candidates.isEmpty()))return row.candidates;List<String> ids=new ArrayList<>();for(IconLibraryCatalog.Item item:catalog.items)if(item.style.equals(style)&&item.supports(shape,form))ids.add(item.id);return ids;}
         IconLibraryCatalog.Item selection(Row row,String id,boolean coverCustom)throws IOException{
-            IconLibraryCatalog.Item item=item(id);
-            if(row==null||row.status.equals("current")||row.custom&&!coverCustom||item==null||!item.supports(shape,form)||!choices(row).contains(id))throw new IOException("图标选择无效，请核对素材及自定义图标覆盖开关");
-            return item;
+            if(row==null||row.status.equals("current")||row.custom&&!coverCustom||!choices(row).contains(id))throw new IOException("图标选择无效，请核对素材及自定义图标覆盖开关");
+            if(id.equals(IconLibraryFrame.id(row.pkg))&&!row.originalKey.isEmpty()&&!row.custom)return null;
+            IconLibraryCatalog.Item item=item(id);if(item==null||!item.supports(shape,form))throw new IOException("图标素材已变化，请重新匹配");return item;
         }
         JSONObject json()throws JSONException{JSONArray values=new JSONArray();for(Row row:rows)values.put(row.json());return new JSONObject().put("planId",id).put("style",style).put("shape",shape).put("form",form).put("catalogVersion",catalog.revision).put("matchRevision",matchRevision).put("rows",values);}
     }
     static Plan prepare(Context context,Context artwork,String style,String shape,String form)throws IOException{
-        if(!IconLibraryCatalog.contains(IconLibraryCatalog.STYLES,style)||!IconLibraryCatalog.contains(IconLibraryCatalog.SHAPES,shape)||!IconLibraryCatalog.contains(IconLibraryCatalog.forms(shape),form))throw new IOException("图标选项无效");
+        if(!IconLibraryCatalog.styleId(style)||!IconLibraryCatalog.contains(IconLibraryCatalog.SHAPES,shape)||!IconLibraryCatalog.contains(IconLibraryCatalog.forms(shape),form))throw new IOException("图标选项无效");
         // Batch replacements follow Home, independently of the library's shape filter.
         shape=new DesktopSettingsStore(context).iconShape();if(!IconLibraryCatalog.contains(IconLibraryCatalog.forms(shape),form))form="icon";
         IconLibraryCatalog catalog=IconLibraryCatalog.read(artwork);IconLibraryMatcher matcher=IconLibraryMatcher.read(artwork,catalog);AppCoverStore store=AppCoverStore.get(context);List<Row> rows=new ArrayList<>();
         for(Map.Entry<String,ResolveInfo> app:new HomeAppCatalog(context).launchable().entrySet()){
             String pkg=app.getKey();if(AppCoverPolicy.ownReadOnly(context,pkg)||!app.getValue().activityInfo.applicationInfo.enabled||!AppAvailability.installed(context.getPackageManager(),app.getValue().activityInfo.applicationInfo))continue;
-            String name=app.getValue().loadLabel(context.getPackageManager()).toString();IconLibraryMatcher.Match match=matcher.match(pkg,name);String id=match.ids.size()==1?match.ids.get(0):"",key;JSONObject current;boolean custom;
-            synchronized(store){key=store.key(pkg);current=store.entry(pkg);custom=store.custom(pkg);}
-            IconLibraryCatalog.Item chosen=null;List<String> candidates=new ArrayList<>();for(IconLibraryCatalog.Item item:catalog.items)if(item.style.equals(style)&&item.supports(shape,form)&&match.ids.contains(item.id)){candidates.add(item.id);if(item.id.equals(id))chosen=item;}
-            String state=match.ids.isEmpty()?"unmatched":candidates.isEmpty()?"missing":!match.automatic?"pending":custom?"custom":"ready";
-            try{if(chosen!=null&&LibraryCover.same(current,LibraryCover.metadata(chosen,shape,form,catalog.revision)))state="current";}catch(JSONException invalid){throw new IOException(invalid);}
-            rows.add(new Row(pkg,new AppNameStore(context).display(pkg,name),key,state,id,match.reason,candidates,custom,match.automatic));
+            String name=app.getValue().loadLabel(context.getPackageManager()).toString(),key;JSONObject current;boolean custom,present;
+            synchronized(store){key=store.key(pkg);current=store.entry(pkg);present=store.custom(pkg);custom=present&&!LibraryCover.generated(current);}
+            IconLibraryMatcher.Match match=matcher.match(pkg,name,custom&&LibraryCover.library(current)?current.optString("theme"):"");String id=match.ids.size()==1?match.ids.get(0):"";
+            IconLibraryCatalog.Item chosen=null;List<String> candidates=new ArrayList<>();for(String candidate:match.ids)for(IconLibraryCatalog.Item item:catalog.items)if(item.id.equals(candidate)&&item.style.equals(style)&&item.supports(shape,form)){candidates.add(item.id);if(item.id.equals(id))chosen=item;}
+            String label=new AppNameStore(context).display(pkg,name),reason=match.reason,originalKey="";boolean automatic=match.automatic;
+            String state=!match.automatic?"pending":custom?"custom":"ready";
+            try{
+                if(candidates.isEmpty()){
+                    id=IconLibraryFrame.id(pkg);reason="original";automatic=!custom;state=custom?"custom":"ready";
+                    if(!custom){originalKey=IconLibraryFrame.sourceKey(context,pkg,label);candidates.add(id);if(present&&LibraryCover.same(current,LibraryCover.frameMetadata(style,shape,form,originalKey)))state="current";}
+                }else if(present&&chosen!=null&&LibraryCover.same(current,LibraryCover.metadata(chosen,shape,form,catalog.revision)))state="current";
+            }catch(JSONException invalid){throw new IOException(invalid);}
+            rows.add(new Row(pkg,label,key,state,id,reason,candidates,custom,automatic,originalKey));
         }
         Collections.sort(rows,(a,b)->{int n=java.text.Collator.getInstance().compare(a.label,b.label);return n==0?a.pkg.compareTo(b.pkg):n;});return new Plan(style,shape,form,catalog,matcher.revision,rows);
     }
@@ -58,7 +65,12 @@ final class IconLibraryBatch {
                 control.check();Row row=null;for(Row candidate:plan.rows)if(candidate.pkg.equals(selected.getKey()))row=candidate;
                 IconLibraryCatalog.Item item=plan.selection(row,selected.getValue(),coverCustom);
                 AppCoverPolicy.require(context,row.pkg);if(!row.key.equals(store.key(row.pkg)))throw new IOException(row.label+" 的图标已变化，请重新匹配");
-                File ready=store.prepared();try{IconLibraryArtwork.prepare(artwork,item,plan.shape,plan.form,ready,true,control.request());changes.add(new AppCoverStore.ArtworkChange(row.pkg,ready,LibraryCover.metadata(item,plan.shape,plan.form,plan.catalog.revision),row.key));}catch(JSONException invalid){throw new IOException(invalid);}finally{if(changes.isEmpty()||changes.get(changes.size()-1).file!=ready)store.discardCandidate(ready);}
+                File ready=store.prepared();try{
+                    JSONObject metadata;
+                    if(item==null){if(!row.originalKey.equals(IconLibraryFrame.sourceKey(context,row.pkg,row.label)))throw new IOException("应用原图标已变化，请重新匹配");IconLibraryFrame.prepare(context,row.pkg,row.label,plan.style,plan.shape,plan.form,ready,control.request());metadata=LibraryCover.frameMetadata(plan.style,plan.shape,plan.form,row.originalKey);}
+                    else{IconLibraryArtwork.prepare(artwork,item,plan.shape,plan.form,ready,true,control.request());metadata=LibraryCover.metadata(item,plan.shape,plan.form,plan.catalog.revision);}
+                    changes.add(new AppCoverStore.ArtworkChange(row.pkg,ready,metadata,row.key));
+                }catch(JSONException invalid){throw new IOException(invalid);}finally{if(changes.isEmpty()||changes.get(changes.size()-1).file!=ready)store.discardCandidate(ready);}
                 control.progress(++done,total);
             }
             control.check();for(AppCoverStore.ArtworkChange change:changes)AppCoverPolicy.require(context,change.pkg);
