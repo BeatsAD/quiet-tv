@@ -18,7 +18,7 @@ final class IconLibraryBatch {
         final String id=UUID.randomUUID().toString(),style,shape,form;final IconLibraryCatalog catalog;final int matchRevision;final List<Row> rows;
         Plan(String style,String shape,String form,IconLibraryCatalog catalog,int revision,List<Row> rows){this.style=style;this.shape=shape;this.form=form;this.catalog=catalog;this.matchRevision=revision;this.rows=Collections.unmodifiableList(rows);}
         IconLibraryCatalog.Item item(String id){for(IconLibraryCatalog.Item item:catalog.items)if(item.id.equals(id)&&item.style.equals(style))return item;return null;}
-        List<String> choices(Row row){if(!row.status.equals("unmatched"))return row.candidates;List<String> ids=new ArrayList<>();for(IconLibraryCatalog.Item item:catalog.items)if(item.style.equals(style)&&item.supports(shape,form))ids.add(item.id);return ids;}
+        List<String> choices(Row row){if(!row.status.equals("unmatched")&&!(row.custom&&row.candidates.isEmpty()))return row.candidates;List<String> ids=new ArrayList<>();for(IconLibraryCatalog.Item item:catalog.items)if(item.style.equals(style)&&item.supports(shape,form))ids.add(item.id);return ids;}
         IconLibraryCatalog.Item selection(Row row,String id,boolean coverCustom)throws IOException{
             if(row==null||row.status.equals("current")||row.custom&&!coverCustom||!choices(row).contains(id))throw new IOException("图标选择无效，请核对素材及自定义图标覆盖开关");
             if(id.equals(IconLibraryFrame.id(row.pkg))&&!row.originalKey.isEmpty()&&!row.custom)return null;

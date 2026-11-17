@@ -24,7 +24,7 @@
     "src/DiagnosticExport.css": "8597a650892c7d444fd51b907463889473c1e8c4b0e1300d13c2437b59e51e2d",
     "src/DiagnosticExport.tsx": "3aabd027e6c99c28a9acf02deb2b0df9e28ea71866c458a3ea19aac7d11afc15",
     "src/DynamicBackground.tsx": "f1a03f25f1e5eac4ae609a17f580eb7add668955c8ef2ed0bb482e2d32d5bc63",
-    "src/IconBatch.tsx": "63ddd27044c9861696bdbfac098b17b52238eea7ac8306e3a67707fa3eb8bf04",
+    "src/IconBatch.tsx": "a6dc43cd4bab97d194f3e93088b13e572ac4c701b1eed223e41bb56c55e5354c",
     "src/IconLibrary.tsx": "4ea8af1a4522cc1f6a6d7cf221cd83c40d97804f17d2f9331aefbfa04d250039",
     "src/IconLibraryPicker.tsx": "037aceef35be9bc7ef28074ff83ed1b567e7ece7c82cdbf630ec2b6c40173dc6",
     "src/MediaRename.tsx": "9742913185c003a46ef06eef1fabdf9b76940e130ca4d7267ab5c6b27d0602d0",
@@ -55,7 +55,7 @@
     "public/tmdb.svg": "8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c"
   },
   "assets": {
-    "app.js": "ed45716844dfabe0955c903e1811b9e3015b44a2dd01b0a5395c9723a53b57d6",
+    "app.js": "3624b15653afac583c37e5a679d08886ef81df650737f92ad7eb43300e5b2219",
     "assets/file-folder.svg": "ceee8c7ec763f01505483702abaa19030e10b11d132b72079ec8d8574c8222dc",
     "assets/qq-group.webp": "9d31d757ec3ec26b66cf11b8c40903270332bc3a8fca7dccd3c6ec4c1f5a36d9",
     "assets/quiettv-assistant-launcher.png": "38b216dcb09b2b5be65302d280b709d1c6590d19a96473de794eb74deac5109e",

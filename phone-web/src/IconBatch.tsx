@@ -27,7 +27,7 @@ export function IconBatch({client,catalog,filters,onFilters,closing,onClose,onEx
   },[filterKey,catalog.revision,retry]);
   const disabled=working||matching,count=Object.keys(selected).length;
   const manualIds=filteredIcons(catalog,batchFilters).map(item=>item.id);
-  function choices(row:MatchRow){return row.status==='unmatched'?manualIds:row.candidates;}
+  function choices(row:MatchRow){return row.status==='unmatched'||row.custom&&!row.candidates.length?manualIds:row.candidates;}
   function note(row:MatchRow){const text=row.status==='unmatched'?(selected[row.package]?'已手动选图':manualIds.length?notes.unmatched:'未匹配  当前组合暂无图标'):notes[row.status];return row.custom&&!coverCustom&&row.status!=='current'?`${text}  需开启覆盖已有自定义图标`:text;}
   function change(next:Record<string,string>){request.current=null;setSelected(next);}
   function toggle(row:MatchRow){if(selected[row.package]){const next={...selected};delete next[row.package];change(next);}else if(row.status!=='unmatched'&&row.candidates.length===1)change({...selected,[row.package]:row.candidates[0]});else setCandidate(row);}
