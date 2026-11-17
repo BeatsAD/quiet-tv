@@ -15,13 +15,14 @@ export function IconLibrary({client,pickFile,uploading}:{client:PhoneClient;pick
   const [pkg,setPkg]=useState(''),[filters,setFilters]=useState<IconFilters>({style:'apple',shape:'rectangle',form:'icon'}),[selection,setSelection]=useState<IconSelection|null>(null);
   const [view,setView]=useState(''),[filterPage,setFilterPage]=useState<FilterPage>(''),[closing,setClosing]=useState(false),[busy,setBusy]=useState(false),[checking,setChecking]=useState(false),[error,setError]=useState(''),[readySrc,setReadySrc]=useState(''),[previewNonce,setPreviewNonce]=useState(0),[restoreTarget,setRestoreTarget]=useState<IconTarget|null>(null);
   const [status,setStatus]=useState<OperationStatus|null>(null);
-  const [operation,setOperation]=useState<Operation|null>(null),[uncertain,setUncertain]=useState(false);
+  const [operation,setOperation]=useState<Operation|null>(null),[uncertain,setUncertain]=useState(false),[refreshId,setRefreshId]=useState('');
   const submitting=useRef(false),reading=useRef(false),mounted=useRef(true);
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
   useEffect(()=>{if(data?.styles.length&&!data.styles.includes(filters.style))setFilters(current=>({...current,style:data.styles[0]}));},[data?.revision,filters.style]);
   const targets=data?.targets||[],target=targets.find(item=>item.id===pkg)||targets.find(item=>((client.values().dockApps||[]) as string[]).includes(item.id))||targets[0];
   const task=client.tasks().find(job=>job.id===operation?.id),active=client.tasks().some(job=>job.domain==='icons'&&['queued','running','ready','receiving'].includes(job.state));
-  const working=busy||checking||uploading||active,locked=working||uncertain||!!status;
+  const refreshTask=client.tasks().find(job=>job.id===refreshId),refreshing=!!refreshId;
+  const working=busy||checking||uploading||active||refreshing,locked=working||uncertain||!!status;
   const conflict=!!selection&&(selection.package!==target?.id||selection.coverKey!==target?.coverKey||selection.catalogVersion!==data?.revision);
   const showConflict=conflict&&!status&&!operation&&!uncertain;
   const candidate=selection&&data?.items.find(item=>item.style===selection.style&&item.id===selection.id),src=selection?iconResource(client,selection,selection.id,selection.catalogVersion,true):'';
@@ -59,6 +60,22 @@ export function IconLibrary({client,pickFile,uploading}:{client:PhoneClient;pick
     }catch(e){if(mounted.current){const message=e instanceof Error?e.message:'结果待核对，请重新读取',unknown=!(e instanceof ApiError&&e.status<500);setError(message);setUncertain(unknown);report(unknown?'unknown':'failed',message);}}
     finally{submitting.current=false;if(mounted.current)setBusy(false);}
   }
+  useEffect(()=>{
+    if(!refreshTask||!['completed','failed','cancelled','unknown'].includes(refreshTask.state))return;
+    const success=refreshTask.state==='completed';
+    notify({kind:success?'success':refreshTask.state==='unknown'?'info':'error',title:success?refreshTask.message:'图标库刷新未完成',detail:success?undefined:refreshTask.message});
+    if(!success)setError(refreshTask.message);setRefreshId('');
+  },[refreshTask?.id,refreshTask?.state]);
+  async function refreshIcons(){
+    if(submitting.current||locked||client.status!=='connected')return;
+    submitting.current=true;setBusy(true);setError('');
+    try{
+      const receipt=await client.command('icons','refresh',{});
+      if(typeof receipt.operation?.taskId!=='string')throw new Error('刷新结果待核对，请重新读取图标库');
+      if(!mounted.current)return;setRefreshId(receipt.operation.taskId);await client.refresh();
+    }catch(error){if(mounted.current){const message=error instanceof Error?error.message:'刷新结果待核对';setError(message);notify({kind:error instanceof ApiError&&error.status<500?'error':'info',title:'图标库刷新未完成',detail:message});}}
+    finally{submitting.current=false;if(mounted.current)setBusy(false);}
+  }
   function changeFilters(next:IconFilters){setFilters(next);setSelection(null);setError('');setFilterPage('');}
   const feedback=!status&&<>{error&&<p className="form-error" role="alert">{error}</p>}{task&&['queued','running'].includes(task.state)&&<p className="section-note" role="status">{task.message||'正在替换图标…'}</p>}{uncertain&&<button className="text-action" disabled={busy||checking} onClick={()=>void readResult()}>重新读取当前图标</button>}</>;
   if(!data)return <div className="empty-state"><p>图标库尚未读取</p><button className="text-action" onClick={()=>void client.refreshNow()}>重新读取</button></div>;
@@ -66,7 +83,7 @@ export function IconLibrary({client,pickFile,uploading}:{client:PhoneClient;pick
     <Group title="替换预览" action={<button className="icon-batch-action" aria-label="一键替换" disabled={locked||!targets.length} onClick={()=>open('batch')}><Icon name="GridCheckIcon"/><span className="icon-batch-copy"><strong>一键替换</strong></span></button>}>
       {target?<><div className="icon-replace-comparison"><button aria-label={`目标应用：${target.name}`} onClick={()=>open('target')}><span className="icon-comparison-label">目标应用<Icon name="ChevronDownIcon"/></span><ResourceImage src={client.resource(target.cover||target.icon||'')} alt={`${target.name}当前图标`}/><strong>{target.name}</strong></button><Icon name="ArrowRightIcon"/><button aria-label="选择图标素材" onClick={()=>open('material')}><span className="icon-comparison-label">所选图标<Icon name="ChevronDownIcon"/></span>{candidate?<ResourceImage src={src} alt={candidate.name}/>:<ResourceImage src={client.resource(target.cover||target.icon||'')} alt="当前使用的图标"/>}<strong>{candidate?.name||'选择图标'}</strong></button></div><div className="icon-desktop-preview"><p className="section-note">{page==='home'?'首页效果':'第二屏效果'}</p><Preview client={client} page={page} suspended={uploading} coverOverride={selection&&!conflict?{id:target.id,url:src}:undefined}/>{!((client.metadata?.homeApps||[]) as App[]).some(app=>app.id===target.id)&&<p className="section-note">此应用当前未在桌面显示</p>}</div></>:<p className="empty-state">没有可替换图标的应用</p>}
     </Group>
-    <Group><Row title="从手机上传图标" icon="UploadIcon" disabled={!target} navigate onClick={()=>pickFile('icon',`${target.id}|${filters.shape}|${target.coverKey}`)}/><Row title="恢复默认图标" disabled={!target?.customCover} onClick={()=>{if(!locked){setError('');setRestoreTarget(target);}}}/></Group>
+    <Group><Row title="刷新图标库" icon="ReloadIcon" value={refreshing?'正在刷新…':''} disabled={locked||client.status!=='connected'} onClick={()=>void refreshIcons()}/><Row title="从手机上传图标" icon="UploadIcon" disabled={!target} navigate onClick={()=>pickFile('icon',`${target.id}|${filters.shape}|${target.coverKey}`)}/><Row title="恢复默认图标" disabled={!target?.customCover} onClick={()=>{if(!locked){setError('');setRestoreTarget(target);}}}/></Group>
   </fieldset>{!view&&feedback}
   {view==='batch'?<IconBatch client={client} catalog={data} filters={filters} onFilters={changeFilters} closing={closing} onClose={close} onExited={exited} working={locked} feedback={feedback} onSubmit={value=>submit('batch',value)}/>:view&&<Sheet className="icon-library-sheet" title={view==='target'?'选择目标应用':filterPage?filterTitles[filterPage]:'图标素材'} nested={!!filterPage} closing={closing} pageKey={`${view}:${filterPage}`} direction={filterPage?1:-1} onBack={()=>setFilterPage('')} onClose={close} onExited={exited}
     toolbar={view==='material'&&!filterPage?<><p className="icon-target-context">替换应用：{target?.name}</p><IconFiltersBar catalog={data} filters={filters} disabled={locked} onOpen={setFilterPage}/></>:undefined}

@@ -14,6 +14,7 @@
 - [电脑适配与维护](AGENT_ADAPT.zh-CN.md)：检测、修复、信号源配置和自检报告
 - [应用管理 / App management](APP_MANAGEMENT.md)
 - [版本、签名与归档 / Versioning and archives](VERSIONING.md)
+- [工作目录、ADB 与模拟器细则](DEVELOPMENT.md)：按任务读取存储、连接排查及验收要求。
 - 第三方许可：[中文](../THIRD_PARTY_NOTICES.md) / [English](../THIRD_PARTY_NOTICES.en.md) · [素材来源 / Image provenance](assets/README.md)
 
 ## 目录与协作 / Layout and collaboration

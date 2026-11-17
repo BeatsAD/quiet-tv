@@ -26,7 +26,7 @@ final class PhoneSettingsConfiguration implements PhoneSettingsState.Source {
         try{
             switch(domain){
                 case "appearance":Calendar clockDay=Calendar.getInstance();return new JSONObject().put("homeBrightness",desktop.homeWallpaperBrightness()).put("homeBlur",desktop.homeWallpaperBlur()).put("homeBlurMode",WallpaperGpuSupport.available(context)?desktop.homeBlurMode():"uniform").put("homeFade",desktop.homeWallpaperFade())
-                    .put("secondBlur",desktop.secondWallpaperBlur()).put("secondBrightness",desktop.secondWallpaperBrightness()).put("secondFade",desktop.secondWallpaperFade()).put("secondNames",desktop.showAllAppsNames())
+                    .put("secondBlur",desktop.secondWallpaperBlur()).put("secondBrightness",desktop.secondWallpaperBrightness()).put("secondFade",desktop.secondWallpaperFade()).put("secondNames",desktop.showAllAppsNames()).put("secondHideHomeApps",desktop.hideHomeAppsOnSecondScreen())
                     .put("layout",desktop.layout()).put("iconSize",desktop.iconSize()).put("iconShape",desktop.iconShape()).put("showTime",desktop.showTime()).put("clockStyle",desktop.clockStyle()).put("showDate",desktop.showDate()).put("showSeconds",desktop.showSeconds()).put("showLunarDate",desktop.showLunarDate()).put("showMovieInfo",desktop.showMovieInfo()).put("lunarDate",desktop.showLunarDate()?LunarDate.format(clockDay):"").put("lunarDateFor",desktop.showLunarDate()?LunarDate.key(clockDay):"").put("homeApps",desktop.showHomeApps()).put("appNames",desktop.appTitlePosition());
                 case "child":return children.configuration();case "childUsage":return children.usage();case "quiz":return children.quiz();case "parent":return children.parent.state();
                 case "apps":return applications.state();case "icons":return icons.state();
@@ -119,7 +119,7 @@ final class PhoneSettingsConfiguration implements PhoneSettingsState.Source {
         choice(fields,"iconSize","appearance","图标大小",new Object[]{"small","medium","large"},new String[]{"小","中","大"});
         choice(fields,"iconShape","appearance","图标外形",new Object[]{"rectangle","square","circle"},new String[]{"长方形","方形","圆形"});
         choice(fields,"appNames","appearance","首页应用名称",new Object[]{"hidden","below","top-left"},new String[]{"不显示","下方","左上角"});
-        String[][] toggles={{"showTime","时间"},{"showDate","日期"},{"showSeconds","显示秒数"},{"showLunarDate","显示农历"},{"homeApps","首页应用区域"},{"secondNames","第二屏应用名称"}};
+        String[][] toggles={{"showTime","时间"},{"showDate","日期"},{"showSeconds","显示秒数"},{"showLunarDate","显示农历"},{"homeApps","首页应用区域"},{"secondNames","第二屏应用名称"},{"secondHideHomeApps","第二屏隐藏首屏应用"}};
         for(String[] toggle:toggles)fields.put(toggle[0],field("appearance",toggle[1],"toggle"));
         fields.put("showGreeting",field("greeting","问候语","toggle")).put("showAvatar",field("greeting","显示头像","toggle"));
         fields.put("weatherEnabled",field("weather","天气","toggle"));
@@ -161,7 +161,7 @@ final class PhoneSettingsConfiguration implements PhoneSettingsState.Source {
         if(domain.equals("desktopSwitch"))return new PhoneSettingsState.Result(read(domain),general.desktopSwitch(field,value,active));
         if(domain.equals("components")){if(!"weather".equals(value)||!(field.equals("start")||field.equals("cancel")||field.equals("uninstall")))throw new PhoneSettingsServer.Rejected("组网功能请在手机助手App中使用");home.quiet.components.ComponentRepository repository=home.quiet.components.ComponentRepository.get(context);if(field.equals("start"))repository.start("weather");else if(field.equals("uninstall"))WeatherComponentActions.uninstall(context);else repository.cancel("weather");return new PhoneSettingsState.Result(repository.snapshot());}
         if(tasks.restoring())throw new PhoneSettingsServer.Rejected("桌面正在恢复，请等待完成后核对配置");DesktopSettingsStore desktop=new DesktopSettingsStore(context);
-        if(Arrays.asList("keySounds","showTime","showDate","showSeconds","showLunarDate","showMovieInfo","homeApps","secondNames","showGreeting","showAvatar","dockMagnify","dockGlass","globalGlass","dockBackground","weatherEnabled","saverClock","saverWeather","saverSound","dayNight","wallSound").contains(field)&&!(value instanceof Boolean))throw new IllegalArgumentException();
+        if(Arrays.asList("keySounds","showTime","showDate","showSeconds","showLunarDate","showMovieInfo","homeApps","secondNames","secondHideHomeApps","showGreeting","showAvatar","dockMagnify","dockGlass","globalGlass","dockBackground","weatherEnabled","saverClock","saverWeather","saverSound","dayNight","wallSound").contains(field)&&!(value instanceof Boolean))throw new IllegalArgumentException();
         if("catalog".equals(domain)&&"renameMedia".equals(field)){
             if(!(value instanceof JSONObject))throw new PhoneSettingsServer.BadInput();JSONObject request=(JSONObject)value;
             if(request.length()!=3||!(request.opt("id") instanceof String)||!(request.opt("originalName") instanceof String))throw new PhoneSettingsServer.BadInput();
@@ -198,6 +198,7 @@ final class PhoneSettingsConfiguration implements PhoneSettingsState.Source {
                 case "clockStyle":desktop.saveAppearance("clock-style",value);break;
                 case "layout":desktop.savePhoneValue("home-layout",value);break;
                 case "iconSize":desktop.saveAppearance("icon-size",value);break;case "iconShape":desktop.saveAppearance("icon-shape",value);break;
+                case "secondHideHomeApps":desktop.savePhoneValue("hide-home-apps-on-second-screen",value);break;
                 case "showTime":desktop.savePhoneValue("show-time",value);break;case "showDate":desktop.savePhoneValue("show-date",value);break;case "showSeconds":desktop.showSeconds((Boolean)value);break;case "showLunarDate":desktop.showLunarDate((Boolean)value);break;case "showMovieInfo":desktop.showMovieInfo((Boolean)value);break;case "homeApps":desktop.savePhoneValue("show-home-apps",value);break;case "appNames":desktop.saveAppearance("app-title-position",value);break;case "secondNames":desktop.savePhoneValue("show-all-apps-names",value);break;
                 default:throw new IllegalArgumentException();
             }
