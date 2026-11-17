@@ -37,7 +37,7 @@ final class HomeButtonEditor {
         }
         if(!saved.ids.contains(selected))selected=saved.ids.isEmpty()?"":saved.ids.get(0);render();String restoredFocus=restoredFocusTag;int restoredScroll=restoredScrollY;restoredFocusTag="";restoredScrollY=0;focus(restoredFocus.isEmpty()?catalog?firstCatalog():"slot-"+selected:restoredFocus);if(restoredScroll>0)sheet.scroll.post(()->{if(sheet!=null)sheet.scroll.scrollTo(0,restoredScroll);});
     });});}
-    private TextView text(String value,float size,float height,int color){TextView t=ui.label(value,12);QuickControlPreviewView.type(t,size,height,ui.unit,color);return t;}
+    private TextView text(String value,float size,float height,int color){TextView t=ui.label(value,12);QuickControlPreviewView.controlType(t,size,height,ui.unit,color);return t;}
     private Button button(String label,String tag,Runnable action,boolean primary){Button b=ui.button(label,action);b.setTag(tag);b.setId(androidx.core.view.ViewCompat.generateViewId());b.setFocusableInTouchMode(true);b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,11.712f*ui.unit);b.setPadding(p(18.28f),0,p(18.28f),0);b.setBackgroundDrawable(new SettingsFocusDrawable(ui.unit,999,primary?UiPalette.SELECTED:UiPalette.CONTROL,false,UiPalette.EDGE));b.setEnabled(!busy&&pending==null);controls.put(tag,b);return b;}
     private void render(){
         if(sheet==null)return;rendering=true;try{
@@ -52,7 +52,7 @@ final class HomeButtonEditor {
             if(saved==null){if(error.isEmpty())sheet.body.addView(text("正在读取首页按钮…",15.36f,23.04f,UiPalette.SECONDARY));return;}
             if(catalog){renderCatalog();return;}
             List<String> ids=moving==null?saved.ids:moving;
-            LinearLayout slots=ui.row();slots.setGravity(Gravity.CENTER_HORIZONTAL|Gravity.TOP);slots.setClipChildren(false);slots.setClipToPadding(false);slots.setPadding(0,p(8),0,p(8));sheet.body.addView(slots,new LinearLayout.LayoutParams(-1,p(132)));
+            LinearLayout slots=ui.row();slots.setGravity(Gravity.CENTER_HORIZONTAL|Gravity.TOP);slots.setClipChildren(false);slots.setClipToPadding(false);slots.setPadding(0,p(8),0,p(8));slots.setMinimumHeight(p(132));sheet.body.addView(slots,new LinearLayout.LayoutParams(-1,-2));
             for(int index=0;index<3;index++)slot(slots,index<ids.size()?ids.get(index):"",index);
             contextActions=ui.row();contextActions.setGravity(Gravity.CENTER);contextActions.setClipChildren(false);sheet.body.addView(contextActions,new LinearLayout.LayoutParams(-1,p(46.08f)));renderActions();
         }finally{rendering=false;}
@@ -81,8 +81,8 @@ final class HomeButtonEditor {
         boolean add=id.isEmpty();LinearLayout item=ui.column();item.setGravity(Gravity.CENTER_HORIZONTAL);item.setClipChildren(false);
         FrameLayout circle=new FrameLayout(ui);circle.setFocusable(true);circle.setFocusableInTouchMode(true);circle.setClickable(true);SettingsTouchClick.attach(circle);circle.setDescendantFocusability(android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS);circle.setTag(add?"slot-empty-"+index:"slot-"+id);circle.setId(androidx.core.view.ViewCompat.generateViewId());circle.setContentDescription(add?"添加首页按钮  位置 "+(index+1):"编辑"+title(id));circle.setBackgroundDrawable(slotBackground(add));circle.setEnabled(!busy&&pending==null&&(!add||moving==null));controls.put((String)circle.getTag(),circle);positions.add(circle);
         ImageView icon=new ImageView(ui);icon.setDuplicateParentStateEnabled(true);icon.setImageDrawable(new QuickControlIcon(add?"plus":HomeButtonStore.glyph(id)));FrameLayout.LayoutParams ip=new FrameLayout.LayoutParams(p(33.28f),p(33.28f),Gravity.CENTER);circle.addView(icon,ip);item.addView(circle,new LinearLayout.LayoutParams(p(88),p(88)));
-        TextView name=text(add?"添加首页按钮":title(id),15.36f,23.04f,UiPalette.TEXT);name.setGravity(Gravity.CENTER);LinearLayout.LayoutParams np=new LinearLayout.LayoutParams(-1,p(23.04f));np.topMargin=p(8);item.addView(name,np);
-        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(p(140.8f),p(120));if(index>0)lp.leftMargin=p(19.2f);row.addView(item,lp);
+        TextView name=text(add?"添加首页按钮":title(id),15.36f,23.04f,UiPalette.TEXT);name.setGravity(Gravity.CENTER);LinearLayout.LayoutParams np=new LinearLayout.LayoutParams(-1,-2);np.topMargin=p(8);item.addView(name,np);
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(p(140.8f),-2);if(index>0)lp.leftMargin=p(19.2f);row.addView(item,lp);
         circle.setOnFocusChangeListener((v,focused)->{if(focused&&!rendering&&moving==null&&!selected.equals(id)){selected=id;renderActions();}});
         circle.setOnClickListener(v->{if(moving!=null){int from=moving.indexOf(selected),to=moving.indexOf(id);if(from==to)confirmMove();else if(from>=0&&to>=0){moving.remove(from);moving.add(to,selected);render();focus("slot-"+selected);}return;}if(add)openCatalog("");else focus("replace");});item.setOnClickListener(v->{if(circle.isEnabled()){circle.requestFocusFromTouch();circle.performClick();}});
     }

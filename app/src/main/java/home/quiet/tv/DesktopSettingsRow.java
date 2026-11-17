@@ -50,7 +50,7 @@ final class DesktopSettingsRow extends LinearLayout {
     void hideTail(){end.setVisibility(GONE);}
     void childStyle(){childStyle=true;textSizes(12.48f,10.56f);LayoutParams icon=(LayoutParams)start.getLayoutParams();icon.width=icon.height=ui.px(19.2f);icon.rightMargin=ui.px(12);start.setLayoutParams(icon);if(checkable)checked(checked);}
     void compact(){start.setVisibility(GONE);title.setTextSize(TypedValue.COMPLEX_UNIT_PX,ui.px(14));value.setMaxWidth(ui.px(90));setPadding(ui.px(10),0,ui.px(10),0);}
-    void displayStyle(){title.setTextSize(TypedValue.COMPLEX_UNIT_PX,12.48f*ui.unit);value.setTextSize(TypedValue.COMPLEX_UNIT_PX,10.56f*ui.unit);value.setMaxWidth(ui.px(126));}
+    void displayStyle(){title.setTextSize(TypedValue.COMPLEX_UNIT_PX,12.48f*ui.unit);title.setIncludeFontPadding(true);value.setTextSize(TypedValue.COMPLEX_UNIT_PX,10.56f*ui.unit);value.setIncludeFontPadding(true);value.setMaxWidth(ui.px(126));}
     void tileStyle(){hideIcon();displayStyle();title.setSingleLine(false);title.setEllipsize(null);setBackgroundDrawable(new SettingsFocusDrawable(ui.unit,12,UiPalette.CONTROL,false,UiPalette.EDGE));}
     void compactTile(){tileStyle();setPadding(ui.px(9.6f),0,ui.px(9.6f),0);((LayoutParams)end.getLayoutParams()).leftMargin=ui.px(8);if(ui.chinese())title.setSingleLine(true);}
     void description(String text){description.setText(text);description.setVisibility(text.isEmpty()?GONE:VISIBLE);title.setTextSize(TypedValue.COMPLEX_UNIT_PX,ui.px(ui.unifiedSettings()?(text.isEmpty()?13:14):(text.isEmpty()?16:17)));updateDescription();}
