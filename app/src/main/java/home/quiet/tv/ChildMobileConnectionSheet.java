@@ -42,10 +42,10 @@ final class ChildMobileConnectionSheet {
     private void render(){
         if(!active)return;String state=session.state();if("qr-expired".equals(state)){session.start();state=session.state();}
         boolean available="waiting".equals(state)||"connected".equals(state);
-        String message="connected".equals(state)?"手机已连接":"waiting".equals(state)?session.paired()?"收藏可直连，新浏览器扫码授权":"同一局域网，首次扫码配对":"starting".equals(state)?"正在生成二维码…":"error".equals(state)?session.failure():"network-changed".equals(state)?"网络已变化，按确定重新连接":"连接已结束，按确定重新连接";
+        String message="connected".equals(state)?"手机已连接":"waiting".equals(state)?session.paired()?"扫码或复制完整网址即可连接":"同一局域网，首次扫码配对":"starting".equals(state)?"正在生成二维码…":"error".equals(state)?session.failure():"network-changed".equals(state)?"网络已变化，按确定重新连接":"连接已结束，按确定重新连接";
         status.setText(message);card.setContentDescription("手机扫码管理儿童模式  扫码打开网页  "+message);card.setFocusable(!available&&!"starting".equals(state));card.setFocusableInTouchMode(card.isFocusable());
         if(!available){generation++;address="";clearImage();return;}
-        String next=session.address()+"#tab=child";if(next.equals(address))return;address=next;int job=++generation;clearImage();
+        String next=session.address()+"&tab=child";if(next.equals(address))return;address=next;int job=++generation;clearImage();
         worker.execute(()->{if(job!=generation)return;try{Bitmap bitmap=qrImage(next);main.post(()->{
             if(!active||job!=generation){bitmap.recycle();return;}qr=bitmap;image.setImageBitmap(qr);((android.graphics.drawable.BitmapDrawable)image.getDrawable()).setFilterBitmap(false);
         });}catch(WriterException e){main.post(()->{if(active&&job==generation){address="";failed("二维码生成失败，按确定重试");}});}});

@@ -32,7 +32,7 @@ final class DesktopBackups {
     static void initialize(Context context){get(context);}
     private DesktopBackups(Context context){
         this.context=context;load();for(String name:new String[]{"desktop-settings","weather","dock","home-order"}){SharedPreferences value=context.getSharedPreferences(name,0);preferences.add(value);value.registerOnSharedPreferenceChangeListener(preferenceChanged);}
-        if(store!=null)run(value->{String version=BuildConfig.VERSION_NAME+"/"+BuildConfig.VERSION_CODE;if(!version.equals(value.software())){File prefs=new File(context.getFilesDir().getParentFile(),"shared_prefs/desktop-settings.xml");if(prefs.isFile()||new File(context.getFilesDir(),"wallpapers/catalog.json").isFile())value.capture("upgrade");value.software(version);}return null;},(value,failure)->{});
+        if(store!=null)run(value->{String version=BuildConfig.VERSION_NAME+"/"+BuildConfig.VERSION_CODE;if(!version.equals(value.software())){File prefs=new File(context.getFilesDir().getParentFile(),"shared_prefs/desktop-settings.xml");if(value.automatic()&&(prefs.isFile()||new File(context.getFilesDir(),"wallpapers/catalog.json").isFile()))value.capture("upgrade");value.software(version);}return null;},(value,failure)->{});
     }
     private void load(){
         try{store=new DesktopBackupStore(context);retained=Collections.unmodifiableSet(store.retainedPaths());unknown=false;error=recoveryError="";}

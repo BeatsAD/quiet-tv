@@ -90,7 +90,7 @@ final class DesktopBackupSheet {
         if(!error.isEmpty())copy(error,16,25.6f,12,0,UiPalette.TEXT);focus=target;restoreFocus();
     }
     private void list(){
-        LinearLayout save=group("保存与保护");row(save,"保存当前配置","手动保存","backup-save",this::capture).available(!busy&&model!=null);DesktopSettingsRow automatic=row(save,"自动备份","","backup-automatic",()->automatic(!(model!=null&&model.automatic)));automatic.checked(model==null||model.automatic);automatic.available(!busy&&model!=null);
+        LinearLayout save=group("保存与保护");row(save,"保存当前配置","手动保存","backup-save",this::capture).available(!busy&&model!=null);DesktopSettingsRow automatic=row(save,"自动备份","关闭后停止自动保存","backup-automatic",()->automatic(!(model!=null&&model.automatic)));automatic.checked(model==null||model.automatic);automatic.available(!busy&&model!=null);
         caption("备份记录");LinearLayout records=ui.listGroup();records.setPadding(p(4),p(4),p(4),p(4));ScrollView scroll=new ScrollView(ui){@Override protected void onMeasure(int width,int height){super.onMeasure(width,View.MeasureSpec.makeMeasureSpec(p(230.4f),View.MeasureSpec.AT_MOST));}@Override protected void dispatchDraw(Canvas canvas){int save=canvas.save();canvas.clipRect(getScrollX(),getScrollY(),getScrollX()+getWidth(),getScrollY()+getHeight());super.dispatchDraw(canvas);canvas.restoreToCount(save);}};scroll.setVerticalScrollBarEnabled(false);scroll.setClipToPadding(false);scroll.addView(records);sheet.body.addView(scroll,new LinearLayout.LayoutParams(-1,-2));
         if(model==null||model.entries.isEmpty()){TextView empty=text(model==null?(!error.isEmpty()||!manager.error().isEmpty()?"备份记录暂不可用":"正在读取备份记录…"):"尚无备份，可先保存当前配置。",16,25.6f,UiPalette.SECONDARY);empty.setPadding(p(16),p(16),p(16),p(16));records.addView(empty);}else for(DesktopBackupStore.Entry entry:model.entries)record(records,entry);
         LinearLayout actions=actions();action(actions,"导出当前配置","backup-export-current",this::currentExport,false);action(actions,"导入备份","backup-import",()->go("import","backup-phone-import"),false);
@@ -115,7 +115,7 @@ final class DesktopBackupSheet {
         ((LinearLayout.LayoutParams)sheet.body.getChildAt(0).getLayoutParams()).bottomMargin=p(16);
         note(kind(chosen.record.kind)+"  "+date(chosen.record));
         note("包含桌面布局、外观、应用顺序、快捷按钮和素材清单。");
-        copy(phase.equals("review")?"导入后保存到备份记录，不会立即改变桌面。":"恢复前会自动保留当前配置，并结束手机设置连接。备忘录、儿童规则、学习记录和系统授权保持当前状态。",14.464f,23.8656f,0,19.2f,UiPalette.SECONDARY);
+        copy(phase.equals("review")?"导入后保存到备份记录，不会立即改变桌面。":"恢复时会核验配置，并结束手机设置连接。备忘录、儿童规则、学习记录和系统授权保持当前状态。",14.464f,23.8656f,0,19.2f,UiPalette.SECONDARY);
         copy(phase.equals("review")?"素材已通过校验；不支持的备份格式不会应用。":"恢复时会校验素材；不支持的备份格式不会应用。",14.464f,23.8656f,0,0,UiPalette.SECONDARY);
         LinearLayout actions=actions();action(actions,"取消","backup-cancel",this::back,false);
         action(actions,phase.equals("review")?"保存到备份记录":"确认恢复","backup-confirm",()->{

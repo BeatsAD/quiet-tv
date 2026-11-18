@@ -1,3 +1,4 @@
+import { clearConnectionRoute, copyConnectionAddress } from './connection';
 import { wallpaperAccept } from './media';
 import { adbLabel } from './AdbManagement';
 import { useOperationFeedback } from './OperationFeedback';
@@ -78,7 +79,7 @@ export function App(){
     const id=String(v.offeredFile||''),key=id?`${id}:${v.fileOfferVersion}`:'',entry=((v.receivedFiles||[]) as {id:string;name:string}[]).find(item=>item.id===id),offered=!!entry&&key!==consumedFileOffer.current;
     if(!filesLink&&!offered)return;
     if(view&&!['files','file-browser','file-detail'].includes(view.id||'')){setNotice('电视已准备文件，请先关闭当前页面');return;}
-    history.replaceState(history.state,'',location.pathname+location.search);setFilesLink(false);setTab(5);viewEpoch.current++;setError('');setNotice('');
+    clearConnectionRoute();setFilesLink(false);setTab(5);viewEpoch.current++;setError('');setNotice('');
     const files:View={kind:'tool',id:'files',title:'文件传输'};
     setTrail(offered?[files,{kind:'tool',id:'file-detail',title:entry!.name,keys:[id,'received']}]:[files]);if(offered)consumedFileOffer.current=key;
   },[filesLink,metadata,client.status,v.offeredFile,v.fileOfferVersion,v.receivedFiles,upload,closing,view]);
@@ -86,7 +87,7 @@ export function App(){
     if(!renameLink||!metadata||client.status!=='connected'||upload||closing)return;
     if(view){setNotice('请先关闭当前浮窗，再编辑扫码指定的素材');return;}
     const saver=renameLink.source==='screensaver',item=metadata.wallpapers.find(item=>item.id===renameLink.id);
-    history.replaceState(history.state,'',location.pathname+location.search);setRenameLink(null);setTab(0);viewEpoch.current++;setError('');setNotice('');
+    clearConnectionRoute();setRenameLink(null);setTab(0);viewEpoch.current++;setError('');setNotice('');
     const library:View={kind:'media',title:saver?'屏保素材':'壁纸素材',id:saver?'screensaver':undefined,mediaType:item?.video||item?.kind==='video'?'video':'image'};
     const parent:View={kind:saver?'screensaver':'wallpaper',title:saver?'闲置屏保':'桌面背景'};
     setTrail(item?.canRename?[parent,library,{kind:'media-rename',title:'重命名',id:item.id}]:[parent,library]);
@@ -97,7 +98,7 @@ export function App(){
     if(!v.appsLoaded){setTab(2);return;}
     if(view){setNotice('请先关闭当前浮窗，再编辑扫码指定的应用');return;}
     const target=(metadata.apps as TvApp[]|undefined)?.find(app=>app.id===appRenameLink);
-    history.replaceState(history.state,'',location.pathname+location.search);setAppRenameLink(null);setTab(2);viewEpoch.current++;setError('');setNotice('');
+    clearConnectionRoute();setAppRenameLink(null);setTab(2);viewEpoch.current++;setError('');setNotice('');
     if(target?.canRename){setTrail([{kind:'app',title:target.name,id:target.id}]);setRenameApp(target.id);}else setError('应用已移除或不支持重命名，请重新选择');
   },[appRenameLink,metadata,client.status,upload,closing,renameApp,view,v.appsLoaded]);
   function changeTab(index:number){if(closing||index===tab)return;operationTasks.current={};tabDirection.current=index>tab?1:-1;viewEpoch.current++;setError('');setNotice('');if(scroll.current)positions.current[tab]=scroll.current.scrollTop;setTab(index);}
@@ -197,7 +198,8 @@ export function App(){
       {quickLibrary()}
     </fieldset>;
   }
-  function general(){return <><Group title="天气"><WeatherSettings client={client} controls={controls} open={open} run={perform} busy={busy}/></Group><Group title="桌面与启动">{controls(['secondHideHomeApps'])}<Row title="桌面管理" icon="HomeIcon" value={String(client.frame?.domains.desktopSwitch?.summary||guardSummary(client.frame?.domains.guard?.code))} navigate onClick={()=>open({kind:'tool',title:'桌面管理',id:'desktop-switch'})}/><Row title="桌面备份与恢复" icon="LayersIcon" value={v.backupError?'读取待核对':((v.backups||[]) as unknown[]).length?`${((v.backups||[]) as unknown[]).length}份备份`:'尚未备份'} navigate onClick={()=>open({kind:'tool',title:'桌面备份与恢复',id:'backup'})}/><Row title="开机去向" icon="HomeIcon" value={String(v.bootLabel||'QuietTV 首页')} navigate onClick={()=>open({kind:'tool',title:'开机去向',id:'boot'})}/></Group><Group title="连接与信号源"><Row title="ADB 管理" icon="Link2Icon" value={adbLabel(client.frame?.domains.management)} navigate onClick={()=>open({kind:'tool',title:'ADB 管理',id:'management'})}/><Row title="信号源配置" icon="DesktopIcon" value={String(v.watchTarget?v.watchLabel||'已配置':(client.frame?.domains.inputs?.configuration as Record<string,unknown>|undefined)?.entry?'原厂信号源菜单':'尚未配置')} navigate onClick={()=>open({kind:'tool',title:'信号源配置',id:'inputs'})}/></Group></>;}
+  async function copyConnection(){try{await copyConnectionAddress();feedback({kind:'success',title:'连接网址已复制',detail:'可在其他手机或浏览器直接打开'});}catch(error){feedback({kind:'error',title:'复制未完成',detail:error instanceof Error?error.message:'请长按地址栏复制完整网址'});}}
+  function general(){return <><Group title="手机连接"><Row title="复制连接网址" icon="Link2Icon" onClick={()=>void copyConnection()}/></Group><Group title="天气"><WeatherSettings client={client} controls={controls} open={open} run={perform} busy={busy}/></Group><Group title="桌面与启动">{controls(['secondHideHomeApps'])}<Row title="桌面管理" icon="HomeIcon" value={String(client.frame?.domains.desktopSwitch?.summary||guardSummary(client.frame?.domains.guard?.code))} navigate onClick={()=>open({kind:'tool',title:'桌面管理',id:'desktop-switch'})}/><Row title="桌面备份与恢复" icon="LayersIcon" value={v.backupError?'读取待核对':((v.backups||[]) as unknown[]).length?`${((v.backups||[]) as unknown[]).length}份备份`:'尚未备份'} navigate onClick={()=>open({kind:'tool',title:'桌面备份与恢复',id:'backup'})}/><Row title="开机去向" icon="HomeIcon" value={String(v.bootLabel||'QuietTV 首页')} navigate onClick={()=>open({kind:'tool',title:'开机去向',id:'boot'})}/></Group><Group title="连接与信号源"><Row title="ADB 管理" icon="Link2Icon" value={adbLabel(client.frame?.domains.management)} navigate onClick={()=>open({kind:'tool',title:'ADB 管理',id:'management'})}/><Row title="信号源配置" icon="DesktopIcon" value={String(v.watchTarget?v.watchLabel||'已配置':(client.frame?.domains.inputs?.configuration as Record<string,unknown>|undefined)?.entry?'原厂信号源菜单':'尚未配置')} navigate onClick={()=>open({kind:'tool',title:'信号源配置',id:'inputs'})}/></Group></>;}
   function tools(){return <Group><Row title="文件传输" icon="FileIcon" value={`${((v.receivedFiles||[]) as unknown[]).length}个文件`} navigate onClick={()=>open({kind:'tool',title:'文件传输',id:'files'})}/><Row title="备忘录" icon="FileTextIcon" value={`${((v.notes||[]) as {done:boolean}[]).filter(note=>!note.done).length}条未完成`} navigate onClick={()=>open({kind:'tool',title:'备忘录',id:'memos'})}/><Row title="Tailscale 组网" icon="Link2Icon" value="在手机助手中使用" navigate onClick={()=>open({kind:'remote-assistant',title:'Tailscale 组网'})}/></Group>;}
   function help(){return <><Group title="软件更新"><Row title="软件更新" value={metadata?.device.version} icon="DownloadIcon" navigate onClick={()=>open({kind:'update',title:'软件更新'})}/></Group><Group title="问题与反馈"><Row title="常见问题" value="HOME  开机  安装与恢复" icon="QuestionMarkCircledIcon" navigate onClick={()=>open({kind:'faq',title:'常见问题'})}/>{actionExists('diagnostics.export')&&<Row title="导出诊断" value="保存到手机" icon="FileTextIcon" navigate onClick={()=>open({kind:'tool',title:'导出诊断',id:'diagnostics'})}/>}<Row title="加入交流群" value="提反馈  提建议" icon="PersonIcon" navigate onClick={()=>open({kind:'community',title:'加入交流群'})}/></Group><Group title="关于"><Row title="关于 QuietTV" value="版本与设备信息" icon="InfoCircledIcon" navigate onClick={()=>open({kind:'about',title:'关于 QuietTV'})}/></Group></>;}
   function sheet(){if(!view)return null;switch(view.kind){

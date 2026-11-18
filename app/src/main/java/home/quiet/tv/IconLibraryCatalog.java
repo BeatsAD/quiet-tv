@@ -83,7 +83,9 @@ final class IconLibraryCatalog {
         if(matches!=null){if(version!=2)throw new IOException("本地图标目录不支持在线匹配规则");new IconLibraryMatcher(matches,this).requireCoverage(this);}
     }
     static IconLibraryCatalog read(Context context)throws IOException{
-        IconLibraryCatalog local=readLocal(context),online=IconLibraryRepository.get(context).catalog();
+        return IconLibraryRepository.get(context).readCatalog();
+    }
+    static IconLibraryCatalog merge(IconLibraryCatalog local,IconLibraryCatalog online){
         if(online==null)return local;
         LinkedHashMap<String,Item> merged=new LinkedHashMap<>();for(Item item:online.items)merged.put(item.style+":"+item.id,item);for(Item item:local.items)merged.put(item.style+":"+item.id,item);
         LinkedHashMap<String,Style> styles=new LinkedHashMap<>();for(Style style:online.styles)styles.put(style.id,style);for(Style style:local.styles)if(!styles.containsKey(style.id))styles.put(style.id,style);
@@ -92,7 +94,7 @@ final class IconLibraryCatalog {
     private IconLibraryCatalog(int revision,List<Item> items,JSONObject matches,List<Style> styles){this.version=2;this.revision=revision;this.items=Collections.unmodifiableList(items);this.matches=matches;this.styles=Collections.unmodifiableList(styles);}
     String[] styleIds(){String[] result=new String[styles.size()];for(int i=0;i<result.length;i++)result[i]=styles.get(i).id;return result;}
     String styleName(String id,boolean chinese){for(Style style:styles)if(style.id.equals(id))return style.label(chinese);return legacyStyleName(id,chinese);}
-    private static IconLibraryCatalog readLocal(Context context)throws IOException{
+    static IconLibraryCatalog readLocal(Context context)throws IOException{
         try(InputStream input=context.getAssets().open("icon-library/catalog.json");ByteArrayOutputStream out=new ByteArrayOutputStream()){
             byte[] buffer=new byte[4096];int n;while((n=input.read(buffer))!=-1){if(out.size()+n>256*1024)throw new IOException("图标素材清单过大");out.write(buffer,0,n);}return new IconLibraryCatalog(new JSONObject(out.toString("UTF-8")));
         }catch(JSONException invalid){throw new IOException("图标素材清单无法读取",invalid);}
