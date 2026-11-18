@@ -50,8 +50,12 @@ final class DesktopBackupStore {
     synchronized void automatic(boolean value)throws IOException{try{JSONObject next=new JSONObject(index.toString());next.put("automatic",value);save(next);}catch(JSONException failure){throw new IOException("自动备份设置未保存",failure);}}
     private void save(JSONObject next)throws IOException{checkIndex();ensure();write(indexFile,next);index=next;load();}
     synchronized Entry capture(String kind)throws IOException{
-        checkIndex();DesktopBackupRecord record=snapshots.capture(kind);if(kind.equals("auto")&&!entries.isEmpty()&&entries.get(0).record.fingerprint.equals(record.fingerprint))return entries.get(0);
-        try{JSONObject sources=new JSONObject();for(int i=0;i<record.assets.length();i++){String path=record.assets.getJSONObject(i).getString("path");sources.put(path,path);}return add(new Entry(record,sources));}catch(JSONException failure){throw new IOException("备份素材引用无法保存",failure);}
+        checkIndex();Entry entry=snapshot(kind);if(kind.equals("auto")&&!entries.isEmpty()&&entries.get(0).record.fingerprint.equals(entry.record.fingerprint))return entries.get(0);
+        return add(entry);
+    }
+    private Entry snapshot(String kind)throws IOException{
+        DesktopBackupRecord record=snapshots.capture(kind);
+        try{JSONObject sources=new JSONObject();for(int i=0;i<record.assets.length();i++){String path=record.assets.getJSONObject(i).getString("path");sources.put(path,path);}return new Entry(record,sources);}catch(JSONException failure){throw new IOException("备份素材引用无法保存",failure);}
     }
     synchronized Entry add(Entry entry)throws IOException{
         checkIndex();for(Entry old:entries)if(old.record.id.equals(entry.record.id)){DesktopBackupRecord.require(old.record.fingerprint.equals(entry.record.fingerprint),"备份标识冲突，原记录已保留");return old;}
@@ -94,7 +98,9 @@ final class DesktopBackupStore {
     synchronized void restore(String id)throws IOException{
         DiagnosticOperation trace=new DiagnosticOperation("backup.restore","target="+DiagnosticLog.anonymous("backup",id));
         try{trace.stage("VERIFY");
-        Entry target=find(id);verify(target);Entry before=capture("before");trace.stage("PROTECT_BEFORE");try{write(journal,new JSONObject().put("version",1).put("phase","applying").put("before",before.record.id).put("target",target.record.id).put("original",new JSONObject().put("record",before.record.json).put("sources",before.sources)));}
+        Entry target=find(id);verify(target);
+        // With automatic backups off, the journal alone holds the rollback snapshot.
+        Entry before=automatic()?capture("before"):snapshot("before");trace.stage("PROTECT_BEFORE");try{write(journal,new JSONObject().put("version",1).put("phase","applying").put("before",before.record.id).put("target",target.record.id).put("original",new JSONObject().put("record",before.record.json).put("sources",before.sources)));}
         catch(JSONException failure){throw new IOException("恢复任务无法保存，当前桌面未改变",failure);}
         try{trace.stage("APPLY");install(target,false);snapshots.apply(target.record.config);finishJournal("complete",before.record.id,target.record.id);trace.finish("COMPLETED","journal_confirmed");}
         catch(IOException failure){trace.stage("ROLLBACK");try{install(before,true);snapshots.apply(before.record.config);finishJournal("rolled-back",before.record.id,target.record.id);trace.finish("ROLLED_BACK",failure.getClass().getSimpleName());}catch(IOException rollback){failure.addSuppressed(rollback);throw new IOException("恢复尚未完成，请重试恢复原配置",failure);}throw new IOException("恢复未完成，已保留原桌面配置",failure);}

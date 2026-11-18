@@ -1,3 +1,4 @@
+import { rememberConnection } from './connection';
 import { completedNotice, deferredNotice, operationLabel, quietResult, requiresTask, resultFields, taskNotice, type OperationNotice } from './operationResults';
 export type Value = string | number | boolean | unknown[] | Record<string, unknown>;
 export type Field = { domain: string; title: string; type: 'range'|'toggle'|'select'|'text'|'order'; min?:number; max?:number; step?:number; unit?:string; divisor?:number; options?:{value:string|number;title:string}[]; maxLength?:number; disabledReason?:string };
@@ -68,8 +69,9 @@ export class PhoneClient {
     const field=this.metadata?.fields[key];return field?this.frame?.domains[field.domain]?.[key]:undefined;
   }
   values():Record<string,Value>{const values:Record<string,Value>={};for(const domain of Object.values(this.frame?.domains||{}))Object.assign(values,domain);for(const [key,pending] of this.pending)values[key]=pending.value;return values;}
-  start(){this.stopped=false;document.addEventListener('visibilitychange',this.visibility);window.addEventListener('online',this.visibility);void this.poll();}
-  stop(){this.stopped=true;clearTimeout(this.timer);document.removeEventListener('visibilitychange',this.visibility);window.removeEventListener('online',this.visibility);}
+  start(){this.stopped=false;document.addEventListener('visibilitychange',this.visibility);window.addEventListener('online',this.visibility);window.addEventListener('hashchange',this.connectionChanged);void this.poll();}
+  stop(){this.stopped=true;clearTimeout(this.timer);document.removeEventListener('visibilitychange',this.visibility);window.removeEventListener('online',this.visibility);window.removeEventListener('hashchange',this.connectionChanged);}
+  private connectionChanged=(event:HashChangeEvent)=>{const before=new URLSearchParams(new URL(event.oldURL).hash.slice(1)).get('connect'),after=new URLSearchParams(new URL(event.newURL).hash.slice(1)).get('connect');if(before!==after&&(before||after))location.reload();};
   private visibility=()=>{clearTimeout(this.timer);if(!document.hidden&&!this.stopped)void this.poll();};
   private async poll(){
     if(this.polling||this.stopped||document.hidden||this.status==='ended')return;this.polling=true;
@@ -146,7 +148,15 @@ export class PhoneClient {
     if(this.attempt)await this.reconcile();if(this.running||this.status==='ended')return;
     const read=++this.readCount,version=this.version;
     try{
-      if(!this.frame&&!full){const status=await this.fetch('status');if(status.state!=='connected')return;}
+      if(!this.frame){
+        const key=new URLSearchParams(location.hash.slice(1)).get('connect');let status;
+        if(key){
+          await this.fetch('connect',{key});
+          try{status=await this.fetch('status');}catch(error){if(error instanceof ApiError&&error.status===410)throw new ApiError(410,'当前浏览器未保存授权，请允许网站数据，或使用普通模式打开完整连接网址');throw error;}
+        }else status=await this.fetch('status');
+        if(status.state!=='connected')return;
+        if(typeof status.connectionLink==='string')rememberConnection(status.connectionLink,this.base);
+      }
       const frame:Frame|null=await this.fetch(full||!this.frame||this.needsMetadata?'api/bootstrap':`api/state?since=${encodeURIComponent(this.frame.revision)}`);
       this.acceptRead(frame,read,version);
       if(this.needsMetadata&&this.currentRead(read,version))this.acceptRead(await this.fetch('api/bootstrap'),read,version);

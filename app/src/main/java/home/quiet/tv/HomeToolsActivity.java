@@ -18,6 +18,7 @@ public final class HomeToolsActivity extends ManagementUi implements HomeQuickCo
     private FileToolsSheet files;
     private BootToolsSheet boot;
     private SourceToolsSheet sources;
+    // Retain the entry pixels while glass is off so open tool sheets can restore them.
     private Bitmap backdrop;
     private HomeHeaderView quickHeader;
     private boolean headerFocus=true,quickNavigation;
@@ -30,10 +31,10 @@ public final class HomeToolsActivity extends ManagementUi implements HomeQuickCo
     @Override boolean loadWallpaper(){return false;}
     @Override boolean managementChrome(){return false;}
     @Override boolean chinese(){return getIntent().getBooleanExtra("chinese",true);}
-    @Override public void glassChanged(){super.glassChanged();if(!GlassStyle.get(this).rendering()){backdrop=null;getIntent().removeExtra("backdrop");}if(stage!=null)stage.invalidate();}
+    @Override public void glassChanged(){super.glassChanged();if(stage!=null)stage.invalidate();}
     @Override public void onCreate(Bundle saved){
         super.onCreate(saved);setVolumeControlStream(android.media.AudioManager.STREAM_MUSIC);stage.setBackgroundColor(Color.TRANSPARENT);
-        backdrop=GlassStyle.get(this).rendering()?getIntent().getParcelableExtra("backdrop"):null;if(backdrop==null)getIntent().removeExtra("backdrop");mode=saved==null?getIntent().getStringExtra("mode"):saved.getString("home-tool-mode");if(mode==null)mode="control";
+        backdrop=entryBackdrop();mode=saved==null?getIntent().getStringExtra("mode"):saved.getString("home-tool-mode");if(mode==null)mode="control";
         origin=saved==null?getIntent().getStringExtra("home-button"):saved.getString("home-tool-origin","");if(origin==null)origin="";
         quickNavigation=saved==null?"control".equals(mode)&&origin.isEmpty():saved.getBoolean("quick-navigation");
         headerFocus=saved==null?false:saved.getBoolean("quick-header-focus",true);
@@ -93,7 +94,7 @@ public final class HomeToolsActivity extends ManagementUi implements HomeQuickCo
         return super.dispatchKeyEvent(event);
     }
     @Override void drawSheetBackdrop(Canvas canvas){
-        if(backdrop!=null)canvas.drawBitmap(backdrop,null,new RectF(0,0,getResources().getDisplayMetrics().widthPixels,getResources().getDisplayMetrics().heightPixels),new Paint(3));else canvas.drawColor(0xff000000);
+        if(backdrop!=null&&GlassStyle.get(this).rendering())canvas.drawBitmap(backdrop,null,new RectF(0,0,getResources().getDisplayMetrics().widthPixels,getResources().getDisplayMetrics().heightPixels),new Paint(3));else canvas.drawColor(0xff000000);
     }
     private void finishButtons(){setResult(RESULT_OK,new Intent().putExtra("focus-button",buttons.focusId()));finish();}
     private void settings(int page){settings(page,"");}

@@ -32,7 +32,10 @@ final class DesktopBackupSnapshot {
         }catch(JSONException|RuntimeException failure){throw new IOException("当前桌面配置无法读取，已有备份保留",failure);}
     }
     static String comparable(JSONObject config)throws JSONException{
-        JSONObject copy=new JSONObject(config.toString()),walls=copy.getJSONObject("wallpaper");if(walls.optBoolean("rotating")){walls.remove("current");walls.remove("lastVideo");}JSONArray shortcuts=copy.getJSONArray("shortcuts");List<String> ids=new ArrayList<>();for(int i=0;i<shortcuts.length();i++)ids.add(shortcuts.getString(i));copy.put("shortcuts",new JSONArray(QuickControlStore.normalize(ids)));return DesktopBackupRecord.canonical(copy);
+        JSONObject copy=new JSONObject(config.toString()),walls=WallpaperCatalog.read(copy.getJSONObject("wallpaper")).json();
+        // Compare the same defaults that the stores write when restoring an older backup.
+        copy.put("wallpaper",walls).put("screensaver",ScreensaverSettings.read(copy.getJSONObject("screensaver")).json());
+        if(walls.optBoolean("rotating")){walls.remove("current");walls.remove("lastVideo");}JSONArray shortcuts=copy.getJSONArray("shortcuts");List<String> ids=new ArrayList<>();for(int i=0;i<shortcuts.length();i++)ids.add(shortcuts.getString(i));copy.put("shortcuts",new JSONArray(QuickControlStore.normalize(ids)));return DesktopBackupRecord.canonical(copy);
     }
     DesktopBackupRecord capture(String kind)throws IOException{
         try{

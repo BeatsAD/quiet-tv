@@ -15,7 +15,7 @@ final class PhoneSettingsIcons {
     private final Runnable changed;
     private IconLibraryBatch.Plan batch;
     PhoneSettingsIcons(Context context,PhoneSettingsTasks tasks,String scope,Runnable changed){this.context=context;this.tasks=tasks;this.scope=scope;this.changed=changed;}
-    JSONObject state()throws JSONException{IconLibraryCatalog online=IconLibraryRepository.get(context).catalog();return new JSONObject().put("iconRevision",AppCoverStore.get(context).revision()).put("catalogVersion",online==null?0:online.revision).put("matchRevision",online==null||online.matches==null?0:online.matches.optInt("revision"));}
+    JSONObject state()throws IOException,JSONException{IconLibraryCatalog online=IconLibraryCatalog.read(context);return new JSONObject().put("iconRevision",AppCoverStore.get(context).revision()).put("catalogVersion",online==null?0:online.revision).put("matchRevision",online==null||online.matches==null?0:online.matches.optInt("revision"));}
     JSONObject metadata()throws IOException,JSONException{
         IconLibraryRepository.get(context).refresh();IconLibraryCatalog catalog=null;String problem="";try{catalog=IconLibraryCatalog.read(context);}catch(IOException failure){problem="图标素材无法读取，仍可上传图标";}JSONArray items=new JSONArray(),targets=new JSONArray();AppCoverStore covers=AppCoverStore.get(context);
         if(catalog!=null)for(IconLibraryCatalog.Item item:catalog.items){

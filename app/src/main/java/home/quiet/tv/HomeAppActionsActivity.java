@@ -27,6 +27,7 @@ public final class HomeAppActionsActivity extends ManagementUi {
     private FrameLayout sheetContent;
     private LinearLayout menuBox;
     private ScrollView menuScroll;
+    // Retain the entry pixels while glass is off so the same menu can restore them.
     private Bitmap backdrop;
     private String pkg,mode="menu",pickerMode="",candidate="";
     private boolean fromDock,pickerFromMenu,waitingForDelete;
@@ -34,11 +35,11 @@ public final class HomeAppActionsActivity extends ManagementUi {
     private final HashMap<String,Bitmap> pictures=new HashMap<>();
     @Override boolean unifiedSettings(){return true;}
     @Override boolean loadWallpaper(){return false;}
-    @Override void drawSheetBackdrop(Canvas canvas){if(backdrop==null)canvas.drawColor(0xe6000000);else canvas.drawBitmap(backdrop,null,new RectF(0,0,getResources().getDisplayMetrics().widthPixels,getResources().getDisplayMetrics().heightPixels),new Paint(3));}
-    @Override public void glassChanged(){super.glassChanged();if(!GlassStyle.get(this).rendering()){backdrop=null;getIntent().removeExtra("backdrop");}if(stage!=null)stage.invalidate();}
+    @Override void drawSheetBackdrop(Canvas canvas){if(backdrop==null||!GlassStyle.get(this).rendering())canvas.drawColor(0xe6000000);else canvas.drawBitmap(backdrop,null,new RectF(0,0,getResources().getDisplayMetrics().widthPixels,getResources().getDisplayMetrics().heightPixels),new Paint(3));}
+    @Override public void glassChanged(){super.glassChanged();if(menuBox!=null)menuBox.invalidate();if(stage!=null)stage.invalidate();}
     @Override public void onCreate(Bundle state){
         super.onCreate(state);stage.removeAllViews();stage.setBackgroundColor(Color.TRANSPARENT);
-        pkg=getIntent().getStringExtra("package");if(pkg==null)pkg="";fromDock=getIntent().getBooleanExtra("dock",false);backdrop=GlassStyle.get(this).rendering()?getIntent().getParcelableExtra("backdrop"):null;if(backdrop==null)getIntent().removeExtra("backdrop");
+        pkg=getIntent().getStringExtra("package");if(pkg==null)pkg="";fromDock=getIntent().getBooleanExtra("dock",false);backdrop=entryBackdrop();
         if(state!=null){pkg=state.getString("app-menu-package",pkg);fromDock=state.getBoolean("app-menu-dock",fromDock);mode=state.getString("app-menu-mode","menu");pickerMode=state.getString("app-menu-picker","");pickerFromMenu=state.getBoolean("app-menu-from-menu");candidate=state.getString("app-menu-candidate","");retainedFocus=state.getString("app-menu-focus","");retainedScroll=state.getFloat("app-menu-scroll");waitingForDelete=state.getBoolean("app-menu-waiting-delete");}
         sheet=new Sheet("");sheet.settingsLayout("关闭",this::finish);sheet.settingsActions(false);dialog=sheet.dialog;box=sheet.body;sheetContent=(FrameLayout)sheet.box.getParent();dialog.setCanceledOnTouchOutside(true);
         // Keep one full-screen surface and dim layer while switching menu and sheet content.
@@ -120,7 +121,7 @@ public final class HomeAppActionsActivity extends ManagementUi {
     private final class MenuBackdrop extends Drawable {
         private final Paint paint=new Paint(3);private final RectF area=new RectF();private final Path clip=new Path();private final int[] location=new int[2];private final GradientDrawable fallback=menuSurface(0xff30343e,0xff23272f,0x38ffffff,16);private Shader tint;
         @Override protected void onBoundsChange(Rect bounds){area.set(bounds);clip.reset();clip.addRoundRect(area,22*unit,22*unit,Path.Direction.CW);tint=new LinearGradient(0,bounds.top,0,bounds.bottom,0x30e6e8ec,0x202c3038,Shader.TileMode.CLAMP);fallback.setBounds(bounds);}
-        @Override public void draw(Canvas canvas){if(backdrop==null){fallback.draw(canvas);return;}float radius=22*unit;paint.setStyle(Paint.Style.FILL);paint.setShader(null);paint.setColor(0x18000000);int save=canvas.save();canvas.translate(0,2*unit);canvas.drawRoundRect(area,radius,radius,paint);canvas.restoreToCount(save);save=canvas.save();canvas.clipPath(clip);menuBox.getLocationOnScreen(location);canvas.translate(-location[0],-location[1]);paint.setAlpha(255);canvas.drawBitmap(backdrop,null,new RectF(0,0,getResources().getDisplayMetrics().widthPixels,getResources().getDisplayMetrics().heightPixels),paint);canvas.restoreToCount(save);paint.setAlpha(255);paint.setShader(tint);canvas.drawRoundRect(area,radius,radius,paint);paint.setShader(null);float stroke=Math.max(1,.5f*unit);area.inset(stroke/2,stroke/2);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(stroke);paint.setColor(0x66ffffff);canvas.drawRoundRect(area,radius-stroke/2,radius-stroke/2,paint);area.inset(-stroke/2,-stroke/2);paint.setStyle(Paint.Style.FILL);}
+        @Override public void draw(Canvas canvas){if(backdrop==null||!GlassStyle.get(HomeAppActionsActivity.this).rendering()){fallback.draw(canvas);return;}float radius=22*unit;paint.setStyle(Paint.Style.FILL);paint.setShader(null);paint.setColor(0x18000000);int save=canvas.save();canvas.translate(0,2*unit);canvas.drawRoundRect(area,radius,radius,paint);canvas.restoreToCount(save);save=canvas.save();canvas.clipPath(clip);menuBox.getLocationOnScreen(location);canvas.translate(-location[0],-location[1]);paint.setAlpha(255);canvas.drawBitmap(backdrop,null,new RectF(0,0,getResources().getDisplayMetrics().widthPixels,getResources().getDisplayMetrics().heightPixels),paint);canvas.restoreToCount(save);paint.setAlpha(255);paint.setShader(tint);canvas.drawRoundRect(area,radius,radius,paint);paint.setShader(null);float stroke=Math.max(1,.5f*unit);area.inset(stroke/2,stroke/2);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(stroke);paint.setColor(0x66ffffff);canvas.drawRoundRect(area,radius-stroke/2,radius-stroke/2,paint);area.inset(-stroke/2,-stroke/2);paint.setStyle(Paint.Style.FILL);}
         @Override public void setAlpha(int alpha){}@Override public void setColorFilter(ColorFilter filter){}@Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
     }
     private void changed(String focus){setResult(RESULT_OK,new Intent().putExtra("action","changed").putExtra("package",focus));finish();}

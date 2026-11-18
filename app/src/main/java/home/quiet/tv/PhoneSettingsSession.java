@@ -36,9 +36,9 @@ final class PhoneSettingsSession {
     void configurationChanged(){if(Looper.myLooper()!=Looper.getMainLooper()){String operation=DiagnosticOperation.current();main.post(()->{String previous=DiagnosticOperation.enter(operation);try{configurationChanged();}finally{DiagnosticOperation.restore(previous);}});return;}for(Runnable observer:new ArrayList<>(configurationObservers))observer.run();DiagnosticLog.info("phone.configuration.notified","parent="+DiagnosticOperation.current()+" observers="+configurationObservers.size()+" evidence=callbacks_not_presentation");fire();}
     String state(){if(starting)return "starting";if(!failure.isEmpty())return "error";if(server==null)return "closed";String state=server.state();return paired()&&!"connected".equals(state)?"waiting":state;}
     String failure(){return failure;}
-    String address(){return server==null?"":server.pairingAddress();}
+    String address(){return server==null?"":server.connectionAddress();}
     String shortAddress(){return server==null?"":server.shortAddress()+"/";}
-    String filesAddress(){String base=address();return base.isEmpty()?"":base+"#tab=tools&tool=files";}
+    String filesAddress(){String base=address();return base.isEmpty()?"":base+"&tab=tools&tool=files";}
     String fileTransferStatus(){for(BrowserBackend backend:browserBackends){String status=backend.configuration.fileTransferStatus();if(!status.isEmpty())return status;}return "";}
     void offerFile(String id)throws IOException{if(server==null||!Arrays.asList("waiting","connected").contains(state()))throw new IOException("请先开启手机连接");new FileTransferStore(new File(context.getFilesDir(),"received-files")).entry(id);offeredFile=id;for(BrowserBackend backend:browserBackends)backend.syncOffer();}
     void start(){

@@ -43,7 +43,7 @@ final class PhoneSettingsServer extends NanoHTTPD {
         final Backend backend;long touched=System.nanoTime();BrowserConnection(Backend backend){this.backend=backend;}
     }
     private final Map<String,BrowserConnection> connections=new HashMap<>();
-    private volatile boolean closed;private String state="waiting";private long created=System.nanoTime();
+    private String connectionKey="";private volatile boolean closed;private String state="waiting";private long created=System.nanoTime();
     PhoneSettingsServer(String bindHost,int port,String host,PhonePairing pairing,Assets assets,Backend backend,Runnable changed){
         this(bindHost,port,host,pairing,assets,()->backend,changed);
     }
@@ -52,14 +52,15 @@ final class PhoneSettingsServer extends NanoHTTPD {
         diagnosticState();
         setAsyncRunner(new AsyncRunner(){public void exec(ClientHandler handler){synchronized(clients){if(closed||clients.size()>=4){handler.close();return;}clients.add(handler);}Thread thread=new Thread(handler,"phone-settings-http");thread.setDaemon(true);thread.start();}public void closed(ClientHandler handler){synchronized(clients){clients.remove(handler);}}public void closeAll(){synchronized(clients){for(ClientHandler handler:new ArrayList<>(clients))handler.close();clients.clear();}}});
     }
-    void listen()throws IOException {start(15000,true);}
+    void listen()throws IOException {connectionKey=pairing.connectionKey();start(15000,true);}
     String shortAddress(){return "http://"+host+":"+getListeningPort();}
     String address(){return shortAddress()+(pairing.paired()?"/":path);}
+    synchronized String connectionAddress(){return shortAddress()+"/#connect="+connectionKey;}
     synchronized String pairingAddress(){return shortAddress()+path;}
     synchronized String state(){expire();if(!closed&&Arrays.asList("waiting","connected","expired").contains(state)&&(System.nanoTime()-created)/1000000>IDLE_MS)rotatePairing();return state;}
     private void rotatePairing(){path="/pair/"+PhonePairing.secret()+"/";created=System.nanoTime();if(connections.isEmpty())state="waiting";changed.run();}
     synchronized void reopen(){end();rotatePairing();}
-    synchronized void revokePairing()throws IOException {pairing.revoke();reopen();}
+    synchronized void revokePairing()throws IOException {pairing.revoke();connectionKey=pairing.connectionKey();reopen();}
     private void expire(){
         long now=System.nanoTime();boolean expired=false;
         for(Iterator<BrowserConnection> values=connections.values().iterator();values.hasNext();){BrowserConnection value=values.next();if((now-value.touched)/1000000>IDLE_MS){values.remove();value.backend.connectionEnded();expired=true;}}
@@ -75,28 +76,37 @@ final class PhoneSettingsServer extends NanoHTTPD {
         String origin=session.getHeaders().get("origin"),authority=host+":"+getListeningPort();
         if(!authority.equalsIgnoreCase(session.getHeaders().get("host"))||origin!=null&&!origin.equals(shortAddress()))return error(Response.Status.FORBIDDEN,"请求来源无效");
         String uri=session.getUri(),browser=browser(session);
-        if(session.getMethod()==Method.GET&&uri.equals(path)){
+        if(session.getMethod()==Method.GET&&(uri.equals(path)||uri.equals(path.substring(0,path.length()-1)))){
             synchronized(this){
                 expire();
-                if(!uri.equals(path)||!Arrays.asList("waiting","connected","expired").contains(state))return error(Response.Status.GONE,"请使用电视上的新二维码");
-                if((System.nanoTime()-created)/1000000>IDLE_MS)return error(Response.Status.GONE,"二维码已过期，请使用电视上的新二维码");
+                if(!(uri.equals(path)||uri.equals(path.substring(0,path.length()-1))))return landing();
+                if(!Arrays.asList("waiting","connected","expired").contains(state))return landing();
+                if((System.nanoTime()-created)/1000000>IDLE_MS)return landing();
                 try{
                     String credential=pairing.accepts(browser)?browser:pairing.pair();connect(credential);
                     if(!credential.equals(browser))rotatePairing();
-                    Response response=secure(newFixedLengthResponse(Response.Status.FOUND,"text/plain; charset=utf-8",""));response.addHeader("Location","/");cookie(response,credential);return response;
+                    Response response=secure(newFixedLengthResponse(Response.Status.FOUND,"text/plain; charset=utf-8",""));response.addHeader("Location","/#connect="+connectionKey);cookie(response,credential);return response;
                 }catch(IOException e){return error(Response.Status.INTERNAL_ERROR,e.getMessage());}
             }
         }
+        if(session.getMethod()==Method.GET&&uri.startsWith("/pair/"))return landing();
+        if(session.getMethod()==Method.POST&&uri.equals("/connect")){
+            synchronized(this){try{
+                expire();JSONObject request=read(session,512);if(request.length()!=1||!(request.opt("key") instanceof String))throw new BadInput();
+                if(!pairing.acceptsConnectionKey(request.getString("key")))return error(Response.Status.GONE,"连接网址已失效，请从电视获取新的完整连接网址");
+                String credential=pairing.accepts(browser)?browser:pairing.pair();connect(credential);Response response=json(Response.Status.OK,connectionStatus());cookie(response,credential);return response;
+            }catch(BadInput|JSONException invalid){return error(Response.Status.BAD_REQUEST,"连接网址不完整，请复制完整连接网址");}catch(IOException failure){return error(Response.Status.INTERNAL_ERROR,"手机配对信息保存失败，请重试");}}
+        }
         String route=uri.equals("/")?"":uri.substring(1);
         boolean publicAsset=route.matches("assets/[A-Za-z0-9_-]+\\.(png|webp|svg)");
-        if(session.getMethod()==Method.GET&&(route.isEmpty()||route.equals("app.js")||route.equals("styles.css")||route.equals("tmdb.svg")||publicAsset)){
-            boolean trusted=route.isEmpty()&&pairing.accepts(browser);
+        if((session.getMethod()==Method.GET||session.getMethod()==Method.HEAD)&&(route.isEmpty()||route.equals("app.js")||route.equals("styles.css")||route.equals("tmdb.svg")||publicAsset)){
+            boolean trusted=session.getMethod()==Method.GET&&route.isEmpty()&&pairing.accepts(browser);
             if(trusted)synchronized(this){expire();if(pairing.accepts(browser))connect(browser);else trusted=false;}
             try{String name=route.isEmpty()?"index.html":route,mime=route.isEmpty()?"text/html; charset=utf-8":route.endsWith(".js")?"application/javascript; charset=utf-8":route.endsWith(".png")?"image/png":route.endsWith(".webp")?"image/webp":route.endsWith(".svg")?"image/svg+xml":"text/css; charset=utf-8";Response response=secure(newChunkedResponse(Response.Status.OK,mime,assets.open(name)));if(trusted)cookie(response,browser);return response;}catch(IOException failure){return error(Response.Status.INTERNAL_ERROR,"设置页面暂不可用");}
         }
         if(session.getMethod()==Method.GET&&route.equals("status")){
-            synchronized(this){expire();if(pairing.accepts(browser))connect(browser);else return error(Response.Status.GONE,"请扫描电视上的二维码，完成当前浏览器首次授权；已有浏览器无需解除配对");
-                Response response=json(Response.Status.OK,object("state","connected"));cookie(response,browser);return response;}
+            synchronized(this){expire();if(pairing.accepts(browser))connect(browser);else return error(Response.Status.GONE,"请打开电视上的完整连接网址，或重新扫码；已有浏览器无需解除配对");
+                Response response=json(Response.Status.OK,connectionStatus());cookie(response,browser);return response;}
         }
         final BrowserConnection expected; synchronized(this){expected=connections.get(browser);}
         if(!authorized(browser,expected))return error(Response.Status.GONE,"连接已结束，请重新打开收藏的网址；若已解除配对，请重新扫码");
@@ -150,6 +160,8 @@ final class PhoneSettingsServer extends NanoHTTPD {
             JSONObject result=backend.change((String)field,data.get("value"),(String)revision,()->authorized(browser,expected));touch(expected);return json(Response.Status.OK,result);
         }catch(Conflict conflict){return error(Response.Status.CONFLICT,conflict.getMessage());}catch(Ended ended){return error(Response.Status.GONE,ended.getMessage());}catch(Rejected rejected){return error(Response.Status.BAD_REQUEST,rejected.getMessage());}catch(BadInput|JSONException|IllegalArgumentException error){return error(Response.Status.BAD_REQUEST,"设置内容无效");}catch(IOException error){return error(Response.Status.INTERNAL_ERROR,"保存未确认，输入已保留");}
     }
+    private Response landing(){Response response=secure(newFixedLengthResponse(Response.Status.FOUND,"text/plain; charset=utf-8",""));response.addHeader("Location","/");return response;}
+    private JSONObject connectionStatus(){JSONObject result=object("state","connected");try{return result.put("connectionLink",connectionAddress());}catch(JSONException impossible){throw new IllegalStateException(impossible);}}
     private void cookie(Response response,String credential){response.addHeader("Set-Cookie","quiet_phone="+credential+"; HttpOnly; SameSite=Strict; Max-Age=31536000; Path=/");}
     private void connect(String browser){
         BrowserConnection value=connections.get(browser);

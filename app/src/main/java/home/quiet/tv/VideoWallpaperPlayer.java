@@ -451,7 +451,11 @@ final class VideoWallpaperPlayer {
     }
     private void fail(int request,Failure reason){
         if(request!=generation||!enabled||destroyed)return;
-        enabled=false;rendered=false;main.removeCallbacks(timeout);Log.w(TAG,"video unavailable request="+request+" reason="+reason);DiagnosticLog.info("wallpaper.video.failed",context(request)+" reason="+reason.name()+" paused="+paused+" screenOff="+screenOff);
+        rendered=false;main.removeCallbacks(timeout);Log.w(TAG,"video unavailable request="+request+" reason="+reason);DiagnosticLog.info("wallpaper.video.failed",context(request)+" reason="+reason.name()+" paused="+paused+" screenOff="+screenOff);
+        // A service death does not invalidate the media. Keep this request enabled so the
+        // existing screen/focus/resume hooks can rebind it, without changing the saved selection.
+        if(reason==Failure.INTERRUPTED){release(true);return;}
+        enabled=false;
         Listener failed=listener;release();
         if(failed!=null)failed.failed(reason);
     }
