@@ -10,7 +10,7 @@ ASSETS = ROOT.parent / 'app/src/main/assets/phone-settings'
 
 def main():
     manifest = json.loads((ASSETS / 'build-manifest.json').read_text(encoding='utf-8'))
-    expected = {'package.json', 'package-lock.json', 'tsconfig.json', 'vite.config.ts', 'index.html', 'build.mjs', 'check_assets.py'}
+    expected = {'package.json', 'package-lock.json', 'tsconfig.json', 'vite.config.ts', 'index.html', 'build.mjs', 'check_assets.py', '../app/src/main/assets/fonts/outfit.ttf'}
     for folder in ('src', 'public'):
         expected.update(p.relative_to(ROOT).as_posix() for p in (ROOT / folder).rglob('*') if p.is_file())
     if expected != set(manifest['source']):

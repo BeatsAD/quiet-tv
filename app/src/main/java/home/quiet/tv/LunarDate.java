@@ -13,11 +13,31 @@ final class LunarDate {
     private static final long START=utc(1901,1,1);
     static String key(Calendar day){return String.format(Locale.US,"%04d-%02d-%02d",day.get(Calendar.YEAR),day.get(Calendar.MONTH)+1,day.get(Calendar.DAY_OF_MONTH));}
     static String format(Calendar day){return day.get(Calendar.ERA)==GregorianCalendar.AD?format(day.get(Calendar.YEAR),day.get(Calendar.MONTH)+1,day.get(Calendar.DAY_OF_MONTH)):"";}
+    static String screenText(Calendar day){
+        String value=format(day);
+        return value.isEmpty()?value:value.substring(2);
+    }
+    static List<Integer> monthStarts(Calendar day){
+        int year=day.get(Calendar.YEAR),month=day.get(Calendar.MONTH)+1;
+        if(day.get(Calendar.ERA)!=GregorianCalendar.AD||year<1901||year>2100)return Collections.emptyList();
+        int first=(int)((utc(year,month,1)-START)/86400000L);
+        int length=day.getActualMaximum(Calendar.DAY_OF_MONTH);
+        List<Integer> days=new ArrayList<>(2);
+        for(int i=entryIndex(first);i<STARTS.length;i++){
+            int dayOfMonth=(STARTS[i]>>5)-first+1;
+            if(dayOfMonth>length)break;
+            if(dayOfMonth>0)days.add(dayOfMonth);
+        }
+        return days;
+    }
+    private static int entryIndex(int offset){
+        int index=Arrays.binarySearch(STARTS,(offset<<5)|31);
+        return index<0?-index-2:index;
+    }
     static String format(int year,int month,int day){
         if(year<1901||year>2100)return "";
         final int offset;try{offset=(int)((utc(year,month,day)-START)/86400000L);}catch(IllegalArgumentException invalid){return "";}
-        int index=Arrays.binarySearch(STARTS,(offset<<5)|31);if(index<0)index=-index-2;
-        int entry=STARTS[index],date=offset-(entry>>5);
+        int entry=STARTS[entryIndex(offset)],date=offset-(entry>>5);
         return "农历"+((entry&16)!=0?"闰":"")+MONTHS[entry&15]+DAYS[date];
     }
     private static long utc(int year,int month,int day){GregorianCalendar date=new GregorianCalendar(TimeZone.getTimeZone("UTC"),Locale.US);date.clear();date.setLenient(false);date.set(year,month-1,day);return date.getTimeInMillis();}

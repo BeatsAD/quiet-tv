@@ -7,7 +7,7 @@ import java.util.*;
 /** Stable wallpaper identities and policy, independent of Android views and file I/O. */
 final class WallpaperCatalog {
     private static final java.util.regex.Pattern USER_ID=java.util.regex.Pattern.compile("user-[a-f0-9-]{36}"),HASH=java.util.regex.Pattern.compile("[a-f0-9]{64}"),UPSTREAM=java.util.regex.Pattern.compile("[0-9]{8}([0-9]{4})?");
-    static final String DEFAULT = "default";
+    static final String DEFAULT = "default", BUILTIN = "yosemite-valley";
     static final String DAILY = "daily", BING = "bing-cn", MICROSOFT = "spotlight-cn", MOVIE = "movie-daily", BT = "bt-landscape";
     // BT is accepted only for reading legacy caches until a Bing image is committed.
     static boolean dailyProvider(String source) { return BING.equals(source)||MICROSOFT.equals(source)||MOVIE.equals(source); }
@@ -57,6 +57,7 @@ final class WallpaperCatalog {
         boolean custom() { return id.startsWith("user-"); }
         String label(boolean chinese) {
             if (DEFAULT.equals(id)) return chinese ? "默认颜色主题" : "Default color theme";
+            if (BUILTIN.equals(id)) return chinese ? "优胜美地山谷" : "Yosemite Valley";
             if (DAILY.equals(id)) return chinese ? "每日壁纸" : "Daily wallpaper";
             return name;
         }
@@ -72,9 +73,17 @@ final class WallpaperCatalog {
     final Map<String,DailyImage> dailyImages=new LinkedHashMap<>();
     final List<Entry> custom = new ArrayList<>();
 
+    static WallpaperCatalog freshInstall(){
+        WallpaperCatalog catalog=new WallpaperCatalog();
+        catalog.selectFixed(BUILTIN);
+        catalog.select(DAILY);
+        return catalog;
+    }
+
     List<Entry> entries() {
         List<Entry> result=new ArrayList<>();
         result.add(new Entry(DEFAULT,"",0,0,0));
+        result.add(new Entry(BUILTIN,"",1280,720,187415));
         result.add(new Entry(DAILY,"",0,0,0));
         result.addAll(custom); return result;
     }
@@ -83,7 +92,12 @@ final class WallpaperCatalog {
     List<Entry> videos(){List<Entry> result=new ArrayList<>();for(Entry e:entries())if(e.video())result.add(e);return result;}
     boolean audible(){return sound&&!rotating&&!weather;}
     boolean dynamic(){Entry e=find(current);return e!=null&&e.video();}
-    int count(boolean video){int n=0;for(Entry e:custom)if(e.video()==video)n++;return n;}
+    int count(boolean video){return video?videos().size():pictures().size();}
+    String dailyFallback(){return DEFAULT.equals(lastLocal)?BUILTIN:lastLocal;}
+    String fixedCandidate(String id){
+        if(DAILY.equals(id))id=lastFixed;
+        return DEFAULT.equals(id)?BUILTIN:id;
+    }
     void normalize() {
         if (find(current)==null) {current=staticBeforeVideo;rotating=rotationBeforeVideo;}
         if(find(current)==null)current=DEFAULT;
@@ -130,8 +144,8 @@ final class WallpaperCatalog {
         for(int i=1;i<=pool.size();i++){String id=pool.get((index+i)%pool.size()).id;if(!failed.contains(id))return id;}return null;
     }
     void remove(String id) {
-        if (DEFAULT.equals(id)||DAILY.equals(id)) throw new IllegalArgumentException("Wallpaper entry cannot be removed");
         Entry entry=find(id); if (entry==null) return;
+        if(!entry.custom())throw new IllegalArgumentException("Wallpaper entry cannot be removed");
         List<Entry> pool=entry.video()?videos():pictures(); int position=0;
         for (int i=0;i<pool.size();i++) if (pool.get(i).id.equals(id)) position=i;
         custom.remove(entry);
@@ -139,7 +153,7 @@ final class WallpaperCatalog {
         if (current.equals(id)){
             if(rotating&&!pool.isEmpty()){current=pool.get(position%pool.size()).id;if(entry.video())lastVideo=current;}
             else if(entry.video()){current=staticBeforeVideo;rotating=rotationBeforeVideo;}
-            else current=DEFAULT;
+            else current=BUILTIN;
         }
         normalize();
     }

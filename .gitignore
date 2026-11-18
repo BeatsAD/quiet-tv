@@ -22,6 +22,8 @@ evidence/
 !/app/src/standard/res/
 !/app/src/standard/res/drawable-nodpi/
 !/app/src/standard/res/drawable-nodpi/*.webp
+# The offline wallpaper is packaged in all compatibility profiles.
+!/app/src/main/assets/yosemite-valley.jpg
 # Historical wallpaper sources stay available; Gradle excludes them from APK assets.
 !/app/src/main/assets/wallpapers/golden-gate-sunset.mp4
 !/app/src/main/assets/wallpapers/golden-gate-sunset.jpg
@@ -219,6 +221,7 @@ __pycache__/
 !/app/src/main/res/raw/key_back.wav
 !/app/src/main/res/raw/key_bell_*.wav
 !/app/src/main/res/raw/key_drop_*.wav
+!/app/src/main/res/raw/flip_clock.wav
 !/scripts/generate_key_sound_themes.py
 
 # The browser settings page is a bundled production input.

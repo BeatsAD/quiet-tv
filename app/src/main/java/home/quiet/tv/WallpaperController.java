@@ -263,8 +263,11 @@ final class WallpaperController implements GlassStyle.Listener {
             if(!wallpaperBlur.previewReady())return false;
         }
         if(weatherSelected()&&weatherCover.getVisibility()==View.VISIBLE||gpuShowing&&weatherSelected())return true;
-        String id=selectedId();WallpaperCatalog.Entry entry=store.entry(id);
-        if(entry==null||WallpaperCatalog.DAILY.equals(id)&&!store.cached(store.snapshot().dailyImages.get(store.snapshot().dailySource)))return true;
+        WallpaperCatalog state=store.snapshot();
+        String id=selectedId();
+        if(WallpaperCatalog.DAILY.equals(id)&&!store.cached(state.dailyImages.get(state.dailySource)))id=state.dailyFallback();
+        WallpaperCatalog.Entry entry=state.find(id);
+        if(entry==null)return true;
         return id.equals(shown)&&store.imageKey(id).equals(shownKey)&&(WallpaperCatalog.DEFAULT.equals(id)||entry!=null&&entry.video()||!glassStyle.rendering()||currentBlur!=null);
     }
     private String selectedId(){return previewOnly&&previewId!=null?previewId:store.currentId();}
@@ -287,7 +290,10 @@ final class WallpaperController implements GlassStyle.Listener {
     private void checkPreview(){
         if(!previewOnly||previewResult==null||!active||destroyed||previewDone||previewQueued)return;
         if(!previewSyncError.isEmpty()){previewFailed(previewSyncError);return;}
-        String id=selectedId();WallpaperCatalog.Entry selected=store.snapshot().find(id);
+        WallpaperCatalog state=store.snapshot();
+        String id=selectedId();
+        if(WallpaperCatalog.DAILY.equals(id)&&!store.cached(state.dailyImages.get(state.dailySource)))id=state.dailyFallback();
+        WallpaperCatalog.Entry selected=state.find(id);
         if(weatherSelected()){
             WeatherData data=new WeatherStore(activity).cached(chinese);
             if(gpu==null||!previewGpuFailure.isEmpty()||data==null||!data.usable(System.currentTimeMillis())){previewFailed(tr("天气效果暂不可用，预览未同步","Weather preview unavailable"));return;}
@@ -297,7 +303,6 @@ final class WallpaperController implements GlassStyle.Listener {
             if(!id.equals(playingVideo)||!video.ready())return;
         }else{
             if(selected==null&&!WallpaperCatalog.DEFAULT.equals(id)){previewFailed(tr("背景素材不可用","Background media unavailable"));return;}
-            if(WallpaperCatalog.DAILY.equals(id)&&!store.cached(store.snapshot().dailyImages.get(store.snapshot().dailySource))){previewFailed(tr("每日壁纸尚未就绪","Daily wallpaper is not ready"));return;}
             if(!id.equals(shown)||!store.imageKey(id).equals(shownKey)&&!WallpaperCatalog.DEFAULT.equals(id))return;
             if(!previewGpuFailure.isEmpty()&&progressive()&&firstBlur>0){previewFailed(tr("背景效果暂不可用，预览未同步","Background effect unavailable"));return;}
             if(gpuRequested&&!gpuShowing)return;
@@ -432,7 +437,7 @@ final class WallpaperController implements GlassStyle.Listener {
         }
         String key=store.imageKey(id);
         if(WallpaperCatalog.DAILY.equals(id)&&!store.cached(state.dailyImages.get(state.dailySource))){
-            if(prepared!=null)display(WallpaperCatalog.DEFAULT,false,prepared);else if(shown==null)display(state.lastLocal,false);return;
+            display(state.dailyFallback(),animate,prepared);return;
         }
         boolean fixedStatic=temporaryMedia==null&&!WallpaperCatalog.DAILY.equals(id)&&!state.weather&&!state.rotating&&id.equals(state.current);
         android.util.DisplayMetrics screen=activity.getResources().getDisplayMetrics();
@@ -471,7 +476,7 @@ final class WallpaperController implements GlassStyle.Listener {
                     }
                     cacheBackdrop(id,bitmap,blurred);stopVideo(prepared);
                 });
-            }catch(IOException|OutOfMemoryError e){DiagnosticLog.error("wallpaper.decode.failed",e);main.post(()->{if(version!=request||destroyed)return;if(previewOnly)previewFailed(tr("无法读取这张壁纸","Unable to read this wallpaper"));if(temporaryMedia!=null){display(WallpaperCatalog.DEFAULT,false,prepared);return;}if(WallpaperCatalog.DAILY.equals(id)){daily.cacheUnreadable();if(prepared!=null)display(WallpaperCatalog.DEFAULT,false,prepared);else if(current.getDrawable()==null)display(store.snapshot().lastLocal,false);return;}notice(tr("无法读取这张壁纸","Unable to read this wallpaper"));if(!previewOnly&&id.equals(store.snapshot().current))try{store.select(WallpaperCatalog.DEFAULT);}catch(IOException ignored){}display(WallpaperCatalog.DEFAULT,false,prepared);});}
+            }catch(IOException|OutOfMemoryError e){DiagnosticLog.error("wallpaper.decode.failed",e);main.post(()->{if(version!=request||destroyed)return;if(previewOnly)previewFailed(tr("无法读取这张壁纸","Unable to read this wallpaper"));if(temporaryMedia!=null){display(WallpaperCatalog.DEFAULT,false,prepared);return;}if(WallpaperCatalog.DAILY.equals(id)){daily.cacheUnreadable();if(prepared!=null||current.getDrawable()==null)display(store.snapshot().dailyFallback(),false,prepared);return;}notice(tr("无法读取这张壁纸","Unable to read this wallpaper"));if(!previewOnly&&id.equals(store.snapshot().current))try{store.select(WallpaperCatalog.DEFAULT);}catch(IOException ignored){}display(WallpaperCatalog.DEFAULT,false,prepared);});}
         });
     }
     private void presentStatic(String id,String key,Bitmap image,Bitmap blur,boolean fullResolution,Runnable prepared){
@@ -818,7 +823,7 @@ final class WallpaperController implements GlassStyle.Listener {
     private void handlePickerBack(){if(picker==null)return;commitPending=false;picker.dismiss();KeyFeedback.returned(activity);}
     private void refreshCards(String preferred,boolean focusCard){
         if(picker==null)return;cancelCardPress();pendingCardFocus=null;int version=++pickerVersion;WallpaperCatalog state=store.snapshot();
-        List<WallpaperCatalog.Entry> entries=new ArrayList<>();for(WallpaperCatalog.Entry e:state.entries())if(e.video()==dynamicTab)entries.add(e);
+        List<WallpaperCatalog.Entry> entries=new ArrayList<>();for(WallpaperCatalog.Entry e:state.entries())if(!WallpaperCatalog.DEFAULT.equals(e.id)&&e.video()==dynamicTab)entries.add(e);
         boolean found=false;for(WallpaperCatalog.Entry e:entries)if(e.id.equals(preferred))found=true;
         if(!found)preferred=entries.isEmpty()?null:entries.get(0).id;
         preview=preferred;
@@ -911,11 +916,10 @@ final class WallpaperController implements GlassStyle.Listener {
     private void confirmDelete(String id,int initiatingKey,long downTime){
         if(picker==null||confirmation!=null&&confirmation.isShowing())return;
         WallpaperCatalog state=store.snapshot();WallpaperCatalog.Entry entry=state.find(id);if(entry==null)return;
-        if(WallpaperCatalog.DAILY.equals(id))return;
-        if(WallpaperCatalog.DEFAULT.equals(id)){notice(OperationFeedback.Kind.INFO,tr("默认颜色主题不能删除","The default color theme cannot be deleted"));return;}
+        if(!entry.custom())return;
         stopVideo();List<String> before=focusableCards();int index=before.indexOf(id);String[] returnTo={id};
         AlertDialog dialog=new KeyFeedback.Alert(activity);dialog.setTitle(tr("删除「","Delete “")+entry.label(chinese)+tr("」？","”?"));
-        dialog.setMessage(tr("删除电视中保存的壁纸，手机或电脑中的原文件不受影响。","Delete this TV copy. The original on your phone or computer is unchanged.")+(entry.id.equals(state.current)?entry.video()?tr("\n删除后恢复之前的静态壁纸。","\nRestores your previous static wallpaper."):state.rotating?tr("\n将切换到下一张有效图片；不足两张时关闭轮播。","\nSwitch to the next available photo; stop slideshow below two images."):tr("\n这张壁纸正在使用，删除后切回默认颜色主题。","\nThis wallpaper is in use. Deleting it restores the default color theme."):""));
+        dialog.setMessage(tr("删除电视中保存的壁纸，手机或电脑中的原文件不受影响。","Delete this TV copy. The original on your phone or computer is unchanged.")+(entry.id.equals(state.current)?entry.video()?tr("\n删除后恢复之前的静态壁纸。","\nRestores your previous static wallpaper."):state.rotating?tr("\n将切换到下一张有效图片；不足两张时关闭轮播。","\nSwitch to the next available photo; stop slideshow below two images."):tr("\n这张壁纸正在使用，删除后切换到内置壁纸。","\nThis wallpaper is in use. Deleting it switches to the built-in wallpaper."):""));
         dialog.setButton(AlertDialog.BUTTON_NEGATIVE,tr("取消","Cancel"),(android.content.DialogInterface.OnClickListener)null);
         dialog.setButton(AlertDialog.BUTTON_POSITIVE,tr("删除","Delete"),(android.content.DialogInterface.OnClickListener)null);
         // The opening hold can continue in the new window. Consume its repeats and release.

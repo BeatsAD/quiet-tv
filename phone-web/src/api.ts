@@ -5,7 +5,7 @@ export type Field = { domain: string; title: string; type: 'range'|'toggle'|'sel
 export type App = { id:string; name:string; originalName?:string; customName?:string; renamed?:boolean; canRename?:boolean; icon?:string; cover?:string; coverFit?:'contain'|'cover'; color?:string; version?:string; apkBytes?:number; system?:boolean; protected?:boolean; hidden?:boolean; disabled?:boolean; removed?:boolean;installed?:boolean;recoverable?:boolean;childHidden?:boolean;protection?:string; actions?:{id:string;title:string;danger?:boolean;reason?:string;explanation?:string}[] };
 export type Media = { id:string; name:string; kind?:string; width:number; height:number; bytes:number; durationMs:number; video:boolean; canRename?:boolean };
 export type Task = { id:string;domain:string;kind:string;title:string;state:string;message:string;progress:number;cancellable?:boolean;result?:Record<string,unknown> };
-export type Metadata = { device:{name:string;version:string;build:number;sdk:number;channel:string}; fields:Record<string,Field>; wallpapers:Media[]; serverTimeMs?:number; timeZone?:string; pollIntervalMs:number; [key:string]:unknown };
+export type Metadata = { device:{name:string;version:string;build:number;sdk:number;channel:string}; fields:Record<string,Field>; wallpapers:Media[]; serverTimeMs?:number; timeZone?:string; saverLunar?:{date:string;text:string;monthStarts:number[]}; pollIntervalMs:number; [key:string]:unknown };
 export type Frame = { protocolVersion:number;generation:string;revision:string;lastSequence:number;complete:boolean;domains:Record<string,Record<string,Value>>;revisions:Record<string,string>;metadata?:Metadata;requestId?:string;requestStatus?:string;committedDomain?:string;committedRevision?:string;operation?:Record<string,unknown> };
 type Receipt = { generation:string;lastSequence:number;sequence?:number;requestStatus:string;committedDomain?:string;committedRevision?:string;committedState?:Record<string,Value>;operation?:Record<string,unknown>;errorStatus?:number;message?:string };
 type WriteRequest = { requestId:string;generation:string;sequence:number;domain:string;field:string;revision:string;value:Value };
@@ -143,6 +143,10 @@ export class PhoneClient {
     const request={requestId:`phone_${Date.now().toString(36)}_${++this.requestCount}`,generation:this.frame.generation,sequence:++this.sequence,domain:pending.domain,field:pending.key,revision:pending.base,value:pending.value};
     this.publish();
     try{await this.send({request,version:pending.version});}catch{}finally{this.running=false;this.publish();void this.drain();}
+  }
+  refreshClockMetadata(){
+    this.needsMetadata=true;
+    void this.refresh(false);
   }
   async refresh(full=true){
     if(this.attempt)await this.reconcile();if(this.running||this.status==='ended')return;

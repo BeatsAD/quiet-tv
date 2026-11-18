@@ -18,7 +18,7 @@ export function DailyWallpaperDetails({client,disabled}:{client:PhoneClient;disa
       {!!info?.bytes&&<div><dt>大小</dt><dd>{fileSize(Number(info.bytes))}</dd></div>}
     </dl>
     {movie?<p className="daily-picture-attribution">This product uses the TMDB API but is not endorsed or certified by TMDB.</p>:!!info?.copyright&&<p className="daily-picture-attribution">{String(info.copyright)}</p>}
-    <p className="section-note">每天更新，获取失败时保留当前背景。</p>
+    <p className="section-note">{info?.cached?'每天更新，获取失败时保留当前背景。':'暂用本地壁纸，获取成功后自动切换。'}</p>
     <DailyWallpaperRefresh client={client} disabled={disabled}/>
   </article>;
 }

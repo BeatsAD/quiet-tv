@@ -150,7 +150,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     };
     private JSONObject config;
     private final BroadcastReceiver timeReceiver = new BroadcastReceiver() {
-        @Override public void onReceive(Context c, Intent i) { if(Intent.ACTION_SCREEN_OFF.equals(i.getAction())){homeHeader.clockActive(false);cancelInputWork();return;}if(Intent.ACTION_SCREEN_ON.equals(i.getAction()))homeHeader.clockActive(resumed);updateClock();if(screensaver!=null)screensaver.timeChanged();if(wallpapers!=null)wallpapers.environmentChanged(); }
+        @Override public void onReceive(Context c, Intent i) { if(Intent.ACTION_SCREEN_OFF.equals(i.getAction())){homeHeader.clockActive(false);cancelInputWork();return;}if(Intent.ACTION_SCREEN_ON.equals(i.getAction()))homeHeader.clockActive(resumed);updateClock();if(screensaver!=null&&!Intent.ACTION_TIME_TICK.equals(i.getAction()))screensaver.timeChanged();if(wallpapers!=null)wallpapers.environmentChanged(); }
     };
     private final BroadcastReceiver packageReceiver = new BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) {

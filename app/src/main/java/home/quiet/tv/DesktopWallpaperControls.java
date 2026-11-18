@@ -50,12 +50,13 @@ final class DesktopWallpaperControls {
     private DesktopSettingsRow row(String title,String tag,Runnable action){DesktopSettingsRow item=new DesktopSettingsRow(ui,title,"",false);item.displayStyle();item.hideIcon();item.setTag(tag);item.setOnClickListener(v->{if(!busy)action.run();});group.addView(item,new LinearLayout.LayoutParams(-1,ui.px(42)));return item;}
     private String actualMode(WallpaperCatalog state){return state.weather&&WallpaperGpuSupport.available(ui)?"weather":WallpaperCatalog.DAILY.equals(state.current)?"daily":state.rotating?"rotation":"fixed";}
     private void reset(){WallpaperCatalog state=store.snapshot();mode=actualMode(state);candidate=state.current;followDayNight=state.weatherDayNight;interval="";custom=false;touched=false;error="";}
-    private String staticFallback(WallpaperCatalog state,String id){WallpaperCatalog.Entry item=state.find(id);String next=item!=null&&item.video()?state.staticBeforeVideo:id;if(WallpaperCatalog.DAILY.equals(next))next=state.lastLocal;return state.find(next)==null?WallpaperCatalog.DEFAULT:next;}
+    private String staticFallback(WallpaperCatalog state,String id){WallpaperCatalog.Entry item=state.find(id);String next=item!=null&&item.video()?state.staticBeforeVideo:id;if(WallpaperCatalog.DAILY.equals(next))next=state.dailyFallback();return state.find(next)==null?WallpaperCatalog.DEFAULT:next;}
     private void mode(String value){
         if(busy)return;WallpaperCatalog state=store.snapshot();mode=value;focusedMode="";interval="";custom=false;touched=true;error="";
         if(value.equals("daily")){candidate=WallpaperCatalog.DAILY;expanded=false;}
         else if(value.equals("weather")){candidate=staticFallback(state,candidate);expanded=false;}
-        else if(WallpaperCatalog.DAILY.equals(candidate))candidate=value.equals("fixed")?state.lastFixed:staticFallback(state,candidate);
+        else if(value.equals("fixed"))candidate=state.fixedCandidate(candidate);
+        else if(WallpaperCatalog.DAILY.equals(candidate))candidate=staticFallback(state,candidate);
         if(value.equals("rotation")){WallpaperCatalog.Entry item=state.find(candidate);List<WallpaperCatalog.Entry> pool=item!=null&&item.video()?state.videos():state.pictures();if((WallpaperCatalog.DEFAULT.equals(candidate)||WallpaperCatalog.DAILY.equals(candidate))&&!pool.isEmpty())candidate=pool.get(0).id;}
         refresh();scene();
     }

@@ -38,8 +38,6 @@ final class PhoneSettingsSession {
     String failure(){return failure;}
     String address(){return server==null?"":server.connectionAddress();}
     String shortAddress(){return server==null?"":server.shortAddress()+"/";}
-    String filesAddress(){String base=address();return base.isEmpty()?"":base+"&tab=tools&tool=files";}
-    String fileTransferStatus(){for(BrowserBackend backend:browserBackends){String status=backend.configuration.fileTransferStatus();if(!status.isEmpty())return status;}return "";}
     void offerFile(String id)throws IOException{if(server==null||!Arrays.asList("waiting","connected").contains(state()))throw new IOException("请先开启手机连接");new FileTransferStore(new File(context.getFilesDir(),"received-files")).entry(id);offeredFile=id;for(BrowserBackend backend:browserBackends)backend.syncOffer();}
     void start(){
         if(starting)return;

@@ -3,12 +3,10 @@ package home.quiet.tv;
 import android.app.Activity;
 import android.content.*;
 import android.graphics.Color;
-import android.graphics.Typeface;
 import android.os.*;
 import android.view.*;
 import android.widget.*;
 import java.io.IOException;
-import java.text.SimpleDateFormat;
 import java.util.*;
 
 /** In-desktop screensaver; the wallpaper controller remains the sole owner of playback. */
@@ -36,8 +34,22 @@ final class ScreensaverController {
     private ScreensaverSettings settings;
     private String mediaKey="";
     private WeatherData weatherData;
+    private FlipClockSound flipSound;
     private final Runnable idle=this::enter;
-    private final Runnable tick=new Runnable(){public void run(){if(state==State.ACTIVE){render();main.postDelayed(this,60000-System.currentTimeMillis()%60000);}}};
+    private long renderedMinute=-1;
+    private final Runnable tick=this::tick;
+    private void tick(){
+        if(state!=State.ACTIVE)return;
+        long now=System.currentTimeMillis();
+        if(now/60000!=renderedMinute)render(now);
+        else information.updateTime(now);
+        scheduleTick(now);
+    }
+    private void scheduleTick(long now){
+        main.removeCallbacks(tick);
+        long period=settings.tickMillis();
+        main.postDelayed(tick,period-now%period);
+    }
     private final BroadcastReceiver screen=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent i){
         screenOff=Intent.ACTION_SCREEN_OFF.equals(i.getAction());
         if(screenOff)pause();else{if(host.allowed())wallpapers.resume();availabilityChanged();}
@@ -45,6 +57,7 @@ final class ScreensaverController {
     ScreensaverController(Activity activity,FrameLayout root,WallpaperController wallpapers,float unit,boolean chinese,Host host){
         this.activity=activity;this.wallpapers=wallpapers;this.host=host;this.chinese=chinese;media=WallpaperStore.get(activity);store=ScreensaverStore.get(activity);
         information=new ScreensaverInformationView(activity,96*unit,19.2f*unit);information.setVisibility(View.GONE);
+        information.onLanded(()->{if(state==State.ACTIVE&&settings!=null&&settings.flipping()&&settings.flipSound&&allowed()&&flipSound!=null)flipSound.play();});
         root.addView(information,new FrameLayout.LayoutParams(-1,-1));
         IntentFilter filter=new IntentFilter(Intent.ACTION_SCREEN_OFF);filter.addAction(Intent.ACTION_SCREEN_ON);activity.registerReceiver(screen,filter);
     }
@@ -67,28 +80,29 @@ final class ScreensaverController {
         host.captureFocus();present();
     }
     private String mediaKey(ScreensaverSettings value,WallpaperCatalog catalog){return value.mode+":"+media.imageKey(value.resolved(catalog))+":"+catalog.weather+":"+catalog.weatherDayNight;}
+    private void updateFlipSound(){if(settings!=null&&settings.flipping()&&settings.flipSound&&(state==State.ENTERING||state==State.ACTIVE)){if(flipSound==null)try{flipSound=new FlipClockSound(activity);}catch(RuntimeException error){DiagnosticLog.error("screensaver.flip_sound.unavailable",error);}}else if(flipSound!=null)flipSound.stop();}
     private void present(){
-        state=State.ENTERING;int version=++generation;main.removeCallbacks(tick);host.weatherDemand(settings.showWeather);
+        information.active(false);state=State.ENTERING;int version=++generation;main.removeCallbacks(tick);host.weatherDemand(settings.showWeather);if(flipSound!=null)flipSound.stop();updateFlipSound();
         WallpaperCatalog catalog=media.snapshot();mediaKey=mediaKey(settings,catalog);wallpapers.showTemporary(settings.resolved(catalog),ScreensaverSettings.FOLLOW.equals(settings.mode)&&catalog.weather&&WallpaperGpuSupport.available(activity),catalog.weatherDayNight,settings.sound&&settings.video(catalog),()->{
             if(version!=generation||state!=State.ENTERING)return;
-            DiagnosticLog.info("screensaver.transition","state=active evidence=background_callback");state=State.ACTIVE;host.desktopVisible(false);information.setVisibility(View.VISIBLE);render();main.postDelayed(tick,60000-System.currentTimeMillis()%60000);
+            DiagnosticLog.info("screensaver.transition","state=active evidence=background_callback");state=State.ACTIVE;host.desktopVisible(false);information.setVisibility(View.VISIBLE);information.active(true);refreshClock();
         });
     }
     void settingsChanged(){
-        ScreensaverSettings next=read();if(next==null)return;boolean changed=settings!=next;settings=next;
+        ScreensaverSettings next=read();if(next==null)return;boolean changed=settings!=next;settings=next;updateFlipSound();
         if(state==State.OFF){if(changed)interaction();return;}if(state==State.EXITING)return;
-        if(!mediaKey.equals(mediaKey(settings,media.snapshot())))present();else{wallpapers.temporarySound(settings.sound&&settings.video(media.snapshot()));host.weatherDemand(settings.showWeather);if(state==State.ACTIVE)render();}
+        if(!mediaKey.equals(mediaKey(settings,media.snapshot())))present();else{wallpapers.temporarySound(settings.sound&&settings.video(media.snapshot()));host.weatherDemand(settings.showWeather);if(state==State.ACTIVE){if(changed)refreshClock();else render(System.currentTimeMillis());}}
     }
     private void exit(){
         if(state==State.OFF||state==State.EXITING)return;
-        DiagnosticLog.info("screensaver.transition","state=exiting");state=State.EXITING;int version=++generation;main.removeCallbacks(tick);host.weatherDemand(false);
+        DiagnosticLog.info("screensaver.transition","state=exiting");information.active(false);if(flipSound!=null)flipSound.stop();state=State.EXITING;int version=++generation;main.removeCallbacks(tick);host.weatherDemand(false);
         wallpapers.restoreDesktop(()->{
             if(version!=generation||state!=State.EXITING)return;
             information.setVisibility(View.GONE);host.desktopVisible(true);state=State.OFF;DiagnosticLog.info("screensaver.transition","state=off evidence=background_callback");host.restoreFocus();interaction();
         });
     }
     void pause(){
-        eligible=false;main.removeCallbacks(idle);main.removeCallbacks(tick);++generation;
+        information.active(false);if(flipSound!=null)flipSound.stop();eligible=false;main.removeCallbacks(idle);main.removeCallbacks(tick);++generation;
         if(state!=State.OFF){state=State.OFF;information.setVisibility(View.GONE);host.desktopVisible(true);host.weatherDemand(false);wallpapers.cancelTemporary();host.restoreFocus();}
         // Retain held wake gestures across focus/lifecycle transitions until their releases arrive.
     }
@@ -113,13 +127,24 @@ final class ScreensaverController {
         if(state!=State.OFF&&event.getActionMasked()==MotionEvent.ACTION_SCROLL){exit();return true;}return false;
     }
     boolean showing(){return state!=State.OFF;}
-    void weatherChanged(WeatherData value){weatherData=value;if(state==State.ACTIVE)render();}
-    void timeChanged(){if(state==State.ACTIVE)render();}
-    private void render(){
-        if(settings==null)return;
-        boolean clockOnly=ScreensaverSettings.CLOCK.equals(settings.mode);information.setBackgroundColor(clockOnly?0xff000000:Color.TRANSPARENT);
-        boolean visible=weatherData!=null&&weatherData.usable(System.currentTimeMillis());
-        information.show(settings,new SimpleDateFormat("HH:mm",Locale.US).format(new Date()),visible?String.format(Locale.ROOT,"%s  %s  %s",weatherData.city,weatherData.temperatureText(),weatherData.description):"");
+    void weatherChanged(WeatherData value){weatherData=value;if(state==State.ACTIVE)render(System.currentTimeMillis());}
+    void timeChanged(){
+        information.resetTime();
+        if(flipSound!=null)flipSound.stop();
+        refreshClock();
     }
-    void destroy(){pause();destroyed=true;activity.unregisterReceiver(screen);main.removeCallbacksAndMessages(null);}
+    private void refreshClock(){
+        if(state!=State.ACTIVE)return;
+        long now=System.currentTimeMillis();
+        render(now);
+        scheduleTick(now);
+    }
+    private void render(long now){
+        if(settings==null)return;
+        renderedMinute=now/60000;
+        boolean clockOnly=settings.clockOnly();information.setBackgroundColor(clockOnly?0xff000000:Color.TRANSPARENT);
+        boolean visible=weatherData!=null&&weatherData.usable(now);
+        information.show(settings,now,visible?String.format(Locale.ROOT,"%s  %s  %s",weatherData.city,weatherData.temperatureText(),weatherData.description):"");
+    }
+    void destroy(){pause();destroyed=true;if(flipSound!=null)flipSound.destroy();activity.unregisterReceiver(screen);main.removeCallbacksAndMessages(null);}
 }
