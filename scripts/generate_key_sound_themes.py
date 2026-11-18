@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate original electronic and mechanical key sounds without recordings.
+"""Generate original electronic, mechanical key and flip-clock sounds without recordings.
 
 44.1 kHz mono PCM16 WAV. Existing wooden cues are deliberately left untouched.
 The bell/drop resource filenames stay stable across the sound redesign.
@@ -59,7 +59,34 @@ def generate(theme, action, duration, target_rms):
     print(f'{path.name}: {len(data) + 44} bytes, {count / RATE * 1000:.0f} ms')
 
 
+def generate_flip():
+    """A single short mechanical landing, with no delayed second click."""
+    duration = .072
+    count = round(RATE * duration)
+    noise = random.Random('quiet-flip-clock-landing')
+    values = []
+    low = high = 0
+    for i in range(count):
+        t = i / RATE
+        low += .42 * (noise.uniform(-1, 1) - low)
+        high += .055 * (low - high)
+        attack = 1 - math.exp(-t / .0003)
+        click = (low - high) * math.exp(-t / .0045)
+        body = .2 * math.sin(2 * math.pi * 210 * t) * math.exp(-t / .012)
+        edge = .035 * math.sin(2 * math.pi * 1900 * t) * math.exp(-t / .006)
+        values.append(attack * (click + body + edge) * min(1, (duration - t) / .006))
+    rms = math.sqrt(sum(value * value for value in values) / count)
+    gain = min(.096 / rms, .60 / max(abs(value) for value in values))
+    data = struct.pack('<' + 'h' * count, *(round(value * gain * 32767) for value in values))
+    path = ROOT / 'flip_clock.wav'
+    with wave.open(str(path), 'wb') as output:
+        output.setparams((1, 2, RATE, 0, 'NONE', 'not compressed'))
+        output.writeframes(data)
+    print(f'{path.name}: {len(data) + 44} bytes, {count / RATE * 1000:.0f} ms')
+
+
 if __name__ == '__main__':
     for theme, durations in (('bell', (.064, .104, .104)), ('drop', (.054, .078, .066))):
         for action, duration, rms in zip(('move', 'confirm', 'back'), durations, (.071, .096, .086)):
             generate(theme, action, duration, rms)
+    generate_flip()

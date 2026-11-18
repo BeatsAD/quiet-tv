@@ -30,6 +30,7 @@ Quiet TV 基于 [cleanyourtv](https://github.com/Gathin23/cleanyourtv)（原名 
 
 ## 在线服务与媒体
 
+- 内置壁纸「优胜美地山谷」取自 Ted Wakabayashi 拍摄的[公共领域照片](https://commons.wikimedia.org/wiki/File:Tunnel_view,_Yosemite.jpg)，裁切至 16:9。
 - 必应每日壁纸保留图片版权与来源链接，在线图片不作为内置资源分发。用户上传的图片和视频由用户确认使用权。
 - 天气地区补充坐标与 Open-Meteo 数据使用 CC BY 4.0；[Open-Meteo 免费接口](https://open-meteo.com/en/terms)仅限非商业使用。和风、OpenWeather 等服务按各自条款使用，界面保留实际数据来源。
 - 字体、图标、地区数据、天气数据及媒体资源分别遵循各自许可，不统一纳入项目 MIT 授权。
@@ -43,3 +44,7 @@ This product uses the TMDB API but is not endorsed or certified by TMDB.
 ## 可选组网组件
 
 Tailscale核心固定为v1.104.4，使用Go 1.27.3构建。ARM64原生核心按需下载，基础APK不包含该原生库；完整依赖及Go运行时许可随应用离线提供，见`app/src/main/assets/licenses/remote-core-THIRD-PARTY.txt`，具体依赖见`remote-core/go.mod`和`remote-core/go.sum`。
+
+## 原创音效
+
+翻页时钟的落页声由项目脚本 [generate_key_sound_themes.py](scripts/generate_key_sound_themes.py) 合成，不含外部录音素材，随项目采用 MIT 许可证。

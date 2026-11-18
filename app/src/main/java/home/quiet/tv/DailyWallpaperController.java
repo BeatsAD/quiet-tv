@@ -42,8 +42,13 @@ final class DailyWallpaperController {
     String status(String source,boolean includeDate){
         if(source.equals(store.dailyPending()))return tr("正在获取壁纸…","Getting wallpaper…");
         if(source.equals(messageSource)&&!message.isEmpty())return message;
-        WallpaperCatalog.DailyImage image=store.snapshot().dailyImages.get(source);
-        if(!store.cached(image))return tr("启用后每天自动更新，断网保留上一张","Updates daily; keeps the previous image offline");
+        WallpaperCatalog state=store.snapshot();
+        WallpaperCatalog.DailyImage image=state.dailyImages.get(source);
+        if(!store.cached(image)){
+            if(WallpaperCatalog.DAILY.equals(state.current)&&source.equals(DailyWallpaperLoader.source(state)))
+                return tr("暂用本地壁纸，获取成功后自动切换","Using a local wallpaper until the daily image is ready");
+            return tr("启用后每天自动更新，断网保留上一张","Updates daily; keeps the previous image offline");
+        }
         String date=includeDate?image.dateLabel():"";return date.isEmpty()?tr("壁纸已保存到本地  断网可用","Wallpaper cached  Available offline"):tr("图片日期 "+date+"  断网可用","Image date "+date+"  Available offline");
     }
     void resume(){active=true;environmentChanged();scheduleDay();}

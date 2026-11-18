@@ -344,12 +344,23 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity implemen
             fixedSize=true;contentSized=false;heightMaximum=0;FrameLayout.LayoutParams frame=(FrameLayout.LayoutParams)box.getLayoutParams();frame.width=frame.height=-1;box.setLayoutParams(frame);
             box.setPadding(px(36),px(28),px(36),px(24));LinearLayout.LayoutParams content=(LinearLayout.LayoutParams)scroll.getLayoutParams();content.height=0;content.weight=1;content.setMargins(0,0,0,0);scroll.setLayoutParams(content);scroll.setPadding(0,0,0,0);scroll.setFillViewport(true);
         }
-        Sheet(String title){
+        Sheet(String title){this(title,null);}
+        Sheet(String title,Sheet underlay){
             OperationFeedback.get(ManagementUi.this).watch(dialog,box,actions,height->{feedbackReserved=height;box.requestLayout();});
             box.setOrientation(LinearLayout.VERTICAL);if(unifiedSettings())box.setClipChildren(false);
             dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);box.setPadding(px(30),px(27),px(30),px(25));
             if(unifiedSettings()){box.setPadding(px(18),px(18),px(18),px(18));box.setClipChildren(false);box.setClipToPadding(false);}
-            backdrop=new SettingsSheetBackdrop(ManagementUi.this,box);box.setBackgroundDrawable(backdrop);
+            backdrop=underlay==null?new SettingsSheetBackdrop(ManagementUi.this,box):
+                    new SettingsSheetBackdrop(box,unit,(canvas,paint)->{
+                        drawSheetBackdrop(canvas);
+                        int[] position=new int[2];
+                        underlay.box.getLocationOnScreen(position);
+                        int save=canvas.save();
+                        canvas.translate(position[0],position[1]);
+                        underlay.box.draw(canvas);
+                        canvas.restoreToCount(save);
+                    },ManagementUi.this::filterSheetBackdrop);
+            box.setBackgroundDrawable(backdrop);
             heading=center(title,23);if(unifiedSettings()){heading.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);heading.setTextSize(TypedValue.COMPLEX_UNIT_PX,18*unit);}box.addView(heading,new LinearLayout.LayoutParams(-1,-2));gap(box,unifiedSettings()?12:18);
             scroll=new ScrollView(ManagementUi.this){@Override protected void onMeasure(int w,int h){if(fixedSize)super.onMeasure(w,h);else super.onMeasure(w,View.MeasureSpec.makeMeasureSpec(View.MeasureSpec.getMode(h)==View.MeasureSpec.UNSPECIFIED?px(Math.max(48,bodyMaximum-feedbackReserved)):Math.min(px(Math.max(48,bodyMaximum-feedbackReserved)),View.MeasureSpec.getSize(h)),View.MeasureSpec.AT_MOST));}@Override protected void dispatchDraw(Canvas canvas){if(!unifiedSettings()){super.dispatchDraw(canvas);return;}int save=canvas.save();canvas.clipRect(getScrollX(),getScrollY(),getScrollX()+getWidth(),getScrollY()+getHeight());super.dispatchDraw(canvas);canvas.restoreToCount(save);}};scroll.setFillViewport(false);scroll.addView(body);box.addView(scroll,new LinearLayout.LayoutParams(-1,-2));
             actions.setGravity(unifiedSettings()?Gravity.END|Gravity.CENTER_VERTICAL:Gravity.CENTER);LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,px(unifiedSettings()?33:42));ap.topMargin=px(unifiedSettings()?18:24);box.addView(actions,ap);

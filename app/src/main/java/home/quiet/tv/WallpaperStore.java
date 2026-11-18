@@ -37,7 +37,7 @@ final class WallpaperStore {
             try { catalog=WallpaperCatalog.read(new JSONObject(new String(catalogFile.readFully(),Charsets.UTF_8))); }
             catch(IOException|JSONException e) { Log.w("QuietTV","Wallpaper catalog could not be read");DiagnosticLog.error("wallpaper.catalog.failed",e); catalog=new WallpaperCatalog(); }
         } else {
-            catalog=new WallpaperCatalog();
+            catalog=WallpaperCatalog.freshInstall();
             try { persist(catalog); } catch(IOException e) { Log.w("QuietTV","Wallpaper migration will retry on next launch"); }
         }
         // A missing upload must never leave the home screen pointing at an absent file.
@@ -161,7 +161,7 @@ final class WallpaperStore {
         if(item.custom()){File media=file(id);if(!media.isFile()||media.length()==0||!media.canRead())throw new IOException("背景素材无法读取，请重新选择");}
         try{if("rotation".equals(mode)){next.rotation(item.video(),minutes,id);}
             else if("daily".equals(mode))next.select(WallpaperCatalog.DAILY);
-            else if("weather".equals(mode)){String fallback=item.video()?next.staticBeforeVideo:id;if(WallpaperCatalog.DAILY.equals(fallback))fallback=next.lastLocal;next.select(fallback);next.weather=true;next.weatherDayNight=dayNight;next.sound=false;}
+            else if("weather".equals(mode)){String fallback=item.video()?next.staticBeforeVideo:id;if(WallpaperCatalog.DAILY.equals(fallback))fallback=next.dailyFallback();next.select(fallback);next.weather=true;next.weatherDayNight=dayNight;next.sound=false;}
             else if("fixed".equals(mode)){if(WallpaperCatalog.DAILY.equals(id))throw new IOException("请选择固定壁纸");next.selectFixed(id);}else throw new IOException("背景方式无效");
         }catch(IllegalArgumentException error){throw new IOException(error.getMessage(),error);}persist(next);manualVersion++;DesktopBackups.changed();
     }
@@ -173,7 +173,7 @@ final class WallpaperStore {
     synchronized void rotation(boolean video,int minutes,String start) throws IOException { WallpaperCatalog next=catalog.copy();next.rotation(video,minutes,start);persist(next);DesktopBackups.changed(); }
     synchronized void next() throws IOException { WallpaperCatalog next=catalog.copy();next.next();persist(next); }
     synchronized void remove(String id) throws IOException {
-        WallpaperCatalog.Entry entry=catalog.find(id); if(entry==null || WallpaperCatalog.DEFAULT.equals(id)||WallpaperCatalog.DAILY.equals(id)) return;
+        WallpaperCatalog.Entry entry=catalog.find(id); if(entry==null||!entry.custom())return;
         WallpaperCatalog old=catalog.copy(),next=catalog.copy();next.remove(id);
         ScreensaverSettings oldSaver=screensavers.snapshot(old);
         // Move the reference before removing the media. Even an interrupted deletion stays valid.

@@ -17,9 +17,10 @@ final class WallpaperImages {
         if(WallpaperCatalog.DAILY.equals(entry.id)){
             WallpaperCatalog state=store.snapshot();WallpaperCatalog.DailyImage image=state.dailyImages.get(state.dailySource);
             if(store.cached(image))return new FileInputStream(store.dailyFile(image.source,image.slot));
-            WallpaperCatalog.Entry fallback=state.find(state.lastLocal);
-            if(fallback==null||WallpaperCatalog.DEFAULT.equals(fallback.id))throw new IOException("Daily wallpaper cache unavailable");
-            return open(context,store,fallback);
+            return open(context,store,state.find(state.dailyFallback()));
+        }
+        if(WallpaperCatalog.BUILTIN.equals(entry.id)){
+            return context.getAssets().open(WallpaperCatalog.BUILTIN+".jpg");
         }
         return entry.custom()?new FileInputStream(store.file(entry.id)):context.getAssets().open("wallpapers/"+entry.id+".jpg");
     }
@@ -27,8 +28,7 @@ final class WallpaperImages {
         if(WallpaperCatalog.DAILY.equals(entry.id)){
             WallpaperCatalog state=store.snapshot();
             if(!store.cached(state.dailyImages.get(state.dailySource))){
-                entry=state.find(state.lastLocal);
-                if(entry==null||WallpaperCatalog.DEFAULT.equals(entry.id))throw new IOException("Daily wallpaper cache unavailable");
+                entry=state.find(state.dailyFallback());
             }
         }
         if(entry.custom()&&!entry.video())return decodeOriginal(store.file(entry.id),width,height,importLimit(context));

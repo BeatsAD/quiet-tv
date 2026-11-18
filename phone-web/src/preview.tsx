@@ -1,4 +1,6 @@
-import { useEffect, useLayoutEffect, useId, useRef, useState, type CSSProperties } from 'react';
+import { FlipClock } from './FlipClock';
+import { SaverClock, saverClockLayout, type SaverClockTime } from './SaverClock';
+import { useEffect, useLayoutEffect, useMemo, useId, useRef, useState, type CSSProperties } from 'react';
 import type { PhoneClient, Value, App } from './api';
 import { DynamicBackground } from './DynamicBackground';
 import { AnalogClock } from './AnalogClock';
@@ -59,9 +61,62 @@ export function Preview({client,page,suspended=false,coverOverride}:{client:Phon
 
 export function SaverPreview({client,suspended=false}:{client:PhoneClient;suspended?:boolean}){
   const [problem,setProblem]=useState(''),[retry,setRetry]=useState(0),[,tick]=useState(0);
-  useEffect(()=>{const timer=setInterval(()=>tick(n=>n+1),1000);return()=>clearInterval(timer);},[]);
-  const v=client.values(),follow=v.saverContent==='follow',clock=v.saverContent==='clock',id=String(follow?v.wallpaper:v.saverMedia),media=client.metadata?.wallpapers.find(item=>item.id===id);
+  const [visible,setVisible]=useState(!document.hidden);
+  const v=client.values(), layout=saverClockLayout(v);
+  const flipping=v.saverContent==='flip-clock', clockOnly=layout.digital||flipping;
+  const offset=Number(client.metadata?.clockOffsetMs||0), zone=client.metadata?.timeZone||'UTC';
+  const active=!suspended&&visible;
+  const seconds=flipping?!!v.saverFlipSeconds:layout.seconds,period=seconds?1000:60000;
+  useEffect(()=>{
+    const visibility=()=>setVisible(!document.hidden);
+    document.addEventListener('visibilitychange',visibility);
+    return()=>document.removeEventListener('visibilitychange',visibility);
+  },[]);
+  useEffect(()=>{
+    if(!active)return;
+    let timer:ReturnType<typeof setTimeout>;
+    const schedule=()=>{
+      const remainder=((Date.now()+offset)%period+period)%period;
+      timer=setTimeout(()=>{tick(n=>n+1);schedule();},period-remainder);
+    };
+    schedule();
+    return()=>clearTimeout(timer);
+  },[active,offset,period]);
+  const formatter=useMemo(()=>{
+    try{
+      return new Intl.DateTimeFormat('en-GB',{
+        timeZone:zone,calendar:'gregory',year:'numeric',month:'2-digit',day:'2-digit',
+        hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23',
+      });
+    }catch{return null;}
+  },[zone]);
+  const now=Date.now()+offset;
+  const parts=formatter?.formatToParts(now);
+  const part=(name:Intl.DateTimeFormatPartTypes)=>parts?.find(p=>p.type===name)?.value||'';
+  const dateKey=parts?`${part('year')}-${part('month')}-${part('day')}`:'';
+  const timeLabel=parts?`${part('hour')}:${part('minute')}${seconds?`:${part('second')}`:''}`:'时间暂不可用';
+  const time:SaverClockTime={year:Number(part('year')),month:Number(part('month')),day:Number(part('day')),
+    hour:Number(part('hour')),minute:Number(part('minute')),second:Number(part('second'))};
+  useEffect(()=>{if(active)client.refreshClockMetadata();},[active,client,dateKey]);
+  const lunarData=layout.lunar?client.metadata?.saverLunar:undefined;
+  const lunar=lunarData?.date===dateKey?lunarData.text:'';
+  const monthStarts=lunarData?.date.slice(0,7)===dateKey.slice(0,7)?lunarData.monthStarts:[];
+  const follow=v.saverContent==='follow', id=String(follow?v.wallpaper:v.saverMedia);
+  const media=client.metadata?.wallpapers.find(item=>item.id===id);
   const scene=follow?v:{...v,wallpaper:id,wallMode:'fixed',wallVideo:!!media?.video,previewKey:`${media?.bytes||0}`};
-  let time='';try{time=new Date(Date.now()+Number(client.metadata?.clockOffsetMs||0)).toLocaleTimeString('zh-CN',{timeZone:client.metadata?.timeZone||'UTC',hour:'2-digit',minute:'2-digit',hour12:false});}catch{time='时间暂不可用';}
-  return <><div className="tv-preview saver-preview" aria-label="手机屏保预览">{!clock&&<DynamicBackground client={client} v={scene} filter="none" suspended={suspended} onProblem={setProblem} retry={retry}/ >}{['top-left','top-right','center','bottom-left','bottom-right'].map(position=><div className={`saver-information saver-${position}`} key={position}>{(!!v.saverClock||clock)&&(v.saverClockPosition||'center')===position&&<strong>{time}</strong>}{!!v.saverWeather&&!!v.weatherText&&(v.saverWeatherPosition||'bottom-left')===position&&<span className="saver-weather">{String(v.weatherText)}</span>}</div>)}</div>{problem&&<p className="preview-status" role="status">{problem}<button className="text-action" onClick={()=>setRetry(value=>value+1)}>重试预览</button></p>}</>;
+  return <>
+    <div className={`tv-preview saver-preview${flipping?' saver-mechanical':''}${flipping&&seconds?' saver-with-seconds':''}`} aria-label="手机屏保预览">
+      {!clockOnly&&<DynamicBackground client={client} v={scene} filter="none" suspended={!active} onProblem={setProblem} retry={retry}/>}
+      {flipping&&parts&&<FlipClock time={timeLabel} tick={Math.floor(now/period)} active={active}/>}
+      {layout.composed&&parts&&<SaverClock time={time} timeLabel={timeLabel} layout={layout} lunar={lunar} monthStarts={monthStarts}/>}
+      {['top-left','top-right','center','bottom-left','bottom-right'].map(position=><div
+        className={`saver-information saver-${position}${layout.composed&&position==='center'?' saver-weather-under-clock':''}`} key={position}>
+        {!flipping&&(!layout.composed||!parts)&&(!!v.saverClock||clockOnly)&&(v.saverClockPosition||'center')===position&&
+          <strong className={layout.seconds?'saver-time-seconds':undefined}>{timeLabel}</strong>}
+        {!!v.saverWeather&&!!v.weatherText&&(v.saverWeatherPosition||'bottom-left')===position&&
+          <span className="saver-weather">{String(v.weatherText)}</span>}
+      </div>)}
+    </div>
+    {!clockOnly&&problem&&<p className="preview-status" role="status">{problem}<button className="text-action" onClick={()=>setRetry(value=>value+1)}>重试预览</button></p>}
+  </>;
 }
