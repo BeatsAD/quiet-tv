@@ -33,7 +33,7 @@ android {
         buildConfigField 'String', 'UPDATE_ABI', '"' + providers.gradleProperty('quietAbi').getOrElse('universal') + '"'
         targetSdk 36
         versionCode providers.gradleProperty('quietBuildNumber').getOrElse('105').toInteger()
-        versionName((independent ? '2.0.0' : '2.0.4') + (!independent && providers.gradleProperty('quietLocalTest').getOrElse('false').toBoolean() ? '.1' : ''))
+        versionName((independent ? '2.0.0' : '2.0.5') + (!independent && providers.gradleProperty('quietLocalTest').getOrElse('false').toBoolean() ? '.1' : ''))
     }
     buildFeatures { buildConfig true }
     // Keep local wallpaper originals out of every APK compatibility profile.
@@ -93,9 +93,15 @@ android {
         if (!(selectedAbi in ['arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64'])) throw new GradleException('Unsupported quietAbi')
         defaultConfig.ndk.abiFilters.add(selectedAbi)
     }
-    compileOptions { sourceCompatibility JavaVersion.VERSION_11; targetCompatibility JavaVersion.VERSION_11 }
+    compileOptions {
+        // JmDNS uses Java collection and stream APIs unavailable before Android 7.
+        coreLibraryDesugaringEnabled true
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
 }
 dependencies {
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
     // Media3 serves API21+; the API16-only legacy fallback stays isolated from API14/15.
     if (!legacy) implementation 'androidx.media3:media3-exoplayer:1.8.1'
     if (legacy) implementation 'androidx.multidex:multidex:2.0.1'
