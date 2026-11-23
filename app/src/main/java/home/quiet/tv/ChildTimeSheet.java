@@ -290,13 +290,17 @@ final class ChildTimeSheet {
     }
 
     private void finishDates() {
+        if (applyCustomDates()) leaveDates();
+    }
+
+    private boolean applyCustomDates() {
         if (customDays == 0) {
             error("请至少选择一天");
             days[0].requestFocusFromTouch();
-            return;
+            return false;
         }
         draft.repeatDays = customDays;
-        leaveDates();
+        return true;
     }
 
     private void leaveDates() {
@@ -358,6 +362,8 @@ final class ChildTimeSheet {
     }
 
     private void save() {
+        if (dateEditor.isShown() && !applyCustomDates()) return;
+        if (timeEditor.isShown()) draft.limit = customMinutes * ChildModePolicy.MINUTE;
         String problem = saveRule.apply(draft);
         if (problem != null) {
             error(problem);
