@@ -380,33 +380,33 @@ final class QuickControlEditorPanel extends ManagementPanel {
     }
 
     private final class Picker {
-        private static final int COLUMNS=3, VISIBLE_ROWS=3, TILE_HEIGHT=67, ROW_GAP=7;
+        private static final int TILE_HEIGHT=67, ROW_GAP=7;
         final ManagementUi.Sheet sheet;
         final String origin,replace,after;
         final ArrayList<View> candidates=new ArrayList<>();
-        private final Button cancel;
-        private int lastCandidate;
+        private final Button close;
+        private final int columns;
+        private int headerReturnIndex;
 
         Picker(boolean range,String replace,String after,String origin){
             this.replace=replace;
             this.after=after;
             this.origin=origin;
             String heading=replace.isEmpty()?(range?"添加调节项":"添加快捷按钮"):(range?"替换调节项":"替换快捷按钮");
+            ArrayList<String> available=new ArrayList<>();
+            for(String id:QuickControlStore.ALL)
+                if(QuickControlStore.range(id)==range&&QuickControlStore.canAdd(order,id,replace))available.add(id);
+            columns=available.size()>9?4:3;
             sheet=activity.new Sheet(heading);
-            sheet.settingsLayout(null,QuickControlEditorPanel.this::cancelPicker);
-            sheet.contentSize(440,380);
-            sheet.heading.setGravity(Gravity.CENTER);
+            close=sheet.settingsLayout("关闭",QuickControlEditorPanel.this::cancelPicker);
+            sheet.settingsActions(false);
+            sheet.contentSize(columns==4?568:448,470);
             sheet.scroll.setFocusable(false);
             sheet.scroll.setClipToPadding(true);
-            sheet.actions.setGravity(Gravity.CENTER);
-            sheet.bodyMaximum=VISIBLE_ROWS*TILE_HEIGHT+(VISIBLE_ROWS-1)*ROW_GAP+30;
-            cancel=sheet.action("取消",QuickControlEditorPanel.this::cancelPicker);
-            cancel.getLayoutParams().width=px(140);
 
             LinearLayout line=null;
-            for(String id:QuickControlStore.ALL){
-                if(QuickControlStore.range(id)!=range||!QuickControlStore.canAdd(order,id,replace))continue;
-                int column=candidates.size()%COLUMNS;
+            for(String id:available){
+                int column=candidates.size()%columns;
                 if(column==0){
                     line=row();
                     LinearLayout.LayoutParams size=new LinearLayout.LayoutParams(-1,px(TILE_HEIGHT));
@@ -420,7 +420,7 @@ final class QuickControlEditorPanel extends ManagementPanel {
                 candidates.add(tile);
             }
             if(candidates.isEmpty())sheet.text(range?"暂无可添加的调节项":"暂无可添加的快捷按钮");
-            else for(int column=candidates.size()%COLUMNS;column>0&&column<COLUMNS;column++){
+            else for(int column=candidates.size()%columns;column>0&&column<columns;column++){
                 LinearLayout.LayoutParams size=new LinearLayout.LayoutParams(0,-1,1);
                 size.leftMargin=px(8);
                 line.addView(new View(activity),size);
@@ -458,27 +458,33 @@ final class QuickControlEditorPanel extends ManagementPanel {
             return tile;
         }
 
-        void show(){sheet.show(candidates.isEmpty()?cancel:candidates.get(0));}
+        void show(){sheet.show(candidates.isEmpty()?close:candidates.get(0));}
 
         private void move(int key){
             View current=sheet.dialog.getCurrentFocus();
             int index=candidates.indexOf(current);
             View target=null;
-            if(index<0){
-                if(current==cancel&&key==KeyEvent.KEYCODE_DPAD_UP&&!candidates.isEmpty())target=candidates.get(lastCandidate);
-            }else{
-                int column=index%COLUMNS;
+            if(current==close){
+                if(key==KeyEvent.KEYCODE_DPAD_DOWN&&!candidates.isEmpty())target=candidates.get(headerReturnIndex);
+            }else if(index>=0){
+                int column=index%columns;
                 switch(key){
-                    case KeyEvent.KEYCODE_DPAD_LEFT:if(column>0)target=candidates.get(index-1);break;
-                    case KeyEvent.KEYCODE_DPAD_RIGHT:if(column<COLUMNS-1&&index+1<candidates.size())target=candidates.get(index+1);break;
-                    case KeyEvent.KEYCODE_DPAD_UP:if(index>=COLUMNS)target=candidates.get(index-COLUMNS);break;
-                    case KeyEvent.KEYCODE_DPAD_DOWN:
-                        if((index/COLUMNS+1)*COLUMNS<candidates.size()){
-                            target=candidates.get(Math.min(index+COLUMNS,candidates.size()-1));
-                        }else{
-                            lastCandidate=index;
-                            target=cancel;
+                    case KeyEvent.KEYCODE_DPAD_LEFT:
+                        if(column>0)target=candidates.get(index-1);
+                        break;
+                    case KeyEvent.KEYCODE_DPAD_RIGHT:
+                        if(column<columns-1&&index+1<candidates.size())target=candidates.get(index+1);
+                        break;
+                    case KeyEvent.KEYCODE_DPAD_UP:
+                        if(index>=columns)target=candidates.get(index-columns);
+                        else{
+                            headerReturnIndex=index;
+                            target=close;
                         }
+                        break;
+                    case KeyEvent.KEYCODE_DPAD_DOWN:
+                        if((index/columns+1)*columns<candidates.size())
+                            target=candidates.get(Math.min(index+columns,candidates.size()-1));
                         break;
                 }
             }
