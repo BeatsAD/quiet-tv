@@ -3,6 +3,12 @@
 Screenshots retain their historical 1.2.4 provenance; use the [installation page](https://beatsad.github.io/quiet-tv/) for current downloads. Computer AI configuration below describes current source and has not shipped in a new APK. Older APKs retain their own controls and interfaces.
 [简体中文](USAGE.zh-CN.md)  [Home](../README.en.md)
 
+## Phone settings address
+
+Connect your phone and TV to the same reachable local network. In Quick Controls, scan the same QR code with WeChat or a regular browser to open `http://TV-IP:8766/`. Enter the eight-digit code shown on the TV the first time you use each browser. Bookmark that address or use General settings → Copy connection address.
+
+After a TV restart, the bookmark works once Quiet TV has started as long as the TV IP and the browser's saved authorization are still the same. If the TV IP changes, pair again and bookmark the new address. If the browser loses its authorization, pair again on the same page. Replace old `.local` bookmarks with the TV's IP address.
+
 ## Remote navigation
 
 | Key | Behavior |
@@ -81,7 +87,9 @@ First-time startup enablement opens the source for a picture and sound check. Re
 
 ## Boot-ad management
 
-Current source moves boot-ad maintenance to computer AI. It requires an explicit request, a matching execution rule, original-state records and recovery checks. No Quiet TV boot-ad rule has passed hardware acceptance; no universal ad-removal claim is made. Older APKs may retain their former controls. See [app management](APP_MANAGEMENT.md#开机广告).
+On the TV or the paired phone page, open General Settings → Desktop and Startup → Startup ads. You can turn startup ads off once the model, firmware, and system app version match a rule and local ADB is authorized. Check for ads the next time the TV starts. Restore the previous setting reverses the change Quiet TV made to this ad setting.
+
+Selected firmware builds of the Xiaomi L43M7-EA, Redmi MiTV-MFTP0, and Redmi L65R6-A are enabled based on upstream testing. If the feature is unavailable or ads still appear, use the computer AI diagnostics instructions from the same page. See [app management](APP_MANAGEMENT.md#开机广告).
 
 ## Language and initial configuration
 
@@ -173,7 +181,7 @@ Uploading only updates the draft. Save on the TV applies text, avatar and both s
 
 Classic places the weather icon, temperature, conditions and city beside the greeting; Gallery centers the Home information. Toggle weather under All Apps → Desktop Settings → Desktop. The top Weather tab provides automatic location, city selection, refresh and service information. Turning off automatic location pins the resolved city; if no city is available, choose one first, or cancel to keep automatic location. Choosing a city turns automatic location off. City preferences remain editable while weather is hidden, without location or weather refresh requests. No ADB is needed and the system Settings button is unchanged.
 
-Current development source supports QWeather, UAPI, OpenWeather and Open-Meteo. Weather source selects automatic failover or one fixed provider. Fixed-provider failures retain usable cache without silently switching. Automatic mode tries configured QWeather, UAPI and configured OpenWeather sequentially, skipping unsupported places. Open-Meteo is off by default because its free endpoint is for non-commercial use only; select it explicitly or enable Open-Meteo fallback to try it last. Enabling it explains the terms; Service information links attribution, licensing and the provider website. Rate limits are independent. Optional private build credentials are documented in [Contributing](../CONTRIBUTING.md#可选天气源配置--optional-weather-configuration). Clean builds still work with UAPI without credentials.
+Current development source supports QWeather, UAPI, OpenWeather and Open-Meteo. On the TV or QR settings page, choose automatic failover or a fixed provider in Sources and services. Fixed-provider failures retain usable cache without silently switching. Automatic mode tries configured QWeather, UAPI and configured OpenWeather sequentially, skipping unsupported places. New installations try Open-Meteo last in automatic mode. Upgrades keep the previous fallback setting. Open-Meteo is also available as a fixed source. Service information shows the data source and usage limits. The phone page links the license and provider website. Rate limits are independent. Optional private build credentials are documented in [Contributing](../CONTRIBUTING.md#可选天气源配置--optional-weather-configuration). Clean builds still work with UAPI without credentials.
 
 Weather places retain their own names and available coordinates independently of current administrative codes. Changdao and its former-county aliases use a reference point near the former county seat, rather than relabeling Penglai weather. This does not establish accuracy for every island. UAPI cannot represent standalone coordinate places and is skipped or reports that another source is needed. Open-Meteo current conditions are model estimates, not proof of a local station observation. Overseas connectivity, old Android HTTPS and island accuracy still require target-network and TV acceptance.
 

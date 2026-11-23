@@ -9,6 +9,10 @@ export type IconSelection=IconFilters&{package:string;coverKey:string;id:string;
 export type FilterPage=''|'style'|'shape'|'form';
 export const iconTitles:Record<string,string>={apple:'苹果风格',google:'谷歌风',flat:'扁平化',skeuo:'拟物化',soft:'轻拟物','3d':'3D 风格',pixel:'像素风格',rectangle:'圆角矩形',circle:'圆形',square:'圆角正方形',text:'文字＋图标',icon:'纯图标',transparent:'透明背景'};
 export const filterTitles={style:'图标风格',shape:'图标形状',form:'呈现形式'};
+export function desktopIconShape(client:PhoneClient){
+  const shape=client.frame?.domains.appearance?.iconShape;
+  return shape==='circle'||shape==='square'?shape:'rectangle';
+}
 export function iconResource(client:PhoneClient,filters:IconFilters,id:string,revision:number,preview=false){return client.resource(`api/resources/icon-library/${filters.style}/${id}/${filters.shape}/${filters.form}/${preview?'preview':'thumb'}?v=${revision}`);}
 export function filteredIcons(catalog:IconCatalog,filters:IconFilters){return catalog.items.filter(item=>item.style===filters.style&&(!item.variants||item.variants.some(variant=>variant.shape===filters.shape&&variant.form===filters.form)));}
 export function IconFiltersBar({catalog,filters,disabled,shapeLocked=false,onOpen}:{catalog?:IconCatalog;filters:IconFilters;disabled:boolean;shapeLocked?:boolean;onOpen:(page:FilterPage)=>void}){

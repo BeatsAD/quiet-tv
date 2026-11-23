@@ -17,8 +17,8 @@ export function staticCover(buffer:ArrayBuffer,type:string){
   return true;
 }
 
-export function mediaRenameTarget(hash:string){
-  const params=new URLSearchParams(hash.replace(/^#/,'')),id=params.get('rename'),source=params.get('source')||'wallpaper';
+export function mediaRenameTarget(params:URLSearchParams){
+  const id=params.get('rename'),source=params.get('source')||'wallpaper';
   return id&&/^user-[a-f0-9-]{36}$/.test(id)&&['wallpaper','screensaver'].includes(source)?{id,source}:null;
 }
 

@@ -72,6 +72,15 @@ final class UpdateRepository {
         if(!observation.equals(lastState)){lastState=observation;DiagnosticLog.info("update.state",observation);}
         for(Listener listener:new ArrayList<>(listeners))listener.changed();
     }
+    String reminderCandidate(){
+        if(available==null||checking||downloading||verifying||installBusy||installNotice
+                ||snapshot().savedInstall!=UpdateState.Install.IDLE)return "";
+        String hash=available.sha256;
+        return hash.equals(prefs.getString("lastHomeReminder",""))?"":hash;
+    }
+    void homeReminderShown(String hash){
+        if(hash.equals(reminderCandidate()))prefs.edit().putString("lastHomeReminder",hash).apply();
+    }
     boolean online(){try{ConnectivityManager manager=(ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);NetworkInfo network=manager==null?null:manager.getActiveNetworkInfo();return network!=null&&network.isConnected();}catch(RuntimeException e){return false;}}
     void foreground(){reconcile();notifyChanged();if(!checking&&!downloading&&online()&&UpdatePolicy.due(now(),prefs.getLong("success",0),prefs.getLong("failure",0)))check(false);}
     private long now(){long wall=System.currentTimeMillis(),elapsed=SystemClock.elapsedRealtime();

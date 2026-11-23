@@ -49,7 +49,15 @@ final class AppCoverImages {
     static Bitmap load(File file,int width){
         BitmapFactory.Options options=new BitmapFactory.Options();options.inJustDecodeBounds=true;BitmapFactory.decodeFile(file.getPath(),options);
         if(!(options.outWidth==720&&(options.outHeight==406||options.outHeight==405)||options.outWidth==512&&options.outHeight==512))return null;
-        options.inJustDecodeBounds=false;options.inSampleSize=1;while(options.outWidth/(options.inSampleSize*2)>=width)options.inSampleSize*=2;return BitmapFactory.decodeFile(file.getPath(),options);
+        options.inJustDecodeBounds=false;
+        options.inSampleSize=coverSampleSize(options.outWidth,width,android.os.Build.VERSION.SDK_INT);
+        return BitmapFactory.decodeFile(file.getPath(),options);
+    }
+    static int coverSampleSize(int sourceWidth,int requestedWidth,int sdk){
+        // A 512px square otherwise decodes at full size on low-memory Android 4.x devices.
+        int width=Math.max(1,requestedWidth),target=sdk<=19?Math.min(256,width):width,sample=1;
+        while(sourceWidth/(sample*2)>=target)sample*=2;
+        return sample;
     }
     static void prepareIcon(File input,File output,String shape)throws IOException{
         if(!IconLibraryCatalog.contains(IconLibraryCatalog.SHAPES,shape))throw new IOException("图标形状无效 / Invalid icon shape");

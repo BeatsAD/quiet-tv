@@ -54,7 +54,7 @@ final class OptionalComponentsUi {
     }
     private static void confirmUninstall(AppManagementActivity ui){
         ManagementUi.Sheet confirm=ui.new Sheet(ui.tr("卸载天气资源？","Uninstall weather resources?"));
-        confirm.settingsLayout(ui.tr("关闭","Close"),confirm.dialog::dismiss);confirm.settingsActions(true);
+        confirm.confirmationLayout(confirm.dialog::dismiss);confirm.settingsActions(true);
         confirm.body.addView(ui.label(ui.tr("移除已下载的动态天气资源。正在使用时将切回静态壁纸，天气设置保留。","Remove downloaded weather resources. An active weather wallpaper switches to a static background. Weather settings are retained."),16));
         Button cancel=confirm.action(ui.tr("取消","Cancel"),confirm.dialog::dismiss);
         confirm.action(ui.tr("卸载","Uninstall"),()->{try{WeatherComponentActions.uninstall(ui);confirm.dialog.dismiss();}catch(java.io.IOException error){ui.message(error.getMessage());}});

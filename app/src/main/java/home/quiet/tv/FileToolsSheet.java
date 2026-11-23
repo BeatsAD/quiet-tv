@@ -53,16 +53,16 @@ final class FileToolsSheet {
     private void note(String text){TextView value=copy(text,17.28f,29.376f,UiPalette.SECONDARY);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.topMargin=p(17.28f);lp.bottomMargin=p(17.28f);if(sheet.body.getChildCount()>0){Object tag=sheet.body.getChildAt(sheet.body.getChildCount()-1).getTag();if("file-body-heading".equals(tag))lp.topMargin=p(7.04f);else if("file-body-note".equals(tag))lp.topMargin=0;}value.setTag("file-body-note");sheet.body.addView(value,lp);}
     private void muted(String text){TextView value=copy(text,14.464f,23.8656f,UiPalette.SECONDARY);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.topMargin=ui.px(7.68f);lp.bottomMargin=ui.px(14.4f);sheet.body.addView(value,lp);}
     private void heading(String text){TextView value=copy(text,17.28f,25.92f,UiPalette.SECONDARY);QuickControlPreviewView.weight(value,500);value.setTag("file-body-heading");LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.bottomMargin=ui.px(7.68f);sheet.body.addView(value,lp);}
-    private Button button(String text,String tag,Runnable action,boolean primary){Button value=ui.button(text,()->{if(!busy||tag.equals("file-cancel-receive"))action.run();});value.setEnabled(!busy||tag.equals("file-cancel-receive"));value.setTag(tag);value.setOnFocusChangeListener((v,on)->{if(on)focus=tag;});value.setId(androidx.core.view.ViewCompat.generateViewId());value.setFocusableInTouchMode(true);value.setAllCaps(false);value.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,11.712f*ui.unit);value.setPadding(ui.px(12.96f),ui.px(7.2f),ui.px(12.96f),ui.px(7.2f));value.setMinHeight(0);value.setMinimumHeight(0);value.setBackgroundDrawable(new SettingsFocusDrawable(ui.unit,21.12f,primary?(ui instanceof AppManagementActivity?UiPalette.SELECTED:0xe6ffffff):UiPalette.CONTROL,false,primary?0x4dffffff:UiPalette.EDGE,false,12));value.setTextColor(SettingsFocusDrawable.textColors(primary&&!(ui instanceof AppManagementActivity)?UiPalette.INK:UiPalette.TEXT));SettingsTouchClick.attach(value);return value;}
+    private Button button(String text,String tag,Runnable action,boolean primary){Button value=ui.button(text,()->{if(!busy||tag.equals("file-cancel-receive"))action.run();});value.setEnabled(!busy||tag.equals("file-cancel-receive"));value.setTag(tag);value.setOnFocusChangeListener((v,on)->{if(on)focus=tag;});value.setId(androidx.core.view.ViewCompat.generateViewId());value.setFocusableInTouchMode(true);value.setAllCaps(false);value.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,11.712f*ui.unit);value.setPadding(ui.px(12.96f),ui.px(7.2f),ui.px(12.96f),ui.px(7.2f));value.setMinHeight(0);value.setMinimumHeight(0);value.setBackgroundDrawable(new SettingsFocusDrawable(ui.unit,21.12f,primary?(ui instanceof AppManagementActivity?UiPalette.SELECTED:0xe6ffffff):UiPalette.CONTROL,false,primary?0x4dffffff:UiPalette.EDGE).outlineOnFocus());value.setTextColor(SettingsFocusDrawable.textColors(primary&&!(ui instanceof AppManagementActivity)?UiPalette.INK:UiPalette.TEXT));SettingsTouchClick.attach(value);return value;}
     private Button compact(String text,String tag,Runnable action,boolean primary){Button value=button(text,tag,action,primary);sheet.body.addView(value,new LinearLayout.LayoutParams(-2,ui.px(34.56f)));return value;}
     private Button menu(String text,String tag,Runnable action,boolean primary){Button value=button(text,tag,action,primary);value.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);value.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,14.4f*ui.unit);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,ui.px(39.36f));lp.bottomMargin=ui.px(7.2f);sheet.body.addView(value,lp);return value;}
     private void identify(View value,String tag){value.setTag(tag);value.setOnFocusChangeListener((v,on)->{if(on)focus=tag;});value.setId(androidx.core.view.ViewCompat.generateViewId());value.setFocusableInTouchMode(true);}
     void show(){if(open())return;entries=Collections.emptyList();installerOpened=false;phase="list";source=0;folder=boundary=null;tree=current=null;parents.clear();receipt=null;selected=null;error=notice="";receivedChanged=false;focus="file-source-0";create();phone.start();}
     private void create(){
-        origin=ui.getCurrentFocus();sheet=ui.new Sheet("文件传输助手");ManagementUi.Sheet own=sheet;closeButton=sheet.settingsLayout("返回",this::back);closeButton.setOnFocusChangeListener((v,on)->{if(on)focus="sheet-close";});sheet.settingsActions(false);
-        LinearLayout title=(LinearLayout)closeButton.getParent();title.removeView(closeButton);title.addView(closeButton,0,new LinearLayout.LayoutParams(ui.px(36),ui.px(36)));closeButton.setText("");closeButton.setContentDescription("返回");Drawable back=UiCompat.drawable(ui,R.drawable.ic_manage_back);back.setBounds(0,0,ui.px(20),ui.px(20));closeButton.setCompoundDrawables(back,null,null,null);closeButton.setGravity(Gravity.CENTER);closeButton.setPadding(ui.px(8),0,ui.px(8),0);
-        sheet.heading.getLayoutParams().height=-1;sheet.heading.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,22*ui.unit);((LinearLayout.LayoutParams)sheet.heading.getLayoutParams()).leftMargin=ui.px(16);title.getLayoutParams().height=ui.px(36);
-        sheet.dialog.setOnKeyListener((d,key,event)->{if(key!=KeyEvent.KEYCODE_BACK&&key!=KeyEvent.KEYCODE_ESCAPE)return false;if(event.getAction()==KeyEvent.ACTION_UP)back();return true;});sheet.dialog.setOnDismissListener(d->{if(sheet==own){dismissConfirmation();sheet=null;++jobVersion;++listVersion;busy=false;stopPreview();if(!retaining)discard();if(origin!=null&&origin.isShown())origin.requestFocusFromTouch();closed.run();}});
+        origin=ui.getCurrentFocus();sheet=ui.new Sheet("文件传输助手");ManagementUi.Sheet own=sheet;closeButton=sheet.settingsLayout("关闭",this::back);closeButton.setOnFocusChangeListener((v,on)->{if(on)focus="sheet-close";});sheet.settingsActions(false);
+        LinearLayout title=(LinearLayout)closeButton.getParent();
+        sheet.heading.getLayoutParams().height=-1;sheet.heading.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,22*ui.unit);title.getLayoutParams().height=ui.px(36);
+        sheet.dialog.setOnKeyListener((d,key,event)->KeyFeedback.backKey(ui,event,open()&&!applying&&(confirmation==null||!busy),this::back));sheet.dialog.setOnDismissListener(d->{if(sheet==own){dismissConfirmation();sheet=null;++jobVersion;++listVersion;busy=false;stopPreview();if(!retaining)discard();if(origin!=null&&origin.isShown())origin.requestFocusFromTouch();closed.run();}});
         String target=focus;render();sheet.show(null);focus=target;restoreFocus();if(store==null)worker.execute(()->{FileTransferStore ready=null;try{ready=new FileTransferStore(new File(ui.getFilesDir(),"received-files"));}catch(IOException ignored){}FileTransferStore result=ready;main.post(()->{if(!open())return;store=result;if(result==null){error="文件接收目录不可用，已有文件已保留";render();}else readList();});});else if(phase.equals("list"))readList();
     }
     private void remember(){if(sheet==null||confirmation!=null)return;View view=sheet.dialog.getCurrentFocus();if(view!=null&&view.getTag() instanceof String)focus=(String)view.getTag();}
@@ -101,8 +101,7 @@ final class FileToolsSheet {
         if(target!=null)target.requestFocusFromTouch();
         ManagementUi.Sheet modal=ui.new Sheet("删除文件？",sheet);
         confirmation=modal;
-        Button close=modal.settingsLayout("取消",()->{if(!busy)modal.dialog.dismiss();});
-        close.setVisibility(View.GONE);
+        modal.confirmationLayout(()->{if(!busy)modal.dialog.dismiss();});
         modal.contentSize(400,340);
         modal.settingsActions(true);
 
@@ -132,11 +131,7 @@ final class FileToolsSheet {
         remove.setBackgroundDrawable(new SettingsFocusDrawable(ui.unit,999,0x46a44642,false,0x88f29e96));
         remove.setTextColor(SettingsFocusDrawable.textColors(0xffffe8e5,UiPalette.INK));
         configureConfirmationFocus(cancel,remove);
-        modal.dialog.setOnKeyListener((dialog,key,event)->{
-            if(key!=KeyEvent.KEYCODE_BACK&&key!=KeyEvent.KEYCODE_ESCAPE)return false;
-            if(event.getAction()==KeyEvent.ACTION_UP&&!busy)modal.dialog.dismiss();
-            return true;
-        });
+        modal.dialog.setOnKeyListener((dialog,key,event)->KeyFeedback.backKey(ui,event,!busy,modal.dialog::dismiss));
         modal.dialog.setOnDismissListener(dialog->{
             if(confirmation!=modal)return;
             confirmation=null;
@@ -180,7 +175,7 @@ final class FileToolsSheet {
         }
     }
     private void render(){
-        if(!open())return;if(!phase.equals("preview"))stopPreview();closeButton.setEnabled(!applying);sheet.body.removeAllViews();sheet.actions.removeAllViews();sheet.settingsActions(false);listViewport(phase.equals("list"));progressText=null;progress=null;
+        if(!open())return;if(!phase.equals("preview"))stopPreview();closeButton.setText(phase.equals("list")&&folder==null&&tree==null?"关闭":"返回");closeButton.setEnabled(!applying);sheet.body.removeAllViews();sheet.actions.removeAllViews();sheet.settingsActions(false);listViewport(phase.equals("list"));progressText=null;progress=null;
         if(phase.equals("list"))list();else if(phase.equals("directory"))directory();else if(phase.equals("receiving"))receiving();
         else if(phase.equals("expired")){note("未完成读取的文件未保存。");compact("返回文件列表","file-restart",()->{go("list","file-source-"+source);readList();},true);}
         else if(phase.equals("install")){note(installerOpened?"请在系统安装器中确认，返回不表示安装成功。":"由电视系统确认安装包与安装来源授权。");LinearLayout actions=ui.row();actions.setGravity(Gravity.END);Button back=button("返回文件","file-return-detail",()->go("detail","file-install"),false);actions.addView(back,new LinearLayout.LayoutParams(-2,-1));if(!installerOpened){Button install=button("使用系统安装器","file-installer",this::install,true);LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(-2,-1);ip.leftMargin=ui.px(7.68f);actions.addView(install,ip);}LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,ui.px(34.56f));ap.topMargin=ui.px(5.04f);sheet.body.addView(actions,ap);}
@@ -209,9 +204,8 @@ final class FileToolsSheet {
             tab.setOnFocusChangeListener((view,on)->{if(on){focus="file-source-"+at;if(source!=at)source(at);}});
             tab.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,14.4f*ui.unit);
             tab.setSelected(source==i);
-            tab.setTextColor(SettingsFocusDrawable.textColors(source==i?UiPalette.INK:UiPalette.TEXT));
-            tab.setBackgroundDrawable(source==i?ui.surface(Color.WHITE,Color.WHITE,Color.TRANSPARENT,999):
-                    new SettingsFocusDrawable(ui.unit,999,Color.TRANSPARENT,false,0));
+            tab.setTextColor(SettingsFocusDrawable.textColors(UiPalette.SECONDARY,UiPalette.INK));
+            tab.setBackgroundDrawable(new SettingsFocusDrawable(ui.unit,999,Color.TRANSPARENT));
             LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(-2,ui.px(30));
             tp.rightMargin=ui.px(8);tabs.addView(tab,tp);
         }
@@ -249,6 +243,7 @@ final class FileToolsSheet {
         file.setSoundEffectsEnabled(false);
         file.setPadding(ui.px(10),0,ui.px(10),0);
         identify(file,tag);
+        line.trackFocus(file,tag);
         file.setContentDescription(title+"  "+kind+(directory?"":"  "+FileTransferSource.size(size)));
         ImageView image=new ImageView(ui);
         image.setImageDrawable(UiCompat.drawable(ui,icon));
@@ -318,6 +313,7 @@ final class FileToolsSheet {
 
     private void fileAction(FileRow row,int column,String title,String tag,Runnable action){
         Button button=button(title,tag,action,false);
+        row.trackFocus(button,tag);
         button.setContentDescription(title+"  "+row.file.getContentDescription());
         button.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,13.44f*ui.unit);
         button.setPadding(0,0,0,0);
@@ -343,6 +339,11 @@ final class FileToolsSheet {
             rule.setColor(UiPalette.EDGE);
         }
 
+        void trackFocus(View view,String tag){
+            // Sibling focus transfer can bypass clearChildFocus() on this row.
+            view.setOnFocusChangeListener((v,focused)->{if(focused)focus=tag;invalidate();});
+        }
+
         @Override public void requestChildFocus(View child,View focused){
             super.requestChildFocus(child,focused);
             invalidate();
@@ -360,8 +361,8 @@ final class FileToolsSheet {
 
         @Override protected void dispatchDraw(Canvas canvas){
             View current=getFocusedChild();
-            if(current!=null){
-                boolean fileFocused=current==file&&hasWindowFocus();
+            if(current!=null&&current.hasFocus()&&hasWindowFocus()){
+                boolean fileFocused=current==file;
                 glass.setColor(fileFocused?0x225a5b54:0x1953544e);
                 glass.setStroke(Math.max(1,ui.px(fileFocused?1.1f:.75f)),fileFocused?0xedfffdf4:0x72fffdf4);
                 glass.setBounds(0,0,getWidth(),getHeight()-getPaddingBottom());
@@ -386,7 +387,6 @@ final class FileToolsSheet {
         directoryRow(group,"记住当前目录",folder!=null?folder.getName():tree!=null?"已授权目录":"请先授权目录","file-remember-directory",this::rememberDirectory,tree!=null||folder!=null);
         directoryRow(group,"重新选择目录","保留已接收文件","file-reset-directory",()->{folder=boundary=null;tree=current=null;parents.clear();go("list","file-options");readList();},true);
         directoryRow(group,FileTransferSource.partialMediaAccess(ui)?"重新选择照片和视频":"重新读取存储","刷新","file-reread",()->{if(!FileTransferSource.requestPermission(ui,PERMISSION,true)){go("list","file-options");readList();}},true);
-        Button back=button("返回","file-directory-back",()->{go("list","file-options");readList();},false);sheet.body.addView(back,new LinearLayout.LayoutParams(-2,ui.px(34.56f)));
     }
     private void rememberDirectory(){try{if(tree!=null){if(!FileTransferSource.Documents.persistedRead(ui,tree))throw new IOException("系统只提供临时目录授权，请重新授权");}else if(folder!=null)FileTransferSource.LocalDirectories.remember(ui,source==2,folder);go("list","file-options");readList();ui.success("已记住当前目录");}catch(IOException failure){error=failure.getMessage();render();}}
     private void pick(){try{Intent intent=new Intent(Build.VERSION.SDK_INT>=19?Intent.ACTION_OPEN_DOCUMENT:Intent.ACTION_GET_CONTENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);external=true;sheet.dialog.hide();ui.startActivityForResult(intent,PICK);}catch(ActivityNotFoundException|SecurityException failure){external=false;sheet.dialog.show();error="系统文件选择器不可用，可浏览本地存储或使用局域网传输";render();}}
@@ -487,7 +487,10 @@ final class FileToolsSheet {
         if(phase.equals("list")&&loading)reopenDeleteAfterLoad=true;
         else showDeleteConfirmation();
     }}
-    private void back(){if(applying)return;if(confirmation!=null){if(!busy)confirmation.dialog.dismiss();return;}if(!phase.equals("list")){++jobVersion;busy=false;discard();go("list",receipt!=null?"file-"+receipt.id:"file-source-"+source);readList();}else if(!busy&&(folder!=null||tree!=null))up();else close();}
+    private void back(){if(applying)return;if(confirmation!=null){if(!busy)confirmation.dialog.dismiss();return;}if(phase.equals("install")){go("detail","file-install");}
+        else if(phase.equals("directory")){go("list","file-options");readList();}
+        else if(phase.equals("preview")){++jobVersion;busy=false;discard();go("detail",detailFocus());}
+        else if(!phase.equals("list")){++jobVersion;busy=false;discard();go("list",receipt!=null?"file-"+receipt.id:"file-source-"+source);readList();}else if(!busy&&(folder!=null||tree!=null))up();else close();}
     void close(){if(applying||confirmation!=null&&busy)return;dismissConfirmation();if(sheet!=null)sheet.dialog.dismiss();}
     void destroy(){phone.forgetConfiguration(phoneChanged);dismissConfirmation();destroyed=true;if(sheet!=null){sheet.dialog.setOnDismissListener(null);sheet.dialog.dismiss();sheet=null;}++jobVersion;++listVersion;stopPreview();if(!retaining)discard();main.removeCallbacksAndMessages(null);worker.shutdown();}
 }

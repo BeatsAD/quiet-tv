@@ -71,15 +71,15 @@ final class DockEditorPanel extends ManagementPanel {
     }
     private void edit(int index){
         if(pendingSaves>0)return;if(moving){endMove();return;}if(index>=packages.size()){choose(-1);return;}
-        Sheet sheet=new Sheet(name(packages.get(index)));Button replace=sheet.option("替换应用",()->{sheet.dialog.dismiss();choose(index);});sheet.option("移除快捷入口",()->{sheet.dialog.dismiss();packages.remove(index);render(Math.min(index,DockStore.CAPACITY-1));saveOrder();});sheet.option("左右排序",()->{sheet.dialog.dismiss();moving=true;beforeMove=new ArrayList<>(packages);movingIndex=index;render(index);});sheet.action("取消",sheet.dialog::dismiss);sheet.show(replace);
+        Sheet sheet=new Sheet(name(packages.get(index)));sheet.delegate.settingsLayout("关闭",sheet.dialog::dismiss);sheet.delegate.settingsActions(false);Button replace=sheet.option("替换应用",()->{sheet.dialog.dismiss();choose(index);});sheet.option("移除快捷入口",()->{sheet.dialog.dismiss();packages.remove(index);render(Math.min(index,DockStore.CAPACITY-1));saveOrder();});sheet.option("左右排序",()->{sheet.dialog.dismiss();moving=true;beforeMove=new ArrayList<>(packages);movingIndex=index;render(index);});sheet.action("取消",sheet.dialog::dismiss);sheet.show(replace);
     }
     private void choose(int replace){
         PackageManager pm=getPackageManager();LinkedHashMap<String,ResolveInfo> choices=new LinkedHashMap<>();
         for(Map.Entry<String,ResolveInfo> entry:new HomeAppCatalog(this).launchable().entrySet())if(!packages.contains(entry.getKey()) && !new ChildModeStore(this).hidden(entry.getKey())&&!new HomeVisibilityStore(this).hidden(entry.getKey()))choices.put(entry.getKey(),entry.getValue());
         ArrayList<ResolveInfo> apps=new ArrayList<>(choices.values());Collections.sort(apps,(a,b)->a.loadLabel(pm).toString().compareTo(b.loadLabel(pm).toString()));if(apps.isEmpty()){message("没有可添加的已启用应用");return;}
-        Sheet sheet=new Sheet(replace<0?"添加常用应用":"替换第 "+(replace+1)+" 个位置");Button first=null;
+        Sheet sheet=new Sheet(replace<0?"添加常用应用":"替换第 "+(replace+1)+" 个位置");sheet.delegate.settingsLayout("关闭",sheet.dialog::dismiss);sheet.delegate.settingsActions(false);Button first=null;
         for(ResolveInfo app:apps){Button option=sheet.option(app.loadLabel(pm)+"\n"+app.activityInfo.packageName,()->{String pkg=app.activityInfo.packageName;if(replace<0){if(packages.size()==DockStore.CAPACITY){message("常用应用已满，请选择位置替换");return;}packages.add(pkg);}else packages.set(replace,pkg);sheet.dialog.dismiss();render(replace<0?packages.size()-1:replace);saveOrder();});option.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(12));Drawable icon=app.loadIcon(pm);icon.setBounds(0,0,px(28),px(28));option.setCompoundDrawables(icon,null,null,null);option.setCompoundDrawablePadding(px(12));if(first==null)first=option;}
-        sheet.action("取消",sheet.dialog::dismiss);sheet.show(first);
+        sheet.show(first);
     }
     private void endMove(){moving=false;beforeMove=null;render(movingIndex);saveOrder();}
     private void cancelMove(){packages=new ArrayList<>(beforeMove);moving=false;beforeMove=null;render(movingIndex);}

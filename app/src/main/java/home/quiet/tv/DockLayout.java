@@ -2,11 +2,20 @@ package home.quiet.tv;
 
 /** Shared Home/preview geometry in the existing 960 by 540 coordinate system. */
 final class DockLayout {
+    static final int FEATURED_TITLE_HEIGHT=56;
+    private static final float ART_TITLE_GAP=14, PANEL_TITLE_GAP=5;
     private static final float MAX_WIDTH=864, PADDING=16, BORDER=.75f, GAP=14, MIN_GAP=8, BOTTOM=32.4f, TOP=280;
     final float left,top,width,height,padding,gap,labelSize,labelGap,radius;
     final float[] x,y,cardWidth,cardHeight;
     private DockLayout(int count,float left,float top,float width,float height,float padding,float gap,float labelSize,float labelGap,float radius){
         this.left=left;this.top=top;this.width=width;this.height=height;this.padding=padding;this.gap=gap;this.labelSize=labelSize;this.labelGap=labelGap;this.radius=radius;x=new float[count];y=new float[count];cardWidth=new float[count];cardHeight=new float[count];
+    }
+    /** Anchor to the visible row's highest artwork edge, not any individual card. */
+    float featuredTitleTop(boolean panel){
+        float artTop=top;for(int i=0;i<y.length;i++)artTop=i==0?y[i]:Math.min(artTop,y[i]);
+        float bottom=artTop-ART_TITLE_GAP;
+        if(panel)bottom=Math.min(bottom,top-PANEL_TITLE_GAP);
+        return bottom-FEATURED_TITLE_HEIGHT;
     }
     /** The add action already contains its label; its default image matches the 1.3.6 card. */
     static DockLayout empty(int focus,String size,int scalePercent,boolean magnify,int magnification){

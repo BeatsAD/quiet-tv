@@ -206,7 +206,7 @@ final class SystemSettingsRouter {
         DiagnosticLog.info("settings.requested","attempt="+diagnostic.id+" action="+action+" trial="+trial);
         boolean ethernet=false;
         if(Settings.ACTION_WIFI_SETTINGS.equals(action)){
-            ConnectivityManager manager=(ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);
+            ConnectivityManager manager=(ConnectivityManager)context.getApplicationContext().getSystemService(Context.CONNECTIVITY_SERVICE);
             NetworkInfo active=manager==null?null:manager.getActiveNetworkInfo();
             ethernet=active!=null&&active.isConnected()&&active.getType()==ConnectivityManager.TYPE_ETHERNET;
         }

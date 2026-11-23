@@ -79,7 +79,7 @@ final class DesktopManagementState {
             "只启用已记录的电视原桌面，保持主桌面和守护设置。","original"));
         if(stock){
             String reason=!originalProblem.isEmpty()?originalProblem:"quiet".equals(desktop)&&e.optBoolean("dependsOnStock")?disableProblem(e):!own?"请先切回 Quiet TV 并核对桌面状态。":disableProblem(e);
-            actions.put(action("original-disable","禁用原桌面",reason,"仅禁用当前用户的原桌面，保留安装和数据，可从桌面管理恢复启用。","original"));
+            actions.put(action("original-disable","禁用原桌面",reason,"仅禁用当前用户的原桌面，保留安装和数据。","original"));
             JSONObject baseline=record==null?null:record.optJSONObject("baseline");
             if("original".equals(desktop)&&"stock".equals(phase)&&baseline!=null){
                 reason=!originalProblem.isEmpty()?originalProblem:disableProblem(baseline);
@@ -90,14 +90,71 @@ final class DesktopManagementState {
         }
         JSONObject verification=runtime.optJSONObject("verification");if(verification==null)verification=new JSONObject();
         String message=pending!=null?pending.optString("message"):out.optString("message");
+        JSONObject settings=settings(entries,actions,desktop,state,label,phase,needed||guardPause!=null,runtime,problem);
         return out.put("presentationVersion",1).put("mainDesktop",new JSONObject().put("id",desktop).put("label",desktopLabel).put("hint",hint)
                 .put("systemHome",runtime.optString("systemHome")).put("source","system_and_route"))
             .put("guard",new JSONObject().put("state",state).put("label",label).put("needed",needed).put("reason",runtime.optString("problem")))
-            .put("desktops",entries).put("managementActions",actions).put("primaryAction",primary)
+            .put("desktops",entries).put("managementActions",actions).put("primaryAction",primary).put("settings",settings)
             .put("summary",desktopLabel+"  "+label).put("mode",desktopLabel).put("verification",verification)
             .put("canVerify",runtime.optBoolean("canVerify")&&!incomplete).put("systemSelection",runtime.optBoolean("systemSelection"))
             .put("operation",pending==null?new JSONObject():pending).put("message",message);
     }
-    private static boolean enabled(JSONArray actions,String id){for(int i=0;i<actions.length();i++){JSONObject action=actions.optJSONObject(i);if(action!=null&&id.equals(action.optString("id")))return action.optBoolean("enabled");}return false;}
+    private static JSONObject settings(JSONArray entries,JSONArray actions,String desktop,String guardState,String guardLabel,
+                                       String phase,boolean showGuard,JSONObject runtime,String problem)throws JSONException {
+        boolean quietCurrent="quiet".equals(desktop),originalCurrent="original".equals(desktop);
+        JSONObject toOriginal=quietCurrent?find(actions,"stock"):null;
+        JSONObject toQuiet=!quietCurrent&&(originalCurrent||!"quiet".equals(phase))?find(actions,"quiet"):null;
+        JSONObject restoreDisabled=find(actions,"quiet-disable");
+        if(toQuiet!=null&&restoreDisabled!=null&&(restoreDisabled.optBoolean("enabled")||!toQuiet.optBoolean("enabled"))){
+            toQuiet=restoreDisabled;
+        }
+        JSONObject guard=find(actions,"guard-resume");
+        if(guard==null)guard=find(actions,"guard-pause");
+
+        JSONArray rows=new JSONArray()
+                .put(setting("quiet","Quiet TV",entries.getJSONObject(0).optString("detail"),toQuiet))
+                .put(setting("original","电视原桌面",entries.getJSONObject(1).optString("detail"),toOriginal));
+        if(showGuard)rows.put(setting("guard","桌面守护",guardLabel,guard));
+
+        String recovery="",reason="";
+        JSONObject target=quietCurrent?toOriginal:toQuiet;
+        boolean setup="quiet".equals(phase)&&"unconfigured".equals(guardState)&&!runtime.optBoolean("configured");
+        if(setup&&runtime.optBoolean("systemSelection"))recovery="system";
+        else if(target!=null&&!target.optBoolean("enabled")){
+            reason=target.optString("reason");
+            recovery=target.optBoolean("requiresManagement")&&!runtime.optBoolean("managementConnected")?"authorize":"computer";
+        }else if("review".equals(guardState)||"authorization".equals(guardState)||"disconnected".equals(guardState)
+                ||target==null&&!(originalCurrent&&guard!=null&&guard.optBoolean("enabled"))
+                ||guard!=null&&!guard.optBoolean("enabled")){
+            recovery="computer";
+            reason=problem.isEmpty()?runtime.optString("problem"):problem;
+            if(reason.isEmpty()&&guard!=null)reason=guard.optString("reason");
+        }
+        return new JSONObject().put("rows",rows).put("recovery",recovery).put("reason",reason);
+    }
+    private static JSONObject setting(String id,String title,String value,JSONObject action)throws JSONException {
+        JSONObject row=new JSONObject().put("id",id).put("title",title).put("value",value);
+        if(action!=null){
+            row.put("action",action);
+            if(action.optBoolean("enabled")){
+                String titleOfAction=action.optString("title");
+                // The confirmation retains the exact effect of restoring the saved disabled state.
+                if("quiet-disable".equals(action.optString("id")))titleOfAction="切回 Quiet TV";
+                row.put("value","guard".equals(id)?value+"  "+titleOfAction:titleOfAction);
+            }
+        }
+        return row;
+    }
+    private static JSONObject find(JSONArray actions,String id) {
+        for(int i=0;i<actions.length();i++){
+            JSONObject action=actions.optJSONObject(i);
+            if(action!=null&&id.equals(action.optString("id")))return action;
+        }
+        return null;
+    }
+    private static boolean enabled(JSONArray actions,String id){
+        JSONObject action=find(actions,id);
+        return action!=null&&action.optBoolean("enabled");
+    }
     private DesktopManagementState(){}
 }

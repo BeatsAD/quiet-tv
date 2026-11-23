@@ -27,7 +27,7 @@ final class WeatherCityPicker {
     private final Handler main=new Handler(Looper.getMainLooper());
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private ManagementUi.Sheet editor,phone;
-    private PopupWindow dropdown;
+    private KeyFeedback.Popup dropdown;
     private Button provinceButton,cityButton,districtButton,save,scan,reconnect;
     private EditText query;
     private LinearLayout results;
@@ -52,6 +52,8 @@ final class WeatherCityPicker {
     void show(Runnable closed){
         if(editor!=null)return;View origin=ui.getCurrentFocus();province=null;city=null;draft=null;
         editor=ui.new Sheet(tr("选择天气地区","Choose weather location"));
+        Button navigation=editor.settingsLayout(closed==null?tr("关闭","Close"):tr("返回","Back"),()->editor.dialog.dismiss());
+        editor.contentSize(650,480);
         LinearLayout row=ui.row();
         provinceButton=selector(row,tr("省份","Province"),"weather-province",()->menu(provinceButton,regions.children(""),region->{province=region;city=null;draft=null;update();cityButton.requestFocus();}));
         cityButton=selector(row,tr("城市","City"),"weather-city",()->menu(cityButton,regions.children(province.code),region->{city=region;draft=region;update();districtButton.requestFocus();}));
@@ -67,13 +69,19 @@ final class WeatherCityPicker {
         query.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int start,int count,int after){}public void onTextChanged(CharSequence s,int start,int before,int count){++searchGeneration;main.removeCallbacks(search);main.postDelayed(search,180);}public void afterTextChanged(Editable value){}});
         query.setOnEditorActionListener((v,id,event)->{if(id!=EditorInfo.IME_ACTION_SEARCH)return false;hideKeyboard();showResults(true);return true;});
         query.setOnKeyListener((v,key,event)->{
-            if((key==KeyEvent.KEYCODE_DPAD_CENTER||key==KeyEvent.KEYCODE_ENTER)&&event.getAction()==KeyEvent.ACTION_DOWN){((InputMethodManager)ui.getSystemService(android.content.Context.INPUT_METHOD_SERVICE)).showSoftInput(query,InputMethodManager.SHOW_IMPLICIT);return true;}
+            if((key==KeyEvent.KEYCODE_DPAD_CENTER||key==KeyEvent.KEYCODE_ENTER)&&event.getAction()==KeyEvent.ACTION_DOWN){
+                InputMethodManager keyboard=(InputMethodManager)ui.getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
+                if(keyboard.showSoftInput(query,InputMethodManager.SHOW_IMPLICIT))KeyFeedback.confirmOnPress(ui);
+                return true;
+            }
             if(key==KeyEvent.KEYCODE_DPAD_DOWN&&event.getAction()==KeyEvent.ACTION_DOWN){if(results.getChildCount()>0&&results.getChildAt(0).isFocusable())results.getChildAt(0).requestFocus();else scan.requestFocus();return true;}return false;
         });
         editor.dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN|WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-        editor.dialog.setOnDismissListener(d->{++searchGeneration;if(searchRequest!=null)searchRequest.cancel(true);searchClient.cancel();main.removeCallbacks(search);hideKeyboard();if(dropdown!=null)dropdown.dismiss();if(phone!=null)phone.dialog.dismiss();stopServer(false);editor=null;query=null;if(origin!=null&&origin.isShown())origin.requestFocus();if(closed!=null)closed.run();});
+        editor.dialog.setOnDismissListener(d->{++searchGeneration;if(searchRequest!=null)searchRequest.cancel(true);searchClient.cancel();main.removeCallbacks(search);hideKeyboard();if(dropdown!=null)dropdown.closeQuietly();if(phone!=null)phone.dialog.dismiss();stopServer(false);editor=null;query=null;if(origin!=null&&origin.isShown())origin.requestFocus();if(closed!=null)closed.run();});
         WeatherRegions.Region selected=store.selected();if(selected!=null)select(selected);else update();
-        editor.show(provinceButton);editor.dialog.getWindow().setLayout(ui.px(650),-2);
+        navigation.setNextFocusDownId(provinceButton.getId());
+        for(Button selector:new Button[]{provinceButton,cityButton,districtButton})selector.setNextFocusUpId(navigation.getId());
+        editor.show(provinceButton);
     }
     private Button selector(LinearLayout row,String title,String tag,Runnable action){
         Button button=ui.button(title,action);identify(button,tag);button.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,ui.px(13));button.setBackgroundDrawable(ui.focusSurface(10));button.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);button.setSingleLine(true);button.setEllipsize(TextUtils.TruncateAt.END);
@@ -92,11 +100,13 @@ final class WeatherCityPicker {
         draft=region;city=region.level==2?regions.find(region.parent):region;province=city==null?null:regions.find(city.parent);update();
     }
     private void menu(Button anchor,List<WeatherRegions.Region> choices,Selection selected){
-        if(dropdown!=null)dropdown.dismiss();hideKeyboard();LinearLayout list=ui.column();list.setPadding(ui.px(6),ui.px(6),ui.px(6),ui.px(6));list.setBackgroundDrawable(ui.surface(0xfa000000,0xfa000000,0,14));
-        ScrollView scroll=new ScrollView(ui);scroll.setFillViewport(false);scroll.addView(list);PopupWindow popup=new PopupWindow(scroll,Math.max(anchor.getWidth(),ui.px(180)),ui.px(Math.min(212,choices.size()*40+12)),true);dropdown=popup;
+        if(dropdown!=null)dropdown.closeQuietly();hideKeyboard();LinearLayout list=new LinearLayout(ui);list.setOrientation(LinearLayout.VERTICAL);list.setPadding(ui.px(6),ui.px(6),ui.px(6),ui.px(6));list.setBackgroundDrawable(ui.surface(0xfa000000,0xfa000000,0,14));
+        ScrollView scroll=new ScrollView(ui);scroll.setFillViewport(false);scroll.addView(list);
+        KeyFeedback.Menu menu=new KeyFeedback.Menu(ui);menu.addView(scroll);
+        KeyFeedback.Popup popup=new KeyFeedback.Popup(ui,menu,Math.max(anchor.getWidth(),ui.px(180)),ui.px(Math.min(212,choices.size()*40+12)));dropdown=popup;
         popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));popup.setOutsideTouchable(true);if(Build.VERSION.SDK_INT>=21)popup.setElevation(ui.px(14));
         for(WeatherRegions.Region region:choices){
-            Button option=ui.button(region.name,()->{popup.dismiss();selected.accept(region);});option.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);option.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,ui.px(13));option.setSingleLine(true);option.setEllipsize(TextUtils.TruncateAt.END);option.setBackgroundDrawable(ui.listSurface());option.setSelected((draft!=null&&draft.code.equals(region.code))||(city!=null&&city.code.equals(region.code))||(province!=null&&province.code.equals(region.code)));list.addView(option,new LinearLayout.LayoutParams(-1,ui.px(40)));
+            Button option=ui.button(region.name,()->{popup.closeQuietly();selected.accept(region);});option.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);option.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,ui.px(13));option.setSingleLine(true);option.setEllipsize(TextUtils.TruncateAt.END);option.setBackgroundDrawable(ui.listSurface());option.setSelected((draft!=null&&draft.code.equals(region.code))||(city!=null&&city.code.equals(region.code))||(province!=null&&province.code.equals(region.code)));list.addView(option,new LinearLayout.LayoutParams(-1,ui.px(40)));
         }
         popup.setOnDismissListener(()->{if(dropdown==popup)dropdown=null;anchor.requestFocus();});popup.showAsDropDown(anchor,0,ui.px(6));if(list.getChildCount()>0)list.getChildAt(0).requestFocus();
     }
@@ -126,11 +136,11 @@ final class WeatherCityPicker {
         if(focus&&!matches.isEmpty())results.getChildAt(0).requestFocus();
     }
     private void showPhone(){
-        if(phone!=null)return;hideKeyboard();received=false;phone=ui.new Sheet(tr("手机扫码输入","Phone input"));LinearLayout row=ui.row(),details=ui.column();
+        if(phone!=null)return;hideKeyboard();received=false;phone=ui.new Sheet(tr("手机扫码输入","Phone input"));Button back=phone.settingsLayout(tr("返回","Back"),()->phone.dialog.dismiss());phone.contentSize(610,450);LinearLayout row=ui.row(),details=ui.column();
         TextView instructions=ui.label(tr("手机与电视连接同一局域网\n扫码搜索地区，发送后在电视保存","Connect your phone to the TV’s local network.\nSearch a location, then save it on TV."),13);instructions.setLineSpacing(ui.px(6),1);details.addView(instructions);ui.gap(details,14);address=ui.label("",14);details.addView(address);ui.gap(details,6);code=ui.label("",13);details.addView(code);ui.gap(details,12);status=ui.muted(tr("也可打开地址，输入电视上的连接码","Or open the address and enter the TV code"),11);details.addView(status);
         row.addView(details,new LinearLayout.LayoutParams(0,-2,1));qr=new QrCodeView(ui,ui.unit);qr.setContentDescription(tr("天气地区输入二维码","Weather location input QR code"));qr.setScaleType(ImageView.ScaleType.FIT_CENTER);qr.setPadding(ui.px(8),ui.px(8),ui.px(8),ui.px(8));LinearLayout.LayoutParams qp=new LinearLayout.LayoutParams(ui.px(240),ui.px(240));qp.leftMargin=ui.px(22);row.addView(qr,qp);phone.body.addView(row);
-        reconnect=phone.action(tr("重新连接","Reconnect"),this::startServer);Button back=phone.action(tr("返回选择","Back to selection"),()->phone.dialog.dismiss());
-        phone.dialog.setOnDismissListener(d->{phone=null;stopServer(received);clearQr();if(editor!=null){editor.dialog.show();if(received)save.requestFocus();else scan.requestFocus();}});if(editor!=null)editor.dialog.hide();phone.show(back);phone.dialog.getWindow().setLayout(ui.px(610),-2);startServer();
+        reconnect=phone.action(tr("重新连接","Reconnect"),this::startServer);
+        phone.dialog.setOnDismissListener(d->{phone=null;stopServer(received);clearQr();if(editor!=null){editor.dialog.show();if(received)save.requestFocus();else scan.requestFocus();}});if(editor!=null)editor.dialog.hide();phone.show(back);startServer();
     }
     private void startServer(){
         stopServer(false);int attempt=generation;received=false;reconnect.setVisibility(View.GONE);clearQr();code.setText("");host=WallpaperUploadPanel.lanAddress(ui);

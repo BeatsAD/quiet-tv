@@ -9,6 +9,8 @@ import java.util.*;
 final class InputDiagnostics {
     private static long navigationAt,pointerAt,homeAt;
     private static int navigationCount,pointerCount;
+    private static final long SLOW_INPUT_MS=100,SLOW_INPUT_INTERVAL_MS=5000;
+    private static long lastSlowInputAt=-SLOW_INPUT_INTERVAL_MS;
     private static final InputSequence sequence=new InputSequence();
     private static final Map<Integer,String> devices=new LinkedHashMap<>();
     private static final Map<Integer,InputAxisEvidence> motion=new LinkedHashMap<>();
@@ -64,15 +66,51 @@ final class InputDiagnostics {
     static String devicesSnapshot(){StringBuilder text=new StringBuilder("[导出时输入设备元信息]\n");try{int count=0;for(int id:InputDevice.getDeviceIds()){if(count++>=32){text.append("其余设备省略\n");break;}text.append(device(id)).append('\n');}}catch(RuntimeException unavailable){text.append("state=unknown type=").append(unavailable.getClass().getSimpleName()).append('\n');}return text.toString();}
     @androidx.annotation.RequiresApi(16) private static final class Api16 {static String descriptor(InputDevice device){return DiagnosticLog.anonymous("input",device.getDescriptor());}static boolean virtual(InputDevice device){return device.isVirtual();}}
     @androidx.annotation.RequiresApi(19) private static final class Api19 {static String hardware(InputDevice device){return " vendorId="+device.getVendorId()+" productId="+device.getProductId();}}
-    private static boolean observed(KeyEvent event){return event!=null&&DiagnosticLog.navigationKey(event.getKeyCode())&&event.getRepeatCount()==0
+    private static boolean observed(KeyEvent event){return DiagnosticLog.recording()&&event!=null&&DiagnosticLog.navigationKey(event.getKeyCode())&&event.getRepeatCount()==0
         &&(event.getAction()==KeyEvent.ACTION_DOWN||event.getAction()==KeyEvent.ACTION_UP);}
     static String correlation(KeyEvent event){return event.getDeviceId()+":"+event.getDownTime()+":"+event.getEventTime()+":"+event.getKeyCode()+":"+event.getAction();}
     static boolean dispatch(Activity activity,KeyEvent event,String source,KeyFeedback.Dispatch next){
         if(!observed(event))return next.run();
+        // AppManagementActivity already measures the outer management_panel callback.
+        boolean measure=!(activity instanceof AppManagementActivity&&"management_window".equals(source));
+        long enteredAt=measure?SystemClock.uptimeMillis():0;
         String id=correlation(event);route(id,source,"received",event,readFocus(activity));
         boolean handled=false,completed=false;
+        long dispatchStarted=measure?SystemClock.uptimeMillis():0;
+        AutoDiagnosticOperation operation=measure?AutoDiagnosticOperation.beginInput(source,Math.max(0,enteredAt-event.getEventTime())):null;
+        DiagnosticProbe.StallWatch watch=measure&&event.getAction()==KeyEvent.ACTION_DOWN?DiagnosticProbe.watchMain("input_dispatch",operation):null;
         try{handled=next.run();completed=true;return handled;}
-        finally{route(id,source,"result",event,"completed="+completed+" handled="+(completed?Boolean.toString(handled):"unknown")+" "+readFocus(activity));}
+        finally{
+            long dispatchEnded=measure?SystemClock.uptimeMillis():0;
+            if(watch!=null)watch.end();
+            if(operation!=null)operation.endInput(dispatchEnded-dispatchStarted);
+            if(measure)slowDispatch(activity,event,id,source,enteredAt,dispatchStarted,dispatchEnded,completed);
+            route(id,source,"result",event,"completed="+completed+" handled="+(completed?Boolean.toString(handled):"unknown")+" "+readFocus(activity));
+        }
+    }
+    private static synchronized boolean allowSlowInput(long now){
+        if(now-lastSlowInputAt<SLOW_INPUT_INTERVAL_MS)return false;
+        lastSlowInputAt=now;return true;
+    }
+    private static void slowDispatch(Activity activity,KeyEvent event,String id,String source,long enteredAt,long started,long ended,boolean completed){
+        long age=Math.max(0,enteredAt-event.getEventTime()),dispatch=ended-started;
+        if(age<SLOW_INPUT_MS&&dispatch<SLOW_INPUT_MS||!allowSlowInput(ended))return;
+        try{
+            String page=activity instanceof AppManagementActivity?safeFocus(((AppManagementActivity)activity).managementTab()):source;
+            if("other".equals(page))page=source;
+            DiagnosticLog.info("input.slow_dispatch","key="+id+" page="+page+" route="+source+" focusAfter="+safeFocus(activity.getCurrentFocus())
+                +" entryUptimeMs="+enteredAt+" dispatchStartUptimeMs="+started+" dispatchEndUptimeMs="+ended
+                +" eventAgeAtEntryMs="+age+" dispatchWallMs="+dispatch+" completed="+completed
+                +" evidence=app_callback_not_system_or_presentation");
+            DiagnosticProbe.slowResource("slow_input_dispatch");
+        }catch(RuntimeException unavailable){/* Preserve the original dispatch result. */}
+    }
+    private static String safeFocus(View view){
+        if(view==null)return "none";
+        Object tag=view.getTag();
+        if("sheet-close".equals(tag))return "sheet-close";
+        for(int page:SettingsPages.ORDER){String tab="management-tab-"+page;if(tab.equals(tag))return tab;}
+        return "other";
     }
     static boolean accessibility(KeyEvent event,boolean filter,String foreground,KeyFeedback.Dispatch next){
         if(DiagnosticProbe.active()&&event!=null&&DiagnosticLog.navigationKey(event.getKeyCode())&&DiagnosticProbe.allow("input.accessibility_extra",0))
@@ -90,7 +128,7 @@ final class InputDiagnostics {
             +" deviceId="+event.getDeviceId()+" inputSource="+event.getSource()+" eventTime="+event.getEventTime()+" uptimeMs="+SystemClock.uptimeMillis()+" "+detail);}catch(RuntimeException unavailable){/* Diagnostics must preserve dispatch results and exceptions. */}
     }
     static void pointer(Activity activity,MotionEvent event){
-        if(event.getActionMasked()!=MotionEvent.ACTION_DOWN)return;
+        if(!DiagnosticLog.recording()||event.getActionMasked()!=MotionEvent.ACTION_DOWN)return;
         synchronized(InputDiagnostics.class){pointerAt=SystemClock.uptimeMillis();pointerCount++;}
         DiagnosticLog.info("input.pointer","page="+activity.getClass().getSimpleName()+" inputSource="+event.getSource()+" "+focus(activity));
     }
@@ -99,6 +137,7 @@ final class InputDiagnostics {
         return "windowFocus="+decor.hasWindowFocus()+" touchMode="+decor.isInTouchMode()+" focusClass="+(focused==null?"none":focused.getClass().getSimpleName());
     }
     static void home(Activity activity,boolean home,String via){
+        if(!DiagnosticLog.recording())return;
         if(home)synchronized(InputDiagnostics.class){homeAt=SystemClock.uptimeMillis();}
         DiagnosticLog.info("home.intent","via="+via+" home="+home+" "+focus(activity));
     }

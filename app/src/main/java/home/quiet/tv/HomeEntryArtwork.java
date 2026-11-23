@@ -15,6 +15,7 @@ final class HomeEntryArtwork {
         Paint.FontMetrics metrics=paint.getFontMetrics();float circle=38,gap=24,top=(203-2*circle-gap-(metrics.descent-metrics.ascent))/2f,center=top+circle;
         paint.setColor(0x0fffffff);canvas.drawCircle(180,center,circle,paint);
         paint.setColor(Color.WHITE);paint.setStrokeWidth(3.6f);paint.setStrokeCap(Paint.Cap.ROUND);
+        paint.setShadowLayer(4,0,1.5f,UiPalette.INK);
         canvas.drawLine(165,center,195,center,paint);canvas.drawLine(180,center-15,180,center+15,paint);
         canvas.drawText(title,180,top+2*circle+gap-metrics.ascent,paint);
         return bitmap;
@@ -26,8 +27,7 @@ final class HomeEntryArtwork {
         Bitmap bitmap=Bitmap.createBitmap(360,203,Bitmap.Config.ARGB_8888);
         BitmapShader artwork=new BitmapShader(icon,Shader.TileMode.CLAMP,Shader.TileMode.CLAMP);
         Matrix matrix=new Matrix();matrix.setScale(360f/icon.getWidth(),203f/icon.getHeight());
-        // Center the screen and both feet together; the soft ground glow is not part of the silhouette.
-        matrix.postTranslate(0,2);artwork.setLocalMatrix(matrix);
+        artwork.setLocalMatrix(matrix);
         Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);paint.setShader(artwork);
         new Canvas(bitmap).drawRect(0,0,360,203,paint);icon.recycle();return bitmap;
     }

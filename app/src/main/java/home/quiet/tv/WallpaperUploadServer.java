@@ -40,10 +40,13 @@ final class WallpaperUploadServer extends NanoHTTPD {
         this(host,port,assets,importer,maximum,information,false);
     }
     WallpaperUploadServer(String host,int port,Assets assets,Importer importer,long maximum,String information,boolean videos) {
+        this(host,port,assets,importer,maximum,information,videos,6);
+    }
+    WallpaperUploadServer(String host,int port,Assets assets,Importer importer,long maximum,String information,boolean videos,int codeDigits) {
         super(host,port);this.videos=videos;this.maximum=maximum;this.information=information;this.host=host;this.assets=assets;this.importer=importer;
         SecureRandom randomSource=new SecureRandom();byte[] random=new byte[16];randomSource.nextBytes(random);
         StringBuilder text=new StringBuilder();for(byte b:random)text.append(String.format(Locale.ROOT,"%02x",b&255));token=text.toString();
-        connectionCode=String.format(Locale.ROOT,"%06d",randomSource.nextInt(1000000));
+        connectionCode=String.format(Locale.ROOT,"%0"+codeDigits+"d",randomSource.nextInt(codeDigits==8?100000000:1000000));
         setAsyncRunner(new AsyncRunner(){
             @Override public void exec(ClientHandler client) {
                 synchronized(clients){if(closed || clients.size()>=4){client.close();return;}clients.add(client);}
@@ -120,8 +123,9 @@ final class WallpaperUploadServer extends NanoHTTPD {
     private synchronized Response connect(IHTTPSession session) {
         long now=System.nanoTime();
         if(now<blockedUntil)return error(Response.Status.FORBIDDEN,"尝试过于频繁，请稍等 30 秒后重试 / Too many attempts. Wait 30 seconds.");
-        if(!"6".equals(session.getHeaders().get("content-length"))||session.getHeaders().containsKey("transfer-encoding"))return error(Response.Status.BAD_REQUEST,"请输入 6 位连接码 / Enter the six-digit code");
-        byte[] code=new byte[6];
+        int digits=connectionCode.length();
+        if(!Integer.toString(digits).equals(session.getHeaders().get("content-length"))||session.getHeaders().containsKey("transfer-encoding"))return error(Response.Status.BAD_REQUEST,"请输入 "+digits+" 位连接码 / Enter the "+digits+"-digit code");
+        byte[] code=new byte[digits];
         try {new DataInputStream(session.getInputStream()).readFully(code);}
         catch(IOException e){return error(Response.Status.BAD_REQUEST,"连接码传输未完成，请重试 / Incomplete connection code");}
         if(!connectionCode.equals(new String(code,Charsets.US_ASCII))){

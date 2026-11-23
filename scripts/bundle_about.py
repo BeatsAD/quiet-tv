@@ -69,7 +69,11 @@ def bundle(output):
         (output / 'contact.png').unlink()
     notices = [ROOT / 'LICENSE', ROOT / 'THIRD_PARTY_NOTICES.md', ROOT / 'app/src/main/assets/fonts/OFL.txt']
     notices += sorted((ROOT / 'app/src/main/assets/licenses').iterdir())
-    text = ''.join('<h2>' + escape(path.name) + '</h2><pre>' + escape(path.read_text()) + '</pre>' for path in notices if path.is_file())
+    sections = [(path.name, path.read_text()) for path in notices if path.is_file()]
+    plain = '\n\n'.join(content if name == 'LICENSE' else name + '\n\n' + content
+                        for name, content in sections)
+    (output / 'license.txt').write_text(plain)
+    text = ''.join('<h2>' + escape(name) + '</h2><pre>' + escape(content) + '</pre>' for name, content in sections)
     tmdb = base64.b64encode((ROOT / 'app/src/main/assets/phone-settings/tmdb.svg').read_bytes()).decode()
     license_page = ('<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8">'
                     '<meta name="viewport" content="width=device-width, initial-scale=1">'

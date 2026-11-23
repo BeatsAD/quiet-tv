@@ -13,6 +13,12 @@ final class AppCoverPolicy {
             return AppAvailability.installed(context.getPackageManager(),info)&&info.enabled&&new HomeAppCatalog(context).launchable().containsKey(pkg);
         }catch(PackageManager.NameNotFoundException|SecurityException|IllegalArgumentException e){return false;}
     }
+    static final class ShapeChanged extends java.io.IOException {
+        ShapeChanged(){super("桌面图标形状已变化或与所选图标不同，请按当前桌面形状重新预览 / Preview again using the current desktop icon shape");}
+    }
+    static void requireDesktopShape(Context context,String shape)throws ShapeChanged{
+        if(!new DesktopSettingsStore(context).iconShape().equals(shape))throw new ShapeChanged();
+    }
     static void require(Context context,String pkg) throws java.io.IOException {
         if(!allowed(context,pkg))throw new java.io.IOException("应用状态已改变，请返回应用管理重新选择 / App is no longer available");
     }

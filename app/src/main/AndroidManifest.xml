@@ -10,7 +10,6 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -73,6 +72,7 @@
         <activity android:name=".HomeAppActionsActivity" android:exported="false" android:excludeFromRecents="true" android:theme="@style/HomeActionsTheme" />
         <activity android:name=".HomeSortActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".WatchTvActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".UpdateReminderActivity" android:exported="false" android:screenOrientation="landscape" android:theme="@style/HomeActionsTheme" />
         <activity android:name=".DesktopSettingsActivity" android:exported="false" android:screenOrientation="landscape" android:theme="@style/ManagementTheme" />
         <activity android:name=".HomeProxyEntryActivity" android:exported="true" android:enabled="${homeGuardAvailable}"
             android:launchMode="singleTask" android:taskAffinity="${applicationId}.proxyEntry"
@@ -149,7 +149,7 @@
             <meta-data android:name="android.accessibilityservice" android:resource="@xml/child_usage" />
         </service>
         <activity android:name=".AppManagementActivity" android:exported="false" android:screenOrientation="landscape" android:theme="@style/ManagementTheme" />
-        <!-- Keep HOME out of the locked-user candidate set; the desktop uses credential storage. -->
+        <!-- The native HOME manifest adds Direct Boot. HomeActivity waits for unlock before loading the desktop. -->
         <activity android:name=".HomeActivity" android:theme="@style/HomeTheme" android:exported="true" android:launchMode="singleTask" android:excludeFromRecents="true" android:screenOrientation="landscape">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

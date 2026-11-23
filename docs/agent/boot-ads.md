@@ -2,6 +2,14 @@
 
 从[统一入口](../AGENT.md)进入。只有用户明确要求“关闭开机广告”或“恢复广告修改”时才执行；检查保持只读。它独立于安装和 HOME 接管，不要求先切换或停用原桌面。用户已选择此目标后，已授权的预览、执行与读回连续完成；重启、断电及待机按用户实际授权安排。
 
+## 从 Quiet TV 排查
+
+在电视或手机扫码页进入「通用设置 → 桌面与启动 → 开机广告」。有适用规则且完成本机授权时，可在这里关闭，并在下次开机时确认广告是否消失。「恢复原设置」撤销 Quiet TV 对这项广告开关的修改。
+
+如果仍有广告或暂不支持，可使用「电脑 AI 排查」。将这段指令交给电脑上的 AI，并说明广告是断电开机、重启还是待机唤醒时出现，以及它在 Quiet TV 首页之前还是之后播放。
+
+> 请通过我的电脑只读排查这台电视的开机广告，核对机型、固件、广告出现阶段、相关开关和服务状态，给出适用的处理办法。
+
 ## 先确认来源与官方渠道
 
 区分整机开机视频、原桌面推荐、屏保广告和视频 App 广告。记录出现阶段、用户画面、可取得的前台组件和相关日志；原厂 LOGO、动画或进入 Quiet TV 不证明广告已经消失。无广告时记录无需处理，不为精简而修改系统。
@@ -43,7 +51,7 @@ python3 agent_session.py plan --session "$SESSION_DIR" --route boot-ads --note "
 python3 agent_session.py run --session "$SESSION_DIR" --tool boot_ads -- --action inspect
 ```
 
-`inspect` 分别列出匹配的执行规则和调查候选，不把同品牌参考提升为执行资格。当前源码没有经 Quiet TV 验收的广告执行规则，七组 GitHub 线索仅供调查。无规则、相关包版本不符、固件拒绝或信息无法确认时保持只读并记录 LIMITED，继续官方路线，不改 JSON 绕过保护。
+`inspect` 分别列出匹配的执行规则和调查候选。海信和小米候选另读回对应广告开关和相关包构建号、启用状态，读回失败时标为未知。候选只供调查。电脑工具的写入操作采用 Quiet TV 验收的规则。电视端另有根据上游实测启用的具体小米／Redmi 规则。无规则、相关包版本不符、固件拒绝或信息无法确认时保持只读并记录 LIMITED，继续官方路线，不改 JSON 绕过保护。
 
 已有精确验收规则后，每次只选择一个规则 ID；先预览，以新记录目录加 `--apply` 执行。恢复使用实际修改时保存的原始 `record.jsonl`，也先预览，再以新目录执行：
 
@@ -64,9 +72,17 @@ python3 agent_session.py run --session "$SESSION_DIR" --tool boot_ads -- --actio
 | `skyworth-bootvideo-time` | `com.skyworth.tv` 精确版本对应的 `persist.sys.bootvideo.time=1`；仅主用户，原属性须存在且为可恢复数字，否则不写入 |
 | `disable:<广告包名>` | 仅支持已实现的 TCL、天赐、海信及 YunOS 独立广告服务；核对系统命令，分别恢复默认启用 `0` 或显式启用 `1`，不一律 enable |
 
-在 `scripts/device-presets.json` 的精确 `devices` 中，设置／属性操作使用 `bootAds` 数组；每项须有 `id`、`package`、数字 `versionCode`、`purpose`、`impact`、HTTPS `source`、本项目 `evidence` 和 `verified: true`。独立广告包沿用 `apps` 的 `category: bootAd`，同样要求版本、来源、本项目验收及恢复证据，只允许 ENABLE／DISABLE 且不默认推荐。原来的 APK 内置规则不扩充。
+在 `scripts/device-presets.json` 的精确 `devices` 中，设置／属性操作使用 `bootAds` 数组；每项须有 `id`、`package`、数字 `versionCode`、`purpose`、`impact`、HTTPS `source`、本项目 `evidence` 和 `verified: true`。独立广告包沿用 `apps` 的 `category: bootAd`，同样要求版本、来源、本项目验收及恢复证据，只允许 ENABLE／DISABLE 且不默认推荐。APK 内置验收通过的系统开关规则，也读取 `upstreamBootAds` 中由上游实测支持的指定小米／Redmi 开关规则。属性和独立服务操作保留在电脑工具中。
 
-先取得完整品牌、型号、固件指纹、相关包版本、冷启动和恢复证据，再评审加入执行规则。GitHub 原作者成功、单次服务状态、同包名或截图均不能代替本项目验收。参考线索位于 `references`，不能携带 `bootAds`、`fingerprint`、`apps` 或 `home` 执行字段。调查优先级为小米设置项、TCL 独立服务、创维天赐广告服务；其他路线继续取证。
+上游规则只选择 `xiaomi-boot-ad-switch`，以完整固件指纹，或系统设备代号与精确固件版本匹配，并核对实测的 PatchWall 显示版本。原值保存在修改当时的固件和实际包构建号下。电视和扫码页在关闭前显示上游实测提示。
+
+| 机型 | 固件 | PatchWall | 上游记录 |
+| --- | --- | --- | --- |
+| 小米 L43M7-EA（MiTV-ANTL0） | `23.2.4.2225` | `3.38.1017` | [完整重启广告消失](https://github.com/Gathin23/cleanyourtv/blob/d4ac32c344987ae4e8faf1ee32d8b9572fb57fe3/docs/devices/xiaomi-l43m7-ea-antl0.md) |
+| Redmi MiTV-MFTP0 | `23.2.10.6129` | `3.49.1601` | [完整重启广告消失](https://github.com/Gathin23/cleanyourtv/blob/main/examples/redmi-mitv-mftp0/debloat.txt#L36-L39) |
+| Redmi L65R6-A（MiTV-MTTP0） | `21.4.9.2585` | `3.50.1621` | [机主反馈关机再开机无广告](https://github.com/Gathin23/cleanyourtv/issues/1063) |
+
+新增 Quiet TV 验收规则时，先取得完整品牌、型号、固件指纹、相关包版本、冷启动和恢复证据。上游规则的来源保留在规则记录和确认提示内。参考线索位于 `references`，不能携带 `bootAds`、`fingerprint`、`apps` 或 `home` 执行字段。调查优先级为小米设置项、TCL 独立服务、创维天赐广告服务；其他路线继续取证。
 
 上游小米 ANSP0 的“屏蔽域名＋清空原桌面数据”不是本流程；创维原桌面参与启动链也不应被当作广告包停用。海信旧固件存在广告设置无效、停用被拒绝的反例；海尔记录明确未验证开机广告效果。不能导入整份精简清单或使用通用 restore 脚本扩大恢复范围。
 

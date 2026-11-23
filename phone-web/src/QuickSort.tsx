@@ -5,7 +5,7 @@ import { QUICK_SETTINGS } from './quickRules';
 import { QuickIcon, type QuickIcons, type QuickItem } from './QuickPreview';
 type Session={id:string;pointer:number;x:number;y:number;startY:number;grab:number;initial:string[];order:string[];revision:string;active:boolean;timer:number;frame:number;time:number};
 type Swipe={id:string;pointer:number;x:number;y:number;base:number;width:number;offset:number;horizontal:boolean};
-export function QuickSort({order,revision,catalog,onCommit,onRun,onActions,onRemove,hiddenIds=[],icons}:{order:string[];hiddenIds?:string[];revision:string;catalog:QuickItem[];icons?:QuickIcons;onCommit:(ids:string[],revision:string)=>void;onRun:(id:string)=>void;onActions:(id:string)=>void;onRemove:(id:string)=>void}){
+export function QuickSort({order,revision,catalog,onCommit,onRun,onActions,onRemove,hiddenIds=[],icons,status,soundOn}:{order:string[];hiddenIds?:string[];status?:(id:string)=>string;soundOn?:(id:string)=>boolean|undefined;revision:string;catalog:QuickItem[];icons?:QuickIcons;onCommit:(ids:string[],revision:string)=>void;onRun:(id:string)=>void;onActions:(id:string)=>void;onRemove:(id:string)=>void}){
   const element=useRef<HTMLDivElement>(null),session=useRef<Session|null>(null),current=useRef(order);
   const [local,setLocal]=useState(order),[floating,setFloating]=useState<{id:string;left:number;top:number;width:number}|null>(null),[announcement,setAnnouncement]=useState('');current.current=order;
   const swipe=useRef<Swipe|null>(null),suppressClick=useRef(false);
@@ -60,15 +60,15 @@ export function QuickSort({order,revision,catalog,onCommit,onRun,onActions,onRem
   }
   const app=element.current?.closest<HTMLElement>('.quiet-app');
   return <><div ref={element} className="quick-sort-list" data-dragging={!!floating} onPointerMove={move} onPointerUp={event=>{if(session.current?.pointer===event.pointerId){event.preventDefault();event.stopPropagation();finish();}}} onPointerCancel={()=>finish(true)} onLostPointerCapture={()=>finish(true)} onKeyDown={event=>{if(event.key==='Escape')setRevealed('');}}>{local.map(id=>{
-    const open=revealed===id,moving=swiping?.id===id;
+    const open=revealed===id,moving=swiping?.id===id,state=status?.(id);
     return <div key={id} data-quick-id={id} className="quick-swipe-row" data-open={open} data-swiping={moving}>
       {id!==QUICK_SETTINGS&&<button className="quick-swipe-delete" aria-label={`删除${title(id)}`} aria-hidden={!open} tabIndex={open?0:-1} disabled={!open} onClick={()=>{setRevealed('');onRemove(id);}}>删除</button>}
       <div className={`setting-row quick-item quick-swipe-content ${floating?.id===id?'is-placeholder':''}`} style={moving?{transform:`translateX(${swiping.offset}px)`}:undefined} onPointerDown={event=>startSwipe(event,id)} onPointerMove={moveSwipe} onPointerUp={event=>finishSwipe(event)} onPointerCancel={event=>finishSwipe(event,true)} onLostPointerCapture={event=>{if(event.target===event.currentTarget)finishSwipe(event,true);}} onClickCapture={event=>{if(suppressClick.current&&event.detail>0){event.preventDefault();event.stopPropagation();suppressClick.current=false;}}}>
-        <QuickIcon glyph={catalog.find(item=>item.id===id)?.glyph||id} icons={icons} fallback={quickGlyph(id)} className="row-icon"/>
-        <button className="row-title quick-name" onClick={()=>{setRevealed('');onRun(id);}}>{title(id)}{hiddenIds.includes(id)&&<small>  未显示</small>}</button>
+        <QuickIcon glyph={catalog.find(item=>item.id===id)?.glyph||id} icons={icons} fallback={quickGlyph(id)} off={soundOn?.(id)===false} className="row-icon"/>
+        <button className="row-title quick-name" onClick={()=>{setRevealed('');onRun(id);}}>{title(id)}{state&&<small>  {state}</small>}{hiddenIds.includes(id)&&<small>  未显示</small>}</button>
         <button className="icon-button muted quick-sort-handle" aria-label={`长按拖动${title(id)}`} onPointerDown={event=>start(event,id)} onClick={event=>event.preventDefault()} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();setRevealed('');onActions(id);}}}><Icon name="HamburgerMenuIcon"/></button>
         <button className="icon-button muted quick-menu" aria-label={`${title(id)}更多操作`} onClick={()=>{setRevealed('');onActions(id);}}><Icon name="DotsHorizontalIcon"/></button>
       </div>
     </div>;
-  })}</div>{floating&&app&&createPortal(<div className="setting-row quick-item quick-drag-ghost" aria-hidden style={{left:floating.left,top:floating.top,width:floating.width}}><QuickIcon glyph={catalog.find(item=>item.id===floating.id)?.glyph||floating.id} icons={icons} fallback={quickGlyph(floating.id)} className="row-icon"/><span className="row-title">{title(floating.id)}</span><Icon name="HamburgerMenuIcon"/></div>,app)}<span className="quiet-sr-only" aria-live="polite">{announcement}</span></>;
+  })}</div>{floating&&app&&createPortal(<div className="setting-row quick-item quick-drag-ghost" aria-hidden style={{left:floating.left,top:floating.top,width:floating.width}}><QuickIcon glyph={catalog.find(item=>item.id===floating.id)?.glyph||floating.id} icons={icons} fallback={quickGlyph(floating.id)} off={soundOn?.(floating.id)===false} className="row-icon"/><span className="row-title">{title(floating.id)}</span><Icon name="HamburgerMenuIcon"/></div>,app)}<span className="quiet-sr-only" aria-live="polite">{announcement}</span></>;
 }

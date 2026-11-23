@@ -5,7 +5,11 @@ import android.os.*;
 import android.provider.Settings;
 import android.graphics.*;
 import android.graphics.drawable.*;
+import android.content.res.ColorStateList;
+import android.text.SpannableString;
+import android.text.Spanned;
 import android.text.format.Formatter;
+import android.text.style.TextAppearanceSpan;
 import android.view.*;
 import android.widget.*;
 import androidx.recyclerview.widget.*;
@@ -25,6 +29,17 @@ final class AppListPanel extends ManagementPanel {
     private final Runnable cacheChanged=()->{dirty=true;if(this.active)refresh();};
     private final ViewTreeObserver.OnGlobalFocusChangeListener focusChanged=(before,after)->{if(after!=null&&inside(after)&&after.getTag() instanceof String)contentFocus=(String)after.getTag();};
     private final ExecutorService worker;
+    private final ThreadPoolExecutor artworkWorker=new ThreadPoolExecutor(1,1,0,TimeUnit.MILLISECONDS,
+        new ArrayBlockingQueue<>(24),new ThreadPoolExecutor.DiscardOldestPolicy());
+    private final android.util.LruCache<String,Bitmap> artworkCache=new android.util.LruCache<String,Bitmap>(1024*1024){
+        @Override protected int sizeOf(String key,Bitmap image){return image.getByteCount();}
+    };
+    private final android.util.LruCache<String,Boolean> unavailableArtwork=new android.util.LruCache<>(24);
+    private static final int[][] STATUS_STATES={{android.R.attr.state_focused,android.R.attr.state_window_focused},{}};
+    private static final ColorStateList ENABLED_STATUS=new ColorStateList(STATUS_STATES,new int[]{0xff146c2e,UiPalette.STATUS_SUCCESS});
+    private static final ColorStateList DISABLED_STATUS=new ColorStateList(STATUS_STATES,new int[]{0xffb3261e,UiPalette.STATUS_ERROR});
+    private Artwork detailArtwork;
+    private Button restoreCoverAction;
     private final ArrayList<AppRepository.App> all=new ArrayList<>(),filtered=new ArrayList<>();
     private AppRepository repository;
     private AdbController adb;
@@ -41,7 +56,13 @@ final class AppListPanel extends ManagementPanel {
     private String namesSignature="";
     private final SharedPreferences.OnSharedPreferenceChangeListener namesListener=(prefs,key)->{if(AppNameStore.KEY.equals(key))ui(this::namesChanged);};
     private void namesChanged(){namesChanged(false);}
-    private void namesChanged(boolean keepDetails){AppNameStore names=new AppNameStore(this);if(names.signature().equals(namesSignature))return;namesSignature=names.signature();if(active)rememberActionFocus();for(int i=0;i<all.size();i++){AppRepository.App app=all.get(i).copy();app.label=names.display(app.pkg,app.originalName);all.set(i,app);}Collections.sort(all,(a,b)->java.text.Collator.getInstance(Locale.SIMPLIFIED_CHINESE).compare(a.label,b.label));if(active)applyFilter(keepDetails);}
+    private void namesChanged(boolean keepDetails){if(updateNames()&&active){rememberActionFocus();applyFilter(keepDetails);}}
+    private boolean updateNames(){
+        AppNameStore names=new AppNameStore(this);String signature=names.signature();if(signature.equals(namesSignature))return false;namesSignature=signature;
+        for(int i=0;i<all.size();i++){AppRepository.App app=all.get(i).copy();app.label=names.display(app.pkg,app.originalName);all.set(i,app);}
+        java.text.Collator collator=java.text.Collator.getInstance(Locale.SIMPLIFIED_CHINESE);
+        Collections.sort(all,(a,b)->collator.compare(a.label,b.label));return true;
+    }
     private void renamed(String pkg){namesChanged();if(!active||!selected.equals(pkg))return;for(int i=0;i<filtered.size();i++)if(filtered.get(i).pkg.equals(pkg)){list.scrollToPosition(i);break;}View action=details.findViewWithTag("app-action-重命名");if(action!=null)action.requestFocusFromTouch();success("名称已更新");}
     private Bundle coverState;
     private LinearLayout details;
@@ -56,8 +77,15 @@ final class AppListPanel extends ManagementPanel {
     private int filter;
     private final Runnable phoneChanged=this::phoneChanged;
     private String phoneKey="";
-    private String phoneSignature()throws java.io.IOException{return PhoneSettingsPreview.get(activity).signature().toString()+new DockStore(activity).load().toString()+new BootAppStore(activity).target();}
-    private void phoneChanged(){String key;try{key=phoneSignature();}catch(java.io.IOException unavailable){return;}if(key.equals(phoneKey))return;phoneKey=key;if(active){rememberActionFocus();namesChanged();applyFilter();}}
+    private long coverRevision=-1;
+    private void phoneChanged(){
+        long revision=AppCoverStore.get(activity).revision();
+        if(revision!=coverRevision){coverRevision=revision;if(active)refreshArtwork(null,false);}
+        String key;try{org.json.JSONObject signature=PhoneSettingsPreview.get(activity).signature();signature.remove("covers");key=signature.toString()+new DockStore(activity).load()+new BootAppStore(activity).target();}
+        catch(java.io.IOException unavailable){return;}
+        if(key.equals(phoneKey))return;
+        phoneKey=key;if(active){rememberActionFocus();updateNames();applyFilter();}
+    }
     private boolean dirty=true;
     private boolean busy,reading,refreshAfterConnection,returningToList,focusDetailsOnLoad;
     private volatile boolean active;
@@ -79,7 +107,7 @@ final class AppListPanel extends ManagementPanel {
             option.setOnKeyListener((v,key,event)->{
                 if(key!=KeyEvent.KEYCODE_DPAD_LEFT&&key!=KeyEvent.KEYCODE_DPAD_RIGHT&&key!=KeyEvent.KEYCODE_DPAD_UP&&key!=KeyEvent.KEYCODE_DPAD_DOWN)return false;
                 if(event.getAction()==KeyEvent.ACTION_UP)return true;
-                if(key==KeyEvent.KEYCODE_DPAD_DOWN)focusList();
+                if(key==KeyEvent.KEYCODE_DPAD_DOWN)focusList(false,true);
                 else if(key==KeyEvent.KEYCODE_DPAD_UP)managementTab().requestFocus();
                 else{
                     int next=Math.max(0,Math.min(filterButtons.size()-1,chosen+(key==KeyEvent.KEYCODE_DPAD_RIGHT?1:-1)));
@@ -91,7 +119,7 @@ final class AppListPanel extends ManagementPanel {
         for(int i=0;i<filterButtons.size();i++){Button b=filterButtons.get(i);if(i>0)b.setNextFocusLeftId(filterButtons.get(i-1).getId());if(i+1<filterButtons.size())b.setNextFocusRightId(filterButtons.get(i+1).getId());}
         filters.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));
         refreshButton=button("刷新",()->{if(!reading&&!busy){cache.invalidate();dirty=true;refresh();}});refreshButton.setTag("apps-refresh");refreshButton.setId(androidx.core.view.ViewCompat.generateViewId());refreshButton.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,12*unit);refreshButton.setPadding(px(9),0,px(9),0);refreshButton.setBackgroundDrawable(new SettingsFocusDrawable(unit,999,UiPalette.CONTROL,false,UiPalette.EDGE));
-        refreshButton.setOnKeyListener((v,key,event)->{if(key!=KeyEvent.KEYCODE_DPAD_LEFT&&key!=KeyEvent.KEYCODE_DPAD_RIGHT&&key!=KeyEvent.KEYCODE_DPAD_UP&&key!=KeyEvent.KEYCODE_DPAD_DOWN)return false;if(event.getAction()==KeyEvent.ACTION_DOWN){if(key==KeyEvent.KEYCODE_DPAD_LEFT)filterButtons.get(filter).requestFocusFromTouch();else if(key==KeyEvent.KEYCODE_DPAD_UP)managementTab().requestFocus();else if(key==KeyEvent.KEYCODE_DPAD_DOWN)focusList();}return true;});LinearLayout.LayoutParams refreshPosition=new LinearLayout.LayoutParams(px(72),px(33));refreshPosition.rightMargin=px(12);filters.addView(refreshButton,refreshPosition);
+        refreshButton.setOnKeyListener((v,key,event)->{if(key!=KeyEvent.KEYCODE_DPAD_LEFT&&key!=KeyEvent.KEYCODE_DPAD_RIGHT&&key!=KeyEvent.KEYCODE_DPAD_UP&&key!=KeyEvent.KEYCODE_DPAD_DOWN)return false;if(event.getAction()==KeyEvent.ACTION_DOWN){if(key==KeyEvent.KEYCODE_DPAD_LEFT)filterButtons.get(filter).requestFocusFromTouch();else if(key==KeyEvent.KEYCODE_DPAD_UP)managementTab().requestFocus();else if(key==KeyEvent.KEYCODE_DPAD_DOWN)focusList(false,true);}return true;});LinearLayout.LayoutParams refreshPosition=new LinearLayout.LayoutParams(px(72),px(33));refreshPosition.rightMargin=px(12);filters.addView(refreshButton,refreshPosition);
 
         managementConnection=muted("ADB 未连接",12);managementConnection.setTag("apps-connection");managementConnection.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);managementConnection.setFocusable(false);managementConnection.setClickable(false);
         filters.addView(managementConnection,new LinearLayout.LayoutParams(-2,-1));
@@ -124,15 +152,15 @@ final class AppListPanel extends ManagementPanel {
     @Override protected void onResume(){
         super.onResume();active=true;cache.addListener(cacheChanged);getSharedPreferences("dock",0).registerOnSharedPreferenceChangeListener(namesListener);
         if(cache.available()&&cacheVersion!=cache.version()){readCache();namesSignature="";namesChanged(true);}
-        namesChanged();phoneChanged();PhoneSettingsSession.get(activity).observeConfiguration(phoneChanged);session.addListener(connectionChanged);session.request();updateManagementConnection();dirty=cache.stale(adb);if(dirty)refresh();
+        namesChanged();phoneChanged();refreshArtwork(null,true);PhoneSettingsSession.get(activity).observeConfiguration(phoneChanged);session.addListener(connectionChanged);session.request();updateManagementConnection();dirty=cache.stale(adb);if(dirty)refresh();
         if(coverState!=null){Bundle value=coverState;coverState=null;coverUploads.restoreState(value,()->coverUpdated(value.getString("package","")));}
     }
     private boolean inside(View view){for(View v=view;v!=null;v=v.getParent() instanceof View?(View)v.getParent():null)if(v==pageRoot)return true;return false;}
     private void saveNavigation(Bundle state){state.putString("selected",selected);state.putString("app-uninstall-pending",pendingUninstall);state.putInt("filter",filter);state.putString("app-focus",contentFocus);state.putString("app-phone-key",phoneKey);if(list.getLayoutManager()!=null)state.putParcelable("app-scroll",list.getLayoutManager().onSaveInstanceState());}
     @Override protected void onPause(){Bundle state=new Bundle();saveNavigation(state);cache.navigation(state);super.onPause();}
-    @Override void focusManagementContent(){View target=pageRoot.findViewWithTag(contentFocus);if(target!=null&&target.isShown()&&target.isEnabled()&&target.requestFocusFromTouch())return;if(contentFocus.startsWith("managed-app-")||contentFocus.startsWith("app-action-"))focusList(true);else filterButtons.get(filter).requestFocus();}
-    @Override protected void onStop(){active=false;cache.removeListener(cacheChanged);getSharedPreferences("dock",0).unregisterOnSharedPreferenceChangeListener(namesListener);renameSheet.close();ChildModeAuth.dismiss(activity);PhoneSettingsSession.get(activity).forgetConfiguration(phoneChanged);session.removeListener(connectionChanged);refreshAfterConnection=false;refreshGeneration++;if(reading)busy=false;reading=false;updateRefresh();coverUploads.stop(activity.isChangingConfigurations());if(detailSheet!=null)detailSheet.dialog.dismiss();super.onStop();}
-    @Override protected void onDestroy(){cache.removeListener(cacheChanged);pageRoot.getViewTreeObserver().removeOnGlobalFocusChangeListener(focusChanged);PhoneSettingsSession.get(activity).forgetConfiguration(phoneChanged);session.removeListener(connectionChanged);unregisterReceiver(packagesChanged);getSharedPreferences("dock",0).unregisterOnSharedPreferenceChangeListener(namesListener);renameSheet.close();coverUploads.destroy();super.onDestroy();}
+    @Override void focusManagementContent(){View target=pageRoot.findViewWithTag(contentFocus);if(target!=null&&target.isShown()&&target.isEnabled()&&target.requestFocusFromTouch())return;if(contentFocus.startsWith("managed-app-")||contentFocus.startsWith("app-action-"))focusList(true,KeyFeedback.isDirectionPress());else filterButtons.get(filter).requestFocus();}
+    @Override protected void onStop(){active=false;artworkWorker.getQueue().clear();cache.removeListener(cacheChanged);getSharedPreferences("dock",0).unregisterOnSharedPreferenceChangeListener(namesListener);renameSheet.close();ChildModeAuth.dismiss(activity);PhoneSettingsSession.get(activity).forgetConfiguration(phoneChanged);session.removeListener(connectionChanged);refreshAfterConnection=false;refreshGeneration++;if(reading)busy=false;reading=false;updateRefresh();coverUploads.stop(activity.isChangingConfigurations());if(detailSheet!=null)detailSheet.dialog.dismiss();super.onStop();}
+    @Override protected void onDestroy(){artworkWorker.shutdownNow();artworkCache.evictAll();unavailableArtwork.evictAll();cache.removeListener(cacheChanged);pageRoot.getViewTreeObserver().removeOnGlobalFocusChangeListener(focusChanged);PhoneSettingsSession.get(activity).forgetConfiguration(phoneChanged);session.removeListener(connectionChanged);unregisterReceiver(packagesChanged);getSharedPreferences("dock",0).unregisterOnSharedPreferenceChangeListener(namesListener);renameSheet.close();coverUploads.destroy();super.onDestroy();}
     @Override protected void onSaveInstanceState(Bundle state){saveNavigation(state);state.putBoolean("focus-details-on-load",focusDetailsOnLoad);coverUploads.saveState(state);super.onSaveInstanceState(state);}
     private void readCache(){synchronized(cache){all.clear();all.addAll(cache.snapshot());cacheVersion=cache.version();}}
     private void updateRefresh(){refreshButton.setText(reading?"刷新中…":"刷新");}
@@ -156,13 +184,37 @@ final class AppListPanel extends ManagementPanel {
     }
     private AppRepository.App current(){for(AppRepository.App app:filtered)if(app.pkg.equals(selected))return app;return null;}
     private void focusList(){focusList(false);}
-    private void focusList(boolean restoring){list.post(()->{if(!restoring&&managementTabFocused() || !active)return;for(int i=0;i<filtered.size();i++)if(filtered.get(i).pkg.equals(selected)){final int position=i;if(list.findViewHolderForAdapterPosition(position)==null)list.scrollToPosition(position);list.post(()->{if(!restoring&&managementTabFocused() || !active)return;RecyclerView.ViewHolder holder=list.findViewHolderForAdapterPosition(position);if(holder!=null)holder.itemView.requestFocus();});return;}filterButtons.get(filter).requestFocus();});}
+    private void focusList(boolean restoring){focusList(restoring,false);}
+    private void focusList(boolean restoring,boolean directionKey){
+        if(directionKey)KeyFeedback.ownMove(list);
+        list.post(()->{
+            if(!active||!restoring&&managementTabFocused())return;
+            String requested=selected;
+            for(int i=0;i<filtered.size();i++){
+                if(!filtered.get(i).pkg.equals(requested))continue;
+                int position=i;
+                if(list.findViewHolderForAdapterPosition(position)==null)list.scrollToPosition(position);
+                list.post(()->{
+                    if(!active||!restoring&&managementTabFocused()||directionKey&&!requested.equals(selected))return;
+                    RecyclerView.ViewHolder holder=list.findViewHolderForAdapterPosition(position);
+                    if(holder==null||directionKey&&!("managed-app-"+requested).equals(holder.itemView.getTag()))return;
+                    focusListTarget(holder.itemView,directionKey);
+                });
+                return;
+            }
+            focusListTarget(filterButtons.get(filter),directionKey);
+        });
+    }
+    private void focusListTarget(View target,boolean directionKey){
+        boolean changed=!target.isFocused();
+        if(target.requestFocus()&&changed&&directionKey)KeyFeedback.movedTo(target);
+    }
     private void renderDetails(){
-        if(details==null)return;updateManagementConnection();details.removeAllViews();firstAction=null;AppRepository.App app=current();
+        if(details==null)return;updateManagementConnection();if(detailArtwork!=null){detailArtwork.cancelDecode();detailArtwork=null;}details.removeAllViews();firstAction=null;restoreCoverAction=null;AppRepository.App app=current();
         if(app==null){details.setGravity(Gravity.CENTER);TextView empty=center(busy?"正在读取应用…":"没有符合条件的应用",11);empty.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,10.848f*unit);empty.setTextColor(UiPalette.SECONDARY);details.addView(empty);return;}details.setGravity(Gravity.CENTER_HORIZONTAL);
-        ImageView artwork=appArt(app.icon,67);artworkPadding(artwork,app,67);details.addView(artwork);gap(details,16);TextView title=center(app.label,26);typography(title,26,36.4f,UiPalette.TEXT);title.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));title.setMaxLines(2);title.setEllipsize(android.text.TextUtils.TruncateAt.END);details.addView(title,new LinearLayout.LayoutParams(-1,-2));
+        detailArtwork=new Artwork(67);details.addView(detailArtwork);detailArtwork.bind(app);gap(details,16);TextView title=center(app.label,26);typography(title,26,36.4f,UiPalette.TEXT);title.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));title.setMaxLines(2);title.setEllipsize(android.text.TextUtils.TruncateAt.END);details.addView(title,new LinearLayout.LayoutParams(-1,-2));
         if(!new AppNameStore(this).alias(app.pkg).isEmpty()){gap(details,5);TextView original=center("原名称："+app.originalName,12);typography(original,12,20.4f,UiPalette.SECONDARY);details.addView(original);}
-        gap(details,10);TextView state=center(app.state()+"  "+(app.system?"预装应用":"用户应用"),12);typography(state,12,20.4f,UiPalette.SECONDARY);details.addView(state);
+        gap(details,10);TextView state=center("",12);typography(state,12,20.4f,UiPalette.SECONDARY);state.setText(statusText(app,false));details.addView(state);
         String size=app.apkSizeBytes>=0?Formatter.formatShortFileSize(this,app.apkSizeBytes):"大小未知";
         gap(details,20);TextView meta=center(app.pkg+"\n版本 "+app.version+"  "+size,12);typography(meta,12,21.6f,UiPalette.SECONDARY);details.addView(meta,new LinearLayout.LayoutParams(-1,-2));
         details.addView(new View(this),new LinearLayout.LayoutParams(1,0,1));gap(details,18);
@@ -182,7 +234,7 @@ final class AppListPanel extends ManagementPanel {
         if(!hidden&&!childHidden&&canHide(app))addAction(actions,button("隐藏应用",()->confirmHideApp(app)));
         if(coverAllowed){
             addAction(actions,button("更换封面",()->coverUploads.show(app.pkg,app.label,()->coverUpdated(app.pkg))));
-            Button restore=button("恢复默认封面",()->restoreCover(app));boolean custom=AppCoverStore.get(this).custom(app.pkg);restore.setEnabled(custom);restore.setFocusable(custom);restore.setAlpha(1f);addAction(actions,restore);
+            restoreCoverAction=button("恢复默认封面",()->restoreCover(app));updateRestoreCover(app.pkg);addAction(actions,restoreCoverAction);
         }
         List<AppOperations.Action> available=operations.actions(app);
         if(!available.isEmpty()){
@@ -199,7 +251,7 @@ final class AppListPanel extends ManagementPanel {
     private void confirmHideApp(AppRepository.App app){
         if(busy)return;
         if(!canHide(app)||new ChildModeStore(this).hidden(app.pkg)){error("此应用必须保留或已不可用");return;}
-        Sheet sheet=settingsSheet("隐藏应用？");AppActionConfirmationUi.content(activity,sheet.delegate,app.pkg,app.label,AppActionConfirmationUi.HIDE,false);Button cancel=sheet.action("取消",sheet.dialog::dismiss);
+        Sheet sheet=settingsSheet("隐藏应用？",true);AppActionConfirmationUi.content(activity,sheet.delegate,app.pkg,app.label,AppActionConfirmationUi.HIDE,false);Button cancel=sheet.action("取消",sheet.dialog::dismiss);
         Button confirm=sheet.action("确认隐藏",()->{
             if(!active||busy)return;busy=true;sheetBusy(sheet,true);
             worker.execute(()->{
@@ -221,9 +273,9 @@ final class AppListPanel extends ManagementPanel {
             String outcome=result;boolean success=restored;ui(()->{busy=false;if(active){applyFilter();focusList(true);if(success)success(outcome);else error(outcome);if(cache.stale(adb))refresh();}});
         });
     }
-    private Sheet settingsSheet(String title){
+    private Sheet settingsSheet(String title,boolean confirmation){
         View origin=getCurrentFocus();restoreAction=origin!=null&&origin.getTag() instanceof String?(String)origin.getTag():"";restorePackage=selected;
-        Sheet sheet=new Sheet(title);detailSheet=sheet;sheet.delegate.settingsLayout("关闭",sheet.dialog::dismiss);sheet.dialog.setOnDismissListener(d->{if(detailSheet==sheet)detailSheet=null;restoreActionFocus();});return sheet;
+        Sheet sheet=new Sheet(title);detailSheet=sheet;if(confirmation)sheet.delegate.confirmationLayout(sheet.dialog::dismiss);else sheet.delegate.settingsLayout("关闭",sheet.dialog::dismiss);sheet.dialog.setOnDismissListener(d->{if(detailSheet==sheet)detailSheet=null;restoreActionFocus();});return sheet;
     }
     private void rememberActionFocus(){View focused=details.findFocus();if(focused!=null&&focused.getTag() instanceof String){restoreAction=(String)focused.getTag();restorePackage=selected;}}
     private void restoreActionFocus(){
@@ -235,7 +287,7 @@ final class AppListPanel extends ManagementPanel {
     private Button primary(Sheet sheet,String text,Runnable action){Button b=sheet.action(text,action);b.setBackgroundDrawable(new SettingsFocusDrawable(unit,999,UiPalette.SELECTED,false,0x4dffffff));return b;}
     private void sheetBusy(Sheet sheet,boolean value){sheet.dialog.setCancelable(!value);sheet.delegate.box.setEnabled(!value);View close=sheet.delegate.box.findViewWithTag("sheet-close");if(close!=null)close.setEnabled(!value);for(int i=0;i<sheet.delegate.actions.getChildCount();i++)sheet.delegate.actions.getChildAt(i).setEnabled(!value);}
     private void confirmOperation(AppRepository.App app,AppOperations.Action action){
-        Sheet sheet=settingsSheet(action.label+"应用？");AppActionConfirmationUi.content(activity,sheet.delegate,app.pkg,app.label,operations.explanation(app,action),action==AppOperations.Action.UNINSTALL);
+        Sheet sheet=settingsSheet(action.label+"应用？",true);AppActionConfirmationUi.content(activity,sheet.delegate,app.pkg,app.label,operations.explanation(app,action),action==AppOperations.Action.UNINSTALL);
         Button cancel=sheet.action("取消",sheet.dialog::dismiss);
         Button confirm=sheet.action("确认"+action.label,()->{
             if(busy)return;
@@ -252,7 +304,7 @@ final class AppListPanel extends ManagementPanel {
         });
     }
     private void confirmSystemUninstall(AppRepository.App app){
-        Sheet sheet=settingsSheet("卸载应用？");AppActionConfirmationUi.content(activity,sheet.delegate,app.pkg,app.label,operations.explanation(app,AppOperations.Action.UNINSTALL),true);Button cancel=sheet.action("取消",sheet.dialog::dismiss);
+        Sheet sheet=settingsSheet("卸载应用？",true);AppActionConfirmationUi.content(activity,sheet.delegate,app.pkg,app.label,operations.explanation(app,AppOperations.Action.UNINSTALL),true);Button cancel=sheet.action("取消",sheet.dialog::dismiss);
         Button confirm=sheet.action("确认卸载",()->ChildModeAuth.uninstall(activity,app.pkg,stamp->{
             if(!active)return;
             try{AppRepository.App current=repository.find(app.pkg);if(current==null||!current.installed||current.system||current.versionCode!=app.versionCode||!operations.protection(current).isEmpty())throw new java.io.IOException("应用状态已变化，请刷新后重新确认");new ChildModeStore(this).requireUninstallAuthorization(app.pkg,stamp);
@@ -276,7 +328,7 @@ final class AppListPanel extends ManagementPanel {
         String label=pkg;
         try{label=getPackageManager().getApplicationLabel(getPackageManager().getApplicationInfo(pkg,0)).toString();}
         catch(android.content.pm.PackageManager.NameNotFoundException ignored){}
-        final String name=label;Sheet sheet=settingsSheet("设为开机自启？");
+        final String name=label;Sheet sheet=settingsSheet("设为开机自启？",true);
         sheet.text("开机或待机唤醒进入 Quiet TV 后，将自动打开 "+name+"。"
             +(store.hdmiBoot()?"将关闭开机自动看电视。":store.target().isEmpty()?"":"将替换当前自启应用："+store.label()+"。"));
         TextView note=label("按 HOME 返回不重复，儿童模式限制仍然有效。",11);typography(note,10.848f,17.9f,UiPalette.SECONDARY);sheet.body.addView(note,new LinearLayout.LayoutParams(-1,-2));
@@ -285,16 +337,85 @@ final class AppListPanel extends ManagementPanel {
     }
     private void inlineFailure(Sheet sheet,Exception error){View old=sheet.body.findViewWithTag("app-sheet-error");if(old!=null)sheet.body.removeView(old);TextView text=label(error.getMessage()==null?"保存失败，请重试":error.getMessage(),11);text.setTag("app-sheet-error");text.setTextColor(UiPalette.SECONDARY);OperationFeedback.status(text,OperationFeedback.Kind.ERROR);sheet.body.addView(text);UiCompat.announce(text,text.getText().toString());}
     private void startupSettings(){
-        BootAppStore store=new BootAppStore(this);Sheet sheet=settingsSheet("应用自启");
+        BootAppStore store=new BootAppStore(this);Sheet sheet=settingsSheet("应用自启",false);
         sheet.text(store.target().isEmpty()?"未设置自启应用。可在应用详情选择“设为开机自启”。":"当前自启应用："+store.label()+"。可在其他应用详情替换。");
-        Button close=sheet.action("返回",sheet.dialog::dismiss);
+        Button close=(Button)sheet.delegate.box.findViewWithTag("sheet-close");
         if(!store.target().isEmpty())primary(sheet,"关闭自启",()->{try{store.select("","");renderDetails();sheet.dialog.dismiss();success("开机自启设置已保存");}catch(java.io.IOException failure){inlineFailure(sheet,failure);}});
         sheet.show(close);
     }
     private void protectionNote(String reason,boolean readOnly){TextView note=center(reason.isEmpty()?"此应用仅供查看":reason,11);typography(note,10.848f,17.9f,UiPalette.SECONDARY);details.addView(note);}
     private void actionStyle(Button action){SettingsTouchClick.attach(action);action.setSingleLine();action.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,11.712f*unit);action.setPadding(px(13.71f),0,px(13.71f),0);action.setBackgroundDrawable(new SettingsFocusDrawable(unit,999,UiPalette.CONTROL,false,UiPalette.EDGE));action.setTextColor(new android.content.res.ColorStateList(new int[][]{{-android.R.attr.state_enabled},{android.R.attr.state_focused,android.R.attr.state_window_focused},{}},new int[]{UiPalette.TEXT,UiPalette.INK,UiPalette.TEXT}));}
-    private ImageView appArt(Drawable drawable,float size){ImageView image=new SurfaceCorners.Image(activity);image.setScaleType(ImageView.ScaleType.FIT_CENTER);image.setImageDrawable(drawable);image.setPadding(px(.75f),px(.75f),px(.75f),px(.75f));image.setBackgroundDrawable(surface(0xff000000,0xff000000,0x13ffffff,7.68f));UiCompat.clipOutline(image);image.setLayoutParams(new LinearLayout.LayoutParams(px(size),px(size)));return image;}
-    private void artworkPadding(ImageView image,AppRepository.App app,float size){int padding=px(app.genericIcon?size*.14f:.75f);image.setPadding(padding,padding,padding,padding);}
+    private CharSequence statusText(AppRepository.App app,boolean list){
+        String state=app.state(),type=app.system?"预装应用":"用户应用";
+        String text=list?type+"  "+state:state+"  "+type;
+        if(!app.installed)return text;
+        int start=list?type.length()+2:0;
+        SpannableString styled=new SpannableString(text);
+        styled.setSpan(new TextAppearanceSpan(null,0,-1,app.enabled?ENABLED_STATUS:DISABLED_STATUS,null),start,start+state.length(),Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        return styled;
+    }
+    private final class Artwork extends SurfaceCorners.Image {
+        private final float size;
+        private final int decodeWidth;
+        private AppRepository.App app;
+        private String key="";
+        private int binding;
+        private Runnable task;
+        Artwork(float size){
+            super(activity);this.size=size;
+            int pixels=px(size);decodeWidth=Math.min(android.os.Build.VERSION.SDK_INT<=19?128:192,Math.max(48,pixels));
+            setScaleType(ScaleType.FIT_CENTER);setBackgroundDrawable(surface(0xff000000,0xff000000,0x13ffffff,7.68f));
+            UiCompat.clipOutline(this);setLayoutParams(new LinearLayout.LayoutParams(pixels,pixels));
+        }
+        void cancelDecode(){if(task!=null){artworkWorker.remove(task);task=null;}}
+        void bind(AppRepository.App app){
+            cancelDecode();int current=++binding;this.app=app;key="";
+            if(app==null){setImageDrawable(null);return;}
+            int padding=px(app.genericIcon?size*.14f:.75f);setPadding(padding,padding,padding,padding);setImageDrawable(app.icon);
+            if(!active||!isShown())return;
+            java.io.File file=AppCoverStore.get(activity).file(app.pkg);if(file==null)return;
+            final String pkg=app.pkg,name=file.getName(),request=pkg+":"+name+":"+decodeWidth;key=request;
+            Bitmap existing=artworkCache.get(request);if(existing!=null){showCustom(existing);return;}
+            if(unavailableArtwork.get(request)!=null)return;
+            Runnable decode=()->{
+                Bitmap image=null;
+                try{image=AppCoverImages.load(file,decodeWidth);}catch(RuntimeException|OutOfMemoryError unavailable){}
+                Bitmap ready=image;
+                activity.runOnUiThread(()->{
+                    if(isDestroyed()||isFinishing()||!active||current!=binding||!request.equals(key)||!name.equals(AppCoverStore.get(activity).key(pkg))){
+                        if(ready!=null)ready.recycle();return;
+                    }
+                    task=null;
+                    if(ready==null){unavailableArtwork.put(request,true);return;}
+                    artworkCache.put(request,ready);showCustom(ready);
+                });
+            };
+            task=decode;artworkWorker.execute(decode);
+        }
+        void refresh(boolean force){
+            if(app==null)return;
+            java.io.File file=AppCoverStore.get(activity).file(app.pkg);
+            String expected=file==null?"":app.pkg+":"+file.getName()+":"+decodeWidth;
+            if(force||!key.equals(expected))bind(app);
+        }
+        private void showCustom(Bitmap image){int padding=px(.75f);setPadding(padding,padding,padding,padding);setImageBitmap(image);}
+        @Override protected void onDetachedFromWindow(){cancelDecode();++binding;key="";super.onDetachedFromWindow();}
+        @Override protected void onAttachedToWindow(){super.onAttachedToWindow();if(app!=null)bind(app);}
+    }
+    private void updateRestoreCover(String pkg){
+        if(restoreCoverAction==null)return;
+        boolean custom=AppCoverStore.get(activity).custom(pkg);
+        restoreCoverAction.setEnabled(custom);restoreCoverAction.setFocusable(custom);restoreCoverAction.setAlpha(1f);
+    }
+    private void refreshArtwork(String pkg,boolean force){
+        if(detailArtwork!=null&&detailArtwork.app!=null&&(pkg==null||pkg.equals(detailArtwork.app.pkg))){
+            detailArtwork.refresh(force);updateRestoreCover(detailArtwork.app.pkg);
+        }
+        if(list==null)return;for(int i=0;i<list.getChildCount();i++){
+            RecyclerView.ViewHolder child=list.getChildViewHolder(list.getChildAt(i));if(!(child instanceof AppAdapter.Holder))continue;
+            Artwork art=((AppAdapter.Holder)child).icon;if(art.app!=null&&(pkg==null||pkg.equals(art.app.pkg)))art.refresh(force);
+        }
+    }
     private void typography(TextView text,float size,float height,int color){text.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,size*unit);text.setTextColor(color);Paint.FontMetrics metrics=text.getPaint().getFontMetrics();float leading=Math.max(0,height*unit-(metrics.descent-metrics.ascent));text.setLineSpacing(leading,1);text.setPadding(0,Math.round(leading/2),0,Math.round(leading/2));text.setMinimumHeight(px(height));}
     private void gap(LinearLayout parent,float height){activity.gap(parent,height);}
     private void addAction(ViewGroup row,Button action){
@@ -302,10 +423,10 @@ final class AppListPanel extends ManagementPanel {
         row.addView(action,new ViewGroup.LayoutParams(-2,px(34.56f)));
         if(action.isEnabled()&&firstAction==null)firstAction=action;
     }
-    private void coverUpdated(String pkg){if(isDestroyed()||!active||!selected.equals(pkg))return;renderDetails();View cover=details.findViewWithTag("app-action-更换封面");if(cover!=null)cover.requestFocusFromTouch();else focusList();}
+    private void coverUpdated(String pkg){if(isDestroyed()||!active)return;refreshArtwork(pkg,false);if(!selected.equals(pkg))return;View cover=details.findViewWithTag("app-action-更换封面");if(cover!=null)cover.requestFocusFromTouch();else focusList();}
     private void restoreCover(AppRepository.App app){
-        Sheet sheet=settingsSheet("恢复默认封面？");AppActionConfirmationUi.content(activity,sheet.delegate,app.pkg,app.label,AppActionConfirmationUi.RESTORE_COVER,false);Button cancel=sheet.action("取消",sheet.dialog::dismiss);
-        Button confirm=sheet.action("恢复默认封面",()->{if(busy)return;busy=true;sheetBusy(sheet,true);worker.execute(()->{String failure=null;try{AppCoverPolicy.require(this,app.pkg);AppCoverStore.get(this).restore(app.pkg);}catch(java.io.IOException e){failure=e.getMessage();}String error=failure;ui(()->{busy=false;if(!active)return;sheetBusy(sheet,false);renderDetails();if(error==null){sheet.dialog.dismiss();success("已恢复默认封面");}else inlineFailure(sheet,new java.io.IOException(error));});});});AppActionConfirmationUi.actions(activity,sheet.delegate,cancel,confirm,false);sheet.show(cancel);
+        Sheet sheet=settingsSheet("恢复默认封面？",true);AppActionConfirmationUi.content(activity,sheet.delegate,app.pkg,app.label,AppActionConfirmationUi.RESTORE_COVER,false);Button cancel=sheet.action("取消",sheet.dialog::dismiss);
+        Button confirm=sheet.action("恢复默认封面",()->{if(busy)return;busy=true;sheetBusy(sheet,true);worker.execute(()->{String failure=null;try{AppCoverPolicy.require(this,app.pkg);AppCoverStore.get(this).restore(app.pkg);}catch(java.io.IOException e){failure=e.getMessage();}String error=failure;ui(()->{busy=false;if(!active)return;sheetBusy(sheet,false);if(error==null){refreshArtwork(app.pkg,false);sheet.dialog.dismiss();success("已恢复默认封面");}else inlineFailure(sheet,new java.io.IOException(error));});});});AppActionConfirmationUi.actions(activity,sheet.delegate,cancel,confirm,false);sheet.show(cancel);
     }
     @Override public void handleBack(){if(details.hasFocus())focusList();else super.handleBack();}
     // Public Activity override; AndroidX core marks its inherited bridge class library-only.
@@ -318,7 +439,7 @@ final class AppListPanel extends ManagementPanel {
         }
         if(key==KeyEvent.KEYCODE_DPAD_LEFT){
             if(event.getAction()==KeyEvent.ACTION_DOWN && details.hasFocus() && getCurrentFocus()==firstAction){returningToList=true;return true;}
-            if(returningToList){if(event.getAction()==KeyEvent.ACTION_UP){returningToList=false;focusList();}return true;}
+            if(returningToList){if(event.getAction()==KeyEvent.ACTION_UP){returningToList=false;if(!event.isCanceled())focusList(false,true);}return true;}
         }return false;
     }
     private final class SelectionSurface extends LayerDrawable {
@@ -337,18 +458,19 @@ final class AppListPanel extends ManagementPanel {
         @Override protected void onLayout(boolean changed,int left,int top,int right,int bottom){for(int i=0;i<getChildCount();i++){Rect p=positions.get(i);getChildAt(i).layout(p.left,p.top,p.right,p.bottom);}}
     }
     private final class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
-        final class Holder extends RecyclerView.ViewHolder {final LinearLayout box;final ImageView icon,marker;final TextView title,summary;Holder(LinearLayout box,ImageView icon,TextView title,TextView summary,ImageView marker){super(box);this.box=box;this.icon=icon;this.title=title;this.summary=summary;this.marker=marker;}}
+        final class Holder extends RecyclerView.ViewHolder {final LinearLayout box;final Artwork icon;final ImageView marker;final TextView title,summary;Holder(LinearLayout box,Artwork icon,TextView title,TextView summary,ImageView marker){super(box);this.box=box;this.icon=icon;this.title=title;this.summary=summary;this.marker=marker;}}
         @Override public Holder onCreateViewHolder(ViewGroup parent,int type){
             LinearLayout box=row();box.setPadding(px(12.44f),px(6),px(12.44f),px(6));focusable(box,12);box.setFocusableInTouchMode(true);box.setBackgroundDrawable(new SelectionSurface(false));box.setClickable(true);box.setDescendantFocusability(android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS);SettingsTouchClick.attach(box);
             // Measure both text lines before applying the usual minimum row height.
-            box.setMinimumHeight(px(60.025f));RecyclerView.LayoutParams p=new RecyclerView.LayoutParams(-1,ViewGroup.LayoutParams.WRAP_CONTENT);p.bottomMargin=px(6);box.setLayoutParams(p);ImageView art=appArt(null,38.4f);box.addView(art);
+            box.setMinimumHeight(px(60.025f));RecyclerView.LayoutParams p=new RecyclerView.LayoutParams(-1,ViewGroup.LayoutParams.WRAP_CONTENT);p.bottomMargin=px(6);box.setLayoutParams(p);Artwork art=new Artwork(38.4f);box.addView(art);
             LinearLayout copy=column();copy.setGravity(Gravity.CENTER_VERTICAL);LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1);cp.leftMargin=px(13.44f);box.addView(copy,cp);
             TextView title=label("",15);typography(title,15,21,UiPalette.TEXT);title.setDuplicateParentStateEnabled(true);copy.setDuplicateParentStateEnabled(true);title.setTextColor(SettingsFocusDrawable.textColors(UiPalette.TEXT));title.setSingleLine();title.setEllipsize(android.text.TextUtils.TruncateAt.END);copy.addView(title);gap(copy,4.8f);TextView summary=muted("",10);typography(summary,10.08f,14.1386f,UiPalette.SECONDARY);summary.setDuplicateParentStateEnabled(true);summary.setTextColor(new android.content.res.ColorStateList(new int[][]{{android.R.attr.state_focused,android.R.attr.state_window_focused},{}},new int[]{UiPalette.INK_SECONDARY,UiPalette.SECONDARY}));summary.setSingleLine();summary.setEllipsize(android.text.TextUtils.TruncateAt.END);copy.addView(summary);Drawable markerArt=androidx.core.graphics.drawable.DrawableCompat.wrap(new QuickControlIcon("pin")).mutate();androidx.core.graphics.drawable.DrawableCompat.setTintList(markerArt,SettingsFocusDrawable.textColors(UiPalette.TEXT));ImageView marker=icon(markerArt,10);marker.setDuplicateParentStateEnabled(true);marker.setAlpha(.6f);marker.setContentDescription("首页应用");box.addView(marker);return new Holder(box,art,title,summary,marker);
         }
-        @Override public void onBindViewHolder(Holder holder,int position){AppRepository.App app=filtered.get(position);holder.icon.setImageDrawable(app.icon);artworkPadding(holder.icon,app,38.4f);holder.title.setText(app.label);holder.summary.setText(app.summary());boolean pinned=new DockStore(activity).load().contains(app.pkg);holder.marker.setVisibility(pinned?View.VISIBLE:View.GONE);holder.box.setTag("managed-app-"+app.pkg);holder.box.setSelected(app.pkg.equals(selected));holder.box.setContentDescription(app.label+"  "+app.pkg+"  "+app.summary()+(pinned?"  首页应用":""));
+        @Override public void onBindViewHolder(Holder holder,int position){AppRepository.App app=filtered.get(position);holder.icon.bind(app);holder.title.setText(app.label);holder.summary.setText(statusText(app,true));boolean pinned=new DockStore(activity).load().contains(app.pkg);holder.marker.setVisibility(pinned?View.VISIBLE:View.GONE);holder.box.setTag("managed-app-"+app.pkg);holder.box.setSelected(app.pkg.equals(selected));holder.box.setContentDescription(app.label+"  "+app.pkg+"  "+app.summary()+(pinned?"  首页应用":""));
             holder.box.setOnFocusChangeListener((v,focus)->{if(focus && !selected.equals(app.pkg)){selected=app.pkg;for(int i=0;i<list.getChildCount();i++)list.getChildAt(i).setSelected(list.getChildAt(i)==v);renderDetails();}});
             holder.box.setOnClickListener(v->{holder.box.requestFocusFromTouch();if(!selected.equals(app.pkg)){selected=app.pkg;for(int i=0;i<list.getChildCount();i++)list.getChildAt(i).setSelected(list.getChildAt(i)==v);renderDetails();}if(firstAction!=null)firstAction.requestFocusFromTouch();KeyFeedback.confirm(activity);});
         }
+        @Override public void onViewRecycled(Holder holder){holder.icon.bind(null);super.onViewRecycled(holder);}
         @Override public int getItemCount(){return filtered.size();}
     }
 }

@@ -19,6 +19,8 @@ final class WallpaperBlur {
     private int amount,generation,firstAmount,secondAmount,sourceVersion;
     private float progress;
     private boolean active,scheduled,busy,dirty,destroyed,nativeVideo,suspended;
+    private boolean liveWeather;
+    private int weatherRetries;
     private long capturedAt=-1000;
     private final String trace=Integer.toHexString(System.identityHashCode(this));
     private long captures,nullFrames,discarded,submitted,lastSuccess=-1;
@@ -68,7 +70,17 @@ final class WallpaperBlur {
     // ImageView.setAlpha(int) changes drawable opacity on a 0-255 scale; use View's float overload.
     private void clear(){overlay.setVisibility(View.GONE);overlay.setImageDrawable(null);overlay.setAlpha(1f);secondOverlay.setVisibility(View.GONE);secondOverlay.setImageDrawable(null);}
     void sourceChanged(){++generation;record("invalidate","reason=source_changed");clear();invalidate();}
-    boolean previewReady(){return !bitmapOutput()||(firstAmount==0||overlay.getDrawable()!=null)&&(secondAmount==0||secondOverlay.getDrawable()!=null);}
+    void weatherSourceChanged(boolean live){
+        liveWeather=live;weatherRetries=2;sourceChanged();
+    }
+    boolean previewReady(){
+        if(!bitmapOutput())return true;
+        boolean same=firstAmount==secondAmount;
+        // Only the visible endpoint(s) need images. Equal strengths use overlay alone.
+        boolean firstNeeded=firstAmount>0&&(same||progress<1);
+        boolean secondNeeded=!same&&secondAmount>0&&progress>0;
+        return (!firstNeeded||overlay.getDrawable()!=null)&&(!secondNeeded||secondOverlay.getDrawable()!=null);
+    }
     String diagnostics(){return "blur="+amount+" first="+firstAmount+" second="+secondAmount+" progress="+progress+" generation="+generation+" sourceVersion="+sourceVersion+" blurVisible="+(overlay.getVisibility()==View.VISIBLE)+" blurAlpha="+overlay.getAlpha()+" secondBlurVisible="+(secondOverlay.getVisibility()==View.VISIBLE)+" secondBlurAlpha="+secondOverlay.getAlpha()+" blurBusy="+busy
         +" captures="+captures+" nullFrames="+nullFrames+" discarded="+discarded+" submitted="+submitted+" lastSuccessUptimeMs="+lastSuccess;}
     private void record(String phase,String detail){try{
@@ -104,7 +116,9 @@ final class WallpaperBlur {
         int[] pixels=new int[width*height];image.getPixels(pixels,0,width,0,0,width,height);DockBackdropDrawable.blurPixels(pixels,width,height,Math.max(1,Math.round(strength*width/2000f)));image.setPixels(pixels,0,width,0,0,width,height);
     }
     private void filter(Bitmap image,int version,int width,int height,int first,int second,boolean nativeFrame,long captureId,long started){
-        if(image==null){nullFrames++;record("empty","capture="+captureId+" reason=source_returned_null captureMs="+(SystemClock.uptimeMillis()-started));completed();return;}
+        if(image==null){
+            if(liveWeather&&!nativeFrame&&valid(version,nativeFrame)&&weatherRetries>0){--weatherRetries;dirty=true;}
+            nullFrames++;record("empty","capture="+captureId+" reason=source_returned_null captureMs="+(SystemClock.uptimeMillis()-started));completed();return;}
         if(!valid(version,nativeFrame)){discarded++;record("discard","capture="+captureId+" stage=before_filter reason="+invalidReason(version,nativeFrame));image.recycle();completed();return;}
         final long queued=SystemClock.uptimeMillis();
         worker.execute(()->{

@@ -48,7 +48,7 @@ final class ScreensaverInformationView extends FrameLayout {
         flip=new FlipClockView(context);addView(flip,new LayoutParams(-2,-2,Gravity.CENTER));
         weather=text();weather.setTextSize(TypedValue.COMPLEX_UNIT_PX,weatherSize);weather.setEllipsize(TextUtils.TruncateAt.END);
     }
-    private TextView text(){TextView view=new TextView(getContext());view.setIncludeFontPadding(false);view.setSingleLine(true);view.setTextColor(UiPalette.TEXT);view.setShadowLayer(weatherSize*.625f,0,weatherSize/10,0x77000000);return view;}
+    private TextView text(){TextView view=new TextView(getContext());view.setIncludeFontPadding(false);view.setSingleLine(true);view.setTextColor(UiPalette.TEXT);view.setShadowLayer(weatherSize*.17f,0,weatherSize*.052f,UiPalette.INK);return view;}
     void show(ScreensaverSettings settings,long now,String weatherText){
         this.settings=settings;
         TimeZone zone=TimeZone.getDefault();

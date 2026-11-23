@@ -5,17 +5,41 @@ import android.graphics.drawable.Drawable;
 import android.content.res.ColorStateList;
 import androidx.core.graphics.PathParser;
 
-/** Pinned Lucide paths; source mapping and ISC/MIT notices are in assets/licenses/Lucide-NOTICE.txt. */
+/** Quick controls artwork, including pinned Lucide paths documented in assets/licenses/Lucide-NOTICE.txt. */
 final class QuickControlIcon extends Drawable {
+    static final String DESKTOP_SETTINGS = "quiet-tv-desktop-settings";
     private static final float STROKE_WIDTH=2f;
+
+    // The default outline is a filled contour so the phone preview can draw it as one SVG path.
+    private static final String QUIET_TV_BASE = "M110 306h130q6 0 11 5l18 21c5 6 2 13-7 13H88c-8 0-12-7-6-14l17-20q5-5 11-5Z";
+    private static final String QUIET_TV_OUTLINE =
+            "M93 50H302a77 77 0 0 1 77 77v84a77 77 0 0 1-77 77H93a77 77 0 0 1-77-77v-84a77 77 0 0 1 77-77Z"
+            + "M93 80a47 47 0 0 0-47 47v84a47 47 0 0 0 47 47h209a47 47 0 0 0 47-47v-84a47 47 0 0 0-47-47Z"
+            + "M267.7 262.49l54 55a15 15 0 0 1-21.4 21.02l-54-55a15 15 0 0 1 21.4-21.02Z"
+            + QUIET_TV_BASE;
+    private static final String QUIET_TV_FOCUSED =
+            "M93 50h209a77 77 0 0 1 77 77v85a76 76 0 0 1-76 76h-3l25 25a19.5 19.5 0 0 1-28 28l-48-49q-4-4-11-4H93a77 77 0 0 1-77-77v-84a77 77 0 0 1 77-77Z"
+            + "M101 97a34 34 0 0 0-34 34v76a34 34 0 0 0 34 34h193a34 34 0 0 0 34-34v-76a34 34 0 0 0-34-34Z"
+            + QUIET_TV_BASE;
+
+    private static final String SOUND_OFF_SLASH = "M3 3l18 18";
+
+    private final Path focusedPath;
+    private final String soundOffPathData;
+    private final Path soundOffPath;
+    private boolean focused, soundOff;
     private final String pathData;private final Path path;private final float viewport;private final boolean stroke;private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);private int color=UiPalette.TEXT;private int alpha=255;private Integer fixedColor;private ColorStateList tint;private boolean solidSun;
     // AndroidX 1.12 retains this public parser for the API14 profile with a library-only annotation.
     @android.annotation.SuppressLint("RestrictedApi")
     QuickControlIcon(String name){String data;boolean outlined=false;float size=256;switch(name){
+        case DESKTOP_SETTINGS:
+            size = 395;
+            data = QUIET_TV_OUTLINE;
+            break;
         case "range-sun-low":size=24;outlined=true;data="M 16 12 A 4 4 0 1 0 8 12 A 4 4 0 1 0 16 12 Z M 12 4 h .01 M 20 12 h .01 M 12 20 h .01 M 4 12 h .01 M 17.657 6.343 h .01 M 17.657 17.657 h .01 M 6.343 17.657 h .01 M 6.343 6.343 h .01";break; // Lucide: sun-dim
         case "range-sun-high":case "sun":size=24;outlined=true;data="M 16 12 A 4 4 0 1 0 8 12 A 4 4 0 1 0 16 12 Z M 12 2 v 2 M 12 20 v 2 M 0 0 m 4.93 4.93 1.41 1.41 M 0 0 m 17.66 17.66 1.41 1.41 M 2 12 h 2 M 20 12 h 2 M 0 0 m 6.34 17.66 -1.41 1.41 M 0 0 m 19.07 4.93 -1.41 1.41";break; // Lucide: sun
         case "range-speaker-low":size=24;outlined=true;data="M 11 4.702 a .705 .705 0 0 0 -1.203 -.498 L 6.413 7.587 A 1.4 1.4 0 0 1 5.416 8 H 3 a 1 1 0 0 0 -1 1 v 6 a 1 1 0 0 0 1 1 h 2.416 a 1.4 1.4 0 0 1 .997 .413 l 3.383 3.384 A .705 .705 0 0 0 11 19.298 z M 16 9 a 5 5 0 0 1 0 6";break; // Lucide: volume-1
-        case "range-speaker-high":case "speaker-high":size=24;outlined=true;data="M 11 4.702 a .705 .705 0 0 0 -1.203 -.498 L 6.413 7.587 A 1.4 1.4 0 0 1 5.416 8 H 3 a 1 1 0 0 0 -1 1 v 6 a 1 1 0 0 0 1 1 h 2.416 a 1.4 1.4 0 0 1 .997 .413 l 3.383 3.384 A .705 .705 0 0 0 11 19.298 z M 16 9 a 5 5 0 0 1 0 6 M 19.364 18.364 a 9 9 0 0 0 0 -12.728";break; // Lucide: volume-2
+        case "range-speaker-high":case "speaker-high":case "saver-sound":size=24;outlined=true;data="M 11 4.702 a .705 .705 0 0 0 -1.203 -.498 L 6.413 7.587 A 1.4 1.4 0 0 1 5.416 8 H 3 a 1 1 0 0 0 -1 1 v 6 a 1 1 0 0 0 1 1 h 2.416 a 1.4 1.4 0 0 1 .997 .413 l 3.383 3.384 A .705 .705 0 0 0 11 19.298 z M 16 9 a 5 5 0 0 1 0 6 M 19.364 18.364 a 9 9 0 0 0 0 -12.728";break; // Lucide: volume-2
         case "speaker-off":size=24;outlined=true;data="M 11 4.702 a .7 .7 0 0 0 -1.203 -.498 L 6.413 7.587 A 1.4 1.4 0 0 1 5.416 8 H 3 a 1 1 0 0 0 -1 1 v 6 a 1 1 0 0 0 1 1 h 2.416 a 1.4 1.4 0 0 1 .997 .413 l 3.383 3.384 A .7 .7 0 0 0 11 19.298 z M 0 0 m 16.5 14.5 5 -5 M 0 0 m 16.5 9.5 5 5";break; // Lucide: volume-x
         case "image":case "left-wallpaper":size=24;outlined=true;data="M 5 3 H 19 A 2 2 0 0 1 21 5 V 19 A 2 2 0 0 1 19 21 H 5 A 2 2 0 0 1 3 19 V 5 A 2 2 0 0 1 5 3 Z M 11 9 A 2 2 0 1 0 7 9 A 2 2 0 1 0 11 9 Z M 0 0 m 21 15 -3.086 -3.086 a 2 2 0 0 0 -2.828 0 L 6 21";break; // Lucide: image
         case "monitor-play":size=24;outlined=true;data="M 15.033 9.44 a .647 .647 0 0 1 0 1.12 l -4.065 2.352 a .645 .645 0 0 1 -.968 -.56 V 7.648 a .645 .645 0 0 1 .967 -.56 z M 12 17 v 4 M 8 21 h 8 M 4 3 H 20 A 2 2 0 0 1 22 5 V 15 A 2 2 0 0 1 20 17 H 4 A 2 2 0 0 1 2 15 V 5 A 2 2 0 0 1 4 3 Z";break; // Lucide: monitor-play
@@ -43,6 +67,7 @@ final class QuickControlIcon extends Drawable {
         case "apps":case "layout-grid":size=24;outlined=true;data="M 4 3 H 9 A 1 1 0 0 1 10 4 V 9 A 1 1 0 0 1 9 10 H 4 A 1 1 0 0 1 3 9 V 4 A 1 1 0 0 1 4 3 Z M 15 3 H 20 A 1 1 0 0 1 21 4 V 9 A 1 1 0 0 1 20 10 H 15 A 1 1 0 0 1 14 9 V 4 A 1 1 0 0 1 15 3 Z M 15 14 H 20 A 1 1 0 0 1 21 15 V 20 A 1 1 0 0 1 20 21 H 15 A 1 1 0 0 1 14 20 V 15 A 1 1 0 0 1 15 14 Z M 4 14 H 9 A 1 1 0 0 1 10 15 V 20 A 1 1 0 0 1 9 21 H 4 A 1 1 0 0 1 3 20 V 15 A 1 1 0 0 1 4 14 Z";break; // Lucide: layout-grid
         case "clock":size=24;outlined=true;data="M 22 12 A 10 10 0 1 0 2 12 A 10 10 0 1 0 22 12 Z M 12 6 v 6 l 4 2";break; // Lucide: clock
         case "weather":case "cloud-sun":size=24;outlined=true;data="M 12 2 v 2 M 0 0 m 4.93 4.93 1.41 1.41 M 20 12 h 2 M 0 0 m 19.07 4.93 -1.41 1.41 M 15.947 12.65 a 4 4 0 0 0 -5.925 -4.128 M 13 22 H 7 a 5 5 0 1 1 4.9 -6 H 13 a 3 3 0 0 1 0 6 Z";break; // Lucide: cloud-sun
+        case "refresh-cw":size=24;outlined=true;data="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8 M21 3v5h-5 M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16 M8 16H3v5";break; // Lucide: refresh-cw
         case "check":size=24;outlined=true;data="M 20 6 9 17 l -5 -5";break; // Lucide: check
         case "check-circle":case "circle-check":size=24;outlined=true;data="M 22 12 A 10 10 0 1 0 2 12 A 10 10 0 1 0 22 12 Z M 0 0 m 16 9 -5.5 5.5 L 8 12";break; // Lucide: circle-check
         case "arrow-left":size=24;outlined=true;data="M 0 0 m 12 19 -7 -7 7 -7 M 19 12 H 5";break; // Lucide: arrow-left
@@ -69,15 +94,74 @@ final class QuickControlIcon extends Drawable {
         case "square":size=24;outlined=true;data="M 5 3 H 19 A 2 2 0 0 1 21 5 V 19 A 2 2 0 0 1 19 21 H 5 A 2 2 0 0 1 3 19 V 5 A 2 2 0 0 1 5 3 Z";break; // Lucide: square
         case "square-check":size=24;outlined=true;data="M 5 3 H 19 A 2 2 0 0 1 21 5 V 19 A 2 2 0 0 1 19 21 H 5 A 2 2 0 0 1 3 19 V 5 A 2 2 0 0 1 5 3 Z M 0 0 m 16 9 -5.5 5.5 L 8 12";break; // Lucide: square-check
         default:data="";
-        }pathData=data;path=PathParser.createPathFromPathData(data);solidSun=false;viewport=size;stroke=outlined;
+        }
+        pathData=data;path=PathParser.createPathFromPathData(data);solidSun=false;viewport=size;stroke=outlined;
+        focusedPath = DESKTOP_SETTINGS.equals(name) ? PathParser.createPathFromPathData(QUIET_TV_FOCUSED) : null;
+        soundOffPathData = soundOffPathData(name);
+        soundOffPath = soundOffPathData == null ? null : PathParser.createPathFromPathData(soundOffPathData);
     }
-    static org.json.JSONObject description(String name)throws org.json.JSONException{QuickControlIcon icon=new QuickControlIcon(name);return new org.json.JSONObject().put("path",icon.pathData).put("size",icon.viewport).put("outline",icon.stroke).put("strokeWidth",STROKE_WIDTH).put("solidSun",icon.solidSun);}
+
+    // Break the underlying outline on both sides of the slash so it stays readable at 24 units.
+    private static String soundOffPathData(String name) {
+        switch (name) {
+            case "wallpaper-sound":
+                return "M2 10v3 M6 10.6V17 M10 3v2.4 M10 14.6V21 M14 8v1.4 M18 5v8.4 M22 10v3 " + SOUND_OFF_SLASH;
+            case "key-sound":
+                return "M8.6 4H20a2 2 0 0 1 2 2v11.4 M15.4 20H4a2 2 0 0 1-2-2V6.6 "
+                        + "M14 8h.01 M18 8h.01 M8 12h.01 M16 12h.01 M7 16h4.4 " + SOUND_OFF_SLASH;
+            case "saver-sound":
+                return "M3 8a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413"
+                        + "l3.383 3.384a.705.705 0 0 0 1.204-.499V15.6 M9.25 5.45l.546-.546A.705.705 0 0 1 11 5.4v1 "
+                        + "M16 9a5 5 0 0 1 1 3.4 M19.364 5.636a9 9 0 0 1 1.6 10.5 " + SOUND_OFF_SLASH;
+            default:
+                return null;
+        }
+    }
+
+    static org.json.JSONObject description(String name) throws org.json.JSONException {
+        QuickControlIcon icon = new QuickControlIcon(name);
+        return new org.json.JSONObject().put("path", icon.pathData).put("size", icon.viewport)
+                .put("outline", icon.stroke).put("strokeWidth", STROKE_WIDTH).put("solidSun", icon.solidSun)
+                .put("offPath", icon.soundOffPathData);
+    }
     void color(int value){fixedColor=value;color=value;invalidateSelf();}
+    void setFocused(boolean value) {
+        if (focusedPath == null || focused == value) return;
+        focused = value;
+        invalidateSelf();
+    }
+    void setSoundOn(boolean on) {
+        if (soundOffPath == null || soundOff == !on) return;
+        soundOff = !on;
+        invalidateSelf();
+    }
     // DrawableCompat calls the drawable's tint API directly on newer Android versions.
     @Override public void setTintList(ColorStateList value){tint=value;invalidateSelf();}
     @Override public boolean isStateful(){return true;}
     @Override protected boolean onStateChange(int[] states){boolean focus=false,window=false,enabled=false;for(int value:states){if(value==android.R.attr.state_enabled)enabled=true;if(value==android.R.attr.state_focused||value==android.R.attr.state_activated)focus=true;if(value==android.R.attr.state_window_focused)window=true;}color=fixedColor!=null?fixedColor:!enabled?UiPalette.FAINT:focus&&window?UiPalette.INK:UiPalette.TEXT;invalidateSelf();return true;}
-    @Override public void draw(Canvas canvas){if(path==null)return;int save=canvas.save();Rect b=getBounds();float scale=Math.min(b.width()/viewport,b.height()/viewport);canvas.translate(b.left+(b.width()-viewport*scale)/2,b.top+(b.height()-viewport*scale)/2);canvas.scale(scale,scale);int ink=tint==null?color:tint.getColorForState(getState(),tint.getDefaultColor());paint.setColor(ink);paint.setAlpha(Color.alpha(ink)*alpha/255);paint.setStyle(stroke?Paint.Style.STROKE:Paint.Style.FILL);paint.setStrokeWidth(STROKE_WIDTH);paint.setStrokeCap(Paint.Cap.ROUND);paint.setStrokeJoin(Paint.Join.ROUND);canvas.drawPath(path,paint);if(solidSun){paint.setStyle(Paint.Style.FILL);canvas.drawCircle(12,12,4.4f,paint);}canvas.restoreToCount(save);}
+    @Override public void draw(Canvas canvas) {
+        if (path == null) return;
+        int save = canvas.save();
+        Rect bounds = getBounds();
+        float scale = Math.min(bounds.width() / viewport, bounds.height() / viewport);
+        canvas.translate(bounds.left + (bounds.width() - viewport * scale) / 2,
+                bounds.top + (bounds.height() - viewport * scale) / 2);
+        canvas.scale(scale, scale);
+        int ink = tint == null ? color : tint.getColorForState(getState(), tint.getDefaultColor());
+        paint.setColor(ink);
+        paint.setAlpha(Color.alpha(ink) * alpha / 255);
+        paint.setStyle(stroke ? Paint.Style.STROKE : Paint.Style.FILL);
+        paint.setStrokeWidth(STROKE_WIDTH);
+        paint.setStrokeCap(Paint.Cap.ROUND);
+        paint.setStrokeJoin(Paint.Join.ROUND);
+        Path currentPath = soundOff ? soundOffPath : focused ? focusedPath : path;
+        canvas.drawPath(currentPath, paint);
+        if (solidSun) {
+            paint.setStyle(Paint.Style.FILL);
+            canvas.drawCircle(12, 12, 4.4f, paint);
+        }
+        canvas.restoreToCount(save);
+    }
     @Override public int getIntrinsicWidth(){return 24;}
     @Override public int getIntrinsicHeight(){return 24;}
     @Override public void setAlpha(int alpha){this.alpha=alpha;invalidateSelf();}

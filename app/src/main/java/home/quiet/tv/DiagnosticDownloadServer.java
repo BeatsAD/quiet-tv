@@ -16,6 +16,7 @@ final class DiagnosticDownloadServer extends NanoHTTPD {
     private final File file;
     private String fileName=FILE_NAME,mime=DiagnosticExports.MIME;
     private long maximumBytes=MAX_EXPORT_BYTES;
+    private boolean deleteOnStop;
     private final Assets assets;
     private final String host,token;
     private final long started=System.nanoTime(),lifetime;
@@ -36,6 +37,9 @@ final class DiagnosticDownloadServer extends NanoHTTPD {
         this(host,file,assets);
         if(inputExport){fileName="QuietTV-inputs.zip";mime="application/zip";maximumBytes=InputSourceObservation.MAX_BYTES;}
     }
+    static DiagnosticDownloadServer incident(String host,File file,Assets assets){
+        DiagnosticDownloadServer server=new DiagnosticDownloadServer(host,file,assets);server.fileName="QuietTV-incident.zip";server.mime="application/zip";server.maximumBytes=512*1024;server.deleteOnStop=true;return server;
+    }
     static DiagnosticDownloadServer bundle(String host,File file,Assets assets){
         DiagnosticDownloadServer server=new DiagnosticDownloadServer(host,file,assets);server.fileName="QuietTV-diagnostics.zip";server.mime="application/zip";server.maximumBytes=DiagnosticBundle.MAX_BYTES;return server;
     }
@@ -43,7 +47,7 @@ final class DiagnosticDownloadServer extends NanoHTTPD {
     String address(){return "http://"+host+":"+getListeningPort()+"/"+token+"/";}
     boolean expired(){return closed||(System.nanoTime()-started)/1000000>=lifetime;}
     void invalidate(){closed=true;}
-    @Override public void stop(){invalidate();super.stop();}
+    @Override public void stop(){invalidate();super.stop();if(deleteOnStop)file.delete();}
     // NanoHTTPD 2.3.1 otherwise compresses text and removes its known length.
     @Override protected boolean useGzipWhenAccepted(Response response){return false;}
     @Override public Response serve(IHTTPSession session){

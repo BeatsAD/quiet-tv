@@ -53,7 +53,7 @@ final class AboutView extends FrameLayout {
         label(device.brand,27,400,UiPalette.SECONDARY,600,196,670,40,"device-brand");
         divider(600,244,670,1);
         metric("安卓版本",device.android,600,266,338,"device-android");
-        metric("CPU",device.cpu,966,266,304,"device-cpu");
+        metric("芯片型号",device.chipset,966,266,304,"device-cpu");
         metric("系统架构",device.abis,600,388,338,"device-abis");
         memoryValue=metric("运行内存","正在读取",966,388,304,"device-memory");
         storageValue=metric("存储空间","正在读取",600,510,338,"device-storage");

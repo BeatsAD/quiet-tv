@@ -35,14 +35,48 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity implemen
     private volatile String backdropIdentity;
     private final long createdAt=SystemClock.uptimeMillis();
     private Runnable contentDraw;
+    private AutoDiagnosticOperation settingsEntryOperation;
+    private Runnable settingsFrameWindow,settingsEntryDraw;
+    private boolean settingsEntryDrawn;
+    void watchSettingsEntry(View controls){
+        if(settingsEntryOperation==null||settingsEntryDraw!=null||settingsEntryDrawn)return;
+        settingsEntryOperation.stage("CONTROLS_REGISTERED");
+        if(!androidx.core.view.ViewCompat.isAttachedToWindow(controls)){
+            View.OnAttachStateChangeListener attach=new View.OnAttachStateChangeListener(){
+                @Override public void onViewAttachedToWindow(View view){view.removeOnAttachStateChangeListener(this);settingsEntryDraw=null;watchSettingsEntry(view);}
+                @Override public void onViewDetachedFromWindow(View view){}
+            };
+            controls.addOnAttachStateChangeListener(attach);
+            settingsEntryDraw=()->controls.removeOnAttachStateChangeListener(attach);
+            return;
+        }
+        settingsEntryDraw=UiCompat.onDraw(controls,()->{
+            if(settingsEntryOperation==null||settingsEntryDrawn||!controls.isShown())return;
+            settingsEntryDrawn=true;
+            settingsEntryOperation.stage("FIRST_DRAW_CALLBACK");
+            controls.post(this::finishSettingsEvidence);
+        });
+    }
+    private void finishSettingsEvidence(){
+        if(settingsEntryOperation==null||!settingsEntryDrawn||!hasWindowFocus())return;
+        if(settingsEntryDraw!=null){settingsEntryDraw.run();settingsEntryDraw=null;}
+        settingsEntryOperation.stage("FOCUSED_READY_DRAW");
+        settingsEntryOperation.finish();settingsEntryOperation=null;
+    }
+    private void cancelSettingsEvidence(){
+        if(settingsEntryDraw!=null){settingsEntryDraw.run();settingsEntryDraw=null;}
+        if(settingsFrameWindow!=null){settingsFrameWindow.run();settingsFrameWindow=null;}
+        if(settingsEntryOperation!=null){settingsEntryOperation.cancel();settingsEntryOperation=null;}
+    }
     private Runnable afterContent;
     private String contentScope="";
     private boolean contentDrawn,contentReported;
     private final java.util.ArrayList<SettingsSheetBackdrop> sheetBackdrops=new java.util.ArrayList<>();
-    private final UpdateRepository.Listener updateListener=()->{if(updateBadge!=null)updateBadge.available(UpdateRepository.get(this).available!=null);};
+    private final UpdateRepository.Listener updateListener=()->{if(updateBadge!=null)updateBadge.available(UpdateRepository.get(this).available!=null,tr("有新版本","Update available"));};
     int px(float value){return Math.round(value*unit);}
     static void performanceAction(String action){if(BuildConfig.INDEPENDENT_BUILD)android.util.Log.i("QuietTVPerf","action="+action+" uptimeMs="+SystemClock.uptimeMillis());}
     @Override public void onCreate(Bundle state){
+        if(unifiedSettings())settingsEntryOperation=AutoDiagnosticOperation.begin("settings_enter",500);
         super.onCreate(state);glassStyle=GlassStyle.get(this);glassStyle.observe(this);BackNavigation.install(this,this::handleBack);unit=getResources().getDisplayMetrics().widthPixels/960f;
         getWindow().getDecorView().setSystemUiVisibility(5894);
         stage=new FrameLayout(this);stage.setBackgroundColor(0xff000000);setContentView(stage);
@@ -134,9 +168,10 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity implemen
     String tr(String chinese,String english){return chinese()?chinese:english;}
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);managementEntry=true;refreshBackdrop();}
     @Override protected void onResume(){super.onResume();if(backdropImage!=null)refreshBackdrop();UpdateRepository.get(this).add(updateListener);UpdateRepository.get(this).foreground();if(managementEntry && managementPage>=0){managementEntry=false;managementTab().requestFocus();}}
+    @Override protected void onPause(){cancelSettingsEvidence();super.onPause();}
     @Override protected void onStop(){if(operationFeedback!=null)operationFeedback.hide();UpdateRepository.get(this).remove(updateListener);if(managementMorePopup!=null)managementMorePopup.closeQuietly();super.onStop();}
-    @Override protected void onDestroy(){OperationFeedback.clear(this);backdropClosed=true;if(glassStyle!=null)glassStyle.forget(this);clearBackdrop();settingsWriter.shutdown();afterContent=null;if(contentDraw!=null){contentDraw.run();contentDraw=null;}if(backdropLoader!=null)backdropLoader.shutdownNow();super.onDestroy();}
-    @Override public void onWindowFocusChanged(boolean focused){super.onWindowFocusChanged(focused);if(unifiedSettings())SettingsFocusMotion.update(getCurrentFocus(),focused);DiagnosticLog.info("input.window","page="+getClass().getSimpleName()+" "+InputDiagnostics.focus(this));if(focused)reportContentReady();}
+    @Override protected void onDestroy(){cancelSettingsEvidence();OperationFeedback.clear(this);backdropClosed=true;if(glassStyle!=null)glassStyle.forget(this);clearBackdrop();settingsWriter.shutdown();afterContent=null;if(contentDraw!=null){contentDraw.run();contentDraw=null;}if(backdropLoader!=null)backdropLoader.shutdownNow();super.onDestroy();}
+    @Override public void onWindowFocusChanged(boolean focused){super.onWindowFocusChanged(focused);if(unifiedSettings())SettingsFocusMotion.update(getCurrentFocus(),focused);DiagnosticLog.info("input.window","page="+getClass().getSimpleName()+" "+InputDiagnostics.focus(this));if(focused){if(settingsEntryOperation!=null&&settingsFrameWindow==null)settingsFrameWindow=DiagnosticFrameWindow.watch(getWindow(),settingsEntryOperation);finishSettingsEvidence();reportContentReady();}}
     @Override public boolean dispatchTouchEvent(android.view.MotionEvent event){InputDiagnostics.pointer(this,event);return super.dispatchTouchEvent(event);}
     void managementConnected(){}
     @android.annotation.SuppressLint("RestrictedApi")
@@ -174,8 +209,8 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity implemen
         Button more=iconText("更多",R.drawable.ic_manage_more,this::managementMore);
         managementMoreButton=more;
         marginAdd(header,more,-2,30,8);
-        updateBadge=new UpdateBadgeView(this,managementTabs[4],unit);stage.addView(updateBadge,new FrameLayout.LayoutParams(-1,-1));
-        managementTabs[4].addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->updateBadge.invalidate());
+        updateBadge=new UpdateBadgeView(this,managementTabs[SettingsPages.HELP],unit);
+        stage.addView(updateBadge,new FrameLayout.LayoutParams(-1,-1));updateListener.changed();
         if(!localManagement())managementStatus.setVisibility(View.GONE);
         View[] actions=localManagement()?new View[]{header.getChildAt(0),managementStatus,more}:new View[]{header.getChildAt(0),more};
         for(View action:actions)if(action.getId()==View.NO_ID)action.setId(androidx.core.view.ViewCompat.generateViewId());
@@ -188,7 +223,21 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity implemen
     // Unified settings cards keep their focus shadows outside the child rectangle.
     LinearLayout row(){LinearLayout view=new LinearLayout(this);view.setOrientation(LinearLayout.HORIZONTAL);view.setGravity(Gravity.CENTER_VERTICAL);if(unifiedSettings())view.setClipChildren(false);return view;}
     LinearLayout column(){LinearLayout view=new LinearLayout(this);view.setOrientation(LinearLayout.VERTICAL);if(unifiedSettings())view.setClipChildren(false);return view;}
-    ScrollView settingsScroll(){return new ScrollView(this){@Override protected void dispatchDraw(Canvas canvas){int save=canvas.save();canvas.clipRect(getScrollX(),getScrollY(),getScrollX()+getWidth(),getScrollY()+getHeight());super.dispatchDraw(canvas);canvas.restoreToCount(save);}};}
+    ScrollView settingsScroll(){
+        return new ScrollView(this){
+            @Override protected void dispatchDraw(Canvas canvas){int save=canvas.save();canvas.clipRect(getScrollX(),getScrollY(),getScrollX()+getWidth(),getScrollY()+getHeight());super.dispatchDraw(canvas);canvas.restoreToCount(save);}
+            @Override public void requestChildFocus(View child,View focused){
+                super.requestChildFocus(child,focused);
+                if(getPaddingBottom()==0||focused==null||focused.getId()==View.NO_ID||focused.getNextFocusDownId()!=focused.getId())return;
+                // The last focus target must reveal the group border and the trailing scroll padding.
+                post(()->{
+                    if(!focused.hasFocus()||focused.getNextFocusDownId()!=focused.getId()||child.getParent()!=this)return;
+                    int bottom=child.getBottom()+getPaddingBottom()-getHeight();
+                    if(bottom>getScrollY())smoothScrollTo(0,bottom);
+                });
+            }
+        };
+    }
     TextView label(String text,int size){TextView view=new TextView(this);view.setText(text);view.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(size));view.setTextColor(unifiedSettings()?UiPalette.TEXT:TEXT);view.setGravity(Gravity.CENTER_VERTICAL);view.setIncludeFontPadding(false);return view;}
     TextView muted(String text,int size){TextView view=label(text,size);view.setTextColor(unifiedSettings()?UiPalette.SECONDARY:MUTED);return view;}
     TextView center(String text,int size){TextView view=label(text,size);view.setGravity(Gravity.CENTER);return view;}
@@ -234,6 +283,20 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity implemen
             view.setPadding(horizontal,vertical,horizontal,vertical);
         });return b;
     }
+    static void styleSheetHeading(TextView heading,float unit){
+        heading.setTextSize(TypedValue.COMPLEX_UNIT_PX,19.2f*unit);
+        heading.setTextColor(UiPalette.TEXT);
+        heading.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));
+    }
+    static void styleSheetNavigation(TextView button,float unit){
+        button.setContentDescription(null);
+        button.setTag("sheet-close");
+        if(button.getId()==View.NO_ID)button.setId(androidx.core.view.ViewCompat.generateViewId());
+        button.setTextSize(TypedValue.COMPLEX_UNIT_PX,10.08f*unit);
+        button.setPadding(0,0,0,0);
+        button.setTextColor(SettingsFocusDrawable.textColors(UiPalette.TEXT));
+        button.setBackgroundDrawable(new SettingsFocusDrawable(unit,999,UiPalette.CONTROL,false,UiPalette.EDGE));
+    }
     Button iconText(String text,int resource,Runnable action){Button b=button(text,action);Drawable icon=uiGlyph(resource);icon.setBounds(0,0,px(15),px(15));b.setCompoundDrawables(icon,null,null,null);b.setCompoundDrawablePadding(px(7));return b;}
     void gap(LinearLayout parent,float height){parent.addView(new View(this),new LinearLayout.LayoutParams(1,px(height)));}
     void marginAdd(LinearLayout parent,View view,int width,int height,int left){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(width<0?width:px(width),height<0?height:px(height));p.leftMargin=px(left);parent.addView(view,p);}
@@ -274,11 +337,17 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity implemen
         tab.setOnKeyListener((v,key,event)->{
             if(key!=KeyEvent.KEYCODE_DPAD_LEFT && key!=KeyEvent.KEYCODE_DPAD_RIGHT && key!=KeyEvent.KEYCODE_DPAD_DOWN)return false;
             if(event.getAction()==KeyEvent.ACTION_UP)return true;
-            if(key==KeyEvent.KEYCODE_DPAD_DOWN)focusManagementContent();
-            else{int[] order=MANAGEMENT_ORDER;int position=0;for(int i=0;i<order.length;i++)if(order[i]==page)position=i;int next=order[(position+(key==KeyEvent.KEYCODE_DPAD_RIGHT?1:-1)+order.length)%order.length];if(next!=page)managementTabs[next].performClick();}
+            if(key==KeyEvent.KEYCODE_DPAD_DOWN)enterManagementTab();
+            else shiftManagementTab(page,key==KeyEvent.KEYCODE_DPAD_RIGHT?1:-1);
             return true;
         });
     }
+    void enterManagementTab(){focusManagementContent();}
+    int adjacentManagementTab(int page,int direction){
+        for(int i=0;i<MANAGEMENT_ORDER.length;i++)if(MANAGEMENT_ORDER[i]==page)return MANAGEMENT_ORDER[(i+direction+MANAGEMENT_ORDER.length)%MANAGEMENT_ORDER.length];
+        return page;
+    }
+    void shiftManagementTab(int page,int direction){int next=adjacentManagementTab(page,direction);if(next!=page)managementTabs[next].performClick();}
     void selectManagementPage(int page){
         Class<?>[] pages={AppManagementActivity.class,DockEditorActivity.class,HomeSortActivity.class,ChildModeActivity.class};
         startActivity(new Intent(this,pages[page]));
@@ -319,6 +388,7 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity implemen
         private SettingsSheetBackdrop backdrop;
         void contentWidth(float minimum,float maximum){if(fixedSize)return;contentSized=true;contentMinimum=minimum;contentMaximum=maximum;box.requestLayout();}
         void lightSurface(){backdrop.light();}
+        void coolTint(boolean enabled){backdrop.coolTint(enabled);}
         // Keep the panel and its chrome anchored; only the content viewport scrolls.
         void fixedSize(float width,float height){
             fixedSize=true;contentSized=false;heightMaximum=0;
@@ -371,11 +441,18 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity implemen
         Button action(String text,Runnable action){Button b=button(text,action);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,-1);if(fullWindow){b.setTextSize(TypedValue.COMPLEX_UNIT_PX,11.712f*unit);b.setPadding(px(13.71f),0,px(13.71f),0);b.setBackgroundDrawable(new SettingsFocusDrawable(unit,999,UiPalette.CONTROL,false,UiPalette.EDGE));b.setTextColor(SettingsFocusDrawable.textColors(UiPalette.TEXT));if(actions.getChildCount()>0)p.leftMargin=px(6);}else p.setMargins(px(5),0,px(5),0);actions.addView(b,p);return b;}
         Button option(String text,Runnable action){Button b=button(text,action);b.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);b.setBackgroundDrawable(useSettingListStyle()?listSurface():focusSurface(9));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,px(43));p.bottomMargin=px(6);body.addView(b,p);return b;}
         Button option(String text,int resource,Runnable action){Button b=option(text,action);Drawable icon=uiGlyph(resource);icon.setBounds(0,0,px(17),px(17));b.setCompoundDrawables(icon,null,null,null);b.setCompoundDrawablePadding(px(10));return b;}
+        void confirmationLayout(Runnable cancel){settingsLayout(null,cancel);}
         Button settingsLayout(String closeLabel,Runnable close){
-            fullWindow=true;box.setClickable(true);box.setPadding(px(18.75f),px(18.75f),px(18.75f),px(18.75f));box.setBackgroundDrawable(backdrop);
-            box.removeView(heading);LinearLayout title=row();heading.setTextSize(TypedValue.COMPLEX_UNIT_PX,19.2f*unit);heading.setTextColor(UiPalette.TEXT);heading.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));heading.setSingleLine(true);heading.setEllipsize(android.text.TextUtils.TruncateAt.END);title.addView(heading,new LinearLayout.LayoutParams(0,px(26.88f),1));
-            Button dismiss=button(closeLabel,close);dismiss.setContentDescription(closeLabel);dismiss.setTag("sheet-close");dismiss.setId(androidx.core.view.ViewCompat.generateViewId());dismiss.setTextSize(TypedValue.COMPLEX_UNIT_PX,10.08f*unit);dismiss.setPadding(0,0,0,0);dismiss.setBackgroundDrawable(new SettingsFocusDrawable(unit,999,UiPalette.CONTROL,false,UiPalette.EDGE));title.addView(dismiss,new LinearLayout.LayoutParams(px(41.2f),px(25.2f)));box.addView(title,0,new LinearLayout.LayoutParams(-1,px(26.88f)));
+            fullWindow=true;box.setClickable(true);box.setFocusable(false);box.setPadding(px(18.75f),px(18.75f),px(18.75f),px(18.75f));box.setBackgroundDrawable(backdrop);
+            box.removeView(heading);LinearLayout title=row();styleSheetHeading(heading,unit);heading.setSingleLine(true);heading.setEllipsize(android.text.TextUtils.TruncateAt.END);title.addView(heading,new LinearLayout.LayoutParams(0,px(26.88f),1));
+            Button dismiss=null;
+            if(closeLabel!=null){
+                dismiss=button(closeLabel,close);styleSheetNavigation(dismiss,unit);
+                title.addView(dismiss,new LinearLayout.LayoutParams(px(41.2f),px(25.2f)));
+            }
+            box.addView(title,0,new LinearLayout.LayoutParams(-1,px(26.88f)));
             actions.getLayoutParams().height=px(34.56f);settingsActions(true);scroll.setVerticalScrollBarEnabled(false);scroll.setClipChildren(false);scroll.setClipToPadding(false);body.setClipChildren(false);body.setClipToPadding(false);
+            BackNavigation.install(dialog,()->{if(box.isEnabled())close.run();});
             FrameLayout overlay=new FrameLayout(ManagementUi.this);overlay.setClipChildren(false);View dim=new View(ManagementUi.this);dim.setBackgroundColor(0x35000000);dim.setOnClickListener(v->{if(box.isEnabled())close.run();});overlay.addView(dim,new FrameLayout.LayoutParams(-1,-1));((ViewGroup)box.getParent()).removeView(box);overlay.addView(box,new FrameLayout.LayoutParams(-2,-2,Gravity.CENTER));dialog.setContentView(overlay);dialog.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);return dismiss;
         }
         void settingsActions(boolean visible){

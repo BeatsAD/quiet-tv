@@ -1,4 +1,3 @@
-import { rememberConnection } from './connection';
 import { completedNotice, deferredNotice, operationLabel, quietResult, requiresTask, resultFields, taskNotice, type OperationNotice } from './operationResults';
 export type Value = string | number | boolean | unknown[] | Record<string, unknown>;
 export type Field = { domain: string; title: string; type: 'range'|'toggle'|'select'|'text'|'order'; min?:number; max?:number; step?:number; unit?:string; divisor?:number; options?:{value:string|number;title:string}[]; maxLength?:number; disabledReason?:string };
@@ -27,13 +26,16 @@ export class PhoneClient {
     if(body!==undefined)return this.fetchNow(path,body);
     const request=this.reads.then(()=>this.fetchNow(path));this.reads=request.catch(()=>{});return request;
   }
-  private async fetchNow(path:string,body?:unknown){
-    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),10000);
+  private async fetchNow(path:string,body?:unknown,signal?:AbortSignal,timeoutMs=10000){
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
+    const abort=()=>controller.abort();
+    signal?.addEventListener('abort',abort);
+    if(signal?.aborted)abort();
     try{
       const response=await fetch(this.resource(path),{method:body===undefined?'GET':'POST',credentials:'same-origin',cache:'no-store',signal:controller.signal,headers:body===undefined?{}:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});
       if(response.status===204)return null;
       const data=await response.json();if(!response.ok)throw new ApiError(response.status,data.message||'操作未确认');return data;
-    }catch(error){if(error instanceof ApiError)throw error;throw new Error(controller.signal.aborted?'电视响应超时，正在重新连接并核对结果':'暂时无法连接电视，正在重连，请保持手机与电视处于同一局域网');}finally{clearTimeout(timer);}
+    }catch(error){if(error instanceof ApiError)throw error;throw new Error(controller.signal.aborted?'电视响应超时，正在重新连接并核对结果':'暂时无法连接电视，正在重连，请保持手机与电视处于同一局域网');}finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);}
   }
   private merge(frame:Frame){
     if(this.frame&&this.frame.generation!==frame.generation){this.status='ended';this.problem='连接已更换，请重新打开收藏的网址';this.publish();throw new ApiError(410,this.problem);}
@@ -44,6 +46,7 @@ export class PhoneClient {
     if(this.frame&&['catalog','icons'].some(domain=>frame.revisions[domain]!==this.frame!.revisions[domain]))this.needsMetadata=true;
     if(this.frame&&['inputs','boot'].some(domain=>frame.revisions[domain]!==this.frame!.revisions[domain]))this.needsMetadata=true;
     if(this.frame&&frame.domains.wallpaper&&['wallMode','wallVideo','dailySource','previewKey'].some(key=>frame.domains.wallpaper[key]!==this.frame!.domains.wallpaper?.[key]))this.needsMetadata=true;
+    if(this.frame&&frame.domains.screensaver&&['saverContent','saverMedia'].some(key=>frame.domains.screensaver[key]!==this.frame!.domains.screensaver?.[key]))this.needsMetadata=true;
     if(this.frame&&frame.domains.greeting&&frame.domains.greeting.avatar!==this.frame.domains.greeting?.avatar)this.needsMetadata=true;
     this.frame={...frame,domains:frame.complete?frame.domains:{...this.frame?.domains,...frame.domains}};
     this.reportTasks();this.reportDeferred();
@@ -69,9 +72,8 @@ export class PhoneClient {
     const field=this.metadata?.fields[key];return field?this.frame?.domains[field.domain]?.[key]:undefined;
   }
   values():Record<string,Value>{const values:Record<string,Value>={};for(const domain of Object.values(this.frame?.domains||{}))Object.assign(values,domain);for(const [key,pending] of this.pending)values[key]=pending.value;return values;}
-  start(){this.stopped=false;document.addEventListener('visibilitychange',this.visibility);window.addEventListener('online',this.visibility);window.addEventListener('hashchange',this.connectionChanged);void this.poll();}
-  stop(){this.stopped=true;clearTimeout(this.timer);document.removeEventListener('visibilitychange',this.visibility);window.removeEventListener('online',this.visibility);window.removeEventListener('hashchange',this.connectionChanged);}
-  private connectionChanged=(event:HashChangeEvent)=>{const before=new URLSearchParams(new URL(event.oldURL).hash.slice(1)).get('connect'),after=new URLSearchParams(new URL(event.newURL).hash.slice(1)).get('connect');if(before!==after&&(before||after))location.reload();};
+  start(){this.stopped=false;document.addEventListener('visibilitychange',this.visibility);window.addEventListener('online',this.visibility);void this.poll();}
+  stop(){this.stopped=true;clearTimeout(this.timer);document.removeEventListener('visibilitychange',this.visibility);window.removeEventListener('online',this.visibility);}
   private visibility=()=>{clearTimeout(this.timer);if(!document.hidden&&!this.stopped)void this.poll();};
   private async poll(){
     if(this.polling||this.stopped||document.hidden||this.status==='ended')return;this.polling=true;
@@ -153,19 +155,22 @@ export class PhoneClient {
     const read=++this.readCount,version=this.version;
     try{
       if(!this.frame){
-        const key=new URLSearchParams(location.hash.slice(1)).get('connect');let status;
-        if(key){
-          await this.fetch('connect',{key});
-          try{status=await this.fetch('status');}catch(error){if(error instanceof ApiError&&error.status===410)throw new ApiError(410,'当前浏览器未保存授权，请允许网站数据，或使用普通模式打开完整连接网址');throw error;}
-        }else status=await this.fetch('status');
-        if(status.state!=='connected')return;
-        if(typeof status.connectionLink==='string')rememberConnection(status.connectionLink,this.base);
+        const status=await this.fetch('status');
+        if(status.state!=='connected'){
+          if(this.currentRead(read,version)){this.status='pairing';this.problem='';}
+          return;
+        }
       }
       const frame:Frame|null=await this.fetch(full||!this.frame||this.needsMetadata?'api/bootstrap':`api/state?since=${encodeURIComponent(this.frame.revision)}`);
       this.acceptRead(frame,read,version);
       if(this.needsMetadata&&this.currentRead(read,version))this.acceptRead(await this.fetch('api/bootstrap'),read,version);
     }catch(error){if(this.currentRead(read,version))this.handle(error);}
     finally{this.publish();void this.drain();}
+  }
+  async pair(code:string){
+    await this.fetch('pair',{code});
+    await this.refresh();
+    if(this.status==='pairing')throw new Error('当前浏览器未保存授权，请允许网站数据后重试');
   }
   async refreshNow(){await this.refresh();this.onOperation?.(this.status==='connected'?{kind:'success',title:'状态已更新'}:{kind:'error',title:'刷新失败',detail:this.problem||'请重新连接电视后重试'});}
   async useTelevision(){while(this.running)await new Promise(resolve=>setTimeout(resolve,50));this.version++;this.attempt=undefined;for(const pending of this.pending.values())clearTimeout(pending.timer);this.pending.clear();await this.refresh();}
@@ -177,6 +182,9 @@ export class PhoneClient {
     try{return await this.send({request,announce});}finally{this.running=false;this.publish();void this.drain();}
   }
   tasks():Task[]{return (this.frame?.domains.tasks?.jobs||[]) as unknown as Task[];}
+  about(kind:'device'|'runtime',signal:AbortSignal){
+    return this.fetchNow(`api/about/${kind}`,undefined,signal,kind==='runtime'?25000:undefined);
+  }
   async places(query:string){const result=await this.fetch(`api/places?q=${encodeURIComponent(query)}`);return result.places as {code:string;name:string;area:string}[];}
   async parent(action:string,pin='',newPin=''){
     const generation=this.frame?.generation;

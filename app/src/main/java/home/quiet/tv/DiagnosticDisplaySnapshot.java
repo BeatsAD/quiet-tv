@@ -23,6 +23,7 @@ final class DiagnosticDisplaySnapshot {
 
     // Called on the UI thread after the home has dispatched a draw. Retain values, never Views.
     static void home(Activity activity,View root,Canvas canvas){
+        if(!DiagnosticLog.recording())return;
         DiagnosticDisplaySnapshot sample=new DiagnosticDisplaySnapshot();
         sample.window(activity,root);
         sample.line("首页 Canvas 尺寸",size(canvas.getWidth(),canvas.getHeight()));

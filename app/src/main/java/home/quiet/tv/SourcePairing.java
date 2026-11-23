@@ -203,7 +203,7 @@ final class SourcePairing {
     }
     private String notifiedRevision="";
     private void record(){try{
-        JSONObject value=snapshot();InputSourceObservation.savePairing(context,value);String revision=value.optString("revision");if(!revision.equals(notifiedRevision)){notifiedRevision=revision;PhoneSettingsSession.get(context).configurationChanged();}
+        if(DiagnosticLog.recording())InputSourceObservation.savePairing(context,snapshot());String revision=store.revision();if(!revision.equals(notifiedRevision)){notifiedRevision=revision;PhoneSettingsSession.get(context).configurationChanged();}
         DiagnosticLog.info("input.pairing.state","search="+searchId+" state="+searchState+" request="+(test==null?"none":test.request)+" test="+(test==null?"none":test.state));
     }catch(Exception failure){DiagnosticLog.error("input.pairing.record_failed",failure);}}
     static boolean validEntry(Context context,JSONObject entry){

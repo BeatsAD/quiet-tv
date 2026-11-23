@@ -25,16 +25,16 @@ final class PhoneSettingsPreview {
             ChildModeStore child=new ChildModeStore(context);JSONObject rules=new JSONObject(child.preferences.getString("rules","{}")),hidden=new JSONObject();
             for(Iterator<String> keys=rules.keys();keys.hasNext();){String key=keys.next();JSONObject rule=rules.optJSONObject(key);if(rule!=null&&rule.optBoolean("hidden"))hidden.put(key,true);}
             return new JSONObject().put("packages",packageEpoch).put("hidden",new HomeVisibilityStore(context).signature()).put("order",new HomeOrderStore(context).signature())
-                .put("covers",AppCoverStore.get(context).revision()).put("childEnabled",child.enabled()).put("childHidden",hidden);
+                .put("showWatchTv",new DesktopSettingsStore(context).showWatchTv()).put("covers",AppCoverStore.get(context).revision()).put("iconSafety",AppArtwork.previewRevision(context)).put("childEnabled",child.enabled()).put("childHidden",hidden);
         }catch(JSONException e){throw new IOException("应用预览状态无法读取",e);}
     }
     JSONArray entries()throws IOException {
         try{
             ArrayList<String> pinned=new DockStore(context).load();List<HomeAppCatalog.Entry> entries=new HomeAppCatalog(context).load(pinned);JSONArray out=new JSONArray();
-            String version;synchronized(this){version=packageEpoch+"-"+AppCoverStore.get(context).revision();}
+            String version;synchronized(this){version=packageEpoch+"-"+AppCoverStore.get(context).revision()+"-"+AppArtwork.previewRevision(context);}
             for(HomeAppCatalog.Entry entry:entries){
                 String encoded=java.net.URLEncoder.encode(entry.id,"UTF-8");JSONObject app=new JSONObject().put("id",entry.id).put("name",entry.label)
-                    .put("cover","api/resources/cover/"+encoded+"?v="+version).put("icon","api/resources/icon/"+encoded+"?v="+version).put("coverFit",AppCoverStore.get(context).contain(entry.id)?"contain":"cover");
+                    .put("cover","api/resources/cover/"+encoded+"?v="+version).put("icon","api/resources/icon/"+encoded+"?v="+version).put("coverFit",AppArtwork.displayedAsContain(context,entry.id)?"contain":"cover");
                 if(entry.info!=null){PackageInfo info=context.getPackageManager().getPackageInfo(entry.id,0);app.put("version",info.versionName==null?String.valueOf(info.versionCode):info.versionName);long size=apkSize(info.applicationInfo);if(size>=0)app.put("apkBytes",size);app.put("system",(info.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)!=0);}
                 out.put(app);
             }

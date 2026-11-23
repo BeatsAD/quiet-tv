@@ -6,6 +6,11 @@ def homeMode = providers.gradleProperty('quietHomeMode').getOrElse('standard')
 if (!(homeMode in ['standard', 'relay'])) throw new GradleException('Unsupported quietHomeMode')
 if (legacy && homeMode != 'standard') throw new GradleException('Android 4.x does not support the relay package')
 def independent = providers.gradleProperty('quietIndependent').getOrElse('false').toBoolean()
+def localTest = providers.gradleProperty('quietLocalTest').getOrElse('false').toBoolean()
+def localTestBase = providers.gradleProperty('quietLocalTestBase').orNull
+if (localTestBase != null && (!localTest || independent || !(localTestBase ==~ /[0-9]+\.[0-9]+\.[0-9]+/))) {
+    throw new GradleException('quietLocalTestBase requires a three-part version and a main-app local test build')
+}
 def launcherId = providers.gradleProperty('quietApplicationId').getOrElse(independent ? 'home.quiet.tv.scopeqa' : 'home.quiet.tv')
 if (independent != (launcherId == 'home.quiet.tv.scopeqa')) throw new GradleException('Independent builds require home.quiet.tv.scopeqa and quietIndependent=true')
 if (!(launcherId in ['home.quiet.tv', 'com.coocaa.quiettv', 'com.ts.launcher', 'home.quiet.tv.scopeqa'])) throw new GradleException('Unsupported quietApplicationId')
@@ -13,6 +18,9 @@ if (launcherId == 'com.ts.launcher' && (legacy || homeMode != 'standard')) throw
 if (launcherId == 'com.ts.launcher' && providers.gradleProperty('quietHomeProxy').getOrElse('false') == 'true') throw new GradleException('Xiaomi main application owns HOME; do not build a HOME proxy with it')
 def minimumSdk = providers.gradleProperty('quietMinSdk').getOrElse(legacy ? (compatibility == 'legacy14' ? '14' : '19') : '21').toInteger()
 if ((legacy && minimumSdk != (compatibility == 'legacy14' ? 14 : 19)) || (!legacy && minimumSdk < 21)) throw new GradleException('Minimum SDK does not match compatibility profile')
+androidComponents.beforeVariants(androidComponents.selector().withBuildType('release')) { variant ->
+    if (localTestBase != null) variant.enable = false
+}
 // The vendor package name does not require Android 8. Keep API19 on the legacy source set.
 android {
     namespace 'home.quiet.tv'
@@ -21,7 +29,8 @@ android {
         applicationId launcherId
         minSdk minimumSdk
         if (legacy) multiDexEnabled true
-        manifestPlaceholders = [leanbackRequired: !legacy, homeGuardAvailable: !legacy, legacyAdbGuardAvailable: legacy, quietAppLabel: independent ? 'Quiet TV 2.0 测试' : 'Quiet TV']
+        manifestPlaceholders = [leanbackRequired: !legacy, homeGuardAvailable: !legacy, legacyAdbGuardAvailable: legacy,
+            quietAppLabel: independent ? 'Quiet TV 2.0 测试' : 'Quiet TV', quietNativeHomeDirectBootAware: launcherId == 'home.quiet.tv']
         buildConfigField 'boolean', 'INDEPENDENT_BUILD', independent.toString()
         buildConfigField 'boolean', 'LEGACY_19', legacy.toString()
         buildConfigField 'boolean', 'DECLARES_HOME', (homeMode == 'standard').toString()
@@ -33,7 +42,7 @@ android {
         buildConfigField 'String', 'UPDATE_ABI', '"' + providers.gradleProperty('quietAbi').getOrElse('universal') + '"'
         targetSdk 36
         versionCode providers.gradleProperty('quietBuildNumber').getOrElse('105').toInteger()
-        versionName((independent ? '2.0.0' : '2.0.6') + (!independent && providers.gradleProperty('quietLocalTest').getOrElse('false').toBoolean() ? '.1' : ''))
+        versionName((independent ? '2.0.0' : (localTestBase ?: '2.0.7')) + (!independent && localTest ? '.1' : ''))
     }
     buildFeatures { buildConfig true }
     // Keep local wallpaper originals out of every APK compatibility profile.
@@ -94,7 +103,6 @@ android {
         defaultConfig.ndk.abiFilters.add(selectedAbi)
     }
     compileOptions {
-        // JmDNS uses Java collection and stream APIs unavailable before Android 7.
         coreLibraryDesugaringEnabled true
         sourceCompatibility JavaVersion.VERSION_11
         targetCompatibility JavaVersion.VERSION_11
@@ -116,8 +124,6 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.json:json:20240303'
     implementation 'org.nanohttpd:nanohttpd:2.3.1'
-    // Publish a stable .local hostname, including Android 4.x where NSD cannot set one.
-    implementation 'org.jmdns:jmdns:3.6.5'
     implementation legacy ? 'com.google.zxing:core:3.3.0' : 'com.google.zxing:core:3.5.3'
     implementation legacy ? 'androidx.exifinterface:exifinterface:1.3.7' : 'androidx.exifinterface:exifinterface:1.4.2'
     implementation legacy ? 'androidx.recyclerview:recyclerview:1.3.2' : 'androidx.recyclerview:recyclerview:1.4.0'
@@ -143,6 +149,20 @@ tasks.register('bundleAbout', Exec) {
     commandLine 'python3', file('../scripts/bundle_about.py'), aboutAssets.get().dir('about').asFile
 }
 tasks.named('preBuild').configure { dependsOn 'bundleAbout' }
+
+// Ship the verified, fixed boot-ad switches from the computer catalog.
+def bootAdAssets = layout.buildDirectory.dir('generated/bootAdAssets')
+android.sourceSets.main.assets.srcDir(bootAdAssets)
+tasks.register('bundleBootAdRules', Exec) {
+    inputs.files('../scripts/device-presets.json', '../scripts/boot_ads.py', '../scripts/device_adaptation.py')
+    def output = bootAdAssets.map { it.file('boot-ad-rules.json') }
+    outputs.file(output)
+    workingDir '../scripts'
+    commandLine 'python3', '-B', '-c',
+        'import json, sys; from pathlib import Path; from boot_ads import bundled_settings; p = Path(sys.argv[1]); data = bundled_settings(); p.parent.mkdir(parents=True, exist_ok=True); p.write_text(json.dumps(data), encoding="utf-8")',
+        output.get().asFile
+}
+tasks.named('preBuild').configure { dependsOn 'bundleBootAdRules' }
 
 // Ordinary Android builds use checked-in web assets; Node is needed only to regenerate them.
 tasks.register('verifyPhoneSettingsAssets', Exec) {

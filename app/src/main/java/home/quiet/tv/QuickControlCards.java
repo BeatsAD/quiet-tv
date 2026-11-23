@@ -18,8 +18,6 @@ import java.util.Map;
 /** Draws one moving focus surface between the card backgrounds and their content. */
 final class QuickControlCards extends LinearLayout {
     private static final int OFF_FILL = 0x24ffffff;
-    private static final int ON_FILL = 0xffe2edf8;
-    private static final int ON_INK = 0xff24537d;
     private static final AccelerateDecelerateInterpolator EASE = new AccelerateDecelerateInterpolator();
     private final Map<View, Card> cards = new LinkedHashMap<>();
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -31,7 +29,7 @@ final class QuickControlCards extends LinearLayout {
     private View preview;
     private ValueAnimator animator;
 
-    interface Ink { void color(int color); }
+    interface Ink { void update(int color, boolean focused, boolean on); }
 
     static int trackTint(int ink) { return ink == UiPalette.INK ? 0x33000000 : 0x55ffffff; }
 
@@ -40,6 +38,8 @@ final class QuickControlCards extends LinearLayout {
         final Ink ink;
         final RectF bounds = new RectF();
         boolean on;
+        boolean focused;
+        boolean appearanceDirty = true;
         int color = UiPalette.TEXT;
 
         Card(View view, Ink ink) {
@@ -63,10 +63,16 @@ final class QuickControlCards extends LinearLayout {
         if (android.os.Build.VERSION.SDK_INT >= 26) Api26.disableSystemHighlight(focusView);
     }
 
+    void cardLostFocus(View focusView) {
+        // Moving to the HOME header can bypass clearChildFocus() on this subtree.
+        if (cards.containsKey(focusView)) invalidate();
+    }
+
     void setOn(View focusView, boolean on) {
         Card card = cards.get(focusView);
         if (card != null && card.on != on) {
             card.on = on;
+            card.appearanceDirty = true;
             invalidate();
         }
     }
@@ -144,7 +150,7 @@ final class QuickControlCards extends LinearLayout {
             scratch.set(0, 0, card.view.getWidth(), card.view.getHeight());
             offsetDescendantRectToMyCoords(card.view, scratch);
             card.bounds.set(scratch);
-            paint.setColor(card.on ? ON_FILL : OFF_FILL);
+            paint.setColor(card.on ? UiPalette.TEXT : OFF_FILL);
             canvas.drawRoundRect(card.bounds, corner, corner, paint);
         }
 
@@ -158,10 +164,13 @@ final class QuickControlCards extends LinearLayout {
 
         boolean sliding = !plate.equals(destination);
         for (Card card : cards.values()) {
-            int color = card.on ? ON_INK : !sliding && card == selected ? UiPalette.INK : UiPalette.TEXT;
-            if (card.color != color) {
+            boolean focused = card == selected;
+            int color = card.on || !sliding && focused ? UiPalette.INK : UiPalette.TEXT;
+            if (card.appearanceDirty || card.color != color || card.focused != focused) {
+                card.appearanceDirty = false;
                 card.color = color;
-                card.ink.color(color);
+                card.focused = focused;
+                card.ink.update(color, focused, card.on);
             }
         }
         if (sliding && getLocalVisibleRect(scratch)) {

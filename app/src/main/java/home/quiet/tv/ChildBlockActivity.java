@@ -86,9 +86,9 @@ public final class ChildBlockActivity extends ManagementUi {
         LinearLayout presets=row();visual.gap(sheet.body,19.2f);sheet.body.addView(presets,new LinearLayout.LayoutParams(-1,visual.p(48)));
         for(int minutes:new int[]{15,30}){Button b=visual.button(minutes+" 分钟",()->add(minutes,sheet,error),false);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-1,1);if(presets.getChildCount()>0)lp.leftMargin=visual.p(12);presets.addView(b,lp);}
         visual.gap(sheet.body,19.2f);EditText custom=visual.number("","自定义分钟",4);sheet.body.addView(custom,new LinearLayout.LayoutParams(-1,visual.p(64)));
-        visual.gap(sheet.body,19.2f);LinearLayout pad=visual.numberPad(sheet,custom);sheet.body.addView(pad);visual.gap(sheet.body,12);sheet.body.addView(error);
+        visual.gap(sheet.body,19.2f);LinearLayout pad=visual.numberPad(sheet.dialog,sheet.actions,custom);sheet.body.addView(pad);visual.gap(sheet.body,12);sheet.body.addView(error);
         sheet.action("取消",sheet.dialog::dismiss,false);sheet.action("追加",()->{try{add(Integer.parseInt(custom.getText().toString()),sheet,error);}catch(NumberFormatException e){error.setText("请输入 1–1440 分钟");}},true);
-        visual.numberActions(sheet,pad);grantDialog=sheet.dialog;sheet.dialog.setOnDismissListener(d->{sheet.release();if(grantDialog==sheet.dialog)grantDialog=null;});sheet.show(custom);
+        visual.numberActions(sheet.actions,pad);grantDialog=sheet.dialog;sheet.dialog.setOnDismissListener(d->{sheet.release();if(grantDialog==sheet.dialog)grantDialog=null;});sheet.show(custom);
     }
     private void add(int minutes,ChildModeUi.Sheet sheet,TextView error){try{if(!store.grant(pkg,minutes*ChildModePolicy.MINUTE)){error.setText("保存失败，请重试");return;}sheet.dialog.dismiss();launch();}catch(IllegalArgumentException e){error.setText(e.getMessage());}}
     private void launch(){

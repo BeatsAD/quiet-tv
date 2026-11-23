@@ -8,6 +8,7 @@ import android.view.View;
 
 /** Draw a HOME before user storage unlocks, without initializing the desktop or changing its owner. */
 public final class BootHomeActivity extends Activity {
+    private static final int HOME_MATCH=PackageManager.MATCH_DIRECT_BOOT_AWARE|PackageManager.MATCH_DIRECT_BOOT_UNAWARE;
     private boolean listening,forwarded;
     private final BroadcastReceiver unlock=new BroadcastReceiver(){
         @Override public void onReceive(Context context,Intent intent){forward();}
@@ -15,12 +16,20 @@ public final class BootHomeActivity extends Activity {
 
     @androidx.annotation.ChecksSdkIntAtLeast(api=24)
     private static boolean supported(){return Build.VERSION.SDK_INT>=24 && !BuildConfig.LEGACY_19 && BuildConfig.DECLARES_HOME;}
-    private static boolean required(Context context){
+    private static ResolveInfo selectedHome(Context context){
+        return context.getPackageManager().resolveActivity(HomeController.homeIntent(),HOME_MATCH|PackageManager.MATCH_DEFAULT_ONLY);
+    }
+    @androidx.annotation.RequiresApi(24)
+    private static boolean mainDirectBootAware(Context context,ResolveInfo home){
+        return home!=null && home.activityInfo!=null && context.getPackageName().equals(home.activityInfo.packageName)
+                && HomeActivity.class.getName().equals(home.activityInfo.name) && home.activityInfo.directBootAware;
+    }
+    @androidx.annotation.RequiresApi(24)
+    private static boolean required(Context context,ResolveInfo resolved){
         PackageManager pm=context.getPackageManager();
-        int flags=PackageManager.MATCH_DIRECT_BOOT_AWARE|PackageManager.MATCH_DIRECT_BOOT_UNAWARE;
-        ResolveInfo resolved=pm.resolveActivity(HomeController.homeIntent(),flags|PackageManager.MATCH_DEFAULT_ONLY);
         if(resolved==null || resolved.activityInfo==null || !context.getPackageName().equals(resolved.activityInfo.packageName))return false;
-        for(ResolveInfo candidate:pm.queryIntentActivities(HomeController.homeIntent(),flags))
+        if(mainDirectBootAware(context,resolved))return false;
+        for(ResolveInfo candidate:pm.queryIntentActivities(HomeController.homeIntent(),HOME_MATCH))
             if(candidate.activityInfo!=null && !context.getPackageName().equals(candidate.activityInfo.packageName)
                     && candidate.priority>=-1 && !"android".equals(candidate.activityInfo.packageName)
                     && !candidate.activityInfo.name.endsWith("FallbackHome"))return false;
@@ -34,7 +43,7 @@ public final class BootHomeActivity extends Activity {
             int current=pm.getComponentEnabledSetting(entry);
             // Preserve an explicit external disable; our own inactive state is the manifest default.
             if(current!=PackageManager.COMPONENT_ENABLED_STATE_DEFAULT && current!=PackageManager.COMPONENT_ENABLED_STATE_ENABLED)return;
-            boolean enable=required(context);
+            boolean enable=required(context,selectedHome(context));
             int wanted=enable?PackageManager.COMPONENT_ENABLED_STATE_ENABLED:PackageManager.COMPONENT_ENABLED_STATE_DEFAULT;
             if(current!=wanted){
                 int flags=PackageManager.DONT_KILL_APP;
@@ -48,7 +57,9 @@ public final class BootHomeActivity extends Activity {
     static org.json.JSONObject snapshot(Context context) throws org.json.JSONException {
         org.json.JSONObject value=new org.json.JSONObject().put("supported",supported()).put("required",false).put("enabled",false).put("ready",!supported());
         if(!supported())return value;
-        boolean needed=required(context);value.put("required",needed);
+        ResolveInfo home=selectedHome(context);
+        boolean needed=required(context,home);
+        value.put("required",needed).put("mainDirectBootAware",mainDirectBootAware(context,home));
         try{
             PackageManager pm=context.getPackageManager();ComponentName entry=new ComponentName(context,BootHomeActivity.class);
             ActivityInfo info=pm.getActivityInfo(entry,HomeController.METADATA);

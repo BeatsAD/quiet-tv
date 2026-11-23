@@ -9,7 +9,8 @@ import java.util.ArrayList;
 final class SettingsHubPanel extends ManagementPanel {
     private final int section;
     private final ArrayList<DesktopSettingsRow> rows=new ArrayList<>();
-    private DesktopSettingsRow sounds;
+    private DesktopSettingsRow sounds,update;
+    private final UpdateRepository.Listener updatesChanged=this::refreshUpdate;
     private MemoPanel memos;
     private DesktopSettingsRow memoRow;
     private String focusTag;
@@ -29,14 +30,15 @@ final class SettingsHubPanel extends ManagementPanel {
             setting(tools,activity.tr("信号源","Inputs"),"desktop","quick-source",()->activity.selectManagementPage(SettingsPages.STARTUP));
         }else{
             LinearLayout software=group(body,activity.tr("软件更新","Software updates"));
-            DesktopSettingsRow update=setting(software,activity.tr("软件更新","Software updates"),"refresh","help-update",()->activity.helpTool("update"));update.value(BuildConfig.VERSION_NAME+" "+UpdatePanel.channel(BuildConfig.UPDATE_CHANNEL));
+            update=setting(software,activity.tr("软件更新","Software updates"),"refresh","help-update",()->activity.helpTool("update"));refreshUpdate();
             gap(body,12);LinearLayout help=group(body,activity.tr("问题与反馈","Questions and feedback"));
             setting(help,activity.tr("常见问题","Common questions"),"info","help-topics",()->activity.helpTool("help")).value(activity.tr("HOME、开机、安装与恢复","HOME, startup, installation and recovery"));
-            setting(help,activity.tr("导出诊断","Export diagnostics"),"logs","help-diagnostics",()->activity.helpTool("logs")).value(activity.tr("手机扫码下载","Scan to download"));
+            setting(help,activity.tr("诊断日志","Diagnostic logs"),"logs","help-diagnostics",()->activity.helpTool("logs"));
+            setting(help,activity.tr("专项排查","Advanced diagnostics"),"logs","help-specialty",()->activity.helpTool("specialty"));
             setting(help,activity.tr("加入交流群","Join the community"),"info","help-community",()->activity.helpTool("community")).value(activity.tr("提反馈、提建议","Feedback and suggestions"));
             gap(body,12);LinearLayout about=group(body,activity.tr("关于","About"));
             DesktopSettingsRow aboutRow=setting(about,activity.tr("关于 Quiet TV","About Quiet TV"),"info","help-about",()->activity.helpTool("about"));
-            aboutRow.value(activity.tr("版本与开源信息","Version and open-source information"));aboutRow.brandIcon(R.drawable.launcher_icon);
+            aboutRow.value(activity.tr("设备与开源信息","Device and open-source information"));aboutRow.brandIcon(R.drawable.launcher_icon);
         }
         activity.wireRows(rows.toArray(new DesktopSettingsRow[0]),managementTab());if(state!=null)focusTag=state.getString("focus");if(memos!=null)memos.restoreState(state);
     }
@@ -45,8 +47,15 @@ final class SettingsHubPanel extends ManagementPanel {
     void toolReturned(String kind){String tag=kind.equals("help")?"help-topics":kind.equals("logs")?"help-diagnostics":"help-"+kind;View row=pageRoot.findViewWithTag(tag);if(row!=null){focusTag=tag;row.requestFocusFromTouch();}}
     @Override void focusManagementContent(){View target=focusTag==null?null:pageRoot.findViewWithTag(focusTag);if(target==null||!target.isEnabled()||!target.isShown())target=rows.get(0);target.requestFocus();}
     @Override public void handleBack(){if(!managementTabFocused())managementTab().requestFocus();else super.handleBack();}
-    @Override protected void onResume(){super.onResume();if(memos!=null)memos.refreshCount();if(sounds!=null)sounds.checked(new DesktopSettingsStore(this).keySounds());}
-    @Override protected void onPause(){View focus=getCurrentFocus();if(focus!=null&&pageRoot.hasFocus()&&focus.getTag() instanceof String)focusTag=(String)focus.getTag();super.onPause();}
+    private void refreshUpdate(){
+        UpdateManifest.Artifact candidate=UpdateRepository.get(activity).available;
+        String value=candidate==null?BuildConfig.VERSION_NAME+"  "+UpdatePanel.channel(BuildConfig.UPDATE_CHANNEL)
+                :activity.tr("可更新至 ","Update available: ")+candidate.version();
+        if(!value.equals(update.value()))update.value(value);
+        update.updateLabel(candidate!=null);
+    }
+    @Override protected void onResume(){super.onResume();if(memos!=null)memos.refreshCount();if(sounds!=null)sounds.checked(new DesktopSettingsStore(this).keySounds());if(update!=null)UpdateRepository.get(activity).add(updatesChanged);}
+    @Override protected void onPause(){if(update!=null)UpdateRepository.get(activity).remove(updatesChanged);View focus=getCurrentFocus();if(focus!=null&&pageRoot.hasFocus()&&focus.getTag() instanceof String)focusTag=(String)focus.getTag();super.onPause();}
     @Override protected void onDestroy(){if(memos!=null)memos.destroy();super.onDestroy();}
     @Override protected void onSaveInstanceState(Bundle state){View focus=getCurrentFocus();if(focus!=null&&pageRoot.hasFocus()&&focus.getTag() instanceof String)focusTag=(String)focus.getTag();state.putString("focus",focusTag);if(memos!=null)memos.saveState(state);}
 }

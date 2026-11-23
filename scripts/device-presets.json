@@ -281,6 +281,38 @@
       }
     }
   ],
+  "upstreamBootAds": [
+    {
+      "brand": "xiaomi",
+      "model": "MiTV-MFTP0",
+      "fingerprint": "xiaomi/alita/alita:9/PPR2.180905.006.A1/6129:user/release-keys",
+      "versionName": "3.49.1601",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/main/examples/redmi-mitv-mftp0/debloat.txt#L36-L39",
+      "evidence": "固件 23.2.10.6129。上游记录开关原先不存在，写入 0 后完整重启没有开机广告。",
+      "id": "xiaomi-boot-ad-switch"
+    },
+    {
+      "brand": "xiaomi",
+      "model": "MiTV-ANTL0",
+      "device": "starwars",
+      "firmware": "23.2.4.2225",
+      "versionName": "3.38.1017",
+      "source": "https://github.com/Gathin23/cleanyourtv/blob/d4ac32c344987ae4e8faf1ee32d8b9572fb57fe3/docs/devices/xiaomi-l43m7-ea-antl0.md",
+      "evidence": "小米 L43M7-EA。上游单独修改开关，完整重启后开机广告消失，原桌面保留。",
+      "id": "xiaomi-boot-ad-switch"
+    },
+    {
+      "brand": "xiaomi",
+      "model": "MiTV-MTTP0",
+      "device": "hugo",
+      "firmware": "21.4.9.2585",
+      "incremental": "2585",
+      "versionName": "3.50.1621",
+      "source": "https://github.com/Gathin23/cleanyourtv/issues/1063",
+      "evidence": "Redmi L65R6-A。上游写入开关后读回为 0，机主报告关机再开机没有广告，未验证完整重启。",
+      "id": "xiaomi-boot-ad-switch"
+    }
+  ],
   "references": [
     {
       "area": "bootAds",

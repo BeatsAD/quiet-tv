@@ -8,14 +8,6 @@ import android.widget.FrameLayout;
 
 /** Brightness and reveal opacity belong to the wallpaper, never to foreground controls. */
 final class WallpaperAppearance {
-    static android.graphics.drawable.Drawable desktopShade(){return new android.graphics.drawable.Drawable(){
-        final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
-        @Override protected void onBoundsChange(Rect r){paint.setShader(new LinearGradient(0,r.top,0,r.bottom,new int[]{0x30000000,0x20000000,0x80000000},new float[]{0,.4f,1},Shader.TileMode.CLAMP));}
-        @Override public void draw(Canvas canvas){canvas.drawRect(getBounds(),paint);}
-        @Override public void setAlpha(int alpha){paint.setAlpha(alpha);invalidateSelf();}
-        @Override public void setColorFilter(ColorFilter filter){paint.setColorFilter(filter);invalidateSelf();}
-        @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
-    };}
     private final FrameLayout host;
     private final View dim;
     private final Runnable changed;

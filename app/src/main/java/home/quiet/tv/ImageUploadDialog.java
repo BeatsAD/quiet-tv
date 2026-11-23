@@ -27,8 +27,8 @@ final class ImageUploadDialog {
         FrameLayout panel=new FrameLayout(activity);backdrop=new SettingsSheetBackdrop(panel,ui.unit,background,filter);panel.setBackgroundDrawable(backdrop);backdrop.followWindowFocus();if(android.os.Build.VERSION.SDK_INT>=21)panel.setElevation(ui.px(18));
         LinearLayout box=column();box.setPadding(ui.px(30),ui.px(30),ui.px(30),ui.px(30));
         LinearLayout header=new LinearLayout(activity);header.setGravity(Gravity.CENTER_VERTICAL);TextView heading=ui.text(title,23);heading.setSingleLine();heading.setEllipsize(android.text.TextUtils.TruncateAt.END);header.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
-        TextView close=ui.button("",false,()->{closeAction.run();KeyFeedback.back(activity);});close.setContentDescription(tr("关闭上传","Close upload"));close.setPadding(ui.px(8),ui.px(8),ui.px(8),ui.px(8));close.setCompoundDrawables(ui.icon("x",12,WallpaperUi.INK),null,null,null);close.setBackgroundDrawable(ui.focusSurface(UiPalette.INK_SECONDARY,100));
-        header.addView(close,new LinearLayout.LayoutParams(ui.px(33),ui.px(33)));box.addView(header,new LinearLayout.LayoutParams(-1,ui.px(42)));
+        TextView close=ui.button(tr("返回","Back"),false,()->{closeAction.run();KeyFeedback.back(activity);});ManagementUi.styleSheetNavigation(close,ui.unit);
+        header.addView(close,new LinearLayout.LayoutParams(ui.px(41.2f),ui.px(25.2f)));box.addView(header,new LinearLayout.LayoutParams(-1,ui.px(42)));
         LinearLayout connection=new LinearLayout(activity);connection.setGravity(Gravity.CENTER_VERTICAL);connection.setMinimumHeight(ui.px(258));LinearLayout steps=column();
         step(steps,"1",tr("连接同一个局域网","Connect to the same local network"),tr("电视可使用 Wi-Fi 或网线连接","Your TV can use Wi-Fi or Ethernet"),46);
         LinearLayout second=step(steps,"2",tr("手机扫码，或在电脑浏览器打开","Scan with your phone, or open on your computer"),null,64);

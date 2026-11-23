@@ -53,7 +53,7 @@ final class DesktopMediaImportPanel {
     private Button button(String label,String tag,Runnable action){Button b=ui.button(label,action);b.setTag(tag);b.setId(androidx.core.view.ViewCompat.generateViewId());b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,p(16));b.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));b.setPadding(p(12),p(8),p(12),p(8));b.setBackgroundDrawable(new SettingsFocusDrawable(ui.unit,12,UiPalette.CONTROL,false,UiPalette.EDGE));return b;}
     void show(String target,String type,Target callback){if(sheet!=null||destroyed)return;this.target=target;this.type=type;this.callback=callback;source="phone";name="";nameDirty=false;notice="";savedId="";expired=false;pending=null;receivedIds.clear();browsing=false;boundary=folder=null;retaining=false;open();startPhone();}
     private void open(){
-        origin=ui.getCurrentFocus();sheet=ui.new Sheet(target.equals("wallpaper")?tr("上传壁纸","Upload wallpaper"):tr("导入素材","Import media"));closeButton=sheet.settingsLayout(tr("关闭","Close"),this::close);sheet.settingsActions(true);ManagementUi.Sheet current=sheet;
+        origin=ui.getCurrentFocus();sheet=ui.new Sheet(target.equals("wallpaper")?tr("上传壁纸","Upload wallpaper"):tr("导入素材","Import media"));closeButton=sheet.settingsLayout(tr("返回","Back"),this::close);sheet.settingsActions(true);ManagementUi.Sheet current=sheet;
         if(target.equals("wallpaper")){
             ((FrameLayout.LayoutParams)sheet.box.getLayoutParams()).width=ui.px(480);
             sheet.heading.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,22*ui.unit);
@@ -61,7 +61,7 @@ final class DesktopMediaImportPanel {
             closeButton.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,12*ui.unit);closeButton.getLayoutParams().width=ui.px(48);closeButton.getLayoutParams().height=ui.px(28);
         }
         sheet.contentSize(target.equals("wallpaper")?480:448,440);
-        sheet.dialog.setOnKeyListener((d,key,event)->{if(key!=KeyEvent.KEYCODE_BACK&&key!=KeyEvent.KEYCODE_ESCAPE)return false;if(event.getAction()==KeyEvent.ACTION_UP)close();return true;});sheet.dialog.setOnCancelListener(d->close());sheet.dialog.setOnDismissListener(d->{if(sheet==current)release();});render();sheet.show(sheet.body.findViewWithTag("import-source-"+source));
+        sheet.dialog.setOnKeyListener((d,key,event)->KeyFeedback.backKey(ui,event,sheet!=null&&!committing,this::close));sheet.dialog.setOnCancelListener(d->close());sheet.dialog.setOnDismissListener(d->{if(sheet==current)release();});render();sheet.show(sheet.body.findViewWithTag("import-source-"+source));
     }
     private void captureName(){if(nameField!=null)name=nameField.getText().toString();}
     private void render(){

@@ -2,7 +2,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { ApiError, type PhoneClient, type App } from './api';
 import { AppImage } from './widgets';
 
-export function appRenameTarget(hash:string){const params=new URLSearchParams(hash.replace(/^#/,'')),pkg=params.get('appRename');return pkg&&/^[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+$/.test(pkg)?pkg:null;}
+export function appRenameTarget(params:URLSearchParams){const pkg=params.get('appRename');return pkg&&/^[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+$/.test(pkg)?pkg:null;}
 export function appName(value:string){return value.trim();}
 export function validAppName(value:string){const name=appName(value);return !!name&&Array.from(name).length<=20&&!/[\x00-\x1f\x7f-\x9f\u2028\u2029]/.test(value)&&!Array.from(value).some(char=>char.length===1&&/[\ud800-\udfff]/.test(char));}
 

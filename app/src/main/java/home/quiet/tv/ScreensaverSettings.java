@@ -7,6 +7,7 @@ import org.json.JSONObject;
 final class ScreensaverSettings {
     static final int[] WAITS={0,1,2,5,10,15,30};
     static final String FOLLOW="follow",CLOCK="clock",FLIP="flip-clock",CUSTOM="custom";
+    static final String NO_MEDIA="blank";
     static final String TOP_LEFT="top-left",TOP_RIGHT="top-right",CENTER="center",BOTTOM_LEFT="bottom-left",BOTTOM_RIGHT="bottom-right";
     static final String[] POSITIONS={TOP_LEFT,TOP_RIGHT,CENTER,BOTTOM_LEFT,BOTTOM_RIGHT};
     final String mediaId,mode,timePosition,weatherPosition;
@@ -50,7 +51,17 @@ final class ScreensaverSettings {
     boolean lunarAvailable(){return digitalMode()&&(clock.calendar||largeDateVisible());}
     long tickMillis(){return (flipping()?flipShowSeconds:secondsVisible())?1000:60000;}
     boolean video(WallpaperCatalog catalog){WallpaperCatalog.Entry entry=catalog.find(resolved(catalog));return !clockOnly()&&!(FOLLOW.equals(mode)&&catalog.weather)&&entry!=null&&entry.video();}
-    String resolved(WallpaperCatalog catalog){return clockOnly()?WallpaperCatalog.DEFAULT:FOLLOW.equals(mode)?catalog.current:catalog.find(mediaId)==null?WallpaperCatalog.DEFAULT:mediaId;}
+    // Keep the historical color id in stored settings for rollback, but never use it as custom media.
+    String customMediaId(){return WallpaperCatalog.DEFAULT.equals(mediaId)?WallpaperCatalog.BUILTIN:mediaId;}
+    String customMediaId(WallpaperCatalog catalog){
+        String id=customMediaId();return catalog.builtinHidden(id,true)?catalog.saverBuiltinFallback():id;
+    }
+    boolean customBlank(WallpaperCatalog catalog){return CUSTOM.equals(mode)&&NO_MEDIA.equals(customMediaId(catalog));}
+    String resolved(WallpaperCatalog catalog){
+        if(clockOnly())return WallpaperCatalog.DEFAULT;
+        if(FOLLOW.equals(mode))return catalog.current;
+        String custom=customMediaId(catalog);return NO_MEDIA.equals(custom)?WallpaperCatalog.DEFAULT:catalog.find(custom)==null?(catalog.saverBuiltinHidden?WallpaperCatalog.DEFAULT:WallpaperCatalog.BUILTIN):custom;
+    }
     ScreensaverSettings validated(WallpaperCatalog catalog){return catalog.find(mediaId)==null?new ScreensaverSettings(WallpaperCatalog.DEFAULT,idleMinutes,showTime,showWeather,mode,timePosition,weatherPosition,sound,flipShowSeconds,flipSound,clock):this;}
     JSONObject json()throws JSONException{return clock.write(new JSONObject().put("version",2).put("mode",mode).put("mediaId",mediaId).put("idleMinutes",idleMinutes).put("showTime",showTime).put("showWeather",showWeather).put("sound",sound).put("flipShowSeconds",flipShowSeconds).put("flipSound",flipSound).put("timePosition",timePosition).put("weatherPosition",weatherPosition));}
     static ScreensaverSettings read(JSONObject json)throws JSONException{

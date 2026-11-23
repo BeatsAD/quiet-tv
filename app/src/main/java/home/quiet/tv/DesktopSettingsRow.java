@@ -10,10 +10,14 @@ import android.widget.*;
 
 /** One remote focus target per setting; child artwork is presentation only. */
 final class DesktopSettingsRow extends LinearLayout {
+    static final float TITLE_SIZE=13.92f;
     private final TextView title,value,description;
     private final ImageView start,end;
+    private ImageView statusIcon;
+    private String statusGlyph;
+    private int statusNormal,statusFocused;
     private final ManagementUi ui;
-    private boolean checkable,checked,childStyle,fullColorIcon;
+    private boolean checkable,checked,childStyle,fullColorIcon,updateLabelVisible;
     private Toggle toggle;
     private ValueAnimator chevron;
     private String tailGlyph="";
@@ -29,7 +33,7 @@ final class DesktopSettingsRow extends LinearLayout {
         LayoutParams ip=new LayoutParams(ui.px(navigation?17:18),ui.px(navigation?17:18));ip.rightMargin=ui.px(13);addView(start,ip);
         LinearLayout copy=new LinearLayout(ui);copy.setOrientation(VERTICAL);copy.setGravity(Gravity.CENTER_VERTICAL);addView(copy,new LayoutParams(0,-1,1));
         title=ui.label(text,ui.unifiedSettings()?13:16);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);copy.addView(title,new LayoutParams(-1,-2));
-        if(ui.unifiedSettings())title.setTextSize(TypedValue.COMPLEX_UNIT_PX,13.92f*ui.unit);
+        if(ui.unifiedSettings())title.setTextSize(TypedValue.COMPLEX_UNIT_PX,TITLE_SIZE*ui.unit);
         description=ui.muted("",12);description.setMaxLines(2);description.setEllipsize(android.text.TextUtils.TruncateAt.END);description.setVisibility(GONE);
         LayoutParams dp=new LayoutParams(-1,-2);dp.topMargin=ui.px(4);copy.addView(description,dp);
         value=ui.muted("",ui.unifiedSettings()?11:13);value.setTextColor(UiPalette.SECONDARY);value.setSingleLine(true);value.setMaxWidth(ui.px(300));value.setEllipsize(android.text.TextUtils.TruncateAt.END);addView(value,new LayoutParams(-2,-1));
@@ -45,6 +49,37 @@ final class DesktopSettingsRow extends LinearLayout {
     void icon(Drawable drawable){start.setImageDrawable(drawable);start.clearColorFilter();}
     void brandIcon(int resource){fullColorIcon=true;icon(resource);start.setVisibility(VISIBLE);LayoutParams size=(LayoutParams)start.getLayoutParams();size.width=size.height=ui.px(24);size.rightMargin=ui.px(12);start.setLayoutParams(size);}
     void value(String text){value.setText(text);updateDescription();}
+    void updateLabel(boolean visible){
+        if(updateLabelVisible==visible)return;
+        updateLabelVisible=visible;
+        LayoutParams size=(LayoutParams)value.getLayoutParams();
+        size.height=visible?ui.px(24):-1;
+        value.setLayoutParams(size);
+        value.setBackgroundDrawable(visible?ui.surface(0xffc9253f,0xffc9253f,Color.WHITE,12):null);
+        int inset=visible?ui.px(9):0;
+        value.setPadding(inset,0,inset,0);
+        value.setTextColor(valueColor(isFocused()&&hasWindowFocus()));
+    }
+    private int valueColor(boolean focused){
+        if(updateLabelVisible)return Color.WHITE;
+        if(!isEnabled())return UiPalette.FAINT;
+        return focused?UiPalette.INK_SECONDARY:UiPalette.SECONDARY;
+    }
+    void statusValue(String text,String glyph,int normal,int focused){
+        if(statusIcon==null){
+            statusIcon=new ImageView(ui);
+            LayoutParams layout=new LayoutParams(ui.px(12),ui.px(12));layout.rightMargin=ui.px(5);
+            addView(statusIcon,indexOfChild(value),layout);
+            androidx.core.view.ViewCompat.setImportantForAccessibility(statusIcon,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        }
+        if(!glyph.equals(statusGlyph)){statusGlyph=glyph;statusIcon.setImageDrawable(new QuickControlIcon(glyph));}
+        statusNormal=normal;statusFocused=focused;value(text);refreshStatusTint(hasWindowFocus());
+    }
+    private void refreshStatusTint(boolean windowFocused){
+        if(statusIcon==null)return;
+        int color=!isEnabled()?UiPalette.FAINT:isFocused()&&windowFocused?statusFocused:statusNormal;
+        statusIcon.setColorFilter(color);value.setTextColor(color);
+    }
     String value(){return value.getText().toString();}
     void hideIcon(){start.setVisibility(GONE);}
     void hideTail(){end.setVisibility(GONE);}
@@ -79,13 +114,14 @@ final class DesktopSettingsRow extends LinearLayout {
         super.drawableStateChanged();
         if(ui==null||!ui.unifiedSettings()||title==null)return;
         boolean focused=isEnabled()&&isFocused()&&hasWindowFocus();
-        title.setTextColor(!isEnabled()?UiPalette.FAINT:focused?UiPalette.INK:UiPalette.TEXT);value.setTextColor(!isEnabled()?UiPalette.FAINT:focused?UiPalette.INK_SECONDARY:UiPalette.SECONDARY);description.setTextColor(!isEnabled()?UiPalette.FAINT:focused?UiPalette.INK_SECONDARY:UiPalette.SECONDARY);
+        title.setTextColor(!isEnabled()?UiPalette.FAINT:focused?UiPalette.INK:UiPalette.TEXT);value.setTextColor(valueColor(focused));description.setTextColor(!isEnabled()?UiPalette.FAINT:focused?UiPalette.INK_SECONDARY:UiPalette.SECONDARY);
+        refreshStatusTint(hasWindowFocus());
         if(fullColorIcon)start.clearColorFilter();else if(!isEnabled())start.setColorFilter(UiPalette.FAINT);else if(focused)start.setColorFilter(UiPalette.INK);else start.clearColorFilter();
         if(checkable){end.clearColorFilter();if(toggle!=null)toggle.update(checked,focused,isEnabled(),false);}else if(!isEnabled())end.setColorFilter(UiPalette.FAINT);else if(focused)end.setColorFilter(UiPalette.INK_FAINT);else end.clearColorFilter();
     }
     private void finishMotion(){if(toggle!=null)toggle.finish();if(chevron!=null){chevron.cancel();chevron=null;}if(end!=null)end.setRotation(0);}
     @Override protected void onDetachedFromWindow(){finishMotion();super.onDetachedFromWindow();}
-    @Override public void onWindowFocusChanged(boolean focused){super.onWindowFocusChanged(focused);if(!focused)finishMotion();}
+    @Override public void onWindowFocusChanged(boolean focused){super.onWindowFocusChanged(focused);refreshStatusTint(focused);if(!focused)finishMotion();}
     void displayDescription(String text){description(text);displayStyle();if(!text.isEmpty()){QuickControlPreviewView.type(description,13.44f,20.832f,ui.unit,isFocused()&&hasWindowFocus()?UiPalette.INK_SECONDARY:UiPalette.SECONDARY);((LayoutParams)description.getLayoutParams()).topMargin=ui.px(6);if(getLayoutParams()!=null)getLayoutParams().height=ui.px(57.12f);}}
     void textSizes(float titleSize,float valueSize){title.setTextSize(TypedValue.COMPLEX_UNIT_PX,titleSize*ui.unit);value.setTextSize(TypedValue.COMPLEX_UNIT_PX,valueSize*ui.unit);}
     void available(boolean enabled){setEnabled(enabled);setAlpha(ui.unifiedSettings()?1f:enabled?1f:.55f);}

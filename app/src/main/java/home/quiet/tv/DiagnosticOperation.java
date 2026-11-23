@@ -24,7 +24,12 @@ final class DiagnosticOperation {
         this(kind,System.currentTimeMillis(),clock(),sink(detail));
     }
     private static long clock(){return DiagnosticLog.initialized()?android.os.SystemClock.elapsedRealtime():0;}
-    private static Sink sink(String detail){String fixed=detail;return (event,value)->DiagnosticLog.info(event,value+" "+fixed);}
+    private static Sink sink(String detail){
+        int epoch=DiagnosticLog.recordingEpoch();
+        return DiagnosticLog.recording(epoch)?(event,value)->{
+            if(DiagnosticLog.recording(epoch))DiagnosticLog.info(event,value+" "+detail);
+        }:(event,value)->{};
+    }
     private static String parentDetail(){String value=parent.get();return value==null?"":" parent="+value;}
     static String current(){String value=parent.get();return value==null?"none":value;}
     static String enter(String id){String previous=parent.get();parent.set(id);return previous;}

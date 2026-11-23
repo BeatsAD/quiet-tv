@@ -28,8 +28,20 @@ final class WallpaperBackdropCache {
         preparedKey=key;prepared=new Picture(image,blur,fullResolution);
     }}
     static void clearGlass(){synchronized(preparedLock){if(prepared!=null)prepared=new Picture(prepared.image,null,prepared.fullResolution);}}
+    static void retainPreparedImage(String imageKey){
+        synchronized(preparedLock){
+            if(prepared!=null&&!matchesImage(preparedKey,imageKey)){
+                preparedKey=null;
+                prepared=null;
+            }
+        }
+    }
+    static boolean matchesImage(String key,String imageKey){
+        return imageKey!=null&&key.startsWith(imagePrefix(imageKey));
+    }
+    private static String imagePrefix(String imageKey){return "1|"+imageKey+"|";}
     WallpaperBackdropCache(Context context){file=new AtomicFile(new File(context.getFilesDir(),"wallpaper-backdrop"));}
-    static String key(WallpaperStore store,String id,int width,int height){return "1|"+store.imageKey(id)+"|"+width+"x"+height;}
+    static String key(WallpaperStore store,String id,int width,int height){return imagePrefix(store.imageKey(id))+width+"x"+height;}
     Picture read(String key,boolean glass){synchronized(WallpaperBackdropCache.class){
         try(DataInputStream input=new DataInputStream(file.openRead())){
             if(!key.equals(input.readUTF()))return null;

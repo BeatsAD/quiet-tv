@@ -35,12 +35,15 @@ export function Setting({client,name,onSelect,inline=false,hideIcon=false,onChoo
 export function Range({field:f,value,onChange,onEnd,percent=false}:{field:Field;value:number;onChange:(value:number)=>void;onEnd:()=>void;percent?:boolean}){
   const divisor=f.divisor||1,display=(number:number)=>percent?`${Math.round(100*number/Math.max(1,Number(f.max)))}%`:`${Number((number/divisor).toFixed(2))}${f.unit||''}`;return <label className="range-field"><span className="range-heading"><span>{f.title}</span><output>{display(value)}</output></span><input aria-label={f.title} type="range" min={f.min} max={f.max} step={f.step||1} disabled={!!f.disabledReason} value={value} style={{'--range-percent':`${(value-(f.min||0))/((f.max||100)-(f.min||0))*100}%`} as CSSProperties} onChange={event=>onChange(Number(event.target.value))} onPointerUp={onEnd} onKeyUp={onEnd} onBlur={onEnd}/><span className="range-endpoints"><span>{display(Number(f.min))}</span><span>{display(Number(f.max))}</span></span>{f.disabledReason&&<small>{f.disabledReason}</small>}</label>;
 }
-export function Sheet({title,nested,closing,pageKey,direction,onBack,onClose,onExited,toolbar,footer,className='',children}:{title:string;nested:boolean;closing:boolean;pageKey:string;direction:number;onBack:()=>void;onClose:()=>void;onExited:()=>void;toolbar?:ReactNode;footer?:ReactNode;className?:string;children:ReactNode}){
+export function Sheet({title,nested,confirmation=false,closing,pageKey,direction,onBack,onClose,onExited,toolbar,footer,className='',children}:{title:string;nested:boolean;confirmation?:boolean;closing:boolean;pageKey:string;direction:number;onBack:()=>void;onClose:()=>void;onExited:()=>void;toolbar?:ReactNode;footer?:ReactNode;className?:string;children:ReactNode}){
   const titleId=useId();
   const ref=useRef<HTMLDialogElement>(null),panel=useRef<HTMLDivElement>(null),body=useRef<HTMLDivElement>(null),heading=useRef<HTMLHeadingElement>(null),interrupted=useRef<string|null>(null),exit=useRef(onExited);
   useLayoutEffect(()=>{exit.current=onExited;});
   useLayoutEffect(()=>{const previous=document.activeElement as HTMLElement|null;previous?.blur();const dialog=ref.current!;dialog.showModal();return()=>{dialog.close();previous?.focus();};},[]);
-  useLayoutEffect(()=>{heading.current?.focus({preventScroll:true});},[pageKey]);
+  useLayoutEffect(()=>{
+    const cancel=confirmation?body.current?.querySelector<HTMLButtonElement>('[data-confirm-cancel]'):null;
+    (cancel||heading.current)?.focus({preventScroll:true});
+  },[pageKey,confirmation]);
   useLayoutEffect(()=>{
     const node=panel.current!,preference=motionPreference();let cancelled=false;
     if(preference.matches||!node.animate){if(closing)exit.current();return;}
@@ -52,8 +55,9 @@ export function Sheet({title,nested,closing,pageKey,direction,onBack,onClose,onE
     return()=>{cancelled=true;interrupted.current=getComputedStyle(node).transform;preference.removeEventListener('change',reduce);animation.cancel();};
   },[closing]);
   useContentMotion(body,pageKey,direction);useContentMotion(heading,pageKey,direction);
+  const dismiss=()=>{if(!closing)(nested?onBack:onClose)();};
   // Native dismissal can bypass a cancelled close request; clear the mounted view as well.
-  return <dialog ref={ref} aria-labelledby={titleId} className={`bottom-sheet ${className} ${closing?'is-closing':''}`} onClose={event=>{if(!event.currentTarget.open){onClose();onExited();}}} onCancel={event=>{event.preventDefault();if(!closing)(nested?onBack:onClose)();}} onClick={event=>{if(!closing&&event.target===ref.current)onClose();}}><div ref={panel} className="sheet-panel" inert={closing}><div className="sheet-handle-zone"><span className="sheet-handle"/></div><header className="sheet-heading">{nested?<button className="icon-button sheet-back" aria-label="返回上一级" onClick={onBack}><Icon name="ChevronLeftIcon"/></button>:<span/>}<h2 ref={heading} id={titleId} tabIndex={-1}>{title}</h2>{nested?<span/>:<button className="icon-button sheet-close" aria-label="关闭设置浮窗" onClick={onClose}><Icon name="Cross2Icon"/></button>}</header>{toolbar&&<div className="sheet-toolbar">{toolbar}</div>}<div ref={body} className="quiet-sheet-body">{children}</div>{footer&&<div className="sheet-footer">{footer}</div>}</div></dialog>;
+  return <dialog ref={ref} aria-labelledby={titleId} className={`bottom-sheet ${className} ${closing?'is-closing':''}`} onClose={event=>{if(!event.currentTarget.open){onClose();onExited();}}} onCancel={event=>{if(event.target!==event.currentTarget)return;event.preventDefault();dismiss();}} onClick={event=>{if(event.target===ref.current)dismiss();}}><div ref={panel} className="sheet-panel" inert={closing}><div className="sheet-handle-zone"><span className="sheet-handle"/></div><header className="sheet-heading">{nested&&!confirmation?<button className="icon-button sheet-back" aria-label="返回上一级" onClick={onBack}><Icon name="ChevronLeftIcon"/></button>:<span/>}<h2 ref={heading} id={titleId} tabIndex={-1}>{title}</h2>{nested||confirmation?<span/>:<button className="icon-button sheet-close" aria-label="关闭设置浮窗" onClick={onClose}><Icon name="Cross2Icon"/></button>}</header>{toolbar&&<div className="sheet-toolbar">{toolbar}</div>}<div ref={body} className="quiet-sheet-body">{children}</div>{footer&&<div className="sheet-footer">{footer}</div>}</div></dialog>;
 }
 export function ConfirmDialog({title,busy,disabled,confirmLabel='确认删除',busyLabel='正在删除…',destructive=true,onCancel,onConfirm,children}:{title:string;busy:boolean;disabled?:boolean;confirmLabel?:string;busyLabel?:string;destructive?:boolean;onCancel:()=>void;onConfirm:()=>void;children:ReactNode}){
   const ref=useRef<HTMLDialogElement>(null),titleId=useId(),descriptionId=useId();
@@ -62,7 +66,7 @@ export function ConfirmDialog({title,busy,disabled,confirmLabel='确认删除',b
 }
 export function fileSize(bytes?:number){if(bytes===undefined||bytes<0)return '大小未知';return bytes>=1e6?`${(bytes/1e6).toFixed(1)} MB`:bytes>=1000?`${Math.round(bytes/1000)} KB`:`${bytes} B`;}
 
-export function quickGlyph(id:string){const names:Record<string,string>={control:'MixerHorizontalIcon',settings:'GearIcon',systemSettings:'GearIcon',network:'WifiIcon',bluetooth:'BluetoothIcon',source:'HdmiIcon',keySounds:'KeyboardIcon',mute:'WallpaperSoundIcon',volume:'SpeakerLoudIcon',brightness:'SunIcon',homeBlur:'MixerHorizontalIcon',dockScale:'DashboardIcon',dockMagnification:'PlusIcon',wallpaper:'ImageIcon',original:'HomeIcon',transfer:'FolderSyncIcon',memoShortcut:'NotebookIcon',screensaver:'MonitorPlayIcon',boot:'PowerIcon',child:'ChildIcon',apps:'DashboardIcon',clock:'ClockIcon',weather:'SunIcon'};return names[id]||'DashboardIcon';}
+export function quickGlyph(id:string){const names:Record<string,string>={control:'MixerHorizontalIcon',settings:'GearIcon',systemSettings:'GearIcon',network:'WifiIcon',bluetooth:'BluetoothIcon',source:'HdmiIcon',keySounds:'KeyboardIcon',mute:'WallpaperSoundIcon',saverSound:'SpeakerLoudIcon',volume:'SpeakerLoudIcon',brightness:'SunIcon',homeBlur:'MixerHorizontalIcon',dockScale:'DashboardIcon',dockMagnification:'PlusIcon',wallpaper:'ImageIcon',original:'HomeIcon',transfer:'FolderSyncIcon',memoShortcut:'NotebookIcon',screensaver:'MonitorPlayIcon',boot:'PowerIcon',child:'ChildIcon',apps:'DashboardIcon',clock:'ClockIcon',weather:'SunIcon'};return names[id]||'DashboardIcon';}
 
 export const ResourceImageRefresh=createContext(0);
 type ResourceImageProps=Omit<ImgHTMLAttributes<HTMLImageElement>,'onLoad'|'onError'>&{onLoad?:()=>void;onError?:()=>void};

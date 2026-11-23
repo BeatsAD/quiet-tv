@@ -193,7 +193,9 @@ def ensure_boot_entry(adb, device, journal, required=False):
     result = maintenance.inspect(adb, tcl.PACKAGE, device['user'], 'boot_home_reconcile')
     entry = result.get('bootHome', {})
     journal.event('boot_entry', entry=entry)
-    if entry.get('ready') is not True or required and (entry.get('required') is not True or entry.get('enabled') is not True):
+    main_ready = entry.get('mainDirectBootAware') is True
+    placeholder_ready = entry.get('required') is True and entry.get('enabled') is True
+    if entry.get('ready') is not True or required and not (main_ready or placeholder_ready):
         raise ValueError('解锁前启动入口未就绪，接管未完成；请保留恢复记录')
 
 

@@ -48,7 +48,7 @@ final class DiagnosticEventBuffer {
         Repeat previous=repeatable(level,event)?repeats.get(event):null;
         if(previous!=null && previous.level.equals(level) && previous.detail.equals(detail)
             && elapsed>=previous.at && elapsed-previous.at<REPEAT_MS){previous.suppressed++;suppressedTotal++;quality(event,1,wall);return false;}
-        boolean important="ERROR".equals(level) || event.endsWith(".begin") || event.endsWith(".result") || "process.start".equals(event);
+        boolean important="ERROR".equals(level) || event.endsWith(".begin") || event.endsWith(".result") || "process.start".equals(event) || "input.slow_dispatch".equals(event);
         if(!important && entries.size()>=NORMAL_LIMIT){dropped++;droppedTotal++;quality(event,2,wall);return false;}
         if(entries.size()>=CAPACITY){
             boolean removed=false;

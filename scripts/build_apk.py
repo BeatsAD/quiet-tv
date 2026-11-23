@@ -125,7 +125,7 @@ def check_delivery_version(actual, packaged_abis, status, sha256, archive_dir=No
                 raise FileExistsError(f'同版本、构建号、系统、架构和状态已有不同内容，请使用新的递增构建号：{path}')
 
 
-def archive_apk(summary, built_at=None, output_dir=None, abi='universal', archive_dir=None, min_sdk=21, production_digest=None, compatibility='standard', home_mode='standard'):
+def archive_apk(summary, built_at=None, output_dir=None, abi='universal', archive_dir=None, min_sdk=21, production_digest=None, compatibility='standard', home_mode='standard', local_test_base=None):
     output_dir = Path(output_dir or ROOT / 'app/build/outputs/apk/debug')
     metadata = json.loads((output_dir / 'output-metadata.json').read_text())
     # Each ABI candidate is a standalone APK; install/verify still use one package path.
@@ -156,6 +156,8 @@ def archive_apk(summary, built_at=None, output_dir=None, abi='universal', archiv
     system = SYSTEM_LABELS[min_sdk][0]
     status = '实验版' if home_mode == 'relay' else '测试版'
     local_test = actual['version_name'].endswith('.1') and actual['version_name'].count('.') == 3
+    if local_test_base is not None and actual['version_name'] != local_test_base + '.1':
+        raise ValueError('实际 APK 版本与本地测试指定版本不符，停止归档')
     name, public_name = apk_names(actual['version_name'], min_sdk, packaged_abis, home_mode, actual['version_code'])
     destination = Path(archive_dir or ROOT / 'dist/apk') / name
     receipt = destination.with_suffix('.json')
@@ -199,6 +201,8 @@ def archive_apk(summary, built_at=None, output_dir=None, abi='universal', archiv
                              'quietMinSdk': min_sdk, 'quietAbi': abi, 'quietHomeMode': home_mode, 'quietLocalTest': local_test},
         'validation_scope': '构建、APK 元数据与签名校验；安装、功能、升级数据及真机验收另行记录',
     }
+    if local_test_base is not None:
+        record['build_parameters']['quietLocalTestBase'] = local_test_base
     mapping = output_dir.parents[1] / 'mapping' / metadata['variantName'] / 'mapping.txt'
     destination.parent.mkdir(parents=True, exist_ok=True)
     if mapping.is_file():
@@ -215,7 +219,7 @@ def archive_apk(summary, built_at=None, output_dir=None, abi='universal', archiv
     return destination
 
 
-def build_apk(summary, variant='debug', abi='universal', min_sdk=None, compatibility='standard', build_number=None, home_mode='standard', local_test=False):
+def build_apk(summary, variant='debug', abi='universal', min_sdk=None, compatibility='standard', build_number=None, home_mode='standard', local_test=False, local_test_base=None):
     if compatibility not in COMPATIBILITY:
         raise ValueError('不支持的兼容档位')
     if home_mode not in ('standard', 'relay') or (home_mode == 'relay' and compatibility != 'standard'):
@@ -228,17 +232,23 @@ def build_apk(summary, variant='debug', abi='universal', min_sdk=None, compatibi
     if build_number is not None and (not isinstance(build_number, int) or build_number < 1):
         raise ValueError('构建号必须为正整数')
     configuration = f'{compatibility}-{home_mode}-{variant}-{abi}-api{min_sdk}-local{int(local_test)}'
+    if local_test_base is not None and (not local_test or variant == 'release'
+                                        or not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', local_test_base)):
+        raise ValueError('本地测试基础版本仅支持 Debug 或 Benchmark 包的三段版本号')
     with build_workspace(ROOT, 'production', configuration) as (build_root, lock_fd):
         before = source_digest()
         subprocess.run([str(ROOT / 'gradlew'), ':app:assemble' + variant.capitalize(), '--console=plain',
                         '-PquietBuildRoot=' + str(build_root), '-PquietAbi=' + abi, '-PquietMinSdk='+str(min_sdk),
                         '-PquietCompatibility=' + compatibility, '-PquietHomeMode=' + home_mode,
                         '-PquietLocalTest=' + str(local_test).lower()]
-                       + (['-PquietBuildNumber=' + str(build_number)] if build_number is not None else []), cwd=ROOT, check=True, pass_fds=(lock_fd,))
+                       + (['-PquietBuildNumber=' + str(build_number)] if build_number is not None else [])
+                       + (['-PquietLocalTestBase=' + local_test_base] if local_test_base is not None else []),
+                       cwd=ROOT, check=True, pass_fds=(lock_fd,))
         if source_digest() != before:
             raise RuntimeError('生产源码在构建期间改变，产物未归档，请重新构建')
         return archive_apk(summary, datetime.now().astimezone().isoformat(timespec='seconds'),
-                           build_root / 'app/outputs/apk' / variant, abi, min_sdk=min_sdk, production_digest=before, compatibility=compatibility, home_mode=home_mode)
+                           build_root / 'app/outputs/apk' / variant, abi, min_sdk=min_sdk, production_digest=before, compatibility=compatibility, home_mode=home_mode,
+                           local_test_base=local_test_base)
 
 
 def verify_batch(apks):
@@ -337,6 +347,7 @@ if __name__ == '__main__':
     parser.add_argument('--min-sdk', choices=[14,19,21,23,26,31], type=int, help='defaults to 14 for legacy14, 19 for legacy19, 21 for standard')
     parser.add_argument('--build-number', type=int, help='Positive delivery number; first number for --batch')
     parser.add_argument('--local-test', action='store_true', help='本地电视测试：在基础版本后追加 .1，构建号继续递增，不代表发布授权')
+    parser.add_argument('--local-test-base', help='仅对单个本地测试包指定三段基础版本，实际版本追加 .1')
     parser.add_argument('--batch', action='store_true', help='Build standard ARM32, ARM64, universal and one legacy14 APK')
     parser.add_argument('--universal-only', action='store_true', help='With --batch, build standard universal + legacy14; both must have no native libraries')
     args = parser.parse_args()
@@ -344,9 +355,12 @@ if __name__ == '__main__':
         parser.error('--summary 不能为空')
     if args.universal_only and not args.batch:
         parser.error('--universal-only 必须配合 --batch')
+    if args.local_test_base is not None and (args.batch or not args.local_test or args.variant == 'release'
+                                             or not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', args.local_test_base)):
+        parser.error('--local-test-base 必须为三段版本号，并用于单个 --local-test Debug 或 Benchmark 包')
     if args.batch:
         if args.abi != 'universal' or args.min_sdk is not None or args.compatibility != 'standard' or args.home_mode != 'standard':
             parser.error('--batch 固定各档位配置，不能同时指定 ABI、最低 API 或兼容档位')
         build_batch(args.summary.strip(), args.build_number, args.variant, args.universal_only, args.local_test)
     else:
-        build_apk(args.summary.strip(), args.variant, args.abi, args.min_sdk, args.compatibility, args.build_number, args.home_mode, args.local_test)
+        build_apk(args.summary.strip(), args.variant, args.abi, args.min_sdk, args.compatibility, args.build_number, args.home_mode, args.local_test, local_test_base=args.local_test_base)

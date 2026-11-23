@@ -9,14 +9,15 @@ const labels:Record<string,Record<string,string>>={
   child:{rule:'保存儿童设置',grant:'追加使用时间',permission:'打开计时授权',quizNow:'发送答题请求'},quiz:{quizSettings:'保存答题设置',quizAppSettings:'保存答题设置',selectedCustomIds:'保存所选题目',question:'保存题目',deleteQuestion:'删除题目'},
   memos:{save:'保存备忘录',remove:'删除备忘录',toggle:'更新备忘录'},files:{receive:'保存文件',remove:'删除文件',wallpaper:'应用壁纸',install:'安装应用',permission:'打开目录授权'},
   backup:{remove:'删除备份',create:'创建备份',export:'导出备份',prepareFromFile:'校验备份',admit:'导入备份',restore:'恢复备份',retry:'核对恢复记录'},
-  weather:{refresh:'刷新天气',cityCode:'保存天气城市'},diagnostics:{export:'生成诊断文件'},management:{connect:'连接 ADB',disconnect:'断开 ADB',check:'检查 ADB 状态'},
+  weather:{refresh:'刷新天气',cityCode:'保存天气城市'},diagnostics:{recording:'记录诊断日志',mark:'录制 30 秒',export:'下载日志',exportBluetooth:'下载蓝牙诊断',exportInputs:'下载信号源诊断包'},management:{connect:'连接 ADB',disconnect:'断开 ADB',check:'检查 ADB 状态'},
+  bootAds:{check:'检查广告设置',apply:'应用广告设置',restore:'恢复广告设置'},
   guard:{pause:'暂停桌面接管',restore:'恢复原桌面',system:'打开默认桌面设置'},desktopSwitch:{switch:'切换桌面',manage:'桌面管理',verify:'记录使用验证'},
   inputs:{autoEnter:'设置信号源开机自动进入',calibrate:'发送端口名称校正测试',search:'搜索信号源',test:'发送信号源测试',confirm:'保存配对结果',restore:'恢复配对配置',defaults:'恢复配对默认设置',observe:'记录信号源',cancel:'结束信号源任务'},
-  update:{check:'检查更新',download:'下载安装包',install:'准备安装更新',cancelCheck:'取消更新检查',cancelDownload:'取消安装包下载'},components:{start:'下载天气资源',cancel:'取消组件下载',uninstall:'卸载天气资源'}
+  update:{check:'检查更新',download:'下载安装包',install:'准备安装更新',cancelCheck:'取消更新检查',cancelDownload:'取消安装包下载',reconcile:'核对电视版本'},components:{start:'下载天气资源',cancel:'取消组件下载',uninstall:'卸载天气资源'}
 };
 export function operationLabel(domain:string,field:string,metadata:Metadata|null){return labels[domain]?.[field]||metadata?.fields[field]?.title||'保存设置';}
 export function quietResult(domain:string,field:string,value:Value){return domain==='icons'||domain==='uploads'||domain==='files'&&field==='browse'||domain==='memos'&&field==='toggle'||domain==='backup'&&field==='automatic'||domain==='quiz'&&field==='quizApp'||domain==='child'&&field==='rule'&&['enabled','locked'].includes(String((value as Record<string,unknown>)?.field));}
-export function requiresTask(domain:string,field:string){return domain==='inputs'&&field==='autoEnter'||domain==='desktopSwitch'||domain==='guard'&&['pause','restore'].includes(field)||domain==='apps'&&field!=='renameApp'||domain==='wallpaper'&&['dailyRefresh','dailySource'].includes(field)||domain==='weather'&&field==='refresh'||domain==='backup'&&['create','export','prepareFromFile','admit','remove'].includes(field)||domain==='diagnostics'&&field==='export'||domain==='files'&&['receive','wallpaper','install'].includes(field);}
+export function requiresTask(domain:string,field:string){return domain==='inputs'&&field==='autoEnter'||domain==='desktopSwitch'||domain==='bootAds'||domain==='guard'&&['pause','restore'].includes(field)||domain==='apps'&&field!=='renameApp'||domain==='wallpaper'&&['dailyRefresh','dailySource'].includes(field)||domain==='weather'&&field==='refresh'||domain==='backup'&&['create','export','prepareFromFile','admit','remove'].includes(field)||domain==='diagnostics'&&['mark','export','exportBluetooth','exportInputs'].includes(field)||domain==='files'&&['receive','wallpaper','install'].includes(field);}
 export function completedNotice(label:string,operation?:Record<string,unknown>,domain='',field=''):OperationNotice{
   const detail=typeof operation?.message==='string'?operation.message:undefined;
   if(domain==='apps'&&field==='renameApp'&&operation?.persisted!==true||domain==='catalog'&&field==='renameMedia'&&operation?.renamed!==true)return {kind:'info',title:'名称保存结果待核对'};
@@ -32,6 +33,7 @@ export function taskNotice(label:string,task:Task):OperationNotice|null{
   if(task.state==='failed')return {kind:'error',title:`${label}失败`,detail:task.message};
   if(task.state==='cancelled')return {kind:'info',title:'操作已取消',detail:task.message};
   if(task.state!=='completed')return null;
+  if(task.domain==='bootAds')return {kind:'success',title:task.kind==='apply'?'广告设置已应用':task.kind==='restore'?'已恢复原设置':'已检查广告设置',detail:task.message};
   if(task.domain==='apps'&&task.kind==='open')return {kind:'info',title:'打开请求已发送',detail:task.message};
   if(task.result?.download)return {kind:'success',title:'文件已生成',detail:'可下载到手机'};
   if(task.result?.draftId)return {kind:'success',title:'备份校验完成',detail:'请核对内容后确认导入'};
@@ -65,8 +67,10 @@ export function deferredNotice(domain:string,field:string,values:Record<string,V
     }
     if(field==='install'){
       if(values.updateInstallState==='success')return {kind:'success',title:'更新安装成功'};
-      if(values.updateInstallError)return {kind:'error',title:'安装结果需核对',detail:String(values.updateInstallError)};
-      if(['confirmation','file_dispatched'].includes(String(values.updateInstallState)))return {kind:'info',title:'请在电视确认安装'};
+      if(values.updateInstallState==='cancelled')return {kind:'info',title:'安装已取消'};
+      if(values.updateInstallState==='failed')return {kind:'error',title:'安装失败',detail:String(values.updateInstallError||'')};
+      if(['confirmation','file_dispatched','prepared'].includes(String(values.updateInstallState)))return {kind:'info',title:'请在电视继续安装'};
+      if(['awaiting_version','interrupted','unknown'].includes(String(values.updateInstallState)))return {kind:'info',title:'安装结果待核对'};
     }
   }
   if(domain==='inputs'&&field==='search'){

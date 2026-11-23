@@ -47,7 +47,10 @@ final class DiagnosticIncident {
         meta.put("postBytes",bytes).put("postOmitted",omitted);persist();
     }
     void finish(long elapsed)throws IOException,JSONException{
-        if(meta.optBoolean("recording")&&elapsed>=meta.optLong("deadlineElapsed")){meta.put("recording",false).put("endReason","time_limit");persist();}
+        if(elapsed>=meta.optLong("deadlineElapsed"))end("time_limit");
+    }
+    void end(String reason)throws IOException,JSONException{
+        if(meta.optBoolean("recording")){meta.put("recording",false).put("endReason",reason);persist();}
     }
     JSONObject snapshot()throws JSONException{return new JSONObject(meta.toString()).put("beforeMatches",matches("before.txt")).put("afterMatches",matches("after.txt"))
         .put("beforeFileBytes",new File(directory,"before.txt").length()).put("afterFileBytes",new File(directory,"after.txt").length());}

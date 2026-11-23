@@ -24,6 +24,12 @@ final class SourcePairingUi {
     boolean showing(){return dialog!=null&&dialog.isShowing();}
     private void dismiss(){if(dialog!=null){dialog.dismiss();dialog=null;}captureText=null;}
     private ManagementPanel.Sheet sheet(String title){dismiss();ManagementPanel.Sheet sheet=host.new Sheet(title);dialog=sheet.dialog;sheet.dialog.setOnDismissListener(d->{if(dialog==sheet.dialog){dialog=null;captureText=null;}});return sheet;}
+    private Button navigation(ManagementPanel.Sheet sheet,String label,Runnable back,boolean actions){
+        Button button=sheet.delegate.settingsLayout(label,back);
+        sheet.delegate.settingsActions(actions);
+        sheet.dialog.setOnKeyListener((dialog,key,event)->KeyFeedback.backKey(host,event,true,back));
+        return button;
+    }
     void open(){
         try{JSONObject state=pairing.snapshot(),test=state.optJSONObject("test");
             if("tv".equals(state.optString("owner"))&&test!=null&&"DISPATCHED_UNVERIFIED".equals(test.optString("state"))){confirmed="";watching=true;refresh();return;}
@@ -33,12 +39,12 @@ final class SourcePairingUi {
     }
     private void showBusy(String reason){
         ManagementPanel.Sheet sheet=sheet("信号源任务");sheet.text(reason==null?"另一项任务正在执行":reason);
-        Button back=sheet.action("返回",sheet.dialog::dismiss);
+        Button back=navigation(sheet,"关闭",sheet.dialog::dismiss,false);
         sheet.option("停止当前任务",()->{pairing.cancel("tv",true);sheet.dialog.dismiss();host.render();});sheet.show(back);
     }
     private void showProgress(){
         ManagementPanel.Sheet sheet=sheet("搜索信号源");captureText=host.muted("正在读取电视输入",14);sheet.body.addView(captureText);
-        Button cancel=sheet.action("取消",()->{pairing.cancel("tv",true);watching=false;sheet.dialog.dismiss();});
+        Button cancel=navigation(sheet,"关闭",()->{pairing.cancel("tv",true);watching=false;sheet.dialog.dismiss();},false);
         sheet.dialog.setOnCancelListener(d->{pairing.cancelSearchFromUi();watching=false;});sheet.show(cancel);
     }
     private void refresh(){
@@ -81,7 +87,7 @@ final class SourcePairingUi {
         if(observation!=null&&!observation.optString("captureId").isEmpty()){sheet.text(observation.optString("analysis"));sheet.option("导出信号源诊断",this::diagnostic);}
         sheet.option("查看检测结果",()->quality(snapshot));
         sheet.option("重新搜索",this::open);sheet.option("辅助识别",this::observe);
-        Button back=sheet.action("返回",()->{watching=false;sheet.dialog.dismiss();host.render();});sheet.show(first==null?back:first);
+        Button back=navigation(sheet,"关闭",()->{watching=false;sheet.dialog.dismiss();host.render();},false);sheet.show(first==null?back:first);
     }
     private void quality(JSONObject snapshot){
         ManagementPanel.Sheet sheet=sheet("检测结果");JSONObject channels=snapshot.optJSONObject("channels");
@@ -99,7 +105,7 @@ final class SourcePairingUi {
             sheet.option("检查本机连接",()->{watching=false;sheet.dialog.dismiss();host.activity.selectManagementPage(0);});
         }
         if(InputSourceObservation.hasEvidence(host))sheet.option("导出信号源诊断",this::diagnostic);
-        Button back=sheet.action("返回",()->{rendered="";refresh();});sheet.show(back);
+        Button back=navigation(sheet,"返回",()->{rendered="";refresh();},false);sheet.show(back);
     }
     private String channelName(String key){return "standard".equals(key)?"标准输入":"vendor".equals(key)?"厂商端口":"panels".equals(key)?"原厂菜单":"调试读取";}
     private String connection(int value){return value==0?"  已连接":value==1?"  待机":value==2?"  未连接":"";}
@@ -107,11 +113,11 @@ final class SourcePairingUi {
         if(group.size()==1){testSheet(group.get(0),"");return;}
         ManagementPanel.Sheet sheet=sheet(group.get(0).label);int number=0;Button first=null;
         for(SourceSearch.Candidate candidate:group){Button button=sheet.option("测试方式 "+(++number),()->testSheet(candidate,""));if(first==null)first=button;}
-        sheet.action("返回",()->{rendered="";refresh();});sheet.show(first);
+        navigation(sheet,"返回",()->{rendered="";refresh();},false);sheet.show(first);
     }
     private void testSheet(SourceSearch.Candidate candidate,String label){
         ManagementPanel.Sheet sheet=sheet(candidate.label);sheet.text(candidate.panel!=null?"测试后返回“看电视”，确认是否打开了信号源菜单。":"请开启外接设备。测试后返回“看电视”，确认实际端口、画面和声音。");
-        Button cancel=sheet.action("返回",()->{rendered="";refresh();});
+        Button cancel=navigation(sheet,"返回",()->{rendered="";refresh();},true);
         sheet.option("开始测试",()->{
             try{String revision=pairing.snapshot().getString("revision");pairing.request("tv",candidate.id,candidate.scope,revision,label);
                 sheet.dialog.dismiss();watching=true;confirmed="";}
@@ -139,7 +145,7 @@ final class SourcePairingUi {
     private void calibrate(SourceSearch.Candidate candidate){
         ManagementPanel.Sheet sheet=sheet("确认实际 HDMI 插口");sheet.text("按电视插口标识填写实际编号，接下来会重新测试；这不会增加输入端口。");
         EditText port=host.input("","实际 HDMI 编号");port.setInputType(InputType.TYPE_CLASS_NUMBER);sheet.body.addView(port);
-        Button back=sheet.action("返回",()->{confirmed="";sheet.dialog.dismiss();refresh();});
+        Button back=navigation(sheet,"返回",()->{confirmed="";sheet.dialog.dismiss();refresh();},true);
         sheet.option("重新测试",()->{try{
             int number=Integer.parseInt(port.getText().toString().trim());if(number<1||number>32)throw new NumberFormatException();
             pairing.cancel("tv",true);testSheet(candidate,"HDMI "+number);
@@ -151,20 +157,20 @@ final class SourcePairingUi {
         Button first=sheet.option("搜索与配对",this::open);
         sheet.option("重新确认测试结果",()->{confirmed="";watching=true;sheet.dialog.dismiss();refresh();});
         sheet.option("恢复上次配对前配置",()->restore(false));sheet.option("恢复配对默认设置",()->restore(true));
-        sheet.action("返回",sheet.dialog::dismiss);sheet.show(first);
+        navigation(sheet,"关闭",sheet.dialog::dismiss,false);sheet.show(first);
     }
     private void restore(boolean defaults){
         ManagementPanel.Sheet sheet=sheet(defaults?"恢复配对默认设置？":"恢复上次配对前配置？");
         sheet.text("将调整本功能的入口、端口与配对名称，关闭 HDMI 开机自动进入。原有厂商维护规则和其他桌面设置保留。");
         Button cancel=sheet.action("取消",sheet.dialog::dismiss);
-        sheet.option("恢复",()->{try{pairing.restore("tv",pairing.snapshot().getString("revision"),defaults);sheet.dialog.dismiss();watching=true;rendered="";main.post(poll);}
+        sheet.action("恢复",()->{try{pairing.restore("tv",pairing.snapshot().getString("revision"),defaults);sheet.dialog.dismiss();watching=true;rendered="";main.post(poll);}
             catch(Exception failure){host.message(failure.getMessage());}});sheet.show(cancel);
     }
     private void observe(){
         ManagementPanel.Sheet sheet=sheet("辅助识别");sheet.text("开始后请按原遥控器信号源键，或从原厂设置打开菜单并选择一个正常播放的 HDMI。最多记录两分钟，完成后返回此页结束。");
         CheckBox raw=new CheckBox(host);raw.setText("附加相关原始系统片段");raw.setTextColor(ManagementUi.MUTED);raw.setTextSize(13);sheet.body.addView(raw);
         sheet.text("原始片段可能含页面私人信息，仅保存在电视，导出前请检查。");
-        Button back=sheet.action("返回",()->{rendered="";refresh();});
+        Button back=navigation(sheet,"返回",()->{rendered="";refresh();},false);
         sheet.option("开始记录",()->{try{pairing.observe("tv",raw.isChecked());watching=true;showCapture();main.removeCallbacks(poll);main.post(poll);}
             catch(Exception failure){host.message(failure.getMessage());}});sheet.show(back);
     }
@@ -180,7 +186,7 @@ final class SourcePairingUi {
         sheet.option("正常打开信号源菜单",()->finishObservation("menu",0,false));
         sheet.option("已进入 HDMI，画面声音正常",()->{
             ManagementPanel.Sheet portSheet=sheet("确认实际 HDMI 编号");EditText port=host.input("","电视插口上的编号");port.setInputType(InputType.TYPE_CLASS_NUMBER);portSheet.body.addView(port);
-            Button back=portSheet.action("返回",this::observationResult);
+            Button back=navigation(portSheet,"返回",this::observationResult,false);
             portSheet.option("确认并结束记录",()->{try{int number=Integer.parseInt(port.getText().toString().trim());if(number<1||number>32)throw new NumberFormatException();finishObservation("hdmi",number,true);}
                 catch(NumberFormatException invalid){host.message("请填写电视实际 HDMI 插口编号");}});portSheet.show(back);
         });

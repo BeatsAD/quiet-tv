@@ -76,7 +76,7 @@ final class WallpaperGpuView extends TextureView implements TextureView.SurfaceT
     void strength(int value){strength=Math.max(0,Math.min(100,value));update();}
     void weather(String key){weather(key,null);}
     void weather(String key,WeatherIllumination light){weather(key,light,WeatherAtmosphere.EMPTY);}
-    void weather(String key,WeatherIllumination light,WeatherAtmosphere air){atmosphere=air;illumination=light;scene=key==null?"":key;boolean next=host!=null&&!scene.isEmpty();if(nativeMode!=next){nativeMode=next;presented=false;setVisibility(next?GONE:VISIBLE);nativeView.setVisibility(next?VISIBLE:GONE);}update();}
+    void weather(String key,WeatherIllumination light,WeatherAtmosphere air){atmosphere=air;illumination=light;String pending=key==null?"":key;if(scene.isEmpty()!=pending.isEmpty())presented=false;scene=pending;boolean next=host!=null&&!scene.isEmpty();if(nativeMode!=next){nativeMode=next;presented=false;setVisibility(next?GONE:VISIBLE);nativeView.setVisibility(next?VISIBLE:GONE);}update();}
     void interaction(){interaction(200);}
     void interaction(int duration){engine.interaction(duration);}
     /** A one-shot acknowledgement after the queued settings have produced a frame. */
@@ -93,7 +93,7 @@ final class WallpaperGpuView extends TextureView implements TextureView.SurfaceT
     @Override public void onSurfaceTextureAvailable(SurfaceTexture output,int width,int height){presented=false;engine.attach(output,width,height);if(retained!=null)engine.image(retained);update();}
     @Override public void onSurfaceTextureSizeChanged(SurfaceTexture output,int width,int height){engine.resize(width,height);}
     @Override public boolean onSurfaceTextureDestroyed(SurfaceTexture output){SurfaceTexture input=engine.input;if(video!=null&&input!=null)video.destroyed(input);engine.detach(output);return false;}
-    @Override public void onSurfaceTextureUpdated(SurfaceTexture output){SurfaceTexture input=engine.input;if(!destroyed&&!nativeMode&&engine.output==output&&engine.submitted){if(!presented){presented=true;listener.ready();}if(video!=null&&input!=null)video.presented(input);}}
+    @Override public void onSurfaceTextureUpdated(SurfaceTexture output){SurfaceTexture input=engine.input;if(!destroyed&&!nativeMode&&engine.output==output&&engine.submitted&&scene.equals(engine.submittedScene)){if(!presented){presented=true;listener.ready();}if(video!=null&&input!=null)video.presented(input);}}
     @Override public void setTransform(Matrix transform){if(video==null){super.setTransform(transform);return;}if(engine!=null)engine.transform(transform);}
     void sourceSnapshot(int width,int height,Capture callback){engine.sourceSnapshot(width,height,callback);}
     void backdropSnapshot(int width,int height,Capture callback){engine.backdropSnapshot(width,height,callback);}
@@ -109,6 +109,7 @@ final class WallpaperGpuView extends TextureView implements TextureView.SurfaceT
         private android.opengl.EGLSurface eglSurface=android.opengl.EGL14.EGL_NO_SURFACE;
         private Surface outputSurface;
         private Surface nativeSurface;
+        private volatile String submittedScene="";
         private boolean ownsSurface,nativePresented,presentationTime,delayedPresentation;
         private int nativeEpoch;
         private volatile SurfaceTexture output;
@@ -225,7 +226,7 @@ final class WallpaperGpuView extends TextureView implements TextureView.SurfaceT
                     if(android.opengl.EGLExt.eglPresentationTimeANDROID(display,eglSurface,stamp))delayedPresentation=delayPresentation;
                     else{presentationTime=false;DiagnosticLog.info("wallpaper.gpu.presentation_time","hint disabled error="+android.opengl.EGL14.eglGetError());}
                 }
-                submitted=true;if(!android.opengl.EGL14.eglSwapBuffers(display,eglSurface))throw new IOException("GLES output interrupted");
+                submittedScene=weather;submitted=true;if(!android.opengl.EGL14.eglSwapBuffers(display,eglSurface))throw new IOException("GLES output interrupted");
                 ready=true;
                 Runnable confirmed=frameReady;frameReady=null;if(confirmed!=null)main.post(()->{if(!destroyed&&active)confirmed.run();});
                 if(animated){nextWeatherFrame=weatherFrameStamp+33333333L;queueWeatherFrame();}else if(nativeSurface!=null&&!nativePresented)scheduleDraw(16);

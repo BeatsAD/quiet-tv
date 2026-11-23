@@ -40,6 +40,7 @@ final class InputSourceObservation {
     static synchronized boolean running(){return current!=null&&current.active;}
     static synchronized boolean busy(){return current!=null&&(current.active||current.finalizing);}
     static synchronized String start(Context context,boolean raw)throws Exception{
+        if(!DiagnosticLog.recording())throw new IllegalStateException("请先开启诊断日志记录");
         if(busy())throw new IllegalStateException("正在记录原厂信号源操作");
         if(!InputAdb.connected())throw new IllegalStateException("本机调试连接不可用，请先检查连接");
         current=new InputSourceObservation(context,raw,SourcePairing.get(context).candidates());
@@ -133,12 +134,13 @@ final class InputSourceObservation {
         final long ended=System.currentTimeMillis();
         Thread tail=new Thread(()->{
             try{
-                if("finished".equals(reason)||"time_limit".equals(reason)){
+                if(DiagnosticLog.recording()&&("finished".equals(reason)||"time_limit".equals(reason))){
                     String help=InputAdb.query(context,"logcat --help");
                     if(!help.contains("-t"))throw new InputAdb.UnsupportedQuery("Bounded logcat unavailable");
                     try{
                         String text=InputAdb.query(context,LOG_QUERY),scoped=recentLogs(text,wall,ended);
                         synchronized(InputSourceObservation.this){
+                            if(!DiagnosticLog.recording())return;
                             report.put("logcat",new JSONObject().put("state","READ").put("lines",scoped.isEmpty()?0:scoped.split("\\n").length).put("timeFiltered",true));
                             appendRaw("logcat",System.currentTimeMillis(),scoped);
                         }
@@ -173,6 +175,7 @@ final class InputSourceObservation {
         context.getSharedPreferences("boot-app",0).edit().putString("source-observation-status",summary().toString()).apply();
     }catch(Exception failure){DiagnosticLog.error("input.observation.persist_failed",failure);}}
     static synchronized void savePairing(Context context,JSONObject snapshot)throws Exception{
+        if(!DiagnosticLog.recording())return;
         JSONObject copy=new JSONObject(snapshot.toString());copy.put("evidenceOnly",true).put("capturedAt",System.currentTimeMillis())
             .put("user",android.os.Process.myUid()/100000).put("fingerprint",Build.FINGERPRINT).put("model",Build.MODEL)
             .put("api",Build.VERSION.SDK_INT).put("appBuild",BuildConfig.VERSION_CODE);
@@ -224,7 +227,7 @@ final class InputSourceObservation {
     }
     static boolean hasEvidence(Context context){return new File(context.getFilesDir(),"source-pairing-evidence.json").isFile()||new File(context.getFilesDir(),"source-observation.json").isFile();}
     static File export(Context context)throws Exception{
-        File output=new File(context.getCacheDir(),"QuietTV-inputs-"+System.currentTimeMillis()+".zip");
+        File output=new File(context.getCacheDir(),"QuietTV-inputs-"+UUID.randomUUID()+".zip");
         JSONObject manifest=new JSONObject().put("schemaVersion",1);JSONArray files=new JSONArray();
         try(ZipOutputStream zip=new ZipOutputStream(new FileOutputStream(output))){
             for(String name:new String[]{"source-pairing-evidence.json","source-observation.json"}){

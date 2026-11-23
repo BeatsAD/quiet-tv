@@ -16,10 +16,15 @@ final class HomeQuickControlOverlay implements HomeQuickControlView.Host {
     private final HomeHeaderView header;
     private final HomeQuickControlView controls;
     private final DockBackdropDrawable.Background background;
-    private final ExecutorService worker=Executors.newSingleThreadExecutor();
+    private final ExecutorService worker=Executors.newFixedThreadPool(2);
     private final int desktopFocus,volumeStream;
     private final long opened=SystemClock.uptimeMillis();
-    private Runnable contentDraw;
+    private Runnable contentDraw,frameWindow;
+    private AutoDiagnosticOperation openOperation=AutoDiagnosticOperation.begin("quick_controls",500);
+    private void cancelOpenEvidence(){
+        if(frameWindow!=null){frameWindow.run();frameWindow=null;}
+        if(openOperation!=null){openOperation.cancel();openOperation=null;}
+    }
     private String returnFocus="",restoredHeader="";
     private boolean closed,contentReported,started;
 
@@ -41,7 +46,7 @@ final class HomeQuickControlOverlay implements HomeQuickControlView.Host {
             @Override public boolean onTouchEvent(MotionEvent event){return true;}
         };
         layer.setClipChildren(false);layer.setClipToPadding(false);
-        controls=new HomeQuickControlView(home,unit,chinese,this,this::execute);
+        controls=new HomeQuickControlView(home,unit,chinese,this,this::execute,true);
         layer.addView(controls,controls.position());controls.restore(saved);
         if(saved!=null){returnFocus=saved.getString("inline-return-focus","");restoredHeader=saved.getString("inline-header-focus","");}
         desktop.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
@@ -51,16 +56,18 @@ final class HomeQuickControlOverlay implements HomeQuickControlView.Host {
         }
         home.setVolumeControlStream(android.media.AudioManager.STREAM_MUSIC);
         root.addView(layer,new FrameLayout.LayoutParams(-1,-1));
+        if(openOperation!=null)openOperation.stage("SHELL_ATTACHED");
     }
     void resume(){
+        if(openOperation!=null&&frameWindow==null)frameWindow=DiagnosticFrameWindow.watch(home.getWindow(),openOperation);
         String focused=started?headerFocus():restoredHeader;restoredHeader="";if(!returnFocus.isEmpty())focused="";
-        int index=header.buttonIds.indexOf(focused);controls.setVisibility(index>=0&&!"control".equals(focused)?View.INVISIBLE:View.VISIBLE);
+        int index=header.buttonIds.indexOf(focused);boolean hidden=index>=0&&!"control".equals(focused);controls.setVisibility(hidden?View.INVISIBLE:View.VISIBLE);if(hidden)cancelOpenEvidence();
         if(index>=0)header.pills.get(index).requestFocus();else controls.requestFocus();
-        controls.resume();controls.reload();if(!returnFocus.isEmpty()){controls.focus(returnFocus);returnFocus="";}started=true;syncHeader();
+        controls.resume();if(!returnFocus.isEmpty()){controls.focusWhenReady(returnFocus);returnFocus="";}started=true;syncHeader();
     }
-    void pause(){controls.pause();}
+    void pause(){cancelOpenEvidence();controls.pause();}
     void refreshBackdrop(){if(!closed)controls.refreshBackdrop();}
-    void returningTo(String id,boolean hide){returnFocus=id;controls.cancelAdjustments();if(hide)controls.setVisibility(View.INVISIBLE);}
+    void returningTo(String id,boolean hide){returnFocus=id;controls.cancelAdjustments();if(hide){controls.setVisibility(View.INVISIBLE);cancelOpenEvidence();}}
     private String headerFocus(){View focused=header.buttons.findFocus();return focused!=null&&focused.getTag() instanceof String?(String)focused.getTag():"";}
     void save(Bundle state){controls.save(state);state.putString("inline-return-focus",returnFocus);state.putString("inline-header-focus",headerFocus());}
     void syncHeader(){
@@ -77,12 +84,21 @@ final class HomeQuickControlOverlay implements HomeQuickControlView.Host {
         if(key==KeyEvent.KEYCODE_BACK||key==KeyEvent.KEYCODE_ESCAPE){if(event.getAction()==KeyEvent.ACTION_UP&&!event.isCanceled())back();return true;}
         boolean direction=key>=KeyEvent.KEYCODE_DPAD_UP&&key<=KeyEvent.KEYCODE_DPAD_RIGHT;
         if(header.buttons.hasFocus()&&(confirm||direction)){
+            if(confirm){
+                if(event.getAction()==KeyEvent.ACTION_UP&&!event.isCanceled()){
+                    int index=header.pills.indexOf(header.buttons.findFocus());
+                    if(index>=0&&index<header.buttonIds.size()){
+                        home.activateQuickHeader(header.buttonIds.get(index));
+                        KeyFeedback.confirm(home);
+                    }
+                }
+                return true;
+            }
             if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0){
                 int index=header.pills.indexOf(header.buttons.findFocus());if(index<0||index>=header.buttonIds.size())return true;
-                if(confirm)home.activateQuickHeader(header.buttonIds.get(index));
-                else if(key==KeyEvent.KEYCODE_DPAD_LEFT||key==KeyEvent.KEYCODE_DPAD_RIGHT){
+                if(key==KeyEvent.KEYCODE_DPAD_LEFT||key==KeyEvent.KEYCODE_DPAD_RIGHT){
                     int next=Math.max(0,Math.min(header.buttonIds.size()-1,index+(key==KeyEvent.KEYCODE_DPAD_LEFT?-1:1)));
-                    controls.setVisibility("control".equals(header.buttonIds.get(next))?View.VISIBLE:View.INVISIBLE);header.pills.get(next).requestFocus();syncHeader();
+                    boolean visible="control".equals(header.buttonIds.get(next));controls.setVisibility(visible?View.VISIBLE:View.INVISIBLE);if(!visible)cancelOpenEvidence();header.pills.get(next).requestFocus();syncHeader();
                 }else if(key==KeyEvent.KEYCODE_DPAD_DOWN){if("control".equals(header.buttonIds.get(index))){controls.setVisibility(View.VISIBLE);controls.requestFocus();controls.focus(null);}else home.closeQuickControls(true);}
             }return true;
         }
@@ -93,10 +109,13 @@ final class HomeQuickControlOverlay implements HomeQuickControlView.Host {
         if(confirm||direction){controls.dispatchKeyEvent(event);return true;}
         return false;
     }
-    void back(){if(!controls.cancelAdjustments()){home.closeQuickControls(false);KeyFeedback.returned(home);}}
+    void back(){
+        if(!controls.cancelAdjustments())home.closeQuickControls(false);
+        KeyFeedback.returned(home);
+    }
     private void execute(String id){if(QuickControlStore.range(id)){controls.beginRange(id);return;}home.executeQuickControl(id);}
     void destroy(){
-        closed=true;if(contentDraw!=null)contentDraw.run();controls.destroy();controls.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);controls.setFocusable(false);controls.setFocusableInTouchMode(false);controls.clearFocus();
+        closed=true;cancelOpenEvidence();if(contentDraw!=null){contentDraw.run();contentDraw=null;}controls.destroy();controls.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);controls.setFocusable(false);controls.setFocusableInTouchMode(false);controls.clearFocus();
         for(TextView pill:header.pills){pill.setOnFocusChangeListener(null);pill.setOnTouchListener(null);pill.setFocusable(false);pill.setFocusableInTouchMode(false);pill.setLongClickable(true);pill.setSelected(false);pill.setActivated(false);SettingsFocusMotion.update(pill,false);}
         header.controlVisibility();desktop.setDescendantFocusability(desktopFocus);home.setVolumeControlStream(volumeStream);worker.shutdown();
         if(home.isFinishing()||UiCompat.destroyed(home))root.removeView(layer);else UiMotion.exit(controls,-6*home.getResources().getDisplayMetrics().widthPixels/960f,()->root.removeView(layer));
@@ -108,8 +127,9 @@ final class HomeQuickControlOverlay implements HomeQuickControlView.Host {
         worker.execute(()->{try{QuickControlStore.Snapshot value=new QuickControlStore(new File(home.getFilesDir(),"quick-controls")).read();home.runOnUiThread(()->{if(!closed)ready.accept(value);});}catch(IOException error){home.runOnUiThread(()->{if(!closed)failed.accept(error.getMessage());});}});
     }
     @Override public SettingsSheetBackdrop quickBackdrop(View panel){return new SettingsSheetBackdrop(panel,home.getResources().getDisplayMetrics().widthPixels/960f,background,worker);}
+    @Override public void quickShellDrawn(){if(openOperation!=null)openOperation.stage("FIRST_DRAW_CALLBACK");}
     @Override public void quickContentReady(View content){
         if(contentReported||contentDraw!=null)return;
-        contentDraw=UiCompat.onDraw(content,()->content.post(()->{if(closed||contentReported)return;if(contentDraw!=null){contentDraw.run();contentDraw=null;}contentReported=true;DiagnosticLog.info("page.content_ready","page=quick_controls inline=true createMs="+(SystemClock.uptimeMillis()-opened)+" evidence=controls_drawn");}));
+        contentDraw=UiCompat.onDraw(content,()->content.post(()->{if(closed||contentReported)return;if(contentDraw!=null){contentDraw.run();contentDraw=null;}contentReported=true;if(openOperation!=null){openOperation.stage("CONTROLS_DRAW_CALLBACK");openOperation.finish();openOperation=null;}DiagnosticLog.info("page.content_ready","page=quick_controls inline=true createMs="+(SystemClock.uptimeMillis()-opened)+" evidence=controls_drawn");}));
     }
 }

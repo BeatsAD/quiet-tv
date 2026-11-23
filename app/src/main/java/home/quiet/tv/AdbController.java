@@ -275,6 +275,10 @@ final class AdbController implements Closeable {
     String shell(String command) throws Exception {
         return shell(command,0);
     }
+    String runtimeMemoryShell() throws Exception {
+        if(!connected())throw new IOException("需要连接 ADB");
+        return shell("ps -A -n -o PID,UID && dumpsys -t 15 meminfo --local",512*1024);
+    }
     // Raw dumps stay in memory. identityResult already refuses these commands' output.
     String diagnosticShell(String command) throws Exception {
         if(!Arrays.asList("dumpsys activity activities","dumpsys window windows","dumpsys activity top").contains(command))throw new IllegalArgumentException("Unsupported diagnostic query");

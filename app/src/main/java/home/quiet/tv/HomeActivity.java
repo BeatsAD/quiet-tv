@@ -46,10 +46,10 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private static final float CONTENT_MARGIN = 48;
     // The complete first screen scrolls as one item; preserve its original composition.
     private static final float HOME_HEADER_HEIGHT = 540;
-    private static final float HOME_TITLE_TOP = 314, HOME_DOCK_TOP = 386;
+    private static final float HOME_DOCK_TOP = 386;
     private static final float APP_TOP = 24, APP_TITLE_HEIGHT = APP_TOP;
     private static final float APP_GAP = 16, APP_LABEL_GAP = 6, APP_LABEL_HEIGHT = 20;
-    private static final float FOCUS_SCALE = 1.065f, FOCUS_STROKE = 2;
+    private static final float FOCUS_SCALE = 1.065f;
     // A critically damped spring settles without bouncing past the target.
     private static final android.animation.TimeInterpolator FOCUS_MOTION = t -> (float)((1-(1+8*t)*Math.exp(-8*t))/(1-9*Math.exp(-8)));
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -57,20 +57,27 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private final ArrayList<App> dock = new ArrayList<>(), apps = new ArrayList<>();
     private final ArrayList<String> fullAppOrder=new ArrayList<>();
     private final ArrayList<Tile> dockTiles = new ArrayList<>();
+    private final AppCardShadow appCardShadow = new AppCardShadow();
     private final HashMap<String,Tile> visibleTiles = new HashMap<>();
     private final ArrayList<TextView> pills = new ArrayList<>();
     private final ArrayList<TextView> visiblePills = new ArrayList<>();
     private final HashMap<String,App> artworkCache = new HashMap<>();
+    private LegacyIconRecovery legacyIcons;
+    private boolean legacyArtworkStarted,legacyTrialRetiring,drawingLegacySnapshot,legacyIconsDestroyed;
+    private Runnable legacyPendingResult;
+    private final HashSet<String> legacyDeferredTrials=new HashSet<>();
+    private int legacyTrialGeneration;
+    private String legacyTrialPackage="",legacyTrialKey="";
     private final HomeCatalogRefresh catalogRefresh=new HomeCatalogRefresh();
     private volatile long packageRevision;
     private volatile long previewCatalogRevision=-1;
     private volatile Map<String,App> previewCatalog=Collections.emptyMap();
-    private Map<String,?> appliedDesktopValues=Collections.emptyMap();
+    private Map<String,?> appliedDesktopValues;
     private String dockGeometryKey="";private DockLayout[] dockGeometries;
     private DockLayout renderedDockGeometry;
     private int catalogSequence,focusGeneration,hdmiLaunchGeneration;
     private ViewTreeObserver.OnPreDrawListener focusRestore;
-    private boolean waitingForUnlock,unlockRecreateRequested;
+    private boolean waitingForUnlock,unlockRecreateRequested,pendingHomeFocusReset;
     private final BroadcastReceiver unlockReceiver=new BroadcastReceiver(){
         @Override public void onReceive(Context context,Intent intent){resumeAfterUnlock();}
     };
@@ -118,7 +125,32 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private int homeResumeSequence;
     private long homeResumeStarted,homePausedAt;
     private boolean homeDrawPending;
+    private AutoDiagnosticOperation homeResumeOperation;
+    private Runnable homeFrameWindow;
+    private boolean externalLaunchDispatched;
+
+    private void clearHomeEvidence(){
+        if(homeFrameWindow!=null){homeFrameWindow.run();homeFrameWindow=null;}
+        if(homeResumeOperation!=null){homeResumeOperation.cancel();homeResumeOperation=null;}
+    }
+    private void finishHomeEvidence(){
+        if(homeResumeOperation==null||!homeReadyDrawn||!hasWindowFocus())return;
+        homeResumeOperation.stage("FOCUSED_READY_DRAW");
+        homeResumeOperation.finish();homeResumeOperation=null;
+    }
     private boolean homeReadyDrawn;
+    private boolean homeFocusSeen;
+    private long homeWatchScheduled;
+    private final Runnable homeTransitionWatch=this::checkHomeTransition;
+    private void checkHomeTransition(){
+        if(!resumed||isFinishing()||UiCompat.destroyed(this))return;
+        long now=SystemClock.uptimeMillis();
+        if(homeDrawPending||!homeFocusSeen&&!hasWindowFocus()||now-homeWatchScheduled>950){
+            homeResumeEvent("home.transition.slow.result","stage=foreground_watch drawPending="+homeDrawPending
+                +" focusSeen="+homeFocusSeen+" watchQueueMs="+Math.max(0,now-homeWatchScheduled-700));
+            DiagnosticProbe.slowResource("home_foreground_watch");
+        }
+    }
     private static int observedInputKinds;
     private Typeface outfit;
     private boolean chinese = true, fixedGreeting = false, ready = false, resumed = false, requestedLocation = false;
@@ -128,6 +160,35 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         UpdateRepository.get(this).foreground();
         DiagnosticLog.info("home.update.foreground","elapsedMs="+(SystemClock.uptimeMillis()-started));
     };
+    private static final long UPDATE_IDLE_MS=7000L;
+    private long lastUpdateIdleInput;
+    private final UpdateRepository.Listener homeUpdateListener=this::scheduleUpdateReminder;
+    private final Runnable showUpdateReminder=()->{
+        if(!resumed||isFinishing()||UiCompat.destroyed(this))return;
+        String candidate=UpdateRepository.get(this).reminderCandidate();
+        if(candidate.isEmpty())return;
+        if(!updateReminderIdle()||SystemClock.uptimeMillis()-lastUpdateIdleInput<UPDATE_IDLE_MS){
+            scheduleUpdateReminder();return;
+        }
+        startActivity(addSettingsBackdrop(new Intent(this,UpdateReminderActivity.class).putExtra(UpdateReminderActivity.CANDIDATE,candidate)));
+    };
+    private void scheduleUpdateReminder(){
+        main.removeCallbacks(showUpdateReminder);
+        if(resumed&&!waitingForUnlock&&homeReadyDrawn&&!UpdateRepository.get(this).reminderCandidate().isEmpty())
+            main.postDelayed(showUpdateReminder,UPDATE_IDLE_MS);
+    }
+    private void updateReminderInteraction(){
+        lastUpdateIdleInput=SystemClock.uptimeMillis();
+        scheduleUpdateReminder();
+    }
+    private boolean updateReminderIdle(){
+        return homeReadyDrawn&&screensaverAllowed()&&screensaver!=null&&!screensaver.showing()
+            && !quickControlsOpening&&!quickDesktopSwitching&&!quickSettingsOpening&&restoredQuickControls==null
+            && pendingHomeAction.isEmpty()&&pendingConfirm==null&&heldPackage.isEmpty()&&!externalLaunchDispatched
+            && !automaticInputPending&&!inputDiscoveryPending&&systemEntryPending.isEmpty()
+            && maintenanceInputRequest.isEmpty()&&maintenanceEntryRequest.isEmpty()
+            && list.getScrollState()==RecyclerView.SCROLL_STATE_IDLE&&(scrollAnimation==null||!scrollAnimation.isRunning());
+    }
     private float unit;
     private int row = 0, column = 0, topColumn = 0, restoreColumn = 0;
     private int scrollTarget = RecyclerView.NO_POSITION;
@@ -144,13 +205,26 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private ArrayList<String> moveDefaults;
     private HomeCatalogRefresh.Input moveInput;
     private final Runnable confirmHold=()->{
-        if(screensaverAllowed()&&row<0&&heldPackage.equals("button:"+topEntry())&&!confirmLong){confirmLong=true;String id=topEntry();cancelConfirm();visiblePills.get(topColumn).setPressed(false);if(!"settings".equals(id))openHomeTools(true,id);return;}
+        if(screensaverAllowed()&&row<0&&heldPackage.equals("button:"+topEntry())&&!confirmLong){confirmLong=true;String id=topEntry();cancelConfirm();visiblePills.get(topColumn).setPressed(false);if(!"settings".equals(id))openRemoteHomeTools(true,id);return;}
         App app=currentApp();
         if(screensaverAllowed()&&app!=null&&app.pkg.equals(heldPackage)&&!confirmLong){confirmLong=true;cancelConfirm();pressDock(false);openAppActions(app);}
     };
     private JSONObject config;
     private final BroadcastReceiver timeReceiver = new BroadcastReceiver() {
-        @Override public void onReceive(Context c, Intent i) { if(Intent.ACTION_SCREEN_OFF.equals(i.getAction())){homeHeader.clockActive(false);cancelInputWork();return;}if(Intent.ACTION_SCREEN_ON.equals(i.getAction()))homeHeader.clockActive(resumed);updateClock();if(screensaver!=null&&!Intent.ACTION_TIME_TICK.equals(i.getAction()))screensaver.timeChanged();if(wallpapers!=null)wallpapers.environmentChanged(); }
+        @Override public void onReceive(Context c, Intent i) {
+            if(Intent.ACTION_SCREEN_OFF.equals(i.getAction())){clearHomeEvidence();homeHeader.clockActive(false);cancelInputWork();return;}
+            boolean wake=Intent.ACTION_SCREEN_ON.equals(i.getAction());
+            AutoDiagnosticOperation op=wake?AutoDiagnosticOperation.begin("home_wake",500):null;
+            DiagnosticProbe.StallWatch watch=wake?DiagnosticProbe.watchMain("home_wake",op):null;
+            try{
+                if(wake){
+                    op.stage("SCREEN_ON_CALLBACK");
+                    if(homeResumeOperation!=null)homeResumeOperation.stage("SCREEN_ON_CALLBACK");
+                    homeHeader.clockActive(resumed);homeResumeEvent("home.wake","evidence=screen_on_delivery_not_panel");
+                }
+                updateClock();if(screensaver!=null&&!Intent.ACTION_TIME_TICK.equals(i.getAction()))screensaver.timeChanged();if(wallpapers!=null)wallpapers.environmentChanged();
+            }finally{if(watch!=null)watch.end();if(op!=null)op.finish();}
+        }
     };
     private final BroadcastReceiver packageReceiver = new BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) {
@@ -167,7 +241,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private String tr(String zh, String en) { return chinese ? zh : en; }
 
     @Override public void onCreate(Bundle state) {
-        super.onCreate(state);if(state!=null){quickReturn=state.getString("quick-return","");pendingHomeAction=state.getString("quick-pending","");pendingButtonFocus=state.getString("button-pending-focus","");pendingAppFocus=state.getString("app-pending-focus","");pendingDockFocus=state.getBoolean("quick-return-dock");restoredQuickControls=state.getBundle("inline-quick-controls");}InputDiagnostics.home(this,isHomeIntent(getIntent()),"create");BackNavigation.install(this,this::handleBack);
+        super.onCreate(state);if(state!=null){quickReturn=state.getString("quick-return","");pendingHomeAction=state.getString("quick-pending","");pendingButtonFocus=state.getString("button-pending-focus","");pendingAppFocus=state.getString("app-pending-focus","");pendingDockFocus=state.getBoolean("quick-return-dock");restoredQuickControls=state.getBundle("inline-quick-controls");}InputDiagnostics.home(this,isHomeIntent(getIntent()),"create");
         unit = getResources().getDisplayMetrics().widthPixels / 960f;
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN
                 | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
@@ -182,6 +256,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             androidx.core.content.ContextCompat.registerReceiver(this,unlockReceiver,new IntentFilter(Intent.ACTION_USER_UNLOCKED),androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
             resumeAfterUnlock();return;
         }
+        BackNavigation.install(this,this::handleBack);
         ChildMobileServer.restore(this);
         LegacyHomeKeyService.prepare(this);
         try {
@@ -194,11 +269,15 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         desktopSettings=new DesktopSettingsStore(this);
         column = getPreferences(0).getInt("column", 0);
         activePackage = getPreferences(0).getString("package", "");
-        if(state==null && isHomeIntent(getIntent()))resetHomeFocus();
+        if(state==null && isHomeIntent(getIntent()))resetHomeFocus(true);
         makeScene();
         IntentFilter packages=new IntentFilter(Intent.ACTION_PACKAGE_ADDED);packages.addAction(Intent.ACTION_PACKAGE_REMOVED);packages.addAction(Intent.ACTION_PACKAGE_CHANGED);packages.addDataScheme("package");
         registerReceiver(packageReceiver,packages);
-        loadApps("create");
+        if(LegacyIconRecovery.supported()){
+            LegacyIconRecovery policy=LegacyIconRecovery.get(this);
+            loader.execute(()->{policy.prepare();main.post(()->{if(!legacyIconsDestroyed&&!UiCompat.destroyed(this)){legacyIcons=policy;loadApps("create");}});});
+        }else loadApps("create");
+        loader.execute(()->{try{new QuickControlStore(new java.io.File(getFilesDir(),"quick-controls")).read();}catch(java.io.IOException error){DiagnosticLog.info("quick.controls.preload_failed","use checked read on open");}});
     }
 
     private void resumeAfterUnlock(){
@@ -262,9 +341,14 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             if(homeDrawPending){
                 homeDrawPending=false;
                 // This callback precedes drawing; it does not establish a frame presented by the TV.
+                if(homeResumeOperation!=null)homeResumeOperation.stage("FIRST_DRAW_CALLBACK");
                 homeResumeEvent("home.first_draw","evidence=on_draw_callback_only");
+                if(SystemClock.uptimeMillis()-homeResumeStarted>=250){
+                    homeResumeEvent("home.transition.slow.result","stage=draw_callback evidence=not_presented_frame");
+                    DiagnosticProbe.slowResource("home_slow_draw");
+                }
             }
-            if(ready && !homeReadyDrawn){homeReadyDrawn=true;scheduleHomeUpdate();}
+            if(ready && !homeReadyDrawn){homeReadyDrawn=true;scheduleHomeUpdate();scheduleUpdateReminder();finishHomeEvidence();}
         });
         setContentView(root);
         wallpapers = new WallpaperController(this, root, unit, chinese);
@@ -358,7 +442,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         scheduleHomeUpdate();
         if(wallpapers!=null)wallpapers.environmentChanged();
         if(network==null||network.getVisibility()!=View.VISIBLE)return;
-        ConnectivityManager cm=(ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE);
+        ConnectivityManager cm=(ConnectivityManager)getApplicationContext().getSystemService(CONNECTIVITY_SERVICE);
         boolean ethernet,wifi;
         if(Build.VERSION.SDK_INT>=23){
             NetworkCapabilities nc=cm.getNetworkCapabilities(cm.getActiveNetwork());
@@ -401,9 +485,19 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     @Override protected void onResume() {
         if(waitingForUnlock){super.onResume();resumeAfterUnlock();return;}
-        homeResumeStarted=SystemClock.uptimeMillis();++homeResumeSequence;homeDrawPending=true;homeReadyDrawn=false;
+        clearHomeEvidence();homeResumeOperation=AutoDiagnosticOperation.begin("home_resume",1000);
+        if(externalLaunchDispatched){if(homeResumeOperation!=null)homeResumeOperation.stage("AFTER_APP_DISPATCH_UNVERIFIED");externalLaunchDispatched=false;}
+        DiagnosticProbe.StallWatch watch=DiagnosticProbe.watchMain("home_resume",homeResumeOperation);
+        try{resumeHome();}finally{if(watch!=null)watch.end();}
+    }
+
+    private void resumeHome(){
+        homeResumeStarted=SystemClock.uptimeMillis();++homeResumeSequence;homeDrawPending=true;homeReadyDrawn=false;homeFocusSeen=false;
         homeResumeEvent("home.resume.begin","sincePauseMs="+(homePausedAt==0?-1:homeResumeStarted-homePausedAt));
-        super.onResume(); resumed=true;
+        super.onResume(); resumed=true;legacyDeferredTrials.clear();lastUpdateIdleInput=SystemClock.uptimeMillis();UpdateRepository.get(this).add(homeUpdateListener);
+        homeFrameWindow=DiagnosticFrameWindow.watch(getWindow(),homeResumeOperation);
+        homeWatchScheduled=homeResumeStarted;main.removeCallbacks(homeTransitionWatch);main.postAtTime(homeTransitionWatch,homeWatchScheduled+700);
+        long lifecycleReadyAt=SystemClock.uptimeMillis();
         new DesktopRoutes(this).reconcileVendor();
         if(!new HomeProxy(this).allowed(getIntent())){new HomeProxy(this).original(this);finish();}
         if(!systemEntryPending.isEmpty()){systemEntryLifecycle(systemEntryDispatched?"resume_return_unverified":"resume_before_dispatch");systemEntryPending="";}
@@ -414,17 +508,38 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         registerReceiver(timeReceiver,time);
         if(Build.VERSION.SDK_INT>=24)stopNetworkCallback=Api24.observe(this);
         else registerReceiver(legacyNetworkReceiver,new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
-        applyDesktopSettings();updateClock();homeHeader.clockActive(true);updateNetwork();
+        long routesReadyAt=SystemClock.uptimeMillis();
+        if(!getSharedPreferences("desktop-settings",0).getAll().equals(appliedDesktopValues))applyDesktopSettings(false);
+        if(pendingHomeFocusReset){
+            pendingHomeFocusReset=false;
+            closeQuickControls(false);
+            resetHomeFocus(true);
+        }else if(ready)focusCurrent(false);
+        updateClock();homeHeader.clockActive(true);updateNetwork();
+        long desktopReadyAt=SystemClock.uptimeMillis();
         wallpapers.resume();weather.resume();screensaver.availabilityChanged();
+        long mediaReadyAt=SystemClock.uptimeMillis();
         if(quickSettingsOpening){quickSettingsOpening=false;closeQuickControls(false);}
         if(quickControls!=null)quickControls.resume();
-        loader.execute(()->{try{new QuickControlStore(new java.io.File(getFilesDir(),"quick-controls")).read();}catch(java.io.IOException error){DiagnosticLog.info("quick.controls.preload_failed","use checked read on open");}});
-        loadApps("resume");if(ready&&resumed)focusCurrent(false);
+        loadApps("resume");
         loader.execute(()->BootHomeActivity.reconcile(getApplicationContext()));
         beginPendingMove();
         if(tvInputs!=null)main.post(tvInputs::openPending);
         main.post(this::openMaintenanceInput);main.post(this::runPendingHomeAction);main.post(this::returnToQuick);
+        long finishedAt=SystemClock.uptimeMillis();
+        if(homeResumeOperation!=null){
+            homeResumeOperation.stage("RESUME_CALLBACK_COMPLETE");
+            homeResumeOperation.metric("resume_callback_ms",finishedAt-homeResumeStarted);
+            homeResumeOperation.metric("desktop_ms",desktopReadyAt-routesReadyAt);
+            homeResumeOperation.metric("media_ms",mediaReadyAt-desktopReadyAt);
+        }
         homeResumeEvent("home.resume.end","");
+        if(finishedAt-homeResumeStarted>=100){
+            homeResumeEvent("home.transition.slow.result","stage=resume_work lifecycleCallbacksMs="+(lifecycleReadyAt-homeResumeStarted)
+                +" routesAndReceiversMs="+(routesReadyAt-lifecycleReadyAt)+" desktopMs="+(desktopReadyAt-routesReadyAt)
+                +" mediaMs="+(mediaReadyAt-desktopReadyAt)+" remainingMs="+(finishedAt-mediaReadyAt));
+            DiagnosticProbe.slowResource("home_slow_resume");
+        }
     }
 
     private void homeResumeEvent(String event,String detail){
@@ -432,7 +547,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         DiagnosticLog.info(event,"instance="+homeInstance+" resume="+homeResumeSequence+" uptimeMs="+now
             +" elapsedMs="+(homeResumeSequence==0?-1:now-homeResumeStarted)+" resumed="+resumed+" windowFocus="+hasWindowFocus()
             +" ready="+ready+" loadingApps="+catalogRefresh.loading()+" drawPending="+homeDrawPending
-            +" size="+(root==null?"0x0":root.getWidth()+"x"+root.getHeight())+(detail.isEmpty()?"":" "+detail));
+            +" screenOnAgeMs="+DiagnosticProbe.wakeAgeMs()+" size="+(root==null?"0x0":root.getWidth()+"x"+root.getHeight())+(detail.isEmpty()?"":" "+detail));
     }
 
     private String pairingPreparation="";
@@ -474,11 +589,19 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     @Override public void onWindowFocusChanged(boolean focused){
         if(waitingForUnlock){super.onWindowFocusChanged(focused);return;}
         long started=SystemClock.uptimeMillis();
+        if(focused&&resumed&&!homeFocusSeen){
+            homeFocusSeen=true;
+            if(homeResumeOperation!=null)homeResumeOperation.stage("WINDOW_FOCUS_CALLBACK");
+            if(started-homeResumeStarted>=500){
+                homeResumeEvent("home.transition.slow.result","stage=window_focus_callback evidence=window_callback_not_system_window_timing");
+                DiagnosticProbe.slowResource("home_slow_focus");
+            }
+        }
         homeResumeEvent("home.window_focus","focused="+focused+" "+InputDiagnostics.focus(this));
         try{
             super.onWindowFocusChanged(focused);if(!focused)cancelInputWork(true);if(wallpapers!=null)wallpapers.windowFocusChanged(focused);if(screensaver!=null){if(!focused)cancelConfirm();screensaver.availabilityChanged();}systemEntryLifecycle("window_focus="+focused);if(focused && resumed && systemEntryDispatched)systemEntryPending="";if(focused && resumed){runPendingHomeAction();new HomeProxy(this).visible(this);if(!isFinishing()){HomeGuardRecovery.visible(this);launchBootApp();}}
         }finally{homeResumeEvent("home.window_focus.end","focused="+focused+" callbackMs="+(SystemClock.uptimeMillis()-started));}
-        if(focused&&resumed)main.post(this::openMaintenanceInput);main.post(this::runPendingHomeAction);main.post(this::returnToQuick);
+        if(focused&&resumed){updateReminderInteraction();finishHomeEvidence();main.post(this::openMaintenanceInput);}main.post(this::runPendingHomeAction);main.post(this::returnToQuick);
     }
 
     void checkBootApp(){getWindow().getDecorView().post(this::launchBootApp);}
@@ -564,6 +687,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     @Override protected void onPause() {
+        clearHomeEvidence();
         if(operationFeedback!=null)operationFeedback.hide();
         animateHomeReturn=false;
         if(quickControls!=null)quickControls.pause();
@@ -571,14 +695,14 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         if(waitingForUnlock){super.onPause();return;}
         cancelConfirm();screensaver.pause();homeHeader.clockActive(false);
         cancelFocusRestore("pause");
-        root.removeCallbacks(checkHomeUpdates);homeReadyDrawn=false;
+        root.removeCallbacks(checkHomeUpdates);main.removeCallbacks(homeTransitionWatch);main.removeCallbacks(showUpdateReminder);UpdateRepository.get(this).remove(homeUpdateListener);homeReadyDrawn=false;
         if(!HomeGuardState.canShow(this))new HomeProxy(this).defer(getIntent());
         homePausedAt=SystemClock.uptimeMillis();homeResumeEvent("home.pause","");homeDrawPending=false;
         systemEntryLifecycle("pause");
         ++hdmiLaunchGeneration;new BootAppStore(this).cancelHdmiBoot();BootAppLifecycle.left(this);
         if(dockPress!=null)dockPress.cancel();updateDock(false);
         HomeGuardRecovery.leftHome(this);
-        resumed=false;main.removeCallbacks(confirmHold);heldPackage="";cancelMove();if(scrollAnimation!=null)scrollAnimation.cancel();list.stopScroll();saveFocus();wallpapers.pause();weather.pause();
+        resumed=false;cancelUnshownLegacyTrial();main.removeCallbacks(confirmHold);heldPackage="";cancelMove();if(scrollAnimation!=null)scrollAnimation.cancel();list.stopScroll();saveFocus();wallpapers.pause();weather.pause();
         unregisterReceiver(timeReceiver);
         if(Build.VERSION.SDK_INT>=24)stopNetworkCallback.run();
         else unregisterReceiver(legacyNetworkReceiver);
@@ -587,12 +711,16 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     @Override protected void onDestroy(){
-        OperationFeedback.clear(this);
+        legacyIconsDestroyed=true;
+        clearHomeEvidence();
+        OperationFeedback.clear(this);main.removeCallbacks(homeTransitionWatch);
         if(liveHome.get()==this)liveHome.clear();inputWork.close();
         if(waitingForUnlock){unregisterReceiver(unlockReceiver);loader.shutdownNow();super.onDestroy();return;}
         if(quickControls!=null){quickControls.destroy();quickControls=null;}
         PhoneSettingsSession.get(this).forgetConfiguration(phoneConfiguration);cancelFocusRestore("destroy");
-        BootAppLifecycle.destroyed(this);unregisterReceiver(packageReceiver);loader.shutdownNow();screensaver.destroy();wallpapers.destroy();weather.destroy();super.onDestroy();
+        BootAppLifecycle.destroyed(this);unregisterReceiver(packageReceiver);
+        if(legacyPendingResult!=null){main.removeCallbacks(legacyPendingResult);legacyPendingResult.run();}
+        cancelUnshownLegacyTrial();if(legacyIcons==null)loader.shutdownNow();else loader.shutdown();screensaver.destroy();wallpapers.destroy();weather.destroy();super.onDestroy();
     }
     @Override protected void onStop(){
         if(quickSettingsOpening){quickSettingsOpening=false;closeQuickControls(false);}
@@ -601,39 +729,57 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         super.onStop();
     }
     @Override protected void onNewIntent(Intent intent){
-        cancelInputWork();if(isHomeIntent(intent))HomeGuardService.cancelInputTransition();
-        super.onNewIntent(intent);setIntent(intent);InputDiagnostics.home(this,isHomeIntent(intent),"new_intent");
+        boolean home=isHomeIntent(intent);
+        AutoDiagnosticOperation op=home&&!waitingForUnlock?AutoDiagnosticOperation.begin("home_intent",500):null;
+        DiagnosticProbe.StallWatch watch=op==null?null:DiagnosticProbe.watchMain("home_intent",op);
+        try{
+            super.onNewIntent(intent);setIntent(intent);InputDiagnostics.home(this,home,"new_intent");
+            handleNewIntent(intent,home);
+        }finally{if(watch!=null)watch.end();if(op!=null)op.finish();}
+    }
+
+    private void handleNewIntent(Intent intent,boolean home){
         if(waitingForUnlock){resumeAfterUnlock();return;}
-        loader.execute(()->BootHomeActivity.reconcile(getApplicationContext()));
+        cancelInputWork();if(home)HomeGuardService.cancelInputTransition();
         if(!new HomeProxy(this).allowed(intent)){new HomeProxy(this).original(this);finish();return;}
         getWindow().getDecorView().post(()->{if(resumed && hasWindowFocus())new HomeProxy(this).visible(this);});
-        homeResumeEvent("home.new_intent","home="+isHomeIntent(intent));
-        cancelConfirm();screensaver.pause();if(resumed)wallpapers.resume();screensaver.availabilityChanged();
-        if(isHomeIntent(intent)){closeQuickControls(false);resetHomeFocus();}else if(ready&&resumed)focusCurrent(false);
+        homeResumeEvent("home.new_intent","home="+home);
+        cancelConfirm();
+        // Activity resume already restores the ordinary HOME background. An active saver must still exit.
+        if(!home||resumed&&screensaver.showing()){
+            screensaver.pause();if(resumed)wallpapers.resume();screensaver.availabilityChanged();
+        }
+        if(home&&!resumed)pendingHomeFocusReset=true;
+        else if(home){closeQuickControls(false);resetHomeFocus(true);}
+        else if(ready&&resumed)focusCurrent(false);
         main.post(this::openMaintenanceInput);main.post(this::runPendingHomeAction);main.post(this::returnToQuick);
     }
 
     private boolean isHomeIntent(Intent intent){return (Intent.ACTION_MAIN.equals(intent.getAction()) || Intent.ACTION_VIEW.equals(intent.getAction())) && intent.hasCategory(Intent.CATEGORY_HOME);}
 
-    private void resetHomeFocus(){
+    private void resetHomeFocus(boolean applyFocus){
         cancelMove();
         if(inputPopup!=null && inputPopup.isShowing())inputPopup.closeQuietly();
         animateHomeReturn=ready&&root.isShown()&&root.getWindowVisibility()==View.VISIBLE&&list.canScrollVertically(-1);
         row=0;column=Math.max(0,Math.min(restoreColumn,maxColumn(0)));
         // Do not let an in-flight catalog refresh restore the old grid application.
-        pendingAppFocus="";activePackage="";saveFocus();focusCurrent(false);
+        pendingAppFocus="";activePackage="";saveFocus();if(applyFocus)focusCurrent(false);
     }
 
     private static class App {
-        String pkg,label,artworkKey; ComponentName component; Bitmap banner; int color; boolean libraryCover;
+        String pkg,label,artworkKey,coverKey; ComponentName component; Bitmap banner; int color; boolean libraryCover,trialArtwork,trialReported;
     }
 
     private HomeCatalogRefresh.Input catalogInput(){
         return new HomeCatalogRefresh.Input(new DockStore(this).load(),new HomeOrderStore(this).signature(),
-            new ChildModeStore(this).revision(),AppCoverStore.get(this).revision(),packageRevision,homeAppsVisible,new HomeVisibilityStore(this).signature()+new AppNameStore(this).signature()+new BootAppStore(this).watchRevision()+":"+desktopSettings.appListSignature());
+            new ChildModeStore(this).revision(),AppCoverStore.get(this).revision(),packageRevision,homeAppsVisible,new HomeVisibilityStore(this).signature()+new AppNameStore(this).signature()+new BootAppStore(this).watchRevision()+":"+desktopSettings.appListSignature()
+                +(legacyIcons==null?"":":legacy-art:"+(legacyArtworkStarted?legacyIcons.signature():"stock_start")));
     }
 
     private void loadApps(String reason) {
+        final LegacyIconRecovery recovery=legacyIcons;
+        if(LegacyIconRecovery.supported()&&recovery==null)return;
+        final boolean allowLegacyArtwork=legacyArtworkStarted;
         final HomeCatalogRefresh.Input requested=catalogInput();
         if(!catalogRefresh.start(requested))return;
         final int sequence=++catalogSequence;
@@ -654,12 +800,28 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 String key=new ComponentName(info.activityInfo.packageName,info.activityInfo.name).flattenToString();
                 try { key += ":" + pm.getPackageInfo(info.activityInfo.packageName,0).lastUpdateTime; }
                 catch (PackageManager.NameNotFoundException e) { continue; }
-                key += ":cover:"+AppCoverStore.get(this).key(info.activityInfo.packageName);
+                String pkg=info.activityInfo.packageName;
+                AppCoverStore covers=AppCoverStore.get(this);
+                String coverKey=covers.key(pkg);
+                boolean custom=recovery!=null&&allowLegacyArtwork&&recovery.allowed(pkg,coverKey);
+                boolean trial=custom&&recovery.trial(pkg,coverKey);
+                key+=":cover:"+coverKey+(recovery==null?"":trial?":trial":custom?":confirmed":":stock");
                 App cached=artworkCache.get(key);
                 if(cached!=null){cached.label=entry.label;found.add(cached);freshCache.put(key,cached);continue;}
-                App app=new App();app.pkg=info.activityInfo.packageName;app.label=entry.label;app.artworkKey=key;
-                app.component=new ComponentName(app.pkg,info.activityInfo.name);
-                app.libraryCover=AppCoverStore.get(this).contain(app.pkg);app.banner=AppArtwork.load(this,info);app.color=sampleColor(app.banner);found.add(app);freshCache.put(key,app);
+                App app=new App();app.pkg=pkg;app.label=entry.label;app.artworkKey=key;app.coverKey=coverKey;
+                app.component=new ComponentName(pkg,info.activityInfo.name);
+                if(recovery==null){
+                    app.libraryCover=covers.contain(pkg);app.banner=AppArtwork.load(this,info);
+                }else{
+                    app.banner=custom?AppArtwork.custom(this,pkg,coverKey):null;
+                    if(app.banner==null){
+                        if(trial)recovery.completed(pkg,coverKey,false);
+                        app.banner=AppArtwork.load(this,info,false);
+                    }else{
+                        app.libraryCover=covers.contain(pkg);app.trialArtwork=trial;
+                    }
+                }
+                app.color=sampleColor(app.banner);found.add(app);freshCache.put(key,app);
             }
             artworkCache.clear();artworkCache.putAll(freshCache);
             if(desktopSettings.showWatchTv()){
@@ -737,6 +899,48 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         });
     }
 
+    private void offerLegacyArtwork(Tile tile,App app){
+        if(legacyIcons==null||drawingLegacySnapshot||!ready||!resumed||!hasWindowFocus()||!tile.isShown()||tile.getWidth()==0||!movingPackage.isEmpty())return;
+        if(!legacyArtworkStarted){legacyArtworkStarted=true;main.post(()->loadApps("legacy_stock_drawn"));return;}
+        if(!legacyTrialPackage.isEmpty()||app.coverKey==null||!legacyIcons.eligible(app.pkg,app.coverKey)||legacyDeferredTrials.contains(app.coverKey))return;
+        if(!tile.getGlobalVisibleRect(tile.legacyVisibleBounds)||tile.legacyVisibleBounds.isEmpty())return;
+        legacyTrialPackage=app.pkg;legacyTrialKey=app.coverKey;int request=++legacyTrialGeneration;LegacyIconRecovery recovery=legacyIcons;
+        loader.execute(()->{
+            boolean offered=recovery.offer(app.pkg,app.coverKey);
+            main.post(()->{
+                if(legacyIconsDestroyed||UiCompat.destroyed(this)||request!=legacyTrialGeneration)return;
+                if(!offered){clearLegacyTrial();return;}
+                if(!resumed||!hasWindowFocus()||tile.app!=app||!tile.isShown()){
+                    legacyDeferredTrials.add(app.coverKey);cancelUnshownLegacyTrial();return;
+                }
+                loadApps("legacy_icon_trial");
+                main.postDelayed(()->{
+                    if(!legacyIconsDestroyed&&!UiCompat.destroyed(this)&&request==legacyTrialGeneration&&!legacyTrialRetiring){
+                        legacyDeferredTrials.add(app.coverKey);cancelUnshownLegacyTrial();
+                    }
+                },1800);
+            });
+        });
+    }
+    private void finishLegacyTrial(App app,boolean success){
+        if(app.trialReported||!app.trialArtwork||legacyTrialRetiring)return;
+        app.trialReported=true;legacyTrialRetiring=true;
+        LegacyIconRecovery recovery=legacyIcons;
+        legacyPendingResult=()->{
+            legacyPendingResult=null;
+            loader.execute(()->{boolean changed=recovery.completed(app.pkg,app.coverKey,success);main.post(()->{if(!legacyIconsDestroyed&&!UiCompat.destroyed(this)){clearLegacyTrial();if(changed&&resumed)loadApps("legacy_icon_result");}});});
+        };
+        // Preserve the pending marker through the return from this drawing turn.
+        if(success)main.postDelayed(legacyPendingResult,16);else legacyPendingResult.run();
+    }
+    private void cancelUnshownLegacyTrial(){
+        if(legacyTrialPackage.isEmpty()||legacyTrialRetiring)return;
+        legacyTrialRetiring=true;
+        LegacyIconRecovery recovery=legacyIcons;String pkg=legacyTrialPackage,key=legacyTrialKey;
+        loader.execute(()->{boolean changed=recovery.cancelUnshown(pkg,key);main.post(()->{if(!legacyIconsDestroyed&&!UiCompat.destroyed(this)){clearLegacyTrial();if(changed&&resumed)loadApps("legacy_icon_unshown");}});});
+    }
+    private void clearLegacyTrial(){++legacyTrialGeneration;legacyTrialPackage="";legacyTrialKey="";legacyTrialRetiring=false;}
+
     private static boolean sameApp(App a,App b){return a.pkg.equals(b.pkg)&&a.label.equals(b.label)&&Objects.equals(a.component,b.component)&&Objects.equals(a.artworkKey,b.artworkKey);}
     private static boolean sameApps(List<App> a,List<App> b){if(a.size()!=b.size())return false;for(int i=0;i<a.size();i++)if(!sameApp(a.get(i),b.get(i)))return false;return true;}
 
@@ -780,11 +984,28 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
     private void openAppActions(App app){
         if(app==null||moveSaving||!pendingAppFocus.isEmpty())return;saveFocus();KeySounds.play(this,KeySoundPolicy.CONFIRM);
-        int[] location=new int[2];int x=getResources().getDisplayMetrics().widthPixels/2,y=px(280),bottom=y;
-        if(selected!=null){selected.getLocationOnScreen(location);x=location[0]+selected.getWidth()/2;y=location[1];bottom=y+selected.getHeight();}
+        int x=getResources().getDisplayMetrics().widthPixels/2,y=px(280);
+        int[] location=new int[2];
+        Rect cardBounds=new Rect();
+        if(row==0&&dockBand!=null&&column<dockTiles.size()){
+            // Dock focus can update on the next frame. Use the target card's layout.
+            DockLayout geometry=dockGeometry(column);
+            dockBand.getLocationOnScreen(location);
+            x=location[0]+px(geometry.x[column]-CONTENT_MARGIN+geometry.cardWidth[column]/2f);
+            y=location[1]+px(geometry.y[column]);
+        }else if(row>0){
+            RecyclerView.ViewHolder holder=list.findViewHolderForAdapterPosition(2+(row-1)*appColumns+column);
+            Tile tile=holder!=null&&holder.itemView instanceof Tile?(Tile)holder.itemView:selected;
+            if(tile!=null&&tile.showLabel&&tile.app!=null&&tile.app.pkg.equals(app.pkg)
+                    &&androidx.core.view.ViewCompat.isAttachedToWindow(tile)&&tile.getGlobalVisibleRect(cardBounds)){
+                tile.getRootView().getLocationOnScreen(location);
+                cardBounds.offset(location[0],location[1]);
+            }else cardBounds.setEmpty();
+        }
         Intent intent=new Intent(this,HomeAppActionsActivity.class).putExtra("package",app.pkg).putExtra("dock",row==0)
             .putExtra("add",ADD_DOCK_ENTRY.equals(app.pkg))
-            .putExtra("anchor-x",x).putExtra("anchor-y",y).putExtra("anchor-bottom",bottom);
+            .putExtra("anchor-x",x).putExtra("anchor-y",y);
+        if(!cardBounds.isEmpty())intent.putExtra("anchor-bounds",cardBounds);
         addSettingsBackdrop(intent);
         leaveHome(()->startActivityForResult(intent,HomeAppActionsActivity.REQUEST));
     }
@@ -798,8 +1019,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         if(!key.apps.equals(current.apps)||!key.configuration.equals(current.configuration))return null;
         Map<String,App> available=home.previewCatalog;
         List<Bitmap> art=new ArrayList<>(),gridArt=new ArrayList<>();List<String> names=new ArrayList<>(),gridNames=new ArrayList<>(),ids=new ArrayList<>(),gridIds=new ArrayList<>();
-        for(String id:key.apps.pinned){App app=available.get(id);if(app!=null){art.add(app.banner);names.add(app.label);ids.add(id);}}
-        for(String id:HomePreviewView.previewGridIds(home.appIds(home.apps),pkg,size,shape)){App app=available.get(id);gridArt.add(app.banner);gridNames.add(app.label);gridIds.add(id);}
+        for(String id:key.apps.pinned){App app=available.get(id);if(app!=null){if(app.trialArtwork)return null;art.add(app.banner);names.add(app.label);ids.add(id);}}
+        for(String id:HomePreviewView.previewGridIds(home.appIds(home.apps),pkg,size,shape)){App app=available.get(id);if(app.trialArtwork)return null;gridArt.add(app.banner);gridNames.add(app.label);gridIds.add(id);}
         return new HomePreviewCache.Scene(key,art,names,gridArt,gridNames,ids,gridIds);
     }
     static Bitmap previewSnapshot(){
@@ -807,12 +1028,12 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         if(home==null||!home.ready||home.waitingForUnlock||UiCompat.destroyed(home)||home.root.getWidth()==0||home.root.getHeight()==0)return null;
         Bitmap image=Bitmap.createBitmap(480,Math.max(1,Math.round(480f*home.root.getHeight()/home.root.getWidth())),Bitmap.Config.ARGB_8888);
         Canvas canvas=new Canvas(image);canvas.scale(image.getWidth()/(float)home.root.getWidth(),image.getHeight()/(float)home.root.getHeight());
-        home.wallpapers.drawDockBackground(canvas,new Paint(Paint.FILTER_BITMAP_FLAG));home.list.draw(canvas);return image;
+        home.wallpapers.drawDockBackground(canvas,new Paint(Paint.FILTER_BITMAP_FLAG));home.drawSnapshotView(home.list,canvas);return image;
     }
     static void seedPreviewBackground(WallpaperController target){HomeActivity home=liveHome.get();if(home!=null&&!home.waitingForUnlock&&!UiCompat.destroyed(home))target.seedPreview(home.wallpapers);}
     private Intent addSettingsBackdrop(Intent intent){
         if(!GlassStyle.get(this).rendering())return intent;
-        // Reuse bounded prepared pixels, including the current shade, without copying the native 4K output.
+        // Reuse bounded prepared wallpaper pixels without copying the native 4K output.
         Bitmap backdrop=Bitmap.createBitmap(320,Math.max(1,Math.round(320f*root.getHeight()/root.getWidth())),Bitmap.Config.ARGB_8888);
         Canvas backdropCanvas=new Canvas(backdrop);backdropCanvas.scale(backdrop.getWidth()/(float)root.getWidth(),backdrop.getHeight()/(float)root.getHeight());
         wallpapers.drawDockBackground(backdropCanvas,new Paint(Paint.FILTER_BITMAP_FLAG));intent.putExtra("backdrop-key",HomePreviewCache.get(this).keepSettingsBackdrop(backdrop));
@@ -856,9 +1077,11 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     // Public Activity override; AndroidX core marks its inherited bridge class library-only.
     @android.annotation.SuppressLint("RestrictedApi")
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
+        if(waitingForUnlock)return event.getKeyCode()==KeyEvent.KEYCODE_BACK||super.dispatchKeyEvent(event);
         return InputDiagnostics.dispatch(this,event,"home_window",()->dispatchObservedKey(event));
     }
     private boolean dispatchObservedKey(KeyEvent event){
+        if(!waitingForUnlock)updateReminderInteraction();
         if(!waitingForUnlock&&screensaver!=null){
             if(screensaver.key(event)){cancelConfirm();pressDock(false);return true;}
             screensaver.interaction();
@@ -871,7 +1094,6 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         RemoteKeyMap.observe(this,event,"home");
         if(calibrating)return true;
         DiagnosticLog.navigationKey("quiet_tv_home",event);
-        if(waitingForUnlock)return super.dispatchKeyEvent(event);
         int key=event.getKeyCode();
         if(event.getAction()==KeyEvent.ACTION_DOWN && HomeGuardService.navigationKey(key)){if(automaticInputPending)cancelInputWork();++hdmiLaunchGeneration;new BootAppStore(this).cancelHdmiBoot();new BootAppStore(this).userAction("desktop_input");HomeGuardService.bootSourceUserAction(this);}
         int kind=key==KeyEvent.KEYCODE_DPAD_LEFT || key==KeyEvent.KEYCODE_DPAD_RIGHT || key==KeyEvent.KEYCODE_DPAD_UP || key==KeyEvent.KEYCODE_DPAD_DOWN?1
@@ -900,14 +1122,41 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         }
         String remoteAction=new RemoteKeyMap(this).action(event);
         if("system".equals(remoteAction))return super.dispatchKeyEvent(event);
-        if(remoteAction.isEmpty()&&key==KeyEvent.KEYCODE_MENU){if(event.getAction()==KeyEvent.ACTION_UP&&!event.isCanceled()){if(row<0){if(!"settings".equals(topEntry()))openHomeTools(true,topEntry());}else if(homeHeader.buttonIds.isEmpty()||!homeAppsVisible)openHomeTools(false,"");else{App app=currentApp();if(app!=null&&!ADD_DOCK_ENTRY.equals(app.pkg))openAppActions(app);else openHomeTools(false,"");}}return true;}
+        if(remoteAction.isEmpty()&&key==KeyEvent.KEYCODE_MENU){
+            if(event.getAction()==KeyEvent.ACTION_UP&&!event.isCanceled()){
+                if(row<0){
+                    String id=topEntry();
+                    if(!"settings".equals(id))openRemoteHomeTools(true,id);
+                }else{
+                    App app=homeHeader.buttonIds.isEmpty()||!homeAppsVisible?null:currentApp();
+                    if(app!=null&&!ADD_DOCK_ENTRY.equals(app.pkg))openAppActions(app);
+                    else openRemoteHomeTools(false,"");
+                }
+            }
+            return true;
+        }
         if(remoteAction.isEmpty())remoteAction=key==KeyEvent.KEYCODE_TV_INPUT?"inputs":"";
         if(!remoteAction.isEmpty()){
             if(event.getAction()==KeyEvent.ACTION_UP && !event.isCanceled()){
-                if("settings".equals(remoteAction))openSettings(Settings.ACTION_SETTINGS);
-                else if("inputs".equals(remoteAction))showInputs();
-                else if("desktop_settings".equals(remoteAction))leaveHome(()->startActivity(settingsIntent(DesktopSettingsActivity.class)));
-                else if("home".equals(remoteAction)){HomeGuardService.cancelInputTransition();startActivity(HomeController.launchIntent(this));}
+                switch(remoteAction){
+                    case "settings":
+                        openSettings(Settings.ACTION_SETTINGS);
+                        break;
+                    case "inputs":
+                        if(inputDiscoveryPending)return true;
+                        showInputs();
+                        break;
+                    case "desktop_settings":
+                        leaveHome(()->startActivity(settingsIntent(DesktopSettingsActivity.class)));
+                        break;
+                    case "home":
+                        HomeGuardService.cancelInputTransition();
+                        startActivity(HomeController.launchIntent(this));
+                        return true;
+                    default:
+                        return true;
+                }
+                KeySounds.play(this,KeySoundPolicy.CONFIRM);
             }
             return true;
         }
@@ -1070,12 +1319,14 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
 
     @Override public boolean dispatchTouchEvent(MotionEvent event){
         InputDiagnostics.pointer(this,event);
+        if(!waitingForUnlock)updateReminderInteraction();
         if(!waitingForUnlock&&screensaver!=null){cancelConfirm();if(screensaver.touch(event))return true;screensaver.interaction();}
         if(!waitingForUnlock && event.getActionMasked()==MotionEvent.ACTION_DOWN){if(automaticInputPending)cancelInputWork();++hdmiLaunchGeneration;new BootAppStore(this).cancelHdmiBoot();new BootAppStore(this).userAction("desktop_input");HomeGuardService.bootSourceUserAction(this);}
         return super.dispatchTouchEvent(event);
     }
     @Override public boolean dispatchGenericMotionEvent(MotionEvent event){
         InputDiagnostics.motion(event);
+        if(!waitingForUnlock)updateReminderInteraction();
         if(!waitingForUnlock&&screensaver!=null){cancelConfirm();if(screensaver.pointer(event))return true;screensaver.interaction();}return super.dispatchGenericMotionEvent(event);
     }
     private void leaveHome(Runnable launch){cancelInputWork();leaveHomePrepared(launch);}
@@ -1092,15 +1343,17 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         leaveHome(()->{
             if(DESKTOP_SETTINGS_ENTRY.equals(app.pkg)){startActivity(settingsIntent(DesktopSettingsActivity.class));return;}
             if(MANAGEMENT_ENTRY.equals(app.pkg)){startActivity(settingsIntent(AppManagementActivity.class));return;}
+            AutoDiagnosticOperation launch=AutoDiagnosticOperation.begin("app_launch",500);
             try{
-                if(ChildBlockActivity.gate(this,app.pkg))return;
+                if(ChildBlockActivity.gate(this,app.pkg)){if(launch!=null)launch.stage("GATED");return;}
                 if(new HomeGuardState(this).protects(app.pkg))HomeGuardService.allowOriginal();
                 Intent intent=new Intent(Intent.ACTION_MAIN).setComponent(app.component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 String evidence="attempt="+DiagnosticOperation.nextId(SystemClock.elapsedRealtime())+" source=desktop_tile target="+app.pkg+" "+DiagnosticLog.intent(intent);
                 DiagnosticLog.info("app.launch.request",evidence);
                 startActivity(intent);
+                externalLaunchDispatched=true;if(launch!=null)launch.stage("DISPATCHED_UNVERIFIED");
                 DiagnosticLog.info("app.launch.dispatched",evidence+" result=dispatched_unverified");
-            }catch(RuntimeException e){DiagnosticLog.error("app.launch.failed",e);wallpapers.resume();OperationFeedback.get(this).show(OperationFeedback.Kind.ERROR,tr("应用暂不可用，请检查儿童模式设置","App unavailable"));}
+            }catch(RuntimeException e){if(launch!=null)launch.stage("FAILED");DiagnosticLog.error("app.launch.failed",e);wallpapers.resume();OperationFeedback.get(this).show(OperationFeedback.Kind.ERROR,tr("应用暂不可用，请检查儿童模式设置","App unavailable"));}finally{if(launch!=null)launch.finish();}
         });
     }
 
@@ -1124,9 +1377,14 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         App app=homeAppsVisible&&!dock.isEmpty()?dock.get(Math.min(Math.max(column,0),dock.size()-1)):null;
         boolean show=app!=null&&!ADD_DOCK_ENTRY.equals(app.pkg)&&"top-left".equals(desktopSettings.appTitlePosition());
         heroTitle.setVisibility(show?View.VISIBLE:View.GONE);heroTitle.setText(show?app.label:"");
-        float applicationTop=homeAppsVisible&&!dock.isEmpty()?dockGeometry(0).top:540;
-        homeHeader.applicationAreaTop(show?Math.min(HOME_TITLE_TOP,applicationTop-64):applicationTop);
-        if(show){FrameLayout.LayoutParams p=(FrameLayout.LayoutParams)heroTitle.getLayoutParams();int top=px(Math.min(HOME_TITLE_TOP,dockGeometry(row==0?column:-1).top-64));if(p.topMargin!=top){p.topMargin=top;heroTitle.setLayoutParams(p);}}
+        DockLayout reserved=homeAppsVisible&&!dock.isEmpty()?dockGeometry(0):null;
+        boolean panel=desktopSettings.showDockBackground();
+        homeHeader.applicationAreaTop(reserved==null?540:show?reserved.featuredTitleTop(panel):reserved.top);
+        if(show){
+            int focus=row==0||dockMagnificationDraft!=null?column:-1;
+            FrameLayout.LayoutParams p=(FrameLayout.LayoutParams)heroTitle.getLayoutParams();int top=px(dockGeometry(focus).featuredTitleTop(panel));
+            if(p.topMargin!=top){p.topMargin=top;heroTitle.setLayoutParams(p);}
+        }
     }
     private void updateDock(boolean animate) {
         updateHeroTitle();
@@ -1180,7 +1438,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             View view;
             if(type==0){
                 FrameLayout header=new FrameLayout(HomeActivity.this);header.setClipChildren(false);RecyclerView.LayoutParams hp=new RecyclerView.LayoutParams(-1,px(HOME_HEADER_HEIGHT));hp.leftMargin=hp.rightMargin=-px(CONTENT_MARGIN);header.setLayoutParams(hp);
-                heroTitle=text("",40,400,UiPalette.TEXT);heroTitle.setVisibility(View.GONE);place(header,heroTitle,820,56,CONTENT_MARGIN+2,HOME_TITLE_TOP);
+                heroTitle=text("",40,400,UiPalette.TEXT);heroTitle.setGravity(Gravity.BOTTOM|Gravity.START);heroTitle.setSingleLine(true);heroTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);heroTitle.setVisibility(View.GONE);place(header,heroTitle,820,DockLayout.FEATURED_TITLE_HEIGHT,CONTENT_MARGIN+2,0);
+                heroTitle.setShadowLayer(3*unit,0,unit,UiPalette.INK);
                 DockBand band=new DockBand();dockBand=band;
                 wallpapers.observeDock(HomeActivity.this::invalidateDockBackdrop);
                 band.setClipChildren(false);place(header,band,960-2*CONTENT_MARGIN,HOME_HEADER_HEIGHT,CONTENT_MARGIN,0);
@@ -1213,62 +1472,124 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private final class Tile extends View {
         App app;final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);final RectF imageRect=new RectF(),containedArtwork=new RectF();
         private BitmapShader artwork;private final Matrix artworkMatrix=new Matrix();
+        private final Rect legacyVisibleBounds=new Rect();
         final boolean showLabel;
-        final android.text.TextPaint labelPaint=new android.text.TextPaint(Paint.ANTI_ALIAS_FLAG);
-        final Paint.FontMetrics drawLabelMetrics=new Paint.FontMetrics();
-        private float drawLabelWidth=-1,drawLabelSize=-1;private String drawLabelSource="",drawLabelText="";
-        private String label="";
-        private float labelBaseline;
+        private final android.text.TextPaint labelPaint=new android.text.TextPaint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint.FontMetrics labelMetrics=new Paint.FontMetrics();
+        private final RectF labelBounds=new RectF();
+        private float labelWidth=-1,labelSize=-1,labelTextWidth;
+        private String labelSource="",labelText="";
+        private boolean labelFocused;
         Tile(){this(false);}
         Tile(boolean showLabel){super(HomeActivity.this);this.showLabel=showLabel;
-            labelPaint.setTextSize(px(14));labelPaint.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));
-            labelPaint.setColor(UiPalette.TEXT);labelPaint.setTextAlign(Paint.Align.CENTER);labelPaint.setShadowLayer(px(1),0,px(1),0x99000000);
+            labelPaint.setTextAlign(Paint.Align.CENTER);
             setOnClickListener(v->{if(app!=null){if(!movingPackage.isEmpty()){saveMove();return;}selectTile(this);launchSelected();}});
             setOnLongClickListener(v->{if(app==null||!movingPackage.isEmpty())return true;selectTile(this);openAppActions(app);return true;});}
-        void bind(App value){if(app!=null && visibleTiles.get(app.pkg)==this)visibleTiles.remove(app.pkg);transformTile(this,1,0,0,false,0);app=value;setBackgroundDrawable(ADD_DOCK_ENTRY.equals(app.pkg)?new DockBackdropDrawable(wallpapers::drawDockBackground,this,root,unit,true):null);artwork=new BitmapShader(app.banner,Shader.TileMode.CLAMP,Shader.TileMode.CLAMP);updateArtwork();visibleTiles.put(app.pkg,this);setContentDescription(app.label);updateLabel();invalidate();}
+        void bind(App value){if(app!=null && visibleTiles.get(app.pkg)==this)visibleTiles.remove(app.pkg);transformTile(this,1,0,0,false,0);app=value;setBackgroundDrawable(ADD_DOCK_ENTRY.equals(app.pkg)?new DockBackdropDrawable(wallpapers::drawDockBackground,this,root,unit,true):null);artwork=app.libraryCover?null:new BitmapShader(app.banner,Shader.TileMode.CLAMP,Shader.TileMode.CLAMP);updateArtwork();visibleTiles.put(app.pkg,this);setContentDescription(app.label);invalidate();}
         float imageHeight(){return app!=null&&ADD_DOCK_ENTRY.equals(app.pkg)?getHeight():getWidth()/("rectangle".equals(desktopSettings.iconShape())?16/9f:1);}
-        @Override protected void onSizeChanged(int w,int h,int oldw,int oldh){super.onSizeChanged(w,h,oldw,oldh);updateArtwork();updateLabel();}
+        @Override protected void onSizeChanged(int w,int h,int oldw,int oldh){super.onSizeChanged(w,h,oldw,oldh);updateArtwork();}
         private void updateArtwork(){
-            if(artwork==null)return;
-            if(app.libraryCover){float[] fit=LibraryCover.fit(app.banner.getWidth(),app.banner.getHeight(),getWidth(),imageHeight());containedArtwork.set(fit[0],fit[1],fit[2],fit[3]);}
+            if(app==null)return;
+            if(app.libraryCover){float[] fit=LibraryCover.fit(app.banner.getWidth(),app.banner.getHeight(),getWidth(),imageHeight());containedArtwork.set(fit[0],fit[1],fit[2],fit[3]);return;}
             float scale=Math.max(getWidth()/(float)app.banner.getWidth(),imageHeight()/app.banner.getHeight());artworkMatrix.setScale(scale,scale);artworkMatrix.postTranslate((getWidth()-app.banner.getWidth()*scale)/2,(imageHeight()-app.banner.getHeight()*scale)/2);artwork.setLocalMatrix(artworkMatrix);
         }
-        private void updateLabel(){
-            if(!showLabel || app==null)return;
-            label=android.text.TextUtils.ellipsize(app.label,labelPaint,Math.max(0,getWidth()-px(8)),android.text.TextUtils.TruncateAt.END).toString();
-            Paint.FontMetrics metrics=labelPaint.getFontMetrics();
-            labelBaseline=imageHeight()+px(APP_LABEL_GAP)+(px(APP_LABEL_HEIGHT)-metrics.bottom-metrics.top)/2;
+        private float cardRadius(float height){
+            return !ADD_DOCK_ENTRY.equals(app.pkg)&&"circle".equals(desktopSettings.iconShape())
+                    ? Math.min(getWidth(),height)/2 : SurfaceCorners.artworkRadius(getWidth(),height);
         }
-        @Override protected void onDraw(Canvas c){super.onDraw(c);if(app==null)return;float h=imageHeight(),radius="circle".equals(desktopSettings.iconShape())?Math.min(getWidth(),h)/2:SurfaceCorners.artworkRadius(getWidth(),h),ry=radius;RectF rect=imageRect;rect.set(0,0,getWidth(),h);
-            boolean add=ADD_DOCK_ENTRY.equals(app.pkg);
-            if(add){radius=SurfaceCorners.artworkRadius(getWidth(),h);ry=radius;}
-            // AppArtwork and custom covers already contain an opaque background.
-            // Keep artwork sampling identical across focus states; only the outline changes here.
-            boolean focused=selected==this&&row>=0;
-            paint.setAlpha(255);if(app.libraryCover){paint.setShader(null);c.drawBitmap(app.banner,null,containedArtwork,paint);}else{paint.setShader(artwork);SurfaceCorners.draw(c,rect,radius,ry,paint);paint.setShader(null);}
-            if(focused){
-                float stroke=add||!showLabel?px(1.5f):px(FOCUS_STROKE),inset=stroke/2f;rect.inset(inset,inset);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(stroke);paint.setColor(add?0xd9ffffff:Color.WHITE);SurfaceCorners.draw(c,rect,Math.max(0,radius-inset),Math.max(0,ry-inset),paint);paint.setStyle(Paint.Style.FILL);
+        @Override public void draw(Canvas canvas){
+            if(app!=null&&selected==this&&row>=0){
+                float height=imageHeight();
+                imageRect.set(0,0,getWidth(),height);
+                appCardShadow.draw(canvas,imageRect,cardRadius(height),app.libraryCover&&!app.trialArtwork?app.banner:null,
+                        containedArtwork,unit);
             }
+            super.draw(canvas);
+        }
+        @Override protected void onDraw(Canvas c){super.onDraw(c);if(app==null)return;float h=imageHeight(),radius=cardRadius(h);RectF rect=imageRect;rect.set(0,0,getWidth(),h);
+            boolean add=ADD_DOCK_ENTRY.equals(app.pkg);
+            paint.setAlpha(255);
+            if(!app.trialArtwork||legacyIcons.confirmed(app.pkg,app.coverKey)){
+                drawArtwork(c,rect,radius,radius);offerLegacyArtwork(this,app);
+            }else if(!drawingLegacySnapshot&&resumed&&hasWindowFocus()&&isShown()
+                    &&getGlobalVisibleRect(legacyVisibleBounds)&&!legacyVisibleBounds.isEmpty()
+                    &&!legacyTrialRetiring&&legacyIcons.trial(app.pkg,app.coverKey)){
+                try{drawArtwork(c,rect,radius,radius);finishLegacyTrial(app,true);}
+                catch(RuntimeException|OutOfMemoryError failure){drawTrialPlaceholder(c,rect,radius,radius);finishLegacyTrial(app,false);}
+            }else drawTrialPlaceholder(c,rect,radius,radius);
             if(!add&&(showLabel&&desktopSettings.showAllAppsNames()||!showLabel&&"below".equals(desktopSettings.appTitlePosition()))){
-                float scale=Math.max(.01f,getScaleX());DockLayout geometry=showLabel?null:renderedDockGeometry;if(!showLabel&&geometry==null)return;float textSize=showLabel?px(14):geometry.labelSize*unit/scale,textWidth=Math.max(0,getWidth()-px(4)/scale);labelPaint.setTextSize(textSize);if(textSize!=drawLabelSize||textWidth!=drawLabelWidth||!app.label.equals(drawLabelSource)){drawLabelSize=textSize;drawLabelWidth=textWidth;drawLabelSource=app.label;drawLabelText=android.text.TextUtils.ellipsize(app.label,labelPaint,textWidth,android.text.TextUtils.TruncateAt.END).toString();}String value=drawLabelText;labelPaint.getFontMetrics(drawLabelMetrics);Paint.FontMetrics metrics=drawLabelMetrics;float line=showLabel?px(APP_LABEL_HEIGHT):geometry.labelSize*1.4f*unit/scale;float gap=showLabel?px(APP_LABEL_GAP):geometry.labelGap*unit/scale;float baseline=h+gap+(line-metrics.descent-metrics.ascent)/2;c.drawText(value,getWidth()/2f,baseline,labelPaint);
+                drawAppLabel(c,h);
             }
             if(app.pkg.equals(movingPackage)){
                 paint.setColor(UiPalette.TEXT);float width=px(58),height=px(20);RectF badge=new RectF(getWidth()-width-px(5),px(5),getWidth()-px(5),px(5)+height);SurfaceCorners.draw(c,badge,px(SurfaceCorners.CONTROL),px(SurfaceCorners.CONTROL),paint);
                 paint.setColor(0xff000000);paint.setTypeface(Typeface.DEFAULT);paint.setTextAlign(Paint.Align.CENTER);paint.setTextSize(px(11));c.drawText(tr("移动中","Moving"),badge.centerX(),badge.centerY()+px(4),paint);
             }
         }
+        private void drawAppLabel(Canvas canvas,float artworkHeight){
+            DockLayout geometry=renderedDockGeometry;
+            if(!showLabel&&geometry==null)return;
+            boolean focused=selected==this&&row>=0;
+            float scale=Math.max(.01f,getScaleX());
+            float textSize=showLabel?px(14):geometry.labelSize*unit/scale;
+            float padding=focused?px(8)/scale:0;
+            float textWidth=Math.max(0,getWidth()-px(4)/scale-2*padding);
+            if(textSize!=labelSize||textWidth!=labelWidth||focused!=labelFocused||!app.label.equals(labelSource)){
+                labelSize=textSize;
+                labelWidth=textWidth;
+                labelFocused=focused;
+                labelSource=app.label;
+                labelPaint.setTextSize(textSize);
+                labelPaint.setTypeface(focused?Typeface.DEFAULT_BOLD:Typeface.DEFAULT);
+                labelPaint.setColor(focused?UiPalette.INK:UiPalette.TEXT);
+                if(focused)labelPaint.clearShadowLayer();
+                else labelPaint.setShadowLayer(2.25f*unit,0,unit,UiPalette.INK);
+                labelText=android.text.TextUtils.ellipsize(labelSource,labelPaint,textWidth,android.text.TextUtils.TruncateAt.END).toString();
+                labelTextWidth=labelPaint.measureText(labelText);
+                labelPaint.getFontMetrics(labelMetrics);
+            }
+            if(labelText.isEmpty())return;
+
+            float center=getWidth()/2f;
+            float lineHeight=showLabel?px(APP_LABEL_HEIGHT):geometry.labelSize*1.4f*unit/scale;
+            float top=artworkHeight+(showLabel?px(APP_LABEL_GAP):geometry.labelGap*unit/scale);
+            if(focused){
+                float halfWidth=labelTextWidth/2+padding;
+                float border=unit/scale;
+                float edgeInset=border/2;
+                labelBounds.set(center-halfWidth,top+edgeInset,center+halfWidth,top+lineHeight-edgeInset);
+                float radius=labelBounds.height()/2;
+                paint.setColor(UiPalette.INK);
+                canvas.drawRoundRect(labelBounds,radius,radius,paint);
+                labelBounds.inset(border,border);
+                paint.setColor(UiPalette.TEXT);
+                canvas.drawRoundRect(labelBounds,radius-border,radius-border,paint);
+            }
+            float baseline=top+(lineHeight-labelMetrics.descent-labelMetrics.ascent)/2;
+            canvas.drawText(labelText,center,baseline,labelPaint);
+        }
+        private void drawArtwork(Canvas c,RectF rect,float radius,float ry){
+            if(app.libraryCover){paint.setShader(null);c.drawBitmap(app.banner,null,containedArtwork,paint);}
+            else{paint.setShader(artwork);try{SurfaceCorners.draw(c,rect,radius,ry,paint);}finally{paint.setShader(null);}}
+        }
+        private void drawTrialPlaceholder(Canvas c,RectF rect,float radius,float ry){
+            paint.setShader(null);paint.setColor(app.color);SurfaceCorners.draw(c,rect,radius,ry,paint);
+        }
 
     }
 
     // A transparent tools Activity pauses HOME while its Dock remains visible underneath.
-    private void phoneConfigurationChanged(){if(waitingForUnlock||wallpapers==null||UiCompat.destroyed(this))return;if(!appliedDesktopValues.equals(getSharedPreferences("desktop-settings",0).getAll())){applyDesktopSettings(false);updateClock();updateNetwork();}WeatherStore phoneWeather=new WeatherStore(this);WeatherData cachedWeather=phoneWeather.cached(chinese);String weatherKey=phoneWeather.key(chinese)+phoneWeather.enabled()+":"+(cachedWeather==null?0:cachedWeather.fetchedAt);if(!weatherKey.equals(phoneWeatherKey)){phoneWeatherKey=weatherKey;weather.settingsChanged();}if(ready&&(resumed||root.getWindowVisibility()==View.VISIBLE))loadApps("phone_settings");WallpaperStore media=WallpaperStore.get(this);WallpaperCatalog catalog=media.snapshot();String key=catalog.current+catalog.rotating+catalog.sound+catalog.weather+catalog.weatherDayNight+":"+catalog.rotationMinutes+":"+media.imageKey(catalog.current)+":"+media.manualVersion();if(!key.equals(phoneWallpaperKey)){phoneWallpaperKey=key;wallpapers.settingsChanged();}if(screensaver!=null)screensaver.settingsChanged();DiagnosticLog.info("home.configuration.applied","parent="+DiagnosticOperation.current()+" evidence=configuration_callback_not_presentation");}
+    private void phoneConfigurationChanged(){if(waitingForUnlock||wallpapers==null||UiCompat.destroyed(this))return;if(!getSharedPreferences("desktop-settings",0).getAll().equals(appliedDesktopValues)){applyDesktopSettings(false);updateClock();updateNetwork();}WeatherStore phoneWeather=new WeatherStore(this);WeatherData cachedWeather=phoneWeather.cached(chinese);String weatherKey=phoneWeather.key(chinese)+phoneWeather.enabled()+":"+(cachedWeather==null?0:cachedWeather.fetchedAt);if(!weatherKey.equals(phoneWeatherKey)){phoneWeatherKey=weatherKey;weather.settingsChanged();}if(ready&&(resumed||root.getWindowVisibility()==View.VISIBLE))loadApps("phone_settings");WallpaperStore media=WallpaperStore.get(this);WallpaperCatalog catalog=media.snapshot();String key=catalog.current+catalog.rotating+catalog.sound+catalog.weather+catalog.weatherDayNight+":"+catalog.rotationMinutes+":"+media.imageKey(catalog.current)+":"+media.manualVersion();if(!key.equals(phoneWallpaperKey)){phoneWallpaperKey=key;wallpapers.settingsChanged();}if(screensaver!=null)screensaver.settingsChanged();DiagnosticLog.info("home.configuration.applied","parent="+DiagnosticOperation.current()+" evidence=configuration_callback_not_presentation");}
     static boolean phoneAction(Context context,String id,PhoneSettingsServer.Active authority){HomeActivity home=liveHome.get();if(home==null||!home.ready||UiCompat.destroyed(home)||(!"screensaver".equals(id)&&!"source".equals(id)&&!(id.startsWith("app:")&&AppCoverStore.packageName(id.substring(4))))||!home.pendingHomeAction.isEmpty()||!authority.valid())return false;home.pendingHomeAction=id;home.phoneActionAuthority=authority;try{context.startActivity(new Intent(context,HomeActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));home.main.post(home::runPendingHomeAction);return true;}catch(RuntimeException unavailable){home.pendingHomeAction="";home.phoneActionAuthority=null;return false;}}
-    static Bitmap previewArtwork(Context context,String pkg){HomeActivity home=liveHome.get();if(home==null||home.previewCatalogRevision!=home.packageRevision||UiCompat.destroyed(home))return null;App app=home.previewCatalog.get(pkg);return app!=null&&app.artworkKey.endsWith(":cover:"+AppCoverStore.get(context).key(pkg))&&!app.banner.isRecycled()?app.banner:null;}
+    static Bitmap previewArtwork(Context context,String pkg){HomeActivity home=liveHome.get();if(home==null||home.previewCatalogRevision!=home.packageRevision||UiCompat.destroyed(home))return null;App app=home.previewCatalog.get(pkg);return app!=null&&!app.trialArtwork&&AppCoverStore.get(context).key(pkg).equals(app.coverKey)&&!app.banner.isRecycled()?app.banner:null;}
     static byte[] phoneBackground()throws java.io.IOException {HomeActivity home=liveHome.get();if(home==null||home.root==null||home.root.getWidth()<1)throw new java.io.IOException("背景预览不可用");Bitmap image=Bitmap.createBitmap(320,Math.max(1,Math.round(320f*home.root.getHeight()/home.root.getWidth())),Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(image);canvas.scale(image.getWidth()/(float)home.root.getWidth(),image.getHeight()/(float)home.root.getHeight());home.wallpapers.drawDockBackground(canvas,new Paint(Paint.FILTER_BITMAP_FLAG));java.io.ByteArrayOutputStream output=new java.io.ByteArrayOutputStream();image.compress(Bitmap.CompressFormat.JPEG,85,output);image.recycle();return output.toByteArray();}
     static void capturePhoneBackground(WallpaperGpuView.Capture callback){HomeActivity home=liveHome.get();if(home==null||home.wallpapers==null||home.waitingForUnlock||UiCompat.destroyed(home)){callback.ready(null);return;}home.wallpapers.phoneBackground(callback);}
     static void previewHomeBrightness(Integer value){previewQuickAdjustment("brightness",value);}
     static void previewQuickAdjustment(String id,Integer value){HomeActivity home=liveHome.get();if(home==null)return;home.main.post(()->{if(UiCompat.destroyed(home)||home.waitingForUnlock)return;switch(id){case "brightness":home.brightnessDraft=value;home.updateWallpaperBlur();break;case "homeBlur":home.blurDraft=value;home.updateWallpaperBlur();break;case "dockScale":home.dockScaleDraft=value;home.updateDock(false);break;case "dockMagnification":home.dockMagnificationDraft=value;home.updateDock(false);break;}});}
     static int maximumQuickDockScale(Context context){HomeActivity home=liveHome.get();DesktopSettingsStore settings=new DesktopSettingsStore(context);int count=home!=null&&!UiCompat.destroyed(home)?home.dock.size():Math.min(new DockStore(context).load().size(),settings.appearance("dock-limit"));if(home!=null&&home.dock.size()==1&&ADD_DOCK_ENTRY.equals(home.dock.get(0).pkg))count=0;return DockLayout.maximumScale(count,settings.iconSize(),settings.iconShape(),settings.dockMagnify(),settings.appearance("dock-magnification"),settings.appTitlePosition());}
+    private void openRemoteHomeTools(boolean buttons,String id){
+        openHomeTools(buttons,id);
+        KeySounds.play(this,KeySoundPolicy.CONFIRM);
+    }
     private void openHomeTools(boolean buttons,String id){if(!buttons&&id.isEmpty()){showQuickControls(null,"");return;}saveFocus();leaveHome(()->startActivityForResult(settingsIntent(HomeToolsActivity.class).putExtra("mode",buttons?"buttons":"control").putExtra("home-button",id).putExtra("chinese",chinese),HomeToolsActivity.REQUEST));}
     private void showQuickControls(Bundle saved,String focus){
         if(quickControls!=null)return;ManagementUi.performanceAction("quick_controls");cancelInputWork();cancelConfirm();cancelFocusRestore("quick_controls");screensaver.pause();
@@ -1288,10 +1609,11 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         if(quickControls==null||quickSettingsOpening)return;
         if("original".equals(id)){switchQuickDesktop();return;}
         if("keySounds".equals(id)||"mute".equals(id)){
-            try{if("keySounds".equals(id))desktopSettings.savePhoneValue("key-sounds",!desktopSettings.keySounds());else{WallpaperStore store=WallpaperStore.get(this);WallpaperCatalog state=store.snapshot();if(state.weather||state.rotating){OperationFeedback.get(this).show(OperationFeedback.Kind.INFO,state.weather?"天气联动保持静音":"轮换背景保持静音");return;}store.sound(!state.sound);}PhoneSettingsSession.get(this).configurationChanged();}catch(IOException error){OperationFeedback.get(this).show(OperationFeedback.Kind.ERROR,error.getMessage());}return;
+            try{if("keySounds".equals(id))desktopSettings.savePhoneValue("key-sounds",!desktopSettings.keySounds());else{WallpaperStore store=WallpaperStore.get(this);WallpaperCatalog state=store.snapshot();if(state.weather||state.rotating){OperationFeedback.get(this).show(OperationFeedback.Kind.INFO,state.weather?"天气联动保持静音":"轮换背景保持静音");return;}store.sound(!state.sound);}PhoneSettingsSession.get(this).configurationChanged();KeyFeedback.confirm(this);}catch(IOException error){OperationFeedback.get(this).show(OperationFeedback.Kind.ERROR,error.getMessage());}return;
         }
-        if(QuickControlStore.SETTINGS.equals(id)){quickSettingsOpening=true;leaveHome(()->startActivity(settingsIntent(DesktopSettingsActivity.class)));return;}
+        if(QuickControlStore.SETTINGS.equals(id)){quickSettingsOpening=true;leaveHome(()->startActivity(settingsIntent(DesktopSettingsActivity.class)));KeyFeedback.confirm(this);return;}
         closeQuickControls(false);
+        KeyFeedback.confirm(this);
         if("source".equals(id)){openSource();return;}
         if("screensaver".equals(id)){screensaver.enter();return;}
         if("child".equals(id)||"apps".equals(id)||"clock".equals(id)||"weather".equals(id)||"wallpaper".equals(id)){
@@ -1304,6 +1626,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private void switchQuickDesktop(){
         if(quickDesktopSwitching){OperationFeedback.get(this).show(OperationFeedback.Kind.INFO,"正在切换原桌面，请稍候");return;}
         HomeQuickControlOverlay quick=quickControls;DesktopSwitch engine=DesktopSwitch.get(this);quickDesktopSwitching=true;
+        KeyFeedback.confirm(this);
         engine.worker.execute(()->{
             String problem=null;
             try{
@@ -1399,10 +1722,10 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             }
             labels.add(tr("没有正常打开","Did not open correctly"));operations.add(()->{new SettingsRouteMemory(this).confirm(attempt,false);settingsTrial=null;showSettingsTest(action);});
         }
+        String title=attempt!=null&&attempt.fallback()?tr("当前是系统设置首页入口","Current entry opens the settings home"):Settings.ACTION_WIFI_SETTINGS.equals(action)?tr("网络入口测试","Network entry test"):tr("系统设置入口测试","System settings entry test");
         android.app.AlertDialog dialog=new android.app.AlertDialog.Builder(this)
-            .setTitle(attempt!=null&&attempt.fallback()?tr("当前是系统设置首页入口","Current entry opens the settings home"):Settings.ACTION_WIFI_SETTINGS.equals(action)?tr("网络入口测试","Network entry test"):tr("系统设置入口测试","System settings entry test"))
-            .setItems(labels.toArray(new String[0]),(d,which)->operations.get(which).run()).setNegativeButton(tr("返回","Back"),null).create();
-        dialog.show();styleDialog(dialog);
+            .setItems(labels.toArray(new String[0]),(d,which)->operations.get(which).run()).create();
+        showSettingsDialog(dialog,title);
     }
     private void testSettings(String action){
         settingsTrial=null;
@@ -1445,8 +1768,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 for(VendorTvInputs.Source source:sources){labels.add(source.label);actions.add(()->openLegacyInput(source.key));}
                 for(TvInputPanels.Panel panel:panels){labels.add(panel.profile.label(chinese));actions.add(()->openNativeInputs(panel));}
                 android.app.AlertDialog dialog=new android.app.AlertDialog.Builder(this)
-                    .setTitle(tr("系统信号源","System inputs")).setItems(labels.toArray(new String[0]),(d,index)->actions.get(index).run())
-                    .setNegativeButton(tr("返回","Back"),null).create();dialog.show();styleDialog(dialog);return;
+                    .setItems(labels.toArray(new String[0]),(d,index)->actions.get(index).run()).create();
+                showSettingsDialog(dialog,tr("系统信号源","System inputs"));return;
             }
             showInputIssue(tr("信号源入口不可用","Input entry unavailable"),tr("当前安卓版本不提供标准输入列表。","This Android version has no standard TV input list.")+"\n\n"+snapshot.problem(chinese));
         });
@@ -1479,21 +1802,28 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             if(state!=TvInputPanels.PanelState.READY){wallpapers.resume();showInputIssue(tr("信号源入口不可用","Input entry unavailable"),nativeInputProblem(state));}
         });
     }
-    private void styleDialog(android.app.AlertDialog dialog){ControlStyle.dialog(dialog,unit,(canvas,paint)->{wallpapers.drawDockBackground(canvas,paint);root.draw(canvas);},loader);}
+    private void drawSnapshotView(View view,Canvas canvas){
+        boolean wasDrawing=drawingLegacySnapshot;drawingLegacySnapshot=true;
+        try{view.draw(canvas);}finally{drawingLegacySnapshot=wasDrawing;}
+    }
+    private void showSettingsDialog(android.app.AlertDialog dialog,String title){
+        ControlStyle.dialogNavigation(dialog,title,tr("关闭","Close"),unit);
+        dialog.show();
+        ControlStyle.dialog(dialog,unit,(canvas,paint)->{wallpapers.drawDockBackground(canvas,paint);drawSnapshotView(root,canvas);},loader);
+    }
     private void showInputIssue(String title,String message){
         DiagnosticLog.info("input.problem","dialog_shown");
-        android.app.AlertDialog.Builder builder=new android.app.AlertDialog.Builder(this).setTitle(title).setMessage(message)
-            .setNegativeButton(tr("返回","Back"),(d,w)->KeySounds.play(this,KeySoundPolicy.BACK))
+        android.app.AlertDialog.Builder builder=new android.app.AlertDialog.Builder(this).setMessage(message)
             .setNeutralButton(tr("重新检测","Detect again"),(d,w)->main.post(this::showInputs));
         builder.setPositiveButton(tr("搜索与配对","Search and pair"),(d,w)->openInputPairingSettings());
         android.app.AlertDialog dialog=builder.create();
-        dialog.setOnDismissListener(d->main.post(this::updateHeaderFocus));dialog.show();styleDialog(dialog);
+        dialog.setOnDismissListener(d->main.post(this::updateHeaderFocus));showSettingsDialog(dialog,title);
     }
 
     @android.annotation.TargetApi(24)
     private static final class Api24 {
         static Runnable observe(HomeActivity home){
-            ConnectivityManager manager=(ConnectivityManager)home.getSystemService(CONNECTIVITY_SERVICE);
+            ConnectivityManager manager=(ConnectivityManager)home.getApplicationContext().getSystemService(CONNECTIVITY_SERVICE);
             ConnectivityManager.NetworkCallback callback=new ConnectivityManager.NetworkCallback(){
                 @Override public void onCapabilitiesChanged(Network n,NetworkCapabilities c){home.main.post(home::updateNetwork);}
                 @Override public void onLost(Network n){home.main.post(home::updateNetwork);}
@@ -1548,14 +1878,13 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 else showInputProblem(tr("系统未授予电视频道读取权限","TV channel permission was not granted by the system"));return;
             }
             if(launch!=null&&launch.issue==InputLaunch.Issue.NO_CHANNELS){
-                android.app.AlertDialog.Builder dialog=new android.app.AlertDialog.Builder(HomeActivity.this).setTitle(tr("尚未配置电视频道","No TV channels configured"))
-                    .setMessage(tr("连接天线或有线电视后，可在信号源设置中搜台。","Connect an antenna or cable, then configure channels."))
-                    .setNegativeButton(tr("返回","Back"),null);
+                android.app.AlertDialog.Builder dialog=new android.app.AlertDialog.Builder(HomeActivity.this)
+                    .setMessage(tr("连接天线或有线电视后，可在信号源设置中搜台。","Connect an antenna or cable, then configure channels."));
                 Intent setup=launch.input.createSetupIntent();
                 if(setup!=null)dialog.setPositiveButton(tr("信号源设置","Set up input"),(d,w)->leaveSystemEntry("input.setup",()->{
                     try{startActivity(setup);systemEntryResult(true);}catch(RuntimeException unavailable){systemEntryResult(false);wallpapers.resume();showInputProblem(tr("信号源设置不可用","Input setup unavailable"));}
                 }));
-                styleDialog(dialog.show());return;
+                showSettingsDialog(dialog.create(),tr("尚未配置电视频道","No TV channels configured"));return;
             }
             showInputProblem(tr("信号源暂不可用，请重新检测或使用电视遥控器信号源键。","Input unavailable; detect again or use the TV remote input key."));
         }
