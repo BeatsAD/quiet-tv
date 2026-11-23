@@ -51,5 +51,14 @@ public final class ChildQuizActivity extends ManagementUi implements ChildQuizVi
     @Override public void skip(){if(!verified||!parent||state==null||state.session()==null||restrictions())return;try{long round=round();state=learning.change(value->value.finish(round,true,ChildModeStore.today()));launch();}catch(IOException|JSONException unavailable){failure=unavailable.getMessage();show();}}
     private void launch(){if(leaving)return;try{if(ChildBlockActivity.gate(this,pkg)){leaving=true;finish();return;}ResolveInfo target=new HomeAppCatalog(this).find(pkg);if(target==null)throw new IOException("应用暂不可用，请返回桌面");leaving=true;startActivity(new Intent(Intent.ACTION_MAIN).setComponent(new ComponentName(pkg,target.activityInfo.name)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));finish();}catch(IOException|RuntimeException unavailable){leaving=false;failure=unavailable.getMessage();show();}}
     @Override public void handleBack(){if(parent)back();else exit();}
-    @Override public boolean dispatchKeyEvent(KeyEvent event){int key=event.getKeyCode();if(key>=19&&key<=22&&view!=null){if(event.getAction()==KeyEvent.ACTION_DOWN&&view.direction(key))return true;if(event.getAction()==KeyEvent.ACTION_UP)return true;}return super.dispatchKeyEvent(event);}
+    @Override public boolean dispatchKeyEvent(KeyEvent event){
+        return KeyFeedback.dispatch(getWindow().getDecorView(),event,()->{
+            int key=event.getKeyCode();
+            if(KeyFeedback.direction(key)&&view!=null){
+                if(event.getAction()==KeyEvent.ACTION_DOWN&&view.direction(key))return true;
+                if(event.getAction()==KeyEvent.ACTION_UP)return true;
+            }
+            return super.dispatchKeyEvent(event);
+        });
+    }
 }

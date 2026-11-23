@@ -76,7 +76,19 @@ final class IconLibraryBatch {
             control.check();for(AppCoverStore.ArtworkChange change:changes)AppCoverPolicy.require(context,change.pkg);
             DesktopBackups.get(context).beforeIconBatch();control.check();
             // Phone snapshots also acquire the cover lock before the repository lock.
-            synchronized(store){synchronized(IconLibraryRepository.get(artwork)){requireCurrent(context,artwork,plan);control.check();control.committing();trace.stage("COMMIT");int applied=store.applyLibraryBatch(changes);trace.finish("COMPLETED","committed count="+applied);return applied;}}
+            synchronized(DesktopSettingsStore.MUTATIONS){
+                synchronized(store){
+                    synchronized(IconLibraryRepository.get(artwork)){
+                        requireCurrent(context,artwork,plan);
+                        control.check();
+                        control.committing();
+                        trace.stage("COMMIT");
+                        int applied=store.applyLibraryBatch(changes);
+                        trace.finish("COMPLETED","committed count="+applied);
+                        return applied;
+                    }
+                }
+            }
         }finally{for(AppCoverStore.ArtworkChange change:changes)store.discardCandidate(change.file);}
         }catch(IOException|RuntimeException|OutOfMemoryError failure){trace.finish(failure instanceof InterruptedIOException?"CANCELLED":"FAILED",failure.getClass().getSimpleName());throw failure;}
     }

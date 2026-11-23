@@ -30,7 +30,7 @@ final class BluetoothDiagnostics {
     static boolean permitted(Context context){return Build.VERSION.SDK_INT<31?context.checkCallingOrSelfPermission("android.permission.BLUETOOTH")==PackageManager.PERMISSION_GRANTED:Api23.granted(context);}
     static synchronized String salt(Context context){if(instance==null)instance=new BluetoothDiagnostics(context);return instance.salt;}
     private void start(){
-        if(registered||!permitted(context))return;
+        if(registered||!DiagnosticLog.recording()||!permitted(context))return;
         IntentFilter filter=new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
         filter.addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED);filter.addAction(BluetoothDevice.ACTION_ACL_CONNECTED);
         filter.addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED);filter.addAction(BluetoothDevice.ACTION_ACL_DISCONNECT_REQUESTED);
@@ -43,6 +43,7 @@ final class BluetoothDiagnostics {
     @SuppressWarnings("deprecation")
     @android.annotation.SuppressLint("MissingPermission") // Reads are gated by permitted(); revocation is caught below.
     private void observe(Intent intent){
+        if(!DiagnosticLog.recording())return;
         try{
             if(!permitted(context)){DiagnosticLog.info("bluetooth.observer","status=permission_missing");return;}
             String action=intent.getAction();String kind;
@@ -101,7 +102,7 @@ final class BluetoothDiagnostics {
                 public void onInputDeviceAdded(int id){record("added",id);}
                 public void onInputDeviceChanged(int id){record("changed",id);}
                 public void onInputDeviceRemoved(int id){record("removed",id);}
-                private void record(String change,int id){InputDiagnostics.deviceChanged(id);InputDevice device=InputDevice.getDevice(id);DiagnosticLog.info("bluetooth.input_device","change="+change+" deviceId="+id+" sources="+(device==null?"unknown":device.getSources())+" transport=unverified");}
+                private void record(String change,int id){if(!DiagnosticLog.recording())return;InputDiagnostics.deviceChanged(id);InputDevice device=InputDevice.getDevice(id);DiagnosticLog.info("bluetooth.input_device","change="+change+" deviceId="+id+" sources="+(device==null?"unknown":device.getSources())+" transport=unverified");}
             },new Handler(Looper.getMainLooper()));
         }
     }

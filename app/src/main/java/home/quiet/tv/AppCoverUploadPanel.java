@@ -44,7 +44,7 @@ final class AppCoverUploadPanel {
     void show(String pkg,String label,Runnable updated){
         if(sheet!=null||committing||destroyed)return;retaining=false;retained=null;this.pkg=pkg;this.label=label;this.updated=updated;origin=activity.getCurrentFocus();
         sheet=activity.new Sheet("应用封面");ManagementUi.Sheet current=sheet;sheet.settingsLayout("关闭",this::dismiss);sheet.dialog.setOnDismissListener(d->{if(sheet==current)release();});
-        sheet.dialog.setOnKeyListener((d,key,event)->{if(!restoring||key!=KeyEvent.KEYCODE_BACK&&key!=KeyEvent.KEYCODE_ESCAPE)return false;if(event.getAction()==KeyEvent.ACTION_UP&&!committing)cancelRestore();return true;});
+        sheet.dialog.setOnKeyListener((d,key,event)->restoring&&KeyFeedback.backKey(activity,event,!committing,this::cancelRestore));
         BackNavigation.install(sheet.dialog,()->{if(!committing)dismiss();});
         upload=true;chosen=false;restoring=false;notice="";render();sheet.show(sheet.box.findViewWithTag("sheet-close"));start();
     }

@@ -19,7 +19,14 @@ final class ChildModeUi {
     Drawable focus(int color,int border,float radius,boolean primary){
         return new SettingsFocusDrawable(ui.unit,radius/2,primary?UiPalette.SELECTED:color,false,primary?UiPalette.EDGE:border);
     }
-    void choice(Button b,float radius){ControlStyle.choice(b,ui.unit,radius/2,0x04ffffff,0x1dffffff);b.setGravity(Gravity.CENTER);b.setPadding(p(12),0,p(12),0);}
+    static void styleChoice(Button button,float unit){
+        button.setBackgroundDrawable(new SettingsFocusDrawable(unit,12,UiPalette.CONTROL,false,UiPalette.EDGE));
+        button.setTextColor(SettingsFocusDrawable.textColors(UiPalette.TEXT));
+    }
+    void choice(Button button){
+        styleChoice(button,ui.unit);
+        button.setPadding(p(12),0,p(12),0);
+    }
     void selected(Button b,String label,boolean selected){b.setSelected(selected);b.setText(SettingsSelectionMark.label(label,selected,ui.unit));b.setContentDescription(label+(selected?"  已选择":""));}
     ImageView image(String glyph,int color){ImageView image=new ImageView(ui);image.setImageDrawable(new QuickControlIcon(glyph));image.setColorFilter(color);image.setScaleType(ImageView.ScaleType.FIT_CENTER);image.setFocusable(false);androidx.core.view.ViewCompat.setImportantForAccessibility(image,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);return image;}
     Button button(String label,Runnable click,boolean primary){
@@ -38,7 +45,7 @@ final class ChildModeUi {
     }
     private interface NumberKey {void enter(String value);}
     // Both duration dialogs use the same remote keypad; the selected field stays marked while typing.
-    LinearLayout numberPad(Sheet sheet,EditText... inputs){
+    LinearLayout numberPad(Dialog dialog,LinearLayout actions,EditText... inputs){
         LinearLayout pad=ui.column();pad.setClipChildren(false);Button[] keys=new Button[12];EditText[] target={inputs[0]};boolean[] replace={true};
         inputs[0].setSelected(true);
         NumberKey enter=value->{
@@ -73,12 +80,12 @@ final class ChildModeUi {
                 if(key!=KeyEvent.KEYCODE_DPAD_UP && key!=KeyEvent.KEYCODE_DPAD_DOWN && key!=KeyEvent.KEYCODE_DPAD_LEFT && key!=KeyEvent.KEYCODE_DPAD_RIGHT)return false;
                 if(event.getAction()==KeyEvent.ACTION_DOWN){
                     if(key==KeyEvent.KEYCODE_DPAD_UP){if(index<3)target[0].requestFocus();else keys[index-3].requestFocus();}
-                    else if(key==KeyEvent.KEYCODE_DPAD_DOWN){if(index<9)keys[index+3].requestFocus();else sheet.actions.getChildAt(index==9?0:sheet.actions.getChildCount()-1).requestFocus();}
+                    else if(key==KeyEvent.KEYCODE_DPAD_DOWN){if(index<9)keys[index+3].requestFocus();else actions.getChildAt(index==9?0:actions.getChildCount()-1).requestFocus();}
                     else keys[index/3*3+Math.max(0,Math.min(2,index%3+(key==KeyEvent.KEYCODE_DPAD_LEFT?-1:1)))].requestFocus();
                 }return true;
             });
         }
-        sheet.dialog.setOnKeyListener((dialog,key,event)->{
+        dialog.setOnKeyListener((window,key,event)->{
             if(pad.getVisibility()!=View.VISIBLE)return false;
             int digit=key>=KeyEvent.KEYCODE_0 && key<=KeyEvent.KEYCODE_9?key-KeyEvent.KEYCODE_0:key>=KeyEvent.KEYCODE_NUMPAD_0 && key<=KeyEvent.KEYCODE_NUMPAD_9?key-KeyEvent.KEYCODE_NUMPAD_0:-1;
             if(digit<0 && key!=KeyEvent.KEYCODE_DEL)return false;
@@ -86,54 +93,32 @@ final class ChildModeUi {
         });
         pad.setTag(keys);return pad;
     }
-    void numberActions(Sheet sheet,LinearLayout pad){
-        Button[] keys=(Button[])pad.getTag();for(int i=0;i<sheet.actions.getChildCount();i++){
-            View action=sheet.actions.getChildAt(i);if(action.getId()==View.NO_ID)action.setId(androidx.core.view.ViewCompat.generateViewId());action.setNextFocusUpId(keys[i==0?9:11].getId());
+    void numberActions(LinearLayout actions,LinearLayout pad){
+        Button[] keys=(Button[])pad.getTag();for(int i=0;i<actions.getChildCount();i++){
+            View action=actions.getChildAt(i);if(action.getId()==View.NO_ID)action.setId(androidx.core.view.ViewCompat.generateViewId());action.setNextFocusUpId(keys[i==0?9:11].getId());
         }
     }
     final class Sheet {
         final Dialog dialog=new KeyFeedback.Dialog(ui);
-        final LinearLayout box=new LinearLayout(ui){
-            {setOrientation(LinearLayout.VERTICAL);}
-            @Override protected void onMeasure(int width,int height){
-                if(heightMaximum>0){
-                    int maximum=Math.min(p(heightMaximum),ui.getResources().getDisplayMetrics().heightPixels-p(48));
-                    if(View.MeasureSpec.getMode(height)!=View.MeasureSpec.UNSPECIFIED)maximum=Math.min(maximum,View.MeasureSpec.getSize(height));
-                    height=View.MeasureSpec.makeMeasureSpec(Math.max(0,maximum),View.MeasureSpec.AT_MOST);
-                }
-                super.onMeasure(width,height);
-            }
-        },body=ui.column(),actions=ui.row();
+        final LinearLayout box=ui.column(),body=ui.column(),actions=ui.row();
         final Button close;
-        private final float width;
-        private float heightMaximum;
         private final SettingsSheetBackdrop backdrop;
         Sheet(String title,String description,String emblem,float width){
-            this(title,description,emblem,width,false);
-        }
-        Sheet(String title,String description,String emblem,float width,boolean compact){
-            this.width=width;dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+            dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
             box.setClipChildren(false);body.setClipChildren(false);actions.setClipChildren(false);FrameLayout screen=new FrameLayout(ui);screen.setClipChildren(false);screen.setBackgroundColor(Color.TRANSPARENT);
             View dim=new View(ui);dim.setBackgroundColor(0x35000000);screen.addView(dim,new FrameLayout.LayoutParams(-1,-1));
-            float padding=width>700?51.84f:57.6f,vertical=compact?30:width>700?51.84f:40.32f;box.setPadding(p(padding+1),p(vertical+1),p(padding+1),p(vertical+1));backdrop=new SettingsSheetBackdrop(ui,box);box.setBackgroundDrawable(backdrop);backdrop.followWindowFocus();FrameLayout.LayoutParams bp=new FrameLayout.LayoutParams(p(width),-2,Gravity.CENTER);screen.addView(box,bp);
-            ImageView icon=image(emblem,ManagementUi.MUTED);TextView heading=text(title,compact?32:36.48f,compact?44:51,ManagementUi.TEXT);heading.setGravity(Gravity.CENTER);UiCompat.letterSpacing(heading,.04f);
-            if(compact){LinearLayout titleRow=ui.row();titleRow.setGravity(Gravity.CENTER);titleRow.addView(icon,new LinearLayout.LayoutParams(p(36),p(36)));LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-2,p(44));hp.leftMargin=p(14);titleRow.addView(heading,hp);box.addView(titleRow,new LinearLayout.LayoutParams(-1,p(44)));}
-            else{LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(p(36),p(36));ip.gravity=Gravity.CENTER_HORIZONTAL;box.addView(icon,ip);gap(box,23.2f);box.addView(heading);}
-            if(!description.isEmpty()){gap(box,compact?6:15.36f);TextView sub=text(description,18.24f,compact?28:31,ManagementUi.MUTED);sub.setGravity(Gravity.CENTER);box.addView(sub);}
-            box.addView(body,new LinearLayout.LayoutParams(-1,-2));gap(box,compact?20:width>700?38.4f:15.36f);actions.setGravity(Gravity.CENTER);box.addView(actions,new LinearLayout.LayoutParams(-1,p(compact?56:64.32f)));
+            float padding=width>700?51.84f:57.6f,vertical=width>700?51.84f:40.32f;box.setPadding(p(padding+1),p(vertical+1),p(padding+1),p(vertical+1));backdrop=new SettingsSheetBackdrop(ui,box);box.setBackgroundDrawable(backdrop);backdrop.followWindowFocus();FrameLayout.LayoutParams bp=new FrameLayout.LayoutParams(p(width),-2,Gravity.CENTER);screen.addView(box,bp);
+            ImageView icon=image(emblem,ManagementUi.MUTED);TextView heading=text(title,36.48f,51,ManagementUi.TEXT);heading.setGravity(Gravity.CENTER);UiCompat.letterSpacing(heading,.04f);
+            LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(p(36),p(36));ip.gravity=Gravity.CENTER_HORIZONTAL;box.addView(icon,ip);gap(box,23.2f);box.addView(heading);
+            if(!description.isEmpty()){gap(box,15.36f);TextView sub=text(description,18.24f,31,ManagementUi.MUTED);sub.setGravity(Gravity.CENTER);box.addView(sub);}
+            box.addView(body,new LinearLayout.LayoutParams(-1,-2));gap(box,width>700?38.4f:15.36f);actions.setGravity(Gravity.CENTER);box.addView(actions,new LinearLayout.LayoutParams(-1,p(64.32f)));
             FrameLayout outer=new FrameLayout(ui);outer.addView(screen,new FrameLayout.LayoutParams(-1,-1));
-            close=ui.iconButton("关闭弹窗","x",12,()->{dialog.dismiss();KeyFeedback.back(ui);});androidx.core.graphics.drawable.DrawableCompat.setTintList(close.getCompoundDrawables()[0],SettingsFocusDrawable.textColors(UiPalette.TEXT));close.setId(androidx.core.view.ViewCompat.generateViewId());close.setBackgroundDrawable(focus(0,0,22,false));FrameLayout.LayoutParams cp=new FrameLayout.LayoutParams(p(42.24f),p(42.24f),Gravity.TOP|Gravity.RIGHT);cp.topMargin=p(20.2f);cp.rightMargin=p(20.2f);FrameLayout closeLayer=new FrameLayout(ui);closeLayer.setClipChildren(false);closeLayer.addView(close,cp);screen.addView(closeLayer,new FrameLayout.LayoutParams(p(width),p(80),Gravity.TOP|Gravity.CENTER_HORIZONTAL));
+            close=ui.button("关闭",()->{dialog.dismiss();KeyFeedback.back(ui);});ManagementUi.styleSheetNavigation(close,ui.unit);FrameLayout.LayoutParams cp=new FrameLayout.LayoutParams(ui.px(41.2f),ui.px(25.2f),Gravity.TOP|Gravity.RIGHT);cp.topMargin=p(20.2f);cp.rightMargin=p(20.2f);FrameLayout closeLayer=new FrameLayout(ui);closeLayer.setClipChildren(false);closeLayer.addView(close,cp);screen.addView(closeLayer,new FrameLayout.LayoutParams(p(width),p(80),Gravity.TOP|Gravity.CENTER_HORIZONTAL));
             // The close control follows the centered panel, including its variable height.
             box.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{FrameLayout.LayoutParams lp=(FrameLayout.LayoutParams)closeLayer.getLayoutParams();if(lp.topMargin!=t){lp.topMargin=t;closeLayer.setLayoutParams(lp);}});
             dialog.setContentView(outer);Window window=dialog.getWindow();window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);window.addFlags(WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM);
         }
         Button action(String label,Runnable click,boolean primary){Button b=button(label,click,primary);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-1,1);if(actions.getChildCount()>0)p.leftMargin=ChildModeUi.this.p(15.36f);actions.addView(b,p);return b;}
-        void scrollBody(float panelHeight){
-            heightMaximum=panelHeight;
-            int position=box.indexOfChild(body);box.removeView(body);
-            ScrollView scroll=new ScrollView(ui);
-            scroll.setFocusable(false);scroll.setClipToPadding(true);scroll.setClipChildren(true);scroll.setVerticalScrollBarEnabled(false);box.setClipChildren(true);scroll.addView(body);box.addView(scroll,position,new LinearLayout.LayoutParams(-1,-2,1));
-        }
         void show(View focus){dialog.show();dialog.getWindow().setLayout(-1,-1);dialog.getWindow().getDecorView().setSystemUiVisibility(5894);if(focus!=null)focus.requestFocus();}
         void release(){backdrop.release();}
     }

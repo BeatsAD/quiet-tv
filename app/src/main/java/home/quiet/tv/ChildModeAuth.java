@@ -57,19 +57,22 @@ final class ChildModeAuth {
         },true);
         if(!setup)pin.addTextChangedListener(new android.text.TextWatcher(){public void beforeTextChanged(CharSequence s,int start,int count,int after){}public void onTextChanged(CharSequence s,int start,int before,int count){}public void afterTextChanged(android.text.Editable e){if(e.length()==6&&!busy[0]&&sheet.dialog.isShowing())confirm.performClick();}});
         confirm.setVisibility(setup?View.VISIBLE:View.GONE);if(setup)arrows(style,confirm);
-        Button[] forgotten={null};if(!setup){style.gap(sheet.box,24.96f);Button forgot=style.button("忘记密码",()->{completed[0]=true;sheet.dialog.dismiss();recover(ui,authorized,cancelled);},false);forgot.setTextColor(ManagementUi.MUTED);forgot.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,style.font(16.32f));forgot.setBackgroundDrawable(style.focus(0,0,6,false));LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-2,style.p(27));fp.gravity=Gravity.CENTER_HORIZONTAL;sheet.box.addView(forgot,fp);forgotten[0]=forgot;}
+        Button[] forgotten={null};if(!setup){style.gap(sheet.box,24.96f);Button forgot=style.button("忘记密码",()->{completed[0]=true;sheet.dialog.dismiss();recover(ui,authorized,cancelled);},false);forgot.setTextColor(SettingsFocusDrawable.textColors(ManagementUi.MUTED));forgot.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,style.font(16.32f));forgot.setBackgroundDrawable(style.focus(0,0,6,false));LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-2,style.p(27));fp.gravity=Gravity.CENTER_HORIZONTAL;sheet.box.addView(forgot,fp);forgotten[0]=forgot;}
         navigate(pin,keys,cancel,confirm,forgotten[0]);
         sheet.dialog.setOnDismissListener(d->{first[0]="";pin.setText("");worker.shutdownNow();sheet.release();if(OPEN.get(ui)==sheet.dialog)OPEN.remove(ui);if(!completed[0]&&cancelled!=null)cancelled.run();});OPEN.put(ui,sheet.dialog);sheet.show(keys[4]);confirm.setContentDescription(setup?"设置家长密码":"确认家长密码");return sheet.dialog;
     }
     static void backup(ManagementUi ui,ChildModeStore store,Runnable done){
         ManagementUi.Sheet sheet=ui.new Sheet("保存家长恢复码");sheet.text(store.recovery());sheet.text("请由家长单独保存。忘记密码时需输入此码，恢复页面不会显示。");
-        Button saved=sheet.action("已保存",sheet.dialog::dismiss);OPEN.put(ui,sheet.dialog);sheet.dialog.setOnDismissListener(d->{boolean current=OPEN.get(ui)==sheet.dialog;if(current)OPEN.remove(ui);if(current&&ui.getLifecycle().getCurrentState().isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED))done.run();});sheet.show(saved);
+        sheet.settingsLayout("关闭",sheet.dialog::dismiss);Button saved=sheet.action("已保存",sheet.dialog::dismiss);OPEN.put(ui,sheet.dialog);sheet.dialog.setOnDismissListener(d->{boolean current=OPEN.get(ui)==sheet.dialog;if(current)OPEN.remove(ui);if(current&&ui.getLifecycle().getCurrentState().isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED))done.run();});sheet.show(saved);
     }
     private static void recover(ManagementUi ui,Runnable authorized,Runnable cancelled){
         ChildModeStore store=new ChildModeStore(ui);ChildModeUi style=new ChildModeUi(ui);ChildModeUi.Sheet sheet=style.new Sheet("使用恢复码","输入本机的 6 位数字恢复码","lock-keyhole",633.6f);
         EditText input=field(style,true,"输入 6 位数字");style.gap(sheet.body,23.04f);sheet.body.addView(input,new LinearLayout.LayoutParams(-1,style.p(64.16f)));input.setContentDescription("恢复码");Button[] keys=keypad(style,sheet,input);TextView error=error(style,sheet,input);
         final boolean[] continued={false};
-        Button cancel=sheet.action("取消",sheet.dialog::dismiss,false),confirm=sheet.action("确认",()->{if(!store.verifyRecovery(input.getText().toString())){error.setText("恢复码不正确");return;}continued[0]=true;sheet.dialog.dismiss();show(ui,authorized,true,cancelled);},true);arrows(style,confirm);navigate(input,keys,cancel,confirm,null);
+        Runnable back=()->{continued[0]=true;sheet.dialog.dismiss();show(ui,authorized,cancelled);};
+        sheet.close.setText("返回");sheet.close.setOnClickListener(v->back.run());
+        sheet.dialog.setOnCancelListener(d->back.run());
+        Button cancel=sheet.action("取消",back,false),confirm=sheet.action("确认",()->{if(!store.verifyRecovery(input.getText().toString())){error.setText("恢复码不正确");return;}continued[0]=true;sheet.dialog.dismiss();show(ui,authorized,true,cancelled);},true);arrows(style,confirm);navigate(input,keys,cancel,confirm,null);
         style.gap(sheet.box,24.96f);TextView help=style.text("请输入家长事先保存的恢复码",14.98f,26,ManagementUi.MUTED);help.setGravity(Gravity.CENTER);sheet.box.addView(help);
         OPEN.put(ui,sheet.dialog);sheet.dialog.setOnDismissListener(d->{input.setText("");sheet.release();if(OPEN.get(ui)==sheet.dialog)OPEN.remove(ui);if(!continued[0]&&cancelled!=null)cancelled.run();});sheet.show(keys[4]);
     }

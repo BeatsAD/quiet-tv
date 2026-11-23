@@ -40,8 +40,9 @@ final class AppRenameSheet {
     }
     private void render(){
         if(sheet==null)return;String state=session.state();boolean available="waiting".equals(state)||"connected".equals(state);retry.setVisibility("waiting".equals(state)||"starting".equals(state)?View.GONE:View.VISIBLE);sheet.settingsActions(retry.getVisibility()==View.VISIBLE);
-        status.setText("connected".equals(state)?"手机已连接，请在手机保存":"waiting".equals(state)?"等待手机扫码":"starting".equals(state)?"正在生成二维码…":"error".equals(state)?session.failure():"连接已失效，请重新连接");
-        String next=available?session.address()+"&appRename="+android.net.Uri.encode(pkg):"";if(next.equals(address))return;address=next;releaseQr();if(next.isEmpty())return;
+        String message="connected".equals(state)?"手机已连接，请在手机保存":"waiting".equals(state)?"等待手机扫码":"starting".equals(state)?"正在生成二维码…":"error".equals(state)?session.failure():"连接已失效，请重新连接";
+        status.setText(available?message+"\n配对码  "+session.pairingCode():message);
+        String next=available?session.address()+"?appRename="+android.net.Uri.encode(pkg):"";if(next.equals(address))return;address=next;releaseQr();if(next.isEmpty())return;
         try{BitMatrix matrix=new QRCodeWriter().encode(next,BarcodeFormat.QR_CODE,0,0,Collections.singletonMap(EncodeHintType.MARGIN,2));int size=matrix.getWidth()*8;int[] pixels=new int[size*size];for(int y=0;y<size;y++)for(int x=0;x<size;x++)pixels[y*size+x]=matrix.get(x/8,y/8)?Color.BLACK:Color.WHITE;qr=Bitmap.createBitmap(pixels,size,size,Bitmap.Config.ARGB_8888);image.setImageBitmap(qr);}
         catch(WriterException error){status.setText("二维码生成失败，请重新连接");retry.setVisibility(View.VISIBLE);}
     }

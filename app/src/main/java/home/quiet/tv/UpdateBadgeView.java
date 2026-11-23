@@ -1,24 +1,39 @@
 package home.quiet.tv;
 
 import android.content.Context;
-import android.graphics.*;
+import android.graphics.Canvas;
+import android.graphics.Paint;
 import android.view.View;
 
-/** Non-interactive overlay anchored to the version-update tab. */
+/** Non-interactive dot over the update tab, above the native focus plate. */
 final class UpdateBadgeView extends View {
-    private final View anchor;private final float unit;private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
+    private static final Paint DOT=new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final android.widget.Button anchor;
+    private final float unit;
+    private final int[] button=new int[2],overlay=new int[2];
     private boolean available;
-    UpdateBadgeView(Context context,View anchor,float unit){super(context);this.anchor=anchor;this.unit=unit;androidx.core.view.ViewCompat.setImportantForAccessibility(this,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);setFocusable(false);setClickable(false);}
-    void available(boolean value){available=value;String title=anchor instanceof android.widget.TextView?((android.widget.TextView)anchor).getText().toString():"版本更新";anchor.setContentDescription(title+(value?"，有新版本":""));invalidate();}
+
+    UpdateBadgeView(Context context,android.widget.Button anchor,float unit){
+        super(context);this.anchor=anchor;this.unit=unit;setFocusable(false);setClickable(false);
+        androidx.core.view.ViewCompat.setImportantForAccessibility(this,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        anchor.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->invalidate());
+        anchor.getViewTreeObserver().addOnGlobalFocusChangeListener((old,next)->{if(old==anchor||next==anchor)invalidate();});
+        anchor.getViewTreeObserver().addOnScrollChangedListener(()->{if(available)invalidate();});
+    }
+    void available(boolean value,String description){
+        if(available==value)return;
+        available=value;
+        anchor.setContentDescription(value?anchor.getText()+"  "+description:null);
+        invalidate();
+    }
+    private static void dot(Canvas canvas,float x,float y,float radius,boolean lightSurface){
+        DOT.setColor(lightSurface?0xffc9253f:0xffff5c6c);
+        canvas.drawCircle(x,y,radius,DOT);
+    }
     @Override protected void onDraw(Canvas canvas){
-        super.onDraw(canvas);if(!available||anchor.getWidth()==0)return;
-        int[] button=new int[2],overlay=new int[2];anchor.getLocationInWindow(button);getLocationInWindow(overlay);
-        float right=button[0]-overlay[0]+anchor.getWidth()+8*unit,top=button[1]-overlay[1]-8*unit;
-        RectF bounds=new RectF(right-38*unit,top,right,top+14*unit);
-        float radius=bounds.height()/2;
-        paint.setStyle(Paint.Style.FILL);paint.setColor(UiPalette.TEXT);canvas.drawRoundRect(bounds,radius,radius,paint);
-        paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(Math.max(1,0.75f*unit));paint.setColor(Color.WHITE);canvas.drawRoundRect(bounds,radius,radius,paint);
-        paint.setStyle(Paint.Style.FILL);paint.setTextSize(8*unit);paint.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));paint.setTextAlign(Paint.Align.CENTER);
-        paint.setColor(UiPalette.INK);Paint.FontMetrics font=paint.getFontMetrics();canvas.drawText("新版本",bounds.centerX(),bounds.centerY()-(font.ascent+font.descent)/2,paint);
+        if(!available||!anchor.isShown()||anchor.getWidth()==0)return;
+        anchor.getLocationInWindow(button);getLocationInWindow(overlay);
+        dot(canvas,button[0]-overlay[0]+anchor.getWidth()-anchor.getPaddingRight()*.68f+1.5f*unit,
+                button[1]-overlay[1]+anchor.getHeight()*.35f,3.75f*unit,anchor.isFocused()&&anchor.hasWindowFocus());
     }
 }

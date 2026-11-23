@@ -20,16 +20,35 @@ final class UpdatePanel {
     private ManagementUi.Sheet sheet;
     private Runnable returned;
     private View origin;
-    private boolean borrowed,checked,active=true;
+    private boolean borrowed,checked,active=true,reminder;
+    private Runnable reminderDrawn;
+    private View detailsHeader,detailsFooterRule;
+    private int compactSheetWidth;
     UpdatePanel(ManagementUi activity){this.activity=activity;updates=UpdateRepository.get(activity);unit=activity.getResources().getDisplayMetrics().widthPixels/1920f;}
     private int px(float value){return Math.round(value*unit);}
     private int p(float value){return Math.round(value*1.5f*unit);}
     private TextView text(String value,int size,int color){boolean muted=size<=23;TextView view=activity.label(value,12);QuickControlPreviewView.type(view,muted?14.464f:17.28f,muted?23.8656f:29.376f,activity.unit,UiPalette.SECONDARY);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.topMargin=p(muted?10.24f:17.28f);lp.bottomMargin=p(muted?19.2f:17.28f);view.setLayoutParams(lp);return view;}
     private void begin(String state,String title){
+        clearDetailsLayout();
         closed=false;mode=state;
-        if(sheet==null){origin=activity.getCurrentFocus();sheet=activity.new Sheet("软件更新");sheet.settingsLayout("关闭",this::close);dialog=sheet.dialog;BackNavigation.install(dialog,this::handleBack);dialog.setOnDismissListener(d->{sheet=null;dialog=null;mode="";if(origin!=null&&origin.isShown())origin.requestFocusFromTouch();});}
-        sheet.heading.setText("软件更新");sheet.contentWidth(450,450);sheet.settingsActions(false);box=sheet.body;box.removeAllViews();installStatus=null;
-        heading=activity.label(title,12);QuickControlPreviewView.type(heading,17.28f,25.92f,activity.unit,UiPalette.TEXT);QuickControlPreviewView.weight(heading,500);LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,-2);hp.bottomMargin=p(10.24f);box.addView(heading,hp);if(state.equals("error"))OperationFeedback.status(heading,OperationFeedback.Kind.ERROR);else if(state.equals("installed")||state.equals("ready"))OperationFeedback.status(heading,OperationFeedback.Kind.SUCCESS);else if(Arrays.asList("checking","download","install").contains(state))OperationFeedback.status(heading,OperationFeedback.Kind.PROGRESS);
+        if(sheet==null){origin=activity.getCurrentFocus();sheet=activity.new Sheet("软件更新");sheet.settingsLayout("关闭",this::handleBack);dialog=sheet.dialog;BackNavigation.install(dialog,this::handleBack);dialog.setOnDismissListener(d->{clearDetailsLayout();sheet=null;dialog=null;mode="";if(origin!=null&&origin.isShown())origin.requestFocusFromTouch();});}
+        Button navigation=(Button)sheet.box.findViewWithTag("sheet-close");
+        navigation.setVisibility(state.equals("cancel")||state.equals("file_retry")?View.GONE:View.VISIBLE);
+        navigation.setText(borrowed||state.equals("notes")?"返回":"关闭");
+        navigation.setContentDescription(null);
+        navigation.setOnClickListener(v->handleBack());
+        sheet.heading.setText("软件更新");sheet.contentWidth(450,450);sheet.settingsActions(false);sheet.actions.removeAllViews();sheet.scroll.setFocusable(!state.equals("details"));box=sheet.body;box.removeAllViews();installStatus=null;
+        if(!state.equals("details")){
+            heading=activity.label(title,12);
+            QuickControlPreviewView.type(heading,17.28f,25.92f,activity.unit,UiPalette.TEXT);
+            QuickControlPreviewView.weight(heading,500);
+            LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,-2);
+            hp.bottomMargin=p(10.24f);
+            box.addView(heading,hp);
+            if(state.equals("error"))OperationFeedback.status(heading,OperationFeedback.Kind.ERROR);
+            else if(state.equals("installed")||state.equals("ready"))OperationFeedback.status(heading,OperationFeedback.Kind.SUCCESS);
+            else if(Arrays.asList("checking","download","install").contains(state))OperationFeedback.status(heading,OperationFeedback.Kind.PROGRESS);
+        }
         actions=activity.row();actions.setGravity(Gravity.END);actions.setClipChildren(false);actions.setClipToPadding(false);
         dialog.setOnKeyListener((d,key,event)->{if((key==KeyEvent.KEYCODE_BACK||key==KeyEvent.KEYCODE_ESCAPE)&&event.getAction()==KeyEvent.ACTION_UP){if(!event.isCanceled()){handleBack();KeyFeedback.back(activity);}return true;}return key==KeyEvent.KEYCODE_BACK||key==KeyEvent.KEYCODE_ESCAPE;});
     }
@@ -37,11 +56,14 @@ final class UpdatePanel {
         Button view=activity.button(title,run);view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,11.712f*activity.unit);view.setPadding(p(17.28f),p(9.6f),p(17.28f),p(9.6f));view.setTag("update-"+mode+"-"+actions.getChildCount());view.setId(androidx.core.view.ViewCompat.generateViewId());style(view,false);
         LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-2,p(46.88f));if(actions.getChildCount()>0)params.leftMargin=p(8);actions.addView(view,params);return view;
     }
-    private void style(Button view,boolean primary){view.setTextColor(SettingsFocusDrawable.textColors(UiPalette.TEXT));view.setBackgroundDrawable(new SettingsFocusDrawable(activity.unit,21.12f,primary?UiPalette.SELECTED:UiPalette.CONTROL,false,primary?0x4dffffff:UiPalette.EDGE,false,12));}
+    private void style(Button view,boolean primary){view.setTextColor(SettingsFocusDrawable.textColors(UiPalette.TEXT));view.setBackgroundDrawable(new SettingsFocusDrawable(activity.unit,21.12f,primary?UiPalette.SELECTED:UiPalette.CONTROL,false,primary?0x4dffffff:UiPalette.EDGE).outlineOnFocus());}
     private void show(Button focus){
         boolean direct=mode.equals("checking");actions.setGravity(Gravity.END);
         if(focus!=null&&!mode.equals("checking")&&!mode.equals("download")&&!mode.equals("installed"))style(focus,true);
-        if(actions.getChildCount()>0){LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,p(46.88f));lp.topMargin=p(direct?0:mode.equals("details")?16:24);box.addView(actions,lp);}
+        if(actions.getChildCount()>0){
+            if(mode.equals("details")){sheet.settingsActions(true);sheet.actions.addView(actions,new LinearLayout.LayoutParams(-1,-1));}
+            else{LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,p(46.88f));lp.topMargin=p(direct?0:24);box.addView(actions,lp);}
+        }
         int previous=0;for(int i=0;i<box.getChildCount();i++){View view=box.getChildAt(i);LinearLayout.LayoutParams lp=(LinearLayout.LayoutParams)view.getLayoutParams();int bottom=lp.bottomMargin;lp.topMargin=Math.max(0,lp.topMargin-previous);previous=bottom;}
         if(!dialog.isShowing())sheet.show(null);if(focus!=null)focus.requestFocusFromTouch();
     }
@@ -56,9 +78,9 @@ final class UpdatePanel {
         else if(previous.equals("incompatible")&&!updates.unavailableReason.isEmpty())incompatible();
         else if(previous.equals("current"))current();
         else if(previous.equals("error")){if(!updates.downloadError.isEmpty())changedDownloadResult();else{begin("checking","正在检查更新");show(null);changed();}}
-        else if(updates.downloading||updates.verifying)resumeDownload();else if(updates.ready)ready();
+        else if(updates.downloading||updates.verifying)resumeDownload();else if(updates.ready){if(reminder)details();else ready();}
         else if(updates.checking){begin("checking","正在检查更新");show(button("取消",()->{updates.cancelCheck();current();}));}
-        else if(previous.equals("notes")&&target!=null)notes();else if(target!=null)details();else current();
+        else if(target!=null)details();else current();
     }
     private void current(){
         begin("current","Quiet TV "+BuildConfig.VERSION_NAME);box.addView(text(channel(BuildConfig.UPDATE_CHANNEL)+"  构建 "+BuildConfig.VERSION_CODE,21,0));
@@ -85,26 +107,185 @@ final class UpdatePanel {
         TextView version=text("Quiet TV "+target.version(),25,UiPalette.TEXT);QuickControlPreviewView.type(version,28.8f,40,activity.unit,UiPalette.TEXT);QuickControlPreviewView.weight(version,500);LinearLayout.LayoutParams vp=(LinearLayout.LayoutParams)version.getLayoutParams();vp.topMargin=0;vp.bottomMargin=p(8);box.addView(version);
         TextView metadata=text(channel(target.release.channel)+"  构建 "+target.code+"  "+size(target.bytes),21,0);LinearLayout.LayoutParams mp=(LinearLayout.LayoutParams)metadata.getLayoutParams();mp.topMargin=0;mp.bottomMargin=p(16);box.addView(metadata);
     }
-    private List<String> entries(){List<String> values=new ArrayList<>(target.release.features);values.addAll(target.release.fixes);return values;}
-    private void details(){
-        target=updates.available;if(target==null){current();return;}
-        begin("details","发现新版本");TextView current=text("当前版本 "+BuildConfig.VERSION_NAME+"  "+channel(BuildConfig.UPDATE_CHANNEL)+"  构建 "+BuildConfig.VERSION_CODE,21,0);LinearLayout.LayoutParams cp=(LinearLayout.LayoutParams)current.getLayoutParams();cp.topMargin=0;cp.bottomMargin=p(16);box.addView(current,0);version();
-        List<String> entries=entries();if(!entries.isEmpty()){
-            TextView title=text("更新内容",25,0);title.setTextColor(UiPalette.TEXT);QuickControlPreviewView.weight(title,500);LinearLayout.LayoutParams tp=(LinearLayout.LayoutParams)title.getLayoutParams();tp.topMargin=p(12);tp.bottomMargin=p(8);box.addView(title);
-            for(int i=0;i<Math.min(3,entries.size());i++){TextView line=text(entries.get(i),25,0);QuickControlPreviewView.type(line,17.28f,26.88f,activity.unit,UiPalette.TEXT);line.setMaxLines(2);line.setEllipsize(android.text.TextUtils.TruncateAt.END);LinearLayout.LayoutParams lp=(LinearLayout.LayoutParams)line.getLayoutParams();lp.topMargin=0;lp.bottomMargin=p(8);box.addView(line);}
-            Button more=activity.button("完整更新说明  ›",this::notes);more.setTag("update-notes");more.setId(androidx.core.view.ViewCompat.generateViewId());more.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,11.712f*activity.unit);more.setPadding(p(8),0,p(8),0);more.setBackgroundDrawable(new SettingsFocusDrawable(activity.unit,12,Color.TRANSPARENT));more.setTextColor(SettingsFocusDrawable.textColors(UiPalette.SECONDARY));box.addView(more,new LinearLayout.LayoutParams(-2,p(32)));
-        }
-        button("稍后",this::current);show(button("下载更新",this::download));
+    void openReminder(ManagementUi.Sheet value,Runnable back,Runnable shown){
+        reminder=true;reminderDrawn=shown;
+        openIn(value,back,null);
     }
-    private void notes(){
-        target=updates.available;if(target==null){current();return;}begin("notes","Quiet TV "+target.version());
-        LinearLayout notes=new LinearLayout(activity);notes.setOrientation(LinearLayout.VERTICAL);section(notes,"新增功能",target.release.features);section(notes,"问题修复",target.release.fixes);
-        ScrollView scroll=new ScrollView(activity){@Override protected void onMeasure(int width,int height){super.onMeasure(width,View.MeasureSpec.makeMeasureSpec(p(224),View.MeasureSpec.AT_MOST));}};scroll.setFillViewport(false);scroll.addView(notes);scroll.setFocusable(true);scroll.setId(androidx.core.view.ViewCompat.generateViewId());scroll.setTag("update-full-notes");scroll.setVerticalScrollBarEnabled(false);box.addView(scroll,new LinearLayout.LayoutParams(-1,-2));
-        Button back=button("返回更新",this::details);show(back);scroll.setNextFocusDownId(back.getId());back.setNextFocusUpId(scroll.getId());
+    private void details(){
+        target=updates.available;
+        if(target==null){current();return;}
+        begin("details","");
+        boolean hasNotes=!target.release.features.isEmpty()||!target.release.fixes.isEmpty();
+        prepareDetailsLayout(hasNotes);
+
+        Button later=button("稍后",this::dismiss);
+        Button next=button(updates.ready?"安装更新":"下载更新",updates.ready?this::install:this::download);
+        later.setMinWidth(px(145));
+        next.setMinWidth(px(180));
+        ((LinearLayout.LayoutParams)next.getLayoutParams()).leftMargin=px(20);
+        Button initial=reminder?later:next;
+        Button close=(Button)sheet.box.findViewWithTag("sheet-close");
+        close.setNextFocusDownId(initial.getId());
+        later.setNextFocusUpId(close.getId());
+        next.setNextFocusUpId(close.getId());
+        if(hasNotes){
+            LinearLayout notes=activity.column();
+            section(notes,"新增功能",target.release.features);
+            section(notes,"问题修复",target.release.fixes);
+            box.addView(new UpdateNotesScroll(notes,close,later,next,initial),new LinearLayout.LayoutParams(-1,-2));
+        }
+        show(initial);
+        if(reminder)style(next,true);
+        if(reminderDrawn!=null){
+            View anchor=sheet.box;android.view.ViewTreeObserver observer=anchor.getViewTreeObserver();
+            observer.addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener(){
+                public boolean onPreDraw(){
+                    if(!anchor.hasWindowFocus()||!anchor.isShown()||anchor.getAlpha()==0)return true;
+                    android.view.ViewTreeObserver current=anchor.getViewTreeObserver();
+                    if(current.isAlive())current.removeOnPreDrawListener(this);
+                    Runnable shown=reminderDrawn;reminderDrawn=null;
+                    if(shown!=null)shown.run();return true;
+                }
+            });
+        }
+    }
+    private void prepareDetailsLayout(boolean hasNotes){
+        FrameLayout.LayoutParams frame=(FrameLayout.LayoutParams)sheet.box.getLayoutParams();
+        compactSheetWidth=frame.width;
+        frame.width=ViewGroup.LayoutParams.WRAP_CONTENT;
+        sheet.box.setLayoutParams(frame);
+        sheet.contentWidth(620,620);
+        sheet.coolTint(true);
+        sheet.heading.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(26));
+        sheet.scroll.scrollTo(0,0);
+        sheet.scroll.setVisibility(hasNotes?View.VISIBLE:View.GONE);
+
+        LinearLayout header=activity.column();
+        detailsHeader=header;
+        header.setTag("update-version-header");
+        TextView version=detailsText("Quiet TV "+target.version(),36,44,UiPalette.TEXT);
+        QuickControlPreviewView.weight(version,650);
+        header.addView(version,new LinearLayout.LayoutParams(-1,-2));
+        String metadata="当前版本 "+BuildConfig.VERSION_NAME+"  "+channel(target.release.channel)+"  构建 "+target.code+"  "+size(target.bytes);
+        TextView versionInfo=detailsText(metadata,15.36f,22.4f,UiPalette.SECONDARY);
+        LinearLayout.LayoutParams infoParams=new LinearLayout.LayoutParams(-1,-2);
+        infoParams.bottomMargin=px(18);
+        header.addView(versionInfo,infoParams);
+        if(hasNotes)header.addView(detailsRule(),new LinearLayout.LayoutParams(-1,Math.max(1,px(1))));
+        sheet.box.addView(header,sheet.box.indexOfChild(sheet.scroll),new LinearLayout.LayoutParams(-1,-2));
+
+        detailsFooterRule=detailsRule();
+        LinearLayout.LayoutParams rule=new LinearLayout.LayoutParams(-1,Math.max(1,px(1)));
+        rule.bottomMargin=px(16);
+        sheet.box.addView(detailsFooterRule,sheet.box.indexOfChild(sheet.actions),rule);
+    }
+    private View detailsRule(){
+        View rule=new View(activity);
+        rule.setBackgroundColor(0x32ffffff);
+        return rule;
+    }
+    private TextView detailsText(String title,float size,float height,int color){
+        TextView label=activity.label(title,12);
+        QuickControlPreviewView.type(label,size,height,activity.unit,color);
+        return label;
+    }
+    private void clearDetailsLayout(){
+        if(detailsHeader==null||sheet==null)return;
+        sheet.box.removeView(detailsHeader);
+        sheet.box.removeView(detailsFooterRule);
+        detailsHeader=null;
+        detailsFooterRule=null;
+        FrameLayout.LayoutParams frame=(FrameLayout.LayoutParams)sheet.box.getLayoutParams();
+        frame.width=compactSheetWidth;
+        sheet.box.setLayoutParams(frame);
+        sheet.contentWidth(450,450);
+        sheet.coolTint(false);
+        ManagementUi.styleSheetHeading(sheet.heading,activity.unit);
+        sheet.scroll.setVisibility(View.VISIBLE);
+        sheet.scroll.scrollTo(0,0);
+        sheet.settingsActions(false);
+        sheet.actions.removeAllViews();
+        View close=sheet.box.findViewWithTag("sheet-close");
+        close.setNextFocusDownId(View.NO_ID);
+    }
+    /** The full-width release notes keep the version header and actions outside their viewport. */
+    private final class UpdateNotesScroll extends ScrollView {
+        private final LinearLayout notes;
+        private final Button close,later,next,preferred;
+        UpdateNotesScroll(LinearLayout notes,Button close,Button later,Button next,Button preferred){
+            super(activity);
+            this.notes=notes;this.close=close;this.later=later;this.next=next;this.preferred=preferred;
+            addView(notes,new FrameLayout.LayoutParams(-1,-2));
+            setId(androidx.core.view.ViewCompat.generateViewId());
+            setTag("update-full-notes");
+            setFocusableInTouchMode(true);
+            setScrollbarFadingEnabled(false);
+            setVerticalFadingEdgeEnabled(true);
+            setFadingEdgeLength(px(18));
+            if(Build.VERSION.SDK_INT>=29)Api29.styleScrollBar(this,Math.max(2,px(5)));
+            setOverScrollMode(View.OVER_SCROLL_NEVER);
+            setDescendantFocusability(FOCUS_BLOCK_DESCENDANTS);
+            setPadding(0,0,p(10),0);
+            StateListDrawable outline=new StateListDrawable();
+            outline.addState(new int[]{android.R.attr.state_focused},activity.surface(Color.TRANSPARENT,Color.TRANSPARENT,0x75ffffff,8));
+            setBackgroundDrawable(outline);
+        }
+        @Override protected void onMeasure(int width,int height){
+            int screenHeight=activity.getResources().getDisplayMetrics().heightPixels;
+            int viewport=Math.min(p(252),Math.max(p(64),screenHeight-px(450)));
+            if(View.MeasureSpec.getMode(height)!=View.MeasureSpec.UNSPECIFIED)
+                viewport=Math.min(viewport,View.MeasureSpec.getSize(height));
+            super.onMeasure(width,View.MeasureSpec.makeMeasureSpec(viewport,View.MeasureSpec.AT_MOST));
+        }
+        @Override protected void onLayout(boolean changed,int l,int t,int r,int b){
+            super.onLayout(changed,l,t,r,b);
+            boolean overflow=notes.getHeight()>getHeight();
+            setVerticalScrollBarEnabled(overflow);
+            setFocusable(overflow);
+            close.setNextFocusDownId(overflow?getId():preferred.getId());
+            int up=overflow?getId():close.getId();
+            later.setNextFocusUpId(up);
+            next.setNextFocusUpId(up);
+        }
+        @Override public boolean dispatchKeyEvent(KeyEvent event){
+            int key=event.getKeyCode();
+            if(!isFocused()||(key!=KeyEvent.KEYCODE_DPAD_UP&&key!=KeyEvent.KEYCODE_DPAD_DOWN))
+                return super.dispatchKeyEvent(event);
+            if(event.getAction()==KeyEvent.ACTION_DOWN){
+                if(key==KeyEvent.KEYCODE_DPAD_UP&&getScrollY()==0)close.requestFocusFromTouch();
+                else if(key==KeyEvent.KEYCODE_DPAD_DOWN&&getScrollY()>=notes.getHeight()-getHeight())
+                    preferred.requestFocusFromTouch();
+                else scrollBy(0,key==KeyEvent.KEYCODE_DPAD_DOWN?p(50):-p(50));
+            }
+            return true;
+        }
+    }
+    @android.annotation.TargetApi(29)
+    private static final class Api29 {
+        static void styleScrollBar(ScrollView view,int width){
+            GradientDrawable track=new GradientDrawable();
+            track.setColor(0x2effffff);
+            track.setCornerRadius(width/2f);
+            GradientDrawable thumb=new GradientDrawable();
+            thumb.setColor(0xccffffff);
+            thumb.setCornerRadius(width/2f);
+            view.setScrollBarSize(width);
+            view.setVerticalScrollbarTrackDrawable(track);
+            view.setVerticalScrollbarThumbDrawable(thumb);
+        }
     }
     private void section(LinearLayout notes,String title,List<String> entries){
-        if(entries.isEmpty())return;TextView label=text(title,25,0);QuickControlPreviewView.weight(label,500);LinearLayout.LayoutParams group=new LinearLayout.LayoutParams(-1,-2);group.topMargin=p(12);group.bottomMargin=p(8);notes.addView(label,group);
-        for(String entry:entries){TextView line=text(entry,25,0);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.bottomMargin=p(8);notes.addView(line,lp);}
+        if(entries.isEmpty())return;
+        TextView label=detailsText(title,17.28f,23.04f,0xffa8ccea);
+        QuickControlPreviewView.weight(label,600);
+        LinearLayout.LayoutParams group=new LinearLayout.LayoutParams(-1,-2);
+        group.topMargin=px(notes.getChildCount()==0?17:20);
+        group.bottomMargin=px(4);
+        notes.addView(label,group);
+        for(String entry:entries){
+            TextView line=detailsText(entry,17.28f,26.4f,0xe6ffffff);
+            notes.addView(line,new LinearLayout.LayoutParams(-1,-2));
+        }
     }
     private void download(){
         if(target==null||updates.available==null||!target.sha256.equals(updates.available.sha256)){check();return;}
@@ -117,7 +298,7 @@ final class UpdatePanel {
         LinearLayout values=activity.row();values.setGravity(Gravity.CENTER_VERTICAL);status=text("0.0 MB / "+size(updates.total),21,0);progressText=text("0%",28,0);progressText.setGravity(Gravity.END);values.addView(status,new LinearLayout.LayoutParams(0,-2,1));values.addView(progressText,new LinearLayout.LayoutParams(-2,-2));LinearLayout.LayoutParams vp=new LinearLayout.LayoutParams(-1,-2);vp.topMargin=p(12);box.addView(values,vp);show(button("取消下载",this::cancelDownload));
     }
     private void cancelDownload(){
-        begin("cancel","取消本次下载？");button("取消下载",()->{updates.cancelDownload();current();});show(button("继续下载",this::resumeDownload));
+        begin("cancel","取消本次下载？");Button cancel=button("取消",this::resumeDownload);button("确认取消下载",()->{updates.cancelDownload();current();});show(cancel);
     }
     private void resumeDownload(){if(updates.ready){ready();return;}if(!updates.downloading&&!updates.verifying){changedDownloadResult();return;}downloadBody();changed();}
     private void changedDownloadResult(){if(updates.ready)ready();else{begin("error","下载更新失败");box.addView(text(updates.downloadError.isEmpty()?"更新下载或校验失败":updates.downloadError,25,0));show(button("重新下载",this::download));}}
@@ -188,7 +369,7 @@ final class UpdatePanel {
     private void retryFileInstall(){
         begin("file_retry","重新打开安装器？");
         box.addView(text("请先确认上次安装器已关闭，避免重复安装。",25,UiPalette.SECONDARY));
-        button("返回",this::installationChanged);show(button("已关闭，重新安装",()->{if(updates.retryFileInstall()){target=updates.available;install();}}));
+        button("取消",this::installationChanged);show(button("已关闭，重新安装",()->{if(updates.retryFileInstall()){target=updates.available;install();}}));
     }
     private void restricted(){restricted("");}
     private void restricted(String reason){
@@ -204,10 +385,10 @@ final class UpdatePanel {
     void resumed(){active=true;closed=false;updates.fileInstallReturned(Integer.MIN_VALUE,null);changed();if(permissionReturning){permissionReturning=false;UpdateInstaller.Permission permission=UpdateInstaller.permission(activity);DiagnosticLog.info("update.permission","phase=return state="+permission);if(updates.ready&&permission==UpdateInstaller.Permission.ALLOWED)ready();else if(permission!=UpdateInstaller.Permission.ALLOWED)permission(true);}}
     void pause(){active=false;}
     void save(Bundle state){state.putString("mode",mode);state.putString("guideOrigin",guideOrigin);state.putString("permissionFailure",permissionFailure.name());state.putBoolean("checked",checked);state.putBoolean("permissionReturning",permissionReturning);}
-    void handleBack(){if(mode.equals("notes"))details();else close();}
-    void close(){if(mode.equals("checking"))updates.cancelCheck();if(updates.downloading)updates.cancelDownload();dismiss();}
-    void suspend(){closed=true;if(updates.downloading)updates.cancelDownload();if(mode.equals("checking"))updates.cancelCheck();detach();}
-    void detach(){closed=true;if(!borrowed&&dialog!=null)dialog.dismiss();sheet=null;dialog=null;mode="";borrowed=false;returned=null;}
+    void handleBack(){if(mode.equals("notes"))details();else if(mode.equals("cancel"))resumeDownload();else if(mode.equals("file_retry"))installationChanged();else close();}
+    void close(){dismiss();}
+    void suspend(){detach();}
+    void detach(){closed=true;clearDetailsLayout();if(!borrowed&&dialog!=null)dialog.dismiss();sheet=null;dialog=null;mode="";borrowed=false;returned=null;reminder=false;reminderDrawn=null;}
     private void dismiss(){Runnable back=returned;boolean shared=borrowed;detach();if(shared&&back!=null)back.run();}
     private static String system(int sdk){switch(sdk){case 14:return "安卓4.0至4.4";case 19:return "安卓4.4";case 21:return "安卓5及以上";case 23:return "安卓6及以上";case 26:return "安卓8及以上";case 31:return "安卓12及以上";default:return "安卓兼容版";}}
     static String channel(String value){return "independent".equals(value)?"测试版":"stable".equals(value)?"正式版":"experimental".equals(value)?"实验版":"测试版";}

@@ -10,6 +10,8 @@ import org.json.*;
 /** A fixed entry with durable browser pairing and separately bounded active connections. */
 final class PhoneSettingsServer extends NanoHTTPD {
     static final long IDLE_MS=10L*60*1000;
+    private static final int PAIRING_ATTEMPT_LIMIT=5;
+    private static final long PAIRING_RETRY_MS=30_000;
     interface Assets {InputStream open(String name)throws IOException;}
     interface Active {boolean valid();}
     interface BackendFactory {Backend create();}
@@ -25,6 +27,7 @@ final class PhoneSettingsServer extends NanoHTTPD {
         default Download previewVideo(String id)throws IOException{throw new BadInput();}
         default byte[] previewImage(String id)throws IOException{throw new BadInput();}
         default Download download(String route)throws IOException{throw new BadInput();}
+        default JSONObject about(boolean runtime)throws IOException{throw new BadInput();}
         default JSONObject places(String query)throws IOException{throw new BadInput();}
         default JSONObject parent(JSONObject value,Active active)throws IOException{throw new BadInput();}
         default JSONObject task(String id)throws IOException{throw new BadInput();}
@@ -36,77 +39,74 @@ final class PhoneSettingsServer extends NanoHTTPD {
     static final class Rejected extends IOException {Rejected(String message){super(message);}}
     private final String diagnosticSession=UUID.randomUUID().toString();
     private void diagnosticState(){DiagnosticLog.info("phone.session.state","session="+diagnosticSession+" state="+(Arrays.asList("waiting","connected","qr-expired","expired","ended","network-changed").contains(state)?state:"other"));}
-    private final String host;private volatile String path;private final PhonePairing pairing;private final Assets assets;private final BackendFactory backends;private final Runnable changed;
+    private final String host;private final PhonePairing pairing;private final Assets assets;private final BackendFactory backends;private final Runnable changed;
     private final java.util.concurrent.atomic.AtomicBoolean transferring=new java.util.concurrent.atomic.AtomicBoolean();
     private final Set<ClientHandler> clients=new HashSet<>();
     private static final class BrowserConnection {
         final Backend backend;long touched=System.nanoTime();BrowserConnection(Backend backend){this.backend=backend;}
     }
     private final Map<String,BrowserConnection> connections=new HashMap<>();
-    private String connectionKey="";private volatile boolean closed;private String state="waiting";private long created=System.nanoTime();
-    PhoneSettingsServer(String bindHost,int port,String host,PhonePairing pairing,Assets assets,Backend backend,Runnable changed){
-        this(bindHost,port,host,pairing,assets,()->backend,changed);
+    private String pairingCode="",state="waiting";
+    private long codeCreated,blockedAt;
+    private int failedPairings;
+    private volatile boolean closed;
+    PhoneSettingsServer(String host,int port,PhonePairing pairing,Assets assets,Backend backend,Runnable changed){
+        this(host,port,pairing,assets,()->backend,changed);
     }
-    PhoneSettingsServer(String bindHost,int port,String host,PhonePairing pairing,Assets assets,BackendFactory backends,Runnable changed){
-        super(bindHost,port);this.host=host;this.pairing=pairing;this.assets=assets;this.backends=backends;this.changed=changed;path="/pair/"+PhonePairing.secret()+"/";
+    PhoneSettingsServer(String host,int port,PhonePairing pairing,Assets assets,BackendFactory backends,Runnable changed){
+        super(host,port);this.host=host;this.pairing=pairing;this.assets=assets;this.backends=backends;this.changed=changed;
         diagnosticState();
         setAsyncRunner(new AsyncRunner(){public void exec(ClientHandler handler){synchronized(clients){if(closed||clients.size()>=4){handler.close();return;}clients.add(handler);}Thread thread=new Thread(handler,"phone-settings-http");thread.setDaemon(true);thread.start();}public void closed(ClientHandler handler){synchronized(clients){clients.remove(handler);}}public void closeAll(){synchronized(clients){for(ClientHandler handler:new ArrayList<>(clients))handler.close();clients.clear();}}});
     }
-    void listen()throws IOException {connectionKey=pairing.connectionKey();start(15000,true);}
-    String shortAddress(){return "http://"+host+":"+getListeningPort();}
-    String address(){return shortAddress()+(pairing.paired()?"/":path);}
-    synchronized String connectionAddress(){return shortAddress()+"/#connect="+connectionKey;}
-    synchronized String pairingAddress(){return shortAddress()+path;}
-    synchronized String state(){expire();if(!closed&&Arrays.asList("waiting","connected","expired").contains(state)&&(System.nanoTime()-created)/1000000>IDLE_MS)rotatePairing();return state;}
-    private void rotatePairing(){path="/pair/"+PhonePairing.secret()+"/";created=System.nanoTime();if(connections.isEmpty())state="waiting";changed.run();}
-    synchronized void reopen(){end();rotatePairing();}
-    synchronized void revokePairing()throws IOException {pairing.revoke();connectionKey=pairing.connectionKey();reopen();}
+    void listen()throws IOException {start(15000,true);}
+    String address(){return origin()+"/";}
+    private String origin(){return "http://"+host+":"+getListeningPort();}
+    synchronized String pairingCode(){
+        if(closed)return "";
+        if(pairingCode.isEmpty()){
+            pairingCode=PhonePairing.code();
+            codeCreated=System.nanoTime();
+        }
+        return pairingCode;
+    }
+    synchronized String state(){
+        expire();
+        if(codeExpired()){pairingCode="";changed.run();}
+        return state;
+    }
+    private boolean codeExpired(){return !pairingCode.isEmpty()&&(System.nanoTime()-codeCreated)/1000000>=IDLE_MS;}
+    synchronized void reopen(){end("waiting");}
+    synchronized void revokePairing()throws IOException {pairing.revoke();reopen();}
     private void expire(){
         long now=System.nanoTime();boolean expired=false;
         for(Iterator<BrowserConnection> values=connections.values().iterator();values.hasNext();){BrowserConnection value=values.next();if((now-value.touched)/1000000>IDLE_MS){values.remove();value.backend.connectionEnded();expired=true;}}
         if(expired){if(connections.isEmpty())state="expired";diagnosticState();changed.run();}
     }
     synchronized void end(){end("ended");}
-    synchronized void end(String reason){for(BrowserConnection value:connections.values())value.backend.connectionEnded();connections.clear();path="/pair/"+PhonePairing.secret()+"/";created=System.nanoTime();state=reason;diagnosticState();changed.run();}
+    synchronized void end(String reason){for(BrowserConnection value:connections.values())value.backend.connectionEnded();connections.clear();pairingCode="";state=reason;diagnosticState();changed.run();}
     @Override public void stop(){synchronized(this){closed=true;if(!connections.isEmpty()||"waiting".equals(state))end();}super.stop();}
     private synchronized boolean authorized(String browser,BrowserConnection expected){expire();return !closed&&expected!=null&&connections.get(browser)==expected&&pairing.accepts(browser);}
     private String browser(IHTTPSession session){String cookie=session.getHeaders().get("cookie");if(cookie!=null)for(String item:cookie.split(";")){String value=item.trim();if(value.startsWith("quiet_phone="))return value.substring(12);}return "";}
     @Override public Response serve(IHTTPSession session){
         if(closed)return error(Response.Status.GONE,"连接已结束，请重新扫码");
-        String origin=session.getHeaders().get("origin"),authority=host+":"+getListeningPort();
-        if(!authority.equalsIgnoreCase(session.getHeaders().get("host"))||origin!=null&&!origin.equals(shortAddress()))return error(Response.Status.FORBIDDEN,"请求来源无效");
+        String requestOrigin=session.getHeaders().get("origin"),authority=host+":"+getListeningPort();
+        if(!authority.equalsIgnoreCase(session.getHeaders().get("host"))||requestOrigin!=null&&!requestOrigin.equals(origin()))return error(Response.Status.FORBIDDEN,"请求来源无效");
         String uri=session.getUri(),browser=browser(session);
-        if(session.getMethod()==Method.GET&&(uri.equals(path)||uri.equals(path.substring(0,path.length()-1)))){
-            synchronized(this){
-                expire();
-                if(!(uri.equals(path)||uri.equals(path.substring(0,path.length()-1))))return landing();
-                if(!Arrays.asList("waiting","connected","expired").contains(state))return landing();
-                if((System.nanoTime()-created)/1000000>IDLE_MS)return landing();
-                try{
-                    String credential=pairing.accepts(browser)?browser:pairing.pair();connect(credential);
-                    if(!credential.equals(browser))rotatePairing();
-                    Response response=secure(newFixedLengthResponse(Response.Status.FOUND,"text/plain; charset=utf-8",""));response.addHeader("Location","/#connect="+connectionKey);cookie(response,credential);return response;
-                }catch(IOException e){return error(Response.Status.INTERNAL_ERROR,e.getMessage());}
-            }
-        }
         if(session.getMethod()==Method.GET&&uri.startsWith("/pair/"))return landing();
-        if(session.getMethod()==Method.POST&&uri.equals("/connect")){
-            synchronized(this){try{
-                expire();JSONObject request=read(session,512);if(request.length()!=1||!(request.opt("key") instanceof String))throw new BadInput();
-                if(!pairing.acceptsConnectionKey(request.getString("key")))return error(Response.Status.GONE,"连接网址已失效，请从电视获取新的完整连接网址");
-                String credential=pairing.accepts(browser)?browser:pairing.pair();connect(credential);Response response=json(Response.Status.OK,connectionStatus());cookie(response,credential);return response;
-            }catch(BadInput|JSONException invalid){return error(Response.Status.BAD_REQUEST,"连接网址不完整，请复制完整连接网址");}catch(IOException failure){return error(Response.Status.INTERNAL_ERROR,"手机配对信息保存失败，请重试");}}
-        }
+        if(session.getMethod()==Method.POST&&uri.equals("/pair"))return pair(session,browser);
         String route=uri.equals("/")?"":uri.substring(1);
-        boolean publicAsset=route.matches("assets/[A-Za-z0-9_-]+\\.(png|webp|svg)");
+        boolean publicAsset=route.matches("assets/[A-Za-z0-9_-]+\\.(png|webp|svg|wav)");
         if((session.getMethod()==Method.GET||session.getMethod()==Method.HEAD)&&(route.isEmpty()||route.equals("app.js")||route.equals("styles.css")||route.equals("tmdb.svg")||publicAsset)){
             boolean trusted=session.getMethod()==Method.GET&&route.isEmpty()&&pairing.accepts(browser);
             if(trusted)synchronized(this){expire();if(pairing.accepts(browser))connect(browser);else trusted=false;}
-            try{String name=route.isEmpty()?"index.html":route,mime=route.isEmpty()?"text/html; charset=utf-8":route.endsWith(".js")?"application/javascript; charset=utf-8":route.endsWith(".png")?"image/png":route.endsWith(".webp")?"image/webp":route.endsWith(".svg")?"image/svg+xml":"text/css; charset=utf-8";Response response=secure(newChunkedResponse(Response.Status.OK,mime,assets.open(name)));if(trusted)cookie(response,browser);return response;}catch(IOException failure){return error(Response.Status.INTERNAL_ERROR,"设置页面暂不可用");}
+            try{String name=route.isEmpty()?"index.html":route,mime=route.isEmpty()?"text/html; charset=utf-8":route.endsWith(".js")?"application/javascript; charset=utf-8":route.endsWith(".png")?"image/png":route.endsWith(".webp")?"image/webp":route.endsWith(".svg")?"image/svg+xml":route.endsWith(".wav")?"audio/wav":"text/css; charset=utf-8";Response response=secure(newChunkedResponse(Response.Status.OK,mime,assets.open(name)));if(trusted)cookie(response,browser);return response;}catch(IOException failure){return error(Response.Status.INTERNAL_ERROR,"设置页面暂不可用");}
         }
         if(session.getMethod()==Method.GET&&route.equals("status")){
-            synchronized(this){expire();if(pairing.accepts(browser))connect(browser);else return error(Response.Status.GONE,"请打开电视上的完整连接网址，或重新扫码；已有浏览器无需解除配对");
-                Response response=json(Response.Status.OK,connectionStatus());cookie(response,browser);return response;}
+            synchronized(this){
+                expire();
+                if(!pairing.accepts(browser))return json(Response.Status.OK,object("state","pairing"));
+                connect(browser);return connected(browser);
+            }
         }
         final BrowserConnection expected; synchronized(this){expected=connections.get(browser);}
         if(!authorized(browser,expected))return error(Response.Status.GONE,"连接已结束，请重新打开收藏的网址；若已解除配对，请重新扫码");
@@ -123,6 +123,11 @@ final class PhoneSettingsServer extends NanoHTTPD {
                 if(!transferring.compareAndSet(false,true))throw new Rejected("已有文件正在传输，请稍后再试");Download file;try{file=backend.download(route.substring(14));if(!authorized(browser,expected)){file.input.close();throw new Ended();}}catch(IOException|RuntimeException e){transferring.set(false);throw e;}
                 InputStream checked=new FilterInputStream(file.input){private void valid()throws IOException{if(!authorized(browser,expected))throw new Ended();touch(expected);}public int read()throws IOException{valid();return in.read();}public int read(byte[] b,int off,int count)throws IOException{valid();return in.read(b,off,count);}public void close()throws IOException{try{super.close();}finally{transferring.set(false);}}};
                 Response result=file.bytes<0?newChunkedResponse(Response.Status.OK,file.mime,checked):newFixedLengthResponse(Response.Status.OK,file.mime,checked,file.bytes);result.addHeader("Content-Disposition","attachment; filename*=UTF-8''"+java.net.URLEncoder.encode(file.name,"UTF-8").replace("+","%20"));return secure(result);
+            }
+            if(session.getMethod()==Method.GET&&(route.equals("api/about/device")||route.equals("api/about/runtime"))){
+                JSONObject result=backend.about(route.equals("api/about/runtime"));
+                if(!authorized(browser,expected))throw new Ended();
+                return json(Response.Status.OK,result);
             }
             if(session.getMethod()==Method.GET&&route.equals("api/places")){JSONObject result=backend.places(session.getParms().get("q"));if(!authorized(browser,expected))throw new Ended();return json(Response.Status.OK,result);}
             if(session.getMethod()==Method.POST&&route.equals("api/parent")){JSONObject result=backend.parent(read(session,4096),()->authorized(browser,expected));if(!authorized(browser,expected))throw new Ended();touch(expected);return json(Response.Status.OK,result);}
@@ -161,7 +166,33 @@ final class PhoneSettingsServer extends NanoHTTPD {
         }catch(Conflict conflict){return error(Response.Status.CONFLICT,conflict.getMessage());}catch(Ended ended){return error(Response.Status.GONE,ended.getMessage());}catch(Rejected rejected){return error(Response.Status.BAD_REQUEST,rejected.getMessage());}catch(BadInput|JSONException|IllegalArgumentException error){return error(Response.Status.BAD_REQUEST,"设置内容无效");}catch(IOException error){return error(Response.Status.INTERNAL_ERROR,"保存未确认，输入已保留");}
     }
     private Response landing(){Response response=secure(newFixedLengthResponse(Response.Status.FOUND,"text/plain; charset=utf-8",""));response.addHeader("Location","/");return response;}
-    private JSONObject connectionStatus(){JSONObject result=object("state","connected");try{return result.put("connectionLink",connectionAddress());}catch(JSONException impossible){throw new IllegalStateException(impossible);}}
+    private Response pair(IHTTPSession session,String browser){
+        try{
+            JSONObject request=read(session,512);
+            Object code=request.opt("code");
+            if(request.length()!=1||!(code instanceof String)||!((String)code).matches("[0-9]{8}"))throw new BadInput();
+            synchronized(this){
+                if(closed)return error(Response.Status.GONE,"连接已结束，请重新打开收藏的网址");
+                if(pairing.accepts(browser)){connect(browser);return connected(browser);}
+                if(pairingCode.isEmpty()||codeExpired())return error(Response.Status.GONE,"请在电视打开扫码入口，查看当前配对码");
+                if(failedPairings>=PAIRING_ATTEMPT_LIMIT){
+                    if((System.nanoTime()-blockedAt)/1000000<PAIRING_RETRY_MS)
+                        return error(Response.Status.FORBIDDEN,"尝试次数过多，请在 30 秒后重试");
+                    failedPairings=0;
+                }
+                if(!pairingCode.equals(code)){
+                    if(++failedPairings==PAIRING_ATTEMPT_LIMIT)blockedAt=System.nanoTime();
+                    return error(Response.Status.FORBIDDEN,"配对码不正确，请核对电视上的配对码");
+                }
+                String credential=pairing.pair();
+                failedPairings=0;connect(credential);return connected(credential);
+            }
+        }catch(BadInput invalid){return error(Response.Status.BAD_REQUEST,"请输入电视上的 8 位配对码");}
+        catch(IOException failure){return error(Response.Status.INTERNAL_ERROR,"手机配对信息保存失败，请重试");}
+    }
+    private Response connected(String browser){
+        Response response=json(Response.Status.OK,object("state","connected"));cookie(response,browser);return response;
+    }
     private void cookie(Response response,String credential){response.addHeader("Set-Cookie","quiet_phone="+credential+"; HttpOnly; SameSite=Strict; Max-Age=31536000; Path=/");}
     private void connect(String browser){
         BrowserConnection value=connections.get(browser);

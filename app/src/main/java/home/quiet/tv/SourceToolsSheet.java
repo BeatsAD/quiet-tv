@@ -15,6 +15,7 @@ final class SourceToolsSheet {
     private final Runnable closed;
     private final SourcePairing pairing;
     private final BootAppStore boot;
+    private final DesktopSettingsStore desktop;
     private final DiagnosticExportUi diagnostics;
     private final InputEntryTask inputWork=new InputEntryTask();
     private final Handler main=new Handler(Looper.getMainLooper());
@@ -26,7 +27,7 @@ final class SourceToolsSheet {
     private String screen="home",focus="source-target",error="",candidateId="",groupKey="",request="",port="",lastKey="",expectedTarget="",expectedStartup="",pendingWrite="",dismissedPending="",searchParent="home",logsParent="quality";
     private boolean active,destroyed,busy,raw,defaults,enableAfterTest,calibratingSaved;
     private final Runnable poll=new Runnable(){public void run(){if(!open()||!active)return;refresh();main.postDelayed(this,400);}};
-    SourceToolsSheet(ManagementUi ui,Runnable closed){this.ui=ui;this.closed=closed;pairing=SourcePairing.get(ui);boot=new BootAppStore(ui);diagnostics=new DiagnosticExportUi(ui);}
+    SourceToolsSheet(ManagementUi ui,Runnable closed){this.ui=ui;this.closed=closed;pairing=SourcePairing.get(ui);boot=new BootAppStore(ui);desktop=new DesktopSettingsStore(ui);diagnostics=new DiagnosticExportUi(ui);}
     private boolean open(){return !destroyed&&sheet!=null;}
     private int p(float value){return ui.px(value*.75f);}
     private TextView text(String value,float size,float line,int color){TextView view=ui.label(value,12);QuickControlPreviewView.type(view,size,line,ui.unit,color);return view;}
@@ -34,7 +35,7 @@ final class SourceToolsSheet {
     private void copy(String value,boolean muted){block(text(value,muted?14.464f:17.28f,muted?23.8656f:29.376f,UiPalette.SECONDARY),muted?10.24f:17.28f,muted?19.2f:17.28f);}
     private void heading(String value){TextView view=text(value,17.28f,25.92f,UiPalette.SECONDARY);QuickControlPreviewView.weight(view,500);block(view,0,10.24f);}
     private void identify(View view,String tag){view.setTag(tag);view.setId(androidx.core.view.ViewCompat.generateViewId());view.setFocusableInTouchMode(true);view.setOnFocusChangeListener((v,on)->{if(on)focus=tag;});}
-    private Button button(String title,String tag,Runnable action,boolean primary){Button view=ui.button(title,()->{if(!busy)action.run();});identify(view,tag);view.setEnabled(!busy);view.setAlpha(1f);view.setTextColor(SettingsFocusDrawable.textColors(primary&&!(ui instanceof AppManagementActivity)?UiPalette.INK:UiPalette.TEXT));view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,11.712f*ui.unit);view.setPadding(p(17.28f),p(9.6f),p(17.28f),p(9.6f));view.setBackgroundDrawable(new SettingsFocusDrawable(ui.unit,21.12f,primary?(ui instanceof AppManagementActivity?UiPalette.SELECTED:0xe6ffffff):UiPalette.CONTROL,false,primary?0x4dffffff:UiPalette.EDGE,false,12));return view;}
+    private Button button(String title,String tag,Runnable action,boolean primary){Button view=ui.button(title,()->{if(!busy)action.run();});identify(view,tag);view.setEnabled(!busy);view.setAlpha(1f);view.setTextColor(SettingsFocusDrawable.textColors(primary&&!(ui instanceof AppManagementActivity)?UiPalette.INK:UiPalette.TEXT));view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,11.712f*ui.unit);view.setPadding(p(17.28f),p(9.6f),p(17.28f),p(9.6f));view.setBackgroundDrawable(new SettingsFocusDrawable(ui.unit,21.12f,primary?(ui instanceof AppManagementActivity?UiPalette.SELECTED:0xe6ffffff):UiPalette.CONTROL,false,primary?0x4dffffff:UiPalette.EDGE).outlineOnFocus());return view;}
     private LinearLayout actions(){LinearLayout view=ui.row();view.setGravity(Gravity.END);view.setClipChildren(false);view.setClipToPadding(false);block(view,24,0);view.getLayoutParams().height=p(46.08f);return view;}
     private Button action(LinearLayout parent,String title,String tag,Runnable operation,boolean primary){LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-2,-1);if(parent.getChildCount()>0)lp.leftMargin=p(8);Button view=button(title,tag,operation,primary);parent.addView(view,lp);return view;}
     private Button option(String title,String tag,Runnable operation,boolean primary){Button view=button(title,tag,operation,primary);view.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,14.4f*ui.unit);view.setMinimumHeight(p(52.48f));LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.bottomMargin=p(9.6f);sheet.body.addView(view,lp);return view;}
@@ -45,14 +46,18 @@ final class SourceToolsSheet {
     void show(){if(open())return;screen=searchParent="home";focus="source-target";error=port=request=candidateId=groupKey=lastKey=pendingWrite=dismissedPending="";raw=enableAfterTest=busy=calibratingSaved=false;active=true;create();}
     private void create(){
         origin=ui.getCurrentFocus();sheet=ui.new Sheet("信号源配置");ManagementUi.Sheet own=sheet;close=sheet.settingsLayout("关闭",this::back);identify(close,"sheet-close");sheet.settingsActions(false);
-        sheet.dialog.setOnKeyListener((dialog,key,event)->{if(key!=KeyEvent.KEYCODE_BACK&&key!=KeyEvent.KEYCODE_ESCAPE)return false;if(event.getAction()==KeyEvent.ACTION_UP)back();return true;});
+        sheet.dialog.setOnKeyListener((dialog,key,event)->{
+            if(key!=KeyEvent.KEYCODE_BACK&&key!=KeyEvent.KEYCODE_ESCAPE)return false;
+            if(event.getAction()==KeyEvent.ACTION_UP&&!event.isCanceled())back(true);
+            return true;
+        });
         sheet.dialog.setOnDismissListener(dialog->{if(sheet!=own)return;stopUi();sheet=null;if(origin!=null&&origin.isShown())origin.requestFocusFromTouch();closed.run();});
         try{snapshot=pairing.snapshot();}catch(Exception failure){error="无法读取当前信号源状态";}String target=focus;render();sheet.show(null);focus=target;restoreFocus();resume();
     }
     private void restoreFocus(){if(!open())return;String target=focus;sheet.body.post(()->{if(!open())return;View view=sheet.box.findViewWithTag(target);if(view==null||!view.isEnabled()||!view.isShown())view=close;view.requestFocusFromTouch();android.graphics.Rect rect=new android.graphics.Rect();view.getDrawingRect(rect);view.requestRectangleOnScreen(rect,false);});}
     private void go(String next,String target){OperationFeedback.get(ui).hide();if(next.equals("logs"))logsParent=screen;if(next.equals("home"))calibratingSaved=false;diagnostics.hide();screen=next;focus=target;error="";render();}
     private void render(){
-        if(!open())return;String navigation=screen.equals("home")?"关闭":"返回";close.setText(navigation);close.setContentDescription(navigation);sheet.contentSize(448,screen.equals("home")?224:screen.equals("more")?228:440);if(screen.equals("logs")){diagnostics.show(sheet,true);return;}
+        if(!open())return;String navigation=screen.equals("home")?"关闭":"返回";close.setText(navigation);close.setContentDescription(navigation);close.setVisibility(screen.equals("restore")||screen.equals("boot")?View.GONE:View.VISIBLE);sheet.contentSize(448,screen.equals("home")?284:screen.equals("more")?228:440);if(screen.equals("logs")){diagnostics.show(sheet,DiagnosticExportUi.Page.INPUTS);return;}
         String target=focus;sheet.heading.setText(screen.equals("more")?"更多设置":screen.equals("restore-options")?"恢复信号源配置":screen.equals("diagnostics")?"诊断与反馈":screen.equals("calibrate")&&calibratingSaved?"校正端口名称":"信号源配置");sheet.body.removeAllViews();progress=null;sheet.settingsActions(false);
         if(screen.equals("home"))home();else if(screen.equals("more"))more();else if(screen.equals("restore-options"))restoreOptions();else if(screen.equals("search"))searchBody();else if(screen.equals("methods"))methods();else if(screen.equals("test"))testBody();else if(screen.equals("confirm"))confirmation();else if(screen.equals("calibrate"))calibration(false);else if(screen.equals("quality")||screen.equals("diagnostics"))quality();else if(screen.equals("observe"))observationStart();else if(screen.equals("observing"))observing();else if(screen.equals("observed"))observed();else if(screen.equals("observe-port"))calibration(true);else if(screen.equals("finishing"))copy("正在保存记录…",true);else if(screen.equals("restore"))restoreBody();else if(screen.equals("boot"))bootConfirmation();else if(screen.equals("saved-confirm"))savedConfirmation();
         if(busy)copy("正在处理…",true);if(!error.isEmpty()){TextView problem=text(error,15.36f,23.04f,UiPalette.TEXT);problem.setPadding(p(17.92f),p(12.8f),p(17.92f),p(12.8f));problem.setBackgroundDrawable(ui.surface(0x1affffff,0x1affffff,UiPalette.EDGE_STRONG,6.72f));block(problem,16,0);}focus=target;restoreFocus();
@@ -60,6 +65,11 @@ final class SourceToolsSheet {
     private void home(){
         SourcePairingStore sources=new SourcePairingStore(ui);LinearLayout group=group("");
         row(group,"默认信号源",boot.watchTarget().isEmpty()?(sources.entry()==null?"请选择":"原厂信号源菜单"):boot.watchLabel(),"source-target",()->searchFrom("home"),true);
+        DesktopSettingsRow visible=row(group,"在桌面显示「看电视」","","source-visible",()->save(()->{
+            desktop.showWatchTv(!desktop.showWatchTv());
+            PhoneSettingsSession.get(ui).configurationChanged();
+        }),true);
+        visible.checked(desktop.showWatchTv());
         DesktopSettingsRow auto=row(group,"开机自动进入","","source-boot",this::toggleBoot,!boot.watchTarget().isEmpty());auto.checked(boot.hdmiBoot());
         String hint=!boot.watchTarget().isEmpty()?"首页点击信号源，直接进入 "+boot.watchLabel():sources.entry()!=null?"首页点击信号源，直接打开原厂菜单":"选择并确认后，首页可直接进入该信号源";
         block(text(hint,14.464f,23.8656f,UiPalette.SECONDARY),0,12);
@@ -99,12 +109,12 @@ final class SourceToolsSheet {
     private void accept(boolean worked){if(busy)return;try{pairing.confirm("tv",request,worked,candidate()!=null&&candidate().panel==null,"user",worked?"用户确认实际端口、画面和声音正常":"用户报告入口或画面声音异常");if(!worked){enableAfterTest=false;go("search","source-search-back");error="测试未通过，原有配置已保留";render();}else{pendingWrite="confirm";busy=true;render();}}catch(Exception failure){fail(failure.getMessage());}}
     private void calibration(boolean observation){copy(observation?"按电视插口标识填写实际编号。记录结果后仍需测试 Quiet TV 的调用方式。":"按电视插口标识填写实际编号，再次测试。",false);TextView label=text("实际 HDMI 编号",16.64f,24.96f,UiPalette.SECONDARY);block(label,12.8f,6.4f);EditText input=ui.input(port,"实际 HDMI 编号");identify(input,"source-port");input.setInputType(InputType.TYPE_CLASS_NUMBER);input.addTextChangedListener(new android.text.TextWatcher(){public void beforeTextChanged(CharSequence s,int start,int count,int after){}public void onTextChanged(CharSequence s,int start,int before,int count){port=s.toString();}public void afterTextChanged(android.text.Editable value){}});block(input,0,0);LinearLayout actions=actions();action(actions,"返回","source-port-back",()->go(observation?"observed":calibratingSaved?"more":"confirm",observation?"source-observed-hdmi":calibratingSaved?"source-calibration":"source-calibrate"),false);Button confirm=action(actions,observation?"确认并结束记录":"重新测试","source-port-confirm",()->{try{int number=Integer.parseInt(port.trim());if(number<1||number>32)throw new NumberFormatException();if(observation)finishObservation("hdmi",number,true);else{cancelOwn();requestTest("HDMI "+number);}}catch(NumberFormatException invalid){fail("请输入 1–32 的实际 HDMI 编号");}},true);if(observation&&!observationActive()){confirm.setEnabled(false);confirm.setAlpha(.32f);copy("记录已结束，编号已保留，请返回配对重新记录。",true);}}
     private void quality(){LinearLayout group=group("检测结果");JSONObject channels=snapshot.optJSONObject("channels");for(String key:new String[]{"standard","vendor","panels","adb"}){JSONObject value=channels==null?null:channels.optJSONObject(key);String state=value==null?"":value.optString("state");String reason=value==null?"本次尚未完成":state.equals("READ")||state.equals("READY")?"已读取":state.equals("EMPTY")?"没有返回输入":state.equals("FILTERED")?"输入已隐藏或合并":state.equals("RESTRICTED")?"系统限制访问":state.equals("UNSUPPORTED")||state.equals("UNAVAILABLE")?"当前系统未提供此接口":state.equals("ADB_UNAVAILABLE")?"本机调试连接不可用":state.equals("TIMEOUT")?"读取超时":state.equals("DISABLED")?"相关组件已停用":"读取未完成";if(key.equals("vendor")&&value!=null&&value.optBoolean("sdkUnavailable")&&value.optInt("count")==0)reason="未找到可读取的厂商端口协议";row(group,key.equals("standard")?"标准输入":key.equals("vendor")?"厂商端口":key.equals("panels")?"原厂菜单":"调试读取",reason,"source-quality-"+key,()->{},false);}
-        LinearLayout actions=actions();action(actions,"导出诊断包","source-diagnostics",()->go("logs","diagnostic-retry"),false);if(!InputAdb.connected())action(actions,"检查本机连接","source-adb",()->{sheet.dialog.dismiss();ui.selectManagementPage(SettingsPages.APPS);},false);action(actions,"返回","source-quality-back",this::back,false);
+        LinearLayout actions=actions();action(actions,"信号源诊断包","source-diagnostics",()->go("logs","diagnostic-retry"),false);if(!InputAdb.connected())action(actions,"检查本机连接","source-adb",()->{sheet.dialog.dismiss();ui.selectManagementPage(SettingsPages.APPS);},false);action(actions,"返回","source-quality-back",this::back,false);
     }
     private void observationStart(){heading("辅助识别");copy("开启记录后，用原遥控器打开信号源并选择正常播放的端口，返回结束。",true);DesktopSettingsRow rawRow=row(sheet.body,"附加相关原始系统片段","","source-raw",()->{raw=!raw;render();},true);rawRow.checked(raw);copy("原始片段可能含私人信息，导出前请检查。",true);LinearLayout controls=ui.row();controls.setClipChildren(false);block(controls,0,0);controls.getLayoutParams().height=p(46.08f);controls.addView(button("开始记录","source-observe-start",()->{try{pairing.observe("tv",raw);snapshot=pairing.snapshot();go("observing","source-observe-done");}catch(Exception failure){fail(failure.getMessage());}},true),new LinearLayout.LayoutParams(-2,-1));controls.addView(button("返回配对","source-observe-back",()->go("search","source-observe"),false),new LinearLayout.LayoutParams(-2,-1));}
     private void observing(){heading("正在记录原厂操作");copy("请操作原厂信号源，完成后返回此页。",true);progress=text("正在记录…",14.464f,23.8656f,UiPalette.SECONDARY);block(progress,0,19.2f);LinearLayout actions=actions();action(actions,"停止记录","source-observe-stop",()->{cancelOwn();go("finishing","sheet-close");},false);action(actions,"已完成，结束并分析","source-observe-done",()->go("observed","source-observed-menu"),true);}
     private boolean observationActive(){JSONObject value=snapshot.optJSONObject("observation");return value!=null&&(value.optString("state").equals("RUNNING")||value.optString("state").equals("PREPARING"))&&!value.optBoolean("finalizing");}
-    private void observed(){heading("原厂操作结果");copy("记录原厂操作结果后，仍需测试 Quiet TV 的调用方式。",true);boolean running=observationActive();if(!running)copy("记录已结束，请返回配对重新记录，或导出已有结果。",true);Button menu=option("正常打开信号源菜单","source-observed-menu",()->finishObservation("menu",0,false),false);Button hdmi=option("已进入 HDMI，画面声音正常","source-observed-hdmi",()->{port="";go("observe-port","source-port");},false);Button failed=option("未打开或画面声音异常","source-observed-failed",()->finishObservation("failed",0,false),false);for(Button button:new Button[]{menu,hdmi,failed}){button.setEnabled(running&&!busy);button.setAlpha(1f);}if(InputSourceObservation.hasEvidence(ui))option("导出信号源诊断","source-diagnostics",()->go("logs","diagnostic-retry"),false);action(actions(),"返回配对","source-observe-back",()->{cancelOwn();go("search","source-observe");},false);}
+    private void observed(){heading("原厂操作结果");copy("记录原厂操作结果后，仍需测试 Quiet TV 的调用方式。",true);boolean running=observationActive();if(!running)copy("记录已结束，请返回配对重新记录，或导出已有结果。",true);Button menu=option("正常打开信号源菜单","source-observed-menu",()->finishObservation("menu",0,false),false);Button hdmi=option("已进入 HDMI，画面声音正常","source-observed-hdmi",()->{port="";go("observe-port","source-port");},false);Button failed=option("未打开或画面声音异常","source-observed-failed",()->finishObservation("failed",0,false),false);for(Button button:new Button[]{menu,hdmi,failed}){button.setEnabled(running&&!busy);button.setAlpha(1f);}if(InputSourceObservation.hasEvidence(ui))option("信号源诊断包","source-diagnostics",()->go("logs","diagnostic-retry"),false);action(actions(),"返回配对","source-observe-back",()->{cancelOwn();go("search","source-observe");},false);}
     private void finishObservation(String outcome,int number,boolean physical){try{InputSourceObservation.stopWithResult("user",outcome,number,physical);go("finishing","sheet-close");}catch(Exception failure){fail(failure.getMessage());}}
     private void restoreBody(){heading(defaults?"恢复配对默认设置？":"恢复上次配对前配置？");copy("调整本功能入口、端口与配对名称，关闭 HDMI 开机自动进入，保留其他桌面设置。",false);LinearLayout actions=actions();action(actions,"取消","source-restore-cancel",()->go("restore-options",defaults?"source-defaults":"source-previous"),false);Button confirm=button("恢复","source-restore-confirm",()->{try{pairing.restore("tv",pairing.snapshot().getString("revision"),defaults);pendingWrite="restore";busy=true;lastKey="";render();}catch(Exception failure){fail(failure.getMessage());}},true);LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-2,-1);cp.leftMargin=p(8);actions.addView(confirm,cp);}
     private void toggleBoot(){if(boot.hdmiBoot()){save(()->boot.hdmiBoot(false));return;}if(!boot.tested()){watch(true);return;}expectedTarget=boot.watchTarget();expectedStartup=boot.target();go("boot","source-boot-cancel");}
@@ -120,6 +130,11 @@ final class SourceToolsSheet {
     private void finishLaunch(boolean opened){if(!opened){HomeGuardService.cancelInputTransition();enableAfterTest=false;dismissedPending=boot.pendingTest();try{boot.testDispatched("");}catch(IOException unavailable){fail("信号源未打开，测试记录未清除，请重新核对");return;}fail("信号源暂时无法打开，请使用遥控器信号源键");return;}HomeGuardService.savedInputSelected(ui);if(!boot.pendingTest().isEmpty())ui.feedback("观看后按 HOME 返回，再进入信号源配置确认画面和声音");}
     private void refresh(){
         if(!open()||screen.equals("logs"))return;
+        if(screen.equals("home")){
+            DesktopSettingsRow visible=sheet.body.findViewWithTag("source-visible");
+            boolean show=desktop.showWatchTv();
+            if(visible!=null&&visible.checked()!=show)visible.checked(show);
+        }
         try{
             JSONObject value=pairing.snapshot();snapshot=value;
             JSONObject test=value.optJSONObject("test"),observation=value.optJSONObject("observation");
@@ -154,8 +169,10 @@ final class SourceToolsSheet {
         }catch(Exception failure){if(error.isEmpty())fail("读取信号源状态失败，请重新进入");}
     }
     private void cancelOwn(){if(pairing.owner().equals("tv"))pairing.cancel("tv",true);}
-    private void back(){
+    private void back(){back(false);}
+    private void back(boolean remote){
         if(!open())return;if(!pendingWrite.isEmpty()){refresh();if(!pendingWrite.isEmpty()){ui.feedback("正在保存，请稍候");return;}}
+        if(remote)KeyFeedback.returned(ui);
         inputWork.cancel();busy=false;
         switch(screen){
             case "home":cancelOwn();sheet.dialog.dismiss();return;

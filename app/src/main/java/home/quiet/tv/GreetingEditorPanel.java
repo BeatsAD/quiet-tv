@@ -52,7 +52,7 @@ final class GreetingEditorPanel {
     private void identify(View view,String tag){view.setId(androidx.core.view.ViewCompat.generateViewId());view.setTag(tag);}
     void show(){
         if(editor!=null)return;baseText=store.greetingText("");enabled=store.greetingEnabled();draftAvatar=avatars.existing(store.avatarFile());avatarEnabled=store.avatarEnabled()&&draftAvatar!=null;
-        editor=ui.new Sheet(tr("问候语与头像","Greeting and avatar"));close=editor.settingsLayout(tr("关闭","Close"),()->editor.dialog.dismiss());close.setVisibility(View.GONE);editor.contentSize(408,372);
+        editor=ui.new Sheet(tr("问候语与头像","Greeting and avatar"));close=editor.settingsLayout(tr("关闭","Close"),this::back);editor.contentSize(408,372);
         toggle=makeSwitch(tr("显示问候语","Show greeting"),"greeting-toggle");toggle.setOnClickListener(v->{enabled=!enabled;updateEnabled();});editor.body.addView(toggle,new LinearLayout.LayoutParams(-1,ui.px(42)));
         LinearLayout field=ui.column();LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-1,-2);fp.setMargins(ui.px(9.6f),ui.px(10.56f),ui.px(9.6f),ui.px(14.4f));editor.body.addView(field,fp);
         LinearLayout caption=ui.row();TextView label=ui.label(tr("问候语内容","Greeting text"),13);label.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,12.48f*ui.unit);label.setTextColor(UiPalette.SECONDARY);caption.addView(label,new LinearLayout.LayoutParams(0,ui.px(17.45f),1));
@@ -64,7 +64,7 @@ final class GreetingEditorPanel {
         phoneSlot=ui.column();editor.body.addView(phoneSlot,new LinearLayout.LayoutParams(-1,-2));
         avatarToggle=makeSwitch(tr("显示头像","Show avatar"),"greeting-avatar-toggle");avatarToggle.setOnClickListener(v->{avatarEnabled=!avatarEnabled;if(!avatarEnabled)avatarUpload.close();updateEnabled();});editor.body.addView(avatarToggle,new LinearLayout.LayoutParams(-1,ui.px(42)));
         avatarRow=ui.row();avatarRow.setPadding(ui.px(9.6f),ui.px(7.68f),ui.px(9.6f),ui.px(7.68f));avatar=new GreetingAvatarView(ui);identify(avatar,"greeting-avatar-preview");avatarRow.addView(avatar,new LinearLayout.LayoutParams(ui.px(44.16f),ui.px(44.16f)));
-        upload=inline(tr("手机上传","Phone upload"),"greeting-avatar-upload",()->{hideKeyboard();closePhone(false);avatarUpload.show(avatarSlot,()->{if(editor!=null&&!saving)upload.requestFocusFromTouch();});},false);
+        upload=inline(tr("手机上传","Phone upload"),"greeting-avatar-upload",()->{hideKeyboard();closePhone(false);avatarUpload.show(avatarSlot,()->{if(editor!=null&&!saving){navigationLabel();upload.requestFocusFromTouch();}});navigationLabel();},false);
         remove=inline(tr("移除头像","Remove avatar"),"greeting-avatar-remove",()->{avatarUpload.close();discardDraft();draftAvatar=null;avatarEnabled=false;draftStatus.setVisibility(View.GONE);updateEnabled();avatarToggle.requestFocusFromTouch();},false);
         for(Button button:new Button[]{upload,remove}){LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-2,ui.px(34.56f));bp.leftMargin=ui.px(9.6f);avatarRow.addView(button,bp);}editor.body.addView(avatarRow,new LinearLayout.LayoutParams(-1,-2));
         avatarSlot=ui.column();editor.body.addView(avatarSlot,new LinearLayout.LayoutParams(-1,-2));
@@ -72,7 +72,13 @@ final class GreetingEditorPanel {
         cancel=inline(tr("取消","Cancel"),"greeting-cancel",()->editor.dialog.dismiss(),false);save=inline(tr("保存","Save"),"greeting-save",this::save,true);
         cancel.setMinWidth(ui.px(72));save.setMinWidth(ui.px(72));editor.actions.addView(cancel,new LinearLayout.LayoutParams(-2,-1));LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-2,-1);sp.leftMargin=ui.px(6);editor.actions.addView(save,sp);
         edit.setOnKeyListener((v,key,event)->{
-            if(key==KeyEvent.KEYCODE_DPAD_CENTER||key==KeyEvent.KEYCODE_ENTER){if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0)((InputMethodManager)ui.getSystemService(android.content.Context.INPUT_METHOD_SERVICE)).showSoftInput(edit,InputMethodManager.SHOW_IMPLICIT);return true;}
+            if(key==KeyEvent.KEYCODE_DPAD_CENTER||key==KeyEvent.KEYCODE_ENTER){
+                if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0){
+                    InputMethodManager keyboard=(InputMethodManager)ui.getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
+                    if(keyboard.showSoftInput(edit,InputMethodManager.SHOW_IMPLICIT))KeyFeedback.confirmOnPress(ui);
+                }
+                return true;
+            }
             if(event.getAction()!=KeyEvent.ACTION_DOWN)return false;if(key==KeyEvent.KEYCODE_DPAD_DOWN){scan.requestFocusFromTouch();return true;}if(key==KeyEvent.KEYCODE_DPAD_UP){toggle.requestFocusFromTouch();return true;}return false;
         });
         edit.setOnEditorActionListener((v,action,event)->{if(action!=EditorInfo.IME_ACTION_DONE)return false;hideKeyboard();save.requestFocusFromTouch();return true;});
@@ -81,7 +87,7 @@ final class GreetingEditorPanel {
             if(key!=KeyEvent.KEYCODE_BACK&&key!=KeyEvent.KEYCODE_ESCAPE)return false;
             if(!inlineBack&&phone==null&&!avatarUpload.showing()){if(key!=KeyEvent.KEYCODE_ESCAPE)return false;if(event.getAction()==KeyEvent.ACTION_UP&&!saving)editor.dialog.cancel();return true;}
             if(event.getAction()==KeyEvent.ACTION_DOWN)inlineBack=true;
-            if(event.getAction()==KeyEvent.ACTION_UP){inlineBack=false;if(phone!=null){closePhone(false);scan.requestFocusFromTouch();}else avatarUpload.close();KeyFeedback.back(ui);}return true;
+            if(event.getAction()==KeyEvent.ACTION_UP){inlineBack=false;back();KeyFeedback.back(ui);}return true;
         });
         editor.dialog.setOnDismissListener(d->{hideKeyboard();avatarUpload.close();closePhone(false);stopServer(false);if(!saving&&!ui.isChangingConfigurations())discardDraft();editor=null;edit=null;View entry=ui.root.findViewWithTag("greeting");if(entry!=null)entry.requestFocusFromTouch();});
         updateEnabled();editor.show(toggle);
@@ -112,12 +118,21 @@ final class GreetingEditorPanel {
         });
     }
     private void updateEnabled(){
-        editor.box.setEnabled(!saving);
+        editor.box.setEnabled(!saving);navigationLabel();
         toggle.checked(enabled);avatarToggle.checked(avatarEnabled);for(View view:new View[]{toggle,edit,scan,avatarToggle,upload,remove,cancel,save,close})view.setEnabled(!saving);
         avatarRow.setVisibility(avatarEnabled?View.VISIBLE:View.GONE);boolean has=draftAvatar!=null;upload.setText(has?tr("更换照片","Change photo"):tr("手机上传","Phone upload"));avatar.show(draftAvatar,true);
-        toggle.setNextFocusUpId(toggle.getId());toggle.setNextFocusDownId(edit.getId());edit.setNextFocusUpId(toggle.getId());edit.setNextFocusDownId(scan.getId());scan.setNextFocusUpId(edit.getId());scan.setNextFocusDownId(phone==null?avatarToggle.getId():phoneBack.getId());
+        toggle.setNextFocusUpId(close.getId());toggle.setNextFocusDownId(edit.getId());edit.setNextFocusUpId(toggle.getId());edit.setNextFocusDownId(scan.getId());scan.setNextFocusUpId(edit.getId());scan.setNextFocusDownId(phone==null?avatarToggle.getId():phoneBack.getId());
         avatarToggle.setNextFocusUpId(phone==null?scan.getId():phoneBack.getId());avatarToggle.setNextFocusDownId(avatarEnabled?upload.getId():cancel.getId());upload.setNextFocusUpId(avatarToggle.getId());upload.setNextFocusRightId(remove.getId());upload.setNextFocusDownId(cancel.getId());remove.setNextFocusLeftId(upload.getId());remove.setNextFocusUpId(avatarToggle.getId());remove.setNextFocusDownId(save.getId());
         close.setNextFocusDownId(toggle.getId());cancel.setNextFocusLeftId(cancel.getId());cancel.setNextFocusRightId(save.getId());save.setNextFocusLeftId(cancel.getId());save.setNextFocusRightId(save.getId());cancel.setNextFocusUpId(avatarEnabled?upload.getId():avatarToggle.getId());save.setNextFocusUpId(avatarEnabled?remove.getId():avatarToggle.getId());cancel.setNextFocusDownId(cancel.getId());save.setNextFocusDownId(save.getId());
+    }
+    private void navigationLabel(){
+        close.setText(phone!=null||avatarUpload.showing()?tr("返回","Back"):tr("关闭","Close"));
+    }
+    private void back(){
+        if(editor==null||saving)return;
+        if(phone!=null){closePhone(false);scan.requestFocusFromTouch();}
+        else if(avatarUpload.showing())avatarUpload.close();
+        else editor.dialog.dismiss();
     }
     private void hideKeyboard(){if(edit!=null)((InputMethodManager)ui.getSystemService(android.content.Context.INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(edit.getWindowToken(),0);}
     private void showPhone(){

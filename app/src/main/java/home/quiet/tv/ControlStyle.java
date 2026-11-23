@@ -4,6 +4,9 @@ import android.content.res.ColorStateList;
 import android.graphics.*;
 import android.graphics.drawable.Drawable;
 import android.widget.TextView;
+import android.widget.LinearLayout;
+import android.view.Gravity;
+import android.content.Context;
 import android.app.AlertDialog;
 
 /** Shared remote feedback. Only choices use selected state; actions never latch. */
@@ -23,6 +26,27 @@ final class ControlStyle extends Drawable {
         view.setBackgroundDrawable(new ControlStyle(unit,radius,color,border,true,false));
         view.setTextColor(SettingsFocusDrawable.textColors(UiPalette.SECONDARY,UiPalette.INK));
     }
+    static void dialogNavigation(AlertDialog dialog,String title,String label,float unit){
+        Context context=dialog.getContext();
+        LinearLayout header=new LinearLayout(context);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(Math.round(20*unit),Math.round(14*unit),Math.round(20*unit),0);
+        TextView heading=new TextView(context);
+        heading.setText(title);
+        heading.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,19.2f*unit);
+        heading.setTextColor(UiPalette.TEXT);
+        header.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
+        TextView navigation=new KeyFeedback.Button(context);
+        navigation.setText(label);
+        navigation.setGravity(Gravity.CENTER);
+        navigation.setAllCaps(false);
+        navigation.setMinimumWidth(0);
+        navigation.setMinWidth(0);
+        ManagementUi.styleSheetNavigation(navigation,unit);
+        navigation.setOnClickListener(v->dialog.dismiss());
+        header.addView(navigation,new LinearLayout.LayoutParams(Math.round(41.2f*unit),Math.round(25.2f*unit)));
+        dialog.setCustomTitle(header);
+    }
     static void dialog(AlertDialog dialog,float unit,DockBackdropDrawable.Background background,java.util.concurrent.Executor filter){
         KeyFeedback.observeAlert(dialog);
         android.view.View panel=dialog.getWindow().getDecorView();
@@ -36,7 +60,7 @@ final class ControlStyle extends Drawable {
         if(dialog.getListView()!=null){dialog.getListView().setDivider(null);dialog.getListView().setSelector(listRow(unit,12));}
     }
     private static void alertText(android.view.View view){
-        if(view instanceof TextView){int normal=view.getId()==android.R.id.message?UiPalette.SECONDARY:UiPalette.TEXT;((TextView)view).setTextColor(new ColorStateList(new int[][]{{-android.R.attr.state_enabled},{}},new int[]{UiPalette.FAINT,normal}));}
+        if(view instanceof TextView&&!"sheet-close".equals(view.getTag())){int normal=view.getId()==android.R.id.message?UiPalette.SECONDARY:UiPalette.TEXT;((TextView)view).setTextColor(new ColorStateList(new int[][]{{-android.R.attr.state_enabled},{}},new int[]{UiPalette.FAINT,normal}));}
         if(view instanceof android.view.ViewGroup){android.view.ViewGroup group=(android.view.ViewGroup)view;for(int i=0;i<group.getChildCount();i++)alertText(group.getChildAt(i));}
     }
     private boolean state(int attr){for(int value:getState())if(value==attr)return true;return false;}

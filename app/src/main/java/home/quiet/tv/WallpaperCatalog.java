@@ -67,7 +67,7 @@ final class WallpaperCatalog {
     int rotationMinutes=5,imageRotationMinutes=5,videoRotationMinutes=5;
     static boolean rotationMinutes(int minutes){return minutes>=1&&minutes<=1440;}
     String lastVideo="",staticBeforeVideo=DEFAULT,lastFixed=DEFAULT;
-    boolean rotationBeforeVideo;
+    boolean rotationBeforeVideo, wallpaperBuiltinHidden, saverBuiltinHidden;
     // Last successfully selected source. Pending requests never change this value.
     String dailySource=BING,lastLocal=DEFAULT;
     final Map<String,DailyImage> dailyImages=new LinkedHashMap<>();
@@ -88,17 +88,30 @@ final class WallpaperCatalog {
         result.addAll(custom); return result;
     }
     Entry find(String id) { for (Entry entry:entries()) if (entry.id.equals(id)) return entry; return null; }
-    List<Entry> pictures() { List<Entry> result=new ArrayList<>();for(Entry e:entries())if(!e.video()&&!DEFAULT.equals(e.id)&&!DAILY.equals(e.id))result.add(e);return result; }
+    List<Entry> pictures() { List<Entry> result=new ArrayList<>();for(Entry e:entries())if(!e.video()&&!DEFAULT.equals(e.id)&&!DAILY.equals(e.id)&&!builtinHidden(e.id,false))result.add(e);return result; }
     List<Entry> videos(){List<Entry> result=new ArrayList<>();for(Entry e:entries())if(e.video())result.add(e);return result;}
     boolean audible(){return sound&&!rotating&&!weather;}
     boolean dynamic(){Entry e=find(current);return e!=null&&e.video();}
     int count(boolean video){return video?videos().size():pictures().size();}
-    String dailyFallback(){return DEFAULT.equals(lastLocal)?BUILTIN:lastLocal;}
+    boolean builtinHidden(String id,boolean saver){return BUILTIN.equals(id)&&(saver?saverBuiltinHidden:wallpaperBuiltinHidden);}
+    private String firstCustomPicture(){for(Entry entry:custom)if(!entry.video())return entry.id;return DEFAULT;}
+    String saverBuiltinFallback(){String id=firstCustomPicture();return DEFAULT.equals(id)?ScreensaverSettings.NO_MEDIA:id;}
+    String dailyFallback(){return DEFAULT.equals(lastLocal)?wallpaperBuiltinHidden?firstCustomPicture():BUILTIN:lastLocal;}
+    void builtinHidden(boolean saver,boolean hidden){
+        if(saver)saverBuiltinHidden=hidden;
+        else {wallpaperBuiltinHidden=hidden;normalize();}
+    }
     String fixedCandidate(String id){
         if(DAILY.equals(id))id=lastFixed;
-        return DEFAULT.equals(id)?BUILTIN:id;
+        return DEFAULT.equals(id)?wallpaperBuiltinHidden?firstCustomPicture():BUILTIN:id;
     }
     void normalize() {
+        if(wallpaperBuiltinHidden){
+            if(BUILTIN.equals(current))current=firstCustomPicture();
+            if(BUILTIN.equals(staticBeforeVideo))staticBeforeVideo=firstCustomPicture();
+            if(BUILTIN.equals(lastLocal))lastLocal=firstCustomPicture();
+            if(BUILTIN.equals(lastFixed))lastFixed=firstCustomPicture();
+        }
         if (find(current)==null) {current=staticBeforeVideo;rotating=rotationBeforeVideo;}
         if(find(current)==null)current=DEFAULT;
         Entry previous=find(staticBeforeVideo);if(previous==null||previous.video()){staticBeforeVideo=DEFAULT;rotationBeforeVideo=false;}
@@ -128,7 +141,7 @@ final class WallpaperCatalog {
         if(!rotationMinutes(minutes))throw new IllegalArgumentException("Unsupported rotation interval");
         List<Entry> pool=video?videos():pictures();
         if(pool.size()<2)throw new IllegalArgumentException("Rotation needs at least two wallpapers");
-        Entry entry=find(start);if(entry==null||entry.video()!=video||DEFAULT.equals(start)||DAILY.equals(start))start=pool.get(0).id;
+        Entry entry=find(start);if(entry==null||entry.video()!=video||DEFAULT.equals(start)||DAILY.equals(start)||builtinHidden(start,false))start=pool.get(0).id;
         select(start);rotationMinutes=minutes;if(video)videoRotationMinutes=minutes;else imageRotationMinutes=minutes;rotating=true;
     }
     void next() {
@@ -153,7 +166,7 @@ final class WallpaperCatalog {
         if (current.equals(id)){
             if(rotating&&!pool.isEmpty()){current=pool.get(position%pool.size()).id;if(entry.video())lastVideo=current;}
             else if(entry.video()){current=staticBeforeVideo;rotating=rotationBeforeVideo;}
-            else current=BUILTIN;
+            else current=wallpaperBuiltinHidden?firstCustomPicture():BUILTIN;
         }
         normalize();
     }
@@ -174,6 +187,7 @@ final class WallpaperCatalog {
         result.current=current;result.rotating=rotating;result.sound=sound;result.weather=weather;result.weatherDayNight=weatherDayNight;
         result.rotationMinutes=rotationMinutes;result.imageRotationMinutes=imageRotationMinutes;result.videoRotationMinutes=videoRotationMinutes;
         result.lastVideo=lastVideo;result.staticBeforeVideo=staticBeforeVideo;result.lastFixed=lastFixed;result.rotationBeforeVideo=rotationBeforeVideo;result.dailySource=dailySource;result.lastLocal=lastLocal;
+        result.wallpaperBuiltinHidden=wallpaperBuiltinHidden;result.saverBuiltinHidden=saverBuiltinHidden;
         result.custom.addAll(custom); // Entries contain only immutable scalar values.
         for(Map.Entry<String,DailyImage> entry:dailyImages.entrySet()){
             DailyImage source=entry.getValue(),image=new DailyImage();image.source=source.source;image.key=source.key;image.url=source.url;image.title=source.title;image.copyright=source.copyright;image.link=source.link;image.upstream=source.upstream;image.day=source.day;image.slot=source.slot;image.width=source.width;image.height=source.height;image.checked=source.checked;image.movie=source.movie==null?null:source.movie.snapshot();result.dailyImages.put(entry.getKey(),image);
@@ -184,6 +198,8 @@ final class WallpaperCatalog {
         JSONObject result=new JSONObject().put("version",2).put("current",current).put("rotating",rotating).put("sound",sound).put("weather",weather).put("weatherDayNight",weatherDayNight);
         result.put("lastVideo",lastVideo).put("staticBeforeVideo",staticBeforeVideo).put("rotationBeforeVideo",rotationBeforeVideo).put("lastFixed",lastFixed);
         result.put("rotationMinutes",rotationMinutes).put("imageRotationMinutes",imageRotationMinutes).put("videoRotationMinutes",videoRotationMinutes);
+        if(wallpaperBuiltinHidden)result.put("wallpaperBuiltinHidden",true);
+        if(saverBuiltinHidden)result.put("saverBuiltinHidden",true);
         JSONArray user=new JSONArray();
         for (Entry e:custom) user.put(new JSONObject().put("id",e.id).put("name",e.name).put("width",e.width).put("height",e.height).put("bytes",e.bytes).put("kind",e.kind).put("mime",e.videoMime).put("durationMs",e.durationMs).put("fps",e.fps).put("rotation",e.rotation).put("pixelRatio",e.pixelRatio).put("diagnosticFingerprint",e.diagnosticFingerprint).put("diagnosticTransfer",e.diagnosticTransfer));
         JSONObject images=new JSONObject();for(DailyImage image:dailyImages.values())images.put(image.source,image.json());
@@ -212,6 +228,7 @@ final class WallpaperCatalog {
             if(images!=null)for(String id:new String[]{BING,MICROSOFT,MOVIE,BT}){DailyImage image=DailyImage.read(images.optJSONObject(id));if(image!=null&&id.equals(image.source))result.dailyImages.put(id,image);}
         }
         result.lastFixed=json.optString("lastFixed",!result.rotating&&!result.weather&&!DAILY.equals(result.current)?result.current:result.lastLocal);
+        result.wallpaperBuiltinHidden=json.optBoolean("wallpaperBuiltinHidden");result.saverBuiltinHidden=json.optBoolean("saverBuiltinHidden");
         result.normalize(); return result;
     }
 }

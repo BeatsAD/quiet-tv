@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { type PhoneClient } from './api';
 import { Icon, ResourceImage, Sheet, Switch } from './widgets';
-import { IconFilterOptions, IconFiltersBar, IconMaterialGrid, filteredIcons, filterTitles, iconResource, type FilterPage, type IconCatalog, type IconFilters } from './IconLibraryPicker';
+import { desktopIconShape, IconFilterOptions, IconFiltersBar, IconMaterialGrid, filteredIcons, filterTitles, iconResource, type FilterPage, type IconCatalog, type IconFilters } from './IconLibraryPicker';
 
 type MatchRow={package:string;name:string;coverKey:string;status:string;id:string;candidates:string[];custom:boolean;automatic:boolean};
 type Plan=IconFilters&{planId:string;catalogVersion:number;rows:MatchRow[]};
@@ -9,7 +9,7 @@ type BatchRequest={planId:string;requestId:string;selected:{package:string;id:st
 const notes:Record<string,string>={pending:'核对候选后选择',custom:'已有自定义图标',current:'已是当前图标',missing:'此组合暂无图标',unmatched:'未匹配，可从图库选图'};
 const group=(row:MatchRow)=>row.status==='ready'?'ready':row.status==='pending'?'pending':'kept';
 export function IconBatch({client,catalog,filters,onFilters,closing,onClose,onExited,working,feedback,onSubmit}:{client:PhoneClient;catalog:IconCatalog;filters:IconFilters;onFilters:(filters:IconFilters)=>void;closing:boolean;onClose:()=>void;onExited:()=>void;working:boolean;feedback:ReactNode;onSubmit:(value:BatchRequest)=>Promise<void>}){
-  const desktopShape=client.frame?.domains.appearance?.iconShape,shape=desktopShape==='circle'||desktopShape==='square'?desktopShape:'rectangle';
+  const shape=desktopIconShape(client);
   const batchFilters={...filters,shape,form:shape!=='rectangle'&&filters.form==='text'?'icon':filters.form};
   const [plan,setPlan]=useState<Plan|null>(null),[selected,setSelected]=useState<Record<string,string>>({}),[tab,setTab]=useState('ready'),[coverCustom,setCoverCustom]=useState(false),[error,setError]=useState(''),[matching,setMatching]=useState(false),[candidate,setCandidate]=useState<MatchRow|null>(null),[filterPage,setFilterPage]=useState<FilterPage>(''),[retry,setRetry]=useState(0);
   const request=useRef<BatchRequest|null>(null),generation=useRef(0),filterKey=JSON.stringify(batchFilters);

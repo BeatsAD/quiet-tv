@@ -21,7 +21,7 @@ final class PhoneSettingsUpdates {
         if(field.equals("check")&&Boolean.TRUE.equals(value)){repository.check(true);message="检查更新请求已受理";}
         else if(field.equals("cancelCheck")&&Boolean.TRUE.equals(value)){repository.cancelCheck();message="已取消检查";}
         else if(field.equals("cancelDownload")&&Boolean.TRUE.equals(value)){repository.cancelDownload();message="已取消下载";}
-        else if(field.equals("reconcile")&&Boolean.TRUE.equals(value)){repository.reconcile();message="已核对实际安装状态";}
+        else if(field.equals("reconcile")&&Boolean.TRUE.equals(value)){repository.reconcile();message="已读取电视当前版本";}
         else if((field.equals("download")||field.equals("install"))&&value instanceof String){if(repository.available==null||!value.equals(repository.available.sha256))throw new PhoneSettingsServer.Rejected("更新目标已变化，请重新检查");if(field.equals("download")){repository.download();message="下载请求已受理";}else{if(!repository.ready)throw new PhoneSettingsServer.Rejected("请先完成安装包下载和校验");repository.install();context.startActivity(new Intent(context,AppManagementActivity.class).putExtra("management-page",SettingsPages.HELP).putExtra("phone-update-entry",true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));message="已请求在电视继续安装，请完成系统确认并核对版本";}}
         else throw new IllegalArgumentException();changed();return new JSONObject().put("message",message);
     },active);}

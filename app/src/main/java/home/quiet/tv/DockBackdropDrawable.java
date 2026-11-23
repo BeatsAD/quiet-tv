@@ -48,7 +48,7 @@ final class DockBackdropDrawable extends Drawable implements GlassStyle.Listener
         rect.set(bounds);if(capsule)radius=rect.height()/2;else if(card)radius=SurfaceCorners.artworkRadius(rect.width(),rect.height());SurfaceCorners.path(clip,rect,radius);
         updateOutline();
         if(!usesGlass()){clearSample();tint=focusTint=null;return;}
-        tint=new LinearGradient(0,bounds.top,0,bounds.bottom,personalized?new int[]{0x2e000000,0x4d000000}:new int[]{0x30ffffff,0x20000000},null,Shader.TileMode.CLAMP);
+        tint=usesTint()?new LinearGradient(0,bounds.top,0,bounds.bottom,capsule?new int[]{0x2e000000,0x4d000000}:new int[]{0x30ffffff,0x20000000},null,Shader.TileMode.CLAMP):null;
         if(capsule)focusTint=SettingsFocusDrawable.focusFill(bounds.top,bounds.bottom);
         if(capsule&&bounds.width()>0&&bounds.height()>0){
             if(capsuleSample==null||capsuleSample.getWidth()!=bounds.width()||capsuleSample.getHeight()!=bounds.height()){
@@ -59,6 +59,7 @@ final class DockBackdropDrawable extends Drawable implements GlassStyle.Listener
         }
     }
     private boolean usesGlass(){return glass&&glassStyle.rendering();}
+    private boolean usesTint(){return capsule||(!personalized&&!card);}
     private void clearSample(){paint.setShader(null);capsuleShader=null;capsuleCanvas=null;if(capsuleSample!=null){capsuleSample.recycle();capsuleSample=null;}}
     @Override public void glassChanged(){clearSample();tint=focusTint=null;invalidateSelf();}
     boolean capsule(){return capsule;}
@@ -74,7 +75,7 @@ final class DockBackdropDrawable extends Drawable implements GlassStyle.Listener
     }
     @Override public void draw(Canvas canvas){
         if(!usesGlass()){clearSample();drawFlat(canvas);return;}
-        if(tint==null||capsule&&capsuleSample==null)onBoundsChange(getBounds());
+        if(usesTint()&&(tint==null||capsule&&capsuleSample==null))onBoundsChange(getBounds());
         if(capsule){drawCapsule(canvas);return;}
         paint.setShader(null);paint.setStyle(Paint.Style.FILL);paint.setColor(0x18000000);
         if(!card){canvas.save();canvas.translate(0,2*unit);canvas.drawPath(clip,paint);canvas.restore();}
@@ -83,7 +84,12 @@ final class DockBackdropDrawable extends Drawable implements GlassStyle.Listener
         canvas.translate((origin[0]-location[0])/root.getScaleX(),(origin[1]-location[1])/root.getScaleY());
         if(usesGlass())background.draw(canvas,paint);else canvas.drawColor(0xe6000000);
         canvas.restoreToCount(save);
-        paint.setAlpha(255);if(card)paint.setColor(0x1fffffff);else paint.setShader(tint);canvas.drawPath(clip,paint);paint.setShader(null);
+        if(card||tint!=null){
+            paint.setAlpha(255);
+            if(card)paint.setColor(0x1fffffff);else paint.setShader(tint);
+            canvas.drawPath(clip,paint);
+            paint.setShader(null);
+        }
         paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(outlineWidth);paint.setColor(card?0x38ffffff:personalized?0x4dffffff:0x66ffffff);
         canvas.drawPath(outline,paint);paint.setStyle(Paint.Style.FILL);
     }

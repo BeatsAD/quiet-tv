@@ -3,12 +3,12 @@
 import json
 import re
 from pathlib import Path
-from boot_ads import catalog as boot_ad_catalog
+from boot_ads import bundled_settings
 from device_adaptation import catalog as adaptation_catalog
 
 source = Path(__file__).resolve().parents[1] / 'scripts/device-presets.json'
 data = json.loads(source.read_text())
-boot_ad_catalog(source)
+bundled = bundled_settings(source)
 adaptation_catalog(source)
 assert data['schema'] == 1
 seen = set()
@@ -90,3 +90,4 @@ for panel in panels['panels']:
     assert isinstance(panel.get('foregroundService', False), bool)
     assert not panel.get('foregroundService') or panel['type'] == 'service'
 print(f'PASS: {len(components)} system input panel profile(s); runtime component and permission checks required')
+print(f"PASS: {len(bundled['devices'])} device-specific boot-ad switch(es) for the APK")

@@ -232,6 +232,7 @@ __pycache__/
 !/app/src/main/assets/weather-gpu/
 !/app/src/main/assets/weather-gpu/*
 !/app/src/main/assets/licenses/open-water-MIT.txt
+!/app/src/main/assets/licenses/border-beam-ios-MIT.txt
 !/app/src/main/assets/licenses/quiet-weather-materials-CC0.txt
 
 # Browser transfer page required by desktop backup import and export.

@@ -23,7 +23,11 @@ abstract class ManagementPanel extends ContextWrapper {
     protected void onDestroy(){}
     protected void onSaveInstanceState(Bundle state){}
     public boolean dispatchKeyEvent(KeyEvent event){return false;}
-    public void handleBack(){finish();}
+    public void handleBack(){
+        // Back exits the selected panel before it exits the settings Activity.
+        if(showing&&pageRoot!=null&&pageRoot.hasFocus()){managementTab().requestFocusFromTouch();return;}
+        finish();
+    }
     void focusManagementContent(){}
     void managementConnected(){}
     void activityResult(int request,int result,Intent data){}

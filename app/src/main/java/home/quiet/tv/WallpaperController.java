@@ -49,7 +49,9 @@ final class WallpaperController implements GlassStyle.Listener {
     private int ambientVersion;
     private Bitmap liveBackdrop,weatherStill;
     private final ImageView weatherCover;
-    private String liveBackdropKey="",weatherStillKey="",phoneWeatherKey="",gpuWeatherKey="";
+    private String liveBackdropKey="",weatherStillKey="",phoneWeatherKey="";
+    private volatile String gpuWeatherKey="";
+    private String blurWeatherSource="";
     private Bitmap phoneWeatherStill;private boolean weatherStillRaw;
     private boolean backdropQueued,backdropBusy;
     private long backdropAt;
@@ -59,7 +61,7 @@ final class WallpaperController implements GlassStyle.Listener {
     private final Handler main=new Handler(Looper.getMainLooper());
     private final ExecutorService decoder=Executors.newSingleThreadExecutor();
     private final ImageView current,incoming;
-    private final View shade;
+    private final View pickerShade;
     private final Ambient ambient;
     private final VideoWallpaperPlayer video;
     private final WallpaperBlur wallpaperBlur;
@@ -77,7 +79,7 @@ final class WallpaperController implements GlassStyle.Listener {
     private int videoRequest;
     private boolean commitPending,leaving,destroyed,restoreDesktopPending;
     private int rotationCommit;
-    private PopupWindow rotationMenu;
+    private KeyFeedback.Popup rotationMenu;
     private Bitmap restoredCover;
     private boolean dynamicTab;
     private final LruCache<String,Bitmap> thumbnails=new LruCache<String,Bitmap>(6*1024){@Override protected int sizeOf(String id,Bitmap bitmap){return bitmap.getByteCount()/1024;}};
@@ -137,12 +139,15 @@ final class WallpaperController implements GlassStyle.Listener {
         video=new VideoWallpaperPlayer(activity,background,true);
         current=image();current.setBackgroundColor(Color.BLACK);incoming=image();incoming.setAlpha(0f);background.addView(current,new FrameLayout.LayoutParams(-1,-1));background.addView(incoming,new FrameLayout.LayoutParams(-1,-1));
         weatherCover=image();weatherCover.setVisibility(View.GONE);background.addView(weatherCover,new FrameLayout.LayoutParams(-1,-1));
-        if(previewOnly&&store.snapshot().weather){weatherStill=activity instanceof ManagementUi?((ManagementUi)activity).entryBackdrop():activity.getIntent().getParcelableExtra("backdrop");if(weatherStill!=null)weatherCover.setImageBitmap(weatherStill);}
         if(WallpaperGpuSupport.available(activity))createGpu();
-        shade=new View(activity);shade.setBackgroundDrawable(WallpaperAppearance.desktopShade());background.addView(shade,new FrameLayout.LayoutParams(-1,-1));
+        pickerShade=new View(activity);pickerShade.setBackgroundDrawable(WallpaperUi.shade());pickerShade.setVisibility(View.INVISIBLE);background.addView(pickerShade,new FrameLayout.LayoutParams(-1,-1));
         ambient=new Ambient(activity,homeUnit);ambient.colorChanged=()->{++ambientVersion;invalidateDock();};background.addView(ambient,new FrameLayout.LayoutParams(-1,-1));ambient.setColor(themeColor);ambient.setVisibility(View.VISIBLE);
         wallpaperBlur=new WallpaperBlur(background,(width,height,result)->{
-            if(video.visible()&&video.ready()&&current.getAlpha()<1f){
+            if(visibleGpuWeather()){
+                captureGpuBlur(width,height,result);
+            }else if(weatherCover.getVisibility()==View.VISIBLE){
+                result.ready(WallpaperBlur.snapshot(width,height,null,weatherCover,pickerShade));
+            }else if(video.visible()&&video.ready()&&current.getAlpha()<1f){
                 // Before PixelCopy, native output can only blur its existing poster.
                 if(!video.snapshotSupported()){
                     result.ready(blurVideoFrame(width,height,null));return;
@@ -150,8 +155,8 @@ final class WallpaperController implements GlassStyle.Listener {
                 video.snapshot(width,height,frame->{
                     try{result.ready(blurVideoFrame(width,height,frame));}finally{if(frame!=null)frame.recycle();}
                 });
-            }else if(gpuShowing&&gpu!=null){gpu.backdropSnapshot(width,height,frame->{try{result.ready(frame==null?null:WallpaperBlur.snapshot(width,height,frame,shade));}finally{if(frame!=null)frame.recycle();}});}
-            else result.ready(WallpaperBlur.snapshot(width,height,null,current,incoming,shade,ambient));
+            }else if(gpuShowing&&gpu!=null){captureGpuBlur(width,height,result);}
+            else result.ready(WallpaperBlur.snapshot(width,height,null,current,incoming,pickerShade,ambient));
         });video.observeFrames(()->{wallpaperBlur.invalidate();checkPreview();});
         appearance=new WallpaperAppearance(background,this::invalidateDock);
         String id=store.snapshot().current;
@@ -162,12 +167,13 @@ final class WallpaperController implements GlassStyle.Listener {
         if(cached!=null){
             restoredCover=cached.fullResolution?null:cached.image;
             // The cached cover is a startup placeholder, not the full-resolution static image.
-            current.setImageBitmap(cached.image);currentBlur=glassStyle.rendering()?cached.blur:null;shown=id;ambient.setVisibility(View.INVISIBLE);
+            current.setImageBitmap(cached.image);currentBlur=glassStyle.rendering()?cached.blur:null;ambient.setVisibility(View.INVISIBLE);
             WallpaperCatalog.Entry selected=store.snapshot().find(id);
-            if(selected!=null&&selected.video())shownKey=store.imageKey(id);
+            boolean videoCover=selected!=null&&selected.video();
+            shown=id;if(videoCover)shownKey=store.imageKey(id);
             // Install before the window's first draw; the regular cover takes over immediately.
             BitmapDrawable backgroundImage=new BitmapDrawable(activity.getResources(),cached.image);backgroundImage.setGravity(Gravity.FILL);
-            activity.getWindow().setBackgroundDrawable(new LayerDrawable(new Drawable[]{backgroundImage,WallpaperAppearance.desktopShade()}));
+            activity.getWindow().setBackgroundDrawable(backgroundImage);
             startupDraw=UiCompat.onDraw(root,()->root.post(this::finishStartupCover));
             DiagnosticLog.info("wallpaper.backdrop.restored","prepared cover");
         }
@@ -176,7 +182,7 @@ final class WallpaperController implements GlassStyle.Listener {
         home.quiet.components.ComponentRepository.get(activity).observe(componentsChanged);
     }
     private void createGpu(){
-        gpu=new WallpaperGpuView(activity,new WallpaperGpuView.Listener(){public void ready(){if(gpuRequested&&!destroyed){gpuShowing=true;gpu.displayView().setAlpha(1f);weatherCover.setVisibility(View.GONE);ambient.setVisibility(View.INVISIBLE);if(gpuKind.equals("weather"))shade.setVisibility(View.VISIBLE);updateBlurSource();if(dockInvalidation!=null)dockInvalidation.run();checkPreview();}}public void failed(String detail){previewGpuFailure=gpuKind;gpuRequested=false;hideGpu();if(active)notice(tr("背景效果暂不可用，已使用静态背景","Background effect unavailable; using the static background"));}});
+        gpu=new WallpaperGpuView(activity,new WallpaperGpuView.Listener(){public void ready(){if(gpuRequested&&!destroyed){gpuShowing=true;gpu.displayView().setAlpha(1f);weatherCover.setVisibility(View.GONE);ambient.setVisibility(View.INVISIBLE);updateWallpaperLayers();if(dockInvalidation!=null)dockInvalidation.run();checkPreview();}}public void failed(String detail){previewGpuFailure=gpuKind;gpuRequested=false;hideGpu();if(active)notice(tr("背景效果暂不可用，已使用静态背景","Background effect unavailable; using the static background"));}});
         gpu.displayView().setAlpha(0f);gpu.displayView().setVisibility(View.GONE);background.addView(gpu.displayView(),background.indexOfChild(weatherCover)+1,new FrameLayout.LayoutParams(-1,-1));
     }
     private void componentChanged(){
@@ -208,10 +214,10 @@ final class WallpaperController implements GlassStyle.Listener {
     private void invalidateDock(){updateGpuBackground();checkPreview();if(dockInvalidation!=null)dockInvalidation.run();if(wallpaperBlur!=null)wallpaperBlur.invalidate();flushBackdrop();}
     private Bitmap blurVideoFrame(int width,int height,Bitmap frame){
         if(DiagnosticProbe.allow("wallpaper.frame_source",1000))DiagnosticProbe.observed("wallpaper.blur.source","source="+(frame!=null?"video_snapshot":"poster_fallback")+" frame="+(frame!=null?"present":"null")+" outputGeneration="+video.outputGeneration()+" preview="+(picker!=null)+" wallpaper="+VideoDiagnostics.wallpaper(shown));
-        if(frame!=null)return WallpaperBlur.snapshot(width,height,frame,current,incoming,shade,ambient);
+        if(frame!=null)return WallpaperBlur.snapshot(width,height,frame,current,incoming,pickerShade,ambient);
         // A playing TextureView may not allow readback. Its hidden cover is still a valid blur source.
         Bitmap poster=current.getDrawable() instanceof BitmapDrawable?((BitmapDrawable)current.getDrawable()).getBitmap():null;
-        return poster==null?null:WallpaperBlur.snapshot(width,height,poster,shade,ambient);
+        return poster==null?null:WallpaperBlur.snapshot(width,height,poster,pickerShade,ambient);
     }
     void setDesktopEffects(int blur,int brightness,int fade){setDesktopEffects(blur,blur,0,brightness,fade);}
     void setDesktopEffects(int first,int second,float progress,int brightness,int fade){firstBlur=first;secondBlur=second;desktopProgress=progress;desktopBlur=Math.round(first+(second-first)*progress);desktopBrightness=brightness;desktopFade=fade;updateDesktopEffects();}
@@ -226,13 +232,27 @@ final class WallpaperController implements GlassStyle.Listener {
         float scale=Build.VERSION.SDK_INT>=31&&!separate&&video.visible()&&!video.nativeOutput()&&!progressive&&desktopBlur>0?2f:1f;
         if(background.getScaleX()!=scale){background.setScaleX(scale);background.setScaleY(scale);background.requestLayout();}
         // Reuse both page caches for live video; compiling blur filters during scroll stalls the render thread.
-        updateBlurSource();
+        updateWallpaperLayers();
         video.progressive(!separate&&progressive,Math.round(firstBlur*(1-desktopProgress)));if(separate)wallpaperBlur.amount(0);else wallpaperBlur.blend(progressive?0:firstBlur,secondBlur,desktopProgress);updateGpuBackground();appearance.brightness(separate?100:desktopBrightness);if(separate){fadePending=false;appearance.finish();}
     }
-    private void updateBlurSource(){
+    private boolean visibleGpuWeather(){return gpuShowing&&gpu!=null&&"weather".equals(gpuKind);}
+    private void captureGpuBlur(int width,int height,WallpaperBlur.Result result){
+        gpu.backdropSnapshot(width,height,frame->{
+            try{result.ready(frame==null?null:WallpaperBlur.snapshot(width,height,frame,pickerShade));}
+            finally{if(frame!=null)frame.recycle();}
+        });
+    }
+    private void updateWallpaperLayers(){
         if(wallpaperBlur==null)return;
         boolean nativeWeather=active&&gpuRequested&&gpu!=null&&gpu.nativeOutput();
         wallpaperBlur.nativeVideo(nativeWeather||video.visible()&&video.ready()&&!progressive(),nativeWeather?-1-gpu.outputGeneration():video.outputGeneration());
+        boolean live=visibleGpuWeather();
+        String source=live?"gpu:"+gpuWeatherKey+":"+gpu.outputGeneration()
+                :weatherCover.getVisibility()==View.VISIBLE?"cover:"+weatherStillKey:"";
+        if(!source.equals(blurWeatherSource)){
+            blurWeatherSource=source;
+            wallpaperBlur.weatherSourceChanged(live);
+        }
     }
     @Override public void glassChanged(){
         if(destroyed)return;
@@ -252,7 +272,7 @@ final class WallpaperController implements GlassStyle.Listener {
         if(!id.equals(source.shown)||!key.equals(source.shownKey)||!(source.current.getDrawable() instanceof BitmapDrawable))return;
         WallpaperCatalog.Entry entry=store.entry(id);if((entry==null||!entry.video())&&source.currentBlur==null&&glassStyle.rendering())return;
         ++request;current.setImageBitmap(((BitmapDrawable)source.current.getDrawable()).getBitmap());currentBlur=glassStyle.rendering()?source.currentBlur:null;shown=id;shownKey=key;
-        ambient.setVisibility(View.INVISIBLE);shade.setVisibility(View.VISIBLE);
+        ambient.setVisibility(View.INVISIBLE);
     }
     boolean previewCoverReady(){
         if(!previewSyncError.isEmpty())return true;
@@ -320,27 +340,32 @@ final class WallpaperController implements GlassStyle.Listener {
     void previewFade(int millis){if(active)appearance.fadeIn(millis);}
     void previewFinish(){appearance.finish();}
     void weatherChanged(){updateGpuBackground();}
-    private void showWeatherCover(){
-        if(weatherStill==null||!weatherSelected())return;
-        weatherCover.setVisibility(View.VISIBLE);ambient.setVisibility(View.INVISIBLE);shade.setVisibility(View.VISIBLE);
+    private void showWeatherCover(){if(weatherSelected())showWeatherCover(weatherPreviewKey());}
+    private void showWeatherCover(String weatherKey){
+        if(weatherStill==null||!weatherStillKey.equals(weatherKey))return;
+        weatherCover.setVisibility(View.VISIBLE);ambient.setVisibility(View.INVISIBLE);updateWallpaperLayers();
     }
     private void hideGpu(){
-        if(gpu==null)return;gpu.active(false);gpu.displayView().setVisibility(View.GONE);gpu.displayView().setAlpha(0f);if(gpuShowing){gpuShowing=false;boolean plain=current.getDrawable()==null&&!video.ready()&&weatherCover.getVisibility()!=View.VISIBLE;ambient.setVisibility(plain?View.VISIBLE:View.INVISIBLE);if(plain)shade.setVisibility(View.INVISIBLE);}updateBlurSource();
+        if(gpu==null)return;gpu.active(false);gpu.displayView().setVisibility(View.GONE);gpu.displayView().setAlpha(0f);if(gpuShowing){gpuShowing=false;boolean plain=current.getDrawable()==null&&!video.ready()&&weatherCover.getVisibility()!=View.VISIBLE;ambient.setVisibility(plain?View.VISIBLE:View.INVISIBLE);}updateWallpaperLayers();
     }
     private void updateGpuBackground(){
         if(gpu==null||destroyed||ambient==null)return;boolean separate=temporaryMedia!=null||picker!=null;boolean weather=weatherSelected();WeatherData weatherData=weather?new WeatherStore(activity).cached(chinese):null;if(weatherData==null||!weatherData.usable(System.currentTimeMillis()))weather=false;String kind=weather?"weather":"image";
         WallpaperCatalog.Entry entry=store.entry(selectedId());boolean picture=entry==null||!entry.video();boolean need=weather||!separate&&progressive()&&firstBlur>0&&desktopProgress<1&&picture;
-        if(!weather)weatherCover.setVisibility(View.GONE);
+        String weatherKey=weather?weatherPreviewKey(weatherData):"";
+        if(!weather||!weatherStillKey.equals(weatherKey))weatherCover.setVisibility(View.GONE);
         if(!weather&&picture&&!selectedId().equals(shown)){gpuRequested=false;hideGpu();return;}
         if(!need||previewGpuFailure.equals(kind)){gpuRequested=false;hideGpu();return;}
-        if(weather&&!gpuShowing)showWeatherCover();
+        if(!gpuKind.equals(kind)&&gpuShowing){
+            gpuShowing=false;gpu.displayView().setAlpha(0f);
+        }
+        if(weather&&!gpuShowing)showWeatherCover(weatherKey);
         // Losing focus to a translucent panel stops updates without destroying its visible Surface.
-        if(!active){gpu.active(false);return;}
+        if(!active){gpu.active(false);updateWallpaperLayers();return;}
         gpuKind=kind;gpuRequested=true;gpu.displayView().setVisibility(View.VISIBLE);gpu.strength(!separate&&progressive()?Math.round(firstBlur*(1-desktopProgress)):0);
-        if(weather){if(gpuShowing){ambient.setVisibility(View.INVISIBLE);shade.setVisibility(View.VISIBLE);}boolean follow=temporaryMedia!=null?temporaryDayNight:previewOnly?previewDayNight:store.weatherDayNight();gpu.weather(WeatherWallpaperScene.key(weatherData.description,weatherData.icon,false,12),WeatherIllumination.at(System.currentTimeMillis(),weatherData.latitude,weatherData.longitude,follow),weatherData.atmosphere);gpuWeatherKey=weatherPreviewKey();}
-        else{gpu.weather("");if(video.visible()&&!playingVideo.isEmpty())return;String key=System.identityHashCode(current.getDrawable())+":"+System.identityHashCode(incoming.getDrawable())+":"+current.getAlpha()+":"+incoming.getAlpha()+":"+ambientVersion;
+        if(weather){if(gpuShowing){ambient.setVisibility(View.INVISIBLE);}boolean follow=followWeatherDayNight();gpu.weather(WeatherWallpaperScene.key(weatherData.description,weatherData.icon,false,12),WeatherIllumination.at(System.currentTimeMillis(),weatherData.latitude,weatherData.longitude,follow),weatherData.atmosphere);gpuWeatherKey=weatherKey;}
+        else{gpu.weather("");if(video.visible()&&!playingVideo.isEmpty()){updateWallpaperLayers();return;}String key=System.identityHashCode(current.getDrawable())+":"+System.identityHashCode(incoming.getDrawable())+":"+current.getAlpha()+":"+incoming.getAlpha()+":"+ambientVersion;
             if(!key.equals(gpuImageKey)&&background.getWidth()>0){Bitmap image=null;try{if(current.getDrawable()!=null)image=WallpaperBlur.snapshot(Math.min(1280,background.getWidth()),Math.min(720,background.getHeight()),null,current,incoming);else{int w=Math.min(960,background.getWidth()),h=Math.max(1,Math.round(w*background.getHeight()/(float)background.getWidth()));image=Bitmap.createBitmap(w,h,Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(image);canvas.scale(w/(float)Math.max(1,ambient.getWidth()),h/(float)Math.max(1,ambient.getHeight()));ambient.draw(canvas);}gpu.image(image);gpuImageKey=key;}catch(RuntimeException|OutOfMemoryError error){DiagnosticLog.error("wallpaper.gpu.image_failed",error);previewGpuFailure=kind;gpuRequested=false;hideGpu();}finally{if(image!=null)image.recycle();}}}
-        gpu.active(active);updateBlurSource();
+        gpu.active(active);updateWallpaperLayers();
     }
     private int fadeDuration(int original){return temporaryMedia!=null||picker!=null?original:desktopFade;}
     private void revealDesktop(boolean changed){if(!active||temporaryMedia!=null||picker!=null)return;if(fadePending||changed){fadePending=false;desktopRevealed=true;appearance.fadeIn(desktopFade);}}
@@ -356,7 +381,9 @@ final class WallpaperController implements GlassStyle.Listener {
         else callback.ready(WallpaperBlur.snapshot(width,height,null,current,incoming,ambient));
     }
     private Bitmap phoneWeatherFrame(int width,int height){String key=weatherPreviewKey();Bitmap source=phoneWeatherStill!=null&&phoneWeatherKey.equals(key)?phoneWeatherStill:weatherStill!=null&&weatherStillRaw&&weatherStillKey.equals(key)?weatherStill:null;if(source==null)return null;Bitmap image=Bitmap.createScaledBitmap(source,width,height,true);return image==source?image.copy(Bitmap.Config.ARGB_8888,false):image;}
-    private String weatherPreviewKey(){WeatherStore weather=new WeatherStore(activity);WeatherData data=weather.cached(chinese);return weather.key(chinese)+":"+(data==null?0:data.fetchedAt)+":"+store.weatherDayNight()+":"+(data!=null&&data.usable(System.currentTimeMillis()));}
+    private boolean followWeatherDayNight(){return temporaryMedia!=null?temporaryDayNight:previewOnly?previewDayNight:store.weatherDayNight();}
+    private String weatherPreviewKey(){return weatherPreviewKey(new WeatherStore(activity).cached(chinese));}
+    private String weatherPreviewKey(WeatherData data){return new WeatherStore(activity).key(chinese)+":"+(data==null?0:data.fetchedAt)+":"+followWeatherDayNight()+":"+(data!=null&&data.usable(System.currentTimeMillis()));}
     void drawDockBackground(Canvas canvas,Paint paint){
         canvas.drawColor(Color.BLACK);
         if(!glassStyle.rendering())return;
@@ -364,19 +391,19 @@ final class WallpaperController implements GlassStyle.Listener {
             requestBackdrop();
             if(liveBackdrop!=null&&liveBackdropKey.equals(backdropKey())){
                 dockScreen.set(0,0,root.getWidth(),root.getHeight());paint.setAlpha(255);canvas.drawBitmap(liveBackdrop,null,dockScreen,paint);
-                if(shade.getVisibility()==View.VISIBLE)shade.draw(canvas);appearance.drawShade(canvas);return;
+                if(pickerShade.getVisibility()==View.VISIBLE)pickerShade.draw(canvas);appearance.drawShade(canvas);return;
             }
         }
-        if(weatherSelected()&&weatherStill!=null){dockScreen.set(0,0,root.getWidth(),root.getHeight());paint.setAlpha(255);canvas.drawBitmap(weatherStill,null,dockScreen,paint);if(shade.getVisibility()==View.VISIBLE)shade.draw(canvas);appearance.drawShade(canvas);return;}
+        if(weatherSelected()&&weatherStill!=null){dockScreen.set(0,0,root.getWidth(),root.getHeight());paint.setAlpha(255);canvas.drawBitmap(weatherStill,null,dockScreen,paint);if(pickerShade.getVisibility()==View.VISIBLE)pickerShade.draw(canvas);appearance.drawShade(canvas);return;}
         if(ambient.getVisibility()==View.VISIBLE||gpuShowing&&current.getDrawable()==null){ambient.draw(canvas);appearance.drawShade(canvas);return;}
         dockScreen.set(0,0,root.getWidth(),root.getHeight());paint.setAlpha(255);
         if(currentBlur!=null)canvas.drawBitmap(currentBlur,null,dockScreen,paint);
         if(incomingBlur!=null){paint.setAlpha(Math.round(incoming.getAlpha()*255));canvas.drawBitmap(incomingBlur,null,dockScreen,paint);paint.setAlpha(255);}
-        if(shade.getVisibility()==View.VISIBLE)shade.draw(canvas);
+        if(pickerShade.getVisibility()==View.VISIBLE)pickerShade.draw(canvas);
         appearance.drawShade(canvas);
     }
     private boolean liveBackdropVisible(){return active&&!destroyed&&root.isShown()&&root.hasWindowFocus()&&glassStyle.rendering()&&(gpuShowing&&weatherSelected()||video.visible()&&video.ready()&&current.getAlpha()<1f);}
-    private String backdropKey(){return request+":"+videoRequest+":"+video.outputGeneration()+":"+(gpuShowing&&weatherSelected());}
+    private String backdropKey(){return request+":"+videoRequest+":"+video.outputGeneration()+":"+(visibleGpuWeather()?gpuWeatherKey:"");}
     private void requestBackdrop(){if(backdropQueued||backdropBusy||!liveBackdropVisible())return;backdropQueued=true;main.postDelayed(captureBackdrop,Math.max(0,Math.max(backdropAt+100,interactionUntil)-SystemClock.uptimeMillis()));}
     private void captureBackdrop(){
         backdropQueued=false;if(!liveBackdropVisible()||root.getWidth()==0)return;backdropBusy=true;backdropAt=SystemClock.uptimeMillis();String key=backdropKey();
@@ -391,7 +418,7 @@ final class WallpaperController implements GlassStyle.Listener {
         decoder.execute(()->{
             if(!glassStyle.rendering()||!key.equals(backdropKey())){main.post(()->{image.recycle();backdropBusy=false;if(glassStyle.rendering()&&dockInvalidation!=null)dockInvalidation.run();});return;}
             Bitmap blurred=null;try{blurred=DockBackdropDrawable.prepare(image,root.getWidth(),root.getHeight(),glassStyle);}catch(RuntimeException|OutOfMemoryError error){DiagnosticLog.error("wallpaper.backdrop.filter_failed",error);}
-            Bitmap ready=blurred;main.post(()->{backdropBusy=false;if(!liveBackdropVisible()||!key.equals(backdropKey())){image.recycle();if(ready!=null)ready.recycle();return;}if(weatherFrame){weatherStill=image;weatherStillKey=weatherKey;weatherStillRaw=raw;weatherCover.setImageBitmap(image);}else image.recycle();if(ready==null)return;boolean changed=!key.equals(liveBackdropKey);liveBackdrop=ready;liveBackdropKey=key;if(dockInvalidation!=null)dockInvalidation.run();if(changed)backdropReady();});
+            Bitmap ready=blurred;main.post(()->{backdropBusy=false;if(!liveBackdropVisible()||!key.equals(backdropKey())){image.recycle();if(ready!=null)ready.recycle();return;}if(weatherFrame&&weatherKey.equals(gpuWeatherKey)){weatherStill=image;weatherStillKey=weatherKey;weatherStillRaw=raw;weatherCover.setImageBitmap(image);}else image.recycle();if(ready==null)return;boolean changed=!key.equals(liveBackdropKey);liveBackdrop=ready;liveBackdropKey=key;if(dockInvalidation!=null)dockInvalidation.run();if(changed)backdropReady();});
         });
     }
     private ImageView image(){ImageView view=new ImageView(activity);view.setScaleType(ImageView.ScaleType.CENTER_CROP);androidx.core.view.ViewCompat.setImportantForAccessibility(view,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);return view;}
@@ -416,7 +443,7 @@ final class WallpaperController implements GlassStyle.Listener {
         final int version=++request;
         if(transition!=null){transition.end();transition=null;}
         if(WallpaperCatalog.DEFAULT.equals(id)){
-            boolean changed=!id.equals(shown);current.setImageDrawable(null);incoming.setImageDrawable(null);currentBlur=null;incomingBlur=null;shade.setVisibility(View.INVISIBLE);ambient.setVisibility(View.VISIBLE);ambient.setColor(themeColor);shown=id;shownKey=id;wallpaperBlur.sourceChanged();invalidateDock();revealDesktop(changed&&animate);if(changed)backdropReady();stopVideo(prepared);return;
+            boolean changed=!id.equals(shown);current.setImageDrawable(null);incoming.setImageDrawable(null);currentBlur=null;incomingBlur=null;ambient.setVisibility(View.VISIBLE);ambient.setColor(themeColor);shown=id;shownKey=id;wallpaperBlur.sourceChanged();invalidateDock();revealDesktop(changed&&animate);if(changed)backdropReady();stopVideo(prepared);return;
         }
         WallpaperCatalog state=store.snapshot();
         if(selected!=null&&selected.video()){
@@ -442,7 +469,7 @@ final class WallpaperController implements GlassStyle.Listener {
         boolean fixedStatic=temporaryMedia==null&&!WallpaperCatalog.DAILY.equals(id)&&!state.weather&&!state.rotating&&id.equals(state.current);
         android.util.DisplayMetrics screen=activity.getResources().getDisplayMetrics();
         String preparedKey=WallpaperBackdropCache.key(store,id,screen.widthPixels,screen.heightPixels);
-        if(id.equals(shown)&&key.equals(shownKey)&&current.getDrawable()!=null&&(!fixedStatic||!glassStyle.rendering()||currentBlur!=null)){if(fixedStatic&&current.getDrawable() instanceof BitmapDrawable)WallpaperBackdropCache.prepare(preparedKey,((BitmapDrawable)current.getDrawable()).getBitmap(),currentBlur,true);if(DiagnosticProbe.allow("wallpaper.cache",1000))DiagnosticProbe.observed("wallpaper.cache","request="+version+" outcome=image_cache_hit revision="+DiagnosticLog.anonymous("cache",key));backdropReady();ambient.setVisibility(View.INVISIBLE);shade.setVisibility(View.VISIBLE);invalidateDock();revealDesktop(false);stopVideo(prepared);return;}
+        if(id.equals(shown)&&key.equals(shownKey)&&current.getDrawable()!=null&&(!fixedStatic||!glassStyle.rendering()||currentBlur!=null)){if(fixedStatic&&current.getDrawable() instanceof BitmapDrawable)store.prepareBackdrop(preparedKey,((BitmapDrawable)current.getDrawable()).getBitmap(),currentBlur,true);if(DiagnosticProbe.allow("wallpaper.cache",1000))DiagnosticProbe.observed("wallpaper.cache","request="+version+" outcome=image_cache_hit revision="+DiagnosticLog.anonymous("cache",key));backdropReady();ambient.setVisibility(View.INVISIBLE);invalidateDock();revealDesktop(false);stopVideo(prepared);return;}
         if(DiagnosticProbe.allow("wallpaper.cache",1000))DiagnosticProbe.observed("wallpaper.cache","request="+version+" outcome=image_cache_miss revision="+DiagnosticLog.anonymous("cache",key));
         WallpaperCatalog.Entry wallpaper=state.find(id);if(wallpaper==null){display(WallpaperCatalog.DEFAULT,false,prepared);return;}
         WallpaperBackdropCache.Picture cached=fixedStatic?WallpaperBackdropCache.prepared(preparedKey):null;
@@ -450,23 +477,44 @@ final class WallpaperController implements GlassStyle.Listener {
         decoder.execute(()->{
             if(version!=request){if(DiagnosticProbe.allow("wallpaper.image_discard",1000))DiagnosticProbe.observed("wallpaper.image.discard","request="+version+" stage=before_decode reason=generation_changed");return;}
             try{
-                Bitmap bitmap=cached!=null&&cached.fullResolution?cached.image:WallpaperImages.decode(activity,store,wallpaper,screen.widthPixels,screen.heightPixels);
-                if(version!=request){if(DiagnosticProbe.allow("wallpaper.image_discard",1000))DiagnosticProbe.observed("wallpaper.image.discard","request="+version+" stage=after_decode reason=generation_changed");return;}
+                boolean ownsBitmap=cached==null||!cached.fullResolution;
+                Bitmap bitmap=ownsBitmap?WallpaperImages.decode(activity,store,wallpaper,screen.widthPixels,screen.heightPixels):cached.image;
+                if(version!=request||!key.equals(store.imageKey(id))){
+                    if(ownsBitmap)bitmap.recycle();
+                    if(DiagnosticProbe.allow("wallpaper.image_discard",1000))DiagnosticProbe.observed("wallpaper.image.discard","request="+version+" stage=after_decode reason=source_changed");
+                    return;
+                }
                 if(fixedStatic){
-                    if(id.equals(store.currentId()))WallpaperBackdropCache.prepare(preparedKey,bitmap,null,true);
-                    main.post(()->{if(version==request&&!destroyed&&!UiCompat.destroyed(activity))presentStatic(id,key,bitmap,null,true,prepared);});
+                    main.post(()->{
+                        if(!canPresentImage(version,id,key))return;
+                        store.prepareBackdrop(preparedKey,bitmap,null,true);
+                        presentStatic(id,key,bitmap,null,true,prepared);
+                    });
                 }
                 Bitmap blurred=DockBackdropDrawable.prepare(bitmap,screen.widthPixels,screen.heightPixels,glassStyle);
-                if(version!=request)return;
                 if(fixedStatic){
-                    if(id.equals(store.currentId()))WallpaperBackdropCache.prepare(preparedKey,bitmap,blurred,true);
-                    main.post(()->{if(version!=request||destroyed||UiCompat.destroyed(activity))return;currentBlur=glassStyle.rendering()?blurred:null;wallpaperBlur.sourceChanged();invalidateDock();cacheBackdrop(id,bitmap,blurred);});
+                    main.post(()->{
+                        if(!canPresentImage(version,id,key)){
+                            if(blurred!=null)blurred.recycle();
+                            return;
+                        }
+                        store.prepareBackdrop(preparedKey,bitmap,blurred,true);
+                        currentBlur=glassStyle.rendering()?blurred:null;
+                        wallpaperBlur.sourceChanged();
+                        invalidateDock();
+                        cacheBackdrop(id,bitmap,blurred);
+                    });
                     return;
                 }
                 main.post(()->{
-                    if(version!=request||destroyed||UiCompat.destroyed(activity)){if(DiagnosticProbe.allow("wallpaper.image_discard",1000))DiagnosticProbe.observed("wallpaper.image.discard","request="+version+" stage=before_submit reason="+(destroyed?"destroyed":"generation_or_activity_changed"));return;}
+                    if(!canPresentImage(version,id,key)){
+                        if(ownsBitmap)bitmap.recycle();
+                        if(blurred!=null)blurred.recycle();
+                        if(DiagnosticProbe.allow("wallpaper.image_discard",1000))DiagnosticProbe.observed("wallpaper.image.discard","request="+version+" stage=before_submit reason="+(destroyed?"destroyed":"source_or_activity_changed"));
+                        return;
+                    }
                     wallpaperBlur.sourceChanged();
-                    ambient.setVisibility(View.INVISIBLE);shade.setVisibility(View.VISIBLE);
+                    ambient.setVisibility(View.INVISIBLE);
                     if(!animate||shown==null||WallpaperCatalog.DEFAULT.equals(shown)||fadeDuration(450)==0){current.setImageBitmap(bitmap);currentBlur=glassStyle.rendering()?blurred:null;incomingBlur=null;shown=id;shownKey=key;invalidateDock();revealDesktop(animate);backdropReady();}
                     else{
                         incoming.setImageBitmap(bitmap);incomingBlur=glassStyle.rendering()?blurred:null;incoming.setAlpha(0f);
@@ -479,15 +527,18 @@ final class WallpaperController implements GlassStyle.Listener {
             }catch(IOException|OutOfMemoryError e){DiagnosticLog.error("wallpaper.decode.failed",e);main.post(()->{if(version!=request||destroyed)return;if(previewOnly)previewFailed(tr("无法读取这张壁纸","Unable to read this wallpaper"));if(temporaryMedia!=null){display(WallpaperCatalog.DEFAULT,false,prepared);return;}if(WallpaperCatalog.DAILY.equals(id)){daily.cacheUnreadable();if(prepared!=null||current.getDrawable()==null)display(store.snapshot().dailyFallback(),false,prepared);return;}notice(tr("无法读取这张壁纸","Unable to read this wallpaper"));if(!previewOnly&&id.equals(store.snapshot().current))try{store.select(WallpaperCatalog.DEFAULT);}catch(IOException ignored){}display(WallpaperCatalog.DEFAULT,false,prepared);});}
         });
     }
+    private boolean canPresentImage(int version,String id,String key){
+        return version==request&&!destroyed&&!UiCompat.destroyed(activity)&&key.equals(store.imageKey(id));
+    }
     private void presentStatic(String id,String key,Bitmap image,Bitmap blur,boolean fullResolution,Runnable prepared){
-        wallpaperBlur.sourceChanged();ambient.setVisibility(View.INVISIBLE);shade.setVisibility(View.VISIBLE);
+        wallpaperBlur.sourceChanged();ambient.setVisibility(View.INVISIBLE);
         current.setImageBitmap(image);current.setAlpha(1f);currentBlur=glassStyle.rendering()?blur:null;incomingBlur=null;incoming.setImageDrawable(null);incoming.setAlpha(0f);
         shown=id;shownKey=fullResolution?key:null;invalidateDock();revealDesktop(false);backdropReady();stopVideo(prepared);
     }
     private void showPoster(String id,Bitmap image,Bitmap blur,String key,Runnable prepared){
         boolean changed=currentBlur!=blur||!id.equals(shown)||!key.equals(shownKey);
-        if(image!=null){current.setImageBitmap(image);currentBlur=glassStyle.rendering()?blur:null;ambient.setVisibility(View.INVISIBLE);shade.setVisibility(View.VISIBLE);}
-        else if(current.getDrawable()==null){ambient.setVisibility(View.VISIBLE);ambient.setColor(themeColor);shade.setVisibility(View.INVISIBLE);}
+        if(image!=null){current.setImageBitmap(image);currentBlur=glassStyle.rendering()?blur:null;ambient.setVisibility(View.INVISIBLE);}
+        else if(current.getDrawable()==null){ambient.setVisibility(View.VISIBLE);ambient.setColor(themeColor);}
         incoming.setImageDrawable(null);incoming.setAlpha(0f);incomingBlur=null;shown=id;shownKey=key;wallpaperBlur.sourceChanged();invalidateDock();
         revealDesktop(false);if(changed)backdropReady();
         cacheBackdrop(id,image,blur);if(prepared!=null)prepared.run();else stopVideo();
@@ -495,7 +546,7 @@ final class WallpaperController implements GlassStyle.Listener {
     private void withCover(Runnable action){withCover(action,true);}
     private void withCover(Runnable action,boolean awaitFrame){
         cancelCover();cancelVideoFade();current.setAlpha(1f);
-        if(current.getDrawable()==null&&ambient.getVisibility()!=View.VISIBLE){ambient.setVisibility(View.VISIBLE);ambient.setColor(themeColor);shade.setVisibility(View.INVISIBLE);}
+        if(current.getDrawable()==null&&ambient.getVisibility()!=View.VISIBLE){ambient.setVisibility(View.VISIBLE);ambient.setColor(themeColor);}
         // A native Surface is independent of the cover. Submit the opaque cover before changing it.
         // Covered/paused windows may not draw; they must never hold up navigation or decoder release.
         boolean previewVisible=picker!=null&&picker.isShowing();
@@ -526,7 +577,7 @@ final class WallpaperController implements GlassStyle.Listener {
         DiagnosticLog.info("wallpaper.video.layers","transition="+videoRequest+" outputGeneration="+video.outputGeneration()+" phase="+phase
             +" active="+active+" temporary="+(temporaryMedia!=null)+" picker="+(picker!=null)+" coverPending="+(pendingCover!=null)
             +" coverVisible="+(current.getVisibility()==View.VISIBLE)+" coverAlpha="+current.getAlpha()+" poster="+(current.getDrawable()!=null)
-            +" incomingAlpha="+incoming.getAlpha()+" ambientVisible="+(ambient.getVisibility()==View.VISIBLE)+" shadeVisible="+(shade.getVisibility()==View.VISIBLE)
+            +" incomingAlpha="+incoming.getAlpha()+" ambientVisible="+(ambient.getVisibility()==View.VISIBLE)+" pickerShadeVisible="+(pickerShade.getVisibility()==View.VISIBLE)
             +" "+wallpaperBlur.diagnostics()+" "+appearance.diagnostics()+" evidence=layer_state_not_presentation");
     }
     void windowFocusChanged(boolean focused){
@@ -569,22 +620,32 @@ final class WallpaperController implements GlassStyle.Listener {
         if(!active&&!failedVideo.isEmpty()&&videoFailure==VideoWallpaperPlayer.Failure.INTERRUPTED){
             DiagnosticLog.info("wallpaper.video.recover","wallpaper="+VideoDiagnostics.wallpaper(failedVideo)+" reason=interrupted_on_resume");failedVideo="";
         }
-        if(!active&&!desktopRevealed&&!previewOnly)fadePending=true;active=true;wallpaperBlur.suspended(false);wallpaperBlur.interaction();wallpaperBlur.active(true);updateDesktopEffects();restoreDesktopPending=false;video.setSound(audible());leaving=false;video.setPaused(false);restoreSelected();main.removeCallbacks(weatherTick);weatherTick.run();if(video.ready()&&videoFade==null&&current.getAlpha()>0f)revealVideo(videoRequest);daily.resume();schedule();recordVideoState("resume");
+        if(!active&&!desktopRevealed&&!previewOnly)fadePending=true;active=true;wallpaperBlur.suspended(false);wallpaperBlur.interaction();wallpaperBlur.active(true);updateDesktopEffects();boolean retainStatic=canRetainStaticOnResume();restoreDesktopPending=false;video.setSound(audible());leaving=false;video.setPaused(false);if(!retainStatic)restoreSelected();else if(!previewOnly&&DiagnosticProbe.allow("wallpaper.resume_retained",2000))DiagnosticProbe.observed("wallpaper.resume_retained","kind=fixed_static evidence=retained_drawable_not_panel");main.removeCallbacks(weatherTick);weatherTick.run();if(video.ready()&&videoFade==null&&current.getAlpha()>0f)revealVideo(videoRequest);daily.resume();schedule();recordVideoState("resume");
+    }
+    private boolean canRetainStaticOnResume(){
+        if(previewOnly||fadePending||!desktopRevealed||restoreDesktopPending||temporaryMedia!=null||picker!=null
+                ||transition!=null||gpuShowing||gpuRequested||!playingVideo.isEmpty()||current.getAlpha()<1f
+                ||!(current.getDrawable() instanceof BitmapDrawable)||glassStyle.rendering()&&currentBlur==null)return false;
+        WallpaperCatalog state=store.snapshot();
+        if(state.weather||state.rotating||WallpaperCatalog.DAILY.equals(state.current)||!state.current.equals(shown))return false;
+        WallpaperCatalog.Entry entry=state.find(state.current);
+        return entry!=null&&!entry.video()&&store.imageKey(state.current).equals(shownKey);
     }
     void environmentChanged(){daily.environmentChanged();}
     boolean pickerShowing(){return picker!=null;}
+    void showTemporaryBlank(Runnable prepared){showTemporary(WallpaperCatalog.DEFAULT,()->{ambient.setVisibility(View.INVISIBLE);prepared.run();});}
     void showTemporary(String id,Runnable prepared){showTemporary(id,false,true,prepared);}
     void showTemporary(String id,boolean weather,boolean dayNight,Runnable prepared){showTemporary(id,weather,dayNight,false,prepared);}
     void showTemporary(String id,boolean weather,boolean dayNight,boolean sound,Runnable prepared){
         temporaryWeather=weather;temporaryDayNight=dayNight;temporaryMedia=id;temporarySound=sound;updateDesktopEffects();main.removeCallbacks(rotate);if(WallpaperCatalog.DAILY.equals(store.currentId()))daily.resume();else daily.pause();video.setSound(false);
-        shade.setBackgroundColor(Color.TRANSPARENT);present(id,()->{video.setSound(audible());if(prepared!=null)prepared.run();});
+        present(id,()->{video.setSound(audible());if(prepared!=null)prepared.run();});
     }
     void restoreDesktop(Runnable prepared){
         cancelTemporary();restoreDesktopPending=false;
         present(store.snapshot().current,()->{video.setSound(audible());prepared.run();daily.resume();schedule();});
     }
     void temporarySound(boolean sound){temporarySound=sound;video.setSound(audible());}
-    void cancelTemporary(){restoreDesktopPending|=temporaryMedia!=null;temporaryMedia=null;temporaryWeather=false;temporarySound=false;updateDesktopEffects();video.setSound(false);shade.setBackgroundDrawable(WallpaperAppearance.desktopShade());}
+    void cancelTemporary(){restoreDesktopPending|=temporaryMedia!=null;temporaryMedia=null;temporaryWeather=false;temporarySound=false;updateDesktopEffects();video.setSound(false);}
     private void present(String id,Runnable prepared){
         WallpaperCatalog.Entry entry=store.snapshot().find(id);
         if(entry!=null&&entry.video())startVideo(id,false,prepared);else display(id,false,prepared);
@@ -632,12 +693,12 @@ final class WallpaperController implements GlassStyle.Listener {
         WallpaperCatalog state=store.snapshot();List<WallpaperCatalog.Entry> pool=dynamicTab?state.videos():state.pictures();
         if(pool.size()<2){notice(OperationFeedback.Kind.INFO,tr(dynamicTab?"至少需要两个视频才能轮播":"至少需要两张图片才能轮播",dynamicTab?"Add at least two videos for rotation":"Add at least two photos for rotation"));return;}
         int selected=state.rotating&&state.dynamic()==dynamicTab?state.rotationMinutes:0;
-        LinearLayout menu=new LinearLayout(activity);menu.setOrientation(LinearLayout.VERTICAL);menu.setPadding(px(6),px(6),px(6),px(6));menu.setBackgroundDrawable(ui.surface(0xe6000000,14,0x38ffffff,1));
-        PopupWindow popup=new PopupWindow(menu,Math.max(auto.getWidth(),px(150)),-2,true);rotationMenu=popup;
+        LinearLayout menu=new KeyFeedback.Menu(activity);menu.setOrientation(LinearLayout.VERTICAL);menu.setPadding(px(6),px(6),px(6),px(6));menu.setBackgroundDrawable(ui.surface(0xe6000000,14,0x38ffffff,1));
+        KeyFeedback.Popup popup=new KeyFeedback.Popup(activity,menu,Math.max(auto.getWidth(),px(150)),-2);rotationMenu=popup;
         popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));popup.setOutsideTouchable(true);if(Build.VERSION.SDK_INT>=21)popup.setElevation(px(10));
         TextView focused=null;List<TextView> choices=new ArrayList<>();
         for(int minutes:new int[]{0,1,5,15,30,60}){
-            TextView option=button(rotationLabel(minutes),false,()->{popup.dismiss();setRotation(minutes);});option.setGravity(Gravity.CENTER);option.setPadding(px(12),0,px(12),0);option.setBackgroundDrawable(ControlStyle.listRow(unit,10));option.setSelected(minutes==selected);option.setText(SettingsSelectionMark.label(rotationLabel(minutes),minutes==selected,unit));option.setContentDescription(rotationLabel(minutes)+(minutes==selected?tr("，已选",", selected"):""));menu.addView(option,new LinearLayout.LayoutParams(-1,px(38)));choices.add(option);if(minutes==selected)focused=option;
+            TextView option=button(rotationLabel(minutes),false,()->{popup.closeQuietly();setRotation(minutes);});option.setGravity(Gravity.CENTER);option.setPadding(px(12),0,px(12),0);option.setBackgroundDrawable(ControlStyle.listRow(unit,10));option.setSelected(minutes==selected);option.setText(SettingsSelectionMark.label(rotationLabel(minutes),minutes==selected,unit));option.setContentDescription(rotationLabel(minutes)+(minutes==selected?tr("，已选",", selected"):""));menu.addView(option,new LinearLayout.LayoutParams(-1,px(38)));choices.add(option);if(minutes==selected)focused=option;
         }
         choices.get(0).setNextFocusUpId(choices.get(0).getId());choices.get(choices.size()-1).setNextFocusDownId(choices.get(choices.size()-1).getId());
         popup.setOnDismissListener(()->{if(rotationMenu==popup)rotationMenu=null;auto.post(()->{if(picker!=null&&auto.isShown())auto.requestFocusFromTouch();});});
@@ -662,7 +723,7 @@ final class WallpaperController implements GlassStyle.Listener {
         catch(IOException e){updateSaverToolbar();notice(tr("屏保设置保存失败，请检查存储空间","Unable to save screensaver settings. Check storage."));}
     }
     private void applySaver(){
-        ScreensaverSettings state=saverSettings();String id=preview;if(state==null||id==null)return;int version=++saverApplyVersion;
+        ScreensaverSettings state=saverSettings();String id=preview;if(state==null||id==null||store.snapshot().builtinHidden(id,true))return;int version=++saverApplyVersion;
         if(WallpaperCatalog.DAILY.equals(id)&&!store.cached(store.snapshot().dailyImages.get(store.snapshot().dailySource))){
             daily.prepare((success,message)->{if(version!=saverApplyVersion||picker==null)return;if(success){ScreensaverSettings latest=saverSettings();if(latest!=null)saveSaver(latest.media(id),true);}else notice(message);});
         }else saveSaver(state.media(id),true);
@@ -736,9 +797,9 @@ final class WallpaperController implements GlassStyle.Listener {
         LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,-2);ap.setMargins(px(4),0,px(4),px(16));layout.addView(actions,ap);
         scroll=new HorizontalScrollView(activity);scroll.setHorizontalScrollBarEnabled(false);scroll.setClipToPadding(false);scroll.setClipChildren(false);scroll.setFillViewport(false);rail=row();rail.setClipToPadding(false);rail.setClipChildren(false);rail.setGravity(Gravity.BOTTOM);rail.setPadding(px(4),px(7),px(4),0);scroll.addView(rail);LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,px(154));layout.addView(scroll,rp);
         addScreensaverToolbar(layout);
-        picker.setContentView(content);picker.setOnDismissListener(d->{++saverApplyVersion;commitPending=false;cancelCardPress();pendingCardFocus=null;++pickerVersion;uploads.close();picker=null;updateDesktopEffects();if(rotationMenu!=null)rotationMenu.dismiss();daily.cancel();cards.clear();for(Map.Entry<View,Integer> item:pickerVisibility.entrySet())item.getKey().setVisibility(item.getValue());pickerVisibility.clear();shade.setBackgroundDrawable(WallpaperAppearance.desktopShade());if(active)restoreSelected();schedule();});
+        picker.setContentView(content);picker.setOnDismissListener(d->{++saverApplyVersion;commitPending=false;cancelCardPress();pendingCardFocus=null;++pickerVersion;uploads.close();picker=null;pickerShade.setVisibility(View.INVISIBLE);updateDesktopEffects();if(rotationMenu!=null)rotationMenu.closeQuietly();daily.cancel();cards.clear();for(Map.Entry<View,Integer> item:pickerVisibility.entrySet())item.getKey().setVisibility(item.getValue());pickerVisibility.clear();if(active)restoreSelected();schedule();});
         Window window=picker.getWindow();if(window!=null){window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));window.getDecorView().setSystemUiVisibility(5894);window.setDimAmount(0);}
-        shade.setBackgroundDrawable(WallpaperUi.shade());picker.show();if(window!=null)window.setLayout(-1,-1);refreshCards(preview,true);
+        pickerShade.setVisibility(View.VISIBLE);picker.show();if(window!=null)window.setLayout(-1,-1);refreshCards(preview,true);
     }
     private void stopVideo(){stopVideo(null);}
     private void stopVideo(Runnable after){
@@ -763,7 +824,7 @@ final class WallpaperController implements GlassStyle.Listener {
                     @Override public void stopped(){if(version==videoRequest){cancelVideoFade();current.setAlpha(1f);updateDesktopEffects();recordVideoState("video_stopped");}}
                     @Override public void ready(){
                         if(version!=videoRequest||!active||destroyed)return;checkPreview();if(messages!=null)messages.show("");
-                        ambient.setVisibility(View.INVISIBLE);shade.setVisibility(View.VISIBLE);updateDesktopEffects();revealVideo(version);
+                        ambient.setVisibility(View.INVISIBLE);updateDesktopEffects();revealVideo(version);
                         captureVideoPoster(id,version);
                         if(commitPending){commitPending=false;commitVideo(id);}else if(picker!=null)details();
                     }
@@ -823,7 +884,7 @@ final class WallpaperController implements GlassStyle.Listener {
     private void handlePickerBack(){if(picker==null)return;commitPending=false;picker.dismiss();KeyFeedback.returned(activity);}
     private void refreshCards(String preferred,boolean focusCard){
         if(picker==null)return;cancelCardPress();pendingCardFocus=null;int version=++pickerVersion;WallpaperCatalog state=store.snapshot();
-        List<WallpaperCatalog.Entry> entries=new ArrayList<>();for(WallpaperCatalog.Entry e:state.entries())if(!WallpaperCatalog.DEFAULT.equals(e.id)&&e.video()==dynamicTab)entries.add(e);
+        List<WallpaperCatalog.Entry> entries=new ArrayList<>();for(WallpaperCatalog.Entry e:state.entries())if(!WallpaperCatalog.DEFAULT.equals(e.id)&&!state.builtinHidden(e.id,false)&&e.video()==dynamicTab)entries.add(e);
         boolean found=false;for(WallpaperCatalog.Entry e:entries)if(e.id.equals(preferred))found=true;
         if(!found)preferred=entries.isEmpty()?null:entries.get(0).id;
         preview=preferred;
@@ -845,7 +906,8 @@ final class WallpaperController implements GlassStyle.Listener {
             TextView name=label(wallpaper.label(chinese),12);name.setSingleLine(true);name.setEllipsize(android.text.TextUtils.TruncateAt.END);caption.addView(name,new LinearLayout.LayoutParams(0,-2,1));
             if(id.equals(state.current))addUsageMark(caption,tr("壁纸","Wall"));
             ScreensaverSettings saver=saverSettings();
-            if(saver!=null&&id.equals(saver.mediaId))addUsageMark(caption,tr("屏保","Saver"));
+            if(saver!=null&&id.equals(saver.customMediaId(state)))addUsageMark(caption,tr("屏保","Saver"));
+            if(WallpaperCatalog.BUILTIN.equals(id))addUsageMark(caption,tr("默认","Default"));
             card.setOnFocusChangeListener((v,focus)->{if(focus){if(!id.equals(preview))commitPending=false;preview=id;if(wallpaper.video())startVideo(id,false);else display(id,true);details();scroll.requestChildFocus(rail,card);}else if(id.equals(pressedWallpaper))cancelCardPress();});
             card.setOnClickListener(v->{commitPending=false;preview=id;applySelected();KeyFeedback.confirm(activity);});
             card.setOnLongClickListener(v->{confirmDelete(id,KeyEvent.KEYCODE_UNKNOWN,0);return true;});
@@ -916,20 +978,20 @@ final class WallpaperController implements GlassStyle.Listener {
     private void confirmDelete(String id,int initiatingKey,long downTime){
         if(picker==null||confirmation!=null&&confirmation.isShowing())return;
         WallpaperCatalog state=store.snapshot();WallpaperCatalog.Entry entry=state.find(id);if(entry==null)return;
-        if(!entry.custom())return;
+        boolean builtin=WallpaperCatalog.BUILTIN.equals(id);if(!entry.custom()&&!builtin)return;
         stopVideo();List<String> before=focusableCards();int index=before.indexOf(id);String[] returnTo={id};
         AlertDialog dialog=new KeyFeedback.Alert(activity);dialog.setTitle(tr("删除「","Delete “")+entry.label(chinese)+tr("」？","”?"));
-        dialog.setMessage(tr("删除电视中保存的壁纸，手机或电脑中的原文件不受影响。","Delete this TV copy. The original on your phone or computer is unchanged.")+(entry.id.equals(state.current)?entry.video()?tr("\n删除后恢复之前的静态壁纸。","\nRestores your previous static wallpaper."):state.rotating?tr("\n将切换到下一张有效图片；不足两张时关闭轮播。","\nSwitch to the next available photo; stop slideshow below two images."):tr("\n这张壁纸正在使用，删除后切换到内置壁纸。","\nThis wallpaper is in use. Deleting it switches to the built-in wallpaper."):""));
+        dialog.setMessage(builtin?tr("只从壁纸库移除，可在桌面设置恢复。","Only removes it from wallpapers. Restore it in Desktop Settings."):tr("删除电视中保存的壁纸，手机或电脑中的原文件不受影响。","Delete this TV copy. The original on your phone or computer is unchanged.")+(entry.id.equals(state.current)?entry.video()?tr("\n删除后恢复之前的静态壁纸。","\nRestores your previous static wallpaper."):state.rotating?tr("\n将切换到下一张有效图片；不足两张时关闭轮播。","\nSwitch to the next available photo; stop slideshow below two images."):tr("\n这张壁纸正在使用，删除后切换到内置壁纸。","\nThis wallpaper is in use. Deleting it switches to the built-in wallpaper."):""));
         dialog.setButton(AlertDialog.BUTTON_NEGATIVE,tr("取消","Cancel"),(android.content.DialogInterface.OnClickListener)null);
         dialog.setButton(AlertDialog.BUTTON_POSITIVE,tr("删除","Delete"),(android.content.DialogInterface.OnClickListener)null);
         // The opening hold can continue in the new window. Consume its repeats and release.
         boolean[] releasing={initiatingKey!=KeyEvent.KEYCODE_UNKNOWN};
         dialog.setOnKeyListener((d,key,event)->{if(!releasing[0]||key!=initiatingKey)return false;if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0&&event.getDownTime()>downTime){releasing[0]=false;return false;}if(event.getAction()==KeyEvent.ACTION_UP)releasing[0]=false;return true;});
         dialog.setOnDismissListener(d->{if(confirmation==dialog)confirmation=null;if(active)focusCard(returnTo[0]);});
-        confirmation=dialog;dialog.show();ControlStyle.dialog(dialog,unit,(canvas,paint)->{drawDockBackground(canvas,paint);if(content!=null)content.draw(canvas);},decoder);View cancel=dialog.getButton(AlertDialog.BUTTON_NEGATIVE);cancel.setOnClickListener(v->{dialog.dismiss();KeyFeedback.back(activity);});cancel.post(()->{if(dialog.isShowing())cancel.requestFocusFromTouch();});
+        confirmation=dialog;dialog.show();if(initiatingKey!=KeyEvent.KEYCODE_UNKNOWN)KeySounds.play(activity,KeySoundPolicy.CONFIRM);ControlStyle.dialog(dialog,unit,(canvas,paint)->{drawDockBackground(canvas,paint);if(content!=null)content.draw(canvas);},decoder);View cancel=dialog.getButton(AlertDialog.BUTTON_NEGATIVE);cancel.setOnClickListener(v->{dialog.dismiss();KeyFeedback.back(activity);});cancel.post(()->{if(dialog.isShowing())cancel.requestFocusFromTouch();});
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
             try{
-                String thumbnailKey=store.imageKey(entry.id);store.remove(entry.id);thumbnails.remove(thumbnailKey);before.remove(entry.id);returnTo[0]=before.isEmpty()?WallpaperCatalog.DEFAULT:before.get(Math.max(0,Math.min(index,before.size()-1)));
+                String thumbnailKey=store.imageKey(entry.id);if(builtin){store.builtinVisible(false,false);PhoneSettingsSession.get(activity).configurationChanged();}else store.remove(entry.id);thumbnails.remove(thumbnailKey);before.remove(entry.id);returnTo[0]=before.isEmpty()?WallpaperCatalog.DEFAULT:before.get(Math.max(0,Math.min(index,before.size()-1)));
                 refreshCards(returnTo[0],false);dialog.dismiss();KeyFeedback.confirm(activity);
             }catch(IOException e){notice(tr("删除失败，请检查电视存储后重试","Unable to delete. Check TV storage and retry."));}
         });

@@ -68,7 +68,7 @@ public final class HomeToolsActivity extends ManagementUi implements HomeQuickCo
     @Override public boolean quickPanelFocusAllowed(){return !quickNavigation||!headerFocus;}
     @Override public void quickContentReady(View content){contentReady("quick_controls",content);}
     @Override public SettingsSheetBackdrop quickBackdrop(View panel){return new SettingsSheetBackdrop(this,panel);}
-    private int currentNetworkIcon(){android.net.ConnectivityManager manager=(android.net.ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE);android.net.NetworkInfo info=manager==null?null:manager.getActiveNetworkInfo();return info!=null&&info.isConnected()?(info.getType()==android.net.ConnectivityManager.TYPE_WIFI?R.drawable.ic_wifi:R.drawable.ic_ethernet):R.drawable.ic_wifi_off;}
+    private int currentNetworkIcon(){android.net.ConnectivityManager manager=(android.net.ConnectivityManager)getApplicationContext().getSystemService(CONNECTIVITY_SERVICE);android.net.NetworkInfo info=manager==null?null:manager.getActiveNetworkInfo();return info!=null&&info.isConnected()?(info.getType()==android.net.ConnectivityManager.TYPE_WIFI?R.drawable.ic_wifi:R.drawable.ic_ethernet):R.drawable.ic_wifi_off;}
     private void refreshQuickHeader(){if(quickHeader==null)return;String previous=headerIndex<quickHeader.buttonIds.size()?quickHeader.buttonIds.get(headerIndex):"control";quickHeader.apply();quickHeader.getChildAt(0).setVisibility(View.GONE);int next=quickHeader.buttonIds.indexOf(previous);headerIndex=next>=0?next:Math.max(0,quickHeader.buttonIds.indexOf("control"));for(int i=0;i<quickHeader.buttonIds.size();i++)if("network".equals(quickHeader.buttonIds.get(i)))quickHeader.setPillIcon(quickHeader.pills.get(i),currentNetworkIcon());syncQuickHeader();if(headerFocus&&hasWindowFocus())focusHeader(headerIndex);}
     @Override public void quickPanelFocused(){if(headerFocus){headerFocus=false;syncQuickHeader();}}
     private void syncQuickHeader(){
@@ -81,12 +81,21 @@ public final class HomeToolsActivity extends ManagementUi implements HomeQuickCo
     private void closeToDock(){controls.cancelAdjustments();setResult(RESULT_OK,new Intent().putExtra("focus-dock",true));finish();}
     private void activateHeader(){String id=quickHeader.buttonIds.get(headerIndex);if("settings".equals(id))ManagementUi.performanceAction("header_settings");if("control".equals(id)){if(controls.getVisibility()==View.VISIBLE){closeQuick();return;}controls.setVisibility(View.VISIBLE);syncQuickHeader();}else if("settings".equals(id)){controls.cancelAdjustments();setResult(RESULT_OK,new Intent().putExtra("focus-button",id));startActivity(new Intent(this,DesktopSettingsActivity.class).putExtra("backdrop",backdrop).putExtra("home-network-icon",getIntent().getIntExtra("home-network-icon",R.drawable.ic_wifi_off)));finish();}else{setResult(RESULT_OK,new Intent().putExtra("focus-button",id).putExtra("home-action",id));finish();}}
     @Override public boolean dispatchKeyEvent(KeyEvent event){
+        return KeyFeedback.dispatch(getWindow().getDecorView(),event,()->dispatchToolKey(event));
+    }
+    private boolean dispatchToolKey(KeyEvent event){
         if(quickHeader!=null&&"control".equals(mode)){
             int key=event.getKeyCode();boolean confirm=key==KeyEvent.KEYCODE_DPAD_CENTER||key==KeyEvent.KEYCODE_ENTER||key==KeyEvent.KEYCODE_NUMPAD_ENTER;
             if(quickHeader.hasFocus()&&(confirm||key==KeyEvent.KEYCODE_DPAD_LEFT||key==KeyEvent.KEYCODE_DPAD_RIGHT||key==KeyEvent.KEYCODE_DPAD_UP||key==KeyEvent.KEYCODE_DPAD_DOWN)){
+                if(confirm){
+                    if(event.getAction()==KeyEvent.ACTION_UP&&!event.isCanceled()){
+                        activateHeader();
+                        KeyFeedback.confirm(this);
+                    }
+                    return true;
+                }
                 if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0){
-                    if(confirm)activateHeader();
-                    else if(key==KeyEvent.KEYCODE_DPAD_LEFT||key==KeyEvent.KEYCODE_DPAD_RIGHT){int next=Math.max(0,Math.min(quickHeader.buttonIds.size()-1,headerIndex+(key==KeyEvent.KEYCODE_DPAD_LEFT?-1:1)));controls.setVisibility("control".equals(quickHeader.buttonIds.get(next))?View.VISIBLE:View.GONE);focusHeader(next);}
+                    if(key==KeyEvent.KEYCODE_DPAD_LEFT||key==KeyEvent.KEYCODE_DPAD_RIGHT){int next=Math.max(0,Math.min(quickHeader.buttonIds.size()-1,headerIndex+(key==KeyEvent.KEYCODE_DPAD_LEFT?-1:1)));controls.setVisibility("control".equals(quickHeader.buttonIds.get(next))?View.VISIBLE:View.GONE);focusHeader(next);}
                     else if(key==KeyEvent.KEYCODE_DPAD_DOWN){if("control".equals(quickHeader.buttonIds.get(headerIndex))){headerFocus=false;controls.setVisibility(View.VISIBLE);syncQuickHeader();controls.focus(null);}else closeToDock();}
                 }return true;
             }
@@ -101,26 +110,32 @@ public final class HomeToolsActivity extends ManagementUi implements HomeQuickCo
     private void settings(int page,String selected){settings(page,selected,false);}
     private void settings(int page,String selected,boolean wallpaper){origin=wallpaper?"wallpaper":selected.isEmpty()?controls.focusId():selected;controls.cancelAdjustments();controls.setVisibility(View.GONE);startActivityForResult(new Intent(this,AppManagementActivity.class).putExtra("management-page",page).putExtra("quick-selected",selected).putExtra("desktop-background-entry",wallpaper).putExtra("desktop-clock-entry","clock".equals(origin)).putExtra("backdrop",backdrop),7204);}
     private void execute(String id){
+        if(executeControl(id))KeyFeedback.confirm(this);
+    }
+    private boolean executeControl(String id){
         origin=id;
-        if(QuickControlStore.SETTINGS.equals(id)){controls.cancelAdjustments();controls.setVisibility(View.GONE);startActivityForResult(new Intent(this,DesktopSettingsActivity.class).putExtra("backdrop",backdrop).putExtra("home-network-icon",getIntent().getIntExtra("home-network-icon",R.drawable.ic_wifi_off)),7204);return;}
-        if(QuickControlStore.range(id)){controls.beginRange(id);return;}
-        if("child".equals(id)||"apps".equals(id)||"clock".equals(id)||"weather".equals(id)){settings("child".equals(id)?SettingsPages.CHILD:"apps".equals(id)?SettingsPages.APPS:"weather".equals(id)?SettingsPages.WEATHER:SettingsPages.DESKTOP,id);return;}
-        if("memoShortcut".equals(id)){controls.cancelAdjustments();controls.setVisibility(View.GONE);mode="memos";memos.show();return;}
-        if("transfer".equals(id)){controls.cancelAdjustments();controls.setVisibility(View.GONE);mode="files";files.show();return;}
-        if("wallpaper".equals(id)){settings(SettingsPages.DESKTOP,"",true);return;}
-        if("boot".equals(id)){controls.cancelAdjustments();controls.setVisibility(View.GONE);mode="boot";boot.show();return;}
-        if("source".equals(id)||"watchTv".equals(id)){controls.cancelAdjustments();controls.setVisibility(View.GONE);mode="source";sources.show();return;}
-        if("network".equals(id)||"bluetooth".equals(id)||"systemSettings".equals(id)){controls.cancelAdjustments();new SystemSettingsRouter(this).open("network".equals(id)?Settings.ACTION_WIFI_SETTINGS:"bluetooth".equals(id)?Settings.ACTION_BLUETOOTH_SETTINGS:Settings.ACTION_SETTINGS);return;}
-        if("original".equals(id)){controls.cancelAdjustments();new HomeProxy(this).original(this);return;}
+        if(QuickControlStore.SETTINGS.equals(id)){controls.cancelAdjustments();controls.setVisibility(View.GONE);startActivityForResult(new Intent(this,DesktopSettingsActivity.class).putExtra("backdrop",backdrop).putExtra("home-network-icon",getIntent().getIntExtra("home-network-icon",R.drawable.ic_wifi_off)),7204);return true;}
+        if(QuickControlStore.range(id)){controls.beginRange(id);return false;}
+        if("child".equals(id)||"apps".equals(id)||"clock".equals(id)||"weather".equals(id)){settings("child".equals(id)?SettingsPages.CHILD:"apps".equals(id)?SettingsPages.APPS:"weather".equals(id)?SettingsPages.WEATHER:SettingsPages.DESKTOP,id);return true;}
+        if("memoShortcut".equals(id)){controls.cancelAdjustments();controls.setVisibility(View.GONE);mode="memos";memos.show();return true;}
+        if("transfer".equals(id)){controls.cancelAdjustments();controls.setVisibility(View.GONE);mode="files";files.show();return true;}
+        if("wallpaper".equals(id)){settings(SettingsPages.DESKTOP,"",true);return true;}
+        if("boot".equals(id)){controls.cancelAdjustments();controls.setVisibility(View.GONE);mode="boot";boot.show();return true;}
+        if("source".equals(id)||"watchTv".equals(id)){controls.cancelAdjustments();controls.setVisibility(View.GONE);mode="source";sources.show();return true;}
+        if("network".equals(id)||"bluetooth".equals(id)||"systemSettings".equals(id)){controls.cancelAdjustments();return new SystemSettingsRouter(this).open("network".equals(id)?Settings.ACTION_WIFI_SETTINGS:"bluetooth".equals(id)?Settings.ACTION_BLUETOOTH_SETTINGS:Settings.ACTION_SETTINGS);}
+        if("original".equals(id)){controls.cancelAdjustments();new HomeProxy(this).original(this);return true;}
         if("keySounds".equals(id)||"mute".equals(id)){
             try{if("keySounds".equals(id)){DesktopSettingsStore store=new DesktopSettingsStore(this);store.savePhoneValue("key-sounds",!store.keySounds());}
-                else{WallpaperStore store=WallpaperStore.get(this);WallpaperCatalog state=store.snapshot();if(state.weather||state.rotating){feedback(state.weather?"天气联动保持静音":"轮换背景保持静音");return;}store.sound(!state.sound);}
+                else{WallpaperStore store=WallpaperStore.get(this);WallpaperCatalog state=store.snapshot();if(state.weather||state.rotating){feedback(state.weather?"天气联动保持静音":"轮换背景保持静音");return false;}store.sound(!state.sound);}
                 PhoneSettingsSession.get(this).configurationChanged();controls.refresh();
-            }catch(IOException error){error(error.getMessage());}return;
+            }catch(IOException error){error(error.getMessage());return false;}
+            return true;
         }
         if("screensaver".equals(id)){
             controls.cancelAdjustments();setResult(RESULT_OK,new Intent().putExtra("home-action",id).putExtra("quick-origin",true));finish();
+            return true;
         }
+        return false;
     }
     @Override public QuickControlStore.Snapshot cachedShortcuts(){return new QuickControlStore(new File(getFilesDir(),"quick-controls")).cached();}
     @Override public void readShortcuts(HomeQuickControlView.Value<QuickControlStore.Snapshot> ready,HomeQuickControlView.Value<String> failed){

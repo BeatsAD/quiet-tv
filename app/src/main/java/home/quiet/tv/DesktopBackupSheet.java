@@ -19,19 +19,23 @@ final class DesktopBackupSheet {
     static final int PICK=7451,TREE=7452,SAVE=7453,PERMISSION=7454;
     private static final class Model {
         final List<DesktopBackupStore.Entry> entries;final boolean automatic;
-        Model(DesktopBackupStore store)throws IOException{entries=store.entries();automatic=store.automatic();}
+        Model(DesktopBackupStore store)throws IOException{
+            entries=store.entries();
+            Collections.sort(entries,(left,right)->Long.valueOf(right.record.created).compareTo(left.record.created));
+            automatic=store.automatic();
+        }
     }
     private final ManagementUi ui;
     private final Runnable closed;
     private final DesktopBackups manager;
     private final Handler main=new Handler(Looper.getMainLooper());
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
-    private ManagementUi.Sheet sheet,parentSheet;
+    private ManagementUi.Sheet sheet;
     private View origin;
     private Button close;
     private volatile DesktopBackupServer server;
     private volatile int generation,sessionVersion;
-    private boolean active,destroyed,busy,starting,external,media,exportCurrent=true,importSession;
+    private boolean active,destroyed,busy,starting,external,media,recentRestore,importSession;
     private String phase="list",focus="backup-save",error="",message="",recordId="",draftId="",heldId="",host="",transferName="";
     private File exported,folder,boundary;
     private Uri tree,current;
@@ -43,7 +47,7 @@ final class DesktopBackupSheet {
     private Bitmap qr;
     private TextView progress;
     private long received,total,lastProgress;
-    private final Runnable changed=()->{if(open()&&!busy&&phase.equals("list"))read();};
+    private final Runnable changed=()->{if(open()&&!busy&&showsEntries())read();};
     private final Runnable check=new Runnable(){public void run(){DesktopBackupServer value=server;if(value==null||!open())return;if(value.expired()||!host.equals(WallpaperUploadPanel.lanAddress(ui)))expire();else main.postDelayed(this,2000);}};
     private final BroadcastReceiver screen=new BroadcastReceiver(){public void onReceive(Context context,Intent intent){if(server!=null)expire();}};
 
@@ -56,81 +60,174 @@ final class DesktopBackupSheet {
     private void note(String value){copy(value,16,25.6f,0,16,UiPalette.SECONDARY);}
     private void heading(String value){TextView title=text(value,24,36,UiPalette.TEXT);QuickControlPreviewView.weight(title,500);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.bottomMargin=p(12);sheet.body.addView(title,lp);}
     private void caption(String title){copy(title,17.28f,25.92f,0,8,UiPalette.SECONDARY);QuickControlPreviewView.weight((TextView)sheet.body.getChildAt(sheet.body.getChildCount()-1),500);}
-    private LinearLayout group(String title){caption(title);LinearLayout group=ui.listGroup();LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.bottomMargin=p(16);sheet.body.addView(group,lp);return group;}
+    private LinearLayout group(String title){if(!title.isEmpty())caption(title);LinearLayout group=ui.listGroup();LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.bottomMargin=p(16);sheet.body.addView(group,lp);return group;}
     private DesktopSettingsRow row(LinearLayout parent,String title,String value,String tag,Runnable action){DesktopSettingsRow row=new DesktopSettingsRow(ui,title,"",false);row.hideIcon();row.textSizes(13.92f,11.52f);row.value(value);row.tail("arrow");identify(row,tag);row.available(!busy);row.setOnClickListener(v->{if(!busy)action.run();});parent.addView(row,new LinearLayout.LayoutParams(-1,p(59.629f)));return row;}
-    private Button button(String title,String tag,Runnable action,boolean primary){Button view=ui.button(title,()->{if(!busy)action.run();});identify(view,tag);view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,11.712f*ui.unit);view.setPadding(ui.px(13.71f),0,ui.px(13.71f),0);view.setBackgroundDrawable(new SettingsFocusDrawable(ui.unit,21.12f,primary?UiPalette.SELECTED:UiPalette.CONTROL,false,primary?0x4dffffff:UiPalette.EDGE,false,12));view.setTextColor(SettingsFocusDrawable.textColors(UiPalette.TEXT));view.setEnabled(!busy);return view;}
+    private Button button(String title,String tag,Runnable action,boolean primary){Button view=ui.button(title,()->{if(!busy)action.run();});identify(view,tag);view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,11.712f*ui.unit);view.setPadding(ui.px(13.71f),0,ui.px(13.71f),0);view.setBackgroundDrawable(new SettingsFocusDrawable(ui.unit,21.12f,primary?UiPalette.SELECTED:UiPalette.CONTROL,false,primary?0x4dffffff:UiPalette.EDGE).outlineOnFocus());view.setTextColor(SettingsFocusDrawable.textColors(UiPalette.TEXT));view.setEnabled(!busy);return view;}
     private LinearLayout actions(){LinearLayout actions=ui.row();actions.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,p(46.08f));lp.topMargin=p(24);sheet.body.addView(actions,lp);return actions;}
     private void action(LinearLayout parent,String title,String tag,Runnable action,boolean primary){Button view=button(title,tag,action,primary);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-2,-1);if(parent.getChildCount()>0)lp.leftMargin=p(8);parent.addView(view,lp);}
-    private static String kind(String kind){return kind.equals("auto")?"自动备份":kind.equals("before")?"恢复前备份":kind.equals("upgrade")?"升级前备份":kind.equals("imported")?"导入备份":"手动保存";}
-    private static String date(DesktopBackupRecord record){return new SimpleDateFormat("MM/dd HH:mm:ss",Locale.ROOT).format(new Date(record.created));}
-    void show(){if(open())return;phase="list";focus="backup-save";error=message="";recordId=draftId=heldId="";chosen=null;create();read();}
+    private static String kind(String kind){return kind.equals("auto")?"自动备份":kind.equals("before")?"恢复前备份":kind.equals("upgrade")?"升级前备份":kind.equals("imported")?"导入备份":"手动备份";}
+    private static String date(DesktopBackupRecord record,boolean full){
+        SimpleDateFormat year=new SimpleDateFormat("yyyy",Locale.ROOT);
+        Date created=new Date(record.created);
+        String pattern=full||!year.format(created).equals(year.format(new Date()))?"yyyy年M月d日  HH:mm":"M月d日  HH:mm";
+        return new SimpleDateFormat(pattern,Locale.ROOT).format(created);
+    }
+    private boolean showsEntries(){return phase.equals("list")||phase.equals("history");}
+    void show(){if(open())return;phase="list";focus="backup-save";error=message="";recordId=draftId=heldId="";chosen=null;model=null;recentRestore=false;create();read();}
     private void create(){
         origin=ui.getCurrentFocus();sheet=ui.new Sheet("桌面备份与恢复");ManagementUi.Sheet own=sheet;close=sheet.settingsLayout("关闭",this::back);identify(close,"sheet-close");sheet.settingsActions(false);sheet.contentSize(489.6f,460);
-        sheet.dialog.setOnKeyListener((dialog,key,event)->{if(key!=KeyEvent.KEYCODE_BACK&&key!=KeyEvent.KEYCODE_ESCAPE)return false;if(event.getAction()==KeyEvent.ACTION_UP)back();return true;});
+        sheet.dialog.setOnKeyListener((dialog,key,event)->KeyFeedback.backKey(ui,event,open()&&!busy,this::back));
         sheet.dialog.setOnCancelListener(dialog->{if(busy){own.dialog.show();return;}close();});sheet.dialog.setCancelable(false);
         sheet.dialog.setOnDismissListener(dialog->{if(sheet!=own)return;stopSession();sheet=null;++generation;if(origin!=null&&origin.isShown())origin.requestFocusFromTouch();closed.run();});
-        String target=focus;render();sheet.show(null);focus=target;restoreFocus();if(external)sheet.dialog.hide();
-    }
-    private void recordDialog(){
-        parentSheet=sheet;sheet=ui.new Sheet("备份操作");ManagementUi.Sheet own=sheet;close=sheet.settingsLayout("返回",this::back);identify(close,"sheet-close");sheet.settingsActions(false);sheet.contentSize(420,360);
-        sheet.dialog.setOnKeyListener((dialog,key,event)->{if(key!=KeyEvent.KEYCODE_BACK&&key!=KeyEvent.KEYCODE_ESCAPE)return false;if(event.getAction()==KeyEvent.ACTION_UP)back();return true;});sheet.dialog.setCancelable(false);
-        sheet.dialog.setOnDismissListener(dialog->{
-            if(sheet!=own)return;boolean completed=phase.equals("list");String target=completed?focus:"backup-record-"+recordId,result=completed?message:"",problem=completed?error:"";
-            stopSession();sheet=parentSheet;parentSheet=null;close=(Button)sheet.box.findViewWithTag("sheet-close");chosen=null;phase="list";focus=target;error=problem;message=result;sheet.dialog.show();render();if(!completed)read();
-        });
         String target=focus;render();sheet.show(null);focus=target;restoreFocus();if(external)sheet.dialog.hide();
     }
     private void restoreFocus(){if(!open()||external)return;String target=focus;ManagementUi.Sheet own=sheet;sheet.body.post(()->{if(!open()||external||sheet!=own)return;View view=sheet.box.findViewWithTag(target);if(view==null||!view.isEnabled()||!view.isShown())view=sheet.box.findViewWithTag("sheet-close");if(view!=null&&view.isEnabled()){view.requestFocusFromTouch();Rect rect=new Rect();view.getDrawingRect(rect);view.requestRectangleOnScreen(rect,false);}});}
     private void go(String next,String target){OperationFeedback.get(ui).hide();phase=next;focus=target;error=message="";render();}
     private void render(){
-        if(!open())return;String target=focus;sheet.body.removeAllViews();sheet.settingsActions(false);close.setText(phase.equals("list")?"关闭":"返回");close.setContentDescription(close.getText());close.setEnabled(!busy);sheet.box.setEnabled(!busy);
-        sheet.heading.setText(phase.equals("actions")?"备份操作":phase.equals("delete")?"删除桌面备份":phase.equals("record")?"恢复桌面配置":phase.equals("review")?"导入桌面配置":phase.equals("formats")?"导出桌面配置":phase.equals("session")||phase.equals("expired")||phase.equals("receiving")?"备份传输":phase.equals("files")?"选择桌面备份":"桌面备份与恢复");
-        if(phase.equals("list"))list();else if(phase.equals("actions"))recordActions();else if(phase.equals("delete"))deletion();else if(phase.equals("record")||phase.equals("review"))detail();else if(phase.equals("formats"))formats();else if(phase.equals("import"))imports();else if(phase.equals("files"))files();else if(phase.equals("file-options"))fileOptionsBody();else if(phase.equals("session"))connection();else if(phase.equals("expired")){note("连接已结束。已保存的备份和当前桌面保持不变。");LinearLayout actions=actions();action(actions,"重新开启连接","backup-restart",()->{if(importSession)startImport();else startServer();},true);action(actions,"返回","backup-return",this::back,false);}else if(phase.equals("receiving")){heading(transferName);progress=text(FileTransferSource.size(received)+" / "+FileTransferSource.size(total),16,25.6f,UiPalette.SECONDARY);sheet.body.addView(progress);note("正在接收并校验备份，当前桌面不会改变。");Button cancel=button("取消接收","backup-cancel-receive",()->{++generation;draftId="";stopSession();busy=false;go("import","backup-phone-import");},false);cancel.setEnabled(true);cancel.setOnClickListener(v->{++generation;draftId="";stopSession();busy=false;go("import","backup-phone-import");});sheet.body.addView(cancel,new LinearLayout.LayoutParams(-2,p(46.08f)));}
+        if(!open())return;String target=focus;sheet.body.removeAllViews();sheet.settingsActions(false);close.setText(phase.equals("list")?"关闭":"返回");close.setContentDescription(close.getText());close.setVisibility(phase.equals("delete")||phase.equals("record")||phase.equals("review")?View.GONE:View.VISIBLE);close.setEnabled(!busy);sheet.box.setEnabled(!busy);
+        switch(phase){
+            case "history":sheet.heading.setText("全部备份");break;
+            case "actions":sheet.heading.setText("备份详情");break;
+            case "delete":sheet.heading.setText("删除这份备份？");break;
+            case "record":sheet.heading.setText(recentRestore?"恢复最近备份？":"恢复这份备份？");break;
+            case "review":sheet.heading.setText("导入备份文件？");break;
+            case "formats":sheet.heading.setText("导出备份");break;
+            case "import":sheet.heading.setText("导入备份文件");break;
+            case "session":case "expired":case "receiving":sheet.heading.setText("备份传输");break;
+            case "files":sheet.heading.setText("选择桌面备份");break;
+            default:sheet.heading.setText("桌面备份与恢复");
+        }
+        if(phase.equals("list"))list();
+        else if(phase.equals("history"))history();
+        else if(phase.equals("actions"))recordActions();
+        else if(phase.equals("delete"))deletion();
+        else if(phase.equals("record")||phase.equals("review"))detail();
+        else if(phase.equals("formats"))formats();else if(phase.equals("import"))imports();else if(phase.equals("files"))files();else if(phase.equals("file-options"))fileOptionsBody();else if(phase.equals("session"))connection();else if(phase.equals("expired")){note("连接已结束。已保存的备份和当前桌面保持不变。");LinearLayout actions=actions();action(actions,"重新开启连接","backup-restart",()->{if(importSession)startImport();else startServer();},true);action(actions,"返回","backup-return",this::back,false);}else if(phase.equals("receiving")){heading(transferName);progress=text(FileTransferSource.size(received)+" / "+FileTransferSource.size(total),16,25.6f,UiPalette.SECONDARY);sheet.body.addView(progress);note("正在接收并校验备份，当前桌面不会改变。");Button cancel=button("取消接收","backup-cancel-receive",()->{++generation;draftId="";stopSession();busy=false;go("import","backup-phone-import");},false);cancel.setEnabled(true);cancel.setOnClickListener(v->{++generation;draftId="";stopSession();busy=false;go("import","backup-phone-import");});sheet.body.addView(cancel,new LinearLayout.LayoutParams(-2,p(46.08f)));}
         if(busy&&!phase.equals("receiving"))copy("正在处理…",16,25.6f,16,0,UiPalette.SECONDARY);
         if(!error.isEmpty())copy(error,16,25.6f,12,0,UiPalette.TEXT);focus=target;restoreFocus();
     }
     private void list(){
-        LinearLayout save=group("保存与保护");row(save,"保存当前配置","手动保存","backup-save",this::capture).available(!busy&&model!=null);DesktopSettingsRow automatic=row(save,"自动备份","关闭后停止自动保存","backup-automatic",()->automatic(!(model!=null&&model.automatic)));automatic.checked(model==null||model.automatic);automatic.available(!busy&&model!=null);
-        caption("备份记录");LinearLayout records=ui.listGroup();records.setPadding(p(4),p(4),p(4),p(4));ScrollView scroll=new ScrollView(ui){@Override protected void onMeasure(int width,int height){super.onMeasure(width,View.MeasureSpec.makeMeasureSpec(p(230.4f),View.MeasureSpec.AT_MOST));}@Override protected void dispatchDraw(Canvas canvas){int save=canvas.save();canvas.clipRect(getScrollX(),getScrollY(),getScrollX()+getWidth(),getScrollY()+getHeight());super.dispatchDraw(canvas);canvas.restoreToCount(save);}};scroll.setVerticalScrollBarEnabled(false);scroll.setClipToPadding(false);scroll.addView(records);sheet.body.addView(scroll,new LinearLayout.LayoutParams(-1,-2));
-        if(model==null||model.entries.isEmpty()){TextView empty=text(model==null?(!error.isEmpty()||!manager.error().isEmpty()?"备份记录暂不可用":"正在读取备份记录…"):"尚无备份，可先保存当前配置。",16,25.6f,UiPalette.SECONDARY);empty.setPadding(p(16),p(16),p(16),p(16));records.addView(empty);}else for(DesktopBackupStore.Entry entry:model.entries)record(records,entry);
-        LinearLayout actions=actions();action(actions,"导出当前配置","backup-export-current",this::currentExport,false);action(actions,"导入备份","backup-import",()->go("import","backup-phone-import"),false);
-        copy("自动保留最近 3 份，手动保存不被覆盖。备份包含设置与素材清单，导出时可选择包含素材。",14,21,16,0,UiPalette.SECONDARY);
-        if(!manager.error().isEmpty()&&error.isEmpty())copy(manager.error(),16,25.6f,12,0,UiPalette.TEXT);
-        if(model==null||!manager.error().isEmpty()){LinearLayout retry=actions();action(retry,"重新读取","backup-reload",()->manager.retryRecovery(()->{if(open()){if(!DesktopBackups.redirect(ui))read();}}),false);}
+        boolean available=model!=null&&manager.error().isEmpty()&&!busy;
+        int count=model==null?0:model.entries.size();
+        DesktopBackupStore.Entry latest=count==0?null:model.entries.get(0);
+        LinearLayout main=group("");
+        row(main,"立即备份","保存到这台电视","backup-save",this::capture).available(available);
+        row(main,"恢复最近备份",latest==null?(model==null?"":"暂无备份"):date(latest.record,false),"backup-latest",
+                ()->recover(latest,true)).available(available&&latest!=null);
+        row(main,"全部备份",model==null?"":count+" 份","backup-history",()->showEntries("history",firstRecord())).available(available);
+        row(main,"导入备份文件","","backup-import",()->go("import","backup-phone-import"));
+        DesktopSettingsRow automatic=row(group(""),"自动备份","","backup-automatic",()->automatic(!model.automatic));
+        automatic.checked(model!=null&&model.automatic);automatic.available(available);
+        String problem=manager.error();
+        if(!problem.isEmpty()||model==null&&!error.isEmpty()){
+            if(!problem.isEmpty()&&!problem.equals(error))copy(problem,16,25.6f,0,0,UiPalette.TEXT);
+            LinearLayout retry=actions();action(retry,"重新读取","backup-reload",()->manager.retryRecovery(()->{
+                if(open()&&!DesktopBackups.redirect(ui))read();
+            }),false);
+        }
     }
-    private void record(LinearLayout parent,DesktopBackupStore.Entry entry){
-        String id=entry.record.id;DesktopSettingsRow record=row(parent,kind(entry.record.kind),date(entry.record),"backup-record-"+id,()->{chosen=entry;recordId=id;phase="actions";focus="backup-export-"+id;error=message="";recordDialog();});record.hideTail();
+    private String firstRecord(){
+        return model!=null&&!model.entries.isEmpty()?"backup-record-"+model.entries.get(0).record.id:"sheet-close";
+    }
+    private void history(){
+        if(model==null){if(error.isEmpty())note("正在读取备份记录…");return;}
+        if(model.entries.isEmpty()){note("暂无备份");return;}
+        LinearLayout records=group("");
+        for(DesktopBackupStore.Entry entry:model.entries){
+            String id=entry.record.id;
+            row(records,date(entry.record,false),kind(entry.record.kind),"backup-record-"+id,()->{
+                chosen=entry;recordId=id;go("actions","sheet-close");
+            });
+        }
     }
     private void recordActions(){
-        if(chosen==null){note("正在读取备份…");return;}note(kind(chosen.record.kind)+"  "+date(chosen.record));LinearLayout options=ui.listGroup();sheet.body.addView(options);
-        row(options,"恢复","","backup-restore-"+recordId,()->go("record","backup-cancel"));row(options,"导出","","backup-export-"+recordId,()->export(chosen,false));row(options,"删除","","backup-delete-"+recordId,()->go("delete","backup-delete-cancel"));
+        if(chosen==null){note("正在读取备份…");return;}
+        heading(date(chosen.record,true));note(kind(chosen.record.kind));
+        LinearLayout options=group("");
+        row(options,"恢复到电视","","backup-restore-"+recordId,()->recover(chosen,false));
+        row(options,"导出备份","","backup-export-"+recordId,this::export);
+        row(options,"删除备份","","backup-delete-"+recordId,()->go("delete","backup-delete-cancel"));
     }
-    private void read(){if(!open()||busy)return;manager.read(Model::new,(value,failure)->{if(!open()||busy||!phase.equals("list"))return;model=value;if(!failure.isEmpty())error=failure;render();});}
-    private <T> void mutate(DesktopBackups.Job<T> job,Success<T> success){if(busy)return;busy=true;error=message="";render();manager.run(job,(value,failure)->{if(!open())return;busy=false;if(!manager.recoveryError().isEmpty())return;if(!failure.isEmpty()){error=failure;render();ui.error("备份操作未完成");}else{success.accept(value);if(phase.equals("list"))read();else render();if(!message.isEmpty())ui.success(message);}});}
-    private void capture(){mutate(store->store.capture("manual"),entry->{focus="backup-record-"+entry.record.id;message="当前配置已保存";});}
-    private void automatic(boolean enabled){mutate(store->{store.automatic(enabled);return enabled;},value->{message=value?"自动备份已开启":"自动备份已关闭";if(value)DesktopBackups.changed();focus="backup-automatic";});}
+    private void showEntries(String next,String target){go(next,target);read();}
+    private void read(){
+        if(!open()||busy)return;
+        ManagementUi.Sheet own=sheet;
+        manager.read(Model::new,(value,failure)->{
+            if(!open()||sheet!=own||busy||!showsEntries())return;
+            model=value;
+            if(!failure.isEmpty())error=failure;
+            render();
+        });
+    }
+    private <T> void mutate(DesktopBackups.Job<T> job,Success<T> success){
+        if(busy)return;
+        busy=true;error=message="";render();
+        manager.run(job,(value,failure)->{
+            if(!open())return;
+            busy=false;if(!manager.recoveryError().isEmpty())return;
+            if(!failure.isEmpty()){error=failure;render();ui.error("备份操作未完成");return;}
+            success.accept(value);
+            if(showsEntries()){
+                // Wait for the new list before enabling actions against an earlier snapshot.
+                model=null;read();
+            }else render();
+            if(!message.isEmpty())ui.success(message);
+        });
+    }
+    private void capture(){
+        mutate(store->store.capture("manual"),entry->{focus="backup-history";message="当前配置已备份";});
+    }
+    private void automatic(boolean enabled){
+        mutate(store->{store.automatic(enabled);return enabled;},value->{message=value?"自动备份已开启":"自动备份已关闭";if(value)DesktopBackups.changed();focus="backup-automatic";});
+    }
+    private void recover(DesktopBackupStore.Entry entry,boolean recent){
+        chosen=entry;recordId=entry.record.id;recentRestore=recent;go("record","backup-cancel");
+    }
     private void detail(){
         if(chosen==null){note("正在读取备份…");return;}
-        heading(phase.equals("review")?"导入这份配置？":"恢复这份配置？");
-        ((LinearLayout.LayoutParams)sheet.body.getChildAt(0).getLayoutParams()).bottomMargin=p(16);
-        note(kind(chosen.record.kind)+"  "+date(chosen.record));
-        note("包含桌面布局、外观、应用顺序、快捷按钮和素材清单。");
-        copy(phase.equals("review")?"导入后保存到备份记录，不会立即改变桌面。":"恢复时会核验配置，并结束手机设置连接。备忘录、儿童规则、学习记录和系统授权保持当前状态。",14.464f,23.8656f,0,19.2f,UiPalette.SECONDARY);
-        copy(phase.equals("review")?"素材已通过校验；不支持的备份格式不会应用。":"恢复时会校验素材；不支持的备份格式不会应用。",14.464f,23.8656f,0,0,UiPalette.SECONDARY);
-        LinearLayout actions=actions();action(actions,"取消","backup-cancel",this::back,false);
-        action(actions,phase.equals("review")?"保存到备份记录":"确认恢复","backup-confirm",()->{
-            if(phase.equals("review")){DesktopBackupStore.Entry entry=chosen;mutate(store->store.add(entry),saved->{stopSession();chosen=null;draftId="";phase="list";focus="backup-record-"+saved.record.id;message="备份已导入";});}
-            else{String id=recordId;PhoneSettingsSession.get(ui).end();mutate(store->{store.restore(id);return id;},saved->{PhoneSettingsSession.get(ui).configurationChanged();chosen=null;phase="list";focus="backup-record-"+saved;message="桌面配置已恢复";if(parentSheet!=null)sheet.dialog.dismiss();});}
+        boolean importing=phase.equals("review");
+        DesktopBackupStore.Entry selected=chosen;
+        note(date(selected.record,true)+"  "+kind(selected.record.kind));
+        if(importing)note("此文件将保存到「全部备份」。");
+        else{
+            note("将用这份备份替换当前桌面配置。");
+            note("恢复后需要重新扫码连接手机设置。");
+        }
+        LinearLayout controls=actions();
+        action(controls,"取消","backup-cancel",this::back,false);
+        if(importing)action(controls,"保存备份","backup-confirm",()->mutate(store->store.add(selected),saved->{
+            stopSession();chosen=null;draftId=recordId="";phase="list";focus="backup-history";message="备份已导入";
+        }),true);
+        else action(controls,"确认恢复","backup-confirm",()->{
+            String id=selected.record.id;
+            PhoneSettingsSession.get(ui).end();
+            mutate(store->{store.restore(id);return id;},saved->{
+                PhoneSettingsSession.get(ui).configurationChanged();
+                chosen=null;phase=recentRestore?"list":"history";focus=recentRestore?"backup-latest":"backup-record-"+saved;
+                recordId="";message="桌面配置已恢复";
+            });
         },true);
     }
     private void deletion(){
         if(chosen==null){note("正在读取备份…");return;}
-        heading("删除这份备份？");note(kind(chosen.record.kind)+"  "+date(chosen.record));note("仅删除此备份记录，当前桌面和素材保持不变。删除后无法恢复此记录。");
-        LinearLayout actions=actions();action(actions,"取消","backup-delete-cancel",this::back,false);String id=recordId;
-        action(actions,"确认删除","backup-delete-confirm",()->mutate(store->{store.remove(id);return id;},removed->{chosen=null;recordId="";phase="list";focus="backup-save";message="备份已删除";if(parentSheet!=null)sheet.dialog.dismiss();}),true);
+        note(date(chosen.record,true)+"  "+kind(chosen.record.kind));
+        note("删除后无法恢复这份备份。");
+        LinearLayout controls=actions();action(controls,"取消","backup-delete-cancel",this::back,false);
+        String id=recordId;
+        action(controls,"确认删除","backup-delete-confirm",()->mutate(store->{store.remove(id);return id;},removed->{
+            chosen=null;recordId="";phase="history";focus="sheet-close";message="备份已删除";
+        }),true);
     }
-    private void currentExport(){if(busy)return;busy=true;error=message="";render();manager.current((entry,failure)->{if(!open())return;busy=false;if(!failure.isEmpty()){error=failure;render();}else export(entry,true);});}
-    private void export(DesktopBackupStore.Entry entry,boolean current){chosen=entry;if(!current)recordId=entry.record.id;exportCurrent=current;media=false;busy=true;render();manager.hold(entry,(id,failure)->{if(!open())return;busy=false;if(!failure.isEmpty()){error=failure;render();return;}heldId=id;go("formats","backup-format-config");});}
+    private void export(){
+        DesktopBackupStore.Entry entry=chosen;
+        if(busy||entry==null)return;
+        media=false;busy=true;error=message="";render();
+        manager.hold(entry,(id,failure)->{
+            if(!open())return;
+            busy=false;if(!failure.isEmpty()){error=failure;render();return;}
+            heldId=id;go("formats","backup-format-config");
+        });
+    }
     private String estimate(boolean withMedia){if(chosen==null)return "";try{return "约 "+FileTransferSource.size(DesktopBackupArchive.estimate(chosen.record,withMedia));}catch(IOException unavailable){return "大小无法读取";}}
     private void formats(){
         note("选择导出内容");LinearLayout types=group("备份文件");row(types,"仅配置",estimate(false)+(media?"":"  已选择"),"backup-format-config",()->{media=false;focus="backup-format-config";render();});row(types,"配置及素材",estimate(true)+(media?"  已选择":""),"backup-format-media",()->{media=true;focus="backup-format-media";render();});note(media?"打包壁纸、视频、头像和应用封面，可在其他设备恢复。":"只导出配置和素材清单；恢复时本机需有匹配的素材。");LinearLayout destinations=group("保存到");row(destinations,"手机或电脑下载","同一局域网","backup-export-phone",()->prepareExport(false));row(destinations,"本机或 U 盘","系统选择保存位置","backup-export-local",()->prepareExport(true));
@@ -165,13 +262,61 @@ final class DesktopBackupSheet {
     }
     void permissionResult(int request){if(request==PERMISSION&&open()){phase="files";readFiles();}}
     private void back(){
-        if(busy)return;if(parentSheet!=null){if(phase.equals("actions")){sheet.dialog.dismiss();return;}if(phase.equals("delete")||phase.equals("record")||phase.equals("formats")){go("actions",(phase.equals("delete")?"backup-delete-":phase.equals("record")?"backup-restore-":"backup-export-")+recordId);return;}}if(phase.equals("delete")){chosen=null;go("list","backup-record-"+recordId);read();return;}if(phase.equals("review"))stopSession();if(phase.equals("list")){close();return;}if(phase.equals("session")||phase.equals("expired")){stopSession();go(importSession?"import":"formats",importSession?"backup-phone-import":"backup-export-phone");}else if(phase.equals("files")||phase.equals("file-options")){go("import","backup-local-import");}else if(phase.equals("formats")&&!exportCurrent){chosen=null;go("list","backup-record-"+recordId);read();}else{chosen=null;draftId="";go("list",recordId.isEmpty()?"backup-import":"backup-record-"+recordId);read();}}
-    void resume(){active=true;if(!open()||external)return;sheet.dialog.show();if(phase.equals("list"))read();else if(phase.equals("files"))readFiles();else if(phase.equals("file-options"))fileOptions();else render();}
+        if(busy)return;
+        switch(phase){
+            case "list":close();return;
+            case "history":showEntries("list","backup-history");return;
+            case "actions":
+                chosen=null;showEntries("history","backup-record-"+recordId);return;
+            case "record":
+                if(recentRestore){chosen=null;showEntries("list","backup-latest");}
+                else go("actions","backup-restore-"+recordId);
+                return;
+            case "delete":go("actions","backup-delete-"+recordId);return;
+            case "formats":
+                if(recordId.isEmpty()){chosen=null;showEntries("list","backup-history");}
+                else go("actions","backup-export-"+recordId);
+                return;
+            case "session":case "expired":
+                stopSession();go(importSession?"import":"formats",importSession?"backup-phone-import":"backup-export-phone");return;
+            case "review":
+                stopSession();chosen=null;draftId="";go("import","backup-phone-import");return;
+            case "files":case "file-options":go("import","backup-local-import");return;
+            default:
+                chosen=null;recordId=draftId="";showEntries("list","backup-import");
+        }
+    }
+    void resume(){
+        active=true;if(!open()||external)return;
+        sheet.dialog.show();
+        if(showsEntries())read();
+        else if(phase.equals("files"))readFiles();
+        else if(phase.equals("file-options"))fileOptions();
+        else render();
+    }
     void pause(){active=false;if(server!=null||starting){expire();}else if(phase.equals("session")||phase.equals("receiving")){stopSession();busy=false;phase="expired";focus="backup-restart";}else if(!external&&phase.equals("formats")&&busy){++generation;busy=false;exported=null;error="导出已停止，请重新选择保存位置";}}
-    void save(Bundle state){if(!open())return;Bundle value=new Bundle();String scene=phase.equals("session")||phase.equals("receiving")?"expired":phase;value.putString("phase",scene);value.putString("focus",scene.equals("expired")?"backup-restart":focus);value.putString("error",error);value.putString("message",message);value.putString("record",recordId);value.putString("draft",draftId);value.putString("held",heldId);value.putBoolean("media",media);value.putBoolean("current",exportCurrent);value.putBoolean("importing",importSession);value.putBoolean("external",external);value.putBoolean("record-dialog",parentSheet!=null);value.putInt("source",source);if(exported!=null)value.putString("export",exported.getName());if(folder!=null)value.putString("folder",folder.getAbsolutePath());if(boundary!=null)value.putString("boundary",boundary.getAbsolutePath());if(tree!=null){value.putString("tree",tree.toString());value.putString("location",current.toString());ArrayList<String> links=new ArrayList<>();for(Uri parent:parents)links.add(parent.toString());value.putStringArrayList("parents",links);}state.putBundle("desktop-backup",value);}
-    void restore(Bundle state){Bundle value=state==null?null:state.getBundle("desktop-backup");if(value==null)return;phase=value.getString("phase","list");focus=value.getString("focus","backup-save");error=value.getString("error","");message=value.getString("message","");recordId=value.getString("record","");draftId=value.getString("draft","");heldId=value.getString("held","");media=value.getBoolean("media");exportCurrent=value.getBoolean("current",true);importSession=value.getBoolean("importing");external=value.getBoolean("external");source=value.getInt("source");String name=value.getString("export");if(name!=null&&name.matches("[a-f0-9-]{36}\\.(json|zip)"))exported=new File(new File(ui.getCacheDir(),"desktop-backup-export"),name);if(value.containsKey("folder"))folder=new File(value.getString("folder"));if(value.containsKey("boundary"))boundary=new File(value.getString("boundary"));if(value.containsKey("tree")){tree=Uri.parse(value.getString("tree"));current=Uri.parse(value.getString("location"));ArrayList<String> links=value.getStringArrayList("parents");if(links!=null)for(String link:links)parents.addLast(Uri.parse(link));}boolean modal=value.getBoolean("record-dialog",phase.equals("record")||phase.equals("delete"));String scene=phase,target=focus,problem=error,result=message;
-        if(modal){phase="list";focus="backup-record-"+recordId;error=message="";}create();if(modal){phase=scene;focus=target;error=problem;message=result;recordDialog();}
-        ManagementUi.Sheet restored=sheet;if(phase.equals("review")&&!draftId.isEmpty())loadDraft(draftId);else if((phase.equals("actions")||phase.equals("record")||phase.equals("delete"))&&!recordId.isEmpty())manager.read(store->store.find(recordId),(entry,failure)->{if(open()&&sheet==restored){chosen=entry;if(!failure.isEmpty()){phase="list";error=failure;if(parentSheet!=null)sheet.dialog.dismiss();read();}render();}});else if((phase.equals("formats")||phase.equals("expired"))&&!heldId.isEmpty())manager.held(heldId,(entry,failure)->{if(open()&&sheet==restored){chosen=entry;if(!failure.isEmpty()){phase="list";error=failure;if(parentSheet!=null)sheet.dialog.dismiss();read();}render();}});else if(phase.equals("list"))read();}
+    void save(Bundle state){if(!open())return;Bundle value=new Bundle();String scene=phase.equals("session")||phase.equals("receiving")?"expired":phase;value.putString("phase",scene);value.putString("focus",scene.equals("expired")?"backup-restart":focus);value.putString("error",error);value.putString("message",message);value.putString("record",recordId);value.putString("draft",draftId);value.putString("held",heldId);value.putBoolean("media",media);value.putBoolean("recent-restore",recentRestore);value.putBoolean("importing",importSession);value.putBoolean("external",external);value.putInt("source",source);if(exported!=null)value.putString("export",exported.getName());if(folder!=null)value.putString("folder",folder.getAbsolutePath());if(boundary!=null)value.putString("boundary",boundary.getAbsolutePath());if(tree!=null){value.putString("tree",tree.toString());value.putString("location",current.toString());ArrayList<String> links=new ArrayList<>();for(Uri parent:parents)links.add(parent.toString());value.putStringArrayList("parents",links);}state.putBundle("desktop-backup",value);}
+    void restore(Bundle state){Bundle value=state==null?null:state.getBundle("desktop-backup");if(value==null)return;phase=value.getString("phase","list");focus=value.getString("focus","backup-save");error=value.getString("error","");message=value.getString("message","");recordId=value.getString("record","");draftId=value.getString("draft","");heldId=value.getString("held","");media=value.getBoolean("media");recentRestore=value.getBoolean("recent-restore");importSession=value.getBoolean("importing");external=value.getBoolean("external");source=value.getInt("source");String name=value.getString("export");if(name!=null&&name.matches("[a-f0-9-]{36}\\.(json|zip)"))exported=new File(new File(ui.getCacheDir(),"desktop-backup-export"),name);if(value.containsKey("folder"))folder=new File(value.getString("folder"));if(value.containsKey("boundary"))boundary=new File(value.getString("boundary"));if(value.containsKey("tree")){tree=Uri.parse(value.getString("tree"));current=Uri.parse(value.getString("location"));ArrayList<String> links=value.getStringArrayList("parents");if(links!=null)for(String link:links)parents.addLast(Uri.parse(link));}create();
+        ManagementUi.Sheet restored=sheet;
+        if(phase.equals("review")&&!draftId.isEmpty())loadDraft(draftId);
+        else if((phase.equals("actions")||phase.equals("record")||phase.equals("delete"))&&!recordId.isEmpty()){
+            String scene=phase,id=recordId;
+            manager.read(store->store.find(id),(entry,failure)->{
+                if(!open()||sheet!=restored||!phase.equals(scene)||!recordId.equals(id))return;
+                chosen=entry;
+                if(!failure.isEmpty()){phase="history";focus="sheet-close";error=failure;read();}
+                render();
+            });
+        }else if((phase.equals("formats")||phase.equals("expired")&&!importSession)&&!heldId.isEmpty()){
+            String scene=phase,held=heldId;
+            manager.held(held,(entry,failure)->{
+                if(!open()||sheet!=restored||!phase.equals(scene)||!heldId.equals(held))return;
+                chosen=entry;
+                if(!failure.isEmpty()){phase="list";focus="backup-history";error=failure;read();}
+                render();
+            });
+        }else if(showsEntries())read();
+    }
     void close(){if(!busy&&sheet!=null)sheet.dialog.dismiss();}
-    void destroy(){destroyed=true;++generation;++listVersion;manager.unlisten(changed);stopSession();if(sheet!=null){sheet.dialog.setOnDismissListener(null);sheet.dialog.dismiss();sheet=null;}if(parentSheet!=null){parentSheet.dialog.setOnDismissListener(null);parentSheet.dialog.dismiss();parentSheet=null;}ui.unregisterReceiver(screen);main.removeCallbacksAndMessages(null);worker.shutdown();}
+    void destroy(){destroyed=true;++generation;++listVersion;manager.unlisten(changed);stopSession();if(sheet!=null){sheet.dialog.setOnDismissListener(null);sheet.dialog.dismiss();sheet=null;}ui.unregisterReceiver(screen);main.removeCallbacksAndMessages(null);worker.shutdown();}
 }

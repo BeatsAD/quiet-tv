@@ -23,7 +23,7 @@ final class PhoneSettingsGeneral {
         value.put("weatherSceneLabel",WeatherWallpaperScene.name(WeatherWallpaperScene.key(data==null?"":data.description,data==null?"999":data.icon,false,12),true))
             .put("weatherPeriod",WallpaperStore.get(context).snapshot().weatherDayNight?illumination.period(true):"白天效果")
             .put("weatherBackgroundState",!usable?"暂用静态背景，天气可用后自动恢复":connection==null||!connection.isConnected()?"天气更新暂停，沿用上次天气":"跟随当前城市天气")
-            .put("weatherObservedAt",data==null?0:data.observedAt).put("weatherWebsite",WeatherClient.website(provider)).put("weatherTerms",WeatherClient.terms(provider)).put("weatherUsesMeteo",provider.equals("openmeteo")||store.meteoFallback());
+            .put("weatherObservedAt",data==null?0:data.observedAt).put("weatherWebsite",WeatherClient.website(provider)).put("weatherTerms",WeatherClient.terms(provider)).put("weatherUsesMeteo",data!=null&&"openmeteo".equals(data.provider));
         if(usable){WeatherIllumination light=illumination;value.put("weatherScene",WeatherWallpaperScene.key(data.description,data.icon,false,12)).put("weatherNight",Math.round(light.night*100)/100d).put("weatherWarm",Math.round(light.warm*100)/100d);double wind=data.atmosphere.windSpeed;if(!Double.isNaN(wind))value.put("weatherWind",wind);}
         return value;
     }
@@ -73,6 +73,43 @@ final class PhoneSettingsGeneral {
             },active);
             throw new IllegalArgumentException();
         }
+    }
+    JSONObject bootAds(String field,Object value,PhoneSettingsServer.Active active)throws IOException{
+        boolean refresh="check".equals(field),restore="restore".equals(field);
+        if(!refresh&&!restore&&!"apply".equals(field))throw new PhoneSettingsServer.BadInput();
+        if(!(value instanceof String)||!(refresh?((String)value).isEmpty():((String)value).matches("[0-9a-f]{64}")))
+            throw new PhoneSettingsServer.BadInput();
+        if(tasks.restoring())throw new PhoneSettingsServer.Rejected("桌面正在恢复，请稍后核对。");
+        String title=refresh?"检查开机广告":restore?"恢复开机广告设置":"关闭开机广告";
+        PhoneSettingsTasks.Job job=tasks.begin(scope+"/bootAds",title,field+":"+value,active,"bootAds",field);
+        tasks.start(job,work->{
+            work.check();
+            work.cancellable=false;
+            work.stage("正在核对广告设置",-1);
+            BootAdSettings settings=BootAdSettings.get(context);
+            ManagementAdb management=ManagementAdb.get(context);
+            try{
+                management.worker.submit(()->{
+                    work.check();
+                    if(refresh)settings.refresh();
+                    else settings.change(restore,(String)value,work::active);
+                    return null;
+                }).get();
+            }catch(ExecutionException failure){
+                Throwable cause=failure.getCause();
+                if(cause instanceof IOException)throw (IOException)cause;
+                throw new PhoneSettingsTasks.Problem("操作未完成，请重新检测实际设置。",false);
+            }finally{changed.run();}
+            String message=refresh?"已检查当前广告状态":restore?"已恢复此次修改前的开机广告设置。":"已应用。下次开机时，请确认广告是否消失。";
+            if(refresh){
+                BootAdSettings.State state=settings.state();
+                if(state.needsAuthorization)throw new PhoneSettingsTasks.Problem("请先完成本机 ADB 授权，再重新检测。",false);
+                if(!state.detail.isEmpty())throw new PhoneSettingsTasks.Problem(state.detail,false);
+            }
+            work.stage(message,100);
+            return settings.snapshot();
+        });
+        return tasks.receipt(job);
     }
     JSONObject desktopSwitch(String field,Object value,PhoneSettingsServer.Active active)throws IOException{
         if(!(value instanceof JSONObject)||!Arrays.asList("switch","manage","verify").contains(field))throw new PhoneSettingsServer.BadInput();

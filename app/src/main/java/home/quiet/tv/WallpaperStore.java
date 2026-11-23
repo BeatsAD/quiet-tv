@@ -51,6 +51,17 @@ final class WallpaperStore {
     synchronized boolean weatherEnabled() { return catalog.weather; }
     synchronized boolean weatherDayNight() { return catalog.weatherDayNight; }
     synchronized WallpaperCatalog.Entry entry(String id) { return catalog.find(id); }
+    synchronized void prepareBackdrop(String key,Bitmap image,Bitmap blur,boolean fullResolution){
+        if(WallpaperBackdropCache.matchesImage(key,fixedBackdropImageKey())){
+            WallpaperBackdropCache.prepare(key,image,blur,fullResolution);
+        }
+    }
+    private String fixedBackdropImageKey(){
+        String id=catalog.current;
+        if(catalog.weather||catalog.rotating||WallpaperCatalog.DEFAULT.equals(id)||WallpaperCatalog.DAILY.equals(id))return null;
+        WallpaperCatalog.Entry entry=catalog.find(id);
+        return entry!=null&&!entry.video()?imageKey(id):null;
+    }
     synchronized WallpaperCatalog backupSnapshot()throws IOException{
         try{return WallpaperCatalog.read(new JSONObject(new String(catalogFile.readFully(),Charsets.UTF_8)));}catch(JSONException failure){throw new IOException("壁纸清单无法读取，自动备份已暂停",failure);}
     }
@@ -138,7 +149,7 @@ final class WallpaperStore {
     File preparedDestination(String id,boolean video){return mediaFile(id,video);}
     private void persist(WallpaperCatalog next) throws IOException {
         FileOutputStream stream=null;
-        try { byte[] bytes=next.json().toString().getBytes(Charsets.UTF_8);stream=catalogFile.startWrite();stream.write(bytes);stream.getFD().sync();catalogFile.finishWrite(stream);stream=null;if(!java.util.Arrays.equals(bytes,catalogFile.readFully()))throw new IOException("Wallpaper write was not confirmed");catalog=next;DiagnosticLog.info("wallpaper.saved","current="+next.current+" rotating="+next.rotating); }
+        try { byte[] bytes=next.json().toString().getBytes(Charsets.UTF_8);stream=catalogFile.startWrite();stream.write(bytes);stream.getFD().sync();catalogFile.finishWrite(stream);stream=null;if(!java.util.Arrays.equals(bytes,catalogFile.readFully()))throw new IOException("Wallpaper write was not confirmed");catalog=next;WallpaperBackdropCache.retainPreparedImage(fixedBackdropImageKey());DiagnosticLog.info("wallpaper.saved","current="+next.current+" rotating="+next.rotating); }
         catch(JSONException|IOException e) { if(stream!=null) catalogFile.failWrite(stream); DiagnosticLog.error("wallpaper.save.failed",e);throw new IOException("Unable to save wallpaper settings",e); }
     }
     synchronized boolean rename(String id,String originalName,String value,PhoneSettingsServer.Active active)throws IOException {
@@ -149,7 +160,7 @@ final class WallpaperStore {
         WallpaperCatalog next=catalog.copy();next.rename(id,name);if(!active.valid())throw new PhoneSettingsServer.Ended();
         persist(next);DesktopBackups.changed();return true;
     }
-    synchronized void select(String id) throws IOException { WallpaperCatalog next=catalog.copy();next.selectFixed(id);persist(next);manualVersion++;DesktopBackups.changed(); }
+    synchronized void select(String id) throws IOException { if(catalog.builtinHidden(id,false))throw new IOException("默认素材已移除，请重新选择");WallpaperCatalog next=catalog.copy();next.selectFixed(id);persist(next);manualVersion++;DesktopBackups.changed(); }
     synchronized void removeWeather()throws IOException{
         if(!catalog.weather)return;String fallback=catalog.current;WallpaperCatalog.Entry entry=catalog.find(fallback);
         if(entry==null||entry.video()||WallpaperCatalog.DAILY.equals(fallback)||entry.custom()&&(!file(fallback).isFile()||file(fallback).length()==0||!file(fallback).canRead()))fallback=WallpaperCatalog.DEFAULT;
@@ -157,7 +168,7 @@ final class WallpaperStore {
     }
     synchronized void background(String mode,String id,int minutes,boolean dayNight)throws IOException{
         if("weather".equals(mode)&&!home.quiet.components.ComponentRepository.get(context).isReady("weather"))throw new IOException("需要先下载天气资源才能使用");
-        WallpaperCatalog next=catalog.copy();WallpaperCatalog.Entry item=next.find(id);if(item==null)throw new IOException("背景素材已不可用，请重新选择");
+        WallpaperCatalog next=catalog.copy();WallpaperCatalog.Entry item=next.find(id);if(item==null||next.builtinHidden(id,false))throw new IOException("背景素材已不可用，请重新选择");
         if(item.custom()){File media=file(id);if(!media.isFile()||media.length()==0||!media.canRead())throw new IOException("背景素材无法读取，请重新选择");}
         try{if("rotation".equals(mode)){next.rotation(item.video(),minutes,id);}
             else if("daily".equals(mode))next.select(WallpaperCatalog.DAILY);
@@ -172,6 +183,12 @@ final class WallpaperStore {
     synchronized void stopVideo() throws IOException {WallpaperCatalog next=catalog.copy();next.stopVideo();persist(next);}
     synchronized void rotation(boolean video,int minutes,String start) throws IOException { WallpaperCatalog next=catalog.copy();next.rotation(video,minutes,start);persist(next);DesktopBackups.changed(); }
     synchronized void next() throws IOException { WallpaperCatalog next=catalog.copy();next.next();persist(next); }
+    synchronized void builtinVisible(boolean saver,boolean visible)throws IOException{
+        if(catalog.builtinHidden(WallpaperCatalog.BUILTIN,saver)==!visible)return;
+        WallpaperCatalog next=catalog.copy();next.builtinHidden(saver,!visible);
+        persist(next);
+        manualVersion++;DesktopBackups.changed();
+    }
     synchronized void remove(String id) throws IOException {
         WallpaperCatalog.Entry entry=catalog.find(id); if(entry==null||!entry.custom())return;
         WallpaperCatalog old=catalog.copy(),next=catalog.copy();next.remove(id);
@@ -263,6 +280,14 @@ final class WallpaperStore {
     }
     File videoIncoming(){return new File(directory,"upload-"+UUID.randomUUID()+".tmp");}
     synchronized void sound(boolean enabled)throws IOException{WallpaperCatalog next=catalog.copy();next.sound=enabled;persist(next);DesktopBackups.changed();}
+    synchronized boolean toggleScreensaverSound()throws IOException{
+        synchronized(screensavers){
+            ScreensaverSettings saver=screensavers.snapshot(catalog);
+            if(!saver.video(catalog))return false;
+            screensavers.save(saver.sound(!saver.sound));
+            return true;
+        }
+    }
     File incoming() { return new File(directory,"incoming.tmp"); }
     File prepared() { return new File(directory,"prepared.tmp"); }
 }

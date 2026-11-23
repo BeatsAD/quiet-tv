@@ -3,6 +3,7 @@
 import argparse
 import copy
 import json
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -61,7 +62,80 @@ def catalog(path=CATALOG):
     for ref in root.get('references', []):
         if 'bootAds' in ref:
             raise ValueError('调查候选不能携带广告执行规则')
+    validate_upstream_switches(root)
     return root
+
+
+def validate_upstream_switches(root):
+    """Only the fixed Xiaomi switch has sufficiently specific upstream test results."""
+    seen = set()
+    entries = root.get('upstreamBootAds', [])
+    if not isinstance(entries, list):
+        raise ValueError('上游开机广告规则须为数组')
+    for item in entries:
+        if not isinstance(item, dict):
+            raise ValueError('上游开机广告规则格式无效')
+        required = {'brand', 'model', 'id', 'versionName', 'source', 'evidence'}
+        identity = {'fingerprint'} if 'fingerprint' in item else {'device', 'firmware'}
+        optional = set() if 'fingerprint' in item else {'incremental'}
+        if (required | identity) - item.keys() or item.keys() - (required | identity | optional):
+            raise ValueError('上游开机广告规则须限定型号和固件')
+        for value in item.values():
+            if not isinstance(value, str) or not value.strip() or value != value.strip():
+                raise ValueError('上游开机广告规则字段无效')
+        if (item['id'] != 'xiaomi-boot-ad-switch' or item['brand'].lower() not in ('xiaomi', 'redmi')
+                or not item['source'].startswith('https://github.com/')
+                or not re.fullmatch(r'\d+(?:\.\d+)+', item['versionName'])
+                or ('firmware' in item and not re.fullmatch(r'\d+(?:\.\d+)+', item['firmware']))
+                or ('incremental' in item and not re.fullmatch(r'\d+', item['incremental']))
+                or ('fingerprint' in item and not re.fullmatch(r'[^:\s]+/[^:\s]+/[^:\s]+:[^:\s]+/[^:\s]+/[^:\s]+:[^:\s]+/[^:\s]+', item['fingerprint']))):
+            raise ValueError('上游开机广告规则缺少精确版本、来源或固定操作')
+        model = (item['brand'].lower(), item['model'])
+        if model in seen:
+            raise ValueError('上游开机广告规则机型重复')
+        seen.add(model)
+
+
+def bundled_settings(path=CATALOG):
+    devices = []
+    root = catalog(path)
+    for device in root['devices']:
+        settings = [rule for rule in rules(device) if rule['id'] in SETTINGS]
+        if len(settings) > 1:
+            raise ValueError('每台电视只能内置一项广告开关操作')
+        if settings:
+            devices.append({**{key: device[key] for key in ('brand', 'model', 'fingerprint')},
+                            'bootAd': settings[0]})
+    for item in root.get('upstreamBootAds', []):
+        match = {key: item[key] for key in ('brand', 'model', 'fingerprint', 'device', 'firmware', 'incremental') if key in item}
+        rule = {key: item[key] for key in ('id', 'versionName', 'source', 'evidence')}
+        rule.update(package=SETTINGS[item['id']][3], verification='upstream',
+                    purpose='关闭开机广告', impact='影响范围为开机广告。')
+        devices.append({**match, 'bootAd': rule})
+    return {'schema': 1, 'devices': devices}
+
+
+def inspect_candidates(adb, scope):
+    brand = scope['brand'].lower()
+    operations = {'hisense': 'hisense-ad-block', 'vidda': 'hisense-ad-block',
+                  'xiaomi': 'xiaomi-boot-ad-switch', 'redmi': 'xiaomi-boot-ad-switch'}
+    operation = operations.get(brand)
+    if operation is None:
+        return {}
+    package = SETTINGS[operation][3]
+    packages = [package, 'com.hisense.business.ad'] if operation == 'hisense-ad-block' else [package]
+
+    def read(query):
+        try:
+            return {'status': 'read', 'value': query()}
+        except (OSError, ValueError, subprocess.TimeoutExpired):
+            return {'status': 'unknown'}
+    return {
+        'operation': operation,
+        'setting': read(lambda: read_value(adb, scope['user'], {'id': operation}, scope['sdk'])),
+        'packages': {name: read(lambda: maintenance.package_state(adb, name, scope['user']))
+                     for name in packages},
+    }
 
 
 def identity(adb, user):
@@ -88,12 +162,20 @@ def package_state(adb, rule, user):
     return state
 
 
-def read_value(adb, user, rule):
+def read_value(adb, user, rule, sdk=23):
     name = rule['id']
     if name in SETTINGS:
         namespace, key, _, _ = SETTINGS[name]
         if namespace == 'global' and user != 0:
             raise ValueError('全局广告设置仅允许已核对的主用户')
+        if sdk < 23:
+            result = adb.shell('content', 'query', '--user', user,
+                               '--uri', f'content://settings/{namespace}/{key}', '--projection', 'value').strip()
+            if result == 'No result found.':
+                return dict(present=False, value=None)
+            if result in ('Row: 0 value=0', 'Row: 0 value=1'):
+                return dict(present=True, value=result[-1])
+            raise ValueError('系统广告设置原值无法确认')
         # Keep only this key, including presence. Do not log the user's whole settings table.
         lines = adb.shell('settings', '--user', user, 'list', namespace).splitlines()
         if any(line and '=' not in line for line in lines):
@@ -143,7 +225,7 @@ def command(adb, scope, rule, value):
 def prepare(adb, scope, device, name):
     rule = selected_rule(device, name)
     app = package_state(adb, rule, scope['user'])
-    before, after = read_value(adb, scope['user'], rule), desired(rule)
+    before, after = read_value(adb, scope['user'], rule, scope['sdk']), desired(rule)
     if name.startswith('disable:') and before['value'] not in (0, 1):
         raise ValueError('广告服务原来不是默认启用或手动启用，不重复停用')
     command(adb, scope, rule, before)  # Recovery capability must exist before the first write.
@@ -183,7 +265,7 @@ def execute(adb, plan, journal, apply=False, restoring=False):
     expected = {**plan['packageState'], 'enabled': app['enabled']} if rule['id'].startswith('disable:') else plan['packageState']
     if app != expected:
         raise ValueError('相关包状态已被其他操作改变')
-    current, target = read_value(adb, user, rule), plan['before'] if restoring else plan['after']
+    current, target = read_value(adb, user, rule, scope['sdk']), plan['before'] if restoring else plan['after']
     allowed = (plan['before'], plan['after']) if restoring else (plan['before'],)
     if current not in allowed:
         raise ValueError('广告状态已被其他操作改变，未覆盖')
@@ -194,7 +276,7 @@ def execute(adb, plan, journal, apply=False, restoring=False):
     if not apply:
         print('仅预览；以新记录目录加 --apply 执行。')
         return
-    if identity(adb, user) != scope or package_state(adb, rule, user) != app or read_value(adb, user, rule) != current:
+    if identity(adb, user) != scope or package_state(adb, rule, user) != app or read_value(adb, user, rule, scope['sdk']) != current:
         raise ValueError('执行前设备、包版本或广告状态发生变化')
     if current != target:
         journal.event('boot_ad_attempt', restoring=restoring, ruleId=rule['id'])
@@ -202,7 +284,7 @@ def execute(adb, plan, journal, apply=False, restoring=False):
         journal.event('boot_ad_command', command=mutation, output=output)
     after_app = package_state(adb, rule, user)
     expected = {**app, 'enabled': target['value']} if rule['id'].startswith('disable:') else app
-    if identity(adb, user) != scope or after_app != expected or read_value(adb, user, rule) != target:
+    if identity(adb, user) != scope or after_app != expected or read_value(adb, user, rule, scope['sdk']) != target:
         raise ValueError('广告状态读回未确认；保留记录，不重放命令')
     journal.event('boot_ad_result', verified=True, restoring=restoring, ruleId=rule['id'], actual=target)
     print('已读回确认原值恢复。' if restoring else '已读回确认配置；重启、冷启动和唤醒广告效果仍待用户验收。')
@@ -239,6 +321,7 @@ def main(argv=None):
                 refs = [r for r in root.get('references', []) if r.get('area') == 'bootAds'
                         and scope['brand'].lower() in [brand.lower() for brand in r.get('brands', [])]]
                 report = dict(scope=scope, rules=rules(device) if device else [], references=refs,
+                              observed=inspect_candidates(adb, scope),
                               note='调查候选不授予执行资格。优先官方开关或客服；无精确验收规则时保持只读。')
                 journal.event('boot_ad_inspection', report=report)
                 print(json.dumps(report, ensure_ascii=False, indent=2))

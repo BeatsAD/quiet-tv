@@ -128,76 +128,56 @@ final class ChildModePanel extends ManagementPanel {
     private void refreshSelectedCard(){for(int i=0;i<visible.size();i++)if(selected.equals(visible.get(i).activityInfo.packageName)){cards.notifyItemChanged(i);return;}}
     private void focusRule(int index){for(int i=Math.max(0,index);i<ruleRows.size();i++)if(ruleRows.get(i).isEnabled()){ruleRows.get(i).requestFocusFromTouch();return;}}
     private void focusShared(int oldIndex){int index=oldIndex==0?0:oldIndex-1;if(parents!=null&&index>=0&&index<sharedRows.size())sharedRows.get(index).requestFocusFromTouch();else if(showing)parentButton.requestFocusFromTouch();}
-    private void focusApp(){for(int i=0;i<list.getChildCount();i++)list.getChildAt(i).setSelected(("child-app-"+selected).equals(list.getChildAt(i).getTag()));for(int i=0;i<visible.size();i++)if(selected.equals(visible.get(i).activityInfo.packageName)){int position=i;list.scrollToPosition(i);list.post(()->{if(!showing)return;RecyclerView.ViewHolder holder=list.findViewHolderForAdapterPosition(position);if(holder!=null)holder.itemView.requestFocusFromTouch();});return;}filters.get(filter).requestFocusFromTouch();}
-    @Override void focusManagementContent(){View value=focusTag.isEmpty()?null:pageRoot.findViewWithTag(focusTag);if(value!=null&&value.isEnabled()&&value.isShown())value.requestFocusFromTouch();else focusApp();}
+    private void focusApp(){focusApp(false);}
+    private void focusApp(boolean directionKey){
+        String requested=selected;
+        for(int i=0;i<list.getChildCount();i++)
+            list.getChildAt(i).setSelected(("child-app-"+requested).equals(list.getChildAt(i).getTag()));
+        for(int i=0;i<visible.size();i++){
+            if(!requested.equals(visible.get(i).activityInfo.packageName))continue;
+            int position=i;
+            View before=getCurrentFocus();
+            Object previousTag=before==null?null:before.getTag();
+            String requestedTag="child-app-"+requested;
+            if(directionKey)KeyFeedback.ownMove(list);
+            list.scrollToPosition(position);
+            list.post(()->{
+                if(!showing||directionKey&&!requested.equals(selected))return;
+                RecyclerView.ViewHolder holder=list.findViewHolderForAdapterPosition(position);
+                if(holder==null)return;
+                View target=holder.itemView;
+                if(directionKey&&!requestedTag.equals(target.getTag()))return;
+                boolean changed=target!=before||!requestedTag.equals(previousTag);
+                if(target.requestFocusFromTouch()&&directionKey&&changed)KeyFeedback.movedTo(target);
+            });
+            return;
+        }
+        filters.get(filter).requestFocusFromTouch();
+    }
+    @Override void focusManagementContent(){View value=focusTag.isEmpty()?null:pageRoot.findViewWithTag(focusTag);if(value!=null&&value.isEnabled()&&value.isShown())value.requestFocusFromTouch();else focusApp(KeyFeedback.isDirectionPress());}
     @Override public void handleBack(){if(details.hasFocus()||mobileConnection.view().hasFocus())focusApp();else if(list.hasFocus())filters.get(filter).requestFocusFromTouch();else if(!managementTabFocused())managementTab().requestFocusFromTouch();else super.handleBack();}
-    private void rest(){Sheet sheet=new Sheet("休息屏保");sheet.delegate.settingsLayout("关闭",sheet.dialog::dismiss);sheet.delegate.settingsActions(false);sheet.text("达到使用时长后进入休息屏保。");LinearLayout options=row();sheet.body.addView(options);String[] names={"云朵","森林","星空"},files={"cloud","forest","space"};int[] values={1,0,2};for(int i=0;i<3;i++){int index=i;LinearLayout option=column();option.setGravity(Gravity.CENTER);option.setPadding(p(6.4f),p(6.4f),p(6.4f),p(6.4f));option.setFocusable(true);option.setFocusableInTouchMode(true);option.setClickable(true);option.setContentDescription("休息屏保"+names[i]);option.setBackgroundDrawable(new SettingsFocusDrawable(unit,12,store.restTheme()==values[i]?UiPalette.SELECTED:UiPalette.CONTROL,false,store.restTheme()==values[i]?UiPalette.TEXT:0x29ffffff));ImageView image=new ImageView(activity);image.setScaleType(ImageView.ScaleType.CENTER_CROP);try(InputStream input=getAssets().open("child-rest/"+files[i]+".webp")){BitmapFactory.Options sample=new BitmapFactory.Options();sample.inSampleSize=4;image.setImageBitmap(BitmapFactory.decodeStream(input,null,sample));}catch(IOException ignored){}option.addView(image,new LinearLayout.LayoutParams(-1,p(99.84f)));TextView title=copy(names[i],15.36f,23.04f,UiPalette.TEXT);title.setText(SettingsSelectionMark.label(names[i],store.restTheme()==values[i],unit));title.setGravity(Gravity.CENTER);option.addView(title);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1);if(i>0)lp.leftMargin=p(12.8f);options.addView(option,lp);SettingsTouchClick.attach(option);option.setOnClickListener(view->{if(!store.restTheme(values[index])){sheet.text("保存失败，请重试");return;}for(int item=0;item<options.getChildCount();item++){LinearLayout card=(LinearLayout)options.getChildAt(item);card.setBackgroundDrawable(new SettingsFocusDrawable(unit,12,UiPalette.CONTROL,false,values[item]==values[index]?UiPalette.TEXT:0x29ffffff));((TextView)card.getChildAt(1)).setText(SettingsSelectionMark.label(names[item],values[item]==values[index],unit));}});}editing=sheet.dialog;sheet.dialog.setOnDismissListener(dialog->{if(editing==sheet.dialog)editing=null;if(showing)focusShared(2);});sheet.show(options.getChildAt(store.restTheme()==0?1:store.restTheme()==1?0:2));}
+    private void rest(){Sheet sheet=new Sheet("休息屏保");sheet.delegate.settingsLayout("关闭",sheet.dialog::dismiss);sheet.delegate.settingsActions(false);sheet.text("达到使用时长后进入休息屏保。");LinearLayout options=row();sheet.body.addView(options);String[] names={"云朵","森林","星空"},files={"cloud","forest","space"};int[] values={1,0,2};for(int i=0;i<3;i++){int index=i;LinearLayout option=column();option.setGravity(Gravity.CENTER);option.setPadding(p(6.4f),p(6.4f),p(6.4f),p(6.4f));option.setFocusable(true);option.setFocusableInTouchMode(true);option.setClickable(true);option.setContentDescription("休息屏保"+names[i]);option.setBackgroundDrawable(new SettingsFocusDrawable(unit,12,store.restTheme()==values[i]?UiPalette.SELECTED:UiPalette.CONTROL,false,store.restTheme()==values[i]?UiPalette.TEXT:0x29ffffff));ImageView image=new ImageView(activity);image.setScaleType(ImageView.ScaleType.CENTER_CROP);try(InputStream input=getAssets().open("child-rest/"+files[i]+".webp")){BitmapFactory.Options sample=new BitmapFactory.Options();sample.inSampleSize=4;image.setImageBitmap(BitmapFactory.decodeStream(input,null,sample));}catch(IOException ignored){}option.addView(image,new LinearLayout.LayoutParams(-1,p(99.84f)));TextView title=copy(names[i],15.36f,23.04f,UiPalette.TEXT);title.setText(SettingsSelectionMark.label(names[i],store.restTheme()==values[i],unit));title.setGravity(Gravity.CENTER);option.addView(title);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1);if(i>0)lp.leftMargin=p(12.8f);options.addView(option,lp);SettingsTouchClick.attach(option);option.setOnClickListener(view->{boolean changed=store.restTheme()!=values[index];if(!store.restTheme(values[index])){sheet.text("保存失败，请重试");return;}for(int item=0;item<options.getChildCount();item++){LinearLayout card=(LinearLayout)options.getChildAt(item);card.setBackgroundDrawable(new SettingsFocusDrawable(unit,12,UiPalette.CONTROL,false,values[item]==values[index]?UiPalette.TEXT:0x29ffffff));((TextView)card.getChildAt(1)).setText(SettingsSelectionMark.label(names[item],values[item]==values[index],unit));}if(changed)KeyFeedback.confirm(activity);});}editing=sheet.dialog;sheet.dialog.setOnDismissListener(dialog->{if(editing==sheet.dialog)editing=null;if(showing)focusShared(2);});sheet.show(options.getChildAt(store.restTheme()==0?1:store.restTheme()==1?0:2));}
     private void permission(){boolean fromRules=parents==null;ChildTimerState state=ChildUsageService.status(this);Sheet sheet=new Sheet("儿童模式计时");sheet.delegate.settingsLayout("关闭",sheet.dialog::dismiss);sheet.text(state.message);if(state==ChildTimerState.FAULT)sheet.text(store.fault());sheet.text("请在系统无障碍中启用“儿童模式计时”，返回后会重新核对。");Button close=sheet.action("关闭",sheet.dialog::dismiss);sheet.action("系统无障碍设置",()->{sheet.dialog.dismiss();DiagnosticLog.info("child.timer.settings","state="+state.name());if(!new SystemSettingsRouter(this).open(Settings.ACTION_ACCESSIBILITY_SETTINGS))feedback("未找到可用设置入口，请从电视系统设置进入无障碍");});editing=sheet.dialog;sheet.dialog.setOnDismissListener(dialog->{if(editing==sheet.dialog)editing=null;if(showing){if(fromRules)focusRule(3);else focusShared(4);}});sheet.show(close);}
     private void time(){
         if(!authorized || selected.isEmpty())return;
-        ChildModePolicy.Rule edited=store.rule(selected);if(edited.locked)return;ChildModePolicy.Rule expectedSettings=edited.copy();String expectedCredential=store.credential();
-        final int originalDays=edited.repeatDays;
-        final boolean[] customTime={!Arrays.asList(30L,60L,120L).contains(edited.limit/ChildModePolicy.MINUTE)},customDays={edited.repeatDays!=127&&edited.repeatDays!=31&&edited.repeatDays!=96};
-        ChildModeUi.Sheet sheet=visual.new Sheet("使用时长",appName(current()),"timer",825.6f,true);
-        sheet.box.setTag("child-time-sheet");sheet.scrollBody(840);
-        final Runnable[] refresh={null};ArrayList<Button> modeButtons=new ArrayList<>(),repeatButtons=new ArrayList<>(),dayButtons=new ArrayList<>(),durationButtons=new ArrayList<>();
-        visual.gap(sheet.body,22);LinearLayout modes=row();sheet.body.addView(modes,new LinearLayout.LayoutParams(-1,visual.p(56)));
-        String[] labels={"不限制","单次限时","循环限时"};for(int i=0;i<3;i++){
-            final int mode=i;Runnable select=()->{edited.mode=mode;refresh[0].run();};Button b=visual.button(labels[i],select,false);b.setId(androidx.core.view.ViewCompat.generateViewId());b.setTag("child-mode-"+i);b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,visual.font(20.16f));visual.choice(b,12);b.setOnFocusChangeListener((v,on)->{if(on)select.run();});modeButtons.add(b);
-            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-1,1);if(i>0)lp.leftMargin=visual.p(12);modes.addView(b,lp);
-        }
-        LinearLayout repeats=column();repeats.setTag("child-repeat-section");sheet.body.addView(repeats,new LinearLayout.LayoutParams(-1,-2));visual.gap(repeats,22);
-        repeats.addView(visual.text("重复日期",21,30,ManagementUi.TEXT));visual.gap(repeats,10);LinearLayout presets=row();repeats.addView(presets,new LinearLayout.LayoutParams(-1,visual.p(54)));
-        String[] names={"每天","周一至周五","周六和周日","自定义"};for(int i=0;i<4;i++){
-            final int which=i;Runnable select=()->{customDays[0]=which==3;if(which<3)edited.repeatDays=new int[]{127,31,96}[which];refresh[0].run();};Button b=visual.button(names[i],select,false);b.setId(androidx.core.view.ViewCompat.generateViewId());b.setTag("child-repeat-preset-"+i);b.setPadding(0,0,0,0);b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,visual.font(18));visual.choice(b,12);b.setOnFocusChangeListener((v,on)->{if(on)select.run();});repeatButtons.add(b);
-            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-1,1);if(i>0)lp.leftMargin=visual.p(9);presets.addView(b,lp);
-        }
-        LinearLayout customDates=column();repeats.addView(customDates);customDates.setTag("child-repeat-custom");visual.gap(customDates,18);LinearLayout weekdays=row();customDates.addView(weekdays,new LinearLayout.LayoutParams(-1,visual.p(56)));
-        for(int i=0;i<7;i++){
-            final int day=i;String name="周"+"一二三四五六日".charAt(i);Button b=visual.button(name,()->{edited.repeatDays^=1<<day;refresh[0].run();},false);b.setId(androidx.core.view.ViewCompat.generateViewId());b.setTag("child-repeat-day-"+i);b.setPadding(0,0,0,0);b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,visual.font(18.5f));visual.choice(b,12);dayButtons.add(b);
-            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-1,1);if(i>0)lp.leftMargin=visual.p(9);weekdays.addView(b,lp);
-        }
-        LinearLayout timeSection=column();sheet.body.addView(timeSection);visual.gap(timeSection,20);View divider=new View(this);divider.setBackgroundColor(0x20ffffff);timeSection.addView(divider,new LinearLayout.LayoutParams(-1,visual.p(1)));visual.gap(timeSection,16);
-        TextView timeLabel=visual.text("每日可用",21,30,ManagementUi.TEXT);timeSection.addView(timeLabel);visual.gap(timeSection,10);LinearLayout durations=row();timeSection.addView(durations,new LinearLayout.LayoutParams(-1,visual.p(54)));
-        LinearLayout inputSection=column();timeSection.addView(inputSection);visual.gap(inputSection,14);LinearLayout inputRow=row();inputRow.setGravity(Gravity.CENTER);inputSection.addView(inputRow,new LinearLayout.LayoutParams(-1,visual.p(58)));
-        EditText hours=visual.number(String.valueOf(edited.limit/ChildModePolicy.MINUTE/60),"小时",2),minutes=visual.number(String.valueOf(edited.limit/ChildModePolicy.MINUTE%60),"分钟",2);hours.setTag("child-hours");minutes.setTag("child-minutes");
-        inputRow.addView(hours,new LinearLayout.LayoutParams(visual.p(112),visual.p(58)));inputRow.addView(visual.text(" 小时",17.28f,32,UiPalette.SECONDARY),new LinearLayout.LayoutParams(visual.p(65),-1));inputRow.addView(minutes,new LinearLayout.LayoutParams(visual.p(112),visual.p(58)));inputRow.addView(visual.text(" 分钟",17.28f,32,UiPalette.SECONDARY),new LinearLayout.LayoutParams(visual.p(65),-1));
-        visual.gap(inputSection,14);LinearLayout pad=visual.numberPad(sheet,hours,minutes);inputSection.addView(pad);
-        String[] choices={"30 分钟","1 小时","2 小时","自定义"};for(int i=0;i<4;i++){
-            final int which=i;Runnable select=()->{boolean enteringCustom=which==3&&!customTime[0];customTime[0]=which==3;if(which<3)edited.limit=new int[]{30,60,120}[which]*ChildModePolicy.MINUTE;else if(enteringCustom){hours.setText(String.valueOf(edited.limit/ChildModePolicy.MINUTE/60));minutes.setText(String.valueOf(edited.limit/ChildModePolicy.MINUTE%60));}refresh[0].run();};Button b=visual.button(choices[i],()->{select.run();if(which==3)hours.requestFocus();},false);b.setId(androidx.core.view.ViewCompat.generateViewId());b.setTag("child-duration-"+i);b.setPadding(0,0,0,0);b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,visual.font(19));visual.choice(b,12);b.setOnFocusChangeListener((v,on)->{if(on)select.run();});durationButtons.add(b);
-            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-1,1);if(i>0)lp.leftMargin=visual.p(9);durations.addView(b,lp);
-        }
-        LinearLayout notice=column();visual.gap(notice,18);TextView hint=visual.text("",15.5f,32,UiPalette.FAINT);hint.setTag("child-time-hint");hint.setGravity(Gravity.CENTER);hint.setMaxLines(2);notice.addView(hint);sheet.box.addView(notice,sheet.box.indexOfChild(sheet.actions)-1,new LinearLayout.LayoutParams(-1,-2));
-        Button cancel=sheet.action("取消",sheet.dialog::dismiss,false),save=sheet.action("保存",()->{
-            if(!authorized)return;
-            if(edited.mode==ChildModePolicy.DAILY&&edited.repeatDays==0){hint.setText("请至少选择一天");hint.setTextColor(UiPalette.TEXT);dayButtons.get(0).requestFocus();return;}
-            if(edited.limited()&&customTime[0])try{int h=Integer.parseInt(hours.getText().toString()),m=Integer.parseInt(minutes.getText().toString());if(h<0||h>24||m<0||m>59)throw new NumberFormatException();edited.limit=(h*60L+m)*ChildModePolicy.MINUTE;}catch(NumberFormatException error){hint.setText("请输入 1 分钟至 24 小时，分钟填写 0–59");hint.setTextColor(UiPalette.TEXT);return;}
-            if(edited.repeatDays==0)edited.repeatDays=originalDays;
-            try{edited.validate();}catch(IllegalArgumentException error){hint.setText("时长需为 1 分钟至 24 小时");hint.setTextColor(UiPalette.TEXT);return;}
-            if(!expectedCredential.equals(store.credential())){hint.setText("家长凭据已变化，请取消后重新验证");return;}if(!store.saveSettings(selected,edited,expectedSettings)){hint.setText("配置已变化或保存未完成，请取消后核对当前设置");return;}
-            sheet.dialog.dismiss();refreshSelectedCard();render();focusRule(3);success("使用时长已保存");if(edited.limited()&&!ChildUsageService.ready(this)){feedback("时长已保存，计时服务尚未就绪");permission();}
-        },true);
-        cancel.setTag("child-time-cancel");save.setTag("child-time-save");visual.numberActions(sheet,pad);
-        refresh[0]=()->{
-            for(int i=0;i<modeButtons.size();i++)visual.selected(modeButtons.get(i),labels[i],edited.mode==i);
-            repeats.setVisibility(edited.mode==ChildModePolicy.DAILY?View.VISIBLE:View.GONE);customDates.setVisibility(customDays[0]?View.VISIBLE:View.GONE);
-            for(int i=0;i<repeatButtons.size();i++)visual.selected(repeatButtons.get(i),names[i],i==3?customDays[0]:!customDays[0]&&edited.repeatDays==new int[]{127,31,96}[i]);
-            for(int i=0;i<dayButtons.size();i++){Button b=dayButtons.get(i);boolean checked=(edited.repeatDays&(1<<i))!=0;String label="周"+"一二三四五六日".charAt(i);visual.selected(b,label,checked);b.setContentDescription(label+(checked?"  已选":"  未选"));}
-            timeSection.setVisibility(edited.limited()?View.VISIBLE:View.GONE);timeLabel.setText(edited.mode==ChildModePolicy.DAILY?"每日可用":"本次可用");divider.setVisibility(edited.mode==ChildModePolicy.DAILY?View.VISIBLE:View.GONE);
-            inputSection.setVisibility(edited.limited()&&customTime[0]?View.VISIBLE:View.GONE);pad.setVisibility(inputSection.getVisibility());
-            for(int i=0;i<durationButtons.size();i++)visual.selected(durationButtons.get(i),choices[i],i==3?customTime[0]:!customTime[0]&&edited.limit/ChildModePolicy.MINUTE==new int[]{30,60,120}[i]);
-            notice.setVisibility(edited.limited()?View.VISIBLE:View.GONE);hint.setTextColor(UiPalette.FAINT);hint.setText(edited.mode==ChildModePolicy.DAILY?"选中日期自动恢复额度，未选日期不可使用":"退出后保留剩余时间，用完需家长授权");
-            ArrayList<List<Button>> rows=new ArrayList<>();rows.add(modeButtons);if(edited.mode==ChildModePolicy.DAILY){rows.add(repeatButtons);if(customDays[0])rows.add(dayButtons);}if(edited.limited())rows.add(durationButtons);
-            for(int row=0;row<rows.size();row++)for(int column=0;column<rows.get(row).size();column++){
-                final int r=row,c=column;Button b=rows.get(row).get(column);View up=row==0?sheet.close:rows.get(row-1).get(Math.min(column,rows.get(row-1).size()-1));View down=row+1<rows.size()?rows.get(row+1).get(Math.min(column,rows.get(row+1).size()-1)):inputSection.getVisibility()==View.VISIBLE?hours:column==0?cancel:save;
-                b.setNextFocusUpId(up.getId());b.setNextFocusDownId(down.getId());b.setNextFocusLeftId(rows.get(row).get(Math.max(0,column-1)).getId());b.setNextFocusRightId(rows.get(row).get(Math.min(rows.get(row).size()-1,column+1)).getId());
-                b.setOnKeyListener((v,key,event)->{if(key<KeyEvent.KEYCODE_DPAD_UP||key>KeyEvent.KEYCODE_DPAD_RIGHT)return false;if(event.getAction()==KeyEvent.ACTION_DOWN){if(key==KeyEvent.KEYCODE_DPAD_UP)up.requestFocus();else if(key==KeyEvent.KEYCODE_DPAD_DOWN)down.requestFocus();else rows.get(r).get(Math.max(0,Math.min(rows.get(r).size()-1,c+(key==KeyEvent.KEYCODE_DPAD_LEFT?-1:1)))).requestFocus();}return true;});
+        String target=selected;
+        ChildModePolicy.Rule original=store.rule(target);
+        if(original.locked)return;
+        String expectedCredential=store.credential();
+        ChildTimeSheet editor=new ChildTimeSheet(activity,appName(current()),original.copy(),draft->{
+            if(!authorized||!expectedCredential.equals(store.credential()))return "家长凭据已变化，请取消后重新验证";
+            try{draft.validate();}catch(IllegalArgumentException error){return "请核对重复日期和使用时长";}
+            if(!store.saveSettings(target,draft,original))return "配置已变化或保存未完成，请取消后核对当前设置";
+            return null;
+        },draft->{
+            refreshSelectedCard();render();focusRule(3);success("使用时长已保存");
+            if(draft.limited()&&!ChildUsageService.ready(this)){
+                feedback("时长已保存，计时服务尚未就绪");permission();
             }
-            hours.setNextFocusUpId(durationButtons.get(3).getId());minutes.setNextFocusUpId(durationButtons.get(3).getId());
-            for(int i=0;i<sheet.actions.getChildCount();i++){View action=sheet.actions.getChildAt(i);action.setNextFocusUpId(inputSection.getVisibility()==View.VISIBLE?((Button[])pad.getTag())[i==0?9:11].getId():rows.get(rows.size()-1).get(edited.limited()?(i==0?0:3):edited.mode).getId());action.setNextFocusLeftId(cancel.getId());action.setNextFocusRightId(save.getId());action.setNextFocusDownId(action.getId());}
-            sheet.close.setNextFocusDownId(modeButtons.get(edited.mode).getId());
-        };
-        refresh[0].run();editing=sheet.dialog;sheet.dialog.setOnDismissListener(d->{sheet.release();if(editing==sheet.dialog)editing=null;if(showing)focusRule(3);});sheet.show(modeButtons.get(edited.mode));
+        });
+        editing=editor.dialog();
+        editor.dialog().setOnDismissListener(d->{if(editing==d)editing=null;if(showing)focusRule(3);});
+        editor.show();
     }
     static String duration(long value){long minutes=value/ChildModePolicy.MINUTE;return value>0&&minutes==0?"不足 1 分钟":minutes>=60?minutes/60+" 小时"+(minutes%60==0?"":" "+minutes%60+" 分钟"):minutes+" 分钟";}
     static String describeTime(ChildModePolicy.Rule r){return !r.limited()?"不限时":(r.mode==ChildModePolicy.DAILY?(r.repeatDays==127?"每天 ":"循环 "):"单次 ")+duration(r.limit);}
@@ -207,9 +187,9 @@ final class ChildModePanel extends ManagementPanel {
         int key=event.getKeyCode();if(key<KeyEvent.KEYCODE_DPAD_UP||key>KeyEvent.KEYCODE_DPAD_RIGHT)return false;View focused=getCurrentFocus();if(focused==null)return false;
         int option=filters.indexOf(focused);boolean parent=focused==parentButton,rail=list.hasFocus(),rules=details.hasFocus(),qr=mobileConnection.view().hasFocus();if(option<0&&!parent&&!rail&&!rules&&!qr)return false;
         if(event.getAction()!=KeyEvent.ACTION_DOWN)return true;
-        if(option>=0||parent){if(key==19)managementTab().requestFocusFromTouch();else if(key==20){if(parent&&!ruleRows.isEmpty())focusRule(0);else focusApp();}else if(key==21){if(parent)filters.get(filters.size()-1).requestFocusFromTouch();else if(option>0)filters.get(option-1).requestFocusFromTouch();}else if(key==22){if(!parent){if(option+1<filters.size())filters.get(option+1).requestFocusFromTouch();else parentButton.requestFocusFromTouch();}}return true;}
-        if(rail){if(key==22){focusRule(0);return true;}if(key==21)return true;int index=0;for(int i=0;i<visible.size();i++)if(selected.equals(visible.get(i).activityInfo.packageName))index=i;if(key==19&&index==0){filters.get(filter).requestFocusFromTouch();return true;}int next=index+(key==19?-1:1);if(next>=0&&next<visible.size()){selected=visible.get(next).activityInfo.packageName;render();focusApp();}return true;}
-        if(key==21){focusApp();return true;}if(qr){if(key==19){for(int i=ruleRows.size()-1;i>=0;i--)if(ruleRows.get(i).isEnabled()){ruleRows.get(i).requestFocusFromTouch();break;}}return true;}
+        if(option>=0||parent){if(key==19)managementTab().requestFocusFromTouch();else if(key==20){if(parent&&!ruleRows.isEmpty())focusRule(0);else focusApp(true);}else if(key==21){if(parent)filters.get(filters.size()-1).requestFocusFromTouch();else if(option>0)filters.get(option-1).requestFocusFromTouch();}else if(key==22){if(!parent){if(option+1<filters.size())filters.get(option+1).requestFocusFromTouch();else parentButton.requestFocusFromTouch();}}return true;}
+        if(rail){if(key==22){focusRule(0);return true;}if(key==21)return true;int index=0;for(int i=0;i<visible.size();i++)if(selected.equals(visible.get(i).activityInfo.packageName))index=i;if(key==19&&index==0){filters.get(filter).requestFocusFromTouch();return true;}int next=index+(key==19?-1:1);if(next>=0&&next<visible.size()){selected=visible.get(next).activityInfo.packageName;render();focusApp(true);}return true;}
+        if(key==21){focusApp(true);return true;}if(qr){if(key==19){for(int i=ruleRows.size()-1;i>=0;i--)if(ruleRows.get(i).isEnabled()){ruleRows.get(i).requestFocusFromTouch();break;}}return true;}
         int at=ruleRows.indexOf(focused);if(at<0)return true;if(key==19||key==20){int step=key==19?-1:1,next=at+step;while(next>=0&&next<ruleRows.size()&&!ruleRows.get(next).isEnabled())next+=step;if(next>=0&&next<ruleRows.size())ruleRows.get(next).requestFocusFromTouch();else if(key==19)parentButton.requestFocusFromTouch();else if(mobileConnection.view().isFocusable())mobileConnection.view().requestFocusFromTouch();}return true;
     }
     private final class SelectionSurface extends LayerDrawable {

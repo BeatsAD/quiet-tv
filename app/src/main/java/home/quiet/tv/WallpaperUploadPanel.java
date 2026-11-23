@@ -97,7 +97,7 @@ final class WallpaperUploadPanel {
     void destroy(){close();worker.shutdown();}
     static String lanAddress(Context context){
         if(Build.VERSION.SDK_INT>=21)return Api21.lanAddress(context);
-        ConnectivityManager manager=(ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);
+        ConnectivityManager manager=(ConnectivityManager)context.getApplicationContext().getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkInfo active=manager==null?null:manager.getActiveNetworkInfo();
         if(active==null||!active.isConnected())return null;
         if(active.getType()==ConnectivityManager.TYPE_WIFI)return wifiAddress(context);
@@ -146,7 +146,7 @@ final class WallpaperUploadPanel {
     @android.annotation.TargetApi(21)
     private static final class Api21 {
         static String lanAddress(Context context){
-            ConnectivityManager manager=(ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);
+            ConnectivityManager manager=(ConnectivityManager)context.getApplicationContext().getSystemService(Context.CONNECTIVITY_SERVICE);
             if(manager==null)return null;
             Network[] networks=manager.getAllNetworks();
             if(Build.VERSION.SDK_INT>=23){Network active=manager.getActiveNetwork();if(active!=null){String address=address(manager,active);if(address!=null)return address;}}

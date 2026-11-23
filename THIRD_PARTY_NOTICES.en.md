@@ -12,7 +12,6 @@ Quiet TV is independently maintained and based on [cleanyourtv](https://github.c
 | libadb-android | Apache-2.0, retaining its inherited BSD/MIT notices; see the [complete license directory](app/src/main/assets/licenses/) |
 | Bouncy Castle | MIT, [full text](app/src/main/assets/licenses/bouncycastle-LICENSE.md) |
 | NanoHTTPD | BSD-3-Clause, [full text](app/src/main/assets/licenses/nanohttpd-LICENSE.txt) |
-| JmDNS 3.6.5 (stable local hostname) | Apache-2.0, [full text](app/src/main/assets/licenses/libadb-Apache-2.0.txt), [upstream](https://github.com/jmdns/jmdns) |
 | SLF4J (JmDNS logging API) | MIT, [full text](app/src/main/assets/licenses/slf4j-MIT.txt) |
 | desugar_jdk_libs 2.1.5 (Java API compatibility on older Android) | GPL-2.0 with Classpath Exception, [full text](app/src/main/assets/licenses/desugar-jdk-libs-LICENSE.txt), [corresponding source](https://github.com/google/desugar_jdk_libs/tree/73170c345e6a) |
 | Lucide icons | ISC/MIT, [full text](app/src/main/assets/licenses/Lucide-LICENSE.txt) |

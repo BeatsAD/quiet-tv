@@ -43,9 +43,35 @@ final class KeyFeedback {
         Input previous=input;input=new Input(key);
         try{return next.run();}finally{input=previous;}
     }
+    // Use this when a consumed direction key schedules its own focus change.
+    static void ownMove(View view){
+        Navigation navigation=roots.get(view.getRootView());
+        if(navigation!=null)navigation.pending=false;
+    }
+    static void movedTo(View target){
+        if(target!=null&&target.hasFocus()&&target.hasWindowFocus())
+            KeySounds.play(target.getContext(),KeySoundPolicy.MOVE);
+    }
+    static boolean backKey(Context context,KeyEvent event,boolean available,Runnable action){
+        int key=event.getKeyCode();
+        if(key!=KeyEvent.KEYCODE_BACK&&key!=KeyEvent.KEYCODE_ESCAPE)return false;
+        if(available&&event.getAction()==KeyEvent.ACTION_UP&&!event.isCanceled()){
+            action.run();
+            returned(context);
+        }
+        return true;
+    }
     static boolean direction(int key){return key==KeyEvent.KEYCODE_DPAD_LEFT||key==KeyEvent.KEYCODE_DPAD_RIGHT||key==KeyEvent.KEYCODE_DPAD_UP||key==KeyEvent.KEYCODE_DPAD_DOWN;}
-    private static boolean confirmKey(int key){return key==KeyEvent.KEYCODE_DPAD_CENTER||key==KeyEvent.KEYCODE_ENTER||key==KeyEvent.KEYCODE_NUMPAD_ENTER||key==KeyEvent.KEYCODE_BUTTON_A||key==KeyEvent.KEYCODE_BUTTON_SELECT;}
-    static void moved(Context context){if(input!=null&&direction(input.key.getKeyCode())&&input.key.getAction()==KeyEvent.ACTION_DOWN)KeySounds.play(context,KeySoundPolicy.MOVE);}
+    static boolean confirmKey(int key){return key==KeyEvent.KEYCODE_DPAD_CENTER||key==KeyEvent.KEYCODE_ENTER||key==KeyEvent.KEYCODE_NUMPAD_ENTER||key==KeyEvent.KEYCODE_BUTTON_A||key==KeyEvent.KEYCODE_BUTTON_SELECT;}
+    static boolean isDirectionPress(){
+        return input!=null&&direction(input.key.getKeyCode())&&input.key.getAction()==KeyEvent.ACTION_DOWN;
+    }
+    static void moved(Context context){if(isDirectionPress())KeySounds.play(context,KeySoundPolicy.MOVE);}
+    // The input method may receive the release after a field opens the keyboard.
+    static void confirmOnPress(Context context){
+        if(input!=null&&confirmKey(input.key.getKeyCode())&&input.key.getAction()==KeyEvent.ACTION_DOWN
+                &&input.key.getRepeatCount()==0&&!input.key.isCanceled())action(context,KeySoundPolicy.CONFIRM);
+    }
     static void confirm(Context context){
         if(input!=null&&confirmKey(input.key.getKeyCode())&&input.key.getAction()==KeyEvent.ACTION_UP&&!input.key.isCanceled())action(context,KeySoundPolicy.CONFIRM);
     }

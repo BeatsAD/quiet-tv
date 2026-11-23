@@ -35,7 +35,12 @@ final class PhoneSettingsMedia {
                 case "avatar":if(!upload.apply||!upload.target.isEmpty())throw new PhoneSettingsServer.BadInput();maximum=GreetingAvatarStore.MAX_UPLOAD;break;
                 case "icon":{
                     String[] target=upload.target.split("\\|",-1);if(!upload.apply||target.length!=3||!IconLibraryCatalog.contains(IconLibraryCatalog.SHAPES,target[1]))throw new PhoneSettingsServer.BadInput();
-                    upload.target=target[0];upload.shape=target[1];upload.coverKey=target[2];AppCoverPolicy.require(context,upload.target);if(!upload.coverKey.equals(AppCoverStore.get(context).key(upload.target)))throw new PhoneSettingsServer.Conflict();maximum=AppCoverStore.MAX_UPLOAD;break;
+                    upload.target=target[0];upload.shape=target[1];upload.coverKey=target[2];
+                    try{AppCoverPolicy.requireDesktopShape(context,upload.shape);}
+                    catch(AppCoverPolicy.ShapeChanged conflict){throw new PhoneSettingsServer.Rejected(conflict.getMessage());}
+                    AppCoverPolicy.require(context,upload.target);
+                    if(!upload.coverKey.equals(AppCoverStore.get(context).key(upload.target)))throw new PhoneSettingsServer.Conflict();
+                    maximum=AppCoverStore.MAX_UPLOAD;break;
                 }
                 case "cover":if(!upload.apply)throw new PhoneSettingsServer.BadInput();AppCoverPolicy.require(context,upload.target);maximum=AppCoverStore.MAX_UPLOAD;break;
                 default:throw new PhoneSettingsServer.BadInput();
@@ -72,7 +77,7 @@ final class PhoneSettingsMedia {
                 committing=true;WallpaperCatalog.Entry entry=prepared.save(upload.displayName,valid);WallpaperStore store=WallpaperStore.get(context);boolean applied=false;
                 try{if(upload.apply&&valid.valid())synchronized(store){
                     if(upload.target.startsWith("screensaver:")){
-                        ScreensaverStore savers=ScreensaverStore.get(context);synchronized(savers){ScreensaverSettings current=savers.snapshot(store.snapshot());if(PhoneSettingsState.revision(PhoneSettingsConfiguration.saverValues(current)).equals(upload.target.substring(12))&&valid.valid()){savers.save(current.media(entry.id));applied=true;}}
+                        ScreensaverStore savers=ScreensaverStore.get(context);synchronized(savers){WallpaperCatalog catalog=store.snapshot();ScreensaverSettings current=savers.snapshot(catalog);if(PhoneSettingsState.revision(PhoneSettingsConfiguration.saverValues(current,catalog)).equals(upload.target.substring(12))&&valid.valid()){savers.save(current.media(entry.id));applied=true;}}
                     }else if(store.manualVersion()==upload.manualVersion&&valid.valid()){store.select(entry.id);applied=true;}
                 }}
                 catch(IOException e){tasks.unknown(job,new JSONObject().put("mediaId",entry.id).put("saved",true).put("requiresReview",true),"素材已保存，应用结果待核对，请从素材库重新读取");changed.run();return tasks.receipt(job);}
@@ -87,11 +92,37 @@ final class PhoneSettingsMedia {
                     synchronized(DesktopSettingsStore.MUTATIONS){if(!valid.valid())throw new PhoneSettingsServer.Ended();DesktopSettingsStore desktop=new DesktopSettingsStore(context);committing=true;desktop.saveGreeting(desktop.greetingEnabled(),desktop.greetingText(fallback),true,ready.getName());}
                     result.put("avatar",ready.getName());message="头像已应用";ready=null;
                 }else{
-                    AppCoverPolicy.require(context,upload.target);AppCoverStore covers=AppCoverStore.get(context);ready=covers.prepared();if("icon".equals(upload.kind))AppCoverImages.prepareIcon(incoming,ready,upload.shape);else AppCoverImages.prepare(incoming,ready);job.check();AppCoverPolicy.require(context,upload.target);job.check();if("icon".equals(upload.kind)&&!upload.coverKey.equals(covers.key(upload.target)))throw new PhoneSettingsServer.Conflict();committing=true;if("icon".equals(upload.kind))covers.applyUpload(upload.target,ready,upload.shape,upload.coverKey);else covers.apply(upload.target,ready);result.put("package",upload.target);message="icon".equals(upload.kind)?"应用图标已更新":"应用封面已更新";ready=null;
+                    AppCoverPolicy.require(context,upload.target);
+                    AppCoverStore covers=AppCoverStore.get(context);
+                    boolean icon="icon".equals(upload.kind);
+                    ready=covers.prepared();
+                    if(icon){
+                        AppCoverPolicy.requireDesktopShape(context,upload.shape);
+                        AppCoverImages.prepareIcon(incoming,ready,upload.shape);
+                    }else AppCoverImages.prepare(incoming,ready);
+                    job.check();
+                    AppCoverPolicy.require(context,upload.target);
+                    if(icon){
+                        synchronized(DesktopSettingsStore.MUTATIONS){
+                            job.check();
+                            AppCoverPolicy.requireDesktopShape(context,upload.shape);
+                            if(!upload.coverKey.equals(covers.key(upload.target)))throw new PhoneSettingsServer.Conflict();
+                            committing=true;
+                            covers.applyUpload(upload.target,ready,upload.shape,upload.coverKey);
+                        }
+                    }else{
+                        job.check();
+                        committing=true;
+                        covers.apply(upload.target,ready);
+                    }
+                    result.put("package",upload.target);
+                    message=icon?"应用图标已更新":"应用封面已更新";
+                    ready=null;
                 }
             }
             tasks.complete(job,result,message);changed.run();return tasks.receipt(job);
         }catch(JSONException e){tasks.fail(job,"素材结果无法读取，请核对电视状态");throw new IOException(e);}
+        catch(AppCoverPolicy.ShapeChanged conflict){tasks.fail(job,conflict.getMessage());throw new PhoneSettingsServer.Rejected(conflict.getMessage());}
         catch(IOException|OutOfMemoryError e){if(committing||"file".equals(upload.kind)&&job.progress==100)tasks.unknown(job,new JSONObject(Collections.singletonMap("requiresReview",true)),"保存结果待核对，请重新读取电视设置");else tasks.fail(job,job.cancelled?"已取消上传":"上传未完成，请核对文件格式、电视支持情况和存储空间");throw new IOException("上传未确认，请查询任务结果",e);}
         finally{
             receiving.set(false);synchronized(tickets){tickets.remove(id);}

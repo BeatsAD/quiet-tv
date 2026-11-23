@@ -12,7 +12,11 @@ final class AppArtwork {
     static final int WIDTH=360,HEIGHT=203,NEUTRAL=0xff505966;
 
     static Bitmap load(Context context,ResolveInfo info){
-        Bitmap custom=custom(context,info.activityInfo.packageName);if(custom!=null)return custom;
+        Bitmap artwork=confirmedCustom(context,info.activityInfo.packageName);
+        return artwork!=null?artwork:load(context,info,false);
+    }
+    static Bitmap load(Context context,ResolveInfo info,boolean allowCustom){
+        if(allowCustom){Bitmap custom=custom(context,info.activityInfo.packageName);if(custom!=null)return custom;}
         PackageManager pm=context.getPackageManager();Drawable banner=null;
         ActivityInfo activity=info.activityInfo;
         if(Build.VERSION.SDK_INT>=21){banner=resource(pm,activity.applicationInfo,activity.getBannerResource());if(banner==null)banner=activity.loadBanner(pm);}
@@ -22,9 +26,9 @@ final class AppArtwork {
     }
 
     static Bitmap load(Context context,String pkg,ApplicationInfo info){
-        Bitmap custom=custom(context,pkg);if(custom!=null)return custom;
+        Bitmap custom=confirmedCustom(context,pkg);if(custom!=null)return custom;
         ResolveInfo entry=new HomeAppCatalog(context).launchable().get(pkg);
-        if(entry!=null)return load(context,entry);
+        if(entry!=null)return load(context,entry,false);
         Drawable icon=info==null?null:resource(context.getPackageManager(),info,info.icon);
         if(icon==null && info!=null)icon=info.loadIcon(context.getPackageManager());
         return render(icon==null?new QuickControlIcon("app-window"):icon,false,width(context));
@@ -38,8 +42,28 @@ final class AppArtwork {
         return icon==null?new QuickControlIcon("app-window"):icon;
     }
 
-    private static Bitmap custom(Context context,String pkg){
-        java.io.File file=AppCoverStore.get(context).file(pkg);if(file==null)return null;
+    static boolean displayedAsContain(Context context,String pkg){
+        AppCoverStore covers=AppCoverStore.get(context);
+        return covers.contain(pkg)&&(!LegacyIconRecovery.supported()
+            ||LegacyIconRecovery.get(context).confirmed(pkg,covers.key(pkg)));
+    }
+
+    static String previewRevision(Context context){
+        return LegacyIconRecovery.supported()?LegacyIconRecovery.get(context).signature():"";
+    }
+
+    private static Bitmap confirmedCustom(Context context,String pkg){
+        java.io.File file=AppCoverStore.get(context).file(pkg);
+        if(file==null||LegacyIconRecovery.supported()&&!LegacyIconRecovery.get(context).confirmed(pkg,file.getName()))return null;
+        return decodeCustom(context,file);
+    }
+
+    static Bitmap custom(Context context,String pkg){return custom(context,pkg,null);}
+    static Bitmap custom(Context context,String pkg,String expected){
+        java.io.File file=AppCoverStore.get(context).file(pkg);
+        return file==null||expected!=null&&!expected.equals(file.getName())?null:decodeCustom(context,file);
+    }
+    private static Bitmap decodeCustom(Context context,java.io.File file){
         try{return AppCoverImages.load(file,width(context));}
         catch(RuntimeException|OutOfMemoryError e){android.util.Log.w("QuietTV","Custom cover unavailable; using original artwork");return null;}
     }

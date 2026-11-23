@@ -21,6 +21,11 @@ final class DesktopSwitchPlan {
         default void management(JSONObject record) throws Exception {throw new IOException("管理记录不可用");}
         default void verify(String scene,String result) throws Exception {throw new IOException("此路线不支持记录验证结果");}
     }
+    private static final String ENABLE_PACKAGE_CONNECTION="需要已授权的管理连接，且系统须支持恢复原包状态。";
+    private static final String ENABLE_COMPONENT_CONNECTION="需要管理连接以启用并恢复原桌面组件。";
+    private static final String SWITCH_HOME_CONNECTION="需要已授权的管理连接以切换并核对 HOME。";
+    private static final String RESTORE_HOME_CONNECTION="需要已授权的管理连接以恢复切换前的 HOME。";
+    private static final String RESTORE_DISABLED_CONNECTION="管理连接或恢复原禁用状态的命令不可用。";
     private final Port port;
     DesktopSwitchPlan(Port port){this.port=port;}
     private static boolean active(JSONObject record){return record!=null&&!"quiet".equals(record.optString("phase"));}
@@ -33,7 +38,7 @@ final class DesktopSwitchPlan {
         if(returning){
             JSONObject baseline=record.getJSONObject("baseline");String problem=reason.isEmpty()?returnProblem(env,baseline,false):reason;
             actions.put(action("quiet","切回 Quiet TV",problem,"恢复切换前的 HOME 与接管配置，保留原桌面启用。"));
-            if(!baseline.optBoolean("stockEnabled")&&!baseline.optBoolean("dependsOnStock"))actions.put(action("quiet-disable","切回并恢复原禁用状态",reason.isEmpty()?returnProblem(env,baseline,true):reason,"切回 Quiet TV 后，恢复本次切换前的原桌面包及组件状态。"));
+            if(!baseline.optBoolean("stockEnabled")&&!baseline.optBoolean("dependsOnStock"))actions.put(action("quiet-disable","切回并恢复原禁用状态",reason.isEmpty()?returnProblem(env,baseline,true):reason,"切回 Quiet TV 后，将原桌面恢复为切换前的禁用状态。"));
         }else{
             String problem=reason.isEmpty()?stockProblem(env):reason;
             actions.put(action("stock",env.optBoolean("stockEnabled")?"切换到原桌面":"启用并切换到原桌面",problem,"暂停现有接管后使用原桌面；可从 Quiet TV 或手机设置切回。"));
@@ -42,19 +47,24 @@ final class DesktopSwitchPlan {
             .put("mode",returning?("stock".equals(record.optString("phase"))?"原桌面":"切换待核对"):"Quiet TV").put("route",env.optString("routeLabel")).put("message",returning?record.optString("message"):reason).put("problem",reason).put("actions",actions);
         return DesktopManagementState.present(legacy,env,port.runtime(),record,port.management());
     }
-    private static JSONObject action(String id,String title,String problem,String explanation)throws JSONException{return new JSONObject().put("id",id).put("title",title).put("enabled",problem.isEmpty()).put("reason",problem).put("explanation",explanation);}
+    private static JSONObject action(String id,String title,String problem,String explanation)throws JSONException {
+        boolean requiresManagement=Arrays.asList(ENABLE_PACKAGE_CONNECTION,ENABLE_COMPONENT_CONNECTION,
+                SWITCH_HOME_CONNECTION,RESTORE_HOME_CONNECTION,RESTORE_DISABLED_CONNECTION).contains(problem);
+        return new JSONObject().put("id",id).put("title",title).put("enabled",problem.isEmpty())
+            .put("reason",problem).put("explanation",explanation).put("requiresManagement",requiresManagement);
+    }
     private static String stockProblem(JSONObject e){
-        if(e.optBoolean("externalHelper"))return "当前有独立中转助手接管，请先在桌面管理中核对。";
+        if(e.optBoolean("externalHelper"))return "当前有独立中转助手接管，请通过电脑核对原方案。";
         if(!e.optBoolean("homeKnown")&&!e.optBoolean("retainedHome"))return "系统 HOME 尚未确认，请先核对管理连接与默认桌面。";
-        if(!e.optBoolean("packageEnabled")&&(!e.optBoolean("canEnable")||!e.optBoolean("canRestorePackage")))return "需要已授权的管理连接，且系统须支持恢复原包状态。";
-        if(!e.optBoolean("componentEnabled")&&(!e.optBoolean("canEnable")||!e.optBoolean("canRestoreComponent")))return "需要管理连接以启用并恢复原桌面组件。";
-        if(!e.optString("stockHome").equals(e.optString("home"))&&!e.optBoolean("canHome"))return "需要已授权的管理连接以切换并核对 HOME。";
+        if(!e.optBoolean("packageEnabled")&&(!e.optBoolean("canEnable")||!e.optBoolean("canRestorePackage")))return ENABLE_PACKAGE_CONNECTION;
+        if(!e.optBoolean("componentEnabled")&&(!e.optBoolean("canEnable")||!e.optBoolean("canRestoreComponent")))return ENABLE_COMPONENT_CONNECTION;
+        if(!e.optString("stockHome").equals(e.optString("home"))&&!e.optBoolean("canHome"))return SWITCH_HOME_CONNECTION;
         return "";
     }
     private static String returnProblem(JSONObject e,JSONObject b,boolean disable){
         if(!disable&&b.optBoolean("requiresStockDisabled"))return "此系统需恢复原禁用状态，HOME 才能返回 Quiet TV。";
-        if(!e.optString("home").equals(b.optString("home"))&&!e.optBoolean("canHome"))return "需要已授权的管理连接以恢复切换前的 HOME。";
-        if(disable&&((e.optInt("packageSetting")!=b.optInt("packageSetting")&&!e.optBoolean("canRestorePackage"))||(e.optInt("componentSetting")!=b.optInt("componentSetting")&&!e.optBoolean("canRestoreComponent"))))return "管理连接或恢复原禁用状态的命令不可用。";
+        if(!e.optString("home").equals(b.optString("home"))&&!e.optBoolean("canHome"))return RESTORE_HOME_CONNECTION;
+        if(disable&&((e.optInt("packageSetting")!=b.optInt("packageSetting")&&!e.optBoolean("canRestorePackage"))||(e.optInt("componentSetting")!=b.optInt("componentSetting")&&!e.optBoolean("canRestoreComponent"))))return RESTORE_DISABLED_CONNECTION;
         if(disable&&(b.optBoolean("dependsOnStock")||b.optString("home").equals(b.optString("original"))))return "原接管方案依赖原桌面，必须保留启用。";
         return "";
     }
@@ -118,7 +128,7 @@ final class DesktopSwitchPlan {
                     pending.put("message","原桌面已启用，主桌面与守护设置保留。");
                 }else{
                     setOriginal(m,record,false,3);require(!port.read().optBoolean("stockEnabled"),"原桌面禁用未确认");
-                    pending.put("message",id.equals("quiet-then-disable-original")?"已切回 Quiet TV 并禁用原桌面，请核对 HOME 行为。":"原桌面已禁用，可从更多管理恢复启用。");
+                    pending.put("message",id.equals("quiet-then-disable-original")?"已切回 Quiet TV 并禁用原桌面，请核对 HOME 行为。":"原桌面已禁用，安装和应用数据已保留。");
                 }
                 record.put("completed",true);
             }

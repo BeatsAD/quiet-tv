@@ -102,7 +102,7 @@ final class WeatherController {
     private boolean accept(int version,String selected){return active&&version==generation&&selected.equals(store.key(chinese));}
     private void schedule(long delay){main.removeCallbacks(refresh);if(active&&needed())main.postDelayed(refresh,Math.max(1000,delay));}
     private void cancel(){if(diagnostic!=null)diagnostic.finish("CANCELLED","inactive_or_settings_changed");++generation;locations.cancel();if(request!=null)request.cancel(true);client.cancel();loading=false;}
-    private boolean connected(){ConnectivityManager manager=(ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);NetworkInfo info=manager==null?null:manager.getActiveNetworkInfo();return info!=null&&info.isConnected();}
+    private boolean connected(){ConnectivityManager manager=(ConnectivityManager)context.getApplicationContext().getSystemService(Context.CONNECTIVITY_SERVICE);NetworkInfo info=manager==null?null:manager.getActiveNetworkInfo();return info!=null&&info.isConnected();}
     private void render(){
         if(!needed()){listener.changed(null,"",false);return;}
         WeatherData visible=data!=null&&data.usable(System.currentTimeMillis())?data:null;

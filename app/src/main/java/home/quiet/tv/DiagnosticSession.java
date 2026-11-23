@@ -39,6 +39,7 @@ final class DiagnosticSession {
         }catch(IOException|JSONException unavailable){}
         build=info;String sha=info.optString("sourceSha256");sourceId=sha.matches("[a-f0-9]{64}")?sha.substring(0,24):"unknown";
     }
+    String sourceSha256(){return build.optString("sourceSha256");}
     String anonymous(String scope,String value){return scope+"-"+hash((identitySalt+":"+scope+":"+value).getBytes(Charsets.UTF_8)).substring(0,20);}
     String forwardedOrigin(){return "originRole=wallpaper originSession="+id+" originPid="+android.os.Process.myPid()+" originBuild="+BuildConfig.VERSION_CODE+" originSource="+sourceId
         +" originWallMs="+System.currentTimeMillis()+" originElapsedMs="+SystemClock.elapsedRealtime();}

@@ -47,10 +47,12 @@ final class ScreensaverDisplayControls {
         lunar=toggle(tr("显示农历","Show lunar date"),"saver-lunar",current->current.clock(current.clock.lunar(!current.clock.lunar)));
         seconds=toggle(tr("显示秒","Show seconds"),"saver-seconds",current->current.clock(current.clock.seconds(!current.clock.seconds)));
         choose=row(tr("选择屏保素材","Screensaver media"),"saver-media");choose.tail("arrow");choose.setOnClickListener(v->{expanded=!expanded;renderLibrary();refresh();scene();});group.addView(choose,new LinearLayout.LayoutParams(-1,ui.px(44.72f)));
-        materials=new DesktopMediaLibrary(ui,"screensaver",importer,new DesktopMediaLibrary.Actions(){public String selected(){return ScreensaverDisplayControls.this.selected();}public void select(String id){candidate=id;apply();}public void imported(String id,boolean apply)throws IOException{ScreensaverDisplayControls.this.imported(id,apply);}public void removed(){candidate="";settings=store.current();refresh();scene();choose.requestFocusFromTouch();}},rewired);library=materials.library;group.addView(library);LinearLayout indicators=ui.row();indicators.setClipToPadding(false);indicators.setPadding(ui.px(9.6f),ui.px(3.2f),ui.px(9.6f),ui.px(9.6f));group.addView(indicators);time=row(tr("显示时钟","Show clock"),"saver-clock");time.compactTile();time.setOnClickListener(v->{try{saveSettings(current->current.time(!current.showTime));}catch(IOException error){ui.error(error.getMessage());}});indicators.addView(time,new LinearLayout.LayoutParams(0,ui.px(42),1));
-        weather=row(tr("显示天气","Show weather"),"saver-weather");weather.compactTile();weather.setOnClickListener(v->{try{saveSettings(current->current.weather(!current.showWeather));}catch(IOException error){ui.error(error.getMessage());}});LinearLayout.LayoutParams weatherPosition=new LinearLayout.LayoutParams(0,ui.px(42),1);weatherPosition.leftMargin=ui.px(6);indicators.addView(weather,weatherPosition);
-        sound=row(tr("屏保声音","Screensaver sound"),"saver-sound");sound.setOnClickListener(v->{try{saveSettings(current->current.sound(!current.sound));}catch(IOException error){ui.error(error.getMessage());}});group.addView(sound,new LinearLayout.LayoutParams(-1,ui.px(44.72f)));
-        timePosition=positionChoice(true,bridge);group.addView(timePosition);this.weatherPosition=positionChoice(false,bridge);group.addView(this.weatherPosition);
+        materials=new DesktopMediaLibrary(ui,"screensaver",importer,new DesktopMediaLibrary.Actions(){public String selected(){return ScreensaverDisplayControls.this.selected();}public boolean select(String id){candidate=id;return apply();}public void imported(String id,boolean apply)throws IOException{ScreensaverDisplayControls.this.imported(id,apply);}public void removed(){candidate="";settings=store.current();refresh();scene();choose.requestFocusFromTouch();}},rewired);library=materials.library;group.addView(library);
+        time=toggle(tr("显示时钟","Show clock"),"saver-clock",current->current.time(!current.showTime));
+        timePosition=positionChoice(true,bridge);group.addView(timePosition);
+        weather=toggle(tr("显示天气","Show weather"),"saver-weather",current->current.weather(!current.showWeather));
+        weatherPosition=positionChoice(false,bridge);group.addView(weatherPosition);
+        sound=row(tr("屏保声音","Screensaver sound"),"saver-sound");sound.setOnClickListener(v->{try{saveSettings(current->current.sound(!current.sound));PhoneSettingsSession.get(ui).configurationChanged();}catch(IOException error){ui.error(error.getMessage());}});group.addView(sound,new LinearLayout.LayoutParams(-1,ui.px(44.72f)));
         refresh();
     }
     private DisplayAppearanceChoice positionChoice(boolean clock,DisplayAppearanceChoice.Preview bridge){return new DisplayAppearanceChoice(ui,clock?"saver-clock-position":"saver-weather-position",clock?tr("时钟位置","Clock position"):tr("天气位置","Weather position"),ScreensaverSettings.POSITIONS,new String[]{tr("左上角","Top left"),tr("右上角","Top right"),tr("居中","Center"),tr("左下角","Bottom left"),tr("右下角","Bottom right")},new DisplayAppearanceChoice.Access(){public String read(){return clock?settings.timePosition:settings.weatherPosition;}public void save(String value)throws IOException{saveSettings(current->clock?current.timePosition(value):current.weatherPosition(value));}},false,bridge,rewired).twoColumns();}
@@ -108,7 +110,7 @@ final class ScreensaverDisplayControls {
         flipSeconds.setVisibility(settings.flipping()?View.VISIBLE:View.GONE);flipSeconds.checked(settings.flipShowSeconds);flipSound.setVisibility(settings.flipping()?View.VISIBLE:View.GONE);flipSound.checked(settings.flipSound);
         boolean positionFocused=timePosition.hasFocus();if(settings.flipping()&&timePosition.getVisibility()==View.VISIBLE){timePosition.cancel(false);draftTimePosition="";}
         timePosition.setVisibility(!settings.flipping()&&!settings.composedClock()&&(settings.showTime||settings.clockOnly())?View.VISIBLE:View.GONE);weatherPosition.setVisibility(settings.showWeather?View.VISIBLE:View.GONE);
-        WallpaperCatalog.Entry entry=media.snapshot().find(candidate.isEmpty()?settings.mediaId:candidate);choose.value(entry==null?tr("素材不可用","Unavailable"):entry.label(ui.chinese()));waiting.refresh();content.refresh();timePosition.refresh();weatherPosition.refresh();analogStyle.refresh();digitalLayout.refresh();rewired.run();if(positionFocused&&settings.flipping())flipSeconds.requestFocus();
+        WallpaperCatalog.Entry entry=media.snapshot().find(selected());choose.value(ScreensaverSettings.NO_MEDIA.equals(selected())?tr("空白背景","Blank background"):entry==null?tr("素材不可用","Unavailable"):entry.label(ui.chinese()));waiting.refresh();content.refresh();timePosition.refresh();weatherPosition.refresh();analogStyle.refresh();digitalLayout.refresh();rewired.run();if(positionFocused&&settings.flipping())flipSeconds.requestFocus();
     }
     private void scene(){if(settings==null)return;ScreensaverSettings shown=draftMode.isEmpty()?settings:settings.content(draftMode);if(!draftTimePosition.isEmpty())shown=shown.timePosition(draftTimePosition);if(!draftWeatherPosition.isEmpty())shown=shown.weatherPosition(draftWeatherPosition);if(!draftAnalogStyle.isEmpty())shown=shown.clock(shown.clock.style(draftAnalogStyle));if(!draftDigitalLayout.isEmpty())shown=shown.clock(shown.clock.layout(draftDigitalLayout));preview.show(shown,candidate);}
     void showPreview(){scene();}
@@ -116,17 +118,51 @@ final class ScreensaverDisplayControls {
     private DisplayAppearanceChoice[] choices(){return new DisplayAppearanceChoice[]{content,waiting,timePosition,weatherPosition,analogStyle,digitalLayout};}
     String error(){if(!error.isEmpty())return error;for(DisplayAppearanceChoice choice:choices())if(choice!=null&&!choice.error().isEmpty())return choice.error();return "";}
     boolean contains(View view){while(view!=null){if(view==group)return true;view=view.getParent() instanceof View?(View)view.getParent():null;}return false;}
-    private void apply(){if(candidate.isEmpty())return;try{saveSettings(current->current.media(candidate));candidate="";refresh();scene();View card=library.findViewWithTag("saver-media-"+settings.mediaId);View target=card==null?choose:card;target.post(target::requestFocusFromTouch);ui.success(tr("屏保素材已应用","Screensaver media applied"));}catch(IOException error){ui.error(error.getMessage());}}
-    void imported(String id,boolean apply)throws IOException{WallpaperCatalog.Entry entry=media.snapshot().find(id);if(entry==null)throw new IOException("素材不可用");if(apply){writeSettings(current->current.media(id));candidate="";}else candidate=id;expanded=true;materials.chooseType(id);renderLibrary();refresh();scene();materials.focus(id);}
+    private boolean apply(){
+        if(candidate.isEmpty())return false;
+        try{
+            writeSettings(current->current.media(candidate));
+            finishMediaSelection();
+            ui.success(tr("屏保素材已应用","Screensaver media applied"));
+            return true;
+        }catch(IOException error){
+            ui.error(error.getMessage());
+            return false;
+        }
+    }
+    private void finishMediaSelection(){
+        candidate="";
+        draftMode="";
+        expanded=false;
+        refresh();
+        scene();
+        choose.post(choose::requestFocusFromTouch);
+    }
+    void imported(String id,boolean apply)throws IOException{
+        WallpaperCatalog.Entry entry=media.snapshot().find(id);
+        if(entry==null)throw new IOException("素材不可用");
+        if(apply){
+            writeSettings(current->current.media(id));
+            finishMediaSelection();
+            return;
+        }
+        candidate=id;
+        expanded=true;
+        materials.chooseType(id);
+        renderLibrary();
+        refresh();
+        scene();
+        materials.focus(id);
+    }
     boolean back(){for(DisplayAppearanceChoice choice:choices())if(choice!=null&&choice.back())return true;if(expanded){expanded=false;renderLibrary();refresh();choose.requestFocusFromTouch();return true;}if(!candidate.isEmpty()){candidate="";refresh();scene();return true;}return false;}
     void pause(){for(DisplayAppearanceChoice choice:choices())if(choice!=null)choice.cancel(false);draftMode=draftTimePosition=draftWeatherPosition=draftAnalogStyle=draftDigitalLayout="";}
-    private String selected(){return candidate.isEmpty()?settings.mediaId:candidate;}
+    private String selected(){return candidate.isEmpty()?settings.customMediaId(media.snapshot()):candidate;}
     private void renderLibrary(){if(materials!=null&&expanded)materials.render();}
     private void refreshSelection(){if(materials!=null)materials.refreshSelection();}
     void refreshNames(){if(materials!=null)materials.refreshNames();WallpaperCatalog.Entry entry=media.snapshot().find(selected());if(choose!=null&&entry!=null)choose.value(entry.label(ui.chinese()));}
     void refreshLibrary(){if(materials!=null&&expanded)materials.refreshThumbnails();}
     void save(Bundle state){state.putString("saver-media-candidate",candidate);state.putBoolean("saver-library-open",expanded);if(materials!=null)materials.save(state);}
-    void restore(Bundle state){if(state==null)return;candidate=state.getString("saver-media-candidate","");if(media.snapshot().find(candidate)==null)candidate="";expanded=state.getBoolean("saver-library-open");if(materials!=null)materials.restore(state);refresh();}
+    void restore(Bundle state){if(state==null)return;candidate=state.getString("saver-media-candidate","");WallpaperCatalog catalog=media.snapshot();if(WallpaperCatalog.DEFAULT.equals(candidate)||catalog.find(candidate)==null||catalog.builtinHidden(candidate,true))candidate="";expanded=state.getBoolean("saver-library-open");if(materials!=null)materials.restore(state);refresh();}
 
     void destroy(){if(materials!=null)materials.destroy();}
 }

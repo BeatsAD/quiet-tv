@@ -1,6 +1,7 @@
 package home.quiet.tv;
 
 import android.content.pm.ApplicationInfo;
+import android.graphics.drawable.Drawable;
 import android.os.*;
 import android.view.*;
 import android.widget.*;
@@ -10,10 +11,13 @@ import java.util.concurrent.*;
 
 /** The quick tool edits the existing single startup destination without launching it. */
 final class BootToolsSheet {
+    private static final int COLUMNS=4;
     private static final class Target {
         final String id,label;
         final boolean hdmi,available;
-        Target(String id,String label,boolean hdmi,boolean available){this.id=id;this.label=label;this.hdmi=hdmi;this.available=available;}
+        final Drawable icon;
+        Target(String id,String label,boolean hdmi,boolean available){this(id,label,hdmi,available,null);}
+        Target(String id,String label,boolean hdmi,boolean available,Drawable icon){this.id=id;this.label=label;this.hdmi=hdmi;this.available=available;this.icon=icon;}
     }
     private final ManagementUi ui;
     private final Runnable closed;
@@ -23,13 +27,13 @@ final class BootToolsSheet {
     private final List<Target> targets=new ArrayList<>();
     private ManagementUi.Sheet sheet;
     private View origin;
-    private Button pin;
+    private Button close;
     private boolean destroyed,loading;
     private int generation;
     private String focus="boot-home",pending,expected="",error="";
     private String phoneKey="";
     private final Runnable phoneChanged=this::phoneChanged;
-    private void phoneChanged(){if(!open()||pending!=null)return;QuickControlStore.Snapshot quick=new QuickControlStore(new File(ui.getFilesDir(),"quick-controls")).cached();String key=current()+":"+store.label()+":"+store.watchTarget()+":"+store.tested()+":"+(quick==null?-1:quick.revision);if(key.equals(phoneKey))return;phoneKey=key;load();readPin();}
+    private void phoneChanged(){if(!open()||pending!=null)return;String key=current()+":"+store.label()+":"+store.watchTarget()+":"+store.tested();if(key.equals(phoneKey))return;phoneKey=key;load();}
 
     BootToolsSheet(ManagementUi ui,Runnable closed){this.ui=ui;this.closed=closed;store=new BootAppStore(ui);}
     private boolean open(){return !destroyed&&sheet!=null;}
@@ -37,26 +41,23 @@ final class BootToolsSheet {
     private String currentLabel(){return store.enabled()?store.label():"Quiet TV 首页";}
     private String tag(Target target){return target.id.isEmpty()?"boot-home":"boot-target-"+target.id;}
     private TextView text(String value,float size,float line,int color){TextView view=ui.label(value,12);QuickControlPreviewView.type(view,size,line,ui.unit,color);return view;}
-    private void identify(View view,String key){view.setTag(key);view.setId(androidx.core.view.ViewCompat.generateViewId());view.setFocusableInTouchMode(true);view.setOnFocusChangeListener((v,on)->{if(on)focus=key;});}
+    private void identify(View view,String key){view.setTag(key);view.setId(androidx.core.view.ViewCompat.generateViewId());view.setFocusableInTouchMode(true);view.setOnFocusChangeListener((v,on)->{if(on&&(!loading||!"sheet-close".equals(key)))focus=key;});}
     private Button button(String title,String key,Runnable action,boolean primary){
-        Button view=ui.button(title,action);identify(view,key);view.setAllCaps(false);view.setMinHeight(0);view.setMinimumHeight(0);view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,11.712f*ui.unit);view.setPadding(ui.px(12.96f),ui.px(7.2f),ui.px(12.96f),ui.px(7.2f));view.setBackgroundDrawable(new SettingsFocusDrawable(ui.unit,21.12f,primary?(ui instanceof AppManagementActivity?UiPalette.SELECTED:0xe6ffffff):UiPalette.CONTROL,false,primary?0x4dffffff:UiPalette.EDGE,false,12));view.setTextColor(SettingsFocusDrawable.textColors(primary&&!(ui instanceof AppManagementActivity)?UiPalette.INK:UiPalette.TEXT));SettingsTouchClick.attach(view);return view;
+        Button view=ui.button(title,action);identify(view,key);view.setAllCaps(false);view.setMinHeight(0);view.setMinimumHeight(0);view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,11.712f*ui.unit);view.setPadding(ui.px(12.96f),ui.px(7.2f),ui.px(12.96f),ui.px(7.2f));view.setBackgroundDrawable(new SettingsFocusDrawable(ui.unit,21.12f,primary?(ui instanceof AppManagementActivity?UiPalette.SELECTED:0xe6ffffff):UiPalette.CONTROL,false,primary?0x4dffffff:UiPalette.EDGE).outlineOnFocus());view.setTextColor(SettingsFocusDrawable.textColors(primary&&!(ui instanceof AppManagementActivity)?UiPalette.INK:UiPalette.TEXT));SettingsTouchClick.attach(view);return view;
     }
-    void show(){if(open())return;focus="boot-home";pending=null;expected=error="";create();}
+    void show(){if(open())return;String saved=current();focus=saved.isEmpty()?"boot-home":"boot-target-"+saved;pending=null;expected=error="";create();}
     private void create(){
-        origin=ui.getCurrentFocus();sheet=ui.new Sheet("开机直达");ManagementUi.Sheet own=sheet;Button close=sheet.settingsLayout("关闭",this::close);identify(close,"sheet-close");sheet.settingsActions(false);
-        pin=button("固定到快捷控制","boot-pin",this::pin,false);pin.setEnabled(false);pin.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,9.6f*ui.unit);pin.setPadding(ui.px(6.72f),0,ui.px(6.72f),0);LinearLayout.LayoutParams pp=new LinearLayout.LayoutParams(-2,ui.px(24));pp.rightMargin=ui.px(9.6f);((LinearLayout)close.getParent()).addView(pin,1,pp);readPin();
-        sheet.dialog.setOnKeyListener((dialog,key,event)->{if(key!=KeyEvent.KEYCODE_BACK&&key!=KeyEvent.KEYCODE_ESCAPE)return false;if(event.getAction()==KeyEvent.ACTION_UP)close();return true;});
+        origin=ui.getCurrentFocus();sheet=ui.new Sheet("开机直达");ManagementUi.Sheet own=sheet;close=sheet.settingsLayout("关闭",this::close);identify(close,"sheet-close");sheet.settingsActions(false);sheet.contentSize(448,380);
+        sheet.dialog.setOnKeyListener((dialog,key,event)->KeyFeedback.backKey(ui,event,sheet!=null,this::close));
         sheet.dialog.setOnDismissListener(dialog->{if(sheet!=own)return;sheet=null;++generation;if(origin!=null&&origin.isShown())origin.requestFocusFromTouch();closed.run();});
         String target=focus;render();sheet.show(null);focus=target;restoreFocus();load();
     }
-    private void readPin(){worker.execute(()->{QuickControlStore.Snapshot value=null;try{value=new QuickControlStore(new File(ui.getFilesDir(),"quick-controls")).read();}catch(IOException ignored){}QuickControlStore.Snapshot ready=value;main.post(()->{if(open()){boolean added=ready!=null&&ready.ids.contains("boot");pin.setText(added?"已固定":"固定到快捷控制");pin.setEnabled(ready!=null&&!added);}});});}
-    private void pin(){pin.setEnabled(false);worker.execute(()->{String failure=null;try{QuickControlStore quick=new QuickControlStore(new File(ui.getFilesDir(),"quick-controls"));QuickControlStore.Snapshot before=quick.read();List<String> next=new ArrayList<>(before.ids);if(!next.contains("boot"))next.add("boot");quick.save(before.revision,next);}catch(IOException changed){failure=changed instanceof QuickControlStore.Changed?"快捷功能已变化，请重新打开后再固定":"固定失败，原快捷配置已保留";}String message=failure;main.post(()->{if(open()){error=message==null?"":message;render();readPin();}});});}
     private void load(){
         if(!open())return;int version=++generation;loading=true;render();String saved=store.watchTarget();boolean tested=store.tested();
         worker.execute(()->{
             List<Target> result=new ArrayList<>();String failure="";result.add(new Target("","Quiet TV 首页",false,true));
             try{
-                for(HomeAppCatalog.Entry entry:new HomeAppCatalog(ui).load(Collections.emptyList()))if(entry.info!=null&&(entry.info.activityInfo.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0&&store.launchIntent(entry.id)!=null)result.add(new Target(entry.id,entry.label,false,true));
+                for(HomeAppCatalog.Entry entry:new HomeAppCatalog(ui).load(Collections.emptyList()))if(entry.info!=null&&(entry.info.activityInfo.applicationInfo.flags&ApplicationInfo.FLAG_SYSTEM)==0&&store.launchIntent(entry.id)!=null)result.add(new Target(entry.id,entry.label,false,true,entry.info.loadIcon(ui.getPackageManager())));
                 List<HdmiTarget> inputs=HdmiTarget.available(ui);HdmiTarget paired=HdmiTarget.decode(saved);boolean pairedFound=false;
                 for(HdmiTarget input:inputs){boolean matches=paired!=null&&paired.matches(input);pairedFound|=matches;result.add(new Target("hdmi:"+(matches?saved:input.encode()),matches?store.watchLabel():input.label,true,matches&&tested&&paired.prepare(ui)!=null));}
                 if(paired!=null&&!pairedFound)result.add(new Target("hdmi:"+saved,paired.label,true,tested&&paired.prepare(ui)!=null));
@@ -72,13 +73,81 @@ final class BootToolsSheet {
         if(!open())return;String target=focus;sheet.body.removeAllViews();sheet.actions.removeAllViews();sheet.settingsActions(false);
         Target chosen=pending==null?null:find(pending);
         if(chosen!=null)confirmation(chosen);
-        else{
-            note(sheet.body,"当前："+currentLabel()+"。开机或待机唤醒进入 Quiet TV 后打开自启应用，按 HOME 返回不重复启动。应用与看电视共用一个开机目标。",14.464f,23.8656f,7.68f,14.4f);
-            if(loading)note(sheet.body,"正在读取开机目标…",14.464f,23.8656f,0,0);
-            else{boolean hdmi=false;for(Target value:targets){Button choice=button((current().equals(value.id)?"已选择  ":"")+value.label,tag(value),()->choose(value),false);choice.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);choice.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,14.4f*ui.unit);choice.setMinHeight(ui.px(39.36f));choice.setMinimumHeight(ui.px(39.36f));choice.setEnabled(value.available);choice.setAlpha(1f);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.bottomMargin=ui.px(7.2f);sheet.body.addView(choice,lp);hdmi|=value.hdmi&&value.available;}if(!hdmi)note(sheet.body,"此机型的 HDMI 开机直达尚未验证，暂不可选。",14.464f,23.8656f,7.68f,14.4f);}
-        }
+        else if(loading)note(sheet.body,"正在读取开机目标…",14.464f,23.8656f,0,0);
+        else grid();
         if(!error.isEmpty()){TextView problem=text(error,15.36f,23.04f,UiPalette.TEXT);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.topMargin=ui.px(12.8f);sheet.body.addView(problem,lp);}
         focus=target;restoreFocus();
+    }
+    private void grid(){
+        String saved=current();
+        List<View> choices=new ArrayList<>();
+        LinearLayout row=null;
+        for(int i=0;i<targets.size();i++){
+            if(i%COLUMNS==0){
+                row=ui.row();
+                LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2);
+                rp.bottomMargin=ui.px(10);sheet.body.addView(row,rp);
+            }
+            Target target=targets.get(i);
+            boolean selected=saved.equals(target.id);
+            LinearLayout cell=ui.column();cell.setGravity(Gravity.CENTER_HORIZONTAL);
+            // Keep the caption outside the focus plate. The cell is the only keyboard/accessibility item.
+            identify(cell,tag(target));cell.setEnabled(target.available);cell.setFocusable(target.available);
+            cell.setClickable(target.available);
+            if(target.available)cell.setOnClickListener(v->choose(target));
+            cell.setContentDescription(selected?"已选择  "+target.label:target.label);
+            FrameLayout plate=new FrameLayout(ui);plate.setDuplicateParentStateEnabled(true);
+            plate.setBackgroundDrawable(new SettingsFocusDrawable(ui.unit,12,UiPalette.CONTROL,false,UiPalette.EDGE));
+            cell.addView(plate,new LinearLayout.LayoutParams(-1,ui.px(59)));
+            ImageView icon=new ImageView(ui);icon.setDuplicateParentStateEnabled(true);
+            if(target.icon!=null)icon.setImageDrawable(target.icon);
+            else icon.setImageDrawable(new QuickControlIcon(target.hdmi?"plugs":target.id.isEmpty()?"left-desktop":"app-window"));
+            plate.addView(icon,new FrameLayout.LayoutParams(ui.px(31),ui.px(31),Gravity.CENTER));
+            if(selected){
+                ImageView check=new ImageView(ui);check.setDuplicateParentStateEnabled(true);
+                QuickControlIcon markIcon=new QuickControlIcon("circle-check");
+                markIcon.setTintList(SettingsFocusDrawable.textColors(UiPalette.STATUS_SUCCESS,0xff146c2e));
+                check.setImageDrawable(markIcon);
+                FrameLayout.LayoutParams mark=new FrameLayout.LayoutParams(ui.px(13),ui.px(13),Gravity.TOP|Gravity.RIGHT);
+                mark.topMargin=mark.rightMargin=ui.px(5);plate.addView(check,mark);
+            }
+            TextView name=text(target.label,11.52f,17.28f,target.available?UiPalette.TEXT:UiPalette.FAINT);
+            name.setGravity(Gravity.CENTER);name.setSingleLine(true);name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            LinearLayout.LayoutParams caption=new LinearLayout.LayoutParams(-1,ui.px(19));
+            caption.topMargin=ui.px(3);cell.addView(name,caption);
+            androidx.core.view.ViewCompat.setImportantForAccessibility(name,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,-2,1);
+            if(i%COLUMNS!=0)cp.leftMargin=ui.px(8);
+            row.addView(cell,cp);choices.add(cell);
+        }
+        if(row!=null)for(int i=choices.size()%COLUMNS;i>0&&i<COLUMNS;i++){
+            LinearLayout.LayoutParams empty=new LinearLayout.LayoutParams(0,1,1);
+            empty.leftMargin=ui.px(8);row.addView(new View(ui),empty);
+        }
+        for(int i=0;i<choices.size();i++){
+            View card=choices.get(i);
+            if(!card.isEnabled())continue;
+            int start=i/COLUMNS*COLUMNS,end=Math.min(start+COLUMNS,choices.size());
+            int left=i-1,right=i+1;
+            while(left>=start&&!choices.get(left).isEnabled())left--;
+            while(right<end&&!choices.get(right).isEnabled())right++;
+            card.setNextFocusLeftId(left>=start?choices.get(left).getId():card.getId());
+            card.setNextFocusRightId(right<end?choices.get(right).getId():card.getId());
+            card.setNextFocusUpId(gridNeighbor(choices,i,-COLUMNS,close.getId()));
+            card.setNextFocusDownId(gridNeighbor(choices,i,COLUMNS,card.getId()));
+        }
+    }
+    private int gridNeighbor(List<View> choices,int index,int step,int fallback){
+        int column=index%COLUMNS;
+        for(int start=index-column+step;start>=0&&start<choices.size();start+=step){
+            View nearest=null;int distance=COLUMNS;
+            for(int c=0;c<COLUMNS&&start+c<choices.size();c++){
+                View candidate=choices.get(start+c);
+                if(candidate.isEnabled()&&Math.abs(c-column)<distance){nearest=candidate;distance=Math.abs(c-column);}
+            }
+            if(nearest!=null)return nearest.getId();
+        }
+        return fallback;
     }
     private void confirmation(Target chosen){
         LinearLayout card=ui.column();card.setPadding(ui.px(14.4f),ui.px(14.4f),ui.px(14.4f),ui.px(14.4f));card.setBackgroundDrawable(ui.surface(UiPalette.CONTROL,UiPalette.CONTROL,UiPalette.EDGE,11.52f));LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,-2);cp.topMargin=cp.bottomMargin=ui.px(13.44f);sheet.body.addView(card,cp);

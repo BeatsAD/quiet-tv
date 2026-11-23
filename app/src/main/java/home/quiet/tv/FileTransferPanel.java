@@ -86,7 +86,7 @@ final class FileTransferPanel extends ManagementPanel {
         });return choice;
     }
     private void accessOptions(){
-        Sheet sheet=new Sheet("读取本地文件");
+        Sheet sheet=new Sheet("读取本地文件");sheet.delegate.settingsLayout("关闭",sheet.dialog::dismiss);sheet.delegate.settingsActions(false);
         sheet.text(Build.VERSION.SDK_INT>=21?"可选择单个文件，或授权一个目录供本页浏览。":"进入可读取的目录后，可记住该目录供下次浏览。");
         Button first=sheet.option("系统选择文件",()->{sheet.dialog.dismiss();pick();});
         if(Build.VERSION.SDK_INT>=21)sheet.option("授权目录",()->{sheet.dialog.dismiss();pickTree();});
@@ -94,7 +94,7 @@ final class FileTransferPanel extends ManagementPanel {
             if(folder!=null)sheet.option("记住当前目录",()->{sheet.dialog.dismiss();rememberLocalDirectory();});
             sheet.option("重新选择目录",()->{sheet.dialog.dismiss();resetLocalDirectory();});
         }
-        sheet.option(FileTransferSource.partialMediaAccess(activity)?"重新选择照片和视频":"重新读取存储",()->{sheet.dialog.dismiss();reread();});sheet.action("返回",sheet.dialog::dismiss);sheet.show(first);
+        sheet.option(FileTransferSource.partialMediaAccess(activity)?"重新选择照片和视频":"重新读取存储",()->{sheet.dialog.dismiss();reread();});sheet.show(first);
     }
     private void rememberLocalDirectory(){
         final File selected=folder;final int target=source;if(selected==null || target==0)return;
@@ -172,16 +172,21 @@ final class FileTransferPanel extends ManagementPanel {
         dismissFileDialog();FileActions sheet=new FileActions(selected!=null?selected.name:selectedSource.name,selected!=null?selected.bytes:selectedSource.bytes);Button first=null;
         if(selected!=null){final FileTransferStore.Entry entry=selected;if(FileTransferPolicy.apk(entry.name))first=sheet.option("安装应用",()->{sheet.dialog.dismiss();install(entry.id);});if(FileTransferPolicy.image(entry.name)||FileTransferPolicy.video(entry.name))first=sheet.option("预览并设为壁纸",()->{sheet.dialog.dismiss();preview(entry.id);});Button send=sheet.option("传到手机或电脑",()->{sheet.dialog.dismiss();offer(entry.id);});if(first==null)first=send;sheet.option("删除文件",true,()->{sheet.dialog.dismiss();confirmDelete(entry);});}
         else {final FileTransferSource.Item item=selectedSource;if(FileTransferPolicy.apk(item.name))first=sheet.option("安装应用",()->{sheet.dialog.dismiss();receive(item,false,false,true);});if(FileTransferPolicy.image(item.name)||FileTransferPolicy.video(item.name))first=sheet.option("预览并设为壁纸",()->{sheet.dialog.dismiss();receive(item,false,true);});Button save=sheet.option("保存到已接收",()->{sheet.dialog.dismiss();receive(item,false,false);});if(first==null)first=save;sheet.option("传到手机或电脑",()->{sheet.dialog.dismiss();receive(item,true,false);});}
-        sheet.option("取消",sheet.dialog::dismiss);fileDialog=sheet.dialog;sheet.dialog.setOnDismissListener(d->{if(fileDialog==sheet.dialog)fileDialog=null;if(showing)list.post(this::focusFiles);});sheet.show(first);
+        fileDialog=sheet.dialog;sheet.dialog.setOnDismissListener(d->{if(fileDialog==sheet.dialog)fileDialog=null;if(showing)list.post(this::focusFiles);});sheet.show(first);
     }
     /** Compact, two-column file actions; other management sheets keep their own layout. */
     private final class FileActions {
         final android.app.Dialog dialog=new KeyFeedback.Dialog(activity);
         final LinearLayout box=column();
         final ArrayList<Button> buttons=new ArrayList<>();
+        final Button close;
         FileActions(String name,long bytes){
             dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);box.setPadding(px(24),px(20),px(24),px(22));SettingsSheetBackdrop backdrop=new SettingsSheetBackdrop(activity,box);box.setBackgroundDrawable(backdrop);backdrop.followWindowFocus();
-            box.addView(label("文件操作",20),new LinearLayout.LayoutParams(-1,-2));gap(box,16);
+            LinearLayout header=row();
+            header.addView(label("文件操作",20),new LinearLayout.LayoutParams(0,px(26.88f),1));
+            close=button("关闭",dialog::dismiss);ManagementUi.styleSheetNavigation(close,unit);
+            header.addView(close,new LinearLayout.LayoutParams(px(41.2f),px(25.2f)));
+            box.addView(header,new LinearLayout.LayoutParams(-1,-2));gap(box,16);
             LinearLayout file=row();file.setGravity(Gravity.CENTER_VERTICAL);box.addView(file,new LinearLayout.LayoutParams(-1,-2));
             ImageView icon=new ImageView(activity);icon.setImageDrawable(UiCompat.drawable(activity,FileTransferPolicy.apk(name)?R.drawable.ic_transfer_apk:FileTransferPolicy.image(name)?R.drawable.ic_transfer_image:R.drawable.ic_transfer_file));file.addView(icon,new LinearLayout.LayoutParams(px(34),px(42)));
             LinearLayout info=column();LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(0,-2,1);ip.leftMargin=px(14);file.addView(info,ip);
@@ -196,11 +201,12 @@ final class FileTransferPanel extends ManagementPanel {
             button.setTextColor(new android.content.res.ColorStateList(new int[][]{{-android.R.attr.state_enabled},{android.R.attr.state_pressed},{android.R.attr.state_focused},{}},new int[]{UiPalette.FAINT,UiPalette.INK,UiPalette.INK,destructive?UiPalette.SECONDARY:TEXT}));buttons.add(button);return button;
         }
         void show(Button first){
-            ArrayList<Button> cells=new ArrayList<>(buttons);if(cells.size()%2!=0)cells.add(cells.size()-1,null);
+            ArrayList<Button> cells=new ArrayList<>(buttons);if(cells.size()%2!=0)cells.add(null);
             for(int i=0;i<cells.size();i+=2){LinearLayout line=row();LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,px(42));if(i>0)lp.topMargin=px(10);box.addView(line,lp);for(int col=0;col<2;col++){Button button=cells.get(i+col);LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,-1,1);if(col==1)bp.leftMargin=px(10);line.addView(button==null?new View(activity):button,bp);}}
-            for(int i=0;i<cells.size();i++){Button button=cells.get(i);if(button==null)continue;int row=i/2,col=i%2;Button left=col==1?cells.get(i-1):button,right=col==0?cells.get(i+1):button,up=row>0?cells.get(i-2):button,down=i+2<cells.size()?cells.get(i+2):button;if(down==null)down=cells.get(i+3);button.setNextFocusLeftId(left==null?button.getId():left.getId());button.setNextFocusRightId(right==null?button.getId():right.getId());button.setNextFocusUpId(up==null?button.getId():up.getId());button.setNextFocusDownId(down.getId());
+            for(int i=0;i<cells.size();i++){Button button=cells.get(i);if(button==null)continue;int row=i/2,col=i%2;Button left=col==1?cells.get(i-1):button,right=col==0?cells.get(i+1):button,up=row>0?cells.get(i-2):close,down=i+2<cells.size()?cells.get(i+2):button;if(down==null)down=button;button.setNextFocusLeftId(left==null?button.getId():left.getId());button.setNextFocusRightId(right==null?button.getId():right.getId());button.setNextFocusUpId(up==null?button.getId():up.getId());button.setNextFocusDownId(down.getId());
                 button.setOnKeyListener((v,key,event)->{if(key==KeyEvent.KEYCODE_DPAD_CENTER||key==KeyEvent.KEYCODE_ENTER)return event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()>0;int id=key==KeyEvent.KEYCODE_DPAD_LEFT?v.getNextFocusLeftId():key==KeyEvent.KEYCODE_DPAD_RIGHT?v.getNextFocusRightId():key==KeyEvent.KEYCODE_DPAD_UP?v.getNextFocusUpId():key==KeyEvent.KEYCODE_DPAD_DOWN?v.getNextFocusDownId():View.NO_ID;if(id==View.NO_ID)return false;if(event.getAction()==KeyEvent.ACTION_DOWN)box.findViewById(id).requestFocus();return true;});
             }
+            close.setNextFocusDownId(buttons.get(0).getId());
             dialog.show();dialog.getWindow().setLayout(px(400),-2);dialog.getWindow().getDecorView().setSystemUiVisibility(5894);(first==null?buttons.get(0):first).requestFocus();
         }
     }
@@ -253,7 +259,7 @@ final class FileTransferPanel extends ManagementPanel {
             }catch(IOException|WriterException error){candidate.stop();main.post(()->{if(attempt==sessionGeneration){start.setEnabled(true);status.setText("无法开启传输，请检查网络后重试");}});}
         });
     }
-    private void showCode(){FileTransferServer active=server;if(active==null||qrImage==null)return;Sheet sheet=new Sheet("扫码连接文件传输");LinearLayout row=row();TextView details=center(active.shortAddress()+"\n连接码  "+active.code(),14);row.addView(details,new LinearLayout.LayoutParams(0,-2,1));ImageView image=new QrCodeView(activity,unit);image.setImageBitmap(qrImage.copy(Bitmap.Config.ARGB_8888,false));image.setScaleType(ImageView.ScaleType.FIT_CENTER);image.setContentDescription("文件传输连接二维码");LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(px(240),px(240));p.leftMargin=px(22);row.addView(image,p);sheet.body.addView(row,new LinearLayout.LayoutParams(-1,-2));Button back=sheet.action("返回",sheet.dialog::dismiss);codeDialog=sheet.dialog;sheet.dialog.setOnDismissListener(d->{image.setImageDrawable(null);if(codeDialog==sheet.dialog)codeDialog=null;});sheet.show(back);sheet.dialog.getWindow().setLayout(px(610),-2);}
+    private void showCode(){FileTransferServer active=server;if(active==null||qrImage==null)return;Sheet sheet=new Sheet("扫码连接文件传输");Button back=sheet.delegate.settingsLayout("关闭",sheet.dialog::dismiss);sheet.delegate.contentSize(610,450);sheet.delegate.settingsActions(false);LinearLayout row=row();TextView details=center(active.shortAddress()+"\n连接码  "+active.code(),14);row.addView(details,new LinearLayout.LayoutParams(0,-2,1));ImageView image=new QrCodeView(activity,unit);image.setImageBitmap(qrImage.copy(Bitmap.Config.ARGB_8888,false));image.setScaleType(ImageView.ScaleType.FIT_CENTER);image.setContentDescription("文件传输连接二维码");LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(px(240),px(240));p.leftMargin=px(22);row.addView(image,p);sheet.body.addView(row,new LinearLayout.LayoutParams(-1,-2));codeDialog=sheet.dialog;sheet.dialog.setOnDismissListener(d->{image.setImageDrawable(null);if(codeDialog==sheet.dialog)codeDialog=null;});sheet.show(back);}
     private void stopSession(){++sessionGeneration;if(codeDialog!=null){codeDialog.dismiss();codeDialog=null;}main.removeCallbacks(check);FileTransferServer old=server;server=null;if(old!=null){old.invalidate();worker.execute(old::stop);}if(qr!=null){qr.setImageDrawable(null);qr.setVisibility(View.GONE);}if(qrImage!=null){qrImage.recycle();qrImage=null;}if(start!=null){start.setEnabled(store!=null);start.setText("开启传输");}networkReceiving=false;if(connection!=null)connection.setText("把文件传到电视");if(status!=null)status.setText("传输已关闭");if(cancelTransfer!=null)renderActions();}
     private void up(){if(busy)return;directoryGeneration++;if(tree!=null){if(parents.isEmpty()){tree=current=null;source=0;selectedSource=null;renderActions();refresh(true);}else{current=parents.pop();refresh(true);}}else if(folder!=null){folder=folder.equals(boundary)?null:folder.getParentFile();refresh(true);}else managementTab().requestFocus();}
     @Override void focusManagementContent(){sourceTab().requestFocus();}

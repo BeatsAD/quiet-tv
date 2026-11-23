@@ -76,7 +76,7 @@ final class SystemEntryMaintenance {
     @SuppressWarnings("deprecation")
     private static boolean ethernet(Context context,String entry){
         if(!"network".equals(entry))return false;
-        ConnectivityManager manager=(ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);
+        ConnectivityManager manager=(ConnectivityManager)context.getApplicationContext().getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkInfo active=manager==null?null:manager.getActiveNetworkInfo();
         return active!=null&&active.isConnected()&&active.getType()==ConnectivityManager.TYPE_ETHERNET;
     }

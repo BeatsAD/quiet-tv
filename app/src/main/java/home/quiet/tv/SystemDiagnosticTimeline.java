@@ -30,16 +30,19 @@ final class SystemDiagnosticTimeline {
         androidx.core.content.ContextCompat.registerReceiver(context,new BroadcastReceiver(){@Override public void onReceive(Context c,Intent intent){record("package_broadcast");}},filter,androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
     }
     private synchronized void record(String reason){
+        if(!DiagnosticLog.recording())return;
         String current=read(context);if(current.equals(previous)&&!reason.equals("process_start"))return;
         String id=DiagnosticOperation.nextId(System.currentTimeMillis());
         DiagnosticLog.info("system.configuration.begin","operation="+id+" source=observer reason="+reason+" before=last_observed "+previous);
         DiagnosticLog.info("system.configuration.result","operation="+id+" source=observer reason="+reason+" readback=observed "+current);previous=current;
     }
     static String begin(Context context,String source,String operation){
+        if(!DiagnosticLog.recording())return "";
         String id=DiagnosticOperation.nextId(System.currentTimeMillis());
         DiagnosticLog.info("system.operation.begin","operation="+id+" source="+source+" action="+operation+" "+read(context));return id;
     }
     static void end(Context context,String id,String source,String operation,int result){
+        if(!DiagnosticLog.recording()||id.isEmpty())return;
         DiagnosticLog.info("system.operation.result","operation="+id+" source="+source+" action="+operation+" callbackResult="+result+" readback=observed "+read(context));
     }
     static boolean maintenance(String operation){return java.util.Arrays.asList("pause","finish_restore","proxy_prepare","proxy_finish","proxy_repair","takeover_preference","takeover_finish",

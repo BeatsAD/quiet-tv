@@ -31,7 +31,7 @@ public final class MaintenanceHelpActivity extends ManagementUi {
         });choose.setTag("choose-home");body.addView(choose,new LinearLayout.LayoutParams(-1,px(42)));gap(body,10);
         Button pause=button("暂停桌面接管",()->confirm(false));body.addView(pause,new LinearLayout.LayoutParams(-1,px(42)));gap(body,10);
         Button restore=button("恢复原桌面",()->confirm(true));body.addView(restore,new LinearLayout.LayoutParams(-1,px(42)));gap(body,10);
-        Button logs=button("导出诊断",()->startActivity(new Intent(this,AppManagementActivity.class).putExtra("management-page",5)));body.addView(logs,new LinearLayout.LayoutParams(-1,px(42)));
+        Button logs=button("诊断日志",()->startActivity(new Intent(this,AppManagementActivity.class).putExtra("management-page",5)));body.addView(logs,new LinearLayout.LayoutParams(-1,px(42)));
         LinearLayout computer=column();computer.setGravity(android.view.Gravity.CENTER_HORIZONTAL);LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(px(300),-1);cp.leftMargin=px(36);columns.addView(computer,cp);
         computer.addView(label("通过电脑配置",20));gap(computer,12);
         try{

@@ -30,11 +30,12 @@ final class IconLibraryPanel extends ManagementPanel {
     private volatile boolean destroyed;private boolean busy,reloadPending,refreshing;
     private String refreshMessage="";
     private volatile int loading,thumbnails;
+    private int focusRequest;
     private int scroll;
     private RecyclerView library;
     private GalleryAdapter adapter;
     private TextView empty,status;
-    private Button restore,batchAction,uploadAction,refresh;
+    private Button restore,batchAction,uploadAction,refresh,galleryOrigin;
     private IconLibraryReplaceSheet replacement;
     private ManagementUi.Sheet restoreSheet;
     private PopupWindow popup;
@@ -52,12 +53,13 @@ final class IconLibraryPanel extends ManagementPanel {
     private String tr(String zh,String en){return activity.tr(zh,en);}
     @Override public void onCreate(Bundle saved){
         if(saved!=null){pkg=saved.getString("package","");theme=saved.getString("theme","");style=IconLibraryCatalog.styleId(saved.getString("style"))?saved.getString("style"):"apple";shape=valid(saved.getString("shape"),IconLibraryCatalog.SHAPES);form=valid(saved.getString("form"),IconLibraryCatalog.FORMS);scroll=saved.getInt("scroll");focusTag=saved.getString("focus","icons-target");}
-        else{String requested=activity.getIntent().getStringExtra("selected-package");if(requested!=null)pkg=requested;}
+        else{shape=new DesktopSettingsStore(activity).iconShape();String requested=activity.getIntent().getStringExtra("selected-package");if(requested!=null)pkg=requested;}
         pageRoot=column();pageRoot.setClipChildren(false);pageRoot.setClipToPadding(false);activity.attachPanel(pageRoot);
         LinearLayout left=column();left.setClipChildren(false);left.setClipToPadding(false);pageRoot.addView(left,new LinearLayout.LayoutParams(-1,0,1));
         ((FrameLayout.LayoutParams)pageRoot.getLayoutParams()).topMargin=px(4);
         LinearLayout toolbar=row();toolbar.setTag("icon-library-toolbar");toolbar.setClipChildren(false);toolbar.setClipToPadding(false);left.addView(toolbar,new LinearLayout.LayoutParams(-1,px(36)));
-        batchAction=control(toolbar,tr("一键替换","Replace all"),"icons-batch",true,this::batch);controlGlyph(batchAction,"grid-2x2-check");
+        batchAction=control(toolbar,tr("一键替换","Replace all"),"icons-batch",true,this::batch);
+        controlGlyph(batchAction,"grid-2x2-check");
         uploadAction=control(toolbar,tr("扫码上传","Scan to upload"),"icons-upload",false,this::upload);controlGlyph(uploadAction,"qr-code");
         selector(toolbar,"icons-target",this::pickApps);selector(toolbar,"icons-style",this::pickStyles);selector(toolbar,"icons-shape",()->pick(2,IconLibraryCatalog.SHAPES,activity.chinese()?SHAPE_ZH:SHAPE_EN));selector(toolbar,"icons-form",this::pickForms);
         restore=control(toolbar,tr("恢复默认","Restore default"),"icons-restore",false,this::restore);
@@ -69,26 +71,35 @@ final class IconLibraryPanel extends ManagementPanel {
         IntentFilter changes=new IntentFilter(Intent.ACTION_PACKAGE_ADDED);changes.addAction(Intent.ACTION_PACKAGE_REMOVED);changes.addAction(Intent.ACTION_PACKAGE_CHANGED);changes.addDataScheme("package");registerReceiver(packages,changes);
         updateSelectors();enabled();
     }
+    static String shapeName(String shape,boolean chinese){
+        return (chinese?SHAPE_ZH:SHAPE_EN)[Arrays.asList(IconLibraryCatalog.SHAPES).indexOf(shape)];
+    }
     private String valid(String value,String[] choices){return IconLibraryCatalog.contains(choices,value)?value:choices[0];}
     private Button control(LinearLayout parent,String title,String tag,boolean primary,Runnable action){
-        Button b=button(title,action);b.setTag(tag);b.setId(androidx.core.view.ViewCompat.generateViewId());b.setSingleLine(true);b.setEllipsize(android.text.TextUtils.TruncateAt.END);b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,13*unit);b.setPadding(px(10),0,px(10),0);b.setTypeface(activity.navigationTypeface(primary));b.setTextColor(primary?new android.content.res.ColorStateList(new int[][]{{-android.R.attr.state_enabled},{}},new int[]{UiPalette.FAINT,0xff151a20}):SettingsFocusDrawable.textColors(UiPalette.TEXT));b.setBackgroundDrawable(new LibraryControlDrawable(primary));
+        Button b=button(title,action);b.setTag(tag);b.setId(androidx.core.view.ViewCompat.generateViewId());b.setSingleLine(true);b.setEllipsize(android.text.TextUtils.TruncateAt.END);b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,13*unit);b.setPadding(px(10),0,px(10),0);b.setTypeface(activity.navigationTypeface(primary));
+        IconBatchGlowDrawable glow = primary ? new IconBatchGlowDrawable(unit,()->showing&&!destroyed&&!busy&&UiMotion.enabled(b)) : null;
+        b.setTextColor(primary
+                ? new android.content.res.ColorStateList(new int[][]{{-android.R.attr.state_enabled},{}},new int[]{UiPalette.FAINT,0xff151a20})
+                : SettingsFocusDrawable.textColors(UiPalette.TEXT));
+        b.setBackgroundDrawable(primary ? glow : new LibraryControlDrawable());
         boolean actionControl="icons-batch".equals(tag)||"icons-upload".equals(tag)||"icons-restore".equals(tag)||"icons-refresh".equals(tag);if(actionControl)b.setEllipsize(null);
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(actionControl?-2:0,-1,actionControl?0:1);if(parent.getChildCount()>0)p.leftMargin=px(10);parent.addView(b,p);wireToolbar(b);
-        b.setOnFocusChangeListener((v,focused)->{if(focused&&("icons-batch".equals(tag)||"icons-upload".equals(tag)))status.setText("icons-batch".equals(tag)?tr("确定  一键匹配并预览    返回  上一级","OK  Match and review    Back  Previous"):tr("确定  扫码上传    返回  上一级","OK  Scan to upload    Back  Previous"));});return b;
+        b.setOnFocusChangeListener((v,focused)->{
+            if(focused&&("icons-batch".equals(tag)||"icons-upload".equals(tag)))status.setText("icons-batch".equals(tag)?tr("确定  一键匹配并预览    返回  上一级","OK  Match and review    Back  Previous"):tr("确定  扫码上传    返回  上一级","OK  Scan to upload    Back  Previous"));
+        });return b;
     }
-    private void controlGlyph(Button button,String name){android.graphics.drawable.Drawable glyph=androidx.core.graphics.drawable.DrawableCompat.wrap(new QuickControlIcon(name)).mutate();androidx.core.graphics.drawable.DrawableCompat.setTintList(glyph,button.getTextColors());glyph.setBounds(0,0,px(12),px(12));button.setCompoundDrawables(glyph,null,null,null);button.setCompoundDrawablePadding(px(6));button.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{int inset=Math.max(px(6),Math.round((r-l-glyph.getBounds().width()-button.getCompoundDrawablePadding()-button.getPaint().measureText(button.getText().toString()))/2));if(button.getPaddingLeft()!=inset)button.setPadding(inset,0,inset,0);});}
+    private void controlGlyph(Button button,String name){android.graphics.drawable.Drawable glyph=androidx.core.graphics.drawable.DrawableCompat.wrap(new QuickControlIcon(name)).mutate();androidx.core.graphics.drawable.DrawableCompat.setTintList(glyph,button.getTextColors());controlGlyph(button,glyph);}
+    private void controlGlyph(Button button,android.graphics.drawable.Drawable glyph){glyph.setBounds(0,0,px(12),px(12));button.setCompoundDrawables(glyph,null,null,null);button.setCompoundDrawablePadding(px(6));button.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{int inset=Math.max(px(6),Math.round((r-l-glyph.getBounds().width()-button.getCompoundDrawablePadding()-button.getPaint().measureText(button.getText().toString()))/2));if(button.getPaddingLeft()!=inset)button.setPadding(inset,0,inset,0);});}
     private void selector(LinearLayout parent,String tag,Runnable action){Button b=control(parent,"",tag,false,action);b.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);selectorArrow(b,false);selectors.add(b);}
     private final class LibraryControlDrawable extends android.graphics.drawable.Drawable {
-        private final boolean primary;private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);private final RectF area=new RectF();private Shader gradient;
-        LibraryControlDrawable(boolean primary){this.primary=primary;}
+        private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);private final RectF area=new RectF();
         private boolean state(int attr){for(int value:getState())if(value==attr)return true;return false;}
         @Override public boolean isStateful(){return true;}
         @Override protected boolean onStateChange(int[] values){invalidateSelf();return true;}
-        @Override protected void onBoundsChange(Rect bounds){gradient=new LinearGradient(0,bounds.top,0,bounds.bottom,0xfff1f8ff,0xffd2e8f9,Shader.TileMode.CLAMP);}
         @Override public void draw(Canvas canvas){
             boolean focused=state(android.R.attr.state_enabled)&&state(android.R.attr.state_focused)&&state(android.R.attr.state_window_focused);area.set(getBounds());float radius=px(12);
-            paint.setStyle(Paint.Style.FILL);paint.setShader(primary&&state(android.R.attr.state_enabled)&&!focused?gradient:null);paint.setColor(focused?UiPalette.TEXT:primary?0xffe3f1fc:UiPalette.CONTROL);SurfaceCorners.draw(canvas,area,radius,radius,paint);paint.setShader(null);
-            paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(px(primary&&focused?1:.5f));paint.setColor(primary?(focused?0xff9bd8ff:0x40ffffff):UiPalette.EDGE_STRONG);area.inset(paint.getStrokeWidth()/2,paint.getStrokeWidth()/2);SurfaceCorners.draw(canvas,area,radius,radius,paint);paint.setStyle(Paint.Style.FILL);
+            paint.setStyle(Paint.Style.FILL);paint.setColor(focused?UiPalette.TEXT:UiPalette.CONTROL);SurfaceCorners.draw(canvas,area,radius,radius,paint);
+            paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(px(.5f));paint.setColor(UiPalette.EDGE_STRONG);area.inset(paint.getStrokeWidth()/2,paint.getStrokeWidth()/2);SurfaceCorners.draw(canvas,area,radius,radius,paint);paint.setStyle(Paint.Style.FILL);
         }
         @Override public void setAlpha(int alpha){paint.setAlpha(alpha);invalidateSelf();}
         @Override public void setColorFilter(ColorFilter filter){paint.setColorFilter(filter);invalidateSelf();}
@@ -97,13 +108,14 @@ final class IconLibraryPanel extends ManagementPanel {
     private void wireToolbar(Button button){
         int position=toolbarControls.size();toolbarControls.add(button);button.setOnKeyListener((v,key,event)->{
             if(event.getAction()!=KeyEvent.ACTION_DOWN)return false;
-            if(key==KeyEvent.KEYCODE_DPAD_DOWN){focusLibrary();return true;}
+            if(key==KeyEvent.KEYCODE_DPAD_DOWN){galleryOrigin=button;focusLibrary(true);return true;}
             if(key==KeyEvent.KEYCODE_DPAD_UP){managementTab().requestFocus();return true;}
             if(key==KeyEvent.KEYCODE_DPAD_LEFT||key==KeyEvent.KEYCODE_DPAD_RIGHT){int step=key==KeyEvent.KEYCODE_DPAD_RIGHT?1:-1;for(int i=position+step;i>=0&&i<toolbarControls.size();i+=step)if(toolbarControls.get(i).isEnabled()){toolbarControls.get(i).requestFocus();break;}return true;}
             return false;
         });
     }
     private void focusToolbar(View from){
+        if(galleryOrigin!=null&&galleryOrigin.isEnabled()&&galleryOrigin.requestFocus())return;
         int[] location=new int[2];from.getLocationOnScreen(location);int center=location[0]+from.getWidth()/2,distance=Integer.MAX_VALUE;Button nearest=selectors.get(0);
         for(Button button:toolbarControls)if(button.isEnabled()){button.getLocationOnScreen(location);int delta=Math.abs(center-location[0]-button.getWidth()/2);if(delta<distance){distance=delta;nearest=button;}}nearest.requestFocus();
     }
@@ -129,7 +141,7 @@ final class IconLibraryPanel extends ManagementPanel {
     private void updateSelectors(){
         form=valid(form,IconLibraryCatalog.forms(shape));if(catalog!=null&&!catalog.styles.isEmpty()&&!IconLibraryCatalog.contains(catalog.styleIds(),style)){style=catalog.styles.get(0).id;scroll=0;}
         Target target=target();selectors.get(0).setText(target==null?tr("选择应用","Choose app"):target.label);selectors.get(0).setContentDescription(tr("目标应用：","Target app: ")+selectors.get(0).getText());
-        selectors.get(1).setText(catalog==null?IconLibraryCatalog.legacyStyleName(style,activity.chinese()):catalog.styleName(style,activity.chinese()));selectors.get(2).setText((activity.chinese()?SHAPE_ZH:SHAPE_EN)[Arrays.asList(IconLibraryCatalog.SHAPES).indexOf(shape)]);selectors.get(3).setText((activity.chinese()?FORM_ZH:FORM_EN)[Arrays.asList(IconLibraryCatalog.FORMS).indexOf(form)]);
+        selectors.get(1).setText(catalog==null?IconLibraryCatalog.legacyStyleName(style,activity.chinese()):catalog.styleName(style,activity.chinese()));selectors.get(2).setText(shapeName(shape,activity.chinese()));selectors.get(3).setText((activity.chinese()?FORM_ZH:FORM_EN)[Arrays.asList(IconLibraryCatalog.FORMS).indexOf(form)]);
     }
     private void pickStyles(){if(catalog==null||catalog.styles.isEmpty())return;String[] values=catalog.styleIds(),labels=new String[values.length];for(int i=0;i<values.length;i++)labels[i]=catalog.styleName(values[i],activity.chinese());pick(1,values,labels);}
     private void refreshOnline(){
@@ -142,12 +154,12 @@ final class IconLibraryPanel extends ManagementPanel {
         IconLibraryCatalog.Item chosen=null;for(IconLibraryCatalog.Item item:items)if(item.id.equals(theme))chosen=item;if(chosen==null&&!items.isEmpty())chosen=items.get(0);if(chosen!=null)select(chosen);else theme="";enabled();
     }
     private void upload(){
-        Target target=target();if(busy||target==null)return;if(upload!=null)upload.destroy();upload=new IconUploadSession(activity,pkg,target.label,shape,()->{uploaded();success(tr("已替换「"+target.label+"」图标","Icon replaced for "+target.label));});upload.show();
+        Target target=target();if(busy||target==null)return;if(upload!=null)upload.destroy();upload=new IconUploadSession(activity,pkg,target.label,()->{uploaded();success(tr("已替换「"+target.label+"」图标","Icon replaced for "+target.label));});upload.show();
     }
     private void uploaded(){if(destroyed||!showing)return;refreshCurrent();status.setText(tr("已替换图标","Icon replaced"));}
     private void cancelArtwork(){for(IconLibraryTransfer.Request request:artworkRequests)request.cancel();artworkRequests.clear();}
     private void select(IconLibraryCatalog.Item item){theme=item.id;galleryFocusTag="icon-item-"+item.id;status.setText(tr("确定  打开替换确认    返回  上一级","OK  Confirm replacement    Back  Previous"));}
-    private void refreshCurrentIfChanged(){if(showing)refreshCurrent();}
+    private void refreshCurrentIfChanged(){if(showing){refreshCurrent();if(replacement!=null)replacement.desktopShapeChanged();}}
     private void refreshCurrent(){enabled();}
     private void enabled(){if(restore==null)return;boolean focused=restore.isFocused();restore.setEnabled(!busy&&target()!=null&&covers.custom(pkg));for(Button selector:selectors)selector.setEnabled(!busy);selectors.get(1).setEnabled(!busy&&catalog!=null&&!catalog.styles.isEmpty());refresh.setEnabled(!busy&&!refreshing);batchAction.setEnabled(!busy);uploadAction.setEnabled(!busy&&target()!=null);library.setEnabled(!busy);if(focused&&!restore.isEnabled()&&showing)focusLibrary();}
     private void pickApps(){if(targets.isEmpty()){status.setText(tr("没有可替换图标的应用","No eligible apps"));return;}String[] labels=new String[targets.size()];int current=0;for(int i=0;i<targets.size();i++){labels[i]=targets.get(i).label;if(targets.get(i).pkg.equals(pkg))current=i;}menu(selectors.get(0),labels,current,index->{pkg=targets.get(index).pkg;scroll=0;updateSelectors();filter();library.scrollToPosition(0);refreshCurrent();});}
@@ -155,52 +167,148 @@ final class IconLibraryPanel extends ManagementPanel {
     private void pickForms(){String[] labels=activity.chinese()?FORM_ZH:FORM_EN;pick(3,IconLibraryCatalog.forms(shape),"rectangle".equals(shape)?labels:Arrays.copyOfRange(labels,1,labels.length));}
     private void pick(int field,String[] values,String[] labels){String value=field==1?style:field==2?shape:form;menu(selectors.get(field),labels,Arrays.asList(values).indexOf(value),index->{if(field==1)style=values[index];else if(field==2)shape=values[index];else form=values[index];updateSelectors();scroll=0;filter();library.scrollToPosition(0);});}
     private void menu(Button origin,String[] labels,int current,Pick picked){
-        if(popup!=null)popup.dismiss();LinearLayout rows=new KeyFeedback.Menu(activity);rows.setOrientation(LinearLayout.VERTICAL);rows.setPadding(px(5),px(5),px(5),px(5));ScrollView scroll=activity.settingsScroll();scroll.addView(rows);android.text.TextPaint optionPaint=new android.text.TextPaint(origin.getPaint());optionPaint.setTextSize(12*unit);optionPaint.setTypeface(activity.navigationTypeface(false));int menuWidth=Math.max(origin.getWidth(),px(150));for(String label:labels)menuWidth=Math.max(menuWidth,(int)Math.ceil(android.text.Layout.getDesiredWidth(SettingsSelectionMark.label(label,true,unit),optionPaint))+px(34));menuWidth=Math.min(menuWidth,getResources().getDisplayMetrics().widthPixels-px(24));float textWidth=Math.max(0,menuWidth-px(34)-px(15.36f));PopupWindow menu=new PopupWindow(scroll,menuWidth,Math.min(px(232),px(labels.length*32+10)),true);popup=menu;menu.setBackgroundDrawable(surface(0xfa242426,0xfa19191b,UiPalette.EDGE_STRONG,12));menu.setOutsideTouchable(true);if(Build.VERSION.SDK_INT>=21)menu.setElevation(px(6));Button selected=null;
+        if(popup!=null)popup.dismiss();
+        LinearLayout rows=new KeyFeedback.Menu(activity);
+        rows.setOrientation(LinearLayout.VERTICAL);
+        rows.setPadding(px(5),px(5),px(5),px(5));
+        ScrollView scroll=activity.settingsScroll();
+        scroll.addView(rows);
+        SettingsSheetBackdrop backdrop=new SettingsSheetBackdrop(activity,scroll).cornerRadius(12);
+        scroll.setBackgroundDrawable(backdrop);
+        backdrop.followWindowFocus();
+        android.text.TextPaint optionPaint=new android.text.TextPaint(origin.getPaint());
+        optionPaint.setTextSize(12*unit);
+        optionPaint.setTypeface(activity.navigationTypeface(false));
+        int menuWidth=origin.getWidth();
+        for(String label:labels)menuWidth=Math.max(menuWidth,(int)Math.ceil(android.text.Layout.getDesiredWidth(SettingsSelectionMark.label(label,true,unit),optionPaint))+px(34));
+        menuWidth=Math.min(menuWidth,getResources().getDisplayMetrics().widthPixels-px(24));
+        float textWidth=Math.max(0,menuWidth-px(34)-px(15.36f));
+        PopupWindow menu=new KeyFeedback.Popup(activity,scroll,menuWidth,Math.min(px(232),px(labels.length*32+10)));
+        popup=menu;
+        menu.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+        menu.setOutsideTouchable(true);
+        Button selected=null;
         for(int i=0;i<labels.length;i++){
-            int index=i;Button option=button(labels[i],()->{picked.select(index);menu.dismiss();});option.setTag("icons-menu-"+selectors.indexOf(origin)+"-"+i);option.setText(SettingsSelectionMark.label(android.text.TextUtils.ellipsize(labels[i],optionPaint,textWidth,android.text.TextUtils.TruncateAt.END).toString(),i==current,unit));option.setContentDescription(labels[i]+(i==current?tr("  已选择","  Selected"):""));option.setGravity(Gravity.CENTER);option.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,12*unit);option.setPadding(px(12),0,px(12),0);option.setSingleLine(true);option.setEllipsize(android.text.TextUtils.TruncateAt.END);option.setTypeface(activity.navigationTypeface(false));option.setSelected(i==current);
-            android.graphics.drawable.StateListDrawable background=new android.graphics.drawable.StateListDrawable();background.addState(new int[]{android.R.attr.state_enabled,android.R.attr.state_focused,android.R.attr.state_window_focused},surface(UiPalette.TEXT,UiPalette.TEXT,0,6));background.addState(new int[]{android.R.attr.state_enabled,android.R.attr.state_pressed},surface(UiPalette.SELECTED,UiPalette.SELECTED,0,6));background.addState(new int[0],new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
-            option.setBackgroundDrawable(background);rows.addView(option,new LinearLayout.LayoutParams(-1,px(32)));if(i==current)selected=option;
+            int index=i;
+            Button option=button(labels[i],()->{picked.select(index);menu.dismiss();});
+            option.setTag("icons-menu-"+selectors.indexOf(origin)+"-"+i);
+            option.setText(android.text.TextUtils.ellipsize(labels[i],optionPaint,textWidth,android.text.TextUtils.TruncateAt.END));
+            if(i==current){
+                QuickControlIcon check=new QuickControlIcon("check");
+                check.setBounds(0,0,px(13),px(13));
+                option.setCompoundDrawables(null,null,check,null);
+            }
+            option.setContentDescription(labels[i]+(i==current?tr("  已选择","  Selected"):""));
+            option.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);
+            option.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,12*unit);
+            option.setPadding(px(12),0,px(12),0);
+            option.setSingleLine(true);
+            option.setTypeface(activity.navigationTypeface(false));
+            option.setSelected(i==current);
+            option.setBackgroundDrawable(new SettingsFocusDrawable(unit,999,Color.TRANSPARENT));
+            option.setTextColor(SettingsFocusDrawable.textColors(UiPalette.TEXT));
+            if(i==0)option.setOnKeyListener(new View.OnKeyListener(){
+                private long upPressDownTime=-1;
+
+                @Override public boolean onKey(View view,int key,KeyEvent event){
+                    if(key!=KeyEvent.KEYCODE_DPAD_UP)return false;
+                    // A key release can reach this row after focus moved here on key down.
+                    if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0){
+                        upPressDownTime=event.getDownTime();
+                    }else if(event.getAction()==KeyEvent.ACTION_UP){
+                        boolean startedHere=event.getDownTime()==upPressDownTime;
+                        upPressDownTime=-1;
+                        if(startedHere&&!event.isCanceled())menu.dismiss();
+                    }
+                    return true;
+                }
+            });
+            rows.addView(option,new LinearLayout.LayoutParams(-1,px(32)));
+            if(i==current)selected=option;
         }
-        menu.setOnDismissListener(()->{if(popup==menu)popup=null;selectorArrow(origin,false);if(showing)origin.requestFocus();reloadIfPending();});selectorArrow(origin,true);menu.showAsDropDown(origin,0,px(4));if(selected!=null)selected.requestFocus();
+        CharSequence previousHint=status.getText();
+        String menuHint=tr("↑ 返回筛选  确定  选择","↑ Back to filter  OK  Select");
+        menu.setOnDismissListener(()->{
+            if(popup==menu)popup=null;
+            selectorArrow(origin,false);
+            if(menuHint.contentEquals(status.getText()))status.setText(previousHint);
+            if(showing)origin.requestFocus();
+            reloadIfPending();
+        });
+        status.setText(menuHint);
+        selectorArrow(origin,true);
+        menu.showAsDropDown(origin,0,px(4));
+        if(selected!=null)selected.requestFocus();
+        else if(rows.getChildCount()>0)rows.getChildAt(0).requestFocus();
     }
     private IconLibraryCatalog.Item item(){for(IconLibraryCatalog.Item item:items)if(item.id.equals(theme))return item;return null;}
     private void apply(){
         IconLibraryCatalog.Item chosen=item();Target target=target();if(busy||replacement!=null||restoreSheet!=null||chosen==null||target==null)return;
-        replacement=new IconLibraryReplaceSheet(activity,artworkContext,pkg,target.label,target.info,chosen,shape,form,catalog.revision,this::refreshCurrent,()->{replacement=null;if(showing){refreshCurrent();focusLibrary();reloadIfPending();}});replacement.show();
+        replacement=new IconLibraryReplaceSheet(activity,artworkContext,pkg,target.label,target.info,chosen,shape,form,catalog.revision,this::refreshCurrent,this::showMatchingShape,()->{replacement=null;if(showing){refreshCurrent();focusLibrary();reloadIfPending();}});replacement.show();
+        KeyFeedback.confirm(activity);
+    }
+    private void showMatchingShape(String currentShape){
+        shape=currentShape;
+        galleryOrigin=selectors.get(2);
+        updateSelectors();
+        scroll=0;
+        filter();
+        library.scrollToPosition(0);
+        galleryOrigin.requestFocus();
     }
     private void restore(){
         Target target=target();if(busy||replacement!=null||restoreSheet!=null||target==null||!covers.custom(pkg))return;String id=pkg,expected=covers.key(pkg),label=target.label;
-        ManagementUi.Sheet confirm=activity.new Sheet(tr("恢复默认图标","Restore default icon"));restoreSheet=confirm;Button close=confirm.settingsLayout(tr("关闭","Close"),()->{if(!busy)confirm.dialog.dismiss();});confirm.box.setTag("icon-restore-sheet");confirm.text(tr("恢复「"+label+"」的原始图标或横幅？","Restore the original icon or banner for "+label+"?"));
+        ManagementUi.Sheet confirm=activity.new Sheet(tr("恢复默认图标","Restore default icon"));restoreSheet=confirm;confirm.confirmationLayout(()->{if(!busy)confirm.dialog.dismiss();});confirm.box.setTag("icon-restore-sheet");confirm.text(tr("恢复「"+label+"」的原始图标或横幅？","Restore the original icon or banner for "+label+"?"));
         Button cancel=confirm.action(tr("取消","Cancel"),()->confirm.dialog.dismiss());cancel.setTag("icon-restore-cancel");cancel.setId(androidx.core.view.ViewCompat.generateViewId());
         Button accept=confirm.action(tr("恢复默认","Restore default"),()->{
-            if(busy)return;busy=true;enabled();confirm.dialog.setCancelable(false);confirm.box.setEnabled(false);close.setEnabled(false);cancel.setEnabled(false);for(int i=0;i<confirm.actions.getChildCount();i++)confirm.actions.getChildAt(i).setEnabled(false);confirm.text(tr("正在恢复默认图标…","Restoring default icon…"));
+            if(busy)return;busy=true;enabled();confirm.dialog.setCancelable(false);confirm.box.setEnabled(false);for(int i=0;i<confirm.actions.getChildCount();i++)confirm.actions.getChildAt(i).setEnabled(false);confirm.text(tr("正在恢复默认图标…","Restoring default icon…"));
             worker.execute(()->{String error=null;try{AppCoverPolicy.require(activity,id);synchronized(covers){if(!expected.equals(covers.key(id)))throw new IOException(tr("当前图标已变化，请重新确认","Icon changed; confirm again"));covers.restore(id);}}catch(IOException|RuntimeException failure){error=failure.getMessage();if(error==null)error=tr("恢复默认失败","Unable to restore default icon");}String failure=error;ui(()->{
                 busy=false;if(failure==null){PhoneSettingsSession.get(activity).configurationChanged();confirm.dialog.dismiss();if(showing)success(tr("已恢复「"+label+"」默认图标","Default icon restored for "+label));}
-                else if(restoreSheet==confirm){confirm.dialog.setCancelable(true);confirm.box.setEnabled(true);close.setEnabled(true);cancel.setEnabled(true);confirm.text(failure);cancel.requestFocus();}refreshCurrent();
+                else if(restoreSheet==confirm){confirm.dialog.setCancelable(true);confirm.box.setEnabled(true);for(int i=0;i<confirm.actions.getChildCount();i++)confirm.actions.getChildAt(i).setEnabled(true);confirm.text(failure);cancel.requestFocus();}refreshCurrent();
             });});
-        });accept.setTag("icon-restore-confirm");accept.setId(androidx.core.view.ViewCompat.generateViewId());cancel.setNextFocusRightId(accept.getId());accept.setNextFocusLeftId(cancel.getId());cancel.setNextFocusLeftId(cancel.getId());accept.setNextFocusRightId(accept.getId());close.setNextFocusDownId(cancel.getId());cancel.setNextFocusUpId(close.getId());accept.setNextFocusUpId(close.getId());
+        });accept.setTag("icon-restore-confirm");accept.setId(androidx.core.view.ViewCompat.generateViewId());cancel.setNextFocusRightId(accept.getId());accept.setNextFocusLeftId(cancel.getId());cancel.setNextFocusLeftId(cancel.getId());accept.setNextFocusRightId(accept.getId());cancel.setNextFocusUpId(cancel.getId());accept.setNextFocusUpId(accept.getId());
         confirm.dialog.setOnDismissListener(d->{if(restoreSheet==confirm)restoreSheet=null;if(showing){refreshCurrent();if(restore.isEnabled())restore.requestFocus();else focusLibrary();reloadIfPending();}});confirm.show(cancel);
     }
     private void reloadIfPending(){if(reloadPending&&showing&&!busy&&!refreshing&&popup==null&&replacement==null&&restoreSheet==null){reloadPending=false;remember();load();}}
-    private void focusLibrary(){focusLibraryPosition(Math.max(0,adapter.position(galleryFocusTag)));}
-    private void focusLibraryPosition(int position){if(items.isEmpty())return;position=Math.min(position,items.size()-1);RecyclerView.ViewHolder visible=library.findViewHolderForAdapterPosition(position);if(visible!=null){visible.itemView.requestFocus();return;}int requested=position;library.scrollToPosition(requested);library.post(()->{if(destroyed||!showing)return;RecyclerView.ViewHolder holder=library.findViewHolderForAdapterPosition(requested);if(holder!=null)holder.itemView.requestFocus();});}
-    private void batch(){if(busy)return;if(batch!=null)batch.close();batch=new IconLibraryBatchSheet(activity,artworkContext,style,shape,form,this::uploaded);batch.show();}
-    @Override void focusManagementContent(){View target=pageRoot.findViewWithTag(focusTag);if(target!=null&&target.isShown()&&target.isEnabled())target.requestFocus();else focusLibrary();}
+    private void focusLibrary(){focusLibrary(false);}
+    private void focusLibrary(boolean directionKey){
+        focusLibraryPosition(Math.max(0,adapter.position(galleryFocusTag)),directionKey);
+    }
+    private void focusLibraryPosition(int position,boolean directionKey){
+        if(items.isEmpty())return;
+        int requested=Math.min(position,items.size()-1);
+        int request=++focusRequest;
+        RecyclerView.ViewHolder visible=library.findViewHolderForAdapterPosition(requested);
+        if(visible!=null){visible.itemView.requestFocus();return;}
+        if(directionKey)KeyFeedback.ownMove(library);
+        int version=thumbnails;
+        library.scrollToPosition(requested);
+        library.post(()->{
+            if(destroyed||!showing||version!=thumbnails||request!=focusRequest)return;
+            RecyclerView.ViewHolder holder=library.findViewHolderForAdapterPosition(requested);
+            if(holder==null||holder.itemView.hasFocus())return;
+            if(holder.itemView.requestFocus()&&directionKey)KeyFeedback.movedTo(holder.itemView);
+        });
+    }
+    private IconBatchGlowDrawable batchGlow(){return (IconBatchGlowDrawable)batchAction.getBackground();}
+    private void stopBatchGlow(){batchGlow().stop();}
+    private void batch(){if(busy)return;stopBatchGlow();if(batch!=null)batch.close();batch=new IconLibraryBatchSheet(activity,artworkContext,style,shape,form,this::uploaded);batch.show();}
+    @Override void focusManagementContent(){View target=pageRoot.findViewWithTag(focusTag);if(target!=null&&target.isShown()&&target.isEnabled())target.requestFocus();else focusLibrary(KeyFeedback.isDirectionPress());}
     @Override public boolean dispatchKeyEvent(KeyEvent event){int key=event.getKeyCode();return busy&&(key>=KeyEvent.KEYCODE_DPAD_UP&&key<=KeyEvent.KEYCODE_DPAD_CENTER||key==KeyEvent.KEYCODE_ENTER);}
     @Override public void handleBack(){if(popup!=null){popup.dismiss();return;}if(busy)return;if(!managementTabFocused())managementTab().requestFocus();else super.handleBack();}
-    @Override protected void onResume(){super.onResume();PhoneSettingsSession.get(activity).observeConfiguration(phoneChanged);IconLibraryRepository.get(artworkContext).observe(catalogChanged);load();}
-    @Override protected void onPause(){remember();super.onPause();if(replacement!=null)replacement.destroy();if(restoreSheet!=null)restoreSheet.dialog.dismiss();if(batch!=null)batch.close();if(upload!=null)upload.close();cancelArtwork();IconLibraryRepository.get(artworkContext).forget(catalogChanged);++loading;++thumbnails;if(popup!=null)popup.dismiss();PhoneSettingsSession.get(activity).forgetConfiguration(phoneChanged);}
+    @Override protected void onResume(){super.onResume();batchGlow().syncAnimation();PhoneSettingsSession.get(activity).observeConfiguration(phoneChanged);IconLibraryRepository.get(artworkContext).observe(catalogChanged);load();}
+    @Override protected void onPause(){stopBatchGlow();remember();super.onPause();if(replacement!=null)replacement.destroy();if(restoreSheet!=null)restoreSheet.dialog.dismiss();if(batch!=null)batch.close();if(upload!=null)upload.close();cancelArtwork();IconLibraryRepository.get(artworkContext).forget(catalogChanged);++loading;++thumbnails;if(popup!=null)popup.dismiss();PhoneSettingsSession.get(activity).forgetConfiguration(phoneChanged);}
     @Override protected void onSaveInstanceState(Bundle saved){remember();saved.putString("package",pkg);saved.putString("theme",theme);saved.putString("style",style);saved.putString("shape",shape);saved.putString("form",form);saved.putString("focus",focusTag);saved.putInt("scroll",scroll);}
     private void remember(){View focus=getCurrentFocus();if(focus!=null&&pageRoot.hasFocus()&&focus.getTag() instanceof String)focusTag=(String)focus.getTag();scroll=Math.max(0,((GridLayoutManager)library.getLayoutManager()).findFirstVisibleItemPosition());}
-    @Override protected void onDestroy(){destroyed=true;if(replacement!=null)replacement.destroy();if(restoreSheet!=null)restoreSheet.dialog.dismiss();if(batch!=null)batch.destroy();if(upload!=null)upload.destroy();cancelArtwork();IconLibraryRepository.get(artworkContext).forget(catalogChanged);++loading;++thumbnails;PhoneSettingsSession.get(activity).forgetConfiguration(phoneChanged);unregisterReceiver(packages);if(popup!=null)popup.dismiss();library.setAdapter(null);worker.shutdown();thumbnailWorkers.shutdown();}
+    @Override protected void onDestroy(){destroyed=true;stopBatchGlow();if(replacement!=null)replacement.destroy();if(restoreSheet!=null)restoreSheet.dialog.dismiss();if(batch!=null)batch.destroy();if(upload!=null)upload.destroy();cancelArtwork();IconLibraryRepository.get(artworkContext).forget(catalogChanged);++loading;++thumbnails;PhoneSettingsSession.get(activity).forgetConfiguration(phoneChanged);unregisterReceiver(packages);if(popup!=null)popup.dismiss();library.setAdapter(null);worker.shutdown();thumbnailWorkers.shutdown();}
     private final class Tile extends FrameLayout {
         IconLibraryTransfer.Request request;final ImageView image;final TextView name;private final Paint focusPaint=new Paint(Paint.ANTI_ALIAS_FLAG);private final RectF focusInset=new RectF();
         Tile(){super(activity);setFocusable(true);setFocusableInTouchMode(true);setClipChildren(false);image=new ImageView(activity);image.setScaleType(ImageView.ScaleType.FIT_CENTER);addView(image);name=center("",14);name.setSingleLine(true);name.setEllipsize(android.text.TextUtils.TruncateAt.END);addView(name);SettingsTouchClick.attach(this);setOnKeyListener((v,key,event)->{
             if(event.getAction()!=KeyEvent.ACTION_DOWN||!(getTag() instanceof String))return false;int position=adapter.position((String)getTag());if(position<0)return false;
-            if(key==KeyEvent.KEYCODE_DPAD_UP){if(position<COLUMNS)focusToolbar(this);else focusLibraryPosition(position-COLUMNS);return true;}
-            if(key==KeyEvent.KEYCODE_DPAD_DOWN){if((position/COLUMNS+1)*COLUMNS<items.size())focusLibraryPosition(Math.min(position+COLUMNS,items.size()-1));return true;}
-            if(key==KeyEvent.KEYCODE_DPAD_LEFT){if(position%COLUMNS>0)focusLibraryPosition(position-1);return true;}
-            if(key==KeyEvent.KEYCODE_DPAD_RIGHT){if(position%COLUMNS<COLUMNS-1&&position+1<items.size())focusLibraryPosition(position+1);return true;}return false;
+            if(key==KeyEvent.KEYCODE_DPAD_UP){if(position<COLUMNS){++focusRequest;focusToolbar(this);}else focusLibraryPosition(position-COLUMNS,true);return true;}
+            if(key==KeyEvent.KEYCODE_DPAD_DOWN){if((position/COLUMNS+1)*COLUMNS<items.size())focusLibraryPosition(Math.min(position+COLUMNS,items.size()-1),true);return true;}
+            if(key==KeyEvent.KEYCODE_DPAD_LEFT){if(position%COLUMNS>0)focusLibraryPosition(position-1,true);return true;}
+            if(key==KeyEvent.KEYCODE_DPAD_RIGHT){if(position%COLUMNS<COLUMNS-1&&position+1<items.size())focusLibraryPosition(position+1,true);return true;}return false;
         });}
         @Override protected void onFocusChanged(boolean focused,int direction,Rect previous){super.onFocusChanged(focused,direction,previous);name.setTypeface(activity.navigationTypeface(focused));invalidate();}
         @Override public void onWindowFocusChanged(boolean focused){super.onWindowFocusChanged(focused);invalidate();}

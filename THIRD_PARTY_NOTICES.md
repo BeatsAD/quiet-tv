@@ -12,7 +12,6 @@ Quiet TV 基于 [cleanyourtv](https://github.com/Gathin23/cleanyourtv)（原名 
 | libadb-android | Apache-2.0，保留其继承的 BSD／MIT 声明，见[完整许可目录](app/src/main/assets/licenses/) |
 | Bouncy Castle | MIT，[许可原文](app/src/main/assets/licenses/bouncycastle-LICENSE.md) |
 | NanoHTTPD | BSD-3-Clause，[许可原文](app/src/main/assets/licenses/nanohttpd-LICENSE.txt) |
-| JmDNS 3.6.5（固定局域网网址） | Apache-2.0，[许可原文](app/src/main/assets/licenses/libadb-Apache-2.0.txt)，[上游](https://github.com/jmdns/jmdns) |
 | SLF4J（JmDNS 日志接口） | MIT，[许可原文](app/src/main/assets/licenses/slf4j-MIT.txt) |
 | desugar_jdk_libs 2.1.5（旧安卓 Java API 兼容） | GPL-2.0 with Classpath Exception，[许可原文](app/src/main/assets/licenses/desugar-jdk-libs-LICENSE.txt)，[对应源码](https://github.com/google/desugar_jdk_libs/tree/73170c345e6a) |
 | React、React DOM（手机扫码设置） | MIT，[许可原文](app/src/main/assets/licenses/phone-react-MIT.txt) |
@@ -22,6 +21,7 @@ Quiet TV 基于 [cleanyourtv](https://github.com/Gathin23/cleanyourtv)（原名 
 | Phosphor Icons（既有资源） | MIT，Copyright (c) 2023 Phosphor Icons，[许可原文](app/src/main/assets/licenses/Phosphor-LICENSE.txt) |
 | Lucide 图标（首页、快捷控制、其他页面及手机扫码网页功能图标） | ISC／MIT，[许可原文](app/src/main/assets/licenses/Lucide-LICENSE.txt)，[固定源码与图标映射](app/src/main/assets/licenses/Lucide-NOTICE.txt) |
 | [Open Water](https://github.com/Leonxlnx/open-water)（天气噪声与光照计算） | MIT，Copyright (c) 2026 Leonxlnx，[许可原文](app/src/main/assets/licenses/open-water-MIT.txt) |
+| [BorderBeam](https://github.com/ismnoiet/border-beam-ios/tree/a11d1b938b1cc8efad02e942f7590a0156bbd7da)（电视端边框流光渲染移植） | MIT，Copyright (c) 2026 ismnoiet，[许可原文](app/src/main/assets/licenses/border-beam-ios-MIT.txt) |
 | Outfit 字体 | SIL OFL 1.1，[许可原文](app/src/main/assets/fonts/OFL.txt) |
 | 中国行政区划数据 | WTFPL 2.0，[许可原文](app/src/main/assets/licenses/china-regions-WTFPL.txt) |
 | 可选酷开独立助手 | MIT，[独立许可](coocaa-home-shim/LICENSE) |
@@ -33,6 +33,7 @@ Quiet TV 基于 [cleanyourtv](https://github.com/Gathin23/cleanyourtv)（原名 
 - 内置壁纸「优胜美地山谷」取自 Ted Wakabayashi 拍摄的[公共领域照片](https://commons.wikimedia.org/wiki/File:Tunnel_view,_Yosemite.jpg)，裁切至 16:9。
 - 必应每日壁纸保留图片版权与来源链接，在线图片不作为内置资源分发。用户上传的图片和视频由用户确认使用权。
 - 天气地区补充坐标与 Open-Meteo 数据使用 CC BY 4.0；[Open-Meteo 免费接口](https://open-meteo.com/en/terms)仅限非商业使用。和风、OpenWeather 等服务按各自条款使用，界面保留实际数据来源。
+- 天气来源卡片采用各服务提供方的公开标识。[和风天气](https://dev.qweather.com/assets/favicon/apple-touch-icon.png)、[UAPI](https://uapis.cn/favicon-dark.svg)、[OpenWeather](https://openweather.co.uk/api/media/file/new_logo_black-1.png)、[Open-Meteo](https://open-meteo.com/favicon.ico) 的标识各归其提供方所有。
 - 字体、图标、地区数据、天气数据及媒体资源分别遵循各自许可，不统一纳入项目 MIT 授权。
 
 ## TMDB 每日电影

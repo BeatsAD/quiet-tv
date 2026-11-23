@@ -25,7 +25,7 @@ final class PhoneSettingsIcons {
         for(Map.Entry<String,ResolveInfo> entry:new HomeAppCatalog(context).launchable().entrySet()){
             String pkg=entry.getKey();if(AppCoverPolicy.ownReadOnly(context,pkg)||!entry.getValue().activityInfo.applicationInfo.enabled||!AppAvailability.installed(context.getPackageManager(),entry.getValue().activityInfo.applicationInfo))continue;
             String encoded=java.net.URLEncoder.encode(pkg,"UTF-8"),key=covers.key(pkg);
-            targets.put(new JSONObject().put("id",pkg).put("name",new AppNameStore(context).display(pkg,entry.getValue().loadLabel(context.getPackageManager()).toString())).put("coverKey",key).put("customCover",covers.custom(pkg)).put("coverFit",covers.contain(pkg)?"contain":"cover").put("cover","api/resources/cover/"+encoded+"?v="+key).put("icon","api/resources/icon/"+encoded));
+            targets.put(new JSONObject().put("id",pkg).put("name",new AppNameStore(context).display(pkg,entry.getValue().loadLabel(context.getPackageManager()).toString())).put("coverKey",key).put("customCover",covers.custom(pkg)).put("coverFit",AppArtwork.displayedAsContain(context,pkg)?"contain":"cover").put("cover","api/resources/cover/"+encoded+"?v="+key+"-"+AppArtwork.previewRevision(context)).put("icon","api/resources/icon/"+encoded));
         }
         JSONObject styleNames=new JSONObject();if(catalog!=null)for(IconLibraryCatalog.Style style:catalog.styles)styleNames.put(style.id,style.zh);
         return new JSONObject().put("revision",catalog==null?0:catalog.revision).put("problem",problem).put("styles",new JSONArray(catalog==null?java.util.Collections.emptyList():java.util.Arrays.asList(catalog.styleIds()))).put("styleNames",styleNames).put("shapes",new JSONArray(java.util.Arrays.asList(IconLibraryCatalog.SHAPES))).put("items",items).put("targets",targets);
@@ -72,13 +72,31 @@ final class PhoneSettingsIcons {
         if(value.length()!=names.length)throw new PhoneSettingsServer.BadInput();for(String name:names)if(!(value.opt(name) instanceof String)&&!name.equals("catalogVersion"))throw new PhoneSettingsServer.BadInput();
         String pkg=value.optString("package"),expected=value.optString("coverKey");AppCoverPolicy.require(context,pkg);AppCoverStore covers=AppCoverStore.get(context);
         if(!expected.equals(covers.key(pkg)))throw new PhoneSettingsServer.Conflict();
-        IconLibraryCatalog catalog=restore?null:IconLibraryCatalog.read(context);IconLibraryCatalog.Item item=restore?null:selection(catalog,value.optString("style"),value.optString("id"),value.optString("shape"),value.optString("form"));
+        String shape=value.optString("shape"),form=value.optString("form");
+        if(!restore)try{AppCoverPolicy.requireDesktopShape(context,shape);}
+        catch(AppCoverPolicy.ShapeChanged conflict){throw new PhoneSettingsServer.Rejected(conflict.getMessage());}
+        IconLibraryCatalog catalog=restore?null:IconLibraryCatalog.read(context);
+        IconLibraryCatalog.Item item=restore?null:selection(catalog,value.optString("style"),value.optString("id"),shape,form);
         if(!restore&&(!(value.opt("catalogVersion") instanceof Number)||value.optDouble("catalogVersion")!=catalog.revision))throw new PhoneSettingsServer.Conflict();
         PhoneSettingsTasks.Job job=tasks.begin(scope+"/icons/"+pkg,restore?"恢复默认图标":"替换图标",PhoneSettingsState.revision(value),active,"icons",action);
         tasks.start(job,work->{File ready=null;boolean committing=false;try{
             work.check();AppCoverPolicy.require(context,pkg);work.stage(restore?"正在恢复默认图标":"正在准备图标",-1);
-            if(!restore){String shape=value.optString("shape");ready=covers.prepared();IconLibraryArtwork.prepare(context,item,shape,value.optString("form"),ready,true);}
-            synchronized(covers){work.check();AppCoverPolicy.require(context,pkg);if(!expected.equals(covers.key(pkg)))throw new PhoneSettingsTasks.Problem("当前图标已变化，请重新选择并确认",false);committing=true;if(restore)covers.restore(pkg);else covers.applyLibrary(pkg,ready,LibraryCover.metadata(item,value.optString("shape"),value.optString("form"),catalog.revision),expected);}
+            if(!restore){
+                AppCoverPolicy.requireDesktopShape(context,shape);
+                ready=covers.prepared();
+                IconLibraryArtwork.prepare(context,item,shape,form,ready,true);
+            }
+            synchronized(DesktopSettingsStore.MUTATIONS){
+                synchronized(covers){
+                    work.check();
+                    AppCoverPolicy.require(context,pkg);
+                    if(!expected.equals(covers.key(pkg)))throw new PhoneSettingsTasks.Problem("当前图标已变化，请重新选择并确认",false);
+                    if(!restore)AppCoverPolicy.requireDesktopShape(context,shape);
+                    committing=true;
+                    if(restore)covers.restore(pkg);
+                    else covers.applyLibrary(pkg,ready,LibraryCover.metadata(item,shape,form,catalog.revision),expected);
+                }
+            }
             changed.run();work.stage(restore?"已恢复默认图标":"已替换图标",100);return new JSONObject().put("package",pkg).put("applied",true);
         }catch(PhoneSettingsTasks.Problem failure){throw failure;}catch(IOException failure){throw new PhoneSettingsTasks.Problem(committing?"保存结果待核对，请重新读取当前图标":failure.getMessage(),committing);}finally{covers.discardCandidate(ready);}});
         return tasks.receipt(job);

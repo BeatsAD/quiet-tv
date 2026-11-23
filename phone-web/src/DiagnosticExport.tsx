@@ -1,44 +1,71 @@
+import { useEffect, useRef, useState } from 'react';
 import type { PhoneClient, Value } from './api';
-import { Group, Icon, fileSize } from './widgets';
+import { Group, Icon, Row, Switch } from './widgets';
 import './DiagnosticExport.css';
 
-export function DiagnosticExport({client,run,busy,uploading}:{client:PhoneClient;run:(domain:string,field:string,value?:Value)=>Promise<boolean>;busy:boolean;uploading:boolean}){
-  const task=client.tasks().filter(task=>task.domain==='diagnostics'&&task.kind==='export').at(-1);
-  const marker=client.tasks().filter(task=>task.domain==='diagnostics'&&task.kind==='mark').at(-1);
-  const generating=busy||!!task&&['queued','running','ready'].includes(task.state);
-  const download=task?.result?.download;
-  const ready=!generating&&task?.state==='completed'&&typeof download==='string'&&download.length>0;
-  const failed=!generating&&task?.state==='failed',unknown=!generating&&task?.state==='unknown';
-  const status=generating?'正在生成…':ready?'可下载':failed?'生成失败':unknown?'结果待核对':task?.state==='cancelled'?'已取消':'尚未生成';
-  const bytes=task?.result?.bytes;
-  const blocked=uploading||client.status==='ended'||client.restoring;
+type Kind = 'export' | 'exportBluetooth' | 'exportInputs';
+type Props = {client:PhoneClient;run:(domain:string,field:string,value?:Value)=>Promise<boolean>;busy:boolean;uploading:boolean};
 
-  return <div className="diagnostic-export">
-    <p className="diagnostic-intro">生成电视诊断记录，用于问题排查。</p>
+function Download({client,run,busy,uploading,kind,disabled=false}:{kind:Kind;disabled?:boolean}&Props){
+  const [request,setRequest]=useState<{previous?:string}|null>(null);
+  const started=useRef(false);
+  const link=useRef<HTMLAnchorElement>(null);
+  const task=client.tasks().filter(task=>task.domain==='diagnostics'&&task.kind===kind).at(-1);
+  const result=request&&task?.id!==request.previous?task:undefined;
+  const download=result?.state==='completed'&&result.result?.download;
+  const path=typeof download==='string'?download:'';
+  const blocked=uploading||client.status==='ended'||client.restoring;
+  const failed=!!result&&['failed','cancelled','unknown'].includes(result.state);
+  const generating=!!request&&!path&&!failed;
+
+  useEffect(()=>{
+    if(path&&link.current&&!blocked&&!started.current){
+      started.current=true;
+      link.current.click();
+    }
+  },[path,blocked]);
+
+  const label=kind==='exportInputs'?'下载信号源诊断包':kind==='exportBluetooth'?'下载蓝牙诊断':'下载日志';
+  async function start(){
+    started.current=false;
+    setRequest({previous:task?.id});
+    if(!await run('diagnostics',kind,true))setRequest(null);
+  }
+
+  return <>
+    {path?<a ref={link} className="primary-button" download href={blocked?undefined:client.resource(path)} aria-disabled={blocked} tabIndex={blocked?-1:undefined}>
+      <Icon name="DownloadIcon"/>{label}
+    </a>:<button className="primary-button" disabled={busy||blocked||disabled||generating} onClick={()=>void start()}>
+      <Icon name={generating?'ReloadIcon':'DownloadIcon'} className={generating?'diagnostic-spinner':undefined}/>{generating?'正在生成…':label}
+    </button>}
+    {failed&&<p className="form-error" role="alert">{result.message||'日志生成未完成，请重试'}</p>}
+  </>;
+}
+
+export function DiagnosticExport({page,...props}:Props&{page:'diagnostics'|'diagnostic-specialty'|'diagnostic-inputs'}){
+  const {client,run,busy,uploading}=props;
+  const state=client.frame?.domains.diagnostics;
+  const enabled=state?.recording===true,active=state?.recordingActive===true;
+  const blocked=busy||uploading||client.status==='ended'||client.restoring;
+  const mark=client.tasks().filter(task=>task.domain==='diagnostics'&&task.kind==='mark').at(-1);
+  const starting=!!mark&&['queued','running','ready'].includes(mark.state);
+  const [markRequested,setMarkRequested]=useState(false);
+  if(page==='diagnostic-specialty')return <div className="diagnostic-export">
     <Group>
-      <div className="setting-row diagnostic-file">
-        <Icon name="FileTextIcon" className="diagnostic-file-icon"/>
-        <div className="diagnostic-file-info">
-          <strong>{ready?'QuietTV-diagnostics.zip':'诊断文件'}</strong>
-          {ready&&<small>诊断包{typeof bytes==='number'?`  ${fileSize(bytes)}`:''}</small>}
-        </div>
-        {!ready&&<span className="row-value">ZIP</span>}
-      </div>
-      <div className="setting-row diagnostic-status" role="status" aria-live="polite" aria-atomic="true">
-        <span className="row-title">当前状态</span>
-        <span className={`diagnostic-state ${ready?'good':failed?'danger':''}`}>
-          {generating&&<Icon name="ReloadIcon" className="diagnostic-spinner"/>}
-          {ready&&<Icon name="CheckCircledIcon"/>}
-          {status}
-        </span>
-      </div>
+      <Row title="短时录制" value={active?'正在录制':undefined} hint={!enabled?'请先在“诊断日志”中开启记录。':active?'请复现问题。录制结束后从“诊断日志”下载。':'开始录制后，在 30 秒内复现问题。完成后从“诊断日志”下载。'}/>
+      <Row title={starting?'正在启动…':'录制 30 秒'} disabled={blocked||!enabled||active||starting} onClick={()=>{setMarkRequested(true);void run('diagnostics','mark',true);}}/>
     </Group>
-    {(failed||unknown)&&task.message&&<p className="form-error" role="alert">{task.message}</p>}
-    {ready?<a className="primary-button" download="QuietTV-diagnostics.zip" href={blocked?undefined:client.resource(download)} aria-disabled={blocked} tabIndex={blocked?-1:undefined} onClick={event=>{if(blocked)event.preventDefault();}}><Icon name="DownloadIcon"/>下载到手机</a>:<button className="primary-button" disabled={generating} onClick={()=>unknown?void client.refresh():void run('diagnostics','export')}>{generating?'正在生成…':unknown?'重新读取':failed?'重新生成':'生成诊断文件'}</button>}
-    {marker&&<p role="status">{marker.message}</p>}
-    <div className="diagnostic-footer">
-      <button className="text-action" disabled={busy||blocked} onClick={()=>void run('diagnostics','mark',true)}>标记刚才的问题</button>
-      {ready?<button className="text-action" onClick={()=>void run('diagnostics','export')}>重新生成</button>:generating?<p>请保持手机与电视连接</p>:null}
-    </div>
+    {markRequested&&mark?.state==='failed'&&<p className="form-error" role="alert">{mark.message}</p>}
+    {state?.bluetoothPermissionRequired===true&&<p className="section-note">排查蓝牙遥控器或配对问题时，请在电视的“专项排查”中选择“允许读取蓝牙状态”。</p>}
+    <Download {...props} kind="exportBluetooth" disabled={!enabled}/>
+  </div>;
+  if(page==='diagnostic-inputs')return <div className="diagnostic-export">
+    {state?.inputEvidence!==true&&<p className="section-note">暂无信号源配对或测试记录。</p>}
+    {state?.inputRecording===true&&<p className="section-note">请在信号源记录结束后下载。</p>}
+    <Download {...props} kind="exportInputs" disabled={state?.inputEvidence!==true||state.inputRecording===true}/>
+  </div>;
+  return <div className="diagnostic-export">
+    <Group><Row title="记录诊断日志"><Switch title="记录诊断日志" checked={enabled} disabled={blocked||typeof state?.recording!=='boolean'} onChange={()=>void run('diagnostics','recording',!enabled)}/></Row></Group>
+    <Download {...props} kind="export"/>
   </div>;
 }

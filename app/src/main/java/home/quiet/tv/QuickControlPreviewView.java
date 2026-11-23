@@ -25,20 +25,27 @@ final class QuickControlPreviewView extends LinearLayout {
     private ImageView icon(String name,float size){ImageView v=new ImageView(ui);v.setImageDrawable(new QuickControlIcon(name));v.setLayoutParams(new LayoutParams(p(size),p(size)));return v;}
     private LinearLayout footer(String title,String glyph,String end,boolean bold){LinearLayout row=ui.row();row.setPadding(p(8.96f),0,p(8.96f),0);row.addView(icon(glyph,23.68f));TextView label=text(title,17.92f,25.984f,UiPalette.TEXT);if(bold)weight(label,600);LayoutParams lp=new LayoutParams(0,-2,1);lp.leftMargin=p(7.68f);row.addView(label,lp);row.addView(icon(end,12.8f));return row;}
     private List<String> renderedIds;
-    private boolean renderedSounds,renderedWallpaperSound,renderedChinese,renderedMagnify;private Map<String,Integer> renderedValues;
+    private boolean renderedSounds,renderedWallpaperSound,renderedScreensaverSound,renderedChinese,renderedMagnify;private Map<String,Integer> renderedValues;
     void select(String selected){View target=modules.findViewWithTag("quick-preview-"+selected);modules.preview(target);if(target!=null)scroll.post(()->{if(target.getWindowToken()==null)return;Rect rect=new Rect();target.getDrawingRect(rect);modules.offsetDescendantRectToMyCoords(target,rect);int top=scroll.getScrollY()+scroll.getPaddingTop(),bottom=scroll.getScrollY()+scroll.getHeight()-scroll.getPaddingBottom();if(rect.top<top)scroll.scrollTo(0,Math.max(0,rect.top-scroll.getPaddingTop()));else if(rect.bottom>bottom)scroll.scrollTo(0,rect.bottom-scroll.getHeight()+scroll.getPaddingBottom());});}
-    void render(List<String> ids,String selected,boolean sounds,boolean wallpaperSound,DesktopSettingsStore desktop,boolean chinese){
+    void render(List<String> ids,String selected,boolean sounds,boolean wallpaperSound,boolean screensaverSound,DesktopSettingsStore desktop,boolean chinese){
         android.media.AudioManager audio=(android.media.AudioManager)ui.getSystemService(android.content.Context.AUDIO_SERVICE);int volume=audio==null?0:Math.round(100f*audio.getStreamVolume(android.media.AudioManager.STREAM_MUSIC)/Math.max(1,audio.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)));
         Map<String,Integer> values=new HashMap<>();for(String id:QuickControlStore.RANGES)values.put(id,"volume".equals(id)?volume:QuickControlStore.rangeValue(id,desktop));
-        if(ids.equals(renderedIds)&&sounds==renderedSounds&&wallpaperSound==renderedWallpaperSound&&values.equals(renderedValues)&&desktop.dockMagnify()==renderedMagnify&&chinese==renderedChinese){select(selected);return;}
-        renderedIds=new ArrayList<>(ids);renderedSounds=sounds;renderedWallpaperSound=wallpaperSound;renderedValues=values;renderedMagnify=desktop.dockMagnify();renderedChinese=chinese;
+        if(ids.equals(renderedIds)&&sounds==renderedSounds&&wallpaperSound==renderedWallpaperSound&&screensaverSound==renderedScreensaverSound&&values.equals(renderedValues)&&desktop.dockMagnify()==renderedMagnify&&chinese==renderedChinese){select(selected);return;}
+        renderedIds=new ArrayList<>(ids);renderedSounds=sounds;renderedWallpaperSound=wallpaperSound;renderedScreensaverSound=screensaverSound;renderedValues=values;renderedMagnify=desktop.dockMagnify();renderedChinese=chinese;
         modules.clearCards();
         List<String> grid=QuickControlStore.grid(ids);
         for(int r=0;r<(grid.size()+2)/3;r++){LinearLayout row=ui.row();row.setClipChildren(false);LayoutParams rp=new LayoutParams(-1,p(64));if(r>0)rp.topMargin=p(8);modules.addView(row,rp);
-            for(int col=0;col<3;col++){int index=r*3+col;String id=index<grid.size()?grid.get(index):"";LayoutParams cp=new LayoutParams(0,-1,1);if(col>0)cp.leftMargin=p(8);if(id.isEmpty()){row.addView(new View(ui),cp);continue;}boolean on="keySounds".equals(id)?sounds:"mute".equals(id)&&wallpaperSound;
+            for(int col=0;col<3;col++){int index=r*3+col;String id=index<grid.size()?grid.get(index):"";LayoutParams cp=new LayoutParams(0,-1,1);if(col>0)cp.leftMargin=p(8);if(id.isEmpty()){row.addView(new View(ui),cp);continue;}boolean on="keySounds".equals(id)&&sounds||"mute".equals(id)&&wallpaperSound
+                        ||QuickControlStore.SCREENSAVER_SOUND.equals(id)&&screensaverSound;
                 LinearLayout card=ui.column();card.setClipChildren(false);card.setClipToPadding(false);card.setGravity(Gravity.CENTER);card.setTag("quick-preview-"+id);card.setContentDescription("预览"+QuickControlStore.title(id,chinese));
                 ImageView image=icon(glyph(id),24);card.addView(image);TextView label=text(QuickControlStore.shortTitle(id,chinese),16,22,UiPalette.TEXT);label.setGravity(Gravity.CENTER);label.setSingleLine();label.setEllipsize(android.text.TextUtils.TruncateAt.END);LayoutParams lp=new LayoutParams(-1,-2);lp.topMargin=p(6);card.addView(label,lp);row.addView(card,cp);
-                modules.register(card,card,color->{((QuickControlIcon)image.getDrawable()).color(color);label.setTextColor(color);});
+                QuickControlIcon drawable = (QuickControlIcon) image.getDrawable();
+                modules.register(card, card, (color, focused, active) -> {
+                    drawable.color(color);
+                    drawable.setFocused(focused);
+                    drawable.setSoundOn(active);
+                    label.setTextColor(color);
+                });
                 modules.setOn(card,on);
             }
         }
@@ -47,7 +54,7 @@ final class QuickControlPreviewView extends LinearLayout {
             LinearLayout line=ui.row();line.setGravity(Gravity.CENTER_VERTICAL);TextView title=text(QuickControlStore.title(id,chinese),16,22,UiPalette.TEXT);TextView level=text(available?value+"%":chinese?"未开启聚焦放大":"Disabled",16,22,UiPalette.TEXT);line.addView(title,new LayoutParams(0,-1,1));line.addView(level);card.addView(line,new LayoutParams(-1,p(20)));
             LinearLayout controls=ui.row();controls.setGravity(Gravity.CENTER_VERTICAL);ImageView low=icon(rangeGlyph(id,false),24),high=icon(rangeGlyph(id,true),24);controls.addView(low);
             PreviewTrack track=new PreviewTrack(Math.max(0,Math.min(1,(value-minimum)/(float)(maximum-minimum))));LayoutParams tp=new LayoutParams(0,p(24),1);tp.leftMargin=tp.rightMargin=p(10);controls.addView(track,tp);controls.addView(high);LayoutParams lp=new LayoutParams(-1,p(24));lp.topMargin=p(16);card.addView(controls,lp);
-            modules.register(card,card,color->{title.setTextColor(color);level.setTextColor(color);((QuickControlIcon)low.getDrawable()).color(color);((QuickControlIcon)high.getDrawable()).color(color);track.ink=color;track.invalidate();});
+            modules.register(card,card,(color,focused,active)->{title.setTextColor(color);level.setTextColor(color);((QuickControlIcon)low.getDrawable()).color(color);((QuickControlIcon)high.getDrawable()).color(color);track.ink=color;track.invalidate();});
         }
         select(selected);
     }
@@ -66,5 +73,5 @@ final class QuickControlPreviewView extends LinearLayout {
         }
     }
     static String rangeGlyph(String id,boolean high){return "brightness".equals(id)?high?"range-sun-high":"range-sun-low":"volume".equals(id)?high?"range-speaker-high":"range-speaker-low":glyph(id);}
-    static String glyph(String id){switch(id){case "keySounds":return "key-sound";case "mute":return "wallpaper-sound";case "volume":return "speaker-high";case "brightness":return "sun";case "homeBlur":return "sliders";case "dockScale":return "desktop-layout";case "dockMagnification":return "plus";case "network":return "header-wifi";case "bluetooth":return "bluetooth";case "source":return "plugs";case "boot":return "boot-direct";case "apps":return "apps";case "original":return "left-desktop";case "screensaver":return "monitor-play";case "transfer":return "folder-transfer";case "memoShortcut":return "note";case "child":return "child";case "clock":return "clock";case "weather":return "weather";case "desktopSettings":return "desktop-layout";case "systemSettings":return "header-settings";default:return "image";}}
+    static String glyph(String id){switch(id){case "keySounds":return "key-sound";case "mute":return "wallpaper-sound";case QuickControlStore.SCREENSAVER_SOUND:return "saver-sound";case "volume":return "speaker-high";case "brightness":return "sun";case "homeBlur":return "sliders";case "dockScale":return "desktop-layout";case "dockMagnification":return "plus";case "network":return "header-wifi";case "bluetooth":return "bluetooth";case "source":return "plugs";case "boot":return "boot-direct";case "apps":return "apps";case "original":return "left-desktop";case "screensaver":return "monitor-play";case "transfer":return "folder-transfer";case "memoShortcut":return "note";case "child":return "child";case "clock":return "clock";case "weather":return "weather";case QuickControlStore.SETTINGS:return QuickControlIcon.DESKTOP_SETTINGS;case "systemSettings":return "header-settings";default:return "image";}}
 }

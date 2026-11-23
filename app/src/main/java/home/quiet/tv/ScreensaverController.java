@@ -79,14 +79,16 @@ final class ScreensaverController {
         settings=read();if(settings==null){OperationFeedback.get(activity).show(OperationFeedback.Kind.ERROR,chinese?"屏保配置无法读取":"Unable to read screensaver settings");return;}
         host.captureFocus();present();
     }
-    private String mediaKey(ScreensaverSettings value,WallpaperCatalog catalog){return value.mode+":"+media.imageKey(value.resolved(catalog))+":"+catalog.weather+":"+catalog.weatherDayNight;}
+    private String mediaKey(ScreensaverSettings value,WallpaperCatalog catalog){return value.mode+":"+value.customBlank(catalog)+":"+media.imageKey(value.resolved(catalog))+":"+catalog.weather+":"+catalog.weatherDayNight;}
     private void updateFlipSound(){if(settings!=null&&settings.flipping()&&settings.flipSound&&(state==State.ENTERING||state==State.ACTIVE)){if(flipSound==null)try{flipSound=new FlipClockSound(activity);}catch(RuntimeException error){DiagnosticLog.error("screensaver.flip_sound.unavailable",error);}}else if(flipSound!=null)flipSound.stop();}
     private void present(){
         information.active(false);state=State.ENTERING;int version=++generation;main.removeCallbacks(tick);host.weatherDemand(settings.showWeather);if(flipSound!=null)flipSound.stop();updateFlipSound();
-        WallpaperCatalog catalog=media.snapshot();mediaKey=mediaKey(settings,catalog);wallpapers.showTemporary(settings.resolved(catalog),ScreensaverSettings.FOLLOW.equals(settings.mode)&&catalog.weather&&WallpaperGpuSupport.available(activity),catalog.weatherDayNight,settings.sound&&settings.video(catalog),()->{
+        WallpaperCatalog catalog=media.snapshot();mediaKey=mediaKey(settings,catalog);Runnable prepared=()->{
             if(version!=generation||state!=State.ENTERING)return;
             DiagnosticLog.info("screensaver.transition","state=active evidence=background_callback");state=State.ACTIVE;host.desktopVisible(false);information.setVisibility(View.VISIBLE);information.active(true);refreshClock();
-        });
+        };
+        if(settings.customBlank(catalog))wallpapers.showTemporaryBlank(prepared);
+        else wallpapers.showTemporary(settings.resolved(catalog),ScreensaverSettings.FOLLOW.equals(settings.mode)&&catalog.weather&&WallpaperGpuSupport.available(activity),catalog.weatherDayNight,settings.sound&&settings.video(catalog),prepared);
     }
     void settingsChanged(){
         ScreensaverSettings next=read();if(next==null)return;boolean changed=settings!=next;settings=next;updateFlipSound();

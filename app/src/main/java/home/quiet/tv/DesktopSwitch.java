@@ -99,19 +99,20 @@ final class DesktopSwitch {
                 .put("authorized",authorized).put("routeValid",window||localAdb||routes.current()).put("needsReview",review).put("problem",problem)
                 .put("externalHelper",guard.helperActive()).put("proxyPausePending",guard.preferences.getBoolean("proxyPausePending",false))
                 .put("verification",verification).put("canVerify",routes.current()&&!window&&!localAdb)
-                .put("systemSelection",MaintenanceHelpActivity.homeSettingsIntent(context)!=null);
+                .put("systemSelection",MaintenanceHelpActivity.homeSettingsIntent(context)!=null)
+                .put("managementConnected",management!=null&&management.adb.connected());
         }
         private JSONObject preferences(String[] keys)throws JSONException{JSONObject values=new JSONObject();Map<String,?> all=guard.preferences.getAll();for(String key:keys)values.put(key,all.containsKey(key)?all.get(key):JSONObject.NULL);return values;}
         private String original()throws Exception {
             String found="";for(String value:new String[]{store.originalHome(),guard.selected(),guard.preferences.getString("proxyOriginal",""),LegacyWindowHomeGuard.original(context),LegacyAdbHomeGuard.original(context)}){
-                if(value.isEmpty())continue;ComponentName name=ComponentName.unflattenFromString(value);if(name==null)throw new IOException("原桌面组件记录无效。");value=name.flattenToString();if(!found.isEmpty()&&!found.equals(value))throw new IOException("原桌面记录不一致，请先在桌面管理中核对。");found=value;
+                if(value.isEmpty())continue;ComponentName name=ComponentName.unflattenFromString(value);if(name==null)throw new IOException("原桌面组件记录无效。");value=name.flattenToString();if(!found.isEmpty()&&!found.equals(value))throw new IOException("原桌面记录不一致，请通过电脑核对恢复记录。");found=value;
             }
             return found;
         }
         public JSONObject read()throws Exception {
             if(!HomeGuardState.unlocked(context))throw new IOException("请解锁电视后再切换桌面。");
             String stock=original();String firmware=guard.preferences.getString("firmware",Build.FINGERPRINT);if(!firmware.isEmpty()&&!Build.FINGERPRINT.equals(firmware))throw new IOException("固件已变化，请先核对原桌面接管配置。 ");ComponentName component=ComponentName.unflattenFromString(stock);
-            if(component==null||component.getPackageName().equals(context.getPackageName())||home.quiet.proxy.ProxyContract.isPackage(component.getPackageName())||HomeGuardPolicy.excludedHome(component.getPackageName()))throw new IOException("没有可核对的原桌面记录，请先检查桌面管理。");
+            if(component==null||component.getPackageName().equals(context.getPackageName())||home.quiet.proxy.ProxyContract.isPackage(component.getPackageName())||HomeGuardPolicy.excludedHome(component.getPackageName()))throw new IOException("没有可核对的原桌面记录。");
             PackageManager pm=context.getPackageManager();ActivityInfo info=pm.getActivityInfo(component,HomeController.METADATA);ApplicationInfo app=info.applicationInfo;
             if(!info.exported||app==null||!AppAvailability.installed(pm,app)||(app.flags&(ApplicationInfo.FLAG_SYSTEM|ApplicationInfo.FLAG_UPDATED_SYSTEM_APP))==0)throw new IOException("原桌面不是当前用户已安装的系统桌面，请核对恢复记录。");
             int packageSetting=pm.getApplicationEnabledSetting(app.packageName),componentSetting=pm.getComponentEnabledSetting(component);
