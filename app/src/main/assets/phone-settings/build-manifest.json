@@ -39,7 +39,7 @@
     "src/QuickSort.tsx": "04bd803910bfa6ba34a7d9e44a1c802a53ee80a11af7478a344f0a4af57c8734",
     "src/ResourceImageCache.ts": "a56354b8d1f2581fcfb13740c2a20823483bf71a7e7035bc90b68b3e0b7ae86b",
     "src/SaverClock.tsx": "fc672ff4521480ec377a325330cfc467e4e978f3d29a90deaf46ac82818b0bba",
-    "src/SourceSettings.tsx": "8ce63e6423d6f1df7c9c268b55b28aba3f75d42fe9a927abfb46e3b4f59cfca8",
+    "src/SourceSettings.tsx": "70ee5894518036fc81f6b18b305d31f237a02f893b08734a133159eed1a5cd37",
     "src/TaskResult.tsx": "9145ef925f831ee18a2913871bde84849c343e051083966247ff2c317c4eb57b",
     "src/Tools.tsx": "83c793765a523d7b67641a6fe81512ce276d3e0e9ed98cfd9a1125d2c70b35a1",
     "src/UpdateSettings.tsx": "48bfc613bb0d6d00dc162b98dceb420db586da4b7f9b6419b9097b80e3c53d4b",
@@ -70,7 +70,7 @@
     "public/tmdb.svg": "8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c"
   },
   "assets": {
-    "app.js": "e7be9278e66130f66b1c0f1579edb00847221e0e62ec48b7d912fb8e439657ab",
+    "app.js": "8f31c2a1951146831fdc86d9fb9dc4a86f6418b3aab976f50d34c874c5c76f78",
     "assets/file-folder.svg": "ceee8c7ec763f01505483702abaa19030e10b11d132b72079ec8d8574c8222dc",
     "assets/flip_clock.wav": "712c85fe9eddafc4ba9edbc211705bbc4f40f2e8239688b9fac355e3d852e4d0",
     "assets/qq-group.webp": "9d31d757ec3ec26b66cf11b8c40903270332bc3a8fca7dccd3c6ec4c1f5a36d9",

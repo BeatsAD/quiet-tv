@@ -71,8 +71,6 @@ final class SourceToolsSheet {
         }),true);
         visible.checked(desktop.showWatchTv());
         DesktopSettingsRow auto=row(group,"开机自动进入","","source-boot",this::toggleBoot,!boot.watchTarget().isEmpty());auto.checked(boot.hdmiBoot());
-        String hint=!boot.watchTarget().isEmpty()?"首页点击信号源，直接进入 "+boot.watchLabel():sources.entry()!=null?"首页点击信号源，直接打开原厂菜单":"选择并确认后，首页可直接进入该信号源";
-        block(text(hint,14.464f,23.8656f,UiPalette.SECONDARY),0,12);
         Button more=button("更多设置","source-more",()->go("more","source-research"),false);more.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);more.setPadding(p(6.4f),0,p(6.4f),0);more.setBackgroundDrawable(new SettingsFocusDrawable(ui.unit,6.72f,android.graphics.Color.TRANSPARENT,false,android.graphics.Color.TRANSPARENT));block(more,0,0);more.getLayoutParams().height=p(36);
     }
     private void more(){
