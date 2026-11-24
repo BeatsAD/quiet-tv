@@ -35,7 +35,7 @@ final class SettingsPageCapture {
         lastAttempt=attempt;returned=false;
         owner=context.getClass().getSimpleName()+":"+System.identityHashCode(context);
         if(running())current.stop("next_entry");
-        if(!DiagnosticProbe.active()){skipped="设置页面连续观察未开启：请先记录问题，再在30秒内打开设置。";DiagnosticLog.info("settings.capture.skipped","reason=no_active_diagnostic_window");return;}
+        if(!DiagnosticProbe.active()){skipped="设置页面连续观察未开启；应用自身收到的导航按键仍会记录。";DiagnosticLog.info("settings.capture.skipped","reason=no_active_diagnostic_window");return;}
         // Ordinary settings navigation must not create a new key or require a diagnostic setup flow.
         String reason=!new File(context.getFilesDir(),"local-adb.p12").isFile()?"no_existing_adb_key":
             !context.getSharedPreferences("adb",0).getBoolean("autoConnect",true)?"adb_paused":

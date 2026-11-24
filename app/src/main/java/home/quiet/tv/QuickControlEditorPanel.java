@@ -22,6 +22,7 @@ final class QuickControlEditorPanel extends ManagementPanel {
         return false;
     }
     private ArrayList<String> pending;private String selected="",moving="",focusTag="",saveFocus="",pendingNotice="快捷功能已保存",error="";private boolean busy,active,destroyed,conflict,refreshing;private int listScroll;private Bundle restored;
+    private boolean enterAfterRead;
     private Picker picker;
     private final Runnable phoneChanged=this::phoneChanged;
     private void phoneChanged(){if(!active||destroyed)return;QuickControlStore.Snapshot next=store.cached();if(committed==null||next==null||next.revision!=committed.revision){if(!locked()&&!editing()&&!retentionDraft)load();}else updatePreview();}
@@ -50,11 +51,12 @@ final class QuickControlEditorPanel extends ManagementPanel {
         boolean refresh=committed!=null&&restored==null&&error.isEmpty()&&pending==null&&!editing()&&!retentionDraft;
         if(refresh)refreshing=true;else{busy=true;render();}worker.execute(()->{QuickControlStore.Snapshot value=null;try{value=store.read();}catch(IOException failure){}QuickControlStore.Snapshot ready=value;main.post(()->{
             if(destroyed)return;if(refresh)refreshing=false;else busy=false;
+            boolean enter=enterAfterRead;enterAfterRead=false;
             // A user may have started editing or saving while the read was in flight.
             if(refresh&&(busy||editing()||pending!=null||retentionDraft))return;
-            if(ready==null){error="无法读取快捷功能，原文件已保留。请检查存储后重新读取。";render();return;}
+            if(ready==null){error="无法读取快捷功能，原文件已保留。请检查存储后重新读取。";render();if(enter&&active)focusManagementContent();return;}
             if(refresh&&ready.revision==committed.revision&&ready.ids.equals(committed.ids)){updatePreview();phoneChanged();return;}
-            committed=ready;order.clear();order.addAll(ready.ids);error="";conflict=false;pending=null;boolean restoreContent=contentHadFocus||pageRoot.hasFocus();
+            committed=ready;order.clear();order.addAll(ready.ids);error="";conflict=false;pending=null;boolean restoreContent=enter||contentHadFocus||pageRoot.hasFocus();
             if(restored!=null){Bundle saved=restored;restored=null;restoreContent|=saved.getBoolean("quick-content-focus");selected=saved.getString("quick-selected","");focusTag=saved.getString("quick-focus","");saveFocus=saved.getString("quick-save-focus","");pendingNotice=saved.getString("quick-save-notice","快捷功能已保存");listScroll=saved.getInt("quick-scroll");ArrayList<String> draft=saved.getStringArrayList("quick-order");boolean valid=draft!=null&&new HashSet<>(draft).size()==draft.size()&&QuickControlStore.ALL.containsAll(draft);
                 if(valid)draft=new ArrayList<>(QuickControlStore.normalize(draft));
                 if(valid&&(saved.getBoolean("quick-retention")||saved.getBoolean("quick-pending")||!saved.getString("quick-moving","").isEmpty())){
@@ -295,11 +297,19 @@ final class QuickControlEditorPanel extends ManagementPanel {
         ScreensaverSettings saver=ScreensaverStore.get(this).current();
         preview.render(order,selected,desktop.keySounds(),wallpaper.audible(),saver!=null&&saver.sound&&saver.video(wallpaper),desktop,activity.chinese());
     }
-    @Override void focusManagementContent(){focus(focusTag.isEmpty()?firstTag():focusTag,true,KeyFeedback.isDirectionPress());}
+    @Override void focusManagementContent(){
+        if(busy&&pending==null){enterAfterRead=true;return;}
+        focus(focusTag.isEmpty()?firstTag():focusTag,true,KeyFeedback.isDirectionPress());
+    }
     @Override public void handleBack(){tooltip.hide();if(busy)return;if(pending!=null){reload();return;}if(!moving.isEmpty()){cancelMove();return;}if(picker!=null){cancelPicker();return;}if(!managementTabFocused())managementTab().requestFocusFromTouch();else finish();}
-    @Override void leaveManagement(Runnable action){if(busy){feedback("正在保存快捷功能，请稍候");managementTab().requestFocusFromTouch();return;}if(editing()||pending!=null){dismissPicker();moving="";pending=null;restored=null;if(committed!=null){order.clear();order.addAll(committed.ids);}render();}tooltip.reset();action.run();}
+    @Override void leaveManagement(Runnable action){
+        // A background read must not consume a direction key while passing through this tab.
+        if(busy&&pending!=null){feedback("正在保存快捷功能，请稍候");managementTab().requestFocusFromTouch();return;}
+        if(editing()||pending!=null){dismissPicker();moving="";pending=null;restored=null;if(committed!=null){order.clear();order.addAll(committed.ids);}render();}
+        tooltip.reset();action.run();
+    }
     @Override protected void onResume(){super.onResume();active=true;PhoneSettingsSession.get(activity).observeConfiguration(phoneChanged);if(committed==null||!editing()&&pending==null&&!retentionDraft)load();else{updatePreview();if(!focusTag.isEmpty())focus(focusTag,true);}}
-    @Override protected void onPause(){PhoneSettingsSession.get(activity).forgetConfiguration(phoneChanged);listScroll=scroll.getScrollY();tooltip.hide();super.onPause();}
+    @Override protected void onPause(){enterAfterRead=false;PhoneSettingsSession.get(activity).forgetConfiguration(phoneChanged);listScroll=scroll.getScrollY();tooltip.hide();super.onPause();}
     @Override protected void onStop(){active=false;tooltip.reset();super.onStop();}
     @Override protected void onDestroy(){destroyed=true;dismissPicker();tooltip.destroy();worker.shutdown();super.onDestroy();}
     @Override protected void onSaveInstanceState(Bundle state){state.putBoolean("quick-content-focus",pageRoot.hasFocus());state.putString("quick-selected",selected);View focused=getCurrentFocus();state.putString("quick-focus",pageRoot.hasFocus()&&focused!=null&&focused.getTag() instanceof String?(String)focused.getTag():focusTag);state.putString("quick-save-focus",saveFocus);state.putString("quick-save-notice",pendingNotice);state.putString("quick-moving",moving);state.putBoolean("quick-retention",retentionDraft);state.putBoolean("quick-pending",pending!=null);state.putLong("quick-revision",committed==null?-1:committed.revision);state.putStringArrayList("quick-order",new ArrayList<>(order));state.putInt("quick-scroll",scroll.getScrollY());}

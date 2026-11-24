@@ -80,7 +80,7 @@ final class DiagnosticLog {
             if(log.recording==enabled)return;
             log.recordingEpoch++;
             log.recording=enabled;
-            if(!enabled)log.worker.execute(log::finishRecording);
+            if(!enabled)log.worker.execute(()->log.flushBuffered(DiagnosticEventBuffer.CAPACITY));
         }
         if(enabled)BluetoothDiagnostics.init(context);
         else{
@@ -90,10 +90,6 @@ final class DiagnosticLog {
             BluetoothSystemCapture.stop();
         }
         log.preferences.edit().putBoolean(RECORDING,enabled).apply();
-    }
-    private void finishRecording(){
-        flushBuffered(DiagnosticEventBuffer.CAPACITY);
-        if(incident!=null)try{incident.end("recording_disabled");}catch(IOException|JSONException failure){incidentError=failure.getClass().getSimpleName();}
     }
     static void info(String event,String detail){DiagnosticLog log=instance;if(log!=null)log.enqueue("INFO",event,detail);}
     static void trim(int level){if(recording())DiagnosticProbe.trim(level);}
@@ -175,28 +171,6 @@ final class DiagnosticLog {
         List<byte[]> encoded=new ArrayList<>(entries.size());
         for(DiagnosticEventBuffer.Entry entry:entries)encoded.add(DiagnosticJournal.entry(entry.at+" "+entry.level+" "+entry.event+" "+session.envelope(entry.detail,entry.elapsed<0?android.os.SystemClock.elapsedRealtime():entry.elapsed)));
         try{journal.appendBatch(encoded);buffer.written(entries,true);}catch(IOException failure){failedWrites++;buffer.written(entries,false);}
-        if(incident!=null)try{incident.append(entries,encoded);incident.finish(android.os.SystemClock.elapsedRealtime());}catch(IOException|JSONException failure){incidentError=failure.getClass().getSimpleName();}
-    }
-    static String markIncident()throws Exception{
-        DiagnosticLog log=instance;if(log==null)throw new IOException("Diagnostic log unavailable");
-        int epoch=recordingEpoch();
-        if(!recording(epoch))throw new IOException("诊断日志记录已关闭");
-        return log.worker.submit(()->{
-            if(!recording(epoch))throw new IOException("诊断日志记录已关闭");
-            log.flushBuffered(DiagnosticEventBuffer.CAPACITY);
-            if(log.journal==null||log.incident==null)throw new IOException("Incident storage unavailable");
-            String id=log.incident.mark(log.journal.tail(DiagnosticIncident.PART_BYTES-128,Integer.MAX_VALUE),System.currentTimeMillis(),android.os.SystemClock.elapsedRealtime(),log.session.json());
-            if(recording(epoch)){DiagnosticProbe.start(id);info("diagnostic.incident","id="+id+" source=user");}
-            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(()->{
-                if(!recording(epoch))return;
-                try{log.worker.execute(()->{
-                    if(!recording(epoch))return;
-                    log.flushBuffered(DiagnosticEventBuffer.CAPACITY);
-                    try{log.incident.finish(android.os.SystemClock.elapsedRealtime());}catch(IOException|JSONException failure){log.incidentError=failure.getClass().getSimpleName();}
-                });}catch(RejectedExecutionException unavailable){}
-            },DiagnosticIncident.AFTER_MS);
-            return id;
-        }).get(5,TimeUnit.SECONDS);
     }
     private JSONObject coverage()throws JSONException{
         return new JSONObject().put("scope","current_process").put("channels",buffer.coverage()).put("writeFailedBatches",failedWrites)
@@ -242,11 +216,10 @@ final class DiagnosticLog {
             snapshot=boundedSnapshot(snapshot);
             String header="Quiet TV 诊断日志\n生成时间："+new SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z",Locale.ROOT).format(new Date())
                 +"\n"+snapshot
-                +"\n本进程写入失败批次："+this.failedWrites+"  队列丢弃："+this.buffer.droppedTotal()+"  重复合并："+this.buffer.suppressedTotal()+"\n范围：Quiet TV 自身关键事件及错误，包含首页恢复、窗口焦点、每次恢复的首次视图树绘制回调，以及系统设置路由、ADB 连接尝试和原主页中转结果。打开系统设置后自动触发的 settings.capture 另记录本机 ADB 可见的前台组件、action、Fragment候选和组件访问状态；input.navigation 仅表示应用或已有无障碍回调实际收到的导航按键，不代表完整实体按键历史。不含原始系统转储、用户正文、凭据或任意Intent数据，也不包含完整系统日志。attempt 关联一次操作，RUNNING 表示导出时尚未结束；设置 DISPATCHED_UNVERIFIED 仅为请求已发出，中转 VISIBILITY_CALLBACK 仅为收到首页回报，都不证明电视已上屏。场景 source=user 为用户确认，不是自动验收。绘制回调和窗口焦点不证明画面已经上屏；跳转记录不证明系统页面正常显示或物理信号已切换。\n动态壁纸诊断：upload 为本进程内单次视频上传编号，attempt 为上传连接会话；request 与 wallpaper 关联播放尝试及应用内部壁纸编号。stage/check 为失败阶段，reason 为原因码。no_video_track 表示系统未识别到视频轨道，不代表文件一定损坏；first_frame_timeout 表示限时内没有首帧回调；decoder/codec 与 diagnostic 为解码器及底层错误信息。封面生成失败标记 optional=true，不等同于视频导入失败。state 记录屏幕、窗口和输出状态，layers 记录封面、模糊与亮度遮罩状态；wake_rebind 表示亮屏后重新创建输出，counters 仅为解码器计数。首帧、图层状态及解码计数均不证明持续流畅或电视已上屏。只记录媒体技术参数和异常类型，不含文件名、路径、上传地址或原始异常消息。\n时间字段为 Unix 毫秒；首页事件的 uptimeMs、elapsedMs 使用不含深度休眠的单调时钟；连接和中转耗时使用包含深度休眠的 elapsedRealtime。容量轮转会覆盖较早日志，进程停止期间不记录，异常终止可能丢失末尾记录；没有结果事件不能直接判为超时或成功。\n请检查内容后私下分享。\n\n[历史事件]\n";
+                +"\n本进程写入失败批次："+this.failedWrites+"  队列丢弃："+this.buffer.droppedTotal()+"  重复合并："+this.buffer.suppressedTotal()+"\n范围：Quiet TV 自身关键事件及错误，包含首页恢复、窗口焦点、每次恢复的首次视图树绘制回调，以及系统设置路由、ADB 连接尝试和原主页中转结果。旧版 settings.capture 历史可能包含本机 ADB 曾读取的前台组件、action、Fragment 候选和组件访问状态；input.navigation 仅表示应用或已有无障碍回调实际收到的导航按键，不代表完整实体按键历史。不含原始系统转储、用户正文、凭据或任意Intent数据，也不包含完整系统日志。attempt 关联一次操作，RUNNING 表示导出时尚未结束；设置 DISPATCHED_UNVERIFIED 仅为请求已发出，中转 VISIBILITY_CALLBACK 仅为收到首页回报，都不证明电视已上屏。场景 source=user 为用户确认，不是自动验收。绘制回调和窗口焦点不证明画面已经上屏；跳转记录不证明系统页面正常显示或物理信号已切换。\n动态壁纸诊断：upload 为本进程内单次视频上传编号，attempt 为上传连接会话；request 与 wallpaper 关联播放尝试及应用内部壁纸编号。stage/check 为失败阶段，reason 为原因码。no_video_track 表示系统未识别到视频轨道，不代表文件一定损坏；first_frame_timeout 表示限时内没有首帧回调；decoder/codec 与 diagnostic 为解码器及底层错误信息。封面生成失败标记 optional=true，不等同于视频导入失败。state 记录屏幕、窗口和输出状态，layers 记录封面、模糊与亮度遮罩状态；wake_rebind 表示亮屏后重新创建输出，counters 仅为解码器计数。首帧、图层状态及解码计数均不证明持续流畅或电视已上屏。只记录媒体技术参数和异常类型，不含文件名、路径、上传地址或原始异常消息。\n时间字段为 Unix 毫秒；首页事件的 uptimeMs、elapsedMs 使用不含深度休眠的单调时钟；连接和中转耗时使用包含深度休眠的 elapsedRealtime。容量轮转会覆盖较早日志，进程停止期间不记录，异常终止可能丢失末尾记录；没有结果事件不能直接判为超时或成功。\n请检查内容后私下分享。\n\n[历史事件]\n";
             header=header.replace("\n\n[历史事件]\n","\n")+"\n[导出时当前会话身份]\n"+this.session.json()+"\n[本进程按通道采集质量]\n"+this.coverage()+"\n[短时增强诊断覆盖]\n"+DiagnosticProbe.snapshot()+"\n2.0操作记录仅包含允许的类别、阶段、匿名关联和结果；completed或APPLIED_CALLBACK不证明物理画面正常。故障窗口标记为用户报告时刻，非自动故障判定。\n历史事件以diagSession／diagBoot／diagBuild／diagSource关联；缺少这些字段的旧记录身份未知，不赋予当前版本。上述快照与质量统计属于导出时／当前进程，不替代历史故障现场。\n\n[历史事件]\n";
             byte[] headerBytes=header.getBytes(Charsets.UTF_8);
             if(headerBytes.length>65536)throw new IOException("Diagnostic snapshot exceeds limit");
-            if(recording&&this.incident!=null)this.incident.finish(android.os.SystemClock.elapsedRealtime());
             try(OutputStream output=new FileOutputStream(file)){output.write(headerBytes);this.journal.copyTo(output);if(this.incident!=null)this.incident.appendTo(output);}
             return file;
     }

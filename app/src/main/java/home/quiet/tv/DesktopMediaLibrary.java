@@ -43,7 +43,10 @@ final class DesktopMediaLibrary {
         Runnable batch=nextBatch;nextBatch=null;batch.run();
     };
     private ManagementUi.Sheet removeSheet;
+    private LinearLayout libraryHeading;
+    private SettingsTabBar typeTabs;
     DesktopMediaLibrary(ManagementUi ui,String target,DesktopMediaImportPanel importer,Actions actions,Runnable rewired){this.ui=ui;this.target=target;context=target.equals("screensaver")?"屏保":"壁纸";prefix=target.equals("screensaver")?"saver-media-":"wall-media-";this.importer=importer;this.actions=actions;this.rewired=rewired;media=WallpaperStore.get(ui);library=ui.column();
+        library.setClipToPadding(false);
         library.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener(){
             @Override public void onViewAttachedToWindow(View view){
                 for(ViewParent parent=view.getParent();parent!=null;parent=parent.getParent()){
@@ -91,9 +94,36 @@ final class DesktopMediaLibrary {
     private void changeType(String kind){if(type.equals(kind))return;type=kind;render();View selected=library.findViewWithTag(target+"-library-type-"+kind);if(selected!=null)selected.requestFocusFromTouch();}
     void render(){render(quick);}
     void renderAll(){render(false);}
+    private void ensureLibraryHeading(){
+        if(libraryHeading!=null)return;
+        libraryHeading=ui.row();
+        typeTabs=ui.settingsTabs();
+        for(String kind:new String[]{"image","video"}){
+            Button filter=ui.settingsTab(typeTabs,kind.equals("image")?tr("图片","Images"):tr("视频","Videos"),()->changeType(kind));
+            filter.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,p(13.44f));
+            filter.setPadding(p(10.24f),p(5.12f),p(10.24f),p(5.12f));
+            filter.setTag(target+"-library-type-"+kind);
+            filter.setOnFocusChangeListener((view,focused)->{
+                if(focused)view.post(()->{if(view.hasFocus())changeType(kind);});
+            });
+            LinearLayout.LayoutParams position=new LinearLayout.LayoutParams(-2,p(33.28f));
+            if(typeTabs.getChildCount()>0)position.leftMargin=p(8.32f);
+            typeTabs.addView(filter,position);
+        }
+        libraryHeading.addView(typeTabs,new LinearLayout.LayoutParams(-2,-1));
+        libraryHeading.addView(new View(ui),new LinearLayout.LayoutParams(0,1,1));
+        libraryHeading.addView(smallButton(target.equals("wallpaper")?tr("上传壁纸","Upload wallpaper"):tr("导入素材","Import media"),
+                ()->importer.show(target,type,(target,id,apply)->actions.imported(id,apply))),new LinearLayout.LayoutParams(-2,p(33.28f)));
+        library.addView(libraryHeading,new LinearLayout.LayoutParams(-1,p(33.28f)));
+    }
     private void render(boolean staged){
-        int request=++generation;nextBatch=null;library.removeCallbacks(append);thumbnails.clear();library.removeAllViews();library.setPadding(p(10.24f),p(10.24f),p(10.24f),p(10.24f));
-        LinearLayout heading=ui.row();for(String kind:new String[]{"image","video"}){Button filter=smallButton(kind.equals("image")?tr("图片","Images"):tr("视频","Videos"),()->changeType(kind));filter.setTag(target+"-library-type-"+kind);filter.setOnFocusChangeListener((view,focused)->{if(focused)view.post(()->{if(view.hasFocus())changeType(kind);});});filter.setSelected(type.equals(kind));LinearLayout.LayoutParams filterPosition=new LinearLayout.LayoutParams(-2,p(33.28f));if(heading.getChildCount()>0)filterPosition.leftMargin=p(8.32f);heading.addView(filter,filterPosition);}View spacer=new View(ui);heading.addView(spacer,new LinearLayout.LayoutParams(0,1,1));heading.addView(smallButton(target.equals("wallpaper")?tr("上传壁纸","Upload wallpaper"):tr("导入素材","Import media"),()->importer.show(target,type,(target,id,apply)->actions.imported(id,apply))),new LinearLayout.LayoutParams(-2,p(33.28f)));library.addView(heading);LinearLayout.LayoutParams gap=new LinearLayout.LayoutParams(-1,p(8.32f));library.addView(new View(ui),gap);
+        int request=++generation;nextBatch=null;library.removeCallbacks(append);thumbnails.clear();
+        ensureLibraryHeading();
+        if(library.getChildCount()>1)library.removeViews(1,library.getChildCount()-1);
+        library.setPadding(p(10.24f),p(10.24f),p(10.24f),p(10.24f));
+        for(String kind:new String[]{"image","video"})
+            typeTabs.findViewWithTag(target+"-library-type-"+kind).setSelected(type.equals(kind));
+        library.addView(new View(ui),new LinearLayout.LayoutParams(-1,p(8.32f)));
         WallpaperCatalog catalog=media.snapshot();
         if("image".equals(type)&&catalog.builtinHidden(WallpaperCatalog.BUILTIN,saver())){
             Button restore=smallButton(tr("恢复默认素材","Restore default media"),this::restoreBuiltin);

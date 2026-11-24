@@ -16,7 +16,7 @@ function error(text){$('error').textContent=text;$('error').hidden=false;}
 async function capabilities(){
   limits=null;$('photo').disabled=$('files').disabled=true;$('send').disabled=true;
   try{const response=await fetch(new URL('info',uploadBase));if(!response.ok)throw Error();const data=await response.json();if(data.purpose!=='wallpaper')throw Error();limits=data;
-    $('fileinfo').textContent=message('图片与视频可混合多选。图片最大 ','Select images and videos together. Images up to ')+(data.imageMaxBytes/1024/1024)+message(' MB；视频大小受电视可用空间限制。上传期间请保持电视上传页打开。',' MB; videos are limited by TV storage. Keep the TV upload screen open.');$('photo').disabled=$('files').disabled=false;
+    $('fileinfo').textContent=message('图片最大 ','Images up to ')+(data.imageMaxBytes/1024/1024)+message(' MB；视频大小受电视可用空间限制。上传期间请保持电视上传页打开。',' MB; videos are limited by TV storage. Keep the TV upload screen open.');$('photo').disabled=$('files').disabled=false;
   }catch{error(message('会话不可用，请在电视重新打开上传页面。','Session unavailable. Reopen upload on your TV.'));}
 }
 if(!needsCode)void capabilities();

@@ -14,6 +14,7 @@ final class HomeGuardPolicy {
     static final long INPUT_TRANSITION_MS=8000;
     static final long USAGE_POLL_MS=1000, USAGE_LOOKBACK_MS=10000;
     static final long BOOT_RECHECK_FIRST_MS=30000, BOOT_RECHECK_SECOND_MS=45000, DEAF_CHECK_MS=20000;
+    // Empty before any observation, null after a window event without an identity.
     private String window="";
     private long arrived,usageTakenAt=Long.MIN_VALUE;
     private boolean consumed,unknownUsed;
@@ -122,20 +123,22 @@ final class HomeGuardPolicy {
     }
     boolean observe(String selected,String pkg,String cls,long now){return observe(Collections.singleton(selected),pkg,cls,now);}
     boolean observe(Collection<String> selected,String pkg,String cls,long now){
+        if(pkg==null || pkg.isEmpty() || cls==null || cls.isEmpty()){invalidateWindow();return false;}
         String next=pkg+"/"+(cls.startsWith(".")?pkg+cls:cls);
-        if(window.equals(next))return false;
+        if(next.equals(window))return false;
         window=next;arrived=now;consumed=false;
         return matches(selected,pkg,cls);
     }
     boolean consume(String selected,long now,boolean enabled,boolean interactive,boolean unlocked){return consume(Collections.singleton(selected),now,enabled,interactive,unlocked);}
     boolean consume(Collection<String> selected,long now,boolean enabled,boolean interactive,boolean unlocked){
         long age=now-arrived;
-        if(!enabled || !interactive || !unlocked || consumed || !selected.contains(window) || selected.isEmpty()
-                || window.isEmpty() || age<0 || age>MAX_AGE_MS)return false;
+        if(!enabled || !interactive || !unlocked || consumed || unknown() || !selected.contains(window)
+                || age<0 || age>MAX_AGE_MS)return false;
         consumed=true;return true;
     }
     boolean settle(String selected,boolean allowUnknown){return settle(Collections.singleton(selected),allowUnknown);}
     boolean settle(Collection<String> selected,boolean allowUnknown){
+        if(incompleteWindow())return false;
         if(window.isEmpty()){
             if(!allowUnknown || unknownUsed)return false;
             unknownUsed=true;return true;
@@ -150,10 +153,14 @@ final class HomeGuardPolicy {
         usageTakenAt=at;return true;
     }
     void ignoreUsageThrough(long now){usageTakenAt=Math.max(usageTakenAt,now);}
-    boolean unknown(){return window.isEmpty();}
+    boolean incompleteWindow(){return window==null;}
+    boolean unknown(){return incompleteWindow() || window.isEmpty();}
     // A second boot check may answer a previously consumed home window, but never another app.
     boolean bootRecheck(String selected,boolean allowUnknown){return bootRecheck(Collections.singleton(selected),allowUnknown);}
-    boolean bootRecheck(Collection<String> selected,boolean allowUnknown){return window.isEmpty()?allowUnknown:!selected.isEmpty() && selected.contains(window);}
+    boolean bootRecheck(Collection<String> selected,boolean allowUnknown){
+        return !incompleteWindow() && (window.isEmpty()?allowUnknown:selected.contains(window));
+    }
     void confirmed(){unknownUsed=true;}
+    void invalidateWindow(){window=null;arrived=0;consumed=false;}
     void clear(){window="";arrived=0;consumed=false;cancelInput();}
 }

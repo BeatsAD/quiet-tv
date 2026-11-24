@@ -15,6 +15,10 @@ final class ScreensaverPreviewView extends FrameLayout {
     private final ManagementUi ui;
     private final WallpaperStore store;
     private final ImageView image;
+    private final WallpaperWallView wall;
+    private final TextView wallEmpty;
+    private boolean wallReady;
+    private List<String> wallImages=Collections.emptyList();
     private final ScreensaverInformationView information;
     private final VideoWallpaperPlayer video;
     private WallpaperGpuView sky;
@@ -63,10 +67,25 @@ final class ScreensaverPreviewView extends FrameLayout {
         androidx.core.view.ViewCompat.setImportantForAccessibility(this,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
         image=new ImageView(ui);image.setScaleType(ImageView.ScaleType.CENTER_CROP);addView(image,new LayoutParams(-1,-1));
         video=new VideoWallpaperPlayer(ui,this,true);video.setSound(false);if(WallpaperGpuSupport.available(ui)){sky=new WallpaperGpuView(ui,new WallpaperGpuView.Listener(){public void ready(){if(usingWeather){weatherReady=true;readyAfterDraw(sync.request());}message.show("");}public void failed(String detail){if(usingWeather)sync.failed(sync.request(),ui.tr("天气效果暂不可用，预览未同步","Weather preview unavailable"));if(sky!=null){sky.active(false);sky.displayView().setVisibility(GONE);}message.show(ui.tr("天气效果暂不可用，已使用静态背景","Weather effect unavailable; using the static background"));}});sky.displayView().setVisibility(GONE);addView(sky.displayView(),new LayoutParams(-1,-1));}
+        wall=new WallpaperWallView(ui,store,available->{
+            wallReady=available;
+            wallEmptyStatus(available);
+            readyAfterDraw(sync.request());
+        });
+        wall.setVisibility(GONE);
+        addView(wall,new LayoutParams(-1,-1));
+        wallEmpty=ui.label(ui.tr("上传静态壁纸后即可预览","Upload wallpapers to preview"),16);
+        wallEmpty.setGravity(Gravity.CENTER);
+        wallEmpty.setVisibility(GONE);
+        addView(wallEmpty,new LayoutParams(-1,-1));
         information=new ScreensaverInformationView(ui,67.2f*ui.unit,10.56f*ui.unit);addView(information,new LayoutParams(-1,-1));
         information.onLanded(()->{if(flipSound!=null&&flipSoundAllowed())flipSound.play();});
     }
-    @Override public void onWindowFocusChanged(boolean focused){super.onWindowFocusChanged(focused);if(information!=null)information.active(active&&focused);updateFlipSound();if(video!=null&&active)video.setPaused(!focused);if(active&&focused)refreshTime();else if(main!=null)main.removeCallbacks(tick);}
+    private void wallEmptyStatus(boolean available){
+        wallEmpty.setVisibility(available?GONE:VISIBLE);
+        information.setVisibility(available?VISIBLE:INVISIBLE);
+    }
+    @Override public void onWindowFocusChanged(boolean focused){super.onWindowFocusChanged(focused);if(wall!=null)wall.active(active&&focused&&wall.getVisibility()==VISIBLE);if(information!=null)information.active(active&&focused);updateFlipSound();if(video!=null&&active)video.setPaused(!focused);if(active&&focused)refreshTime();else if(main!=null)main.removeCallbacks(tick);}
     @Override protected void onWindowVisibilityChanged(int visibility){super.onWindowVisibilityChanged(visibility);updateFlipSound();}
     @Override protected void onVisibilityChanged(View changed,int visibility){super.onVisibilityChanged(changed,visibility);updateFlipSound();}
     private boolean flipSoundAllowed(){
@@ -80,15 +99,43 @@ final class ScreensaverPreviewView extends FrameLayout {
     }
     @Override protected void onMeasure(int width,int height){super.onMeasure(width,MeasureSpec.makeMeasureSpec(Math.round(MeasureSpec.getSize(width)*9f/16),MeasureSpec.EXACTLY));}
     void show(ScreensaverSettings settings,String candidate){this.settings=settings;this.candidate=candidate==null?"":candidate;updateFlipSound();refreshTime();load();}
+    private final Runnable dailyQuoteChanged=()->refreshQuote(System.currentTimeMillis(),false);
+    private void refreshQuote(long now,boolean retry){
+        information.refreshQuote(now,new DesktopSettingsStore(ui).showScreensaverQuote(),active&&isShown()&&hasWindowFocus(),retry);
+    }
     private void renderInformation(long now){
-        if(settings==null)return;renderedMinute=now/60000;WeatherData data=new WeatherStore(ui).cached(ui.chinese());boolean available=data!=null&&data.usable(now);
+        if(settings==null)return;renderedMinute=now/60000;refreshQuote(now,false);WeatherData data=new WeatherStore(ui).cached(ui.chinese());boolean available=data!=null&&data.usable(now);
         information.show(settings,now,available?data.city+"  "+data.temperatureText()+"  "+data.description:"");
     }
     private void load(){
         if(!active||settings==null||destroyed)return;
         WallpaperCatalog current=store.snapshot();String wanted=ScreensaverSettings.CUSTOM.equals(settings.mode)&&!candidate.isEmpty()?settings.media(candidate).resolved(current):settings.resolved(current);
-        long previous=sync.request();long operation=sync.begin(Arrays.asList(settings.mode,settings.showTime,settings.showWeather,settings.flipShowSeconds,settings.clockPosition(),settings.weatherPosition,settings.clock,wanted,store.imageKey(wanted),current.weather,current.weatherDayNight),PreviewSyncState.BACKGROUND);
+        List<String> wallIds=settings.wall()?WallpaperWall.ids(current):Collections.emptyList();
+        long previous=sync.request();long operation=sync.begin(Arrays.asList(wallIds,settings.mode,settings.showTime,settings.showWeather,settings.flipShowSeconds,settings.clockPosition(),settings.weatherPosition,settings.clock,wanted,store.imageKey(wanted),current.weather,current.weatherDayNight),PreviewSyncState.BACKGROUND);
         if(previous!=operation&&readyDraw!=null){readyDraw.run();readyDraw=null;}
+        if(settings.wall()){
+            if(wall.getVisibility()!=VISIBLE||previous!=operation){
+                ++generation;pending="";video.stop();
+                if(sky!=null){sky.active(false);sky.displayView().setVisibility(GONE);}
+                usingWeather=false;weatherReady=false;image.setVisibility(GONE);
+                message.show("");
+            }
+            wall.setVisibility(VISIBLE);
+            if(wallIds.isEmpty()){wall.clear();wallReady=false;wallEmptyStatus(false);readyAfterDraw(operation);return;}
+            if(!wallImages.equals(wallIds)){
+                wallImages=wallIds;
+                wallReady=false;
+                wallEmpty.setVisibility(GONE);
+                information.setVisibility(INVISIBLE);
+            }
+            wall.show(wallIds);
+            wall.active(hasWindowFocus());
+            if(wallReady)readyAfterDraw(operation);
+            return;
+        }
+        if(wall.getVisibility()==VISIBLE){wall.clear();wall.setVisibility(GONE);wallReady=false;}
+        wallEmpty.setVisibility(GONE);
+        information.setVisibility(VISIBLE);
         boolean clockOnly=settings.clockOnly()||candidate.isEmpty()&&settings.customBlank(current);usingWeather=false;setBackgroundColor(0xff000000);image.setVisibility(clockOnly?GONE:VISIBLE);
         if(clockOnly){if(sky!=null){sky.active(false);sky.displayView().setVisibility(GONE);}++generation;pending="";video.stop();readyAfterDraw(operation);return;}
         WallpaperCatalog catalog=store.snapshot();WeatherData weatherData=new WeatherStore(ui).cached(ui.chinese());boolean weather=ScreensaverSettings.FOLLOW.equals(settings.mode)&&catalog.weather&&sky!=null&&weatherData!=null&&weatherData.usable(System.currentTimeMillis());if(sky!=null){sky.displayView().setVisibility(weather?VISIBLE:GONE);sky.active(active&&weather);if(weather){sky.strength(0);sky.weather(WeatherWallpaperScene.key(weatherData.description,weatherData.icon,false,12),WeatherIllumination.at(System.currentTimeMillis(),weatherData.latitude,weatherData.longitude,catalog.weatherDayNight),weatherData.atmosphere);}}usingWeather=weather;if(!weather)weatherReady=false;if(weather){video.stop();if(gpuFrameOperation!=operation){gpuFrameOperation=operation;sky.afterFrame(()->{if(weatherReady)readyAfterDraw(operation);});}}
@@ -114,14 +161,16 @@ final class ScreensaverPreviewView extends FrameLayout {
     void resume(){
         if(active)return;
         active=true;
+        DailyQuote.get(ui).observe(dailyQuoteChanged);
         IntentFilter filter=new IntentFilter(Intent.ACTION_TIME_CHANGED);
         filter.addAction(Intent.ACTION_TIMEZONE_CHANGED);
         ui.registerReceiver(timeChanges,filter);
         information.active(hasWindowFocus());
         updateFlipSound();
         refreshTime();
+        refreshQuote(System.currentTimeMillis(),true);
         load();
     }
-    void pause(){if(!active)return;information.active(false);active=false;updateFlipSound();ui.unregisterReceiver(timeChanges);weatherReady=false;sync.invalidate();gpuFrameOperation=-1;if(readyDraw!=null){readyDraw.run();readyDraw=null;}if(sky!=null)sky.afterFrame(null);++generation;pending="";main.removeCallbacks(tick);video.stop();if(sky!=null)sky.active(false);}
-    void destroy(){pause();destroyed=true;information.onLanded(null);if(flipSound!=null){flipSound.destroy();flipSound=null;}worker.shutdownNow();video.destroy();if(sky!=null)sky.destroy();image.setImageDrawable(null);}
+    void pause(){if(!active)return;wall.clear();wallReady=false;information.active(false);active=false;DailyQuote.get(ui).forget(dailyQuoteChanged);updateFlipSound();ui.unregisterReceiver(timeChanges);weatherReady=false;sync.invalidate();gpuFrameOperation=-1;if(readyDraw!=null){readyDraw.run();readyDraw=null;}if(sky!=null)sky.afterFrame(null);++generation;pending="";main.removeCallbacks(tick);video.stop();if(sky!=null)sky.active(false);}
+    void destroy(){pause();wall.destroy();destroyed=true;information.onLanded(null);if(flipSound!=null){flipSound.destroy();flipSound=null;}worker.shutdownNow();video.destroy();if(sky!=null)sky.destroy();image.setImageDrawable(null);}
 }

@@ -57,7 +57,7 @@ final class ChildTimeSheet {
         app.setSingleLine();
         app.setEllipsize(TextUtils.TruncateAt.END);
         sheet.box.addView(app, sheet.box.indexOfChild(sheet.scroll), new LinearLayout.LayoutParams(-1, ui.px(22)));
-        LinearLayout tabs = ui.row();
+        SettingsTabBar tabs = ui.settingsTabs();
         tabs.setPadding(ui.px(2), ui.px(2), ui.px(2), ui.px(2));
         tabs.setClipToPadding(false);
         tabs.setBackgroundDrawable(ui.surface(0x36ffffff, 0x28ffffff, 0, 999));
@@ -66,9 +66,10 @@ final class ChildTimeSheet {
         sheet.box.addView(tabs, sheet.box.indexOfChild(sheet.scroll), tabsSize);
         for (int i = 0; i < modes.length; i++) {
             final int mode = i;
-            Button tab = pill(MODES[i], () -> selectMode(mode));
+            Button tab = ui.settingsTab(tabs, MODES[i], () -> selectMode(mode));
             tab.setTag("child-mode-" + i);
-            tab.setBackgroundDrawable(new SettingsFocusDrawable(ui.unit, 999, 0));
+            tab.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, ui.px(14));
+            tab.setPadding(0, 0, 0, 0);
             tab.setOnFocusChangeListener((v, focused) -> {
                 if (focused && draft.mode != mode) selectMode(mode);
             });

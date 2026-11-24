@@ -10,8 +10,11 @@ export function MediaRename({client,id,onSaved,onCancel}:{client:PhoneClient;id:
   const expected=useRef(client.frame?.revisions.catalog||''),mounted=useRef(true),input=useRef<HTMLInputElement>(null),submitting=useRef(false),finished=useRef(false);
   useEffect(()=>{mounted.current=true;input.current?.focus();return()=>{mounted.current=false;};},[]);
   function complete(){if(!mounted.current||finished.current)return;finished.current=true;setPending(null);onSaved();}
-  useEffect(()=>{if(pending&&client.sync==='synced'&&item?.name===pending)complete();},[pending,client.sync,item?.name]);
-  const locked=saving||!!pending&&['saving','checking','offline'].includes(client.sync),conflict=!!item&&item.name!==original;
+  const {connection,receipt}=client.sync;
+  const pendingReceipt=receipt.state!=='idle'&&receipt.domain==='catalog'&&receipt.field==='renameMedia';
+  const canConfirm=connection.state==='connected'&&!pendingReceipt;
+  useEffect(()=>{if(pending&&canConfirm&&item?.name===pending)complete();},[pending,canConfirm,item?.name]);
+  const locked=saving||!!pending&&(pendingReceipt||connection.state==='offline'),conflict=!!item&&item.name!==original;
   async function save(){
     if(submitting.current||locked||conflict||review||!item?.canRename)return;
     const next=name.trim();if(!next||next.length>48||/[\x00-\x1f\x7f-\x9f/\\]/.test(name)){setError('请输入 1–48 个字符的名称，不能包含斜线或控制字符');feedback({kind:'error',title:'重命名失败',detail:'请输入有效的素材名称'});return;}

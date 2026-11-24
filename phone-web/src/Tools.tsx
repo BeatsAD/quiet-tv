@@ -1,6 +1,6 @@
 import { SourceSettings } from './SourceSettings';
 import { useOperationFeedback } from './OperationFeedback';
-import { AdbManagement, adbLabel } from './AdbManagement';
+import { AdbManagement } from './AdbManagement';
 import { useEffect, useState, useRef } from 'react';
 import { type PhoneClient, type Value } from './api';
 import { Group, Icon, Row, Switch, fileSize } from './widgets';
@@ -100,7 +100,7 @@ export function ToolBody({client,view,open,run,busy,pickFile,controls,back,uploa
       </details>
     </div>;
   }
-  if(view.id==='weather')return <Group><WeatherSettings client={client} open={open} run={run} busy={busy} controls={controls} nested/></Group>;
+  if(view.id==='weather')return <Group><WeatherSettings client={client} open={open} run={run} busy={busy} nested/></Group>;
   if(view.id==='boot')return <><Group>{controls(['boot'])}</Group><p className="section-note">保存去向后，按电视端的开机与唤醒规则执行。HDMI 需先在信号源配置中确认画面和声音。</p><Group><Row title="配置信号源" navigate onClick={()=>open({kind:'tool',id:'inputs',title:'信号源配置'},true)}/></Group></>;
   if(view.id==='management')return <AdbManagement client={client} run={run} busy={busy}/>;
   if(view.id==='memos'){const notes=(v.notes||[]) as {id:string;text:string;done:boolean}[];return <><Group>{notes.map(note=><div className="setting-row memo-row" key={note.id}><button className="icon-button" aria-label={note.done?'标记未完成':'标记完成'} disabled={busy} onClick={()=>void run('memos','toggle',note.id)}><Icon name={note.done?'CheckCircledIcon':'ClockIcon'}/></button><button className={`row-title ${note.done?'memo-done':''}`} onClick={()=>open({kind:'memo-edit',title:'编辑备忘录',id:note.id,message:note.text},true)}>{note.text}</button><button className="icon-button danger" aria-label="删除备忘录" onClick={()=>confirm('删除备忘录？','memos','remove',note.id,note.text)}><Icon name="TrashIcon"/></button></div>)}</Group>{!notes.length&&<p className="empty-state">暂无备忘录</p>}<button className="primary-button" onClick={newMemo}>新建备忘录</button></>;}
@@ -119,14 +119,15 @@ export function ToolBody({client,view,open,run,busy,pickFile,controls,back,uploa
     const timeZone=String(client.metadata?.timeZone||'UTC');
     const entries=[...((v.backups||[]) as Entry[])].sort((a,b)=>(b.created||0)-(a.created||0));
     const importDrafts=(v.backupDrafts||[]) as Entry[];
-    const blocked=busy||uploading||client.restoring||!!v.backupRecoveryError;
+    const restore=client.restoreStatus;
+    const blocked=busy||uploading||!restore.canChangeBackups;
+    if(client.restoring)return null;
     const recordDate=(entry:Entry,full=false)=>backupDate(entry.created,timeZone,full);
     const confirmRestore=(entry:Entry,recent=false)=>confirm(recent?'恢复最近备份？':'恢复这份备份？','backup','restore',entry.id,
       `${recordDate(entry,true)}  ${backupKind(entry.kind)}\n将用这份备份替换当前桌面配置。\n恢复后需要重新扫码连接手机设置。`);
 
     if(view.id==='backup'){
       const latest=entries[0];
-      const restore=v.lastRestore as Record<string,string>|undefined;
       return <>
         <Group>
           <Row title="立即备份" value="保存到电视" disabled={blocked} onClick={()=>void run('backup','create')}/>
@@ -137,9 +138,11 @@ export function ToolBody({client,view,open,run,busy,pickFile,controls,back,uploa
         </Group>
         <Group><Row title="自动备份"><Switch title="自动备份" checked={!!v.backupAutomatic} disabled={blocked}
           onChange={()=>void run('backup','automatic',!v.backupAutomatic)}/></Row></Group>
-        {!!v.backupError&&<p className="form-error">{String(v.backupError)}</p>}
-        {!!v.backupRecoveryError&&<button className="secondary-button" disabled={busy} onClick={()=>void run('backup','retry')}>重新读取恢复记录</button>}
-        {restore?.phase&&<p className="section-note">上次恢复：{({complete:'已完成','rolled-back':'已回滚到恢复前配置',applying:'尚未完成，需要核对',unknown:'结果待核对'} as Record<string,string>)[restore.phase]||restore.phase}</p>}
+        {!!v.backupError&&v.backupError!==restore.message&&<p className="form-error">{String(v.backupError)}</p>}
+        {restore.message&&<p className={restore.canRetry||restore.phase==='failed'?'form-error':'section-note'} role="status">
+          {(restore.phase==='complete'||restore.phase==='rolled-back')&&'上次恢复  '}{restore.message}
+        </p>}
+        {restore.canRetry&&<button className="secondary-button" disabled={busy} onClick={()=>void run('backup','retry')}>重新读取恢复记录</button>}
         {importDrafts.length>0&&<Group title="待核对的导入">{importDrafts.map(entry=><Row key={entry.id} title={recordDate(entry,true)} navigate
           onClick={()=>open({kind:'tool',title:'核对导入备份',id:'backup-draft',keys:[entry.id]},true)}/>)}</Group>}
       </>;
@@ -181,11 +184,11 @@ export function ToolBody({client,view,open,run,busy,pickFile,controls,back,uploa
     </>;
   }
   if(view.id==='inputs'||view.id?.startsWith('input-'))return <><SourceSettings client={client} view={view} open={open} run={run} busy={busy} drafts={drafts} controls={controls}/>{!!client.frame?.domains.inputs?.error&&<p className="form-error" role="alert">{String(client.frame.domains.inputs.error)}</p>}</>;
-  if(view.id==='diagnostics'||view.id==='diagnostic-specialty'||view.id==='diagnostic-inputs')return <DiagnosticExport key={view.id} page={view.id} client={client} run={run} busy={busy} uploading={uploading}/>;
+  if(view.id==='diagnostics'||view.id==='diagnostic-inputs')return <DiagnosticExport key={view.id} page={view.id} client={client} run={run} busy={busy} uploading={uploading}/>;
   return <p className="section-note">当前电视未提供此入口</p>;
 }
 
-export function WeatherSettings({client,open,controls,run,busy,nested=false}:Pick<Props,'client'|'open'|'controls'|'run'|'busy'>&{nested?:boolean}){
+export function WeatherSettings({client,open,run,busy,nested=false}:Pick<Props,'client'|'open'|'run'|'busy'>&{nested?:boolean}){
   const v=client.values();let updated='尚未更新';if(Number(v.weatherFetchedAt)>0)try{updated=new Date(Number(v.weatherFetchedAt)).toLocaleTimeString('zh-CN',{timeZone:client.metadata?.timeZone||'UTC',hour:'2-digit',minute:'2-digit',hour12:false})+' 更新';}catch{updated='时间待核对';}
   const working=client.tasks().some(task=>task.domain==='weather'&&['queued','running','ready'].includes(task.state));
   return <><Row title="天气位置" icon="GlobeIcon" value={`${v.autoLocation?'自动定位':'手动选择'}  ${String(v.autoLocation?v.locatedCity||'未定位':v.city||'尚未选择')}`} navigate onClick={()=>open({kind:'tool',id:'weather-location',title:'天气位置'},nested)}/><Row title="刷新天气" icon="ReloadIcon" value={!v.weatherEnabled?'天气已关闭':working?'正在更新…':updated} disabled={busy||working||!v.weatherEnabled} onClick={()=>void run('weather','refresh')}/><Row title="来源与服务" icon="InfoCircledIcon" value={client.metadata?.fields.provider?.options?.find(item=>item.value===v.provider)?.title||'尚未读取'} navigate onClick={()=>open({kind:'tool',id:'weather-sources',title:'来源与服务'},nested)}/></>;

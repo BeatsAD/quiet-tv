@@ -12,17 +12,107 @@ import java.util.concurrent.*;
 
 /** Remote-friendly batch review; no existing cover changes before explicit confirmation. */
 final class IconLibraryBatchSheet {
-    private final AppManagementActivity activity;private final android.content.Context artwork;private final String style,shape,form;private final Runnable changed;
+    private final AppManagementActivity activity;private final android.content.Context artwork;private final String shape;private String style,form;private final Runnable changed;
     private final IconLibraryTransfer.Request request=new IconLibraryTransfer.Request();
     private final Handler main=new Handler(Looper.getMainLooper());private final ExecutorService worker=Executors.newSingleThreadExecutor();
-    private final Map<String,String> selected=new LinkedHashMap<>();private ManagementUi.Sheet sheet,picker;private LinearLayout toolbar;private TextView summary;private IconLibraryBatch.Plan plan;private String tab="ready";private boolean coverCustom,rendering;private volatile boolean cancelled,committing,working,closed;
+    private final Map<String,String> selected=new LinkedHashMap<>();private ManagementUi.Sheet sheet,picker;private LinearLayout toolbar;private TextView summary;private Button appearance;private IconLibraryBatch.Plan plan;private String tab="ready";private boolean coverCustom,rendering;private volatile boolean cancelled,committing,working,closed;
     IconLibraryBatchSheet(AppManagementActivity activity,android.content.Context artwork,String style,String shape,String form,Runnable changed){this.activity=activity;this.artwork=artwork;this.style=style;this.shape=shape;this.form=form;this.changed=changed;}
     private String tr(String zh,String en){return activity.tr(zh,en);}
-    void show(){sheet=activity.new Sheet(tr("一键替换图标","Replace matching icons"));sheet.settingsLayout(tr("关闭","Close"),this::close);compactLayout();sheet.fixedSize(activity.chinese()?480:640,430);sheet.dialog.setOnDismissListener(d->close());sheet.text(tr("正在匹配已安装应用…","Matching installed apps…"));sheet.show(sheet.box.findViewWithTag("sheet-close"));worker.execute(()->{try{IconLibraryBatch.Plan ready=IconLibraryBatch.prepare(activity,artwork,style,shape,form);main.post(()->{if(closed)return;plan=ready;for(IconLibraryBatch.Row row:plan.rows)if(row.status.equals("ready"))selected.put(row.pkg,row.id);render("batch-tab-ready");});}catch(IOException failure){main.post(()->{if(!closed){sheet.body.removeAllViews();sheet.text(failure.getMessage());}});}});}
+    void show(){
+        sheet=activity.new Sheet(tr("批量换图标","Replace matching icons"));
+        sheet.settingsLayout(tr("关闭","Close"),this::close);
+        compactLayout();
+        sheet.fixedSize(activity.chinese()?510:640,430);
+        sheet.dialog.setOnDismissListener(d->close());
+        sheet.show(sheet.box.findViewWithTag("sheet-close"));
+        match();
+    }
+
+    private void match(){
+        plan=null;
+        selected.clear();
+        tab="ready";
+        coverCustom=false;
+        sheet.body.removeAllViews();
+        sheet.actions.removeAllViews();
+        summary.setText("");
+        toolbar.setVisibility(View.GONE);
+        appearance.setVisibility(View.GONE);
+        sheet.scroll.scrollTo(0,0);
+        sheet.text(tr("正在匹配已安装应用…","Matching installed apps…"));
+        String requestedStyle=style,requestedForm=form;
+        worker.execute(()->{
+            try{
+                IconLibraryCatalog catalog=IconLibraryCatalog.read(artwork);
+                String actualStyle=IconLibraryCatalog.contains(catalog.styleIds(),requestedStyle)||catalog.styles.isEmpty()
+                        ?requestedStyle:catalog.styles.get(0).id;
+                IconLibraryBatch.Plan ready=IconLibraryBatch.prepare(activity,artwork,actualStyle,shape,requestedForm);
+                main.post(()->{
+                    if(closed)return;
+                    plan=ready;style=ready.style;form=ready.form;
+                    appearance.setText(tr("图标样式","Style"));
+                    appearance.setContentDescription(tr("图标样式  ","Style  ")+ready.catalog.styleName(style,activity.chinese())+"  "+formName(form));
+                    appearance.setVisibility(View.VISIBLE);
+                    for(IconLibraryBatch.Row row:plan.rows)if(row.status.equals("ready"))selected.put(row.pkg,row.id);
+                    render("batch-tab-ready");
+                });
+            }catch(IOException failure){
+                main.post(()->{if(!closed){sheet.body.removeAllViews();sheet.text(failure.getMessage());}});
+            }
+        });
+    }
+
+    private String formName(String value){
+        switch(value){
+            case "text":return tr("文字＋图标","Text + icon");
+            case "transparent":return tr("透明背景","Transparent");
+            default:return tr("纯图标","Icon only");
+        }
+    }
+
+    private void chooseAppearance(){
+        if(plan==null||working||picker!=null)return;
+        ManagementUi.Sheet options=activity.new Sheet(tr("图标样式","Icon style"),sheet);
+        picker=options;
+        options.settingsLayout(tr("返回","Back"),options.dialog::dismiss);
+        options.settingsActions(false);
+        options.contentSize(300,370);
+        View initial=null;
+        options.text(tr("风格","Style"));
+        for(IconLibraryCatalog.Style choice:plan.catalog.styles){
+            boolean selected=choice.id.equals(style);
+            Button row=options.option(choice.label(activity.chinese()),()->{
+                options.dialog.dismiss();
+                if(!style.equals(choice.id)){style=choice.id;match();}
+            });
+            row.setSelected(selected);
+            if(selected)initial=row;
+        }
+        options.text(tr("呈现形式","Appearance"));
+        for(String choice:IconLibraryCatalog.forms(plan.shape)){
+            Button row=options.option(formName(choice),()->{
+                options.dialog.dismiss();
+                if(!form.equals(choice)){form=choice;match();}
+            });
+            row.setSelected(choice.equals(form));
+            if(initial==null&&row.isSelected())initial=row;
+        }
+        options.dialog.setOnDismissListener(d->{if(picker==options)picker=null;if(!closed&&appearance.isShown())appearance.requestFocus();});
+        options.show(initial);
+    }
+
     private void compactLayout(){
         sheet.contentWidth(420,640);
         LinearLayout title=(LinearLayout)sheet.heading.getParent();LinearLayout.LayoutParams heading=(LinearLayout.LayoutParams)sheet.heading.getLayoutParams();heading.width=-2;heading.weight=0;sheet.heading.setLayoutParams(heading);
         summary=activity.muted("",12);summary.setTag("batch-summary");summary.setSingleLine(true);summary.setEllipsize(android.text.TextUtils.TruncateAt.END);LinearLayout.LayoutParams meta=new LinearLayout.LayoutParams(0,-1,1);meta.leftMargin=activity.px(12);title.addView(summary,1,meta);
+        appearance=activity.button(tr("图标样式","Style"),this::chooseAppearance);
+        ManagementUi.styleSheetNavigation(appearance,activity.unit);
+        appearance.setTag("batch-appearance");
+        appearance.setPadding(activity.px(9),0,activity.px(9),0);
+        LinearLayout.LayoutParams appearanceSize=new LinearLayout.LayoutParams(-2,activity.px(25.2f));
+        appearanceSize.rightMargin=activity.px(8);
+        title.addView(appearance,2,appearanceSize);
+
         toolbar=activity.row();toolbar.setTag("batch-toolbar");toolbar.setVisibility(View.GONE);LinearLayout.LayoutParams tools=new LinearLayout.LayoutParams(-1,activity.px(28));tools.bottomMargin=activity.px(8);sheet.box.addView(toolbar,sheet.box.indexOfChild(sheet.scroll),tools);
         sheet.scroll.setClipToPadding(false);sheet.bodyMaximum=Math.min(sheet.bodyMaximum-36,6*48+5*.5f+30);
     }
@@ -42,12 +132,71 @@ final class IconLibraryBatchSheet {
         width=Math.max(width,37.5f+41.2f+12+(sheet.heading.getPaint().measureText(sheet.heading.getText().toString())+summary.getPaint().measureText(summary.getText().toString()))/activity.unit);
         sheet.contentWidth((float)Math.ceil(width)+2,640);
     }
+    private static final String[] GROUPS={"ready","pending","kept"};
+    private SettingsTabBar groupTabs;
+    private DesktopSettingsRow customIcons;
+
+    private void createGroupTabs(){
+        groupTabs=activity.settingsTabs();
+        groupTabs.setPadding(activity.px(.75f),activity.px(.75f),activity.px(.75f),activity.px(.75f));
+        groupTabs.setBackgroundDrawable(activity.surface(UiPalette.CONTROL,UiPalette.CONTROL,UiPalette.EDGE,999));
+        for(String group:GROUPS){
+            SettingsTabBar.Tab button=activity.settingsTab(groupTabs,"",()->selectTab(group));
+            button.selectedSurface(UiPalette.TEXT,true);
+            button.setId(androidx.core.view.ViewCompat.generateViewId());
+            button.setTag("batch-tab-"+group);
+            button.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,11.52f*activity.unit);
+            button.setPadding(activity.px(6),0,activity.px(6),0);
+            button.setOnFocusChangeListener((v,focused)->{if(focused)selectTab(group);});
+            groupTabs.addView(button,new LinearLayout.LayoutParams(0,-1,1));
+        }
+        toolbar.addView(groupTabs,new LinearLayout.LayoutParams(0,-1,1));
+        View separator=new View(activity);
+        separator.setBackgroundColor(UiPalette.EDGE_STRONG);
+        LinearLayout.LayoutParams split=new LinearLayout.LayoutParams(activity.px(.75f),activity.px(16));
+        split.leftMargin=split.rightMargin=activity.px(8);
+        toolbar.addView(separator,split);
+        customIcons=new DesktopSettingsRow(activity,tr("替换自定义图标","Custom icons"),"",false);
+        customIcons.hideIcon();
+        customIcons.textSizes(11.52f,10.56f);
+        customIcons.setPadding(activity.px(9.6f),0,activity.px(9.6f),0);
+        customIcons.setOnClickListener(v->{
+            coverCustom=!coverCustom;
+            for(IconLibraryBatch.Row row:plan.rows)if(row.custom){
+                if(coverCustom&&row.automatic&&row.candidates.size()==1&&!row.status.equals("current"))selected.put(row.pkg,row.id);
+                else selected.remove(row.pkg);
+            }
+            render("batch-cover-custom");
+        });
+        customIcons.setTag("batch-cover-custom");
+        toolbar.addView(customIcons,new LinearLayout.LayoutParams(activity.px(183),-1));
+    }
+
+    private Button updateGroupTabs(){
+        if(groupTabs==null)createGroupTabs();
+        String[] names={tr("可替换 ","Replaceable ")+count("ready"),
+                tr("待确认 ","Review ")+count("pending"),tr("已保留 ","Kept ")+count("kept")};
+        Button activeTab=null;
+        for(int i=0;i<GROUPS.length;i++){
+            Button button=(Button)groupTabs.getChildAt(i);
+            boolean active=tab.equals(GROUPS[i]);
+            if(!names[i].contentEquals(button.getText()))button.setText(names[i]);
+            button.setSelected(active);
+            button.setContentDescription(names[i]+(active?tr("  已选择","  Selected"):""));
+            button.setNextFocusDownId(View.NO_ID);
+            if(active)activeTab=button;
+        }
+        customIcons.value(coverCustom?tr("替换","Replace"):tr("保留","Keep"));
+        customIcons.checked(coverCustom);
+        return activeTab;
+    }
+
     private void selectTab(String value){if(closed||rendering||tab.equals(value))return;tab=value;sheet.scroll.scrollTo(0,0);render("batch-tab-"+value);}
     private void render(String focus){
-        if(closed||plan==null)return;rendering=true;sheet.body.removeAllViews();sheet.actions.removeAllViews();toolbar.removeAllViews();toolbar.setVisibility(View.VISIBLE);summary.setText(tr("已读取 "+plan.rows.size()+" 个应用",plan.rows.size()+" apps"));
-        LinearLayout tabs=activity.row();tabs.setPadding(activity.px(.75f),activity.px(.75f),activity.px(.75f),activity.px(.75f));tabs.setBackgroundDrawable(activity.surface(UiPalette.CONTROL,UiPalette.CONTROL,UiPalette.EDGE,999));Button activeTab=null;String[] values={"ready","pending","kept"},names={tr("可替换 ","Replaceable ")+count("ready"),tr("待确认 ","Review ")+count("pending"),tr("已保留 ","Kept ")+count("kept")};for(int i=0;i<values.length;i++){String value=values[i];boolean active=tab.equals(value);Button button=activity.button(names[i],()->selectTab(value));button.setId(androidx.core.view.ViewCompat.generateViewId());button.setTag("batch-tab-"+value);button.setOnFocusChangeListener((v,focused)->{if(focused)selectTab(value);});if(active)activeTab=button;button.setContentDescription(names[i]+(active?tr("  已选择","  Selected"):""));button.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,11.52f*activity.unit);button.setPadding(activity.px(6),0,activity.px(6),0);button.setTextColor(active?ColorStateList.valueOf(UiPalette.INK):SettingsFocusDrawable.textColors(UiPalette.SECONDARY));button.setBackgroundDrawable(new SettingsFocusDrawable(activity.unit,999,active?UiPalette.TEXT:Color.TRANSPARENT));tabs.addView(button,new LinearLayout.LayoutParams(0,-1,1));}toolbar.addView(tabs,new LinearLayout.LayoutParams(0,-1,1));
-        View separator=new View(activity);separator.setBackgroundColor(UiPalette.EDGE_STRONG);LinearLayout.LayoutParams split=new LinearLayout.LayoutParams(activity.px(.75f),activity.px(16));split.leftMargin=split.rightMargin=activity.px(8);toolbar.addView(separator,split);
-        DesktopSettingsRow custom=new DesktopSettingsRow(activity,tr("替换自定义图标","Custom icons"),"",false);custom.hideIcon();custom.textSizes(11.52f,10.56f);custom.setPadding(activity.px(9.6f),0,activity.px(9.6f),0);custom.value(coverCustom?tr("替换","Replace"):tr("保留","Keep"));custom.checked(coverCustom);custom.setOnClickListener(v->{coverCustom=!coverCustom;for(IconLibraryBatch.Row row:plan.rows)if(row.custom){if(coverCustom&&row.automatic&&row.candidates.size()==1&&!row.status.equals("current"))selected.put(row.pkg,row.id);else selected.remove(row.pkg);}render("batch-cover-custom");});custom.setTag("batch-cover-custom");toolbar.addView(custom,new LinearLayout.LayoutParams(activity.px(183),-1));
+        if(closed||plan==null)return;
+        rendering=true;sheet.body.removeAllViews();sheet.actions.removeAllViews();
+        toolbar.setVisibility(View.VISIBLE);summary.setText(tr("已读取 "+plan.rows.size()+" 个应用",plan.rows.size()+" apps"));
+        Button activeTab=updateGroupTabs();
         LinearLayout list=activity.column();list.setTag("batch-list");list.setClipChildren(false);list.setClipToPadding(false);sheet.body.addView(list,new LinearLayout.LayoutParams(-1,-2));int visible=0;boolean firstSelectable=true;for(IconLibraryBatch.Row row:plan.rows){if(!inTab(row))continue;if(visible++>0){View divider=new View(activity);divider.setBackgroundColor(UiPalette.EDGE);list.addView(divider,new LinearLayout.LayoutParams(-1,activity.px(.5f)));}LinearLayout line=activity.row();line.setTag("batch-choice-"+row.pkg);line.setPadding(activity.px(8),activity.px(4),activity.px(8),activity.px(4));line.setFocusable(true);line.setFocusableInTouchMode(true);line.setBackgroundDrawable(activity.listSurface());SettingsTouchClick.attach(line);
             CheckBox check=new CheckBox(activity);check.setChecked(selected.containsKey(row.pkg));check.setFocusable(false);check.setClickable(false);check.setDuplicateParentStateEnabled(true);check.setButtonDrawable(selection());check.setPadding(0,0,0,0);check.setMinWidth(0);check.setMinHeight(0);androidx.core.view.ViewCompat.setImportantForAccessibility(check,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(activity.px(24),activity.px(32));cp.rightMargin=activity.px(12);line.addView(check,cp);ImageView old=new ImageView(activity);old.setScaleType(ImageView.ScaleType.FIT_CENTER);worker.execute(()->{try{Bitmap full=AppArtwork.load(activity,row.pkg,activity.getPackageManager().getApplicationInfo(row.pkg,0));int width=Math.max(64,activity.px(56));Bitmap bitmap=Bitmap.createScaledBitmap(full,width,Math.max(1,full.getHeight()*width/full.getWidth()),true);if(bitmap!=full)full.recycle();main.post(()->{if(!closed)old.setImageDrawable(new BitmapDrawable(activity.getResources(),bitmap));else bitmap.recycle();});}catch(Exception ignored){}});line.addView(old,new LinearLayout.LayoutParams(activity.px(56),activity.px(31.5f)));
             LinearLayout labels=activity.column();labels.setDuplicateParentStateEnabled(true);TextView label=activity.label(row.label,12);label.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,13.44f*activity.unit);label.setDuplicateParentStateEnabled(true);label.setTextColor(SettingsFocusDrawable.textColors(UiPalette.TEXT));label.setSingleLine(true);label.setEllipsize(android.text.TextUtils.TruncateAt.END);labels.addView(label);TextView note=activity.label(note(row),10);note.setSingleLine(true);note.setEllipsize(android.text.TextUtils.TruncateAt.END);note.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,11.52f*activity.unit);note.setDuplicateParentStateEnabled(true);note.setTextColor(row.status.equals("ready")?SettingsFocusDrawable.textColors(0xff86efac,0xff166534):SettingsFocusDrawable.textColors(UiPalette.SECONDARY));labels.addView(note);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1);lp.leftMargin=activity.px(14);line.addView(labels,lp);
@@ -66,7 +215,7 @@ final class IconLibraryBatchSheet {
         for(String id:plan.choices(row)){IconLibraryCatalog.Item item=plan.item(id);if(item!=null){Button option=choices.option(item.label(activity.chinese()),()->{selected.put(row.pkg,id);choices.dialog.dismiss();render("batch-choice-"+row.pkg);});option.setTag("batch-icon-"+id);if(initial==null||id.equals(selected.get(row.pkg)))initial=option;option.setOnFocusChangeListener((view,focused)->{if(!focused)return;if(loading[0]!=null)loading[0].cancel();IconLibraryTransfer.Request transfer=new IconLibraryTransfer.Request();loading[0]=transfer;preview.setImageDrawable(null);preview.setContentDescription(item.label(activity.chinese()));worker.execute(()->{try{Bitmap bitmap=IconLibraryArtwork.render(artwork,item,plan.shape,plan.form,240,activity.chinese(),true,transfer);main.post(()->{if(!closed&&picker==choices&&loading[0]==transfer)preview.setImageDrawable(new BitmapDrawable(activity.getResources(),bitmap));else bitmap.recycle();});}catch(IOException ignored){}});});}}
         choices.dialog.setOnDismissListener(d->{if(loading[0]!=null)loading[0].cancel();if(picker==choices)picker=null;if(!closed&&sheet!=null){View target=sheet.box.findViewWithTag("batch-choice-"+row.pkg);if(target!=null)target.requestFocus();}});choices.show(initial);
     }
-    private void apply(){if(working||selected.isEmpty())return;working=true;sheet.contentWidth(280,420);sheet.settingsActions(false);toolbar.setVisibility(View.GONE);summary.setText("");Map<String,String> choices=new LinkedHashMap<>(selected);sheet.body.removeAllViews();sheet.actions.removeAllViews();TextView progress=activity.label(tr("正在准备图标…","Preparing icons…"),14);sheet.body.addView(progress);worker.execute(()->{String error=null;int count=0;try{count=IconLibraryBatch.apply(activity,artwork,plan,choices,coverCustom,new IconLibraryBatch.Control(){public IconLibraryTransfer.Request request(){return request;}public void check()throws IOException{if(cancelled)throw new InterruptedIOException("已取消");}public void progress(int done,int total){main.post(()->{if(!closed)progress.setText(tr("正在准备图标  ","Preparing icons  ")+done+" / "+total);});}public void committing()throws IOException{synchronized(IconLibraryBatchSheet.this){check();committing=true;}main.post(()->{if(!closed)sheet.dialog.setCancelable(false);});}});}catch(IOException|RuntimeException failure){error=failure.getMessage();}String failure=error;int applied=count;main.post(()->{working=false;committing=false;if(failure==null){PhoneSettingsSession.get(activity).configurationChanged();changed.run();if(!closed){sheet.settingsActions(true);sheet.contentWidth(280,420);sheet.body.removeAllViews();sheet.actions.removeAllViews();sheet.text(tr("已替换 "+applied+" 个图标","Replaced "+applied+" icons"));sheet.action(tr("完成","Done"),this::close).requestFocus();}}else if(!closed){sheet.settingsActions(true);sheet.contentWidth(320,480);sheet.dialog.setCancelable(true);sheet.body.removeAllViews();sheet.actions.removeAllViews();sheet.text(failure);sheet.action(tr("关闭并重新匹配","Close and match again"),this::close);}});});}
+    private void apply(){if(working||selected.isEmpty())return;working=true;appearance.setEnabled(false);sheet.contentWidth(280,420);sheet.settingsActions(false);toolbar.setVisibility(View.GONE);summary.setText("");Map<String,String> choices=new LinkedHashMap<>(selected);sheet.body.removeAllViews();sheet.actions.removeAllViews();TextView progress=activity.label(tr("正在准备图标…","Preparing icons…"),14);sheet.body.addView(progress);worker.execute(()->{String error=null;int count=0;try{count=IconLibraryBatch.apply(activity,artwork,plan,choices,coverCustom,new IconLibraryBatch.Control(){public IconLibraryTransfer.Request request(){return request;}public void check()throws IOException{if(cancelled)throw new InterruptedIOException("已取消");}public void progress(int done,int total){main.post(()->{if(!closed)progress.setText(tr("正在准备图标  ","Preparing icons  ")+done+" / "+total);});}public void committing()throws IOException{synchronized(IconLibraryBatchSheet.this){check();committing=true;}main.post(()->{if(!closed)sheet.dialog.setCancelable(false);});}});}catch(IOException|RuntimeException failure){error=failure.getMessage();}String failure=error;int applied=count;main.post(()->{working=false;committing=false;if(failure==null){PhoneSettingsSession.get(activity).configurationChanged();changed.run();if(!closed){sheet.settingsActions(true);sheet.contentWidth(280,420);sheet.body.removeAllViews();sheet.actions.removeAllViews();sheet.text(tr("已替换 "+applied+" 个图标","Replaced "+applied+" icons"));sheet.action(tr("完成","Done"),this::close).requestFocus();}}else if(!closed){sheet.settingsActions(true);sheet.contentWidth(320,480);sheet.dialog.setCancelable(true);sheet.body.removeAllViews();sheet.actions.removeAllViews();sheet.text(failure);sheet.action(tr("关闭并重新匹配","Close and match again"),this::close);}});});}
     synchronized void destroy(){closed=true;if(picker!=null)picker.dialog.dismiss();if(!committing){cancelled=true;request.cancel();}if(sheet!=null){sheet.dialog.setOnDismissListener(null);sheet.dialog.dismiss();sheet=null;}worker.shutdown();}
     synchronized void close(){if(committing)return;cancelled=true;request.cancel();if(closed)return;closed=true;if(picker!=null)picker.dialog.dismiss();ManagementUi.Sheet old=sheet;sheet=null;if(old!=null){old.dialog.setOnDismissListener(null);old.dialog.dismiss();}worker.shutdown();}
 }

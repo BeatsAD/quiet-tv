@@ -57,10 +57,4 @@ final class ChildModePolicy {
     }
     private static int bit(Calendar date){return 1<<((date.get(Calendar.DAY_OF_WEEK)+5)%7);}
     static int dayBit(String value){return bit(date(value));}
-    static final class TriplePress {
-        private int count;
-        private long last;
-        boolean press(long now){if(count==0 || now<last || now-last>2000)count=0;last=now;return ++count>=3;}
-        void clear(){count=0;last=0;}
-    }
 }

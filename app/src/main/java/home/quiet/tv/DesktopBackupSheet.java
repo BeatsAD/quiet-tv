@@ -107,7 +107,8 @@ final class DesktopBackupSheet {
         if(!error.isEmpty())copy(error,16,25.6f,12,0,UiPalette.TEXT);focus=target;restoreFocus();
     }
     private void list(){
-        boolean available=model!=null&&manager.error().isEmpty()&&!busy;
+        DesktopRestoreState restore=manager.restoreState();
+        boolean available=model!=null&&manager.error().isEmpty()&&!busy&&restore.canChangeBackups();
         int count=model==null?0:model.entries.size();
         DesktopBackupStore.Entry latest=count==0?null:model.entries.get(0);
         LinearLayout main=group("");
@@ -115,9 +116,12 @@ final class DesktopBackupSheet {
         row(main,"恢复最近备份",latest==null?(model==null?"":"暂无备份"):date(latest.record,false),"backup-latest",
                 ()->recover(latest,true)).available(available&&latest!=null);
         row(main,"全部备份",model==null?"":count+" 份","backup-history",()->showEntries("history",firstRecord())).available(available);
-        row(main,"导入备份文件","","backup-import",()->go("import","backup-phone-import"));
+        row(main,"导入备份文件","","backup-import",()->go("import","backup-phone-import")).available(restore.canChangeBackups());
         DesktopSettingsRow automatic=row(group(""),"自动备份","","backup-automatic",()->automatic(!model.automatic));
         automatic.checked(model!=null&&model.automatic);automatic.available(available);
+        if(restore.phase==DesktopRestoreState.Phase.COMPLETE||restore.phase==DesktopRestoreState.Phase.ROLLED_BACK)
+            note("上次恢复  "+restore.message);
+        else if(restore.phase==DesktopRestoreState.Phase.FAILED)note(restore.message);
         String problem=manager.error();
         if(!problem.isEmpty()||model==null&&!error.isEmpty()){
             if(!problem.isEmpty()&&!problem.equals(error))copy(problem,16,25.6f,0,0,UiPalette.TEXT);
@@ -159,12 +163,13 @@ final class DesktopBackupSheet {
             render();
         });
     }
-    private <T> void mutate(DesktopBackups.Job<T> job,Success<T> success){
-        if(busy)return;
+    private <T> void mutate(DesktopBackups.Job<T> job,Success<T> success){mutateWith(result->manager.run(job,result),success);}
+    private <T> void mutateWith(DesktopBackups.Start<T> start,Success<T> success){
+        if(busy||!manager.restoreState().canChangeBackups())return;
         busy=true;error=message="";render();
-        manager.run(job,(value,failure)->{
+        start.run((value,failure)->{
             if(!open())return;
-            busy=false;if(!manager.recoveryError().isEmpty())return;
+            busy=false;if(manager.restoreState().needsReview())return;
             if(!failure.isEmpty()){error=failure;render();ui.error("备份操作未完成");return;}
             success.accept(value);
             if(showsEntries()){
@@ -200,8 +205,11 @@ final class DesktopBackupSheet {
         }),true);
         else action(controls,"确认恢复","backup-confirm",()->{
             String id=selected.record.id;
-            PhoneSettingsSession.get(ui).end();
-            mutate(store->{store.restore(id);return id;},saved->{
+            mutateWith((DesktopBackups.Result<String> result)->{
+                if(!manager.beginRestore("")){result.complete(null,"有其他桌面恢复需要先完成，请核对恢复记录");return;}
+                PhoneSettingsSession.get(ui).end();
+                manager.runRestore(id,result);
+            },saved->{
                 PhoneSettingsSession.get(ui).configurationChanged();
                 chosen=null;phase=recentRestore?"list":"history";focus=recentRestore?"backup-latest":"backup-record-"+saved;
                 recordId="";message="桌面配置已恢复";

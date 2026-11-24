@@ -17,7 +17,7 @@ final class DesktopBackupRecord {
     private static final java.util.regex.Pattern SHORTCUT=java.util.regex.Pattern.compile("quiet:[a-z-]{1,48}");
     static final int VERSION=6,MAX_CONFIG_BYTES=2*1024*1024;
     static final String FORMAT="quiet-tv-desktop";
-    static final Set<String> DESKTOP_BOOLEAN=names("show-time show-date show-seconds show-lunar-date show-movie-info greeting-enabled greeting-avatar-enabled key-sounds show-app-title show-home-apps hide-home-apps-on-second-screen show-watch-tv show-dock-background show-all-apps-names dock-magnify dock-glass global-glass show-buttons show-input show-network show-settings");
+    static final Set<String> DESKTOP_BOOLEAN=names("show-home-quote show-screensaver-quote show-time show-date show-seconds show-lunar-date show-movie-info greeting-enabled greeting-avatar-enabled key-sounds show-app-title show-home-apps hide-home-apps-on-second-screen show-watch-tv show-dock-background show-all-apps-names dock-magnify dock-glass global-glass show-buttons show-input show-network show-settings");
     static final Set<String> DESKTOP_STRING=names("home-layout greeting-text greeting-avatar-file icon-size icon-shape home-blur-mode home-buttons app-title-position key-sound-theme clock-style quick-control-visibility");
     static final Set<String> DESKTOP_INTEGER=names("icon-radius dock-radius dock-scale dock-limit dock-magnification home-wallpaper-blur second-wallpaper-blur home-wallpaper-brightness second-wallpaper-brightness home-wallpaper-fade second-wallpaper-fade");
     static final Set<String> DESKTOP_KEYS=union(DESKTOP_BOOLEAN,DESKTOP_STRING,DESKTOP_INTEGER);
@@ -89,7 +89,18 @@ final class DesktopBackupRecord {
         // Diagnostics were added without changing wallpaper identities in older backups.
         JSONArray savedMedia=walls.getJSONArray("custom"),normalizedMedia=normalizedWalls.getJSONArray("custom");for(int i=0;i<savedMedia.length()&&i<normalizedMedia.length();i++)for(String key:new String[]{"diagnosticFingerprint","diagnosticTransfer"})if(!savedMedia.getJSONObject(i).has(key))normalizedMedia.getJSONObject(i).remove(key);
         require(canonical(normalizedWalls).equals(canonical(walls)),"备份壁纸清单无效");require(catalog.dailyImages.isEmpty(),"备份不接受动态缓存");for(WallpaperCatalog.Entry entry:catalog.custom)require(entry.width>0&&entry.height>0&&entry.bytes>0&&entry.name.length()<=256,"备份素材信息无效");
-        JSONObject savedSaver=config.getJSONObject("screensaver");ScreensaverSettings saver=ScreensaverSettings.read(savedSaver);JSONObject normalizedSaver=saver.json();if(savedSaver.has("version"))normalizedSaver.put("version",savedSaver.getInt("version"));for(String key:new String[]{"version","mode","timePosition","weatherPosition","sound","flipShowSeconds","flipSound"})if(!savedSaver.has(key))normalizedSaver.remove(key);for(String key:ScreensaverSettings.ClockOptions.KEYS)if(!savedSaver.has(key))normalizedSaver.remove(key);require(catalog.find(saver.mediaId)!=null&&canonical(normalizedSaver).equals(canonical(savedSaver)),"备份屏保信息无效");
+        JSONObject savedSaver=new JSONObject(config.getJSONObject("screensaver").toString());
+        // Older backups stored these wallpaper wall options.
+        savedSaver.remove("wallInterval");
+        savedSaver.remove("wallDensity");
+        ScreensaverSettings saver=ScreensaverSettings.read(savedSaver);
+        JSONObject normalizedSaver=saver.json();
+        if(savedSaver.has("version"))normalizedSaver.put("version",savedSaver.getInt("version"));
+        for(String key:new String[]{"version","mode","timePosition","weatherPosition","sound","flipShowSeconds","flipSound"})
+            if(!savedSaver.has(key))normalizedSaver.remove(key);
+        for(String key:ScreensaverSettings.ClockOptions.KEYS)
+            if(!savedSaver.has(key))normalizedSaver.remove(key);
+        require(catalog.find(saver.mediaId)!=null&&canonical(normalizedSaver).equals(canonical(savedSaver)),"备份屏保信息无效");
         JSONObject covers=config.getJSONObject("covers");for(Iterator<String> keys=covers.keys();keys.hasNext();){String pkg=keys.next();require(AppCoverStore.packageName(pkg),"备份封面应用无效");LibraryCover.validate(covers.getJSONObject(pkg),version);}
     }
     static Set<String> requiredAssets(JSONObject config)throws IOException,JSONException{

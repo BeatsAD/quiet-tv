@@ -12,11 +12,14 @@ export function AppRename({client,id,onSaved,onCancel}:{client:PhoneClient;id:st
   const submitting=useRef(false),composing=useRef(false),finished=useRef(false),mounted=useRef(true);
   const unavailable=client.status==='ended'||client.restoring||!item?.canRename,conflict=!!item&&(item.customName||'')!==baseline;
   const valid=validAppName(name)||name===item?.originalName;
-  const locked=saving||pending!==null&&['saving','checking','offline'].includes(client.sync);
+  const {connection,receipt}=client.sync;
+  const pendingReceipt=receipt.state!=='idle'&&receipt.domain==='apps'&&receipt.field==='renameApp';
+  const canConfirm=connection.state==='connected'&&!pendingReceipt;
+  const locked=saving||pending!==null&&(pendingReceipt||connection.state==='offline');
   function complete(){if(!mounted.current||finished.current)return;finished.current=true;onSaved();}
   useLayoutEffect(()=>{const previous=document.activeElement as HTMLElement|null,node=dialog.current!;node.showModal();const resize=()=>{node.style.setProperty('--rename-height',`${window.visualViewport?.height||window.innerHeight}px`);node.style.setProperty('--rename-top',`${window.visualViewport?.offsetTop||0}px`);};resize();window.visualViewport?.addEventListener('resize',resize);window.visualViewport?.addEventListener('scroll',resize);return()=>{node.close();previous?.focus();window.visualViewport?.removeEventListener('resize',resize);window.visualViewport?.removeEventListener('scroll',resize);};},[]);
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
-  useEffect(()=>{if(pending!==null&&client.sync==='synced'&&item?.name===pending)complete();},[pending,client.sync,item?.name]);
+  useEffect(()=>{if(pending!==null&&canConfirm&&item?.name===pending)complete();},[pending,canConfirm,item?.name]);
   async function save(){
     if(submitting.current||composing.current||locked||unavailable||conflict||review||!valid||appName(name)===item?.name)return;
     const next=name===item?.originalName?name:appName(name);submitting.current=true;setSaving(true);setPending(next);setError('');

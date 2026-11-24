@@ -106,11 +106,24 @@ final class DesktopBackupStore {
         catch(IOException failure){trace.stage("ROLLBACK");try{install(before,true);snapshots.apply(before.record.config);finishJournal("rolled-back",before.record.id,target.record.id);trace.finish("ROLLED_BACK",failure.getClass().getSimpleName());}catch(IOException rollback){failure.addSuppressed(rollback);throw new IOException("恢复尚未完成，请重试恢复原配置",failure);}throw new IOException("恢复未完成，已保留原桌面配置",failure);}
         }catch(IOException|RuntimeException failure){trace.finish("UNKNOWN",failure.getClass().getSimpleName());throw failure;}
     }
+    static JSONObject readRestoreJournal(AtomicFile journal)throws IOException{
+        File base=journal.getBaseFile();
+        if(!base.exists()&&!new File(base+".bak").exists())return null;
+        try{
+            JSONObject task=new JSONObject(new String(journal.readFully(),Charsets.UTF_8));
+            DesktopBackupRecord.require(task.getInt("version")==1,"恢复任务格式无效");
+            DesktopBackupRecord.require(Arrays.asList("applying","complete","rolled-back").contains(task.getString("phase")),"恢复任务状态无效");
+            return task;
+        }catch(JSONException failure){throw new IOException("恢复任务无法读取，原记录已保留",failure);}
+    }
     synchronized boolean recoveryPending()throws IOException{
-        File base=journal.getBaseFile();if(!base.exists()&&!new File(base+".bak").exists())return false;try{JSONObject task=new JSONObject(new String(journal.readFully(),Charsets.UTF_8));DesktopBackupRecord.require(task.getInt("version")==1,"恢复任务格式无效");String phase=task.getString("phase");DesktopBackupRecord.require(Arrays.asList("applying","complete","rolled-back").contains(phase),"恢复任务状态无效");return phase.equals("applying");}catch(JSONException failure){throw new IOException("恢复任务无法读取，原记录已保留",failure);}
+        JSONObject task=readRestoreJournal(journal);
+        return task!=null&&"applying".equals(task.optString("phase"));
     }
     synchronized void recover()throws IOException{
-        if(!recoveryPending())return;DiagnosticOperation trace=new DiagnosticOperation("backup.recovery","source=persisted_journal");try{JSONObject task=new JSONObject(new String(journal.readFully(),Charsets.UTF_8)),original=task.getJSONObject("original");DesktopBackupRecord record=new DesktopBackupRecord(original.getJSONObject("record"));JSONObject sources=original.getJSONObject("sources");validateSources(record,sources);DesktopBackupRecord.require(record.id.equals(task.getString("before")),"恢复原状态信息不匹配");Entry before=new Entry(record,sources);install(before,true);snapshots.apply(before.record.config);finishJournal("rolled-back",before.record.id,task.getString("target"));trace.finish("ROLLED_BACK","recovered_after_interruption");}catch(IOException|RuntimeException failure){trace.finish("UNKNOWN",failure.getClass().getSimpleName());throw failure;}catch(JSONException failure){trace.finish("UNKNOWN","journal_invalid");throw new IOException("原桌面配置尚未恢复，请重试",failure);}
+        JSONObject task=readRestoreJournal(journal);
+        if(task==null||!"applying".equals(task.optString("phase")))return;
+        DiagnosticOperation trace=new DiagnosticOperation("backup.recovery","source=persisted_journal");try{JSONObject original=task.getJSONObject("original");DesktopBackupRecord record=new DesktopBackupRecord(original.getJSONObject("record"));JSONObject sources=original.getJSONObject("sources");validateSources(record,sources);DesktopBackupRecord.require(record.id.equals(task.getString("before")),"恢复原状态信息不匹配");Entry before=new Entry(record,sources);install(before,true);snapshots.apply(before.record.config);finishJournal("rolled-back",before.record.id,task.getString("target"));trace.finish("ROLLED_BACK","recovered_after_interruption");}catch(IOException|RuntimeException failure){trace.finish("UNKNOWN",failure.getClass().getSimpleName());throw failure;}catch(JSONException failure){trace.finish("UNKNOWN","journal_invalid");throw new IOException("原桌面配置尚未恢复，请重试",failure);}
     }
     private void finishJournal(String phase,String before,String target)throws IOException{try{write(journal,new JSONObject().put("version",1).put("phase",phase).put("before",before).put("target",target));}catch(JSONException failure){throw new IOException("恢复任务完成状态未保存",failure);}}
     static void write(AtomicFile file,JSONObject value)throws IOException{

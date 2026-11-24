@@ -9,6 +9,7 @@ import android.os.*;
 import android.util.TypedValue;
 import android.view.*;
 import android.widget.*;
+import androidx.recyclerview.widget.RecyclerView;
 import java.util.concurrent.*;
 
 /** Native management surfaces keep settings focus separate from the existing HOME style. */
@@ -223,6 +224,28 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity implemen
     // Unified settings cards keep their focus shadows outside the child rectangle.
     LinearLayout row(){LinearLayout view=new LinearLayout(this);view.setOrientation(LinearLayout.HORIZONTAL);view.setGravity(Gravity.CENTER_VERTICAL);if(unifiedSettings())view.setClipChildren(false);return view;}
     LinearLayout column(){LinearLayout view=new LinearLayout(this);view.setOrientation(LinearLayout.VERTICAL);if(unifiedSettings())view.setClipChildren(false);return view;}
+    RecyclerView settingsCardList(Context context,FrameLayout parent){
+        RecyclerView list=new RecyclerView(context){
+            @Override protected void dispatchDraw(Canvas canvas){
+                int save=canvas.save();
+                canvas.clipRect(0,0,getWidth(),getHeight());
+                super.dispatchDraw(canvas);
+                canvas.restoreToCount(save);
+            }
+        };
+        list.setClipChildren(false);
+        list.setClipToPadding(false);
+        list.setItemAnimator(null);
+        list.setVerticalScrollBarEnabled(false);
+        // Extend the viewport into the gutters while keeping each card in the same position.
+        int margin=px(9),extraSide=px(6),extraBottom=px(9);
+        int side=px(12.36f)+extraSide;
+        list.setPadding(side,px(11.88f),side,px(14.76f)+extraBottom);
+        FrameLayout.LayoutParams size=new FrameLayout.LayoutParams(-1,-1);
+        size.setMargins(-margin-extraSide,-margin,-margin-extraSide,-margin-extraBottom);
+        parent.addView(list,size);
+        return list;
+    }
     ScrollView settingsScroll(){
         return new ScrollView(this){
             @Override protected void dispatchDraw(Canvas canvas){int save=canvas.save();canvas.clipRect(getScrollX(),getScrollY(),getScrollX()+getWidth(),getScrollY()+getHeight());super.dispatchDraw(canvas);canvas.restoreToCount(save);}
@@ -244,7 +267,8 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity implemen
     GradientDrawable surface(int top,int bottom,int stroke,float radius){GradientDrawable shape=new SurfaceDrawable(unit,unifiedSettings()?GradientDrawable.Orientation.TOP_BOTTOM:GradientDrawable.Orientation.TL_BR,new int[]{top,bottom});shape.setCornerRadius(px(radius));shape.setStroke(px(1),stroke);return shape;}
     Drawable focusSurface(float radius){return unifiedSettings()?new SettingsFocusDrawable(unit,radius,0x10ffffff):ControlStyle.action(unit,radius,0x10ffffff,0x22ffffff);}
     void focusable(View view,float radius){view.setSoundEffectsEnabled(false);view.setFocusable(true);view.setBackgroundDrawable(focusSurface(radius));}
-    Button button(String text,Runnable action){Button b=new KeyFeedback.Button(this){@Override public void setEnabled(boolean enabled){super.setEnabled(enabled);if(unifiedSettings())setAlpha(1f);}};b.setText(text);b.setAllCaps(false);b.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(13));b.setTextColor(unifiedSettings()?SettingsFocusDrawable.textColors(UiPalette.TEXT):ColorStateList.valueOf(TEXT));b.setIncludeFontPadding(false);b.setGravity(Gravity.CENTER);b.setMinimumWidth(0);b.setMinWidth(0);b.setMinimumHeight(0);b.setMinHeight(0);b.setPadding(px(16),0,px(16),0);b.setBackgroundDrawable(focusSurface(24));if(android.os.Build.VERSION.SDK_INT>=21)b.setStateListAnimator(null);b.setOnClickListener(v->action.run());if(unifiedSettings()){b.setFocusableInTouchMode(true);b.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));}if(unifiedSettings())SettingsTouchClick.attach(b);return b;}
+    Button button(String text,Runnable action){return configureButton(new KeyFeedback.Button(this){@Override public void setEnabled(boolean enabled){super.setEnabled(enabled);if(unifiedSettings())setAlpha(1f);}},text,action);}
+    private Button configureButton(Button b,String text,Runnable action){b.setText(text);b.setAllCaps(false);b.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(13));b.setTextColor(unifiedSettings()?SettingsFocusDrawable.textColors(UiPalette.TEXT):ColorStateList.valueOf(TEXT));b.setIncludeFontPadding(false);b.setGravity(Gravity.CENTER);b.setMinimumWidth(0);b.setMinWidth(0);b.setMinimumHeight(0);b.setMinHeight(0);b.setPadding(px(16),0,px(16),0);b.setBackgroundDrawable(focusSurface(24));if(android.os.Build.VERSION.SDK_INT>=21)b.setStateListAnimator(null);b.setOnClickListener(v->action.run());if(unifiedSettings()){b.setFocusableInTouchMode(true);b.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));}if(unifiedSettings())SettingsTouchClick.attach(b);return b;}
     void styleTab(Button b,boolean compact){
         if(unifiedSettings()){b.setBackgroundDrawable(new SettingsFocusDrawable(unit,compact?12:999,Color.TRANSPARENT));b.setTextColor(SettingsFocusDrawable.textColors(UiPalette.SECONDARY,UiPalette.INK));}
         else ControlStyle.choice(b,unit,compact?15:18,Color.TRANSPARENT,0);
@@ -252,6 +276,14 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity implemen
         b.setSingleLine(true);b.setPadding(px(compact?10:18),0,px(compact?10:18),0);b.setMinWidth(px(compact?48:100));
     }
     void styleManagementTab(Button b,boolean compact){styleTab(b,compact);}
+    SettingsTabBar settingsTabs(){return new SettingsTabBar(this,unit,false);}
+    SettingsTabBar.Tab settingsTab(SettingsTabBar bar,String text,Runnable action){
+        SettingsTabBar.Tab tab=new SettingsTabBar.Tab(bar);
+        configureButton(tab,text,action);
+        tab.setSingleLine(true);
+        tab.selectedSurface(UiPalette.SELECTED,false);
+        return tab;
+    }
     Typeface navigationTypeface(boolean selected){return selected?(Build.VERSION.SDK_INT>=28?Api28.navigationTypeface():Typeface.create("sans-serif-medium",Typeface.NORMAL)):Typeface.create("sans-serif",Typeface.NORMAL);}
     @android.annotation.TargetApi(28) private static final class Api28 {static Typeface navigationTypeface(){return Typeface.create(Typeface.create("sans-serif",Typeface.NORMAL),600,false);}}
     boolean useSettingListStyle(){return true;}
@@ -316,11 +348,29 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity implemen
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,px(unifiedSettings()?36:54));p.topMargin=px(unifiedSettings()?0:22);root.addView(navigation,p);
         if(unifiedSettings()){p.height=px(72);p.setMargins(px(-18),px(-18),px(-18),px(-18));navigation.setLayoutParams(p);}
         boolean fit=!unifiedSettings()&&((AppManagementActivity)this).chinese();
-        LinearLayout tools=row();tools.setClipChildren(false);tools.setClipToPadding(false);navigation.addView(tools,new HorizontalScrollView.LayoutParams(fit?-1:-2,-1));
+        SettingsTabBar tabBar=unifiedSettings()?new SettingsTabBar(this,unit):null;
+        LinearLayout tools=tabBar!=null?tabBar:row();
+        tools.setClipChildren(false);tools.setClipToPadding(false);navigation.addView(tools,new HorizontalScrollView.LayoutParams(fit?-1:-2,-1));
         for(int i:MANAGEMENT_ORDER){
-            Button tab=button(SettingsPages.title(i,((AppManagementActivity)this).chinese()),()->{});managementTab(tab,i,selected,header.getChildAt(0));
+            String title=SettingsPages.title(i,chinese());
+            Button tab=tabBar!=null?configureButton(new SettingsTabBar.Tab(tabBar),title,()->{}):button(title,()->{});
+            managementTab(tab,i,selected,header.getChildAt(0));
             if(fit){tab.setMinWidth(0);tab.setMinimumWidth(0);tab.setPadding(px(8),0,px(8),0);}
-            LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(fit?0:-2,px(36),fit?1:0);tp.rightMargin=i==MANAGEMENT_ORDER[MANAGEMENT_ORDER.length-1]?0:px(fit?6:12);if(unifiedSettings()){tp.height=px(36);tp.rightMargin=i==MANAGEMENT_ORDER[MANAGEMENT_ORDER.length-1]?0:px(9);if(((AppManagementActivity)this).chinese())tp.width=px(SettingsPages.title(i,true).length()*13.5f+24);tab.setTextSize(TypedValue.COMPLEX_UNIT_PX,13.5f*unit);tab.setTypeface(navigationTypeface(tab.isSelected()));tab.setMinWidth(0);tab.setMinimumWidth(0);tab.setPadding(px(12),0,px(12),0);}
+            LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(fit?0:-2,px(36),fit?1:0);
+            tp.rightMargin=i==MANAGEMENT_ORDER[MANAGEMENT_ORDER.length-1]?0:px(tabBar!=null?9:fit?6:12);
+            if(tabBar!=null){
+                tab.setTextSize(TypedValue.COMPLEX_UNIT_PX,13.5f*unit);
+                tab.setTypeface(navigationTypeface(true));
+                // Reserve room for the selected weight so moving focus never moves the other tabs.
+                tp.width=chinese()?px(title.length()*13.5f+24):(int)Math.ceil(tab.getPaint().measureText(title))+2*px(12);
+                tab.setTypeface(navigationTypeface(tab.isSelected()));
+                tab.setMinWidth(0);tab.setMinimumWidth(0);tab.setPadding(px(12),0,px(12),0);
+                StateListDrawable background=new StateListDrawable();
+                background.addState(new int[]{android.R.attr.state_focused,android.R.attr.state_window_focused},new ColorDrawable(Color.TRANSPARENT));
+                background.addState(new int[]{android.R.attr.state_selected},surface(UiPalette.SELECTED,UiPalette.SELECTED,0,999));
+                background.addState(new int[0],new ColorDrawable(Color.TRANSPARENT));
+                tab.setBackgroundDrawable(background);
+            }
             tools.addView(tab,tp);
             tab.setOnFocusChangeListener((v,focused)->{if(focused)navigation.post(()->{Rect bounds=new Rect();tab.getDrawingRect(bounds);tab.requestRectangleOnScreen(bounds,false);});});
         }

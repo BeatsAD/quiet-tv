@@ -390,7 +390,6 @@ final class UpdatePanel {
     void suspend(){detach();}
     void detach(){closed=true;clearDetailsLayout();if(!borrowed&&dialog!=null)dialog.dismiss();sheet=null;dialog=null;mode="";borrowed=false;returned=null;reminder=false;reminderDrawn=null;}
     private void dismiss(){Runnable back=returned;boolean shared=borrowed;detach();if(shared&&back!=null)back.run();}
-    private static String system(int sdk){switch(sdk){case 14:return "安卓4.0至4.4";case 19:return "安卓4.4";case 21:return "安卓5及以上";case 23:return "安卓6及以上";case 26:return "安卓8及以上";case 31:return "安卓12及以上";default:return "安卓兼容版";}}
     static String channel(String value){return "independent".equals(value)?"测试版":"stable".equals(value)?"正式版":"experimental".equals(value)?"实验版":"测试版";}
     private String size(long value){return String.format(Locale.CHINA,"%.1f MB",value/1048576d);}
 }

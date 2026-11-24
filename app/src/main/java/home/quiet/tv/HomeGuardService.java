@@ -28,6 +28,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     private long wakeAt;
     private String lastActivity="";
     private long lastActivityAt;
+    private long incompleteWindowUptime=-1,incompleteWindowElapsed=-1;
     private long transitionUntil;
     private int filteredHomeCode=KeyEvent.KEYCODE_HOME;
     private String lastPackage="",settleReason="",homeObservation="",broadcastObservation="",keyFilterReason="service_not_ready";
@@ -142,7 +143,8 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         return info!=null && (info.getCapabilities()&AccessibilityServiceInfo.CAPABILITY_CAN_REQUEST_FILTER_KEY_EVENTS)!=0;
     }
     private final Runnable bootSourceCheck=()->{
-        if(!observeBootSource() || !keyFiltering || !HomeGuardState.canShow(this) || allowStock || homeResumed || HomeGuardRecovery.handoverPending())return;
+        if(!observeBootSource() || !keyFiltering || !HomeGuardState.canShow(this) || allowStock || homeResumed
+                || policy.incompleteWindow() || HomeGuardRecovery.handoverPending())return;
         // Never replace an observed settings/app window with a guess about the input player.
         if(!bootSource.take(SystemClock.elapsedRealtime(),lastActivity))return;
         saveBootSource();
@@ -315,6 +317,10 @@ public final class HomeGuardService extends AccessibilityService implements Shar
     static UsageEvents.Event latestUsage(Context context,long lookback){
         if(Build.VERSION.SDK_INT<21 || !usageAllowed(context))return null;
         long now=System.currentTimeMillis();UsageEvents.Event latest=null;
+        HomeGuardService observer=instance;
+        long incompleteAt=observer==null?-1:observer.incompleteWindowElapsed;
+        // UsageEvents use wall time, so convert the monotonic boundary at query time.
+        long after=incompleteAt<0?Long.MIN_VALUE:now-(SystemClock.elapsedRealtime()-incompleteAt);
         try{
             UsageStatsManager manager=(UsageStatsManager)context.getSystemService(Context.USAGE_STATS_SERVICE);
             UsageEvents events=manager==null?null:manager.queryEvents(now-lookback,now);
@@ -322,7 +328,7 @@ public final class HomeGuardService extends AccessibilityService implements Shar
             UsageEvents.Event event=new UsageEvents.Event();UsageForeground front=new UsageForeground();
             while(events.hasNextEvent()){
                 events.getNextEvent(event);
-                if(front.accept(event.getPackageName(),event.getClassName(),event.getEventType(),event.getTimeStamp(),now)){latest=event;event=new UsageEvents.Event();}
+                if(event.getTimeStamp()>after && front.accept(event.getPackageName(),event.getClassName(),event.getEventType(),event.getTimeStamp(),now)){latest=event;event=new UsageEvents.Event();}
             }
         }catch(SecurityException|IllegalStateException failure){return null;}
         return latest;
@@ -499,17 +505,25 @@ public final class HomeGuardService extends AccessibilityService implements Shar
         if(event==null || event.getEventType()!=AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || state==null)return;
         if(!state.enabled() || !HomeGuardState.canShow(this)){cancel();return;}
         String pkg=event.getPackageName()==null?null:event.getPackageName().toString(),cls=event.getClassName()==null?null:event.getClassName().toString();
-        if(pkg==null || cls==null || !activity(pkg,cls))return;
-        long now=SystemClock.uptimeMillis(),age=now-event.getEventTime();
-        if(age<0 || age>HomeGuardPolicy.MAX_AGE_MS){if(HomeGuardPolicy.matches(state.eventHomes(),pkg,cls))HomeGuardRecovery.observed("accessibility",new ComponentName(pkg,cls.startsWith(".")?pkg+cls:cls).flattenToString(),"stale_event",age);return;}
-        if(System.currentTimeMillis()-age<wakeAt)return;
-        sawActivityEvent=true;lastActivity=new ComponentName(pkg,cls.startsWith(".")?pkg+cls:cls).flattenToString();lastActivityAt=System.currentTimeMillis()-age;
+        boolean complete=pkg!=null && !pkg.isEmpty() && cls!=null && !cls.isEmpty();
+        if(complete && !activity(pkg,cls))return;
+        long now=SystemClock.uptimeMillis(),eventTime=event.getEventTime(),age=now-eventTime;
+        if(age<0 || age>HomeGuardPolicy.MAX_AGE_MS){if(complete && HomeGuardPolicy.matches(state.eventHomes(),pkg,cls))HomeGuardRecovery.observed("accessibility",new ComponentName(pkg,cls.startsWith(".")?pkg+cls:cls).flattenToString(),"stale_event",age);return;}
+        long wallNow=System.currentTimeMillis(),observedAt=wallNow-age;
+        if(observedAt<wakeAt || eventTime<incompleteWindowUptime)return;
+        if(!complete){
+            if(observedAt<lastActivityAt && lastActivityAt<=wallNow)return;
+            // An incomplete window invalidates passive evidence without cancelling an explicit HOME action.
+            incompleteWindowUptime=eventTime;incompleteWindowElapsed=SystemClock.elapsedRealtime()-age;lastActivity="";
+            policy.invalidateWindow();cancelObservation();updateKeyFilter();return;
+        }
+        sawActivityEvent=true;lastActivity=new ComponentName(pkg,cls.startsWith(".")?pkg+cls:cls).flattenToString();lastActivityAt=observedAt;
         updateKeyFilter();
         if(patchwallRecoveryPending && state.recoveryHomes().contains(lastActivity))return;
         if(bootForeground(lastActivity,lastActivityAt))return;
         if(BootSourcePolicy.PLAYER.equals(lastActivity))scheduleBootSource();
         // A delayed usage event must not override a newer settings/player accessibility event.
-        policy.ignoreUsageThrough(System.currentTimeMillis()-age);
+        policy.ignoreUsageThrough(observedAt);
         BootAppLifecycle.foreground(this,(pkg.equals(getPackageName()) && cls.equals(HomeActivity.class.getName()))
             || (state.validSelection() && HomeGuardPolicy.matches(state.eventHomes(),pkg,cls)));
         String previous=lastPackage;lastPackage=pkg;

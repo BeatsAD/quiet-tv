@@ -27,6 +27,8 @@ final class DesktopSettingsStore {
     void showSeconds(boolean show)throws IOException{savePhoneValue("show-seconds",show);}
     boolean showLunarDate(){return preferences.getBoolean("show-lunar-date",false);}
     void showLunarDate(boolean show)throws IOException{savePhoneValue("show-lunar-date",show);}
+    boolean showHomeQuote(){return preferences.getBoolean(DailyQuote.HOME,false);}
+    boolean showScreensaverQuote(){return preferences.getBoolean(DailyQuote.SAVER,false);}
     boolean showMovieInfo(){return preferences.getBoolean("show-movie-info",true);}
     void showMovieInfo(boolean show)throws IOException{savePhoneValue("show-movie-info",show);}
     void greetingEnabled(boolean enabled){synchronized(MUTATIONS){preferences.edit().putBoolean("greeting-enabled",enabled).apply();DiagnosticLog.info("desktop.greeting.visibility",String.valueOf(enabled));}}
@@ -101,7 +103,7 @@ final class DesktopSettingsStore {
         saveValue(key,value);
     }}
     void savePhoneValue(String key,Object value)throws IOException {
-        boolean valid=java.util.Arrays.asList("key-sounds","show-time","show-date","show-seconds","show-lunar-date","show-movie-info","show-app-title","show-home-apps","show-watch-tv","hide-home-apps-on-second-screen","show-all-apps-names","show-dock-background","greeting-enabled","greeting-avatar-enabled").contains(key)&&value instanceof Boolean
+        boolean valid=java.util.Arrays.asList(DailyQuote.HOME,DailyQuote.SAVER,"key-sounds","show-time","show-date","show-seconds","show-lunar-date","show-movie-info","show-app-title","show-home-apps","show-watch-tv","hide-home-apps-on-second-screen","show-all-apps-names","show-dock-background","greeting-enabled","greeting-avatar-enabled").contains(key)&&value instanceof Boolean
             ||"home-wallpaper-brightness".equals(key)&&value instanceof Integer&&(Integer)value>=20&&(Integer)value<=100
             ||"greeting-text".equals(key)&&value instanceof String&&((String)value).length()<=GreetingInputServer.MAX_TEXT
             ||"home-layout".equals(key)&&java.util.Arrays.asList("classic","gallery").contains(value)

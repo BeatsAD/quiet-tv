@@ -100,15 +100,23 @@ final class WeatherCityPicker {
         draft=region;city=region.level==2?regions.find(region.parent):region;province=city==null?null:regions.find(city.parent);update();
     }
     private void menu(Button anchor,List<WeatherRegions.Region> choices,Selection selected){
-        if(dropdown!=null)dropdown.closeQuietly();hideKeyboard();LinearLayout list=new LinearLayout(ui);list.setOrientation(LinearLayout.VERTICAL);list.setPadding(ui.px(6),ui.px(6),ui.px(6),ui.px(6));list.setBackgroundDrawable(ui.surface(0xfa000000,0xfa000000,0,14));
-        ScrollView scroll=new ScrollView(ui);scroll.setFillViewport(false);scroll.addView(list);
+        if(dropdown!=null)dropdown.closeQuietly();hideKeyboard();
+        int side=ui.px(18),top=ui.px(12),bottom=ui.px(24);
+        int extraSide=side-ui.px(6);
+        LinearLayout list=ui.column();
+        list.setClipToPadding(false);
+        list.setPadding(side,top,side,bottom);
+        list.setBackgroundDrawable(ui.surface(0xfa000000,0xfa000000,0,14));
+        ScrollView scroll=ui.settingsScroll();scroll.setClipChildren(false);scroll.addView(list);
         KeyFeedback.Menu menu=new KeyFeedback.Menu(ui);menu.addView(scroll);
-        KeyFeedback.Popup popup=new KeyFeedback.Popup(ui,menu,Math.max(anchor.getWidth(),ui.px(180)),ui.px(Math.min(212,choices.size()*40+12)));dropdown=popup;
+        int width=Math.max(anchor.getWidth(),ui.px(180))+2*extraSide;
+        int height=ui.px(Math.min(200,choices.size()*40))+top+bottom;
+        KeyFeedback.Popup popup=new KeyFeedback.Popup(ui,menu,width,height);dropdown=popup;
         popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));popup.setOutsideTouchable(true);if(Build.VERSION.SDK_INT>=21)popup.setElevation(ui.px(14));
         for(WeatherRegions.Region region:choices){
             Button option=ui.button(region.name,()->{popup.closeQuietly();selected.accept(region);});option.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);option.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,ui.px(13));option.setSingleLine(true);option.setEllipsize(TextUtils.TruncateAt.END);option.setBackgroundDrawable(ui.listSurface());option.setSelected((draft!=null&&draft.code.equals(region.code))||(city!=null&&city.code.equals(region.code))||(province!=null&&province.code.equals(region.code)));list.addView(option,new LinearLayout.LayoutParams(-1,ui.px(40)));
         }
-        popup.setOnDismissListener(()->{if(dropdown==popup)dropdown=null;anchor.requestFocus();});popup.showAsDropDown(anchor,0,ui.px(6));if(list.getChildCount()>0)list.getChildAt(0).requestFocus();
+        popup.setOnDismissListener(()->{if(dropdown==popup)dropdown=null;anchor.requestFocus();});popup.showAsDropDown(anchor,-extraSide,ui.px(6));if(list.getChildCount()>0)list.getChildAt(0).requestFocus();
     }
     private void showResults(boolean online){
         if(editor==null)return;main.removeCallbacks(search);int version=++searchGeneration;if(searchRequest!=null)searchRequest.cancel(true);searchClient.cancel();

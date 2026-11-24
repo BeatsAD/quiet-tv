@@ -22,6 +22,7 @@ import java.util.TimeZone;
 /** Shared clock/weather grouping for the screensaver and the settings preview. */
 final class ScreensaverInformationView extends FrameLayout {
     private final TextView clock,weather;
+    private final DailyQuoteView quote;
     private final ScreensaverClockView scene;
     private final FlipClockView flip;
     private final Calendar local=new GregorianCalendar();
@@ -46,6 +47,8 @@ final class ScreensaverInformationView extends FrameLayout {
         }
         clock=text();clock.setGravity(Gravity.CENTER_VERTICAL);clock.setTypeface(Build.VERSION.SDK_INT>=26?Typeface.createFromAsset(context.getAssets(),"fonts/outfit.ttf"):Typeface.create("sans-serif-light",Typeface.NORMAL));if(Build.VERSION.SDK_INT>=26)ClockFont.apply(clock);
         flip=new FlipClockView(context);addView(flip,new LayoutParams(-2,-2,Gravity.CENTER));
+        quote=new DailyQuoteView(context,weatherSize/19.2f,true);
+        addView(quote,new LayoutParams(-2,-2,Gravity.BOTTOM|Gravity.CENTER_HORIZONTAL));
         weather=text();weather.setTextSize(TypedValue.COMPLEX_UNIT_PX,weatherSize);weather.setEllipsize(TextUtils.TruncateAt.END);
     }
     private TextView text(){TextView view=new TextView(getContext());view.setIncludeFontPadding(false);view.setSingleLine(true);view.setTextColor(UiPalette.TEXT);view.setShadowLayer(weatherSize*.17f,0,weatherSize*.052f,UiPalette.INK);return view;}
@@ -68,6 +71,16 @@ final class ScreensaverInformationView extends FrameLayout {
         else if(flipping)flip.time(text,now/settings.tickMillis());
         else updateDigits(text);
         geometry(getWidth(),getHeight());
+    }
+    void refreshQuote(long now,boolean enabled,boolean demand,boolean retry){
+        DailyQuote.Entry value=null;
+        if(enabled){
+            DailyQuote content=DailyQuote.get(getContext());
+            String day=DailyQuote.date(now);
+            value=content.current(day);
+            if(demand&&value==null)content.request(day,retry);
+        }
+        quote.show(value);
     }
     void updateTime(long now){
         if(settings==null)return;
@@ -103,7 +116,15 @@ final class ScreensaverInformationView extends FrameLayout {
     private void geometry(int width,int height){
         if(settings==null||width==0)return;boolean centered=ScreensaverSettings.CENTER.equals(settings.timePosition);float size=centered?clockSize:clockSize*.5f;clock.setTextSize(TypedValue.COMPLEX_UNIT_PX,size);
         float flipSize=Math.min(width*(settings.flipShowSeconds?.82f:.64f)/FlipClockView.widthFactor(settings.flipShowSeconds),height*.62f/FlipClockView.HEIGHT_FACTOR);flip.size(flipSize);
-        int marginX=Math.round(width*.08f),marginY=Math.round(height*.08f);clock.setMaxWidth(width-2*marginX);weather.setMaxWidth(width-2*marginX);
+        int marginX=Math.round(width*.08f),marginY=Math.round(height*.08f);
+        LayoutParams quotePosition=(LayoutParams)quote.getLayoutParams();
+        int quoteWidth=Math.round(width*.66f);
+        boolean bottomWeather=weather.getVisibility()==VISIBLE&&(settings.weatherPosition.startsWith("bottom-")||centered&&settings.composedClock()&&ScreensaverSettings.CENTER.equals(settings.weatherPosition));
+        int quoteBottom=Math.round(height*.15f)+(bottomWeather?Math.round(weatherSize*2):0);
+        if(quotePosition.width!=quoteWidth||quotePosition.bottomMargin!=quoteBottom){
+            quotePosition.width=quoteWidth;quotePosition.bottomMargin=quoteBottom;quote.setLayoutParams(quotePosition);
+        }
+        clock.setMaxWidth(width-2*marginX);weather.setMaxWidth(width-2*marginX);
         LinearLayout.LayoutParams time=(LinearLayout.LayoutParams)clock.getLayoutParams();int timeHeight=Math.round(size*1.2f);if(time.height!=timeHeight){time.height=timeHeight;clock.setLayoutParams(time);}
         LinearLayout.LayoutParams conditions=(LinearLayout.LayoutParams)weather.getLayoutParams();int gap=!settings.flipping()&&clock.getVisibility()==VISIBLE&&settings.timePosition.equals(settings.weatherPosition)?Math.round(width*10f/960):0;if(conditions.topMargin!=gap){conditions.topMargin=gap;weather.setLayoutParams(conditions);}
         for(int i=0;i<regions.length;i++){String position=ScreensaverSettings.POSITIONS[i];boolean center=ScreensaverSettings.CENTER.equals(position),right=position.endsWith("-right"),weatherBelow=center&&settings.composedClock(),belowFlip=center&&settings.flipping();LayoutParams p=(LayoutParams)regions[i].getLayoutParams();int left=!center&&!right?marginX:0,end=right?marginX:0,top=belowFlip?Math.round(height/2f+flipSize*FlipClockView.HEIGHT_FACTOR/2+width*.02f):position.startsWith("top-")?marginY:0,bottom=position.startsWith("bottom-")||weatherBelow?marginY:0;int gravity=belowFlip?Gravity.TOP|Gravity.CENTER_HORIZONTAL:center?(weatherBelow?Gravity.BOTTOM|Gravity.CENTER_HORIZONTAL:Gravity.CENTER):p.gravity;if(p.gravity!=gravity||p.leftMargin!=left||p.rightMargin!=end||p.topMargin!=top||p.bottomMargin!=bottom){p.gravity=gravity;p.leftMargin=left;p.rightMargin=end;p.topMargin=top;p.bottomMargin=bottom;regions[i].setLayoutParams(p);}}
