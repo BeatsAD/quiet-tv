@@ -80,7 +80,7 @@ final class WallpaperUploadPanel {
         return new WallpaperUploadServer(host,port,name->activity.getAssets().open("wallpaper-upload/"+name),new WallpaperUploadServer.Importer(){
             @Override public String accept(InputStream input,long length,String name,WallpaperUploadServer.Active active)throws IOException{return importImage(attempt,input,length,name,active);}
             @Override public String acceptVideo(InputStream input,long length,String name,WallpaperUploadServer.Active active,long upload)throws IOException{return importVideo(attempt,upload,input,length,name,active);}
-        },WallpaperUploadServer.MAX_UPLOAD,WallpaperVideo.capabilities(),true);
+        },WallpaperUploadServer.MAX_UPLOAD,WallpaperVideo.capabilities(true),true);
     }
     private String importVideo(int attempt,long upload,InputStream input,long length,String name,WallpaperUploadServer.Active active)throws IOException{
         return importMedia(attempt,upload,input,length,name,true,active);

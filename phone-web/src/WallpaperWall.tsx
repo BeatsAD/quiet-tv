@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { PhoneClient } from './api';
+import { motionPreference } from './motion';
 import { ResourceImage } from './widgets';
 
 const FLIP_INTERVAL_MS=5000;
@@ -25,16 +26,16 @@ function shuffled(values:string[]){
   return result;
 }
 
-export function WallpaperWallPreview({client,source,active}:{client:PhoneClient;source:string;active:boolean}){
+export function WallpaperWallPreview({client,source,active,children}:{client:PhoneClient;source:string;active:boolean;children:ReactNode}){
   const ids=useMemo(()=>source?source.split(','):[],[source]);
   const [failed,setFailed]=useState<string[]>([]);
   const available=ids.filter(id=>!failed.includes(id));
   if(!available.length)return <div className="saver-wall-empty">{ids.length?'壁纸预览无法读取':'上传静态壁纸后即可预览'}</div>;
   return <WallGrid key={available.join(',')} ids={available} client={client} active={active}
-    onError={id=>setFailed(previous=>previous.includes(id)?previous:[...previous,id])}/>;
+    onError={id=>setFailed(previous=>previous.includes(id)?previous:[...previous,id])}>{children}</WallGrid>;
 }
 
-function WallGrid({ids,client,active,onError}:{ids:string[];client:PhoneClient;active:boolean;onError:(id:string)=>void}){
+function WallGrid({ids,client,active,onError,children}:{ids:string[];client:PhoneClient;active:boolean;onError:(id:string)=>void;children:ReactNode}){
   const {columns,rows}=wallpaperWallGrid(ids.length),size=columns*rows;
   const [initial]=useState(()=>shuffled(ids));
   const [cells,setCells]=useState(()=>initial.slice(0,size));
@@ -51,26 +52,34 @@ function WallGrid({ids,client,active,onError}:{ids:string[];client:PhoneClient;a
     setNext({cell:Math.floor(Math.random()*size),id:unseen.current[0],ready:false,flipping:false});
   },[active,allReady,cells,ids,next,size]);
 
-  useEffect(()=>{
-    if(!active||!next?.ready||next.flipping)return;
-    const timer=setTimeout(()=>{
-      nextFlipAt.current=performance.now()+FLIP_INTERVAL_MS;
-      setNext({...next,flipping:true});
-    },Math.max(0,nextFlipAt.current-performance.now()));
-    return()=>clearTimeout(timer);
-  },[active,next]);
-
-  function finish(){
-    if(!next)return;
+  const finish=useCallback(()=>{
+    if(!next||unseen.current[0]!==next.id)return;
     const updated=cells.slice();
     updated[next.cell]=next.id;
     unseen.current.shift();
     setCells(updated);
     setNext(null);
     setLoaded(updated);
-  }
+  },[cells,next]);
 
-  return <div className="saver-wall-grid" style={{gridTemplateColumns:`repeat(${columns}, minmax(0, 1fr))`,gridTemplateRows:`repeat(${rows}, minmax(0, 1fr))`}}>
+  useEffect(()=>{
+    if(!active||!next?.ready)return;
+    const preference=motionPreference();
+    if(next.flipping){
+      const settle=()=>{if(preference.matches)finish();};
+      preference.addEventListener('change',settle);
+      settle();
+      return()=>preference.removeEventListener('change',settle);
+    }
+    const timer=setTimeout(()=>{
+      nextFlipAt.current=performance.now()+FLIP_INTERVAL_MS;
+      if(preference.matches)finish();
+      else setNext({...next,flipping:true});
+    },Math.max(0,nextFlipAt.current-performance.now()));
+    return()=>clearTimeout(timer);
+  },[active,next,finish]);
+
+  return <><div className="saver-wall-grid" style={{gridTemplateColumns:`repeat(${columns}, minmax(0, 1fr))`,gridTemplateRows:`repeat(${rows}, minmax(0, 1fr))`}}>
     {cells.map((id,index)=>{
       const replacement=next?.cell===index?next:null;
       const animated=active&&replacement?.flipping;
@@ -83,5 +92,5 @@ function WallGrid({ids,client,active,onError}:{ids:string[];client:PhoneClient;a
           onError={()=>onError(image)}/>)}
       </div>;
     })}
-  </div>;
+  </div>{allReady&&children}</>;
 }
