@@ -11,10 +11,14 @@ final class WallpaperVideo {
     static final class Info {
         int width,height,rotation;long durationMs;float fps,pixelRatio=1f;String mime;
     }
-    static String capabilities() {
-        try{return new JSONObject().put("purpose","wallpaper").put("imageMaxBytes",WallpaperUploadServer.MAX_UPLOAD)
-            .put("videoMaxBytes",0).put("videoFormats",new JSONArray(java.util.Arrays.asList("mp4","mov","mkv","webm","m4v","3gp","3g2","ts","m2ts","mts","mpg","mpeg","vob","flv")))
-            .put("hevc",Build.VERSION.SDK_INT>=21&&Api16.legacyDecoder("video/hevc")).toString();}
+    static String capabilities(boolean videos) {
+        try{
+            JSONObject info=new JSONObject().put("purpose","wallpaper").put("imageMaxBytes",WallpaperUploadServer.MAX_UPLOAD);
+            if(videos)info.put("videoMaxBytes",0)
+                .put("videoFormats",new JSONArray(java.util.Arrays.asList("mp4","mov","mkv","webm","m4v","3gp","3g2","ts","m2ts","mts","mpg","mpeg","vob","flv")))
+                .put("hevc",Build.VERSION.SDK_INT>=21&&Api16.legacyDecoder("video/hevc"));
+            return info.toString();
+        }
         catch(JSONException e){throw new IllegalStateException(e);}
     }
     static Info inspect(File file)throws IOException {return inspect(file,"");}

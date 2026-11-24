@@ -146,13 +146,8 @@ export function SaverPreview({client,suspended=false}:{client:PhoneClient;suspen
   const follow=v.saverContent==='follow', id=String(follow?v.wallpaper:v.saverMedia);
   const media=client.metadata?.wallpapers.find(item=>item.id===id);
   const scene=follow?v:{...v,wallpaper:id,wallMode:'fixed',wallVideo:!!media?.video,previewKey:`${media?.bytes||0}`};
-  return <>
-    <div className={`tv-preview saver-preview${flipping?' saver-mechanical':''}${flipping&&seconds?' saver-with-seconds':''}`} aria-label="手机屏保预览">
-      {wall&&<WallpaperWallPreview key={wallSource} client={client} source={wallSource} active={active}/>}
-      {!wall&&!clockOnly&&(follow||id!=='blank')&&<DynamicBackground client={client} v={scene} filter="none" suspended={!active} onProblem={setProblem} retry={retry}/>}
-      {flipping&&parts&&<FlipClock time={timeLabel} tick={Math.floor(now/period)} active={active} onLanded={soundAvailable&&soundEnabled?playSound:undefined}/>}
-      {layout.composed&&parts&&<SaverClock time={time} timeLabel={timeLabel} layout={layout} lunar={lunar} monthStarts={monthStarts}/>}
-      {(!wall||wallSource)&&['top-left','top-right','center','bottom-left','bottom-right'].map(position=><div
+  const information=<>
+      {['top-left','top-right','center','bottom-left','bottom-right'].map(position=><div
         className={`saver-information saver-${position}${layout.composed&&position==='center'?' saver-weather-under-clock':''}`} key={position}>
         {!flipping&&(!layout.composed||!parts)&&(!!v.saverClock||clockOnly)&&(v.saverClockPosition||'center')===position&&
           <strong className={layout.seconds?'saver-time-seconds':undefined}>{timeLabel}</strong>}
@@ -160,6 +155,13 @@ export function SaverPreview({client,suspended=false}:{client:PhoneClient;suspen
           <span className="saver-weather">{String(v.weatherText)}</span>}
       </div>)}
       {quote&&<div className={`tv-saver-quote${v.saverWeather&&v.weatherText&&(String(v.saverWeatherPosition||'bottom-left').startsWith('bottom-')||layout.composed&&v.saverWeatherPosition==='center')?' above-weather':''}`}><Quote quote={quote}/></div>}
+  </>;
+  return <>
+    <div className={`tv-preview saver-preview${flipping?' saver-mechanical':''}${flipping&&seconds?' saver-with-seconds':''}`} aria-label="手机屏保预览">
+      {!wall&&!clockOnly&&(follow||id!=='blank')&&<DynamicBackground client={client} v={scene} filter="none" suspended={!active} onProblem={setProblem} retry={retry}/>}
+      {flipping&&parts&&<FlipClock time={timeLabel} tick={Math.floor(now/period)} active={active} onLanded={soundAvailable&&soundEnabled?playSound:undefined}/>}
+      {layout.composed&&parts&&<SaverClock time={time} timeLabel={timeLabel} layout={layout} lunar={lunar} monthStarts={monthStarts}/>}
+      {wall?<WallpaperWallPreview key={wallSource} client={client} source={wallSource} active={active}>{information}</WallpaperWallPreview>:information}
     </div>
     {soundAvailable&&<>
       <audio ref={audio} src={flipSoundUrl} preload="none"/>

@@ -1,7 +1,8 @@
 (()=>{
 const $=id=>document.getElementById(id),english=!navigator.language.toLowerCase().startsWith('zh');
 const message=(zh,en)=>english?en:zh;
-let items=[],xhr=null,running=false,stopped=false,limits=null;
+const imageAccept='image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp';
+let items=[],xhr=null,running=false,stopped=false,limits=null,videosAllowed=false;
 let uploadBase=new URL('.',location.href);
 const needsCode=location.pathname==='/';
 $('pairing').hidden=!needsCode;$('editor').hidden=needsCode;
@@ -16,7 +17,15 @@ function error(text){$('error').textContent=text;$('error').hidden=false;}
 async function capabilities(){
   limits=null;$('photo').disabled=$('files').disabled=true;$('send').disabled=true;
   try{const response=await fetch(new URL('info',uploadBase));if(!response.ok)throw Error();const data=await response.json();if(data.purpose!=='wallpaper')throw Error();limits=data;
-    $('fileinfo').textContent=message('图片最大 ','Images up to ')+(data.imageMaxBytes/1024/1024)+message(' MB；视频大小受电视可用空间限制。上传期间请保持电视上传页打开。',' MB; videos are limited by TV storage. Keep the TV upload screen open.');$('photo').disabled=$('files').disabled=false;
+    videosAllowed=Array.isArray(data.videoFormats)&&data.videoFormats.length>0;
+    if(!videosAllowed){
+      $('photo').accept=$('files').accept=imageAccept;
+      $('photo').setAttribute('aria-label',message('选择静态壁纸（可多选）','Choose static wallpapers (multiple)'));
+      $('files').setAttribute('aria-label',message('从文件选择静态壁纸（可多选）','Choose static wallpaper files (multiple)'));
+    }
+    const videoLimit=videosAllowed?message('  视频大小受电视可用空间限制。',' Videos are limited by TV storage.'):'';
+    $('fileinfo').textContent=message('图片最大 ','Images up to ')+(data.imageMaxBytes/1024/1024)+message(' MB。',' MB.')+videoLimit+message('  上传期间请保持电视上传页打开。',' Keep the TV upload screen open.');
+    render();
   }catch{error(message('会话不可用，请在电视重新打开上传页面。','Session unavailable. Reopen upload on your TV.'));}
 }
 if(!needsCode)void capabilities();
@@ -37,7 +46,11 @@ function render(){
     input.addEventListener('input',()=>{item.name=input.value;});label.append(input);detail.className='detail';detail.textContent=item.file.name+'  '+(item.file.size/1024/1024).toFixed(1)+' MB';status.textContent=item.message;status.setAttribute('role','status');
     row.append(label,detail,status);$('queue').append(row);item.status=status;
   }
-  $('photo').disabled=$('files').disabled=running||!limits;for(const id of ['choose-label','files-label'])$(id).setAttribute('aria-disabled',String(running||!limits));$('choose-label').textContent=items.length?message('继续添加图片或视频','Add more images or videos'):message('选择图片或视频（可多选）','Choose images and videos (multiple)');$('send').disabled=running||!items.some(retryable)||items.some(item=>item.state==='unknown');$('send').textContent=items.some(item=>!item.invalid&&item.state==='failed')?message('重试未完成上传','Retry unfinished uploads'):message('上传并保存全部','Upload and save all');$('cancel').hidden=!running;
+  $('photo').disabled=$('files').disabled=running||!limits;for(const id of ['choose-label','files-label'])$(id).setAttribute('aria-disabled',String(running||!limits));
+  $('choose-label').textContent=videosAllowed
+    ?(items.length?message('继续添加图片或视频','Add more images or videos'):message('选择图片或视频（可多选）','Choose images and videos (multiple)'))
+    :(items.length?message('继续添加静态壁纸','Add more static wallpapers'):message('选择静态壁纸（可多选）','Choose static wallpapers (multiple)'));
+  $('send').disabled=running||!items.some(retryable)||items.some(item=>item.state==='unknown');$('send').textContent=items.some(item=>!item.invalid&&item.state==='failed')?message('重试未完成上传','Retry unfinished uploads'):message('上传并保存全部','Upload and save all');$('cancel').hidden=!running;
 }
 function update(item,state,text){item.state=state;item.message=text;if(item.status){item.status.textContent=text;item.status.parentElement.dataset.uploadState=state;}}
 function addFiles(event){
@@ -45,7 +58,7 @@ function addFiles(event){
   items.push(...chosen.map(file=>{
     const video=file.type.startsWith('video/')||/\.(mp4|mov|mkv|webm|m4v|3gp|3g2|ts|m2ts|mts|mpg|mpeg|vob|flv)$/i.test(file.name);
     const maximum=video?limits.videoMaxBytes:limits.imageMaxBytes;
-    const invalid=!file.size?message('文件不能为空','Empty file'):!video&&!/\.(jpe?g|png|webp)$/i.test(file.name)&&!['image/jpeg','image/png','image/webp'].includes(file.type)?message('不支持的图片格式','Unsupported image format'):maximum>0&&file.size>maximum?message('文件超过大小上限或电视可用空间','File exceeds the size limit or available TV storage'):'';
+    const invalid=video&&!videosAllowed?message('请选择静态壁纸','Choose a static wallpaper'):!file.size?message('文件不能为空','Empty file'):!video&&!/\.(jpe?g|png|webp)$/i.test(file.name)&&!['image/jpeg','image/png','image/webp'].includes(file.type)?message('不支持的图片格式','Unsupported image format'):maximum>0&&file.size>maximum?message('文件超过大小上限或电视可用空间','File exceeds the size limit or available TV storage'):'';
     const name=file.name.replace(/\.[^.]+$/,'').replace(/[\u0000-\u001f\u007f-\u009f/\\]/g,' ').trim().slice(0,48).replace(/[\uD800-\uDBFF]$/,'')||message('我的壁纸','My wallpaper');
     const random=new Uint8Array(16);crypto.getRandomValues(random);const request=Array.from(random,n=>n.toString(16).padStart(2,'0')).join('');
     return {file,name,video,request,invalid:!!invalid,state:invalid?'failed':'ready',message:invalid||message('等待上传','Waiting to upload')};
