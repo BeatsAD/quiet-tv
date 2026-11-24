@@ -45,11 +45,19 @@ final class WallpaperUploadPanel {
     void show(DockBackdropDrawable.Background backdrop,Closed callback){
         if(dialog!=null)return;this.callback=callback;lastImported=null;
         view=new ImageUploadDialog(activity,chinese,backdrop,
-            tr("把喜欢的壁纸，留在电视上","Keep your favorite wallpaper on TV"),
-            tr("图片  JPG / PNG / 静态 WebP  最大 60 MB  最高保留 4K\n视频  常见视频格式  大小受电视剩余空间限制","Images  JPG / PNG / static WebP  Up to 60 MB  Saved up to 4K\nVideo  Common video formats  Limited by TV storage"),null,this::close,this::start,tr("选择图片或视频，上传后在电视上应用","Upload an image or video, then apply it on your TV"));
+            tr("上传壁纸","Upload wallpaper"),requirements(chinese,true),null,this::close,this::start,
+            tr("文件要求","File requirements"));
         dialog=view.dialog;address=view.address;status=view.status;retry=view.retry;qr=view.qr;
         ImageUploadDialog current=view;dialog.setOnDismissListener(d->{dialog=null;view=null;stopServer("dialog_dismissed");current.release();Closed finished=this.callback;this.callback=null;if(finished!=null)finished.closed(lastImported);});
         dialog.show();start();
+    }
+    static String requirements(boolean chinese,boolean videos){
+        long imageMaxMb=WallpaperUploadServer.MAX_UPLOAD/(1024*1024);
+        String images=chinese?"图片  JPG / PNG / 静态 WebP  最大 "+imageMaxMb+" MB  最高保留 4K"
+                :"Images  JPG / PNG / static WebP  Up to "+imageMaxMb+" MB  Saved up to 4K";
+        if(!videos)return images;
+        return images+(chinese?"\n视频  常见视频格式  大小受电视剩余空间限制"
+                :"\nVideo  Common video formats  Limited by TV storage");
     }
     private void start(){
         stopServer("restart");int attempt=++generation;status.setVisibility(View.GONE);retry.setVisibility(View.GONE);view.resetConnection();host=lanAddress(activity);

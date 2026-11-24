@@ -33,6 +33,7 @@ final class PhoneSettingsSession {
     void observeMediaNames(Runnable observer){mediaNameObservers.add(observer);}
     void forgetMediaNames(Runnable observer){mediaNameObservers.remove(observer);}
     private void mediaNamesChanged(){if(Looper.myLooper()!=Looper.getMainLooper()){main.post(this::mediaNamesChanged);return;}for(Runnable observer:new ArrayList<>(mediaNameObservers))observer.run();}
+    void dailyQuoteChanged(){fire();}
     private void fire(){main.post(()->{for(Runnable observer:new ArrayList<>(observers))observer.run();});}
     void configurationChanged(){if(Looper.myLooper()!=Looper.getMainLooper()){String operation=DiagnosticOperation.current();main.post(()->{String previous=DiagnosticOperation.enter(operation);try{configurationChanged();}finally{DiagnosticOperation.restore(previous);}});return;}for(Runnable observer:new ArrayList<>(configurationObservers))observer.run();DiagnosticLog.info("phone.configuration.notified","parent="+DiagnosticOperation.current()+" observers="+configurationObservers.size()+" evidence=callbacks_not_presentation");fire();}
     String state(){if(starting)return "starting";if(!failure.isEmpty())return "error";if(server==null)return "closed";String state=server.state();return paired()&&!"connected".equals(state)?"waiting":state;}

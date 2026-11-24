@@ -11,16 +11,31 @@ final class PhoneSettingsBackups {
     private final PhoneSettingsFiles files;private final Context context;private final PhoneSettingsTasks tasks;private final String scope;private final Runnable changed,ended;private final Map<String,JSONObject> drafts=new HashMap<>();private final Map<String,String> restores=new HashMap<>();private final Map<String,File> downloads=new HashMap<>();
     PhoneSettingsBackups(Context context,PhoneSettingsTasks tasks,String scope,Runnable changed,Runnable ended,PhoneSettingsFiles files){this.files=files;this.context=context;this.tasks=tasks;this.scope=scope;this.changed=changed;this.ended=ended;}
     JSONObject state()throws IOException{
-        DesktopBackups backups=DesktopBackups.get(context);try{JSONArray entries=new JSONArray();if(backups.error().isEmpty())for(DesktopBackupStore.Entry entry:backups.store().entries()){long bytes=0;for(int i=0;i<entry.record.assets.length();i++)bytes+=entry.record.assets.getJSONObject(i).getLong("bytes");entries.put(new JSONObject().put("id",entry.record.id).put("created",entry.record.created).put("kind",entry.record.kind).put("version",entry.record.json.getString("software")).put("assets",entry.record.assets.length()).put("assetBytes",bytes));}
-            JSONObject restore=new JSONObject();File journal=new File(context.getFilesDir(),"desktop-backups/restore.json");if(journal.isFile()&&journal.length()<=DesktopBackupRecord.MAX_CONFIG_BYTES)try{JSONObject record=new JSONObject(new String(new androidx.core.util.AtomicFile(journal).readFully(),Charsets.UTF_8));restore.put("phase",record.optString("phase")).put("before",record.optString("before")).put("target",record.optString("target"));}catch(IOException|JSONException unreadable){restore.put("phase","unknown");}
-            JSONArray prepared=new JSONArray();synchronized(drafts){for(JSONObject draft:drafts.values())prepared.put(draft);}return new JSONObject().put("activeRestore",tasks.activeRestore()).put("backupDrafts",prepared).put("backups",entries).put("backupError",backups.error()).put("backupRecoveryError",backups.recoveryError()).put("backupAutomatic",backups.error().isEmpty()&&backups.store().automatic()).put("lastRestore",restore);
+        DesktopBackups backups=DesktopBackups.get(context);
+        DesktopRestoreState restore=backups.restoreState();
+        try{
+            JSONArray entries=new JSONArray(),prepared=new JSONArray();
+            DesktopBackupStore store=!restore.running()&&backups.error().isEmpty()?backups.store():null;
+            if(store!=null)for(DesktopBackupStore.Entry entry:store.entries()){long bytes=0;for(int i=0;i<entry.record.assets.length();i++)bytes+=entry.record.assets.getJSONObject(i).getLong("bytes");entries.put(new JSONObject().put("id",entry.record.id).put("created",entry.record.created).put("kind",entry.record.kind).put("version",entry.record.json.getString("software")).put("assets",entry.record.assets.length()).put("assetBytes",bytes));}
+            JSONObject activeRestore=restore.running()?tasks.activeRestore():new JSONObject();
+            if(restore.running()&&activeRestore.length()==0)activeRestore.put("state","running").put("message",restore.message).put("progress",-1);
+            synchronized(drafts){for(JSONObject draft:drafts.values())prepared.put(draft);}
+            return new JSONObject().put("restoreState",restore.json()).put("activeRestore",activeRestore)
+                    .put("backupDrafts",prepared).put("backups",entries).put("backupError",backups.error())
+                    .put("backupRecoveryError",restore.needsReview()?restore.message:"")
+                    .put("backupAutomatic",store!=null&&store.automatic()).put("lastRestore",restore.lastRecord());
         }catch(JSONException e){throw new IOException(e);}
     }
     private <T>T run(DesktopBackups.Job<T> operation,boolean mutate)throws IOException{
         return run(operation,mutate,false);
     }
     private <T>T run(DesktopBackups.Job<T> operation,boolean mutate,boolean waitForCompletion)throws IOException{
-        CountDownLatch ready=new CountDownLatch(1);Object[] result={null};String[] error={""};DesktopBackups.Result<T> callback=(value,problem)->{result[0]=value;error[0]=problem;ready.countDown();};DesktopBackups backups=DesktopBackups.get(context);if(mutate)backups.run(operation,callback);else backups.read(operation,callback);
+        DesktopBackups backups=DesktopBackups.get(context);
+        return await(callback->{if(mutate)backups.run(operation,callback);else backups.read(operation,callback);},mutate,waitForCompletion);
+    }
+    private <T>T await(DesktopBackups.Start<T> start,boolean mutate,boolean waitForCompletion)throws IOException{
+        CountDownLatch ready=new CountDownLatch(1);Object[] result={null};String[] error={""};
+        start.run((value,problem)->{result[0]=value;error[0]=problem;ready.countDown();});
         try{if(waitForCompletion)ready.await();else if(!ready.await(120,TimeUnit.SECONDS))throw new PhoneSettingsTasks.Problem("备份任务结果待核对，请勿重复执行",true);}catch(InterruptedException e){Thread.currentThread().interrupt();throw new PhoneSettingsTasks.Problem("备份任务结果待核对",true);}if(!error[0].isEmpty())throw new PhoneSettingsTasks.Problem(error[0],mutate);@SuppressWarnings("unchecked") T value=(T)result[0];return value;
     }
     JSONObject receive(InputStream input,long bytes,PhoneSettingsServer.Active active)throws IOException{
@@ -28,6 +43,8 @@ final class PhoneSettingsBackups {
         try{JSONObject summary=new JSONObject().put("id",draft).put("created",prepared.record.created).put("version",prepared.record.json.getString("software")).put("assets",prepared.record.assets.length());synchronized(drafts){drafts.put(draft,summary);}changed.run();return new JSONObject().put("draftId",draft).put("prepared",true);}catch(JSONException e){throw new IOException(e);}
     }
     JSONObject command(String field,Object value,PhoneSettingsServer.Active active)throws IOException{
+        DesktopRestoreState restore=DesktopBackups.get(context).restoreState();
+        if(!restore.canChangeBackups()&&!(restore.needsReview()&&field.equals("retry")))throw new PhoneSettingsServer.Rejected(restore.message);
         if(field.equals("restore")&&value instanceof String){String target=(String)value;DesktopBackups.get(context).store().find(target);PhoneSettingsTasks.Job job=tasks.begin(scope+"/backup/restore","恢复桌面备份",target,active);job.state="ready";job.message="恢复请求已受理，连接即将结束；请重新扫码核对结果";synchronized(restores){restores.put(job.id,target);}try{return tasks.receipt(job).put("afterReceipt",job.id).put("endsConnection",true);}catch(JSONException e){throw new IOException(e);}}
         String kind=field,title=field.equals("remove")?"删除桌面备份":"桌面备份";if(field.equals("export")&&value instanceof JSONObject){JSONObject request=(JSONObject)value;boolean media=request.optBoolean("media");kind+="/"+request.optString("id")+"/"+(media?"zip":"json");title=media?"导出配置和素材 ZIP":"导出配置 JSON";}
         PhoneSettingsTasks.Job job=tasks.begin(scope+"/backup/"+field,title,field+":"+String.valueOf(value),active,"backup",kind);
@@ -45,8 +62,21 @@ final class PhoneSettingsBackups {
             throw new PhoneSettingsTasks.Problem("备份操作无效",false);
         });return tasks.receipt(job);
     }
-    void delivered(String id){String target;synchronized(restores){target=restores.remove(id);}if(target==null)return;PhoneSettingsTasks.Job job=tasks.find(id);if(job==null||!tasks.commitRestore(job))return;
-        ended.run();DesktopBackups nativeBackups=DesktopBackups.get(context);nativeBackups.phoneRestore(()->tasks.start(job,work->{work.stage("正在恢复，完成后请重新扫码核对",-1);try{run(store->{store.restore(target);return null;},true,true);changed.run();work.stage("恢复已完成，正式恢复记录已保存",100);return new JSONObject().put("restored",target);}catch(IOException failure){throw new PhoneSettingsTasks.Problem(failure.getMessage(),true);}finally{nativeBackups.phoneRestoreFinished();}}));
+    void delivered(String id){
+        String target;synchronized(restores){target=restores.remove(id);}
+        if(target==null)return;
+        PhoneSettingsTasks.Job job=tasks.find(id);if(job==null||!tasks.commitRestore(job))return;
+        DesktopBackups nativeBackups=DesktopBackups.get(context);
+        if(!nativeBackups.beginRestore(job.id)){tasks.fail(job,"有其他桌面恢复需要先完成，请核对恢复记录");changed.run();return;}
+        ended.run();
+        nativeBackups.showPhoneRestore(()->tasks.start(job,work->{
+            work.stage("正在恢复，完成后请重新扫码核对",-1);
+            try{
+                await((DesktopBackups.Result<String> callback)->nativeBackups.runRestore(target,callback),true,true);
+                work.stage("恢复已完成，正式恢复记录已保存",100);
+                return new JSONObject().put("restored",target);
+            }finally{changed.run();}
+        }));
     }
     PhoneSettingsServer.Download download(String id)throws IOException{File file;synchronized(downloads){file=downloads.get(id);}if(file==null||!file.isFile())throw new PhoneSettingsServer.BadInput();return new PhoneSettingsServer.Download(new FileInputStream(file),file.length(),"QuietTV-desktop-backup"+(file.getName().endsWith(".zip")?".zip":".json"),"application/octet-stream");}
 }

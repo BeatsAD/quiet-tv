@@ -39,7 +39,8 @@ final class DisplayAppearanceChoice extends LinearLayout {
     private String name(String value){int i=Arrays.asList(values).indexOf(value);return i<0?value:names[i];}
     private int gridColumns(List<Button> buttons){
         if(getWidth()==0)return 2;
-        int width=getWidth()-getPaddingLeft()-getPaddingRight()-4*p(4.8f),column=(width-p(8))/2;
+        int insets=inline||optionsOnly?4*p(4.8f):2*optionSidePadding();
+        int width=getWidth()-getPaddingLeft()-getPaddingRight()-insets,column=(width-p(8))/2;
         for(Button button:buttons)if(Math.ceil(android.text.Layout.getDesiredWidth(SettingsSelectionMark.label(button.getContentDescription().toString(),true,ui.unit),button.getPaint()))+button.getCompoundPaddingLeft()+button.getCompoundPaddingRight()>column)return 1;
         return 2;
     }
@@ -53,7 +54,19 @@ final class DisplayAppearanceChoice extends LinearLayout {
         rows.clear();setPadding(inline?p(16):0,inline?p(12):0,inline?p(16):0,inline?p(12):0);pendingLabel=null;
         if(inline){LinearLayout caption=ui.row();TextView heading=label(title,dialogStyle?18.56f:16.64f,dialogStyle?26.26f:23);QuickControlPreviewView.weight(heading,500);caption.addView(heading,new LayoutParams(0,-2,1));pendingLabel=label(draft.equals(committed)?"":"待确定",12.16f,18.24f);caption.addView(pendingLabel);LayoutParams cp=new LayoutParams(-1,-2);cp.bottomMargin=p(8);addView(caption,cp);}
         else if(!optionsOnly){if(trigger==null){trigger=new DesktopSettingsRow(ui,title,"",false);trigger.setOnClickListener(v->{if(opened)cancel(true);else{opened=true;draft=committed;render();focusValue(committed);}});identify(trigger,"appearance-"+key);addView(trigger,new LayoutParams(-1,p(dialogStyle?59.95f:59.63f)));}int height=p(dialogStyle?59.95f:59.63f);if(trigger.getLayoutParams().height!=height){trigger.getLayoutParams().height=height;trigger.requestLayout();}trigger.displayStyle();if(dialogStyle)trigger.textSizes(14.016f,11.52f);trigger.hideIcon();trigger.value(name(committed));trigger.tail(opened?"settings-up":"arrow");rows.add(new View[]{trigger});}
-        if(inline||opened||optionsOnly){LinearLayout expanded=ui.column();if(!inline&&!optionsOnly){expanded.setPadding(p(twoColumns?4.8f:8.32f),p(6.4f),p(twoColumns?4.8f:8.32f),p(8.32f));expanded.setBackgroundDrawable(ui.surface(0x1f000000,0x1f000000,0,15));}addView(expanded,new LayoutParams(-1,-2));LinearLayout options=new LinearLayout(ui);options.setOrientation(inline?HORIZONTAL:VERTICAL);options.setClipChildren(false);options.setClipToPadding(false);if(!inline&&!optionsOnly){ScrollView scroll=new ScrollView(ui){@Override protected void onMeasure(int width,int height){super.onMeasure(width,MeasureSpec.makeMeasureSpec(p(238.08f),MeasureSpec.AT_MOST));}};scroll.setFillViewport(false);scroll.setVerticalScrollBarEnabled(false);scroll.setPadding(p(twoColumns?4.8f:25.6f),p(10.24f),p(twoColumns?4.8f:25.6f),p(10.24f));scroll.setClipToPadding(true);scroll.addView(options,new ScrollView.LayoutParams(-1,-2));expanded.addView(scroll,new LayoutParams(-1,-2));}else expanded.addView(options,new LayoutParams(-1,-2));ArrayList<View> segment=new ArrayList<>();
+        if(inline||opened||optionsOnly){
+            LinearLayout expanded=ui.column();
+            addView(expanded,new LayoutParams(-1,-2));
+            LinearLayout options=new LinearLayout(ui);
+            options.setOrientation(inline?HORIZONTAL:VERTICAL);
+            options.setClipChildren(false);
+            options.setClipToPadding(false);
+            if(!inline&&!optionsOnly){
+                expanded.setBackgroundDrawable(ui.surface(0x1f000000,0x1f000000,0,15));
+                expanded.setClipChildren(true);
+                expanded.addView(optionScroll(options),new LayoutParams(-1,-2));
+            }else expanded.addView(options,new LayoutParams(-1,-2));
+            ArrayList<View> segment=new ArrayList<>();
             ArrayList<Button> buttons=new ArrayList<>();
             for(int i=0;i<values.length;i++){String id=values[i];Button b=ui.button(names[i],()->choose(id));b.setText(SettingsSelectionMark.label(names[i],committed.equals(id),ui.unit));identify(b,"appearance-"+key+"-"+id);b.setContentDescription(names[i]);b.setSelected(committed.equals(id));b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,(inline?(dialogStyle?12f:10.08f):11.52f)*ui.unit);b.setIncludeFontPadding(false);b.setPadding(p(inline?8:12.8f),p(inline?9.96f:8.96f),p(inline?8:12.8f),p(inline?9.96f:8.96f));if(inline||twoColumns)b.setSingleLine(true);b.setGravity(Gravity.CENTER);b.setBackgroundDrawable(new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[]{new SettingsFocusDrawable(ui.unit,12,committed.equals(id)?0x1cffffff:UiPalette.CONTROL,false,committed.equals(id)?0x4dffffff:UiPalette.EDGE,twoColumns&&committed.equals(id)),new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)}));if(solidSelection){android.graphics.drawable.StateListDrawable surface=new android.graphics.drawable.StateListDrawable();surface.addState(new int[]{android.R.attr.state_selected},ui.surface(UiPalette.TEXT,UiPalette.TEXT,0,12));surface.addState(new int[0],new SettingsFocusDrawable(ui.unit,12,UiPalette.CONTROL,false,UiPalette.EDGE));b.setBackgroundDrawable(new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[]{surface,new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)}));b.setPadding(p(inline?8:12.8f),p(9.96f),p(inline?8:12.8f),p(9.96f));b.setTextColor(new android.content.res.ColorStateList(new int[][]{{android.R.attr.state_selected},{android.R.attr.state_focused,android.R.attr.state_window_focused},{}},new int[]{UiPalette.INK,UiPalette.INK,UiPalette.TEXT}));}else b.setTextColor(SettingsFocusDrawable.textColors(UiPalette.TEXT));if("icon-shape".equals(key)){android.graphics.drawable.Drawable shape=new ShapeIcon(id);shape.setBounds(0,0,p("rectangle".equals(id)?48.64f:32),p(40.96f));b.setCompoundDrawables(null,shape,null,null);b.setCompoundDrawablePadding(p(7.04f));b.setHorizontallyScrolling(false);if(Build.VERSION.SDK_INT>=17)b.setTextAlignment(View.TEXT_ALIGNMENT_CENTER);}if(inline){b.setIncludeFontPadding(true);if(!"icon-shape".equals(key))b.setPadding(b.getPaddingLeft(),0,b.getPaddingRight(),0);}b.setOnFocusChangeListener((v,f)->{if(f){draft=id;if(pendingLabel!=null)pendingLabel.setText(draft.equals(committed)?"":"待确定");preview.value(key,value(id));}});
                 buttons.add(b);
@@ -66,6 +79,24 @@ final class DisplayAppearanceChoice extends LinearLayout {
             if(!inline&&!optionsOnly){expandedContent=expanded;if(!wasExpanded){expanded.setAlpha(0);UiMotion.reveal(expanded,-p(6));}}
         }
         available(available);updating=false;post(rewired);
+    }
+    private int optionSidePadding(){return twoColumns?ui.px(18):p(8.32f)+p(25.6f);}
+    private ScrollView optionScroll(LinearLayout options){
+        int side=optionSidePadding(),top=p(6.4f)+p(10.24f),bottom=ui.px(24);
+        int maxHeight=p(217.6f)+top+bottom;
+        ScrollView scroll=new ScrollView(ui){
+            @Override protected void onMeasure(int w,int h){
+                int limit=MeasureSpec.getMode(h)==MeasureSpec.UNSPECIFIED
+                        ?maxHeight:Math.min(MeasureSpec.getSize(h),maxHeight);
+                super.onMeasure(w,MeasureSpec.makeMeasureSpec(limit,MeasureSpec.AT_MOST));
+            }
+        };
+        scroll.setVerticalScrollBarEnabled(false);
+        scroll.setClipChildren(false);
+        scroll.setClipToPadding(false);
+        scroll.setPadding(side,top,side,bottom);
+        scroll.addView(options,new ScrollView.LayoutParams(-1,-2));
+        return scroll;
     }
     private void choose(String id){
         if(saving)return;

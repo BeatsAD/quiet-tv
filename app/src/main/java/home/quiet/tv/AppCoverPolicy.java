@@ -10,7 +10,7 @@ final class AppCoverPolicy {
     static boolean allowed(Context context,String pkg){
         if(!AppCoverStore.packageName(pkg)||ownReadOnly(context,pkg))return false;
         try{ApplicationInfo info=context.getPackageManager().getApplicationInfo(pkg,0);
-            return AppAvailability.installed(context.getPackageManager(),info)&&info.enabled&&new HomeAppCatalog(context).launchable().containsKey(pkg);
+            return AppAvailability.installed(context.getPackageManager(),info)&&info.enabled&&new HomeAppCatalog(context).find(pkg)!=null;
         }catch(PackageManager.NameNotFoundException|SecurityException|IllegalArgumentException e){return false;}
     }
     static final class ShapeChanged extends java.io.IOException {

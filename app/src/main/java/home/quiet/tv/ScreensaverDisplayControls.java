@@ -22,6 +22,7 @@ final class ScreensaverDisplayControls {
     private ScreensaverSettings settings;
     private DisplayAppearanceChoice waiting,content,timePosition,weatherPosition,analogStyle,digitalLayout;
     private DesktopSettingsRow choose,time,weather,sound,analog,calendar,lunar,seconds,flipSeconds,flipSound;
+    private DesktopSettingsRow wallMedia;
     private LinearLayout library;
     private DesktopMediaLibrary materials;
     private String candidate="",draftMode="",draftTimePosition="",draftWeatherPosition="",draftAnalogStyle="",draftDigitalLayout="",error="";
@@ -35,7 +36,7 @@ final class ScreensaverDisplayControls {
         group.removeAllViews();String[] minutes={"0","1","2","5","10","15","30"},waitNames={tr("关闭","Off"),"1 "+tr("分钟","min"),"2 "+tr("分钟","min"),"5 "+tr("分钟","min"),"10 "+tr("分钟","min"),"15 "+tr("分钟","min"),"30 "+tr("分钟","min")};
         DisplayAppearanceChoice.Preview bridge=new DisplayAppearanceChoice.Preview(){public void value(String key,Object value){if(key.equals("saver-content"))draftMode=String.valueOf(value);if(key.equals("saver-clock-position"))draftTimePosition=String.valueOf(value);if(key.equals("saver-weather-position"))draftWeatherPosition=String.valueOf(value);if(key.equals("saver-analog-style"))draftAnalogStyle=String.valueOf(value);if(key.equals("saver-digital-layout"))draftDigitalLayout=String.valueOf(value);scene();}public void clear(String key){if(key.equals("saver-content"))draftMode="";if(key.equals("saver-clock-position"))draftTimePosition="";if(key.equals("saver-weather-position"))draftWeatherPosition="";if(key.equals("saver-analog-style"))draftAnalogStyle="";if(key.equals("saver-digital-layout"))draftDigitalLayout="";scene();}};
         waiting=new DisplayAppearanceChoice(ui,"saver-wait",tr("闲置等待时间","Idle timeout"),minutes,waitNames,new DisplayAppearanceChoice.Access(){public String read(){return String.valueOf(settings.idleMinutes);}public void save(String value)throws IOException{saveSettings(current->current.waitMinutes(Integer.parseInt(value)));}},false,bridge,rewired).twoColumns();group.addView(waiting);
-        content=new DisplayAppearanceChoice(ui,"saver-content",tr("屏保内容","Screensaver content"),new String[]{ScreensaverSettings.FOLLOW,ScreensaverSettings.CLOCK,ScreensaverSettings.FLIP,ScreensaverSettings.CUSTOM},new String[]{tr("跟随桌面","Follow desktop"),tr("数字时间","Digital time"),tr("翻页时钟","Flip clock"),tr("自定义","Custom")},new DisplayAppearanceChoice.Access(){public String read(){return settings.mode;}public void save(String value)throws IOException{writeSettings(current->current.content(value));candidate="";draftMode="";expanded=false;renderLibrary();refresh();scene();}},false,bridge,rewired).twoColumns();group.addView(content);
+        content=new DisplayAppearanceChoice(ui,"saver-content",tr("屏保内容","Screensaver content"),new String[]{ScreensaverSettings.FOLLOW,ScreensaverSettings.CLOCK,ScreensaverSettings.FLIP,ScreensaverSettings.CUSTOM,ScreensaverSettings.WALL},new String[]{tr("跟随桌面","Follow desktop"),tr("数字时间","Digital time"),tr("翻页时钟","Flip clock"),tr("自定义","Custom"),tr("壁纸墙","Wallpaper wall")},new DisplayAppearanceChoice.Access(){public String read(){return settings.mode;}public void save(String value)throws IOException{writeSettings(current->current.content(value));candidate="";draftMode="";expanded=false;renderLibrary();refresh();scene();}},false,bridge,rewired).twoColumns();group.addView(content);
         flipSeconds=toggle(tr("显示秒","Show seconds"),"saver-flip-seconds",current->current.flipSeconds(!current.flipShowSeconds));
         flipSound=toggle(tr("翻页声音","Flip sound"),"saver-flip-sound",current->current.flipSound(!current.flipSound));
         analog=toggle(tr("模拟时钟","Analog clock"),"saver-analog",current->current.clock(current.clock.analog(!current.clock.analog)));
@@ -48,6 +49,10 @@ final class ScreensaverDisplayControls {
         seconds=toggle(tr("显示秒","Show seconds"),"saver-seconds",current->current.clock(current.clock.seconds(!current.clock.seconds)));
         choose=row(tr("选择屏保素材","Screensaver media"),"saver-media");choose.tail("arrow");choose.setOnClickListener(v->{expanded=!expanded;renderLibrary();refresh();scene();});group.addView(choose,new LinearLayout.LayoutParams(-1,ui.px(44.72f)));
         materials=new DesktopMediaLibrary(ui,"screensaver",importer,new DesktopMediaLibrary.Actions(){public String selected(){return ScreensaverDisplayControls.this.selected();}public boolean select(String id){candidate=id;return apply();}public void imported(String id,boolean apply)throws IOException{ScreensaverDisplayControls.this.imported(id,apply);}public void removed(){candidate="";settings=store.current();refresh();scene();choose.requestFocusFromTouch();}},rewired);library=materials.library;group.addView(library);
+        wallMedia=row(tr("壁纸素材","Wallpapers"),"saver-wall-media");
+        wallMedia.tail("arrow");
+        wallMedia.setOnClickListener(v->importer.show("wall","image",(target,id,apply)->wallImported()));
+        group.addView(wallMedia,new LinearLayout.LayoutParams(-1,ui.px(44.72f)));
         time=toggle(tr("显示时钟","Show clock"),"saver-clock",current->current.time(!current.showTime));
         timePosition=positionChoice(true,bridge);group.addView(timePosition);
         weather=toggle(tr("显示天气","Show weather"),"saver-weather",current->current.weather(!current.showWeather));
@@ -95,6 +100,14 @@ final class ScreensaverDisplayControls {
     void refresh(){
         if(settings==null||choose==null)return;ScreensaverSettings current=store.current();if(current!=null)settings=current;
         boolean custom=ScreensaverSettings.CUSTOM.equals(settings.mode);choose.setVisibility(custom?View.VISIBLE:View.GONE);choose.tail(expanded?"settings-up":"arrow");library.setVisibility(custom&&expanded?View.VISIBLE:View.GONE);time.setVisibility(settings.clockOnly()?View.GONE:View.VISIBLE);time.checked(settings.showTime);weather.checked(settings.showWeather);
+        boolean wall=settings.wall();
+        wallMedia.setVisibility(wall?View.VISIBLE:View.GONE);
+        if(wall){
+            int count=WallpaperWall.ids(media.snapshot()).size();
+            int columns=WallpaperWall.columns(count),rows=WallpaperWall.rows(count);
+            wallMedia.value(count==0?tr("上传静态壁纸","Upload wallpapers"):
+                count+tr(" 张"," images")+"  "+columns+" × "+rows);
+        }
         boolean digital=settings.digitalMode();
         analog.setVisibility(digital?View.VISIBLE:View.GONE);
         analog.checked(settings.clock.analog);
@@ -138,6 +151,7 @@ final class ScreensaverDisplayControls {
         scene();
         choose.post(choose::requestFocusFromTouch);
     }
+    void wallImported(){refresh();scene();PhoneSettingsSession.get(ui).configurationChanged();}
     void imported(String id,boolean apply)throws IOException{
         WallpaperCatalog.Entry entry=media.snapshot().find(id);
         if(entry==null)throw new IOException("素材不可用");

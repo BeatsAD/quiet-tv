@@ -36,13 +36,23 @@ final class BluetoothSystemCapture {
         pending=worker.submit(()->capture(context,port,user,reason,epoch));return pending;
     }
     static void prepareExport(Context context){
-        Future<?> task=request(context,"export",true);if(task==null)return;
-        try{task.get(12,TimeUnit.SECONDS);}
-        catch(TimeoutException waiting){synchronized(BluetoothSystemCapture.class){state="本次采集尚未结束；导出仅包含已保存证据";}}
-        catch(CancellationException stopped){}
-        catch(InterruptedException interrupted){Thread.currentThread().interrupt();}
-        catch(ExecutionException unavailable){synchronized(BluetoothSystemCapture.class){state="本次采集失败："+unavailable.getCause().getClass().getSimpleName();}}
+        try{
+            Future<?> task=request(context,"export",true);
+            if(task!=null)task.get(12,TimeUnit.SECONDS);
+        }catch(TimeoutException waiting){
+            exportStatus("本次采集尚未结束；导出仅包含已保存证据");
+        }catch(CancellationException stopped){
+            exportStatus("本次采集中断");
+        }catch(InterruptedException interrupted){
+            Thread.currentThread().interrupt();
+            exportStatus("等待采集结果时中断");
+        }catch(ExecutionException unavailable){
+            exportStatus("本次采集失败："+unavailable.getCause().getClass().getSimpleName());
+        }catch(RuntimeException unavailable){
+            exportStatus("未能启动本次采集："+unavailable.getClass().getSimpleName());
+        }
     }
+    private static synchronized void exportStatus(String result){state=result;}
     private static void capture(Context context,int port,int expectedUser,String reason,int epoch){
         if(!DiagnosticLog.recording(epoch))return;
         String capture=Long.toHexString(System.currentTimeMillis());int complete=0,failed=0;
@@ -107,9 +117,13 @@ final class BluetoothSystemCapture {
     }
     static synchronized void append(Context context,File file)throws IOException{
         try(OutputStream output=new BufferedOutputStream(new FileOutputStream(file,true))){
-            output.write(("\n[蓝牙相关系统日志]\n采集状态："+status()+"\n范围：蓝牙事件触发及专项排查时读取已有ADB可见的近期日志与状态，未持续录制；进程退出和未连接期间可能缺失。每项最多64条结构化记录，两段日志合计最多2MiB。\n隐私：只保存状态码、固定事件、服务类名、进程与匿名设备编号；任意消息、设备名称、MAC、配对码和密钥不保存。unparsed和omitted表示未保留部分，不代表没有故障。\n").getBytes(Charsets.UTF_8));
-            if(journal==null){File directory=new File(context.getFilesDir(),"bluetooth-system-log");if(directory.isDirectory())journal=new DiagnosticJournal(directory);}
-            if(journal!=null)journal.copyTo(output);
+            output.write(("\n[蓝牙相关系统日志]\n采集状态："+status()+"\n范围：蓝牙事件触发及下载诊断日志时读取已有ADB可见的近期日志与状态，未持续录制；进程退出和未连接期间可能缺失。每项最多64条结构化记录，两段日志合计最多2MiB。\n隐私：只保存状态码、固定事件、服务类名、进程与匿名设备编号；任意消息、设备名称、MAC、配对码和密钥不保存。unparsed和omitted表示未保留部分，不代表没有故障。\n").getBytes(Charsets.UTF_8));
+            try{
+                if(journal==null){File directory=new File(context.getFilesDir(),"bluetooth-system-log");if(directory.isDirectory())journal=new DiagnosticJournal(directory);}
+                if(journal!=null)journal.copyTo(output);
+            }catch(IOException|RuntimeException unavailable){
+                output.write(("蓝牙历史读取受限："+unavailable.getClass().getSimpleName()+"\n").getBytes(Charsets.UTF_8));
+            }
         }
     }
     private BluetoothSystemCapture(){}

@@ -20,6 +20,7 @@ public final class ApkInstallActivity extends ManagementUi {
     private String fileId;
     private ApkPackage apk;
     private File prepared;
+    private volatile File selectedCopy;
     private long baseline=-1;
     private String diagnosticAttempt="unknown";
     private long diagnosticStarted=-1;
@@ -32,6 +33,33 @@ public final class ApkInstallActivity extends ManagementUi {
     @Override boolean unifiedSettings(){return true;}
     @Override public void handleBack(){finish();}
     private boolean sessions(){return UpdateInstallPolicy.session(Build.VERSION.SDK_INT);}
+    static Intent fromFile(Context context,FileTransferSource.Item item){
+        return new Intent(context,ApkInstallActivity.class)
+                .putExtra("file",java.util.UUID.randomUUID().toString())
+                .putExtra("source-uri",item.uri)
+                .putExtra("source-size",item.bytes)
+                .putExtra("source-name",item.name);
+    }
+
+    static File copySource(Context context,Uri uri,long bytes,FileTransferPolicy.Active active)throws IOException{
+        File cache=new File(context.getCacheDir(),"selected-apks");
+        if(!cache.isDirectory()&&!cache.mkdirs())throw new IOException("安装准备目录不可用");
+        File copy=File.createTempFile("selected-apk-",".apk",cache);
+        try(InputStream input=context.getContentResolver().openInputStream(uri);FileOutputStream output=new FileOutputStream(copy)){
+            if(input==null)throw new IOException("安装文件无法读取");
+            FileTransferPolicy.copy(input,output,bytes,Math.min(FileTransferPolicy.MAX_FILE,cache.getUsableSpace()-FileTransferPolicy.RESERVE),active,(a,b)->{});
+            output.getFD().sync();
+        }catch(IOException|RuntimeException error){
+            discardSource(copy);
+            throw error;
+        }
+        return copy;
+    }
+
+    private static void discardSource(File file){
+        if(file!=null&&file.isFile()&&!file.delete())DiagnosticLog.info("received_apk.copy_retained","reason=delete_failed");
+    }
+
     @Override public void onCreate(Bundle saved){
         super.onCreate(saved);root.setVisibility(View.GONE);backdrop=getIntent().getParcelableExtra("backdrop");if(backdrop!=null){stage.removeAllViews();stage.setBackgroundColor(Color.TRANSPARENT);}
         sheet=new Sheet("安装应用");Button back=sheet.settingsLayout("关闭",this::finish);sheet.settingsActions(true);
@@ -42,8 +70,14 @@ public final class ApkInstallActivity extends ManagementUi {
         fileId=getIntent().getStringExtra("file");waiting=saved!=null&&saved.getBoolean("waiting");viewRoute=saved!=null&&saved.getBoolean("viewRoute");fallback=saved!=null&&saved.getBoolean("fallback");baseline=saved==null?-1:saved.getLong("baseline",-1);installerOpened=saved!=null&&saved.getBoolean("installer-opened");autoBeginPending=saved!=null&&saved.getBoolean("auto-begin-pending");
         if(saved!=null){diagnosticAttempt=saved.getString("diagnosticAttempt","unknown");diagnosticStarted=saved.getLong("diagnosticStarted",-1);installationVerified=saved.getBoolean("installation-verified");}
         if(saved!=null&&saved.getString("prepared")!=null)prepared=new File(saved.getString("prepared"));
+        if(saved!=null&&saved.containsKey("selected-copy"))selectedCopy=new File(saved.getString("selected-copy"));
+        Uri selectedUri=getIntent().getParcelableExtra("source-uri");
         worker.execute(()->{
             try{
+                if(selectedUri!=null&&(selectedCopy==null||!selectedCopy.isFile())){
+                    selectedCopy=copySource(this,selectedUri,getIntent().getLongExtra("source-size",-1),()->!closed);
+                    if(closed){discardSource(selectedCopy);return;}
+                }
                 ApkPackage result=ApkPackage.inspect(this,sourceFile(),sourceName());
                 runOnUiThread(()->{if(closed)return;apk=result;if(!waiting)baseline=apk.previousUpdate;
                     details.setText(apk.label+"\n"+apk.pkg+"\n"+apk.version+"  "+FileTransferSource.size(apk.bytes)+"\n"+(apk.update?"覆盖安装，保留应用数据":"新安装"));
@@ -57,7 +91,7 @@ public final class ApkInstallActivity extends ManagementUi {
     }
     private FileTransferStore store()throws IOException{return new FileTransferStore(new File(getFilesDir(),"received-files"));}
     private File sourceFile()throws IOException{
-        String path=getIntent().getStringExtra("source-file");if(path==null)return store().file(fileId);
+        String path=selectedCopy==null?getIntent().getStringExtra("source-file"):selectedCopy.getAbsolutePath();if(path==null)return store().file(fileId);
         File file=new File(path).getCanonicalFile();if(!new File(getCacheDir(),"selected-apks").getCanonicalFile().equals(file.getParentFile())||!file.getName().matches("selected-apk-.*\\.apk")||!file.isFile())throw new IOException("安装文件无法读取");return file;
     }
     private String sourceName()throws IOException{String name=getIntent().getStringExtra("source-name");return name==null?store().entry(fileId).name:name;}
@@ -192,7 +226,7 @@ public final class ApkInstallActivity extends ManagementUi {
     }
     @Override protected void onResume(){super.onResume();resumed=true;if(sessions()){ApkInstallSession.changed=()->refreshSession(true);if(apk!=null)refreshSession(false);}beginWhenReady();}
     @Override protected void onPause(){resumed=false;if(sessions())ApkInstallSession.changed=null;super.onPause();}
-    @Override protected void onSaveInstanceState(Bundle saved){super.onSaveInstanceState(saved);saved.putBoolean("waiting",waiting);saved.putBoolean("installation-verified",installationVerified);saved.putString("diagnosticAttempt",diagnosticAttempt);saved.putLong("diagnosticStarted",diagnosticStarted);saved.putBoolean("installer-opened",installerOpened);saved.putBoolean("auto-begin-pending",autoBeginPending);saved.putLong("baseline",baseline);saved.putBoolean("viewRoute",viewRoute);saved.putBoolean("fallback",fallback);if(prepared!=null)saved.putString("prepared",prepared.getAbsolutePath());}
+    @Override protected void onSaveInstanceState(Bundle saved){super.onSaveInstanceState(saved);saved.putBoolean("waiting",waiting);saved.putBoolean("installation-verified",installationVerified);saved.putString("diagnosticAttempt",diagnosticAttempt);saved.putLong("diagnosticStarted",diagnosticStarted);saved.putBoolean("installer-opened",installerOpened);saved.putBoolean("auto-begin-pending",autoBeginPending);saved.putLong("baseline",baseline);saved.putBoolean("viewRoute",viewRoute);saved.putBoolean("fallback",fallback);if(prepared!=null)saved.putString("prepared",prepared.getAbsolutePath());if(selectedCopy!=null)saved.putString("selected-copy",selectedCopy.getAbsolutePath());}
     @Override public void finish(){setResult(RESULT_OK,new Intent().putExtra("installer-opened",installerOpened).putExtra("installation-verified",installationVerified));super.finish();}
-    @Override protected void onDestroy(){closed=true;if(sheet!=null){sheet.dialog.setOnDismissListener(null);sheet.dialog.dismiss();}super.onDestroy();}
+    @Override protected void onDestroy(){closed=true;if(isFinishing()&&selectedCopy!=null){File copy=selectedCopy;worker.execute(()->discardSource(copy));}if(sheet!=null){sheet.dialog.setOnDismissListener(null);sheet.dialog.dismiss();}super.onDestroy();}
 }

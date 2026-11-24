@@ -158,7 +158,6 @@ final class HomeQuickControlView extends LinearLayout {
         refresh();if(!pendingRange.isEmpty()){String next=pendingRange;pendingRange="";beginRange(next);remembered=next;}focus=remembered;focus(remembered);int requested=restoreScroll>0?restoreScroll:y;restoreScroll=0;scroll.post(()->scroll.scrollTo(0,requested));
         rendered=true;contentReady=true;
     }
-    private void fillRow(LinearLayout row){while(row.getChildCount()<3){LayoutParams lp=new LayoutParams(0,1,1);lp.leftMargin=p(8);row.addView(new View(context),lp);}}
     private void addRange(String id){
         LinearLayout card=column();card.setClipChildren(false);card.setClipToPadding(false);card.setPadding(p(12),p(7.333f),p(12),p(7.333f));LayoutParams cp=new LayoutParams(-1,p(74.667f));cp.topMargin=p(8);modules.addView(card,cp);
         LinearLayout line=row();line.setGravity(Gravity.CENTER_VERTICAL);TextView title=text(QuickControlStore.title(id,chinese),16,22);line.addView(title,new LayoutParams(0,-2,1));TextView level=text("",16,22);line.addView(level);card.addView(line,new LayoutParams(-1,p(20)));
@@ -197,8 +196,6 @@ final class HomeQuickControlView extends LinearLayout {
             KeyFeedback.confirm(context);
         }catch(IOException error){feedback(error.getMessage());}
     }
-    void beginBrightness(){beginRange("brightness");}
-    void beginVolume(){beginRange("volume");}
     void beginRange(String id){if(!QuickControlStore.range(id)||savingValues.containsKey(id))return;RangeSlider track=rangeViews.get(id);if(track==null){forcedRange=id;pendingRange=id;if(!loading)reload();return;}if(track.begin()){focus(id);KeyFeedback.confirm(context);}}
     boolean cancelAdjustments(){boolean cancelled=false;for(RangeSlider track:rangeViews.values())cancelled=track.cancel()||cancelled;return cancelled;}
     private int volumeMaximum(){return audio==null?0:audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC);}

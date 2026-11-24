@@ -31,7 +31,10 @@ final class WallpaperImages {
                 entry=state.find(state.dailyFallback());
             }
         }
-        if(entry.custom()&&!entry.video())return decodeOriginal(store.file(entry.id),width,height,importLimit(context));
+        if(entry.custom()&&!entry.video()){
+            int memoryEdge=memoryEdge(context);
+            return decodeOriginal(store.file(entry.id),width,height,screenLimit(context,memoryEdge),memoryEdge);
+        }
         BitmapFactory.Options options=new BitmapFactory.Options();options.inJustDecodeBounds=true;
         try(InputStream input=open(context,store,entry)){BitmapFactory.decodeStream(input,null,options);}
         if(options.outWidth<=0 || options.outHeight<=0) throw new IOException("Invalid wallpaper image");
@@ -44,14 +47,14 @@ final class WallpaperImages {
         }
     }
     // Display limits depend on the UI and memory class; the saved import has a separate 4K cap.
-    static int importLimit(Context context){
+    static int importLimit(Context context){return screenLimit(context,memoryEdge(context));}
+    private static int screenLimit(Context context,int memoryEdge){
         android.util.DisplayMetrics screen=context.getResources().getDisplayMetrics();
-        android.app.ActivityManager memory=(android.app.ActivityManager)context.getSystemService(Context.ACTIVITY_SERVICE);
-        return importLimit(screen.widthPixels,screen.heightPixels,memory==null || UiCompat.lowRam(memory),memory==null?0:memory.getMemoryClass());
+        return Math.max(1,Math.min(memoryEdge,Math.max(screen.widthPixels,screen.heightPixels)));
     }
-    static int importLimit(int width,int height,boolean lowRam,int memoryMb){
-        int maximum=lowRam || memoryMb<256?1920:3840;
-        return Math.max(1,Math.min(maximum,Math.max(width,height)));
+    private static int memoryEdge(Context context){
+        android.app.ActivityManager memory=(android.app.ActivityManager)context.getSystemService(Context.ACTIVITY_SERVICE);
+        return memory==null||UiCompat.lowRam(memory)||memory.getMemoryClass()<256?1920:3840;
     }
     static int[] prepare(File input,File output) throws IOException {return prepare(input,output,1920);}
     static int[] prepare(File input,File output,int maximum) throws IOException {
@@ -135,7 +138,18 @@ final class WallpaperImages {
     private static Matrix orientation(ExifInterface exif){
         Matrix matrix=new Matrix();if(exif.isFlipped())matrix.postScale(-1,1);matrix.postRotate(exif.getRotationDegrees());return matrix;
     }
-    private static Bitmap decodeOriginal(File input,int width,int height,int limit)throws IOException{
+    static int displaySample(int width,int height,int targetWidth,int targetHeight,int memoryEdge){
+        int sample=1;
+        while(width/(sample*2)>=targetWidth&&height/(sample*2)>=targetHeight)sample*=2;
+        long targetPixels=(long)targetWidth*targetHeight;
+        long tierPixels=(long)memoryEdge*memoryEdge*9/16;
+        // A power-of-two sample can need almost four decoded pixels per target pixel. Allow
+        // that headroom within the device tier and preserve the existing large-target budget.
+        long budget=Math.max(2*targetPixels,Math.min(4*targetPixels,tierPixels));
+        while((long)((width+sample-1)/sample)*((height+sample-1)/sample)>budget)sample*=2;
+        return sample;
+    }
+    private static Bitmap decodeOriginal(File input,int width,int height,int limit,int memoryEdge)throws IOException{
         BitmapFactory.Options options=bounds(input);
         ExifInterface exif=new ExifInterface(input);
         float fit=Math.min(1f,limit/(float)Math.max(1,Math.max(width,height)));
@@ -144,11 +158,8 @@ final class WallpaperImages {
         int orientedWidth=swap?options.outHeight:options.outWidth,orientedHeight=swap?options.outWidth:options.outHeight;
         float sourceFit=Math.min(1f,Math.min(orientedWidth/(float)targetWidth,orientedHeight/(float)targetHeight));
         targetWidth=Math.max(1,Math.round(targetWidth*sourceFit));targetHeight=Math.max(1,Math.round(targetHeight*sourceFit));
-        options.inJustDecodeBounds=false;options.inSampleSize=1;
-        while(orientedWidth/(options.inSampleSize*2)>=targetWidth&&orientedHeight/(options.inSampleSize*2)>=targetHeight)options.inSampleSize*=2;
-        // Very tall/wide originals must not defeat sampling merely because one edge is small.
-        long pixels=2L*targetWidth*targetHeight;
-        while((long)((options.outWidth+options.inSampleSize-1)/options.inSampleSize)*((options.outHeight+options.inSampleSize-1)/options.inSampleSize)>pixels)options.inSampleSize*=2;
+        options.inJustDecodeBounds=false;
+        options.inSampleSize=displaySample(orientedWidth,orientedHeight,targetWidth,targetHeight,memoryEdge);
         Bitmap source=BitmapFactory.decodeFile(input.getPath(),options);
         if(source==null)throw new IOException("无法读取图片 / Cannot decode image");
         Bitmap display=null;

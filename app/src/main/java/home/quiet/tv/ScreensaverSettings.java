@@ -6,7 +6,7 @@ import org.json.JSONObject;
 /** Independent settings referencing the shared catalog, never another copy of its media. */
 final class ScreensaverSettings {
     static final int[] WAITS={0,1,2,5,10,15,30};
-    static final String FOLLOW="follow",CLOCK="clock",FLIP="flip-clock",CUSTOM="custom";
+    static final String FOLLOW="follow",CLOCK="clock",FLIP="flip-clock",CUSTOM="custom",WALL="wall";
     static final String NO_MEDIA="blank";
     static final String TOP_LEFT="top-left",TOP_RIGHT="top-right",CENTER="center",BOTTOM_LEFT="bottom-left",BOTTOM_RIGHT="bottom-right";
     static final String[] POSITIONS={TOP_LEFT,TOP_RIGHT,CENTER,BOTTOM_LEFT,BOTTOM_RIGHT};
@@ -22,7 +22,7 @@ final class ScreensaverSettings {
     }
     private ScreensaverSettings(String mediaId,int idleMinutes,boolean showTime,boolean showWeather,String mode,String timePosition,String weatherPosition,boolean sound,boolean flipShowSeconds,boolean flipSound,ClockOptions clock){
         boolean valid=false;for(int value:WAITS)if(value==idleMinutes)valid=true;
-        if(mediaId==null||!valid||!FOLLOW.equals(mode)&&!CLOCK.equals(mode)&&!FLIP.equals(mode)&&!CUSTOM.equals(mode)||!position(timePosition)||!position(weatherPosition))throw new IllegalArgumentException("Invalid screensaver settings");
+        if(mediaId==null||!valid||!FOLLOW.equals(mode)&&!CLOCK.equals(mode)&&!FLIP.equals(mode)&&!CUSTOM.equals(mode)&&!WALL.equals(mode)||!position(timePosition)||!position(weatherPosition))throw new IllegalArgumentException("Invalid screensaver settings");
         this.clock=clock;this.sound=sound;this.flipShowSeconds=flipShowSeconds;this.flipSound=flipSound;this.mediaId=mediaId;this.idleMinutes=idleMinutes;this.showTime=showTime;this.showWeather=showWeather;this.mode=mode;this.timePosition=timePosition;this.weatherPosition=weatherPosition;
     }
     private static boolean position(String value){for(String position:POSITIONS)if(position.equals(value))return true;return false;}
@@ -39,6 +39,7 @@ final class ScreensaverSettings {
     }
     ScreensaverSettings flipSeconds(boolean enabled){return new ScreensaverSettings(mediaId,idleMinutes,showTime,showWeather,mode,timePosition,weatherPosition,sound,enabled,flipSound,clock);}
     ScreensaverSettings flipSound(boolean enabled){return new ScreensaverSettings(mediaId,idleMinutes,showTime,showWeather,mode,timePosition,weatherPosition,sound,flipShowSeconds,enabled,clock);}
+    boolean wall(){return WALL.equals(mode);}
     String clockPosition(){return flipping()?CENTER:timePosition;}
     String timePattern(){return tickMillis()==1000?"HH:mm:ss":"HH:mm";}
     boolean digitalMode(){return CLOCK.equals(mode);}
@@ -50,7 +51,7 @@ final class ScreensaverSettings {
     boolean secondsVisible(){return digitalMode()&&clock.seconds&&!largeDateVisible();}
     boolean lunarAvailable(){return digitalMode()&&(clock.calendar||largeDateVisible());}
     long tickMillis(){return (flipping()?flipShowSeconds:secondsVisible())?1000:60000;}
-    boolean video(WallpaperCatalog catalog){WallpaperCatalog.Entry entry=catalog.find(resolved(catalog));return !clockOnly()&&!(FOLLOW.equals(mode)&&catalog.weather)&&entry!=null&&entry.video();}
+    boolean video(WallpaperCatalog catalog){WallpaperCatalog.Entry entry=catalog.find(resolved(catalog));return !wall()&&!clockOnly()&&!(FOLLOW.equals(mode)&&catalog.weather)&&entry!=null&&entry.video();}
     // Keep the historical color id in stored settings for rollback, but never use it as custom media.
     String customMediaId(){return WallpaperCatalog.DEFAULT.equals(mediaId)?WallpaperCatalog.BUILTIN:mediaId;}
     String customMediaId(WallpaperCatalog catalog){
@@ -59,7 +60,7 @@ final class ScreensaverSettings {
     boolean customBlank(WallpaperCatalog catalog){return CUSTOM.equals(mode)&&NO_MEDIA.equals(customMediaId(catalog));}
     String resolved(WallpaperCatalog catalog){
         if(clockOnly())return WallpaperCatalog.DEFAULT;
-        if(FOLLOW.equals(mode))return catalog.current;
+        if(FOLLOW.equals(mode)||wall())return catalog.current;
         String custom=customMediaId(catalog);return NO_MEDIA.equals(custom)?WallpaperCatalog.DEFAULT:catalog.find(custom)==null?(catalog.saverBuiltinHidden?WallpaperCatalog.DEFAULT:WallpaperCatalog.BUILTIN):custom;
     }
     ScreensaverSettings validated(WallpaperCatalog catalog){return catalog.find(mediaId)==null?new ScreensaverSettings(WallpaperCatalog.DEFAULT,idleMinutes,showTime,showWeather,mode,timePosition,weatherPosition,sound,flipShowSeconds,flipSound,clock):this;}

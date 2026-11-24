@@ -49,7 +49,6 @@ final class DesktopGuardSheet {
         }
         row.available(available);group.addView(row,new LinearLayout.LayoutParams(-1,p(60)));
     }
-    private JSONObject object(String key){JSONObject value=state.optJSONObject(key);return value==null?new JSONObject():value;}
     private void start(){resumed=true;if(!listening){engine.listen(changed);listening=true;}refresh();schedule();}
     private void schedule(){handler.removeCallbacks(poll);handler.postDelayed(poll,2000);}
     private void stop(){resumed=false;handler.removeCallbacks(poll);if(listening){engine.forget(changed);listening=false;}}

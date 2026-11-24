@@ -26,6 +26,9 @@ final class ScreensaverController {
     private final Host host;
     private final Handler main=new Handler(Looper.getMainLooper());
     private final ScreensaverInformationView information;
+    private final WallpaperWallView wall;
+    private boolean wallBackground;
+    private Runnable wallPrepared;
     private final boolean chinese;
     private final Map<Integer,Long> wakeKeys=new HashMap<>();
     private State state=State.OFF;
@@ -56,6 +59,9 @@ final class ScreensaverController {
     }};
     ScreensaverController(Activity activity,FrameLayout root,WallpaperController wallpapers,float unit,boolean chinese,Host host){
         this.activity=activity;this.wallpapers=wallpapers;this.host=host;this.chinese=chinese;media=WallpaperStore.get(activity);store=ScreensaverStore.get(activity);
+        wall=new WallpaperWallView(activity,media,this::wallReady);
+        wall.setVisibility(View.GONE);
+        root.addView(wall,new FrameLayout.LayoutParams(-1,-1));
         information=new ScreensaverInformationView(activity,96*unit,19.2f*unit);information.setVisibility(View.GONE);
         information.onLanded(()->{if(state==State.ACTIVE&&settings!=null&&settings.flipping()&&settings.flipSound&&allowed()&&flipSound!=null)flipSound.play();});
         root.addView(information,new FrameLayout.LayoutParams(-1,-1));
@@ -79,32 +85,74 @@ final class ScreensaverController {
         settings=read();if(settings==null){OperationFeedback.get(activity).show(OperationFeedback.Kind.ERROR,chinese?"屏保配置无法读取":"Unable to read screensaver settings");return;}
         host.captureFocus();present();
     }
-    private String mediaKey(ScreensaverSettings value,WallpaperCatalog catalog){return value.mode+":"+value.customBlank(catalog)+":"+media.imageKey(value.resolved(catalog))+":"+catalog.weather+":"+catalog.weatherDayNight;}
+    private String mediaKey(ScreensaverSettings value,WallpaperCatalog catalog){
+        List<String> ids=value.wall()?WallpaperWall.ids(catalog):Collections.emptyList();
+        if(!ids.isEmpty())return value.mode+":"+ids;
+        return value.mode+":"+value.customBlank(catalog)+":"+media.imageKey(value.resolved(catalog))+":"+catalog.weather+":"+catalog.weatherDayNight;}
     private void updateFlipSound(){if(settings!=null&&settings.flipping()&&settings.flipSound&&(state==State.ENTERING||state==State.ACTIVE)){if(flipSound==null)try{flipSound=new FlipClockSound(activity);}catch(RuntimeException error){DiagnosticLog.error("screensaver.flip_sound.unavailable",error);}}else if(flipSound!=null)flipSound.stop();}
     private void present(){
         information.active(false);state=State.ENTERING;int version=++generation;main.removeCallbacks(tick);host.weatherDemand(settings.showWeather);if(flipSound!=null)flipSound.stop();updateFlipSound();
         WallpaperCatalog catalog=media.snapshot();mediaKey=mediaKey(settings,catalog);Runnable prepared=()->{
             if(version!=generation||state!=State.ENTERING)return;
-            DiagnosticLog.info("screensaver.transition","state=active evidence=background_callback");state=State.ACTIVE;host.desktopVisible(false);information.setVisibility(View.VISIBLE);information.active(true);refreshClock();
+            DiagnosticLog.info("screensaver.transition","state=active evidence=background_callback");state=State.ACTIVE;host.desktopVisible(false);information.setVisibility(View.VISIBLE);information.active(true);refreshClock();refreshQuote(true);
         };
+        List<String> ids=settings.wall()?WallpaperWall.ids(catalog):Collections.emptyList();
+        hideWall();
+        if(ids.isEmpty()){prepareBackground(catalog,prepared);return;}
+        wallBackground=true;
+        wallPrepared=()->wallpapers.showTemporaryBlank(()->{
+            if(version!=generation||state!=State.ENTERING)return;
+            wall.setVisibility(View.VISIBLE);
+            prepared.run();
+        });
+        wall.setVisibility(View.INVISIBLE);
+        wall.show(ids);
+        wall.active(true);
+    }
+    private void prepareBackground(WallpaperCatalog catalog,Runnable prepared){
+        boolean follow=ScreensaverSettings.FOLLOW.equals(settings.mode)||settings.wall();
         if(settings.customBlank(catalog))wallpapers.showTemporaryBlank(prepared);
-        else wallpapers.showTemporary(settings.resolved(catalog),ScreensaverSettings.FOLLOW.equals(settings.mode)&&catalog.weather&&WallpaperGpuSupport.available(activity),catalog.weatherDayNight,settings.sound&&settings.video(catalog),prepared);
+        else wallpapers.showTemporary(settings.resolved(catalog),follow&&catalog.weather&&WallpaperGpuSupport.available(activity),
+            catalog.weatherDayNight,settings.sound&&(settings.wall()?settings.content(ScreensaverSettings.FOLLOW).video(catalog):settings.video(catalog)),prepared);
+    }
+    private void wallReady(boolean available){
+        if(!wallBackground||state==State.OFF||state==State.EXITING)return;
+        if(available){
+            Runnable ready=wallPrepared;
+            wallPrepared=null;
+            if(ready!=null)ready.run();
+            return;
+        }
+        hideWall();
+        int version=generation;
+        prepareBackground(media.snapshot(),()->{
+            if(version!=generation||state==State.OFF||state==State.EXITING)return;
+            state=State.ACTIVE;host.desktopVisible(false);information.setVisibility(View.VISIBLE);information.active(true);refreshClock();
+        });
+    }
+    private void hideWall(){
+        wallBackground=false;
+        wallPrepared=null;
+        wall.clear();
+        wall.setVisibility(View.GONE);
     }
     void settingsChanged(){
         ScreensaverSettings next=read();if(next==null)return;boolean changed=settings!=next;settings=next;updateFlipSound();
         if(state==State.OFF){if(changed)interaction();return;}if(state==State.EXITING)return;
-        if(!mediaKey.equals(mediaKey(settings,media.snapshot())))present();else{wallpapers.temporarySound(settings.sound&&settings.video(media.snapshot()));host.weatherDemand(settings.showWeather);if(state==State.ACTIVE){if(changed)refreshClock();else render(System.currentTimeMillis());}}
+        WallpaperCatalog catalog=media.snapshot();
+        if(!mediaKey.equals(mediaKey(settings,catalog)))present();else{
+            if(!wallBackground)wallpapers.temporarySound(settings.sound&&(settings.wall()?settings.content(ScreensaverSettings.FOLLOW).video(catalog):settings.video(catalog)));host.weatherDemand(settings.showWeather);if(state==State.ACTIVE){if(changed)refreshClock();else render(System.currentTimeMillis());}}
     }
     private void exit(){
         if(state==State.OFF||state==State.EXITING)return;
-        DiagnosticLog.info("screensaver.transition","state=exiting");information.active(false);if(flipSound!=null)flipSound.stop();state=State.EXITING;int version=++generation;main.removeCallbacks(tick);host.weatherDemand(false);
+        DiagnosticLog.info("screensaver.transition","state=exiting");wall.active(false);information.active(false);if(flipSound!=null)flipSound.stop();state=State.EXITING;int version=++generation;main.removeCallbacks(tick);host.weatherDemand(false);
         wallpapers.restoreDesktop(()->{
             if(version!=generation||state!=State.EXITING)return;
-            information.setVisibility(View.GONE);host.desktopVisible(true);state=State.OFF;DiagnosticLog.info("screensaver.transition","state=off evidence=background_callback");host.restoreFocus();interaction();
+            hideWall();information.setVisibility(View.GONE);host.desktopVisible(true);state=State.OFF;DiagnosticLog.info("screensaver.transition","state=off evidence=background_callback");host.restoreFocus();interaction();
         });
     }
     void pause(){
-        information.active(false);if(flipSound!=null)flipSound.stop();eligible=false;main.removeCallbacks(idle);main.removeCallbacks(tick);++generation;
+        hideWall();information.active(false);if(flipSound!=null)flipSound.stop();eligible=false;main.removeCallbacks(idle);main.removeCallbacks(tick);++generation;
         if(state!=State.OFF){state=State.OFF;information.setVisibility(View.GONE);host.desktopVisible(true);host.weatherDemand(false);wallpapers.cancelTemporary();host.restoreFocus();}
         // Retain held wake gestures across focus/lifecycle transitions until their releases arrive.
     }
@@ -141,12 +189,16 @@ final class ScreensaverController {
         render(now);
         scheduleTick(now);
     }
+    void refreshQuote(boolean retry){
+        if(state==State.ACTIVE)information.refreshQuote(System.currentTimeMillis(),new DesktopSettingsStore(activity).showScreensaverQuote(),true,retry);
+    }
     private void render(long now){
         if(settings==null)return;
         renderedMinute=now/60000;
         boolean clockOnly=settings.clockOnly();information.setBackgroundColor(clockOnly?0xff000000:Color.TRANSPARENT);
         boolean visible=weatherData!=null&&weatherData.usable(now);
+        refreshQuote(false);
         information.show(settings,now,visible?String.format(Locale.ROOT,"%s  %s  %s",weatherData.city,weatherData.temperatureText(),weatherData.description):"");
     }
-    void destroy(){pause();destroyed=true;if(flipSound!=null)flipSound.destroy();activity.unregisterReceiver(screen);main.removeCallbacksAndMessages(null);}
+    void destroy(){pause();wall.destroy();destroyed=true;if(flipSound!=null)flipSound.destroy();activity.unregisterReceiver(screen);main.removeCallbacksAndMessages(null);}
 }

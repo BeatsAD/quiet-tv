@@ -15,6 +15,7 @@ final class IconUploadSession {
     private final AppCoverStore store;
     private final String pkg,label,shape,expected;
     private final Runnable updated;
+    private final ManagementUi.Sheet underlay;
     private final Handler main=new Handler(Looper.getMainLooper());
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private ManagementUi.Sheet sheet;
@@ -29,12 +30,12 @@ final class IconUploadSession {
         if(current.expired()||!host.equals(WallpaperUploadPanel.lanAddress(activity))){close();return;}
         main.postDelayed(this,2000);
     }};
-    IconUploadSession(AppManagementActivity activity,String pkg,String label,Runnable updated){
-        this.activity=activity;this.pkg=pkg;this.label=label;this.shape=new DesktopSettingsStore(activity).iconShape();this.updated=updated;store=AppCoverStore.get(activity);expected=store.key(pkg);
+    IconUploadSession(AppManagementActivity activity,String pkg,String label,ManagementUi.Sheet underlay,Runnable updated){
+        this.activity=activity;this.pkg=pkg;this.label=label;this.shape=new DesktopSettingsStore(activity).iconShape();this.underlay=underlay;this.updated=updated;store=AppCoverStore.get(activity);expected=store.key(pkg);
     }
     private String tr(String zh,String en){return activity.tr(zh,en);}
     void show(){
-        sheet=activity.new Sheet(tr("扫码上传图标","Upload icon from phone"));sheet.settingsLayout(tr("关闭","Close"),this::close);sheet.contentWidth(420,560);sheet.settingsActions(false);
+        sheet=activity.new Sheet(tr("扫码上传图标","Upload icon from phone"),underlay);sheet.settingsLayout(tr("关闭","Close"),this::close);sheet.contentWidth(420,560);sheet.settingsActions(false);
         sheet.dialog.setOnDismissListener(dialog->close());
         LinearLayout transfer=activity.row();
         picture=new QrCodeView(activity,activity.unit);
@@ -110,6 +111,5 @@ final class IconUploadSession {
     }
     private void requireActive(WallpaperUploadServer.Active active)throws IOException{if(cancelled||!active.valid())throw new IOException("上传会话已结束，请重新扫码 / Upload session ended");}
     private void dismiss(){if(sheet!=null){ManagementUi.Sheet current=sheet;sheet=null;current.dialog.setOnDismissListener(null);current.dialog.dismiss();}if(picture!=null)picture.setImageDrawable(null);if(qr!=null){qr.recycle();qr=null;}}
-    void close(){WallpaperUploadServer current;synchronized(this){cancelled=true;current=server;server=null;}main.removeCallbacks(check);dismiss();if(current!=null){current.invalidate();worker.execute(current::stop);}}
-    void destroy(){close();worker.shutdown();}
+    void close(){WallpaperUploadServer current;synchronized(this){if(cancelled)return;cancelled=true;current=server;server=null;}main.removeCallbacks(check);dismiss();if(current!=null){current.invalidate();worker.execute(current::stop);}worker.shutdown();}
 }

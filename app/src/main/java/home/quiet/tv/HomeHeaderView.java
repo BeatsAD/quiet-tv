@@ -30,6 +30,8 @@ final class HomeHeaderView extends FrameLayout {
     private final View divider;
     private final TextView buttonLabel,movieTitle,movieSummary;
     private final LinearLayout movie;
+    private final DailyQuoteView quote;
+    private DailyQuote.Entry quoteEntry, appliedQuote;
     private String movieKey="";
     private final float unit;
     private final boolean chinese;
@@ -80,11 +82,25 @@ final class HomeHeaderView extends FrameLayout {
         }
         clock.setShadowLayer(3.25f*unit,0,unit,UiPalette.INK);
         movie.addView(movieTitle,new LinearLayout.LayoutParams(-1,px(32)));LinearLayout.LayoutParams summary=new LinearLayout.LayoutParams(-1,-2);summary.topMargin=px(6);movie.addView(movieSummary,summary);
+        quote=new DailyQuoteView(context,unit,false);
         avatar.changed=this::apply;apply();
     }
     void movie(MovieWallpaperFeed feed){
         String key=feed==null?"":feed.revision+":"+feed.hash;if(key.equals(movieKey))return;movieKey=key;
-        movie.setVisibility(feed!=null&&settings.showMovieInfo()?VISIBLE:GONE);movieTitle.setText(feed==null?"":feed.title);movieSummary.setText(feed==null?"":feed.summary);apply();
+        movieTitle.setText(feed==null?"":feed.title);movieSummary.setText(feed==null?"":feed.summary);apply();
+    }
+    boolean movieInfoVisible(){return movie.getVisibility()==VISIBLE;}
+    void refreshQuote(boolean demand,boolean retry){
+        DailyQuote.Entry next=null;
+        if(settings.showHomeQuote()){
+            DailyQuote content=DailyQuote.get(getContext());
+            String day=DailyQuote.date(System.currentTimeMillis());
+            next=content.current(day);
+            if(demand&&next==null)content.request(day,retry);
+        }
+        if(next==quoteEntry)return;
+        quoteEntry=next;
+        apply();
     }
     private int px(float n){return Math.round(n*unit);}
     private String tr(String zh,String en){return chinese?zh:en;}
@@ -95,7 +111,6 @@ final class HomeHeaderView extends FrameLayout {
         v.setIncludeFontPadding(false);v.setSingleLine(true);v.setEllipsize(android.text.TextUtils.TruncateAt.END);v.setGravity(Gravity.CENTER_VERTICAL);return v;
     }
     private void place(View child,float width,float height,float x,float y){FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(width<0?(int)width:px(width),height<0?(int)height:px(height));p.leftMargin=px(x);p.topMargin=px(y);addView(child,p);}
-    static GradientDrawable pillSurface(float unit){GradientDrawable bg=new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x38ffffff,0x1cffffff,0x12ffffff});bg.setCornerRadius(22*unit);bg.setStroke(Math.max(1,Math.round(.5f*unit)),0x78ffffff);return bg;}
     private void setPillIcon(TextView pill,String glyph){Drawable icon=new QuickControlIcon(glyph);int size=px(18);icon.setBounds(0,0,size,size);int padding=(px(35.52f)-size)/2;pill.setPadding(padding,0,padding,0);pill.setCompoundDrawables(icon,null,null,null);}
     void setPillIcon(TextView pill,int resource){setPillIcon(pill,resource==R.drawable.ic_wifi?"header-wifi":resource==R.drawable.ic_ethernet?"header-ethernet":"header-wifi-off");}
     private String headerGlyph(String id){return HomeButtonStore.glyph(id);}
@@ -107,13 +122,17 @@ final class HomeHeaderView extends FrameLayout {
     void apply(){
         Map<String,?> values=getContext().getSharedPreferences("desktop-settings",0).getAll();
         String header=previewClockStyle+":"+weatherAvailable+":"+new WeatherStore(getContext()).enabled()+":"+movieKey+":"+applicationAreaTop+":"+avatar.getVisibility()+":"+(lunarDate.length()>0);
-        if(values.equals(appliedSettings)&&header.equals(appliedHeader))return;
+        if(values.equals(appliedSettings)&&header.equals(appliedHeader)&&appliedQuote==quoteEntry)return;
+        appliedQuote=quoteEntry;
         appliedSettings=new HashMap<>(values);appliedHeader=header;
         boolean gallery=settings.galleryLayout();
         String style=gallery?(previewClockStyle==null?settings.clockStyle():previewClockStyle):"digital";
         boolean analog=!"digital".equals(style);String arrangement=settings.layout()+":"+analog;
-        movie.setVisibility(!movieKey.isEmpty()&&settings.showMovieInfo()?VISIBLE:GONE);
-        boolean galleryMovie=gallery&&movie.getVisibility()==VISIBLE;
+        boolean movieVisible=!movieKey.isEmpty()&&settings.showMovieInfo()&&(movieTitle.length()>0||movieSummary.length()>0);
+        boolean quoteVisible=!movieVisible&&settings.showHomeQuote()&&quoteEntry!=null;
+        quote.show(quoteVisible?quoteEntry:null);
+        movie.setVisibility(movieVisible?VISIBLE:GONE);
+        boolean galleryMovie=gallery&&movieVisible, galleryQuote=gallery&&quoteVisible;
         int galleryOffset=(int)Math.max(0,Math.min(56,applicationAreaTop-280));
         FrameLayout.LayoutParams moviePosition=(FrameLayout.LayoutParams)movie.getLayoutParams();int movieWidth=px(gallery?420:360),movieLeft=px(gallery?270:CLASSIC_INFORMATION_LEFT),movieTop=px(gallery?204+galleryOffset:148);
         if(moviePosition.width!=movieWidth||moviePosition.leftMargin!=movieLeft||moviePosition.topMargin!=movieTop){moviePosition.width=movieWidth;moviePosition.leftMargin=movieLeft;moviePosition.topMargin=movieTop;movie.setLayoutParams(moviePosition);}
@@ -130,6 +149,8 @@ final class HomeHeaderView extends FrameLayout {
                 add(information,timeRow,-1,64,3);add(timeRow,clockHost,-2,-1,0);add(timeRow,divider,1,28,0);LinearLayout.LayoutParams dp=(LinearLayout.LayoutParams)divider.getLayoutParams();dp.leftMargin=px(16);dp.rightMargin=px(16);
                 detach(dateColumn);timeRow.addView(dateColumn,new LinearLayout.LayoutParams(0,-1,1));
             }
+            add(information,quote,gallery?420:390,-2,18);
+            quote.centered(gallery);
             FrameLayout.LayoutParams textPosition=(FrameLayout.LayoutParams)clock.getLayoutParams();textPosition.width=gallery?-1:-2;clock.setLayoutParams(textPosition);
             arranged=arrangement;
         }
@@ -140,7 +161,10 @@ final class HomeHeaderView extends FrameLayout {
         lunarDate.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(gallery?13:12));
         greeting.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(gallery?15:14));date.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(gallery?15:14));weather.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(gallery?15:14));
         UiCompat.letterSpacing(greeting,gallery?.02f:.14f);UiCompat.letterSpacing(date,gallery?.02f:.08f);
-        FrameLayout.LayoutParams ip=(FrameLayout.LayoutParams)information.getLayoutParams();int width=px(gallery?538:510),left=px(gallery?211:CLASSIC_INFORMATION_LEFT),top=px(gallery?(galleryMovie?8+galleryOffset:settings.showTime()?(analog?24:75):97):32);
+        FrameLayout.LayoutParams ip=(FrameLayout.LayoutParams)information.getLayoutParams();int width=px(gallery?538:510),left=px(gallery?211:CLASSIC_INFORMATION_LEFT);
+        float galleryTop=galleryMovie?8+galleryOffset:settings.showTime()?(analog?24:75):97;
+        if(galleryQuote)galleryTop=Math.min(galleryTop,Math.max(8,applicationAreaTop-258));
+        int top=px(gallery?galleryTop:32);
         if(ip.width!=width||ip.leftMargin!=left||ip.topMargin!=top){ip.width=width;ip.leftMargin=left;ip.topMargin=top;information.setLayoutParams(ip);}
         greeting.setVisibility(settings.greetingEnabled()?VISIBLE:GONE);clockHost.setVisibility(settings.showTime()?VISIBLE:GONE);clock.setVisibility(analog?GONE:VISIBLE);analogClock.setVisibility(analog?VISIBLE:GONE);analogClock.style(style);dateColumn.setVisibility(settings.showDate()?VISIBLE:GONE);lunarDate.setVisibility(settings.showLunarDate()&&lunarDate.length()>0?VISIBLE:GONE);
         avatar.show(settings.avatarEnabled()?avatars.existing(settings.avatarFile()):null,settings.avatarEnabled());
@@ -158,14 +182,14 @@ final class HomeHeaderView extends FrameLayout {
             if(settings.showDate())labels+=22+(lunarDate.getVisibility()==VISIBLE?20:0)+8;
             if(weather.getVisibility()==VISIBLE)labels+=26+8;
             // Preserve the compact Daily Movie composition and leave room before Dock/app title.
-            int dial=px(galleryMovie?80:Math.max(80,Math.min(136,(int)Math.floor(applicationAreaTop-24-12-labels))));
+            int dial=px(galleryMovie?80:Math.max(80,Math.min(136,(int)Math.floor(applicationAreaTop-24-12-labels-(galleryQuote?66:0)))));
             int clockWidth=analog?dial:-1,clockHeight=analog?dial:px(galleryMovie?64:86);
             if(clockPosition.width!=clockWidth||clockPosition.height!=clockHeight){
                 clockPosition.width=clockWidth;clockPosition.height=clockHeight;clockHost.setLayoutParams(clockPosition);
             }
             boolean previous=false;
-            for(View item:new View[]{greetingRow,clockHost,dateColumn,weather}){
-                LinearLayout.LayoutParams p=(LinearLayout.LayoutParams)item.getLayoutParams();int spacing=previous&&item.getVisibility()==VISIBLE?px(galleryMovie?4:8):0;
+            for(View item:new View[]{greetingRow,clockHost,dateColumn,weather,quote}){
+                LinearLayout.LayoutParams p=(LinearLayout.LayoutParams)item.getLayoutParams();int spacing=previous&&item.getVisibility()==VISIBLE?px(item==quote?18:galleryMovie?4:8):0;
                 if(p.topMargin!=spacing){p.topMargin=spacing;item.setLayoutParams(p);}if(item.getVisibility()==VISIBLE)previous=true;
             }
         }else{
@@ -173,7 +197,7 @@ final class HomeHeaderView extends FrameLayout {
             timeRow.setVisibility(settings.showTime()||settings.showDate()?VISIBLE:GONE);divider.setVisibility(settings.showTime()&&settings.showDate()?VISIBLE:GONE);
             LinearLayout.LayoutParams wp=(LinearLayout.LayoutParams)weather.getLayoutParams();int margin=hasGreeting?px(16):0;if(wp.leftMargin!=margin){wp.leftMargin=margin;weather.setLayoutParams(wp);}
         }
-        information.setVisibility(hasGreeting||weather.getVisibility()==VISIBLE||settings.showTime()||settings.showDate()?VISIBLE:GONE);
+        information.setVisibility(hasGreeting||weather.getVisibility()==VISIBLE||settings.showTime()||settings.showDate()||quoteVisible?VISIBLE:GONE);
         if(buttonIds.isEmpty())buttonIds.add("control");
         try{List<String> ids=HomeButtonStore.visibleIds(new HomeButtonStore(getContext()).read().ids);buttonIds.clear();buttonIds.addAll(ids);}catch(java.io.IOException error){DiagnosticLog.info("home.buttons.unavailable","keep existing view");}
         int count=buttonIds.size();

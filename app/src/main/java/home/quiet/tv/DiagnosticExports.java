@@ -9,11 +9,11 @@ final class DiagnosticExports {
     static final String HISTORY_ONLY="诊断日志记录已关闭或在导出时发生变更。此包仅包含已有记录。";
     static final String FILE_NAME="QuietTV-diagnostics.zip",MIME="application/zip";
     private static final ArrayDeque<File> retained=new ArrayDeque<>();
-    static File create(Context context,String window,boolean bluetooth)throws Exception{
+    static File create(Context context,String window)throws Exception{
         int epoch=DiagnosticLog.recordingEpoch();
         String snapshot=HISTORY_ONLY;
         if(DiagnosticLog.recording(epoch)){
-            if(bluetooth)BluetoothSystemCapture.prepareExport(context);
+            BluetoothSystemCapture.prepareExport(context);
             if(DiagnosticLog.recording(epoch)){
                 String device=DiagnosticDeviceSnapshot.collect(context,DiagnosticDeviceSnapshot.adb(context),window)
                     +DiagnosticFeatureSnapshot.collect(context)+"\n桌面配置："+new DesktopRoutes(context,false).snapshot();

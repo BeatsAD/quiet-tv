@@ -32,9 +32,7 @@ final class SettingsHubPanel extends ManagementPanel {
             LinearLayout software=group(body,activity.tr("软件更新","Software updates"));
             update=setting(software,activity.tr("软件更新","Software updates"),"refresh","help-update",()->activity.helpTool("update"));refreshUpdate();
             gap(body,12);LinearLayout help=group(body,activity.tr("问题与反馈","Questions and feedback"));
-            setting(help,activity.tr("常见问题","Common questions"),"info","help-topics",()->activity.helpTool("help")).value(activity.tr("HOME、开机、安装与恢复","HOME, startup, installation and recovery"));
             setting(help,activity.tr("诊断日志","Diagnostic logs"),"logs","help-diagnostics",()->activity.helpTool("logs"));
-            setting(help,activity.tr("专项排查","Advanced diagnostics"),"logs","help-specialty",()->activity.helpTool("specialty"));
             setting(help,activity.tr("加入交流群","Join the community"),"info","help-community",()->activity.helpTool("community")).value(activity.tr("提反馈、提建议","Feedback and suggestions"));
             gap(body,12);LinearLayout about=group(body,activity.tr("关于","About"));
             DesktopSettingsRow aboutRow=setting(about,activity.tr("关于 Quiet TV","About Quiet TV"),"info","help-about",()->activity.helpTool("about"));
@@ -44,7 +42,7 @@ final class SettingsHubPanel extends ManagementPanel {
     }
     private LinearLayout group(LinearLayout body,String title){body.addView(activity.section(title));LinearLayout group=activity.group();body.addView(group);return group;}
     private DesktopSettingsRow setting(LinearLayout group,String title,String icon,String tag,Runnable action){DesktopSettingsRow row=activity.setting(title,icon,tag);row.tail("arrow");row.setOnClickListener(v->action.run());activity.addSetting(group,row);rows.add(row);return row;}
-    void toolReturned(String kind){String tag=kind.equals("help")?"help-topics":kind.equals("logs")?"help-diagnostics":"help-"+kind;View row=pageRoot.findViewWithTag(tag);if(row!=null){focusTag=tag;row.requestFocusFromTouch();}}
+    void toolReturned(String kind){String tag=kind.equals("logs")?"help-diagnostics":"help-"+kind;View row=pageRoot.findViewWithTag(tag);if(row!=null){focusTag=tag;row.requestFocusFromTouch();}}
     @Override void focusManagementContent(){View target=focusTag==null?null:pageRoot.findViewWithTag(focusTag);if(target==null||!target.isEnabled()||!target.isShown())target=rows.get(0);target.requestFocus();}
     @Override public void handleBack(){if(!managementTabFocused())managementTab().requestFocus();else super.handleBack();}
     private void refreshUpdate(){

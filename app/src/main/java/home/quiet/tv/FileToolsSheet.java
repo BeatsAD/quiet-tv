@@ -38,6 +38,10 @@ final class FileToolsSheet {
     private FrameLayout previewHost;
     private Bitmap photo;
     private Button closeButton;
+    private LinearLayout listPanel;
+    private UsbFileGrid localGrid;
+    private SettingsTabBar sourceTabs;
+    private TextView fileCount;
     private TextView progressText;
     private ProgressBar progress;
     private View origin;
@@ -62,7 +66,7 @@ final class FileToolsSheet {
         origin=ui.getCurrentFocus();sheet=ui.new Sheet("文件传输助手");ManagementUi.Sheet own=sheet;closeButton=sheet.settingsLayout("关闭",this::back);closeButton.setOnFocusChangeListener((v,on)->{if(on)focus="sheet-close";});sheet.settingsActions(false);
         LinearLayout title=(LinearLayout)closeButton.getParent();
         sheet.heading.getLayoutParams().height=-1;sheet.heading.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,22*ui.unit);title.getLayoutParams().height=ui.px(36);
-        sheet.dialog.setOnKeyListener((d,key,event)->KeyFeedback.backKey(ui,event,open()&&!applying&&(confirmation==null||!busy),this::back));sheet.dialog.setOnDismissListener(d->{if(sheet==own){dismissConfirmation();sheet=null;++jobVersion;++listVersion;busy=false;stopPreview();if(!retaining)discard();if(origin!=null&&origin.isShown())origin.requestFocusFromTouch();closed.run();}});
+        sheet.dialog.setOnKeyListener((d,key,event)->KeyFeedback.backKey(ui,event,open()&&!applying&&(confirmation==null||!busy),this::back));sheet.dialog.setOnDismissListener(d->{if(sheet==own){dismissConfirmation();sheet=null;listPanel=null;localGrid=null;sourceTabs=null;fileCount=null;++jobVersion;++listVersion;busy=false;stopPreview();if(!retaining)discard();if(origin!=null&&origin.isShown())origin.requestFocusFromTouch();closed.run();}});
         String target=focus;render();sheet.show(null);focus=target;restoreFocus();if(store==null)worker.execute(()->{FileTransferStore ready=null;try{ready=new FileTransferStore(new File(ui.getFilesDir(),"received-files"));}catch(IOException ignored){}FileTransferStore result=ready;main.post(()->{if(!open())return;store=result;if(result==null){error="文件接收目录不可用，已有文件已保留";render();}else readList();});});else if(phase.equals("list"))readList();
     }
     private void remember(){if(sheet==null||confirmation!=null)return;View view=sheet.dialog.getCurrentFocus();if(view!=null&&view.getTag() instanceof String)focus=(String)view.getTag();}
@@ -81,7 +85,14 @@ final class FileToolsSheet {
     private View focusTarget(String tag){View value=sheet.box.findViewWithTag(tag);return value!=null&&value.isShown()&&value.isEnabled()&&value.isFocusable()?value:null;}
     private void restoreFocus(){
         if(sheet==null)return;ManagementUi.Sheet own=sheet;String target=focus;
-        own.body.post(()->{if(!open()||sheet!=own||confirmation!=null)return;View value=focusTarget(target);
+        UsbFileGrid grid=localGrid;
+        own.body.post(()->{if(!open()||sheet!=own||confirmation!=null)return;
+            if(phase.equals("list")&&source==1&&target.startsWith("usb-item-")){
+                if(loading||grid!=localGrid)return;
+                if(grid!=null){grid.focus(target);return;}
+            }
+            if(target.startsWith("file-source-")&&!target.equals(focus))return;
+            View value=focusTarget(target);
             if(value==null&&phase.equals("list")&&loading)return;
             if(value==null)value=focusTarget(defaultFocus());
             if(value==null||!value.requestFocusFromTouch()){value=focusTarget("sheet-close");if(value==null||!value.requestFocusFromTouch())return;}
@@ -175,7 +186,17 @@ final class FileToolsSheet {
         }
     }
     private void render(){
-        if(!open())return;if(!phase.equals("preview"))stopPreview();closeButton.setText(phase.equals("list")&&folder==null&&tree==null?"关闭":"返回");closeButton.setEnabled(!applying);sheet.body.removeAllViews();sheet.actions.removeAllViews();sheet.settingsActions(false);listViewport(phase.equals("list"));progressText=null;progress=null;
+        if(!open())return;
+        boolean listing=phase.equals("list");
+        String localFocus=listing&&source==1&&focus.startsWith("usb-item-")?focus:null;
+        localGrid=null;
+        if(!phase.equals("preview"))stopPreview();closeButton.setText(listing&&folder==null&&tree==null?"关闭":"返回");closeButton.setEnabled(!applying);
+        if(listing&&listPanel!=null&&listPanel.getParent()==sheet.body){
+            if(sheet.body.getChildCount()>1)sheet.body.removeViews(1,sheet.body.getChildCount()-1);
+        }else{
+            sheet.body.removeAllViews();listPanel=null;sourceTabs=null;fileCount=null;
+        }
+        sheet.actions.removeAllViews();sheet.settingsActions(false);listViewport(listing);progressText=null;progress=null;
         if(phase.equals("list"))list();else if(phase.equals("directory"))directory();else if(phase.equals("receiving"))receiving();
         else if(phase.equals("expired")){note("未完成读取的文件未保存。");compact("返回文件列表","file-restart",()->{go("list","file-source-"+source);readList();},true);}
         else if(phase.equals("install")){note(installerOpened?"请在系统安装器中确认，返回不表示安装成功。":"由电视系统确认安装包与安装来源授权。");LinearLayout actions=ui.row();actions.setGravity(Gravity.END);Button back=button("返回文件","file-return-detail",()->go("detail","file-install"),false);actions.addView(back,new LinearLayout.LayoutParams(-2,-1));if(!installerOpened){Button install=button("使用系统安装器","file-installer",this::install,true);LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(-2,-1);ip.leftMargin=ui.px(7.68f);actions.addView(install,ip);}LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,ui.px(34.56f));ap.topMargin=ui.px(5.04f);sheet.body.addView(actions,ap);}
@@ -184,43 +205,102 @@ final class FileToolsSheet {
         sheet.heading.setText(compact?(phase.equals("install")?installerOpened?"安装结果待核对":"允许安装应用":phase.equals("receiving")?"正在读取文件":"读取已中断"):"文件传输助手");
         sheet.heading.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,(compact?19.2f:22)*ui.unit);
         if(compact)sheet.fitContent(400,460);else{sheet.fixedSize(800,440);sheet.scroll.setFillViewport(true);}
+        // Removing the focused tile can briefly hand focus to the source tabs during layout.
+        if(localFocus!=null&&source==1)focus=localFocus;
         if(!error.isEmpty()){TextView value=copy(error,15.36f,23.04f,UiPalette.TEXT);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.topMargin=p(12.8f);sheet.body.addView(value,lp);restoreFocus();sheet.body.post(()->{if(open()&&value.getParent()!=null){Rect rect=new Rect();value.getDrawingRect(rect);value.requestRectangleOnScreen(rect,false);}});}else restoreFocus();
     }
     private void go(String next,String target){OperationFeedback.get(ui).hide();error="";phase=next;focus=target;render();}
-    private void list(){
-        LinearLayout content=ui.column();
-        content.setTag("file-panel");
+    private void createListPanel(){
+        listPanel=ui.column();
+        listPanel.setTag("file-panel");
         LinearLayout.LayoutParams layout=new LinearLayout.LayoutParams(-1,0,1);
-        sheet.body.addView(content,layout);
+        sheet.body.addView(listPanel,layout);
 
         View rule=new View(ui);rule.setBackgroundColor(UiPalette.EDGE);
         LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,Math.max(1,ui.px(.5f)));
-        rp.bottomMargin=ui.px(7);content.addView(rule,rp);
-        LinearLayout tabs=ui.row();
+        rp.bottomMargin=ui.px(7);listPanel.addView(rule,rp);
+        LinearLayout header=ui.row();
+        sourceTabs=ui.settingsTabs();
         String[] names={"已接收","本地存储","U 盘"};
         for(int i=0;i<names.length;i++){
             final int at=i;
-            Button tab=button(names[i],"file-source-"+i,()->source(at),false);
+            Button tab=ui.settingsTab(sourceTabs,names[i],()->source(at));
+            identify(tab,"file-source-"+i);
             tab.setOnFocusChangeListener((view,on)->{if(on){focus="file-source-"+at;if(source!=at)source(at);}});
             tab.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,14.4f*ui.unit);
-            tab.setSelected(source==i);
-            tab.setTextColor(SettingsFocusDrawable.textColors(UiPalette.SECONDARY,UiPalette.INK));
-            tab.setBackgroundDrawable(new SettingsFocusDrawable(ui.unit,999,Color.TRANSPARENT));
+            tab.setPadding(ui.px(12.96f),ui.px(7.2f),ui.px(12.96f),ui.px(7.2f));
             LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(-2,ui.px(30));
-            tp.rightMargin=ui.px(8);tabs.addView(tab,tp);
+            tp.rightMargin=ui.px(8);sourceTabs.addView(tab,tp);
         }
-        View space=new View(ui);tabs.addView(space,new LinearLayout.LayoutParams(0,1,1));
-        tabs.addView(copy(loading?"读取中":entries.size()+(source==0?" 个文件":" 项"),13.44f,20,UiPalette.SECONDARY));
+        header.addView(sourceTabs,new LinearLayout.LayoutParams(-2,-1));
+        header.addView(new View(ui),new LinearLayout.LayoutParams(0,1,1));
+        fileCount=copy("",13.44f,20,UiPalette.SECONDARY);
+        header.addView(fileCount);
         LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(-1,ui.px(31));
-        tp.bottomMargin=ui.px(5);content.addView(tabs,tp);
-        if(source>0){LinearLayout location=ui.row();location.setGravity(Gravity.CENTER_VERTICAL);TextView currentPath=copy(tree!=null?current.toString():folder!=null?folder.getAbsolutePath():"选择电视存储目录",13.44f,20,UiPalette.SECONDARY);currentPath.setSingleLine();currentPath.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);location.addView(currentPath,new LinearLayout.LayoutParams(0,-2,1));Button up=button("上一级","file-up",this::up,false);up.setEnabled(folder!=null||tree!=null);location.addView(up,new LinearLayout.LayoutParams(-2,ui.px(32)));Button options=button("选择目录","file-options",()->go("directory","file-system-pick"),false);LinearLayout.LayoutParams op=new LinearLayout.LayoutParams(-2,ui.px(32));op.leftMargin=ui.px(8);location.addView(options,op);content.addView(location,new LinearLayout.LayoutParams(-1,ui.px(40)));}
+        tp.bottomMargin=ui.px(5);listPanel.addView(header,tp);
+    }
+    private void list(){
+        if(listPanel==null)createListPanel();
+        LinearLayout content=listPanel;
+        if(content.getChildCount()>2)content.removeViews(2,content.getChildCount()-2);
+        for(int i=0;i<sourceTabs.getChildCount();i++){
+            View tab=sourceTabs.getChildAt(i);tab.setSelected(source==i);tab.setEnabled(!busy);
+        }
+        fileCount.setText(loading?"读取中":entries.size()+(source==0?" 个文件":" 项"));
+        Button directoryOptions=null;
+        if(source>0){
+            LinearLayout location=ui.row();
+            location.setGravity(Gravity.CENTER_VERTICAL);
+            TextView currentPath=copy(tree!=null?current.toString():folder!=null?folder.getAbsolutePath():"选择电视存储目录",13.44f,20,UiPalette.SECONDARY);
+            currentPath.setSingleLine();
+            currentPath.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
+            location.addView(currentPath,new LinearLayout.LayoutParams(0,-2,1));
+            Button up=button("上一级","file-up",this::up,false);
+            up.setEnabled(folder!=null||tree!=null);
+            location.addView(up,new LinearLayout.LayoutParams(-2,ui.px(32)));
+            directoryOptions=button("选择目录","file-options",()->go("directory","file-system-pick"),false);
+            LinearLayout.LayoutParams optionSize=new LinearLayout.LayoutParams(-2,ui.px(32));
+            optionSize.leftMargin=ui.px(8);
+            location.addView(directoryOptions,optionSize);
+            content.addView(location,new LinearLayout.LayoutParams(-1,ui.px(40)));
+        }
+        if(source==1&&!loading&&!entries.isEmpty())addLocalGrid(content,directoryOptions);
+        else addRows(content);
+        String directions=source==1?"方向键选择  确定打开":"上下选择文件  左右选择操作  确定执行";
+        TextView hint=copy(directions,12.8f,19.2f,UiPalette.SECONDARY);
+        hint.setPadding(0,ui.px(8),0,0);
+        content.addView(hint);
+    }
+    private void addLocalGrid(LinearLayout content,Button directoryOptions){
+        ArrayList<FileTransferSource.Item> files=new ArrayList<>(entries.size());
+        for(Object entry:entries)if(entry instanceof FileTransferSource.Item)files.add((FileTransferSource.Item)entry);
+        UsbFileGrid grid=new UsbFileGrid(ui,worker,files,directoryOptions.getId(),new UsbFileGrid.Choice(){
+            @Override public void open(FileTransferSource.Item item){
+                if(busy||store==null)return;
+                receipt=null;selected=item;installerOpened=false;
+                if(item.directory)openDirectory(item);
+                else go("detail",detailFocus());
+            }
+            @Override public void focused(FileTransferSource.Item item){focus=UsbFileGrid.tag(item);}
+        });
+        localGrid=grid;
+        grid.setTag("file-local-grid");
+        content.addView(grid,new LinearLayout.LayoutParams(-1,0,1));
+        directoryOptions.setOnKeyListener((view,key,event)->{
+            if(key!=KeyEvent.KEYCODE_DPAD_DOWN||localGrid!=grid||files.isEmpty())return false;
+            if(event.getAction()==KeyEvent.ACTION_DOWN)grid.focus("");
+            return true;
+        });
+    }
+    private void addRows(LinearLayout content){
         ScrollView scroll=new ScrollView(ui){@Override protected void dispatchDraw(Canvas canvas){int save=canvas.save();canvas.clipRect(getScrollX(),getScrollY(),getScrollX()+getWidth(),getScrollY()+getHeight());super.dispatchDraw(canvas);canvas.restoreToCount(save);}};scroll.setTag("file-list-scroll");scroll.setVerticalScrollBarEnabled(false);LinearLayout rows=ui.column();rows.setTag("file-rows");scroll.addView(rows);content.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));if(!loading)for(Object value:entries)addFile(rows,value);
         if(loading||entries.isEmpty()){TextView empty=copy(loading?"正在读取文件…":notice.isEmpty()?"暂无文件":notice,15,24,UiPalette.SECONDARY);empty.setPadding(0,ui.px(24),0,ui.px(24));rows.addView(empty);}
-        TextView hint=copy("上下选择文件  左右选择操作  确定执行",12.8f,19.2f,UiPalette.SECONDARY);hint.setPadding(0,ui.px(8),0,0);content.addView(hint);
     }
     private void readList(){
-        if(!open()||store==null||!phase.equals("list")||confirmation!=null)return;receivedChanged=false;int version=++listVersion;loading=true;render();int at=source;File path=folder;Uri root=tree,location=current;
-        worker.execute(()->{List<?> entries;String problem="";try{entries=at==0?store.list():root!=null?FileTransferSource.Documents.children(ui,root,location):path!=null?FileTransferSource.children(path):FileTransferSource.volumes(ui,at==2);}catch(IOException|RuntimeException failure){entries=Collections.emptyList();problem="目录无法读取，请检查连接或重新授权";}List<?> values=entries;String message=problem;main.post(()->{if(!open()||version!=listVersion||!phase.equals("list"))return;loading=false;this.entries=values;if(!message.isEmpty())error=message;notice=values.isEmpty()?(source==1&&tree==null&&FileTransferSource.partialMediaAccess(ui)?"当前没有已授权的照片和视频，可在读取选项中重新选择":source==0?"还没有接收文件":source==2?"未发现可读取的 U 盘，请检查连接或授权目录":"没有可读取的文件，可通过读取选项选择文件或授权目录"):"";render();if(reopenDeleteAfterLoad){reopenDeleteAfterLoad=false;showDeleteConfirmation();}});});
+        if(!open()||store==null||!phase.equals("list")||confirmation!=null)return;receivedChanged=false;int version=++listVersion;
+        String gridFocus=source==1&&focus.startsWith("usb-item-")?focus:null;
+        loading=true;render();int at=source;File path=folder;Uri root=tree,location=current;
+        worker.execute(()->{List<?> entries;String problem="";try{entries=at==0?store.list():root!=null?FileTransferSource.Documents.children(ui,root,location):path!=null?FileTransferSource.children(path):FileTransferSource.volumes(ui,at==2);}catch(IOException|RuntimeException failure){entries=Collections.emptyList();problem="目录无法读取，请检查连接或重新授权";}List<?> values=entries;String message=problem;main.post(()->{if(!open()||version!=listVersion||!phase.equals("list"))return;loading=false;this.entries=values;if(gridFocus!=null)focus=gridFocus;if(!message.isEmpty())error=message;notice=values.isEmpty()?(source==1&&tree==null&&FileTransferSource.partialMediaAccess(ui)?"当前没有已授权的照片和视频，可在读取选项中重新选择":source==0?"还没有接收文件":source==2?"未发现可读取的 U 盘，请检查连接或授权目录":"没有可读取的文件，可通过读取选项选择文件或授权目录"):"";render();if(reopenDeleteAfterLoad){reopenDeleteAfterLoad=false;showDeleteConfirmation();}});});
     }
     private void addFile(LinearLayout parent,Object item){
         FileTransferStore.Entry entry=item instanceof FileTransferStore.Entry?(FileTransferStore.Entry)item:null;
@@ -268,11 +348,8 @@ final class FileToolsSheet {
         file.setOnClickListener(v->{
             if(busy||store==null)return;
             select.run();
-            if(directory){
-                if(tree!=null){parents.push(current);current=local.uri;}
-                else{if(folder==null)boundary=local.file;folder=local.file;}
-                focus="file-up";readList();
-            }else if(apk)install();
+            if(directory)openDirectory(local);
+            else if(apk)install();
             else if(media)preparePreview();
             else sendDownload();
             KeyFeedback.confirm(ui);
@@ -376,6 +453,17 @@ final class FileToolsSheet {
     }
 
     private void source(int at){if(busy)return;source=at;folder=boundary=null;tree=current=null;parents.clear();error="";temporaryDirectory=false;focus="file-source-"+at;if(at>0){if(Build.VERSION.SDK_INT>=21){tree=FileTransferSource.Documents.remembered(ui,at==2);if(tree!=null){if(FileTransferSource.Documents.persistedRead(ui,tree))current=FileTransferSource.Documents.root(tree);else{tree=null;error="目录授权已失效，请重新授权";}}}else try{folder=boundary=FileTransferSource.LocalDirectories.remembered(ui,at==2);}catch(IOException ignored){error="已记住的目录不可用，请重新选择";}}readList();}
+    private void openDirectory(FileTransferSource.Item item){
+        if(tree!=null){parents.push(current);current=item.uri;}
+        else{if(folder==null)boundary=item.file;folder=item.file;}
+        focus="file-up";
+        readList();
+    }
+    private String listEntryFocus(){
+        if(receipt!=null)return "file-"+receipt.id;
+        if(source==1&&selected!=null&&!selected.directory)return UsbFileGrid.tag(selected);
+        return "file-source-"+source;
+    }
     private void up(){focus="file-up";if(tree!=null){if(parents.isEmpty()){tree=current=null;temporaryDirectory=false;focus="file-source-"+source;readList();}else{current=parents.pop();readList();}}else if(folder!=null){if(folder.equals(boundary)){folder=boundary=null;focus="file-source-"+source;}else folder=folder.getParentFile();readList();}}
     private DesktopSettingsRow directoryRow(LinearLayout group,String title,String value,String tag,Runnable action,boolean enabled){
         DesktopSettingsRow row=new DesktopSettingsRow(ui,title,"",false);row.hideIcon();row.value(value);row.tail("arrow");row.textSizes(14.016f,11.52f);identify(row,tag);row.setEnabled(enabled);row.setAlpha(1f);row.setOnClickListener(v->{if(!busy)action.run();});SettingsTouchClick.attach(row);group.addView(row,new LinearLayout.LayoutParams(-1,ui.px(44.535f)));return row;
@@ -397,7 +485,7 @@ final class FileToolsSheet {
         if(WallpaperImport.media(name()))menu(phase.equals("preview")?"设为壁纸":"预览并设为壁纸","file-preview",()->{if(phase.equals("preview"))applyWallpaper();else preparePreview();},true).setEnabled(!phase.equals("preview")||mediaEntry!=null);
         menu("传到手机或电脑","file-download",this::sendDownload,false);
         if(receipt!=null)menu("删除文件","file-delete",()->confirmDelete("file-delete"),false);else menu("保存到已接收","file-save",()->copyToReceived("list"),false);
-        menu("返回","file-back",()->{discard();go("list",receipt!=null?"file-"+receipt.id:"file-source-"+source);readList();},false);((LinearLayout.LayoutParams)sheet.body.getChildAt(sheet.body.getChildCount()-1).getLayoutParams()).bottomMargin=0;
+        menu("返回","file-back",()->{discard();go("list",listEntryFocus());readList();},false);((LinearLayout.LayoutParams)sheet.body.getChildAt(sheet.body.getChildCount()-1).getLayoutParams()).bottomMargin=0;
     }
     private void delete(ManagementUi.Sheet modal,TextView problem){
         if(confirmation!=modal||receipt==null||busy)return;
@@ -450,7 +538,35 @@ final class FileToolsSheet {
         if(receipt!=null)download();else copyToReceived("download");
     }
     private void download(){if(receipt==null||busy)return;FileTransferStore.Entry entry=receipt;busy=true;render();int version=++jobVersion;worker.execute(()->{String failure="";try{phone.offerFile(entry.id);}catch(IOException problem){failure=problem.getMessage();}String message=failure;main.post(()->{if(!open()||version!=jobVersion)return;busy=false;if(message.isEmpty()){phase="list";focus="file-"+entry.id;readList();ui.success("已发送到手机设置网页");}else{error=message;render();}});});}
-    private void install(){if(receipt!=null){launchInstall(receipt.id,null,null);return;}if(selected==null||busy)return;FileTransferSource.Item item=selected;busy=true;render();int version=++jobVersion;worker.execute(()->{File temp=null;try{File cache=new File(ui.getCacheDir(),"selected-apks");if(!cache.isDirectory()&&!cache.mkdirs())throw new IOException("安装准备目录不可用");temp=File.createTempFile("selected-apk-",".apk",cache);try(InputStream in=input(item);FileOutputStream output=new FileOutputStream(temp)){FileTransferPolicy.copy(in,output,item.bytes,Math.min(FileTransferPolicy.MAX_FILE,ui.getCacheDir().getUsableSpace()-FileTransferPolicy.RESERVE),()->!destroyed&&version==jobVersion,(a,b)->{});output.getFD().sync();}File ready=temp;main.post(()->{if(!open()||version!=jobVersion){if(!ready.delete())DiagnosticLog.info("file_tools.install_source_retained","cancelled");return;}busy=false;installSource=ready;launchInstall(UUID.randomUUID().toString(),ready,item.name);});}catch(IOException|RuntimeException failure){if(temp!=null&&!temp.delete())DiagnosticLog.info("file_tools.install_source_retained","failed");main.post(()->{if(open()&&version==jobVersion){busy=false;error="安装文件准备失败，请检查文件和存储空间";render();}});}});}
+    private void install(){
+        if(receipt!=null){launchInstall(receipt.id,null,null);return;}
+        if(selected==null||busy)return;
+        FileTransferSource.Item item=selected;
+        busy=true;
+        render();
+        int version=++jobVersion;
+        worker.execute(()->{
+            try{
+                File ready=ApkInstallActivity.copySource(ui,item.uri,item.bytes,()->!destroyed&&version==jobVersion);
+                main.post(()->{
+                    if(!open()||version!=jobVersion){
+                        if(!ready.delete())DiagnosticLog.info("file_tools.install_source_retained","cancelled");
+                        return;
+                    }
+                    busy=false;
+                    installSource=ready;
+                    launchInstall(UUID.randomUUID().toString(),ready,item.name);
+                });
+            }catch(IOException|RuntimeException failure){
+                main.post(()->{
+                    if(!open()||version!=jobVersion)return;
+                    busy=false;
+                    error="安装文件准备失败，请检查文件和存储空间";
+                    render();
+                });
+            }
+        });
+    }
     private void launchInstall(String id,File input,String name){Intent intent=new Intent(ui,ApkInstallActivity.class).putExtra("file",id).putExtra("begin-install",true);if(!SettingsFocusMotion.reduced())try{int width=ui.getResources().getDisplayMetrics().widthPixels,height=ui.getResources().getDisplayMetrics().heightPixels;Bitmap backdrop=Bitmap.createBitmap(320,Math.max(1,Math.round(320f*height/width)),Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(backdrop);canvas.scale(320f/width,320f/width);ui.drawSheetBackdrop(canvas);intent.putExtra("backdrop",backdrop);}catch(OutOfMemoryError unavailable){DiagnosticLog.info("file_tools.backdrop_unavailable","memory");}if(input!=null)intent.putExtra("source-file",input.getAbsolutePath()).putExtra("source-name",name);external=true;sheet.dialog.hide();try{ui.startActivityForResult(intent,INSTALL);}catch(ActivityNotFoundException|SecurityException failure){external=false;sheet.dialog.show();error="系统安装入口不可用，请通过电脑安装";render();}}
     private void preparePreview(){
         if(busy)return;discard();busy=true;error="";int version=++jobVersion;FileTransferStore.Entry selectedReceipt=receipt;FileTransferSource.Item item=selected;phase="preview";render();worker.execute(()->{WallpaperImport.Prepared ready=null;Bitmap image=null;WallpaperCatalog.Entry existing=null;try{String known=selectedReceipt==null?"":ui.getSharedPreferences("file-transfer-wallpapers",0).getString(selectedReceipt.id,"");existing=WallpaperStore.get(ui).snapshot().find(known);if(existing==null){try(InputStream in=selectedReceipt!=null?new FileInputStream(store.file(selectedReceipt.id)):input(item)){ready=WallpaperImport.prepare(ui,in,selectedReceipt!=null?selectedReceipt.bytes:item.bytes,selectedReceipt!=null?selectedReceipt.name:item.name,WallpaperImport.video(selectedReceipt!=null?selectedReceipt.name:item.name,null),()->!destroyed&&version==jobVersion,"source=file_tools_preview");}}if(ready!=null&&ready.video==null){BitmapFactory.Options options=new BitmapFactory.Options();options.inSampleSize=1;while(ready.width/options.inSampleSize>1280||ready.height/options.inSampleSize>720)options.inSampleSize*=2;image=BitmapFactory.decodeFile(ready.existing().getPath(),options);if(image==null)throw new IOException("图片无法读取");}else if(existing!=null&&!existing.video())image=WallpaperImages.decode(ui,WallpaperStore.get(ui),existing,1280,720);WallpaperImport.Prepared draft=ready;Bitmap picture=image;WallpaperCatalog.Entry catalogEntry=existing;main.post(()->{if(!open()||version!=jobVersion){if(draft!=null)draft.discard();return;}prepared=draft;photo=picture;mediaEntry=catalogEntry!=null?catalogEntry:entry(draft);busy=false;focus="file-preview";render();});}catch(IOException|RuntimeException|OutOfMemoryError failure){if(ready!=null)ready.discard();main.post(()->{if(open()&&version==jobVersion){busy=false;error="文件无法预览，请检查格式、授权或存储空间";phase="detail";focus="file-back";render();}});}});
@@ -490,7 +606,7 @@ final class FileToolsSheet {
     private void back(){if(applying)return;if(confirmation!=null){if(!busy)confirmation.dialog.dismiss();return;}if(phase.equals("install")){go("detail","file-install");}
         else if(phase.equals("directory")){go("list","file-options");readList();}
         else if(phase.equals("preview")){++jobVersion;busy=false;discard();go("detail",detailFocus());}
-        else if(!phase.equals("list")){++jobVersion;busy=false;discard();go("list",receipt!=null?"file-"+receipt.id:"file-source-"+source);readList();}else if(!busy&&(folder!=null||tree!=null))up();else close();}
+        else if(!phase.equals("list")){++jobVersion;busy=false;discard();go("list",listEntryFocus());readList();}else if(!busy&&(folder!=null||tree!=null))up();else close();}
     void close(){if(applying||confirmation!=null&&busy)return;dismissConfirmation();if(sheet!=null)sheet.dialog.dismiss();}
     void destroy(){phone.forgetConfiguration(phoneChanged);dismissConfirmation();destroyed=true;if(sheet!=null){sheet.dialog.setOnDismissListener(null);sheet.dialog.dismiss();sheet=null;}++jobVersion;++listVersion;stopPreview();if(!retaining)discard();main.removeCallbacksAndMessages(null);worker.shutdown();}
 }

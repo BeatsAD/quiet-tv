@@ -58,10 +58,15 @@ final class MemoPanel {
     }
     private void renderList(String focus){
         editing=false;confirm=false;reset(false);sheet.heading.setText(tr("备忘录","My notes"));
-        LinearLayout heading=ui.row();TextView hint=ui.muted(tr("大字记事，完成后直接勾选。","Large notes. Check them when done."),11);hint.setTextSize(TypedValue.COMPLEX_UNIT_PX,10.848f*ui.unit);heading.addView(hint,new LinearLayout.LayoutParams(0,-2,1));Button add=button(tr("添加记事","Add note"),"memo-add",()->openEditor(null),true);heading.addView(add,new LinearLayout.LayoutParams(-2,px(34.56f)));sheet.body.addView(heading,new LinearLayout.LayoutParams(-1,px(34.56f)));ui.gap(sheet.body,9);
         if(notes.isEmpty()){
-            TextView empty=ui.center(tr("暂无记事，添加一条需要记住的事。","No notes yet. Add something to remember."),12);empty.setTextSize(TypedValue.COMPLEX_UNIT_PX,11.52f*ui.unit);empty.setTextColor(UiPalette.FAINT);empty.setPadding(px(19.2f),px(19.2f),px(19.2f),px(19.2f));empty.setMinimumHeight(px(59.82f));android.graphics.drawable.GradientDrawable outline=new SurfaceDrawable(ui.unit);outline.setColor(Color.TRANSPARENT);outline.setCornerRadius(px(9.6f));outline.setStroke(px(.75f),0x20ffffff,px(3),px(3));empty.setBackgroundDrawable(outline);LinearLayout.LayoutParams emptyParams=new LinearLayout.LayoutParams(-1,-2);emptyParams.topMargin=px(11.52f);emptyParams.bottomMargin=px(11.52f);sheet.body.addView(empty,emptyParams);
+            TextView empty=ui.center(tr("暂无备忘录","No notes yet"),12);empty.setTextSize(TypedValue.COMPLEX_UNIT_PX,11.52f*ui.unit);empty.setTextColor(UiPalette.FAINT);empty.setPadding(px(19.2f),px(19.2f),px(19.2f),px(19.2f));empty.setMinimumHeight(px(59.82f));android.graphics.drawable.GradientDrawable outline=new SurfaceDrawable(ui.unit);outline.setColor(Color.TRANSPARENT);outline.setCornerRadius(px(9.6f));outline.setStroke(px(.75f),0x20ffffff,px(3),px(3));empty.setBackgroundDrawable(outline);LinearLayout.LayoutParams emptyParams=new LinearLayout.LayoutParams(-1,-2);emptyParams.topMargin=px(11.52f);emptyParams.bottomMargin=px(11.52f);sheet.body.addView(empty,emptyParams);
         }
+        LinearLayout addRow=ui.row();
+        addRow.setGravity(Gravity.END);
+        Button add=button(tr("新增备忘录","Add note"),"memo-add",()->openEditor(null),true);
+        addRow.addView(add,new LinearLayout.LayoutParams(-2,px(34.56f)));
+        sheet.body.addView(addRow,new LinearLayout.LayoutParams(-1,px(34.56f)));
+        if(!notes.isEmpty())ui.gap(sheet.body,9);
         ArrayList<Button> toggles=new ArrayList<>(),editors=new ArrayList<>();
         for(MemoStore.Note note:notes){
             if(!toggles.isEmpty())ui.gap(sheet.body,9.6f);

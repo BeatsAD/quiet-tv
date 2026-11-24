@@ -76,7 +76,8 @@ abstract class ManagementPanel extends ContextWrapper {
         final ManagementUi.Sheet delegate;
         final android.app.Dialog dialog;
         final LinearLayout body;
-        Sheet(String title){delegate=activity.new Sheet(title);dialog=delegate.dialog;body=delegate.body;}
+        Sheet(String title){this(title,null);}
+        Sheet(String title,ManagementUi.Sheet underlay){delegate=activity.new Sheet(title,underlay);dialog=delegate.dialog;body=delegate.body;}
         void text(String text){delegate.text(text);}
         Button action(String text,Runnable action){return delegate.action(text,action);}
         Button option(String text,Runnable action){return delegate.option(text,action);}

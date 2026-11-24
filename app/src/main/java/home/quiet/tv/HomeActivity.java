@@ -42,6 +42,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private Integer brightnessDraft,blurDraft,dockScaleDraft,dockMagnificationDraft;
     private String phoneWallpaperKey="";
     private final Runnable phoneConfiguration=this::phoneConfigurationChanged;
+    private final Runnable dailyQuoteChanged=()->refreshDailyQuote(false);
     private static java.lang.ref.WeakReference<HomeActivity> liveHome=new java.lang.ref.WeakReference<>(null);
     private static final float CONTENT_MARGIN = 48;
     // The complete first screen scrolls as one item; preserve its original composition.
@@ -316,15 +317,6 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         bg.setCornerRadius(px(radius)); return bg;
     }
 
-    private GradientDrawable pillSurface() {
-        // Neutral translucent highlights let the ambient color show through.
-        GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[]{0x38ffffff, 0x1cffffff, 0x12ffffff});
-        bg.setCornerRadius(px(22));
-        bg.setStroke(px(.5f), 0x78ffffff);
-        return bg;
-    }
-
     private void makeScene() {
         root = new FrameLayout(this){
             private int displayResume=-1,displayWidth,displayHeight;
@@ -393,7 +385,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             @Override public boolean allowed(){return screensaverAllowed();}
             @Override public void captureFocus(){cancelConfirm();cancelFocusRestore("screensaver");if(scrollAnimation!=null)scrollAnimation.cancel();list.stopScroll();saverRow=row;saverColumn=column;saverTop=topColumn;saverRestoreColumn=restoreColumn;saverPackage=activePackage;}
             @Override public void restoreFocus(){row=Math.min(saverRow,gridRows());if(row<0&&!rightButtonsVisible)row=0;column=Math.max(0,Math.min(saverColumn,maxColumn(row)));topColumn=Math.min(saverTop,Math.max(0,visiblePills.size()-1));restoreColumn=saverRestoreColumn;activePackage=saverPackage;focusCurrent(false);main.post(HomeActivity.this::returnToQuick);}
-            @Override public void desktopVisible(boolean visible){list.setVisibility(visible?View.VISIBLE:View.INVISIBLE);}
+            @Override public void desktopVisible(boolean visible){list.setVisibility(visible?View.VISIBLE:View.INVISIBLE);if(visible)refreshDailyQuote(true);}
             @Override public void weatherDemand(boolean enabled){weather.screensaverWeather(enabled);}
         });
     }
@@ -431,7 +423,12 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     private void setPillIcon(TextView pill,int resource){homeHeader.setPillIcon(pill,resource);networkIcon=resource;}
-    private void updateClock(){homeHeader.updateClock(fixedGreeting);homeHeader.movie(wallpapers.displayedMovie());}
+    private void updateClock(){homeHeader.updateClock(fixedGreeting);homeHeader.movie(wallpapers.displayedMovie());refreshDailyQuote(false);}
+    private void refreshDailyQuote(boolean retry){
+        if(homeHeader==null)return;
+        homeHeader.refreshQuote(resumed&&homeHeader.isShown()&&(screensaver==null||!screensaver.showing()),retry);
+        if(screensaver!=null)screensaver.refreshQuote(retry);
+    }
 
     private void scheduleHomeUpdate(){
         if(!resumed || !ready || !homeReadyDrawn)return;
@@ -439,6 +436,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     }
 
     private void updateNetwork() {
+        refreshDailyQuote(true);
         scheduleHomeUpdate();
         if(wallpapers!=null)wallpapers.environmentChanged();
         if(network==null||network.getVisibility()!=View.VISIBLE)return;
@@ -494,7 +492,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private void resumeHome(){
         homeResumeStarted=SystemClock.uptimeMillis();++homeResumeSequence;homeDrawPending=true;homeReadyDrawn=false;homeFocusSeen=false;
         homeResumeEvent("home.resume.begin","sincePauseMs="+(homePausedAt==0?-1:homeResumeStarted-homePausedAt));
-        super.onResume(); resumed=true;legacyDeferredTrials.clear();lastUpdateIdleInput=SystemClock.uptimeMillis();UpdateRepository.get(this).add(homeUpdateListener);
+        super.onResume(); resumed=true;DailyQuote.get(this).observe(dailyQuoteChanged);legacyDeferredTrials.clear();lastUpdateIdleInput=SystemClock.uptimeMillis();UpdateRepository.get(this).add(homeUpdateListener);
         homeFrameWindow=DiagnosticFrameWindow.watch(getWindow(),homeResumeOperation);
         homeWatchScheduled=homeResumeStarted;main.removeCallbacks(homeTransitionWatch);main.postAtTime(homeTransitionWatch,homeWatchScheduled+700);
         long lifecycleReadyAt=SystemClock.uptimeMillis();
@@ -515,7 +513,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             closeQuickControls(false);
             resetHomeFocus(true);
         }else if(ready)focusCurrent(false);
-        updateClock();homeHeader.clockActive(true);updateNetwork();
+        updateClock();refreshDailyQuote(true);homeHeader.clockActive(true);updateNetwork();
         long desktopReadyAt=SystemClock.uptimeMillis();
         wallpapers.resume();weather.resume();screensaver.availabilityChanged();
         long mediaReadyAt=SystemClock.uptimeMillis();
@@ -702,7 +700,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         ++hdmiLaunchGeneration;new BootAppStore(this).cancelHdmiBoot();BootAppLifecycle.left(this);
         if(dockPress!=null)dockPress.cancel();updateDock(false);
         HomeGuardRecovery.leftHome(this);
-        resumed=false;cancelUnshownLegacyTrial();main.removeCallbacks(confirmHold);heldPackage="";cancelMove();if(scrollAnimation!=null)scrollAnimation.cancel();list.stopScroll();saveFocus();wallpapers.pause();weather.pause();
+        resumed=false;DailyQuote.get(this).forget(dailyQuoteChanged);cancelUnshownLegacyTrial();main.removeCallbacks(confirmHold);heldPackage="";cancelMove();if(scrollAnimation!=null)scrollAnimation.cancel();list.stopScroll();saveFocus();wallpapers.pause();weather.pause();
         unregisterReceiver(timeReceiver);
         if(Build.VERSION.SDK_INT>=24)stopNetworkCallback.run();
         else unregisterReceiver(legacyNetworkReceiver);
@@ -1554,15 +1552,11 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             float top=artworkHeight+(showLabel?px(APP_LABEL_GAP):geometry.labelGap*unit/scale);
             if(focused){
                 float halfWidth=labelTextWidth/2+padding;
-                float border=unit/scale;
-                float edgeInset=border/2;
+                float edgeInset=unit/(2*scale);
                 labelBounds.set(center-halfWidth,top+edgeInset,center+halfWidth,top+lineHeight-edgeInset);
                 float radius=labelBounds.height()/2;
-                paint.setColor(UiPalette.INK);
-                canvas.drawRoundRect(labelBounds,radius,radius,paint);
-                labelBounds.inset(border,border);
                 paint.setColor(UiPalette.TEXT);
-                canvas.drawRoundRect(labelBounds,radius-border,radius-border,paint);
+                canvas.drawRoundRect(labelBounds,radius,radius,paint);
             }
             float baseline=top+(lineHeight-labelMetrics.descent-labelMetrics.ascent)/2;
             canvas.drawText(labelText,center,baseline,labelPaint);

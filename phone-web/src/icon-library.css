@@ -76,3 +76,11 @@
 .quiet-app .icon-library-sheet button:focus-visible,.quiet-app .icon-library-page button:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 @media(max-width:350px){.quiet-app .icon-filters button,.quiet-app .icon-batch-tabs button{font-size:13px}.quiet-app .icon-batch-row{gap:6px}.quiet-app .icon-batch-row>img,.quiet-app .icon-batch-candidate{width:48px}.quiet-app .icon-batch-check{width:44px}.quiet-app .icon-replace-comparison{gap:8px}}
 @media(prefers-reduced-motion:reduce){.quiet-app .icon-batch-tabs button{transition:none}}
+
+.app-icon-target{display:flex;align-items:center;gap:.75rem;margin:.25rem 0 .75rem}
+.app-icon-target img{width:5rem;height:3rem;object-fit:contain;border-radius:.5rem}
+.app-icon-materials{max-height:min(42vh,24rem);overflow:auto;overscroll-behavior:contain;margin:.6rem 0}
+.app-icon-materials .icon-material-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.app-icon-comparison{margin:.75rem 0;align-items:end}
+.app-icon-comparison>div{min-width:0;text-align:center}
+.app-icon-comparison img{display:block;width:100%;height:clamp(3rem,16vw,6rem);object-fit:contain}

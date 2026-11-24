@@ -115,7 +115,7 @@ public final class HomeAppActionsActivity extends ManagementUi {
         if(fromDock){option("替换应用","replace",()->picker("replace",true));Button add=option("添加应用","plus",()->picker("add",true));add.setEnabled(canAdd);}
         Button home=option(fromDock?"移除首页位置":"添加到首页",fromDock?"pin-off":"pin",()->{if(fromDock)confirmUnpin();else pin(pkg);});home.setEnabled(fromDock||canAdd);
         Button hide=option("隐藏","eye-off",this::hide);hide.setEnabled(canHide());
-        Button cover=option("更换封面","image",this::coverMenu);cover.setEnabled(AppCoverPolicy.allowed(this,pkg));option("管理此应用","layout-grid",()->{startActivity(new Intent(this,AppManagementActivity.class).putExtra("management-page",SettingsPages.APPS).putExtra("selected-package",pkg).putExtra("focus-app-details",true).putExtra("backdrop",backdrop));finish();});
+        Button cover=option("更换图标","image",this::coverMenu);cover.setEnabled(AppCoverPolicy.allowed(this,pkg));option("管理此应用","layout-grid",()->{startActivity(new Intent(this,AppManagementActivity.class).putExtra("management-page",SettingsPages.APPS).putExtra("selected-package",pkg).putExtra("backdrop",backdrop));finish();});
         Button uninstall=option("卸载应用","trash",this::authorizeUninstall);uninstall.setEnabled(real&&protectedReason.isEmpty());
         show(200,first,true);
     }
@@ -316,7 +316,7 @@ public final class HomeAppActionsActivity extends ManagementUi {
     }
     @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==DELETE){waitingForDelete=false;AppRepository.App current=metadata(pkg);boolean removed=current==null||!current.installed;if(removed){new DockStore(this).remove(pkg);new HomeOrderStore(this).remove(pkg);new HomeVisibilityStore(this).remove(pkg);}changed("",removed?"应用已卸载":result==RESULT_CANCELED?"已取消卸载":"卸载尚未完成，请核对应用状态",removed);}}
     private void coverMenu(){
-        startActivity(new Intent(this,DesktopSettingsActivity.class).putExtra("management-page",SettingsPages.ICONS).putExtra("selected-package",pkg).putExtra("backdrop",backdrop));finish();
+        startActivity(new Intent(this,DesktopSettingsActivity.class).putExtra("management-page",SettingsPages.APPS).putExtra("open-app-icon",true).putExtra("selected-package",pkg).putExtra("backdrop",backdrop));finish();
     }
     @Override public void handleBack(){
         KeyFeedback.back(this);

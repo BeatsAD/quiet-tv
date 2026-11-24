@@ -8,17 +8,24 @@ export type Metadata = { device:{name:string;version:string;build:number;sdk:num
 export type Frame = { protocolVersion:number;generation:string;revision:string;lastSequence:number;complete:boolean;domains:Record<string,Record<string,Value>>;revisions:Record<string,string>;metadata?:Metadata;requestId?:string;requestStatus?:string;committedDomain?:string;committedRevision?:string;operation?:Record<string,unknown> };
 type Receipt = { generation:string;lastSequence:number;sequence?:number;requestStatus:string;committedDomain?:string;committedRevision?:string;committedState?:Record<string,Value>;operation?:Record<string,unknown>;errorStatus?:number;message?:string };
 type WriteRequest = { requestId:string;generation:string;sequence:number;domain:string;field:string;revision:string;value:Value };
-type Attempt = { request:WriteRequest;version?:number;uncertain?:boolean;announce?:boolean;feedbackState?:string };
+type Attempt = { request:WriteRequest;version?:number;uncertain?:boolean;announce?:boolean;feedbackState?:string;problem?:string };
 type Pending = { key:string;domain:string;value:Value;base:string;version:number;ready:boolean;error?:string;errorStatus?:number;timer?:ReturnType<typeof setTimeout> };
+type ConnectionStatus = 'waiting'|'pairing'|'connected'|'offline'|'ended';
+type DraftStatus = 'queued'|'sending'|'checking'|'conflict'|'rejected';
+type WriteReceipt = {state:'idle'}|{state:'sending'|'checking';requestId:string;domain:string;field:string;message:string};
+type RestorePhase = 'idle'|'restoring'|'recovering'|'complete'|'rolled-back'|'failed'|'needs-review';
+type RestoreStatus = {phase:RestorePhase;message:string;canChangeBackups:boolean;canRetry:boolean};
 export class UploadError extends Error { constructor(public task:Task){super(task.message||'上传结果待核对');} }
 export class ApiError extends Error { constructor(public status:number,message:string){super(message);} }
 export class PhoneClient {
-  frame:Frame|null=null;metadata:Metadata|null=null;status='waiting';problem='';pending=new Map<string,Pending>();
+  frame:Frame|null=null;metadata:Metadata|null=null;status:ConnectionStatus='waiting';
+  private connectionProblem='';private writeProblem='';private pending=new Map<string,Pending>();
   onOperation?:(notice:OperationNotice)=>void;private resultTasks=new Map<string,{label:string;state:string}>();private deferredResults=new Set<string>();
   private listeners=new Set<()=>void>();private timer?:ReturnType<typeof setTimeout>;private sequence=0;private version=0;private running=false;private polling=false;private stopped=false;private requestCount=0;private readCount=0;private appliedRead=0;private needsMetadata=false;
   private reads:Promise<unknown>=Promise.resolve();
   private waitingCommands=0;private attempt?:Attempt;
   constructor(readonly base=new URL('./',location.href)){}
+  get problem(){return this.connectionProblem||this.attempt?.problem||this.writeProblem;}
   subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>{this.listeners.delete(listener);};};
   private publish(){this.listeners.forEach(listener=>listener());}
   resource(path:string){return new URL(path,this.base).href;}
@@ -38,7 +45,7 @@ export class PhoneClient {
     }catch(error){if(error instanceof ApiError)throw error;throw new Error(controller.signal.aborted?'电视响应超时，正在重新连接并核对结果':'暂时无法连接电视，正在重连，请保持手机与电视处于同一局域网');}finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);}
   }
   private merge(frame:Frame){
-    if(this.frame&&this.frame.generation!==frame.generation){this.status='ended';this.problem='连接已更换，请重新打开收藏的网址';this.publish();throw new ApiError(410,this.problem);}
+    if(this.frame&&this.frame.generation!==frame.generation){this.status='ended';this.connectionProblem='连接已更换，请重新打开收藏的网址';this.publish();throw new ApiError(410,this.connectionProblem);}
     if(this.frame&&frame.lastSequence<this.frame.lastSequence)return;
     if(this.frame&&frame.domains.quiz?.quizGrade!==undefined&&frame.domains.quiz.quizGrade!==this.frame.domains.quiz?.quizGrade)this.needsMetadata=true;
     if(this.frame&&frame.domains.tasks){const old=this.tasks();const next=(frame.domains.tasks.jobs||[]) as unknown as Task[];if(next.some(task=>task.state==='completed'&&old.find(previous=>previous.id===task.id)?.state!=='completed'))this.needsMetadata=true;}
@@ -66,7 +73,7 @@ export class PhoneClient {
     this.onOperation?.(completedNotice(label,operation,domain,field));this.reportDeferred();
   }
   private currentRead(read:number,version:number){return read>=this.appliedRead&&version===this.version&&!this.running&&this.status!=='ended';}
-  private acceptRead(frame:Frame|null,read:number,version:number){if(!this.currentRead(read,version))return;this.appliedRead=read;if(frame)this.merge(frame);this.status='connected';if(!this.attempt)this.problem='';}
+  private acceptRead(frame:Frame|null,read:number,version:number){if(!this.currentRead(read,version))return;this.appliedRead=read;if(frame)this.merge(frame);this.status='connected';this.connectionProblem='';this.writeProblem='';}
   value(key:string):Value|undefined{
     const pending=this.pending.get(key);if(pending)return pending.value;
     const field=this.metadata?.fields[key];return field?this.frame?.domains[field.domain]?.[key]:undefined;
@@ -77,10 +84,28 @@ export class PhoneClient {
   private visibility=()=>{clearTimeout(this.timer);if(!document.hidden&&!this.stopped)void this.poll();};
   private async poll(){
     if(this.polling||this.stopped||document.hidden||this.status==='ended')return;this.polling=true;
-    try{await this.refresh(false);}finally{this.polling=false;this.publish();if(!this.stopped&&this.status!=='ended')this.timer=setTimeout(()=>void this.poll(),1000);}
+    try{await this.refresh(false);}finally{this.polling=false;this.publish();if(!this.stopped&&(this.status as ConnectionStatus)!=='ended')this.timer=setTimeout(()=>void this.poll(),1000);}
   }
-  private handle(error:unknown){const e=error instanceof Error?error:new Error('连接中断');if(this.status==='ended')return;this.problem=e.message;if(error instanceof ApiError&&[403,410].includes(error.status))this.status='ended';else if(error instanceof ApiError&&error.status===409)this.status='conflict';else this.status='offline';}
-  get restoring(){return !!this.frame?.domains.backup?.activeRestore&&Object.keys(this.frame.domains.backup.activeRestore as object).length>0;}
+  private handleConnectionError(error:unknown){
+    if(this.status==='ended')return;
+    this.connectionProblem=error instanceof Error?error.message:'连接中断';
+    this.status=error instanceof ApiError&&[403,410].includes(error.status)?'ended':'offline';
+  }
+  get restoreStatus():RestoreStatus{
+    const backup=this.frame?.domains.backup;
+    const status=backup?.restoreState as RestoreStatus|undefined;
+    if(status)return status;
+    const active=backup?.activeRestore as {message?:string}|undefined;
+    if(active&&Object.keys(active).length>0)return {phase:'restoring',message:active.message||'正在恢复桌面',canChangeBackups:false,canRetry:false};
+    const record=backup?.lastRestore as {phase?:string}|undefined;
+    if(backup?.backupRecoveryError||record?.phase==='applying'||record?.phase==='unknown'){
+      return {phase:'needs-review',message:String(backup?.backupRecoveryError||'桌面恢复结果待核对'),canChangeBackups:!backup?.backupRecoveryError,canRetry:!!backup?.backupRecoveryError};
+    }
+    if(record?.phase==='complete')return {phase:'complete',message:'桌面配置已恢复',canChangeBackups:true,canRetry:false};
+    if(record?.phase==='rolled-back')return {phase:'rolled-back',message:'已恢复到操作前的桌面配置',canChangeBackups:true,canRetry:false};
+    return {phase:'idle',message:'',canChangeBackups:true,canRetry:false};
+  }
+  get restoring(){const phase=this.restoreStatus.phase;return phase==='restoring'||phase==='recovering';}
   update(key:string,value:Value,delay=0,expected?:string){
     const field=this.metadata?.fields[key];if(!field||!this.frame||this.status==='ended'||this.restoring)return;
     const previous=this.pending.get(key);clearTimeout(previous?.timer);
@@ -104,17 +129,21 @@ export class PhoneClient {
     const committed=result.committedRevision||this.frame?.revisions[request.domain];
     if(committed)for(const item of this.pending.values())if(item.domain===request.domain&&item.base===request.revision)item.base=committed;
     if(attempt.version!==undefined&&this.pending.get(request.field)?.version===attempt.version)this.pending.delete(request.field);
-    this.attempt=undefined;this.status='connected';this.problem='';
+    this.attempt=undefined;this.status='connected';this.connectionProblem=this.writeProblem='';
     this.reportResult(result,attempt);
-    if(result.operation?.endsConnection){this.status='ended';this.problem='恢复请求已受理，本次连接已结束。请重新打开收藏的网址核对电视恢复记录。';}
+    if(result.operation?.endsConnection){this.status='ended';this.connectionProblem='恢复请求已受理，本次连接已结束。请重新打开收藏的网址核对电视恢复记录。';}
   }
   private rejectAttempt(error:unknown,attempt:Attempt){
     const detail=error instanceof Error?error.message:'操作结果待核对',known=error instanceof ApiError&&error.status<500,key=`${known}:${detail}`;if(attempt.announce!==false&&attempt.request.domain!=='icons'&&attempt.request.domain!=='uploads'&&attempt.feedbackState!==key){attempt.feedbackState=key;this.onOperation?.({kind:known?'error':'info',title:known?`${operationLabel(attempt.request.domain,attempt.request.field,this.metadata)}失败`:'结果待核对',detail});}
     if(error instanceof ApiError&&error.status<500){
       if(attempt.version!==undefined){const item=this.pending.get(attempt.request.field);if(item?.version===attempt.version){item.error=error.message;item.errorStatus=error.status;}}
       this.attempt=undefined;
-    }else attempt.uncertain=true;
-    this.handle(error);
+      if(![403,410].includes(error.status)&&this.status!=='ended'){
+        this.status='connected';this.connectionProblem='';this.writeProblem=detail;
+        return;
+      }
+    }else{attempt.uncertain=true;attempt.problem=detail;}
+    this.handleConnectionError(error);
   }
   private async receipt(attempt:Attempt){
     try{return await this.fetch(`api/requests/${attempt.request.requestId}`) as Receipt;}
@@ -126,9 +155,10 @@ export class PhoneClient {
   }
   private async send(attempt:Attempt){
     this.attempt=attempt;
+    this.publish();
     try{
       let result:Receipt;
-      try{result=await this.fetch('api/settings',attempt.request);}catch(error){if(error instanceof ApiError&&error.status<500)throw error;attempt.uncertain=true;result=await this.receipt(attempt);}
+      try{result=await this.fetch('api/settings',attempt.request);}catch(error){if(error instanceof ApiError&&error.status<500)throw error;attempt.uncertain=true;this.publish();result=await this.receipt(attempt);}
       this.acceptReceipt(result,attempt);return result;
     }catch(error){this.rejectAttempt(error,attempt);throw error;}
   }
@@ -143,7 +173,6 @@ export class PhoneClient {
     const pending=[...this.pending.values()].find(item=>item.ready&&!item.error);if(!pending)return;
     this.running=true;this.version++;
     const request={requestId:`phone_${Date.now().toString(36)}_${++this.requestCount}`,generation:this.frame.generation,sequence:++this.sequence,domain:pending.domain,field:pending.key,revision:pending.base,value:pending.value};
-    this.publish();
     try{await this.send({request,version:pending.version});}catch{}finally{this.running=false;this.publish();void this.drain();}
   }
   refreshClockMetadata(){
@@ -157,14 +186,14 @@ export class PhoneClient {
       if(!this.frame){
         const status=await this.fetch('status');
         if(status.state!=='connected'){
-          if(this.currentRead(read,version)){this.status='pairing';this.problem='';}
+          if(this.currentRead(read,version)){this.status='pairing';this.connectionProblem='';}
           return;
         }
       }
       const frame:Frame|null=await this.fetch(full||!this.frame||this.needsMetadata?'api/bootstrap':`api/state?since=${encodeURIComponent(this.frame.revision)}`);
       this.acceptRead(frame,read,version);
       if(this.needsMetadata&&this.currentRead(read,version))this.acceptRead(await this.fetch('api/bootstrap'),read,version);
-    }catch(error){if(this.currentRead(read,version))this.handle(error);}
+    }catch(error){if(this.currentRead(read,version))this.handleConnectionError(error);}
     finally{this.publish();void this.drain();}
   }
   async pair(code:string){
@@ -172,12 +201,28 @@ export class PhoneClient {
     await this.refresh();
     if(this.status==='pairing')throw new Error('当前浏览器未保存授权，请允许网站数据后重试');
   }
-  async refreshNow(){await this.refresh();this.onOperation?.(this.status==='connected'?{kind:'success',title:'状态已更新'}:{kind:'error',title:'刷新失败',detail:this.problem||'请重新连接电视后重试'});}
-  async useTelevision(){while(this.running)await new Promise(resolve=>setTimeout(resolve,50));this.version++;this.attempt=undefined;for(const pending of this.pending.values())clearTimeout(pending.timer);this.pending.clear();await this.refresh();}
-  async retry(){await this.refresh();if(!this.frame||this.attempt||this.status!=='connected')return;for(const pending of this.pending.values()){pending.base=this.frame.revisions[pending.domain];pending.error=undefined;pending.errorStatus=undefined;pending.ready=true;}void this.drain();}
+  async refreshNow(){
+    if(this.running)return;
+    await this.refresh();
+    if(this.attempt?.uncertain&&this.status!=='ended')this.onOperation?.({kind:'info',title:'操作结果仍待核对',detail:this.attempt.problem});
+    else this.onOperation?.(this.status==='connected'?{kind:'success',title:'状态已更新'}:{kind:'error',title:'刷新失败',detail:this.connectionProblem||'请重新连接电视后重试'});
+  }
+  async useTelevision(){
+    if(!this.sync.canDiscard)return;
+    this.version++;
+    for(const pending of this.pending.values())clearTimeout(pending.timer);
+    this.pending.clear();this.writeProblem='';this.publish();
+    await this.refresh();
+  }
+  async retry(){
+    await this.refresh();
+    if(!this.frame||!this.sync.canReapply)return;
+    for(const pending of this.pending.values()){pending.base=this.frame.revisions[pending.domain];pending.error=undefined;pending.errorStatus=undefined;pending.ready=true;}
+    void this.drain();
+  }
   async command(domain:string,field:string,value:Value,expected?:string,announce=true){
     this.waitingCommands++;try{while(this.running)await new Promise(resolve=>setTimeout(resolve,50));}finally{this.waitingCommands--;}
-    const problem=!this.frame||this.status==='ended'?'连接已结束':this.attempt?'上次操作结果待确认，请先核对设置':this.restoring?'桌面正在恢复，请等待完成后核对配置':'';if(problem){if(announce&&domain!=='icons')this.onOperation?.({kind:'info',title:'操作尚未提交',detail:problem});throw new Error(problem);}this.running=true;this.version++;this.publish();
+    const problem=!this.frame||this.status==='ended'?'连接已结束':this.attempt?'上次操作结果待确认，请先核对设置':this.restoring?'桌面正在恢复，请等待完成后核对配置':'';if(problem){if(announce&&domain!=='icons')this.onOperation?.({kind:'info',title:'操作尚未提交',detail:problem});throw new Error(problem);}this.running=true;this.version++;
     const request={requestId:`action_${Date.now().toString(36)}_${++this.requestCount}`,generation:this.frame!.generation,sequence:++this.sequence,domain,field,revision:expected??this.frame!.revisions[domain],value};
     try{return await this.send({request,announce});}finally{this.running=false;this.publish();void this.drain();}
   }
@@ -195,7 +240,7 @@ export class PhoneClient {
         // Ignore reads started before this confirmed grant; they may still report it as unauthorized.
         this.version++;
         this.frame={...this.frame,domains:{...this.frame.domains,parent:{configured:result.configured,authorized:result.authorized,retrySeconds:result.retrySeconds}}};
-        this.status='connected';if(!this.attempt)this.problem='';this.publish();
+        this.status='connected';this.connectionProblem=this.writeProblem='';this.publish();
       }
       if(['setup','change','recover','verify'].includes(action))this.onOperation?.({kind:'success',title:action==='verify'?'家长验证成功':action==='change'?'密码修改成功':action==='recover'?'密码重设成功':'密码设置成功'});
       void this.refresh();
@@ -217,7 +262,26 @@ export class PhoneClient {
     }catch(error){const task:Task=await this.fetch(`api/tasks/${id}`);await this.refresh();if(task.state==='completed')return task;throw new UploadError(task);}
     const task:Task=await this.fetch(`api/tasks/${id}`);await this.refresh();if(task.state!=='completed')throw new UploadError(task);return task;
   }
-  get sync(){return this.status==='ended'?'ended':[...this.pending.values()].some(p=>p.error)?[...this.pending.values()].some(p=>p.errorStatus===409)?'conflict':'failed':this.status==='offline'?'offline':this.attempt?.uncertain?'checking':this.pending.size||this.running?'saving':'synced';}
+  get sync(){
+    const attempt=this.attempt;
+    const receipt:WriteReceipt=attempt?{
+      state:attempt.uncertain?'checking':'sending',requestId:attempt.request.requestId,domain:attempt.request.domain,
+      field:attempt.request.field,message:attempt.problem||''
+    }:{state:'idle'};
+    const drafts=[...this.pending.values()].map(draft=>{
+      let state:DraftStatus='queued';
+      if(draft.error)state=draft.errorStatus===409?'conflict':'rejected';
+      else if(attempt?.version===draft.version)state=attempt.uncertain?'checking':'sending';
+      return {key:draft.key,domain:draft.domain,value:draft.value,error:draft.error,state,
+        televisionValue:this.frame?.domains[draft.domain]?.[draft.key]};
+    });
+    const connection={state:this.status,message:this.connectionProblem};
+    const saving=this.running||drafts.some(draft=>draft.state==='queued'||draft.state==='sending');
+    return {connection,receipt,drafts,saving,
+      canRefresh:!this.running&&this.status!=='ended',
+      canDiscard:drafts.length>0&&!this.running&&(!attempt||this.status==='ended'),
+      canReapply:drafts.length>0&&this.status==='connected'&&!this.running&&!attempt&&!this.restoring};
+  }
 }
 
 export function newId(){const bytes=crypto.getRandomValues(new Uint8Array(16));bytes[6]=(bytes[6]&15)|64;bytes[8]=(bytes[8]&63)|128;const hex=[...bytes].map(value=>value.toString(16).padStart(2,'0')).join('');return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;}
