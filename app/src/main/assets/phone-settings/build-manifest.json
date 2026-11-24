@@ -21,7 +21,7 @@
     "src/ChildQuiz.tsx": "98617e497839a389f39a1011311c40e4a1b330c054cf76c509ae75bf1f988c98",
     "src/ChildTime.tsx": "60daa6d254f25652c61cc8abb2c30da65c50958563efd20ece870ba9b20d817d",
     "src/Components.tsx": "43b8d87b087d219a1006d61843323d824905a1fcdd81abcd1ecddaa3e5d91653",
-    "src/CoverCrop.tsx": "421568d60ae74ff9c2f43d04b68b1dcf4d7d7db2151e7c1ec9aca5ba46799c42",
+    "src/CoverCrop.tsx": "7f6791cf036c28283c639c4cf083477a196dd78ac7fc241a3edb557fbc0556ff",
     "src/DailyWallpaperDetails.tsx": "69708bc9be6bf5caae39a45f068b67f557b7b0b6e7b06f3aa154c131cc846830",
     "src/DailyWallpaperRefresh.tsx": "19a920b76bbf9b54bb17004c5673a4d5f597b9ecd96d8c421f19fb4198099911",
     "src/DailyWallpaperSource.tsx": "9c625bdf18e61a9a826847935ced1134b96d8a3ea6cfb4cb3afa83958c819be9",
@@ -70,7 +70,7 @@
     "public/tmdb.svg": "8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c"
   },
   "assets": {
-    "app.js": "041d0ee7a4478b6eaf71f9919f06d6e4b5904eebf8cecd1e230ab2eddb49bd8a",
+    "app.js": "e7be9278e66130f66b1c0f1579edb00847221e0e62ec48b7d912fb8e439657ab",
     "assets/file-folder.svg": "ceee8c7ec763f01505483702abaa19030e10b11d132b72079ec8d8574c8222dc",
     "assets/flip_clock.wav": "712c85fe9eddafc4ba9edbc211705bbc4f40f2e8239688b9fac355e3d852e4d0",
     "assets/qq-group.webp": "9d31d757ec3ec26b66cf11b8c40903270332bc3a8fca7dccd3c6ec4c1f5a36d9",

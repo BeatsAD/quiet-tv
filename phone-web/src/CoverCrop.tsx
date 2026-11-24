@@ -84,8 +84,8 @@ export function CoverCrop({file,shape,currentShape,busy,appName,onUpload}:{
         if(!start||start.id!==event.pointerId||!image||disabled)return;
         const rect=cropGeometry(image.naturalWidth,image.naturalHeight,zoom,start.panX,start.panY,{width,height});
         const scale=width/event.currentTarget.getBoundingClientRect().width,dx=rect.width-width,dy=rect.height-height;
-        setPan({x:Math.abs(dx)>1?clamp(start.panX-(event.clientX-start.x)*scale/dx):50,
-          y:Math.abs(dy)>1?clamp(start.panY-(event.clientY-start.y)*scale/dy):50});
+        setPan({x:Math.abs(dx)>1?clamp(start.panX-(event.clientX-start.x)*scale/dx*100):50,
+          y:Math.abs(dy)>1?clamp(start.panY-(event.clientY-start.y)*scale/dy*100):50});
       }}
       onPointerUp={()=>{drag.current=null;}} onPointerCancel={()=>{drag.current=null;}} onLostPointerCapture={()=>{drag.current=null;}}/>
     {!image&&!error&&<p role="status">正在读取图片…</p>}
