@@ -101,7 +101,7 @@ final class ScreensaverPreviewView extends FrameLayout {
     void show(ScreensaverSettings settings,String candidate){this.settings=settings;this.candidate=candidate==null?"":candidate;updateFlipSound();refreshTime();load();}
     private final Runnable dailyQuoteChanged=()->refreshQuote(System.currentTimeMillis(),false);
     private void refreshQuote(long now,boolean retry){
-        information.refreshQuote(now,new DesktopSettingsStore(ui).showScreensaverQuote(),active&&isShown()&&hasWindowFocus(),retry);
+        information.refreshQuote(now,settings!=null&&!settings.digitalMode()&&new DesktopSettingsStore(ui).showScreensaverQuote(),active&&isShown()&&hasWindowFocus(),retry);
     }
     private void renderInformation(long now){
         if(settings==null)return;renderedMinute=now/60000;refreshQuote(now,false);WeatherData data=new WeatherStore(ui).cached(ui.chinese());boolean available=data!=null&&data.usable(now);

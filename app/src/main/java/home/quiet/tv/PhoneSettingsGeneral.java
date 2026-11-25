@@ -58,6 +58,17 @@ final class PhoneSettingsGeneral {
             if(domain.equals("guard"))return actions.onMain(()->{
                 String message;
                 if(field.equals("system")){Intent intent=MaintenanceHelpActivity.homeSettingsIntent(context);if(intent==null)throw new PhoneSettingsServer.Rejected("此电视没有默认桌面选择入口，请沿电视说明通过电脑配置");intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);if(!ExternalActivityLauncher.open(context,"phone.home_settings",intent))throw new PhoneSettingsServer.Rejected("默认桌面选择入口不可用");message="已打开电视系统选择，请完成后检查实际 HOME 行为";}
+                else if(("repair".equals(field)||"repairAccessibility".equals(field))&&Boolean.TRUE.equals(value))
+                    message=DesktopSwitch.get(context).repairGuard(context,"repairAccessibility".equals(field));
+                else if(("accessibility".equals(field)||"notification".equals(field))&&Boolean.TRUE.equals(value)){
+                    JSONObject settings=DesktopSwitch.get(context).state().optJSONObject("settings");
+                    JSONObject setup=settings==null?null:settings.optJSONObject("guardSetup");
+                    if(setup==null||!setup.optBoolean(field+"Settings"))throw new PhoneSettingsServer.Rejected("当前权限入口不可用，请在电视核对桌面状态");
+                    Intent intent=new DesktopGuardSetup(context).settings(field);
+                    if(intent==null||!ExternalActivityLauncher.open(context,"phone.guard."+field,intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)))
+                        throw new PhoneSettingsServer.Rejected("系统授权入口不可用，请通过电脑继续");
+                    message=DesktopGuardSetup.permissionPrompt(context,field);
+                }
                 else if(field.equals("pause")||field.equals("restore"))message=MaintenanceHelpActivity.perform(context,field.equals("restore"));else throw new IllegalArgumentException();changed.run();return new JSONObject().put("message",message).put("state","waitingTelevision");
             },active);
             if(domain.equals("inputs")&&field.equals("autoEnter"))return inputAutoEnter(value,active);

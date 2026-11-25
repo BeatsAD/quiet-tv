@@ -2,6 +2,7 @@ package home.quiet.tv;
 
 import android.content.Context;
 import android.graphics.*;
+import android.os.Build;
 import androidx.exifinterface.media.ExifInterface;
 import java.io.*;
 
@@ -94,46 +95,89 @@ final class WallpaperImages {
         }
         return options;
     }
-    static int[] inspectOriginal(File input)throws IOException{
-        BitmapFactory.Options options=bounds(input);
-        int width=options.outWidth,height=options.outHeight;
+    private static void validateOriginal(File input,int longEdge)throws IOException{
         // Validate decodability without allocating a full-resolution bitmap or rewriting the file.
-        options.inJustDecodeBounds=false;options.inSampleSize=1;
-        while(Math.max(width,height)/(options.inSampleSize*2)>=256)options.inSampleSize*=2;
+        BitmapFactory.Options options=new BitmapFactory.Options();options.inSampleSize=1;
+        while(longEdge/(options.inSampleSize*2)>=256)options.inSampleSize*=2;
         Bitmap check=BitmapFactory.decodeFile(input.getPath(),options);
         if(check==null)throw new IOException("无法读取图片 / Cannot decode image");
         check.recycle();
-        int rotation=new ExifInterface(input).getRotationDegrees();
-        return rotation%180==0?new int[]{width,height}:new int[]{height,width};
     }
     // Leave images within 4K byte-for-byte intact; only larger imports create an output file.
     static int[] prepareImport(File input,File output)throws IOException{
-        int[] size=inspectOriginal(input);
-        double scale=Math.min(1d,Math.min(IMPORT_LONG_EDGE/(double)Math.max(size[0],size[1]),IMPORT_SHORT_EDGE/(double)Math.min(size[0],size[1])));
-        if(scale==1d)return size;
-        int width=Math.max(1,(int)Math.floor(size[0]*scale)),height=Math.max(1,(int)Math.floor(size[1]*scale));
-        BitmapFactory.Options options=bounds(input);
-        options.inJustDecodeBounds=false;options.inSampleSize=1;
-        while(size[0]/(options.inSampleSize*2)>=width&&size[1]/(options.inSampleSize*2)>=height)options.inSampleSize*=2;
-        // Bound intermediate pixels as on the display path, including very tall/wide inputs.
-        while((long)((options.outWidth+options.inSampleSize-1)/options.inSampleSize)*((options.outHeight+options.inSampleSize-1)/options.inSampleSize)>2L*width*height)options.inSampleSize*=2;
-        Bitmap source=BitmapFactory.decodeFile(input.getPath(),options);
+        BitmapFactory.Options bounds=bounds(input);
+        int sourceWidth=bounds.outWidth,sourceHeight=bounds.outHeight;
+        ExifInterface exif=new ExifInterface(input);
+        boolean swap=exif.getRotationDegrees()%180!=0;
+        int longEdge=Math.max(sourceWidth,sourceHeight),shortEdge=Math.min(sourceWidth,sourceHeight);
+        if(longEdge<=IMPORT_LONG_EDGE&&shortEdge<=IMPORT_SHORT_EDGE){
+            validateOriginal(input,longEdge);
+            return swap?new int[]{sourceHeight,sourceWidth}:new int[]{sourceWidth,sourceHeight};
+        }
+        Rect crop=importCrop(sourceWidth,sourceHeight,swap);
+        int cropWidth=swap?crop.height():crop.width(),cropHeight=swap?crop.width():crop.height();
+        double scale=Math.min(1d,Math.min(IMPORT_LONG_EDGE/(double)cropWidth,IMPORT_SHORT_EDGE/(double)cropHeight));
+        int width=Math.max(1,(int)Math.round(cropWidth*scale)),height=Math.max(1,(int)Math.round(cropHeight*scale));
+        boolean cropped=crop.width()!=sourceWidth||crop.height()!=sourceHeight;
+        Bitmap prepared=Build.VERSION.SDK_INT>=28&&!cropped?Api28.scaled(input,width,height,null):null;
+        if(prepared==null)prepared=prepareSampled(input,sourceWidth,sourceHeight,crop,cropped,exif,swap,width,height);
+        try{
+            try(FileOutputStream stream=new FileOutputStream(output)){
+                if(!prepared.compress(Bitmap.CompressFormat.PNG,100,stream))throw new IOException("Unable to encode image");stream.getFD().sync();
+            }
+            return new int[]{prepared.getWidth(),prepared.getHeight()};
+        }finally{prepared.recycle();}
+    }
+    private static Rect importCrop(int width,int height,boolean swap){
+        // Decode coordinates follow the encoded axes. A 90° EXIF rotation swaps them.
+        int horizontal=swap?9:16,vertical=swap?16:9;
+        int units=Math.min(width/horizontal,height/vertical);
+        if(units==0)return new Rect(0,0,width,height);
+        int left=(width-units*horizontal)/2,top=(height-units*vertical)/2;
+        return new Rect(left,top,left+units*horizontal,top+units*vertical);
+    }
+    private static Bitmap prepareSampled(File input,int sourceWidth,int sourceHeight,Rect crop,boolean cropped,
+                                         ExifInterface exif,boolean swap,int width,int height)throws IOException{
+        BitmapFactory.Options options=new BitmapFactory.Options();
+        int rawWidth=swap?height:width,rawHeight=swap?width:height;
+        long budget=2L*width*height;
+        Bitmap source=null;
+        if(cropped){
+            // With native bitmap allocation, keep a sample that covers the target whenever possible.
+            long regionBudget=Build.VERSION.SDK_INT>=26?2*budget:budget;
+            options.inSampleSize=importSample(crop.width(),crop.height(),rawWidth,rawHeight,regionBudget);
+            source=decodeRegion(input,crop,options);
+        }
+        if(source==null){
+            options.inSampleSize=importSample(sourceWidth,sourceHeight,rawWidth,rawHeight,budget);
+            source=BitmapFactory.decodeFile(input.getPath(),options);
+        }
         if(source==null)throw new IOException("无法读取图片 / Cannot decode image");
         Bitmap prepared=null;
         try{
-            ExifInterface exif=new ExifInterface(input);Matrix matrix=orientation(exif);
-            boolean swap=exif.getRotationDegrees()%180!=0;
-            matrix.postScale(width/(float)(swap?source.getHeight():source.getWidth()),height/(float)(swap?source.getWidth():source.getHeight()));
-            prepared=Bitmap.createBitmap(source,0,0,source.getWidth(),source.getHeight(),matrix,true);
-            Bitmap.CompressFormat format=prepared.hasAlpha()?Bitmap.CompressFormat.PNG:Bitmap.CompressFormat.JPEG;
-            try(FileOutputStream stream=new FileOutputStream(output)){
-                if(!prepared.compress(format,90,stream))throw new IOException("Unable to encode image");stream.getFD().sync();
-            }
-            return new int[]{prepared.getWidth(),prepared.getHeight()};
+            Rect area=importCrop(source.getWidth(),source.getHeight(),swap);
+            Matrix matrix=orientation(exif);
+            float scale=Math.min(1f,Math.min(rawWidth/(float)area.width(),rawHeight/(float)area.height()));
+            matrix.postScale(scale,scale);
+            prepared=Bitmap.createBitmap(source,area.left,area.top,area.width(),area.height(),matrix,true);
+            return prepared;
         }finally{
-            if(prepared!=null&&prepared!=source)prepared.recycle();
-            source.recycle();
+            if(prepared!=source)source.recycle();
         }
+    }
+    private static int importSample(int width,int height,int targetWidth,int targetHeight,long budget){
+        int sample=1;
+        while(width/(sample*2)>=targetWidth&&height/(sample*2)>=targetHeight)sample*=2;
+        while((long)((width+sample-1)/sample)*((height+sample-1)/sample)>budget)sample*=2;
+        return sample;
+    }
+    private static Bitmap decodeRegion(File input,Rect crop,BitmapFactory.Options options){
+        BitmapRegionDecoder decoder=null;
+        try{
+            decoder=BitmapRegionDecoder.newInstance(input.getPath(),false);
+            return decoder.decodeRegion(crop,options);
+        }catch(IOException|RuntimeException|OutOfMemoryError unavailable){return null;}
+        finally{if(decoder!=null)decoder.recycle();}
     }
     private static Matrix orientation(ExifInterface exif){
         Matrix matrix=new Matrix();if(exif.isFlipped())matrix.postScale(-1,1);matrix.postRotate(exif.getRotationDegrees());return matrix;
@@ -141,13 +185,16 @@ final class WallpaperImages {
     static int displaySample(int width,int height,int targetWidth,int targetHeight,int memoryEdge){
         int sample=1;
         while(width/(sample*2)>=targetWidth&&height/(sample*2)>=targetHeight)sample*=2;
+        long budget=displayBudget(targetWidth,targetHeight,memoryEdge);
+        while((long)((width+sample-1)/sample)*((height+sample-1)/sample)>budget)sample*=2;
+        return sample;
+    }
+    private static long displayBudget(int targetWidth,int targetHeight,int memoryEdge){
         long targetPixels=(long)targetWidth*targetHeight;
         long tierPixels=(long)memoryEdge*memoryEdge*9/16;
         // A power-of-two sample can need almost four decoded pixels per target pixel. Allow
         // that headroom within the device tier and preserve the existing large-target budget.
-        long budget=Math.max(2*targetPixels,Math.min(4*targetPixels,tierPixels));
-        while((long)((width+sample-1)/sample)*((height+sample-1)/sample)>budget)sample*=2;
-        return sample;
+        return Math.max(2*targetPixels,Math.min(4*targetPixels,tierPixels));
     }
     private static Bitmap decodeOriginal(File input,int width,int height,int limit,int memoryEdge)throws IOException{
         BitmapFactory.Options options=bounds(input);
@@ -160,11 +207,24 @@ final class WallpaperImages {
         targetWidth=Math.max(1,Math.round(targetWidth*sourceFit));targetHeight=Math.max(1,Math.round(targetHeight*sourceFit));
         options.inJustDecodeBounds=false;
         options.inSampleSize=displaySample(orientedWidth,orientedHeight,targetWidth,targetHeight,memoryEdge);
+        if(Build.VERSION.SDK_INT>=28&&(orientedWidth/options.inSampleSize<targetWidth||orientedHeight/options.inSampleSize<targetHeight)){
+            double scale=Math.max(targetWidth/(double)orientedWidth,targetHeight/(double)orientedHeight);
+            int scaledWidth=Math.max(targetWidth,(int)Math.round(orientedWidth*scale));
+            int scaledHeight=Math.max(targetHeight,(int)Math.round(orientedHeight*scale));
+            // ImageDecoder's crop is in scaled coordinates. Bound the full scaled image as well.
+            if((long)scaledWidth*scaledHeight<=displayBudget(targetWidth,targetHeight,memoryEdge)){
+                int left=(scaledWidth-targetWidth)/2,top=(scaledHeight-targetHeight)/2;
+                Bitmap scaled=Api28.scaled(input,scaledWidth,scaledHeight,new Rect(left,top,left+targetWidth,top+targetHeight));
+                if(scaled!=null)return scaled;
+            }
+        }
         Bitmap source=BitmapFactory.decodeFile(input.getPath(),options);
         if(source==null)throw new IOException("无法读取图片 / Cannot decode image");
         Bitmap display=null;
         try {
             Matrix matrix=orientation(exif);RectF rectangle=new RectF(0,0,source.getWidth(),source.getHeight());matrix.mapRect(rectangle);
+            float sampledFit=Math.min(1f,Math.min(rectangle.width()/targetWidth,rectangle.height()/targetHeight));
+            targetWidth=Math.max(1,Math.round(targetWidth*sampledFit));targetHeight=Math.max(1,Math.round(targetHeight*sampledFit));
             float scale=Math.max(targetWidth/rectangle.width(),targetHeight/rectangle.height());
             matrix.postTranslate(-rectangle.left,-rectangle.top);matrix.postScale(scale,scale);
             matrix.postTranslate((targetWidth-rectangle.width()*scale)/2,(targetHeight-rectangle.height()*scale)/2);
@@ -173,5 +233,21 @@ final class WallpaperImages {
             return display;
         }catch(RuntimeException|OutOfMemoryError failure){if(display!=null)display.recycle();throw failure;}
         finally{source.recycle();}
+    }
+    @androidx.annotation.RequiresApi(28)
+    private static class Api28 {
+        static Bitmap scaled(File input,int width,int height,Rect crop){
+            try{
+                return ImageDecoder.decodeBitmap(ImageDecoder.createSource(input),(decoder,info,source)->{
+                    decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE);
+                    decoder.setTargetSize(width,height);
+                    if(crop!=null){
+                        decoder.setCrop(crop);
+                        decoder.setTargetColorSpace(ColorSpace.get(ColorSpace.Named.SRGB));
+                        decoder.setPostProcessor(canvas->{canvas.drawColor(Color.BLACK,PorterDuff.Mode.DST_OVER);return PixelFormat.OPAQUE;});
+                    }
+                });
+            }catch(IOException|OutOfMemoryError unavailable){return null;}
+        }
     }
 }

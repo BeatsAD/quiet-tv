@@ -72,8 +72,9 @@
 .tv-quote span { display:-webkit-box; overflow:hidden; -webkit-box-orient:vertical; -webkit-line-clamp:2; }
 .tv-quote small { display:block; margin-top:.416667cqw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#e0e0e0; font-size:1.145833cqw; }
 .gallery-layout .tv-quote { max-width:43.75cqw; margin-top:1.041667cqw; text-align:center; }
-.tv-saver-quote { position:absolute; width:66%; left:17%; bottom:15%; text-align:center; pointer-events:none; }
-.tv-saver-quote.above-weather { bottom:22%; }
+.saver-overlays { position:absolute; inset:0; display:grid; grid-template-rows:minmax(0,1fr) auto; pointer-events:none; }
+.saver-overlay-main { position:relative; overflow:hidden; }
+.tv-saver-quote { width:66%; margin:1.96875cqw auto 4.5cqw; text-align:center; }
 .tv-saver-quote .tv-quote { max-width:none; margin:0; }
 .tv-movie-info { top:27.407407%; width:37.5%; color:#fff; text-shadow:var(--wallpaper-text-shadow); }
 .tv-movie-title { display:block; height:3.333333cqw; font-size:2.5cqw; font-weight:500; line-height:3.333333cqw; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -433,6 +434,11 @@ html:has(.quiet-app[data-theme=light]),body:has(.quiet-app[data-theme=light]),#r
 /* Desktop management shares TV state, with the phone's existing sheet and touch controls. */
 .desktop-management .setting-row{min-height:3.125rem}
 .desktop-management .row-value{max-width:57%;white-space:pre-wrap}
+.desktop-guard-status{display:inline-flex;align-items:center;gap:.3125rem;white-space:nowrap}
+.desktop-guard-status>.glyph{width:1rem;height:1rem;flex:none}
+.desktop-guard-status[data-tone=success]{color:var(--green)}
+.desktop-guard-status[data-tone=warning]{color:var(--warning-ink)}
+.desktop-guard-status[data-tone=error]{color:var(--error-ink)}
 .desktop-management-guide{display:flex;min-height:2.75rem;margin-top:.75rem}
 .desktop-management .row-note{white-space:normal}
 

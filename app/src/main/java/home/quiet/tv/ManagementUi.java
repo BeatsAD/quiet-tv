@@ -353,18 +353,18 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity implemen
         tools.setClipChildren(false);tools.setClipToPadding(false);navigation.addView(tools,new HorizontalScrollView.LayoutParams(fit?-1:-2,-1));
         for(int i:MANAGEMENT_ORDER){
             String title=SettingsPages.title(i,chinese());
-            Button tab=tabBar!=null?configureButton(new SettingsTabBar.Tab(tabBar),title,()->{}):button(title,()->{});
+            SettingsTabBar.Tab toolbarTab=tabBar==null?null:new SettingsTabBar.Tab(tabBar);
+            Button tab=toolbarTab!=null?configureButton(toolbarTab,title,()->{}):button(title,()->{});
             managementTab(tab,i,selected,header.getChildAt(0));
             if(fit){tab.setMinWidth(0);tab.setMinimumWidth(0);tab.setPadding(px(8),0,px(8),0);}
             LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(fit?0:-2,px(36),fit?1:0);
             tp.rightMargin=i==MANAGEMENT_ORDER[MANAGEMENT_ORDER.length-1]?0:px(tabBar!=null?9:fit?6:12);
-            if(tabBar!=null){
+            if(toolbarTab!=null){
                 tab.setTextSize(TypedValue.COMPLEX_UNIT_PX,13.5f*unit);
-                tab.setTypeface(navigationTypeface(true));
-                // Reserve room for the selected weight so moving focus never moves the other tabs.
-                tp.width=chinese()?px(title.length()*13.5f+24):(int)Math.ceil(tab.getPaint().measureText(title))+2*px(12);
-                tab.setTypeface(navigationTypeface(tab.isSelected()));
-                tab.setMinWidth(0);tab.setMinimumWidth(0);tab.setPadding(px(12),0,px(12),0);
+                toolbarTab.reserveLabelWidth(navigationTypeface(false),navigationTypeface(true));
+                int padding=px(12);
+                if(i==SettingsPages.HELP)padding=Math.max(padding,UpdateBadgeView.inlineSpace(unit)+px(4));
+                tab.setMinWidth(0);tab.setMinimumWidth(0);tab.setPadding(padding,0,padding,0);
                 StateListDrawable background=new StateListDrawable();
                 background.addState(new int[]{android.R.attr.state_focused,android.R.attr.state_window_focused},new ColorDrawable(Color.TRANSPARENT));
                 background.addState(new int[]{android.R.attr.state_selected},surface(UiPalette.SELECTED,UiPalette.SELECTED,0,999));

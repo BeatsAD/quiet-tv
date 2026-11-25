@@ -38,6 +38,40 @@ final class DesktopSwitch {
     }
     JSONObject execute(String id,String revision,Callable<Boolean> authority)throws Exception {return execute(id,revision,authority,false);}
     JSONObject manage(String id,String revision,Callable<Boolean> authority)throws Exception {return execute(id,revision,authority,true);}
+    JSONObject configureGuard(String original)throws Exception {
+        if(!running.compareAndSet(false,true))throw new IOException("已有桌面操作正在执行，请等待完成。");
+        changed();
+        try {
+            AppOperations.begin();
+            try {
+                DevicePort port=new DevicePort(()->true);
+                JSONObject setup=state().getJSONObject("settings").optJSONObject("guardSetup");
+                if(setup==null || !original.equals(setup.optString("original")))throw new IOException("桌面状态已变化，请重新核对。");
+                port.ui(()->{new DesktopGuardSetup(context).enable(original);return null;});
+            } finally {AppOperations.end();}
+        } finally {running.set(false);changed();}
+        return state();
+    }
+    String repairGuard(Context caller,boolean openSettings)throws Exception {
+        if(!running.compareAndSet(false,true))throw new IOException("已有桌面操作正在执行，请等待完成。");
+        try{
+            AppOperations.begin();
+            try{
+                JSONObject settings=state().optJSONObject("settings");
+                JSONObject repair=settings==null?null:settings.optJSONObject("guardRepair");
+                if(repair==null)throw new IOException("守护状态已变化，请重新核对。");
+                if(!openSettings && repair.optBoolean("canRetry"))
+                    return HomeGuardRecovery.retryExistingBinding(context)
+                            ?"守护已连接，请按遥控器 HOME 键验证。"
+                            :"已请求重新连接，稍后查看守护状态。";
+                Intent intent=new DesktopGuardSetup(caller).settings("accessibility");
+                if(intent!=null && !(caller instanceof android.app.Activity))intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                if(intent==null || !ExternalActivityLauncher.open(caller,"guard.repair.accessibility",intent))
+                    throw new IOException("系统无障碍入口不可用，请通过电脑修复。");
+                return DesktopGuardSetup.permissionPrompt(caller,"accessibility");
+            }finally{AppOperations.end();}
+        }finally{running.set(false);changed();}
+    }
     private JSONObject execute(String id,String revision,Callable<Boolean> authority,boolean management)throws Exception {
         if(!running.compareAndSet(false,true))throw new IOException("已有桌面操作正在执行，请等待完成。");
         boolean locked=false;changed();try{AppOperations.begin();locked=true;DesktopSwitchPlan plan=new DesktopSwitchPlan(new DevicePort(authority));return management?plan.manage(id,revision):plan.run(id,revision);}
@@ -86,10 +120,17 @@ final class DesktopSwitch {
             String problem=paused?"":window||localAdb?"":configured?routes.configurationProblem():"";
             JSONObject takeover=store.get().optJSONObject("takeover");
             boolean review=takeover!=null&&!Arrays.asList("applied","restored","rolled-back").contains(takeover.optString("state"));
+            String homeRoute=routes.home();
             if(!paused&&needed)review|=window?!LegacyWindowHomeGuard.enabled(context):localAdb?!LegacyAdbHomeGuard.enabled(context):
-                !routes.current()||routes.proxyUpgradePending()||!guard.validSelection()||guard.enabled()&&HomeGuardRecovery.bindingBlocked(context)
-                ||"DIRECT".equals(routes.home())&&!actual.isOwn(context)||proxy&&!actual.isProxy(context)
-                ||!Arrays.asList("DIRECT","RELAY").contains(routes.home());
+                !routes.current()||routes.proxyUpgradePending()||!guard.validSelection()
+                ||"DIRECT".equals(homeRoute)&&!actual.isOwn(context)||proxy&&!actual.isProxy(context)
+                ||!Arrays.asList("DIRECT","RELAY").contains(homeRoute);
+            boolean builtInGuard=!paused&&needed&&!window&&!localAdb&&!proxy&&guard.enabled();
+            boolean bindingChanged=builtInGuard&&HomeGuardRecovery.bindingBlocked(context);
+            boolean repairable=builtInGuard&&(!ready||bindingChanged)&&!review
+                    &&actual.known&&actual.ownUsable&&guard.recoveryReady()&&!guard.helperActive()
+                    &&("DIRECT".equals(homeRoute)||actual.actual.equals(guard.selected()));
+            review|=bindingChanged;
             if(review&&problem.isEmpty())problem="原有桌面配置或恢复记录需要核对，请通过电脑继续原任务。";
             ready&=!review;
             for(String scene:new String[]{"home","reboot","coldBoot","wake"})verification.put(scene,routes.test(scene));
@@ -100,6 +141,8 @@ final class DesktopSwitch {
                 .put("externalHelper",guard.helperActive()).put("proxyPausePending",guard.preferences.getBoolean("proxyPausePending",false))
                 .put("verification",verification).put("canVerify",routes.current()&&!window&&!localAdb)
                 .put("systemSelection",MaintenanceHelpActivity.homeSettingsIntent(context)!=null)
+                .put("guardSetup",configured?null:new DesktopGuardSetup(context).status(guard,actual))
+                .put("guardRepair",repairable?new DesktopGuardSetup(context).repairStatus(guard):null)
                 .put("managementConnected",management!=null&&management.adb.connected());
         }
         private JSONObject preferences(String[] keys)throws JSONException{JSONObject values=new JSONObject();Map<String,?> all=guard.preferences.getAll();for(String key:keys)values.put(key,all.containsKey(key)?all.get(key):JSONObject.NULL);return values;}

@@ -819,7 +819,9 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                         app.libraryCover=covers.contain(pkg);app.trialArtwork=trial;
                     }
                 }
-                app.color=sampleColor(app.banner);found.add(app);freshCache.put(key,app);
+                app.color=sampleColor(app.banner);
+                if(app.libraryCover)app.banner=AppArtwork.desktopCover(this,pkg,app.banner);
+                found.add(app);freshCache.put(key,app);
             }
             artworkCache.clear();artworkCache.putAll(freshCache);
             if(desktopSettings.showWatchTv()){
@@ -1483,13 +1485,15 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             labelPaint.setTextAlign(Paint.Align.CENTER);
             setOnClickListener(v->{if(app!=null){if(!movingPackage.isEmpty()){saveMove();return;}selectTile(this);launchSelected();}});
             setOnLongClickListener(v->{if(app==null||!movingPackage.isEmpty())return true;selectTile(this);openAppActions(app);return true;});}
-        void bind(App value){if(app!=null && visibleTiles.get(app.pkg)==this)visibleTiles.remove(app.pkg);transformTile(this,1,0,0,false,0);app=value;setBackgroundDrawable(ADD_DOCK_ENTRY.equals(app.pkg)?new DockBackdropDrawable(wallpapers::drawDockBackground,this,root,unit,true):null);artwork=app.libraryCover?null:new BitmapShader(app.banner,Shader.TileMode.CLAMP,Shader.TileMode.CLAMP);updateArtwork();visibleTiles.put(app.pkg,this);setContentDescription(app.label);invalidate();}
+        void bind(App value){if(app!=null && visibleTiles.get(app.pkg)==this)visibleTiles.remove(app.pkg);transformTile(this,1,0,0,false,0);app=value;setBackgroundDrawable(ADD_DOCK_ENTRY.equals(app.pkg)?new DockBackdropDrawable(wallpapers::drawDockBackground,this,root,unit,true):null);artwork=app.libraryCover&&app.banner.hasAlpha()?null:new BitmapShader(app.banner,Shader.TileMode.CLAMP,Shader.TileMode.CLAMP);updateArtwork();visibleTiles.put(app.pkg,this);setContentDescription(app.label);invalidate();}
         float imageHeight(){return app!=null&&ADD_DOCK_ENTRY.equals(app.pkg)?getHeight():getWidth()/("rectangle".equals(desktopSettings.iconShape())?16/9f:1);}
         @Override protected void onSizeChanged(int w,int h,int oldw,int oldh){super.onSizeChanged(w,h,oldw,oldh);updateArtwork();}
         private void updateArtwork(){
             if(app==null)return;
-            if(app.libraryCover){float[] fit=LibraryCover.fit(app.banner.getWidth(),app.banner.getHeight(),getWidth(),imageHeight());containedArtwork.set(fit[0],fit[1],fit[2],fit[3]);return;}
-            float scale=Math.max(getWidth()/(float)app.banner.getWidth(),imageHeight()/app.banner.getHeight());artworkMatrix.setScale(scale,scale);artworkMatrix.postTranslate((getWidth()-app.banner.getWidth()*scale)/2,(imageHeight()-app.banner.getHeight()*scale)/2);artwork.setLocalMatrix(artworkMatrix);
+            if(artwork==null){float[] fit=LibraryCover.fit(app.banner.getWidth(),app.banner.getHeight(),getWidth(),imageHeight());containedArtwork.set(fit[0],fit[1],fit[2],fit[3]);return;}
+            float scaleX=getWidth()/(float)app.banner.getWidth(),scaleY=imageHeight()/app.banner.getHeight();
+            float scale=app.libraryCover?Math.min(scaleX,scaleY):Math.max(scaleX,scaleY);
+            artworkMatrix.setScale(scale,scale);artworkMatrix.postTranslate((getWidth()-app.banner.getWidth()*scale)/2,(imageHeight()-app.banner.getHeight()*scale)/2);artwork.setLocalMatrix(artworkMatrix);
         }
         private float cardRadius(float height){
             return !ADD_DOCK_ENTRY.equals(app.pkg)&&"circle".equals(desktopSettings.iconShape())
@@ -1499,7 +1503,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             if(app!=null&&selected==this&&row>=0){
                 float height=imageHeight();
                 imageRect.set(0,0,getWidth(),height);
-                appCardShadow.draw(canvas,imageRect,cardRadius(height),app.libraryCover&&!app.trialArtwork?app.banner:null,
+                appCardShadow.draw(canvas,imageRect,cardRadius(height),artwork==null&&!app.trialArtwork?app.banner:null,
                         containedArtwork,unit);
             }
             super.draw(canvas);
@@ -1562,7 +1566,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             canvas.drawText(labelText,center,baseline,labelPaint);
         }
         private void drawArtwork(Canvas c,RectF rect,float radius,float ry){
-            if(app.libraryCover){paint.setShader(null);c.drawBitmap(app.banner,null,containedArtwork,paint);}
+            if(artwork==null){paint.setShader(null);c.drawBitmap(app.banner,null,containedArtwork,paint);}
             else{paint.setShader(artwork);try{SurfaceCorners.draw(c,rect,radius,ry,paint);}finally{paint.setShader(null);}}
         }
         private void drawTrialPlaceholder(Canvas c,RectF rect,float radius,float ry){

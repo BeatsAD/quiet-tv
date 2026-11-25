@@ -53,6 +53,44 @@ final class AppCoverImages {
         options.inSampleSize=coverSampleSize(options.outWidth,width,android.os.Build.VERSION.SDK_INT);
         return BitmapFactory.decodeFile(file.getPath(),options);
     }
+    /** Prepares an owned cover for the TV card without rewriting the saved artwork. */
+    static Bitmap desktopBacking(Bitmap image,String form){
+        if(!image.hasAlpha()||"transparent".equals(form))return image;
+        int width=image.getWidth(),height=image.getHeight(),middleX=width/2,middleY=height/2;
+        if(!opaque(image,middleX,middleY))return image;
+
+        Rect backing=new Rect(0,0,width,height);
+        while(!opaque(image,backing.left,middleY))backing.left++;
+        while(!opaque(image,backing.right-1,middleY))backing.right--;
+        while(!opaque(image,middleX,backing.top))backing.top++;
+        while(!opaque(image,middleX,backing.bottom-1))backing.bottom--;
+
+        // Uploads lack a form tag. A filled upload must reach an edge of the fitted canvas.
+        if(form.isEmpty()&&backing.width()<width*.98f&&backing.height()<height*.98f)return image;
+        int w=backing.width(),h=backing.height();
+        for(int y=1;y<=3;y++)for(int x=1;x<=3;x++){
+            if(!opaque(image,backing.left+w*x/4,backing.top+h*y/4))return image;
+        }
+
+        int[] pixels=new int[w*h];
+        image.getPixels(pixels,0,w,backing.left,backing.top,w,h);
+        if(!opaque(image,backing.left,backing.top)||!opaque(image,backing.right-1,backing.top)
+                ||!opaque(image,backing.left,backing.bottom-1)||!opaque(image,backing.right-1,backing.bottom-1)){
+            LibraryCover.extendBackground(pixels,w,h);
+        }
+        // The old silhouette is already baked into PNG alpha. Fill the remaining edge pixels
+        // before the shared card path supplies the new antialiased edge.
+        int edge=pixels[w/2]|0xff000000;
+        for(int i=0;i<pixels.length;i++){
+            if((pixels[i]>>>24)!=255)pixels[i]=androidx.core.graphics.ColorUtils.compositeColors(pixels[i],edge);
+        }
+        Bitmap result=Bitmap.createBitmap(pixels,w,h,Bitmap.Config.ARGB_8888);
+        result.setHasAlpha(false);
+        image.recycle();
+        return result;
+    }
+    private static boolean opaque(Bitmap image,int x,int y){return Color.alpha(image.getPixel(x,y))>=250;}
+
     static int coverSampleSize(int sourceWidth,int requestedWidth,int sdk){
         // A 512px square otherwise decodes at full size on low-memory Android 4.x devices.
         int width=Math.max(1,requestedWidth),target=sdk<=19?Math.min(256,width):width,sample=1;

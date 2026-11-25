@@ -72,7 +72,7 @@ final class HomeQuickControlView extends LinearLayout {
     private LinearLayout row(){LinearLayout view=column();view.setOrientation(HORIZONTAL);view.setGravity(Gravity.CENTER_VERTICAL);return view;}
     private TextView label(String value){TextView view=new TextView(context);view.setText(value);view.setIncludeFontPadding(false);view.setGravity(Gravity.CENTER_VERTICAL);return view;}
     private Button actionButton(String value,Runnable action){Button b=new KeyFeedback.Button(context);b.setText(value);b.setAllCaps(false);b.setMinimumWidth(0);b.setMinWidth(0);b.setMinimumHeight(0);b.setMinHeight(0);b.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));if(android.os.Build.VERSION.SDK_INT>=21)b.setStateListAnimator(null);b.setOnClickListener(v->action.run());SettingsTouchClick.attach(b);return b;}
-    private android.graphics.drawable.Drawable phoneSurface(){android.graphics.drawable.GradientDrawable bg=new SurfaceDrawable(unit);bg.setColor(PHONE_CARD);bg.setCornerRadius(p(12));return bg;}
+    private android.graphics.drawable.Drawable phoneSurface(){android.graphics.drawable.GradientDrawable bg=new SurfaceDrawable(unit);bg.setColor(PHONE_CARD);bg.setCornerRadius(SurfaceCorners.CARD*unit);return bg;}
     private void feedback(String message){OperationFeedback.get(context).show(OperationFeedback.Kind.ERROR,message);}
     HomeQuickControlView(android.app.Activity context,float unit,boolean chinese,Host ui,Value<String> execute){this(context,unit,chinese,ui,execute,false);}
     HomeQuickControlView(android.app.Activity context,float unit,boolean chinese,Host ui,Value<String> execute,boolean inline){
@@ -83,7 +83,7 @@ final class HomeQuickControlView extends LinearLayout {
         addView(heading,new LayoutParams(-1,p(34)));
         scroll=new ScrollView(context){@Override protected void onMeasure(int w,int h){int available=Math.max(p(32),scrollLimit);super.onMeasure(w,MeasureSpec.makeMeasureSpec(Math.min(available,MeasureSpec.getSize(h)==0?available:MeasureSpec.getSize(h)),MeasureSpec.AT_MOST));}@Override protected void dispatchDraw(Canvas canvas){int save=canvas.save();canvas.clipRect(getScrollX(),getScrollY(),getScrollX()+getWidth(),getScrollY()+getHeight());super.dispatchDraw(canvas);canvas.restoreToCount(save);}};
         scroll.setVerticalScrollBarEnabled(false);scroll.setFillViewport(false);scroll.setClipChildren(false);scroll.setClipToPadding(false);scroll.setPadding(p(8),p(6),p(8),p(6));scroll.setOverScrollMode(OVER_SCROLL_NEVER);
-        modules=new QuickControlCards(context,unit*.75f);scroll.addView(modules,new ScrollView.LayoutParams(-1,-2));LayoutParams sp=new LayoutParams(-1,-2);sp.leftMargin=sp.rightMargin=-p(8);sp.topMargin=0;addView(scroll,sp);
+        modules=new QuickControlCards(context,unit);scroll.addView(modules,new ScrollView.LayoutParams(-1,-2));LayoutParams sp=new LayoutParams(-1,-2);sp.leftMargin=sp.rightMargin=-p(8);sp.topMargin=0;addView(scroll,sp);
         adjustHint=text("确定保存  返回取消",14,21);adjustHint.setTextColor(UiPalette.SECONDARY);LayoutParams hp=new LayoutParams(-1,p(21));hp.setMargins(p(8),p(4),p(8),0);addView(adjustHint,hp);adjustHint.setVisibility(GONE);
         phoneBody=column();phoneBody.setMinimumHeight(p(152));LayoutParams pp=new LayoutParams(-1,-2);pp.topMargin=p(4);addView(phoneBody,pp);
         if(inline)modules.addView(text(chinese?"正在读取快捷控制…":"Loading controls…",16,24));
@@ -284,8 +284,8 @@ final class HomeQuickControlView extends LinearLayout {
             }
             if(phone.paired()){
                 Button end=button("解除全部配对","phone-end",phone::revoke);end.setTextColor(0xff343432);end.setGravity(Gravity.CENTER);
-                android.graphics.drawable.GradientDrawable normal=new SurfaceDrawable(unit);normal.setColor(0x05000000);normal.setCornerRadius(p(7));normal.setStroke(p(1),0xff92928e);
-                android.graphics.drawable.GradientDrawable focused=new SurfaceDrawable(unit);focused.setColor(0xffdeded8);focused.setCornerRadius(p(7));focused.setStroke(p(1.5f),0xff343432);
+                android.graphics.drawable.GradientDrawable normal=new SurfaceDrawable(unit);normal.setColor(0x05000000);normal.setCornerRadius(SurfaceCorners.CONTROL*unit);normal.setStroke(p(1),0xff92928e);
+                android.graphics.drawable.GradientDrawable focused=new SurfaceDrawable(unit);focused.setColor(0xffdeded8);focused.setCornerRadius(SurfaceCorners.CONTROL*unit);focused.setStroke(p(1.5f),0xff343432);
                 android.graphics.drawable.StateListDrawable background=new android.graphics.drawable.StateListDrawable();background.addState(new int[]{android.R.attr.state_focused},focused);background.addState(new int[0],normal);end.setBackgroundDrawable(background);
                 LayoutParams action=new LayoutParams(p(112),p(30));action.topMargin=p(4);copy.addView(end,action);
             }

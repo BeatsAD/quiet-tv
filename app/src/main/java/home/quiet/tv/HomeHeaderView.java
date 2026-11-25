@@ -89,7 +89,6 @@ final class HomeHeaderView extends FrameLayout {
         String key=feed==null?"":feed.revision+":"+feed.hash;if(key.equals(movieKey))return;movieKey=key;
         movieTitle.setText(feed==null?"":feed.title);movieSummary.setText(feed==null?"":feed.summary);apply();
     }
-    boolean movieInfoVisible(){return movie.getVisibility()==VISIBLE;}
     void refreshQuote(boolean demand,boolean retry){
         DailyQuote.Entry next=null;
         if(settings.showHomeQuote()){
@@ -121,15 +120,16 @@ final class HomeHeaderView extends FrameLayout {
     void applicationAreaTop(float value){if(applicationAreaTop!=value){applicationAreaTop=value;apply();}}
     void apply(){
         Map<String,?> values=getContext().getSharedPreferences("desktop-settings",0).getAll();
-        String header=previewClockStyle+":"+weatherAvailable+":"+new WeatherStore(getContext()).enabled()+":"+movieKey+":"+applicationAreaTop+":"+avatar.getVisibility()+":"+(lunarDate.length()>0);
+        boolean movieWallpaper=WallpaperStore.get(getContext()).dailyMovieSelected();
+        String header=movieWallpaper+":"+previewClockStyle+":"+weatherAvailable+":"+new WeatherStore(getContext()).enabled()+":"+movieKey+":"+applicationAreaTop+":"+avatar.getVisibility()+":"+(lunarDate.length()>0);
         if(values.equals(appliedSettings)&&header.equals(appliedHeader)&&appliedQuote==quoteEntry)return;
         appliedQuote=quoteEntry;
         appliedSettings=new HashMap<>(values);appliedHeader=header;
         boolean gallery=settings.galleryLayout();
         String style=gallery?(previewClockStyle==null?settings.clockStyle():previewClockStyle):"digital";
         boolean analog=!"digital".equals(style);String arrangement=settings.layout()+":"+analog;
-        boolean movieVisible=!movieKey.isEmpty()&&settings.showMovieInfo()&&(movieTitle.length()>0||movieSummary.length()>0);
-        boolean quoteVisible=!movieVisible&&settings.showHomeQuote()&&quoteEntry!=null;
+        boolean movieVisible=!movieKey.isEmpty()&&settings.showMovieInfo(movieWallpaper)&&(movieTitle.length()>0||movieSummary.length()>0);
+        boolean quoteVisible=settings.showHomeQuote(movieWallpaper)&&quoteEntry!=null;
         quote.show(quoteVisible?quoteEntry:null);
         movie.setVisibility(movieVisible?VISIBLE:GONE);
         boolean galleryMovie=gallery&&movieVisible, galleryQuote=gallery&&quoteVisible;

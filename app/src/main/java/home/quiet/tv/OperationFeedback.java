@@ -3,6 +3,7 @@ package home.quiet.tv;
 import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.app.Dialog;
+import android.content.Context;
 import android.graphics.*;
 import android.os.*;
 import android.view.*;
@@ -47,6 +48,7 @@ final class OperationFeedback {
     static void success(Activity activity,String text){get(activity).show(Kind.SUCCESS,text);}
     static void error(Activity activity,String text){get(activity).show(Kind.ERROR,text);}
     static void info(Activity activity,String text){get(activity).show(Kind.INFO,text);}
+    static View progressIcon(Context context){return new Icon(context,Kind.PROGRESS);}
     static void status(TextView view,Kind kind){float scale=view.getResources().getDisplayMetrics().widthPixels/960f;QuickControlIcon glyph=new QuickControlIcon(kind==Kind.SUCCESS?"circle-check":kind==Kind.PROGRESS?"loader-circle":"circle-exclamation-point");glyph.color(kind==Kind.SUCCESS?UiPalette.STATUS_SUCCESS:kind==Kind.ERROR?UiPalette.STATUS_ERROR:kind==Kind.PROGRESS?UiPalette.STATUS_PROGRESS:UiPalette.SECONDARY);int size=Math.round(16*scale);glyph.setBounds(0,0,size,size);view.setCompoundDrawables(glyph,null,null,null);view.setCompoundDrawablePadding(Math.round(8*scale));}
     static void clear(Activity activity){WeakReference<OperationFeedback> ref=instances.remove(activity);OperationFeedback value=ref==null?null:ref.get();if(value!=null){value.hide();value.windows.clear();}}
     void home(DockBackdropDrawable.Background background,HomeAnchor anchor){homeBackground=background;homeAnchor=anchor;}
@@ -72,7 +74,7 @@ final class OperationFeedback {
         if(capsule!=null&&owner==host&&kind==next&&text.equals(message)){scheduleHide(next,message);return;}
         dismissVisible();owner=host;kind=next;text=message;protectedUntil=next==Kind.ERROR?SystemClock.uptimeMillis()+1500:0;
         capsule=new LinearLayout(activity);capsule.setTag("operation-feedback");capsule.setOrientation(LinearLayout.HORIZONTAL);capsule.setGravity(Gravity.CENTER_VERTICAL);capsule.setPadding(px(20),px(10),px(20),px(10));capsule.setMinimumHeight(px(42));capsule.setFocusable(false);capsule.setClickable(false);capsule.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
-        icon=new Icon(next);LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(px(18),px(18));ip.rightMargin=px(12);capsule.addView(icon,ip);
+        icon=new Icon(activity,next);LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(px(18),px(18));ip.rightMargin=px(12);capsule.addView(icon,ip);
         TextView copy=new TextView(activity);copy.setText(message);copy.setTextColor(UiPalette.TEXT);copy.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,14*unit);copy.setIncludeFontPadding(false);copy.setMaxLines(2);copy.setMaxWidth(px(host==null?360:Math.max(100,Math.min(360,host.box.getWidth()/unit-90))));capsule.addView(copy,new LinearLayout.LayoutParams(-2,-2));
         backdrop=new SettingsSheetBackdrop(capsule,unit,(canvas,paint)->drawBackground(canvas),filter).capsule();capsule.setBackgroundDrawable(backdrop);
         if(host!=null){LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-2,-2);lp.gravity=Gravity.CENTER_HORIZONTAL;lp.topMargin=px(8);lp.bottomMargin=px(8);int index=host.box.indexOfChild(host.actions);host.box.addView(capsule,index<0?host.box.getChildCount():index,lp);}
@@ -110,10 +112,26 @@ final class OperationFeedback {
     @android.annotation.TargetApi(29) private static final class Api29 {
         static int timeout(Activity activity,int value){android.view.accessibility.AccessibilityManager manager=(android.view.accessibility.AccessibilityManager)activity.getSystemService(Activity.ACCESSIBILITY_SERVICE);return manager==null?value:manager.getRecommendedTimeoutMillis(value,android.view.accessibility.AccessibilityManager.FLAG_CONTENT_TEXT|android.view.accessibility.AccessibilityManager.FLAG_CONTENT_ICONS);}
     }
-    private final class Icon extends View {
+    private static final class Icon extends View {
         private final QuickControlIcon glyph;
+        private final Kind type;
         private ValueAnimator spin;private float angle;
-        Icon(Kind type){super(activity);glyph=new QuickControlIcon(type==Kind.SUCCESS?"circle-check":type==Kind.PROGRESS?"loader-circle":"circle-exclamation-point");glyph.color(type==Kind.SUCCESS?UiPalette.STATUS_SUCCESS:type==Kind.ERROR?UiPalette.STATUS_ERROR:type==Kind.PROGRESS?UiPalette.STATUS_PROGRESS:UiPalette.SECONDARY);androidx.core.view.ViewCompat.setImportantForAccessibility(this,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);if(type==Kind.PROGRESS&&!SettingsFocusMotion.reduced()){spin=ValueAnimator.ofFloat(0,360);spin.setDuration(1000);spin.setRepeatCount(ValueAnimator.INFINITE);spin.setInterpolator(new LinearInterpolator());spin.addUpdateListener(value->{angle=(float)value.getAnimatedValue();invalidate();});spin.start();}}
+        Icon(Context context,Kind type){super(context);this.type=type;glyph=new QuickControlIcon(type==Kind.SUCCESS?"circle-check":type==Kind.PROGRESS?"loader-circle":"circle-exclamation-point");glyph.color(type==Kind.SUCCESS?UiPalette.STATUS_SUCCESS:type==Kind.ERROR?UiPalette.STATUS_ERROR:type==Kind.PROGRESS?UiPalette.STATUS_PROGRESS:UiPalette.SECONDARY);androidx.core.view.ViewCompat.setImportantForAccessibility(this,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);}
+        private void start(){
+            if(spin!=null||type!=Kind.PROGRESS||SettingsFocusMotion.reduced())return;
+            spin=ValueAnimator.ofFloat(0,360);
+            spin.setDuration(1000);
+            spin.setRepeatCount(ValueAnimator.INFINITE);
+            spin.setInterpolator(new LinearInterpolator());
+            spin.addUpdateListener(value->{angle=(float)value.getAnimatedValue();invalidate();});
+            spin.start();
+        }
+        @Override protected void onAttachedToWindow(){super.onAttachedToWindow();if(getWindowVisibility()==VISIBLE)start();}
+        @Override protected void onWindowVisibilityChanged(int visibility){
+            super.onWindowVisibilityChanged(visibility);
+            if(visibility==VISIBLE&&androidx.core.view.ViewCompat.isAttachedToWindow(this))start();
+            else stop();
+        }
         void stop(){if(spin!=null){spin.cancel();spin.removeAllUpdateListeners();spin=null;}}
         @Override protected void onDetachedFromWindow(){stop();super.onDetachedFromWindow();}
         @Override protected void onDraw(Canvas canvas){int save=canvas.save();canvas.rotate(angle,getWidth()/2f,getHeight()/2f);glyph.setBounds(0,0,getWidth(),getHeight());glyph.draw(canvas);canvas.restoreToCount(save);}

@@ -21,7 +21,7 @@ import { WallpaperUpload } from './WallpaperUpload';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { PhoneClient, ApiError, UploadError, type Value, type App as TvApp, type Media, newId } from './api';
 import { Group, Icon, Row, Setting, ChoiceList, Sheet, ConfirmDialog, ResourceImageRefresh, fileSize, ResourceImage, Switch, AppImage, quickGlyph, ParentPinInput } from './widgets';
-import { Preview, SaverPreview, PreviewPagePicker, previewMovie } from './preview';
+import { Preview, SaverPreview, PreviewPagePicker } from './preview';
 import { clearResourceImages } from './ResourceImageCache';
 import { CoverCrop } from './CoverCrop';
 import { AppActionConfirmation, applicationActionTitle, type ApplicationConfirmation } from './AppActionConfirmation';
@@ -214,10 +214,6 @@ export function App(){
         {metadata.fields.quickControlVisibility&&controls(['quickControlVisibility'])}
       </>:<Row title="问候语" value={String(v.greeting||'')} navigate onClick={()=>open({kind:'text',title:'问候语',id:'greeting'})}/>}
     </Group>
-    {metadata?.fields.showHomeQuote&&<Group title="每日格言">
-      {controls(['showHomeQuote','showScreensaverQuote'])}
-      {!!v.showHomeQuote&&!!previewMovie(v)&&<p className="section-note">电影信息显示中</p>}
-    </Group>}
     <Group title="应用与 Dock">
       {metadata?.fields.homeApps&&controls(['homeApps','appNames'])}
       {metadata?.fields.iconSize&&<Row title="图标样式" icon="DashboardIcon" value={`${label('iconSize')}  ${label('iconShape')}`} navigate onClick={()=>fields('图标样式',['iconSize','iconShape'])}/>}
@@ -320,7 +316,7 @@ export function App(){
     case 'text':{const greeting=view.id==='greeting',limit=greeting?8:metadata?.fields[view.id!]?.maxLength||80;return <form onSubmit={async event=>{event.preventDefault();if(greeting&&text.length>limit)return;const epoch=viewEpoch.current,field=metadata?.fields[view.id!];if(field&&await perform(field.domain,view.id!,text)&&epoch===viewEpoch.current){delete drafts.current[view.id!];back();}}}><textarea aria-label={view.title} aria-describedby={greeting?'greeting-count':undefined} rows={3} maxLength={limit} value={text} onChange={event=>{setText(event.target.value);drafts.current[view.id!]=event.target.value;}}/>{greeting&&<p id="greeting-count" className="character-count" role="status">最多 8 个字  {text.length}/8</p>}<button className="primary-button" type="submit" disabled={busy||greeting&&text.length>limit}>{greeting?'应用问候语':view.id==='city'?'使用此城市':'提交'}</button></form>;}
     case 'weather-component':return <WeatherComponent client={client} run={action=>perform('components',action,'weather')}/>;
     case 'remote-assistant':return <OpenAssistant/>;
-    case 'wallpaper':return <><Group>{inlineControls(['wallMode'])}<WeatherComponentRow client={client} onClick={()=>open({kind:'weather-component',title:'动态天气壁纸组件'},true)}/>{['fixed','rotation'].includes(String(v.wallMode))&&<Row title="选择壁纸" value={metadata?.wallpapers.find(item=>item.id===v.wallpaper)?.name} navigate onClick={()=>open({kind:'media',title:'壁纸素材'},true)}/>}{v.wallMode==='rotation'&&<>{inlineControls(['rotation'])}{(metadata?.fields.rotation?.options?.length||0)<=3&&rotationEditor()}</>}{metadata?.fields.wallSound&&inlineControls(['wallSound'])}{v.wallMode==='daily'&&<><DailyWallpaperSource client={client} disabled={busy}/>{v.dailySource==='movie-daily'&&inlineControls(['showMovieInfo'])}<Row title="当前图片详情" value={String((v.dailyWallpaper as Record<string,unknown>|undefined)?.title||'')} navigate onClick={()=>open({kind:'daily',title:'当前图片详情'},true)}/></>}</Group>{v.wallMode==='daily'&&<p className="section-note">每天更新，断网保留当前背景。</p>}{v.wallMode==='weather'&&<Group><WeatherSummary client={client}/>{inlineControls(['dayNight'])}<Row title="天气位置" value={String(v.autoLocation?v.locatedCity||'定位待更新':v.city||'尚未选择')} navigate onClick={()=>open({kind:'tool',id:'weather-location',title:'天气位置'},true)}/><Row title="来源与服务" navigate onClick={()=>open({kind:'tool',id:'weather-sources',title:'来源与服务'},true)}/></Group>}</>;
+    case 'wallpaper':return <><Group>{inlineControls(['wallMode'])}<WeatherComponentRow client={client} onClick={()=>open({kind:'weather-component',title:'动态天气壁纸组件'},true)}/>{['fixed','rotation'].includes(String(v.wallMode))&&<Row title="选择壁纸" value={metadata?.wallpapers.find(item=>item.id===v.wallpaper)?.name} navigate onClick={()=>open({kind:'media',title:'壁纸素材'},true)}/>}{v.wallMode==='rotation'&&<>{inlineControls(['rotation'])}{(metadata?.fields.rotation?.options?.length||0)<=3&&rotationEditor()}</>}{metadata?.fields.wallSound&&inlineControls(['wallSound'])}{v.wallMode==='daily'&&<><DailyWallpaperSource client={client} disabled={busy}/>{v.dailySource==='movie-daily'&&inlineControls(['showMovieInfo'])}<Row title="当前图片详情" value={String((v.dailyWallpaper as Record<string,unknown>|undefined)?.title||'')} navigate onClick={()=>open({kind:'daily',title:'当前图片详情'},true)}/></>}{metadata?.fields.showHomeQuote&&inlineControls(['showHomeQuote'])}</Group>{v.wallMode==='daily'&&<p className="section-note">每天更新，断网保留当前背景。</p>}{v.wallMode==='weather'&&<Group><WeatherSummary client={client}/>{inlineControls(['dayNight'])}<Row title="天气位置" value={String(v.autoLocation?v.locatedCity||'定位待更新':v.city||'尚未选择')} navigate onClick={()=>open({kind:'tool',id:'weather-location',title:'天气位置'},true)}/><Row title="来源与服务" navigate onClick={()=>open({kind:'tool',id:'weather-sources',title:'来源与服务'},true)}/></Group>}</>;
     case 'media':{
       const saver=view.id==='screensaver',type=view.mediaType||'image',types=['image','video'] as const;
       const selectType=(mediaType:'image'|'video')=>setTrail(previous=>previous.map((entry,index)=>index===previous.length-1?{...entry,mediaType}:entry));
@@ -353,6 +349,7 @@ export function App(){
         {inlineControls(['saverWeather'])}
         {v.saverWeather&&inlineControls(['saverWeatherPosition'])}
         {metadata?.fields.saverSound&&!metadata.fields.saverSound.disabledReason&&inlineControls(['saverSound'])}
+        {!clock.digital&&metadata?.fields.showScreensaverQuote&&inlineControls(['showScreensaverQuote'])}
       </Group>
       <button className="secondary-button" onClick={()=>open({kind:'saver-preview',title:'屏保预览'},true)}>预览屏保</button>
       {actionExists('quick.run')&&<button className="primary-button" disabled={busy} onClick={()=>void perform('quick','run','screensaver')}>在电视预览屏保</button>}

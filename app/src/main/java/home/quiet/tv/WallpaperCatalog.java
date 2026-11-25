@@ -70,6 +70,8 @@ final class WallpaperCatalog {
     boolean rotationBeforeVideo, wallpaperBuiltinHidden, saverBuiltinHidden;
     // Last successfully selected source. Pending requests never change this value.
     String dailySource=BING,lastLocal=DEFAULT;
+
+    boolean dailyMovieSelected(){return !weather&&DAILY.equals(current)&&MOVIE.equals(dailySource);}
     final Map<String,DailyImage> dailyImages=new LinkedHashMap<>();
     final List<Entry> custom = new ArrayList<>();
 

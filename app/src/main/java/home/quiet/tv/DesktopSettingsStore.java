@@ -8,6 +8,7 @@ import java.util.Map;
 /** Local display preferences shared by Home and its settings page. */
 final class DesktopSettingsStore {
     static final Object MUTATIONS=new Object();
+    static final String MOVIE_INFO="show-movie-info";
     private final Context app;
     private final SharedPreferences preferences;
     private final SharedPreferences dock;
@@ -27,10 +28,10 @@ final class DesktopSettingsStore {
     void showSeconds(boolean show)throws IOException{savePhoneValue("show-seconds",show);}
     boolean showLunarDate(){return preferences.getBoolean("show-lunar-date",false);}
     void showLunarDate(boolean show)throws IOException{savePhoneValue("show-lunar-date",show);}
-    boolean showHomeQuote(){return preferences.getBoolean(DailyQuote.HOME,false);}
+    boolean showHomeQuote(){return showHomeQuote(WallpaperStore.get(app).dailyMovieSelected());}
+    boolean showHomeQuote(boolean movieWallpaper){return preferences.getBoolean(DailyQuote.HOME,false)&&!showMovieInfo(movieWallpaper);}
     boolean showScreensaverQuote(){return preferences.getBoolean(DailyQuote.SAVER,false);}
-    boolean showMovieInfo(){return preferences.getBoolean("show-movie-info",true);}
-    void showMovieInfo(boolean show)throws IOException{savePhoneValue("show-movie-info",show);}
+    boolean showMovieInfo(boolean movieWallpaper){return movieWallpaper&&preferences.getBoolean(MOVIE_INFO,true);}
     void greetingEnabled(boolean enabled){synchronized(MUTATIONS){preferences.edit().putBoolean("greeting-enabled",enabled).apply();DiagnosticLog.info("desktop.greeting.visibility",String.valueOf(enabled));}}
     boolean greetingEnabled(){return preferences.getBoolean("greeting-enabled",true);}
     String greetingText(String fallback){return preferences.getString("greeting-text",fallback);}
@@ -103,19 +104,59 @@ final class DesktopSettingsStore {
         saveValue(key,value);
     }}
     void savePhoneValue(String key,Object value)throws IOException {
-        boolean valid=java.util.Arrays.asList(DailyQuote.HOME,DailyQuote.SAVER,"key-sounds","show-time","show-date","show-seconds","show-lunar-date","show-movie-info","show-app-title","show-home-apps","show-watch-tv","hide-home-apps-on-second-screen","show-all-apps-names","show-dock-background","greeting-enabled","greeting-avatar-enabled").contains(key)&&value instanceof Boolean
+        boolean valid=java.util.Arrays.asList(DailyQuote.HOME,DailyQuote.SAVER,"key-sounds","show-time","show-date","show-seconds","show-lunar-date",MOVIE_INFO,"show-app-title","show-home-apps","show-watch-tv","hide-home-apps-on-second-screen","show-all-apps-names","show-dock-background","greeting-enabled","greeting-avatar-enabled").contains(key)&&value instanceof Boolean
             ||"home-wallpaper-brightness".equals(key)&&value instanceof Integer&&(Integer)value>=20&&(Integer)value<=100
             ||"greeting-text".equals(key)&&value instanceof String&&((String)value).length()<=GreetingInputServer.MAX_TEXT
             ||"home-layout".equals(key)&&java.util.Arrays.asList("classic","gallery").contains(value)
             ||"key-sound-theme".equals(key)&&KeySoundTheme.valid(value);
-        if(!valid)throw new IOException("设置内容无效");synchronized(MUTATIONS){saveValue(key,value);}
+        if(!valid)throw new IOException("设置内容无效");
+        synchronized(MUTATIONS){
+            if(DailyQuote.HOME.equals(key)||MOVIE_INFO.equals(key))saveHomeContent(key,(Boolean)value);
+            else if(DailyQuote.SAVER.equals(key)){
+                WallpaperStore.get(app);
+                ScreensaverStore saver=ScreensaverStore.get(app);
+                synchronized(saver){
+                    ScreensaverSettings current=saver.current();
+                    if(current==null||current.digitalMode())throw new PhoneSettingsServer.Rejected("当前屏保内容无法设置每日格言");
+                    saveValue(key,value);
+                }
+            }else saveValue(key,value);
+        }
         if("key-sound-theme".equals(key)||"key-sounds".equals(key)&&Boolean.FALSE.equals(value))KeySounds.stop();
         else if("key-sounds".equals(key))KeySounds.prepare(app);
     }
-    private void saveValue(String key,Object value)throws IOException {
-        Object old=preferences.getAll().get(key);SharedPreferences.Editor edit=preferences.edit();put(edit,key,value);
-        if(!edit.commit()){SharedPreferences.Editor rollback=preferences.edit();if(old==null)rollback.remove(key);else put(rollback,key,old);rollback.commit();DiagnosticLog.info("desktop.configuration.result","result=FAILED reason=commit_failed");throw new IOException("保存失败，已保留当前外观");}
+    private void saveHomeContent(String key,boolean enabled)throws IOException{
+        WallpaperStore wallpaper=WallpaperStore.get(app);
+        synchronized(wallpaper){
+            boolean movieWallpaper=wallpaper.dailyMovieSelected();
+            boolean movie=MOVIE_INFO.equals(key);
+            if(movie&&!movieWallpaper)throw new PhoneSettingsServer.Rejected("选择每日电影后可设置影片信息");
+            if(movie&&showHomeQuote(movieWallpaper))throw new PhoneSettingsServer.Rejected("请先关闭每日格言");
+            if(!movie&&showMovieInfo(movieWallpaper))throw new PhoneSettingsServer.Rejected("请先关闭影片信息");
+            // An explicit choice clears the other flag, including older configurations with both flags on.
+            String clear=movie?DailyQuote.HOME:enabled?MOVIE_INFO:null;
+            saveValue(key,enabled,clear);
+        }
+    }
+    private void saveValue(String key,Object value)throws IOException{saveValue(key,value,null);}
+    private void saveValue(String key,Object value,String clear)throws IOException {
+        Map<String,?> before=preferences.getAll();
+        SharedPreferences.Editor edit=preferences.edit();
+        put(edit,key,value);
+        if(clear!=null)edit.putBoolean(clear,false);
+        if(!edit.commit()){
+            SharedPreferences.Editor rollback=preferences.edit();
+            restore(rollback,before,key);
+            if(clear!=null)restore(rollback,before,clear);
+            rollback.commit();
+            DiagnosticLog.info("desktop.configuration.result","result=FAILED reason=commit_failed");
+            throw new IOException("保存失败，已保留当前外观");
+        }
         DiagnosticLog.info("desktop.configuration.result","result=SAVED field="+key+" visualVerified=false");
+    }
+    private static void restore(SharedPreferences.Editor editor,Map<String,?> before,String key){
+        Object old=before.get(key);
+        if(old==null)editor.remove(key);else put(editor,key,old);
     }
     private static void put(SharedPreferences.Editor edit,String key,Object value){if(value instanceof String)edit.putString(key,(String)value);else if(value instanceof Boolean)edit.putBoolean(key,(Boolean)value);else edit.putInt(key,(Integer)value);}
     String homeBlurMode(){return "progressive".equals(preferences.getString("home-blur-mode","uniform"))?"progressive":"uniform";}

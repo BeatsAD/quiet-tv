@@ -21,6 +21,7 @@ import java.util.TimeZone;
 
 /** Shared clock/weather grouping for the screensaver and the settings preview. */
 final class ScreensaverInformationView extends FrameLayout {
+    private final FrameLayout content;
     private final TextView clock,weather;
     private final DailyQuoteView quote;
     private final ScreensaverClockView scene;
@@ -36,23 +37,26 @@ final class ScreensaverInformationView extends FrameLayout {
     private ScreensaverSettings settings;
     ScreensaverInformationView(Context context,float clockSize,float weatherSize){
         super(context);this.clockSize=clockSize;this.weatherSize=weatherSize;setFocusable(false);setDescendantFocusability(FOCUS_BLOCK_DESCENDANTS);
+        content=new FrameLayout(context);
+        addView(content,new LayoutParams(-1,-1));
         scene=new ScreensaverClockView(context);
         scene.setVisibility(GONE);
-        addView(scene,new LayoutParams(-1,-1));
+        content.addView(scene,new LayoutParams(-1,-1));
         for(int i=0;i<regions.length;i++){
             String position=ScreensaverSettings.POSITIONS[i];boolean center=ScreensaverSettings.CENTER.equals(position),right=position.endsWith("-right");
             LinearLayout region=new LinearLayout(context);region.setOrientation(LinearLayout.VERTICAL);region.setGravity(center?Gravity.CENTER_HORIZONTAL:right?Gravity.RIGHT:Gravity.LEFT);regions[i]=region;
             int gravity=center?Gravity.CENTER:(position.startsWith("top-")?Gravity.TOP:Gravity.BOTTOM)|(right?Gravity.RIGHT:Gravity.LEFT);
-            addView(region,new LayoutParams(-2,-2,gravity));
+            content.addView(region,new LayoutParams(-2,-2,gravity));
         }
         clock=text();clock.setGravity(Gravity.CENTER_VERTICAL);clock.setTypeface(Build.VERSION.SDK_INT>=26?Typeface.createFromAsset(context.getAssets(),"fonts/outfit.ttf"):Typeface.create("sans-serif-light",Typeface.NORMAL));if(Build.VERSION.SDK_INT>=26)ClockFont.apply(clock);
-        flip=new FlipClockView(context);addView(flip,new LayoutParams(-2,-2,Gravity.CENTER));
+        flip=new FlipClockView(context);content.addView(flip,new LayoutParams(-2,-2,Gravity.CENTER));
         quote=new DailyQuoteView(context,weatherSize/19.2f,true);
         addView(quote,new LayoutParams(-2,-2,Gravity.BOTTOM|Gravity.CENTER_HORIZONTAL));
         weather=text();weather.setTextSize(TypedValue.COMPLEX_UNIT_PX,weatherSize);weather.setEllipsize(TextUtils.TruncateAt.END);
     }
     private TextView text(){TextView view=new TextView(getContext());view.setIncludeFontPadding(false);view.setSingleLine(true);view.setTextColor(UiPalette.TEXT);view.setShadowLayer(weatherSize*.17f,0,weatherSize*.052f,UiPalette.INK);return view;}
     void show(ScreensaverSettings settings,long now,String weatherText){
+        if(this.settings!=settings)requestLayout();
         this.settings=settings;
         TimeZone zone=TimeZone.getDefault();
         local.setTimeZone(zone);
@@ -70,7 +74,6 @@ final class ScreensaverInformationView extends FrameLayout {
         if(composed)scene.show(settings,local,text);
         else if(flipping)flip.time(text,now/settings.tickMillis());
         else updateDigits(text);
-        geometry(getWidth(),getHeight());
     }
     void refreshQuote(long now,boolean enabled,boolean demand,boolean retry){
         DailyQuote.Entry value=null;
@@ -112,18 +115,25 @@ final class ScreensaverInformationView extends FrameLayout {
         LinearLayout target=regions[java.util.Arrays.asList(ScreensaverSettings.POSITIONS).indexOf(position)];
         if(view.getParent()!=target){if(view.getParent()!=null)((ViewGroup)view.getParent()).removeView(view);target.addView(view,view==weather?target.getChildCount():0,new LinearLayout.LayoutParams(-2,-2));}
     }
-    @Override protected void onMeasure(int width,int height){geometry(MeasureSpec.getSize(width),MeasureSpec.getSize(height));super.onMeasure(width,height);}
+    @Override protected void onMeasure(int widthSpec,int heightSpec){
+        int width=MeasureSpec.getSize(widthSpec),height=MeasureSpec.getSize(heightSpec);
+        LayoutParams quotePosition=(LayoutParams)quote.getLayoutParams();
+        quotePosition.width=Math.round(width*.66f);
+        quotePosition.bottomMargin=Math.round(height*.08f);
+        int reserved=0;
+        if(quote.getVisibility()==VISIBLE){
+            quote.measure(MeasureSpec.makeMeasureSpec(quotePosition.width,MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(height,MeasureSpec.AT_MOST));
+            reserved=quote.getMeasuredHeight()+quotePosition.bottomMargin+Math.round(height*.035f);
+        }
+        ((LayoutParams)content.getLayoutParams()).bottomMargin=reserved;
+        geometry(width,Math.max(0,height-reserved));
+        super.onMeasure(widthSpec,heightSpec);
+    }
     private void geometry(int width,int height){
         if(settings==null||width==0)return;boolean centered=ScreensaverSettings.CENTER.equals(settings.timePosition);float size=centered?clockSize:clockSize*.5f;clock.setTextSize(TypedValue.COMPLEX_UNIT_PX,size);
         float flipSize=Math.min(width*(settings.flipShowSeconds?.82f:.64f)/FlipClockView.widthFactor(settings.flipShowSeconds),height*.62f/FlipClockView.HEIGHT_FACTOR);flip.size(flipSize);
         int marginX=Math.round(width*.08f),marginY=Math.round(height*.08f);
-        LayoutParams quotePosition=(LayoutParams)quote.getLayoutParams();
-        int quoteWidth=Math.round(width*.66f);
-        boolean bottomWeather=weather.getVisibility()==VISIBLE&&(settings.weatherPosition.startsWith("bottom-")||centered&&settings.composedClock()&&ScreensaverSettings.CENTER.equals(settings.weatherPosition));
-        int quoteBottom=Math.round(height*.15f)+(bottomWeather?Math.round(weatherSize*2):0);
-        if(quotePosition.width!=quoteWidth||quotePosition.bottomMargin!=quoteBottom){
-            quotePosition.width=quoteWidth;quotePosition.bottomMargin=quoteBottom;quote.setLayoutParams(quotePosition);
-        }
         clock.setMaxWidth(width-2*marginX);weather.setMaxWidth(width-2*marginX);
         LinearLayout.LayoutParams time=(LinearLayout.LayoutParams)clock.getLayoutParams();int timeHeight=Math.round(size*1.2f);if(time.height!=timeHeight){time.height=timeHeight;clock.setLayoutParams(time);}
         LinearLayout.LayoutParams conditions=(LinearLayout.LayoutParams)weather.getLayoutParams();int gap=!settings.flipping()&&clock.getVisibility()==VISIBLE&&settings.timePosition.equals(settings.weatherPosition)?Math.round(width*10f/960):0;if(conditions.topMargin!=gap){conditions.topMargin=gap;weather.setLayoutParams(conditions);}

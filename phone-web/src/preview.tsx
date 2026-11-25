@@ -27,7 +27,7 @@ export function dockGeometry(count:number,v:Record<string,Value>){
   const focusedTop=top-cardHeight*(zoom-1);
   return{left:(960-width)/2,top,focusedTop,width,height,cardWidth,cardHeight,gap,padding:16.75};
 }
-export function previewMovie(values:Record<string,Value>){
+function previewMovie(values:Record<string,Value>){
   const daily=values.dailyWallpaper as {cached?:boolean;sourceId?:string;movie?:{title?:string;summary?:string}}|undefined;
   const movie=daily?.movie;
   return values.showMovieInfo&&values.wallMode==='daily'&&values.wallpaper==='daily'&&values.dailySource==='movie-daily'
@@ -134,7 +134,7 @@ export function SaverPreview({client,suspended=false}:{client:PhoneClient;suspen
   const parts=formatter?.formatToParts(now);
   const part=(name:Intl.DateTimeFormatPartTypes)=>parts?.find(p=>p.type===name)?.value||'';
   const dateKey=parts?`${part('year')}-${part('month')}-${part('day')}`:'';
-  const quote=v.showScreensaverQuote?quoteFor(v,dateKey):undefined;
+  const quote=!layout.digital&&v.showScreensaverQuote?quoteFor(v,dateKey):undefined;
   const timeLabel=parts?`${part('hour')}:${part('minute')}${seconds?`:${part('second')}`:''}`:'时间暂不可用';
   const time:SaverClockTime={year:Number(part('year')),month:Number(part('month')),day:Number(part('day')),
     hour:Number(part('hour')),minute:Number(part('minute')),second:Number(part('second'))};
@@ -146,7 +146,10 @@ export function SaverPreview({client,suspended=false}:{client:PhoneClient;suspen
   const follow=v.saverContent==='follow', id=String(follow?v.wallpaper:v.saverMedia);
   const media=client.metadata?.wallpapers.find(item=>item.id===id);
   const scene=follow?v:{...v,wallpaper:id,wallMode:'fixed',wallVideo:!!media?.video,previewKey:`${media?.bytes||0}`};
-  const information=<>
+  const information=<div className="saver-overlays">
+    <div className="saver-overlay-main">
+      {flipping&&parts&&<FlipClock time={timeLabel} tick={Math.floor(now/period)} active={active} onLanded={soundAvailable&&soundEnabled?playSound:undefined}/>}
+      {layout.composed&&parts&&<SaverClock time={time} timeLabel={timeLabel} layout={layout} lunar={lunar} monthStarts={monthStarts}/>}
       {['top-left','top-right','center','bottom-left','bottom-right'].map(position=><div
         className={`saver-information saver-${position}${layout.composed&&position==='center'?' saver-weather-under-clock':''}`} key={position}>
         {!flipping&&(!layout.composed||!parts)&&(!!v.saverClock||clockOnly)&&(v.saverClockPosition||'center')===position&&
@@ -154,13 +157,12 @@ export function SaverPreview({client,suspended=false}:{client:PhoneClient;suspen
         {!!v.saverWeather&&!!v.weatherText&&(v.saverWeatherPosition||'bottom-left')===position&&
           <span className="saver-weather">{String(v.weatherText)}</span>}
       </div>)}
-      {quote&&<div className={`tv-saver-quote${v.saverWeather&&v.weatherText&&(String(v.saverWeatherPosition||'bottom-left').startsWith('bottom-')||layout.composed&&v.saverWeatherPosition==='center')?' above-weather':''}`}><Quote quote={quote}/></div>}
-  </>;
+    </div>
+    {quote&&<div className="tv-saver-quote"><Quote quote={quote}/></div>}
+  </div>;
   return <>
     <div className={`tv-preview saver-preview${flipping?' saver-mechanical':''}${flipping&&seconds?' saver-with-seconds':''}`} aria-label="手机屏保预览">
       {!wall&&!clockOnly&&(follow||id!=='blank')&&<DynamicBackground client={client} v={scene} filter="none" suspended={!active} onProblem={setProblem} retry={retry}/>}
-      {flipping&&parts&&<FlipClock time={timeLabel} tick={Math.floor(now/period)} active={active} onLanded={soundAvailable&&soundEnabled?playSound:undefined}/>}
-      {layout.composed&&parts&&<SaverClock time={time} timeLabel={timeLabel} layout={layout} lunar={lunar} monthStarts={monthStarts}/>}
       {wall?<WallpaperWallPreview key={wallSource} client={client} source={wallSource} active={active}>{information}</WallpaperWallPreview>:information}
     </div>
     {soundAvailable&&<>

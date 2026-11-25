@@ -145,6 +145,14 @@ def unchanged_user(adb, user):
         raise ValueError("前台用户已变化，停止后续修改；已完成步骤保留在记录中")
 
 
+def configured_stock_guard(snapshot):
+    routes = snapshot.get('routes', {})
+    original = snapshot.get('originalHome')
+    return (bool(original) and snapshot.get('systemHome') == original
+            and routes.get('homeRoute') == 'RELAY' and routes.get('relaySource') == 'OBSERVER'
+            and routes.get('automatic') is True and not snapshot.get('paused'))
+
+
 def run_install(args, adb, tools, journal):
     if getattr(args, "native_observer", False) and (args.goal != "takeover" or getattr(args, "adaptation_route", None)):
         raise ValueError("原桌面观察仅用于标准接管，不能同时选择专项 HOME 路线")
@@ -181,6 +189,7 @@ def run_install(args, adb, tools, journal):
     journal.event("baseline", serial=args.serial, user=args.user, identity=identity, device=device,
                   home_before=home_before, original_package=stock_dump, package_before=package_before,
                   goal=args.goal, keep_adb=args.keep_adb)
+    advice = {}
     if args.goal == 'takeover':
         scope, selected = adaptation.discover(adb, args.user)
         advice = adaptation.home.collect(adb, scope, adaptation.catalog().get('references', []), selected)
@@ -239,7 +248,22 @@ def run_install(args, adb, tools, journal):
     install_options = guard.user_options(pm_help, "install", sdk, args.user)
     print("计划：" + ("沿用相同 APK" if same else "保留数据安装") + "；目标=" + args.goal + "；ADB 设置恢复=" + str(keep_adb), flush=True)
     # Check the selected installed APK before launching it or writing recovery/configuration state.
-    if not getattr(args, "adaptation_route", None) and same and metadata["home_mode"] == "standard" and args.goal == "takeover":
+    native_observer = getattr(args, 'native_observer', False)
+    stock_guard = (metadata['home_mode'] == 'standard' and not native_observer
+                   and advice.get('preferStockGuard') is True and advice['home'] == original)
+    if stock_guard and not getattr(args, 'adaptation_route', None):
+        journal.event('stock_guard_preferred', home=advice['home'])
+        print('检测到小米原桌面作为当前 HOME，优先保留它并配置守护。', flush=True)
+    preflight_stock_guard = stock_guard
+    if args.goal == 'takeover' and same and 'DeviceMaintenanceReceiver' in package_before:
+        current_routes = maintenance.inspect(adb, tcl.PACKAGE, args.user)
+        if current_routes.get('paused'):
+            raise ValueError('守护已暂停，请通过维护流程明确恢复')
+        if current_routes.get('routes', {}).get('relaySource') == 'PROXY':
+            raise ValueError('已有 HOME 代理配置，请沿用原维护流程')
+        preflight_stock_guard = stock_guard or (not native_observer and configured_stock_guard(current_routes))
+    if (not getattr(args, "adaptation_route", None) and same and metadata["home_mode"] == "standard"
+            and args.goal == "takeover" and not preflight_stock_guard):
         preflight = tcl.Journal(journal.directory / "boot-preflight")
         try:
             boot.configure(adb, args.user, tools, apk_path, preflight)
@@ -319,6 +343,10 @@ def run_install(args, adb, tools, journal):
         baseline = maintenance.inspect(adb, tcl.PACKAGE, args.user)
         if baseline.get("paused"):
             raise ValueError("守护已暂停，接管不覆盖暂停选择；明确恢复时使用维护 repair --resume")
+        if baseline.get('systemHome') and baseline['systemHome'] != original:
+            raise ValueError('系统 HOME 已变化，请重新核对，未继续接管')
+        if baseline.get('routes', {}).get('relaySource') == 'PROXY':
+            raise ValueError('已有 HOME 代理配置，请沿用原维护流程')
         if not baseline.get("originalHome") and original != HOME:
             unchanged_user(adb, args.user)
             baseline = maintenance.remember_home(adb, tcl.PACKAGE, args.user, original)
@@ -331,6 +359,9 @@ def run_install(args, adb, tools, journal):
         print("旧 APK 无电脑维护接口；恢复依赖电脑记录，新功能需更新 APK。", flush=True)
     native = False
     route = getattr(args, "adaptation_route", None)
+    if not route and not native_observer and configured_stock_guard(baseline):
+        stock_guard = True
+        journal.event('stock_guard_reused', home=baseline['originalHome'])
     if route:
         if metadata["home_mode"] != "standard" or sdk < 21:
             raise ValueError("专项 HOME 路线需要安卓 5 及以上标准 HOME 包")
@@ -340,7 +371,7 @@ def run_install(args, adb, tools, journal):
         values = adaptation.prepare(adb, args.user, journal, route)
         adaptation.apply_plan(adb, *values[:3], values[3], journal)
         native = True
-    elif metadata["home_mode"] == "standard":
+    elif metadata["home_mode"] == "standard" and not stock_guard:
         try:
             boot.configure(adb, args.user, tools, actual_path, journal, apply=True)
             native = True

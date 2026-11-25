@@ -88,6 +88,7 @@ final class QuickControlIcon extends Drawable {
         case "shield-check":size=24;outlined=true;data="M 20 13 c 0 5 -3.5 7.5 -7.66 8.95 a 1 1 0 0 1 -.67 -.01 C 7.5 20.5 4 18 4 13 V 6 a 1 1 0 0 1 1 -1 c 2 0 4.5 -1.2 6.24 -2.72 a 1.17 1.17 0 0 1 1.52 0 C 14.51 3.81 17 5 19 5 a 1 1 0 0 1 1 1 z M 0 0 m 9 12 2 2 4 -4";break; // Lucide: shield-check
         case "arrow-right":size=24;outlined=true;data="M 5 12 h 14 M 0 0 m 12 5 7 7 -7 7";break; // Lucide: arrow-right
         case "delete":size=24;outlined=true;data="M 10 5 a 2 2 0 0 0 -1.344 .519 l -6.328 5.74 a 1 1 0 0 0 0 1.481 l 6.328 5.741 A 2 2 0 0 0 10 19 h 10 a 2 2 0 0 0 2 -2 V 7 a 2 2 0 0 0 -2 -2 z M 0 0 m 12 9 6 6 M 0 0 m 18 9 -6 6";break; // Lucide: delete
+        case "circle-pause":size=24;outlined=true;data="M 22 12 A 10 10 0 1 0 2 12 A 10 10 0 1 0 22 12 Z M 10 8 V 16 M 14 8 V 16";break;
         case "loader-circle":size=24;outlined=true;data="M 21 12 a 9 9 0 1 1 -6.219 -8.56";break; // Lucide: loader-circle
         case "circle-exclamation-point":size=24;outlined=true;data="M 22 12 A 10 10 0 1 0 2 12 A 10 10 0 1 0 22 12 Z M 12 8 L 12 12 M 12 16 L 12.01 16";break; // Lucide: circle-exclamation-point
         case "unplug":size=24;outlined=true;data="M 0 0 m 19 5 3 -3 M 0 0 m 2 22 3 -3 M 6.3 20.3 a 2.4 2.4 0 0 0 3.4 0 L 12 18 l -6 -6 -2.3 2.3 a 2.4 2.4 0 0 0 0 3.4 Z M 7.5 13.5 10 11 M 10.5 16.5 13 14 M 0 0 m 12 6 6 6 2.3 -2.3 a 2.4 2.4 0 0 0 0 -3.4 l -2.6 -2.6 a 2.4 2.4 0 0 0 -3.4 0 Z";break; // Lucide: unplug

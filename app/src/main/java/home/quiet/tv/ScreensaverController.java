@@ -190,7 +190,7 @@ final class ScreensaverController {
         scheduleTick(now);
     }
     void refreshQuote(boolean retry){
-        if(state==State.ACTIVE)information.refreshQuote(System.currentTimeMillis(),new DesktopSettingsStore(activity).showScreensaverQuote(),true,retry);
+        if(state==State.ACTIVE)information.refreshQuote(System.currentTimeMillis(),settings!=null&&!settings.digitalMode()&&new DesktopSettingsStore(activity).showScreensaverQuote(),true,retry);
     }
     private void render(long now){
         if(settings==null)return;

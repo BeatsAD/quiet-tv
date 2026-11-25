@@ -14,6 +14,8 @@ import time
 import uuid
 import zipfile
 
+from configure_home_guard import CommandFailure
+
 PACKAGE = "home.quiet.tv"
 INSTALLER = "com.android.packageinstaller"
 PROPERTIES = ("ro.product.brand", "ro.product.manufacturer", "ro.product.model",
@@ -59,9 +61,25 @@ def compatible_abis(packaged, supported):
     return {"armeabi-v7a", "arm64-v8a", "x86", "x86_64"}.issubset(packaged)
 
 
-def checked(result):
+def valid_pm_help(output):
+    return (re.search(r"(?m)^Package manager \(package\) commands:\s*$", output) is not None
+            and not re.search(r"(?im)^\s*(?:adb:|error:|failure\b|exception|securityexception|unknown command)", output))
+
+
+def pm_help(adb):
+    try:
+        return adb.shell("pm", "help")
+    except CommandFailure as error:
+        if error.exit != 255 or not valid_pm_help(error.output):
+            raise
+        return error.output
+
+
+def checked(result, *, pm_help_command=False):
     output = (result.stdout + "\n" + result.stderr).strip()
-    if result.returncode or re.search(r"(?im)^\s*(?:error:|failure\b|exception|securityexception|unknown command)", output):
+    help_status = (pm_help_command and result.returncode == 255 and not result.stderr.strip()
+                   and valid_pm_help(result.stdout))
+    if (result.returncode and not help_status) or re.search(r"(?im)^\s*(?:error:|failure\b|exception|securityexception|unknown command)", output):
         raise ValueError(output or f"命令失败，退出码 {result.returncode}")
     return output
 
@@ -73,7 +91,8 @@ class Adb:
     def run(self, *args, timeout=20):
         return checked(subprocess.run([self.executable, "-s", self.serial, *map(str, args)],
                                       capture_output=True, text=True, encoding="utf-8",
-                                      errors="replace", timeout=timeout, check=False))
+                                      errors="replace", timeout=timeout, check=False),
+                       pm_help_command=args == ("shell", "pm help"))
 
     def shell(self, *args):
         return self.run("shell", " ".join(shlex.quote(str(arg)) for arg in args))
@@ -289,7 +308,7 @@ def install(args, adb, tools, journal):
         raise ValueError("此入口仅处理已读取为 TCL／雷鸟的设备")
     if adb.current_user() != args.user:
         raise ValueError("指定用户不是当前前台用户")
-    help_text = adb.shell("pm", "help")
+    help_text = pm_help(adb)
     for operation in ("install", "path", "resolve-activity"):
         if not command_supports_user(help_text, operation):
             raise ValueError(f"本机未确认 {operation} 支持指定用户")
@@ -423,7 +442,7 @@ def recover(args, adb):
     if not usable(before):
         raise ValueError("记录中的安装器原状态不可恢复")
     restore = "default-state" if before["enabled"] == 0 else "enable"
-    if not command_supports_user(adb.shell("pm", "help"), restore):
+    if not command_supports_user(pm_help(adb), restore):
         raise ValueError("未确认本机支持原状态恢复命令")
     current = user_state(adb.shell("dumpsys", "package", INSTALLER), args.user)
     if current == before:

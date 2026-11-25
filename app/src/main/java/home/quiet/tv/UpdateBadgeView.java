@@ -3,15 +3,19 @@ package home.quiet.tv;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.text.Layout;
 import android.view.View;
 
 /** Non-interactive dot over the update tab, above the native focus plate. */
 final class UpdateBadgeView extends View {
+    private static final float RADIUS=5f,GAP=2.5f;
     private static final Paint DOT=new Paint(Paint.ANTI_ALIAS_FLAG);
     private final android.widget.Button anchor;
     private final float unit;
     private final int[] button=new int[2],overlay=new int[2];
     private boolean available;
+
+    static int inlineSpace(float unit){return (int)Math.ceil((2*RADIUS+GAP)*unit);}
 
     UpdateBadgeView(Context context,android.widget.Button anchor,float unit){
         super(context);this.anchor=anchor;this.unit=unit;setFocusable(false);setClickable(false);
@@ -30,10 +34,19 @@ final class UpdateBadgeView extends View {
         DOT.setColor(lightSurface?0xffc9253f:0xffff5c6c);
         canvas.drawCircle(x,y,radius,DOT);
     }
+    @Override public void onWindowFocusChanged(boolean hasWindowFocus){
+        super.onWindowFocusChanged(hasWindowFocus);
+        if(available)invalidate();
+    }
     @Override protected void onDraw(Canvas canvas){
-        if(!available||!anchor.isShown()||anchor.getWidth()==0)return;
+        if(!available||!anchor.isShown())return;
+        Layout label=anchor.getLayout();
+        if(label==null||label.getLineCount()==0)return;
         anchor.getLocationInWindow(button);getLocationInWindow(overlay);
-        dot(canvas,button[0]-overlay[0]+anchor.getWidth()-anchor.getPaddingRight()*.68f+1.5f*unit,
-                button[1]-overlay[1]+anchor.getHeight()*.35f,3.75f*unit,anchor.isFocused()&&anchor.hasWindowFocus());
+        float radius=RADIUS*unit;
+        float right=anchor.getCompoundPaddingLeft()+label.getLineRight(0)-anchor.getScrollX();
+        float y=anchor.getBaseline()+anchor.getPaint().ascent()*.75f;
+        dot(canvas,button[0]-overlay[0]+right+GAP*unit+radius,
+                button[1]-overlay[1]+y,radius,anchor.isFocused()&&anchor.hasWindowFocus());
     }
 }

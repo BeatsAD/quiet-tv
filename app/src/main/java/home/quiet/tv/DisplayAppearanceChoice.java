@@ -9,6 +9,7 @@ import java.util.*;
 
 /** Inline options preview on focus; confirmation alone saves a choice. */
 final class DisplayAppearanceChoice extends LinearLayout {
+    static final float LAYOUT_BUTTON_INSET=9.6f, LAYOUT_BUTTON_GAP=6, LAYOUT_BUTTON_HEIGHT=42;
     interface Preview {void value(String key,Object value);void clear(String key);}
     interface Access {String read();void save(String value)throws IOException;}
     interface Failure {void failed(String message);}
@@ -51,8 +52,18 @@ final class DisplayAppearanceChoice extends LinearLayout {
         if(wasExpanded&&!opened&&!inline&&!optionsOnly)collapsing=UiMotion.collapse(expandedContent,()->collapsing=null);
         expandedContent=null;
         if(trigger!=null&&!inline&&!optionsOnly){for(int i=getChildCount()-1;i>=0;i--)if(getChildAt(i)!=trigger)removeViewAt(i);}else{trigger=null;removeAllViews();}
-        rows.clear();setPadding(inline?p(16):0,inline?p(12):0,inline?p(16):0,inline?p(12):0);pendingLabel=null;
-        if(inline){LinearLayout caption=ui.row();TextView heading=label(title,dialogStyle?18.56f:16.64f,dialogStyle?26.26f:23);QuickControlPreviewView.weight(heading,500);caption.addView(heading,new LayoutParams(0,-2,1));pendingLabel=label(draft.equals(committed)?"":"待确定",12.16f,18.24f);caption.addView(pendingLabel);LayoutParams cp=new LayoutParams(-1,-2);cp.bottomMargin=p(8);addView(caption,cp);}
+        boolean matchLayoutButtons="quick-control-visibility".equals(key);
+        int captionInset=p(16);
+        int optionInset=matchLayoutButtons?ui.px(LAYOUT_BUTTON_INSET):captionInset;
+        rows.clear();setPadding(inline?optionInset:0,inline?p(12):0,inline?optionInset:0,inline?p(12):0);pendingLabel=null;
+        if(inline){
+            LinearLayout caption=ui.row();TextView heading=label(title,dialogStyle?18.56f:16.64f,dialogStyle?26.26f:23);QuickControlPreviewView.weight(heading,500);caption.addView(heading,new LayoutParams(0,-2,1));
+            pendingLabel=label(draft.equals(committed)?"":"待确定",12.16f,18.24f);caption.addView(pendingLabel);
+            LayoutParams cp=new LayoutParams(-1,-2);
+            cp.leftMargin=cp.rightMargin=captionInset-optionInset;
+            cp.bottomMargin=p(8);
+            addView(caption,cp);
+        }
         else if(!optionsOnly){if(trigger==null){trigger=new DesktopSettingsRow(ui,title,"",false);trigger.setOnClickListener(v->{if(opened)cancel(true);else{opened=true;draft=committed;render();focusValue(committed);}});identify(trigger,"appearance-"+key);addView(trigger,new LayoutParams(-1,p(dialogStyle?59.95f:59.63f)));}int height=p(dialogStyle?59.95f:59.63f);if(trigger.getLayoutParams().height!=height){trigger.getLayoutParams().height=height;trigger.requestLayout();}trigger.displayStyle();if(dialogStyle)trigger.textSizes(14.016f,11.52f);trigger.hideIcon();trigger.value(name(committed));trigger.tail(opened?"settings-up":"arrow");rows.add(new View[]{trigger});}
         if(inline||opened||optionsOnly){
             LinearLayout expanded=ui.column();
@@ -74,7 +85,16 @@ final class DisplayAppearanceChoice extends LinearLayout {
             int columns=twoColumns?gridColumns(buttons):1;LinearLayout gridRow=null;ArrayList<View> gridSegment=new ArrayList<>();
             for(int i=0;i<buttons.size();i++){Button b=buttons.get(i);
                 if(twoColumns){if(i%columns==0){gridRow=ui.row();gridRow.setClipChildren(false);gridSegment.clear();LayoutParams rp=new LayoutParams(-1,-2);if(i>0)rp.topMargin=p(6.4f);options.addView(gridRow,rp);}b.setMinHeight(p(43.52f));b.setMinimumHeight(p(43.52f));LayoutParams bp=new LayoutParams(0,-1,1);if(i%columns>0)bp.leftMargin=p(8);gridRow.addView(b,bp);gridSegment.add(b);if(i%columns==columns-1||i==values.length-1){rows.add(gridSegment.toArray(new View[0]));if(columns>1&&i%columns==0){LayoutParams space=new LayoutParams(0,-1,1);space.leftMargin=p(8);gridRow.addView(new View(ui),space);}}}
-                else{int height=p(inline?(dialogStyle?51.2f:"icon-shape".equals(key)?86.4f:43.52f):43.52f);if(inline&&"icon-shape".equals(key)){b.setMinHeight(height);b.setMinimumHeight(height);height=-2;}LayoutParams bp=new LayoutParams(inline?0:-1,height,inline?1:0);if(inline){if(i>0)bp.leftMargin=p(8);}else bp.setMargins(p(3.2f),p(3.2f),p(3.2f),p(3.2f));options.addView(b,bp);if(inline)segment.add(b);else rows.add(new View[]{b});}}
+                else{
+                    int height=matchLayoutButtons?ui.px(LAYOUT_BUTTON_HEIGHT):p(inline?(dialogStyle?51.2f:"icon-shape".equals(key)?86.4f:43.52f):43.52f);
+                    if(inline&&"icon-shape".equals(key)){b.setMinHeight(height);b.setMinimumHeight(height);height=-2;}
+                    LayoutParams bp=new LayoutParams(inline?0:-1,height,inline?1:0);
+                    if(inline){if(i>0)bp.leftMargin=ui.px(LAYOUT_BUTTON_GAP);}
+                    else bp.setMargins(p(3.2f),p(3.2f),p(3.2f),p(3.2f));
+                    options.addView(b,bp);
+                    if(inline)segment.add(b);else rows.add(new View[]{b});
+                }
+            }
             if(inline)rows.add(segment.toArray(new View[0]));
             if(!inline&&!optionsOnly){expandedContent=expanded;if(!wasExpanded){expanded.setAlpha(0);UiMotion.reveal(expanded,-p(6));}}
         }

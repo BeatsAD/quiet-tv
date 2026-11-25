@@ -21,7 +21,7 @@ final class ScreensaverDisplayControls {
     private final DesktopMediaImportPanel importer;
     private ScreensaverSettings settings;
     private DisplayAppearanceChoice waiting,content,timePosition,weatherPosition,analogStyle,digitalLayout;
-    private DesktopSettingsRow choose,time,weather,sound,analog,calendar,lunar,seconds,flipSeconds,flipSound;
+    private DesktopSettingsRow choose,time,weather,sound,quote,analog,calendar,lunar,seconds,flipSeconds,flipSound;
     private DesktopSettingsRow wallMedia;
     private LinearLayout library;
     private DesktopMediaLibrary materials;
@@ -58,6 +58,15 @@ final class ScreensaverDisplayControls {
         weather=toggle(tr("显示天气","Show weather"),"saver-weather",current->current.weather(!current.showWeather));
         weatherPosition=positionChoice(false,bridge);group.addView(weatherPosition);
         sound=row(tr("屏保声音","Screensaver sound"),"saver-sound");sound.setOnClickListener(v->{try{saveSettings(current->current.sound(!current.sound));PhoneSettingsSession.get(ui).configurationChanged();}catch(IOException error){ui.error(error.getMessage());}});group.addView(sound,new LinearLayout.LayoutParams(-1,ui.px(44.72f)));
+        quote=row(tr("显示每日格言","Show daily quote"),"saver-quote");
+        quote.setOnClickListener(v->{
+            try{
+                new DesktopSettingsStore(ui).savePhoneValue(DailyQuote.SAVER,!quote.checked());
+                refresh();
+                scene();
+            }catch(IOException failure){ui.error(failure.getMessage());}
+        });
+        group.addView(quote,new LinearLayout.LayoutParams(-1,ui.px(44.72f)));
         refresh();
     }
     private DisplayAppearanceChoice positionChoice(boolean clock,DisplayAppearanceChoice.Preview bridge){return new DisplayAppearanceChoice(ui,clock?"saver-clock-position":"saver-weather-position",clock?tr("时钟位置","Clock position"):tr("天气位置","Weather position"),ScreensaverSettings.POSITIONS,new String[]{tr("左上角","Top left"),tr("右上角","Top right"),tr("居中","Center"),tr("左下角","Bottom left"),tr("右下角","Bottom right")},new DisplayAppearanceChoice.Access(){public String read(){return clock?settings.timePosition:settings.weatherPosition;}public void save(String value)throws IOException{saveSettings(current->clock?current.timePosition(value):current.weatherPosition(value));}},false,bridge,rewired).twoColumns();}
@@ -109,6 +118,8 @@ final class ScreensaverDisplayControls {
                 count+tr(" 张"," images")+"  "+columns+" × "+rows);
         }
         boolean digital=settings.digitalMode();
+        quote.setVisibility(digital?View.GONE:View.VISIBLE);
+        quote.checked(!digital&&new DesktopSettingsStore(ui).showScreensaverQuote());
         analog.setVisibility(digital?View.VISIBLE:View.GONE);
         analog.checked(settings.clock.analog);
         analogStyle.setVisibility(settings.analogVisible()?View.VISIBLE:View.GONE);
