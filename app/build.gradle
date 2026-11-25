@@ -42,7 +42,7 @@ android {
         buildConfigField 'String', 'UPDATE_ABI', '"' + providers.gradleProperty('quietAbi').getOrElse('universal') + '"'
         targetSdk 36
         versionCode providers.gradleProperty('quietBuildNumber').getOrElse('105').toInteger()
-        versionName((independent ? '2.0.0' : (localTestBase ?: '2.0.8')) + (!independent && localTest ? '.1' : ''))
+        versionName((independent ? '2.0.0' : (localTestBase ?: '2.0.9')) + (!independent && localTest ? '.1' : ''))
     }
     buildFeatures { buildConfig true }
     // Keep local wallpaper originals out of every APK compatibility profile.
