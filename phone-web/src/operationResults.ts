@@ -11,7 +11,7 @@ const labels:Record<string,Record<string,string>>={
   backup:{remove:'删除备份',create:'创建备份',export:'导出备份',prepareFromFile:'校验备份',admit:'导入备份',restore:'恢复备份',retry:'核对恢复记录'},
   weather:{refresh:'刷新天气',cityCode:'保存天气城市'},diagnostics:{recording:'记录诊断日志',export:'下载日志',exportInputs:'下载信号源诊断包'},management:{connect:'连接 ADB',disconnect:'断开 ADB',check:'检查 ADB 状态'},
   bootAds:{check:'检查广告设置',apply:'应用广告设置',restore:'恢复广告设置'},
-  guard:{pause:'暂停桌面接管',restore:'恢复原桌面',system:'打开默认桌面设置'},desktopSwitch:{switch:'切换桌面',manage:'桌面管理',verify:'记录使用验证'},
+  guard:{pause:'暂停桌面接管',restore:'恢复原桌面',system:'打开默认桌面设置',repair:'修复守护',repairAccessibility:'打开无障碍设置'},desktopSwitch:{switch:'切换桌面',manage:'桌面管理',verify:'记录使用验证'},
   inputs:{autoEnter:'设置信号源开机自动进入',calibrate:'发送端口名称校正测试',search:'搜索信号源',test:'发送信号源测试',confirm:'保存配对结果',restore:'恢复配对配置',defaults:'恢复配对默认设置',observe:'记录信号源',cancel:'结束信号源任务'},
   update:{check:'检查更新',download:'下载安装包',install:'准备安装更新',cancelCheck:'取消更新检查',cancelDownload:'取消安装包下载',reconcile:'核对电视版本'},components:{start:'下载天气资源',cancel:'取消组件下载',uninstall:'卸载天气资源'}
 };

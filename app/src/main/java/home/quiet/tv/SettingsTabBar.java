@@ -12,6 +12,7 @@ import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.graphics.Shader;
+import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.StateListDrawable;
 import android.text.Layout;
@@ -198,13 +199,35 @@ class SettingsTabBar extends LinearLayout {
         private static final int[] LABEL_COLORS={UiPalette.SECONDARY,UiPalette.INK,UiPalette.INK,UiPalette.SECONDARY};
         private final SettingsTabBar bar;
         private final TextPaint labelPaint=new TextPaint();
+        private final TextPaint measurePaint=new TextPaint();
         private final Paint underlinePaint=new Paint(Paint.ANTI_ALIAS_FLAG);
         private final RectF underlineBounds=new RectF();
+        private Typeface regularLabel,selectedLabel;
         private boolean underline;
 
         Tab(SettingsTabBar bar) {
             super(bar.getContext());
             this.bar=bar;
+        }
+
+        void reserveLabelWidth(Typeface regular,Typeface selected) {
+            regularLabel=regular;
+            selectedLabel=selected;
+            setTypeface(isSelected()?selected:regular);
+        }
+
+        @Override protected void onMeasure(int width,int height) {
+            if(regularLabel!=null && MeasureSpec.getMode(width)!=MeasureSpec.EXACTLY){
+                // Keep the toolbar stable when selection changes the font weight.
+                measurePaint.set(getPaint());
+                measurePaint.setTypeface(regularLabel);
+                float regular=Layout.getDesiredWidth(getText(),measurePaint);
+                measurePaint.setTypeface(selectedLabel);
+                float selected=Layout.getDesiredWidth(getText(),measurePaint);
+                int desired=(int)Math.ceil(Math.max(regular,selected))+getCompoundPaddingLeft()+getCompoundPaddingRight();
+                width=MeasureSpec.makeMeasureSpec(resolveSize(desired,width),MeasureSpec.EXACTLY);
+            }
+            super.onMeasure(width,height);
         }
 
         void selectedSurface(int color,boolean light) {

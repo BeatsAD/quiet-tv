@@ -20,8 +20,9 @@ final class DesktopManagementState {
         JSONObject out=new JSONObject(legacy.toString());
         String phase=out.optString("phase","quiet"),problem=out.optString("problem");
         JSONObject pending=management.optJSONObject("pending");
-        boolean incomplete=runtime.optBoolean("needsReview")||!"quiet".equals(phase)&&!"stock".equals(phase)
+        boolean operationIncomplete=!"quiet".equals(phase)&&!"stock".equals(phase)
             ||pending!=null&&!"completed".equals(pending.optString("phase"));
+        boolean incomplete=runtime.optBoolean("needsReview")||operationIncomplete;
         boolean paused=runtime.optBoolean("paused"),needed=runtime.optBoolean("guardNeeded"),ready=runtime.optBoolean("guardReady");
         boolean own=runtime.optBoolean("homeOwn"),stock=e.optBoolean("stockEnabled");
         String desktop="unknown";
@@ -91,6 +92,9 @@ final class DesktopManagementState {
         JSONObject verification=runtime.optJSONObject("verification");if(verification==null)verification=new JSONObject();
         String message=pending!=null?pending.optString("message"):out.optString("message");
         JSONObject settings=settings(entries,actions,desktop,state,label,phase,needed||guardPause!=null,runtime,problem);
+        if(!operationIncomplete&&"quiet".equals(phase)&&!paused&&!runtime.optBoolean("proxyPausePending")
+                && !e.optString("original").isEmpty())
+            settings.put("guardRepair",runtime.optJSONObject("guardRepair"));
         return out.put("presentationVersion",1).put("mainDesktop",new JSONObject().put("id",desktop).put("label",desktopLabel).put("hint",hint)
                 .put("systemHome",runtime.optString("systemHome")).put("source","system_and_route"))
             .put("guard",new JSONObject().put("state",state).put("label",label).put("needed",needed).put("reason",runtime.optString("problem")))
@@ -119,7 +123,8 @@ final class DesktopManagementState {
         String recovery="",reason="";
         JSONObject target=quietCurrent?toOriginal:toQuiet;
         boolean setup="quiet".equals(phase)&&"unconfigured".equals(guardState)&&!runtime.optBoolean("configured");
-        if(setup&&runtime.optBoolean("systemSelection"))recovery="system";
+        JSONObject localSetup=setup?runtime.optJSONObject("guardSetup"):null;
+        if(setup&&runtime.optBoolean("systemSelection")&&(localSetup==null||!localSetup.optBoolean("preferGuard")))recovery="system";
         else if(target!=null&&!target.optBoolean("enabled")){
             reason=target.optString("reason");
             recovery=target.optBoolean("requiresManagement")&&!runtime.optBoolean("managementConnected")?"authorize":"computer";
@@ -130,17 +135,22 @@ final class DesktopManagementState {
             reason=problem.isEmpty()?runtime.optString("problem"):problem;
             if(reason.isEmpty()&&guard!=null)reason=guard.optString("reason");
         }
-        return new JSONObject().put("rows",rows).put("recovery",recovery).put("reason",reason);
+        if(localSetup!=null)reason="";
+        if(!setup&&"running".equals(guardState)&&!runtime.optString("problem").isEmpty()){
+            recovery="computer";
+            reason=runtime.optString("problem");
+        }
+        return new JSONObject().put("rows",rows).put("recovery",recovery).put("reason",reason).put("guardSetup",localSetup);
     }
     private static JSONObject setting(String id,String title,String value,JSONObject action)throws JSONException {
         JSONObject row=new JSONObject().put("id",id).put("title",title).put("value",value);
         if(action!=null){
             row.put("action",action);
-            if(action.optBoolean("enabled")){
+            if(action.optBoolean("enabled")&&!"guard".equals(id)){
                 String titleOfAction=action.optString("title");
                 // The confirmation retains the exact effect of restoring the saved disabled state.
                 if("quiet-disable".equals(action.optString("id")))titleOfAction="切回 Quiet TV";
-                row.put("value","guard".equals(id)?value+"  "+titleOfAction:titleOfAction);
+                row.put("value",titleOfAction);
             }
         }
         return row;

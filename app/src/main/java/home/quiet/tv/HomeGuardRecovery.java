@@ -124,6 +124,20 @@ final class HomeGuardRecovery {
         handover.retry=null;
     }
     static void request(Context c,String reason){ensureBinding(c,reason);}
+    static boolean retryExistingBinding(Context context) throws java.io.IOException {
+        Context c=context.getApplicationContext();
+        HomeGuardState state=new HomeGuardState(c,false);
+        if(!state.recoveryReady() || !state.serviceEnabled())throw new java.io.IOException("守护状态已变化，请重新核对。");
+        boolean connected=HomeGuardService.connected();
+        if(!connected && !writeAllowed(c) && !HomeGuardUsageService.eligible(c))
+            throw new java.io.IOException("此电视需要在系统设置中重新连接无障碍。");
+        // The user requested a retry while our service was still authorized.
+        state.preferences.edit().remove("guardBindingChanged").apply();
+        if(connected)return true;
+        bindingReason="用户修复守护";
+        if(bindingWindow==null)ensureBinding(c,bindingReason);else bindingWindow.restart();
+        return HomeGuardService.connected();
+    }
     static void ensureBinding(Context supplied,String reason){
         Context c=supplied.getApplicationContext();if(Looper.myLooper()!=Looper.getMainLooper()){handler.post(()->ensureBinding(c,reason));return;}
         if(!new HomeGuardState(c).enabled()){bindingChanged();return;}

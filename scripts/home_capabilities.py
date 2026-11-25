@@ -101,6 +101,16 @@ def collect(adb, device, references=(), selected=None):
     wifi = read('wifi', 'dumpsys', 'wifi') if any(h.startswith(SETUP + '/') for h in homes) else ''
     setup_blocker = setup_wifi_blocker(wifi) if any(h.startswith(SETUP + '/') for h in homes) else ''
     vendor = set((identity['brand'] + ' ' + identity['manufacturer']).lower().split())
+    stock_guard = (device['sdk'] >= 21 and bool(vendor.intersection(('xiaomi', 'redmi')))
+                   and actual.startswith('com.mitv.tvhome/') and actual in homes)
+    tcl_power_on = None
+    if (device['user'] == 0 and vendor.intersection(('tcl', 'ffalcon', 'iffalcon'))
+            and actual.startswith('com.tcl.cyberui/') and 'com.tcl.ttvs' in packages):
+        tcl_power_on = {
+            'mode': read('tclBootMode', 'settings', '--user', '0', 'get', 'system', 'boot_app_mode'),
+            'component': read('tclBootComponent', 'settings', '--user', '0', 'get', 'system', 'boot_app_componentname'),
+            'verified': False,
+        }
     properties = {key: read(key, 'getprop', key) for key in ('persist.vt.use_home_pkg', 'persist.sys.home.selectpkg')}
     policy = (selected or {}).get('home', {})
     def route(name, possible, detail):
@@ -126,12 +136,13 @@ def collect(adb, device, references=(), selected=None):
                     '新 APK 的 API19 本机 ADB 守护；须确认原桌面完整组件、端口、应用独立授权及断开电脑后的开机，不修改系统 HOME'),
               route('legacy-window', device['sdk'] == 18 and 'LegacyWindowHomeGuardService' in own,
                     'API18 窗口守护候选；须由实际 APK 确认 window-home-guard-v1、原主页与真实窗口，配置后另验绑定和实体 HOME，不修改默认 HOME')]
-    return dict(schemaVersion=1, identity=identity, user=device['user'], home=actual,
+    return dict(schemaVersion=1, identity=identity, user=device['user'], home=actual, preferStockGuard=stock_guard,
+                tclPowerOn=tcl_power_on,
                 homeCandidates=sorted(homes), realHome=real_home(actual), setter=setter,
                 cvte=any(name.startswith('com.cvte.') for name in packages),
                 routes=routes, preserveOriginalReason=reason, setupWifiBlocker=setup_blocker,
                 knownRisks=risks, unknown=unknown, requiredChecks=list(CHECKS),
-                next='沿用有效路线；否则先 native，再按现场评估厂商路由／精确禁用，最后守护／已适配代理；失败不自动换路重试',
+                next='沿用有效路线；检测到当前小米 PatchWall 时优先守护；其他设备有标准 HOME 时优先使用；专项单独核对',
                 note='candidate 仅为配置候选，不是开机验收。ADB、APK安装、HOME、禁用、首屏及广告分别报告。')
 
 

@@ -210,7 +210,20 @@ def apply_plan(adb, plan, setter, journal):
         if read_step(adb, step, device) != step['before']:
             raise ValueError('配置状态变化，已执行部分请按记录核对')
         journal.event('boot_write_pending', index=index)
-        output = write_step(adb, setter, step, step['after'])
+        try:
+            output = write_step(adb, setter, step, step['after'])
+        except guard.CommandFailure as error:
+            # A rejected HOME command can be a safe fallback, a timeout or disconnect cannot.
+            if (plan['route'] != 'native-home' or len(plan['steps']) != 1 or step['kind'] != 'home'
+                    or not re.search(r'(?im)SecurityException\b|^\s*(?:Error:\s*)?Permission Denial\b',
+                                     error.output)):
+                raise
+            check_device(adb, device)
+            actual = read_step(adb, step, device)
+            journal.event('boot_write_result', index=index, output=error.output, actual=actual)
+            if actual == step['before']:
+                raise NoNativeRoute('固件拒绝设置默认 HOME，读回确认原桌面未变化，可使用兼容守护') from error
+            raise ValueError('固件拒绝设置默认 HOME，但读回状态已变化，请按原记录核对') from error
         actual = read_step(adb, step, device)
         journal.event('boot_write_result', index=index, output=output, actual=actual)
         if actual != step['after']:

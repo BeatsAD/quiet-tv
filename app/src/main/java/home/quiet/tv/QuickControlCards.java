@@ -53,7 +53,7 @@ final class QuickControlCards extends LinearLayout {
 
     QuickControlCards(Context context, float unit) {
         super(context);
-        corner = 12 * unit;
+        corner = SurfaceCorners.CARD * unit;
         inkMask.setColor(0xff191919);
         inkMask.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP));
         setOrientation(VERTICAL);
@@ -203,14 +203,14 @@ final class QuickControlCards extends LinearLayout {
         for (Card card : cards.values()) {
             readBounds(card);
             paint.setColor(card.on ? UiPalette.TEXT : OFF_FILL);
-            canvas.drawRoundRect(card.bounds, corner, corner, paint);
+            SurfaceCorners.draw(canvas, card.bounds, corner, corner, paint);
         }
 
         Card selected = selectedCard();
         if (selected == null || selected.bounds.isEmpty()) clearPlate();
         if (!plate.isEmpty()) {
             paint.setColor(UiPalette.TEXT);
-            canvas.drawRoundRect(plate, corner, corner, paint);
+            SurfaceCorners.draw(canvas, plate, corner, corner, paint);
         }
 
         boolean sliding = !plate.equals(destination);
@@ -229,7 +229,7 @@ final class QuickControlCards extends LinearLayout {
             int layer = canvas.saveLayer(scratch.left, scratch.top, scratch.right, scratch.bottom,
                     null, Canvas.ALL_SAVE_FLAG);
             super.dispatchDraw(canvas);
-            canvas.drawRoundRect(plate, corner, corner, inkMask);
+            SurfaceCorners.draw(canvas, plate, corner, corner, inkMask);
             canvas.restoreToCount(layer);
         } else {
             super.dispatchDraw(canvas);

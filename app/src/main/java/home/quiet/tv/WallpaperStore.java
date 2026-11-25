@@ -48,6 +48,7 @@ final class WallpaperStore {
     synchronized WallpaperCatalog snapshot() { return catalog.copy(); }
     // Rendering reads scalar state without serializing the complete media library.
     synchronized String currentId() { return catalog.current; }
+    synchronized boolean dailyMovieSelected(){return catalog.dailyMovieSelected();}
     synchronized boolean weatherEnabled() { return catalog.weather; }
     synchronized boolean weatherDayNight() { return catalog.weatherDayNight; }
     synchronized WallpaperCatalog.Entry entry(String id) { return catalog.find(id); }

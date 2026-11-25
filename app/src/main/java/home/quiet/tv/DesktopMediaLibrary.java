@@ -27,8 +27,8 @@ final class DesktopMediaLibrary {
     private static final int COLUMNS=2;
     private volatile int generation;
     private final List<Thumbnail> thumbnails=new ArrayList<>();
-    private final Rect visibleArea=new Rect();
-    private final int[] position=new int[2];
+    private final Rect viewportBounds=new Rect();
+    private final Rect thumbnailBounds=new Rect();
     private boolean thumbnailLoading;
     private ScrollView viewport;
     private ViewTreeObserver thumbnailTree;
@@ -203,19 +203,11 @@ final class DesktopMediaLibrary {
         if(destroyed)return;
         int first=-1,last=-1;
         boolean shown=library.isShown()&&library.getWindowVisibility()==View.VISIBLE;
-        if(shown&&(viewport==null||viewport.getLocalVisibleRect(visibleArea))){
-            int top=0,bottom=0;
-            if(viewport!=null){
-                viewport.getLocationInWindow(position);
-                top=position[1]+visibleArea.top;
-                bottom=position[1]+visibleArea.bottom;
-            }
+        if(shown&&(viewport==null||viewport.getGlobalVisibleRect(viewportBounds))){
             for(int i=0;i<thumbnails.size();i++){
                 ImageView art=thumbnails.get(i).art;
-                if(viewport!=null){
-                    art.getLocationInWindow(position);
-                    if(art.getHeight()==0||position[1]>=bottom||position[1]+art.getHeight()<=top)continue;
-                }else if(!art.getLocalVisibleRect(visibleArea))continue;
+                if(!art.getGlobalVisibleRect(thumbnailBounds)
+                        ||(viewport!=null&&!Rect.intersects(viewportBounds,thumbnailBounds)))continue;
                 if(first<0)first=i;
                 last=i;
             }

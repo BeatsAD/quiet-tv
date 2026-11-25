@@ -62,6 +62,11 @@ final class AppArtwork {
             ||LegacyIconRecovery.get(context).confirmed(pkg,covers.key(pkg)));
     }
 
+    static Bitmap desktopCover(Context context,String pkg,Bitmap image){
+        try{return AppCoverImages.desktopBacking(image,AppCoverStore.get(context).artworkForm(pkg));}
+        catch(OutOfMemoryError unavailable){return image;}
+    }
+
     static String previewRevision(Context context){
         return LegacyIconRecovery.supported()?LegacyIconRecovery.get(context).signature():"";
     }

@@ -44,10 +44,18 @@ final class UpdatePanel {
             QuickControlPreviewView.weight(heading,500);
             LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,-2);
             hp.bottomMargin=p(10.24f);
-            box.addView(heading,hp);
-            if(state.equals("error"))OperationFeedback.status(heading,OperationFeedback.Kind.ERROR);
-            else if(state.equals("installed")||state.equals("ready"))OperationFeedback.status(heading,OperationFeedback.Kind.SUCCESS);
-            else if(Arrays.asList("checking","download","install").contains(state))OperationFeedback.status(heading,OperationFeedback.Kind.PROGRESS);
+            if(state.equals("checking")||state.equals("download")||state.equals("install")){
+                LinearLayout progressHeading=activity.row();
+                LinearLayout.LayoutParams iconBounds=new LinearLayout.LayoutParams(px(32),px(32));
+                iconBounds.rightMargin=px(16);
+                progressHeading.addView(OperationFeedback.progressIcon(activity),iconBounds);
+                progressHeading.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
+                box.addView(progressHeading,hp);
+            }else{
+                box.addView(heading,hp);
+                if(state.equals("error"))OperationFeedback.status(heading,OperationFeedback.Kind.ERROR);
+                else if(state.equals("installed")||state.equals("ready"))OperationFeedback.status(heading,OperationFeedback.Kind.SUCCESS);
+            }
         }
         actions=activity.row();actions.setGravity(Gravity.END);actions.setClipChildren(false);actions.setClipToPadding(false);
         dialog.setOnKeyListener((d,key,event)->{if((key==KeyEvent.KEYCODE_BACK||key==KeyEvent.KEYCODE_ESCAPE)&&event.getAction()==KeyEvent.ACTION_UP){if(!event.isCanceled()){handleBack();KeyFeedback.back(activity);}return true;}return key==KeyEvent.KEYCODE_BACK||key==KeyEvent.KEYCODE_ESCAPE;});

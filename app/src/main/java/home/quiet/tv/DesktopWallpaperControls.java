@@ -22,7 +22,7 @@ final class DesktopWallpaperControls {
     private final Runnable dailyStateChanged=this::scheduleDailyRefresh;
     private final WeatherSettingsSheet weatherEditor;
     private DisplayAppearanceChoice modeChoice,intervalChoice,sourceChoice;
-    private DesktopSettingsRow choose,dayNight,dailyDetails,movieInfo,city,source,sound,component;
+    private DesktopSettingsRow choose,dayNight,dailyDetails,movieInfo,homeQuote,city,source,sound,component;
     private boolean componentsListening;
     private final home.quiet.components.ComponentRepository.Listener componentsChanged=this::refreshComponent;
     private TextView rotationNote,lowNote,summary,summaryDetail;
@@ -71,7 +71,8 @@ final class DesktopWallpaperControls {
         lowNote=note(tr("此设备不支持天气动态效果，保留静态背景","Weather effects are unavailable on this device. Static backgrounds remain available."));group.addView(lowNote);
         sourceChoice=new DisplayAppearanceChoice(ui,"wall-daily-source",tr("图片来源","Image source"),new String[]{WallpaperCatalog.BING,WallpaperCatalog.MICROSOFT,WallpaperCatalog.MOVIE},new String[]{tr("必应","Bing"),tr("微软壁纸","Microsoft wallpapers"),tr("每日电影","Daily movie")},new DisplayAppearanceChoice.Access(){public String read(){return DailyWallpaperLoader.source(store.snapshot());}public void save(String source)throws IOException{if(!store.dailyPending().isEmpty())throw new IOException(tr("正在获取壁纸，请稍候","Getting wallpaper. Please wait"));if(!source.equals(read()))switchSource(source);}},false,new DisplayAppearanceChoice.Preview(){public void value(String key,Object value){}public void clear(String key){}},rewired).solidSelection().twoColumns().errors(this::error);group.addView(sourceChoice);
         dailyDetails=row(tr("当前图片详情","Current image details"),"wall-daily-details",this::details);dailyDetails.tail("arrow");
-        movieInfo=row(tr("显示影片信息","Show movie information"),"wall-movie-info",()->{try{DesktopSettingsStore settings=new DesktopSettingsStore(ui);settings.showMovieInfo(!settings.showMovieInfo());error="";refresh();scene();}catch(IOException failure){error(failure.getMessage());}});
+        movieInfo=row(tr("显示影片信息","Show movie information"),"wall-movie-info",()->saveHomeContent(DesktopSettingsStore.MOVIE_INFO,!movieInfo.checked()));
+        homeQuote=row(tr("显示每日格言","Show daily quote"),"wall-home-quote",()->saveHomeContent(DailyQuote.HOME,!homeQuote.checked()));
         for(DesktopSettingsRow arrow:new DesktopSettingsRow[]{choose,city,source,dailyDetails})arrow.getLayoutParams().height=ui.px(44.72f);
         group.addView(media.library);
         intervalChoice=new DisplayAppearanceChoice(ui,"wall-interval",tr("轮换间隔","Rotation interval"),new String[]{"1","5","10","15","30","60","custom"},new String[]{"1 "+tr("分钟","min"),"5 "+tr("分钟","min"),"10 "+tr("分钟","min"),"15 "+tr("分钟","min"),"30 "+tr("分钟","min"),"60 "+tr("分钟","min"),tr("自定义","Custom")},new DisplayAppearanceChoice.Access(){public String read(){return custom||!preset(currentMinutes())?"custom":String.valueOf(currentMinutes());}public void save(String value)throws IOException{if(busy)throw new IOException(tr("正在应用，请稍候","Applying. Please wait."));custom=value.equals("custom");interval=custom?String.valueOf(currentMinutes()):value;touched=true;error="";refresh();scene();if(!custom)apply();}},false,new DisplayAppearanceChoice.Preview(){public void value(String key,Object value){}public void clear(String key){}},rewired).twoColumns().errors(this::error);group.addView(intervalChoice);
@@ -90,11 +91,28 @@ final class DesktopWallpaperControls {
     private boolean pending(){WallpaperCatalog state=store.snapshot();return !mode.equals(actualMode(state))||!candidate.equals(state.current)||mode.equals("weather")&&followDayNight!=state.weatherDayNight||mode.equals("rotation")&&currentMinutes()!=(video()?state.videoRotationMinutes:state.imageRotationMinutes);}
     void refresh(){
         if(destroyed||choose==null)return;if(!touched)reset();WallpaperCatalog state=store.snapshot();if(state.find(candidate)==null||state.builtinHidden(candidate,false))candidate=state.current;boolean picking=mode.equals("fixed")||mode.equals("rotation"),weather=mode.equals("weather"),rotating=mode.equals("rotation");
-        movieInfo.setVisibility(mode.equals("daily")&&WallpaperCatalog.MOVIE.equals(DailyWallpaperLoader.source(state))?View.VISIBLE:View.GONE);movieInfo.checked(new DesktopSettingsStore(ui).showMovieInfo());
+        boolean movieWallpaper=state.dailyMovieSelected();
+        DesktopSettingsStore desktop=new DesktopSettingsStore(ui);
+        boolean movie=desktop.showMovieInfo(movieWallpaper),quote=desktop.showHomeQuote(movieWallpaper);
+        movieInfo.setVisibility(movieWallpaper?View.VISIBLE:View.GONE);
+        movieInfo.checked(movie);
+        movieInfo.available(!quote);
+        movieInfo.value(quote?tr("请先关闭每日格言","Turn off daily quote first"):"");
+        homeQuote.checked(quote);
+        homeQuote.available(!movie);
+        homeQuote.value(movie?tr("请先关闭影片信息","Turn off movie information first"):"");
         choose.setVisibility(picking?View.VISIBLE:View.GONE);choose.tail(expanded?"settings-up":"arrow");WallpaperCatalog.Entry item=state.find(candidate);choose.value(item==null?tr("素材不可用","Unavailable"):item.label(ui.chinese()));dailyDetails.setVisibility(mode.equals("daily")?View.VISIBLE:View.GONE);sourceChoice.setVisibility(mode.equals("daily")?View.VISIBLE:View.GONE);dailyDetails.value("");sourceChoice.available(store.dailyPending().isEmpty());sourceChoice.refreshConfirmed();media.visible(picking&&expanded);
         for(View v:new View[]{weatherSummary,dayNight,city,source})v.setVisibility(weather?View.VISIBLE:View.GONE);dayNight.checked(followDayNight);WeatherStore weatherStore=new WeatherStore(ui);WeatherData data=weatherStore.cached(ui.chinese());city.value(weatherStore.automatic()?(data==null?tr("自动定位","Automatic location"):data.city):weatherStore.city());source.value(weatherStore.provider().equals("auto")?tr("自动切换","Automatic fallback"):WeatherClient.providerName(weatherStore.provider()));weatherSummary(data);lowNote.setVisibility(WallpaperGpuSupport.available(ui)?View.GONE:View.VISIBLE);
         intervalChoice.setVisibility(rotating?View.VISIBLE:View.GONE);customRow.setVisibility(rotating&&(custom||!preset(currentMinutes()))?View.VISIBLE:View.GONE);if(!minutes.hasFocus())minutes.setText(interval.isEmpty()?String.valueOf(currentMinutes()):interval);rotationNote.setText(video()?tr("至少需要 2 个视频才能轮换","At least 2 videos are needed for rotation"):tr("至少需要 2 张图片才能轮换","At least 2 images are needed for rotation"));rotationNote.setVisibility(rotating&&store.snapshot().count(video())<2?View.VISIBLE:View.GONE);
         sound.setVisibility(video()?View.VISIBLE:View.GONE);sound.available(!rotating&&!weather&&!busy);sound.checked(state.sound&&!rotating&&!weather);sound.displayDescription(rotating||weather?tr("当前方式保持静音","This mode stays muted"):"");modeChoice.refresh();intervalChoice.refresh();media.refreshSelection();dailyStatus();rewired.run();
+    }
+    private void saveHomeContent(String key,boolean enabled){
+        try{
+            new DesktopSettingsStore(ui).savePhoneValue(key,enabled);
+            error="";
+            refresh();
+            scene();
+        }catch(IOException failure){error(failure.getMessage());}
     }
     private String cityTitle(){String value=new WeatherStore(ui).city();return value.isEmpty()?tr("当前城市","Current city"):value;}
     private void weatherSummary(WeatherData data){

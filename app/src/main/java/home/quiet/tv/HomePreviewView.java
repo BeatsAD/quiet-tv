@@ -78,7 +78,6 @@ final class HomePreviewView extends FrameLayout implements SharedPreferences.OnS
     private void place(View v,int width,int height,int x,int y){FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(width,height);p.leftMargin=x;p.topMargin=y;scene.addView(v,p);}
     private void invalidateDock(){if(header!=null)for(TextView pill:header.pills)pill.invalidate();if(band!=null){band.invalidate();for(int i=0;i<band.getChildCount();i++)band.getChildAt(i).invalidate();}}
     @Override public void onWindowFocusChanged(boolean focused){super.onWindowFocusChanged(focused);if(header!=null)header.clockActive(active&&focused);if(backgrounds!=null&&active){if(focused){backgrounds.resume();refresh();}else{sync.invalidate();backgrounds.pause();backgrounds.hidden();}}}
-    boolean movieInfoVisible(){return !secondScreen&&header.movieInfoVisible();}
     private void refreshQuote(boolean retry){if(header!=null)header.refreshQuote(active&&!secondScreen&&isShown()&&hasWindowFocus(),retry);}
     void observeMessages(WallpaperController.Message listener){backgrounds.observeMessages(listener);}
     void observeDockLayout(Runnable listener){dockLayoutChanged=listener;listener.run();}
@@ -168,7 +167,12 @@ final class HomePreviewView extends FrameLayout implements SharedPreferences.OnS
             }catch(RuntimeException|OutOfMemoryError failure){if(failure instanceof OutOfMemoryError)cache.clear();DiagnosticLog.error("home.preview.load_failed",failure);main.post(()->{if(request==generation&&!destroyed){pendingKey=null;failedKey=key;sync.failed(sync.request(),chinese?"桌面预览无法读取":"Unable to load desktop preview");invalidate();}});}
         });
     }
-    private static Bitmap previewArtwork(Context context,HomeAppCatalog.Entry app){Bitmap shared=HomeActivity.previewArtwork(context,app.id);return shared==null?AppArtwork.load(context,app.info):shared;}
+    private static Bitmap previewArtwork(Context context,HomeAppCatalog.Entry app){
+        Bitmap shared=HomeActivity.previewArtwork(context,app.id);
+        if(shared!=null)return shared;
+        Bitmap image=AppArtwork.load(context,app.info);
+        return AppArtwork.displayedAsContain(context,app.id)?AppArtwork.desktopCover(context,app.id,image):image;
+    }
     static List<String> previewGridIds(List<String> ordered,String pkg,String size,String shape){
         int columns=HomeActivity.gridColumns(size,shape);
         float cardHeight=(864f/columns-16)/("rectangle".equals(shape)?16/9f:1);
@@ -206,7 +210,7 @@ final class HomePreviewView extends FrameLayout implements SharedPreferences.OnS
         if(dockLayoutChanged!=null)dockLayoutChanged.run();
     }
     private TextView appName(String value,float size){TextView label=new TextView(getContext());label.setText(value);label.setTextColor(UiPalette.TEXT);label.setShadowLayer(2.25f,0,1,UiPalette.INK);label.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,size);label.setGravity(Gravity.CENTER);label.setSingleLine(true);label.setEllipsize(android.text.TextUtils.TruncateAt.END);label.setIncludeFontPadding(false);return label;}
-    private ImageView artCard(Bitmap art,String shape,String pkg){boolean draft=coverPreview!=null&&pkg.equals(coverPreviewPackage);ImageView image=new ImageView(getContext());image.setImageDrawable(new AppShapeDrawable(draft?coverPreview:art,"circle".equals(shape),draft||AppArtwork.displayedAsContain(getContext(),pkg)));image.setScaleType(ImageView.ScaleType.FIT_XY);return image;}
+    private ImageView artCard(Bitmap art,String shape,String pkg){boolean draft=coverPreview!=null&&pkg.equals(coverPreviewPackage);ImageView image=new ImageView(getContext());boolean circle="circle".equals(shape);image.setImageDrawable(draft?new AppShapeDrawable(coverPreview,circle,true):AppShapeDrawable.desktop(art,circle,AppArtwork.displayedAsContain(getContext(),pkg)));image.setScaleType(ImageView.ScaleType.FIT_XY);return image;}
     void previewCover(String pkg,Bitmap image){coverPreviewPackage=pkg==null?"":pkg;coverPreview=image;appearanceSignature="";refresh();}
     boolean containsHomeApp(String pkg){DesktopSettingsStore settings=new DesktopSettingsStore(getContext());int index=applied==null?-1:applied.ids.indexOf(pkg);return settings.showHomeApps()&&index>=0&&index<number(settings,"dock-limit");}
     boolean showingSecondScreen(){return secondScreen;}

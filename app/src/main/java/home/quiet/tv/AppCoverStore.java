@@ -47,6 +47,10 @@ final class AppCoverStore {
     synchronized boolean library(String pkg){return file(pkg)!=null&&LibraryCover.library(index.optJSONObject(pkg));}
     synchronized boolean contain(String pkg){return file(pkg)!=null&&LibraryCover.contain(index.optJSONObject(pkg));}
     synchronized JSONObject entry(String pkg)throws IOException{requireIndex();try{JSONObject value=index.optJSONObject(pkg);return value==null?null:new JSONObject(value.toString());}catch(JSONException e){throw new IOException("封面记录无法读取",e);}}
+    synchronized String artworkForm(String pkg){
+        JSONObject entry=index.optJSONObject(pkg);
+        return entry==null?"":entry.optString("form");
+    }
     synchronized long revision(){return index.optLong("revision",0);}
     synchronized JSONObject backupSnapshot()throws IOException{
         requireIndex();try{JSONObject copy=new JSONObject(index.toString());copy.remove("revision");return copy;}catch(JSONException failure){throw new IOException("封面清单无法读取",failure);}

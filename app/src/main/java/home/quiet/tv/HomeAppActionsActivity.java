@@ -17,7 +17,7 @@ import java.util.concurrent.*;
 public final class HomeAppActionsActivity extends ManagementUi {
     static final int REQUEST=7201;
     private static final int DELETE=7202;
-    private static final int MENU_WIDTH=200, MENU_PADDING=16, MENU_GAP=10, MENU_ROW_HEIGHT=43, MENU_MIN_ROW_HEIGHT=40;
+    private static final int MENU_WIDTH=200, MENU_PADDING=16, MENU_MIN_PADDING=8, MENU_GAP=10, MENU_ROW_HEIGHT=43, MENU_MIN_ROW_HEIGHT=40;
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private Dialog dialog;
     private ManagementUi.Sheet sheet;
@@ -78,7 +78,13 @@ public final class HomeAppActionsActivity extends ManagementUi {
         if(page.equals("menu")){
             if(menuBox!=null)sheetContent.removeView(menuBox);sheet.box.setVisibility(View.GONE);
             menuBox=column();menuBox.setClickable(true);menuBox.setBackgroundDrawable(new MenuBackdrop());
-            menuScroll=new ScrollView(this);menuScroll.setVerticalScrollBarEnabled(false);menuScroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
+            menuScroll=new ScrollView(this){
+                @Override protected void onScrollChanged(int l,int t,int oldl,int oldt){
+                    super.onScrollChanged(l,t,oldl,oldt);
+                    menuBox.getBackground().invalidateSelf();
+                }
+            };
+            menuScroll.setVerticalScrollBarEnabled(false);menuScroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
             box=column();menuScroll.addView(box);
             menuBox.addView(menuScroll,new LinearLayout.LayoutParams(-1,-1));
             sheetContent.addView(menuBox,new FrameLayout.LayoutParams(px(MENU_WIDTH),-2,Gravity.TOP|Gravity.LEFT));return;
@@ -96,8 +102,15 @@ public final class HomeAppActionsActivity extends ManagementUi {
     }
     private Button option(String label,String icon,Runnable action){
         if(mode.equals("menu")){
-            Button b=button(label,action);b.setTag("app-menu-"+label);b.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);b.setPadding(px(14),0,px(12),0);b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(16));
-            StateListDrawable background=new StateListDrawable();background.addState(new int[]{android.R.attr.state_focused},menuSurface(0xffeff0f4,0xffeff0f4,0,10));background.addState(new int[0],menuSurface(0,0,0,10));b.setBackgroundDrawable(background);
+            Button b=button(label,action);b.setTag("app-menu-"+label);b.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);
+            // Keep a focus state to suppress the platform highlight. The menu paints its own plate.
+            StateListDrawable background=new StateListDrawable();
+            background.addState(new int[]{android.R.attr.state_focused},new ColorDrawable(Color.TRANSPARENT));
+            background.addState(new int[0],new ColorDrawable(Color.TRANSPARENT));
+            b.setBackgroundDrawable(background);
+            b.setPadding(px(14),0,px(12),0);
+            b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(16));
+            b.setOnFocusChangeListener((view,focused)->menuBox.getBackground().invalidateSelf());
             boolean uninstall=label.equals("卸载应用");
             b.setTextColor(new ColorStateList(
                     new int[][]{{-android.R.attr.state_enabled},{android.R.attr.state_focused},{}},
@@ -119,7 +132,12 @@ public final class HomeAppActionsActivity extends ManagementUi {
         Button uninstall=option("卸载应用","trash",this::authorizeUninstall);uninstall.setEnabled(real&&protectedReason.isEmpty());
         show(200,first,true);
     }
-    private GradientDrawable menuSurface(int top,int bottom,int stroke,int radius){GradientDrawable shape=new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{top,bottom});shape.setCornerRadius(px(radius));shape.setStroke(px(1),stroke);return shape;}
+    private SurfaceDrawable menuSurface(int top,int bottom,int stroke,float radius){
+        SurfaceDrawable shape=new SurfaceDrawable(unit,GradientDrawable.Orientation.TL_BR,new int[]{top,bottom});
+        shape.setCornerRadius(radius*unit);
+        shape.setStroke(Math.max(1,px(.5f)),stroke);
+        return shape;
+    }
     private void showMenu(View focus){
         if(fromDock)positionDockMenu();
         else menuBox.getLayoutParams().height=0;
@@ -213,7 +231,7 @@ public final class HomeAppActionsActivity extends ManagementUi {
     private int sizeMenu(int available){
         int count=box.getChildCount(),normalRow=px(MENU_ROW_HEIGHT);
         // Tighten padding before shortening rows and scroll when the minimum row height will not fit.
-        int padding=Math.max(Math.min(px(8),available/4),
+        int padding=Math.max(Math.min(px(MENU_MIN_PADDING),available/4),
                 Math.min(px(MENU_PADDING),(available-count*normalRow)/2));
         int rowHeight=Math.max(px(MENU_MIN_ROW_HEIGHT),Math.min(normalRow,(available-2*padding)/count));
         menuBox.setPadding(px(MENU_PADDING),padding,px(MENU_PADDING),padding);
@@ -232,12 +250,76 @@ public final class HomeAppActionsActivity extends ManagementUi {
             }
         });
     }
-    /** Keeps the 1.3.6 menu's round corners and wallpaper tint local to this surface. */
     private final class MenuBackdrop extends Drawable {
-        private final Paint paint=new Paint(3);private final RectF area=new RectF();private final Path clip=new Path();private final int[] location=new int[2];private final GradientDrawable fallback=menuSurface(0xff30343e,0xff23272f,0x38ffffff,16);private Shader tint;
-        @Override protected void onBoundsChange(Rect bounds){area.set(bounds);clip.reset();clip.addRoundRect(area,22*unit,22*unit,Path.Direction.CW);tint=new LinearGradient(0,bounds.top,0,bounds.bottom,0x30e6e8ec,0x202c3038,Shader.TileMode.CLAMP);fallback.setBounds(bounds);}
-        @Override public void draw(Canvas canvas){if(backdrop==null||!GlassStyle.get(HomeAppActionsActivity.this).rendering()){fallback.draw(canvas);return;}float radius=22*unit;paint.setStyle(Paint.Style.FILL);paint.setShader(null);paint.setColor(0x18000000);int save=canvas.save();canvas.translate(0,2*unit);canvas.drawRoundRect(area,radius,radius,paint);canvas.restoreToCount(save);save=canvas.save();canvas.clipPath(clip);menuBox.getLocationOnScreen(location);canvas.translate(-location[0],-location[1]);paint.setAlpha(255);canvas.drawBitmap(backdrop,null,new RectF(0,0,getResources().getDisplayMetrics().widthPixels,getResources().getDisplayMetrics().heightPixels),paint);canvas.restoreToCount(save);paint.setAlpha(255);paint.setShader(tint);canvas.drawRoundRect(area,radius,radius,paint);paint.setShader(null);float stroke=Math.max(1,.5f*unit);area.inset(stroke/2,stroke/2);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(stroke);paint.setColor(0x66ffffff);canvas.drawRoundRect(area,radius-stroke/2,radius-stroke/2,paint);area.inset(-stroke/2,-stroke/2);paint.setStyle(Paint.Style.FILL);}
-        @Override public void setAlpha(int alpha){}@Override public void setColorFilter(ColorFilter filter){}@Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
+        private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);
+        private final RectF area=new RectF();
+        private final Path clip=new Path(),outline=new Path();
+        private final Paint focusPaint=new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Rect focusRow=new Rect();
+        private final RectF focusArea=new RectF();
+        private final int[] location=new int[2];
+        private final SurfaceDrawable fallback=menuSurface(0xff30343e,0xff23272f,0x38ffffff,SurfaceCorners.PANEL);
+        private final float stroke=Math.max(1,px(.5f));
+        private Shader tint;
+        @Override protected void onBoundsChange(Rect bounds){
+            fallback.setBounds(bounds);
+            fallback.path(clip);
+            area.set(bounds);
+            float radius=SurfaceCorners.radius(area,SurfaceCorners.PANEL*unit,unit);
+            area.inset(stroke/2,stroke/2);
+            SurfaceCorners.path(outline,area,radius-stroke/2);
+            tint=bounds.isEmpty()?null:new LinearGradient(0,bounds.top,0,bounds.bottom,0x30e6e8ec,0x202c3038,Shader.TileMode.CLAMP);
+        }
+        @Override public void draw(Canvas canvas){
+            if(clip.isEmpty())return;
+            if(backdrop==null||!GlassStyle.get(HomeAppActionsActivity.this).rendering())fallback.draw(canvas);
+            else drawGlass(canvas);
+            drawFocus(canvas);
+        }
+        private void drawGlass(Canvas canvas){
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(0x18000000);
+            int save=canvas.save();
+            canvas.translate(0,2*unit);
+            canvas.drawPath(clip,paint);
+            canvas.restoreToCount(save);
+
+            save=canvas.save();
+            canvas.clipPath(clip);
+            menuBox.getLocationOnScreen(location);
+            canvas.translate(-location[0],-location[1]);
+            paint.setAlpha(255);
+            canvas.drawBitmap(backdrop,null,new RectF(0,0,getResources().getDisplayMetrics().widthPixels,getResources().getDisplayMetrics().heightPixels),paint);
+            canvas.restoreToCount(save);
+
+            paint.setShader(tint);
+            canvas.drawPath(clip,paint);
+            paint.setShader(null);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(stroke);
+            paint.setColor(0x66ffffff);
+            canvas.drawPath(outline,paint);
+        }
+        private void drawFocus(Canvas canvas){
+            View focused=menuScroll.findFocus();
+            if(!(focused instanceof Button))return;
+            focused.getDrawingRect(focusRow);
+            menuBox.offsetDescendantRectToMyCoords(focused,focusRow);
+
+            // Match the visible side gaps to the vertical padding without resizing the rows.
+            int inset=Math.max(px(MENU_MIN_PADDING),menuBox.getPaddingTop());
+            focusArea.set(inset,focusRow.top,menuBox.getWidth()-inset,focusRow.bottom);
+            float radius=SurfaceCorners.CARD*unit;
+            focusPaint.setColor(0xffeff0f4);
+            int save=canvas.save();
+            canvas.clipRect(0,menuScroll.getTop(),menuBox.getWidth(),menuScroll.getBottom());
+            canvas.clipPath(clip);
+            SurfaceCorners.draw(canvas,focusArea,radius,radius,focusPaint);
+            canvas.restoreToCount(save);
+        }
+        @Override public void setAlpha(int alpha){}
+        @Override public void setColorFilter(ColorFilter filter){}
+        @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
     }
     private void changed(String focus){setResult(RESULT_OK,new Intent().putExtra("action","changed").putExtra("package",focus));finish();}
     private void changed(String focus,String notice,boolean success){setResult(RESULT_OK,new Intent().putExtra("action","changed").putExtra("package",focus).putExtra("feedback",notice).putExtra("feedback-success",success));finish();}
