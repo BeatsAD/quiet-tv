@@ -1,5 +1,8 @@
 package home.quiet.tv;
 
+import static home.quiet.tv.WallpaperUi.CARD_INSET;
+import static home.quiet.tv.WallpaperUi.CARD_RADIUS;
+
 import android.animation.ValueAnimator;
 import android.app.*;
 import android.graphics.*;
@@ -24,9 +27,10 @@ final class WallpaperController implements GlassStyle.Listener {
     private boolean previewQueued,previewDone;
     private Runnable previewDraw;
 
-    private static final int CARD_RADIUS=16,CARD_INSET=5,CARD_STROKE=2;
+    private static final int CARD_STROKE=2;
     private final Activity activity;
     private final FrameLayout root,background;
+    private TopShelfBackdrop topShelfBackdrop;
     private final WallpaperStore store;
     private final DesktopSettingsStore desktopSettings;
     private final ScreensaverStore screensavers;
@@ -79,7 +83,10 @@ final class WallpaperController implements GlassStyle.Listener {
     private int videoRequest;
     private boolean commitPending,leaving,destroyed,restoreDesktopPending;
     private int rotationCommit;
+    private long rotationVideoVersion=-1L,scheduledRotationVersion;
     private KeyFeedback.Popup rotationMenu;
+    private WallpaperIntervalEditor rotationEditor;
+    private TextView rotationOff;
     private Bitmap restoredCover;
     private boolean dynamicTab;
     private final LruCache<String,Bitmap> thumbnails=new LruCache<String,Bitmap>(6*1024){@Override protected int sizeOf(String id,Bitmap bitmap){return bitmap.getByteCount()/1024;}};
@@ -115,14 +122,26 @@ final class WallpaperController implements GlassStyle.Listener {
     private Runnable coverDraw,startupDraw;
     private final Runnable rotate=this::rotateWallpaper;
     private void rotateWallpaper(){
-        WallpaperCatalog state=store.snapshot();if(previewOnly||!active||temporaryMedia!=null||picker!=null||!state.rotating)return;
-        if(state.dynamic()){String next=state.nextPlayableVideo(state.current,failedVideos);if(next==null||next.equals(state.current)){schedule();return;}startVideo(next,true,state.rotationMinutes);return;}
-        try{store.next();display(store.snapshot().current,true);}catch(IOException e){notice(tr("壁纸设置保存失败","Unable to save wallpaper settings"));}schedule();
+        long expected=scheduledRotationVersion;
+        if(store.manualVersion()!=expected){schedule();return;}
+        WallpaperCatalog state=store.snapshot();
+        if(previewOnly||!active||temporaryMedia!=null||picker!=null||!state.rotating)return;
+        if(state.dynamic()){
+            String next=state.nextPlayableVideo(state.current,failedVideos);
+            if(next==null||next.equals(state.current)){schedule();return;}
+            startVideo(next,true,state.rotationSeconds,null,expected);
+            return;
+        }
+        try{
+            String next=store.advanceImage(expected);
+            if(next!=null)display(next,true);
+        }catch(IOException e){notice(tr("壁纸设置保存失败","Unable to save wallpaper settings"));}
+        schedule();
     }
 
     WallpaperController(Activity activity,FrameLayout root,float unit,boolean chinese){this(activity,root,unit,chinese,false);}
     WallpaperController(Activity activity,FrameLayout root,float unit,boolean chinese,boolean previewOnly){
-        this.activity=activity;this.root=root;this.homeUnit=unit;this.unit=unit*960f/1040f;this.ui=new WallpaperUi(activity,this.unit);this.chinese=chinese;this.previewOnly=previewOnly;store=WallpaperStore.get(activity);screensavers=ScreensaverStore.get(activity);uploads=new WallpaperUploadPanel(activity,store,chinese);
+        this.activity=activity;this.root=root;this.homeUnit=unit;this.unit=WallpaperUi.pickerUnit(unit);this.ui=new WallpaperUi(activity,this.unit);this.chinese=chinese;this.previewOnly=previewOnly;store=WallpaperStore.get(activity);screensavers=ScreensaverStore.get(activity);uploads=new WallpaperUploadPanel(activity,store,chinese);
         desktopSettings=new DesktopSettingsStore(activity);glassStyle=GlassStyle.get(activity);backdropCache=new WallpaperBackdropCache(activity);daily=new DailyWallpaperController(activity,store,chinese,this::dailyChanged);
         background=new FrameLayout(activity){
             @Override protected void onMeasure(int widthSpec,int heightSpec){
@@ -369,6 +388,14 @@ final class WallpaperController implements GlassStyle.Listener {
     }
     private int fadeDuration(int original){return temporaryMedia!=null||picker!=null?original:desktopFade;}
     private void revealDesktop(boolean changed){if(!active||temporaryMedia!=null||picker!=null)return;if(fadePending||changed){fadePending=false;desktopRevealed=true;appearance.fadeIn(desktopFade);}}
+    String settingsWeatherKey(){
+        return previewOnly&&!destroyed&&weatherSelected()&&store.weatherEnabled()&&followWeatherDayNight()==store.weatherDayNight()
+                ?weatherPreviewKey():null;
+    }
+    void captureSettingsWeather(String key,int width,int height,WallpaperGpuView.Capture callback){
+        if(active&&visibleGpuWeather()&&key.equals(gpuWeatherKey))gpu.sourceSnapshot(width,height,callback);
+        else callback.ready(null);
+    }
     /** Sample the current background source, before desktop dimming and the phone's own blur. */
     void phoneBackground(WallpaperGpuView.Capture callback){
         if(destroyed||temporaryMedia!=null||picker!=null||root.getWidth()<1){callback.ready(null);return;}
@@ -384,9 +411,20 @@ final class WallpaperController implements GlassStyle.Listener {
     private boolean followWeatherDayNight(){return temporaryMedia!=null?temporaryDayNight:previewOnly?previewDayNight:store.weatherDayNight();}
     private String weatherPreviewKey(){return weatherPreviewKey(new WeatherStore(activity).cached(chinese));}
     private String weatherPreviewKey(WeatherData data){return new WeatherStore(activity).key(chinese)+":"+(data==null?0:data.fetchedAt)+":"+followWeatherDayNight()+":"+(data!=null&&data.usable(System.currentTimeMillis()));}
+    void topShelf(Bitmap image) {
+        if (topShelfBackdrop == null) {
+            if (image == null) return;
+            topShelfBackdrop = new TopShelfBackdrop(activity);
+            root.addView(topShelfBackdrop, root.indexOfChild(background) + 1, new FrameLayout.LayoutParams(-1, -1));
+        }
+        topShelfBackdrop.image(image);
+        if (dockInvalidation != null) dockInvalidation.run();
+    }
+
     void drawDockBackground(Canvas canvas,Paint paint){
         canvas.drawColor(Color.BLACK);
         if(!glassStyle.rendering())return;
+        if(topShelfBackdrop!=null&&topShelfBackdrop.getVisibility()==View.VISIBLE){topShelfBackdrop.draw(canvas);return;}
         if(liveBackdropVisible()){
             requestBackdrop();
             if(liveBackdrop!=null&&liveBackdropKey.equals(backdropKey())){
@@ -610,9 +648,16 @@ final class WallpaperController implements GlassStyle.Listener {
     }
     private void finishLeave(Runnable launch){leaving=false;if(active&&!destroyed)launch.run();}
     private void restoreSelected(){String id=selectedId();WallpaperCatalog.Entry selected=store.entry(id);if(selected!=null&&selected.video()&&!id.equals(failedVideo))startVideo(id,false);else display(id,false);}
-    private void schedule(){main.removeCallbacks(rotate);WallpaperCatalog state=store.snapshot();if(active&&!previewOnly&&temporaryMedia==null&&state.rotating&&picker==null)main.postDelayed(rotate,state.rotationMinutes*60*1000L);}
+    private void schedule(){
+        main.removeCallbacks(rotate);
+        scheduledRotationVersion=store.manualVersion();
+        WallpaperCatalog state=store.snapshot();
+        if(!active||previewOnly||temporaryMedia!=null||!state.rotating||picker!=null)return;
+        if(state.dynamic()&&(!state.current.equals(playingVideo)||!video.ready()))return;
+        main.postDelayed(rotate,state.rotationSeconds*1000L);
+    }
     private void refreshManualSelection(){long revision=store.manualVersion();if(revision!=manualVersion){manualVersion=revision;failedVideos.clear();failedVideo="";}}
-    void settingsChanged(){if(destroyed)return;refreshManualSelection();updateGpuBackground();video.setSound(audible());if(active){restoreSelected();daily.resume();schedule();}else display(selectedId(),false);}
+    void settingsChanged(){if(destroyed)return;refreshManualSelection();updateGpuBackground();video.setSound(audible());if(active){restoreSelected();if(picker!=null)details();daily.resume();schedule();}else display(selectedId(),false);}
     void resume(){
         refreshManualSelection();
         // Losing the playback service is not a permanent failure of the selected video.
@@ -620,7 +665,7 @@ final class WallpaperController implements GlassStyle.Listener {
         if(!active&&!failedVideo.isEmpty()&&videoFailure==VideoWallpaperPlayer.Failure.INTERRUPTED){
             DiagnosticLog.info("wallpaper.video.recover","wallpaper="+VideoDiagnostics.wallpaper(failedVideo)+" reason=interrupted_on_resume");failedVideo="";
         }
-        if(!active&&!desktopRevealed&&!previewOnly)fadePending=true;active=true;wallpaperBlur.suspended(false);wallpaperBlur.interaction();wallpaperBlur.active(true);updateDesktopEffects();boolean retainStatic=canRetainStaticOnResume();restoreDesktopPending=false;video.setSound(audible());leaving=false;video.setPaused(false);if(!retainStatic)restoreSelected();else if(!previewOnly&&DiagnosticProbe.allow("wallpaper.resume_retained",2000))DiagnosticProbe.observed("wallpaper.resume_retained","kind=fixed_static evidence=retained_drawable_not_panel");main.removeCallbacks(weatherTick);weatherTick.run();if(video.ready()&&videoFade==null&&current.getAlpha()>0f)revealVideo(videoRequest);daily.resume();schedule();recordVideoState("resume");
+        if(!active&&!desktopRevealed&&!previewOnly)fadePending=true;active=true;wallpaperBlur.suspended(false);wallpaperBlur.interaction();wallpaperBlur.active(true);updateDesktopEffects();boolean retainStatic=canRetainStaticOnResume();restoreDesktopPending=false;video.setSound(audible());leaving=false;video.setPaused(false);if(!retainStatic)restoreSelected();else if(retainStatic&&!previewOnly&&DiagnosticProbe.allow("wallpaper.resume_retained",2000))DiagnosticProbe.observed("wallpaper.resume_retained","kind=fixed_static evidence=retained_drawable_not_panel");main.removeCallbacks(weatherTick);weatherTick.run();if(video.ready()&&videoFade==null&&current.getAlpha()>0f)revealVideo(videoRequest);daily.resume();schedule();recordVideoState("resume");
     }
     private boolean canRetainStaticOnResume(){
         if(previewOnly||fadePending||!desktopRevealed||restoreDesktopPending||temporaryMedia!=null||picker!=null
@@ -636,6 +681,7 @@ final class WallpaperController implements GlassStyle.Listener {
     void showTemporaryBlank(Runnable prepared){showTemporary(WallpaperCatalog.DEFAULT,()->{ambient.setVisibility(View.INVISIBLE);prepared.run();});}
     void showTemporary(String id,Runnable prepared){showTemporary(id,false,true,prepared);}
     void showTemporary(String id,boolean weather,boolean dayNight,Runnable prepared){showTemporary(id,weather,dayNight,false,prepared);}
+
     void showTemporary(String id,boolean weather,boolean dayNight,boolean sound,Runnable prepared){
         temporaryWeather=weather;temporaryDayNight=dayNight;temporaryMedia=id;temporarySound=sound;updateDesktopEffects();main.removeCallbacks(rotate);if(WallpaperCatalog.DAILY.equals(store.currentId()))daily.resume();else daily.pause();video.setSound(false);
         present(id,()->{video.setSound(audible());if(prepared!=null)prepared.run();});
@@ -687,30 +733,47 @@ final class WallpaperController implements GlassStyle.Listener {
     private LinearLayout row(){LinearLayout view=new LinearLayout(activity);view.setOrientation(LinearLayout.HORIZONTAL);view.setGravity(Gravity.CENTER_VERTICAL);return view;}
     private void runSaved(IoAction action){try{action.run();}catch(IOException e){DiagnosticLog.error("wallpaper.operation.failed",e);notice(tr("操作失败，请检查电视存储后重试","Operation failed. Check TV storage and retry."));}}
     private interface IoAction {void run()throws IOException;}
-    private String rotationLabel(int minutes){return minutes==0?tr("关闭","Off"):minutes==60?tr("1 小时","1 hour"):tr(minutes+" 分钟",minutes+" min");}
+    private String rotationLabel(int seconds){return seconds==0?tr("关闭","Off"):WallpaperRotation.label(seconds,chinese);}
     private void showRotationMenu(){
         if(picker==null||rotationMenu!=null)return;
         WallpaperCatalog state=store.snapshot();List<WallpaperCatalog.Entry> pool=dynamicTab?state.videos():state.pictures();
         if(pool.size()<2){notice(OperationFeedback.Kind.INFO,tr(dynamicTab?"至少需要两个视频才能轮播":"至少需要两张图片才能轮播",dynamicTab?"Add at least two videos for rotation":"Add at least two photos for rotation"));return;}
-        int selected=state.rotating&&state.dynamic()==dynamicTab?state.rotationMinutes:0;
+        boolean rotating=state.rotating&&state.dynamic()==dynamicTab;
         LinearLayout menu=new KeyFeedback.Menu(activity);menu.setOrientation(LinearLayout.VERTICAL);menu.setPadding(px(6),px(6),px(6),px(6));menu.setBackgroundDrawable(ui.surface(0xe6000000,14,0x38ffffff,1));
-        KeyFeedback.Popup popup=new KeyFeedback.Popup(activity,menu,Math.max(auto.getWidth(),px(150)),-2);rotationMenu=popup;
-        popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));popup.setOutsideTouchable(true);if(Build.VERSION.SDK_INT>=21)popup.setElevation(px(10));
-        TextView focused=null;List<TextView> choices=new ArrayList<>();
-        for(int minutes:new int[]{0,1,5,15,30,60}){
-            TextView option=button(rotationLabel(minutes),false,()->{popup.closeQuietly();setRotation(minutes);});option.setGravity(Gravity.CENTER);option.setPadding(px(12),0,px(12),0);option.setBackgroundDrawable(ControlStyle.listRow(unit,10));option.setSelected(minutes==selected);option.setText(SettingsSelectionMark.label(rotationLabel(minutes),minutes==selected,unit));option.setContentDescription(rotationLabel(minutes)+(minutes==selected?tr("，已选",", selected"):""));menu.addView(option,new LinearLayout.LayoutParams(-1,px(38)));choices.add(option);if(minutes==selected)focused=option;
-        }
-        choices.get(0).setNextFocusUpId(choices.get(0).getId());choices.get(choices.size()-1).setNextFocusDownId(choices.get(choices.size()-1).getId());
-        popup.setOnDismissListener(()->{if(rotationMenu==popup)rotationMenu=null;auto.post(()->{if(picker!=null&&auto.isShown())auto.requestFocusFromTouch();});});
-        popup.showAsDropDown(auto,0,px(5));if(focused!=null)focused.requestFocusFromTouch();
+        KeyFeedback.Popup popup=new KeyFeedback.Popup(activity,menu,Math.max(auto.getWidth(),px(245)),-2);rotationMenu=popup;
+        popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));popup.setOutsideTouchable(true);
+        popup.setInputMethodMode(PopupWindow.INPUT_METHOD_NEEDED);
+        popup.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        if(Build.VERSION.SDK_INT>=21)popup.setElevation(px(10));
+        TextView off=button(rotationLabel(0),false,()->{popup.closeQuietly();setRotation(0);});
+        rotationOff=off;
+        off.setBackgroundDrawable(ControlStyle.listRow(unit,10));
+        off.setNextFocusUpId(off.getId());menu.addView(off,new LinearLayout.LayoutParams(-1,px(38)));
+        int seconds=dynamicTab?state.videoRotationSeconds:state.imageRotationSeconds;
+        rotationEditor=new WallpaperIntervalEditor(activity,unit,chinese,seconds,value->{
+            popup.closeQuietly();setRotation(value);
+        },()->{});
+        refreshRotationMenu(seconds,rotating);
+        menu.addView(rotationEditor,new LinearLayout.LayoutParams(-1,-2));
+        popup.setOnDismissListener(()->{
+            if(rotationMenu==popup){rotationMenu=null;rotationEditor=null;rotationOff=null;}
+            auto.post(()->{if(picker!=null&&auto.isShown())auto.requestFocusFromTouch();});
+        });
+        popup.showAsDropDown(auto,0,px(5));off.requestFocusFromTouch();
     }
-    private void setRotation(int minutes){
+    private void refreshRotationMenu(int seconds,boolean rotating){
+        if(rotationEditor==null)return;
+        rotationOff.setSelected(!rotating);
+        rotationOff.setText(SettingsSelectionMark.label(rotationLabel(0),!rotating,unit));
+        rotationEditor.refresh(seconds,rotating);
+    }
+    private void setRotation(int seconds){
         WallpaperCatalog state=store.snapshot();
-        if(minutes==0){rotationCommit=0;commitPending=false;if(state.rotating&&state.dynamic()==dynamicTab)runSaved(()->{store.rotation(dynamicTab,0,preview);details();});return;}
+        if(seconds==0){rotationCommit=0;rotationVideoVersion=-1L;commitPending=false;if(state.rotating&&state.dynamic()==dynamicTab)runSaved(()->{store.rotation(dynamicTab,0,preview);details();});return;}
         List<WallpaperCatalog.Entry> pool=dynamicTab?state.videos():state.pictures();if(pool.size()<2)return;
         WallpaperCatalog.Entry entry=state.find(preview);String first=entry!=null&&entry.custom()&&entry.video()==dynamicTab?preview:pool.get(0).id;
-        if(dynamicTab)startVideo(first,true,minutes);
-        else runSaved(()->{daily.cancel();store.rotation(false,minutes,first);preview=first;display(first,true);refreshCards(first,false);});
+        if(dynamicTab)startVideo(first,true,seconds);
+        else runSaved(()->{daily.cancel();store.rotation(false,seconds,first);preview=first;display(first,true);refreshCards(first,false);});
     }
 
     private ScreensaverSettings saverSettings(){
@@ -803,15 +866,16 @@ final class WallpaperController implements GlassStyle.Listener {
     }
     private void stopVideo(){stopVideo(null);}
     private void stopVideo(Runnable after){
-        ++videoRequest;playingVideo="";commitPending=false;rotationCommit=0;pendingVideoStart=null;
+        ++videoRequest;playingVideo="";commitPending=false;rotationCommit=0;rotationVideoVersion=-1L;pendingVideoStart=null;
         withCover(()->{video.stop();if(after!=null)after.run();},video.visible());
     }
     private void startVideo(String id,boolean commit){startVideo(id,commit,0,null);}
-    private void startVideo(String id,boolean commit,int minutes){startVideo(id,commit,minutes,null);}
+    private void startVideo(String id,boolean commit,int seconds){startVideo(id,commit,seconds,null);}
     private void startVideo(String id,boolean commit,Runnable covered){startVideo(id,commit,0,covered);}
-    private void startVideo(String id,boolean commit,int minutes,Runnable covered){
+    private void startVideo(String id,boolean commit,int seconds,Runnable covered){startVideo(id,commit,seconds,covered,-1L);}
+    private void startVideo(String id,boolean commit,int seconds,Runnable covered,long expectedVersion){
         WallpaperCatalog.Entry entry=store.snapshot().find(id);if(entry==null||!entry.video()||!active||leaving)return;
-        rotationCommit=minutes;
+        rotationCommit=seconds;rotationVideoVersion=expectedVersion;
         if(id.equals(playingVideo)&&video.requested(id)){commitPending|=commit;if(commitPending&&video.ready()){commitPending=false;commitVideo(id);}if(covered!=null)covered.run();return;}
         cancelVideoFade();pendingVideoStart=null;failedVideo="";playingVideo=id;commitPending=commit;final int version=++videoRequest;
         display(id,false,()->{
@@ -826,7 +890,7 @@ final class WallpaperController implements GlassStyle.Listener {
                         if(version!=videoRequest||!active||destroyed)return;checkPreview();if(messages!=null)messages.show("");
                         ambient.setVisibility(View.INVISIBLE);updateDesktopEffects();revealVideo(version);
                         captureVideoPoster(id,version);
-                        if(commitPending){commitPending=false;commitVideo(id);}else if(picker!=null)details();
+                        if(commitPending){commitPending=false;commitVideo(id);}else if(picker!=null)details();else schedule();
                     }
                     @Override public void failed(VideoWallpaperPlayer.Failure reason){if(version!=videoRequest)return;videoFailed(id,reason);}
                 });
@@ -867,8 +931,19 @@ final class WallpaperController implements GlassStyle.Listener {
         });
     }
     private void commitVideo(String id){
-        try{daily.cancel();boolean rotating=rotationCommit>0;if(rotating)store.rotation(true,rotationCommit,id);else store.select(id);rotationCommit=0;if(id.equals(shown)&&current.getDrawable() instanceof BitmapDrawable)cacheBackdrop(id,((BitmapDrawable)current.getDrawable()).getBitmap(),currentBlur);if(picker!=null)refreshCards(id,cards.get(id)!=null&&cards.get(id).hasFocus());schedule();if(!rotating)notice(OperationFeedback.Kind.SUCCESS,tr("已应用动态壁纸","Video wallpaper applied"));}
-        catch(IOException e){stopVideo();restoreSelected();schedule();notice(tr("壁纸设置保存失败","Unable to save wallpaper settings"));}
+        int seconds=rotationCommit;long expected=rotationVideoVersion;
+        rotationCommit=0;rotationVideoVersion=-1L;
+        try{
+            if(expected>=0&&!store.advanceVideo(id,expected)){restoreSelected();schedule();return;}
+            if(expected<0){
+                daily.cancel();
+                if(seconds>0)store.rotation(true,seconds,id);else store.select(id);
+            }
+            if(id.equals(shown)&&current.getDrawable() instanceof BitmapDrawable)cacheBackdrop(id,((BitmapDrawable)current.getDrawable()).getBitmap(),currentBlur);
+            if(picker!=null)refreshCards(id,cards.get(id)!=null&&cards.get(id).hasFocus());
+            schedule();
+            if(seconds==0)notice(OperationFeedback.Kind.SUCCESS,tr("已应用动态壁纸","Video wallpaper applied"));
+        }catch(IOException e){stopVideo();restoreSelected();schedule();notice(tr("壁纸设置保存失败","Unable to save wallpaper settings"));}
     }
     private void applySelected(){WallpaperCatalog.Entry entry=store.snapshot().find(preview);if(entry==null)return;
         if(entry.video())startVideo(preview,true);
@@ -892,7 +967,7 @@ final class WallpaperController implements GlassStyle.Listener {
         for(WallpaperCatalog.Entry wallpaper:entries){
             String id=wallpaper.id;FrameLayout card=new FrameLayout(activity);card.setId(androidx.core.view.ViewCompat.generateViewId());card.setFocusable(true);card.setContentDescription(wallpaper.label(chinese));card.setPadding(px(CARD_INSET),px(CARD_INSET),px(CARD_INSET),px(CARD_INSET));card.setBackgroundDrawable(border(false,false));
             LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(px(184),px(147));cp.rightMargin=px(14);rail.addView(card,cp);cards.put(id,card);
-            ImageView image=ui.image(CARD_RADIUS,CARD_INSET);card.addView(image,new FrameLayout.LayoutParams(-1,px(95)));
+            ImageView image=WallpaperUi.pickerThumbnail(activity,homeUnit);card.addView(image,new FrameLayout.LayoutParams(-1,px(95)));
             if(wallpaper.video()){image.setImageBitmap(defaultThumbnail());ImageView play=new ImageView(activity);QuickControlIcon playIcon=new QuickControlIcon("play");playIcon.color(WallpaperUi.INK);play.setImageDrawable(playIcon);play.setScaleType(ImageView.ScaleType.FIT_CENTER);androidx.core.view.ViewCompat.setImportantForAccessibility(play,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);FrameLayout.LayoutParams pp=new FrameLayout.LayoutParams(px(18),px(18),Gravity.TOP|Gravity.CENTER_HORIZONTAL);pp.topMargin=(px(95)-px(18))/2;card.addView(play,pp);}
             if(WallpaperCatalog.DEFAULT.equals(id))image.setImageBitmap(defaultThumbnail());else{
                 String thumbnailKey=store.imageKey(id);Bitmap cached=thumbnails.get(thumbnailKey);if(cached!=null)image.setImageBitmap(cached);
@@ -947,7 +1022,8 @@ final class WallpaperController implements GlassStyle.Listener {
         for(TextView toggle:new TextView[]{dynamicToggle,soundToggle}){Drawable icon=toggle.getCompoundDrawables()[0];icon.setBounds(0,0,px(22),px(13));toggle.setCompoundDrawables(icon,null,null,null);toggle.setCompoundDrawablePadding(px(4));}
         int count=dynamicTab?state.videos().size():state.pictures().size();
         boolean rotating=state.rotating&&state.dynamic()==dynamicTab;String unavailable=tr(dynamicTab?"至少需要两个视频才能轮播":"至少需要两张图片才能轮播",dynamicTab?"Add at least two videos for rotation":"Add at least two photos for rotation");
-        auto.setText(tr("轮播：","Rotate: ")+rotationLabel(rotating?state.rotationMinutes:0));auto.setCompoundDrawables(null,null,ui.icon("chevron-down",12,WallpaperUi.INK),null);auto.setCompoundDrawablePadding(px(4));auto.setEnabled(count>=2);auto.setAlpha(count>=2?1:.4f);auto.setContentDescription(count<2?unavailable:auto.getText());
+        refreshRotationMenu(dynamicTab?state.videoRotationSeconds:state.imageRotationSeconds,rotating);
+        auto.setText(tr("轮播：","Rotate: ")+rotationLabel(rotating?state.rotationSeconds:0));auto.setCompoundDrawables(null,null,ui.icon("chevron-down",12,WallpaperUi.INK),null);auto.setCompoundDrawablePadding(px(4));auto.setEnabled(count>=2);auto.setAlpha(count>=2?1:.4f);auto.setContentDescription(count<2?unavailable:auto.getText());
         WallpaperUi.toolbarFocus(staticTab,videoTab,auto,dynamicToggle,soundToggle,localFile,upload);
         if(entry==null){title.setText(tr("还没有动态壁纸","No video wallpapers"));subtitle.setText(unavailable);subtitle.setVisibility(View.VISIBLE);for(TextView control:new TextView[]{staticTab,videoTab,dynamicToggle,soundToggle,localFile,upload})control.setNextFocusDownId(upload.getId());return;}
         title.setText(entry.label(chinese));boolean isDaily=WallpaperCatalog.DAILY.equals(preview);

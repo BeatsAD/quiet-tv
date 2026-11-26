@@ -34,6 +34,7 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity implemen
     private GlassStyle glassStyle;
     private volatile int backdropGeneration;
     private volatile String backdropIdentity;
+    private String pendingWeatherBackdrop;
     private final long createdAt=SystemClock.uptimeMillis();
     private Runnable contentDraw;
     private AutoDiagnosticOperation settingsEntryOperation;
@@ -103,28 +104,91 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity implemen
     private void clearBackdrop(){if(glassStyle!=null&&!glassStyle.rendering()){getIntent().removeExtra("backdrop");getIntent().removeExtra("backdrop-key");}if(backdropImage!=null){backdropImage.animate().cancel();backdropImage.setImageDrawable(null);backdropImage.setAlpha(1f);}if(ownedBackdrop!=null){ownedBackdrop.recycle();ownedBackdrop=null;}backdropIdentity=null;}
     @Override public void glassChanged(){if(!glassStyle.rendering()||hasWindowFocus())refreshBackdrop();}
     void refreshBackdrop(){
-        if(backdropImage==null||backdropClosed)return;int request=++backdropGeneration,styleRevision=glassStyle.revision();
+        if(backdropImage==null||backdropClosed)return;
+        if(glassStyle.rendering()&&hasWeatherBackdrop()&&WallpaperStore.get(this).weatherEnabled())return;
+        int request=++backdropGeneration,styleRevision=glassStyle.revision();
+        pendingWeatherBackdrop=null;
         if(!glassStyle.rendering()){clearBackdrop();return;}
         if(backdropLoader==null)backdropLoader=Executors.newSingleThreadExecutor();
         backdropLoader.execute(()->{
-            if(request!=backdropGeneration||!glassStyle.valid(styleRevision))return;Bitmap decoded=null;String identity=null;boolean empty=false;
+            if(request!=backdropGeneration||!glassStyle.valid(styleRevision))return;Bitmap decoded=null;String identity=null;boolean empty=false,weatherFallback=false;
             try{
                 WallpaperStore store=WallpaperStore.get(this);WallpaperCatalog state=store.snapshot();WallpaperCatalog.Entry entry=state.find(state.current);
+                weatherFallback=state.weather;
                 identity=store.imageKey(state.current)+(WallpaperCatalog.DAILY.equals(state.current)?":"+state.lastLocal:"");
                 if(identity.equals(backdropIdentity))return;empty=entry==null||WallpaperCatalog.DEFAULT.equals(entry.id);
                 if(entry!=null&&!WallpaperCatalog.DEFAULT.equals(entry.id)){
                     Bitmap source=WallpaperImages.decode(this,store,entry,480,270);
-                    try{decoded=unifiedSettings()?settingsBackdrop(source,480,Math.max(1,Math.round(480f*getResources().getDisplayMetrics().heightPixels/getResources().getDisplayMetrics().widthPixels)),BuildConfig.LEGACY_19,glassStyle,styleRevision):source;}
+                    try{decoded=unifiedSettings()?filterSettingsBackdrop(source,styleRevision):source;}
                     finally{if(unifiedSettings())source.recycle();}
                 }
             }catch(java.io.IOException|RuntimeException|OutOfMemoryError error){DiagnosticLog.info("management.backdrop.unavailable","keep themed background");}
-            Bitmap ready=decoded;String key=identity;boolean themed=empty;
+            Bitmap ready=decoded;String key=identity;boolean themed=empty,fallback=weatherFallback;
             runOnUiThread(()->{
-                if(backdropClosed||isFinishing()||UiCompat.destroyed(this)||request!=backdropGeneration||!glassStyle.valid(styleRevision)){if(ready!=null)ready.recycle();return;}
-                if(ready!=null){Bitmap previous=ownedBackdrop;ownedBackdrop=ready;backdropIdentity=key;backdropImage.animate().cancel();backdropImage.setAlpha(0f);backdropImage.setImageBitmap(ready);if(previous!=null)previous.recycle();backdropImage.animate().alpha(1f).setDuration(getResources().getInteger(R.integer.quiet_motion_panel_ms)).setListener(new android.animation.AnimatorListenerAdapter(){@Override public void onAnimationEnd(android.animation.Animator animation){if(!backdropClosed&&key.equals(backdropIdentity)&&backdropImage.getAlpha()>.999f)refreshSheetBackdrops();}}).start();}
+                if(ready==null&&!themed)return;
+                if(backdropClosed||isFinishing()||UiCompat.destroyed(this)||request!=backdropGeneration||!glassStyle.valid(styleRevision)
+                        ||fallback!=WallpaperStore.get(this).weatherEnabled()||fallback&&hasWeatherBackdrop()){
+                    if(ready!=null)ready.recycle();
+                    return;
+                }
+                if(ready!=null)showBackdrop(ready,key);
                 else if(themed){if(backdropIdentity!=null){backdropImage.animate().cancel();clearBackdrop();refreshSheetBackdrops();}backdropIdentity=key;}
             });
         });
+    }
+    private boolean hasWeatherBackdrop(){
+        return pendingWeatherBackdrop!=null||backdropIdentity!=null&&backdropIdentity.startsWith("weather:");
+    }
+    void updateWeatherBackdrop(WallpaperController preview,String weatherKey){
+        if(backdropImage==null||backdropClosed||!glassStyle.rendering())return;
+        if(weatherKey==null){
+            if(hasWeatherBackdrop()&&!WallpaperStore.get(this).weatherEnabled())refreshBackdrop();
+            return;
+        }
+        if(!weatherKey.equals(preview.settingsWeatherKey()))return;
+        String key="weather:"+weatherKey;
+        if(key.equals(backdropIdentity)||key.equals(pendingWeatherBackdrop))return;
+        int request=++backdropGeneration,styleRevision=glassStyle.revision();
+        pendingWeatherBackdrop=key;
+        preview.captureSettingsWeather(weatherKey,320,180,frame->{
+            if(frame==null||backdropClosed||request!=backdropGeneration||!glassStyle.valid(styleRevision)){
+                if(frame!=null)frame.recycle();
+                if(request==backdropGeneration)pendingWeatherBackdrop=null;
+                return;
+            }
+            filterSheetBackdrop(()->{
+                Bitmap filtered=null;
+                try{filtered=filterSettingsBackdrop(frame,styleRevision);}
+                catch(RuntimeException|OutOfMemoryError error){DiagnosticLog.info("management.backdrop.unavailable","weather frame filter failed");}
+                finally{frame.recycle();}
+                Bitmap ready=filtered;
+                runOnUiThread(()->{
+                    if(request==backdropGeneration)pendingWeatherBackdrop=null;
+                    if(ready==null)return;
+                    if(backdropClosed||isFinishing()||UiCompat.destroyed(this)||request!=backdropGeneration
+                            ||!glassStyle.valid(styleRevision)||!weatherKey.equals(preview.settingsWeatherKey())){
+                        ready.recycle();
+                        return;
+                    }
+                    showBackdrop(ready,key);
+                });
+            });
+        });
+    }
+    private Bitmap filterSettingsBackdrop(Bitmap source,int styleRevision){
+        android.util.DisplayMetrics screen=getResources().getDisplayMetrics();
+        return settingsBackdrop(source,480,Math.max(1,Math.round(480f*screen.heightPixels/screen.widthPixels)),BuildConfig.LEGACY_19,glassStyle,styleRevision);
+    }
+    private void showBackdrop(Bitmap ready,String key){
+        Bitmap previous=ownedBackdrop;ownedBackdrop=ready;backdropIdentity=key;
+        backdropImage.animate().cancel();backdropImage.setAlpha(0f);backdropImage.setImageBitmap(ready);
+        if(previous!=null)previous.recycle();
+        backdropImage.animate().alpha(1f).setDuration(getResources().getInteger(R.integer.quiet_motion_panel_ms))
+                .setListener(new android.animation.AnimatorListenerAdapter(){
+                    @Override public void onAnimationEnd(android.animation.Animator animation){
+                        if(!backdropClosed&&key.equals(backdropIdentity)&&backdropImage.getAlpha()>.999f)refreshSheetBackdrops();
+                    }
+                }).start();
     }
     void watchBackdrop(SettingsSheetBackdrop surface,boolean watching){if(watching)sheetBackdrops.add(surface);else sheetBackdrops.remove(surface);}
     void contentReady(String scope,View content){
@@ -221,9 +285,14 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity implemen
     boolean managementTabFocused(){for(Button tab:managementTabs)if(tab!=null && tab.isFocused())return true;return false;}
     void focusManagementContent(){}
     public void handleBack(){finish();}
-    // Unified settings cards keep their focus shadows outside the child rectangle.
-    LinearLayout row(){LinearLayout view=new LinearLayout(this);view.setOrientation(LinearLayout.HORIZONTAL);view.setGravity(Gravity.CENTER_VERTICAL);if(unifiedSettings())view.setClipChildren(false);return view;}
-    LinearLayout column(){LinearLayout view=new LinearLayout(this);view.setOrientation(LinearLayout.VERTICAL);if(unifiedSettings())view.setClipChildren(false);return view;}
+    // Keep focus shadows visible in the gutters of settings groups.
+    LinearLayout row(){LinearLayout view=column();view.setOrientation(LinearLayout.HORIZONTAL);view.setGravity(Gravity.CENTER_VERTICAL);return view;}
+    LinearLayout column(){
+        LinearLayout view=new LinearLayout(this);
+        view.setOrientation(LinearLayout.VERTICAL);
+        if(unifiedSettings()){view.setClipChildren(false);view.setClipToPadding(false);}
+        return view;
+    }
     RecyclerView settingsCardList(Context context,FrameLayout parent){
         RecyclerView list=new RecyclerView(context){
             @Override protected void dispatchDraw(Canvas canvas){
@@ -246,9 +315,34 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity implemen
         parent.addView(list,size);
         return list;
     }
+    class SettingsScrollView extends ScrollView {
+        private final Rect focusWithShadow = new Rect();
+
+        SettingsScrollView(){
+            super(ManagementUi.this);
+            if(unifiedSettings()){setClipChildren(false);setClipToPadding(false);}
+        }
+
+        @Override protected void dispatchDraw(Canvas canvas){
+            if(!unifiedSettings()){super.dispatchDraw(canvas);return;}
+            int x=getScrollX(),y=getScrollY();
+            int save=canvas.save();
+            canvas.clipRect(x,y,x+getWidth(),y+getHeight());
+            super.dispatchDraw(canvas);
+            canvas.restoreToCount(save);
+        }
+
+        @Override protected int computeScrollDeltaToGetChildRectOnScreen(Rect rect){
+            if(!unifiedSettings()||SettingsFocusMotion.reduced())return super.computeScrollDeltaToGetChildRectOnScreen(rect);
+            int clearance=px(SettingsFocusShadow.CLEARANCE);
+            if(rect.height()+2*clearance>getHeight())return super.computeScrollDeltaToGetChildRectOnScreen(rect);
+            focusWithShadow.set(rect);
+            focusWithShadow.inset(0,-clearance);
+            return super.computeScrollDeltaToGetChildRectOnScreen(focusWithShadow);
+        }
+    }
     ScrollView settingsScroll(){
-        return new ScrollView(this){
-            @Override protected void dispatchDraw(Canvas canvas){int save=canvas.save();canvas.clipRect(getScrollX(),getScrollY(),getScrollX()+getWidth(),getScrollY()+getHeight());super.dispatchDraw(canvas);canvas.restoreToCount(save);}
+        return new SettingsScrollView(){
             @Override public void requestChildFocus(View child,View focused){
                 super.requestChildFocus(child,focused);
                 if(getPaddingBottom()==0||focused==null||focused.getId()==View.NO_ID||focused.getNextFocusDownId()!=focused.getId())return;
@@ -266,9 +360,9 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity implemen
     TextView center(String text,int size){TextView view=label(text,size);view.setGravity(Gravity.CENTER);return view;}
     GradientDrawable surface(int top,int bottom,int stroke,float radius){GradientDrawable shape=new SurfaceDrawable(unit,unifiedSettings()?GradientDrawable.Orientation.TOP_BOTTOM:GradientDrawable.Orientation.TL_BR,new int[]{top,bottom});shape.setCornerRadius(px(radius));shape.setStroke(px(1),stroke);return shape;}
     Drawable focusSurface(float radius){return unifiedSettings()?new SettingsFocusDrawable(unit,radius,0x10ffffff):ControlStyle.action(unit,radius,0x10ffffff,0x22ffffff);}
-    void focusable(View view,float radius){view.setSoundEffectsEnabled(false);view.setFocusable(true);view.setBackgroundDrawable(focusSurface(radius));}
+    void focusable(View view,float radius){view.setSoundEffectsEnabled(false);view.setFocusable(true);view.setBackgroundDrawable(focusSurface(radius));ControlStyle.useCustomFocus(view);}
     Button button(String text,Runnable action){return configureButton(new KeyFeedback.Button(this){@Override public void setEnabled(boolean enabled){super.setEnabled(enabled);if(unifiedSettings())setAlpha(1f);}},text,action);}
-    private Button configureButton(Button b,String text,Runnable action){b.setText(text);b.setAllCaps(false);b.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(13));b.setTextColor(unifiedSettings()?SettingsFocusDrawable.textColors(UiPalette.TEXT):ColorStateList.valueOf(TEXT));b.setIncludeFontPadding(false);b.setGravity(Gravity.CENTER);b.setMinimumWidth(0);b.setMinWidth(0);b.setMinimumHeight(0);b.setMinHeight(0);b.setPadding(px(16),0,px(16),0);b.setBackgroundDrawable(focusSurface(24));if(android.os.Build.VERSION.SDK_INT>=21)b.setStateListAnimator(null);b.setOnClickListener(v->action.run());if(unifiedSettings()){b.setFocusableInTouchMode(true);b.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));}if(unifiedSettings())SettingsTouchClick.attach(b);return b;}
+    private Button configureButton(Button b,String text,Runnable action){b.setText(text);b.setAllCaps(false);b.setTextSize(TypedValue.COMPLEX_UNIT_PX,px(13));b.setTextColor(unifiedSettings()?SettingsFocusDrawable.textColors(UiPalette.TEXT):ColorStateList.valueOf(TEXT));b.setIncludeFontPadding(false);b.setGravity(Gravity.CENTER);b.setMinimumWidth(0);b.setMinWidth(0);b.setMinimumHeight(0);b.setMinHeight(0);b.setPadding(px(16),0,px(16),0);b.setBackgroundDrawable(focusSurface(24));ControlStyle.useCustomFocus(b);b.setOnClickListener(v->action.run());if(unifiedSettings()){b.setFocusableInTouchMode(true);b.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));}if(unifiedSettings())SettingsTouchClick.attach(b);return b;}
     void styleTab(Button b,boolean compact){
         if(unifiedSettings()){b.setBackgroundDrawable(new SettingsFocusDrawable(unit,compact?12:999,Color.TRANSPARENT));b.setTextColor(SettingsFocusDrawable.textColors(UiPalette.SECONDARY,UiPalette.INK));}
         else ControlStyle.choice(b,unit,compact?15:18,Color.TRANSPARENT,0);
@@ -321,6 +415,7 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity implemen
         heading.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));
     }
     static void styleSheetNavigation(TextView button,float unit){
+        ControlStyle.useCustomFocus(button);
         button.setContentDescription(null);
         button.setTag("sheet-close");
         if(button.getId()==View.NO_ID)button.setId(androidx.core.view.ViewCompat.generateViewId());
@@ -482,7 +577,16 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity implemen
                     },ManagementUi.this::filterSheetBackdrop);
             box.setBackgroundDrawable(backdrop);
             heading=center(title,23);if(unifiedSettings()){heading.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);heading.setTextSize(TypedValue.COMPLEX_UNIT_PX,18*unit);}box.addView(heading,new LinearLayout.LayoutParams(-1,-2));gap(box,unifiedSettings()?12:18);
-            scroll=new ScrollView(ManagementUi.this){@Override protected void onMeasure(int w,int h){if(fixedSize)super.onMeasure(w,h);else super.onMeasure(w,View.MeasureSpec.makeMeasureSpec(View.MeasureSpec.getMode(h)==View.MeasureSpec.UNSPECIFIED?px(Math.max(48,bodyMaximum-feedbackReserved)):Math.min(px(Math.max(48,bodyMaximum-feedbackReserved)),View.MeasureSpec.getSize(h)),View.MeasureSpec.AT_MOST));}@Override protected void dispatchDraw(Canvas canvas){if(!unifiedSettings()){super.dispatchDraw(canvas);return;}int save=canvas.save();canvas.clipRect(getScrollX(),getScrollY(),getScrollX()+getWidth(),getScrollY()+getHeight());super.dispatchDraw(canvas);canvas.restoreToCount(save);}};scroll.setFillViewport(false);scroll.addView(body);box.addView(scroll,new LinearLayout.LayoutParams(-1,-2));
+            scroll=new SettingsScrollView(){@Override protected void onMeasure(int w,int h){if(fixedSize)super.onMeasure(w,h);else super.onMeasure(w,View.MeasureSpec.makeMeasureSpec(View.MeasureSpec.getMode(h)==View.MeasureSpec.UNSPECIFIED?px(Math.max(48,bodyMaximum-feedbackReserved)):Math.min(px(Math.max(48,bodyMaximum-feedbackReserved)),View.MeasureSpec.getSize(h)),View.MeasureSpec.AT_MOST));}};
+            scroll.setFillViewport(false);
+            scroll.addView(body);
+            LinearLayout.LayoutParams viewport=new LinearLayout.LayoutParams(-1,-2);
+            if(unifiedSettings()&&!SettingsFocusMotion.reduced()){
+                int clearance=px(SettingsFocusShadow.CLEARANCE);
+                viewport.setMargins(-clearance,-clearance,-clearance,0);
+                scroll.setPadding(clearance,clearance,clearance,clearance);
+            }
+            box.addView(scroll,viewport);
             actions.setGravity(unifiedSettings()?Gravity.END|Gravity.CENTER_VERTICAL:Gravity.CENTER);LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,px(unifiedSettings()?33:42));ap.topMargin=px(unifiedSettings()?18:24);box.addView(actions,ap);
             dialog.setContentView(box);Window window=dialog.getWindow();window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);window.setDimAmount(SettingsSheetBackdrop.DIM_AMOUNT);
             // Bound long package histories and app pickers without clipping the dialog actions.
@@ -493,6 +597,9 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity implemen
         Button option(String text,int resource,Runnable action){Button b=option(text,action);Drawable icon=uiGlyph(resource);icon.setBounds(0,0,px(17),px(17));b.setCompoundDrawables(icon,null,null,null);b.setCompoundDrawablePadding(px(10));return b;}
         void confirmationLayout(Runnable cancel){settingsLayout(null,cancel);}
         Button settingsLayout(String closeLabel,Runnable close){
+            return settingsLayout(closeLabel,close,new FrameLayout(ManagementUi.this));
+        }
+        Button settingsLayout(String closeLabel,Runnable close,FrameLayout overlay){
             fullWindow=true;box.setClickable(true);box.setFocusable(false);box.setPadding(px(18.75f),px(18.75f),px(18.75f),px(18.75f));box.setBackgroundDrawable(backdrop);
             box.removeView(heading);LinearLayout title=row();styleSheetHeading(heading,unit);heading.setSingleLine(true);heading.setEllipsize(android.text.TextUtils.TruncateAt.END);title.addView(heading,new LinearLayout.LayoutParams(0,px(26.88f),1));
             Button dismiss=null;
@@ -503,7 +610,7 @@ abstract class ManagementUi extends androidx.activity.ComponentActivity implemen
             box.addView(title,0,new LinearLayout.LayoutParams(-1,px(26.88f)));
             actions.getLayoutParams().height=px(34.56f);settingsActions(true);scroll.setVerticalScrollBarEnabled(false);scroll.setClipChildren(false);scroll.setClipToPadding(false);body.setClipChildren(false);body.setClipToPadding(false);
             BackNavigation.install(dialog,()->{if(box.isEnabled())close.run();});
-            FrameLayout overlay=new FrameLayout(ManagementUi.this);overlay.setClipChildren(false);View dim=new View(ManagementUi.this);dim.setBackgroundColor(0x35000000);dim.setOnClickListener(v->{if(box.isEnabled())close.run();});overlay.addView(dim,new FrameLayout.LayoutParams(-1,-1));((ViewGroup)box.getParent()).removeView(box);overlay.addView(box,new FrameLayout.LayoutParams(-2,-2,Gravity.CENTER));dialog.setContentView(overlay);dialog.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);return dismiss;
+            overlay.setClipChildren(false);View dim=new View(ManagementUi.this);dim.setBackgroundColor(0x35000000);dim.setOnClickListener(v->{if(box.isEnabled())close.run();});overlay.addView(dim,new FrameLayout.LayoutParams(-1,-1));((ViewGroup)box.getParent()).removeView(box);overlay.addView(box,new FrameLayout.LayoutParams(-2,-2,Gravity.CENTER));dialog.setContentView(overlay);dialog.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);return dismiss;
         }
         void settingsActions(boolean visible){
             actions.setVisibility(visible?View.VISIBLE:View.GONE);

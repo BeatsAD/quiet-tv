@@ -17,7 +17,11 @@ const descriptions:Record<string,string>={
   systemUninstall:'将打开电视系统的卸载确认，请在电视上继续操作。卸载可能删除应用数据。',
 };
 const confirmLabels:Record<string,string>={open:'打开应用',restoreCover:'确认恢复',boot:'设为开机应用',hide:'确认隐藏',show:'恢复显示',dockAdd:'添加到首页',dockRemove:'确认移除',UNINSTALL:'确认卸载',systemUninstall:'确认卸载',DISABLE:'确认停用',ENABLE:'确认启用',RESTORE:'确认恢复'};
-export function applicationActionTitle(action:ApplicationAction){return action.id==='dockRemove'?'移除首页位置':action.id==='dockAdd'?'添加到首页':action.title;}
+const actionTitles:Record<string,string>={
+  cover:'更换图标', dockAdd:'添加到首页', dockRemove:'移除首页位置',
+  DISABLE:'停用应用', UNINSTALL:'卸载应用',
+};
+export function applicationActionTitle(action:ApplicationAction){return actionTitles[action.id]||action.title;}
 
 export function AppActionConfirmation({request,current,busy,disabled,error,onCancel,onConfirm,onDone}:{request:ApplicationConfirmation;current?:App;busy:boolean;disabled:boolean;error:string;onCancel:()=>void;onConfirm:()=>Promise<boolean>;onDone:()=>void}){
   const running=useRef(false),[submitting,setSubmitting]=useState(false);

@@ -74,14 +74,13 @@ public class AppManagementActivity extends ManagementUi {
         if(saved!=null)for(int i=0;i<panels.length;i++)savedPanels[i]=saved.getBundle("panel-"+i);
         selectManagementPage(SettingsPages.valid(saved==null?initialPage():saved.getInt("management-page",initialPage())));
         if(saved==null||saved.getInt("management-page")==SettingsPages.ICONS)openAppEntry(getIntent());
-        if(saved!=null)files.restore(saved);
+        if(saved!=null){files.restorePhonePermission(saved);files.restore(saved);}
         if(saved!=null)boot.restore(saved);
         if(saved!=null)backups.restore(saved);
         if(saved!=null)guard.restore(saved);
         if(saved!=null)adbManagement.restore(saved);
         if(saved!=null)sources.restore(saved);
         if(saved!=null)help.restore(saved);
-        else if(getIntent().getBooleanExtra("phone-update-entry",false))help.show("update");
     }
     private BootAdSheet bootAds;
     void bootAdTool(){if(bootAds==null)bootAds=new BootAdSheet(this);bootAds.show();}
@@ -103,7 +102,13 @@ public class AppManagementActivity extends ManagementUi {
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-1);p.setMargins(px(-9),px(-9),px(-9),px(-9));parent.setClipChildren(false);parent.setClipToPadding(false);parent.addView(scroll,p);
     }
     void attachPanel(View view){view.setVisibility(View.GONE);panelHost.addView(view,new FrameLayout.LayoutParams(-1,-1));}
-    @Override void selectManagementPage(int next){cancelPendingTab();if(next==SettingsPages.FILES||next==SettingsPages.STARTUP||next==SettingsPages.ABOUT||next==SettingsPages.DIAGNOSTICS){int request=++pageRequest;Runnable open=()->{if(request!=pageRequest||isFinishing()||UiCompat.destroyed(this))return;int destination=next==SettingsPages.FILES?SettingsPages.TOOLS:next==SettingsPages.STARTUP?SettingsPages.GENERAL:SettingsPages.HELP;if(page!=destination)showPage(destination);if(next==SettingsPages.FILES)files.show();else if(next==SettingsPages.STARTUP)sourceTool();else helpTool(next==SettingsPages.ABOUT?"about":"logs");};if(current!=null)current.leaveManagement(open);else open.run();return;}navigate(next,false);}
+    @Override void selectManagementPage(int next){cancelPendingTab();if(next==SettingsPages.FILES||next==SettingsPages.STARTUP||next==SettingsPages.ABOUT||next==SettingsPages.DIAGNOSTICS){int request=++pageRequest;Runnable open=()->{if(request!=pageRequest||isFinishing()||UiCompat.destroyed(this))return;int destination=next==SettingsPages.FILES?SettingsPages.TOOLS:next==SettingsPages.STARTUP?SettingsPages.GENERAL:SettingsPages.HELP;if(page!=destination)showPage(destination);if(next==SettingsPages.FILES)openFileTool();else if(next==SettingsPages.STARTUP)sourceTool();else helpTool(next==SettingsPages.ABOUT?"about":"logs");};if(current!=null)current.leaveManagement(open);else open.run();return;}navigate(next,false);}
+    private void openFileTool(){
+        String job=getIntent().getStringExtra(PhoneSettingsFiles.PERMISSION_JOB);
+        if(job==null){files.show();return;}
+        getIntent().removeExtra(PhoneSettingsFiles.PERMISSION_JOB);
+        panelHost.post(()->{if(!isFinishing()&&!UiCompat.destroyed(this))files.authorizeFromPhone(job);});
+    }
     void componentSettings(String id){cancelPendingTab();++pageRequest;if("weather".equals(id)){if(page!=SettingsPages.DESKTOP)showPage(SettingsPages.DESKTOP);((DesktopDisplayPanel)current).weatherComponent();}else{showPage(SettingsPages.TOOLS);OptionalComponentsUi.show(this,id);}}
     // Keep panel creation out of key dispatch, and resolve a burst against its latest requested tab.
     @Override void shiftManagementTab(int focusedTab,int direction){
@@ -175,9 +180,21 @@ public class AppManagementActivity extends ManagementUi {
         if(elapsed>=100)DiagnosticLog.info("settings.tab.slow","from="+oldPage+" to="+next+" first="+first+" elapsedMs="+elapsed+" evidence=panel_setup_not_presentation");
     }
     private int tabPosition(int target){for(int i=0;i<SettingsPages.ORDER.length;i++)if(SettingsPages.ORDER[i]==SettingsPages.section(target))return i;return 0;}
-    @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(files!=null)files.activityResult(request,result,data);if(backups!=null)backups.activityResult(request,result,data);for(ManagementPanel panel:panels)if(panel!=null)panel.activityResult(request,result,data);}
+    @Override protected void onActivityResult(int request,int result,Intent data){
+        super.onActivityResult(request,result,data);
+        if(request==UpdateInstaller.REQUEST_INSTALL){UpdateRepository.get(this).fileInstallReturned(result,data);return;}
+        if(files!=null)files.activityResult(request,result,data);
+        if(backups!=null)backups.activityResult(request,result,data);
+        for(ManagementPanel panel:panels)if(panel!=null)panel.activityResult(request,result,data);
+    }
     @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] results){super.onRequestPermissionsResult(request,permissions,results);if(files!=null)files.permissionResult(request);if(backups!=null)backups.permissionResult(request);if(help!=null)help.permissionResult(request);for(ManagementPanel panel:panels)if(panel!=null)panel.permissionResult(request,results);}
-    @Override protected void onResume(){super.onResume();resumed=true;if(current!=null)current.onResume();if(files!=null)files.resume();if(boot!=null)boot.resume();if(backups!=null)backups.resume();if(guard!=null)guard.resume();if(adbManagement!=null)adbManagement.resume();if(sources!=null)sources.resume();if(help!=null)help.resume();}
+    @Override protected void onResume(){super.onResume();resumed=true;if(current!=null)current.onResume();if(files!=null)files.resume();if(boot!=null)boot.resume();if(backups!=null)backups.resume();if(guard!=null)guard.resume();if(adbManagement!=null)adbManagement.resume();if(sources!=null)sources.resume();if(help!=null)help.resume();openPhoneUpdate();}
+    private void openPhoneUpdate(){
+        String hash=getIntent().getStringExtra(PhoneSettingsUpdates.INSTALL_TARGET);
+        if(hash==null||help==null)return;
+        getIntent().removeExtra(PhoneSettingsUpdates.INSTALL_TARGET);
+        help.installFromPhone(hash);
+    }
     @Override protected void onPause(){cancelTabEvidence();cancelPendingTab();++pageRequest;resumed=false;rememberContentFocus();if(current!=null){UiMotion.settle(current.pageRoot);current.onPause();}if(files!=null)files.pause();if(boot!=null)boot.pause();if(backups!=null)backups.pause();if(guard!=null)guard.pause();if(adbManagement!=null)adbManagement.pause();if(sources!=null)sources.pause();if(help!=null)help.pause();super.onPause();}
     @Override protected void onStop(){if(current!=null)current.onStop();super.onStop();}
     @Override protected void onDestroy(){cancelTabEvidence();cancelPendingTab();if(files!=null)files.destroy();if(boot!=null)boot.destroy();if(bootAds!=null)bootAds.destroy();if(backups!=null)backups.destroy();if(guard!=null)guard.destroy();if(adbManagement!=null)adbManagement.destroy();if(sources!=null)sources.destroy();if(help!=null)help.destroy();for(ManagementPanel panel:panels)if(panel!=null)panel.onDestroy();super.onDestroy();}
@@ -191,6 +208,7 @@ public class AppManagementActivity extends ManagementUi {
     @Override protected void onSaveInstanceState(Bundle saved){
         super.onSaveInstanceState(saved);saved.putInt("management-page",page);
         files.save(saved);
+        files.savePhonePermission(saved);
         boot.save(saved);
         backups.save(saved);
         guard.save(saved);

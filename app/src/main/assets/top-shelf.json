@@ -1,0 +1,52 @@
+{
+  "TENCENT": [
+    {
+      "title": "多喜一家人",
+      "image": "https://tv.puui.qpic.cn/tv/0/mz_tv_image_frontend_1f6d55-1_1647709601_1794830398960196_pic_1920x800/0?imageMogr2/thumbnail/1280x/quality/80",
+      "page": "https://v.qq.com/channel/tv"
+    }
+  ],
+  "IQIYI": [
+    {
+      "title": "狂飙",
+      "image": "https://pic0.iqiyipic.com/image/20231113/8b/04/a_100476174_m_601_m44_1280_720.jpg",
+      "page": "https://www.iqiyi.com/a_1fkgtbddd2x.html"
+    }
+  ],
+  "YOUKU": [
+    {
+      "title": "谷雨",
+      "image": "https://liangcang-material.alicdn.com/prod/upload/0e35546bd0f94e3bb1a7621fc5552dd6.webp.jpg?x-oss-process=image/resize,w_1280/format,jpg",
+      "page": "https://www.youku.com/ku/webhome"
+    }
+  ],
+  "MANGO": [
+    {
+      "title": "密室大逃脱 第八季",
+      "image": "https://1img.hitv.com/preview/sp_images/2026/07/02/202607021436106379224.jpg",
+      "page": "https://www.mgtv.com/h/887305.html"
+    }
+  ],
+  "NETFLIX": [
+    {
+      "title": "Guarding Stars",
+      "image": "https://dnm.nflximg.net/api/v6/E8vDc_W8CLv7-yMQu8KMEC7Rrr8/AAAABWUhMoEAtitvp7fK4-6vgWVo-Vcjgb7DBQ-DWdZCt29eGTXZXxvivdzDMdpFBi5hbPZfqq9ULmpYTKYosqyJoWtNtcUeYa-D6-Mo.jpg?r=c51",
+      "page": "https://www.netflix.com/tudum/top10"
+    },
+    {
+      "title": "The Body: Season 1",
+      "image": "https://dnm.nflximg.net/api/v6/E8vDc_W8CLv7-yMQu8KMEC7Rrr8/AAAABSX5RaQ1VNdQhEUjKjZ3faDM1yEviVt-uTTJfxj-326zi83CnUsF6kCEMZJqBulgq7SGzaKTOBASvcTjwo5yBGrjxwt75a7fVGYf.jpg?r=77c",
+      "page": "https://www.netflix.com/tudum/top10/tv"
+    },
+    {
+      "title": "Heartland",
+      "image": "https://dnm.nflximg.net/api/v6/E8vDc_W8CLv7-yMQu8KMEC7Rrr8/AAAABRofyDZztGU-pr0PmBj6NPF5Tb_b7fiL3_MDjXgbvxvZU1afPhJPGAWfEN1QWs4iOzd5MLnOzbSIkVoRJOevlATJpiBTUpn3WkUr.jpg?r=a99",
+      "page": "https://www.netflix.com/tudum/top10"
+    },
+    {
+      "title": "Black Doves: Season 2",
+      "image": "https://dnm.nflximg.net/api/v6/E8vDc_W8CLv7-yMQu8KMEC7Rrr8/AAAABe0j4CAYNj0syBThdzNssOPUmYCPqDIp1ob05qhb8TLQyMf8siFW4aGHI7ZN0RQstnWsUP1ZViQvyARv5q_O9f8DznvyAkNS3Bnm.jpg?r=71e",
+      "page": "https://www.netflix.com/tudum/top10/tv"
+    }
+  ]
+}

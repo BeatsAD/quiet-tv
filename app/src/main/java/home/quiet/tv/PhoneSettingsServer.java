@@ -24,12 +24,14 @@ final class PhoneSettingsServer extends NanoHTTPD {
         default byte[] resource(String route)throws IOException{throw new BadInput();}
         default void delivered(String id){}
         default void connectionEnded(){}
+        default Download previewFile(String id)throws IOException{throw new BadInput();}
         default Download previewVideo(String id)throws IOException{throw new BadInput();}
         default byte[] previewImage(String id)throws IOException{throw new BadInput();}
         default Download download(String route)throws IOException{throw new BadInput();}
         default JSONObject about(boolean runtime)throws IOException{throw new BadInput();}
         default JSONObject places(String query)throws IOException{throw new BadInput();}
         default JSONObject parent(JSONObject value,Active active)throws IOException{throw new BadInput();}
+        default JSONObject connectMovieWall(JSONObject value,Active active)throws IOException{throw new BadInput();}
         default JSONObject task(String id)throws IOException{throw new BadInput();}
         default JSONObject upload(String id,InputStream input,long length,Active active)throws IOException{throw new BadInput();}
     }
@@ -99,7 +101,13 @@ final class PhoneSettingsServer extends NanoHTTPD {
         if((session.getMethod()==Method.GET||session.getMethod()==Method.HEAD)&&(route.isEmpty()||route.equals("app.js")||route.equals("styles.css")||route.equals("tmdb.svg")||publicAsset)){
             boolean trusted=session.getMethod()==Method.GET&&route.isEmpty()&&pairing.accepts(browser);
             if(trusted)synchronized(this){expire();if(pairing.accepts(browser))connect(browser);else trusted=false;}
-            try{String name=route.isEmpty()?"index.html":route,mime=route.isEmpty()?"text/html; charset=utf-8":route.endsWith(".js")?"application/javascript; charset=utf-8":route.endsWith(".png")?"image/png":route.endsWith(".webp")?"image/webp":route.endsWith(".svg")?"image/svg+xml":route.endsWith(".wav")?"audio/wav":"text/css; charset=utf-8";Response response=secure(newChunkedResponse(Response.Status.OK,mime,assets.open(name)));if(trusted)cookie(response,browser);return response;}catch(IOException failure){return error(Response.Status.INTERNAL_ERROR,"设置页面暂不可用");}
+            try{
+                Response response=secure(route.isEmpty()?settingsPage():newChunkedResponse(Response.Status.OK,
+                        route.endsWith(".js")?"application/javascript; charset=utf-8":route.endsWith(".png")?"image/png":route.endsWith(".webp")?"image/webp":route.endsWith(".svg")?"image/svg+xml":route.endsWith(".wav")?"audio/wav":"text/css; charset=utf-8",
+                        assets.open(route)));
+                if(trusted)cookie(response,browser);
+                return response;
+            }catch(IOException failure){return error(Response.Status.INTERNAL_ERROR,"设置页面暂不可用");}
         }
         if(session.getMethod()==Method.GET&&route.equals("status")){
             synchronized(this){
@@ -115,8 +123,10 @@ final class PhoneSettingsServer extends NanoHTTPD {
             if(session.getMethod()==Method.GET&&route.startsWith("api/preview-image/")){
                 String id=java.net.URLDecoder.decode(route.substring("api/preview-image/".length()),"UTF-8");byte[] image=backend.previewImage(id);if(!authorized(browser,expected))throw new Ended();return secure(newFixedLengthResponse(Response.Status.OK,"image/jpeg",new ByteArrayInputStream(image),image.length));
             }
-            if((session.getMethod()==Method.GET||session.getMethod()==Method.HEAD)&&route.startsWith("api/preview-video/")){
-                Download file=backend.previewVideo(route.substring("api/preview-video/".length()));
+            boolean filePreview=route.startsWith("api/preview-file/");
+            if((session.getMethod()==Method.GET||session.getMethod()==Method.HEAD)&&(filePreview||route.startsWith("api/preview-video/"))){
+                Download file=filePreview?backend.previewFile(route.substring("api/preview-file/".length()))
+                    :backend.previewVideo(route.substring("api/preview-video/".length()));
                 return secure(PhoneSettingsVideo.response(file,session.getHeaders().get("range"),session.getMethod()==Method.HEAD,()->authorized(browser,expected)));
             }
             if(session.getMethod()==Method.GET&&route.startsWith("api/downloads/")){
@@ -131,6 +141,12 @@ final class PhoneSettingsServer extends NanoHTTPD {
             }
             if(session.getMethod()==Method.GET&&route.equals("api/places")){JSONObject result=backend.places(session.getParms().get("q"));if(!authorized(browser,expected))throw new Ended();return json(Response.Status.OK,result);}
             if(session.getMethod()==Method.POST&&route.equals("api/parent")){JSONObject result=backend.parent(read(session,4096),()->authorized(browser,expected));if(!authorized(browser,expected))throw new Ended();touch(expected);return json(Response.Status.OK,result);}
+            if(session.getMethod()==Method.POST&&route.equals("api/movie-wall/connect")){
+                JSONObject result=backend.connectMovieWall(read(session,8192),()->authorized(browser,expected));
+                if(!authorized(browser,expected))throw new Ended();
+                touch(expected);
+                return json(Response.Status.ACCEPTED,result);
+            }
             if(session.getMethod()==Method.GET&&route.startsWith("api/tasks/")){
                 String id=route.substring("api/tasks/".length());if(!id.matches("[a-f0-9-]{36}"))throw new BadInput();JSONObject task=backend.task(id);if(!authorized(browser,expected))throw new Ended();return json(Response.Status.OK,task);
             }
@@ -139,7 +155,7 @@ final class PhoneSettingsServer extends NanoHTTPD {
                 long length;try{length=Long.parseLong(session.getHeaders().get("content-length"));}catch(NumberFormatException e){throw new BadInput();}if(length<1)throw new BadInput();
                 if(!transferring.compareAndSet(false,true))throw new Rejected("已有文件正在传输，请稍后再试");JSONObject result;try{result=backend.upload(id,session.getInputStream(),length,()->{if(!authorized(browser,expected))return false;touch(expected);return true;});}finally{transferring.set(false);}if(!authorized(browser,expected))throw new Ended();touch(expected);return json(Response.Status.OK,result);
             }
-            if(session.getMethod()==Method.GET&&route.startsWith("api/resources/")){byte[] image=backend.resource(route.substring("api/resources/".length()));if(!authorized(browser,expected))throw new Ended();return secure(newFixedLengthResponse(Response.Status.OK,route.startsWith("api/resources/quiz-art/")?"image/svg+xml":"image/png",new ByteArrayInputStream(image),image.length));}
+            if(session.getMethod()==Method.GET&&route.startsWith("api/resources/")){byte[] image=backend.resource(route.substring("api/resources/".length()));if(!authorized(browser,expected))throw new Ended();return secure(newFixedLengthResponse(Response.Status.OK,route.startsWith("api/resources/quiz-art/")?"image/svg+xml":route.startsWith("api/resources/movie-wall/")?"image/jpeg":"image/png",new ByteArrayInputStream(image),image.length));}
             PhoneSettingsState protocol=backend.protocol();
             if(protocol!=null&&route.startsWith("api/")){
                 JSONObject result;
@@ -164,6 +180,18 @@ final class PhoneSettingsServer extends NanoHTTPD {
             if(!Arrays.asList("keySounds","brightness","wallpaper","greeting").contains(field))return error(Response.Status.BAD_REQUEST,"此设置不可修改");
             JSONObject result=backend.change((String)field,data.get("value"),(String)revision,()->authorized(browser,expected));touch(expected);return json(Response.Status.OK,result);
         }catch(Conflict conflict){return error(Response.Status.CONFLICT,conflict.getMessage());}catch(Ended ended){return error(Response.Status.GONE,ended.getMessage());}catch(Rejected rejected){return error(Response.Status.BAD_REQUEST,rejected.getMessage());}catch(BadInput|JSONException|IllegalArgumentException error){return error(Response.Status.BAD_REQUEST,"设置内容无效");}catch(IOException error){return error(Response.Status.INTERNAL_ERROR,"保存未确认，输入已保留");}
+    }
+    private Response settingsPage()throws IOException {
+        try(InputStream input=assets.open("index.html");ByteArrayOutputStream bytes=new ByteArrayOutputStream()){
+            byte[] buffer=new byte[1024];
+            int count;
+            while((count=input.read(buffer))!=-1)bytes.write(buffer,0,count);
+            // Share clients need full URLs. Use the same bound LAN origin as the QR code.
+            String html=bytes.toString("UTF-8")
+                    .replace("property=\"og:url\" content=\"/\"", "property=\"og:url\" content=\""+address()+"\"")
+                    .replace("property=\"og:image\" content=\"./", "property=\"og:image\" content=\""+address());
+            return newFixedLengthResponse(Response.Status.OK,"text/html; charset=utf-8",html);
+        }
     }
     private Response landing(){Response response=secure(newFixedLengthResponse(Response.Status.FOUND,"text/plain; charset=utf-8",""));response.addHeader("Location","/");return response;}
     private Response pair(IHTTPSession session,String browser){

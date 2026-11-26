@@ -1,14 +1,14 @@
 import { completedNotice, deferredNotice, operationLabel, quietResult, requiresTask, resultFields, taskNotice, type OperationNotice } from './operationResults';
 export type Value = string | number | boolean | unknown[] | Record<string, unknown>;
-export type Field = { domain: string; title: string; type: 'range'|'toggle'|'select'|'text'|'order'; min?:number; max?:number; step?:number; unit?:string; divisor?:number; options?:{value:string|number;title:string}[]; maxLength?:number; disabledReason?:string };
+export type Field = { domain: string; title: string; type: 'range'|'toggle'|'select'|'text'|'order'; min?:number; max?:number; step?:number; unit?:string; divisor?:number; options?:{value:string|number;title:string}[]; maxLength?:number; disabledReason?:string; supportedApps?:string[] };
 export type App = { id:string; name:string; originalName?:string; customName?:string; renamed?:boolean; canRename?:boolean; icon?:string; cover?:string; coverFit?:'contain'|'cover'; color?:string; version?:string; apkBytes?:number; system?:boolean; protected?:boolean; hidden?:boolean; disabled?:boolean; removed?:boolean;installed?:boolean;recoverable?:boolean;childHidden?:boolean;protection?:string; actions?:{id:string;title:string;danger?:boolean;reason?:string;explanation?:string}[] };
-export type Media = { id:string; name:string; kind?:string; width:number; height:number; bytes:number; durationMs:number; video:boolean; canRename?:boolean };
+export type Media = { id:string; name:string; kind?:string; width:number; height:number; bytes:number; durationMs:number; video:boolean; canRename?:boolean; canDelete?:boolean };
 export type Task = { id:string;domain:string;kind:string;title:string;state:string;message:string;progress:number;cancellable?:boolean;result?:Record<string,unknown> };
 export type Metadata = { device:{name:string;version:string;build:number;sdk:number;channel:string}; fields:Record<string,Field>; wallpapers:Media[]; serverTimeMs?:number; timeZone?:string; saverLunar?:{date:string;text:string;monthStarts:number[]}; pollIntervalMs:number; [key:string]:unknown };
 export type Frame = { protocolVersion:number;generation:string;revision:string;lastSequence:number;complete:boolean;domains:Record<string,Record<string,Value>>;revisions:Record<string,string>;metadata?:Metadata;requestId?:string;requestStatus?:string;committedDomain?:string;committedRevision?:string;operation?:Record<string,unknown> };
 type Receipt = { generation:string;lastSequence:number;sequence?:number;requestStatus:string;committedDomain?:string;committedRevision?:string;committedState?:Record<string,Value>;operation?:Record<string,unknown>;errorStatus?:number;message?:string };
 type WriteRequest = { requestId:string;generation:string;sequence:number;domain:string;field:string;revision:string;value:Value };
-type Attempt = { request:WriteRequest;version?:number;uncertain?:boolean;announce?:boolean;feedbackState?:string;problem?:string };
+type Attempt = { request:WriteRequest;version?:number;uncertain?:boolean;announce?:boolean;problem?:string };
 type Pending = { key:string;domain:string;value:Value;base:string;version:number;ready:boolean;error?:string;errorStatus?:number;timer?:ReturnType<typeof setTimeout> };
 type ConnectionStatus = 'waiting'|'pairing'|'connected'|'offline'|'ended';
 type DraftStatus = 'queued'|'sending'|'checking'|'conflict'|'rejected';
@@ -24,6 +24,9 @@ export class PhoneClient {
   private listeners=new Set<()=>void>();private timer?:ReturnType<typeof setTimeout>;private sequence=0;private version=0;private running=false;private polling=false;private stopped=false;private requestCount=0;private readCount=0;private appliedRead=0;private needsMetadata=false;
   private reads:Promise<unknown>=Promise.resolve();
   private waitingCommands=0;private attempt?:Attempt;
+  reconnecting=false;
+  endedOperation='';
+  restoreReview?:{target:string;previous:string};
   constructor(readonly base=new URL('./',location.href)){}
   get problem(){return this.connectionProblem||this.attempt?.problem||this.writeProblem;}
   subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>{this.listeners.delete(listener);};};
@@ -107,7 +110,7 @@ export class PhoneClient {
   }
   get restoring(){const phase=this.restoreStatus.phase;return phase==='restoring'||phase==='recovering';}
   update(key:string,value:Value,delay=0,expected?:string){
-    const field=this.metadata?.fields[key];if(!field||!this.frame||this.status==='ended'||this.restoring)return;
+    const field=this.metadata?.fields[key];if(!field||!this.frame||this.status!=='connected'||this.restoring)return;
     const previous=this.pending.get(key);clearTimeout(previous?.timer);
     const pending:Pending={key,domain:field.domain,value,base:expected||previous?.base||this.frame.revisions[field.domain],version:++this.version,ready:delay===0};
     this.pending.set(key,pending);if(delay)pending.timer=setTimeout(()=>{pending.ready=true;void this.drain();},delay);
@@ -115,7 +118,8 @@ export class PhoneClient {
   }
   flush(key:string){const pending=this.pending.get(key);if(pending){clearTimeout(pending.timer);pending.ready=true;void this.drain();}}
   private acceptReceipt(result:Receipt,attempt:Attempt){
-    const request=attempt.request;if(result.generation!==this.frame?.generation)throw new ApiError(410,'连接已更换，请重新打开收藏的网址');
+    const request=attempt.request;const lastRestore=this.frame?.domains.backup?.lastRestore;
+    if(result.generation!==this.frame?.generation)throw new ApiError(410,'连接已更换，请重新打开收藏的网址');
     if(result.requestStatus==='rejected')throw new ApiError(result.errorStatus||400,result.message||'电视未接受此操作，请核对设置');
     if(result.requestStatus!=='completed')throw new ApiError(500,'电视尚未确认操作结果，请先核对当前设置');
     // Older TVs return a full frame; new receipts carry only the committed domain.
@@ -127,14 +131,19 @@ export class PhoneClient {
       this.sequence=Math.max(this.sequence,result.lastSequence);
     }
     const committed=result.committedRevision||this.frame?.revisions[request.domain];
-    if(committed)for(const item of this.pending.values())if(item.domain===request.domain&&item.base===request.revision)item.base=committed;
+    if(committed)for(const item of this.pending.values())if(!item.error&&item.domain===request.domain&&item.base===request.revision)item.base=committed;
     if(attempt.version!==undefined&&this.pending.get(request.field)?.version===attempt.version)this.pending.delete(request.field);
     this.attempt=undefined;this.status='connected';this.connectionProblem=this.writeProblem='';
     this.reportResult(result,attempt);
-    if(result.operation?.endsConnection){this.status='ended';this.connectionProblem='恢复请求已受理，本次连接已结束。请重新打开收藏的网址核对电视恢复记录。';}
+    if(result.operation?.endsConnection){
+      if(request.domain==='backup'&&request.field==='restore'){
+        this.restoreReview={target:String(request.value),previous:JSON.stringify(lastRestore||{})};
+      }
+      this.status='ended';this.connectionProblem='恢复请求已受理。请重新连接并查看恢复结果。';
+    }
   }
   private rejectAttempt(error:unknown,attempt:Attempt){
-    const detail=error instanceof Error?error.message:'操作结果待核对',known=error instanceof ApiError&&error.status<500,key=`${known}:${detail}`;if(attempt.announce!==false&&attempt.request.domain!=='icons'&&attempt.request.domain!=='uploads'&&attempt.feedbackState!==key){attempt.feedbackState=key;this.onOperation?.({kind:known?'error':'info',title:known?`${operationLabel(attempt.request.domain,attempt.request.field,this.metadata)}失败`:'结果待核对',detail});}
+    const detail=error instanceof Error?error.message:'操作结果待核对';
     if(error instanceof ApiError&&error.status<500){
       if(attempt.version!==undefined){const item=this.pending.get(attempt.request.field);if(item?.version===attempt.version){item.error=error.message;item.errorStatus=error.status;}}
       this.attempt=undefined;
@@ -169,7 +178,7 @@ export class PhoneClient {
     finally{this.running=false;this.publish();}
   }
   private async drain(){
-    if(this.running||this.attempt||this.waitingCommands||!this.frame||this.status==='ended'||this.restoring)return;
+    if(this.running||this.attempt||this.waitingCommands||!this.frame||this.status!=='connected'||this.restoring)return;
     const pending=[...this.pending.values()].find(item=>item.ready&&!item.error);if(!pending)return;
     this.running=true;this.version++;
     const request={requestId:`phone_${Date.now().toString(36)}_${++this.requestCount}`,generation:this.frame.generation,sequence:++this.sequence,domain:pending.domain,field:pending.key,revision:pending.base,value:pending.value};
@@ -186,7 +195,7 @@ export class PhoneClient {
       if(!this.frame){
         const status=await this.fetch('status');
         if(status.state!=='connected'){
-          if(this.currentRead(read,version)){this.status='pairing';this.connectionProblem='';}
+          if(this.currentRead(read,version)){this.status='pairing';this.metadata=null;this.connectionProblem='';}
           return;
         }
       }
@@ -196,6 +205,29 @@ export class PhoneClient {
     }catch(error){if(this.currentRead(read,version))this.handleConnectionError(error);}
     finally{this.publish();void this.drain();}
   }
+  async reconnect(){
+    if(this.reconnecting||this.running)return;
+    if(this.status!=='ended'){await this.refresh();return;}
+    this.reconnecting=true;
+    this.version++;
+    this.frame=null;
+    this.sequence=0;
+    if(this.attempt?.uncertain)this.endedOperation=operationLabel(this.attempt.request.domain,this.attempt.request.field,this.metadata);
+    this.attempt=undefined;
+    this.deferredResults.clear();
+    this.resultTasks.clear();
+    for(const pending of this.pending.values()){
+      clearTimeout(pending.timer);
+      pending.error='连接已更换，请核对电视当前值';
+      pending.errorStatus=409;
+    }
+    this.status='waiting';
+    this.connectionProblem='';
+    this.publish();
+    try{await this.refresh();}
+    finally{this.reconnecting=false;this.publish();this.visibility();}
+  }
+  clearEndedOperation(){this.endedOperation='';this.publish();}
   async pair(code:string){
     await this.fetch('pair',{code});
     await this.refresh();
@@ -207,22 +239,30 @@ export class PhoneClient {
     if(this.attempt?.uncertain&&this.status!=='ended')this.onOperation?.({kind:'info',title:'操作结果仍待核对',detail:this.attempt.problem});
     else this.onOperation?.(this.status==='connected'?{kind:'success',title:'状态已更新'}:{kind:'error',title:'刷新失败',detail:this.connectionProblem||'请重新连接电视后重试'});
   }
-  async useTelevision(){
+  useTelevision(key:string){
     if(!this.sync.canDiscard)return;
-    this.version++;
-    for(const pending of this.pending.values())clearTimeout(pending.timer);
-    this.pending.clear();this.writeProblem='';this.publish();
-    await this.refresh();
+    const draft=this.pending.get(key);
+    clearTimeout(draft?.timer);
+    this.pending.delete(key);
+    this.writeProblem='';this.publish();
   }
-  async retry(){
+  async retry(key:string,revision:string|undefined){
+    const pending=this.pending.get(key);
+    if(!pending||!this.sync.canReapply)return;
     await this.refresh();
-    if(!this.frame||!this.sync.canReapply)return;
-    for(const pending of this.pending.values()){pending.base=this.frame.revisions[pending.domain];pending.error=undefined;pending.errorStatus=undefined;pending.ready=true;}
+    if(!this.frame||!this.sync.canReapply||this.pending.get(key)!==pending)return;
+    const current=this.frame.revisions[pending.domain];
+    if(!current||current!==revision){
+      pending.error='电视配置再次变化，请核对当前值';
+      pending.errorStatus=409;
+      this.publish();return;
+    }
+    pending.base=current;pending.error=undefined;pending.errorStatus=undefined;pending.ready=true;
     void this.drain();
   }
   async command(domain:string,field:string,value:Value,expected?:string,announce=true){
     this.waitingCommands++;try{while(this.running)await new Promise(resolve=>setTimeout(resolve,50));}finally{this.waitingCommands--;}
-    const problem=!this.frame||this.status==='ended'?'连接已结束':this.attempt?'上次操作结果待确认，请先核对设置':this.restoring?'桌面正在恢复，请等待完成后核对配置':'';if(problem){if(announce&&domain!=='icons')this.onOperation?.({kind:'info',title:'操作尚未提交',detail:problem});throw new Error(problem);}this.running=true;this.version++;
+    const problem=!this.frame||this.status==='ended'?'连接已结束':this.status!=='connected'?'暂未连接电视，请重连后操作':this.attempt?'上次操作结果待确认，请先核对设置':this.restoring?'桌面正在恢复，请等待完成后核对配置':'';if(problem){if(announce&&domain!=='icons')this.onOperation?.({kind:'info',title:'操作尚未提交',detail:problem});throw new Error(problem);}this.running=true;this.version++;
     const request={requestId:`action_${Date.now().toString(36)}_${++this.requestCount}`,generation:this.frame!.generation,sequence:++this.sequence,domain,field,revision:expected??this.frame!.revisions[domain],value};
     try{return await this.send({request,announce});}finally{this.running=false;this.publish();void this.drain();}
   }
@@ -231,6 +271,19 @@ export class PhoneClient {
     return this.fetchNow(`api/about/${kind}`,undefined,signal,kind==='runtime'?25000:undefined);
   }
   async places(query:string){const result=await this.fetch(`api/places?q=${encodeURIComponent(query)}`);return result.places as {code:string;name:string;area:string}[];}
+  async connectMovieWall(provider:'feiniu'|'plex'|'smb',address:string,username:string,password:string){
+    const generation=this.frame?.generation,revision=this.frame?.revisions.movieWall;
+    if(!generation||!revision||this.status!=='connected')throw new Error('请先连接电视');
+    try{
+      const result=await this.fetchNow('api/movie-wall/connect',{provider,address,username,password,revision});
+      if((this.status as ConnectionStatus)==='ended'||this.frame?.generation!==generation)throw new ApiError(410,'电视连接已更换，请重新扫码');
+      if(!Number.isSafeInteger(result.operation))throw new Error('连接结果待核对，请查看当前海报来源');
+      return result.operation as number;
+    }catch(error){
+      if(error instanceof ApiError&&[403,410].includes(error.status)){this.handleConnectionError(error);this.publish();}
+      throw error;
+    }finally{void this.refresh(false);}
+  }
   async parent(action:string,pin='',newPin=''){
     const generation=this.frame?.generation;
     try{
@@ -245,7 +298,7 @@ export class PhoneClient {
       if(['setup','change','recover','verify'].includes(action))this.onOperation?.({kind:'success',title:action==='verify'?'家长验证成功':action==='change'?'密码修改成功':action==='recover'?'密码重设成功':'密码设置成功'});
       void this.refresh();
       return result as {recovery?:string;authorized?:boolean};
-    }catch(error){this.onOperation?.({kind:'error',title:action==='verify'?'家长验证失败':'密码设置失败',detail:error instanceof Error?error.message:'请重试'});throw error;}
+    }catch(error){if(error instanceof ApiError&&[403,410].includes(error.status)){this.handleConnectionError(error);this.publish();}throw error;}
   }
   async upload(file:File,kind:string,apply:boolean,target:string,onProgress:(percent:number,stage:string)=>void,onReady:(cancel:()=>Promise<void>)=>void,displayName?:string){
     const scene=target==='screensaver'?`screensaver:${this.frame?.revisions.screensaver}`:target;

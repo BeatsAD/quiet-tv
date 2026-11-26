@@ -12,7 +12,9 @@ Quiet TV 基于 [cleanyourtv](https://github.com/Gathin23/cleanyourtv)（原名 
 | libadb-android | Apache-2.0，保留其继承的 BSD／MIT 声明，见[完整许可目录](app/src/main/assets/licenses/) |
 | Bouncy Castle | MIT，[许可原文](app/src/main/assets/licenses/bouncycastle-LICENSE.md) |
 | NanoHTTPD | BSD-3-Clause，[许可原文](app/src/main/assets/licenses/nanohttpd-LICENSE.txt) |
-| SLF4J（JmDNS 日志接口） | MIT，[许可原文](app/src/main/assets/licenses/slf4j-MIT.txt) |
+| SMBJ、asn-one（NAS 共享目录） | Apache-2.0，[许可原文](app/src/main/assets/licenses/libadb-Apache-2.0.txt) |
+| MBassador（SMBJ 事件接口） | MIT，[许可原文](app/src/main/assets/licenses/mbassador-MIT.txt) |
+| SLF4J（JmDNS、SMBJ 日志接口） | MIT，[许可原文](app/src/main/assets/licenses/slf4j-MIT.txt) |
 | desugar_jdk_libs 2.1.5（旧安卓 Java API 兼容） | GPL-2.0 with Classpath Exception，[许可原文](app/src/main/assets/licenses/desugar-jdk-libs-LICENSE.txt)，[对应源码](https://github.com/google/desugar_jdk_libs/tree/73170c345e6a) |
 | React、React DOM（手机扫码设置） | MIT，[许可原文](app/src/main/assets/licenses/phone-react-MIT.txt) |
 | Radix Icons（手机扫码设置） | MIT，[许可原文](app/src/main/assets/licenses/phone-radix-icons-MIT.txt) |

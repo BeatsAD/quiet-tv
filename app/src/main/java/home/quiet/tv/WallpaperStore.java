@@ -167,11 +167,11 @@ final class WallpaperStore {
         if(entry==null||entry.video()||WallpaperCatalog.DAILY.equals(fallback)||entry.custom()&&(!file(fallback).isFile()||file(fallback).length()==0||!file(fallback).canRead()))fallback=WallpaperCatalog.DEFAULT;
         WallpaperCatalog next=catalog.copy();next.selectFixed(fallback);persist(next);manualVersion++;DesktopBackups.changed();
     }
-    synchronized void background(String mode,String id,int minutes,boolean dayNight)throws IOException{
+    synchronized void background(String mode,String id,int seconds,boolean dayNight)throws IOException{
         if("weather".equals(mode)&&!home.quiet.components.ComponentRepository.get(context).isReady("weather"))throw new IOException("需要先下载天气资源才能使用");
         WallpaperCatalog next=catalog.copy();WallpaperCatalog.Entry item=next.find(id);if(item==null||next.builtinHidden(id,false))throw new IOException("背景素材已不可用，请重新选择");
         if(item.custom()){File media=file(id);if(!media.isFile()||media.length()==0||!media.canRead())throw new IOException("背景素材无法读取，请重新选择");}
-        try{if("rotation".equals(mode)){next.rotation(item.video(),minutes,id);}
+        try{if("rotation".equals(mode)){next.rotation(item.video(),seconds,id);}
             else if("daily".equals(mode))next.select(WallpaperCatalog.DAILY);
             else if("weather".equals(mode)){String fallback=item.video()?next.staticBeforeVideo:id;if(WallpaperCatalog.DAILY.equals(fallback))fallback=next.dailyFallback();next.select(fallback);next.weather=true;next.weatherDayNight=dayNight;next.sound=false;}
             else if("fixed".equals(mode)){if(WallpaperCatalog.DAILY.equals(id))throw new IOException("请选择固定壁纸");next.selectFixed(id);}else throw new IOException("背景方式无效");
@@ -182,8 +182,24 @@ final class WallpaperStore {
         if(replacement==null)next.stopVideo();else{next.current=replacement;next.lastVideo=replacement;}persist(next);return replacement!=null;
     }
     synchronized void stopVideo() throws IOException {WallpaperCatalog next=catalog.copy();next.stopVideo();persist(next);}
-    synchronized void rotation(boolean video,int minutes,String start) throws IOException { WallpaperCatalog next=catalog.copy();next.rotation(video,minutes,start);persist(next);DesktopBackups.changed(); }
-    synchronized void next() throws IOException { WallpaperCatalog next=catalog.copy();next.next();persist(next); }
+    synchronized void rotation(boolean video,int seconds,String start) throws IOException { WallpaperCatalog next=catalog.copy();next.rotation(video,seconds,start);persist(next);manualVersion++;DesktopBackups.changed(); }
+    synchronized void rotationInterval(int seconds)throws IOException{
+        if(!WallpaperRotation.valid(seconds))throw new IllegalArgumentException("Unsupported rotation interval");
+        if(!catalog.rotating)throw new PhoneSettingsServer.Rejected("请先开启自动轮换");
+        if(catalog.rotationSeconds==seconds)return;
+        WallpaperCatalog next=catalog.copy();
+        next.rotationSeconds=seconds;
+        if(next.dynamic())next.videoRotationSeconds=seconds;else next.imageRotationSeconds=seconds;
+        persist(next);manualVersion++;DesktopBackups.changed();
+    }
+    synchronized boolean advanceVideo(String id,long expectedVersion)throws IOException{
+        if(manualVersion!=expectedVersion||!catalog.rotating||!catalog.dynamic())return false;
+        WallpaperCatalog next=catalog.copy();next.rotation(true,next.rotationSeconds,id);persist(next);return true;
+    }
+    synchronized String advanceImage(long expectedVersion)throws IOException{
+        if(manualVersion!=expectedVersion||!catalog.rotating||catalog.dynamic())return null;
+        WallpaperCatalog next=catalog.copy();next.next();persist(next);return next.current;
+    }
     synchronized void builtinVisible(boolean saver,boolean visible)throws IOException{
         if(catalog.builtinHidden(WallpaperCatalog.BUILTIN,saver)==!visible)return;
         WallpaperCatalog next=catalog.copy();next.builtinHidden(saver,!visible);

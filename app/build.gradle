@@ -124,6 +124,9 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.json:json:20240303'
     implementation 'org.nanohttpd:nanohttpd:2.3.1'
+    implementation('com.hierynomus:smbj:0.15.0') {
+        exclude group: 'org.bouncycastle', module: 'bcprov-jdk18on'
+    }
     implementation legacy ? 'com.google.zxing:core:3.3.0' : 'com.google.zxing:core:3.5.3'
     implementation legacy ? 'androidx.exifinterface:exifinterface:1.3.7' : 'androidx.exifinterface:exifinterface:1.4.2'
     implementation legacy ? 'androidx.recyclerview:recyclerview:1.3.2' : 'androidx.recyclerview:recyclerview:1.4.0'

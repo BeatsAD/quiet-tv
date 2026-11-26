@@ -7,11 +7,13 @@ import org.json.*;
 
 /** Listener-backed snapshot of the production updater; no parallel update feed or installer. */
 final class PhoneSettingsUpdates {
+    static final String INSTALL_TARGET="phone-update-target";
     private final Context context;private final Handler main=new Handler(Looper.getMainLooper());private volatile JSONObject snapshot=new JSONObject();private volatile boolean closed;private UpdateRepository repository;
     private final UpdateRepository.Listener listener=this::changed;
     PhoneSettingsUpdates(Context context){this.context=context;main.post(()->{if(closed)return;repository=UpdateRepository.get(context);repository.add(listener);});}
     private void changed(){
         try{UpdateRepository value=repository;JSONObject next=new JSONObject().put("updateLoaded",true).put("updateChecking",value.checking).put("updateDownloading",value.downloading).put("updateVerifying",value.verifying).put("updateReady",value.ready).put("updateReceived",value.received).put("updateTotal",value.total).put("updateCheckError",value.checkError).put("updateDownloadError",value.downloadError).put("updateUnavailable",value.unavailableReason).put("updateInstallState",value.snapshot().install.wire).put("updateInstallError",value.installError).put("updateInstallBusy",value.installBusy);
+            if(value.ready)next.put("updateInstallPermissionRequired",UpdateInstaller.permission(context)!=UpdateInstaller.Permission.ALLOWED);
             if(value.available!=null){UpdateManifest.Artifact item=value.available;next.put("updateAvailable",new JSONObject().put("version",item.version()).put("build",item.code).put("bytes",item.bytes).put("sha256",item.sha256).put("features",new JSONArray(item.release.features)).put("fixes",new JSONArray(item.release.fixes)));}snapshot=next;
         }catch(JSONException e){throw new IllegalStateException(e);}
     }
@@ -22,7 +24,23 @@ final class PhoneSettingsUpdates {
         else if(field.equals("cancelCheck")&&Boolean.TRUE.equals(value)){repository.cancelCheck();message="已取消检查";}
         else if(field.equals("cancelDownload")&&Boolean.TRUE.equals(value)){repository.cancelDownload();message="已取消下载";}
         else if(field.equals("reconcile")&&Boolean.TRUE.equals(value)){repository.reconcile();message="已读取电视当前版本";}
-        else if((field.equals("download")||field.equals("install"))&&value instanceof String){if(repository.available==null||!value.equals(repository.available.sha256))throw new PhoneSettingsServer.Rejected("更新目标已变化，请重新检查");if(field.equals("download")){repository.download();message="下载请求已受理";}else{if(!repository.ready)throw new PhoneSettingsServer.Rejected("请先完成安装包下载和校验");repository.install();context.startActivity(new Intent(context,AppManagementActivity.class).putExtra("management-page",SettingsPages.HELP).putExtra("phone-update-entry",true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));message="已请求在电视继续安装，请完成系统确认并核对版本";}}
+        else if((field.equals("download")||field.equals("install"))&&value instanceof String){
+            String hash=(String)value;
+            if(repository.available==null||!hash.equals(repository.available.sha256))throw new PhoneSettingsServer.Rejected("更新目标已变化，请重新检查");
+            if(repository.updateWorkInProgress())throw new PhoneSettingsServer.Rejected("电视正在处理更新，请稍后重试");
+            if(field.equals("download")){repository.download();message="下载请求已受理";}
+            else{
+                if(!repository.isReady(hash))throw new PhoneSettingsServer.Rejected("请先完成安装包下载和校验");
+                Intent launch=new Intent(context,AppManagementActivity.class).putExtra("management-page",SettingsPages.HELP)
+                        .putExtra(INSTALL_TARGET,hash).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                try{context.startActivity(launch);}
+                catch(RuntimeException failure){
+                    DiagnosticLog.error("update.phone_install.failed",failure);
+                    throw new PhoneSettingsServer.Rejected("无法打开电视更新页，请在电视上继续安装");
+                }
+                message="已请求在电视继续安装，请按电视提示完成授权和安装";
+            }
+        }
         else throw new IllegalArgumentException();changed();return new JSONObject().put("message",message);
     },active);}
     void close(){closed=true;main.post(()->{if(repository!=null)repository.remove(listener);});}

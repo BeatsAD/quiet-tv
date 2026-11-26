@@ -4,7 +4,7 @@ export const QUICK_SETTINGS='desktopSettings';
 export const QUICK_RANGES=['brightness','volume','homeBlur','dockScale','dockMagnification'];
 export const isQuickRange=(id:string)=>QUICK_RANGES.includes(id);
 export const quickButtonCount=(ids:string[])=>ids.filter(id=>!isQuickRange(id)&&id!==QUICK_SETTINGS).length;
-export function quickButtons(ids:string[]){const buttons=ids.filter(id=>!isQuickRange(id));if(!buttons.includes(QUICK_SETTINGS))buttons.push(QUICK_SETTINGS);return buttons;}
+export function quickButtons(ids:string[]){const buttons=ids.filter(id=>!isQuickRange(id));if(!buttons.includes(QUICK_SETTINGS))buttons.unshift(QUICK_SETTINGS);return buttons;}
 export const quickOverflow=(ids:string[])=>quickButtons(ids).filter(id=>id!==QUICK_SETTINGS).slice(QUICK_BUTTON_LIMIT);
 export const canAddQuick=(ids:string[],id:string,replace='')=>id!==QUICK_SETTINGS&&replace!==QUICK_SETTINGS&&!ids.includes(id)&&(isQuickRange(id)?quickRanges(ids).length-(isQuickRange(replace)&&ids.includes(replace)?1:0)<QUICK_RANGE_LIMIT:quickButtonCount(ids)-(replace&&!isQuickRange(replace)?1:0)<QUICK_BUTTON_LIMIT);
 export function quickGrid(ids:string[]){let count=0;return quickButtons(ids).filter(id=>id===QUICK_SETTINGS||count++<QUICK_BUTTON_LIMIT);}

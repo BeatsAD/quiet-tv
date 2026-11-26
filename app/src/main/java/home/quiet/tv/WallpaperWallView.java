@@ -35,6 +35,7 @@ final class WallpaperWallView extends View {
     private final Random random=new Random();
     private final Paint paint=new Paint(Paint.FILTER_BITMAP_FLAG);
     private final Rect rect=new Rect();
+    private final Rect posterCrop=new Rect();
     private final Camera camera=new Camera();
     private final Matrix transform=new Matrix();
     private final Set<String> unreadable=new HashSet<>();
@@ -42,6 +43,8 @@ final class WallpaperWallView extends View {
     private final Listener listener;
     private List<String> ids=Collections.emptyList();
     private WallpaperWall grid;
+    private boolean posters;
+    private String posterRevision="";
     private Bitmap[] tiles;
     private Bitmap replacement;
     private ValueAnimator flip;
@@ -57,8 +60,9 @@ final class WallpaperWallView extends View {
         setFocusable(false);
     }
 
-    void show(List<String> images){
-        if(!ids.equals(images)){
+    void show(List<String> images,boolean moviePosters,String revision){
+        if(!ids.equals(images)||posters!=moviePosters||!posterRevision.equals(revision)){
+            posters=moviePosters;posterRevision=revision;
             unreadable.clear();
             ids=images;
             resetGrid();
@@ -109,7 +113,7 @@ final class WallpaperWallView extends View {
         if(!running||destroyed||getWidth()==0||getHeight()==0)return;
         List<String> available=new ArrayList<>(ids);
         available.removeAll(unreadable);
-        grid=new WallpaperWall(available,random);
+        grid=new WallpaperWall(available,random,posters);
         tiles=new Bitmap[grid.size()];
         if(tiles.length==0){listener.ready(false);return;}
         decode(grid.at(0),0);
@@ -130,11 +134,15 @@ final class WallpaperWallView extends View {
         final int displayMax=getWidth()>1920?1920:getWidth();
         final int width=Math.max(1,(displayMax+grid.columns-1)/grid.columns);
         final int height=Math.max(1,(Math.round(getHeight()*(displayMax/(float)getWidth()))+grid.rows-1)/grid.rows);
+        final boolean posterMode=posters;
         task=decoder.submit(()->{
             Bitmap bitmap=null;
             try{
-                WallpaperCatalog.Entry entry=store.entry(id);
-                if(entry!=null)bitmap=WallpaperImages.decode(getContext(),store,entry,width,height);
+                if(posterMode)bitmap=FeiniuMovieWall.get(getContext()).bitmap(id);
+                else{
+                    WallpaperCatalog.Entry entry=store.entry(id);
+                    if(entry!=null)bitmap=WallpaperImages.decode(getContext(),store,entry,width,height);
+                }
             }catch(IOException|RuntimeException|OutOfMemoryError error){
                 DiagnosticLog.info("screensaver.wall.decode_failed",id);
             }
@@ -197,13 +205,29 @@ final class WallpaperWallView extends View {
         if(grid==null||tiles.length==0||tiles[tiles.length-1]==null)return;
         canvas.drawColor(0xff08090b);
         int width=getWidth(),height=getHeight();
-        int gap=Math.max(1,Math.round(width*2f/1920f));
+        int gap=posters?0:Math.max(1,Math.round(width*2f/1920f));
+        float posterAspect=grid.columns*2f/(grid.rows*3f);
+        int wallWidth=posters?Math.min(width,Math.round(height*posterAspect)):width;
+        int wallHeight=posters?Math.min(height,Math.round(width/posterAspect)):height;
+        int left=(width-wallWidth)/2,top=(height-wallHeight)/2;
         for(int i=0;i<tiles.length;i++){
             int x=i%grid.columns,y=i/grid.columns;
-            rect.set(x*width/grid.columns+(x==0?0:gap/2),y*height/grid.rows+(y==0?0:gap/2),
-                (x+1)*width/grid.columns-(x==grid.columns-1?0:gap-gap/2),
-                (y+1)*height/grid.rows-(y==grid.rows-1?0:gap-gap/2));
-            if(i!=cell||flip==null){canvas.drawBitmap(tiles[i],null,rect,paint);continue;}
+            rect.set(left+x*wallWidth/grid.columns+(x==0?0:gap/2),
+                top+y*wallHeight/grid.rows+(y==0?0:gap/2),
+                left+(x+1)*wallWidth/grid.columns-(x==grid.columns-1?0:gap-gap/2),
+                top+(y+1)*wallHeight/grid.rows-(y==grid.rows-1?0:gap-gap/2));
+            if(rect.isEmpty())continue;
+            Bitmap tile=tiles[i];
+            Rect source=null;
+            if(posters){
+                float scale=Math.min(tile.getWidth()/(float)rect.width(),tile.getHeight()/(float)rect.height());
+                int cropWidth=Math.max(1,Math.round(rect.width()*scale));
+                int cropHeight=Math.max(1,Math.round(rect.height()*scale));
+                int cropLeft=(tile.getWidth()-cropWidth)/2,cropTop=(tile.getHeight()-cropHeight)/2;
+                posterCrop.set(cropLeft,cropTop,cropLeft+cropWidth,cropTop+cropHeight);
+                source=posterCrop;
+            }
+            if(i!=cell||flip==null){canvas.drawBitmap(tile,source,rect,paint);continue;}
             float progress=(Float)flip.getAnimatedValue();
             float angle=(progress<.5f?progress:progress-1f)*180f;
             float cx=rect.exactCenterX(),cy=rect.exactCenterY();
@@ -217,7 +241,7 @@ final class WallpaperWallView extends View {
             transform.preTranslate(-cx,-cy);
             transform.postTranslate(cx,cy);
             canvas.concat(transform);
-            canvas.drawBitmap(tiles[i],null,rect,paint);
+            canvas.drawBitmap(tile,source,rect,paint);
             canvas.restore();
         }
     }

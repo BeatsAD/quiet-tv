@@ -23,7 +23,7 @@ public final class FileTransferPreviewActivity extends Activity {
     private final ExecutorService filter=Executors.newSingleThreadExecutor();
     private float unit;
     private int px(int value){return Math.round(value*unit);}
-    private void style(Button button){button.setTextColor(ManagementUi.TEXT);button.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(14));button.setBackgroundDrawable(ControlStyle.action(unit,24,0xff000000,0x22ffffff));}
+    private void style(Button button){ControlStyle.useCustomFocus(button);button.setTextColor(ManagementUi.TEXT);button.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(14));button.setBackgroundDrawable(ControlStyle.action(unit,24,0xff000000,0x22ffffff));}
     @Override public boolean dispatchKeyEvent(KeyEvent key){return KeyFeedback.dispatch(getWindow().getDecorView(),key,()->{boolean handled=super.dispatchKeyEvent(key);if(key.getKeyCode()==KeyEvent.KEYCODE_BACK&&isFinishing())KeyFeedback.back(this);return handled;});}
     @Override public void onCreate(Bundle saved){
         super.onCreate(saved);unit=getResources().getDisplayMetrics().widthPixels/960f;getWindow().getDecorView().setSystemUiVisibility(5894);getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));getWindow().addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);getWindow().setDimAmount(SettingsSheetBackdrop.DIM_AMOUNT);

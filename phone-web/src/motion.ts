@@ -1,3 +1,4 @@
+import { flushSync } from 'react-dom';
 import { useLayoutEffect, useRef, type RefObject } from 'react';
 
 export const motionEase = 'cubic-bezier(.22,1,.36,1)';
@@ -22,4 +23,56 @@ export function useContentMotion(ref:RefObject<HTMLElement|null>,route:string|nu
     preference.addEventListener('change',reduce);
     return()=>{preference.removeEventListener('change',reduce);animation.cancel();};
   },[route]);
+}
+
+export type PageDirection = 'push' | 'pop';
+
+export function usePageMotion(ref:RefObject<HTMLElement|null>,route:string) {
+  const active=useRef<ViewTransition|null>(null);
+  const fallback=useRef<PageDirection|null>(null);
+
+  useLayoutEffect(()=>{
+    const direction=fallback.current;
+    fallback.current=null;
+    const node=ref.current,preference=motionPreference();
+    if(!direction||!node?.animate||preference.matches)return;
+    const offset=direction==='push'?36:-36;
+    const animation=node.animate([
+      {transform:`translateX(${offset}px)`,opacity:.8},
+      {transform:'translateX(0)',opacity:1},
+    ],{duration:240,easing:motionEase});
+    const reduce=()=>{if(preference.matches)animation.finish();};
+    preference.addEventListener('change',reduce);
+    return()=>{preference.removeEventListener('change',reduce);animation.cancel();};
+  },[route]);
+
+  return (direction:PageDirection|null,update:()=>void)=>{
+    active.current?.skipTransition();
+    fallback.current=null;
+    const preference=motionPreference();
+    if(!direction||!ref.current||preference.matches||document.hidden){
+      update();
+      return;
+    }
+    if(!document.startViewTransition){
+      fallback.current=direction;
+      update();
+      return;
+    }
+
+    const html=document.documentElement;
+    html.dataset.settingsNavigation=direction;
+    const transition=document.startViewTransition(()=>flushSync(update));
+    active.current=transition;
+    const reduce=()=>{if(preference.matches)transition.skipTransition();};
+    preference.addEventListener('change',reduce);
+    const clear=()=>{
+      preference.removeEventListener('change',reduce);
+      if(active.current!==transition)return;
+      active.current=null;
+      delete html.dataset.settingsNavigation;
+    };
+    void transition.ready.catch(()=>{});
+    void transition.finished.then(clear,clear);
+  };
 }

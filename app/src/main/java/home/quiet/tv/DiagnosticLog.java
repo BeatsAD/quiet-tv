@@ -32,6 +32,8 @@ final class DiagnosticLog {
     private IOException storageError;
     private int failedWrites;
     private final DiagnosticSession session;
+    private final DiagnosticCrashRecord crashes;
+    private volatile UpdateCheck updateCheck;
     private DiagnosticIncident incident;
     private String incidentError="";
     private DiagnosticLog(Context supplied){
@@ -40,6 +42,7 @@ final class DiagnosticLog {
         preferences=context.getSharedPreferences("diagnostic-settings",Context.MODE_PRIVATE);
         recording=preferences.getBoolean(RECORDING,true);
         session=new DiagnosticSession(supplied);
+        crashes=new DiagnosticCrashRecord(new File(context.getFilesDir(),"diagnostic-last-crash.json"));
         worker.execute(()->{
             try{journal=new DiagnosticJournal(new File(context.getFilesDir(),"diagnostic-log"));}catch(IOException|RuntimeException e){storageError=new IOException("Diagnostic storage unavailable",e);}
             try{incident=new DiagnosticIncident(new File(context.getFilesDir(),"diagnostic-incident"));}catch(IOException|RuntimeException e){incidentError=e.getClass().getSimpleName();}
@@ -56,15 +59,16 @@ final class DiagnosticLog {
         Thread.setDefaultUncaughtExceptionHandler((thread,error)->{
             try{
                 if(!recording())return;
-                String crash=Long.toHexString(System.currentTimeMillis())+"-"+thread.getId();
-                List<String> parts=crashTrace(error);
-                instance.enqueue("ERROR","process.uncaught","crash="+crash+" parts="+parts.size()+" type="+bounded(error.getClass().getName(),96));
-                for(int i=0;i<parts.size();i++){
-                    instance.enqueue("ERROR","process.uncaught.stack","crash="+crash+" part="+(i+1)+"/"+parts.size()+" "+parts.get(i));
-                }
-                instance.worker.submit(()->instance.flushBuffered(DiagnosticEventBuffer.CAPACITY)).get(500,TimeUnit.MILLISECONDS);
+                long wall=System.currentTimeMillis(),elapsed=android.os.SystemClock.elapsedRealtime();
+                DiagnosticLog log=instance;
+                UpdateCheck check=log.updateCheck;
+                JSONObject record=DiagnosticCrashRecord.details(thread,error,check)
+                    .put("timestampMs",wall).put("elapsedMs",elapsed)
+                    .put("session",log.session.id).put("pid",android.os.Process.myPid()).put("build",BuildConfig.VERSION_CODE)
+                    .put("sourceSha256",log.session.sourceSha256());
+                log.crashes.write(record);
             }
-            catch(Exception ignored){}
+            catch(IOException|JSONException|RuntimeException ignored){}
             finally{if(previous!=null)previous.uncaughtException(thread,error);else{android.os.Process.killProcess(android.os.Process.myPid());System.exit(10);}}
         });
     }
@@ -128,32 +132,42 @@ final class DiagnosticLog {
         }
         return text.toString();
     }
-    // Keep deeper call sites, including obfuscated frames, without exception messages or unbounded entries.
-    static List<String> crashTrace(Throwable error){
-        List<String> parts=new ArrayList<>();
-        for(int cause=0;error!=null&&cause<3;cause++,error=error.getCause()){
-            StackTraceElement[] frames=error.getStackTrace();int count=Math.min(24,frames.length);
-            for(int start=0;start<Math.max(1,count);start+=3){
-                int end=Math.min(start+3,count);
-                StringBuilder part=new StringBuilder("cause="+cause+" type="+bounded(error.getClass().getName(),96)+" frameCount="+frames.length+" firstFrame="+start);
-                for(int i=start;i<end;i++)part.append(" <- ").append(bounded(frames[i].toString(),200));
-                if(end==count){
-                    part.append(" omittedFrames=").append(frames.length-count);
-                    if(cause==2&&error.getCause()!=null)part.append(" causesTruncated=true");
-                }
-                parts.add(part.toString());
-            }
+    static final class UpdateCheck {
+        final int generation;
+        final boolean manual;
+        volatile String mainPhase="dispatch",workerPhase="key";
+        volatile NetworkEvidence sourceAttempt;
+
+        UpdateCheck(int generation,boolean manual){this.generation=generation;this.manual=manual;}
+
+        JSONObject snapshot()throws JSONException{
+            JSONObject result=new JSONObject().put("generation",generation).put("manual",manual)
+                .put("mainPhase",mainPhase).put("workerPhase",workerPhase);
+            NetworkEvidence attempt=sourceAttempt;
+            if(attempt!=null)result.put("request",attempt.parent).put("attempt",attempt.attempt)
+                .put("lastSource",attempt.source).put("sourcePhase",attempt.stage);
+            return result;
         }
-        return parts;
     }
-    private static String bounded(String value,int limit){return value.length()>limit?value.substring(0,limit-3)+"...":value;}
+    static UpdateCheck beginUpdateCheck(int generation,boolean manual){
+        UpdateCheck check=new UpdateCheck(generation,manual);
+        DiagnosticLog log=instance;if(log!=null)log.updateCheck=check;
+        return check;
+    }
+    static UpdateCheck activeUpdateCheck(int generation){
+        DiagnosticLog log=instance;UpdateCheck check=log==null?null:log.updateCheck;
+        return check!=null&&check.generation==generation?check:null;
+    }
+    static void endUpdateCheck(int generation){
+        if(activeUpdateCheck(generation)!=null)instance.updateCheck=null;
+    }
     private synchronized void enqueue(String level,String event,String detail){
         if(!recording)return;
         long wall=System.currentTimeMillis(),elapsed=android.os.SystemClock.elapsedRealtime();
         // Mirror only vetted diagnostic channels so a computer stream survives APK replacement.
         if(event.equals("process.start")||event.startsWith("bluetooth.")||event.startsWith("system.operation.")||event.startsWith("system.configuration.")
                 ||event.startsWith("input.route.")||event.startsWith("install.evidence.")||event.startsWith("app.launch.")||event.startsWith("app.autostart.")||event.startsWith("external_activity.")
-                ||event.equals("input.window")||event.equals("home.window_focus")||event.equals("home_guard.key_filter")){
+                ||event.equals("input.window")||event.equals("home.window_focus")||event.startsWith("home.app_menu.")||event.equals("home_guard.key_filter")){
             android.util.Log.i("QuietTVDiagnostics",DiagnosticJournal.clean("wallMs="+wall+" event="+event+" "+session.envelope(detail,elapsed)));
         }
         if(buffer.offer(level,event,detail,wall,elapsed))scheduleDrain();
@@ -179,15 +193,16 @@ final class DiagnosticLog {
     }
     static File structured(Context supplied,String snapshot)throws Exception{
         DiagnosticLog log=instance;if(log==null)throw new IOException("Diagnostic log unavailable");
-        return log.worker.submit(()->{log.flushBuffered(DiagnosticEventBuffer.CAPACITY);return log.writeStructured(supplied.getApplicationContext(),snapshot);}).get(10,TimeUnit.SECONDS);
+        return log.worker.submit(()->{log.flushBuffered(DiagnosticEventBuffer.CAPACITY);return log.writeStructured(supplied.getApplicationContext(),snapshot,log.crashes.read());}).get(10,TimeUnit.SECONDS);
     }
-    private File writeStructured(Context context,String snapshot)throws Exception{
+    private File writeStructured(Context context,String snapshot,JSONObject crash)throws Exception{
             if(this.journal==null)throw new IOException("Diagnostic log unavailable");
             DiagnosticJournal.Tail tail=this.journal.tail(1024*1024,1000);JSONArray events=new JSONArray();int unparsed=0;
             for(String line:tail.lines){JSONObject item=DiagnosticRecord.parse(line);if(item==null)unparsed++;else events.put(item);}
             JSONObject data=new JSONObject().put("schemaVersion",DiagnosticSession.SCHEMA).put("exportedAtMs",System.currentTimeMillis()).put("currentSession",this.session.json())
                 .put("recordingEnabled",recording).put("snapshotAtExport",boundedSnapshot(snapshot)).put("coverage",this.coverage()).put("journalSegmentSequence",tail.sequence).put("events",events)
                 .put("operationEvidence",DiagnosticFindings.summarize(events)).put("eventsOmitted",tail.omitted).put("unparsedLines",unparsed).put("historyIdentityPolicy","Legacy entries without an envelope keep unknown identity; never assign the current version")
+                .put("lastJavaCrash",crash==null?JSONObject.NULL:crash)
                 .put("incident",this.incident==null?JSONObject.NULL:this.incident.snapshot()).put("extraProbes",DiagnosticProbe.snapshot()).put("automaticIncidents",AutoIncidentStore.recentEvidence());
             File file=new File(context.getCacheDir(),"diagnostic-export.json");try(OutputStream output=new FileOutputStream(file)){output.write(data.toString().getBytes(Charsets.UTF_8));}return file;
     }
@@ -198,19 +213,21 @@ final class DiagnosticLog {
             log.flushBuffered(DiagnosticEventBuffer.CAPACITY);
             // Both files observe the same serialized journal; no second drain between them.
             String evidence=recording(epoch)?snapshot:DiagnosticExports.HISTORY_ONLY;
-            File text=log.writeText(context,evidence);BluetoothSystemCapture.append(context,text);File json=log.writeStructured(context,evidence);
+            JSONObject crash=log.crashes.read();
+            File text=log.writeText(context,evidence,crash);BluetoothSystemCapture.append(context,text);
+            File json=log.writeStructured(context,evidence,crash);
             return DiagnosticBundle.create(text,json,new File(context.getCacheDir(),"diagnostic-export-"+UUID.randomUUID()+".zip"));
         }).get(15,TimeUnit.SECONDS);
     }
     static File export(Context supplied,String snapshot)throws Exception{
         DiagnosticLog log=instance;if(log==null)throw new IOException("Diagnostic log unavailable");
-        return log.worker.submit(()->{log.flushBuffered(DiagnosticEventBuffer.CAPACITY);return log.writeText(supplied.getApplicationContext(),snapshot);}).get(10,TimeUnit.SECONDS);
+        return log.worker.submit(()->{log.flushBuffered(DiagnosticEventBuffer.CAPACITY);return log.writeText(supplied.getApplicationContext(),snapshot,log.crashes.read());}).get(10,TimeUnit.SECONDS);
     }
     static String boundedSnapshot(String value){
         if(value==null)return "未采集";
         return value.length()>16000?value.substring(0,16000)+"\n[snapshotTruncated=true]":value;
     }
-    private File writeText(Context context,String snapshot)throws Exception{
+    private File writeText(Context context,String snapshot,JSONObject crash)throws Exception{
             if(this.journal==null)throw new IOException("Diagnostic log incomplete",this.storageError);
             File file=new File(context.getCacheDir(),"diagnostic-export.txt");
             snapshot=boundedSnapshot(snapshot);
@@ -220,7 +237,10 @@ final class DiagnosticLog {
             header=header.replace("\n\n[历史事件]\n","\n")+"\n[导出时当前会话身份]\n"+this.session.json()+"\n[本进程按通道采集质量]\n"+this.coverage()+"\n[短时增强诊断覆盖]\n"+DiagnosticProbe.snapshot()+"\n2.0操作记录仅包含允许的类别、阶段、匿名关联和结果；completed或APPLIED_CALLBACK不证明物理画面正常。故障窗口标记为用户报告时刻，非自动故障判定。\n历史事件以diagSession／diagBoot／diagBuild／diagSource关联；缺少这些字段的旧记录身份未知，不赋予当前版本。上述快照与质量统计属于导出时／当前进程，不替代历史故障现场。\n\n[历史事件]\n";
             byte[] headerBytes=header.getBytes(Charsets.UTF_8);
             if(headerBytes.length>65536)throw new IOException("Diagnostic snapshot exceeds limit");
-            try(OutputStream output=new FileOutputStream(file)){output.write(headerBytes);this.journal.copyTo(output);if(this.incident!=null)this.incident.appendTo(output);}
+            try(OutputStream output=new FileOutputStream(file)){
+                output.write(headerBytes);this.journal.copyTo(output);if(this.incident!=null)this.incident.appendTo(output);
+                if(crash!=null)output.write(("\n[最近一次 Java 崩溃]\n"+crash.toString(2)+"\n").getBytes(Charsets.UTF_8));
+            }
             return file;
     }
     @androidx.annotation.RequiresApi(24) private static final class Api24 {static Context storage(Context context){return context.createDeviceProtectedStorageContext();}}

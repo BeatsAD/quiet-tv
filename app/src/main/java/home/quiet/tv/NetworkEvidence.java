@@ -7,7 +7,7 @@ final class NetworkEvidence {
     final String parent,source,kind;
     final String attempt=UUID.randomUUID().toString().substring(0,12);
     final long started=System.nanoTime();
-    String stage="connect";long bytes;int status=Integer.MIN_VALUE,redirects;
+    volatile String stage="connect";long bytes;int status=Integer.MIN_VALUE,redirects;
     boolean verified;
     NetworkEvidence(String parent,String kind,String source){this.parent=parent;this.kind=kind;this.source=source;DiagnosticLog.info("network.source.begin",base());}
     static String request(){return UUID.randomUUID().toString();}

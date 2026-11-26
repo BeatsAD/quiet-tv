@@ -57,6 +57,7 @@ __pycache__/
 /management-fixture/
 /scripts/*
 !/scripts/build_apk.py
+!/scripts/refresh_top_shelf_netflix.py
 !/scripts/build_independent.py
 !/scripts/generate_weather_materials.py
 !/scripts/generate_weather_impostors.py

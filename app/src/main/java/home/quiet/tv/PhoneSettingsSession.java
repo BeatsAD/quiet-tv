@@ -41,6 +41,17 @@ final class PhoneSettingsSession {
     String address(){PhoneSettingsServer current=server;return current==null?"":current.address();}
     String pairingCode(){PhoneSettingsServer current=server;return current==null?"":current.pairingCode();}
     void offerFile(String id)throws IOException{if(server==null||!Arrays.asList("waiting","connected").contains(state()))throw new IOException("请先开启手机连接");new FileTransferStore(new File(context.getFilesDir(),"received-files")).entry(id);offeredFile=id;for(BrowserBackend backend:browserBackends)backend.syncOffer();}
+    PhoneSettingsTasks.Job filePermission(String id){
+        PhoneSettingsTasks.Job job=tasks.find(id);
+        return job!=null&&"files".equals(job.domain)&&"permission".equals(job.kind)?job:null;
+    }
+    void finishFilePermission(String id,String failure){
+        PhoneSettingsTasks.Job job=filePermission(id);
+        if(job==null||job.terminal())return;
+        if(!job.active())tasks.fail(job,"手机连接已结束");
+        else if(!failure.isEmpty())tasks.fail(job,failure);
+        else tasks.complete(job,new JSONObject(),"电视已确认读取权限");
+    }
     void start(){
         if(starting)return;
         if(server!=null){
@@ -108,6 +119,7 @@ final class PhoneSettingsSession {
         synchronized void syncOffer()throws IOException{String id=offeredFile;if(!id.isEmpty())configuration.offerFile(id);}
         public PhoneSettingsState protocol(){return protocol;}
         public void connectionEnded(){configuration.closed();browserBackends.remove(this);}
+        public PhoneSettingsServer.Download previewFile(String id)throws IOException{return configuration.previewFile(id);}
         public PhoneSettingsServer.Download previewVideo(String id)throws IOException{return configuration.previewVideo(id);}
         public byte[] resource(String route)throws IOException{return configuration.resource(route);}
         public void delivered(String id){configuration.delivered(id);}
@@ -115,6 +127,7 @@ final class PhoneSettingsSession {
         public JSONObject about(boolean runtime)throws IOException{return configuration.about(runtime);}
         public JSONObject places(String query)throws IOException{return configuration.places(query);}
         public JSONObject parent(JSONObject value,PhoneSettingsServer.Active active)throws IOException{return configuration.parent(value,active);}
+        public JSONObject connectMovieWall(JSONObject value,PhoneSettingsServer.Active active)throws IOException{return configuration.connectMovieWall(value,active);}
         public JSONObject task(String id)throws IOException{return configuration.task(id);}
         public JSONObject upload(String id,InputStream input,long length,PhoneSettingsServer.Active active)throws IOException{return configuration.upload(id,input,length,active);}
         public JSONObject snapshot()throws IOException{return PhoneSettingsSession.this.snapshot();}

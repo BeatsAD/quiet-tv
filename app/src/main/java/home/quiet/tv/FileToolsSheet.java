@@ -25,6 +25,7 @@ final class FileToolsSheet {
     private int listVersion,source,treeSource;
     private boolean active,destroyed,busy,loading,temporaryDirectory,retaining,external,applying,installerOpened;
     private String deleteReturnFocus="file-source-0",deleteError="";
+    private String phonePermission;
     private boolean receivedChanged,reopenDeleteAfterLoad;
     private String phase="list",error="",notice="",focus="file-source-0",receivingName="";
     private File folder,boundary,installSource;
@@ -62,11 +63,40 @@ final class FileToolsSheet {
     private Button menu(String text,String tag,Runnable action,boolean primary){Button value=button(text,tag,action,primary);value.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);value.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,14.4f*ui.unit);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,ui.px(39.36f));lp.bottomMargin=ui.px(7.2f);sheet.body.addView(value,lp);return value;}
     private void identify(View value,String tag){value.setTag(tag);value.setOnFocusChangeListener((v,on)->{if(on)focus=tag;});value.setId(androidx.core.view.ViewCompat.generateViewId());value.setFocusableInTouchMode(true);}
     void show(){if(open())return;entries=Collections.emptyList();installerOpened=false;phase="list";source=0;folder=boundary=null;tree=current=null;parents.clear();receipt=null;selected=null;error=notice="";receivedChanged=false;focus="file-source-0";create();phone.start();}
+    void authorizeFromPhone(String id){
+        PhoneSettingsTasks.Job request=phone.filePermission(id);
+        if(request==null||!"queued".equals(request.state)||!request.active())return;
+        if(phonePermission!=null||busy||external||confirmation!=null){
+            phone.finishFilePermission(id,"请先在电视完成当前文件操作，再重新授权");return;
+        }
+        phonePermission=id;
+        request.message="请在电视确认读取权限";
+        request.state="ready";
+        show();
+        go("list","file-source-0");
+        source("usb".equals(request.fingerprint)?2:1);
+        Intent picker=FileTransferSource.directoryPicker(ui);
+        if(picker!=null){
+            go("directory","file-tree-pick");
+            pickTree(picker);
+        }else{
+            try{
+                if(!FileTransferSource.requestPermission(ui,PERMISSION,true))
+                    phonePermissionFailed("此电视没有可用的目录选择器");
+            }catch(RuntimeException failure){phonePermissionFailed("无法请求存储读取权限，请检查电视系统中的应用权限");}
+        }
+    }
+    private void finishPhonePermission(String failure){
+        if(phonePermission==null)return;
+        phone.finishFilePermission(phonePermission,failure);
+        phonePermission=null;
+    }
+    private void phonePermissionFailed(String failure){error=failure;finishPhonePermission(failure);render();}
     private void create(){
         origin=ui.getCurrentFocus();sheet=ui.new Sheet("文件传输助手");ManagementUi.Sheet own=sheet;closeButton=sheet.settingsLayout("关闭",this::back);closeButton.setOnFocusChangeListener((v,on)->{if(on)focus="sheet-close";});sheet.settingsActions(false);
         LinearLayout title=(LinearLayout)closeButton.getParent();
         sheet.heading.getLayoutParams().height=-1;sheet.heading.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,22*ui.unit);title.getLayoutParams().height=ui.px(36);
-        sheet.dialog.setOnKeyListener((d,key,event)->KeyFeedback.backKey(ui,event,open()&&!applying&&(confirmation==null||!busy),this::back));sheet.dialog.setOnDismissListener(d->{if(sheet==own){dismissConfirmation();sheet=null;listPanel=null;localGrid=null;sourceTabs=null;fileCount=null;++jobVersion;++listVersion;busy=false;stopPreview();if(!retaining)discard();if(origin!=null&&origin.isShown())origin.requestFocusFromTouch();closed.run();}});
+        sheet.dialog.setOnKeyListener((d,key,event)->KeyFeedback.backKey(ui,event,open()&&!applying&&(confirmation==null||!busy),this::back));sheet.dialog.setOnDismissListener(d->{if(sheet==own){finishPhonePermission("已关闭电视授权");dismissConfirmation();sheet=null;listPanel=null;localGrid=null;sourceTabs=null;fileCount=null;++jobVersion;++listVersion;busy=false;stopPreview();if(!retaining)discard();if(origin!=null&&origin.isShown())origin.requestFocusFromTouch();closed.run();}});
         String target=focus;render();sheet.show(null);focus=target;restoreFocus();if(store==null)worker.execute(()->{FileTransferStore ready=null;try{ready=new FileTransferStore(new File(ui.getFilesDir(),"received-files"));}catch(IOException ignored){}FileTransferStore result=ready;main.post(()->{if(!open())return;store=result;if(result==null){error="文件接收目录不可用，已有文件已保留";render();}else readList();});});else if(phase.equals("list"))readList();
     }
     private void remember(){if(sheet==null||confirmation!=null)return;View view=sheet.dialog.getCurrentFocus();if(view!=null&&view.getTag() instanceof String)focus=(String)view.getTag();}
@@ -471,14 +501,27 @@ final class FileToolsSheet {
     private void directory(){
         heading("读取本地文件");LinearLayout group=ui.listGroup();LinearLayout.LayoutParams gp=new LinearLayout.LayoutParams(-1,-2);gp.topMargin=p(10.24f);gp.bottomMargin=p(21.12f);sheet.body.addView(group,gp);
         directoryRow(group,"系统选择文件","单个文件","file-system-pick",this::pick,true);
-        if(Build.VERSION.SDK_INT>=21)directoryRow(group,"授权目录",tree!=null?"已授权目录":"选择可读取目录","file-tree-pick",this::pickTree,true);
+        if(Build.VERSION.SDK_INT>=21){
+            boolean available=FileTransferSource.directoryPicker(ui)!=null;
+            directoryRow(group,"授权目录",available?(tree!=null?"已授权目录":"选择可读取目录"):"系统未提供目录选择器","file-tree-pick",this::pickTree,available);
+        }
         directoryRow(group,"记住当前目录",folder!=null?folder.getName():tree!=null?"已授权目录":"请先授权目录","file-remember-directory",this::rememberDirectory,tree!=null||folder!=null);
         directoryRow(group,"重新选择目录","保留已接收文件","file-reset-directory",()->{folder=boundary=null;tree=current=null;parents.clear();go("list","file-options");readList();},true);
         directoryRow(group,FileTransferSource.partialMediaAccess(ui)?"重新选择照片和视频":"重新读取存储","刷新","file-reread",()->{if(!FileTransferSource.requestPermission(ui,PERMISSION,true)){go("list","file-options");readList();}},true);
     }
     private void rememberDirectory(){try{if(tree!=null){if(!FileTransferSource.Documents.persistedRead(ui,tree))throw new IOException("系统只提供临时目录授权，请重新授权");}else if(folder!=null)FileTransferSource.LocalDirectories.remember(ui,source==2,folder);go("list","file-options");readList();ui.success("已记住当前目录");}catch(IOException failure){error=failure.getMessage();render();}}
     private void pick(){try{Intent intent=new Intent(Build.VERSION.SDK_INT>=19?Intent.ACTION_OPEN_DOCUMENT:Intent.ACTION_GET_CONTENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);external=true;sheet.dialog.hide();ui.startActivityForResult(intent,PICK);}catch(ActivityNotFoundException|SecurityException failure){external=false;sheet.dialog.show();error="系统文件选择器不可用，可浏览本地存储或使用局域网传输";render();}}
-    private void pickTree(){if(Build.VERSION.SDK_INT<21)return;try{treeSource=source==2?2:1;Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);external=true;sheet.dialog.hide();ui.startActivityForResult(intent,TREE);}catch(ActivityNotFoundException|SecurityException failure){external=false;sheet.dialog.show();error="目录授权入口不可用，可选择单个文件或使用局域网传输";render();}}
+    private void pickTree(){
+        Intent picker=FileTransferSource.directoryPicker(ui);
+        if(picker==null){phonePermissionFailed("此电视没有可用的目录选择器");return;}
+        pickTree(picker);
+    }
+    private void pickTree(Intent picker){
+        try{treeSource=source==2?2:1;external=true;sheet.dialog.hide();ui.startActivityForResult(picker,TREE);}
+        catch(ActivityNotFoundException|SecurityException failure){
+            external=false;sheet.dialog.show();phonePermissionFailed("无法打开目录选择器，可继续浏览可读目录或使用局域网传输");
+        }
+    }
     private void detail(){
         heading(name());muted(kind()+"  "+FileTransferSource.size(bytes()));((LinearLayout.LayoutParams)sheet.body.getChildAt(sheet.body.getChildCount()-1).getLayoutParams()).topMargin=0;if(busy){note("正在处理文件…");return;}if(phase.equals("preview"))previewBody();
         if(FileTransferPolicy.apk(name()))menu("安装应用","file-install",()->{installerOpened=false;go("install","file-installer");},false);
@@ -589,10 +632,31 @@ final class FileToolsSheet {
     }
     void activityResult(int request,int result,Intent data){
         if(request!=PICK&&request!=TREE&&request!=INSTALL)return;if(!open())return;external=false;sheet.dialog.show();if(request==INSTALL){if(installSource!=null){if(installSource.isFile()&&!installSource.delete())DiagnosticLog.info("file_tools.install_source_retained","installer_return");installSource=null;}phase="install";installerOpened=data!=null&&data.getBooleanExtra("installer-opened",false);focus="file-return-detail";error="";if(data!=null&&data.getBooleanExtra("installation-verified",false)){phase="detail";focus="file-install";render();ui.success("应用已安装");}else render();return;}
-        if(result!=android.app.Activity.RESULT_OK||data==null||data.getData()==null){error="未选择文件或目录，可继续浏览存储或使用局域网传输";render();return;}Uri uri=data.getData();if(request==TREE){if(!FileTransferSource.Documents.validTree(uri)){error="目录授权无效，请重新选择";render();return;}source=treeSource;tree=uri;current=FileTransferSource.Documents.root(uri);folder=boundary=null;parents.clear();temporaryDirectory=false;try{FileTransferSource.Documents.remember(ui,source==2,uri,data.getFlags());}catch(IOException failure){temporaryDirectory=true;error=failure.getMessage();}phase="list";focus="file-options";readList();}
+        if(result!=android.app.Activity.RESULT_OK||data==null||data.getData()==null){
+            error="未选择文件或目录，可继续浏览存储或使用局域网传输";
+            if(request==TREE)finishPhonePermission("电视未授予目录访问权限");
+            render();return;
+        }
+        Uri uri=data.getData();
+        if(request==TREE){
+            if(!FileTransferSource.Documents.validTree(uri)){phonePermissionFailed("目录授权无效，请重新选择");return;}
+            source=treeSource;tree=uri;current=FileTransferSource.Documents.root(uri);folder=boundary=null;parents.clear();temporaryDirectory=false;
+            try{FileTransferSource.Documents.remember(ui,source==2,uri,data.getFlags());finishPhonePermission("");}
+            catch(IOException failure){
+                temporaryDirectory=true;error=failure.getMessage();
+                finishPhonePermission(error);
+            }
+            phase="list";focus="file-options";readList();
+        }
         else{int version=++jobVersion;worker.execute(()->{try{FileTransferSource.Item item=FileTransferSource.selected(ui,uri);main.post(()->{if(open()&&version==jobVersion){receipt=null;selected=item;source=1;go("detail",detailFocus());}});}catch(IOException|RuntimeException failure){main.post(()->{if(open()&&version==jobVersion){error="选中文件无法读取，请重新选择或检查授权";render();}});}});}
     }
-    void permissionResult(int request){if(request==PERMISSION&&open()){go("list","file-options");readList();}}
+    void permissionResult(int request){
+        if(request!=PERMISSION||!open())return;
+        String failure=FileTransferSource.missingPermissions(ui).length==0?"":"电视未授予存储读取权限，请核对系统中的应用权限";
+        finishPhonePermission(failure);
+        go("list","file-options");
+        error=failure;readList();
+    }
     private String phoneFilesKey="";
     private final Runnable phoneChanged=this::phoneChanged;
     private void phoneChanged(){String[] names=new File(ui.getFilesDir(),"received-files").list();if(names==null)return;java.util.Arrays.sort(names);String key=java.util.Arrays.toString(names);if(key.equals(phoneFilesKey))return;phoneFilesKey=key;if(open()&&active&&phase.equals("list")){if(busy||confirmation!=null)receivedChanged=true;else readList();}}
@@ -608,5 +672,7 @@ final class FileToolsSheet {
         else if(phase.equals("preview")){++jobVersion;busy=false;discard();go("detail",detailFocus());}
         else if(!phase.equals("list")){++jobVersion;busy=false;discard();go("list",listEntryFocus());readList();}else if(!busy&&(folder!=null||tree!=null))up();else close();}
     void close(){if(applying||confirmation!=null&&busy)return;dismissConfirmation();if(sheet!=null)sheet.dialog.dismiss();}
-    void destroy(){phone.forgetConfiguration(phoneChanged);dismissConfirmation();destroyed=true;if(sheet!=null){sheet.dialog.setOnDismissListener(null);sheet.dialog.dismiss();sheet=null;}++jobVersion;++listVersion;stopPreview();if(!retaining)discard();main.removeCallbacksAndMessages(null);worker.shutdown();}
+    void savePhonePermission(Bundle state){state.putString(PhoneSettingsFiles.PERMISSION_JOB,phonePermission);}
+    void restorePhonePermission(Bundle state){phonePermission=state.getString(PhoneSettingsFiles.PERMISSION_JOB);}
+    void destroy(){phone.forgetConfiguration(phoneChanged);dismissConfirmation();destroyed=true;if(sheet!=null){sheet.dialog.setOnDismissListener(null);sheet.dialog.dismiss();sheet=null;}++jobVersion;++listVersion;stopPreview();if(!retaining||ui.isFinishing())finishPhonePermission("已关闭电视授权");if(!retaining)discard();main.removeCallbacksAndMessages(null);worker.shutdown();}
 }

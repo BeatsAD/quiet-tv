@@ -15,3 +15,12 @@
 -keep class org.bouncycastle.jsse.provider.** { *; }
 # Optional LDAP stores require JNDI, which Android does not ship. Wallpaper uses local roots.
 -dontwarn javax.naming.**
+
+# SMB uses NTLM and simple event handlers. Kerberos and expression filters are optional JVM paths.
+-dontwarn org.ietf.jgss.**
+-dontwarn javax.el.**
+-keepattributes RuntimeVisibleAnnotations,AnnotationDefault
+-keep @interface net.engio.mbassy.listener.Handler
+-keepclassmembers class com.hierynomus.smbj.** {
+    @net.engio.mbassy.listener.Handler <methods>;
+}

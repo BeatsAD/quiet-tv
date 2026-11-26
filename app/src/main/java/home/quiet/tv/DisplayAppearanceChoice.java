@@ -104,7 +104,7 @@ final class DisplayAppearanceChoice extends LinearLayout {
     private ScrollView optionScroll(LinearLayout options){
         int side=optionSidePadding(),top=p(6.4f)+p(10.24f),bottom=ui.px(24);
         int maxHeight=p(217.6f)+top+bottom;
-        ScrollView scroll=new ScrollView(ui){
+        ScrollView scroll=ui.new SettingsScrollView(){
             @Override protected void onMeasure(int w,int h){
                 int limit=MeasureSpec.getMode(h)==MeasureSpec.UNSPECIFIED
                         ?maxHeight:Math.min(MeasureSpec.getSize(h),maxHeight);

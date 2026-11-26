@@ -16,8 +16,13 @@ final class ScreensaverPreviewView extends FrameLayout {
     private final WallpaperStore store;
     private final ImageView image;
     private final WallpaperWallView wall;
+    private final FeiniuMovieWall movieWall;
+    private final Runnable movieWallChanged=()->{
+        if(this.settings!=null&&this.settings.movieWall())load();
+    };
     private final TextView wallEmpty;
     private boolean wallReady;
+    private String wallRevision="";
     private List<String> wallImages=Collections.emptyList();
     private final ScreensaverInformationView information;
     private final VideoWallpaperPlayer video;
@@ -67,6 +72,7 @@ final class ScreensaverPreviewView extends FrameLayout {
         androidx.core.view.ViewCompat.setImportantForAccessibility(this,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
         image=new ImageView(ui);image.setScaleType(ImageView.ScaleType.CENTER_CROP);addView(image,new LayoutParams(-1,-1));
         video=new VideoWallpaperPlayer(ui,this,true);video.setSound(false);if(WallpaperGpuSupport.available(ui)){sky=new WallpaperGpuView(ui,new WallpaperGpuView.Listener(){public void ready(){if(usingWeather){weatherReady=true;readyAfterDraw(sync.request());}message.show("");}public void failed(String detail){if(usingWeather)sync.failed(sync.request(),ui.tr("天气效果暂不可用，预览未同步","Weather preview unavailable"));if(sky!=null){sky.active(false);sky.displayView().setVisibility(GONE);}message.show(ui.tr("天气效果暂不可用，已使用静态背景","Weather effect unavailable; using the static background"));}});sky.displayView().setVisibility(GONE);addView(sky.displayView(),new LayoutParams(-1,-1));}
+        movieWall=FeiniuMovieWall.get(ui);
         wall=new WallpaperWallView(ui,store,available->{
             wallReady=available;
             wallEmptyStatus(available);
@@ -110,10 +116,12 @@ final class ScreensaverPreviewView extends FrameLayout {
     private void load(){
         if(!active||settings==null||destroyed)return;
         WallpaperCatalog current=store.snapshot();String wanted=ScreensaverSettings.CUSTOM.equals(settings.mode)&&!candidate.isEmpty()?settings.media(candidate).resolved(current):settings.resolved(current);
-        List<String> wallIds=settings.wall()?WallpaperWall.ids(current):Collections.emptyList();
-        long previous=sync.request();long operation=sync.begin(Arrays.asList(wallIds,settings.mode,settings.showTime,settings.showWeather,settings.flipShowSeconds,settings.clockPosition(),settings.weatherPosition,settings.clock,wanted,store.imageKey(wanted),current.weather,current.weatherDayNight),PreviewSyncState.BACKGROUND);
+        List<String> wallIds=settings.movieWall()?movieWall.ids():settings.wall()?WallpaperWall.ids(current):Collections.emptyList();
+        String posters=settings.movieWall()?movieWall.revision():"";
+        long previous=sync.request();long operation=sync.begin(Arrays.asList(wallIds,posters,settings.mode,settings.showTime,settings.showWeather,settings.flipShowSeconds,settings.clockPosition(),settings.weatherPosition,settings.clock,wanted,store.imageKey(wanted),current.weather,current.weatherDayNight),PreviewSyncState.BACKGROUND);
         if(previous!=operation&&readyDraw!=null){readyDraw.run();readyDraw=null;}
-        if(settings.wall()){
+        if(settings.wall()||settings.movieWall()){
+            wallEmpty.setText(settings.movieWall()?ui.tr("同步电影海报后即可预览","Sync movie posters to preview"):ui.tr("上传静态壁纸后即可预览","Upload wallpapers to preview"));
             if(wall.getVisibility()!=VISIBLE||previous!=operation){
                 ++generation;pending="";video.stop();
                 if(sky!=null){sky.active(false);sky.displayView().setVisibility(GONE);}
@@ -122,13 +130,13 @@ final class ScreensaverPreviewView extends FrameLayout {
             }
             wall.setVisibility(VISIBLE);
             if(wallIds.isEmpty()){wall.clear();wallReady=false;wallEmptyStatus(false);readyAfterDraw(operation);return;}
-            if(!wallImages.equals(wallIds)){
-                wallImages=wallIds;
+            if(!wallImages.equals(wallIds)||!wallRevision.equals(posters)){
+                wallImages=wallIds;wallRevision=posters;
                 wallReady=false;
                 wallEmpty.setVisibility(GONE);
                 information.setVisibility(INVISIBLE);
             }
-            wall.show(wallIds);
+            wall.show(wallIds,settings.movieWall(),posters);
             wall.active(hasWindowFocus());
             if(wallReady)readyAfterDraw(operation);
             return;
@@ -160,7 +168,7 @@ final class ScreensaverPreviewView extends FrameLayout {
     }
     void resume(){
         if(active)return;
-        active=true;
+        active=true;movieWall.addListener(movieWallChanged);
         DailyQuote.get(ui).observe(dailyQuoteChanged);
         IntentFilter filter=new IntentFilter(Intent.ACTION_TIME_CHANGED);
         filter.addAction(Intent.ACTION_TIMEZONE_CHANGED);
@@ -171,6 +179,6 @@ final class ScreensaverPreviewView extends FrameLayout {
         refreshQuote(System.currentTimeMillis(),true);
         load();
     }
-    void pause(){if(!active)return;wall.clear();wallReady=false;information.active(false);active=false;DailyQuote.get(ui).forget(dailyQuoteChanged);updateFlipSound();ui.unregisterReceiver(timeChanges);weatherReady=false;sync.invalidate();gpuFrameOperation=-1;if(readyDraw!=null){readyDraw.run();readyDraw=null;}if(sky!=null)sky.afterFrame(null);++generation;pending="";main.removeCallbacks(tick);video.stop();if(sky!=null)sky.active(false);}
+    void pause(){if(!active)return;wall.clear();wallReady=false;information.active(false);active=false;movieWall.removeListener(movieWallChanged);DailyQuote.get(ui).forget(dailyQuoteChanged);updateFlipSound();ui.unregisterReceiver(timeChanges);weatherReady=false;sync.invalidate();gpuFrameOperation=-1;if(readyDraw!=null){readyDraw.run();readyDraw=null;}if(sky!=null)sky.afterFrame(null);++generation;pending="";main.removeCallbacks(tick);video.stop();if(sky!=null)sky.active(false);}
     void destroy(){pause();wall.destroy();destroyed=true;information.onLanded(null);if(flipSound!=null){flipSound.destroy();flipSound=null;}worker.shutdownNow();video.destroy();if(sky!=null)sky.destroy();image.setImageDrawable(null);}
 }

@@ -12,14 +12,13 @@ final class WeatherSettingsPanel extends ManagementPanel {
     private android.app.Dialog originalSheet;
     private android.app.Dialog systemSettingsSheet;
     private boolean systemSettingsKeyHeld;
-    private SettingsRouteMemory.Attempt systemSettingsAttempt;
-    private final HashSet<String> systemSettingsTried=new HashSet<>();
+    private final SystemSettingsTrial systemSettingsTrial;
     private int scrollY;
     private String focusTag;
     private final boolean general;
     private final Runnable backupChanged=this::refreshBackup;
     private final ManagementAdb.Listener adbChanged=()->{refreshAdb();refreshBootAds();};
-    WeatherSettingsPanel(AppManagementActivity activity,boolean general){super(activity);this.general=general;}
+    WeatherSettingsPanel(AppManagementActivity activity,boolean general){super(activity);this.general=general;systemSettingsTrial=new SystemSettingsTrial(activity);}
     @Override public void onCreate(Bundle state){
         pageRoot=column();weather=new DesktopWeatherPanel(activity);activity.addSettingsScroll(pageRoot,weather.view);activity.attachPanel(pageRoot);
         ArrayList<DesktopSettingsRow> rows=new ArrayList<>(Arrays.asList(weather.rows()));
@@ -72,24 +71,23 @@ final class WeatherSettingsPanel extends ManagementPanel {
     @Override protected void onSaveInstanceState(Bundle state){remember();state.putString("focus",focusTag);state.putInt("scroll",scrollY);weather.save(state);}
     private void original(){if(originalSheet!=null)return;originalSheet=DesktopSwitchUi.show(activity,()->{originalSheet=null;focusTag="general-tool-original";if(showing)pageRoot.findViewWithTag(focusTag).requestFocusFromTouch();refreshDesktopSwitch();});}
     private void openSystemSettings(boolean next){
-        if(next&&systemSettingsAttempt!=null)new SettingsRouteMemory(activity).confirm(systemSettingsAttempt,false);
-        if(!next)systemSettingsTried.clear();
-        systemSettingsAttempt=new SystemSettingsRouter(activity).open(android.provider.Settings.ACTION_SETTINGS,true,systemSettingsTried);
-        if(systemSettingsAttempt!=null)systemSettingsTried.add(systemSettingsAttempt.identity);
-        else message(activity.tr(systemSettingsTried.isEmpty()?"当前电视没有可用的系统设置入口":"没有其他可用入口，可长按后重新检测",systemSettingsTried.isEmpty()?"No system settings entry is available on this TV":"No further entry is available; long-press to detect again"));
+        if(!systemSettingsTrial.open(next)){
+            boolean tried=systemSettingsTrial.hasTried();
+            message(activity.tr(tried?"没有其他可用入口，可长按后重新检测":"当前电视没有可用的系统设置入口",tried?"No further entry is available; long-press to detect again":"No system settings entry is available on this TV"));
+        }
     }
     private void systemSettingsOptions(){
         if(systemSettingsSheet!=null)return;
         ArrayList<String> labels=new ArrayList<>();ArrayList<Runnable> actions=new ArrayList<>();
         labels.add(activity.tr("尝试其他打开方式","Try another way"));actions.add(()->openSystemSettings(true));
-        SettingsRouteMemory.Attempt attempt=systemSettingsAttempt;
-        if(attempt!=null&&(attempt.result()==SettingsRouteMemory.Result.DISPATCHED_UNVERIFIED||attempt.result()==SettingsRouteMemory.Result.WINDOW_OBSERVED)){
+        String confirmation=systemSettingsTrial.confirmation();
+        if(!confirmation.isEmpty()){
             labels.add(activity.tr("已正常打开，记住此方式","It worked; remember this way"));actions.add(()->{
-                boolean saved=new SettingsRouteMemory(activity).confirm(attempt,true);systemSettingsAttempt=null;
+                boolean saved=systemSettingsTrial.remember(confirmation);
                 if(saved)success(activity.tr("已记住当前电视的打开方式","Opening method saved for this TV"));else error(activity.tr("入口已变化或测试已过期，请重新打开设置","The entry changed or the test expired; open settings again"));
             });
         }
-        if(!systemSettingsTried.isEmpty()){labels.add(activity.tr("重新检测入口","Detect entries again"));actions.add(()->openSystemSettings(false));}
+        if(systemSettingsTrial.hasTried()){labels.add(activity.tr("重新检测入口","Detect entries again"));actions.add(()->openSystemSettings(false));}
         android.app.AlertDialog dialog=new android.app.AlertDialog.Builder(activity)
             .setItems(labels.toArray(new String[0]),(d,index)->actions.get(index).run()).create();
         ControlStyle.dialogNavigation(dialog,activity.tr("原设置","TV system settings"),activity.tr("关闭","Close"),unit);

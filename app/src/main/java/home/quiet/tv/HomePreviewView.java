@@ -23,7 +23,8 @@ final class HomePreviewView extends FrameLayout implements SharedPreferences.OnS
     private DockBackdropDrawable dockSurface;
     private final Map<String,Object> appearancePreview=new HashMap<>();
     private String appearanceSignature="";
-    private boolean dockDemo;
+    private boolean dockDemo,shelfDemo,shelfLoading;
+    private TopShelfContent.Card shelfSample;
     private String coverPreviewPackage="";private Bitmap coverPreview;
     private Runnable dockLayoutChanged;
     private final Typeface typeface;
@@ -37,6 +38,7 @@ final class HomePreviewView extends FrameLayout implements SharedPreferences.OnS
     private HomePreviewCache.Key pendingKey,failedKey;
     private boolean active,hasDockApps,secondScreen,destroyed,firstFrameComplete;
     private Runnable firstFrameReady;
+    private long backgroundReady=-1;
     void firstFrameReady(Runnable listener){firstFrameReady=listener;if(firstFrameComplete&&listener!=null)listener.run();}
     private String draftProperty;
     private boolean draftSecond;
@@ -97,6 +99,7 @@ final class HomePreviewView extends FrameLayout implements SharedPreferences.OnS
         header.setVisibility(secondScreen?GONE:VISIBLE);grid.setVisibility(secondScreen?VISIBLE:GONE);
         for(int i=0;i<grid.getChildCount();i++)((ViewGroup)grid.getChildAt(i)).getChildAt(1).setVisibility(settings.showAllAppsNames()?VISIBLE:GONE);
         band.setVisibility(!secondScreen&&settings.showHomeApps()?VISIBLE:GONE);
+        updateTopShelfDemo(settings);
         if(applied!=null)renderAppearance(applied);
         header.previewControlVisibility((String)appearancePreview.get("quick-control-visibility"));header.previewClockStyle((String)appearancePreview.get("clock-style"));header.updateClock(fixedGreeting);WeatherStore weather=new WeatherStore(getContext());WeatherData data=weather.enabled()?weather.cached(chinese):null;header.weather(data!=null&&data.usable(System.currentTimeMillis())?data:null);header.movie(backgrounds.displayedMovie());refreshQuote(false);
         android.net.ConnectivityManager manager=(android.net.ConnectivityManager)getContext().getApplicationContext().getSystemService(Context.CONNECTIVITY_SERVICE);android.net.NetworkInfo network=manager==null?null:manager.getActiveNetworkInfo();
@@ -109,11 +112,20 @@ final class HomePreviewView extends FrameLayout implements SharedPreferences.OnS
     private void updateSync(DesktopSettingsStore settings,WallpaperCatalog media){
         Map<String,Object> values=new HashMap<>(getContext().getSharedPreferences("desktop-settings",0).getAll());
         for(String key:new String[]{"icon-size","icon-shape","dock-scale","dock-limit","dock-magnification","home-blur-mode","home-wallpaper-blur","home-wallpaper-brightness","home-wallpaper-fade","second-wallpaper-blur","second-wallpaper-brightness","second-wallpaper-fade","key-sounds","key-sound-theme"})values.remove(key);
-        Object key=Arrays.asList(sceneKey(),getWidth(),secondScreen,values,appearancePreview.get("clock-style"),appearancePreview.get("quick-control-visibility"),string(settings,"icon-size"),string(settings,"icon-shape"),number(settings,"dock-limit"),number(settings,"dock-scale"),number(settings,"dock-magnification"),
+        String weatherKey=backgrounds.settingsWeatherKey();
+        Object key=Arrays.asList(sceneKey(),getWidth(),secondScreen,values,weatherKey,appearancePreview.get("clock-style"),appearancePreview.get("quick-control-visibility"),string(settings,"icon-size"),string(settings,"icon-shape"),number(settings,"dock-limit"),number(settings,"dock-scale"),number(settings,"dock-magnification"),
             appearancePreview.containsKey("home-blur-mode")?appearancePreview.get("home-blur-mode"):settings.homeBlurMode(),effect("blur",secondScreen?settings.secondWallpaperBlur():settings.homeWallpaperBlur()),effect("brightness",secondScreen?settings.secondWallpaperBrightness():settings.homeWallpaperBrightness()),
             effect("fade",secondScreen?settings.secondWallpaperFade():settings.homeWallpaperFade()),mediaPreview==null?media.current:mediaPreview,mediaPreview==null?media.weather:previewWeather,mediaPreview==null?media.weatherDayNight:previewDayNight,new WeatherStore(getContext()).enabled());
         long before=sync.request(),request=sync.begin(key,PreviewSyncState.LOCAL|PreviewSyncState.BACKGROUND);
-        if(before!=request)backgrounds.awaitPreview(request,(operation,error)->{if(error.isEmpty())sync.ready(operation,PreviewSyncState.BACKGROUND);else sync.failed(operation,error);});
+        ManagementUi owner=(ManagementUi)getContext();
+        if(before!=request)backgrounds.awaitPreview(request,(operation,error)->{
+            if(error.isEmpty()){
+                backgroundReady=operation;
+                sync.ready(operation,PreviewSyncState.BACKGROUND);
+                owner.updateWeatherBackdrop(backgrounds,weatherKey);
+            }else sync.failed(operation,error);
+        });
+        owner.updateWeatherBackdrop(backgrounds,backgroundReady==request?weatherKey:null);
         if(failedKey!=null&&failedKey.equals(sceneKey()))sync.failed(request,chinese?"桌面预览无法读取":"Unable to load desktop preview");
         else if(applied!=null&&applied.key.equals(sceneKey())){sync.ready(request,PreviewSyncState.LOCAL);}
     }
@@ -188,19 +200,44 @@ final class HomePreviewView extends FrameLayout implements SharedPreferences.OnS
     }
     void previewAppearance(String key,Object value){appearancePreview.put(key,value);refresh();}
     void clearAppearancePreview(String key){if(appearancePreview.remove(key)!=null)refresh();}
+    void topShelfDemo(boolean enabled){
+        if(shelfDemo==enabled)return;
+        shelfDemo=enabled;
+        refresh();
+    }
+    private void updateTopShelfDemo(DesktopSettingsStore settings){
+        boolean show=active&&shelfDemo&&!secondScreen&&settings.topShelf();
+        if(show&&shelfSample==null&&!shelfLoading){
+            shelfLoading=true;
+            Context context=getContext().getApplicationContext();
+            worker.execute(()->{
+                TopShelfContent.Card card=null;
+                try{card=TopShelfContent.demo(context,chinese);}
+                catch(java.io.IOException|RuntimeException|OutOfMemoryError error){DiagnosticLog.info("home.top_shelf.demo","unavailable");}
+                TopShelfContent.Card loaded=card;
+                main.post(()->{if(!destroyed){shelfSample=loaded;if(loaded!=null)refresh();}});
+            });
+        }
+        TopShelfContent.Card card=show?shelfSample:null;
+        if(header.hasTopShelf()!=(card!=null)){
+            header.topShelf(card);
+            backgrounds.topShelf(card==null?null:card.image);
+            appearanceSignature="";
+        }
+    }
     void demoDock(boolean enabled){if(dockDemo!=enabled){dockDemo=enabled;refresh();}}
     private int number(DesktopSettingsStore settings,String key){Object value=appearancePreview.get(key);return value instanceof Integer?(Integer)value:settings.appearance(key);}
     private String string(DesktopSettingsStore settings,String key){Object value=appearancePreview.get(key);return value instanceof String?(String)value:"app-title-position".equals(key)?settings.appTitlePosition():"icon-size".equals(key)?settings.iconSize():settings.iconShape();}
     private void renderAppearance(HomePreviewCache.Scene ready){
         DesktopSettingsStore settings=new DesktopSettingsStore(getContext());String size=string(settings,"icon-size"),shape=string(settings,"icon-shape");int limit=number(settings,"dock-limit");
         String titlePosition=string(settings,"app-title-position");boolean above="top-left".equals(titlePosition)&&!ready.names.isEmpty(),below="below".equals(titlePosition);
-        title.setVisibility(!secondScreen&&settings.showHomeApps()&&above?VISIBLE:GONE);
+        title.setVisibility(!secondScreen&&settings.showHomeApps()&&above&&!header.hasTopShelf()?VISIBLE:GONE);
         String key=size+shape+limit+titlePosition+number(settings,"dock-scale")+":"+number(settings,"dock-magnification")+":"+settings.dockMagnify()+settings.globalGlass()+settings.showDockBackground()+dockDemo+settings.showAllAppsNames()+settings.showHomeApps();if(key.equals(appearanceSignature))return;appearanceSignature=key;
         band.removeAllViews();boolean empty=ready.art.isEmpty();hasDockApps=!empty;int count=empty?1:Math.min(ready.art.size(),limit);int active=dockDemo&&!empty?(count-1)/2:-1;
         DockLayout geometry=empty?DockLayout.empty(-1,size,number(settings,"dock-scale"),settings.dockMagnify(),number(settings,"dock-magnification")):DockLayout.create(count,active,size,shape,number(settings,"dock-scale"),settings.dockMagnify(),number(settings,"dock-magnification"),titlePosition);
         DockLayout reserved=empty?DockLayout.empty(0,size,number(settings,"dock-scale"),settings.dockMagnify(),number(settings,"dock-magnification")):DockLayout.create(count,0,size,shape,number(settings,"dock-scale"),settings.dockMagnify(),number(settings,"dock-magnification"),titlePosition);
         boolean panel=settings.showDockBackground();
-        header.applicationAreaTop(!settings.showHomeApps()?540:above?reserved.featuredTitleTop(panel):reserved.top);
+        header.applicationAreaTop(header.hasTopShelf()?geometry.featuredTitleTop(panel):!settings.showHomeApps()?540:above?reserved.featuredTitleTop(panel):reserved.top);
         if(above){title.setText(ready.names.get(active>=0?active:0));FrameLayout.LayoutParams tp=(FrameLayout.LayoutParams)title.getLayoutParams();tp.topMargin=Math.round(geometry.featuredTitleTop(panel));title.setLayoutParams(tp);}
         FrameLayout.LayoutParams bp=(FrameLayout.LayoutParams)band.getLayoutParams();bp.leftMargin=Math.round(geometry.left);bp.topMargin=Math.round(geometry.top);bp.width=Math.round(geometry.width);bp.height=Math.round(geometry.height);band.setLayoutParams(bp);
         dockSurface=new DockBackdropDrawable(this::drawWallpaper,band,scene,1,false,true);dockSurface.radiusPixels(geometry.radius);band.setBackgroundDrawable(!empty&&settings.showDockBackground()?dockSurface:null);

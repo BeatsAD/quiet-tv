@@ -10,11 +10,11 @@ final class QuickControlStore {
     static final String SETTINGS="desktopSettings";
     static final String SCREENSAVER_SOUND="saverSound";
     static final List<String> ALL=Collections.unmodifiableList(Arrays.asList("keySounds","brightness","network","source","mute",SCREENSAVER_SOUND,"original","transfer","memoShortcut","wallpaper","screensaver","boot","bluetooth","volume","child","apps","clock","weather","systemSettings","homeBlur","dockScale","dockMagnification",SETTINGS));
-    static final List<String> DEFAULT=Collections.unmodifiableList(Arrays.asList("network","bluetooth","keySounds","source","wallpaper","screensaver","mute","transfer",SETTINGS,"brightness","volume"));
+    static final List<String> DEFAULT=Collections.unmodifiableList(Arrays.asList(SETTINGS,"network","bluetooth","keySounds","source","wallpaper","screensaver","mute","transfer","brightness","volume"));
     static final int MAX_BUTTONS=8, RANGE_LIMIT=2;
     static final List<String> RANGES=Collections.unmodifiableList(Arrays.asList("brightness","volume","homeBlur","dockScale","dockMagnification"));
     // Legacy files and backups did not store the required entry's position.
-    static List<String> normalize(List<String> ids){List<String> result=new ArrayList<>(ids);if(!result.contains(SETTINGS)){int at=result.size();while(at>0&&range(result.get(at-1)))at--;result.add(at,SETTINGS);}return result;}
+    static List<String> normalize(List<String> ids){List<String> result=new ArrayList<>(ids);if(!result.contains(SETTINGS))result.add(0,SETTINGS);return result;}
     static int buttonCount(List<String> ids){int n=0;for(String id:ids)if(!range(id)&&!SETTINGS.equals(id))n++;return n;}
     static List<String> buttons(List<String> ids){List<String> result=new ArrayList<>();for(String id:normalize(ids))if(!range(id))result.add(id);return result;}
     static List<String> allRanges(List<String> ids){List<String> result=new ArrayList<>();for(String id:ids)if(range(id))result.add(id);return result;}

@@ -29,6 +29,8 @@ final class HomeHeaderView extends FrameLayout {
     private final GreetingAvatarStore avatars;
     private final View divider;
     private final TextView buttonLabel,movieTitle,movieSummary;
+    private final LinearLayout shelfCaption;
+    private final TextView shelfSource,shelfTitle;
     private final LinearLayout movie;
     private final DailyQuoteView quote;
     private DailyQuote.Entry quoteEntry, appliedQuote;
@@ -82,8 +84,22 @@ final class HomeHeaderView extends FrameLayout {
         }
         clock.setShadowLayer(3.25f*unit,0,unit,UiPalette.INK);
         movie.addView(movieTitle,new LinearLayout.LayoutParams(-1,px(32)));LinearLayout.LayoutParams summary=new LinearLayout.LayoutParams(-1,-2);summary.topMargin=px(6);movie.addView(movieSummary,summary);
+        shelfCaption=new LinearLayout(context);shelfCaption.setOrientation(LinearLayout.VERTICAL);shelfCaption.setVisibility(GONE);
+        shelfSource=text("",13,500,UiPalette.TEXT);shelfTitle=text("",27,600,UiPalette.TEXT);
+        for(TextView item:new TextView[]{shelfSource,shelfTitle})item.setShadowLayer(px(3),0,px(1),0xdd000000);
+        shelfCaption.addView(shelfSource,new LinearLayout.LayoutParams(-1,px(19)));
+        shelfCaption.addView(shelfTitle,new LinearLayout.LayoutParams(-1,px(36)));
+        place(shelfCaption,820,DockLayout.FEATURED_TITLE_HEIGHT,50,0);
         quote=new DailyQuoteView(context,unit,false);
         avatar.changed=this::apply;apply();
+    }
+    boolean hasTopShelf(){return shelfCaption.getVisibility()==VISIBLE;}
+    void topShelf(TopShelfContent.Card card){
+        if(card==null&&!hasTopShelf())return;
+        shelfCaption.setVisibility(card==null?GONE:VISIBLE);
+        shelfSource.setText(card==null?"":card.source);
+        shelfTitle.setText(card==null?"":card.title);
+        apply();
     }
     void movie(MovieWallpaperFeed feed){
         String key=feed==null?"":feed.revision+":"+feed.hash;if(key.equals(movieKey))return;movieKey=key;
@@ -121,18 +137,24 @@ final class HomeHeaderView extends FrameLayout {
     void apply(){
         Map<String,?> values=getContext().getSharedPreferences("desktop-settings",0).getAll();
         boolean movieWallpaper=WallpaperStore.get(getContext()).dailyMovieSelected();
-        String header=movieWallpaper+":"+previewClockStyle+":"+weatherAvailable+":"+new WeatherStore(getContext()).enabled()+":"+movieKey+":"+applicationAreaTop+":"+avatar.getVisibility()+":"+(lunarDate.length()>0);
+        String header=movieWallpaper+":"+previewClockStyle+":"+weatherAvailable+":"+new WeatherStore(getContext()).enabled()+":"+movieKey+":"+hasTopShelf()+":"+applicationAreaTop+":"+avatar.getVisibility()+":"+(lunarDate.length()>0);
         if(values.equals(appliedSettings)&&header.equals(appliedHeader)&&appliedQuote==quoteEntry)return;
         appliedQuote=quoteEntry;
         appliedSettings=new HashMap<>(values);appliedHeader=header;
         boolean gallery=settings.galleryLayout();
         String style=gallery?(previewClockStyle==null?settings.clockStyle():previewClockStyle):"digital";
         boolean analog=!"digital".equals(style);String arrangement=settings.layout()+":"+analog;
-        boolean movieVisible=!movieKey.isEmpty()&&settings.showMovieInfo(movieWallpaper)&&(movieTitle.length()>0||movieSummary.length()>0);
-        boolean quoteVisible=settings.showHomeQuote(movieWallpaper)&&quoteEntry!=null;
+        boolean shelfVisible=hasTopShelf();
+        if(shelfVisible){
+            FrameLayout.LayoutParams position=(FrameLayout.LayoutParams)shelfCaption.getLayoutParams();
+            int top=px(applicationAreaTop);
+            if(position.topMargin!=top){position.topMargin=top;shelfCaption.setLayoutParams(position);}
+        }
+        boolean movieVisible=!shelfVisible&&!movieKey.isEmpty()&&settings.showMovieInfo(movieWallpaper)&&(movieTitle.length()>0||movieSummary.length()>0);
+        boolean quoteVisible=!shelfVisible&&settings.showHomeQuote(movieWallpaper)&&quoteEntry!=null;
         quote.show(quoteVisible?quoteEntry:null);
         movie.setVisibility(movieVisible?VISIBLE:GONE);
-        boolean galleryMovie=gallery&&movieVisible, galleryQuote=gallery&&quoteVisible;
+        boolean galleryMovie=gallery&&(movieVisible||shelfVisible), galleryQuote=gallery&&quoteVisible;
         int galleryOffset=(int)Math.max(0,Math.min(56,applicationAreaTop-280));
         FrameLayout.LayoutParams moviePosition=(FrameLayout.LayoutParams)movie.getLayoutParams();int movieWidth=px(gallery?420:360),movieLeft=px(gallery?270:CLASSIC_INFORMATION_LEFT),movieTop=px(gallery?204+galleryOffset:148);
         if(moviePosition.width!=movieWidth||moviePosition.leftMargin!=movieLeft||moviePosition.topMargin!=movieTop){moviePosition.width=movieWidth;moviePosition.leftMargin=movieLeft;moviePosition.topMargin=movieTop;movie.setLayoutParams(moviePosition);}
