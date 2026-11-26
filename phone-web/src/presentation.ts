@@ -5,7 +5,7 @@ export const fieldPresentation:Record<string,{title:string;icon?:string}>={
   childEnabled:{title:'儿童模式'},homeButtons:{title:'首页按钮'},quickControls:{title:'快捷控制'},dockApps:{title:'Dock 应用'},gridOrder:{title:'第二屏应用顺序'},wallpaper:{title:'桌面背景'},saverMedia:{title:'屏保素材'},greeting:{title:'问候语'},cityCode:{title:'天气城市'},
   homeBlurMode:{title:'首页模糊方式'},homeBlur:{title:'模糊度'},homeBrightness:{title:'亮度'},homeFade:{title:'淡入时间'},
   secondBlur:{title:'模糊度'},secondBrightness:{title:'亮度'},secondFade:{title:'淡入时间'},secondNames:{title:'第二屏应用名称'},secondHideHomeApps:{title:'第二屏隐藏首屏应用'},
-  layout:{title:'排版',icon:'DashboardIcon'},iconSize:{title:'图标大小'},iconShape:{title:'图标外形'},
+  layout:{title:'桌面布局',icon:'DashboardIcon'},iconSize:{title:'图标大小'},iconShape:{title:'图标外形'},
   dockScale:{title:'Dock 栏大小'},dockMagnification:{title:'放大幅度'},dockLimit:{title:'显示应用上限'},dockMagnify:{title:'聚焦放大'},globalGlass:{title:'全局玻璃效果'},dockBackground:{title:'Dock 背景'},
   showGreeting:{title:'问候语'},showAvatar:{title:'显示头像'},showTime:{title:'时间'},clockStyle:{title:'时钟样式'},showDate:{title:'日期'},showSeconds:{title:'显示秒数'},showLunarDate:{title:'显示农历'},homeApps:{title:'首页应用区域'},appNames:{title:'首页应用名称'},
   weatherEnabled:{title:'天气',icon:'SunIcon'},autoLocation:{title:'自动定位',icon:'TargetIcon'},provider:{title:'天气来源',icon:'LayersIcon'},

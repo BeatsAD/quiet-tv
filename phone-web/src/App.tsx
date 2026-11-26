@@ -25,7 +25,7 @@ import { QuizSettingsForm, QuizQuestions, QuizQuestionEditor, ChildRestPicker, q
 import { WallpaperUpload } from './WallpaperUpload';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { PhoneClient, ApiError, UploadError, type Value, type App as TvApp, type Media, newId } from './api';
-import { EmptyState, Group, Icon, Row, Setting, ChoiceField, ChoiceList, Sheet, ConfirmDialog, FormDialog, ResourceImageRefresh, fileSize, ResourceImage, Switch, AppImage, quickGlyph, ParentPinInput } from './widgets';
+import { EmptyState, Group, Icon, Row, Setting, ChoiceList, Sheet, ConfirmDialog, FormDialog, ResourceImageRefresh, fileSize, ResourceImage, Switch, AppImage, quickGlyph, ParentPinInput } from './widgets';
 import { Preview, SaverPreview, PreviewPagePicker, dockEntries, dockGeometry } from './preview';
 import { clearResourceImages } from './ResourceImageCache';
 import { CoverCrop } from './CoverCrop';
@@ -47,10 +47,11 @@ import { AboutSettings, type AboutTab } from './AboutSettings';
 const tabs=['桌面显示','快捷控制','管理应用','儿童模式','工具','通用设置','更新与帮助'];
 const childTab=3,toolsTab=4,generalTab=5,helpTab=6;
 const desktopCategories=[
-  ['layout','排版'],['wallpaper','壁纸'],['home','首屏'],['apps','菜单栏'],
+  ['home','首屏'],['wallpaper','壁纸'],['apps','菜单栏'],
   ['second','第二屏'],['saver','屏保'],['feedback','操作反馈'],
 ] as const;
 type DesktopCategory=typeof desktopCategories[number][0];
+const defaultDesktopCategory=desktopCategories[0][0];
 
 function positionTabIndicator(carousel:HTMLElement|null|undefined){
   const active=carousel?.querySelector<HTMLElement>('[aria-selected=true]');
@@ -120,13 +121,13 @@ export function App(){
   const [upload,setUpload]=useState<{name:string;percent:number;message:string;context:string}|null>(null),[file,setFile]=useState<File|null>(null),[dismissedTasks,setDismissedTasks]=useState<string[]>([]);
   const [uploadActionsHost,setUploadActionsHost]=useState<HTMLDivElement|null>(null);
   const [pageActionsHost,setPageActionsHost]=useState<HTMLDivElement|null>(null);
-  const [desktopSelection,setDesktopSelection]=useState<DesktopCategory>('layout');
+  const [desktopSelection,setDesktopSelection]=useState<DesktopCategory>(defaultDesktopCategory);
   const [wallpaperFiles,setWallpaperFiles]=useState<File[]>([]),[uploadSelection,setUploadSelection]=useState(0), wallpaperTarget=useRef(''),operationTasks=useRef<Record<string,string[]>>({});
   const [renameLink,setRenameLink]=useState(()=>mediaRenameTarget(connectionRoute()));
   const view=trail.at(-1),sync=client.sync,metadata=client.metadata,v=client.values();
   const desktopTabs=desktopCategories.filter(([id])=>id==='second'?!!metadata?.fields.secondBlur:
     id==='saver'?!!metadata?.fields.idle:id==='feedback'?!!(metadata?.fields.keySounds||metadata?.fields.keySoundTheme):true);
-  const desktopCategory=desktopTabs.some(([id])=>id===desktopSelection)?desktopSelection:'layout';
+  const desktopCategory=desktopTabs.some(([id])=>id===desktopSelection)?desktopSelection:defaultDesktopCategory;
   const receipt=sync.receipt,checking=receipt.state==='checking',offline=sync.connection.state==='offline',ended=sync.connection.state==='ended';
   const reconnecting=client.reconnecting,canWrite=sync.connection.state==='connected'&&!checking&&!client.restoring;
   const hasConflicts=sync.drafts.some(draft=>draft.state==='conflict'),hasRejections=sync.drafts.some(draft=>draft.state==='rejected');
@@ -506,16 +507,10 @@ export function App(){
     </>;
   }
   function desktop(){
-    const layout=metadata?.fields.layout,topShelf=metadata?.fields.topShelf;
+    const topShelf=metadata?.fields.topShelf;
     const dockApps=(v.dockApps||[]) as string[];
     const homeButtons=(v.homeButtons||[]) as string[];
     switch(desktopCategory){
-    case 'layout':return <Group>
-        {layout?.options&&v.layout!==undefined?<ChoiceField title={layout.title} hideTitle
-          options={layout.options.map(option=>({...option,icon:option.value==='gallery'?'GalleryHorizontalEndIcon':desktopFieldIcons.layout}))}
-          value={v.layout} disabled={!canWrite||!!layout.disabledReason} onChange={value=>void selectValue('layout',value)}/>:
-          controls(['layout'])}
-      </Group>;
     case 'wallpaper':return <Group>
         <Row title="切换方式" icon={desktopFieldIcons.wallMode} value={label('wallMode')||metadata?.wallpapers.find(item=>item.id===v.wallpaper)?.name}
           navigate onClick={()=>open({kind:'wallpaper',title:'桌面背景'})}/>
@@ -526,6 +521,7 @@ export function App(){
           navigate onClick={()=>fields('首页背景',home)}/>
       </Group>;
     case 'home':return <Group>
+        {controls(['layout'])}
         {metadata?.fields.showGreeting&&controls(['showGreeting'])}
         {metadata?.fields.showTime?<>
           <Row title="问候语与头像" icon="PersonIcon" value={String(v.greeting||'')}
