@@ -131,7 +131,7 @@ final class PhoneSettingsConfiguration implements PhoneSettingsState.Source {
         choice(fields,"homeBlurMode","appearance","首页模糊方式",new Object[]{"uniform","progressive"},new String[]{"均匀模糊","渐进模糊"});
         if(!WallpaperGpuSupport.available(context))fields.getJSONObject("homeBlurMode").put("disabledReason","此设备不支持渐进模糊，保留均匀模糊");
         choice(fields,"clockStyle","appearance","时钟样式",DesktopSettingsStore.CLOCK_STYLES,new String[]{"数字","白色表盘","深色表盘"});
-        choice(fields,"layout","appearance","排版",new Object[]{"classic","gallery"},new String[]{"经典布局","艺术画廊"});
+        choice(fields,"layout","appearance","桌面布局",new Object[]{"classic","gallery"},new String[]{"经典布局","艺术画廊"});
         choice(fields,"iconSize","appearance","图标大小",new Object[]{"small","medium","large"},new String[]{"小","中","大"});
         choice(fields,"iconShape","appearance","图标外形",new Object[]{"rectangle","square","circle"},new String[]{"长方形","方形","圆形"});
         choice(fields,"appNames","appearance","首页应用名称",new Object[]{"hidden","below","top-left"},new String[]{"不显示","下方","左上角"});

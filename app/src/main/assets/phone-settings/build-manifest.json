@@ -14,7 +14,7 @@
     "src/AdbManagement.css": "de349e7a1dbc504d027a34c39adf1590bee35c79c8e19019c35d86226c52dd43",
     "src/AdbManagement.tsx": "951a56b39d84d342f39804d81b709634397d6c6f7023b65eda071e47fe305dad",
     "src/AnalogClock.tsx": "e87eaa7f7a4c00073b817750ecdc5b5915c69d223b9253837a80fad3104a8468",
-    "src/App.tsx": "caf961c481424bb374f4c6b5cc8a3e0b3c8b1e32d8d8b8e48634d67ad6ca03d8",
+    "src/App.tsx": "fb2996461bd461d225d21c6d557d58fd73eb47541363ed0a5de657bd21d9bacc",
     "src/AppActionConfirmation.tsx": "35632d4c91f509c8bbea1bfc0ed22ccf07ac0305c4325b23c637b2ec74bac4e4",
     "src/AppFilterMenu.tsx": "4280fb5c5156406848f50c106f0b2a8c46423c9b9fbc30eb2fc3da8cd9032e50",
     "src/AppRename.tsx": "de211e322daf5334b3edd954b6a2417313f461a5e724c5d3321a19fccc1431c6",
@@ -63,7 +63,7 @@
     "src/media.ts": "d543d86e11ac3096d1dce5e41a0c7f89ea0ec2dbec8decc8f73d5001e054494a",
     "src/motion.ts": "c2537622de9f3cf036f391c15df8d43495372eb7f0036df4c08f8ed29f7ea6bd",
     "src/operationResults.ts": "77936730ef04f23e6909f09c41dd59ecd9beca6d7ff95eaa4432af6e33c53135",
-    "src/presentation.ts": "b3f7f30643e33fed122dd3ef39f084c8800d98373eb9bc00cfb9c40c95c66225",
+    "src/presentation.ts": "4730b1f4175f681ce2574e461716ffda961f429df6f0735c6568cc4228c998e3",
     "src/preview.tsx": "689e42f9e58e733d411561dcca9aab18c203b899d8e4be551d636e162669a1b9",
     "src/quickRules.ts": "3ebf118f1fc4361265818a2fc4f73e2b24cf05644a7bdcc02fd31b5e241b954a",
     "src/settingsNavigation.ts": "d7b9dbe7faf11fdb4dedd3085a59decef8b045cdd710cc7ebb554a9ffab924a2",
@@ -80,7 +80,7 @@
     "public/tmdb.svg": "8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c"
   },
   "assets": {
-    "app.js": "18eee3e9a99bff61e594fdeaa885f6fbd0575fb6a6f2d7a6f66a7227cfcd77e3",
+    "app.js": "6207bc3c5aa6757c02e0a0f15e5eb11974178ec10b6f83095df89d6610f95a63",
     "assets/file-folder.svg": "ceee8c7ec763f01505483702abaa19030e10b11d132b72079ec8d8574c8222dc",
     "assets/flip_clock.wav": "712c85fe9eddafc4ba9edbc211705bbc4f40f2e8239688b9fac355e3d852e4d0",
     "assets/qq-group.webp": "9d31d757ec3ec26b66cf11b8c40903270332bc3a8fca7dccd3c6ec4c1f5a36d9",

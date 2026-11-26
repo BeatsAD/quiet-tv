@@ -10,6 +10,7 @@ import java.util.*;
 
 /** Desktop controls share prototype geometry while HomeHeaderView keeps the original layout. */
 final class DesktopDisplayPanel extends ManagementPanel implements SharedPreferences.OnSharedPreferenceChangeListener {
+    private static final int SECTION_TAB_HINT_WIDTH=9;
     private boolean chinese,fixedGreeting;
     private DesktopSettingsStore desktopStore;
     private WeatherStore weatherStore;
@@ -38,25 +39,32 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
     private String previewFocus="",saveError="";
     private boolean previewSecond;
     private enum Section {
-        LAYOUT("排版","Layout"), WALLPAPER("壁纸","Wallpaper"), HOME("首屏","Home"),
-        APPS("菜单栏","Menu bar"), SECOND("第二屏","Second screen"), SAVER("屏保","Screensaver"),
-        FEEDBACK("操作反馈","Feedback");
+        HOME(2,"首屏","Home"), WALLPAPER(1,"壁纸","Wallpaper"),
+        APPS(3,"菜单栏","Menu bar"), SECOND(4,"第二屏","Second screen"), SAVER(5,"屏保","Screensaver"),
+        FEEDBACK(6,"操作反馈","Feedback");
 
+        // Saved IDs follow the original order, independently of the tab order.
+        final int savedId;
         final String chineseTitle,englishTitle;
-        Section(String chineseTitle,String englishTitle) {
+        Section(int savedId,String chineseTitle,String englishTitle) {
+            this.savedId=savedId;
             this.chineseTitle=chineseTitle;
             this.englishTitle=englishTitle;
+        }
+
+        static Section fromSavedId(int id){
+            for(Section section:values())if(section.savedId==id)return section;
+            return HOME;
         }
     }
 
     private final EnumMap<Section,LinearLayout> groups=new EnumMap<>(Section.class);
     private final EnumMap<Section,TextView> sectionTabs=new EnumMap<>(Section.class);
-    private Section section=Section.LAYOUT;
+    private Section section=Section.HOME;
     private HorizontalScrollView tabScroll;
     private TextView moreLeft,moreRight;
     private ScrollView desktopScroll;
     private DesktopSettingsRow greeting,legacyHomeKey,keySounds;
-    private Button classic,gallery;
     private SeekBar homeBlur,secondBlur,homeBrightness,secondBrightness,homeFade,secondFade,dockScale,dockMagnification;
     private String focusTag;
     private final Map<SeekBar,WallpaperAdjustment> adjustments=new LinkedHashMap<>();
@@ -72,7 +80,13 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
     @Override public void onCreate(Bundle state){
         chinese=activity.chinese();fixedGreeting=activity.fixedGreeting();desktopStore=new DesktopSettingsStore(this);weatherStore=new WeatherStore(this);LegacyHomeKeyService.prepare(this);
         pageRoot=column();pageRoot.setClipChildren(false);pageRoot.setClipToPadding(false);activity.attachPanel(pageRoot);mediaImport=new DesktopMediaImportPanel(activity);weatherEditor=new WeatherSettingsSheet(activity,this::refreshControls);makeDesktop();
-        if(state!=null){selectSection(Section.values()[state.getInt("section")]);focusTag=state.getString("focus");scrollY=state.getInt("scroll");greetingEditor.restoreState(state);homeButtons.restore(state);saverControls.restore(state);wallControls.restore(state);weatherEditor.restore(state);mediaImport.restore(state,(target,id,apply)->{if(target.equals("screensaver"))saverControls.imported(id,apply);else if(target.equals("wall"))saverControls.wallImported();else wallControls.imported(id,apply);});}
+        if(state!=null){
+            selectSection(Section.fromSavedId(state.getInt("section")));
+            focusTag=state.getString("focus");
+            if("desktop-section-layout".equals(focusTag))focusTag="desktop-section-home";
+            else if("layout-classic".equals(focusTag)||"layout-gallery".equals(focusTag))focusTag="appearance-layout";
+            scrollY=state.getInt("scroll");greetingEditor.restoreState(state);homeButtons.restore(state);saverControls.restore(state);wallControls.restore(state);weatherEditor.restore(state);mediaImport.restore(state,(target,id,apply)->{if(target.equals("screensaver"))saverControls.imported(id,apply);else if(target.equals("wall"))saverControls.wallImported();else wallControls.imported(id,apply);});
+        }
         else if(activity.getIntent().getBooleanExtra("desktop-background-entry",false)){
             selectSection(Section.WALLPAPER);
             focusTag=wallControls.openFromQuick();
@@ -118,14 +132,6 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
         controls.setClipChildren(false);
         controls.setClipToPadding(false);
         desktopScroll.addView(controls,new ScrollView.LayoutParams(-1,-2));
-        LinearLayout layouts=group(controls,Section.LAYOUT);
-        LinearLayout layoutOptions=row();
-        int layoutInset=px(DisplayAppearanceChoice.LAYOUT_BUTTON_INSET);
-        layoutOptions.setPadding(layoutInset,layoutInset,layoutInset,layoutInset);
-        layouts.addView(layoutOptions);
-        classic=layoutChoice(layoutOptions,tr("经典布局","Classic"),"classic");
-        gallery=layoutChoice(layoutOptions,tr("艺术画廊","Gallery"),"gallery");
-
         LinearLayout homeBackground=group(controls,Section.WALLPAPER);
         LinearLayout wallpaper=column();
         homeBackground.addView(wallpaper,new LinearLayout.LayoutParams(-1,-2));
@@ -142,6 +148,17 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
         homeFade=wallpaperControl(homeBackground,false,"fade");
 
         LinearLayout first=group(controls,Section.HOME);
+        DisplayAppearanceChoice layout=new DisplayAppearanceChoice(activity,"layout",tr("桌面布局","Desktop layout"),
+            new String[]{"classic","gallery"},new String[]{tr("经典布局","Classic"),tr("艺术画廊","Gallery")},
+            new DisplayAppearanceChoice.Access(){
+                public String read(){return desktopStore.layout();}
+                public void save(String value){desktopStore.layout(value);refreshControls();}
+            },false,new DisplayAppearanceChoice.Preview(){
+                public void value(String key,Object value){}
+                public void clear(String key){}
+            },this::wireDesktop).twoColumns();
+        appearanceChoices.add(layout);
+        first.addView(layout);
         choice(first,"greeting",tr("问候语","Greeting"));
         greeting=setting(tr("问候语与头像","Greeting and avatar"),"desktop","greeting");greeting.displayStyle();greeting.tail("arrow");
         greetingEditor=new GreetingEditorPanel(activity,desktopStore,fixedGreeting?tr("欢迎回家","Welcome home"):"",this::refreshControls);greeting.setOnClickListener(v->greetingEditor.show());activity.addSetting(first,greeting);
@@ -204,6 +221,8 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
     private View makeSectionTabs(){
         FrameLayout bar=new FrameLayout(activity);
         bar.setBackgroundDrawable(surface(0x1affffff,0x10ffffff,UiPalette.EDGE,999));
+        int inset=px(2),hintWidth=px(SECTION_TAB_HINT_WIDTH);
+        bar.setPadding(inset,inset,inset,inset);
         tabScroll=new HorizontalScrollView(activity){
             @Override protected void onLayout(boolean changed,int l,int t,int r,int b){
                 super.onLayout(changed,l,t,r,b);
@@ -217,11 +236,10 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
         };
         tabScroll.setFocusable(false);
         tabScroll.setHorizontalScrollBarEnabled(false);
+        tabScroll.setHorizontalFadingEdgeEnabled(true);
+        tabScroll.setFadingEdgeLength(hintWidth);
         tabScroll.setFillViewport(true);
-        int edge=px(9);
-        FrameLayout.LayoutParams viewport=new FrameLayout.LayoutParams(-1,-1);
-        viewport.setMargins(edge,px(2),edge,px(2));
-        bar.addView(tabScroll,viewport);
+        bar.addView(tabScroll,new FrameLayout.LayoutParams(-1,-1));
         SettingsTabBar strip=activity.settingsTabs();
         tabScroll.addView(strip,new FrameLayout.LayoutParams(-2,-1));
         Section[] sections=Section.values();
@@ -257,8 +275,8 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
         moreRight=center("›",12);
         androidx.core.view.ViewCompat.setImportantForAccessibility(moreLeft,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);
         androidx.core.view.ViewCompat.setImportantForAccessibility(moreRight,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        bar.addView(moreLeft,new FrameLayout.LayoutParams(edge,-1,Gravity.LEFT));
-        bar.addView(moreRight,new FrameLayout.LayoutParams(edge,-1,Gravity.RIGHT));
+        bar.addView(moreLeft,new FrameLayout.LayoutParams(hintWidth,-1,Gravity.LEFT));
+        bar.addView(moreRight,new FrameLayout.LayoutParams(hintWidth,-1,Gravity.RIGHT));
         return bar;
     }
 
@@ -272,8 +290,12 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
         View tab=sectionTabs.get(section);
         int start=tabScroll.getScrollX(), width=tabScroll.getWidth();
         if(width==0)return;
-        if(tab.getLeft()<start)tabScroll.scrollTo(tab.getLeft(),0);
-        else if(tab.getRight()>start+width)tabScroll.scrollTo(tab.getRight()-width,0);
+        // Keep the selected label clear of the overlay arrows without adding space at either end.
+        int hintWidth=px(SECTION_TAB_HINT_WIDTH);
+        int clearLeft=Math.max(0,tab.getLeft()-hintWidth);
+        int clearRight=Math.min(tabScroll.getChildAt(0).getWidth(),tab.getRight()+hintWidth);
+        if(clearLeft<start)tabScroll.scrollTo(clearLeft,0);
+        else if(clearRight>start+width)tabScroll.scrollTo(clearRight-width,0);
         updateTabHints();
     }
 
@@ -372,7 +394,6 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
         releaseDesktopPreview();
         releaseSaverPreview();
     };
-    private Button layoutChoice(LinearLayout parent,String label,String name){Button b=button(label,()->{desktopStore.layout(name);refreshControls();});b.setFocusableInTouchMode(true);b.setId(androidx.core.view.ViewCompat.generateViewId());b.setTag("layout-"+name);b.setContentDescription(label);b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,12.48f*unit);b.setPadding(px(9.6f),0,px(9.6f),0);b.setGravity(Gravity.CENTER);b.setSingleLine(true);StateListDrawable background=new StateListDrawable();background.addState(new int[]{android.R.attr.state_selected},new SettingsFocusDrawable(unit,12,UiPalette.CONTROL,false,UiPalette.EDGE,true));background.addState(new int[0],new SettingsFocusDrawable(unit,12,UiPalette.CONTROL,false,UiPalette.EDGE));b.setBackgroundDrawable(background);b.setPadding(px(9.6f),0,px(9.6f),0);b.setTextColor(SettingsFocusDrawable.textColors(UiPalette.TEXT));LinearLayout.LayoutParams position=new LinearLayout.LayoutParams(0,px(DisplayAppearanceChoice.LAYOUT_BUTTON_HEIGHT),1);if(parent.getChildCount()>0)position.leftMargin=px(DisplayAppearanceChoice.LAYOUT_BUTTON_GAP);parent.addView(b,position);return b;}
     private SeekBar wallpaperControl(LinearLayout parent,boolean second,String property){
         boolean fade="fade".equals(property),brightness="brightness".equals(property);
         return rangeControl(parent,second,property,fade?tr("淡入时间","Fade in"):brightness?tr("亮度","Brightness"):tr("模糊度","Blur"),brightness?20:0,fade?1200:100,fade?100:5,fade?100:1,false);
@@ -490,7 +511,7 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
             Object tag=option.getTag();
             if(!option.isSelected()||!(tag instanceof String))continue;
             String name=(String)tag;
-            if(name.startsWith("appearance-")||name.startsWith("layout-")||name.contains("-library-type-"))return option;
+            if(name.startsWith("appearance-")||name.contains("-library-type-"))return option;
         }
         if(from.getWidth()==0)return row[Math.min(fallback,row.length-1)];int[] location=new int[2];from.getLocationOnScreen(location);float x=location[0]+from.getWidth()/2f,best=Float.MAX_VALUE;View target=row[Math.min(fallback,row.length-1)];for(View option:row){if(option.getWidth()==0)continue;option.getLocationOnScreen(location);float distance=Math.abs(location[0]+option.getWidth()/2f-x);if(distance<best){best=distance;target=option;}}return target;
     }
@@ -562,7 +583,6 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
     private void refreshControls(){
         for(WallpaperAdjustment adjustment:adjustments.values())if(!adjustment.draft.editing())adjustment.render(adjustment.committed());
         keySounds.checked(desktopStore.keySounds());
-        classic.setSelected("classic".equals(desktopStore.layout()));gallery.setSelected("gallery".equals(desktopStore.layout()));classic.setText(SettingsSelectionMark.label(tr("经典布局","Classic"),classic.isSelected(),unit));gallery.setText(SettingsSelectionMark.label(tr("艺术画廊","Gallery"),gallery.isSelected(),unit));
         for(Map.Entry<String,DesktopSettingsRow> entry:choices.entrySet())entry.getValue().checked(checked(entry.getKey()));
         choices.get("seconds").available(desktopStore.showTime());choices.get("lunar-date").available(desktopStore.showDate());
         for(DisplayAppearanceChoice choice:appearanceChoices)choice.refresh();
@@ -596,7 +616,7 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
     @Override protected void onPause(){mediaResumed=false;if(previewFeedback!=null)previewFeedback.stop();mediaImport.pause();weatherEditor.pause();wallControls.pause();PhoneSettingsSession.get(activity).forgetConfiguration(changed);PhoneSettingsSession.get(activity).forgetMediaNames(mediaNamesChanged);if(saverPreview!=null)saverPreview.pause();saverControls.pause();cancelAdjustment();for(DisplayAppearanceChoice choice:appearanceChoices)choice.cancel(false);remember();getSharedPreferences("desktop-settings",0).unregisterOnSharedPreferenceChangeListener(this);getSharedPreferences("weather",0).unregisterOnSharedPreferenceChangeListener(this);main.removeCallbacks(changed);if(preview!=null)preview.pause();greetingEditor.pause();super.onPause();}
     @Override protected void onStop(){main.post(releaseStoppedPreviews);}
     @Override protected void onDestroy(){main.removeCallbacks(releaseStoppedPreviews);desktopScroll.getViewTreeObserver().removeGlobalOnLayoutListener(desktopGeometry);if(desktopNavigation!=null){desktopNavigation.removeListener();desktopNavigation=null;}releaseDesktopPreview();releaseSaverPreview();saverControls.destroy();wallControls.destroy();weatherEditor.destroy();mediaImport.destroy();greetingEditor.destroy();homeButtons.destroy();super.onDestroy();}
-    @Override protected void onSaveInstanceState(Bundle state){cancelAdjustment();remember();state.putString("focus",focusTag);state.putInt("scroll",scrollY);state.putInt("section",section.ordinal());greetingEditor.saveState(state);homeButtons.saveState(state);saverControls.save(state);wallControls.save(state);weatherEditor.save(state);mediaImport.saveState(state);}
+    @Override protected void onSaveInstanceState(Bundle state){cancelAdjustment();remember();state.putString("focus",focusTag);state.putInt("scroll",scrollY);state.putInt("section",section.savedId);greetingEditor.saveState(state);homeButtons.saveState(state);saverControls.save(state);wallControls.save(state);weatherEditor.save(state);mediaImport.saveState(state);}
     @Override void activityResult(int request,int result,Intent data){super.activityResult(request,result,data);mediaImport.activityResult(request,result,data);}
     @Override void permissionResult(int request,int[] results){super.permissionResult(request,results);mediaImport.permissionResult(request);weatherEditor.permissionResult(request);}
     @Override public void handleBack(){
