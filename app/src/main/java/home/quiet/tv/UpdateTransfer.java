@@ -16,6 +16,7 @@ final class UpdateTransfer {
     interface Progress {void changed(long bytes,long total,boolean switching);}
     interface Clock {long now();}
     private static final ScheduledExecutorService WATCHDOG=Executors.newSingleThreadScheduledExecutor(r->{Thread t=new Thread(r,"QuietTV-update-timeout");t.setDaemon(true);return t;});
+    private static final long CONNECT_BUDGET=8000,MANIFEST_BUDGET=40000;
     private final Connection factory;private final Clock clock;private final boolean android4,independent;
     private volatile boolean cancelled,expired;private volatile HttpURLConnection active;
     UpdateTransfer(Connection factory){this(factory,false);}
@@ -24,7 +25,15 @@ final class UpdateTransfer {
     UpdateTransfer(Connection factory,Clock clock,boolean android4){this(factory,clock,android4,false);}
     UpdateTransfer(Connection factory,boolean android4,boolean independent){this(factory,()->System.nanoTime()/1000000,android4,independent);}
     UpdateTransfer(Connection factory,Clock clock,boolean android4,boolean independent){this.factory=factory;this.clock=clock;this.android4=android4;this.independent=independent;}
-    void cancel(){cancelled=true;HttpURLConnection request=active;if(request!=null)request.disconnect();}
+    void cancel(){
+        cancelled=true;
+        HttpURLConnection request=active;
+        if(request==null)return;
+        try{request.disconnect();}
+        catch(RuntimeException failure){
+            DiagnosticLog.info("update.cancel.disconnect_failed","type="+failure.getClass().getSimpleName());
+        }
+    }
     private void expire(){expired=true;HttpURLConnection request=active;if(request!=null)request.disconnect();}
     private void alive()throws InterruptedIOException{if(cancelled||Thread.currentThread().isInterrupted())throw new InterruptedIOException("Update cancelled");}
     static List<Integer> sources(int ignoredPreference){
@@ -45,11 +54,19 @@ final class UpdateTransfer {
     }
     static final class Response implements Closeable{
         final HttpURLConnection request;final InputStream input;final int status;
-        Response(HttpURLConnection request,InputStream input,int status){this.request=request;this.input=input;this.status=status;}
-        public void close()throws IOException{try{input.close();}finally{request.disconnect();}}
+        final ScheduledFuture<?> timeout;
+        Response(HttpURLConnection request,InputStream input,int status,ScheduledFuture<?> timeout){
+            this.request=request;this.input=input;this.status=status;this.timeout=timeout;
+        }
+        public void close()throws IOException{
+            try{input.close();}finally{
+                if(timeout!=null)timeout.cancel(false);
+                request.disconnect();
+            }
+        }
     }
     private Response connect(String address,long offset,long budget,boolean fresh,NetworkEvidence evidence)throws IOException{
-        long end=clock.now()+Math.min(8000,budget);URL url=new URL(address);boolean mirrored=mirrorHost(url.getHost().toLowerCase(Locale.ROOT));
+        long end=clock.now()+Math.min(CONNECT_BUDGET,budget);URL url=new URL(address);boolean mirrored=mirrorHost(url.getHost().toLowerCase(Locale.ROOT));
         for(int redirect=0;redirect<=4;redirect++){
             alive();if(!allowed(url))throw new IOException("Unapproved update endpoint");
             if(mirrored&&!mirrorHost(url.getHost().toLowerCase(Locale.ROOT)))throw new IOException("Mirror redirected to origin before fallback");
@@ -59,61 +76,71 @@ final class UpdateTransfer {
             request.setRequestProperty("User-Agent","QuietTV-Update/1");request.setRequestProperty("Accept-Encoding","identity");
             if(fresh){request.setUseCaches(false);request.setRequestProperty("Cache-Control","no-cache, no-store");}if(offset>0)request.setRequestProperty("Range","bytes="+offset+"-");
             ScheduledFuture<?> timeout=WATCHDOG.schedule(request::disconnect,remaining,TimeUnit.MILLISECONDS);
+            boolean keepTimeout=false;
             try{
+                // Cancellation can occur while the connection is being created.
+                alive();
                 int status=request.getResponseCode();
                 evidence.status(status);
                 evidence.phase("headers");
                 if(status==301||status==302||status==303||status==307||status==308){evidence.redirects++;String next=request.getHeaderField("Location");if(next==null)throw new IOException("Missing redirect");url=new URL(url,next);request.disconnect();continue;}
                 if(status!=200&&status!=206&&status!=416)throw new UpdateFailure.HttpException(status);
                 String encoding=request.getHeaderField("Content-Encoding");if(encoding!=null&&!encoding.equalsIgnoreCase("identity"))throw new IOException("Encoded update body");
-                if(status==416)return new Response(request,new ByteArrayInputStream(new byte[0]),status);
+                if(status==416)return new Response(request,new ByteArrayInputStream(new byte[0]),status,null);
                 evidence.phase("first_byte");InputStream stream=request.getInputStream();int first=stream.read();alive();
                 if(first<0||clock.now()>end){stream.close();throw new SocketTimeoutException("No update data");}
                 request.setReadTimeout(8000);
-                return new Response(request,new SequenceInputStream(new ByteArrayInputStream(new byte[]{(byte)first}),stream),status);
+                // A slow manifest body must not consume the budget reserved for later sources.
+                keepTimeout=fresh;
+                return new Response(request,new SequenceInputStream(new ByteArrayInputStream(new byte[]{(byte)first}),stream),status,keepTimeout?timeout:null);
             }catch(IOException e){request.disconnect();throw e;}
             catch(RuntimeException e){request.disconnect();throw UpdateFailure.connectionFailure(e);}
-            finally{timeout.cancel(false);}
+            finally{if(!keepTimeout)timeout.cancel(false);}
         }
         throw new IOException("Too many update redirects");
     }
     interface ManifestConsumer {long verified(byte[] data,int source)throws IOException;}
-    void manifest(int preferred,ManifestConsumer consumer)throws IOException{
+    void manifest(int preferred,ManifestConsumer consumer,DiagnosticLog.UpdateCheck check)throws IOException{
         final String diagnosticRequest=NetworkEvidence.request();
         boolean diagnosticVerified=false;
         // A deadline stops further requests; only explicit cancellation discards a verified result.
-        ScheduledFuture<?> deadline=WATCHDOG.schedule(this::expire,40000,TimeUnit.MILLISECONDS);
+        ScheduledFuture<?> deadline=WATCHDOG.schedule(this::expire,MANIFEST_BUDGET,TimeUnit.MILLISECONDS);
         try{
-            long end=clock.now()+40000;List<Integer> order=sources(preferred);
+            long end=clock.now()+MANIFEST_BUDGET;List<Integer> order=sources(preferred);
             // Both GitHub-hosted fallbacks follow every mirror, with Raw last.
             order.add(order.size()-1,-1);
-            IOException last=null;byte[] best=null;long revision=-1;int bestSource=-1,verified=0;boolean unpublished=false;
+            IOException last=null;byte[] best=null;long revision=-1;int bestSource=-1;boolean unpublished=false;
             String nonce="?quietCheck="+System.currentTimeMillis();
             for(int requestIndex=0;requestIndex<order.size()*(android4&&!independent?2:1);requestIndex++){
-                int source=order.get(requestIndex%order.size());boolean modern=android4&&requestIndex<order.size();
+                int step=requestIndex%order.size();
+                if(requestIndex>0&&step==0&&best!=null)break; // The v2 feed already provided a usable result.
+                int source=order.get(step);
+                boolean modern=android4&&requestIndex<order.size();
                 String feed=independent?"updates-independent.json":modern?"updates-v2.json":"updates.json";
                 String origin=RAW.replace("updates.json",feed);
                 String endpoint=source<0?PAGES.replace("updates.json",feed):address(source,origin);
                 alive();if(expired||clock.now()>=end)break;String stage="connect";
-                NetworkEvidence evidence=new NetworkEvidence(diagnosticRequest,modern?"manifest_v2":"manifest_legacy",sourceName(source));boolean complete=false;
-                try(Response response=connect(endpoint+nonce,0,end-clock.now(),true,evidence)){
+                long sourceEnd=Math.min(end,clock.now()+CONNECT_BUDGET);
+                NetworkEvidence evidence=new NetworkEvidence(diagnosticRequest,modern?"manifest_v2":"manifest_legacy",sourceName(source));
+                check.sourceAttempt=evidence;
+                boolean complete=false;
+                try(Response response=connect(endpoint+nonce,0,sourceEnd-clock.now(),true,evidence)){
                     if(response.status!=200)throw new UpdateFailure.HttpException(response.status);
                     stage="read";evidence.phase(stage);
                     ByteArrayOutputStream output=new ByteArrayOutputStream();byte[] buffer=new byte[4096];int count;
-                    while((count=response.input.read(buffer))!=-1){evidence.add(count);alive();if(expired||clock.now()>=end)throw new SocketTimeoutException();if(output.size()+count>UpdateManifest.MAX_BYTES)throw new IOException("Update manifest too large");output.write(buffer,0,count);}
+                    while((count=response.input.read(buffer))!=-1){evidence.add(count);alive();if(expired||clock.now()>=sourceEnd)throw new SocketTimeoutException();if(output.size()+count>UpdateManifest.MAX_BYTES)throw new IOException("Update manifest too large");output.write(buffer,0,count);}
+                    alive();if(expired||clock.now()>=sourceEnd)throw new SocketTimeoutException();
                     stage="verify";evidence.phase(stage);byte[] bytes=output.toByteArray();long candidate;
-                    try{candidate=consumer.verified(bytes,source);}catch(IOException e){throw new UpdateFailure.ManifestException(e);}verified++;
+                    try{candidate=consumer.verified(bytes,source);}catch(IOException e){throw new UpdateFailure.ManifestException(e);}
                     DiagnosticLog.info("update.source.verified","source="+sourceName(source)+" revision="+candidate);
                     complete=true;
                     evidence.verified=true;evidence.phase("close");
                     if(candidate>revision){best=bytes;revision=candidate;bestSource=source;}
-                    // Compare two independently fetched signed manifests instead of accepting a stale first reply.
-                    if(verified>=2)break;
                 }catch(IOException e){complete=false;last=e;if(independent&&source==SOURCES.length-1&&e instanceof UpdateFailure.HttpException&&((UpdateFailure.HttpException)e).status==404)unpublished=true;failed(source,stage,e);evidence.finish("failed",e);}
                 catch(RuntimeException e){complete=false;evidence.finish("failed",e);throw e;}
                 finally{if(complete)evidence.finish("verified",null);}
             }
-            alive();if(best!=null){consumer.verified(best,bestSource);diagnosticVerified=true;DiagnosticLog.info("network.request.result","request="+diagnosticRequest+" kind=manifest selectedSource="+sourceName(bestSource)+" outcome=verified revision="+revision);return;}
+            alive();if(best!=null){check.workerPhase="verify_selected";consumer.verified(best,bestSource);diagnosticVerified=true;DiagnosticLog.info("network.request.result","request="+diagnosticRequest+" kind=manifest selectedSource="+sourceName(bestSource)+" outcome=verified revision="+revision);return;}
             if(unpublished)throw new UpdateFailure.UnpublishedException();
             if(expired||clock.now()>=end){SocketTimeoutException timeout=new SocketTimeoutException("Update check timed out");timeout.initCause(last);throw timeout;}
             throw new IOException("All update manifest sources failed",last);

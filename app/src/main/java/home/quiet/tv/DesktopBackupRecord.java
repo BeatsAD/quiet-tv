@@ -17,7 +17,7 @@ final class DesktopBackupRecord {
     private static final java.util.regex.Pattern SHORTCUT=java.util.regex.Pattern.compile("quiet:[a-z-]{1,48}");
     static final int VERSION=6,MAX_CONFIG_BYTES=2*1024*1024;
     static final String FORMAT="quiet-tv-desktop";
-    static final Set<String> DESKTOP_BOOLEAN=names("show-home-quote show-screensaver-quote show-time show-date show-seconds show-lunar-date show-movie-info greeting-enabled greeting-avatar-enabled key-sounds show-app-title show-home-apps hide-home-apps-on-second-screen show-watch-tv show-dock-background show-all-apps-names dock-magnify dock-glass global-glass show-buttons show-input show-network show-settings");
+    static final Set<String> DESKTOP_BOOLEAN=names("show-home-quote show-screensaver-quote show-time show-date show-seconds show-lunar-date show-movie-info greeting-enabled greeting-avatar-enabled key-sounds show-app-title show-home-apps top-shelf hide-home-apps-on-second-screen show-watch-tv show-dock-background show-all-apps-names dock-magnify dock-glass global-glass show-buttons show-input show-network show-settings");
     static final Set<String> DESKTOP_STRING=names("home-layout greeting-text greeting-avatar-file icon-size icon-shape home-blur-mode home-buttons app-title-position key-sound-theme clock-style quick-control-visibility");
     static final Set<String> DESKTOP_INTEGER=names("icon-radius dock-radius dock-scale dock-limit dock-magnification home-wallpaper-blur second-wallpaper-blur home-wallpaper-brightness second-wallpaper-brightness home-wallpaper-fade second-wallpaper-fade");
     static final Set<String> DESKTOP_KEYS=union(DESKTOP_BOOLEAN,DESKTOP_STRING,DESKTOP_INTEGER);
@@ -86,6 +86,9 @@ final class DesktopBackupRecord {
         JSONObject order=config.getJSONObject("order");only(order,ORDER_KEYS);if(order.has("packages"))strings(new JSONArray(order.getString("packages")),MAX_CONFIG_BYTES,null,true);
         strings(config.getJSONArray("shortcuts"),QuickControlStore.ALL.size(),QuickControlStore.ALL,false);
         JSONObject walls=config.getJSONObject("wallpaper");WallpaperCatalog catalog=WallpaperCatalog.read(walls);JSONObject normalizedWalls=catalog.json();
+        if(!walls.has("rotationSeconds")&&!walls.has("imageRotationSeconds")&&!walls.has("videoRotationSeconds")){
+            for(String key:new String[]{"rotationSeconds","imageRotationSeconds","videoRotationSeconds"})normalizedWalls.remove(key);
+        }
         // Diagnostics were added without changing wallpaper identities in older backups.
         JSONArray savedMedia=walls.getJSONArray("custom"),normalizedMedia=normalizedWalls.getJSONArray("custom");for(int i=0;i<savedMedia.length()&&i<normalizedMedia.length();i++)for(String key:new String[]{"diagnosticFingerprint","diagnosticTransfer"})if(!savedMedia.getJSONObject(i).has(key))normalizedMedia.getJSONObject(i).remove(key);
         require(canonical(normalizedWalls).equals(canonical(walls)),"备份壁纸清单无效");require(catalog.dailyImages.isEmpty(),"备份不接受动态缓存");for(WallpaperCatalog.Entry entry:catalog.custom)require(entry.width>0&&entry.height>0&&entry.bytes>0&&entry.name.length()<=256,"备份素材信息无效");
@@ -93,8 +96,21 @@ final class DesktopBackupRecord {
         // Older backups stored these wallpaper wall options.
         savedSaver.remove("wallInterval");
         savedSaver.remove("wallDensity");
+        if(savedSaver.has("aerialExcluded")){
+            JSONArray excluded=savedSaver.getJSONArray("aerialExcluded");
+            require(excluded.length()<=128,"备份航拍清单无效");
+            Set<String> ids=new HashSet<>();
+            for(int i=0;i<excluded.length();i++){
+                String id=excluded.getString(i);
+                require(id.length()<=80&&id.matches("aerial-[a-z0-9-]+")&&ids.add(id),"备份航拍清单无效");
+            }
+            savedSaver.remove("aerialExcluded");
+        }
         ScreensaverSettings saver=ScreensaverSettings.read(savedSaver);
         JSONObject normalizedSaver=saver.json();
+        // Validate the stored form without changing the original backup checksum.
+        if(ScreensaverSettings.RETIRED_AERIAL.equals(savedSaver.opt("mode")))
+            normalizedSaver.put("mode",ScreensaverSettings.RETIRED_AERIAL);
         if(savedSaver.has("version"))normalizedSaver.put("version",savedSaver.getInt("version"));
         for(String key:new String[]{"version","mode","timePosition","weatherPosition","sound","flipShowSeconds","flipSound"})
             if(!savedSaver.has(key))normalizedSaver.remove(key);

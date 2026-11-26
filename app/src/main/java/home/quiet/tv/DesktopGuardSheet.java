@@ -17,7 +17,7 @@ final class DesktopGuardSheet {
     private android.graphics.Bitmap guide;
     private String screen="home",focus="",error="",result="",confirmationRevision="",confirmationFocus="";
     private JSONObject state=new JSONObject(),confirmation;
-    private boolean destroyed,refreshing,working,listening,resumed;
+    private boolean destroyed,refreshing,working,listening,resumed,repairAttempted;
     private Runnable sharedReturn;
     private final android.os.Handler handler=new android.os.Handler(android.os.Looper.getMainLooper());
     private final Runnable changed=this::refresh;
@@ -72,8 +72,8 @@ final class DesktopGuardSheet {
         if(!open()||refreshing)return;refreshing=true;
         engine.worker.execute(()->{JSONObject next=engine.state();ui.runOnUiThread(()->{refreshing=false;if(!open())return;boolean first=state.optInt("presentationVersion")==0;boolean different=!next.toString().equals(state.toString());state=next;if(first)focus="";if(different&&!screen.equals("confirm"))render();});});
     }
-    void show(){if(open())return;screen="home";focus="";error=result="";create();}
-    void showIn(ManagementUi.Sheet value,Runnable returned,String initial,Bundle saved){sheet=value;sharedReturn=returned;close=(Button)sheet.box.findViewWithTag("sheet-close");screen=initial;error=result="";if(saved!=null)readState(saved);render();start();}
+    void show(){if(open())return;screen="home";focus="";error=result="";repairAttempted=false;create();}
+    void showIn(ManagementUi.Sheet value,Runnable returned,String initial,Bundle saved){sheet=value;sharedReturn=returned;close=(Button)sheet.box.findViewWithTag("sheet-close");screen=initial;error=result="";repairAttempted=false;if(saved!=null)readState(saved);render();start();}
     void detach(){stop();releaseGuide();sheet=null;sharedReturn=null;}
     boolean canGoBack(){return open()&&!working;}
     void handleBack(){back();}
@@ -90,7 +90,7 @@ final class DesktopGuardSheet {
         sheet.body.post(()->{
             if(!open())return;
             View target=focusable(key);
-            if(target==null)for(String fallback:new String[]{"guard-settings-quiet","guard-settings-original","guard-settings-guard","guard-local-setup","guard-repair","guard-recovery","guard-notification","guard-enable","guard-computer","guard-computer-back"}){
+            if(target==null)for(String fallback:new String[]{"guard-settings-current","guard-settings-original","guard-settings-guard","guard-local-setup","guard-repair","guard-recovery","guard-notification","guard-enable","guard-computer","guard-computer-back"}){
                 target=focusable(fallback);
                 if(target!=null)break;
             }
@@ -130,27 +130,38 @@ final class DesktopGuardSheet {
             JSONObject action=entry.optJSONObject("action");
             String tag="guard-settings-"+entry.optString("id");
             Runnable clicked=action!=null&&action.optBoolean("enabled")?()->confirm(action,tag):null;
-            String value=entry.optString("value");
+            String id=entry.optString("id"),value=entry.optString("value");
+            if("guard".equals(id)&&guard!=null)value=guard.optString("label",value);
             DesktopSettingsRow setting=row(group,entry.optString("title"),value,tag,clicked,clicked==null||available);
-            if("guard".equals(entry.optString("id")))guardStatus(setting,value,guard==null?"":guard.optString("state"));
+            if("guard".equals(id))guardStatus(setting,value,guard==null?"":guard.optString("state"));
+            else {
+                switch(value){
+                    case "已启用": setting.statusValue(value,"circle-check",UiPalette.STATUS_SUCCESS,0xff146c2e);break;
+                    case "已禁用": setting.statusValue(value,"unplug",UiPalette.SECONDARY,0xff525b66);break;
+                    case "不可用": setting.statusValue(value,"circle-exclamation-point",UiPalette.STATUS_ERROR,0xffb3261e);break;
+                    default: setting.statusValue(value,"circle-exclamation-point",UiPalette.STATUS_WARNING,0xff7a4b00);
+                }
+                setting.statusName(entry.optString("name"));
+            }
         }
         JSONObject repair=settings.optJSONObject("guardRepair");
         if(repair!=null){
             row(group,"修复守护","","guard-repair",()->repair(false),available);
-            if(repair.optBoolean("canRetry")&&repair.optBoolean("accessibilitySettings")&&!repair.optBoolean("accessibilityBound"))
+            if(repairAttempted&&repair.optBoolean("canRetry")&&repair.optBoolean("accessibilitySettings")&&!repair.optBoolean("accessibilityBound"))
                 row(group,"打开无障碍设置","","guard-repair-accessibility",()->repair(true),available);
         }
         String recovery=settings.optString("recovery"),reason=settings.optString("reason");
         if(repair==null&&!reason.isEmpty()&&!reason.equals(error))copy(reason,true);
         if(recovery.equals("system"))row(group,"设置 Quiet TV 桌面","","guard-recovery",this::system,available);
         else if(recovery.equals("authorize"))row(group,"去授权","在电视上确认","guard-recovery",this::authorize,available);
-        else if(recovery.equals("computer"))row(group,"通过电脑设置与恢复","","guard-recovery",()->go("computer","guard-computer-back"),available);
+        else if(recovery.equals("computer")&&(repair==null||repairAttempted))row(group,"通过电脑设置与恢复","","guard-recovery",()->go("computer","guard-computer-back"),available);
         if(settings.optJSONObject("guardSetup")!=null)
             row(group,"设置桌面守护","","guard-local-setup",()->go("setup","guard-accessibility"),available);
         if(!available)copy("正在处理桌面操作，请等待核对结果。",true);
     }
     private void repair(boolean openSettings){
         if(working)return;
+        repairAttempted=true;
         error=result="";
         try{ui.feedback(engine.repairGuard(ui,openSettings));}
         catch(Exception failure){error=DesktopSwitch.message(failure);}

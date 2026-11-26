@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { type PhoneClient, type Value } from './api';
 import { copyText } from './connection';
-import { ConfirmDialog, Group, Row } from './widgets';
+import { ConfirmDialog, EmptyState, Group, Icon, Row } from './widgets';
 
 export function bootAdsLabel(status:unknown) {
   switch (status) {
@@ -40,22 +40,27 @@ export function BootAds({client,run,busy}:{
   const restoring=confirmation?.action==='restore';
   const stale=!!confirmation&&confirmation.revision!==revision;
   const request=String(state?.aiRequest||'');
+  const unsupported=status==='unsupported';
+  const canRecheck=state?.canCheck===true&&['check','review','configured','unsupported'].includes(String(status));
   return <>
-    <p className="sheet-intro" role="status">{offline?'电视连接不可用':bootAdsLabel(status)}</p>
+    {unsupported?<EmptyState icon="DesktopIcon" title={offline?'电视连接不可用':'暂不支持'}
+      description="当前机型或系统版本暂不支持直接关闭开机广告。"
+      action={<button type="button" className="secondary-button" aria-expanded={guide} onClick={()=>setGuide(!guide)}>
+        电脑 AI 排查<Icon name="ChevronRightIcon"/>
+      </button>}/>:<p className="sheet-intro" role="status">{offline?'电视连接不可用':bootAdsLabel(status)}</p>}
     {status==='applied'&&<p className="section-note">下次开机时，请确认广告是否消失。</p>}
-    {status==='unsupported'&&<p className="section-note">当前机型或系统版本暂不支持直接关闭开机广告。可通过电脑 AI 排查是否有适用的关闭方式。</p>}
     {typeof state?.detail==='string'&&state.detail&&<p className="section-note">{state.detail}</p>}
-    <Group>
+    {(!unsupported||state?.needsAuthorization||canRecheck)&&<Group>
       {status==='available'&&<Row title="关闭开机广告" navigate disabled={offline||working}
         onClick={()=>setConfirmation({action:'apply',revision})}/>}
       {status==='applied'&&<Row title="恢复原设置" navigate disabled={offline||working}
         onClick={()=>setConfirmation({action:'restore',revision})}/>}
       {state?.needsAuthorization===true&&<Row title="去授权" value="在电视上确认" navigate disabled={offline||working}
         onClick={()=>{setChecked(false);void run('management','connect');}}/>}
-      {state?.canCheck===true&&['check','review','configured','unsupported'].includes(String(status))&&<Row title="重新检测" disabled={offline||working}
+      {canRecheck&&<Row title="重新检测" disabled={offline||working}
         onClick={()=>void run('bootAds','check','')}/>}
-      <Row title="电脑 AI 排查" navigate onClick={()=>setGuide(!guide)}/>
-    </Group>
+      {!unsupported&&<Row title="电脑 AI 排查" navigate onClick={()=>setGuide(!guide)}/>}
+    </Group>}
     {guide&&typeof state?.guide==='string'&&<div className="desktop-management">
       <a className="text-action desktop-management-guide" href={state.guide} target="_blank" rel="noreferrer">查看开机广告排查说明</a>
       <button className="secondary-button" onClick={async()=>{

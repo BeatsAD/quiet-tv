@@ -67,6 +67,8 @@ final class DesktopSettingsStore {
     String clockStyle(){String value=preferences.getString("clock-style","digital");return validClockStyle(value)?value:"digital";}
     // Older configurations and backups have only the visibility switch.
     String appTitlePosition(){return preferences.getString("app-title-position",preferences.getBoolean("show-app-title",true)?"below":"hidden");}
+    static final String TOP_SHELF = "top-shelf";
+    boolean topShelf(){return preferences.getBoolean(TOP_SHELF,false);}
     boolean showHomeApps(){return preferences.getBoolean("show-home-apps",true);}
     boolean hideHomeAppsOnSecondScreen(){return preferences.getBoolean("hide-home-apps-on-second-screen",false);}
     String appListSignature(){return showWatchTv()+":"+appearance("dock-limit")+":"+hideHomeAppsOnSecondScreen();}
@@ -104,7 +106,7 @@ final class DesktopSettingsStore {
         saveValue(key,value);
     }}
     void savePhoneValue(String key,Object value)throws IOException {
-        boolean valid=java.util.Arrays.asList(DailyQuote.HOME,DailyQuote.SAVER,"key-sounds","show-time","show-date","show-seconds","show-lunar-date",MOVIE_INFO,"show-app-title","show-home-apps","show-watch-tv","hide-home-apps-on-second-screen","show-all-apps-names","show-dock-background","greeting-enabled","greeting-avatar-enabled").contains(key)&&value instanceof Boolean
+        boolean valid=java.util.Arrays.asList(DailyQuote.HOME,DailyQuote.SAVER,TOP_SHELF,"key-sounds","show-time","show-date","show-seconds","show-lunar-date",MOVIE_INFO,"show-app-title","show-home-apps","show-watch-tv","hide-home-apps-on-second-screen","show-all-apps-names","show-dock-background","greeting-enabled","greeting-avatar-enabled").contains(key)&&value instanceof Boolean
             ||"home-wallpaper-brightness".equals(key)&&value instanceof Integer&&(Integer)value>=20&&(Integer)value<=100
             ||"greeting-text".equals(key)&&value instanceof String&&((String)value).length()<=GreetingInputServer.MAX_TEXT
             ||"home-layout".equals(key)&&java.util.Arrays.asList("classic","gallery").contains(value)

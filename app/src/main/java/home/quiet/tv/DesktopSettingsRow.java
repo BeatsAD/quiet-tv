@@ -14,6 +14,7 @@ final class DesktopSettingsRow extends LinearLayout {
     private final TextView title,value,description;
     private final ImageView start,end;
     private ImageView statusIcon;
+    private TextView statusName;
     private String statusGlyph;
     private int statusNormal,statusFocused;
     private final ManagementUi ui;
@@ -80,6 +81,19 @@ final class DesktopSettingsRow extends LinearLayout {
         int color=!isEnabled()?UiPalette.FAINT:isFocused()&&windowFocused?statusFocused:statusNormal;
         statusIcon.setColorFilter(color);value.setTextColor(color);
     }
+    void statusName(String name){
+        if(name.isEmpty())return;
+        statusName=ui.muted(name,11);
+        statusName.setSingleLine(true);
+        statusName.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        statusName.setMaxWidth(ui.px(170));
+        statusName.setTextSize(TypedValue.COMPLEX_UNIT_PX,value.getTextSize());
+        statusName.setTextColor(!isEnabled()?UiPalette.FAINT:isFocused()&&hasWindowFocus()?UiPalette.INK:UiPalette.TEXT);
+        LayoutParams layout=new LayoutParams(-2,-2);layout.rightMargin=ui.px(12);
+        addView(statusName,indexOfChild(statusIcon),layout);
+        androidx.core.view.ViewCompat.setImportantForAccessibility(statusName,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        updateDescription();
+    }
     String value(){return value.getText().toString();}
     void hideIcon(){start.setVisibility(GONE);}
     void hideTail(){end.setVisibility(GONE);}
@@ -89,7 +103,10 @@ final class DesktopSettingsRow extends LinearLayout {
     void tileStyle(){hideIcon();displayStyle();title.setSingleLine(false);title.setEllipsize(null);setBackgroundDrawable(new SettingsFocusDrawable(ui.unit,12,UiPalette.CONTROL,false,UiPalette.EDGE));}
     void compactTile(){tileStyle();setPadding(ui.px(9.6f),0,ui.px(9.6f),0);((LayoutParams)end.getLayoutParams()).leftMargin=ui.px(8);if(ui.chinese())title.setSingleLine(true);}
     void description(String text){description.setText(text);description.setVisibility(text.isEmpty()?GONE:VISIBLE);title.setTextSize(TypedValue.COMPLEX_UNIT_PX,ui.px(ui.unifiedSettings()?(text.isEmpty()?13:14):(text.isEmpty()?16:17)));updateDescription();}
-    private void updateDescription(){setContentDescription(title.getText()+(value.length()==0?"":"  "+value.getText())+(description.length()==0?"":"  "+description.getText()));}
+    private void updateDescription(){
+        setContentDescription(title.getText()+(statusName==null?"":"  "+statusName.getText())
+                +(value.length()==0?"":"  "+value.getText())+(description.length()==0?"":"  "+description.getText()));
+    }
     void tail(String symbol){
         String glyph="settings-up".equals(symbol)?"chevron-up":"down".equals(symbol)?"chevron-down":("arrow".equals(symbol)||"settings-arrow".equals(symbol))?"chevron-right":null;
         String kind=glyph==null?symbol:glyph;boolean shown=end.getVisibility()==VISIBLE;
@@ -116,6 +133,7 @@ final class DesktopSettingsRow extends LinearLayout {
         boolean focused=isEnabled()&&isFocused()&&hasWindowFocus();
         title.setTextColor(!isEnabled()?UiPalette.FAINT:focused?UiPalette.INK:UiPalette.TEXT);value.setTextColor(valueColor(focused));description.setTextColor(!isEnabled()?UiPalette.FAINT:focused?UiPalette.INK_SECONDARY:UiPalette.SECONDARY);
         refreshStatusTint(hasWindowFocus());
+        if(statusName!=null)statusName.setTextColor(!isEnabled()?UiPalette.FAINT:focused?UiPalette.INK:UiPalette.TEXT);
         if(fullColorIcon)start.clearColorFilter();else if(!isEnabled())start.setColorFilter(UiPalette.FAINT);else if(focused)start.setColorFilter(UiPalette.INK);else start.clearColorFilter();
         if(checkable){end.clearColorFilter();if(toggle!=null)toggle.update(checked,focused,isEnabled(),false);}else if(!isEnabled())end.setColorFilter(UiPalette.FAINT);else if(focused)end.setColorFilter(UiPalette.INK_FAINT);else end.clearColorFilter();
     }

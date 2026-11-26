@@ -1,3 +1,4 @@
+import {movieWall} from './MovieWallSettings';
 import { wallpaperWallIds, WallpaperWallPreview } from './WallpaperWall';
 import flipSoundUrl from '../../app/src/main/res/raw/flip_clock.wav?no-inline';
 import { FlipClock } from './FlipClock';
@@ -14,18 +15,23 @@ export function PreviewPagePicker({value,onChange}:{value:string;onChange:(value
   useLayoutEffect(()=>{if(open)menu.current?.querySelector<HTMLButtonElement>('[aria-checked=true]')?.focus({preventScroll:true});},[open]);
   return <div ref={root} className="preview-selector"><button ref={trigger} aria-label={`预览页面：${value==='home'?'首页':'第二屏'}`} aria-haspopup="menu" aria-expanded={open} aria-controls={open?id:undefined} onClick={()=>setOpen(!open)} onKeyDown={event=>{if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();setOpen(true);}}}>{value==='home'?'首页':'第二屏'}<Icon name="ChevronDownIcon"/></button>{open&&<div ref={menu} id={id} role="menu" aria-label="预览页面" className="preview-menu" onKeyDown={event=>{if(event.key==='Tab'){setOpen(false);return;}const buttons=Array.from(menu.current!.querySelectorAll<HTMLButtonElement>('button')),index=buttons.indexOf(document.activeElement as HTMLButtonElement);let next;if(event.key==='ArrowDown')next=(index+1)%buttons.length;else if(event.key==='ArrowUp')next=(index+buttons.length-1)%buttons.length;else if(event.key==='Home')next=0;else if(event.key==='End')next=buttons.length-1;if(next!==undefined){event.preventDefault();buttons[next].focus();}}}>{[{id:'home',title:'首页'},{id:'second',title:'第二屏'}].map(item=><button key={item.id} role="menuitemradio" aria-checked={value===item.id} tabIndex={-1} onClick={()=>{onChange(item.id);setOpen(false);trigger.current?.focus({preventScroll:true});}}><span>{item.title}</span>{value===item.id&&<Icon name="CheckIcon"/>}</button>)}</div>}</div>;
 }
+export function dockEntries(apps:App[],values:Record<string,Value>){
+  return ((values.dockApps||[]) as string[]).map(id=>apps.find(app=>app.id===id&&!app.hidden&&!app.disabled&&!app.removed))
+    .filter((app):app is App=>!!app).slice(0,Number(values.dockLimit));
+}
+
 export function dockGeometry(count:number,v:Record<string,Value>){
   const square=v.iconShape!=='rectangle',aspect=square?1:16/9,size=String(v.iconSize),scale=Number(v.dockScale)/100;
-  if(!count){const width=151.2*(size==='small'?5.6/8.2:size==='large'?10.4/8.2:1)*scale,height=width*203/360;const top=404+151.2*203/360-height;return{left:(960-width)/2,top,focusedTop:top,width,height,cardWidth:width,cardHeight:height,gap:0,padding:0};}
+  if(!count){const width=151.2*(size==='small'?5.6/8.2:size==='large'?10.4/8.2:1)*scale,height=width*203/360;const top=404+151.2*203/360-height;return{left:(960-width)/2,top,focusedTop:top,width,height,cardWidth:width,cardHeight:height,gap:0,padding:0,maximum:130};}
   const capacity=(864-2*16.75-8*Math.max(0,count-1))/count;
   const base=(size==='small'?112:size==='large'?168:144)*Math.min(1,capacity/144);
   const heightLimit=(540-32.4-(v.appNames==='top-left'?344:280)-2*16.75-(v.appNames==='below'?25.6:0))*aspect;
-  const maximum=Math.min(130,5*Math.floor((Math.min(capacity,heightLimit)/base*100+.001)/5));
+  const maximum=Math.max(70,Math.min(130,5*Math.floor((Math.min(capacity,heightLimit)/base*100+.001)/5)));
   const cardWidth=base*Math.min(Number(v.dockScale),maximum)/100,cardHeight=cardWidth/aspect,gap=count<2?0:Math.max(8,Math.min(14,(864-2*16.75-cardWidth*count)/(count-1)));
   const width=cardWidth*count+gap*(count-1)+2*16.75,height=cardHeight+(v.appNames==='below'?25.6:0)+2*16.75;
   const top=540-32.4-height,zoom=v.dockMagnify?Math.min(Number(v.dockMagnification||100)/100,heightLimit/cardWidth):1;
   const focusedTop=top-cardHeight*(zoom-1);
-  return{left:(960-width)/2,top,focusedTop,width,height,cardWidth,cardHeight,gap,padding:16.75};
+  return{left:(960-width)/2,top,focusedTop,width,height,cardWidth,cardHeight,gap,padding:16.75,maximum};
 }
 function previewMovie(values:Record<string,Value>){
   const daily=values.dailyWallpaper as {cached?:boolean;sourceId?:string;movie?:{title?:string;summary?:string}}|undefined;
@@ -49,10 +55,10 @@ export function Preview({client,page,suspended=false,coverOverride}:{client:Phon
     const refresh=()=>{if(timer!==undefined)clearTimeout(timer);if(document.hidden||suspended||second||(!v.showTime&&!v.showHomeQuote))return;tick(n=>n+1);const period=showSeconds?1000:60000,offset=Number(client.metadata?.clockOffsetMs||0);timer=setTimeout(refresh,period-((Date.now()+offset)%period));};
     refresh();document.addEventListener('visibilitychange',refresh);return()=>{if(timer!==undefined)clearTimeout(timer);document.removeEventListener('visibilitychange',refresh);};
   },[suspended,second,v.showTime,v.showHomeQuote,showSeconds,client.metadata?.clockOffsetMs]);
-  const apps=(client.metadata?.homeApps||[]) as App[],dock=(v.dockApps||[]) as string[],order=(v.gridOrder||[]) as string[];
+  const apps=(client.metadata?.homeApps||[]) as App[],order=(v.gridOrder||[]) as string[];
   const visible=apps.filter(app=>!app.hidden&&!app.disabled&&!app.removed),grid=order.map(id=>visible.find(app=>app.id===id)).filter((app):app is App=>!!app);
   for(const app of visible)if(!grid.some(item=>item.id===app.id))grid.push(app);
-  const pinned=dock.map(id=>visible.find(app=>app.id===id)).filter((app):app is App=>!!app).slice(0,Number(v.dockLimit));
+  const pinned=dockEntries(visible,v);
   const selected=second?(v.homeApps&&v.secondHideHomeApps?grid.filter(app=>!pinned.some(item=>item.id===app.id)):grid):pinned;
   const geometry=dockGeometry(selected.length,v),columns=v.iconShape==='rectangle'?(v.iconSize==='small'?6:v.iconSize==='large'?4:5):7,unit=(n:number)=>`${n/9.6}cqw`,x=(n:number)=>`${n/9.6}%`,y=(n:number)=>`${n/5.4}%`;
   const progressive=!second&&v.homeBlurMode==='progressive';
@@ -142,7 +148,8 @@ export function SaverPreview({client,suspended=false}:{client:PhoneClient;suspen
   const lunarData=layout.lunar?client.metadata?.saverLunar:undefined;
   const lunar=lunarData?.date===dateKey?lunarData.text:'';
   const monthStarts=lunarData?.date.slice(0,7)===dateKey.slice(0,7)?lunarData.monthStarts:[];
-  const wall=v.saverContent==='wall', wallSource=wall?wallpaperWallIds(client).join(','):'';
+  const posters=v.saverContent==='movie-wall', movies=movieWall(client);
+  const wall=posters||v.saverContent==='wall', wallSource=wall?(posters?movies.ids:wallpaperWallIds(client)).join(','):'';
   const follow=v.saverContent==='follow', id=String(follow?v.wallpaper:v.saverMedia);
   const media=client.metadata?.wallpapers.find(item=>item.id===id);
   const scene=follow?v:{...v,wallpaper:id,wallMode:'fixed',wallVideo:!!media?.video,previewKey:`${media?.bytes||0}`};
@@ -163,7 +170,8 @@ export function SaverPreview({client,suspended=false}:{client:PhoneClient;suspen
   return <>
     <div className={`tv-preview saver-preview${flipping?' saver-mechanical':''}${flipping&&seconds?' saver-with-seconds':''}`} aria-label="手机屏保预览">
       {!wall&&!clockOnly&&(follow||id!=='blank')&&<DynamicBackground client={client} v={scene} filter="none" suspended={!active} onProblem={setProblem} retry={retry}/>}
-      {wall?<WallpaperWallPreview key={wallSource} client={client} source={wallSource} active={active}>{information}</WallpaperWallPreview>:information}
+      {wall?<WallpaperWallPreview key={wallSource+(posters?movies.revision:'')} client={client} source={wallSource}
+        posterRevision={posters?movies.revision:undefined} active={active}>{information}</WallpaperWallPreview>:information}
     </div>
     {soundAvailable&&<>
       <audio ref={audio} src={flipSoundUrl} preload="none"/>

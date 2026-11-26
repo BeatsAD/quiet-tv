@@ -22,17 +22,28 @@ final class WallpaperWall {
     }
 
     WallpaperWall(List<String> ids,Random random){
+        this(ids,random,false);
+    }
+
+    WallpaperWall(List<String> ids,Random random,boolean posters){
         all=new ArrayList<>(ids);
         this.random=random;
         int count=ids.size();
-        columns=columns(count);
-        rows=rows(count);
+        rows=posters?posterRows(count):rows(count);
+        columns=posters?posterColumns(count):columns(count);
         refill();
         for(int i=0;i<columns*rows;i++)visible.add(unseen.removeFirst());
     }
 
     static int columns(int count){return count<=2?1:count<=6?2:count<=12?3:4;}
-    static int rows(int count){return count==0?0:count<=4?1:count<=9?2:count<=16?3:4;}
+    static int rows(int count){return count==0?0:count<=3?1:count<=9?2:count<=16?3:4;}
+
+    static int posterRows(int count){return count==0?0:count<=6?1:count<18?2:3;}
+    static int posterColumns(int count){
+        if(count<18)return count==0?0:Math.min(6,count/posterRows(count));
+        // Three rows of eight 2:3 posters fill a 16:9 screen.
+        return count>=24?8:Math.max(6,(count-1)/3);
+    }
 
     String at(int cell){return visible.get(cell);}
     int size(){return visible.size();}

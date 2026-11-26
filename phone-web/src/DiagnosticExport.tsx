@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PhoneClient, Value } from './api';
-import { Group, Icon, Row, Switch } from './widgets';
+import { EmptyState, Group, Icon, Row, Switch } from './widgets';
 import './DiagnosticExport.css';
 
 type Kind = 'export' | 'exportInputs';
@@ -48,7 +48,7 @@ export function DiagnosticExport({page,...props}:Props&{page:'diagnostics'|'diag
   const enabled=state?.recording===true;
   const blocked=busy||uploading||client.status==='ended'||client.restoring;
   if(page==='diagnostic-inputs')return <div className="diagnostic-export">
-    {state?.inputEvidence!==true&&<p className="section-note">暂无信号源配对或测试记录。</p>}
+    {state?.inputEvidence!==true&&<EmptyState icon="FileTextIcon" title="暂无信号源配对或测试记录"/>}
     {state?.inputRecording===true&&<p className="section-note">请在信号源记录结束后下载。</p>}
     <Download {...props} kind="exportInputs" disabled={state?.inputEvidence!==true||state.inputRecording===true}/>
   </div>;

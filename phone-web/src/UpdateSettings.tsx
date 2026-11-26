@@ -25,13 +25,14 @@ export function UpdateSettings({client, device, busy, action, install}: {
   const update = client.frame?.domains.update || {};
   const available = update.updateAvailable as {version: string; build: number; bytes: number; sha256: string; features: string[]; fixes: string[]} | undefined;
   const checking = !!update.updateChecking, downloading = !!update.updateDownloading;
+  const verifying = !!update.updateVerifying;
   const state = String(update.updateInstallState || '');
   const connected = client.status === 'connected';
   const current = device && `${device.version}  构建 ${device.build}`;
   const installInProgress = !!update.updateInstallBusy || (state in installMessages && !['success', 'failed', 'cancelled', 'interrupted', 'unknown'].includes(state));
-  const downloadLabel = update.updateVerifying ? '正在校验安装包' :
+  const downloadLabel = verifying ? '正在校验安装包' :
     `正在下载 ${fileSize(Number(update.updateReceived))} / ${fileSize(Number(update.updateTotal))}`;
-  const checkMessage = checking ? '正在检查更新…' : downloading || update.updateVerifying ? downloadLabel :
+  const checkMessage = checking ? '正在检查更新…' : downloading || verifying ? downloadLabel :
     String(update.updateUnavailable || update.updateCheckError || update.updateDownloadError || (available ? '' : '按当前电视版本与渠道检查更新。'));
   return <>
     <div className="version-mark">
@@ -53,11 +54,15 @@ export function UpdateSettings({client, device, busy, action, install}: {
       <button className="primary-button" disabled={busy || checking || downloading || !connected}
         onClick={() => action('check')}>{checking ? '正在检查…' : '检查更新'}</button>
       {checking && <button className="secondary-button" disabled={busy || !connected} onClick={() => action('cancelCheck')}>取消检查</button>}
-      {available && !downloading && !update.updateVerifying && !update.updateReady &&
+      {available && !checking && !downloading && !verifying && !update.updateReady &&
         <button className="secondary-button" disabled={busy || !connected} onClick={() => action('download', available.sha256)}>下载安装包</button>}
       {downloading && <button className="secondary-button" disabled={busy || !connected} onClick={() => action('cancelDownload')}>取消下载</button>}
-      {available && !!update.updateReady && <button className="secondary-button" disabled={busy || installInProgress || !connected}
-        onClick={() => install(available.sha256)}>在电视安装更新</button>}
+      {available && !!update.updateReady && !checking && !verifying && <>
+        {connected && !installInProgress && !!update.updateInstallPermissionRequired &&
+          <p className="section-note">请在电视上允许 Quiet TV 安装更新。</p>}
+        <button className="secondary-button" disabled={busy || installInProgress || !connected}
+          onClick={() => install(available.sha256)}>在电视安装更新</button>
+      </>}
       {checkable.includes(state) && <button className="secondary-button" disabled={busy || !connected}
         onClick={() => action('reconcile')}>核对电视版本</button>}
     </>}

@@ -51,8 +51,8 @@ final class UpdateInstaller {
         final String reason;
         LaunchResult(String reason){this.reason=reason;}
     }
-    static Permission permission(Activity activity){
-        try{return Build.VERSION.SDK_INT<26||activity.getPackageManager().canRequestPackageInstalls()?Permission.ALLOWED:Permission.DENIED;}
+    static Permission permission(Context context){
+        try{return Build.VERSION.SDK_INT<26||context.getPackageManager().canRequestPackageInstalls()?Permission.ALLOWED:Permission.DENIED;}
         catch(RuntimeException failure){DiagnosticLog.error("update.permission.failed",failure);return Permission.UNKNOWN;}
     }
     static boolean permitted(Activity activity){return permission(activity)==Permission.ALLOWED;}

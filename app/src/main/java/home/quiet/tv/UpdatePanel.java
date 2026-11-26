@@ -86,8 +86,9 @@ final class UpdatePanel {
         else if(previous.equals("incompatible")&&!updates.unavailableReason.isEmpty())incompatible();
         else if(previous.equals("current"))current();
         else if(previous.equals("error")){if(!updates.downloadError.isEmpty())changedDownloadResult();else{begin("checking","正在检查更新");show(null);changed();}}
-        else if(updates.downloading||updates.verifying)resumeDownload();else if(updates.ready){if(reminder)details();else ready();}
+        else if(updates.downloading||updates.verifying)resumeDownload();
         else if(updates.checking){begin("checking","正在检查更新");show(button("取消",()->{updates.cancelCheck();current();}));}
+        else if(updates.ready){if(reminder)details();else ready();}
         else if(target!=null)details();else current();
     }
     private void current(){
@@ -296,6 +297,8 @@ final class UpdatePanel {
         }
     }
     private void download(){
+        if(updates.checking){check();return;}
+        if(updates.downloading||updates.verifying){resumeDownload();return;}
         if(target==null||updates.available==null||!target.sha256.equals(updates.available.sha256)){check();return;}
         downloadBody();updates.download();changed();
     }
@@ -314,8 +317,15 @@ final class UpdatePanel {
         target=updates.available;if(target==null){current();return;}begin("ready","更新已准备好");version();
         box.addView(text("请在系统安装器中确认安装。",21,0));button("稍后安装",this::current);show(button("安装更新",this::install));
     }
+    void installFromPhone(String hash){
+        if(updates.isReady(hash)){target=updates.available;install();}
+        else if(updates.checking){check();}
+        else if(updates.downloading||updates.verifying){resumeDownload();}
+        else{begin("error","更新目标已变化");show(button("检查更新",this::check));}
+    }
     private void install(){
-        if(target==null||updates.available==null||!target.sha256.equals(updates.available.sha256)||!updates.ready){check();return;}
+        if(updates.installBusy)return;
+        if(updates.checking||target==null||!updates.isReady(target.sha256)){check();return;}
         if(updates.snapshot().install==UpdateState.Install.FILE_DISPATCHED){retryFileInstall();return;}
         if(UpdateInstaller.permission(activity)!=UpdateInstaller.Permission.ALLOWED){
             permission(false);return;
@@ -341,7 +351,8 @@ final class UpdatePanel {
     }
     private void dispatchInstall(){
         permissionReturning=false;
-        if(target==null||updates.available==null||!target.sha256.equals(updates.available.sha256)||!updates.ready){check();return;}
+        if(updates.installBusy)return;
+        if(updates.checking||target==null||!updates.isReady(target.sha256)){check();return;}
         begin("install","正在准备安装");show(null);updates.install();
     }
     private void installationChanged(){

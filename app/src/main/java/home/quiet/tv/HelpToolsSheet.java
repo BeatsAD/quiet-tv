@@ -36,6 +36,16 @@ final class HelpToolsSheet {
         childState=null;active=true;aboutTab=0;openAboutLicense=false;
         create();
     }
+    void installFromPhone(String hash){
+        if(open()&&!entry.equals("update")){
+            leave();
+            sheet.dialog.setOnDismissListener(null);
+            sheet.dialog.dismiss();
+            sheet=null;
+        }
+        show("update");
+        updates.installFromPhone(hash);
+    }
     private void create(){
         origin=ui.getCurrentFocus();
         sheet=ui.new Sheet("");

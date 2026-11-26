@@ -18,15 +18,15 @@ final class PhoneSettingsConfiguration implements PhoneSettingsState.Source {
     private final PhoneSettingsFiles files;private final PhoneSettingsBackups backups;private final PhoneSettingsUpdates updates;private final PhoneSettingsHelp help;private final PhoneSettingsGeneral general;private final PhoneSettingsChildren children;private final PhoneSettingsApplications applications;private final PhoneSettingsActions actions;private final PhoneSettingsTasks tasks;private final PhoneSettingsMedia media;
     PhoneSettingsConfiguration(Context context,boolean chinese,String fallback,PhoneSettingsTasks tasks,Runnable changed,Runnable mediaNamesChanged,Runnable ended){this.context=context;this.chinese=chinese;this.fallback=fallback;this.tasks=tasks;this.changed=changed;this.mediaNamesChanged=mediaNamesChanged;icons=new PhoneSettingsIcons(context,tasks,scope,changed);actions=new PhoneSettingsActions(context);children=new PhoneSettingsChildren(context,changed);applications=new PhoneSettingsApplications(context,tasks,scope,changed,children.parent);general=new PhoneSettingsGeneral(context,tasks,scope,changed);preview=PhoneSettingsPreview.get(context);files=new PhoneSettingsFiles(context,tasks,scope,changed);backups=new PhoneSettingsBackups(context,tasks,scope,changed,ended,files);updates=new PhoneSettingsUpdates(context);help=new PhoneSettingsHelp(context,tasks,scope);media=new PhoneSettingsMedia(context,tasks,scope,fallback,changed,files,backups);}
     void offerFile(String id)throws IOException{files.offer(id);}
-    public String[] domains(){return new String[]{"appearance","feedback","greeting","wallpaper","dock","buttons","weather","catalog","quick","screensaver","uploads","tasks","audio","apps","child","childUsage","quiz","parent","weatherInfo","boot","guard","management","inputs","files","memos","backup","update","diagnostics","components","desktopSwitch","bootAds","icons"};}
-    public Object lock(String domain){switch(domain){case "icons":return AppCoverStore.get(context);case "desktopSwitch":return DesktopSwitch.get(context);case "bootAds":return BootAdSettings.get(context);case "boot":return BootAppStore.class;case "inputs":case "guard":case "management":return general;case "files":return files;case "memos":return MemoStore.LOCK;case "backup":return backups;case "update":return updates;case "diagnostics":return help;case "child":case "childUsage":case "parent":return ChildModeStore.LOCK;case "quiz":return ChildQuizStore.LOCK;case "wallpaper":case "screensaver":return WallpaperStore.get(context);case "buttons":return HomeButtonStore.LOCK;case "quick":return QuickControlStore.LOCK;case "catalog":return preview;case "tasks":return tasks;default:return DesktopSettingsStore.MUTATIONS;}}
+    public String[] domains(){return new String[]{"appearance","feedback","greeting","wallpaper","dock","buttons","weather","catalog","quick","screensaver","movieWall","uploads","tasks","audio","apps","child","childUsage","quiz","parent","weatherInfo","boot","guard","management","inputs","systemSettings","files","memos","backup","update","diagnostics","components","desktopSwitch","bootAds","icons"};}
+    public Object lock(String domain){switch(domain){case "icons":return AppCoverStore.get(context);case "desktopSwitch":return DesktopSwitch.get(context);case "bootAds":return BootAdSettings.get(context);case "boot":return BootAppStore.class;case "inputs":case "guard":case "management":case "systemSettings":return general;case "files":return files;case "memos":return MemoStore.LOCK;case "backup":return backups;case "update":return updates;case "diagnostics":return help;case "child":case "childUsage":case "parent":return ChildModeStore.LOCK;case "quiz":return ChildQuizStore.LOCK;case "wallpaper":case "screensaver":return WallpaperStore.get(context);case "buttons":return HomeButtonStore.LOCK;case "quick":return QuickControlStore.LOCK;case "movieWall":return FeiniuMovieWall.get(context);case "catalog":return preview;case "tasks":return tasks;default:return DesktopSettingsStore.MUTATIONS;}}
     public JSONObject read(String domain)throws IOException {
         DesktopSettingsStore desktop=new DesktopSettingsStore(context);
         try{
             switch(domain){
                 case "appearance":boolean movieWallpaper=WallpaperStore.get(context).dailyMovieSelected();Calendar clockDay=Calendar.getInstance();return new JSONObject().put("homeBrightness",desktop.homeWallpaperBrightness()).put("homeBlur",desktop.homeWallpaperBlur()).put("homeBlurMode",WallpaperGpuSupport.available(context)?desktop.homeBlurMode():"uniform").put("homeFade",desktop.homeWallpaperFade())
                     .put("secondBlur",desktop.secondWallpaperBlur()).put("secondBrightness",desktop.secondWallpaperBrightness()).put("secondFade",desktop.secondWallpaperFade()).put("secondNames",desktop.showAllAppsNames()).put("secondHideHomeApps",desktop.hideHomeAppsOnSecondScreen()).put("showWatchTv",desktop.showWatchTv())
-                    .put("layout",desktop.layout()).put("iconSize",desktop.iconSize()).put("iconShape",desktop.iconShape()).put("showTime",desktop.showTime()).put("clockStyle",desktop.clockStyle()).put("showDate",desktop.showDate()).put("showSeconds",desktop.showSeconds()).put("showLunarDate",desktop.showLunarDate()).put("showMovieInfo",desktop.showMovieInfo(movieWallpaper)).put("showHomeQuote",desktop.showHomeQuote(movieWallpaper)).put("showScreensaverQuote",desktop.showScreensaverQuote()).put("dailyQuote",dailyQuote()).put("lunarDate",desktop.showLunarDate()?LunarDate.format(clockDay):"").put("lunarDateFor",desktop.showLunarDate()?LunarDate.key(clockDay):"").put("homeApps",desktop.showHomeApps()).put("appNames",desktop.appTitlePosition());
+                    .put("topShelf",desktop.topShelf()).put("layout",desktop.layout()).put("iconSize",desktop.iconSize()).put("iconShape",desktop.iconShape()).put("showTime",desktop.showTime()).put("clockStyle",desktop.clockStyle()).put("showDate",desktop.showDate()).put("showSeconds",desktop.showSeconds()).put("showLunarDate",desktop.showLunarDate()).put("showMovieInfo",desktop.showMovieInfo(movieWallpaper)).put("showHomeQuote",desktop.showHomeQuote(movieWallpaper)).put("showScreensaverQuote",desktop.showScreensaverQuote()).put("dailyQuote",dailyQuote()).put("lunarDate",desktop.showLunarDate()?LunarDate.format(clockDay):"").put("lunarDateFor",desktop.showLunarDate()?LunarDate.key(clockDay):"").put("homeApps",desktop.showHomeApps()).put("appNames",desktop.appTitlePosition());
                 case "child":return children.configuration();case "childUsage":return children.usage();case "quiz":return children.quiz();case "parent":return children.parent.state();
                 case "apps":return applications.state();case "icons":return icons.state();
                 case "audio":return actions.audio();
@@ -34,17 +34,18 @@ final class PhoneSettingsConfiguration implements PhoneSettingsState.Source {
                 case "greeting":return new JSONObject().put("greeting",desktop.greetingText(fallback)).put("automaticGreeting",DesktopSettingsStore.automaticGreeting(chinese,Calendar.getInstance().get(Calendar.HOUR_OF_DAY))).put("showGreeting",desktop.greetingEnabled()).put("showAvatar",desktop.avatarEnabled()).put("avatar",desktop.avatarFile().isEmpty()?"":"api/resources/avatar/"+desktop.avatarFile());
                 case "wallpaper":{
                     WallpaperStore store=WallpaperStore.get(context);WallpaperCatalog catalog=store.snapshot();String mode=catalog.weather&&WallpaperGpuSupport.available(context)?"weather":WallpaperCatalog.DAILY.equals(catalog.current)?"daily":catalog.rotating?"rotation":"fixed";
-                    return new JSONObject().put("wallpaperBuiltinHidden",catalog.wallpaperBuiltinHidden).put("wallpaper",catalog.current).put("wallMode",mode).put("dailySource",DailyWallpaperLoader.source(catalog)).put("dailyPending",store.dailyPending()).put("dailyWallpaper",dailyInfo()).put("rotation",catalog.rotationMinutes).put("wallVideo",catalog.dynamic()).put("wallSound",catalog.audible()).put("dayNight",catalog.weatherDayNight).put("manualVersion",store.manualVersion()).put("previewKey",store.imageKey(catalog.current));
+                    return new JSONObject().put("wallpaperBuiltinHidden",catalog.wallpaperBuiltinHidden).put("wallpaper",catalog.current).put("wallMode",mode).put("dailySource",DailyWallpaperLoader.source(catalog)).put("dailyPending",store.dailyPending()).put("dailyWallpaper",dailyInfo()).put("rotation",WallpaperRotation.legacyMinutes(catalog.rotationSeconds)).put("rotationSeconds",catalog.rotationSeconds).put("wallVideo",catalog.dynamic()).put("wallSound",catalog.audible()).put("dayNight",catalog.weatherDayNight).put("manualVersion",store.manualVersion()).put("previewKey",store.imageKey(catalog.current));
                 }
                 case "dock":return new JSONObject().put("dockScale",desktop.appearance("dock-scale")).put("dockMagnification",desktop.appearance("dock-magnification")).put("dockLimit",desktop.appearance("dock-limit")).put("dockMagnify",desktop.dockMagnify()).put("globalGlass",desktop.globalGlass()).put("dockGlass",desktop.globalGlass()).put("dockBackground",desktop.showDockBackground()).put("dockApps",new JSONArray(new DockStore(context).load())).put("gridOrder",new JSONArray(new HomeOrderStore(context).load()));
                 case "buttons":return new JSONObject().put("homeButtons",new JSONArray(new HomeButtonStore(context).read().ids)).put("quickControlVisibility",desktop.quickControlVisibility());
                 case "files":return files.state();case "memos":return files.notes();case "backup":return backups.state();case "update":return updates.state();case "diagnostics":return help.diagnosticState();
-                case "weather":return general.weather();case "weatherInfo":return general.weatherInfo();case "boot":return general.startup();case "guard":return general.guard();case "management":return general.management();case "inputs":return general.inputs();
+                case "weather":return general.weather();case "weatherInfo":return general.weatherInfo();case "boot":return general.startup();case "guard":return general.guard();case "systemSettings":return general.systemSettings();case "management":return general.management();case "inputs":return general.inputs();
                 case "components":return home.quiet.components.ComponentRepository.get(context).snapshot();
                 case "desktopSwitch":return DesktopSwitch.get(context).state();
                 case "bootAds":return BootAdSettings.get(context).snapshot();
                 case "catalog":return preview.signature().put("media",PhoneSettingsState.revision(library()));
                 case "quick":return new JSONObject().put("quickControls",new JSONArray(quick().read().ids));
+                case "movieWall":return new JSONObject().put("movieWall",FeiniuMovieWall.get(context).state());
                 case "screensaver":{WallpaperCatalog screensaverCatalog=WallpaperStore.get(context).snapshot();return saverValues(ScreensaverStore.get(context).snapshot(screensaverCatalog),screensaverCatalog);}
                 case "uploads":return new JSONObject().put("policyVersion",1);
                 case "tasks":return tasks.snapshot(scope);
@@ -68,7 +69,7 @@ final class PhoneSettingsConfiguration implements PhoneSettingsState.Source {
             mediaFields(fields);childFields(fields);generalFields(fields);JSONObject audio=actions.audio();range(fields,"volume","audio","音量",0,audio.getInt("maximum"),1,"",1);if(!audio.getBoolean("available"))fields.getJSONObject("volume").put("disabledReason","此电视音量由外部设备或系统控制");
             JSONObject metadata=new JSONObject().put("device",new JSONObject().put("name",android.os.Build.MODEL).put("version",BuildConfig.VERSION_NAME).put("build",BuildConfig.VERSION_CODE).put("sdk",android.os.Build.VERSION.SDK_INT).put("channel",BuildConfig.UPDATE_CHANNEL))
                 .put("fields",fields).put("wallpapers",library()).put("uploadLimits",media.limits()).put("homeApps",preview.entries()).put("apps",applications.entries()).put("childApps",children.apps()).put("quickCatalog",quickCatalog).put("quickIcons",quickIcons).put("homeButtonCatalog",buttonCatalog)
-                .put("iconLibrary",icons.metadata()).put("dailyWallpaper",dailyInfo()).put("actions",new JSONObject().put("backup.list",true).put("diagnostics.export",true).put("guard.open",true).put("bootAds.open",true).put("inputs.open",true).put("quick.run",true).put("quick.reset",true).put("quick.add",true).put("wallpaper.daily",true)).put("pollIntervalMs",1000);
+                .put("iconLibrary",icons.metadata()).put("dailyWallpaper",dailyInfo()).put("actions",new JSONObject().put("backup.list",true).put("diagnostics.export",true).put("guard.open",true).put("bootAds.open",true).put("inputs.open",true).put("quick.run",true).put("quick.reset",true).put("quick.add",true).put("wallpaper.daily",true).put("files.preview",true)).put("pollIntervalMs",1000);
             JSONObject extra=help.metadata();
             for(Iterator<String> keys=extra.keys();keys.hasNext();){
                 String key=keys.next();metadata.put(key,extra.get(key));
@@ -88,11 +89,15 @@ final class PhoneSettingsConfiguration implements PhoneSettingsState.Source {
     JSONObject about(boolean runtime)throws IOException{return help.about(runtime);}
     JSONObject places(String query)throws IOException{return general.places(query);}
     JSONObject parent(JSONObject value,PhoneSettingsServer.Active active)throws IOException{requireRestoreIdle();JSONObject result=children.parent.execute(value,active);changed.run();return result;}
+    PhoneSettingsServer.Download previewFile(String id)throws IOException{return files.preview(id);}
     PhoneSettingsServer.Download previewVideo(String id)throws IOException{
         if(!id.matches("user-[a-f0-9-]{36}"))throw new PhoneSettingsServer.BadInput();
         WallpaperStore store=WallpaperStore.get(context);synchronized(store){WallpaperCatalog.Entry entry=store.snapshot().find(id);if(entry==null||!entry.video())throw new PhoneSettingsServer.BadInput();java.io.File file=store.file(id);if(file==null||!file.isFile())throw new PhoneSettingsServer.BadInput();String mime=PhoneSettingsVideo.mime(file);return new PhoneSettingsServer.Download(new java.io.FileInputStream(file),file.length(),id,mime);}
     }
-    byte[] resource(String route)throws IOException{return route.startsWith("icon-library/")?icons.resource(route.substring(13)):preview.resource(route);}
+    byte[] resource(String route)throws IOException{
+        if(route.startsWith("movie-wall/"))return FeiniuMovieWall.get(context).posterBytes(route.substring("movie-wall/".length()));
+        return route.startsWith("icon-library/")?icons.resource(route.substring(13)):preview.resource(route);
+    }
     JSONObject task(String id)throws IOException{PhoneSettingsTasks.Job job=tasks.find(id);if(job==null||!job.key.startsWith(scope+"/"))throw new PhoneSettingsServer.BadInput();try{return job.json();}catch(JSONException e){throw new IOException(e);}}
     JSONObject upload(String id,java.io.InputStream input,long length,PhoneSettingsServer.Active active)throws IOException{requireRestoreIdle();return media.upload(id,input,length,active);}
     private JSONArray library()throws JSONException{
@@ -100,7 +105,7 @@ final class PhoneSettingsConfiguration implements PhoneSettingsState.Source {
         for(WallpaperCatalog.Entry entry:catalog.entries()){
             int width=entry.width,height=entry.height;long bytes=entry.bytes;String kind=WallpaperCatalog.DEFAULT.equals(entry.id)?"color":WallpaperCatalog.DAILY.equals(entry.id)?"daily":entry.video()?"video":"image";
             if("daily".equals(kind)){WallpaperCatalog.DailyImage image=catalog.dailyImages.get(catalog.dailySource);if(store.cached(image)){width=image.width;height=image.height;bytes=store.dailyFile(image.source,image.slot).length();}}
-            entries.put(new JSONObject().put("id",entry.id).put("name",entry.label(true)).put("kind",kind).put("video",entry.video()).put("canRename",entry.custom()).put("width",width).put("height",height).put("bytes",bytes).put("durationMs",entry.durationMs));
+            entries.put(new JSONObject().put("id",entry.id).put("name",entry.label(true)).put("kind",kind).put("video",entry.video()).put("canRename",entry.custom()).put("canDelete",entry.custom()||WallpaperCatalog.BUILTIN.equals(entry.id)).put("width",width).put("height",height).put("bytes",bytes).put("durationMs",entry.durationMs));
         }return entries;
     }
     private JSONObject dailyInfo()throws JSONException{
@@ -130,8 +135,9 @@ final class PhoneSettingsConfiguration implements PhoneSettingsState.Source {
         choice(fields,"iconSize","appearance","图标大小",new Object[]{"small","medium","large"},new String[]{"小","中","大"});
         choice(fields,"iconShape","appearance","图标外形",new Object[]{"rectangle","square","circle"},new String[]{"长方形","方形","圆形"});
         choice(fields,"appNames","appearance","首页应用名称",new Object[]{"hidden","below","top-left"},new String[]{"不显示","下方","左上角"});
-        String[][] toggles={{"showHomeQuote","显示每日格言"},{"showScreensaverQuote","显示每日格言"},{"showTime","时间"},{"showDate","日期"},{"showSeconds","显示秒数"},{"showLunarDate","显示农历"},{"homeApps","首页应用区域"},{"showWatchTv","在桌面显示「看电视」"},{"secondNames","第二屏应用名称"},{"secondHideHomeApps","第二屏隐藏首屏应用"}};
+        String[][] toggles={{"topShelf","顶部内容预览"},{"showHomeQuote","显示每日格言"},{"showScreensaverQuote","显示每日格言"},{"showTime","时间"},{"showDate","日期"},{"showSeconds","显示秒数"},{"showLunarDate","显示农历"},{"homeApps","首页应用区域"},{"showWatchTv","在桌面显示「看电视」"},{"secondNames","第二屏应用名称"},{"secondHideHomeApps","第二屏隐藏首屏应用"}};
         for(String[] toggle:toggles)fields.put(toggle[0],field("appearance",toggle[1],"toggle"));
+        fields.getJSONObject("topShelf").put("supportedApps",new JSONArray(TopShelfContent.supportedApps(true)));
         fields.put("showGreeting",field("greeting","问候语","toggle")).put("showAvatar",field("greeting","显示头像","toggle"));
         fields.put("weatherEnabled",field("weather","天气","toggle"));
         DesktopSettingsStore desktop=new DesktopSettingsStore(context);
@@ -158,10 +164,15 @@ final class PhoneSettingsConfiguration implements PhoneSettingsState.Source {
         boolean weather=WallpaperGpuSupport.available(context);choice(fields,"wallMode","wallpaper","切换方式",weather?new Object[]{"fixed","rotation","daily","weather"}:new Object[]{"fixed","rotation","daily"},weather?new String[]{"固定一张","自动轮换","每日更新","随天气变化"}:new String[]{"固定一张","自动轮换","每日更新"});
         choice(fields,"dailySource","wallpaper","图片来源",new Object[]{WallpaperCatalog.BING,WallpaperCatalog.MICROSOFT,WallpaperCatalog.MOVIE},new String[]{"必应","微软壁纸","每日电影"});
         choice(fields,"rotation","wallpaper","轮换间隔",new Object[]{1,5,10,15,30,60,"custom"},new String[]{"1 分钟","5 分钟","10 分钟","15 分钟","30 分钟","60 分钟","自定义"});
+        JSONArray intervals=new JSONArray();
+        for(boolean minutes:new boolean[]{false,true})for(int seconds:WallpaperRotation.presets(minutes))
+            intervals.put(new JSONObject().put("value",seconds).put("title",WallpaperRotation.label(seconds,minutes,true)));
+        fields.put("rotationSeconds",field("wallpaper","轮换间隔","select").put("options",intervals)
+            .put("min",WallpaperRotation.MIN_SECONDS).put("max",WallpaperRotation.MAX_SECONDS));
         WallpaperCatalog catalog=WallpaperStore.get(context).snapshot();fields.put("dayNight",field("wallpaper","随昼夜变化","toggle"));fields.put("showMovieInfo",field("appearance","显示影片信息","toggle"));
         if(catalog.dynamic()){fields.put("wallSound",field("wallpaper","背景声音","toggle"));if(catalog.rotating||catalog.weather)fields.getJSONObject("wallSound").put("disabledReason","当前方式保持静音");}
         Object[] waits=new Object[ScreensaverSettings.WAITS.length];String[] labels=new String[waits.length];for(int i=0;i<waits.length;i++){waits[i]=ScreensaverSettings.WAITS[i];labels[i]=ScreensaverSettings.WAITS[i]==0?"关闭":waits[i]+" 分钟后";}
-        choice(fields,"idle","screensaver","闲置等待时间",waits,labels);choice(fields,"saverContent","screensaver","屏保内容",new Object[]{ScreensaverSettings.FOLLOW,ScreensaverSettings.CLOCK,ScreensaverSettings.FLIP,ScreensaverSettings.CUSTOM,ScreensaverSettings.WALL},new String[]{"跟随桌面","数字时间","翻页时钟","自定义","壁纸墙"});
+        choice(fields,"idle","screensaver","闲置等待时间",waits,labels);choice(fields,"saverContent","screensaver","屏保内容",new Object[]{ScreensaverSettings.FOLLOW,ScreensaverSettings.CLOCK,ScreensaverSettings.FLIP,ScreensaverSettings.CUSTOM,ScreensaverSettings.WALL,ScreensaverSettings.MOVIE_WALL},new String[]{"跟随桌面","数字时间","翻页时钟","自定义","壁纸墙","影视墙"});
         ScreensaverSettings saver=ScreensaverStore.get(context).snapshot(catalog);fields.put("saverSound",field("screensaver","屏保声音","toggle"));if(!saver.video(catalog))fields.getJSONObject("saverSound").put("disabledReason","选择视频屏保后可开启");
         fields.put("saverFlipSeconds",field("screensaver","显示秒","toggle")).put("saverFlipSound",field("screensaver","翻页声音","toggle"));
         fields.put("saverAnalogClock",field("screensaver","模拟时钟","toggle"))
@@ -182,9 +193,56 @@ final class PhoneSettingsConfiguration implements PhoneSettingsState.Source {
         if(tasks.restoring()||DesktopBackups.get(context).restoreState().running())
             throw new PhoneSettingsServer.Rejected("桌面正在恢复，请等待完成后核对配置");
     }
+    JSONObject connectMovieWall(JSONObject value,PhoneSettingsServer.Active active)throws IOException{
+        if(value.length()!=5)throw new PhoneSettingsServer.BadInput();
+        for(String key:new String[]{"provider","address","username","password","revision"})
+            if(!(value.opt(key) instanceof String))throw new PhoneSettingsServer.BadInput();
+        String provider=value.optString("provider"),address=value.optString("address").trim(),
+                username=value.optString("username").trim(),password=value.optString("password");
+        boolean shared=FeiniuMovieWall.SMB.equals(provider),plex=FeiniuMovieWall.PLEX.equals(provider);
+        if((!shared&&!plex&&!FeiniuMovieWall.MEDIA.equals(provider))||address.isEmpty()
+                ||address.length()>1024||username.length()>256||password.length()>(plex?2048:512))
+            throw new PhoneSettingsServer.BadInput();
+        if(plex&&password.trim().isEmpty())
+            throw new PhoneSettingsServer.Rejected("请输入 Plex 访问令牌");
+        if(!shared&&!plex&&username.isEmpty())
+            throw new PhoneSettingsServer.Rejected("请输入媒体账号");
+        FeiniuMovieWall wall=FeiniuMovieWall.get(context);
+        synchronized(wall){
+            if(!active.valid())throw new PhoneSettingsServer.Ended();
+            requireRestoreIdle();
+            if(wall.busy())throw new PhoneSettingsServer.Rejected("正在连接或同步，请稍后重试");
+            if(!value.optString("revision").equals(PhoneSettingsState.revision(read("movieWall"))))
+                throw new PhoneSettingsServer.Conflict();
+            boolean started=shared?wall.syncSmb(address,username,password,null):wall.connect(provider,address,username,password,null);
+            if(!started)throw new PhoneSettingsServer.Rejected("连接未提交，请重试");
+            try{return new JSONObject().put("operation",wall.operation());}
+            catch(JSONException e){throw new IOException(e);}
+        }
+    }
+    @Override public boolean requiresRevision(String domain,String field){
+        // Advancing the wallpaper changes the domain revision, but not the interval being edited.
+        return !("wallpaper".equals(domain)&&"rotationSeconds".equals(field));
+    }
     public PhoneSettingsState.Result write(String domain,String field,Object value,String expected,PhoneSettingsServer.Active active)throws IOException {
         if(!active.valid())throw new PhoneSettingsServer.Ended();
         requireRestoreIdle();
+        if(domain.equals("movieWall")){
+            if(!(value instanceof String))throw new PhoneSettingsServer.BadInput();
+            FeiniuMovieWall wall=FeiniuMovieWall.get(context);
+            boolean started;
+            switch(field){
+                case "sync":started=wall.sync((String)value,null);break;
+                case "syncLibrary":started=wall.syncFeiniu((String)value,null);break;
+                case "syncSmb":
+                    if(!"smb".equals(value))throw new PhoneSettingsServer.BadInput();
+                    started=wall.syncSavedSmb(null);
+                    break;
+                default:throw new PhoneSettingsServer.BadInput();
+            }
+            if(!started)throw new PhoneSettingsServer.Rejected("请检查海报来源，或等待当前同步完成");
+            return new PhoneSettingsState.Result(read(domain));
+        }
         if(domain.equals("bootAds")){
             JSONObject receipt=general.bootAds(field,value,active);
             return new PhoneSettingsState.Result(read(domain),receipt);
@@ -192,7 +250,7 @@ final class PhoneSettingsConfiguration implements PhoneSettingsState.Source {
         if(domain.equals("desktopSwitch"))return new PhoneSettingsState.Result(read(domain),general.desktopSwitch(field,value,active));
         if(domain.equals("components")){if(!"weather".equals(value)||!(field.equals("start")||field.equals("cancel")||field.equals("uninstall")))throw new PhoneSettingsServer.Rejected("组网功能请在手机助手App中使用");home.quiet.components.ComponentRepository repository=home.quiet.components.ComponentRepository.get(context);if(field.equals("start"))repository.start("weather");else if(field.equals("uninstall"))WeatherComponentActions.uninstall(context);else repository.cancel("weather");return new PhoneSettingsState.Result(repository.snapshot());}
         DesktopSettingsStore desktop=new DesktopSettingsStore(context);
-        if(Arrays.asList("showHomeQuote","showScreensaverQuote","keySounds","showTime","showDate","showSeconds","showLunarDate","showMovieInfo","homeApps","showWatchTv","secondNames","secondHideHomeApps","showGreeting","showAvatar","dockMagnify","dockGlass","globalGlass","dockBackground","weatherEnabled","saverClock","saverWeather","saverSound","saverFlipSeconds","saverFlipSound","saverAnalogClock","saverCalendar","saverLunarDate","saverSeconds","dayNight","wallSound").contains(field)&&!(value instanceof Boolean))throw new IllegalArgumentException();
+        if(Arrays.asList("topShelf","showHomeQuote","showScreensaverQuote","keySounds","showTime","showDate","showSeconds","showLunarDate","showMovieInfo","homeApps","showWatchTv","secondNames","secondHideHomeApps","showGreeting","showAvatar","dockMagnify","dockGlass","globalGlass","dockBackground","weatherEnabled","saverClock","saverWeather","saverSound","saverFlipSeconds","saverFlipSound","saverAnalogClock","saverCalendar","saverLunarDate","saverSeconds","dayNight","wallSound").contains(field)&&!(value instanceof Boolean))throw new IllegalArgumentException();
         if("catalog".equals(domain)&&"renameMedia".equals(field)){
             if(!(value instanceof JSONObject))throw new PhoneSettingsServer.BadInput();JSONObject request=(JSONObject)value;
             if(request.length()!=3||!(request.opt("id") instanceof String)||!(request.opt("originalName") instanceof String))throw new PhoneSettingsServer.BadInput();
@@ -218,6 +276,7 @@ final class PhoneSettingsConfiguration implements PhoneSettingsState.Source {
                 return new PhoneSettingsState.Result(read(domain),help.export(field,active));
             throw new PhoneSettingsServer.BadInput();
         }
+        if("systemSettings".equals(domain)){JSONObject operation=general.systemSettings(field,value,active);return new PhoneSettingsState.Result(read(domain),operation);}
         if(Arrays.asList("weather","boot","guard","management","inputs").contains(domain)){JSONObject operation=general.write(domain,field,value,active);return new PhoneSettingsState.Result(read(domain),operation);}
         if("child".equals(domain)||"quiz".equals(domain)){children.write(domain,field,value,active);return new PhoneSettingsState.Result(read(domain));}
         if("apps".equals(domain)){if("renameApp".equals(field)&&value instanceof JSONObject){JSONObject operation=applications.rename((JSONObject)value,active);return new PhoneSettingsState.Result(read(domain),operation);}if("refresh".equals(field)&&Boolean.TRUE.equals(value))return new PhoneSettingsState.Result(read(domain),applications.refresh(active));if(value instanceof JSONObject)return new PhoneSettingsState.Result(read(domain),applications.perform(field,(JSONObject)value,active));throw new IllegalArgumentException();}
@@ -225,6 +284,12 @@ final class PhoneSettingsConfiguration implements PhoneSettingsState.Source {
         if("quick".equals(domain)&&"run".equals(field)&&value instanceof String)return new PhoneSettingsState.Result(read(domain),actions.run((String)value,active));
         if("uploads".equals(domain)&&"begin".equals(field)&&value instanceof JSONObject)return new PhoneSettingsState.Result(read(domain),media.begin((JSONObject)value,active));
         if("uploads".equals(domain)&&"cancel".equals(field)&&value instanceof String){PhoneSettingsTasks.Job job=tasks.find((String)value);if(job==null||!job.key.startsWith(scope+"/"))throw new IllegalArgumentException();tasks.cancel(job.id);return new PhoneSettingsState.Result(read(domain));}
+        if("builtinMediaVisible".equals(field)&&("wallpaper".equals(domain)||"screensaver".equals(domain))){
+            if(!(value instanceof Boolean))throw new PhoneSettingsServer.BadInput();
+            if(!active.valid())throw new PhoneSettingsServer.Ended();
+            WallpaperStore.get(context).builtinVisible("screensaver".equals(domain),(Boolean)value);
+            changed.run();return new PhoneSettingsState.Result(read(domain));
+        }
         if("screensaver".equals(domain))return writeSaver(field,value,expected,active);
         if("appearance".equals(domain)&&"homeBrightness".equals(field))desktop.savePhoneValue("home-wallpaper-brightness",integer(value,20,100));
         else if("feedback".equals(domain)&&"keySounds".equals(field)&&value instanceof Boolean)desktop.savePhoneValue("key-sounds",value);
@@ -236,6 +301,7 @@ final class PhoneSettingsConfiguration implements PhoneSettingsState.Source {
                 case "homeBlur":case "homeBrightness":case "homeFade":case "secondBlur":case "secondBrightness":case "secondFade":boolean second=field.startsWith("second");String property=field.endsWith("Blur")?"blur":field.endsWith("Fade")?"fade":"brightness";desktop.saveWallpaperEffect(second,property,integer(value,property.equals("brightness")?20:0,property.equals("fade")?1200:100));break;
                 case "homeBlurMode":if(!(value instanceof String)||"progressive".equals(value)&&!WallpaperGpuSupport.available(context))throw new IllegalArgumentException();desktop.homeBlurMode((String)value);break;
                 case "clockStyle":if(!desktop.galleryLayout())throw new PhoneSettingsServer.Rejected("时钟样式仅在艺术画廊布局中可设置");desktop.saveAppearance("clock-style",value);break;
+                case "topShelf":desktop.savePhoneValue(DesktopSettingsStore.TOP_SHELF,value);break;
                 case "layout":desktop.savePhoneValue("home-layout",value);break;
                 case "iconSize":desktop.saveAppearance("icon-size",value);break;case "iconShape":desktop.saveAppearance("icon-shape",value);break;
                 case "showWatchTv":desktop.showWatchTv((Boolean)value);break;
@@ -281,10 +347,19 @@ final class PhoneSettingsConfiguration implements PhoneSettingsState.Source {
                 String id=mode.equals("fixed")?catalog.fixedCandidate(catalog.current):catalog.current;
                 if(mode.equals("rotation")&&WallpaperCatalog.DAILY.equals(id))id=catalog.dailyFallback();
                 if(mode.equals("rotation")&&catalog.count(catalog.dynamic())<2)throw new PhoneSettingsServer.Rejected("同类素材至少需要两张图片或两个视频才能轮换");
-                store.background(mode,id,catalog.rotationMinutes,catalog.weatherDayNight);break;
+                store.background(mode,id,catalog.rotationSeconds,catalog.weatherDayNight);break;
             }
-            case "rotation":if(!catalog.rotating)throw new PhoneSettingsServer.Rejected("请先开启自动轮换");store.background("rotation",catalog.current,integer(value,1,1440),catalog.weatherDayNight);break;
-            case "dayNight":if(!catalog.weather||!WallpaperGpuSupport.available(context))throw new IllegalArgumentException();store.background("weather",catalog.current,catalog.rotationMinutes,(Boolean)value);break;
+            case "rotation":store.rotationInterval(integer(value,1,WallpaperRotation.MAX_SECONDS/60)*60);break;
+            case "rotationSeconds":{
+                if(!(value instanceof JSONObject))throw new PhoneSettingsServer.BadInput();
+                JSONObject interval=(JSONObject)value;
+                int seconds=integer(interval.opt("seconds"),WallpaperRotation.MIN_SECONDS,WallpaperRotation.MAX_SECONDS);
+                int expected=integer(interval.opt("expectedSeconds"),WallpaperRotation.MIN_SECONDS,WallpaperRotation.MAX_SECONDS);
+                Object video=interval.opt("video");if(!(video instanceof Boolean))throw new PhoneSettingsServer.BadInput();
+                if(!catalog.rotating||catalog.rotationSeconds!=expected||catalog.dynamic()!=(Boolean)video)throw new PhoneSettingsServer.Conflict();
+                store.rotationInterval(seconds);break;
+            }
+            case "dayNight":if(!catalog.weather||!WallpaperGpuSupport.available(context))throw new IllegalArgumentException();store.background("weather",catalog.current,catalog.rotationSeconds,(Boolean)value);break;
             case "wallSound":if(!catalog.dynamic()||(catalog.rotating||catalog.weather)&&Boolean.TRUE.equals(value))throw new PhoneSettingsServer.Rejected("当前背景方式保持静音");store.sound((Boolean)value);break;
             case "dailySource":if(!(value instanceof String))throw new PhoneSettingsServer.BadInput();return new PhoneSettingsState.Result(read("wallpaper"),media.dailySource((String)value,active));
             case "dailyRefresh":return new PhoneSettingsState.Result(read("wallpaper"),media.daily(false,active));
@@ -329,7 +404,15 @@ final class PhoneSettingsConfiguration implements PhoneSettingsState.Source {
     private void writeDock(String field,Object value,PhoneSettingsServer.Active active)throws IOException{
         DesktopSettingsStore desktop=new DesktopSettingsStore(context);
         switch(field){
-            case "dockScale":desktop.saveAppearance("dock-scale",integer(value,70,130));return;case "dockMagnification":desktop.saveAppearance("dock-magnification",integer(value,100,160));return;case "dockLimit":desktop.saveAppearance("dock-limit",integer(value,5,12));return;
+            case "dockScale":{
+                int requested=integer(value,70,130);
+                List<String> pinned=new DockStore(context).load();
+                int count=Math.min(desktop.appearance("dock-limit"),HomeAppCatalog.pinnedIds(new HomeAppCatalog(context).load(pinned),pinned).size());
+                int maximum=DockLayout.maximumScale(count,desktop.iconSize(),desktop.iconShape(),desktop.dockMagnify(),desktop.appearance("dock-magnification"),desktop.appTitlePosition());
+                if(!active.valid())throw new PhoneSettingsServer.Ended();
+                desktop.saveAppearance("dock-scale",Math.min(requested,Math.max(70,maximum)));return;
+            }
+            case "dockMagnification":desktop.saveAppearance("dock-magnification",integer(value,100,160));return;case "dockLimit":desktop.saveAppearance("dock-limit",integer(value,5,12));return;
             case "dockMagnify":desktop.saveAppearance("dock-magnify",value);return;case "globalGlass":case "dockGlass":desktop.saveAppearance(GlassStyle.KEY,value);return;case "dockBackground":desktop.savePhoneValue("show-dock-background",value);return;
             case "dockApps":{
                 DockStore store=new DockStore(context);List<String> existing=store.load();List<HomeAppCatalog.Entry> available=new HomeAppCatalog(context).load(existing);List<String> allowed=new ArrayList<>(existing);for(HomeAppCatalog.Entry app:available)if(!allowed.contains(app.id))allowed.add(app.id);

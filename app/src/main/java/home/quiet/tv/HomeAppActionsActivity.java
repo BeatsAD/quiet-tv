@@ -8,8 +8,10 @@ import android.graphics.*;
 import android.graphics.drawable.*;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.view.*;
 import android.widget.*;
+import androidx.core.view.OneShotPreDrawListener;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -19,6 +21,7 @@ public final class HomeAppActionsActivity extends ManagementUi {
     private static final int DELETE=7202;
     private static final int MENU_WIDTH=200, MENU_PADDING=16, MENU_MIN_PADDING=8, MENU_GAP=10, MENU_ROW_HEIGHT=43, MENU_MIN_ROW_HEIGHT=40;
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
+    private final String instance=Integer.toHexString(System.identityHashCode(this));
     private Dialog dialog;
     private ManagementUi.Sheet sheet;
     private boolean closing;
@@ -26,7 +29,7 @@ public final class HomeAppActionsActivity extends ManagementUi {
     private float retainedScroll;
     private LinearLayout box;
     private FrameLayout sheetContent;
-    private LinearLayout menuBox;
+    private AppMenu menuBox;
     private ScrollView menuScroll;
     // Retain the entry pixels while glass is off so the same menu can restore them.
     private Bitmap backdrop;
@@ -42,10 +45,19 @@ public final class HomeAppActionsActivity extends ManagementUi {
         super.onCreate(state);stage.removeAllViews();stage.setBackgroundColor(Color.TRANSPARENT);
         pkg=getIntent().getStringExtra("package");if(pkg==null)pkg="";fromDock=getIntent().getBooleanExtra("dock",false);backdrop=entryBackdrop();
         if(state!=null){pkg=state.getString("app-menu-package",pkg);fromDock=state.getBoolean("app-menu-dock",fromDock);mode=state.getString("app-menu-mode","menu");pickerMode=state.getString("app-menu-picker","");pickerFromMenu=state.getBoolean("app-menu-from-menu");candidate=state.getString("app-menu-candidate","");retainedFocus=state.getString("app-menu-focus","");retainedScroll=state.getFloat("app-menu-scroll");waitingForDelete=state.getBoolean("app-menu-waiting-delete");}
-        sheet=new Sheet("");sheet.settingsLayout("关闭",this::handleBack);sheet.settingsActions(false);dialog=sheet.dialog;box=sheet.body;sheetContent=(FrameLayout)sheet.box.getParent();dialog.setCanceledOnTouchOutside(true);
+        sheetContent=new FrameLayout(this){
+            @Override protected void onMeasure(int widthSpec,int heightSpec){
+                int width=MeasureSpec.getSize(widthSpec),height=MeasureSpec.getSize(heightSpec);
+                if(!fromDock&&menuBox!=null&&menuBox.getVisibility()==View.VISIBLE&&width>0&&height>0){
+                    positionSecondScreenMenu(width,height);
+                }
+                super.onMeasure(widthSpec,heightSpec);
+            }
+        };
+        sheet=new Sheet("");sheet.settingsLayout("关闭",this::handleBack,sheetContent);sheet.settingsActions(false);dialog=sheet.dialog;box=sheet.body;dialog.setCanceledOnTouchOutside(true);
         // Keep one full-screen surface and dim layer while switching menu and sheet content.
         dialog.getWindow().setLayout(-1,-1);dialog.getWindow().getDecorView().setSystemUiVisibility(5894);
-        dialog.setOnCancelListener(d->finish());dialog.setOnKeyListener((d,key,event)->{if(key!=KeyEvent.KEYCODE_BACK&&key!=KeyEvent.KEYCODE_ESCAPE)return false;if(event.getAction()==KeyEvent.ACTION_UP)handleBack();return true;});
+        dialog.setOnCancelListener(d->{endMenu("cancel");finish();});dialog.setOnKeyListener((d,key,event)->{if(key!=KeyEvent.KEYCODE_BACK&&key!=KeyEvent.KEYCODE_ESCAPE)return false;if(event.getAction()==KeyEvent.ACTION_UP)handleBack();return true;});
         if(state!=null&&mode.equals("picker"))picker(pickerMode,pickerFromMenu);
         else if(state!=null&&mode.equals("cover"))coverMenu();
         else if(state!=null&&mode.equals("unpin"))confirmUnpin();
@@ -74,10 +86,11 @@ public final class HomeAppActionsActivity extends ManagementUi {
         return app!=null && new AppOperations(this).hidingProtection(app).isEmpty() && new ChildModeStore(this).eligible(pkg) && new HomeAppCatalog(this).launchable().containsKey(pkg);
     }
     private void content(String page,String title){
+        endMenu("open_"+page);
         mode=page;++generation;
         if(page.equals("menu")){
             if(menuBox!=null)sheetContent.removeView(menuBox);sheet.box.setVisibility(View.GONE);
-            menuBox=column();menuBox.setClickable(true);menuBox.setBackgroundDrawable(new MenuBackdrop());
+            menuBox=new AppMenu();menuBox.setClickable(true);menuBox.setBackgroundDrawable(new MenuBackdrop());
             menuScroll=new ScrollView(this){
                 @Override protected void onScrollChanged(int l,int t,int oldl,int oldt){
                     super.onScrollChanged(l,t,oldl,oldt);
@@ -140,28 +153,14 @@ public final class HomeAppActionsActivity extends ManagementUi {
     }
     private void showMenu(View focus){
         if(fromDock)positionDockMenu();
-        else menuBox.getLayoutParams().height=0;
-        dialog.show();
-
         View requested=retainedFocus.isEmpty()?null:menuBox.findViewWithTag(retainedFocus);
         if(requested==null||!requested.isEnabled())requested=focus;
         retainedFocus="";
-        LinearLayout current=menuBox;
+        AppMenu current=menuBox;
         View target=requested;
-        if(fromDock||positionSecondScreenMenu()){
-            focusMenu(current,target);
-        }else{
-            sheetContent.addOnLayoutChangeListener(new View.OnLayoutChangeListener(){
-                @Override public void onLayoutChange(View view,int l,int t,int r,int b,int oldL,int oldT,int oldR,int oldB){
-                    if(closing||current!=menuBox||current.getVisibility()!=View.VISIBLE){
-                        view.removeOnLayoutChangeListener(this);
-                    }else if(positionSecondScreenMenu()){
-                        view.removeOnLayoutChangeListener(this);
-                        focusMenu(current,target);
-                    }
-                }
-            });
-        }
+        current.record("show","");
+        OneShotPreDrawListener.add(current,()->focusMenu(current,target));
+        dialog.show();
     }
     private void positionDockMenu(){
         android.util.DisplayMetrics display=getResources().getDisplayMetrics();
@@ -175,9 +174,7 @@ public final class HomeAppActionsActivity extends ManagementUi {
         position.topMargin=menuBottom-position.height;
         menuBox.setLayoutParams(position);
     }
-    private boolean positionSecondScreenMenu(){
-        int width=sheetContent.getWidth(),height=sheetContent.getHeight();
-        if(width<=0||height<=0)return false;
+    private void positionSecondScreenMenu(int width,int height){
         int horizontalInset=Math.min(px(MENU_PADDING),width/4),verticalInset=Math.min(px(MENU_PADDING),height/4);
         Rect viewport=new Rect(horizontalInset,verticalInset,width-horizontalInset,height-verticalInset);
         Rect anchor=getIntent().getParcelableExtra("anchor-bounds");
@@ -195,8 +192,7 @@ public final class HomeAppActionsActivity extends ManagementUi {
         position.height=bounds.height();
         position.leftMargin=bounds.left;
         position.topMargin=bounds.top;
-        menuBox.setLayoutParams(position);
-        return true;
+        // The parent is about to measure the menu with these parameters.
     }
     static Rect secondScreenMenuBounds(Rect viewport,Rect anchor,int width,int height,int gap){
         width=Math.min(width,viewport.width());
@@ -249,6 +245,42 @@ public final class HomeAppActionsActivity extends ManagementUi {
                 target.requestRectangleOnScreen(area,true);
             }
         });
+    }
+    private void endMenu(String reason){
+        if(menuBox!=null&&!menuBox.ended){
+            menuBox.record("close"," reason="+reason);
+            menuBox.ended=true;
+        }
+    }
+    private final class AppMenu extends LinearLayout {
+        private final long openedAt=SystemClock.uptimeMillis();
+        private final int attempt=generation;
+        private boolean laidOut,drawn,ended;
+
+        AppMenu(){
+            super(HomeAppActionsActivity.this);
+            setOrientation(VERTICAL);
+            setClipChildren(false);
+        }
+
+        @Override protected void onLayout(boolean changed,int left,int top,int right,int bottom){
+            super.onLayout(changed,left,top,right,bottom);
+            if(!laidOut&&!ended){laidOut=true;record("layout","");}
+        }
+        @Override public void onWindowFocusChanged(boolean focused){
+            super.onWindowFocusChanged(focused);
+            if(!ended)record("focus"," focused="+focused);
+        }
+        @Override protected void dispatchDraw(Canvas canvas){
+            super.dispatchDraw(canvas);
+            if(!drawn&&!ended){drawn=true;record("draw"," evidence=view_draw_callback");}
+        }
+        private void record(String stage,String detail){
+            DiagnosticLog.info("home.app_menu."+stage,"instance="+instance+" menu="+attempt+" dock="+fromDock
+                    +" elapsedMs="+(SystemClock.uptimeMillis()-openedAt)+" viewport="+sheetContent.getMeasuredWidth()+"x"+sheetContent.getMeasuredHeight()
+                    +" size="+getWidth()+"x"+getHeight()+" left="+getLeft()+" top="+getTop()+" shown="+isShown()
+                    +" windowFocus="+hasWindowFocus()+" itemFocus="+hasFocus()+" laidOut="+laidOut+" drawn="+drawn+detail);
+        }
     }
     private final class MenuBackdrop extends Drawable {
         private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);
@@ -396,16 +428,26 @@ public final class HomeAppActionsActivity extends ManagementUi {
             },()->cancel.requestFocusFromTouch());
         });confirm.setBackgroundDrawable(new SettingsFocusDrawable(unit,999,UiPalette.SELECTED,false,0x4dffffff));show(537.6f,cancel,false);
     }
-    @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==DELETE){waitingForDelete=false;AppRepository.App current=metadata(pkg);boolean removed=current==null||!current.installed;if(removed){new DockStore(this).remove(pkg);new HomeOrderStore(this).remove(pkg);new HomeVisibilityStore(this).remove(pkg);}changed("",removed?"应用已卸载":result==RESULT_CANCELED?"已取消卸载":"卸载尚未完成，请核对应用状态",removed);}}
+    @Override protected void onActivityResult(int request,int result,Intent data){
+        super.onActivityResult(request,result,data);
+        if(request!=DELETE)return;
+        waitingForDelete=false;
+        AppRepository.App current=metadata(pkg);
+        boolean removed=current==null||!current.installed;
+        DiagnosticLog.info("home.app_menu.uninstall_result","instance="+instance+" systemResult="+result+" removed="+removed);
+        if(removed){new DockStore(this).remove(pkg);new HomeOrderStore(this).remove(pkg);new HomeVisibilityStore(this).remove(pkg);}
+        changed("",removed?"应用已卸载":result==RESULT_CANCELED?"已取消卸载":"卸载尚未完成，请核对应用状态",removed);
+    }
     private void coverMenu(){
         startActivity(new Intent(this,DesktopSettingsActivity.class).putExtra("management-page",SettingsPages.APPS).putExtra("open-app-icon",true).putExtra("selected-package",pkg).putExtra("backdrop",backdrop));finish();
     }
     @Override public void handleBack(){
         KeyFeedback.back(this);
         if(mode.equals("unpin")||mode.equals("uninstall")||mode.equals("picker")&&pickerFromMenu)menu();
-        else finish();
+        else{endMenu("back");finish();}
     }
+    @Override public void finish(){endMenu("finish");super.finish();}
     @Override protected void onSaveInstanceState(Bundle state){super.onSaveInstanceState(state);state.putString("app-menu-package",pkg);state.putBoolean("app-menu-dock",fromDock);state.putString("app-menu-mode",mode);state.putString("app-menu-picker",pickerMode);state.putBoolean("app-menu-from-menu",pickerFromMenu);state.putString("app-menu-candidate",candidate);state.putBoolean("app-menu-waiting-delete",waitingForDelete);View focus=dialog.getCurrentFocus();state.putString("app-menu-focus",focus!=null&&focus.getTag() instanceof String?(String)focus.getTag():"");state.putFloat("app-menu-scroll",(mode.equals("menu")?menuScroll:sheet.scroll).getScrollY()/unit);}
     @Override protected void onStop(){super.onStop();if(!waitingForDelete&&!isChangingConfigurations())finish();}
-    @Override protected void onDestroy(){closing=true;++generation;ChildModeAuth.dismiss(this);if(dialog!=null)dialog.dismiss();worker.shutdown();super.onDestroy();}
+    @Override protected void onDestroy(){endMenu("destroy");closing=true;++generation;ChildModeAuth.dismiss(this);if(dialog!=null)dialog.dismiss();worker.shutdown();super.onDestroy();}
 }

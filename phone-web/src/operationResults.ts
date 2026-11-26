@@ -4,13 +4,14 @@ export type OperationNotice={kind:'success'|'error'|'info';title:string;detail?:
 export const resultFields=new Set(['wallpaper','saverMedia','greeting','cityCode','homeButtons','dockApps','gridOrder','boot']);
 const labels:Record<string,Record<string,string>>={
   catalog:{renameMedia:'重命名'},apps:{renameApp:'重命名',refresh:'刷新应用列表',open:'打开应用',restoreCover:'恢复默认封面',boot:'设置开机应用',hide:'隐藏应用',show:'恢复应用显示',dockAdd:'添加到首页',dockRemove:'移除首页位置',UNINSTALL:'卸载应用',systemUninstall:'卸载应用',DISABLE:'停用应用',ENABLE:'启用应用',RESTORE:'恢复应用'},
-  wallpaper:{removeMedia:'删除素材',dailyRefresh:'刷新壁纸',dailySource:'切换壁纸来源',wallpaper:'应用壁纸'},screensaver:{saverMedia:'应用屏保素材'},greeting:{greeting:'保存问候语'},
+  wallpaper:{removeMedia:'删除素材',builtinMediaVisible:'更新默认素材',dailyRefresh:'刷新壁纸',dailySource:'切换壁纸来源',wallpaper:'应用壁纸'},screensaver:{saverMedia:'应用屏保素材',builtinMediaVisible:'更新默认素材'},greeting:{greeting:'保存问候语'},
   quick:{quickControls:'保存快捷控制',reset:'恢复默认快捷控制',run:'发送电视操作'},buttons:{homeButtons:'保存首页按钮'},dock:{dockApps:'保存 Dock 应用',gridOrder:'保存应用顺序'},
   child:{rule:'保存儿童设置',grant:'追加使用时间',permission:'打开计时授权',quizNow:'发送答题请求'},quiz:{quizSettings:'保存答题设置',quizAppSettings:'保存答题设置',selectedCustomIds:'保存所选题目',question:'保存题目',deleteQuestion:'删除题目'},
   memos:{save:'保存备忘录',remove:'删除备忘录',toggle:'更新备忘录'},files:{receive:'保存文件',remove:'删除文件',wallpaper:'应用壁纸',install:'安装应用',permission:'打开目录授权'},
   backup:{remove:'删除备份',create:'创建备份',export:'导出备份',prepareFromFile:'校验备份',admit:'导入备份',restore:'恢复备份',retry:'核对恢复记录'},
   weather:{refresh:'刷新天气',cityCode:'保存天气城市'},diagnostics:{recording:'记录诊断日志',export:'下载日志',exportInputs:'下载信号源诊断包'},management:{connect:'连接 ADB',disconnect:'断开 ADB',check:'检查 ADB 状态'},
   bootAds:{check:'检查广告设置',apply:'应用广告设置',restore:'恢复广告设置'},
+  systemSettings:{open:'打开电视原设置',next:'尝试其他打开方式',detect:'重新检测入口',remember:'保存原设置入口'},
   guard:{pause:'暂停桌面接管',restore:'恢复原桌面',system:'打开默认桌面设置',repair:'修复守护',repairAccessibility:'打开无障碍设置'},desktopSwitch:{switch:'切换桌面',manage:'桌面管理',verify:'记录使用验证'},
   inputs:{autoEnter:'设置信号源开机自动进入',calibrate:'发送端口名称校正测试',search:'搜索信号源',test:'发送信号源测试',confirm:'保存配对结果',restore:'恢复配对配置',defaults:'恢复配对默认设置',observe:'记录信号源',cancel:'结束信号源任务'},
   update:{check:'检查更新',download:'下载安装包',install:'准备安装更新',cancelCheck:'取消更新检查',cancelDownload:'取消安装包下载',reconcile:'核对电视版本'},components:{start:'下载天气资源',cancel:'取消组件下载',uninstall:'卸载天气资源'}
@@ -21,7 +22,7 @@ export function requiresTask(domain:string,field:string){return domain==='inputs
 export function completedNotice(label:string,operation?:Record<string,unknown>,domain='',field=''):OperationNotice{
   const detail=typeof operation?.message==='string'?operation.message:undefined;
   if(domain==='apps'&&field==='renameApp'&&operation?.persisted!==true||domain==='catalog'&&field==='renameMedia'&&operation?.renamed!==true)return {kind:'info',title:'名称保存结果待核对'};
-  if(operation?.endsConnection)return {kind:'info',title:'恢复请求已受理',detail:'请重新扫码核对恢复或回滚结果'};
+  if(operation?.endsConnection)return {kind:'info',title:'恢复请求已受理',detail:'请重新连接并查看恢复结果'};
   if(operation?.state==='waitingTelevision'||operation?.waitingTelevision||domain==='child'&&field==='permission')return {kind:'info',title:'请在电视继续操作',detail};
   if(domain==='apps'&&field==='open')return {kind:'info',title:'打开请求已发送',detail};
   if(domain==='components'||domain==='update'&&['check','download','install'].includes(field)||domain==='management'&&field==='connect'||domain==='inputs'&&['search','test','calibrate','observe'].includes(field))return {kind:'info',title:domain==='update'&&field==='install'?'请在电视继续安装':'请求已受理',detail};

@@ -11,6 +11,7 @@ import android.widget.*;
 final class WallpaperUi {
     static final int INK=UiPalette.TEXT,MUTED=UiPalette.SECONDARY;
     static final int TOOLBAR_WIDTH=78,TOOLBAR_HEIGHT=30,CATEGORY_PADDING=4,TOOLBAR_PADDING=16;
+    static final int CARD_RADIUS=16,CARD_INSET=5;
     final Context context;
     final float unit;
     WallpaperUi(Context context,float unit){this.context=context;this.unit=unit;}
@@ -75,17 +76,31 @@ final class WallpaperUi {
             @Override public void setAlpha(int alpha){paint.setAlpha(alpha);}@Override public void setColorFilter(ColorFilter filter){paint.setColorFilter(filter);}@Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
         };art.setBounds(0,0,px(size),px(size));return art;
     }
-    ImageView image(float outerRadius,float inset){
+    static float pickerUnit(float baseUnit) {return baseUnit * 960f / 1040f;}
+    static ImageView pickerThumbnail(Context context, float baseUnit) {
         // Resolve the outer tier before insetting the image, so its mask matches the border.
-        int padding=px(inset);
-        return new ImageView(context){
-            final Path clip=new Path();final RectF imageBounds=new RectF();
-            {if(android.os.Build.VERSION.SDK_INT<18)setLayerType(View.LAYER_TYPE_SOFTWARE,null);setScaleType(ScaleType.CENTER_CROP);androidx.core.view.ViewCompat.setImportantForAccessibility(this,androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);}
-            @Override protected void onDraw(Canvas canvas){
-                imageBounds.set(-padding,-padding,getWidth()+padding,getHeight()+padding);float radius=Math.max(0,SurfaceCorners.radius(imageBounds,px(outerRadius),unit)-padding);imageBounds.set(0,0,getWidth(),getHeight());SurfaceCorners.path(clip,imageBounds,radius);
-                int saved=canvas.save();canvas.clipPath(clip);super.onDraw(canvas);canvas.restoreToCount(saved);
+        float unit = pickerUnit(baseUnit);
+        int padding = Math.round(CARD_INSET * unit);
+        int outerRadius = Math.round(CARD_RADIUS * unit);
+        ImageView thumbnail = new ImageView(context) {
+            private final Path clip = new Path();
+            private final RectF imageBounds = new RectF();
+
+            @Override protected void onDraw(Canvas canvas) {
+                imageBounds.set(-padding, -padding, getWidth() + padding, getHeight() + padding);
+                float radius = Math.max(0, SurfaceCorners.radius(imageBounds, outerRadius, unit) - padding);
+                imageBounds.set(0, 0, getWidth(), getHeight());
+                SurfaceCorners.path(clip, imageBounds, radius);
+                int saved = canvas.save();
+                canvas.clipPath(clip);
+                super.onDraw(canvas);
+                canvas.restoreToCount(saved);
             }
         };
+        if (android.os.Build.VERSION.SDK_INT < 18) thumbnail.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+        thumbnail.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        androidx.core.view.ViewCompat.setImportantForAccessibility(thumbnail, androidx.core.view.ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        return thumbnail;
     }
     static Drawable shade(){
         return new Drawable(){

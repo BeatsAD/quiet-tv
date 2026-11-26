@@ -36,7 +36,7 @@ final class DiagnosticOperation {
     static void restore(String previous){if(previous==null)parent.remove();else parent.set(previous);}
     void stage(String next){stage(next,clock());}
     void finish(String outcome,String why){finish(outcome,why,System.currentTimeMillis(),clock());}
-    static String domain(String value){return java.util.Arrays.asList("appearance","feedback","greeting","wallpaper","dock","buttons","weather","catalog","quick","screensaver","uploads","tasks","audio","apps","child","childUsage","quiz","parent","weatherInfo","boot","guard","management","inputs","files","memos","backup","update","diagnostics","components","desktopSwitch","icons").contains(value)?value:"other";}
+    static String domain(String value){return java.util.Arrays.asList("appearance","feedback","greeting","wallpaper","dock","buttons","weather","catalog","quick","screensaver","uploads","tasks","audio","apps","child","childUsage","quiz","parent","weatherInfo","boot","guard","management","inputs","systemSettings","files","memos","backup","update","diagnostics","components","desktopSwitch","icons").contains(value)?value:"other";}
     static String nextId(long wall){return Long.toHexString(wall)+"-"+sequence.incrementAndGet();}
     synchronized void stage(String next,long now){
         if(!"RUNNING".equals(result) || stage.equals(next))return;

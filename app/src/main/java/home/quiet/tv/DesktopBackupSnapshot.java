@@ -27,14 +27,16 @@ final class DesktopBackupSnapshot {
         try{
             WallpaperCatalog catalog=WallpaperStore.get(context).backupSnapshot();JSONObject walls=catalog.json();walls.getJSONObject("daily").put("images",new JSONObject());
             QuickControlStore quick=new QuickControlStore(new File(context.getFilesDir(),"quick-controls"));
-            JSONObject result=new JSONObject().put("desktop",preferences("desktop-settings",DesktopBackupRecord.DESKTOP_KEYS)).put("weather",preferences("weather",DesktopBackupRecord.WEATHER_KEYS)).put("dock",preferences("dock",DesktopBackupRecord.DOCK_KEYS)).put("order",preferences("home-order",DesktopBackupRecord.ORDER_KEYS)).put("wallpaper",walls).put("screensaver",ScreensaverStore.get(context).backupSnapshot(catalog).json()).put("shortcuts",new JSONArray(quick.read().ids)).put("covers",AppCoverStore.get(context).backupSnapshot());
+            JSONObject saver=ScreensaverStore.get(context).backupSnapshot(catalog).json();
+            JSONObject result=new JSONObject().put("desktop",preferences("desktop-settings",DesktopBackupRecord.DESKTOP_KEYS)).put("weather",preferences("weather",DesktopBackupRecord.WEATHER_KEYS)).put("dock",preferences("dock",DesktopBackupRecord.DOCK_KEYS)).put("order",preferences("home-order",DesktopBackupRecord.ORDER_KEYS)).put("wallpaper",walls).put("screensaver",saver).put("shortcuts",new JSONArray(quick.read().ids)).put("covers",AppCoverStore.get(context).backupSnapshot());
             DesktopBackupRecord.validateConfig(result);return result;
         }catch(JSONException|RuntimeException failure){throw new IOException("当前桌面配置无法读取，已有备份保留",failure);}
     }
     static String comparable(JSONObject config)throws JSONException{
         JSONObject copy=new JSONObject(config.toString()),walls=WallpaperCatalog.read(copy.getJSONObject("wallpaper")).json();
         // Compare the same defaults that the stores write when restoring an older backup.
-        copy.put("wallpaper",walls).put("screensaver",ScreensaverSettings.read(copy.getJSONObject("screensaver")).json());
+        JSONObject savedSaver=copy.getJSONObject("screensaver"),saver=ScreensaverSettings.read(savedSaver).json();
+        copy.put("wallpaper",walls).put("screensaver",saver);
         if(walls.optBoolean("rotating")){walls.remove("current");walls.remove("lastVideo");}JSONArray shortcuts=copy.getJSONArray("shortcuts");List<String> ids=new ArrayList<>();for(int i=0;i<shortcuts.length();i++)ids.add(shortcuts.getString(i));copy.put("shortcuts",new JSONArray(QuickControlStore.normalize(ids)));return DesktopBackupRecord.canonical(copy);
     }
     DesktopBackupRecord capture(String kind)throws IOException{
@@ -82,7 +84,8 @@ final class DesktopBackupSnapshot {
             synchronized(DesktopSettingsStore.MUTATIONS){applyPreferences("desktop-settings",DesktopBackupRecord.DESKTOP_KEYS,config.getJSONObject("desktop"),true);}
             applyPreferences("weather",DesktopBackupRecord.WEATHER_KEYS,config.getJSONObject("weather"),false);applyPreferences("dock",DesktopBackupRecord.DOCK_KEYS,config.getJSONObject("dock"),false);applyPreferences("home-order",DesktopBackupRecord.ORDER_KEYS,config.getJSONObject("order"),false);
             QuickControlStore quick=new QuickControlStore(new File(context.getFilesDir(),"quick-controls"));JSONArray ids=config.getJSONArray("shortcuts");List<String> values=new ArrayList<>();for(int i=0;i<ids.length();i++)values.add(ids.getString(i));quick.restore(quick.read().revision,values);
-            WallpaperStore.get(context).restoreBackup(config.getJSONObject("wallpaper"));ScreensaverStore.get(context).save(ScreensaverSettings.read(config.getJSONObject("screensaver")));AppCoverStore.get(context).restoreBackup(config.getJSONObject("covers"));
+            WallpaperStore.get(context).restoreBackup(config.getJSONObject("wallpaper"));
+            ScreensaverStore.get(context).save(ScreensaverSettings.read(config.getJSONObject("screensaver")));AppCoverStore.get(context).restoreBackup(config.getJSONObject("covers"));
             if(!context.getSharedPreferences("desktop-settings",0).getBoolean("key-sounds",false))KeySounds.stop();
             if(!comparable(config).equals(comparable(read())))throw new IOException("恢复写入核对未通过");
         }catch(JSONException|RuntimeException failure){throw new IOException("桌面恢复未完成",failure);}

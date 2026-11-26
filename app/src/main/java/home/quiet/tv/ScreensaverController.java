@@ -27,6 +27,10 @@ final class ScreensaverController {
     private final Handler main=new Handler(Looper.getMainLooper());
     private final ScreensaverInformationView information;
     private final WallpaperWallView wall;
+    private final FeiniuMovieWall movieWall;
+    private final Runnable movieWallChanged=()->{
+        if(this.settings!=null&&this.settings.movieWall())settingsChanged();
+    };
     private boolean wallBackground;
     private Runnable wallPrepared;
     private final boolean chinese;
@@ -59,6 +63,7 @@ final class ScreensaverController {
     }};
     ScreensaverController(Activity activity,FrameLayout root,WallpaperController wallpapers,float unit,boolean chinese,Host host){
         this.activity=activity;this.wallpapers=wallpapers;this.host=host;this.chinese=chinese;media=WallpaperStore.get(activity);store=ScreensaverStore.get(activity);
+        movieWall=FeiniuMovieWall.get(activity);movieWall.addListener(movieWallChanged);
         wall=new WallpaperWallView(activity,media,this::wallReady);
         wall.setVisibility(View.GONE);
         root.addView(wall,new FrameLayout.LayoutParams(-1,-1));
@@ -87,6 +92,7 @@ final class ScreensaverController {
     }
     private String mediaKey(ScreensaverSettings value,WallpaperCatalog catalog){
         List<String> ids=value.wall()?WallpaperWall.ids(catalog):Collections.emptyList();
+        if(value.movieWall())return value.mode+":"+movieWall.revision();
         if(!ids.isEmpty())return value.mode+":"+ids;
         return value.mode+":"+value.customBlank(catalog)+":"+media.imageKey(value.resolved(catalog))+":"+catalog.weather+":"+catalog.weatherDayNight;}
     private void updateFlipSound(){if(settings!=null&&settings.flipping()&&settings.flipSound&&(state==State.ENTERING||state==State.ACTIVE)){if(flipSound==null)try{flipSound=new FlipClockSound(activity);}catch(RuntimeException error){DiagnosticLog.error("screensaver.flip_sound.unavailable",error);}}else if(flipSound!=null)flipSound.stop();}
@@ -96,7 +102,7 @@ final class ScreensaverController {
             if(version!=generation||state!=State.ENTERING)return;
             DiagnosticLog.info("screensaver.transition","state=active evidence=background_callback");state=State.ACTIVE;host.desktopVisible(false);information.setVisibility(View.VISIBLE);information.active(true);refreshClock();refreshQuote(true);
         };
-        List<String> ids=settings.wall()?WallpaperWall.ids(catalog):Collections.emptyList();
+        List<String> ids=settings.movieWall()?movieWall.ids():settings.wall()?WallpaperWall.ids(catalog):Collections.emptyList();
         hideWall();
         if(ids.isEmpty()){prepareBackground(catalog,prepared);return;}
         wallBackground=true;
@@ -106,12 +112,12 @@ final class ScreensaverController {
             prepared.run();
         });
         wall.setVisibility(View.INVISIBLE);
-        wall.show(ids);
+        wall.show(ids,settings.movieWall(),settings.movieWall()?movieWall.revision():"");
         wall.active(true);
     }
     private void prepareBackground(WallpaperCatalog catalog,Runnable prepared){
         boolean follow=ScreensaverSettings.FOLLOW.equals(settings.mode)||settings.wall();
-        if(settings.customBlank(catalog))wallpapers.showTemporaryBlank(prepared);
+        if(settings.movieWall()||settings.customBlank(catalog))wallpapers.showTemporaryBlank(prepared);
         else wallpapers.showTemporary(settings.resolved(catalog),follow&&catalog.weather&&WallpaperGpuSupport.available(activity),
             catalog.weatherDayNight,settings.sound&&(settings.wall()?settings.content(ScreensaverSettings.FOLLOW).video(catalog):settings.video(catalog)),prepared);
     }
@@ -195,10 +201,12 @@ final class ScreensaverController {
     private void render(long now){
         if(settings==null)return;
         renderedMinute=now/60000;
-        boolean clockOnly=settings.clockOnly();information.setBackgroundColor(clockOnly?0xff000000:Color.TRANSPARENT);
+        boolean emptyMovieWall=settings.movieWall()&&!wallBackground;
+        ScreensaverSettings displayed=emptyMovieWall?settings.content(ScreensaverSettings.CLOCK):settings;
+        information.setBackgroundColor(displayed.clockOnly()?0xff000000:Color.TRANSPARENT);
         boolean visible=weatherData!=null&&weatherData.usable(now);
         refreshQuote(false);
-        information.show(settings,now,visible?String.format(Locale.ROOT,"%s  %s  %s",weatherData.city,weatherData.temperatureText(),weatherData.description):"");
+        information.show(displayed,now,visible?String.format(Locale.ROOT,"%s  %s  %s",weatherData.city,weatherData.temperatureText(),weatherData.description):"");
     }
-    void destroy(){pause();wall.destroy();destroyed=true;if(flipSound!=null)flipSound.destroy();activity.unregisterReceiver(screen);main.removeCallbacksAndMessages(null);}
+    void destroy(){pause();movieWall.removeListener(movieWallChanged);wall.destroy();destroyed=true;if(flipSound!=null)flipSound.destroy();activity.unregisterReceiver(screen);main.removeCallbacksAndMessages(null);}
 }

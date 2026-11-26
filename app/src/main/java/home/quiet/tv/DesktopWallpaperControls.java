@@ -2,7 +2,9 @@ package home.quiet.tv;
 
 import android.os.Build;
 import android.os.Bundle;
-import android.text.*;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.TextUtils;
 import android.view.*;
 import android.widget.*;
 import java.io.IOException;
@@ -21,21 +23,20 @@ final class DesktopWallpaperControls {
     private final Runnable refreshDailyState=this::refreshDaily;
     private final Runnable dailyStateChanged=this::scheduleDailyRefresh;
     private final WeatherSettingsSheet weatherEditor;
-    private DisplayAppearanceChoice modeChoice,intervalChoice,sourceChoice;
-    private DesktopSettingsRow choose,dayNight,dailyDetails,movieInfo,homeQuote,city,source,sound,component;
+    private DisplayAppearanceChoice modeChoice,sourceChoice;
+    private DesktopSettingsRow choose,dayNight,dailyDetails,movieInfo,homeQuote,city,source,sound,component,intervalRow;
     private boolean componentsListening;
     private final home.quiet.components.ComponentRepository.Listener componentsChanged=this::refreshComponent;
     private TextView rotationNote,lowNote,summary,summaryDetail;
     private LinearLayout weatherSummary;
-    private LinearLayout customRow;
-    private EditText minutes;
+    private WallpaperIntervalEditor intervalEditor;
     private ManagementUi.Sheet details;
     private TextView dailyStatus,dailySource,dailyTitle,dailyMetadata,dailyAttribution;
     private LinearLayout dailyPicture;
     private android.widget.ImageView movieLogo;
     private Button dailyRefresh;
-    private String mode="",candidate="",interval="",focusedMode="",error="";
-    private boolean expanded,followDayNight=true,touched,custom,busy,destroyed;
+    private String mode="",candidate="",focusedMode="",error="";
+    private boolean expanded,followDayNight=true,touched,intervalOpen,busy,destroyed;
     private int generation;
     DesktopWallpaperControls(AppManagementActivity ui,LinearLayout group,DesktopMediaImportPanel importer,WeatherSettingsSheet weatherEditor,Preview preview,Runnable rewired){
         this.ui=ui;this.group=group;this.weatherEditor=weatherEditor;this.preview=preview;this.rewired=rewired;store=WallpaperStore.get(ui);
@@ -49,10 +50,10 @@ final class DesktopWallpaperControls {
     private TextView note(String value){TextView text=ui.muted(value,11);QuickControlPreviewView.type(text,12.16f,19.456f,ui.unit,UiPalette.SECONDARY);if(Build.VERSION.SDK_INT>=28)text.setFallbackLineSpacing(false);text.setPadding(ui.px(10.56f),text.getPaddingTop()+ui.px(5.76f),ui.px(10.56f),text.getPaddingBottom()+ui.px(5.76f));return text;}
     private DesktopSettingsRow row(String title,String tag,Runnable action){DesktopSettingsRow item=new DesktopSettingsRow(ui,title,"",false);item.displayStyle();item.hideIcon();item.setTag(tag);item.setOnClickListener(v->{if(!busy)action.run();});group.addView(item,new LinearLayout.LayoutParams(-1,ui.px(42)));return item;}
     private String actualMode(WallpaperCatalog state){return state.weather&&WallpaperGpuSupport.available(ui)?"weather":WallpaperCatalog.DAILY.equals(state.current)?"daily":state.rotating?"rotation":"fixed";}
-    private void reset(){WallpaperCatalog state=store.snapshot();mode=actualMode(state);candidate=state.current;followDayNight=state.weatherDayNight;interval="";custom=false;touched=false;error="";}
+    private void reset(){WallpaperCatalog state=store.snapshot();mode=actualMode(state);candidate=state.current;followDayNight=state.weatherDayNight;touched=false;error="";}
     private String staticFallback(WallpaperCatalog state,String id){WallpaperCatalog.Entry item=state.find(id);String next=item!=null&&item.video()?state.staticBeforeVideo:id;if(WallpaperCatalog.DAILY.equals(next))next=state.dailyFallback();return state.find(next)==null?WallpaperCatalog.DEFAULT:next;}
     private void mode(String value){
-        if(busy)return;WallpaperCatalog state=store.snapshot();mode=value;focusedMode="";interval="";custom=false;touched=true;error="";
+        if(busy)return;WallpaperCatalog state=store.snapshot();mode=value;focusedMode="";intervalOpen=false;touched=true;error="";
         if(value.equals("daily")){candidate=WallpaperCatalog.DAILY;expanded=false;}
         else if(value.equals("weather")){candidate=staticFallback(state,candidate);expanded=false;}
         else if(value.equals("fixed"))candidate=state.fixedCandidate(candidate);
@@ -75,20 +76,24 @@ final class DesktopWallpaperControls {
         homeQuote=row(tr("显示每日格言","Show daily quote"),"wall-home-quote",()->saveHomeContent(DailyQuote.HOME,!homeQuote.checked()));
         for(DesktopSettingsRow arrow:new DesktopSettingsRow[]{choose,city,source,dailyDetails})arrow.getLayoutParams().height=ui.px(44.72f);
         group.addView(media.library);
-        intervalChoice=new DisplayAppearanceChoice(ui,"wall-interval",tr("轮换间隔","Rotation interval"),new String[]{"1","5","10","15","30","60","custom"},new String[]{"1 "+tr("分钟","min"),"5 "+tr("分钟","min"),"10 "+tr("分钟","min"),"15 "+tr("分钟","min"),"30 "+tr("分钟","min"),"60 "+tr("分钟","min"),tr("自定义","Custom")},new DisplayAppearanceChoice.Access(){public String read(){return custom||!preset(currentMinutes())?"custom":String.valueOf(currentMinutes());}public void save(String value)throws IOException{if(busy)throw new IOException(tr("正在应用，请稍候","Applying. Please wait."));custom=value.equals("custom");interval=custom?String.valueOf(currentMinutes()):value;touched=true;error="";refresh();scene();if(!custom)apply();}},false,new DisplayAppearanceChoice.Preview(){public void value(String key,Object value){}public void clear(String key){}},rewired).twoColumns().errors(this::error);group.addView(intervalChoice);
-        // Keep the 42-unit content area; 4.6 below it brings the field's bottom inset to 9.6.
-        customRow=ui.row();customRow.setGravity(Gravity.CENTER_VERTICAL);customRow.setPadding(ui.px(9.6f),0,ui.px(9.6f),ui.px(4.6f));TextView caption=ui.label(tr("自定义分钟","Custom minutes"),13);caption.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,12.48f*ui.unit);customRow.addView(caption,new LinearLayout.LayoutParams(0,-1,1));minutes=ui.input("","");minutes.setContentDescription(tr("壁纸轮换间隔","Wallpaper rotation interval"));minutes.setTag("wall-custom-interval");minutes.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);minutes.setFilters(new InputFilter[]{new InputFilter.LengthFilter(4)});customRow.addView(minutes,new LinearLayout.LayoutParams(ui.px(64),ui.px(32)));TextView suffix=ui.muted(tr("分钟","min"),11);suffix.setPadding(ui.px(5),0,0,0);customRow.addView(suffix);group.addView(customRow,new LinearLayout.LayoutParams(-1,ui.px(46.6f)));minutes.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int start,int count,int after){}public void onTextChanged(CharSequence text,int start,int before,int count){if(!minutes.hasFocus())return;interval=text.toString();custom=true;touched=true;error="";scene();}public void afterTextChanged(Editable e){}});
-        minutes.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_DONE);minutes.setOnEditorActionListener((view,action,event)->{if(action!=android.view.inputmethod.EditorInfo.IME_ACTION_DONE)return false;apply();return true;});minutes.setOnKeyListener((view,key,event)->{if(key!=KeyEvent.KEYCODE_DPAD_CENTER&&key!=KeyEvent.KEYCODE_ENTER&&key!=KeyEvent.KEYCODE_NUMPAD_ENTER)return false;if(event.getAction()==KeyEvent.ACTION_UP&&!event.isCanceled()){
-            boolean accepted=!busy&&(!mode.equals("rotation")||WallpaperCatalog.rotationMinutes(currentMinutes()));
-            apply();
-            if(accepted)KeyFeedback.confirm(ui);
-        }return true;});minutes.setOnFocusChangeListener((view,focused)->{if(!focused&&custom&&touched&&!busy&&mode.equals("rotation"))apply();});
+        intervalRow=row(tr("轮换间隔","Rotation interval"),"appearance-wall-interval",()->{
+            intervalOpen=!intervalOpen;
+            if(intervalOpen)intervalEditor.reset(currentSeconds());
+            refresh();
+        });
+        intervalEditor=new WallpaperIntervalEditor(ui,ui.unit,ui.chinese(),currentSeconds(),seconds->{
+            if(apply(false,seconds)){intervalEditor.reset(currentSeconds());PhoneSettingsSession.get(ui).configurationChanged();}
+        },rewired);
+        group.addView(intervalEditor,new LinearLayout.LayoutParams(-1,-2));
         rotationNote=note("");group.addView(rotationNote);sound=row(tr("背景声音","Background sound"),"wall-sound",()->{try{store.sound(!store.snapshot().sound);refresh();scene();}catch(IOException error){error(error.getMessage());}});refresh();
     }
-    private static boolean preset(int value){return value==1||value==5||value==10||value==15||value==30||value==60;}
     private boolean video(){WallpaperCatalog.Entry entry=store.snapshot().find(candidate);return entry!=null&&entry.video();}
-    private int currentMinutes(){if(!interval.isEmpty())try{return Integer.parseInt(interval);}catch(NumberFormatException invalid){return 0;}WallpaperCatalog state=store.snapshot();return video()?state.videoRotationMinutes:state.imageRotationMinutes;}
-    private boolean pending(){WallpaperCatalog state=store.snapshot();return !mode.equals(actualMode(state))||!candidate.equals(state.current)||mode.equals("weather")&&followDayNight!=state.weatherDayNight||mode.equals("rotation")&&currentMinutes()!=(video()?state.videoRotationMinutes:state.imageRotationMinutes);}
+    private int currentSeconds(){
+        WallpaperCatalog state=store.snapshot();
+        WallpaperCatalog.Entry entry=state.find(candidate);
+        return entry!=null&&entry.video()?state.videoRotationSeconds:state.imageRotationSeconds;
+    }
+    private boolean pending(){WallpaperCatalog state=store.snapshot();return !mode.equals(actualMode(state))||!candidate.equals(state.current)||mode.equals("weather")&&followDayNight!=state.weatherDayNight;}
     void refresh(){
         if(destroyed||choose==null)return;if(!touched)reset();WallpaperCatalog state=store.snapshot();if(state.find(candidate)==null||state.builtinHidden(candidate,false))candidate=state.current;boolean picking=mode.equals("fixed")||mode.equals("rotation"),weather=mode.equals("weather"),rotating=mode.equals("rotation");
         boolean movieWallpaper=state.dailyMovieSelected();
@@ -103,8 +108,15 @@ final class DesktopWallpaperControls {
         homeQuote.value(movie?tr("请先关闭影片信息","Turn off movie information first"):"");
         choose.setVisibility(picking?View.VISIBLE:View.GONE);choose.tail(expanded?"settings-up":"arrow");WallpaperCatalog.Entry item=state.find(candidate);choose.value(item==null?tr("素材不可用","Unavailable"):item.label(ui.chinese()));dailyDetails.setVisibility(mode.equals("daily")?View.VISIBLE:View.GONE);sourceChoice.setVisibility(mode.equals("daily")?View.VISIBLE:View.GONE);dailyDetails.value("");sourceChoice.available(store.dailyPending().isEmpty());sourceChoice.refreshConfirmed();media.visible(picking&&expanded);
         for(View v:new View[]{weatherSummary,dayNight,city,source})v.setVisibility(weather?View.VISIBLE:View.GONE);dayNight.checked(followDayNight);WeatherStore weatherStore=new WeatherStore(ui);WeatherData data=weatherStore.cached(ui.chinese());city.value(weatherStore.automatic()?(data==null?tr("自动定位","Automatic location"):data.city):weatherStore.city());source.value(weatherStore.provider().equals("auto")?tr("自动切换","Automatic fallback"):WeatherClient.providerName(weatherStore.provider()));weatherSummary(data);lowNote.setVisibility(WallpaperGpuSupport.available(ui)?View.GONE:View.VISIBLE);
-        intervalChoice.setVisibility(rotating?View.VISIBLE:View.GONE);customRow.setVisibility(rotating&&(custom||!preset(currentMinutes()))?View.VISIBLE:View.GONE);if(!minutes.hasFocus())minutes.setText(interval.isEmpty()?String.valueOf(currentMinutes()):interval);rotationNote.setText(video()?tr("至少需要 2 个视频才能轮换","At least 2 videos are needed for rotation"):tr("至少需要 2 张图片才能轮换","At least 2 images are needed for rotation"));rotationNote.setVisibility(rotating&&store.snapshot().count(video())<2?View.VISIBLE:View.GONE);
-        sound.setVisibility(video()?View.VISIBLE:View.GONE);sound.available(!rotating&&!weather&&!busy);sound.checked(state.sound&&!rotating&&!weather);sound.displayDescription(rotating||weather?tr("当前方式保持静音","This mode stays muted"):"");modeChoice.refresh();intervalChoice.refresh();media.refreshSelection();dailyStatus();rewired.run();
+        if(!rotating)intervalOpen=false;
+        intervalRow.setVisibility(rotating?View.VISIBLE:View.GONE);
+        int seconds=currentSeconds();
+        intervalRow.value(WallpaperRotation.label(seconds,ui.chinese()));
+        intervalRow.tail(intervalOpen?"settings-up":"arrow");
+        intervalEditor.setVisibility(rotating&&intervalOpen?View.VISIBLE:View.GONE);
+        intervalEditor.refresh(seconds);
+        rotationNote.setText(video()?tr("至少需要 2 个视频才能轮换","At least 2 videos are needed for rotation"):tr("至少需要 2 张图片才能轮换","At least 2 images are needed for rotation"));rotationNote.setVisibility(rotating&&store.snapshot().count(video())<2?View.VISIBLE:View.GONE);
+        sound.setVisibility(video()?View.VISIBLE:View.GONE);sound.available(!rotating&&!weather&&!busy);sound.checked(state.sound&&!rotating&&!weather);sound.displayDescription(rotating||weather?tr("当前方式保持静音","This mode stays muted"):"");modeChoice.refresh();media.refreshSelection();dailyStatus();rewired.run();
     }
     private void saveHomeContent(String key,boolean enabled){
         try{
@@ -121,31 +133,28 @@ final class DesktopWallpaperControls {
     }
     private void scene(){String shownMode=focusedMode.isEmpty()?mode:focusedMode;if(shownMode.equals("weather")&&!home.quiet.components.ComponentRepository.get(ui).isReady("weather"))shownMode="fixed";String id=shownMode.equals("daily")?WallpaperCatalog.DAILY:shownMode.equals("weather")?staticFallback(store.snapshot(),candidate):candidate;boolean rotating=shownMode.equals("rotation");preview.show(id,shownMode.equals("weather"),followDayNight,!store.snapshot().sound||rotating||shownMode.equals("weather"),error);}
     void showPreview(){scene();}
-    boolean drafting(){return touched&&pending()||modeChoice.drafting()||intervalChoice.drafting();}
+    boolean drafting(){return touched&&pending()||modeChoice.drafting();}
     boolean busy(){return busy||!store.dailyPending().isEmpty();}
-    String error(){return !error.isEmpty()?error:!modeChoice.error().isEmpty()?modeChoice.error():!intervalChoice.error().isEmpty()?intervalChoice.error():daily.error();}
+    String error(){return !error.isEmpty()?error:!modeChoice.error().isEmpty()?modeChoice.error():daily.error();}
     String loadingMessage(){String source=store.dailyPending();String label=source.isEmpty()?tr("壁纸","wallpaper"):WallpaperCatalog.sourceLabel(source,ui.chinese())+(WallpaperCatalog.MICROSOFT.equals(source)?"":tr("壁纸"," wallpaper"));return tr("正在获取"+label+"  完成后自动切换","Getting "+label+"  Switches automatically when ready");}
     void firstDrawReady(){media.firstDrawReady();}
     String openFromQuick(){media.quickEntry();expanded=mode.equals("fixed")||mode.equals("rotation");if(expanded)media.render();refresh();return expanded?"wall-picker":"appearance-wall-mode";}
     private void error(String message){error=message==null||"Unable to save wallpaper settings".equals(message)?tr("背景保存失败，原设置和预览已保留","Unable to apply background. Current settings and preview kept."):message;scene();}
     private void apply(){apply(false);}
-    private boolean apply(boolean closeLibrary){
+    private boolean apply(boolean closeLibrary){return apply(closeLibrary,currentSeconds());}
+    private boolean apply(boolean closeLibrary,int seconds){
         if(busy)return false;
-        if(mode.equals("rotation")&&!WallpaperCatalog.rotationMinutes(currentMinutes())){
-            error(tr("请输入 1–1440 的整数分钟","Enter an integer from 1 to 1440 minutes"));
-            return false;
-        }
         if(mode.equals("daily")){
             switchSource(DailyWallpaperLoader.source(store.snapshot()));
             return false;
         }
-        return commit(closeLibrary);
+        return commit(closeLibrary,seconds);
     }
     private void switchSource(String source){busy=true;int request=++generation;error="";scene();daily.apply(source,(success,message)->{if(destroyed||request!=generation)return;busy=false;if(success){reset();refresh();scene();ui.refreshBackdrop();ui.success(tr("每日壁纸已应用","Daily wallpaper applied"));}else{reset();refresh();error(message);}});}
-    private boolean commit(boolean closeLibrary){
+    private boolean commit(boolean closeLibrary,int seconds){
         try{
             View focused=ui.getCurrentFocus();
-            store.background(mode,candidate,currentMinutes(),followDayNight);
+            store.background(mode,candidate,seconds,followDayNight);
             prepareSelectedImage();
             ui.refreshBackdrop();
             reset();
@@ -155,7 +164,7 @@ final class DesktopWallpaperControls {
             ui.success(tr("壁纸设置已保存","Wallpaper settings saved"));
             if(closeLibrary)choose.requestFocusFromTouch();
             else if(focused!=null&&!focused.isShown()){
-                if(focused==minutes)intervalChoice.focusTrigger();else modeChoice.focusTrigger();
+                modeChoice.focusTrigger();
             }
             return true;
         }catch(IOException failure){
@@ -228,14 +237,14 @@ final class DesktopWallpaperControls {
         dailyMetadata.setVisibility(dailyMetadata.length()==0?View.GONE:View.VISIBLE);dailyPicture.removeAllViews();if(movie!=null)for(String paragraph:detailOverview(movie.overview).split("\n\n")){TextView text=ui.label(paragraph,14);text.setGravity(Gravity.TOP|Gravity.START);text.setLineSpacing(ui.px(4),1);if(Build.VERSION.SDK_INT>=28)text.setFallbackLineSpacing(false);LinearLayout.LayoutParams spacing=new LinearLayout.LayoutParams(-1,-2);spacing.topMargin=dailyPicture.getChildCount()==0?0:ui.px(8);dailyPicture.addView(text,spacing);}dailyPicture.setVisibility(movie==null?View.GONE:View.VISIBLE);dailyAttribution.setVisibility(movie==null?View.GONE:View.VISIBLE);dailyRefresh.setEnabled(store.dailyPending().isEmpty());
     }
     boolean contains(View view){while(view!=null){if(view==group)return true;view=view.getParent() instanceof View?(View)view.getParent():null;}return false;}
-    boolean back(){if(modeChoice.back()||intervalChoice.back()||sourceChoice.back())return true;if(busy){++generation;busy=false;daily.cancel();}if(expanded){expanded=false;refresh();choose.requestFocusFromTouch();return true;}if(touched&&pending()){reset();refresh();scene();return true;}return false;}
-    void cancel(){++generation;busy=false;daily.cancel();expanded=false;reset();refresh();scene();}
+    boolean back(){if(modeChoice.back()||sourceChoice.back())return true;if(intervalOpen){intervalOpen=false;refresh();intervalRow.requestFocusFromTouch();return true;}if(busy){++generation;busy=false;daily.cancel();}if(expanded){expanded=false;refresh();choose.requestFocusFromTouch();return true;}if(touched&&pending()){reset();refresh();scene();return true;}return false;}
+    void cancel(){++generation;busy=false;daily.cancel();expanded=false;intervalOpen=false;reset();refresh();scene();}
     void refreshNames(){media.refreshNames();WallpaperCatalog.Entry entry=store.snapshot().find(candidate);if(choose!=null&&entry!=null)choose.value(entry.label(ui.chinese()));}
     private void refreshComponent(){if(destroyed||component==null)return;org.json.JSONObject status=home.quiet.components.ComponentRepository.get(ui).state("weather");component.value(OptionalComponentsUi.label(status));if((status.optString("state").equals("removing")||status.optString("state").equals("remove_failed"))&&mode.equals("weather")){reset();if(mode.equals("weather"))mode="fixed";refresh();scene();}}
     void focusComponent(){component.requestFocusFromTouch();}
     void resume(){if(!componentsListening){componentsListening=true;home.quiet.components.ComponentRepository.get(ui).add(componentsChanged);}store.observeDaily(dailyStateChanged);daily.resume();media.resume();refresh();}
-    void pause(){media.pause();store.forgetDaily(dailyStateChanged);group.removeCallbacks(refreshDailyState);if(componentsListening){componentsListening=false;home.quiet.components.ComponentRepository.get(ui).remove(componentsChanged);}modeChoice.cancel(false);intervalChoice.cancel(false);sourceChoice.cancel(false);focusedMode="";++generation;busy=false;daily.pause();}
-    void save(Bundle state){state.putString("wall-mode",mode);state.putString("wall-candidate",candidate);state.putString("wall-interval",interval);state.putBoolean("wall-custom",custom);state.putBoolean("wall-touched",touched);state.putBoolean("wall-library",expanded);state.putBoolean("wall-day-night",followDayNight);state.putString("wall-error",error);state.putBoolean("wall-daily-details",details!=null);media.save(state);}
-    void restore(Bundle state){if(state==null)return;mode=state.getString("wall-mode",mode);candidate=state.getString("wall-candidate",candidate);interval=state.getString("wall-interval","");custom=state.getBoolean("wall-custom");touched=state.getBoolean("wall-touched");expanded=state.getBoolean("wall-library");followDayNight=state.getBoolean("wall-day-night",true);error=state.getString("wall-error","");media.restore(state);refresh();if(state.getBoolean("wall-daily-details"))details();}
+    void pause(){media.pause();store.forgetDaily(dailyStateChanged);group.removeCallbacks(refreshDailyState);if(componentsListening){componentsListening=false;home.quiet.components.ComponentRepository.get(ui).remove(componentsChanged);}modeChoice.cancel(false);intervalOpen=false;sourceChoice.cancel(false);focusedMode="";++generation;busy=false;daily.pause();}
+    void save(Bundle state){state.putString("wall-mode",mode);state.putString("wall-candidate",candidate);state.putBoolean("wall-interval-open",intervalOpen);state.putBoolean("wall-touched",touched);state.putBoolean("wall-library",expanded);state.putBoolean("wall-day-night",followDayNight);state.putString("wall-error",error);state.putBoolean("wall-daily-details",details!=null);media.save(state);}
+    void restore(Bundle state){if(state==null)return;mode=state.getString("wall-mode",mode);candidate=state.getString("wall-candidate",candidate);intervalOpen=state.getBoolean("wall-interval-open");touched=state.getBoolean("wall-touched");expanded=state.getBoolean("wall-library");followDayNight=state.getBoolean("wall-day-night",true);error=state.getString("wall-error","");media.restore(state);refresh();if(state.getBoolean("wall-daily-details"))details();}
     void destroy(){store.forgetDaily(dailyStateChanged);group.removeCallbacks(refreshDailyState);if(componentsListening){componentsListening=false;home.quiet.components.ComponentRepository.get(ui).remove(componentsChanged);}destroyed=true;++generation;if(details!=null){details.dialog.setOnDismissListener(null);details.dialog.dismiss();details=null;}daily.destroy();media.destroy();}
 }

@@ -106,13 +106,14 @@ final class WeatherCityPicker {
         LinearLayout list=ui.column();
         list.setClipToPadding(false);
         list.setPadding(side,top,side,bottom);
-        list.setBackgroundDrawable(ui.surface(0xfa000000,0xfa000000,0,14));
         ScrollView scroll=ui.settingsScroll();scroll.setClipChildren(false);scroll.addView(list);
-        KeyFeedback.Menu menu=new KeyFeedback.Menu(ui);menu.addView(scroll);
+        scroll.setBackgroundDrawable(ui.surface(0xfa000000,0xfa000000,0,14));
+        KeyFeedback.Menu menu=new KeyFeedback.Menu(ui);
+        menu.addView(scroll,new LinearLayout.LayoutParams(-1,-1));
         int width=Math.max(anchor.getWidth(),ui.px(180))+2*extraSide;
         int height=ui.px(Math.min(200,choices.size()*40))+top+bottom;
         KeyFeedback.Popup popup=new KeyFeedback.Popup(ui,menu,width,height);dropdown=popup;
-        popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));popup.setOutsideTouchable(true);if(Build.VERSION.SDK_INT>=21)popup.setElevation(ui.px(14));
+        popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));popup.setOutsideTouchable(true);
         for(WeatherRegions.Region region:choices){
             Button option=ui.button(region.name,()->{popup.closeQuietly();selected.accept(region);});option.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);option.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,ui.px(13));option.setSingleLine(true);option.setEllipsize(TextUtils.TruncateAt.END);option.setBackgroundDrawable(ui.listSurface());option.setSelected((draft!=null&&draft.code.equals(region.code))||(city!=null&&city.code.equals(region.code))||(province!=null&&province.code.equals(region.code)));list.addView(option,new LinearLayout.LayoutParams(-1,ui.px(40)));
         }

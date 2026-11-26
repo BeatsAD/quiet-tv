@@ -10,7 +10,8 @@ import org.json.*;
 /** Shared weather, startup, HOME and input engines. System scene results remain user evidence. */
 final class PhoneSettingsGeneral {
     private final Context context;private final PhoneSettingsTasks tasks;private final String scope;private final Runnable changed;private final Handler main=new Handler(Looper.getMainLooper());private final PhoneSettingsActions actions;
-    PhoneSettingsGeneral(Context context,PhoneSettingsTasks tasks,String scope,Runnable changed){this.context=context;this.tasks=tasks;this.scope=scope;this.changed=changed;actions=new PhoneSettingsActions(context);}
+    private final SystemSettingsTrial systemSettingsTrial;
+    PhoneSettingsGeneral(Context context,PhoneSettingsTasks tasks,String scope,Runnable changed){this.context=context;this.tasks=tasks;this.scope=scope;this.changed=changed;actions=new PhoneSettingsActions(context);systemSettingsTrial=new SystemSettingsTrial(context);}
     JSONObject weather()throws JSONException{
         WeatherStore store=new WeatherStore(context);WeatherData data=store.cached(true);return new JSONObject().put("weatherEnabled",store.enabled()).put("autoLocation",store.automatic()).put("provider",store.provider()).put("meteoFallback",store.meteoFallback()).put("city",store.city()).put("cityCode",store.adcode()).put("locationKey",store.key(true));
     }
@@ -30,6 +31,22 @@ final class PhoneSettingsGeneral {
     JSONObject places(String query)throws IOException{if(query==null||query.length()>60)throw new PhoneSettingsServer.BadInput();try{return new JSONObject().put("places",WeatherRegions.load(context).items(WeatherRegions.load(context).search(query,50)));}catch(JSONException e){throw new IOException(e);}}
     JSONObject startup()throws JSONException{BootAppStore boot=new BootAppStore(context);return new JSONObject().put("boot",boot.hdmiBoot()?BootAppStore.HDMI:boot.target()).put("bootLabel",boot.label()).put("watchTarget",boot.watchTarget()).put("watchLabel",boot.watchLabel()).put("watchTested",boot.tested());}
     JSONObject guard()throws JSONException{return DesktopTakeoverStatus.read(context).snapshot();}
+    JSONObject systemSettings()throws JSONException{
+        return new JSONObject().put("hasTried",systemSettingsTrial.hasTried()).put("confirmation",systemSettingsTrial.confirmation());
+    }
+
+    JSONObject systemSettings(String field,Object value,PhoneSettingsServer.Active active)throws IOException{
+        if("remember".equals(field)&&value instanceof String)return actions.onMain(()->{
+            if(!systemSettingsTrial.remember((String)value))throw new PhoneSettingsServer.Rejected("入口已变化或测试已过期，请重新打开设置");
+            return new JSONObject().put("message","已记住当前电视的打开方式");
+        },active);
+        if(!Boolean.TRUE.equals(value)||!("open".equals(field)||"next".equals(field)||"detect".equals(field)))throw new PhoneSettingsServer.BadInput();
+        return actions.onMain(()->{
+            if(!systemSettingsTrial.open("next".equals(field)))throw new PhoneSettingsServer.Rejected(systemSettingsTrial.hasTried()
+                ?"没有其他可用入口，可重新检测":"当前电视没有可用的系统设置入口");
+            return new JSONObject().put("state","waitingTelevision").put("message","请在电视确认系统设置是否正常打开");
+        },active);
+    }
     JSONObject management()throws JSONException{ManagementAdb management=ManagementAdb.get(context);return new JSONObject().put("connected",management.state()==AdbConnectionKeeper.State.CONNECTED).put("detail",management.description()).put("state",management.state().name()).put("label",management.label()).put("tone",management.tone()).put("debugging",management.debugging()).put("port",management.port()).put("paused",management.paused()).put("waitingAuthorization",management.waitingAuthorization()).put("authorizationSeconds",management.authorizationSeconds()).put("timedOut",management.timedOut());}
     JSONObject inputs()throws IOException{try{SourcePairing pairing=SourcePairing.get(context);JSONObject state=pairing.snapshot();return state.put("busy",pairing.blocksExternalInput()).put("owned",scope.equals(state.optString("owner"))).put("startupTarget",new BootAppStore(context).target());}catch(Exception e){throw new IOException("信号源状态无法读取",e);}}
     void closed(){SourcePairing pairing=SourcePairing.existing();if(pairing!=null&&scope.equals(pairing.owner()))pairing.cancel(scope,true);}

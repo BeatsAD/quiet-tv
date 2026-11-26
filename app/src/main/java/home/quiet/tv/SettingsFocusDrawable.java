@@ -9,6 +9,7 @@ import android.view.animation.PathInterpolator;
 
 /** Settings-only lifted surface. HOME keeps its existing artwork and feedback. */
 final class SettingsFocusDrawable extends Drawable {
+    private static final SettingsFocusShadow SHADOW = new SettingsFocusShadow();
     private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF area=new RectF();
     private final float unit,radius;
@@ -37,6 +38,7 @@ final class SettingsFocusDrawable extends Drawable {
     }
     private boolean state(int attr){for(int value:getState())if(value==attr)return true;return false;}
     @Override public boolean isStateful(){return true;}
+    @Override public boolean hasFocusStateSpecified(){return true;}
     @Override protected boolean onStateChange(int[] state){
         boolean next=state(android.R.attr.state_enabled)&&(state(android.R.attr.state_focused)||state(android.R.attr.state_activated))&&state(android.R.attr.state_window_focused);
         if(next!=focused){focused=next;if(animator!=null)animator.cancel();lift=0;
@@ -51,11 +53,17 @@ final class SettingsFocusDrawable extends Drawable {
         float corner=SurfaceCorners.radius(area,radius,unit);
         if(row){if(focused&&!SettingsFocusMotion.reduced())area.inset(3*unit-(3*unit+Math.min(area.width()*.01f,3*unit))*lift,3*unit-(3*unit+area.height()*.01f)*lift);else area.inset(3*unit,3*unit);}
         paint.setAlpha(alpha);
-        // One opaque fill avoids the black antialias fringe of a separate shadow caster.
-        if(focused){paint.setShader(frosted?frostedFill(area.top,area.bottom):null);if(!frosted){paint.setColor(UiPalette.TEXT);paint.setAlpha(alpha);if(!SettingsFocusMotion.reduced())paint.setShadowLayer(11.52f*unit,0,6.72f*unit,Color.argb(Math.round(85*lift),0,0,0));}}
+        if(focused){
+            paint.setShader(frosted?frostedFill(area.top,area.bottom):null);
+            if(!frosted){
+                if(!SettingsFocusMotion.reduced())SHADOW.draw(canvas,getBounds(),area,corner,unit,Math.round(68*lift*alpha/255));
+                paint.setColor(UiPalette.TEXT);
+                paint.setAlpha(alpha);
+            }
+        }
         else if(primary){paint.setShader(null);paint.setColor(UiPalette.SELECTED);paint.setAlpha(Color.alpha(UiPalette.SELECTED)*alpha/255);}
         else{paint.setShader(null);paint.setColor(state(android.R.attr.state_selected)?selectedFill():fill);paint.setAlpha(Color.alpha(paint.getColor())*alpha/255);}
-        if(row&&!focused&&fill!=0)canvas.drawRect(getBounds(),paint);else SurfaceCorners.draw(canvas,area,corner,corner,paint);paint.clearShadowLayer();paint.setShader(null);
+        if(row&&!focused&&fill!=0)canvas.drawRect(getBounds(),paint);else SurfaceCorners.draw(canvas,area,corner,corner,paint);paint.setShader(null);
         if(border!=0&&!focused||focused&&(frosted||focusOutline)){int edge=focused?0xb8ffffff:border;float stroke=.75f*unit;area.inset(stroke/2,stroke/2);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(stroke);paint.setColor(edge);paint.setAlpha(Color.alpha(edge)*alpha/255);SurfaceCorners.draw(canvas,area,Math.max(0,corner-stroke/2),Math.max(0,corner-stroke/2),paint);paint.setStyle(Paint.Style.FILL);}
     }
     @Override public void jumpToCurrentState(){if(animator!=null)animator.cancel();lift=focused?1:0;invalidateSelf();}

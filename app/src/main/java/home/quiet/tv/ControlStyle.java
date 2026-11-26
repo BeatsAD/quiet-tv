@@ -6,6 +6,8 @@ import android.graphics.drawable.Drawable;
 import android.widget.TextView;
 import android.widget.LinearLayout;
 import android.view.Gravity;
+import android.view.View;
+import android.os.Build;
 import android.content.Context;
 import android.app.AlertDialog;
 
@@ -22,7 +24,16 @@ final class ControlStyle extends Drawable {
     static Drawable action(float unit,float radius,int color,int border){return new ControlStyle(unit,radius,color,border,false,false);}
     static Drawable action(float unit,float radius,int color,int border,float verticalInset){return new ControlStyle(unit,radius,color,border,false,false,verticalInset);}
     static Drawable listRow(float unit,float radius){return new ControlStyle(unit,radius,0,0,false,true);}
+    static void useCustomFocus(View view){
+        if(Build.VERSION.SDK_INT>=21){
+            view.setStateListAnimator(null);
+            view.setElevation(0);
+            view.setTranslationZ(0);
+        }
+        if(Build.VERSION.SDK_INT>=26)view.setDefaultFocusHighlightEnabled(false);
+    }
     static void choice(TextView view,float unit,float radius,int color,int border){
+        useCustomFocus(view);
         view.setBackgroundDrawable(new ControlStyle(unit,radius,color,border,true,false));
         view.setTextColor(SettingsFocusDrawable.textColors(UiPalette.SECONDARY,UiPalette.INK));
     }
@@ -55,7 +66,11 @@ final class ControlStyle extends Drawable {
         alertText(dialog.getWindow().getDecorView());
         for(int which:new int[]{AlertDialog.BUTTON_POSITIVE,AlertDialog.BUTTON_NEGATIVE,AlertDialog.BUTTON_NEUTRAL}){
             TextView button=dialog.getButton(which);
-            if(button!=null){button.setBackgroundDrawable(new SettingsFocusDrawable(unit,24,UiPalette.CONTROL,false,UiPalette.EDGE));button.setTextColor(SettingsFocusDrawable.textColors(UiPalette.TEXT));}
+            if(button!=null){
+                useCustomFocus(button);
+                button.setBackgroundDrawable(new SettingsFocusDrawable(unit,24,UiPalette.CONTROL,false,UiPalette.EDGE));
+                button.setTextColor(SettingsFocusDrawable.textColors(UiPalette.TEXT));
+            }
         }
         if(dialog.getListView()!=null){dialog.getListView().setDivider(null);dialog.getListView().setSelector(listRow(unit,12));}
     }
@@ -65,6 +80,7 @@ final class ControlStyle extends Drawable {
     }
     private boolean state(int attr){for(int value:getState())if(value==attr)return true;return false;}
     @Override public boolean isStateful(){return true;}
+    @Override public boolean hasFocusStateSpecified(){return true;}
     @Override protected boolean onStateChange(int[] state){invalidateSelf();return true;}
     @Override public void draw(Canvas canvas){
         rect.set(getBounds());float radius=SurfaceCorners.radius(rect,this.radius,unit);
@@ -82,7 +98,6 @@ final class ControlStyle extends Drawable {
         int fill=choice?(focused?UiPalette.TEXT:selected?UiPalette.SELECTED:color):selected?UiPalette.TEXT:focused&&Color.alpha(color)==0?0x1affffff:color;
         if(pressed)fill=Color.alpha(fill)==0?0xff000000:Color.argb(Math.round(Color.alpha(fill)*.8f),Color.red(fill),Color.green(fill),Color.blue(fill));
         rect.set(getBounds());paint.setStyle(Paint.Style.FILL);
-        if(focused){ink(0xff000000);SurfaceCorners.draw(canvas,rect,radius,radius,paint);}
         rect.inset(3*unit,verticalInset);float inner=Math.max(0,radius-3*unit);
         ink(fill);SurfaceCorners.draw(canvas,rect,inner,inner,paint);
         if(border!=0&&!selected){float stroke=Math.max(1,unit);if(verticalInset==0){rect.inset(0,stroke/2);inner=Math.max(0,inner-stroke/2);}paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(stroke);ink(border);SurfaceCorners.draw(canvas,rect,inner,inner,paint);}

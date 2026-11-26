@@ -4,6 +4,7 @@ import android.annotation.TargetApi;
 import android.Manifest;
 import android.app.Activity;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.os.Build;
 import android.os.storage.*;
 import android.content.*;
@@ -39,6 +40,21 @@ final class FileTransferSource {
         if(Build.VERSION.SDK_INT<23)return false;
         String[] needed=reselect&&partialMediaAccess(activity)?new String[]{Manifest.permission.READ_MEDIA_IMAGES,Manifest.permission.READ_MEDIA_VIDEO,Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED}:missingPermissions(activity);
         if(needed.length==0)return false;activity.requestPermissions(needed,request);return true;
+    }
+    static Intent directoryPicker(Context context){
+        if(Build.VERSION.SDK_INT<21)return null;
+        Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION|Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
+        PackageManager manager=context.getPackageManager();
+        ResolveInfo preferred=manager.resolveActivity(intent,PackageManager.MATCH_DEFAULT_ONLY);
+        if(directoryHandler(preferred))return intent;
+        for(ResolveInfo candidate:manager.queryIntentActivities(intent,PackageManager.MATCH_DEFAULT_ONLY))
+            if(directoryHandler(candidate))return intent.setClassName(candidate.activityInfo.packageName,candidate.activityInfo.name);
+        return null;
+    }
+    private static boolean directoryHandler(ResolveInfo candidate){
+        return candidate!=null&&candidate.activityInfo!=null&&candidate.activityInfo.exported
+            &&!"com.android.tv.frameworkpackagestubs".equals(candidate.activityInfo.packageName);
     }
     static List<Item> volumes(Context context,boolean usb){
         List<Item> result=volumes(usb);

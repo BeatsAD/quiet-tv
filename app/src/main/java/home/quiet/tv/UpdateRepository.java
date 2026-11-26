@@ -17,7 +17,7 @@ final class UpdateRepository {
     private final Context context;
     private final SharedPreferences prefs;
     private final Handler main=new Handler(Looper.getMainLooper());
-    private final ExecutorService worker=Executors.newSingleThreadExecutor();
+    private final ExecutorService worker=Executors.newSingleThreadExecutor(r->new Thread(r,"quiet-update"));
     private final Set<Listener> listeners=new HashSet<>();
     private final File cache,directory;
     private UpdateTransfer checkTransfer,downloadTransfer;
@@ -112,27 +112,54 @@ final class UpdateRepository {
         if(checking||downloading)return;
         if(!online()){if(manual){checkError="网络未连接";notifyChanged();}return;}
         checking=true;checkError="";int generation=++checkGeneration;
+        DiagnosticLog.UpdateCheck evidence=DiagnosticLog.beginUpdateCheck(generation,manual);
         UpdateTransfer transfer=newTransfer();checkTransfer=transfer;notifyChanged();
+        evidence.mainPhase="waiting";
         worker.execute(()->{
             final UpdateManifest[] found={null};final byte[][] envelope={null};final int[] source={-1};String error="",stage="key";
             try{
                 if(key==null)throw new IOException("Update key unavailable");
-                stage="manifest";
-                transfer.manifest(prefs.getInt("manifestSource",-1),(bytes,index)->{found[0]=UpdateManifest.verify(bytes,key,prefs.getLong("revision",0));envelope[0]=bytes;source[0]=index;return found[0].revision;});
+                stage="manifest";evidence.workerPhase=stage;
+                transfer.manifest(prefs.getInt("manifestSource",-1),(bytes,index)->{
+                    found[0]=UpdateManifest.verify(bytes,key,prefs.getLong("revision",0));envelope[0]=bytes;source[0]=index;
+                    return found[0].revision;
+                },evidence);
                 if(generation!=checkGeneration)return;
                 // Cache and its preference revision are written only after verification and cancellation checks.
-                stage="cache";
+                stage="cache";evidence.workerPhase=stage;
                 synchronized(this){if(generation!=checkGeneration)return;try(FileOutputStream out=new FileOutputStream(cache)){out.write(envelope[0]);out.getFD().sync();}}
-            }catch(IOException|RuntimeException e){error=UpdateFailure.message(stage,e);DiagnosticLog.info("update.check.failed",UpdateFailure.details(stage,e));}
+            }catch(IOException|RuntimeException e){
+                evidence.workerPhase="handle_failure";
+                error=UpdateFailure.message(stage,e);DiagnosticLog.info("update.check.failed",UpdateFailure.details(stage,e));
+            }
             final String failure=error;
-            main.post(()->{if(generation!=checkGeneration)return;checking=false;checkTransfer=null;checkError=failure;
+            evidence.workerPhase="post_result";
+            main.post(()->{
+                if(generation!=checkGeneration)return;
+                evidence.mainPhase="apply_result";
+                checking=false;checkTransfer=null;checkError=failure;
                 if(failure.isEmpty()){manifest=found[0];checked=true;prefs.edit().putLong("revision",manifest.revision).putLong("success",now()).remove("failure").putInt("manifestSource",source[0]).apply();reconcile();}
-                else prefs.edit().putLong("failure",now()).apply();notifyChanged();});
+                else prefs.edit().putLong("failure",now()).apply();
+                evidence.mainPhase="notify_result";
+                notifyChanged();
+                DiagnosticLog.endUpdateCheck(generation);
+            });
         });
     }
-    synchronized void cancelCheck(){++checkGeneration;if(checkTransfer!=null)checkTransfer.cancel();checkTransfer=null;checking=false;notifyChanged();}
+    synchronized void cancelCheck(){
+        int generation=checkGeneration++;
+        DiagnosticLog.UpdateCheck evidence=DiagnosticLog.activeUpdateCheck(generation);
+        if(evidence!=null)evidence.mainPhase="cancel";
+        if(checkTransfer!=null)checkTransfer.cancel();
+        checkTransfer=null;checking=false;notifyChanged();
+        DiagnosticLog.endUpdateCheck(generation);
+    }
+    boolean updateWorkInProgress(){return checking||downloading||verifying||installBusy;}
+    boolean isReady(String hash){
+        return ready&&available!=null&&available.sha256.equals(hash)&&hash.equals(prefs.getString("readyHash",""));
+    }
     void download(){
-        if(available==null||downloading||installBusy)return;final UpdateManifest.Artifact target=available;
+        if(available==null||updateWorkInProgress())return;final UpdateManifest.Artifact target=available;
         if(!directory.isDirectory()&&!directory.mkdirs()){downloadError="无法创建更新目录";notifyChanged();return;}
         ready=false;downloading=true;verifying=false;downloadError="";received=0;total=target.bytes;lastProgress=0;
         int generation=++downloadGeneration;UpdateTransfer transfer=newTransfer();downloadTransfer=transfer;notifyChanged();
@@ -148,8 +175,16 @@ final class UpdateRepository {
                 if(file(target).isFile()&&file(target).length()==target.bytes)try(RandomAccessFile invalid=new RandomAccessFile(file(target),"rw")){invalid.setLength(0);}catch(IOException ignored){}
                 DiagnosticLog.info("update.download.failed",UpdateFailure.details(validating?"apk_verify":"download",e));}
             final String failure=error;final int successfulSource=source;
-            main.post(()->{if(generation!=downloadGeneration)return;downloading=false;verifying=false;switching=false;downloadTransfer=null;downloadError=failure;ready=failure.isEmpty();
-                if(ready)prefs.edit().putInt("apkSource",successfulSource).putString("readyHash",target.sha256).apply();else prefs.edit().remove("readyHash").apply();notifyChanged();});
+            main.post(()->{
+                if(generation!=downloadGeneration)return;
+                downloading=false;verifying=false;switching=false;downloadTransfer=null;
+                if(available!=null&&target.sha256.equals(available.sha256)){
+                    downloadError=failure;ready=failure.isEmpty();
+                    if(ready)prefs.edit().putInt("apkSource",successfulSource).putString("readyHash",target.sha256).apply();
+                    else prefs.edit().remove("readyHash").apply();
+                }
+                notifyChanged();
+            });
         });
     }
     void cancelDownload(){++downloadGeneration;if(downloadTransfer!=null)downloadTransfer.cancel();downloadTransfer=null;downloading=false;verifying=false;switching=false;notifyChanged();}
@@ -159,7 +194,7 @@ final class UpdateRepository {
     void install(){
         if(installBusy)return;
         if(snapshot().savedInstall==UpdateState.Install.FILE_DISPATCHED){fileInstallReturned(Integer.MIN_VALUE,null);return;}
-        if(!ready||available==null||verifying||downloading){installationFailed("更新状态已变化，请重新检查");return;}
+        if(available==null||updateWorkInProgress()||!isReady(available.sha256)){installationFailed("更新状态已变化，请重新检查");return;}
         final int previous=installSession>=0?installSession:prefs.getInt("installCleanup",-1);
         if(UpdateInstallPolicy.session(Build.VERSION.SDK_INT)&&previous>=0){
             final String previousAttempt=installAttempt;

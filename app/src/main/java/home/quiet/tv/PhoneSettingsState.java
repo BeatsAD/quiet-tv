@@ -10,6 +10,7 @@ final class PhoneSettingsState {
     interface Source {
         String[] domains();
         Object lock(String domain);
+        default boolean requiresRevision(String domain,String field){return true;}
         JSONObject read(String domain)throws IOException;
         JSONObject metadata()throws IOException;
         Result write(String domain,String field,Object value,String expected,PhoneSettingsServer.Active active)throws IOException;
@@ -80,7 +81,7 @@ final class PhoneSettingsState {
             Attempt attempt=new Attempt(fingerprint,next);attempt.domain=domain;
             synchronized(source.lock(domain)){
                 if(!active.valid())throw new PhoneSettingsServer.Ended();
-                if(!revision(source.read(domain)).equals(request.getString("revision")))throw new PhoneSettingsServer.Conflict();
+                if(source.requiresRevision(domain,field)&&!revision(source.read(domain)).equals(request.getString("revision")))throw new PhoneSettingsServer.Conflict();
                 sequence=next;attempts.put(id,attempt);
                 if(attempts.size()>256)attempts.remove(attempts.keySet().iterator().next());
                 String previousParent=DiagnosticOperation.enter(trace.id);
