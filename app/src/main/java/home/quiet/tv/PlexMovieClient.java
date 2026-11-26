@@ -58,8 +58,10 @@ final class PlexMovieClient implements MediaPosterClient {
     }
 
     @Override public byte[] poster(FeiniuMediaClient.Session session, FeiniuMediaClient.Item movie) throws IOException {
-        if (!numericId(movie.id)
-                || !movie.artwork.matches("/library/metadata/" + movie.id + "/(?:thumb|poster)/[0-9]{1,20}")) return null;
+        if (!numericId(movie.id)) return null;
+        String prefix = "/library/metadata/" + movie.id + "/";
+        if (!movie.artwork.startsWith(prefix)
+                || !movie.artwork.substring(prefix.length()).matches("(?:thumb|poster)/[0-9]{1,20}")) return null;
         return request(movie.artwork, session, true, FeiniuMediaClient.IMAGE_LIMIT, -1);
     }
 
