@@ -112,7 +112,7 @@ final class DesktopBackupRecord {
         if(ScreensaverSettings.RETIRED_AERIAL.equals(savedSaver.opt("mode")))
             normalizedSaver.put("mode",ScreensaverSettings.RETIRED_AERIAL);
         if(savedSaver.has("version"))normalizedSaver.put("version",savedSaver.getInt("version"));
-        for(String key:new String[]{"version","mode","timePosition","weatherPosition","sound","flipShowSeconds","flipSound"})
+        for(String key:new String[]{"version","mode","timePosition","weatherPosition","sound","flipShowSeconds","flipSound","doubleOk"})
             if(!savedSaver.has(key))normalizedSaver.remove(key);
         for(String key:ScreensaverSettings.ClockOptions.KEYS)
             if(!savedSaver.has(key))normalizedSaver.remove(key);

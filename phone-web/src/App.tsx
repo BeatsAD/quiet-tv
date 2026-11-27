@@ -491,7 +491,7 @@ export function App(){
     if(clock.calendar||clock.largeDate)clockFields.push('saverLunarDate');
     if(!clock.largeDate)clockFields.push('saverSeconds');
     return <><Group>
-      {inlineControls(['idle','saverContent'])}
+      {inlineControls(['idle','saverDoubleOk','saverContent'])}
       {clock.digital&&inlineControls(clockFields)}
       {v.saverContent==='flip-clock'&&inlineControls(['saverFlipSeconds','saverFlipSound'])}
       {v.saverContent==='custom'&&<Row title="屏保素材" icon="ImageIcon" value={v.saverMedia==='blank'?'空白背景':metadata?.wallpapers.find(item=>item.id===v.saverMedia)?.name} navigate onClick={()=>open({kind:'media',title:'屏保素材',id:'screensaver'},true)}/>}
