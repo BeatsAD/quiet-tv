@@ -14,32 +14,33 @@ final class ScreensaverSettings {
     final String mediaId,mode,timePosition,weatherPosition;
     final int idleMinutes;
     final ClockOptions clock;
-    final boolean showTime,showWeather,sound,flipShowSeconds,flipSound;
+    final boolean showTime,showWeather,sound,flipShowSeconds,flipSound,doubleOk;
     ScreensaverSettings(String mediaId,int idleMinutes,boolean showTime,boolean showWeather){
         this(mediaId,idleMinutes,showTime,showWeather,CUSTOM);
     }
     ScreensaverSettings(String mediaId,int idleMinutes,boolean showTime,boolean showWeather,String mode){
-        this(mediaId,idleMinutes,showTime,showWeather,mode,CENTER,BOTTOM_LEFT,false,false,false,ClockOptions.DEFAULT);
+        this(mediaId,idleMinutes,showTime,showWeather,mode,CENTER,BOTTOM_LEFT,false,false,false,false,ClockOptions.DEFAULT);
     }
-    private ScreensaverSettings(String mediaId,int idleMinutes,boolean showTime,boolean showWeather,String mode,String timePosition,String weatherPosition,boolean sound,boolean flipShowSeconds,boolean flipSound,ClockOptions clock){
+    private ScreensaverSettings(String mediaId,int idleMinutes,boolean showTime,boolean showWeather,String mode,String timePosition,String weatherPosition,boolean sound,boolean flipShowSeconds,boolean flipSound,boolean doubleOk,ClockOptions clock){
         boolean valid=false;for(int value:WAITS)if(value==idleMinutes)valid=true;
         if(mediaId==null||!valid||!FOLLOW.equals(mode)&&!CLOCK.equals(mode)&&!FLIP.equals(mode)&&!CUSTOM.equals(mode)&&!WALL.equals(mode)&&!MOVIE_WALL.equals(mode)||!position(timePosition)||!position(weatherPosition))throw new IllegalArgumentException("Invalid screensaver settings");
-        this.clock=clock;this.sound=sound;this.flipShowSeconds=flipShowSeconds;this.flipSound=flipSound;this.mediaId=mediaId;this.idleMinutes=idleMinutes;this.showTime=showTime;this.showWeather=showWeather;this.mode=mode;this.timePosition=timePosition;this.weatherPosition=weatherPosition;
+        this.clock=clock;this.sound=sound;this.flipShowSeconds=flipShowSeconds;this.flipSound=flipSound;this.doubleOk=doubleOk;this.mediaId=mediaId;this.idleMinutes=idleMinutes;this.showTime=showTime;this.showWeather=showWeather;this.mode=mode;this.timePosition=timePosition;this.weatherPosition=weatherPosition;
     }
     private static boolean position(String value){for(String position:POSITIONS)if(position.equals(value))return true;return false;}
-    ScreensaverSettings media(String id){return new ScreensaverSettings(id,idleMinutes,showTime,showWeather,CUSTOM,timePosition,weatherPosition,sound,flipShowSeconds,flipSound,clock);}
-    ScreensaverSettings content(String mode){return new ScreensaverSettings(mediaId,idleMinutes,showTime,showWeather,mode,timePosition,weatherPosition,sound,flipShowSeconds,flipSound,clock);}
-    ScreensaverSettings waitMinutes(int minutes){return new ScreensaverSettings(mediaId,minutes,showTime,showWeather,mode,timePosition,weatherPosition,sound,flipShowSeconds,flipSound,clock);}
-    ScreensaverSettings time(boolean show){return new ScreensaverSettings(mediaId,idleMinutes,show,showWeather,mode,timePosition,weatherPosition,sound,flipShowSeconds,flipSound,clock);}
-    ScreensaverSettings weather(boolean show){return new ScreensaverSettings(mediaId,idleMinutes,showTime,show,mode,timePosition,weatherPosition,sound,flipShowSeconds,flipSound,clock);}
-    ScreensaverSettings timePosition(String position){return new ScreensaverSettings(mediaId,idleMinutes,showTime,showWeather,mode,position,weatherPosition,sound,flipShowSeconds,flipSound,clock);}
-    ScreensaverSettings weatherPosition(String position){return new ScreensaverSettings(mediaId,idleMinutes,showTime,showWeather,mode,timePosition,position,sound,flipShowSeconds,flipSound,clock);}
-    ScreensaverSettings sound(boolean enabled){return new ScreensaverSettings(mediaId,idleMinutes,showTime,showWeather,mode,timePosition,weatherPosition,enabled,flipShowSeconds,flipSound,clock);}
+    ScreensaverSettings media(String id){return new ScreensaverSettings(id,idleMinutes,showTime,showWeather,CUSTOM,timePosition,weatherPosition,sound,flipShowSeconds,flipSound,doubleOk,clock);}
+    ScreensaverSettings content(String mode){return new ScreensaverSettings(mediaId,idleMinutes,showTime,showWeather,mode,timePosition,weatherPosition,sound,flipShowSeconds,flipSound,doubleOk,clock);}
+    ScreensaverSettings waitMinutes(int minutes){return new ScreensaverSettings(mediaId,minutes,showTime,showWeather,mode,timePosition,weatherPosition,sound,flipShowSeconds,flipSound,doubleOk,clock);}
+    ScreensaverSettings time(boolean show){return new ScreensaverSettings(mediaId,idleMinutes,show,showWeather,mode,timePosition,weatherPosition,sound,flipShowSeconds,flipSound,doubleOk,clock);}
+    ScreensaverSettings weather(boolean show){return new ScreensaverSettings(mediaId,idleMinutes,showTime,show,mode,timePosition,weatherPosition,sound,flipShowSeconds,flipSound,doubleOk,clock);}
+    ScreensaverSettings timePosition(String position){return new ScreensaverSettings(mediaId,idleMinutes,showTime,showWeather,mode,position,weatherPosition,sound,flipShowSeconds,flipSound,doubleOk,clock);}
+    ScreensaverSettings weatherPosition(String position){return new ScreensaverSettings(mediaId,idleMinutes,showTime,showWeather,mode,timePosition,position,sound,flipShowSeconds,flipSound,doubleOk,clock);}
+    ScreensaverSettings sound(boolean enabled){return new ScreensaverSettings(mediaId,idleMinutes,showTime,showWeather,mode,timePosition,weatherPosition,enabled,flipShowSeconds,flipSound,doubleOk,clock);}
     ScreensaverSettings clock(ClockOptions options){
-        return new ScreensaverSettings(mediaId,idleMinutes,showTime,showWeather,mode,timePosition,weatherPosition,sound,flipShowSeconds,flipSound,options);
+        return new ScreensaverSettings(mediaId,idleMinutes,showTime,showWeather,mode,timePosition,weatherPosition,sound,flipShowSeconds,flipSound,doubleOk,options);
     }
-    ScreensaverSettings flipSeconds(boolean enabled){return new ScreensaverSettings(mediaId,idleMinutes,showTime,showWeather,mode,timePosition,weatherPosition,sound,enabled,flipSound,clock);}
-    ScreensaverSettings flipSound(boolean enabled){return new ScreensaverSettings(mediaId,idleMinutes,showTime,showWeather,mode,timePosition,weatherPosition,sound,flipShowSeconds,enabled,clock);}
+    ScreensaverSettings flipSeconds(boolean enabled){return new ScreensaverSettings(mediaId,idleMinutes,showTime,showWeather,mode,timePosition,weatherPosition,sound,enabled,flipSound,doubleOk,clock);}
+    ScreensaverSettings flipSound(boolean enabled){return new ScreensaverSettings(mediaId,idleMinutes,showTime,showWeather,mode,timePosition,weatherPosition,sound,flipShowSeconds,enabled,doubleOk,clock);}
+    ScreensaverSettings doubleOk(boolean enabled){return new ScreensaverSettings(mediaId,idleMinutes,showTime,showWeather,mode,timePosition,weatherPosition,sound,flipShowSeconds,flipSound,enabled,clock);}
     boolean movieWall(){return MOVIE_WALL.equals(mode);}
     boolean wall(){return WALL.equals(mode);}
     String clockPosition(){return flipping()?CENTER:timePosition;}
@@ -65,13 +66,13 @@ final class ScreensaverSettings {
         if(FOLLOW.equals(mode)||wall())return catalog.current;
         String custom=customMediaId(catalog);return NO_MEDIA.equals(custom)?WallpaperCatalog.DEFAULT:catalog.find(custom)==null?(catalog.saverBuiltinHidden?WallpaperCatalog.DEFAULT:WallpaperCatalog.BUILTIN):custom;
     }
-    ScreensaverSettings validated(WallpaperCatalog catalog){return catalog.find(mediaId)==null?new ScreensaverSettings(WallpaperCatalog.DEFAULT,idleMinutes,showTime,showWeather,mode,timePosition,weatherPosition,sound,flipShowSeconds,flipSound,clock):this;}
-    JSONObject json()throws JSONException{return clock.write(new JSONObject().put("version",2).put("mode",mode).put("mediaId",mediaId).put("idleMinutes",idleMinutes).put("showTime",showTime).put("showWeather",showWeather).put("sound",sound).put("flipShowSeconds",flipShowSeconds).put("flipSound",flipSound).put("timePosition",timePosition).put("weatherPosition",weatherPosition));}
+    ScreensaverSettings validated(WallpaperCatalog catalog){return catalog.find(mediaId)==null?new ScreensaverSettings(WallpaperCatalog.DEFAULT,idleMinutes,showTime,showWeather,mode,timePosition,weatherPosition,sound,flipShowSeconds,flipSound,doubleOk,clock):this;}
+    JSONObject json()throws JSONException{return clock.write(new JSONObject().put("version",2).put("mode",mode).put("mediaId",mediaId).put("idleMinutes",idleMinutes).put("showTime",showTime).put("showWeather",showWeather).put("sound",sound).put("flipShowSeconds",flipShowSeconds).put("flipSound",flipSound).put("doubleOk",doubleOk).put("timePosition",timePosition).put("weatherPosition",weatherPosition));}
     static ScreensaverSettings read(JSONObject json)throws JSONException{
         if(json.optInt("version",1)!=1&&json.optInt("version",1)!=2)throw new JSONException("Unsupported screensaver settings");
         String mode=json.optString("mode",CUSTOM);
         if(RETIRED_AERIAL.equals(mode))mode=FOLLOW;
-        try{return new ScreensaverSettings(json.getString("mediaId"),json.getInt("idleMinutes"),json.getBoolean("showTime"),json.getBoolean("showWeather"),mode,json.has("timePosition")?json.getString("timePosition"):CENTER,json.has("weatherPosition")?json.getString("weatherPosition"):BOTTOM_LEFT,json.optBoolean("sound",false),json.has("flipShowSeconds")&&json.getBoolean("flipShowSeconds"),json.has("flipSound")&&json.getBoolean("flipSound"),ClockOptions.read(json));}
+        try{return new ScreensaverSettings(json.getString("mediaId"),json.getInt("idleMinutes"),json.getBoolean("showTime"),json.getBoolean("showWeather"),mode,json.has("timePosition")?json.getString("timePosition"):CENTER,json.has("weatherPosition")?json.getString("weatherPosition"):BOTTOM_LEFT,json.optBoolean("sound",false),json.has("flipShowSeconds")&&json.getBoolean("flipShowSeconds"),json.has("flipSound")&&json.getBoolean("flipSound"),ClockOptions.enabled(json,"doubleOk"),ClockOptions.read(json));}
         catch(IllegalArgumentException e){throw new JSONException("Invalid screensaver settings");}
     }
 

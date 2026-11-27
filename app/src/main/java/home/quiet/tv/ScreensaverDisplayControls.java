@@ -21,7 +21,7 @@ final class ScreensaverDisplayControls {
     private final DesktopMediaImportPanel importer;
     private ScreensaverSettings settings;
     private DisplayAppearanceChoice waiting,content,timePosition,weatherPosition,analogStyle,digitalLayout;
-    private DesktopSettingsRow choose,time,weather,sound,quote,analog,calendar,lunar,seconds,flipSeconds,flipSound;
+    private DesktopSettingsRow choose,doubleOk,time,weather,sound,quote,analog,calendar,lunar,seconds,flipSeconds,flipSound;
     private DesktopSettingsRow wallMedia,movieMedia;
     private FeiniuMovieWallPanel moviePanel;
     private LinearLayout library;
@@ -37,6 +37,7 @@ final class ScreensaverDisplayControls {
         group.removeAllViews();String[] minutes={"0","1","2","5","10","15","30"},waitNames={tr("关闭","Off"),"1 "+tr("分钟","min"),"2 "+tr("分钟","min"),"5 "+tr("分钟","min"),"10 "+tr("分钟","min"),"15 "+tr("分钟","min"),"30 "+tr("分钟","min")};
         DisplayAppearanceChoice.Preview bridge=new DisplayAppearanceChoice.Preview(){public void value(String key,Object value){if(key.equals("saver-content"))draftMode=String.valueOf(value);if(key.equals("saver-clock-position"))draftTimePosition=String.valueOf(value);if(key.equals("saver-weather-position"))draftWeatherPosition=String.valueOf(value);if(key.equals("saver-analog-style"))draftAnalogStyle=String.valueOf(value);if(key.equals("saver-digital-layout"))draftDigitalLayout=String.valueOf(value);scene();}public void clear(String key){if(key.equals("saver-content"))draftMode="";if(key.equals("saver-clock-position"))draftTimePosition="";if(key.equals("saver-weather-position"))draftWeatherPosition="";if(key.equals("saver-analog-style"))draftAnalogStyle="";if(key.equals("saver-digital-layout"))draftDigitalLayout="";scene();}};
         waiting=new DisplayAppearanceChoice(ui,"saver-wait",tr("闲置等待时间","Idle timeout"),minutes,waitNames,new DisplayAppearanceChoice.Access(){public String read(){return String.valueOf(settings.idleMinutes);}public void save(String value)throws IOException{saveSettings(current->current.waitMinutes(Integer.parseInt(value)));}},false,bridge,rewired).twoColumns();group.addView(waiting);
+        doubleOk=toggle(tr("双击 OK 进屏保","Double-press OK for screensaver"),"saver-double-ok",current->current.doubleOk(!current.doubleOk));
         content=new DisplayAppearanceChoice(ui,"saver-content",tr("屏保内容","Screensaver content"),new String[]{ScreensaverSettings.FOLLOW,ScreensaverSettings.CLOCK,ScreensaverSettings.FLIP,ScreensaverSettings.CUSTOM,ScreensaverSettings.WALL,ScreensaverSettings.MOVIE_WALL},new String[]{tr("跟随桌面","Follow desktop"),tr("数字时间","Digital time"),tr("翻页时钟","Flip clock"),tr("自定义","Custom"),tr("壁纸墙","Wallpaper wall"),tr("影视墙","Movie poster wall")},new DisplayAppearanceChoice.Access(){public String read(){return settings.mode;}public void save(String value)throws IOException{writeSettings(current->current.content(value));candidate="";draftMode="";expanded=false;renderLibrary();refresh();scene();}},false,bridge,rewired).twoColumns();group.addView(content);
         flipSeconds=toggle(tr("显示秒","Show seconds"),"saver-flip-seconds",current->current.flipSeconds(!current.flipShowSeconds));
         flipSound=toggle(tr("翻页声音","Flip sound"),"saver-flip-sound",current->current.flipSound(!current.flipSound));
@@ -118,7 +119,7 @@ final class ScreensaverDisplayControls {
     private void saveSettings(Edit edit)throws IOException{writeSettings(edit);draftMode="";refresh();scene();}
     void refresh(){
         if(settings==null||choose==null)return;ScreensaverSettings current=store.current();if(current!=null)settings=current;
-        boolean custom=ScreensaverSettings.CUSTOM.equals(settings.mode);choose.setVisibility(custom?View.VISIBLE:View.GONE);choose.tail(expanded?"settings-up":"arrow");library.setVisibility(custom&&expanded?View.VISIBLE:View.GONE);time.setVisibility(settings.clockOnly()?View.GONE:View.VISIBLE);time.checked(settings.showTime);weather.checked(settings.showWeather);
+        boolean custom=ScreensaverSettings.CUSTOM.equals(settings.mode);doubleOk.checked(settings.doubleOk);choose.setVisibility(custom?View.VISIBLE:View.GONE);choose.tail(expanded?"settings-up":"arrow");library.setVisibility(custom&&expanded?View.VISIBLE:View.GONE);time.setVisibility(settings.clockOnly()?View.GONE:View.VISIBLE);time.checked(settings.showTime);weather.checked(settings.showWeather);
         movieMedia.setVisibility(settings.movieWall()?View.VISIBLE:View.GONE);
         movieMedia.value(moviePanel.summary());
         boolean wall=settings.wall();

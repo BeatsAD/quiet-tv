@@ -77,6 +77,14 @@ final class ScreensaverController {
         try{return store.snapshot(media.snapshot());}
         catch(IOException e){DiagnosticLog.error("screensaver.load.failed",e);return null;}
     }
+    boolean doubleOkEnabled(){
+        ScreensaverSettings current=store.current();
+        if(current==null){
+            current=read();
+            if(current!=null)settings=current;
+        }
+        return current!=null&&current.doubleOk;
+    }
     void availabilityChanged(){
         boolean next=allowed();if(next==eligible)return;eligible=next;
         main.removeCallbacks(idle);if(!next){if(state!=State.OFF)exit();}else interaction();

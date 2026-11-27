@@ -14,7 +14,7 @@
     "src/AdbManagement.css": "de349e7a1dbc504d027a34c39adf1590bee35c79c8e19019c35d86226c52dd43",
     "src/AdbManagement.tsx": "951a56b39d84d342f39804d81b709634397d6c6f7023b65eda071e47fe305dad",
     "src/AnalogClock.tsx": "e87eaa7f7a4c00073b817750ecdc5b5915c69d223b9253837a80fad3104a8468",
-    "src/App.tsx": "1b1a4338905a5a0b0c5d038c9261a2f55369fb2173e51d01d690ae03b08e73a2",
+    "src/App.tsx": "e9cc199a49b1a507b1c48778250e53bf8754ecb20a8fb9a1a926bbd25b488d44",
     "src/AppActionConfirmation.tsx": "35632d4c91f509c8bbea1bfc0ed22ccf07ac0305c4325b23c637b2ec74bac4e4",
     "src/AppFilterMenu.tsx": "4280fb5c5156406848f50c106f0b2a8c46423c9b9fbc30eb2fc3da8cd9032e50",
     "src/AppRename.tsx": "de211e322daf5334b3edd954b6a2417313f461a5e724c5d3321a19fccc1431c6",
@@ -63,7 +63,7 @@
     "src/media.ts": "d543d86e11ac3096d1dce5e41a0c7f89ea0ec2dbec8decc8f73d5001e054494a",
     "src/motion.ts": "9ce52e86ba9c34adf3512bf5af8d7bbb9374bce1af1dc4891bc40af3c84eef00",
     "src/operationResults.ts": "77936730ef04f23e6909f09c41dd59ecd9beca6d7ff95eaa4432af6e33c53135",
-    "src/presentation.ts": "e5023a630f2ab98b1d28a0cafb35f9932b663b5f46f996ea9c301d392b488a8c",
+    "src/presentation.ts": "23061eb6c079f6133a4dea5e3a4680232242abbc3ec9962fa0b4afb503a8839c",
     "src/preview.tsx": "689e42f9e58e733d411561dcca9aab18c203b899d8e4be551d636e162669a1b9",
     "src/quickRules.ts": "3ebf118f1fc4361265818a2fc4f73e2b24cf05644a7bdcc02fd31b5e241b954a",
     "src/settingsNavigation.ts": "d7b9dbe7faf11fdb4dedd3085a59decef8b045cdd710cc7ebb554a9ffab924a2",
@@ -76,11 +76,11 @@
     "public/assets/weather-openweather.png": "370868075e3351aab295dc52f684694f5f7b815ab00897ddbb14c6fe9bb6d158",
     "public/assets/weather-qweather.png": "a8cfd68af24cda3a2292378653b2ca4b3c3164b46ce1bf997e961395553926c0",
     "public/assets/weather-uapi.png": "06a87512e04cb01e98d570b4f95de089bacf0a32f7c785cf0cf9ba9c98084cd4",
-    "public/release-notes.txt": "501c0c55f2aa8fc0d07e1bcea771f140483353a9d952a4310798ea000a8f7302",
+    "public/release-notes.txt": "c79f94e7f1bf183f722819fb0f511f7a349ae7b43d00071605cb39532e02b525",
     "public/tmdb.svg": "8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c"
   },
   "assets": {
-    "app.js": "6ccee8b09fc1a5782e60f81050d04001b19b50a69c60c8a19e03324cf5a0fa05",
+    "app.js": "f76ec47b6666437ca4a78ec77ce5d26eb019bf61123b292bbb96c65f12b1732d",
     "assets/file-folder.svg": "ceee8c7ec763f01505483702abaa19030e10b11d132b72079ec8d8574c8222dc",
     "assets/flip_clock.wav": "712c85fe9eddafc4ba9edbc211705bbc4f40f2e8239688b9fac355e3d852e4d0",
     "assets/qq-group.webp": "9d31d757ec3ec26b66cf11b8c40903270332bc3a8fca7dccd3c6ec4c1f5a36d9",
@@ -90,7 +90,7 @@
     "assets/weather-qweather.png": "a8cfd68af24cda3a2292378653b2ca4b3c3164b46ce1bf997e961395553926c0",
     "assets/weather-uapi.png": "06a87512e04cb01e98d570b4f95de089bacf0a32f7c785cf0cf9ba9c98084cd4",
     "index.html": "e5776db24d9c32b22e24d79fb0d055defff73904dccda6b78067066275b8d3c6",
-    "release-notes.txt": "501c0c55f2aa8fc0d07e1bcea771f140483353a9d952a4310798ea000a8f7302",
+    "release-notes.txt": "c79f94e7f1bf183f722819fb0f511f7a349ae7b43d00071605cb39532e02b525",
     "styles.css": "6960c111dac1e9e6523fb046badce4968a84458fd9de7bf1bcffb4f14e7495c5",
     "tmdb.svg": "8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c"
   }

@@ -252,7 +252,6 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
             tab.setTag("desktop-section-"+category.name().toLowerCase(Locale.ROOT));
             tab.setId(androidx.core.view.ViewCompat.generateViewId());
             tab.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,px(11));
-            tab.selectedSurface(UiPalette.TEXT,true);
             tab.setPadding(px(3),0,px(3),0);
             tab.setFocusableInTouchMode(true);
             tab.setSelected(category==section);
@@ -549,7 +548,7 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
         boolean busy=wallScene&&wallControls!=null&&wallControls.busy();
         boolean draft=activeAdjustment!=null||wallScene&&wallControls.drafting()||saverScene&&saverControls.drafting();
         for(DisplayAppearanceChoice choice:appearanceChoices)draft|=choice.drafting();
-        boolean visual=!previewFocus.equals("key-sounds")&&!previewFocus.startsWith("appearance-key-sound-theme")&&!previewFocus.startsWith("appearance-saver-wait");
+        boolean visual=!previewFocus.equals("key-sounds")&&!previewFocus.startsWith("appearance-key-sound-theme")&&!previewFocus.startsWith("appearance-saver-wait")&&!previewFocus.equals("saver-double-ok");
         String hint=previewHint();
         if(draft&&!busy)hint=tr("未保存  确定保存  返回取消","Not saved  OK to save  Back to cancel");
         if(activeAdjustment!=null)hint=tr("未保存  左右调整  确定保存  上下保存并切换  返回取消","Not saved  Left/right to adjust  OK to save  Up/down to save and move  Back to cancel");
@@ -565,6 +564,7 @@ final class DesktopDisplayPanel extends ManagementPanel implements SharedPrefere
         String tag=previewFocus;
         if(tag.equals("wall-daily-details"))return tr("查看图片信息，也可手动刷新今日壁纸。","View image details or manually refresh today's wallpaper.");
         if(tag.startsWith("appearance-saver-wait"))return tr("无操作达到此时间后进入屏保。","Starts the screensaver after this idle time.");
+        if(tag.equals("saver-double-ok"))return tr("在首页快速连按两次 OK 键进入屏保。","Press OK twice quickly on Home to start the screensaver.");
         if(tag.startsWith("saver-")||tag.startsWith("appearance-saver-content"))return tr("设置闲置时显示的画面。","Choose what appears while the TV is idle.");
         if(tag.contains("wallpaper-blur"))return tr("调整背景模糊程度，预览随之更新。","Adjust background blur and view the result.");
         if(tag.contains("wallpaper-brightness"))return tr("调整背景亮度，文字与应用保持清晰。","Adjust background brightness while keeping text and apps clear.");

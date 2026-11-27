@@ -208,9 +208,9 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private ArrayList<String> moveDefaults;
     private HomeCatalogRefresh.Input moveInput;
     private final Runnable confirmHold=()->{
-        if(screensaverAllowed()&&row<0&&heldPackage.equals("button:"+topEntry())&&!confirmLong){confirmLong=true;String id=topEntry();cancelConfirm();visiblePills.get(topColumn).setPressed(false);if(!"settings".equals(id))openRemoteHomeTools(true,id);return;}
+        if(confirmAllowed()&&row<0&&heldPackage.equals("button:"+topEntry())&&!confirmLong){confirmLong=true;String id=topEntry();cancelConfirm();visiblePills.get(topColumn).setPressed(false);if(!"settings".equals(id))openRemoteHomeTools(true,id);return;}
         App app=currentApp();
-        if(screensaverAllowed()&&app!=null&&app.pkg.equals(heldPackage)&&!confirmLong){confirmLong=true;cancelConfirm();pressDock(false);openAppActions(app);}
+        if(confirmAllowed()&&app!=null&&app.pkg.equals(heldPackage)&&!confirmLong){confirmLong=true;cancelConfirm();pressDock(false);openAppActions(app);}
     };
     private JSONObject config;
     private final BroadcastReceiver timeReceiver = new BroadcastReceiver() {
@@ -1118,7 +1118,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         int key=event.getKeyCode();
         if(event.getAction()==KeyEvent.ACTION_DOWN && HomeGuardService.navigationKey(key)){if(automaticInputPending)cancelInputWork();++hdmiLaunchGeneration;new BootAppStore(this).cancelHdmiBoot();new BootAppStore(this).userAction("desktop_input");HomeGuardService.bootSourceUserAction(this);}
         int kind=key==KeyEvent.KEYCODE_DPAD_LEFT || key==KeyEvent.KEYCODE_DPAD_RIGHT || key==KeyEvent.KEYCODE_DPAD_UP || key==KeyEvent.KEYCODE_DPAD_DOWN?1
-            :key==KeyEvent.KEYCODE_DPAD_CENTER || key==KeyEvent.KEYCODE_ENTER || key==KeyEvent.KEYCODE_NUMPAD_ENTER?2
+            :KeyFeedback.confirmKey(key)?2
             :key==KeyEvent.KEYCODE_VOLUME_UP || key==KeyEvent.KEYCODE_VOLUME_DOWN || key==KeyEvent.KEYCODE_VOLUME_MUTE?4:0;
         if(event.getAction()==KeyEvent.ACTION_DOWN&&wallpapers!=null&&(kind==1||kind==2||key==KeyEvent.KEYCODE_BACK))wallpapers.interaction();
         if(kind!=0 && event.getAction()==KeyEvent.ACTION_DOWN && event.getRepeatCount()==0 && (observedInputKinds&kind)==0){
@@ -1128,14 +1128,14 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         }
         if(event.getAction()==KeyEvent.ACTION_DOWN&&(key==KeyEvent.KEYCODE_BACK||key==KeyEvent.KEYCODE_HOME))cancelInputWork();
         if(event.getAction()==KeyEvent.ACTION_DOWN && hasWindowFocus() && systemEntryDispatched && !systemEntryPending.isEmpty()){systemEntryLifecycle("next_home_key");systemEntryPending="";}
-        boolean confirm=key==KeyEvent.KEYCODE_DPAD_CENTER || key==KeyEvent.KEYCODE_ENTER || key==KeyEvent.KEYCODE_NUMPAD_ENTER;
+        boolean confirm=KeyFeedback.confirmKey(key);
         if(confirm && (!ready || row<0) && event.getRepeatCount()==0)
             DiagnosticLog.info("home.action.key","entry="+topEntry()+" key="+key+" phase="+event.getAction()+" ready="+ready+" popup="+(inputPopup!=null && inputPopup.isShowing()));
         if(inputPopup!=null && inputPopup.isShowing()){cancelConfirm();return super.dispatchKeyEvent(event);}
         if(!ready)return super.dispatchKeyEvent(event);
         if(ScreensaverController.systemKey(key))return super.dispatchKeyEvent(event);
         if(quickControls!=null){cancelConfirm();return quickControls.key(event)||super.dispatchKeyEvent(event);}
-        if(!confirm)cancelConfirm();
+        if(!confirm&&key!=KeyEvent.KEYCODE_UNKNOWN)cancelConfirm();
         if(moveSaving)return true;
         if(!movingPackage.isEmpty()){
             if(confirm){if(event.getAction()==KeyEvent.ACTION_UP&&!event.isCanceled()){saveMove();KeyFeedback.confirm(this);}return true;}
@@ -1201,9 +1201,9 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 DiagnosticLog.info("home.action.focus","entry="+topEntry()+" row="+row+" key="+key);
             focusCurrent(true);KeyFeedback.moved(this);return true;
         }
-        if(key==KeyEvent.KEYCODE_DPAD_CENTER || key==KeyEvent.KEYCODE_ENTER || key==KeyEvent.KEYCODE_NUMPAD_ENTER){
+        if(confirm){
             if(row<0)visiblePills.get(topColumn).setPressed(event.getAction()==KeyEvent.ACTION_DOWN);
-            if(!screensaverAllowed()){cancelConfirm();return super.dispatchKeyEvent(event);}
+            if(!confirmAllowed()){cancelConfirm();return super.dispatchKeyEvent(event);}
             if(event.getAction()==KeyEvent.ACTION_DOWN){
                 if(!pendingConfirmFocus.isEmpty()&&!pendingConfirmFocus.equals(confirmFocus()))cancelConfirm();
                 if(pendingConfirm!=null){main.removeCallbacks(pendingConfirm);pendingConfirm=null;}
@@ -1214,13 +1214,21 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
                 main.removeCallbacks(confirmHold);heldPackage="";
                 pressDock(false);if(row<0)visiblePills.get(topColumn).setPressed(false);
                 if(confirmLong){confirmLong=false;cancelConfirm();return true;}
-                HomeConfirmGesture.Result result=confirmGesture.up(key,event.getDownTime(),event.getEventTime(),event.isCanceled(),ViewConfiguration.getLongPressTimeout());
+                if(event.isCanceled()){cancelConfirm();return true;}
+                boolean doubleOk=screensaver!=null&&screensaver.doubleOkEnabled()&&screensaverAllowed();
+                if(!doubleOk){
+                    cancelConfirm();
+                    if(row<0)visiblePills.get(topColumn).performClick();
+                    else launchSelected();
+                    return true;
+                }
+                HomeConfirmGesture.Result result=confirmGesture.up(key,event.getDownTime(),event.getEventTime(),false);
                 if(pendingConfirm!=null)main.removeCallbacks(pendingConfirm);pendingConfirm=null;
                 if(result==HomeConfirmGesture.Result.WAIT&&row<0&&"control".equals(topEntry())){cancelConfirm();visiblePills.get(topColumn).performClick();}
                 else if(result==HomeConfirmGesture.Result.DOUBLE){cancelConfirm();screensaver.enter();KeyFeedback.confirm(this);}
                 else if(result==HomeConfirmGesture.Result.WAIT){
                     KeyEvent confirmation=new KeyEvent(event);pendingConfirmFocus=confirmFocus();pendingConfirm=()->{
-                        boolean valid=confirmGesture.pending()&&screensaverAllowed()&&pendingConfirmFocus.equals(confirmFocus());cancelConfirm();
+                        boolean valid=confirmGesture.pending()&&confirmAllowed()&&pendingConfirmFocus.equals(confirmFocus());cancelConfirm();
                         if(valid)KeyFeedback.dispatch(getWindow().getDecorView(),confirmation,()->{if(row<0)visiblePills.get(topColumn).performClick();else launchSelected();return true;});
                     };main.postDelayed(pendingConfirm,HomeConfirmGesture.WINDOW_MS);
                 }else cancelConfirm();
@@ -1230,7 +1238,8 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
         return super.dispatchKeyEvent(event);
     }
 
-    private boolean screensaverAllowed(){return quickControls==null&&ready&&resumed&&!moveSaving&&movingPackage.isEmpty()&&hasWindowFocus()&&!isFinishing()&&wallpapers!=null&&!wallpapers.pickerShowing()&&(inputPopup==null||!inputPopup.isShowing())&&!(getCurrentFocus() instanceof EditText);}
+    private boolean confirmAllowed(){return quickControls==null&&ready&&resumed&&!moveSaving&&movingPackage.isEmpty()&&!isFinishing()&&wallpapers!=null&&!wallpapers.pickerShowing()&&(inputPopup==null||!inputPopup.isShowing())&&!(getCurrentFocus() instanceof EditText);}
+    private boolean screensaverAllowed(){return confirmAllowed()&&hasWindowFocus();}
     private String confirmFocus(){App app=currentApp();return row+":"+column+":"+topColumn+":"+(app==null?"":app.pkg);}
     private void cancelConfirm(){main.removeCallbacks(confirmHold);heldPackage="";if(pendingConfirm!=null)main.removeCallbacks(pendingConfirm);pendingConfirm=null;pendingConfirmFocus="";confirmGesture.cancel();}
     private void focusCurrent(boolean animate) {
@@ -1349,7 +1358,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     @Override public boolean dispatchGenericMotionEvent(MotionEvent event){
         InputDiagnostics.motion(event);
         if(!waitingForUnlock)updateReminderInteraction();
-        if(!waitingForUnlock&&screensaver!=null){cancelConfirm();if(screensaver.pointer(event))return true;screensaver.interaction();}return super.dispatchGenericMotionEvent(event);
+        if(!waitingForUnlock&&screensaver!=null){if(event.getActionMasked()==MotionEvent.ACTION_SCROLL)cancelConfirm();if(screensaver.pointer(event))return true;screensaver.interaction();}return super.dispatchGenericMotionEvent(event);
     }
     private void leaveHome(Runnable launch){cancelInputWork();leaveHomePrepared(launch);}
     private void leaveHomePrepared(Runnable launch){topShelf.show(null);prepareWallpaperForLeave(launch);}
@@ -1370,7 +1379,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
             try{
                 if(ChildBlockActivity.gate(this,app.pkg)){if(launch!=null)launch.stage("GATED");return;}
                 if(new HomeGuardState(this).protects(app.pkg))HomeGuardService.allowOriginal();
-                Intent intent=new Intent(Intent.ACTION_MAIN).setComponent(app.component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                Intent intent=new Intent(Intent.ACTION_MAIN).setComponent(app.component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
                 String evidence="attempt="+DiagnosticOperation.nextId(SystemClock.elapsedRealtime())+" source=desktop_tile target="+app.pkg+" "+DiagnosticLog.intent(intent);
                 DiagnosticLog.info("app.launch.request",evidence);
                 startActivity(intent);
@@ -1457,7 +1466,7 @@ public final class HomeActivity extends androidx.activity.ComponentActivity {
     private void pressDock(boolean pressed) {
         if(dockPress!=null)dockPress.cancel();
         if(row!=0||!homeAppsVisible||dockTiles.isEmpty())return;
-        Tile item=dockTiles.get(Math.min(column,dockTiles.size()-1));item.animate().cancel();float from=item.getScaleX(),target=px(dockGeometry(column).cardWidth[column])/(float)item.getWidth()*(pressed?.98f:1);
+        Tile item=dockTiles.get(Math.min(column,dockTiles.size()-1));if(item.getWidth()<=0)return;item.animate().cancel();float from=item.getScaleX(),target=px(dockGeometry(column).cardWidth[column])/(float)item.getWidth()*(pressed?.98f:1);
         dockPress=ValueAnimator.ofFloat(from,target);dockPress.setDuration(pressed?80:120);dockPress.setInterpolator(FOCUS_MOTION);
         dockPress.addUpdateListener(a->{float value=(float)a.getAnimatedValue();item.setScaleX(value);item.setScaleY(value);});dockPress.start();
     }

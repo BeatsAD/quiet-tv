@@ -172,7 +172,7 @@ final class PhoneSettingsConfiguration implements PhoneSettingsState.Source {
         WallpaperCatalog catalog=WallpaperStore.get(context).snapshot();fields.put("dayNight",field("wallpaper","随昼夜变化","toggle"));fields.put("showMovieInfo",field("appearance","显示影片信息","toggle"));
         if(catalog.dynamic()){fields.put("wallSound",field("wallpaper","背景声音","toggle"));if(catalog.rotating||catalog.weather)fields.getJSONObject("wallSound").put("disabledReason","当前方式保持静音");}
         Object[] waits=new Object[ScreensaverSettings.WAITS.length];String[] labels=new String[waits.length];for(int i=0;i<waits.length;i++){waits[i]=ScreensaverSettings.WAITS[i];labels[i]=ScreensaverSettings.WAITS[i]==0?"关闭":waits[i]+" 分钟后";}
-        choice(fields,"idle","screensaver","闲置等待时间",waits,labels);choice(fields,"saverContent","screensaver","屏保内容",new Object[]{ScreensaverSettings.FOLLOW,ScreensaverSettings.CLOCK,ScreensaverSettings.FLIP,ScreensaverSettings.CUSTOM,ScreensaverSettings.WALL,ScreensaverSettings.MOVIE_WALL},new String[]{"跟随桌面","数字时间","翻页时钟","自定义","壁纸墙","影视墙"});
+        choice(fields,"idle","screensaver","闲置等待时间",waits,labels);fields.put("saverDoubleOk",field("screensaver","双击 OK 进屏保","toggle"));choice(fields,"saverContent","screensaver","屏保内容",new Object[]{ScreensaverSettings.FOLLOW,ScreensaverSettings.CLOCK,ScreensaverSettings.FLIP,ScreensaverSettings.CUSTOM,ScreensaverSettings.WALL,ScreensaverSettings.MOVIE_WALL},new String[]{"跟随桌面","数字时间","翻页时钟","自定义","壁纸墙","影视墙"});
         ScreensaverSettings saver=ScreensaverStore.get(context).snapshot(catalog);fields.put("saverSound",field("screensaver","屏保声音","toggle"));if(!saver.video(catalog))fields.getJSONObject("saverSound").put("disabledReason","选择视频屏保后可开启");
         fields.put("saverFlipSeconds",field("screensaver","显示秒","toggle")).put("saverFlipSound",field("screensaver","翻页声音","toggle"));
         fields.put("saverAnalogClock",field("screensaver","模拟时钟","toggle"))
@@ -185,7 +185,7 @@ final class PhoneSettingsConfiguration implements PhoneSettingsState.Source {
         choice(fields,"saverClockPosition","screensaver","时钟位置",ScreensaverSettings.POSITIONS,new String[]{"左上角","右上角","居中","左下角","右下角"});choice(fields,"saverWeatherPosition","screensaver","天气位置",ScreensaverSettings.POSITIONS,new String[]{"左上角","右上角","居中","左下角","右下角"});
     }
     static JSONObject saverValues(ScreensaverSettings saver,WallpaperCatalog catalog)throws JSONException{
-        return new JSONObject().put("saverBuiltinHidden",catalog.saverBuiltinHidden).put("idle",saver.idleMinutes).put("saverContent",saver.mode).put("saverClock",saver.showTime).put("saverWeather",saver.showWeather).put("saverSound",saver.sound).put("saverSoundActive",saver.sound&&saver.video(catalog)).put("saverFlipSeconds",saver.flipShowSeconds).put("saverFlipSound",saver.flipSound).put("saverMedia",saver.customMediaId(catalog)).put("saverClockPosition",saver.timePosition).put("saverWeatherPosition",saver.weatherPosition)
+        return new JSONObject().put("saverBuiltinHidden",catalog.saverBuiltinHidden).put("idle",saver.idleMinutes).put("saverDoubleOk",saver.doubleOk).put("saverContent",saver.mode).put("saverClock",saver.showTime).put("saverWeather",saver.showWeather).put("saverSound",saver.sound).put("saverSoundActive",saver.sound&&saver.video(catalog)).put("saverFlipSeconds",saver.flipShowSeconds).put("saverFlipSound",saver.flipSound).put("saverMedia",saver.customMediaId(catalog)).put("saverClockPosition",saver.timePosition).put("saverWeatherPosition",saver.weatherPosition)
             .put("saverAnalogClock",saver.clock.analog).put("saverAnalogStyle",saver.clock.style)
             .put("saverDigitalLayout",saver.clock.layout).put("saverCalendar",saver.clock.calendar)
             .put("saverLunarDate",saver.clock.lunar).put("saverSeconds",saver.clock.seconds);}
@@ -250,7 +250,7 @@ final class PhoneSettingsConfiguration implements PhoneSettingsState.Source {
         if(domain.equals("desktopSwitch"))return new PhoneSettingsState.Result(read(domain),general.desktopSwitch(field,value,active));
         if(domain.equals("components")){if(!"weather".equals(value)||!(field.equals("start")||field.equals("cancel")||field.equals("uninstall")))throw new PhoneSettingsServer.Rejected("组网功能请在手机助手App中使用");home.quiet.components.ComponentRepository repository=home.quiet.components.ComponentRepository.get(context);if(field.equals("start"))repository.start("weather");else if(field.equals("uninstall"))WeatherComponentActions.uninstall(context);else repository.cancel("weather");return new PhoneSettingsState.Result(repository.snapshot());}
         DesktopSettingsStore desktop=new DesktopSettingsStore(context);
-        if(Arrays.asList("topShelf","showHomeQuote","showScreensaverQuote","keySounds","showTime","showDate","showSeconds","showLunarDate","showMovieInfo","homeApps","showWatchTv","secondNames","secondHideHomeApps","showGreeting","showAvatar","dockMagnify","dockGlass","globalGlass","dockBackground","weatherEnabled","saverClock","saverWeather","saverSound","saverFlipSeconds","saverFlipSound","saverAnalogClock","saverCalendar","saverLunarDate","saverSeconds","dayNight","wallSound").contains(field)&&!(value instanceof Boolean))throw new IllegalArgumentException();
+        if(Arrays.asList("topShelf","showHomeQuote","showScreensaverQuote","keySounds","showTime","showDate","showSeconds","showLunarDate","showMovieInfo","homeApps","showWatchTv","secondNames","secondHideHomeApps","showGreeting","showAvatar","dockMagnify","dockGlass","globalGlass","dockBackground","weatherEnabled","saverDoubleOk","saverClock","saverWeather","saverSound","saverFlipSeconds","saverFlipSound","saverAnalogClock","saverCalendar","saverLunarDate","saverSeconds","dayNight","wallSound").contains(field)&&!(value instanceof Boolean))throw new IllegalArgumentException();
         if("catalog".equals(domain)&&"renameMedia".equals(field)){
             if(!(value instanceof JSONObject))throw new PhoneSettingsServer.BadInput();JSONObject request=(JSONObject)value;
             if(request.length()!=3||!(request.opt("id") instanceof String)||!(request.opt("originalName") instanceof String))throw new PhoneSettingsServer.BadInput();
@@ -378,6 +378,7 @@ final class PhoneSettingsConfiguration implements PhoneSettingsState.Source {
                 ScreensaverSettings next;
                 switch(field){
                     case "idle":next=current.waitMinutes(integer(value,0,30));break;
+                    case "saverDoubleOk":next=current.doubleOk((Boolean)value);break;
                     case "saverContent":if(!(value instanceof String))throw new IllegalArgumentException();next=current.content((String)value);break;
                     case "saverClock":next=current.time((Boolean)value);break;
                     case "saverFlipSeconds":next=current.flipSeconds((Boolean)value);break;
