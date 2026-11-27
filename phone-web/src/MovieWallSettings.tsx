@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { PhoneClient } from './api';
-import { Group, Row } from './widgets';
+import { Group, Icon, Row } from './widgets';
 
 export type MovieSource = 'feiniu' | 'plex' | 'smb';
 export const movieSourceTitles:Record<MovieSource,string> = {feiniu:'媒体服务器',plex:'Plex',smb:'NAS 共享文件夹（SMB）'};
@@ -16,6 +17,7 @@ type MovieWall = {
   provider?: MovieSource;
   operation?: number;
   operationProvider?: MovieSource;
+  syncProgress?: {library:string;processed:number;total:number}|null;
   sources?: {
     feiniu: MediaSource;
     plex?: MediaSource;
@@ -57,49 +59,106 @@ export function MovieWallSettings({client,onOpen}:{
         value={wall.connected&&wall.provider===provider?'使用中':wall.sources?.[provider]?.address?'已连接':undefined}
         navigate onClick={()=>onOpen(provider)}/>)}
     </Group>
-    {wall.ids.length>0&&<p className="section-note" role="status">已缓存 {wall.ids.length} 张海报</p>}
+    {!wall.busy&&wall.ids.length>0&&<p className="section-note" role="status">已缓存 {wall.ids.length} 张海报</p>}
     {statusText[wall.status]&&<p className="section-note" role="status">{statusText[wall.status]}</p>}
   </>;
 }
 
-export function MovieWallSourceSettings({client,provider,disabled,onSync}:{
+export function MovieWallSourceSettings({client,provider,disabled,footerHost}:{
   client:PhoneClient;
   provider:MovieSource;
   disabled:boolean;
-  onSync:(id:string)=>void;
+  footerHost:HTMLDivElement|null;
 }) {
   const wall=movieWall(client);
   const source=wall.sources?.[provider]??emptySource;
-  const [editing,setEditing]=useState(false);
-  const status=wall.operationProvider===provider?statusText[wall.status]:undefined;
-  const locked=disabled||wall.busy;
-  const smb=provider==='smb';
-  if(editing||!source.address)return <MovieWallConnection client={client} provider={provider} source={source}
-    disabled={locked} onConnected={()=>setEditing(false)} onCancel={source.address?()=>setEditing(false):undefined}/>;
-  const savedShare=wall.sources?.smb;
   const server=provider==='plex'?wall.sources?.plex:wall.sources?.feiniu;
+  const [editing,setEditing]=useState(false);
+  const [pending,setPending]=useState('');
+  const [requestError,setRequestError]=useState<{operation?:number;message:string}>();
+  const smb=provider==='smb';
+  const form=editing||!source.address;
+  const ownOperation=wall.operationProvider===provider;
+  const status=ownOperation?wall.status:'';
+  const progress=ownOperation?wall.syncProgress:undefined;
+  const working=ownOperation&&wall.busy;
+  const syncing=!!pending||working&&(smb||!!progress||!form&&wall.syncProgress===undefined);
+  const activeLibrary=syncing?(working&&progress?.library||pending):'';
+  const reading=smb?'正在扫描共享文件夹':'正在读取片库';
+  const locked=disabled||wall.busy||!!pending;
+  const localFailure=requestError?.operation===wall.operation?requestError?.message:undefined;
+  const finished=!form&&!syncing&&!wall.busy&&!localFailure&&status==='synced'&&wall.provider===provider;
+  const failure=!form&&!syncing&&!wall.busy&&status!=='working'
+    ? localFailure||statusText[status]
+    : undefined;
+
+  useLayoutEffect(()=>{
+    if(pending)footerHost?.closest('.sheet-panel')?.querySelector('.movie-wall-syncing')
+      ?.closest('.setting-row')?.scrollIntoView({block:'nearest'});
+  },[pending,footerHost]);
+
+  async function sync(id:string) {
+    if(locked)return;
+    setPending(id);
+    setRequestError(undefined);
+    try{
+      await client.command('movieWall',smb?'syncSmb':'syncLibrary',id,undefined,false);
+    }catch(error){
+      setRequestError({operation:wall.operation,message:error instanceof Error?error.message:'未能确认同步，请检查电视连接'});
+    }finally{
+      setPending('');
+    }
+  }
+
+  let feedback;
+  if(syncing){
+    const connected=client.status==='connected';
+    const caching=connected&&working&&progress&&progress.total>0?progress:undefined;
+    const title=!connected?'等待电视连接':caching?'正在缓存海报':!activeLibrary&&!smb?'正在连接或同步':reading;
+    const library=server?.libraries.find(item=>item.id===activeLibrary)?.name;
+    const detail=caching?`已处理 ${caching.processed} 张，共 ${caching.total} 张`:library;
+    feedback=<div className="movie-wall-sync-feedback" data-phase={caching?'caching':'reading'}>
+      {!caching&&<Icon name="UpdateIcon"/>}
+      <div><strong role="status">{title}</strong>{detail&&<span>{detail}</span>}</div>
+      {caching&&<progress aria-label="海报缓存进度" value={caching.processed} max={caching.total}/>}
+    </div>;
+  }else if(finished||failure){
+    feedback=<div className="movie-wall-sync-feedback" data-phase={finished?'complete':'error'} role={finished?'status':'alert'}>
+      <Icon name={finished?'CheckCircledIcon':'ExclamationTriangleIcon'}/>
+      <div><strong>{finished?'同步完成':'同步未完成'}</strong>
+        <span>{finished?`已缓存 ${wall.ids.length} 张海报`:failure}</span></div>
+    </div>;
+  }
+  const fixedFeedback=footerHost&&feedback?createPortal(feedback,footerHost):null;
+  if(form)return <>
+    <MovieWallConnection client={client} provider={provider} source={source} disabled={disabled||wall.busy}
+      onSyncPending={setPending} onConnected={()=>setEditing(false)} onCancel={source.address?()=>setEditing(false):undefined}/>
+    {fixedFeedback}
+  </>;
   return <>
     <Group>
-      <Row title="连接设置" value={source.address} disabled={locked} navigate onClick={()=>setEditing(true)}/>
-      {smb&&<Row title="同步海报" disabled={locked}
-        onClick={()=>savedShare?.canSync?onSync('smb'):setEditing(true)}/>}
+      <Row title="连接设置" value={source.address} disabled={locked} navigate onClick={()=>{setRequestError(undefined);setEditing(true);}}/>
+      {smb&&<Row title="同步海报" disabled={locked} value={syncing?<span className="movie-wall-syncing">同步中</span>:undefined}
+        onClick={()=>wall.sources?.smb.canSync?void sync('smb'):setEditing(true)}/>}
     </Group>
-    {status&&<p className="section-note" role="status">{status}</p>}
-    {wall.provider===provider&&wall.ids.length>0&&<p className="section-note">已缓存 {wall.ids.length} 张海报</p>}
+    {!syncing&&!finished&&wall.provider===provider&&wall.ids.length>0&&<p className="section-note">已缓存 {wall.ids.length} 张海报</p>}
     {!smb&&!!server?.libraries.length&&<Group title="片库">
       {server.libraries.map(item=><Row key={item.id} title={item.name} disabled={locked}
-        value={wall.provider===provider&&server.library===item.id?'重新同步':'同步'} onClick={()=>onSync(item.id)}/>)}
+        value={activeLibrary===item.id?<span className="movie-wall-syncing">同步中</span>:
+          wall.provider===provider&&server.library===item.id?'重新同步':'同步'} onClick={()=>void sync(item.id)}/>)}
     </Group>}
+    {fixedFeedback}
   </>;
 }
 
-function MovieWallConnection({client,provider,source,disabled,onConnected,onCancel}:{
+function MovieWallConnection({client,provider,source,disabled,onConnected,onCancel,onSyncPending}:{
   client:PhoneClient;
   provider:MovieSource;
   source:Source;
   disabled:boolean;
   onConnected:()=>void;
   onCancel?:()=>void;
+  onSyncPending:(id:string)=>void;
 }) {
   const wall=movieWall(client);
   const smb=provider==='smb';
@@ -114,6 +173,11 @@ function MovieWallConnection({client,provider,source,disabled,onConnected,onCanc
   const changed=source.address!==initial.address||source.username!==initial.username;
   const working=submitting||operation!==undefined;
   const locked=disabled||working;
+  useEffect(()=>{
+    if(!smb||!working)return;
+    onSyncPending('smb');
+    return ()=>onSyncPending('');
+  },[smb,working,onSyncPending]);
   useEffect(()=>{
     if(operation===undefined||(wall.operation??0)<operation||wall.busy)return;
     setOperation(undefined);
@@ -141,7 +205,7 @@ function MovieWallConnection({client,provider,source,disabled,onConnected,onCanc
         maxLength={plex?2048:512} required={plex} placeholder={provider==='feiniu'?'未设置时留空':undefined} value={password}
         onChange={event=>setPassword(event.target.value)}/></label>
     </fieldset>
-    {working&&<p className="section-note" role="status">{smb?'正在同步海报…':'正在连接…'}</p>}
+    {working&&!smb&&<p className="section-note" role="status">正在连接…</p>}
     {!working&&(error||changed)&&<p className="form-error" role="alert">{error||'电视上的来源配置已变化，请重新打开连接设置'}</p>}
     <div className={onCancel?'paired-actions':undefined}>
       {onCancel&&<button type="button" className="secondary-button" disabled={working} onClick={onCancel}>取消</button>}

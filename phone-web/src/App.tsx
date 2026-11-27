@@ -121,6 +121,7 @@ export function App(){
   const [upload,setUpload]=useState<{name:string;percent:number;message:string;context:string}|null>(null),[file,setFile]=useState<File|null>(null),[dismissedTasks,setDismissedTasks]=useState<string[]>([]);
   const [uploadActionsHost,setUploadActionsHost]=useState<HTMLDivElement|null>(null);
   const [pageActionsHost,setPageActionsHost]=useState<HTMLDivElement|null>(null);
+  const [movieWallFooterHost,setMovieWallFooterHost]=useState<HTMLDivElement|null>(null);
   const [desktopSelection,setDesktopSelection]=useState<DesktopCategory>(defaultDesktopCategory);
   const [wallpaperFiles,setWallpaperFiles]=useState<File[]>([]),[uploadSelection,setUploadSelection]=useState(0), wallpaperTarget=useRef(''),operationTasks=useRef<Record<string,string[]>>({});
   const [renameLink,setRenameLink]=useState(()=>mediaRenameTarget(connectionRoute()));
@@ -847,7 +848,7 @@ export function App(){
     case 'movie-wall-provider':{
       const provider=view.id==='smb'||view.id==='plex'?view.id:'feiniu';
       return <MovieWallSourceSettings key={provider} client={client} provider={provider} disabled={busy||!canWrite}
-        onSync={id=>void perform('movieWall',provider==='smb'?'syncSmb':'syncLibrary',id,false)}/>;
+        footerHost={movieWallFooterHost}/>;
     }
     case 'screensaver':return screensaverSettings();
     case 'greeting':return <Group>{inlineControls(['showGreeting','showAvatar'])}<Row title="头像" icon="ImageIcon" value={v.avatar?'已设置':'未设置'} onClick={()=>pickFile('avatar')}/><Row title="问候语内容" icon="MessageSquareTextIcon" value={String(v.greeting||'')} navigate onClick={()=>open({kind:'text',title:'问候语',id:'greeting'},true)}/></Group>;
@@ -1207,7 +1208,9 @@ export function App(){
       </FormDialog>}
     {overlay&&overlay.kind!=='app-rename'&&overlay.kind!=='media-rename'&&!confirmViews.has(overlay.kind)&&!shortForms.has(overlay.kind)&&!(overlay.kind==='parent'&&overlay.id==='verify')&&
       <Sheet title={viewTitle(overlay)} nested={trail.length>1} closing={closing} pageKey={viewKey(overlay)} direction={sheetDirection.current}
-        onBack={back} onClose={close} onExited={finishClose}>
+        onBack={back} onClose={close} onExited={finishClose}
+        className={overlay.kind==='movie-wall-provider'?'movie-wall-provider-sheet':undefined}
+        footer={overlay.kind==='movie-wall-provider'?<div ref={setMovieWallFooterHost}/>:undefined}>
         {overlay.kind!=='sync'&&syncFeedback()}
         <fieldset className="connection-controls" disabled={overlay.kind!=='sync'&&(ended||client.restoring)}>{sheet(overlay)}</fieldset>
         {viewFeedback(overlay)}

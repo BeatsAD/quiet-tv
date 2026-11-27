@@ -59,8 +59,8 @@ final class ScreensaverDisplayControls {
         movieMedia.setOnClickListener(moviePanel::open);
         final Runnable updateMovies=()->movieMedia.value(moviePanel.summary());
         movieMedia.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener(){
-            public void onViewAttachedToWindow(View view){FeiniuMovieWall.get(ui).addListener(updateMovies);updateMovies.run();}
-            public void onViewDetachedFromWindow(View view){FeiniuMovieWall.get(ui).removeListener(updateMovies);}
+            public void onViewAttachedToWindow(View view){FeiniuMovieWall.get(ui).addStatusListener(updateMovies);updateMovies.run();}
+            public void onViewDetachedFromWindow(View view){FeiniuMovieWall.get(ui).removeStatusListener(updateMovies);}
         });
         group.addView(movieMedia,new LinearLayout.LayoutParams(-1,ui.px(44.72f)));
         time=toggle(tr("显示时钟","Show clock"),"saver-clock",current->current.time(!current.showTime));
