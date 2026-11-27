@@ -76,7 +76,7 @@
     "public/assets/weather-openweather.png": "370868075e3351aab295dc52f684694f5f7b815ab00897ddbb14c6fe9bb6d158",
     "public/assets/weather-qweather.png": "a8cfd68af24cda3a2292378653b2ca4b3c3164b46ce1bf997e961395553926c0",
     "public/assets/weather-uapi.png": "06a87512e04cb01e98d570b4f95de089bacf0a32f7c785cf0cf9ba9c98084cd4",
-    "public/release-notes.txt": "fb98d302a44af2e10e48ea7a795ebc680befba36d02e0b5f53d352b8f00d8db1",
+    "public/release-notes.txt": "501c0c55f2aa8fc0d07e1bcea771f140483353a9d952a4310798ea000a8f7302",
     "public/tmdb.svg": "8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c"
   },
   "assets": {
@@ -90,7 +90,7 @@
     "assets/weather-qweather.png": "a8cfd68af24cda3a2292378653b2ca4b3c3164b46ce1bf997e961395553926c0",
     "assets/weather-uapi.png": "06a87512e04cb01e98d570b4f95de089bacf0a32f7c785cf0cf9ba9c98084cd4",
     "index.html": "e5776db24d9c32b22e24d79fb0d055defff73904dccda6b78067066275b8d3c6",
-    "release-notes.txt": "fb98d302a44af2e10e48ea7a795ebc680befba36d02e0b5f53d352b8f00d8db1",
+    "release-notes.txt": "501c0c55f2aa8fc0d07e1bcea771f140483353a9d952a4310798ea000a8f7302",
     "styles.css": "6960c111dac1e9e6523fb046badce4968a84458fd9de7bf1bcffb4f14e7495c5",
     "tmdb.svg": "8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c"
   }
