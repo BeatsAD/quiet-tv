@@ -29,11 +29,11 @@ export type PageDirection = 'push' | 'pop';
 
 export function usePageMotion(ref:RefObject<HTMLElement|null>,route:string) {
   const active=useRef<ViewTransition|null>(null);
-  const fallback=useRef<PageDirection|null>(null);
+  const slideDirection=useRef<PageDirection|null>(null);
 
   useLayoutEffect(()=>{
-    const direction=fallback.current;
-    fallback.current=null;
+    const direction=slideDirection.current;
+    slideDirection.current=null;
     const node=ref.current,preference=motionPreference();
     if(!direction||!node?.animate||preference.matches)return;
     const offset=direction==='push'?36:-36;
@@ -48,14 +48,15 @@ export function usePageMotion(ref:RefObject<HTMLElement|null>,route:string) {
 
   return (direction:PageDirection|null,update:()=>void)=>{
     active.current?.skipTransition();
-    fallback.current=null;
+    slideDirection.current=null;
     const preference=motionPreference();
     if(!direction||!ref.current||preference.matches||document.hidden){
       update();
       return;
     }
-    if(!document.startViewTransition){
-      fallback.current=direction;
+    // Return without waiting for the browser to capture both pages.
+    if(direction==='pop'||!document.startViewTransition){
+      slideDirection.current=direction;
       update();
       return;
     }

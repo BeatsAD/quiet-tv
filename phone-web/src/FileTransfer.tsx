@@ -228,7 +228,7 @@ export function FileTransfer({client,view,open,run,busy,canWrite,setLocation}:Om
             description={authorizationMessage||
               (source==='usb'?'连接 U 盘后刷新，或在电视选择目录。':'请在电视选择允许读取的目录。')}
             action={directoryButton('在电视选择目录')}/>
-          :files.length?<div className={source==='local'?'file-grid':'file-source-list'}>{files.map(entry=>{
+          :files.length?<div className="file-grid">{files.map(entry=>{
             const type=fileType(entry);
             return <button type="button" className="file-entry" key={entry.id} disabled={locked} onClick={()=>openEntry(entry)}>
               <Icon name={type.icon}/><span><strong>{entry.name}</strong>{!entry.directory&&<small>{fileSize(entry.bytes)}</small>}</span>

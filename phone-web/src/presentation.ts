@@ -34,7 +34,7 @@ export const desktopFieldIcons: Readonly<Partial<Record<string,string>>> = {
   rotation:'ReloadIcon',dayNight:'MoonIcon',showMovieInfo:'MonitorPlayIcon',
 };
 
-export function timerSummary(state:unknown){return ({OFF:'待授权',CONNECTING:'连接中',READY:'已连接',FAULT:'服务异常',UNKNOWN:'状态待核对'} as Record<string,string>)[String(state)]||'状态待核对';}
+export function timerSummary(state:unknown){return ({OFF:'未开启',CONNECTING:'连接中',READY:'已连接',FAULT:'服务异常',UNKNOWN:'状态待核对'} as Record<string,string>)[String(state)]||'状态待核对';}
 export function guardSummary(code:unknown){return ({incomplete:'尚未完成',paused:'已暂停',pending:'待验证',unconfigured:'尚未配置',repair:'需要修复',limited:'能力受限',verified:'已验证可用'} as Record<string,string>)[String(code)]||'状态待核对';}
 
 export function taskHasAction(task:Task){return typeof task.result?.download==='string'||typeof task.result?.draftId==='string';}

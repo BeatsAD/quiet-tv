@@ -86,6 +86,11 @@ final class ChildQuizState {
     }
     void watch(String pkg,long elapsed,String today,boolean mayStart)throws IOException,JSONException{if(elapsed<0)throw new IOException("观看计时无效");atDay(today);if(!enabled(pkg)||session()!=null)return;elapsed(pkg,elapsed(pkg)+elapsed);if(mayStart&&untilDue(pkg)==0)begin(pkg,"");}
     void startNow(String pkg,String request)throws IOException,JSONException{if(pkg.isEmpty()||request.isEmpty())throw new IOException("立即答题目标无效");JSONArray rounds=data.getJSONArray("rounds");for(int i=0;i<rounds.length();i++)if(request.equals(rounds.getJSONObject(i).optString("requestId")))return;if(session()!=null){if(!pending(pkg))throw new IOException("已有另一应用的待答题目");return;}begin(pkg,request);}
+    void withdrawUnshown(String request){
+        JSONObject pending=session();
+        if(pending!=null&&request.equals(pending.optString("requestId"))&&!pending.optBoolean("visible"))
+            data.remove("session");
+    }
     private void begin(String pkg,String request)throws IOException,JSONException{
         Settings settings=settings(pkg);List<ChildQuizBank.Question> pool=pool(settings);long sequence=data.getLong("sequence");if(pool.isEmpty())throw new IOException("当前出题范围没有可用题目");List<String> available=new ArrayList<>();for(String subject:settings.subjects)for(ChildQuizBank.Question candidate:pool)if(subject.equals(candidate.subject)){available.add(subject);break;}String subject=available.get((int)(sequence%available.size()));List<ChildQuizBank.Question> subjectPool=new ArrayList<>();for(ChildQuizBank.Question candidate:pool)if(subject.equals(candidate.subject))subjectPool.add(candidate);ChildQuizBank.Question question=subjectPool.get((int)((sequence/available.size())%subjectPool.size()));
         data.put("sequence",sequence+1).put("session",new JSONObject().put("id",sequence+1).put("status","question").put("package",pkg).put("requestId",request).put("question",new JSONObject(question.document.toString())).put("passed",false).put("visible",false).put("bankVersion",bank.version).put("settings",settings.json()).put("queue",new JSONArray().put(new JSONObject().put("id",question.id).put("review",false))).put("seen",new JSONArray().put(question.id)).put("failed",new JSONArray()).put("correct",0).put("errors",0).put("spent",0));

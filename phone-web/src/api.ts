@@ -8,7 +8,7 @@ export type Metadata = { device:{name:string;version:string;build:number;sdk:num
 export type Frame = { protocolVersion:number;generation:string;revision:string;lastSequence:number;complete:boolean;domains:Record<string,Record<string,Value>>;revisions:Record<string,string>;metadata?:Metadata;requestId?:string;requestStatus?:string;committedDomain?:string;committedRevision?:string;operation?:Record<string,unknown> };
 type Receipt = { generation:string;lastSequence:number;sequence?:number;requestStatus:string;committedDomain?:string;committedRevision?:string;committedState?:Record<string,Value>;operation?:Record<string,unknown>;errorStatus?:number;message?:string };
 type WriteRequest = { requestId:string;generation:string;sequence:number;domain:string;field:string;revision:string;value:Value };
-type Attempt = { request:WriteRequest;version?:number;uncertain?:boolean;announce?:boolean;problem?:string };
+type Attempt = { request:WriteRequest;version?:number;uncertain?:boolean;announce?:boolean;problem?:string;childManagement?:string };
 type Pending = { key:string;domain:string;value:Value;base:string;version:number;ready:boolean;error?:string;errorStatus?:number;timer?:ReturnType<typeof setTimeout> };
 type ConnectionStatus = 'waiting'|'pairing'|'connected'|'offline'|'ended';
 type DraftStatus = 'queued'|'sending'|'checking'|'conflict'|'rejected';
@@ -24,11 +24,24 @@ export class PhoneClient {
   private listeners=new Set<()=>void>();private timer?:ReturnType<typeof setTimeout>;private sequence=0;private version=0;private running=false;private polling=false;private stopped=false;private requestCount=0;private readCount=0;private appliedRead=0;private needsMetadata=false;
   private reads:Promise<unknown>=Promise.resolve();
   private waitingCommands=0;private attempt?:Attempt;
+  private childManagementToken='';
   reconnecting=false;
   endedOperation='';
   restoreReview?:{target:string;previous:string};
   constructor(readonly base=new URL('./',location.href)){}
   get problem(){return this.connectionProblem||this.attempt?.problem||this.writeProblem;}
+  get childManaging(){return this.status==='connected'&&!!this.childManagementToken;}
+  beginChildManagement(token:string){this.childManagementToken=token;this.publish();}
+  endChildManagement(token=this.childManagementToken){
+    if(!token)return;
+    if(token===this.childManagementToken){this.childManagementToken='';this.publish();}
+    void fetch(this.resource('api/parent'),{
+      method:'POST',credentials:'same-origin',cache:'no-store',keepalive:true,
+      headers:{'Content-Type':'application/json','X-Quiet-Child-Management':token},
+      body:JSON.stringify({action:'endManagement',pin:'',newPin:''})
+    }).catch(()=>{});
+  }
+  private closeChildManagement=()=>this.endChildManagement();
   subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>{this.listeners.delete(listener);};};
   private publish(){this.listeners.forEach(listener=>listener());}
   resource(path:string){return new URL(path,this.base).href;}
@@ -36,19 +49,22 @@ export class PhoneClient {
     if(body!==undefined)return this.fetchNow(path,body);
     const request=this.reads.then(()=>this.fetchNow(path));this.reads=request.catch(()=>{});return request;
   }
-  private async fetchNow(path:string,body?:unknown,signal?:AbortSignal,timeoutMs=10000){
+  private async fetchNow(path:string,body?:unknown,signal?:AbortSignal,timeoutMs=10000,childManagement?:string){
     const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
     const abort=()=>controller.abort();
     signal?.addEventListener('abort',abort);
     if(signal?.aborted)abort();
     try{
-      const response=await fetch(this.resource(path),{method:body===undefined?'GET':'POST',credentials:'same-origin',cache:'no-store',signal:controller.signal,headers:body===undefined?{}:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});
+      const headers=new Headers();
+      if(body!==undefined)headers.set('Content-Type','application/json');
+      if(childManagement)headers.set('X-Quiet-Child-Management',childManagement);
+      const response=await fetch(this.resource(path),{method:body===undefined?'GET':'POST',credentials:'same-origin',cache:'no-store',signal:controller.signal,headers,body:body===undefined?undefined:JSON.stringify(body)});
       if(response.status===204)return null;
       const data=await response.json();if(!response.ok)throw new ApiError(response.status,data.message||'操作未确认');return data;
     }catch(error){if(error instanceof ApiError)throw error;throw new Error(controller.signal.aborted?'电视响应超时，正在重新连接并核对结果':'暂时无法连接电视，正在重连，请保持手机与电视处于同一局域网');}finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);}
   }
   private merge(frame:Frame){
-    if(this.frame&&this.frame.generation!==frame.generation){this.status='ended';this.connectionProblem='连接已更换，请重新打开收藏的网址';this.publish();throw new ApiError(410,this.connectionProblem);}
+    if(this.frame&&this.frame.generation!==frame.generation){this.endChildManagement();this.status='ended';this.connectionProblem='连接已更换，请重新打开收藏的网址';this.publish();throw new ApiError(410,this.connectionProblem);}
     if(this.frame&&frame.lastSequence<this.frame.lastSequence)return;
     if(this.frame&&frame.domains.quiz?.quizGrade!==undefined&&frame.domains.quiz.quizGrade!==this.frame.domains.quiz?.quizGrade)this.needsMetadata=true;
     if(this.frame&&frame.domains.tasks){const old=this.tasks();const next=(frame.domains.tasks.jobs||[]) as unknown as Task[];if(next.some(task=>task.state==='completed'&&old.find(previous=>previous.id===task.id)?.state!=='completed'))this.needsMetadata=true;}
@@ -82,14 +98,15 @@ export class PhoneClient {
     const field=this.metadata?.fields[key];return field?this.frame?.domains[field.domain]?.[key]:undefined;
   }
   values():Record<string,Value>{const values:Record<string,Value>={};for(const domain of Object.values(this.frame?.domains||{}))Object.assign(values,domain);for(const [key,pending] of this.pending)values[key]=pending.value;return values;}
-  start(){this.stopped=false;document.addEventListener('visibilitychange',this.visibility);window.addEventListener('online',this.visibility);void this.poll();}
-  stop(){this.stopped=true;clearTimeout(this.timer);document.removeEventListener('visibilitychange',this.visibility);window.removeEventListener('online',this.visibility);}
+  start(){this.stopped=false;document.addEventListener('visibilitychange',this.visibility);window.addEventListener('online',this.visibility);window.addEventListener('pagehide',this.closeChildManagement);window.addEventListener('offline',this.closeChildManagement);void this.poll();}
+  stop(){this.stopped=true;clearTimeout(this.timer);document.removeEventListener('visibilitychange',this.visibility);window.removeEventListener('online',this.visibility);window.removeEventListener('pagehide',this.closeChildManagement);window.removeEventListener('offline',this.closeChildManagement);this.endChildManagement();}
   private visibility=()=>{clearTimeout(this.timer);if(!document.hidden&&!this.stopped)void this.poll();};
   private async poll(){
     if(this.polling||this.stopped||document.hidden||this.status==='ended')return;this.polling=true;
     try{await this.refresh(false);}finally{this.polling=false;this.publish();if(!this.stopped&&(this.status as ConnectionStatus)!=='ended')this.timer=setTimeout(()=>void this.poll(),1000);}
   }
   private handleConnectionError(error:unknown){
+    this.endChildManagement();
     if(this.status==='ended')return;
     this.connectionProblem=error instanceof Error?error.message:'连接中断';
     this.status=error instanceof ApiError&&[403,410].includes(error.status)?'ended':'offline';
@@ -144,6 +161,7 @@ export class PhoneClient {
   }
   private rejectAttempt(error:unknown,attempt:Attempt){
     const detail=error instanceof Error?error.message:'操作结果待核对';
+    if(attempt.childManagement&&detail==='家长管理已锁定，请重新解锁')this.endChildManagement(attempt.childManagement);
     if(error instanceof ApiError&&error.status<500){
       if(attempt.version!==undefined){const item=this.pending.get(attempt.request.field);if(item?.version===attempt.version){item.error=error.message;item.errorStatus=error.status;}}
       this.attempt=undefined;
@@ -158,16 +176,19 @@ export class PhoneClient {
     try{return await this.fetch(`api/requests/${attempt.request.requestId}`) as Receipt;}
     catch(error){
       // Absence permits only the identical request: the TV deduplicates its ID/sequence.
-      if(error instanceof ApiError&&error.status===404)return await this.fetch('api/settings',attempt.request) as Receipt;
+      if(error instanceof ApiError&&error.status===404)return await this.submit(attempt);
       throw error;
     }
+  }
+  private submit(attempt:Attempt):Promise<Receipt>{
+    return this.fetchNow('api/settings',attempt.request,undefined,10000,attempt.childManagement);
   }
   private async send(attempt:Attempt){
     this.attempt=attempt;
     this.publish();
     try{
       let result:Receipt;
-      try{result=await this.fetch('api/settings',attempt.request);}catch(error){if(error instanceof ApiError&&error.status<500)throw error;attempt.uncertain=true;this.publish();result=await this.receipt(attempt);}
+      try{result=await this.submit(attempt);}catch(error){if(error instanceof ApiError&&error.status<500)throw error;attempt.uncertain=true;this.publish();result=await this.receipt(attempt);}
       this.acceptReceipt(result,attempt);return result;
     }catch(error){this.rejectAttempt(error,attempt);throw error;}
   }
@@ -261,10 +282,14 @@ export class PhoneClient {
     void this.drain();
   }
   async command(domain:string,field:string,value:Value,expected?:string,announce=true){
+    const scoped=(domain==='child'||domain==='quiz')&&field!=='permission';
+    const childManagement=scoped?this.childManagementToken:undefined;
     this.waitingCommands++;try{while(this.running)await new Promise(resolve=>setTimeout(resolve,50));}finally{this.waitingCommands--;}
+    if(scoped&&(!childManagement||childManagement!==this.childManagementToken||!this.childManaging))
+      throw new Error('家长管理已锁定，请重新解锁');
     const problem=!this.frame||this.status==='ended'?'连接已结束':this.status!=='connected'?'暂未连接电视，请重连后操作':this.attempt?'上次操作结果待确认，请先核对设置':this.restoring?'桌面正在恢复，请等待完成后核对配置':'';if(problem){if(announce&&domain!=='icons')this.onOperation?.({kind:'info',title:'操作尚未提交',detail:problem});throw new Error(problem);}this.running=true;this.version++;
     const request={requestId:`action_${Date.now().toString(36)}_${++this.requestCount}`,generation:this.frame!.generation,sequence:++this.sequence,domain,field,revision:expected??this.frame!.revisions[domain],value};
-    try{return await this.send({request,announce});}finally{this.running=false;this.publish();void this.drain();}
+    try{return await this.send({request,announce,childManagement});}finally{this.running=false;this.publish();void this.drain();}
   }
   tasks():Task[]{return (this.frame?.domains.tasks?.jobs||[]) as unknown as Task[];}
   about(kind:'device'|'runtime',signal:AbortSignal){
@@ -297,7 +322,7 @@ export class PhoneClient {
       }
       if(['setup','change','recover','verify'].includes(action))this.onOperation?.({kind:'success',title:action==='verify'?'家长验证成功':action==='change'?'密码修改成功':action==='recover'?'密码重设成功':'密码设置成功'});
       void this.refresh();
-      return result as {recovery?:string;authorized?:boolean};
+      return result as {recovery?:string;authorized?:boolean;managementToken?:string};
     }catch(error){if(error instanceof ApiError&&[403,410].includes(error.status)){this.handleConnectionError(error);this.publish();}throw error;}
   }
   async upload(file:File,kind:string,apply:boolean,target:string,onProgress:(percent:number,stage:string)=>void,onReady:(cancel:()=>Promise<void>)=>void,displayName?:string){

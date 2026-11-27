@@ -27,7 +27,8 @@ final class ChildModePanel extends ManagementPanel {
     private Cards cards;
     private LinearLayout details,shared;
     private ScrollView rulesScroll;
-    private Button parentButton;
+    private Button parentButton,timerButton;
+    private ChildTimerState shownTimer;
     private ChildModeStore store;
     private ChildModeUi visual;
     private ChildQuizSettingsSheet quizSettings;
@@ -57,7 +58,12 @@ final class ChildModePanel extends ManagementPanel {
         LinearLayout body=managementContent();pageRoot.setClipChildren(false);pageRoot.setClipToPadding(false);managementInfo.getLayoutParams().height=px(34.56f);((LinearLayout.LayoutParams)body.getLayoutParams()).topMargin=px(12);
         SettingsTabBar filterTabs=activity.settingsTabs();managementInfo.addView(filterTabs,new LinearLayout.LayoutParams(-2,-1));
         String[] names={"全部应用","已开启","未开启"};for(int i=0;i<names.length;i++){final int index=i;SettingsTabBar.Tab option=activity.settingsTab(filterTabs,names[i],()->selectFilter(index));option.setTag("child-filter-"+i);option.setId(androidx.core.view.ViewCompat.generateViewId());option.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,12*unit);option.setPadding(px(9),0,px(9),px(3));option.underlineSelection();option.setOnFocusChangeListener((v,on)->{if(on){focusTag="child-filter-"+index;if(filter!=index)selectFilter(index);}});filters.add(option);LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-2,px(33));if(i>0)fp.leftMargin=px(12);filterTabs.addView(option,fp);}
-        managementInfo.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));parentButton=button("家长设置",()->authorize(this::parentSettings));parentButton.setTag("child-parents");parentButton.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,12*unit);parentButton.setPadding(px(14),0,px(14),0);parentButton.setBackgroundDrawable(new SettingsFocusDrawable(unit,999,UiPalette.CONTROL,false,UiPalette.EDGE));managementInfo.addView(parentButton,new LinearLayout.LayoutParams(-2,-1));
+        managementInfo.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));
+        timerButton=headerButton("计时服务","child-timer-status",this::permission);
+        LinearLayout.LayoutParams timerPosition=new LinearLayout.LayoutParams(-2,-1);timerPosition.rightMargin=px(8);
+        managementInfo.addView(timerButton,timerPosition);
+        parentButton=headerButton("家长设置","child-parents",()->authorize(this::parentSettings));
+        managementInfo.addView(parentButton,new LinearLayout.LayoutParams(-2,-1));
         LinearLayout columns=row();columns.setGravity(Gravity.TOP);columns.setClipChildren(false);columns.setClipToPadding(false);body.addView(columns,new LinearLayout.LayoutParams(-1,-1));
         FrameLayout left=new FrameLayout(activity);left.setClipChildren(false);left.setClipToPadding(false);columns.addView(left,new LinearLayout.LayoutParams(0,-1,40));
         list=activity.settingsCardList(this,left);list.setLayoutManager(new LinearLayoutManager(this));cards=new Cards();list.setAdapter(cards);
@@ -65,6 +71,25 @@ final class ChildModePanel extends ManagementPanel {
         rulesScroll=activity.settingsScroll();rulesScroll.setFillViewport(true);rulesScroll.setVerticalScrollBarEnabled(false);rulesScroll.setClipToPadding(false);rulesScroll.setClipChildren(false);rulesScroll.setBackgroundDrawable(surface(UiPalette.CONTROL,UiPalette.CONTROL,UiPalette.EDGE,15));details=column();details.setClipChildren(false);details.setClipToPadding(false);details.setPadding(px(16),px(8),px(16),px(8));rulesScroll.addView(details);right.addView(rulesScroll,new LinearLayout.LayoutParams(-1,0,1));rulesScroll.addOnLayoutChangeListener((v,a,b,c,d,e,f,g,h)->sizeRows());
         LinearLayout.LayoutParams qr=new LinearLayout.LayoutParams(-1,-2);qr.topMargin=px(10);right.addView(mobileConnection.view(),qr);
         quizSettings=new ChildQuizSettingsSheet(activity,()->{if(showing){refresh();focusRule("child-questions".equals(focusTag)?6:2);}},this::authorize);quizSettings.restore(state);refresh();
+    }
+    private Button headerButton(String title,String tag,Runnable action){
+        Button button=button(title,action);button.setTag(tag);button.setSingleLine(true);
+        button.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,12*unit);button.setPadding(px(14),0,px(14),0);
+        button.setBackgroundDrawable(new SettingsFocusDrawable(unit,999,UiPalette.CONTROL,false,UiPalette.EDGE));
+        button.setOnFocusChangeListener((view,focused)->{if(focused)focusTag=tag;});
+        return button;
+    }
+    private void renderTimer(){
+        ChildTimerState state=ChildUsageService.status(this);
+        if(shownTimer==state)return;
+        shownTimer=state;
+        int color=state==ChildTimerState.READY?UiPalette.STATUS_SUCCESS:state==ChildTimerState.OFF?UiPalette.STATUS_WARNING:
+            state==ChildTimerState.FAULT?UiPalette.STATUS_ERROR:state==ChildTimerState.CONNECTING?UiPalette.STATUS_PROGRESS:UiPalette.SECONDARY;
+        QuickControlIcon icon=new QuickControlIcon(state==ChildTimerState.READY?"check":"timer");
+        icon.setTintList(SettingsFocusDrawable.textColors(color));
+        icon.setBounds(0,0,px(15),px(15));timerButton.setCompoundDrawables(icon,null,null,null);
+        timerButton.setCompoundDrawablePadding(px(5));timerButton.setTextColor(SettingsFocusDrawable.textColors(color));
+        timerButton.setText("计时服务  "+state.label);
     }
     @Override protected void onResume(){super.onResume();catalog.listen(catalogChanged);PhoneSettingsSession.get(activity).observeConfiguration(phoneChanged);ChildUsageService.listen(timerChanged);shownDay=ChildModeStore.today();clock.post(refreshDay);load();refresh();quizSettings.resume();mobileConnection.resume();}
     @Override protected void onPause(){catalog.unlisten(catalogChanged);PhoneSettingsSession.get(activity).forgetConfiguration(phoneChanged);remember();authorized=false;loadGeneration++;loading=false;ChildUsageService.unlisten(timerChanged);clock.removeCallbacks(refreshDay);quizSettings.pause();mobileConnection.pause();ChildModeAuth.dismiss(activity);if(editing!=null)editing.dismiss();if(parents!=null)parents.dismiss();super.onPause();}
@@ -93,7 +118,7 @@ final class ChildModePanel extends ManagementPanel {
         if(replaced)cards.notifyDataSetChanged();if(listState!=null){list.getLayoutManager().onRestoreInstanceState(listState);listState=null;}
     }
     private ResolveInfo current(){for(ResolveInfo info:visible)if(selected.equals(info.activityInfo.packageName))return info;return null;}
-    private void refresh(){try{learning=ChildQuizStore.get(this).read();learningError="";}catch(IOException failure){learning=null;learningError=failure.getMessage();}boolean inList=list.hasFocus();String pkg=selected;applyFilter();render();if(inList&&!pkg.equals(selected))focusApp();if(parents!=null&&parents.isShowing())renderParents();}
+    private void refresh(){renderTimer();try{learning=ChildQuizStore.get(this).read();learningError="";}catch(IOException failure){learning=null;learningError=failure.getMessage();}boolean inList=list.hasFocus();String pkg=selected;applyFilter();render();if(inList&&!pkg.equals(selected))focusApp();if(parents!=null&&parents.isShowing())renderParents();}
     private void render(){
         boolean had=details.hasFocus();String old=getCurrentFocus()!=null&&getCurrentFocus().getTag() instanceof String?(String)getCurrentFocus().getTag():"";ResolveInfo app=current();if(app==null){details.removeAllViews();ruleRows.clear();ruleError=null;details.addView(copy(loading?"正在读取应用…":"没有符合条件的应用",15.36f,23.04f,UiPalette.SECONDARY));return;}if(ruleRows.isEmpty())details.removeAllViews();
         String pkg=selected;ChildModePolicy.Rule rule=store.rule(pkg);boolean managed=enabled(pkg),active=managed&&store.enabled();
@@ -117,13 +142,12 @@ final class ChildModePanel extends ManagementPanel {
         DesktopSettingsRow mode=sharedRow("儿童模式总开关","child-mode-toggle",()->authorize(this::toggleMode));mode.checked(store.enabled());
         sharedRow("休息屏保","child-rest",()->authorize(this::rest)).value(new String[]{"森林","云朵","星空"}[store.restTheme()]);
         sharedRow("家长密码","child-password",()->{if(store.configured())authorize(()->ChildModeAuth.change(activity,()->{refresh();focusShared(3);}));else authorize(()->{refresh();focusShared(3);});}).value(store.configured()?"已设置":"未设置");
-        sharedRow("计时服务","child-service",this::permission).value(timerLabel(ChildUsageService.status(this)));
+        sharedRow("计时服务","child-service",this::permission).value(ChildUsageService.status(this).label);
         sharedRow("已连接手机","child-phones",()->authorize(mobileConnection::show));
         sharedRow("家长密码恢复码","child-recovery",()->ChildModeAuth.show(activity,()->ChildModeAuth.backup(activity,store,()->{if(parents!=null){View row=shared.findViewWithTag("child-recovery");if(row!=null)row.requestFocusFromTouch();}}))).value("验证后查看");
         if(had&&old instanceof String){View value=shared.findViewWithTag(old);if(value!=null)value.requestFocusFromTouch();}
     }
     private DesktopSettingsRow sharedRow(String title,String tag,Runnable action){DesktopSettingsRow row=new DesktopSettingsRow(activity,title,"",false);row.hideIcon();row.childStyle();row.setTag(tag);row.tail("arrow");row.setOnClickListener(v->action.run());sharedRows.add(row);shared.addView(row,new LinearLayout.LayoutParams(-1,px(44.16f)));return row;}
-    private String timerLabel(ChildTimerState state){switch(state){case OFF:return "未授权";case CONNECTING:return "连接中";case READY:return "已连接";case FAULT:return "服务异常";default:return "状态未知";}}
     private void toggleMode(){if(!store.setEnabled(!store.enabled())){error("保存失败，请重试");return;}refresh();focusShared(0);}
     private void save(ChildModePolicy.Rule rule,int focus){if(!store.saveSettings(selected,rule)){error("保存失败，请重试");return;}PhoneSettingsSession.get(activity).configurationChanged();refresh();focusRule(focus);}
     private void refreshSelectedCard(){for(int i=0;i<visible.size();i++)if(selected.equals(visible.get(i).activityInfo.packageName)){cards.notifyItemChanged(i);return;}}
@@ -158,7 +182,24 @@ final class ChildModePanel extends ManagementPanel {
     @Override void focusManagementContent(){View value=focusTag.isEmpty()?null:pageRoot.findViewWithTag(focusTag);if(value!=null&&value.isEnabled()&&value.isShown())value.requestFocusFromTouch();else focusApp(KeyFeedback.isDirectionPress());}
     @Override public void handleBack(){if(details.hasFocus()||mobileConnection.view().hasFocus())focusApp();else if(list.hasFocus())filters.get(filter).requestFocusFromTouch();else if(!managementTabFocused())managementTab().requestFocusFromTouch();else super.handleBack();}
     private void rest(){Sheet sheet=new Sheet("休息屏保");sheet.delegate.settingsLayout("关闭",sheet.dialog::dismiss);sheet.delegate.settingsActions(false);sheet.text("达到使用时长后进入休息屏保。");LinearLayout options=row();sheet.body.addView(options);String[] names={"云朵","森林","星空"},files={"cloud","forest","space"};int[] values={1,0,2};for(int i=0;i<3;i++){int index=i;LinearLayout option=column();option.setGravity(Gravity.CENTER);option.setPadding(p(6.4f),p(6.4f),p(6.4f),p(6.4f));option.setFocusable(true);option.setFocusableInTouchMode(true);option.setClickable(true);option.setContentDescription("休息屏保"+names[i]);option.setBackgroundDrawable(new SettingsFocusDrawable(unit,12,store.restTheme()==values[i]?UiPalette.SELECTED:UiPalette.CONTROL,false,store.restTheme()==values[i]?UiPalette.TEXT:0x29ffffff));ImageView image=new ImageView(activity);image.setScaleType(ImageView.ScaleType.CENTER_CROP);try(InputStream input=getAssets().open("child-rest/"+files[i]+".webp")){BitmapFactory.Options sample=new BitmapFactory.Options();sample.inSampleSize=4;image.setImageBitmap(BitmapFactory.decodeStream(input,null,sample));}catch(IOException ignored){}option.addView(image,new LinearLayout.LayoutParams(-1,p(99.84f)));TextView title=copy(names[i],15.36f,23.04f,UiPalette.TEXT);title.setText(SettingsSelectionMark.label(names[i],store.restTheme()==values[i],unit));title.setGravity(Gravity.CENTER);option.addView(title);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1);if(i>0)lp.leftMargin=p(12.8f);options.addView(option,lp);SettingsTouchClick.attach(option);option.setOnClickListener(view->{boolean changed=store.restTheme()!=values[index];if(!store.restTheme(values[index])){sheet.text("保存失败，请重试");return;}for(int item=0;item<options.getChildCount();item++){LinearLayout card=(LinearLayout)options.getChildAt(item);card.setBackgroundDrawable(new SettingsFocusDrawable(unit,12,UiPalette.CONTROL,false,values[item]==values[index]?UiPalette.TEXT:0x29ffffff));((TextView)card.getChildAt(1)).setText(SettingsSelectionMark.label(names[item],values[item]==values[index],unit));}if(changed)KeyFeedback.confirm(activity);});}editing=sheet.dialog;sheet.dialog.setOnDismissListener(dialog->{if(editing==sheet.dialog)editing=null;if(showing)focusShared(2);});sheet.show(options.getChildAt(store.restTheme()==0?1:store.restTheme()==1?0:2));}
-    private void permission(){boolean fromRules=parents==null;ChildTimerState state=ChildUsageService.status(this);Sheet sheet=new Sheet("儿童模式计时");sheet.delegate.settingsLayout("关闭",sheet.dialog::dismiss);sheet.text(state.message);if(state==ChildTimerState.FAULT)sheet.text(store.fault());sheet.text("请在系统无障碍中启用“儿童模式计时”，返回后会重新核对。");Button close=sheet.action("关闭",sheet.dialog::dismiss);sheet.action("系统无障碍设置",()->{sheet.dialog.dismiss();DiagnosticLog.info("child.timer.settings","state="+state.name());if(!new SystemSettingsRouter(this).open(Settings.ACTION_ACCESSIBILITY_SETTINGS))feedback("未找到可用设置入口，请从电视系统设置进入无障碍");});editing=sheet.dialog;sheet.dialog.setOnDismissListener(dialog->{if(editing==sheet.dialog)editing=null;if(showing){if(fromRules)focusRule(3);else focusShared(4);}});sheet.show(close);}
+    private void permission(){
+        boolean fromStatus=getCurrentFocus()==timerButton,fromRules=parents==null;
+        ChildTimerState state=ChildUsageService.status(this);
+        Sheet sheet=new Sheet("儿童模式计时");sheet.delegate.settingsLayout("关闭",sheet.dialog::dismiss);
+        sheet.text(state.message);if(state==ChildTimerState.FAULT)sheet.text(store.fault());
+        sheet.text("请在系统无障碍中启用“儿童模式计时”，返回后会重新核对。");
+        Button close=sheet.action("关闭",sheet.dialog::dismiss);
+        sheet.action("系统无障碍设置",()->{
+            sheet.dialog.dismiss();DiagnosticLog.info("child.timer.settings","state="+state.name());
+            if(!new SystemSettingsRouter(this).open(Settings.ACTION_ACCESSIBILITY_SETTINGS))feedback("未找到可用设置入口，请从电视系统设置进入无障碍");
+        });
+        editing=sheet.dialog;
+        sheet.dialog.setOnDismissListener(dialog->{
+            if(editing==sheet.dialog)editing=null;
+            if(showing){if(fromStatus)timerButton.requestFocusFromTouch();else if(fromRules)focusRule(3);else focusShared(4);}
+        });
+        sheet.show(close);
+    }
     private void time(){
         if(!authorized || selected.isEmpty())return;
         String target=selected;

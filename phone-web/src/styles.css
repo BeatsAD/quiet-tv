@@ -103,7 +103,7 @@
 button.setting-row:hover { background:var(--hover); }.row-icon { color:var(--blue); width:22px; height:22px; margin-right:5px; }.row-title { flex:1; min-width:0; font-size:16px; letter-spacing:-.25px; }.row-value { margin-left:auto; max-width:53%; color:var(--muted); font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:right; }.chevron { width:15px; height:15px; color:var(--muted); margin-left:0; }
 .switch { position:relative; flex:none; min-width:43px; width:43px; height:26px; padding:3px !important; border-radius:50px; background:var(--track) !important; transition:background .18s; }.switch::before { content:""; position:absolute; inset:-9px 0; }.switch>span { display:block; width:20px; height:20px; border-radius:50%; background:white; box-shadow:0 1px 2px #0003; transition:transform .18s; }.switch[aria-checked=true] { background:var(--green) !important; }.switch[aria-checked=true]>span { transform:translateX(17px); }
 .text-action { display:inline-flex; align-items:center; justify-content:center; min-height:32px; color:var(--blue) !important; font-size:14px !important; gap:2px; border:0; background:none; padding:0; }
-.quick-item .icon-button { min-width:44px; width:44px; padding:3px !important; }.quick-item .glyph { width:20px; height:20px; }.quick-item .row-icon { width:23px; height:23px; }.quick-item { gap:5px; padding:0 13px !important; }.quick-name { text-align:left; min-height:44px; }
+.quick-item .icon-button { min-width:44px; width:44px; padding:3px !important; }.quick-item .glyph { width:20px; height:20px; }.quick-item .row-icon { width:23px; height:23px; }.quick-item { gap:5px; padding:0 13px !important; }
 .setting-row:has(>.icon-button) { padding-block:0 !important; }
 .filter-row { width:100%; margin:5px 0 14px; }
 .app-filter-bar { align-items:center; gap:.75rem; }
@@ -334,18 +334,8 @@ html[data-settings-navigation=push]::view-transition-new(settings-page) {
   animation-name:settings-page-enter;
   z-index:1;
 }
-html[data-settings-navigation=pop]::view-transition-old(settings-page) {
-  animation-name:settings-page-exit;
-  z-index:1;
-}
-html[data-settings-navigation=pop]::view-transition-new(settings-page) {
-  animation-name:settings-page-reveal;
-  z-index:0;
-}
 @keyframes settings-page-enter { from{transform:translateX(100%)} }
-@keyframes settings-page-exit { to{transform:translateX(100%)} }
 @keyframes settings-page-recede { to{transform:translateX(-26%);filter:brightness(.96)} }
-@keyframes settings-page-reveal { from{transform:translateX(-26%);filter:brightness(.96)} }
 
 /* Native-feeling route and sheet motion; desktop geometry stays outside the moving content. */
 .page-scroll{overflow-x:hidden}
@@ -558,7 +548,13 @@ html:has(.quiet-app[data-theme=light]),body:has(.quiet-app[data-theme=light]),#r
 .wallpaper-upload-list{list-style:none;padding:0;margin:0;display:grid;gap:1rem}.wallpaper-upload-list li{padding:1rem;border:1px solid var(--line);border-radius:1rem;min-width:0}.wallpaper-upload-choice{display:flex;align-items:center;gap:.75rem;overflow-wrap:anywhere}.wallpaper-upload-choice input{width:1.25rem;height:1.25rem;flex-shrink:0}.wallpaper-upload-choice small{display:block;color:var(--muted);margin-top:.25rem}.wallpaper-upload-list .media-name{margin-top:.75rem}.wallpaper-upload-list p{font-size:.875rem;margin:.75rem 0 0;overflow-wrap:anywhere}.wallpaper-upload-list progress{width:100%;margin-top:.75rem}
 
 .media-rename-target{display:flex;align-items:center;gap:12px;margin:8px 0 22px}.media-rename-target img{width:90px;aspect-ratio:16/9;object-fit:cover;border-radius:8px}.media-rename-target>span{min-width:0}.media-rename-target strong{display:block;overflow-wrap:anywhere}.media-rename-target small{display:block;margin-top:6px;color:var(--muted);font-size:12px}.media-rename-form .media-name{margin-bottom:6px}.media-rename-form .character-count{text-align:right;margin-top:0}.media-rename-actions{display:flex;gap:12px;margin-top:18px}.media-rename-actions>button{flex:1;margin-top:0}.media-choice strong{overflow-wrap:anywhere}
-.quiz-now-action { padding:0 16px 16px; }.quiz-now-action .primary-button { margin-top:0; }
+.quiet-app button.child-timer-banner { width:100%; min-height:44px; padding:8px 13px; border-radius:12px; background:var(--surface); display:flex; gap:10px; align-items:center; justify-content:space-between; text-align:left; }
+.quiet-app button.child-timer-banner[data-tone=warning] { background:var(--warning-bg); }
+.child-timer-banner + .setting-section { margin-top:8px; }
+.child-timer-status { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.child-timer-status .setting-status { font-size:15px; font-weight:600; }
+.child-timer-status small { margin-inline-start:1.3125rem; font-size:12px; color:var(--warning-ink); }
+.child-quiz-status { padding-block-end:9px; }
 .quiz-list-actions { display:flex; justify-content:flex-end; min-height:44px; align-items:center; }
 .quiz-question-row { padding:16px; border-bottom:.5px solid var(--line); }.quiz-question-row:last-child { border-bottom:0; }
 .quiz-question-row>label { display:flex; gap:12px; align-items:flex-start; overflow-wrap:anywhere; }
@@ -681,7 +677,7 @@ html:has(.quiet-app[data-theme=light]),body:has(.quiet-app[data-theme=light]),#r
 }
 .file-source-tabs [aria-selected=true] { font-weight:600; }
 .file-count { margin:.875rem 0 .625rem; color:var(--muted); font-size:.875rem; }
-.file-received-list,.file-source-list { background:var(--surface); border-radius:.75rem; }
+.file-received-list { background:var(--surface); border-radius:.75rem; }
 .file-received-row { position:relative; display:flex; align-items:center; gap:.25rem; padding:0 .75rem; }
 .file-received-row+.file-received-row::before {
   content:''; position:absolute; inset:0 .75rem auto 3.5rem; height:.5px; background:var(--line);
@@ -721,8 +717,6 @@ html:has(.quiet-app[data-theme=light]),body:has(.quiet-app[data-theme=light]),#r
   min-height:5.5rem; padding:.75rem; background:var(--surface); border-radius:.75rem;
 }
 .file-grid .file-entry>span { max-width:100%; }
-.quiet-app .file-source-list .file-entry { width:100%; padding-inline:.75rem; }
-.file-source-list .file-entry+.file-entry { border-top:.5px solid var(--line); }
 .file-transfer-content>[role=tabpanel]>.empty-state { min-block-size:clamp(12rem,36svh,19rem); }
 .file-detail-identity {
   display:flex; align-items:center; gap:.75rem; padding:.875rem; margin-top:.5rem;
