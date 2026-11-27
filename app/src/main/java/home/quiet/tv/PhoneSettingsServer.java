@@ -13,7 +13,7 @@ final class PhoneSettingsServer extends NanoHTTPD {
     private static final int PAIRING_ATTEMPT_LIMIT=5;
     private static final long PAIRING_RETRY_MS=30_000;
     interface Assets {InputStream open(String name)throws IOException;}
-    interface Active {boolean valid();}
+    interface Active {boolean valid();default String childManagement(){return "";}}
     interface BackendFactory {Backend create();}
     static final class Download{final InputStream input;final long bytes;final String name,mime;Download(InputStream input,long bytes,String name,String mime){this.input=input;this.bytes=bytes;this.name=name;this.mime=mime;}}
     interface Backend {
@@ -119,6 +119,11 @@ final class PhoneSettingsServer extends NanoHTTPD {
         final BrowserConnection expected; synchronized(this){expected=connections.get(browser);}
         if(!authorized(browser,expected))return error(Response.Status.GONE,"连接已结束，请重新打开收藏的网址；若已解除配对，请重新扫码");
         final Backend backend=expected.backend;
+        String managementToken=session.getHeaders().get("x-quiet-child-management");
+        Active active=new Active(){
+            public boolean valid(){return authorized(browser,expected);}
+            public String childManagement(){return managementToken==null?"":managementToken;}
+        };
         try{
             if(session.getMethod()==Method.GET&&route.startsWith("api/preview-image/")){
                 String id=java.net.URLDecoder.decode(route.substring("api/preview-image/".length()),"UTF-8");byte[] image=backend.previewImage(id);if(!authorized(browser,expected))throw new Ended();return secure(newFixedLengthResponse(Response.Status.OK,"image/jpeg",new ByteArrayInputStream(image),image.length));
@@ -140,7 +145,7 @@ final class PhoneSettingsServer extends NanoHTTPD {
                 return json(Response.Status.OK,result);
             }
             if(session.getMethod()==Method.GET&&route.equals("api/places")){JSONObject result=backend.places(session.getParms().get("q"));if(!authorized(browser,expected))throw new Ended();return json(Response.Status.OK,result);}
-            if(session.getMethod()==Method.POST&&route.equals("api/parent")){JSONObject result=backend.parent(read(session,4096),()->authorized(browser,expected));if(!authorized(browser,expected))throw new Ended();touch(expected);return json(Response.Status.OK,result);}
+            if(session.getMethod()==Method.POST&&route.equals("api/parent")){JSONObject result=backend.parent(read(session,4096),active);if(!authorized(browser,expected))throw new Ended();touch(expected);return json(Response.Status.OK,result);}
             if(session.getMethod()==Method.POST&&route.equals("api/movie-wall/connect")){
                 JSONObject result=backend.connectMovieWall(read(session,8192),()->authorized(browser,expected));
                 if(!authorized(browser,expected))throw new Ended();
@@ -167,7 +172,7 @@ final class PhoneSettingsServer extends NanoHTTPD {
                     String id=route.substring("api/requests/".length());if(!id.matches("[A-Za-z0-9_-]{8,80}"))throw new BadInput();
                     touch(expected);result=protocol.request(id);if(result==null)return error(Response.Status.NOT_FOUND,"请求结果已不可查询，请核对当前设置");
                 }else if(session.getMethod()==Method.POST&&route.equals("api/settings")){
-                    result=protocol.apply(read(session,65536),()->authorized(browser,expected));touch(expected);
+                    result=protocol.apply(read(session,65536),active);touch(expected);
                 }else return error(Response.Status.NOT_FOUND,"Not found");
                 if(!authorized(browser,expected))throw new Ended();JSONObject operation=result.optJSONObject("operation");Response.Status status=operation!=null&&operation.has("taskId")?Response.Status.ACCEPTED:Response.Status.OK;
                 if(operation!=null&&operation.has("afterReceipt")){String id=operation.optString("afterReceipt");if(!id.matches("[a-f0-9-]{36}"))throw new BadInput();byte[] bytes=result.toString().getBytes(Charsets.UTF_8);return secure(new Response(status,"application/json; charset=utf-8",new ByteArrayInputStream(bytes),bytes.length){@Override protected void send(OutputStream output){final boolean[] failed={false};OutputStream tracked=new FilterOutputStream(output){public void write(int value)throws IOException{try{out.write(value);}catch(IOException e){failed[0]=true;throw e;}}public void write(byte[] values,int off,int count)throws IOException{try{out.write(values,off,count);}catch(IOException e){failed[0]=true;throw e;}}public void flush()throws IOException{try{out.flush();}catch(IOException e){failed[0]=true;throw e;}}};super.send(tracked);if(!failed[0]&&authorized(browser,expected))backend.delivered(id);}});}

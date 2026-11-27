@@ -40,7 +40,7 @@ final class FileToolsSheet {
     private Bitmap photo;
     private Button closeButton;
     private LinearLayout listPanel;
-    private UsbFileGrid localGrid;
+    private UsbFileGrid storageGrid;
     private SettingsTabBar sourceTabs;
     private TextView fileCount;
     private TextView progressText;
@@ -96,7 +96,7 @@ final class FileToolsSheet {
         origin=ui.getCurrentFocus();sheet=ui.new Sheet("文件传输助手");ManagementUi.Sheet own=sheet;closeButton=sheet.settingsLayout("关闭",this::back);closeButton.setOnFocusChangeListener((v,on)->{if(on)focus="sheet-close";});sheet.settingsActions(false);
         LinearLayout title=(LinearLayout)closeButton.getParent();
         sheet.heading.getLayoutParams().height=-1;sheet.heading.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,22*ui.unit);title.getLayoutParams().height=ui.px(36);
-        sheet.dialog.setOnKeyListener((d,key,event)->KeyFeedback.backKey(ui,event,open()&&!applying&&(confirmation==null||!busy),this::back));sheet.dialog.setOnDismissListener(d->{if(sheet==own){finishPhonePermission("已关闭电视授权");dismissConfirmation();sheet=null;listPanel=null;localGrid=null;sourceTabs=null;fileCount=null;++jobVersion;++listVersion;busy=false;stopPreview();if(!retaining)discard();if(origin!=null&&origin.isShown())origin.requestFocusFromTouch();closed.run();}});
+        sheet.dialog.setOnKeyListener((d,key,event)->KeyFeedback.backKey(ui,event,open()&&!applying&&(confirmation==null||!busy),this::back));sheet.dialog.setOnDismissListener(d->{if(sheet==own){finishPhonePermission("已关闭电视授权");dismissConfirmation();sheet=null;listPanel=null;storageGrid=null;sourceTabs=null;fileCount=null;++jobVersion;++listVersion;busy=false;stopPreview();if(!retaining)discard();if(origin!=null&&origin.isShown())origin.requestFocusFromTouch();closed.run();}});
         String target=focus;render();sheet.show(null);focus=target;restoreFocus();if(store==null)worker.execute(()->{FileTransferStore ready=null;try{ready=new FileTransferStore(new File(ui.getFilesDir(),"received-files"));}catch(IOException ignored){}FileTransferStore result=ready;main.post(()->{if(!open())return;store=result;if(result==null){error="文件接收目录不可用，已有文件已保留";render();}else readList();});});else if(phase.equals("list"))readList();
     }
     private void remember(){if(sheet==null||confirmation!=null)return;View view=sheet.dialog.getCurrentFocus();if(view!=null&&view.getTag() instanceof String)focus=(String)view.getTag();}
@@ -115,10 +115,10 @@ final class FileToolsSheet {
     private View focusTarget(String tag){View value=sheet.box.findViewWithTag(tag);return value!=null&&value.isShown()&&value.isEnabled()&&value.isFocusable()?value:null;}
     private void restoreFocus(){
         if(sheet==null)return;ManagementUi.Sheet own=sheet;String target=focus;
-        UsbFileGrid grid=localGrid;
+        UsbFileGrid grid=storageGrid;
         own.body.post(()->{if(!open()||sheet!=own||confirmation!=null)return;
-            if(phase.equals("list")&&source==1&&target.startsWith("usb-item-")){
-                if(loading||grid!=localGrid)return;
+            if(phase.equals("list")&&source>0&&target.startsWith("usb-item-")){
+                if(loading||grid!=storageGrid)return;
                 if(grid!=null){grid.focus(target);return;}
             }
             if(target.startsWith("file-source-")&&!target.equals(focus))return;
@@ -218,8 +218,8 @@ final class FileToolsSheet {
     private void render(){
         if(!open())return;
         boolean listing=phase.equals("list");
-        String localFocus=listing&&source==1&&focus.startsWith("usb-item-")?focus:null;
-        localGrid=null;
+        String storageFocus=listing&&source>0&&focus.startsWith("usb-item-")?focus:null;
+        storageGrid=null;
         if(!phase.equals("preview"))stopPreview();closeButton.setText(listing&&folder==null&&tree==null?"关闭":"返回");closeButton.setEnabled(!applying);
         if(listing&&listPanel!=null&&listPanel.getParent()==sheet.body){
             if(sheet.body.getChildCount()>1)sheet.body.removeViews(1,sheet.body.getChildCount()-1);
@@ -236,7 +236,7 @@ final class FileToolsSheet {
         sheet.heading.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,(compact?19.2f:22)*ui.unit);
         if(compact)sheet.fitContent(400,460);else{sheet.fixedSize(800,440);sheet.scroll.setFillViewport(true);}
         // Removing the focused tile can briefly hand focus to the source tabs during layout.
-        if(localFocus!=null&&source==1)focus=localFocus;
+        if(storageFocus!=null&&source>0)focus=storageFocus;
         if(!error.isEmpty()){TextView value=copy(error,15.36f,23.04f,UiPalette.TEXT);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.topMargin=p(12.8f);sheet.body.addView(value,lp);restoreFocus();sheet.body.post(()->{if(open()&&value.getParent()!=null){Rect rect=new Rect();value.getDrawingRect(rect);value.requestRectangleOnScreen(rect,false);}});}else restoreFocus();
     }
     private void go(String next,String target){OperationFeedback.get(ui).hide();error="";phase=next;focus=target;render();}
@@ -294,14 +294,14 @@ final class FileToolsSheet {
             location.addView(directoryOptions,optionSize);
             content.addView(location,new LinearLayout.LayoutParams(-1,ui.px(40)));
         }
-        if(source==1&&!loading&&!entries.isEmpty())addLocalGrid(content,directoryOptions);
+        if(source>0&&!loading&&!entries.isEmpty())addStorageGrid(content,directoryOptions);
         else addRows(content);
-        String directions=source==1?"方向键选择  确定打开":"上下选择文件  左右选择操作  确定执行";
+        String directions=source>0?"方向键选择  确定打开":"上下选择文件  左右选择操作  确定执行";
         TextView hint=copy(directions,12.8f,19.2f,UiPalette.SECONDARY);
         hint.setPadding(0,ui.px(8),0,0);
         content.addView(hint);
     }
-    private void addLocalGrid(LinearLayout content,Button directoryOptions){
+    private void addStorageGrid(LinearLayout content,Button directoryOptions){
         ArrayList<FileTransferSource.Item> files=new ArrayList<>(entries.size());
         for(Object entry:entries)if(entry instanceof FileTransferSource.Item)files.add((FileTransferSource.Item)entry);
         UsbFileGrid grid=new UsbFileGrid(ui,worker,files,directoryOptions.getId(),new UsbFileGrid.Choice(){
@@ -313,11 +313,11 @@ final class FileToolsSheet {
             }
             @Override public void focused(FileTransferSource.Item item){focus=UsbFileGrid.tag(item);}
         });
-        localGrid=grid;
+        storageGrid=grid;
         grid.setTag("file-local-grid");
         content.addView(grid,new LinearLayout.LayoutParams(-1,0,1));
         directoryOptions.setOnKeyListener((view,key,event)->{
-            if(key!=KeyEvent.KEYCODE_DPAD_DOWN||localGrid!=grid||files.isEmpty())return false;
+            if(key!=KeyEvent.KEYCODE_DPAD_DOWN||storageGrid!=grid||files.isEmpty())return false;
             if(event.getAction()==KeyEvent.ACTION_DOWN)grid.focus("");
             return true;
         });
@@ -328,7 +328,7 @@ final class FileToolsSheet {
     }
     private void readList(){
         if(!open()||store==null||!phase.equals("list")||confirmation!=null)return;receivedChanged=false;int version=++listVersion;
-        String gridFocus=source==1&&focus.startsWith("usb-item-")?focus:null;
+        String gridFocus=source>0&&focus.startsWith("usb-item-")?focus:null;
         loading=true;render();int at=source;File path=folder;Uri root=tree,location=current;
         worker.execute(()->{List<?> entries;String problem="";try{entries=at==0?store.list():root!=null?FileTransferSource.Documents.children(ui,root,location):path!=null?FileTransferSource.children(path):FileTransferSource.volumes(ui,at==2);}catch(IOException|RuntimeException failure){entries=Collections.emptyList();problem="目录无法读取，请检查连接或重新授权";}List<?> values=entries;String message=problem;main.post(()->{if(!open()||version!=listVersion||!phase.equals("list"))return;loading=false;this.entries=values;if(gridFocus!=null)focus=gridFocus;if(!message.isEmpty())error=message;notice=values.isEmpty()?(source==1&&tree==null&&FileTransferSource.partialMediaAccess(ui)?"当前没有已授权的照片和视频，可在读取选项中重新选择":source==0?"还没有接收文件":source==2?"未发现可读取的 U 盘，请检查连接或授权目录":"没有可读取的文件，可通过读取选项选择文件或授权目录"):"";render();if(reopenDeleteAfterLoad){reopenDeleteAfterLoad=false;showDeleteConfirmation();}});});
     }
@@ -491,7 +491,7 @@ final class FileToolsSheet {
     }
     private String listEntryFocus(){
         if(receipt!=null)return "file-"+receipt.id;
-        if(source==1&&selected!=null&&!selected.directory)return UsbFileGrid.tag(selected);
+        if(source>0&&selected!=null&&!selected.directory)return UsbFileGrid.tag(selected);
         return "file-source-"+source;
     }
     private void up(){focus="file-up";if(tree!=null){if(parents.isEmpty()){tree=current=null;temporaryDirectory=false;focus="file-source-"+source;readList();}else{current=parents.pop();readList();}}else if(folder!=null){if(folder.equals(boundary)){folder=boundary=null;focus="file-source-"+source;}else folder=folder.getParentFile();readList();}}

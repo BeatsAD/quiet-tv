@@ -25,7 +25,7 @@ import { QuizSettingsForm, QuizQuestions, QuizQuestionEditor, ChildRestPicker, q
 import { WallpaperUpload } from './WallpaperUpload';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { PhoneClient, ApiError, UploadError, type Value, type App as TvApp, type Media, newId } from './api';
-import { EmptyState, Group, Icon, Row, Setting, ChoiceList, Sheet, ConfirmDialog, FormDialog, ResourceImageRefresh, fileSize, ResourceImage, Switch, AppImage, quickGlyph, ParentPinInput } from './widgets';
+import { EmptyState, Group, Icon, Row, Setting, SettingStatus, type StatusTone, ChoiceList, Sheet, ConfirmDialog, FormDialog, ResourceImageRefresh, fileSize, ResourceImage, Switch, AppImage, quickGlyph, ParentPinInput } from './widgets';
 import { Preview, SaverPreview, PreviewPagePicker, dockEntries, dockGeometry } from './preview';
 import { clearResourceImages } from './ResourceImageCache';
 import { CoverCrop } from './CoverCrop';
@@ -71,7 +71,7 @@ const BUILTIN_WALLPAPER='yosemite-valley';
 type Theme='system'|'light'|'dark';
 const themeLabels:Record<Theme,string>={system:'跟随系统',light:'浅色',dark:'深色'};
 const shortForms=new Set(['text']);
-const confirmViews=new Set(['quick-reset','tool-confirm','parent-confirm','app-confirm','remove-media']);
+const confirmViews=new Set(['quick-reset','tool-confirm','app-confirm','remove-media']);
 const syncLabels={synced:'已同步',saving:'正在保存',checking:'结果待核对',offline:'正在重连',failed:'保存未完成',conflict:'设置有冲突',ended:'连接已结束'};
 export function App(){
   const feedback=useOperationFeedback();
@@ -115,8 +115,9 @@ export function App(){
   const routes=useRef(new Map<number,{tab:number;trail:View[]}>());
   const locations=useRef(new Map<string,{top:number;focus?:{label:string;tag:string}}>());
   const renderedLocation=useRef(''),restoreLocation=useRef(false), replaceParentRoute=useRef(false);
-  const parentContinuation=useRef<{run:()=>void|Promise<boolean>;generation:string|undefined;title?:string;valid?:()=>boolean}|null>(null);
-  const [parentConfirmation,setParentConfirmation]=useState<typeof parentContinuation.current>(null);
+  const parentContinuation=useRef<{run:()=>void|Promise<boolean>;generation:string|undefined}|null>(null);
+  const [requestedQuiz,setRequestedQuiz]=useState('');
+  const [quizTimedOut,setQuizTimedOut]=useState(false);
   const fileInput=useRef<HTMLInputElement>(null),fileIntent=useRef({kind:'wallpaper',target:''}),cancelUpload=useRef<(()=>Promise<void>)|null>(null);
   const [upload,setUpload]=useState<{name:string;percent:number;message:string;context:string}|null>(null),[file,setFile]=useState<File|null>(null),[dismissedTasks,setDismissedTasks]=useState<string[]>([]);
   const [uploadActionsHost,setUploadActionsHost]=useState<HTMLDivElement|null>(null);
@@ -296,6 +297,7 @@ export function App(){
   }
   function showRoute(index:number,next:View[],direction:PageDirection|null=null){
     const previousPage=lastPage(nav.current.trail),nextPage=lastPage(next);
+    if(index!==childTab&&nav.current.tab===childTab)client.endChildManagement();
     const pageChanged=nav.current.tab===index&&viewKey(previousPage)!==viewKey(nextPage)&&
       !(previousPage?.kind==='about'&&nextPage?.kind==='about');
     tabDirection.current=index>=nav.current.tab?1:-1;
@@ -344,7 +346,7 @@ export function App(){
         if(route&&route.trail.some(item=>!isPage(item)))routes.current.delete(old.id);
       }
       const route=routes.current.get(entry.id), next=route?.trail??entry.pages;
-      parentContinuation.current=null;setParentConfirmation(null);
+      parentContinuation.current=null;
       if(next.at(-1)?.kind!=='app-confirm')setAppConfirmation(null);
       if(next.at(-1)?.kind!=='remove-media')setRemoveMedia(null);
       setPin('');setNewPin('');setConfirmPin('');setRecovery('');
@@ -390,14 +392,14 @@ export function App(){
   function finishClose(){if(closeEpoch.current!==viewEpoch.current)return;closeEpoch.current=-1;setClosing(false);back();}
   function choose(key:string){
     const field=metadata?.fields[key];if(!field)return;
-    const show=()=>open({kind:'choice',title:field.title,id:key},true);
-    if(['child','quiz'].includes(field.domain))requireParent(show);else show();
+    open({kind:'choice',title:field.title,id:key},true);
   }
   function fields(title:string,keys:string[]){open({kind:title==='首页背景'||title==='第二屏背景'?'desktop-fields':'fields',title,keys},true);}
   async function selectValue(key:string,value:string|number,returnAfterSave=false){
     const field=metadata?.fields[key];if(!field)return false;
     if(key==='appNames')setPage('home');
-    if(['child','quiz'].includes(field.domain)&&!client.frame?.domains.parent?.authorized){choose(key);return false;}
+    const childSetting=field.domain==='child'||field.domain==='quiz';
+    if(childSetting&&!client.childManaging)return false;
     if(key==='wallMode'){
       if(returnAfterSave&&client.value(key)===value){close();return true;}
       if(value==='weather'&&!weatherComponent(client).ready){
@@ -414,7 +416,8 @@ export function App(){
         if(key==='wallMode')close();
         else back();
       }
-    }else client.update(key,value);
+    }else if(childSetting)return perform(field.domain,key,value);
+    else client.update(key,value);
     return true;
   }
   function controls(keys:string[],inline=false,titles?:Record<string,string>){
@@ -623,12 +626,6 @@ export function App(){
     const continuation=parentContinuation.current;
     parentContinuation.current=null;
     if(!continuation||continuation.generation!==client.frame?.generation||!client.frame?.domains.parent?.authorized){back();return;}
-    if(continuation.valid&&!continuation.valid()){back();return;}
-    if(continuation.title){
-      setParentConfirmation(continuation);
-      navigate(nav.current.tab,[...nav.current.trail.slice(0,-1),{kind:'parent-confirm',title:continuation.title}],true);
-      return;
-    }
     const epoch=viewEpoch.current;
     replaceParentRoute.current=true;
     try{continuation.run();}finally{replaceParentRoute.current=false;}
@@ -636,12 +633,16 @@ export function App(){
   }
   async function parentRequest(action:string){
     if(busy)return;
-    if(['setup','change','recover'].includes(action)&&newPin!==confirmPin){setError('两次输入的新密码不一致');return;}
+    if(['setup','setupManagement','change','recover'].includes(action)&&newPin!==confirmPin){setError('两次输入的新密码不一致');return;}
     const epoch=viewEpoch.current;setBusy(true);setError('');
     try{
       const result=await client.parent(action,pin,newPin);
       setPin('');setNewPin('');setConfirmPin('');
-      if(epoch!==viewEpoch.current)return;
+      if(epoch!==viewEpoch.current){
+        if(result.managementToken)client.endChildManagement(result.managementToken);
+        return;
+      }
+      if(result.managementToken){client.beginChildManagement(result.managementToken);feedback({kind:'success',title:'家长管理已解锁'});}
       if(result.recovery){
         setRecovery(result.recovery);
         navigate(nav.current.tab,[...nav.current.trail.slice(0,-1),{kind:'recovery-code',title:'保存家长恢复码'}],true);
@@ -650,26 +651,117 @@ export function App(){
     }catch(problem){if(epoch===viewEpoch.current)setError(problem instanceof Error?problem.message:'验证结果待核对');}
     finally{setBusy(false);}
   }
-  function requireParent(next:()=>void|Promise<boolean>,title?:string,valid?:()=>boolean){
+  function requireParent(next:()=>void|Promise<boolean>){
     if(client.frame?.domains.parent?.authorized){next();return;}
-    parentContinuation.current={run:next,title,valid,generation:client.frame?.generation};
+    parentContinuation.current={run:next,generation:client.frame?.generation};
     const configured=client.frame?.domains.parent?.configured;
     open({kind:'parent',title:configured?'家长验证':'设置家长密码',id:configured?'verify':'setup'},true);
   }
   useEffect(()=>{
     if(!ended)return;
-    parentContinuation.current=null;setParentConfirmation(null);setPin('');setNewPin('');setConfirmPin('');setRecovery('');
+    parentContinuation.current=null;client.endChildManagement();setRequestedQuiz('');setPin('');setNewPin('');setConfirmPin('');setRecovery('');
   },[ended]);
+  useEffect(()=>{
+    if(!requestedQuiz)return;
+    const timer=setTimeout(()=>setQuizTimedOut(true),8000);
+    return()=>clearTimeout(timer);
+  },[requestedQuiz]);
   function childSchedule(pkg:string){return ((client.values().rules||{}) as Record<string,Record<string,Value>>)[pkg];}
-  function childRules(pkg:string){const rule:Record<string,Value>=((v.rules||{}) as Record<string,Record<string,Value>>)[pkg]||{locked:false,mode:0,minutes:60,repeatDays:127},quizApps=(v.quizApps||{}) as Record<string,boolean>,usage=(client.frame?.domains.childUsage?.usage||{}) as Record<string,Record<string,number>>;const managed=typeof rule.enabled==='boolean'?rule.enabled:!!(rule.hidden||rule.locked||Number(rule.mode)>0||quizApps[pkg]);return <><Group><Row title="对此应用开启儿童模式" icon="PersonIcon"><Switch title="对此应用开启儿童模式" checked={managed} disabled={busy} onChange={()=>requireParent(()=>childRule(pkg,'enabled',!managed),managed?'关闭此应用的儿童模式？':'开启此应用的儿童模式？',()=>((client.metadata?.childApps||[]) as TvApp[]).some(item=>item.id===pkg))}/></Row><Row title="锁定应用" icon="LockClosedIcon"><Switch title="锁定应用" checked={!!rule.locked} disabled={busy||!managed} onChange={()=>requireParent(()=>childRule(pkg,'locked',!rule.locked),rule.locked?'解锁此应用？':'锁定此应用？',()=>{const current=childSchedule(pkg);return !!current&&!!current.locked===!!rule.locked;})}/></Row><Row title="使用时长" icon="ClockIcon" hint={rule.locked?'解除应用锁定后可调整':undefined} value={Number(rule.mode)===0?'不限制':`${Number(rule.mode)===1?'单次':Number(rule.repeatDays)===127?'循环  每天':Number(rule.repeatDays)===31?'循环  周一至周五':Number(rule.repeatDays)===96?'循环  周六和周日':'循环  自定义星期'} ${rule.minutes} 分钟`} disabled={!managed||!!rule.locked} navigate onClick={()=>requireParent(()=>open({kind:'child-time',title:'使用时长',id:pkg},!!view))}/><Row title="定时答题" icon="ReaderIcon"><Switch title="定时答题" checked={!!quizApps[pkg]} disabled={busy||!managed||!!rule.locked} onChange={()=>requireParent(()=>perform('quiz','quizApp',{package:pkg,enabled:!quizApps[pkg]}),'更改定时答题？',()=>!!childSchedule(pkg))}/></Row><Row title="答题设置" icon="QuestionMarkCircledIcon" disabled={!managed||!!rule.locked} navigate onClick={()=>requireParent(()=>open({kind:'quiz-settings',title:'答题设置',id:pkg},!!view))}/></Group>{usage[pkg]&&<p className="section-note">今日已用 {Math.floor(Number(usage[pkg]?.dailyUsed||0)/60000)} 分钟{Number(usage[pkg]?.remaining)>=0?`  剩余 ${Math.ceil(usage[pkg].remaining/60000)} 分钟`:''}</p>}</>;}
-  function children(){const apps=(metadata?.childApps||[]) as TvApp[],app=apps.find(app=>app.id===selectedChild)||apps[0],parent=client.frame?.domains.parent,usage=client.frame?.domains.childUsage,current=String(usage?.currentApp||''),watching=apps.find(item=>item.id===current),quiz=(usage?.quizStatus||{}) as Record<string,Value>;const quizMessage:Record<string,string>={accepted:'正在等待电视显示',displayed:'电视正在答题',passed:'本轮已通过',parentSkipped:'家长已解除本轮'};return <><Group><Row title="儿童模式" icon="PersonIcon" hint="统一启停所有儿童规则"><Switch title="儿童模式" checked={!!v.childEnabled} onChange={()=>requireParent(()=>client.update('childEnabled',!v.childEnabled),v.childEnabled?'关闭儿童模式？':'开启儿童模式？',()=>client.value('childEnabled')===v.childEnabled)}/></Row></Group><Group>{current?<Row title={`正在观看  ${watching?.name||'当前应用'}`} icon="DesktopIcon"/>:<EmptyState icon="DesktopIcon" title="当前没有观看应用"/>}{quizMessage[String(quiz.state)]&&<p className="section-note" role="status">最近答题  {quizMessage[String(quiz.state)]}</p>}<div className="quiz-now-action"><button className="primary-button" disabled={!canWrite||busy||!v.childEnabled||!current||usage?.timerState!=='READY'} onClick={()=>requireParent(()=>perform('child','quizNow',{requestId:newId()}),'立即在电视上答题？',()=>{const latest=client.frame?.domains.childUsage;return !!client.value('childEnabled')&&latest?.currentApp===current&&latest?.timerState==='READY';})}>立即答题</button>{!!current&&usage?.timerState!=='READY'&&<p className="section-note">请先在电视授权计时服务。</p>}</div></Group>
+  function openChildManagement(){
+    const configured=client.frame?.domains.parent?.configured;
+    open({kind:'parent',title:configured?'家长验证':'设置家长密码',id:configured?'startManagement':'setupManagement'},true);
+  }
+  function openChildTimer(){open({kind:'timer',title:'计时服务'});}
+  function childRules(pkg:string){
+    const rule=childSchedule(pkg)||{locked:false,mode:0,minutes:60,repeatDays:127};
+    const quizApps=(v.quizApps||{}) as Record<string,boolean>;
+    const usage=(client.frame?.domains.childUsage?.usage||{}) as Record<string,Record<string,number>>;
+    const managed=typeof rule.enabled==='boolean'?rule.enabled:!!(rule.hidden||rule.locked||Number(rule.mode)>0||quizApps[pkg]);
+    const writable=client.childManaging&&canWrite&&!busy;
+    const schedule=Number(rule.mode)===1?'单次':Number(rule.repeatDays)===127?'循环  每天':
+      Number(rule.repeatDays)===31?'循环  周一至周五':Number(rule.repeatDays)===96?'循环  周六和周日':'循环  自定义星期';
+    return <><Group>
+      <Row title="对此应用开启儿童模式" icon="PersonIcon">
+        <Switch title="对此应用开启儿童模式" checked={managed} disabled={!writable} onChange={()=>void childRule(pkg,'enabled',!managed)}/>
+      </Row>
+      <Row title="锁定应用" icon="LockClosedIcon">
+        <Switch title="锁定应用" checked={!!rule.locked} disabled={!writable||!managed} onChange={()=>void childRule(pkg,'locked',!rule.locked)}/>
+      </Row>
+      <Row title="使用时长" icon="ClockIcon" hint={rule.locked?'解除应用锁定后可调整':undefined}
+        value={Number(rule.mode)===0?'不限制':schedule+' '+rule.minutes+' 分钟'} disabled={!managed||!!rule.locked}
+        navigate onClick={()=>open({kind:'child-time',title:'使用时长',id:pkg},!!view)}/>
+      <Row title="定时答题" icon="ReaderIcon">
+        <Switch title="定时答题" checked={!!quizApps[pkg]} disabled={!writable||!managed||!!rule.locked}
+          onChange={()=>void perform('quiz','quizApp',{package:pkg,enabled:!quizApps[pkg]})}/>
+      </Row>
+      <Row title="答题设置" icon="QuestionMarkCircledIcon" disabled={!managed||!!rule.locked} navigate
+        onClick={()=>open({kind:'quiz-settings',title:'答题设置',id:pkg},!!view)}/>
+    </Group>{usage[pkg]&&<p className="section-note">今日已用 {Math.floor(Number(usage[pkg]?.dailyUsed||0)/60000)} 分钟{Number(usage[pkg]?.remaining)>=0?'  剩余 '+Math.ceil(usage[pkg].remaining/60000)+' 分钟':''}</p>}</>;
+  }
+  function children(){
+    const apps=(metadata?.childApps||[]) as TvApp[];
+    const app=apps.find(item=>item.id===selectedChild)||apps[0];
+    const parent=client.frame?.domains.parent,usage=client.frame?.domains.childUsage;
+    const timer=String(usage?.timerState||'UNKNOWN');
+    const timerLabel=String(usage?.timerLabel||timerSummary(timer));
+    const tone:StatusTone=timer==='READY'?'success':timer==='OFF'?'warning':timer==='FAULT'?'error':timer==='CONNECTING'?'progress':'neutral';
+    const current=timer==='READY'?String(usage?.currentApp||''):'';
+    const watching=apps.find(item=>item.id===current);
+    const quiz=(usage?.quizStatus||{}) as Record<string,Value>;
+    const sameRequest=!!requestedQuiz&&quiz.requestId===requestedQuiz;
+    const rejected=!!requestedQuiz&&usage?.rejectedQuizRequestId===requestedQuiz;
+    const displayed=quiz.state==='displayed';
+    const waiting=!!requestedQuiz&&!rejected&&!quizTimedOut&&timer==='READY'&&(!sameRequest||quiz.state==='accepted');
+    const watchRule=current?childSchedule(current):undefined;
+    const appUsage=(usage?.usage||{}) as Record<string,{remaining?:number}>;
+    const canQuiz=client.childManaging&&canWrite&&!busy&&!!v.childEnabled&&!!current&&
+      watchRule?.enabled!==false&&!watchRule?.locked&&!watchRule?.hidden&&appUsage[current]?.remaining!==0&&!waiting&&quiz.state!=='accepted';
+    async function quizNow(){
+      const requestId=newId();
+      setQuizTimedOut(false);setRequestedQuiz(requestId);
+      if(!await perform('child','quizNow',{requestId,package:current},false))setRequestedQuiz(previous=>previous===requestId?'':previous);
+    }
+    return <>
+      <button type="button" className="child-timer-banner" data-tone={tone} onClick={openChildTimer}>
+        <span className="child-timer-status">
+          <SettingStatus tone={tone} label={timer==='OFF'?'计时服务未开启':'计时服务  '+timerLabel}/>
+          {timer==='OFF'&&<small>开启后可使用立即答题</small>}
+        </span>
+        <Icon name="ChevronRightIcon" className="chevron"/>
+      </button>
+      <Group>
+        <Row title="儿童模式" icon="PersonIcon">
+          <Switch title="儿童模式" checked={!!v.childEnabled} disabled={!client.childManaging||!canWrite||busy}
+            onChange={()=>void perform('child','childEnabled',!v.childEnabled)}/>
+        </Row>
+        <Row title="家长管理" icon={client.childManaging?'CheckCircledIcon':'LockClosedIcon'} value={client.childManaging?'已解锁':undefined}
+          navigate={!client.childManaging} onClick={client.childManaging?undefined:openChildManagement}/>
+      </Group>
+      {v.childEnabled&&(timer==='READY'||!!requestedQuiz)&&<Group>
+        {displayed?<Row title="电视正在答题" icon="CheckCircledIcon"/>:
+          <Row title={current?'正在观看  '+(watching?.name||'当前应用'):'暂无可答题的观看应用'} icon="DesktopIcon">
+            {canQuiz&&<button type="button" className="text-action" onClick={()=>void quizNow()}>立即答题</button>}
+          </Row>}
+        {!displayed&&waiting&&<p className="section-note child-quiz-status" role="status">等待电视显示</p>}
+        {!displayed&&rejected&&<p className="section-note child-quiz-status" role="status">观看应用已切换，请核对后重新发起</p>}
+        {!displayed&&!rejected&&sameRequest&&quiz.state==='passed'&&<p className="section-note child-quiz-status" role="status">本轮已通过</p>}
+        {!displayed&&!rejected&&!!requestedQuiz&&(!sameRequest||quiz.state==='accepted')&&(quizTimedOut||timer!=='READY')&&
+          <p className="section-note child-quiz-status" role="status">电视未确认显示答题，请查看电视</p>}
+      </Group>}
       <section className="setting-section" aria-labelledby="child-app-rules-heading">
         <div className="section-heading"><h2 id="child-app-rules-heading">应用使用规则</h2></div>
         {app?<><button className="child-app-picker" onClick={()=>open({kind:'child-apps',title:'选择应用'})}>
           <AppImage app={app} client={client}/><strong>{app.name}</strong><Icon name="ChevronDownIcon"/>
         </button>{childRules(app.id)}</>:<EmptyState icon="PersonIcon" title="电视未提供可设置规则的应用"/>}
       </section>
-      <Group title="统一设置"><Row title="默认答题设置" icon="QuestionMarkCircledIcon" value={`每 ${v.quizInterval} 分钟`} navigate onClick={()=>requireParent(()=>open({kind:'quiz-settings',title:'答题设置'}))}/><Row title="休息屏保" icon="ImageIcon" value={label('restTheme')} navigate onClick={()=>requireParent(()=>open({kind:'child-rest',title:'休息屏保'}))}/><Row title="家长密码" icon="LockClosedIcon" value={parent?.configured?'已设置':'未设置'} navigate onClick={()=>open({kind:'parent-menu',title:'家长密码'})}/><Row title="计时服务" icon="ClockIcon" value={timerSummary(usage?.timerState)} navigate onClick={()=>open({kind:'timer',title:'计时服务'})}/></Group></>;}
+      <Group title="统一设置">
+        <Row title="默认答题设置" icon="QuestionMarkCircledIcon" value={'每 '+v.quizInterval+' 分钟'} navigate onClick={()=>open({kind:'quiz-settings',title:'答题设置'})}/>
+        <Row title="休息屏保" icon="ImageIcon" value={label('restTheme')} navigate onClick={()=>open({kind:'child-rest',title:'休息屏保'})}/>
+        <Row title="家长密码" icon="LockClosedIcon" value={parent?.configured?'已设置':'未设置'} navigate onClick={()=>open({kind:'parent-menu',title:'家长密码'})}/>
+        <Row title="计时服务" icon="ClockIcon" value={<SettingStatus label={timerLabel} tone={tone}/>} navigate onClick={openChildTimer}/>
+      </Group>
+    </>;
+  }
 
   async function childRule(pkg:string,field:string,value:Value){return perform('child','rule',{package:pkg,field,value});}
 
@@ -939,16 +1031,32 @@ export function App(){
     case 'app-icon-batch':return <IconLibrary client={client} pickFile={pickFile} batch onSaved={back} actionsHost={pageActionsHost}/>;
     case 'app-icons':return <IconLibrary key={view.id} client={client} packageId={view.id} pickFile={pickFile} onSaved={back} actionsHost={pageActionsHost}/>;
     case 'parent-menu':return <Group><Row title={client.frame?.domains.parent?.configured?'验证家长密码':'设置家长密码'} navigate onClick={()=>open({kind:'parent',title:'家长密码',id:client.frame?.domains.parent?.configured?'verify':'setup'},true)}/>{!!client.frame?.domains.parent?.configured&&<><Row title="修改密码" navigate onClick={()=>requireParent(()=>open({kind:'parent',title:'修改家长密码',id:'change'},true))}/><Row title="查看恢复码" onClick={()=>requireParent(()=>void parentRequest('recovery'))}/><Row title="使用恢复码重设" navigate onClick={()=>open({kind:'parent',title:'恢复家长密码',id:'recover'},true)}/></>}</Group>;
-    case 'parent':{const action=view.id||'verify',setting=['setup','change','recover'].includes(action);return <form key={action} autoComplete="off" aria-busy={busy} onSubmit={event=>{event.preventDefault();void parentRequest(action);}}>{['verify','recover'].includes(action)&&<ParentPinInput label={action==='recover'?'恢复码':'家长密码'} value={pin} onChange={setPin}/>} {setting&&<><ParentPinInput label="新密码" value={newPin} onChange={setNewPin} autoComplete="new-password"/><ParentPinInput label="再次输入新密码" value={confirmPin} onChange={setConfirmPin} autoComplete="new-password"/></>}<div className="confirmation-dialog-actions"><button type="button" disabled={busy} onClick={back}>取消</button><button className="confirm-button" disabled={busy||!canWrite||Number(client.frame?.domains.parent?.retrySeconds)>0}>{busy?setting?'正在保存…':'正在验证…':setting?'设置密码':'验证'}</button></div>{Number(client.frame?.domains.parent?.retrySeconds)>0&&<p className="form-error">请等待 {String(client.frame?.domains.parent?.retrySeconds)} 秒后重试</p>}</form>;}
+    case 'parent':{
+      const action=view.id||'verify';
+      const setting=['setup','setupManagement','change','recover'].includes(action);
+      const retry=Number(client.frame?.domains.parent?.retrySeconds)||0;
+      return <form key={action} autoComplete="off" aria-busy={busy} onSubmit={event=>{event.preventDefault();void parentRequest(action);}}>
+        {['verify','startManagement','recover'].includes(action)&&<ParentPinInput label={action==='recover'?'恢复码':'家长密码'} value={pin} onChange={setPin}/>}
+        {setting&&<><ParentPinInput label="新密码" value={newPin} onChange={setNewPin} autoComplete="new-password"/>
+          <ParentPinInput label="再次输入新密码" value={confirmPin} onChange={setConfirmPin} autoComplete="new-password"/></>}
+        <div className="confirmation-dialog-actions">
+          <button type="button" disabled={busy} onClick={back}>取消</button>
+          <button className="confirm-button" disabled={busy||!canWrite||retry>0}>
+            {busy?setting?'正在保存…':'正在验证…':setting?'设置密码':action==='startManagement'?'解锁管理':'验证'}
+          </button>
+        </div>
+        {retry>0&&<p className="form-error">请等待 {retry} 秒后重试</p>}
+      </form>;
+    }
     case 'recovery-code':return <><p className="recovery-code">{recovery}</p><p className="section-note">请由家长单独保存。忘记密码时需要输入此码。</p><button className="primary-button" onClick={()=>{setRecovery('');if(parentContinuation.current)continueParent();else back();}}>已保存恢复码</button></>;
     case 'timer':return <><p className="sheet-intro">{String(client.frame?.domains.childUsage?.timerMessage||'正在读取计时状态')}</p><div className="paired-actions">
       <button type="button" className="primary-button" disabled={busy||!canWrite} onClick={()=>void perform('child','permission')}>在电视授权</button>
       <button type="button" className="secondary-button" onClick={()=>void client.refreshNow()}>检查状态</button>
     </div></>;
     case 'quiz-settings':return quizDraftValue&&<QuizSettingsForm client={client} draft={quizDraftValue} setDraft={draft=>{forms.current.set('quiz:'+String(view.id||''),draft);setQuizDraftValue(draft);}} onCancel={()=>{forms.current.delete('quiz:'+String(view.id||''));back();}} onQuestions={()=>open({kind:'quiz-questions',title:'自定义题目'},true)} onSaved={()=>{forms.current.delete('quiz:'+String(view.id||''));back();}}/>;
-    case 'quiz-questions':return <QuizQuestions client={client} selected={quizSelected} onSelect={ids=>{forms.current.set('quiz-selection',ids);setQuizSelected(ids);}} onEdit={id=>open({kind:'quiz-edit',title:id?'编辑题目':'新增题目',id},true)} onDeleted={id=>setQuizSelected(previous=>{const ids=previous.filter(value=>value!==id);forms.current.set('quiz-selection',ids);return ids;})} onSaved={()=>{forms.current.delete('quiz-selection');back();}}/>;
-    case 'quiz-edit':return <QuizQuestionEditor key={view.id||'new'} client={client} id={view.id||''} drafts={forms.current} onSaved={back} onCancel={back}/>;
-    case 'child-rest':return <ChildRestPicker client={client} value={Number(v.restTheme)} onChange={value=>void selectValue('restTheme',value)}/>;
+    case 'quiz-questions':return client.childManaging?<QuizQuestions client={client} selected={quizSelected} onSelect={ids=>{forms.current.set('quiz-selection',ids);setQuizSelected(ids);}} onEdit={id=>open({kind:'quiz-edit',title:id?'编辑题目':'新增题目',id},true)} onDeleted={id=>setQuizSelected(previous=>{const ids=previous.filter(value=>value!==id);forms.current.set('quiz-selection',ids);return ids;})} onSaved={()=>{forms.current.delete('quiz-selection');back();}}/>:<Group><Row title="家长管理" navigate onClick={openChildManagement}/></Group>;
+    case 'quiz-edit':return client.childManaging?<QuizQuestionEditor key={view.id||'new'} client={client} id={view.id||''} drafts={forms.current} onSaved={back} onCancel={back}/>:<Group><Row title="家长管理" navigate onClick={openChildManagement}/></Group>;
+    case 'child-rest':return <ChildRestPicker client={client} value={Number(v.restTheme)} disabled={!client.childManaging||!canWrite||busy} onChange={value=>void selectValue('restTheme',value)}/>;
     case 'child-apps':{
       const apps=(metadata?.childApps||[]) as TvApp[];
       return apps.length?<Group>{apps.map(app=><button className="setting-row child-app-option" key={app.id} onClick={()=>{setSelectedChild(app.id);back();}}><AppImage app={app} client={client}/><span className="row-title">{app.name}</span>{app.id===(selectedChild||apps[0]?.id)&&<Icon name="CheckIcon" className="blue"/>}</button>)}</Group>
@@ -957,14 +1065,13 @@ export function App(){
     case 'child-rule':return childRules(view.id!);
     case 'configuration':return <><p className="section-note">以下设置尚未完整读取，请重新读取电视配置后核对。</p><Group>{missingSettings(metadata,v).map(key=><Row key={key} title={fieldPresentation[key]?.title||key} value={metadata?.fields[key]?'当前值未读取':'定义未读取'}/>)}</Group><button className="secondary-button" onClick={()=>void client.refreshNow()}>重新读取配置</button></>;
     case 'child-time':return timeDraft&&<ChildTime draft={timeDraft} change={draft=>{forms.current.set('time:'+view.id,draft);setTimeDraft(draft);}}
-      current={childTimeRule(childSchedule(view.id!))} blocked={busy}
-      authorized={!!client.frame?.domains.parent?.authorized} cancel={()=>{forms.current.delete('time:'+view.id);back();}}
+      current={childTimeRule(childSchedule(view.id!))} blocked={busy||!canWrite}
+      authorized={client.childManaging} cancel={()=>{forms.current.delete('time:'+view.id);back();}}
       save={async rule=>{
-        if(!client.frame?.domains.parent?.authorized){requireParent(()=>{});return;}
         const epoch=viewEpoch.current;
         if(await childRule(view.id!,'settings',rule)&&epoch===viewEpoch.current){forms.current.delete('time:'+view.id);back();}
       }}/>;
-    case 'child-grant':return <form onSubmit={async event=>{event.preventDefault();const epoch=viewEpoch.current,ok=await perform('child','grant',{package:view.id!,minutes:Number(text)});if(ok&&epoch===viewEpoch.current)back();}}><label>分钟<input type="number" aria-label="分钟" min={1} max={1440} step={1} required value={text} onChange={event=>setText(event.target.value)}/></label><button className="primary-button" disabled={busy}>应用时长</button></form>;
+    case 'child-grant':return <form onSubmit={async event=>{event.preventDefault();const epoch=viewEpoch.current,ok=await perform('child','grant',{package:view.id!,minutes:Number(text)});if(ok&&epoch===viewEpoch.current)back();}}><label>分钟<input type="number" aria-label="分钟" min={1} max={1440} step={1} required value={text} onChange={event=>setText(event.target.value)}/></label><button className="primary-button" disabled={busy||!client.childManaging}>应用时长</button></form>;
     case 'update':return <UpdateSettings client={client} device={metadata?.device} busy={busy}
       action={(field,value)=>void perform('update',field,value)}
       install={sha=>open({kind:'tool-confirm',id:'update',title:'安装更新？',keys:['install'],
@@ -1040,14 +1147,6 @@ export function App(){
         <p className="confirmation-media-name">{removeMedia.name}</p>
         <p>{builtin?'只从当前素材库移除，可恢复。正在使用时会改用其他图片；没有图片时使用备用背景。'
           :'删除后无法恢复。若正在使用该素材，桌面或屏保会自动切换。'}</p>{detail}
-      </ConfirmDialog>;
-    }
-    if(item.kind==='parent-confirm'&&parentConfirmation){
-      const authorized=!!client.frame?.domains.parent?.authorized;
-      const valid=parentConfirmation.valid?.()??true;
-      return <ConfirmDialog title={item.title} busy={busy} disabled={blocked||!authorized||!valid} destructive={false} confirmLabel="确认" busyLabel="正在提交…" onCancel={back}
-        onConfirm={async()=>{if(canWrite&&authorized&&(parentConfirmation.valid?.()??true)&&await parentConfirmation.run()!==false)returnToPage();}}>
-        {(!valid||!authorized)&&<p>电视状态或家长授权已变化，请返回核对。</p>}{detail}
       </ConfirmDialog>;
     }
     if(item.kind==='quick-reset')return <ConfirmDialog title={item.title} busy={busy} disabled={blocked} destructive={false}
@@ -1202,11 +1301,11 @@ export function App(){
     {overlay?.kind==='media-rename'&&<MediaRename key={overlay.id} client={client} id={overlay.id!} drafts={forms.current} onCancel={back} onSaved={back}/>}
     {overlay?.kind==='app-rename'&&<AppRename key={overlay.id} client={client} id={overlay.id!} drafts={forms.current} onCancel={back} onSaved={back}/>}
     {overlay&&confirmViews.has(overlay.kind)&&confirmation(overlay)}
-    {overlay&&(shortForms.has(overlay.kind)||overlay.kind==='parent'&&overlay.id==='verify')&&
+    {overlay&&(shortForms.has(overlay.kind)||overlay.kind==='parent'&&['verify','startManagement'].includes(overlay.id||''))&&
       <FormDialog key={viewKey(overlay)} title={overlay.title} onClose={back} busy={busy}>
         <fieldset className="connection-controls" disabled={ended||client.restoring}>{sheet(overlay)}</fieldset>{viewFeedback(overlay)}
       </FormDialog>}
-    {overlay&&overlay.kind!=='app-rename'&&overlay.kind!=='media-rename'&&!confirmViews.has(overlay.kind)&&!shortForms.has(overlay.kind)&&!(overlay.kind==='parent'&&overlay.id==='verify')&&
+    {overlay&&overlay.kind!=='app-rename'&&overlay.kind!=='media-rename'&&!confirmViews.has(overlay.kind)&&!shortForms.has(overlay.kind)&&!(overlay.kind==='parent'&&['verify','startManagement'].includes(overlay.id||''))&&
       <Sheet title={viewTitle(overlay)} nested={trail.length>1} closing={closing} pageKey={viewKey(overlay)} direction={sheetDirection.current}
         onBack={back} onClose={close} onExited={finishClose}
         className={overlay.kind==='movie-wall-provider'?'movie-wall-provider-sheet':undefined}

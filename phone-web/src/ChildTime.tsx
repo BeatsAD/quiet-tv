@@ -22,39 +22,38 @@ export function ChildTime({draft, change, current, blocked, authorized, save, ca
 }) {
   const {base, mode, hours, minutes, repeatDays} = draft;
   const total = Number(hours) * 60 + Number(minutes);
+  const readOnly = blocked || !authorized;
   const validTime = /^\d+$/.test(hours) && /^\d+$/.test(minutes) && Number(minutes) < 60 && total >= 1 && total <= 1440;
   const conflict = current.mode !== base.mode || current.minutes !== base.minutes || current.repeatDays !== base.repeatDays;
   return <form onSubmit={event => {
     event.preventDefault();
-    if (blocked || conflict || (mode > 0 && !validTime)) return;
+    if (readOnly || conflict || (mode > 0 && !validTime)) return;
     save({mode, minutes: validTime ? total : base.minutes, repeatDays});
   }}>
-    <Group><ChoiceField title="使用方式" options={modes} value={mode} disabled={blocked}
+    <Group><ChoiceField title="使用方式" options={modes} value={mode} disabled={readOnly}
       onChange={value => change({...draft, mode: Number(value)})}/></Group>
     {mode > 0 && <Group>
       <div className="inline-number-form">
         <label>小时<input type="number" inputMode="numeric" min={0} max={24} step={1} required value={hours}
-          disabled={blocked} onChange={event => change({...draft, hours: event.target.value})}/></label>
+          disabled={readOnly} onChange={event => change({...draft, hours: event.target.value})}/></label>
         <label>分钟<input type="number" inputMode="numeric" min={0} max={59} step={1} required value={minutes}
-          disabled={blocked} onChange={event => change({...draft, minutes: event.target.value})}/></label>
+          disabled={readOnly} onChange={event => change({...draft, minutes: event.target.value})}/></label>
       </div>
       {!validTime && <p className="section-note">使用时长需在 1 分钟至 24 小时之间。</p>}
     </Group>}
     {mode === 2 && <Group>
-      <ChoiceField title="常用重复日期" options={schedules} value={repeatDays} disabled={blocked}
+      <ChoiceField title="常用重复日期" options={schedules} value={repeatDays} disabled={readOnly}
         onChange={value => change({...draft, repeatDays: Number(value)})}/>
       <ChoiceField title="重复日期" options={weekdays} value={weekdays.filter(day => repeatDays & day.value).map(day => day.value)}
-        multiple disabled={blocked} hint="至少选择一天" onChange={value => {
+        multiple disabled={readOnly} hint="至少选择一天" onChange={value => {
           const days = repeatDays ^ Number(value);
           if (days) change({...draft, repeatDays: days});
         }}/>
     </Group>}
     {conflict && <p className="form-error" role="alert">电视上的规则已变化。请取消后重新打开，读取当前规则。</p>}
     <div className="confirmation-dialog-actions">
-      <button type="button" disabled={blocked} onClick={cancel}>取消</button>
-      <button className="confirm-button" disabled={blocked || conflict || (mode > 0 && !validTime)}>
-        {authorized ? '保存' : '验证家长密码'}
-      </button>
+      <button type="button" disabled={blocked && authorized} onClick={cancel}>{authorized?'取消':'关闭'}</button>
+      {authorized&&<button className="confirm-button" disabled={readOnly || conflict || (mode > 0 && !validTime)}>保存</button>}
     </div>
   </form>;
 }
