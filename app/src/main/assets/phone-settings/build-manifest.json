@@ -14,7 +14,7 @@
     "src/AdbManagement.css": "de349e7a1dbc504d027a34c39adf1590bee35c79c8e19019c35d86226c52dd43",
     "src/AdbManagement.tsx": "951a56b39d84d342f39804d81b709634397d6c6f7023b65eda071e47fe305dad",
     "src/AnalogClock.tsx": "e87eaa7f7a4c00073b817750ecdc5b5915c69d223b9253837a80fad3104a8468",
-    "src/App.tsx": "fb2996461bd461d225d21c6d557d58fd73eb47541363ed0a5de657bd21d9bacc",
+    "src/App.tsx": "b4708754a2b48e83419fabcd3255262975cd465d068795ffdc19d17052008ba1",
     "src/AppActionConfirmation.tsx": "35632d4c91f509c8bbea1bfc0ed22ccf07ac0305c4325b23c637b2ec74bac4e4",
     "src/AppFilterMenu.tsx": "4280fb5c5156406848f50c106f0b2a8c46423c9b9fbc30eb2fc3da8cd9032e50",
     "src/AppRename.tsx": "de211e322daf5334b3edd954b6a2417313f461a5e724c5d3321a19fccc1431c6",
@@ -38,7 +38,7 @@
     "src/ManagedAppDetail.tsx": "420eaf435f8ae8aa9ad64b826489850e7d2293d26b9d7000bc021b3fd94bc794",
     "src/ManagedAppList.tsx": "298e4b5831515173d0b9749a353947210d72db1c9bc3eb843d1e9530101fc5ee",
     "src/MediaRename.tsx": "1322fb5e6980c1cb98b197a6a789489dcecd93f0e87fd87630fa994a1b2f3800",
-    "src/MovieWallSettings.tsx": "1be17ec83bc3e2a8b45524fa359e769520acd0082b970a74694f4c0d1429a5c5",
+    "src/MovieWallSettings.tsx": "663925215fb5340ee7e05db1a017b6eea1543cbbce9064d9335e66097f7d7111",
     "src/OperationFeedback.tsx": "e02496ba10722e6cf83223c1a29b795a1535f436a9197701edbfe6c7f7230175",
     "src/QuickPreview.tsx": "8f6249cf1d4e36305a423d9652c981aceaa2824194ca9b2fb5c3e42a3d3636b0",
     "src/QuickSort.tsx": "2d1975e76abcb84ffcc860c86348424a8fa339c1f153eef5fdb9db6fcce7b4ec",
@@ -67,7 +67,7 @@
     "src/preview.tsx": "689e42f9e58e733d411561dcca9aab18c203b899d8e4be551d636e162669a1b9",
     "src/quickRules.ts": "3ebf118f1fc4361265818a2fc4f73e2b24cf05644a7bdcc02fd31b5e241b954a",
     "src/settingsNavigation.ts": "d7b9dbe7faf11fdb4dedd3085a59decef8b045cdd710cc7ebb554a9ffab924a2",
-    "src/styles.css": "d885a2428189bd157d084165d6e91756da51421f9759814470f9f129eadc5e80",
+    "src/styles.css": "833f894410ac440c64375c6c421169039557539a5b773bd4bbb05e1760c52eb5",
     "src/widgets.tsx": "99e0bb9c6eedd4fa4d2a814571c220e847c6db5fac363c8a38ffafab41bd24b7",
     "public/assets/file-folder.svg": "ceee8c7ec763f01505483702abaa19030e10b11d132b72079ec8d8574c8222dc",
     "public/assets/qq-group.webp": "9d31d757ec3ec26b66cf11b8c40903270332bc3a8fca7dccd3c6ec4c1f5a36d9",
@@ -80,7 +80,7 @@
     "public/tmdb.svg": "8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c"
   },
   "assets": {
-    "app.js": "6207bc3c5aa6757c02e0a0f15e5eb11974178ec10b6f83095df89d6610f95a63",
+    "app.js": "c7cf978ffa8466d98d66e710b69b07f62e2a88dd87060a23a468fcf63eac7bb0",
     "assets/file-folder.svg": "ceee8c7ec763f01505483702abaa19030e10b11d132b72079ec8d8574c8222dc",
     "assets/flip_clock.wav": "712c85fe9eddafc4ba9edbc211705bbc4f40f2e8239688b9fac355e3d852e4d0",
     "assets/qq-group.webp": "9d31d757ec3ec26b66cf11b8c40903270332bc3a8fca7dccd3c6ec4c1f5a36d9",
@@ -91,7 +91,7 @@
     "assets/weather-uapi.png": "06a87512e04cb01e98d570b4f95de089bacf0a32f7c785cf0cf9ba9c98084cd4",
     "index.html": "e5776db24d9c32b22e24d79fb0d055defff73904dccda6b78067066275b8d3c6",
     "release-notes.txt": "fb98d302a44af2e10e48ea7a795ebc680befba36d02e0b5f53d352b8f00d8db1",
-    "styles.css": "7f72e9ed60068f43229380946f9faf1134cd5d826b996bfb7ce967560c259ba5",
+    "styles.css": "a603a76b85199a3ce921b2457a29cdbc5656d58b7e00ea9f1f535a292a01e4f9",
     "tmdb.svg": "8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c"
   }
 }

@@ -140,15 +140,24 @@ final class FeiniuMovieWallPanel {
 
         Button cancel = sheet.action(tr("取消", "Cancel"), sheet.dialog::dismiss);
         Button connect = sheet.action(sharedFolder ? tr("同步海报", "Sync posters") : tr("连接", "Connect"), () -> {});
+        long[] syncOperation = {0};
+        if (sharedFolder) {
+            Runnable updateProgress = () -> {
+                if (wall.busy() && wall.operation() == syncOperation[0]) {
+                    showStatus(status, OperationFeedback.Kind.PROGRESS, progressMessage());
+                }
+            };
+            wall.addStatusListener(updateProgress);
+            sheet.dialog.setOnDismissListener(ignored -> wall.removeStatusListener(updateProgress));
+        }
         connect.setOnClickListener(view -> {
-            FeiniuMovieWall.Result complete = () -> {
+            FeiniuMovieWall.Result complete = (result, cachedCount) -> {
                 if (!sheet.dialog.isShowing() || ui.isFinishing() || UiCompat.destroyed(ui)) return;
-                String result = wall.status();
                 if (sharedFolder ? "synced".equals(result) : "connected".equals(result) || "empty-libraries".equals(result)) {
                     sheet.dialog.dismiss();
                     if (sharedFolder) {
                         picker.dialog.dismiss();
-                        ui.success(tr("已同步 ", "Synced ") + wall.ids().size() + tr(" 张海报", " posters"));
+                        ui.success(syncedMessage(cachedCount));
                     } else {
                         if (underlay != picker) underlay.dialog.dismiss();
                         media(picker, provider);
@@ -168,14 +177,14 @@ final class FeiniuMovieWallPanel {
             boolean started = sharedFolder ? wall.syncSmb(target, user, secret, complete)
                     : wall.connect(provider, target, user, secret, complete);
             if (started) {
+                if (sharedFolder) syncOperation[0] = wall.operation();
                 password.setText("");
                 sheet.box.setEnabled(false);
                 sheet.dialog.setCancelable(false);
                 for (EditText field : fields) field.setEnabled(false);
                 cancel.setEnabled(false);
                 connect.setEnabled(false);
-                showStatus(status, OperationFeedback.Kind.PROGRESS, sharedFolder
-                        ? tr("正在同步海报…", "Syncing posters…") : tr("正在连接…", "Connecting…"));
+                showStatus(status, OperationFeedback.Kind.PROGRESS, progressMessage());
             } else {
                 showStatus(status, OperationFeedback.Kind.ERROR, sharedFolder || wall.busy()
                         ? tr("当前无法同步，请稍后重试", "Sync unavailable. Try again shortly.")
@@ -210,6 +219,7 @@ final class FeiniuMovieWallPanel {
     }
 
     String summary() {
+        if (wall.busy()) return progressMessage();
         String status = wall.status();
         if (!status.isEmpty() && !"connected".equals(status) && !"synced".equals(status)) return message(status);
         if (!wall.connected()) return tr("选择来源", "Choose a source");
@@ -217,9 +227,22 @@ final class FeiniuMovieWallPanel {
         return wall.ids().size() + tr(" 张海报", " posters");
     }
 
-    private void report() {
-        String status = wall.status();
-        if (!"synced".equals(status)) ui.error(message(status));
+    private void report(String status, int cachedCount) {
+        if ("synced".equals(status)) ui.success(syncedMessage(cachedCount));
+        else ui.error(message(status));
+    }
+
+    private String syncedMessage(int cachedCount) {
+        return tr("已同步 ", "Synced ") + cachedCount + tr(" 张海报", " posters");
+    }
+
+    private String progressMessage() {
+        FeiniuMovieWall.SyncProgress progress = wall.syncProgress();
+        if (progress == null) return tr("正在连接", "Connecting");
+        if (progress.total == 0) return SMB.equals(progress.library)
+                ? tr("正在扫描共享文件夹", "Scanning shared folder")
+                : tr("正在读取片库", "Reading library");
+        return tr("正在缓存海报", "Caching posters") + "  " + progress.processed + "/" + progress.total;
     }
 
     private String message(String status) {

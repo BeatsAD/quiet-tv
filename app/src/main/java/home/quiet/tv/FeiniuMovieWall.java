@@ -6,6 +6,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import androidx.core.util.AtomicFile;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -47,7 +48,22 @@ final class FeiniuMovieWall {
     }
 
     interface Result {
-        void done();
+        void done(String status, int cachedCount);
+    }
+
+    static final class SyncProgress {
+        final String library;
+        final int processed, total;
+
+        SyncProgress(String library, int processed, int total) {
+            this.library = library;
+            this.processed = processed;
+            this.total = total;
+        }
+
+        JSONObject state() throws JSONException {
+            return new JSONObject().put("library", library).put("processed", processed).put("total", total);
+        }
     }
 
     private final Context context;
@@ -57,12 +73,14 @@ final class FeiniuMovieWall {
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private final List<Runnable> listeners = new ArrayList<>();
+    private final List<Runnable> statusListeners = new ArrayList<>();
     private volatile List<FeiniuMediaClient.Item> libraries = Collections.emptyList();
     private volatile List<String> ids = Collections.emptyList();
     private volatile String library = "", source = "", revision = "", status = "";
     private volatile boolean busy;
     private volatile long operation;
     private volatile String operationProvider = "";
+    private volatile SyncProgress syncProgress;
     private volatile boolean smbActive;
     private volatile SmbCache smb;
     private volatile String smbPassword;
@@ -91,12 +109,15 @@ final class FeiniuMovieWall {
     boolean busy() { return busy; }
     long operation() { return operation; }
     String status() { return status; }
+    SyncProgress syncProgress() { return syncProgress; }
     String feiniuLibrary() { return library; }
     List<FeiniuMediaClient.Item> libraries() { return libraries; }
     List<String> ids() { return smbActive ? smb.posters.ids : ids; }
     String revision() { return smbActive ? smb.posters.revision : revision; }
     void addListener(Runnable listener) { listeners.add(listener); }
     void removeListener(Runnable listener) { listeners.remove(listener); }
+    void addStatusListener(Runnable listener) { statusListeners.add(listener); }
+    void removeStatusListener(Runnable listener) { statusListeners.remove(listener); }
 
     JSONObject state() throws JSONException {
         JSONArray mediaLibraries = new JSONArray();
@@ -111,12 +132,14 @@ final class FeiniuMovieWall {
                 .put(MEDIA, mediaSource(MEDIA.equals(mediaProvider), mediaLibraries))
                 .put(PLEX, mediaSource(PLEX.equals(mediaProvider), mediaLibraries))
                 .put(SMB, new JSONObject().put("address", smbAddress()).put("username", smbName()).put("canSync", smbCanSync()));
+        SyncProgress progress = syncProgress;
         return new JSONObject().put("connected", sharedFolder || feiniuConnected()).put("busy", busy).put("status", status)
                 .put("provider", sharedFolder ? SMB : mediaProvider).put("canSync", !sharedFolder || smbCanSync())
                 .put("library", sharedFolder ? SMB : library).put("libraries", choices)
                 .put("ids", new JSONArray(sharedFolder ? cache.posters.ids : ids))
                 .put("revision", sharedFolder ? cache.posters.revision : revision)
-                .put("sources", sources).put("operation", operation).put("operationProvider", operationProvider);
+                .put("sources", sources).put("operation", operation).put("operationProvider", operationProvider)
+                .put("syncProgress", progress == null ? JSONObject.NULL : progress.state());
     }
 
     private JSONObject mediaSource(boolean selected, JSONArray mediaLibraries) throws JSONException {
@@ -158,7 +181,7 @@ final class FeiniuMovieWall {
             libraries = Collections.unmodifiableList(available);
             restoreIndex();
             status = available.isEmpty() ? "empty-libraries" : "connected";
-        }, result, provider);
+        }, result, provider, null);
         return true;
     }
 
@@ -184,7 +207,7 @@ final class FeiniuMovieWall {
             FeiniuMediaClient.Session session = new FeiniuMediaClient.Session(
                     prefs.getString("token", ""), prefs.getString("user", ""));
             sync(client, session, id);
-        }, result, provider);
+        }, result, provider, id);
         return true;
     }
 
@@ -214,7 +237,7 @@ final class FeiniuMovieWall {
             smbPassword = secret;
             smbActive = true;
             status = "synced";
-        }, result, SMB);
+        }, result, SMB, SMB);
         return true;
     }
 
@@ -250,9 +273,15 @@ final class FeiniuMovieWall {
 
     private interface ReadImage { byte[] read(String id) throws IOException; }
 
-    private static CachedPosters writeCache(AtomicFile destination, JSONObject index, Set<String> candidates,
-                                            ReadImage image) throws IOException {
+    private CachedPosters writeCache(AtomicFile destination, JSONObject index, Set<String> candidates,
+                                     ReadImage image) throws IOException {
         if (candidates.isEmpty()) return null;
+        String syncingLibrary = syncProgress.library;
+        int total = candidates.size();
+        int processed = 0;
+        syncProgress = new SyncProgress(syncingLibrary, processed, total);
+        main.post(this::notifyStatus);
+        long lastNotice = SystemClock.elapsedRealtime();
         FileOutputStream output = destination.startWrite();
         List<String> downloaded = new ArrayList<>();
         String nextRevision = UUID.randomUUID().toString();
@@ -264,11 +293,19 @@ final class FeiniuMovieWall {
                 for (String id : candidates) {
                     if (downloaded.size() >= MAX_POSTERS) break;
                     byte[] poster = jpeg(image.read(id));
-                    if (poster == null) continue;
-                    if (totalBytes + poster.length > MAX_CACHE_BYTES) break;
-                    put(zip, id + ".jpg", poster);
-                    downloaded.add(id);
-                    totalBytes += poster.length;
+                    if (poster != null) {
+                        if (totalBytes + poster.length > MAX_CACHE_BYTES) break;
+                        put(zip, id + ".jpg", poster);
+                        downloaded.add(id);
+                        totalBytes += poster.length;
+                    }
+                    syncProgress = new SyncProgress(syncingLibrary, ++processed, total);
+                    // The phone polls the latest count. Limit updates to native settings views.
+                    long now = SystemClock.elapsedRealtime();
+                    if (now - lastNotice >= 250) {
+                        lastNotice = now;
+                        main.post(this::notifyStatus);
+                    }
                 }
                 put(zip, INDEX, index.put("revision", nextRevision).put("ids", new JSONArray(downloaded)).toString().getBytes(UTF8));
             }
@@ -294,12 +331,13 @@ final class FeiniuMovieWall {
 
     private interface Task { void run() throws IOException, JSONException; }
 
-    private void start(Task task, Result result, String provider) {
+    private void start(Task task, Result result, String provider, String syncingLibrary) {
         boolean sharedFolder = SMB.equals(provider);
-        busy = true;
         status = "working";
         operation++;
         operationProvider = provider;
+        syncProgress = syncingLibrary == null ? null : new SyncProgress(syncingLibrary, 0, 0);
+        busy = true;
         publish();
         worker.execute(() -> {
             try {
@@ -311,18 +349,29 @@ final class FeiniuMovieWall {
             } catch (IOException | JSONException | RuntimeException error) {
                 status = sharedFolder ? "smb-failed" : "failed";
             } finally {
-                busy = false;
-                publish();
-                if (result != null) main.post(result::done);
+                synchronized (this) {
+                    busy = false;
+                    publish();
+                    if (result != null) {
+                        String completedStatus = status;
+                        int cachedCount = ids().size();
+                        main.post(() -> result.done(completedStatus, cachedCount));
+                    }
+                }
             }
         });
     }
 
     private void publish() {
         main.post(() -> {
+            notifyStatus();
             for (Runnable listener : new ArrayList<>(listeners)) listener.run();
             PhoneSettingsSession.get(context).configurationChanged();
         });
+    }
+
+    private void notifyStatus() {
+        for (Runnable listener : new ArrayList<>(statusListeners)) listener.run();
     }
 
     private List<FeiniuMediaClient.Item> readLibraries() {
